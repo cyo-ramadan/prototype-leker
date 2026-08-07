@@ -2,6 +2,7 @@ const state = { orders: [] };
 const el = id => document.getElementById(id);
 const rupiah = n => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
 const escapeHtml = (str='') => String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+const ORDER_POLL_INTERVAL_MS = 5000;
 
 async function init() {
   await loadOrders();
@@ -13,12 +14,21 @@ async function init() {
 }
 
 async function loadOrders() {
-  state.orders = await fetch('/api/orders').then(r => r.json());
+  const res = await fetch('/api/orders');
+  if (!res.ok) throw new Error(`Gagal memuat order (${res.status})`);
+  state.orders = await res.json();
   render();
 }
 
 function startOrderPolling() {
-  setInterval(() => loadOrders().catch(() => {}), 1500);
+  setInterval(() => {
+    if (document.hidden) return;
+    loadOrders().catch(() => {});
+  }, ORDER_POLL_INTERVAL_MS);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadOrders().catch(() => {});
+  });
 }
 
 function upsert(order) {
@@ -69,7 +79,12 @@ function renderGroup(orders, status) {
 
 async function updateStatus(id, status) {
   const res = await fetch(`/api/orders/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-  if (!res.ok) alert('Gagal update status');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || 'Gagal update status');
+    return;
+  }
+  upsert(data);
 }
 
 function formatTime(iso) {

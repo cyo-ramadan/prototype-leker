@@ -30,6 +30,8 @@ Environment prototype dipisahkan dari environment resmi MAXI:
 
 Database resmi `maxi-db` di account **Dwicahya** tidak digunakan oleh prototype ini.
 
+Static UI menggunakan Cloudflare Static Assets secara asset-first. Worker script dijalankan lebih dulu hanya untuk `/api/*`, sehingga request HTML/CSS/JS tidak menghabiskan Workers Free request quota. Customer dan cashier polling setiap 5 detik dan berhenti ketika tab tidak visible.
+
 ## Database schema
 
 Migration `migrations/0001_leker_order_schema.sql` membuat dan mengindeks:
@@ -60,9 +62,11 @@ Cloudflare Workers Builds production configuration:
 
 - Repository: `cyo-ramadan/prototype-leker`
 - Production branch: `main`
-- Build command: `None`
+- Build command: **leave completely blank**
 - Deploy command: `npm run deploy`
 - Root directory: `/`
+
+Jangan isi Build command dengan teks `None` atau `none`. Jika project tidak mempunyai build step, field harus kosong.
 
 Dengan konfigurasi tersebut, unapplied D1 migrations dijalankan sebelum Worker `prototype-leker-v2` diperbarui.
 
@@ -75,6 +79,10 @@ Dengan konfigurasi tersebut, unapplied D1 migrations dijalankan sebelum Worker `
 - `PATCH /api/orders/:id/status`
 - `POST /api/reset` (prototype/test only)
 
+## Workers Free quota note
+
+Workers Free memiliki quota harian untuk Worker invocations. Static asset request tidak perlu memanggil Worker. Karena itu `assets.run_worker_first` hanya diarahkan ke `/api/*`, dan polling UI tidak boleh agresif. Jika Cloudflare mengembalikan Error 1027 / HTTP 429, tunggu quota harian reset atau gunakan plan yang sesuai; jangan menganggap pesan "temporarily rate limited" sebagai status temporary account.
+
 ## DOC-IMPACT
 
-**REQUIRED** — Worker permanen diarahkan ke `prototype-leker-v2`, Workers Builds memakai deploy command `npm run deploy`, environment prototype tetap di Daily Napkin, D1 binding tetap ke `prototype-leker-db`, dan deployment flow menjalankan migration sebelum Worker deploy.
+**REQUIRED** — Worker permanen tetap `prototype-leker-v2`, environment prototype tetap di Daily Napkin, D1 binding tetap ke `prototype-leker-db`, static assets dipisahkan dari Worker invocation, polling dikurangi untuk menjaga quota, dan deployment flow tetap menjalankan migration sebelum Worker deploy.

@@ -1,5 +1,6 @@
 const rupiah = n => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
 const state = { menu: [], cart: [], category: 'Semua', activeOrder: null };
+const ORDER_POLL_INTERVAL_MS = 5000;
 
 const el = id => document.getElementById(id);
 
@@ -166,19 +167,24 @@ function resetKiosk() {
   renderCart();
 }
 
+async function refreshActiveOrder() {
+  if (!state.activeOrder || document.hidden) return;
+  try {
+    const res = await fetch(`/api/orders/${state.activeOrder.id}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const order = await res.json();
+    if (order.updatedAt !== state.activeOrder.updatedAt || order.status !== state.activeOrder.status) {
+      state.activeOrder = order;
+      showStatus(order);
+    }
+  } catch {}
+}
+
 function startOrderPolling() {
-  setInterval(async () => {
-    if (!state.activeOrder) return;
-    try {
-      const res = await fetch(`/api/orders/${state.activeOrder.id}`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const order = await res.json();
-      if (order.updatedAt !== state.activeOrder.updatedAt || order.status !== state.activeOrder.status) {
-        state.activeOrder = order;
-        showStatus(order);
-      }
-    } catch {}
-  }, 1500);
+  setInterval(refreshActiveOrder, ORDER_POLL_INTERVAL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshActiveOrder();
+  });
 }
 
 function escapeHtml(str='') {

@@ -13,7 +13,7 @@
     <span class="pill">No Payment · Prototype</span>
   </header>
 
-  <main id="shopView" class="layout">
+  <main id="shopView" class="layout customer-layout">
     <section>
       <div class="hero">
         <h1>Pilih leker.<br>Tap, order, beres.</h1>
@@ -22,28 +22,42 @@
       <div id="categoryRow" class="category-row"></div>
       <div id="menuGrid" class="menu-grid"></div>
     </section>
-
-    <aside class="cart-panel">
-      <h2>Pesanan kamu</h2>
-      <div class="muted">Tambahkan note per item kalau ada request khusus.</div>
-      <div id="cartList" class="cart-list"></div>
-
-      <div class="field">
-        <label>Nama customer</label>
-        <input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" />
-      </div>
-      <div class="field">
-        <label>Booth / kode kiosk</label>
-        <input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" />
-      </div>
-      <div class="field">
-        <label>Catatan umum</label>
-        <textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea>
-      </div>
-      <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
-      <button id="checkoutBtn" class="primary-btn" disabled>OK, kirim ke kasir</button>
-    </aside>
   </main>
+
+  <button id="cartHandle" class="cart-handle" type="button" aria-controls="cartDrawer" aria-expanded="false" aria-label="Buka pesanan">
+    <span class="cart-handle-icon" aria-hidden="true">🛒</span>
+    <span id="cartHandleCount" class="cart-handle-count">0</span>
+  </button>
+
+  <div id="cartBackdrop" class="cart-backdrop" aria-hidden="true"></div>
+
+  <aside id="cartDrawer" class="cart-panel cart-drawer" aria-hidden="true" aria-label="Pesanan kamu">
+    <div class="cart-drawer-head">
+      <div>
+        <div class="cart-kicker">Review order</div>
+        <h2>Pesanan kamu</h2>
+      </div>
+      <button id="cartCloseBtn" class="cart-close-btn" type="button" aria-label="Tutup pesanan">×</button>
+    </div>
+    <div class="muted">Edit jumlah atau note di sini. Menu di belakang tetap di posisi terakhir.</div>
+    <div id="cartList" class="cart-list"></div>
+
+    <div class="field">
+      <label>Nama customer</label>
+      <input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" />
+    </div>
+    <div class="field">
+      <label>Booth / kode kiosk</label>
+      <input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" />
+    </div>
+    <div class="field">
+      <label>Catatan umum</label>
+      <textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea>
+    </div>
+    <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
+    <div class="checkout-note">Payment belum aktif di prototype. Order akan langsung dikirim ke kasir.</div>
+    <button id="checkoutBtn" class="primary-btn" disabled>FIX PESANAN · KIRIM KE KASIR</button>
+  </aside>
 
   <section id="statusView" class="order-screen hidden">
     <div id="statusCard" class="status-card">

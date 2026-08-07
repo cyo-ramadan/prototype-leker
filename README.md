@@ -7,16 +7,19 @@ Prototype self-ordering kiosk untuk produk leker. Customer memilih menu di UI ki
 - `/customer` — self-order UI customer
 - `/cashier` — dashboard kasir
 
+Customer UI menggunakan side cart drawer: menu tetap berada di posisi scroll terakhir, handle keranjang kecil di sisi kanan menampilkan total quantity, dan tap atau swipe dari tepi kanan membuka review order. Item yang sudah dipilih juga menampilkan quantity stepper langsung pada menu card.
+
 ## Prototype scope
 
 - 20 varian leker + harga
+- Side cart drawer + quantity indicator pada menu card
 - Cart, quantity, item note, general note
 - Nomor pesanan harian otomatis
 - Shared multi-device order state via Cloudflare D1
 - Customer status polling sampai READY
 - Green READY notification/button
 - Cashier queue dan status update
-- No payment yet
+- No payment yet; CTA customer mengirim order langsung ke kasir
 
 ## Runtime architecture
 
@@ -87,4 +90,4 @@ Workers Free memiliki quota harian untuk Worker invocations. Static asset reques
 
 ## DOC-IMPACT
 
-**REQUIRED** — Worker permanen tetap `prototype-leker-v2`, environment prototype tetap di Daily Napkin, D1 binding tetap ke `prototype-leker-db`, static assets dipisahkan dari Worker invocation, polling dikurangi untuk menjaga quota, customer memiliki static menu fallback untuk menjaga UX tetap bisa diuji saat API terbatas, dan deployment flow tetap menjalankan migration sebelum Worker deploy.
+**REQUIRED** — Customer ordering UX memakai side cart drawer dengan persistent edge handle, quantity indicator pada menu card, tap/swipe open-close behavior, dan CTA `FIX PESANAN · KIRIM KE KASIR`. Payment engine tetap di luar scope. Worker, D1 binding, API contract, order statuses, menu fallback, quota-safe static routing, dan deployment flow tidak berubah.

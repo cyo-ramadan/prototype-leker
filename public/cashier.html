@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prototype Leker · Kasir</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">K</div><div>MAXI LEKER<small>Cashier Command Center</small></div></div>
+    <div style="display:flex;gap:8px"><a class="pill" href="/customer" style="text-decoration:none;color:inherit">Buka Kiosk</a><button id="resetBtn" class="danger-btn">Reset test data</button></div>
+  </header>
+
+  <main class="cashier-wrap">
+    <div class="cashier-header">
+      <div><div class="muted">Realtime order queue</div><h1>Kasir Dashboard</h1></div>
+      <div class="stats">
+        <div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div>
+        <div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div>
+        <div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div>
+      </div>
+    </div>
+
+    <section class="columns">
+      <div class="column"><div class="column-title"><h2>🧾 Pesanan Baru</h2><span id="badgeNew" class="badge">0</span></div><div id="colNew"></div></div>
+      <div class="column"><div class="column-title"><h2>🥞 Sedang Dibuat</h2><span id="badgePrep" class="badge">0</span></div><div id="colPrep"></div></div>
+      <div class="column"><div class="column-title"><h2>✅ Siap Diambil</h2><span id="badgeReady" class="badge">0</span></div><div id="colReady"></div></div>
+    </section>
+
+    <section class="done-list">
+      <h2>Riwayat selesai</h2>
+      <div id="doneList"></div>
+    </section>
+  </main>
+</div>
+<script src="/cashier.js"></script>
+</body>
+</html>

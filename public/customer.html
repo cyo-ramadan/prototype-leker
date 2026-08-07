@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MAXI Prototype Leker</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">L</div><div>MAXI LEKER<small>Self Order Kiosk</small></div></div>
+    <span class="pill">No Payment · Prototype</span>
+  </header>
+
+  <main id="shopView" class="layout">
+    <section>
+      <div class="hero">
+        <h1>Pilih leker.<br>Tap, order, beres.</h1>
+        <p>Pesanan langsung masuk ke kasir. Setelah siap, layar ini berubah hijau supaya customer tinggal meluncur ke counter.</p>
+      </div>
+      <div id="categoryRow" class="category-row"></div>
+      <div id="menuGrid" class="menu-grid"></div>
+    </section>
+
+    <aside class="cart-panel">
+      <h2>Pesanan kamu</h2>
+      <div class="muted">Tambahkan note per item kalau ada request khusus.</div>
+      <div id="cartList" class="cart-list"></div>
+
+      <div class="field">
+        <label>Nama customer</label>
+        <input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" />
+      </div>
+      <div class="field">
+        <label>Booth / kode kiosk</label>
+        <input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" />
+      </div>
+      <div class="field">
+        <label>Catatan umum</label>
+        <textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea>
+      </div>
+      <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
+      <button id="checkoutBtn" class="primary-btn" disabled>OK, kirim ke kasir</button>
+    </aside>
+  </main>
+
+  <section id="statusView" class="order-screen hidden">
+    <div id="statusCard" class="status-card">
+      <div id="statusIcon" class="status-icon">🧾</div>
+      <div class="muted">Nomor pesanan</div>
+      <div id="statusOrderNo" class="order-no">LKR-000</div>
+      <h1 id="statusTitle">Pesanan diterima</h1>
+      <p id="statusText" class="muted">Kasir sudah menerima order kamu.</p>
+      <div class="progress">
+        <div id="stepNew" class="progress-step active">1. Diterima</div>
+        <div id="stepPrep" class="progress-step">2. Dibuat</div>
+        <div id="stepReady" class="progress-step">3. Siap</div>
+      </div>
+      <button id="readyButton" class="ready-action hidden">✅ PESANAN SIAP · AMBIL DI KASIR</button>
+      <button id="newOrderBtn" class="secondary-btn hidden" style="margin-top:12px">Buat pesanan baru</button>
+    </div>
+  </section>
+</div>
+<script src="/customer.js"></script>
+</body>
+</html>

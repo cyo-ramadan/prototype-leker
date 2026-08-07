@@ -1,0 +1,78 @@
+.admin-auth-card {
+  width: min(760px, 100%);
+  margin: 18px auto 20px;
+}
+
+.admin-locked {
+  position: relative;
+}
+
+.admin-locked-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #efd5c5;
+  border-radius: 16px;
+  background: #fff7f1;
+  color: var(--brand-2);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+}
+
+.admin-quick-action {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink);
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-quick-action.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: white;
+}
+
+.admin-locked .admin-section {
+  opacity: .58;
+  filter: saturate(.82);
+}
+
+.admin-locked .admin-section input:disabled,
+.admin-locked .admin-section select:disabled,
+.admin-locked .admin-section textarea:disabled,
+.admin-locked .admin-section button:disabled {
+  cursor: not-allowed;
+}
+
+.admin-locked .admin-section .primary-btn:disabled {
+  opacity: .72;
+}
+
+.admin-preview-empty {
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 12px;
+}
+
+@media (max-width: 620px) {
+  .admin-auth-card { margin-top: 8px; }
+  .admin-locked-banner { align-items: flex-start; flex-direction: column; }
+  .admin-quick-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .admin-quick-action { width: 100%; }
+}

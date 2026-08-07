@@ -1,0 +1,22 @@
+[
+  {"id":1,"name":"Leker Cokelat","price":8000,"category":"Classic","emoji":"🍫"},
+  {"id":2,"name":"Leker Keju","price":9000,"category":"Classic","emoji":"🧀"},
+  {"id":3,"name":"Leker Cokelat Keju","price":11000,"category":"Classic","emoji":"🍫"},
+  {"id":4,"name":"Leker Pisang Cokelat","price":11000,"category":"Classic","emoji":"🍌"},
+  {"id":5,"name":"Leker Pisang Keju","price":12000,"category":"Classic","emoji":"🍌"},
+  {"id":6,"name":"Leker Pisang Cokelat Keju","price":14000,"category":"Premium","emoji":"🍌"},
+  {"id":7,"name":"Leker Oreo","price":11000,"category":"Premium","emoji":"🍪"},
+  {"id":8,"name":"Leker Oreo Keju","price":13000,"category":"Premium","emoji":"🍪"},
+  {"id":9,"name":"Leker Milo","price":10000,"category":"Premium","emoji":"🥛"},
+  {"id":10,"name":"Leker Milo Keju","price":12000,"category":"Premium","emoji":"🥛"},
+  {"id":11,"name":"Leker Tiramisu","price":12000,"category":"Premium","emoji":"☕"},
+  {"id":12,"name":"Leker Matcha","price":12000,"category":"Premium","emoji":"🍵"},
+  {"id":13,"name":"Leker Strawberry","price":10000,"category":"Fruity","emoji":"🍓"},
+  {"id":14,"name":"Leker Blueberry","price":10000,"category":"Fruity","emoji":"🫐"},
+  {"id":15,"name":"Leker Kacang Cokelat","price":11000,"category":"Classic","emoji":"🥜"},
+  {"id":16,"name":"Leker Jagung Keju","price":12000,"category":"Savory","emoji":"🌽"},
+  {"id":17,"name":"Leker Sosis","price":12000,"category":"Savory","emoji":"🌭"},
+  {"id":18,"name":"Leker Sosis Keju","price":14000,"category":"Savory","emoji":"🌭"},
+  {"id":19,"name":"Leker Telur Mayo","price":13000,"category":"Savory","emoji":"🥚"},
+  {"id":20,"name":"Leker Special Maxi","price":15000,"category":"Signature","emoji":"👑"}
+]

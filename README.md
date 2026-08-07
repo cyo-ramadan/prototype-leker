@@ -32,6 +32,8 @@ Database resmi `maxi-db` di account **Dwicahya** tidak digunakan oleh prototype 
 
 Static UI menggunakan Cloudflare Static Assets secara asset-first. Worker script dijalankan lebih dulu hanya untuk `/api/*`, sehingga request HTML/CSS/JS tidak menghabiskan Workers Free request quota. Customer dan cashier polling setiap 5 detik dan berhenti ketika tab tidak visible.
 
+Customer menu normalnya dibaca dari `GET /api/menu`. File static `public/menu.json` menyimpan snapshot 20 produk yang sama sebagai fallback UI ketika API tidak tersedia atau sedang terkena quota limit. Fallback ini hanya menjaga katalog, cart, quantity, note, dan visual customer tetap bisa diuji; order submission dan status lifecycle tetap harus melewati Worker API dan D1.
+
 ## Database schema
 
 Migration `migrations/0001_leker_order_schema.sql` membuat dan mengindeks:
@@ -85,4 +87,4 @@ Workers Free memiliki quota harian untuk Worker invocations. Static asset reques
 
 ## DOC-IMPACT
 
-**REQUIRED** — Worker permanen tetap `prototype-leker-v2`, environment prototype tetap di Daily Napkin, D1 binding tetap ke `prototype-leker-db`, static assets dipisahkan dari Worker invocation, polling dikurangi untuk menjaga quota, dan deployment flow tetap menjalankan migration sebelum Worker deploy.
+**REQUIRED** — Worker permanen tetap `prototype-leker-v2`, environment prototype tetap di Daily Napkin, D1 binding tetap ke `prototype-leker-db`, static assets dipisahkan dari Worker invocation, polling dikurangi untuk menjaga quota, customer memiliki static menu fallback untuk menjaga UX tetap bisa diuji saat API terbatas, dan deployment flow tetap menjalankan migration sebelum Worker deploy.

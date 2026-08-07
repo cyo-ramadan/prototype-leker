@@ -4,8 +4,19 @@ const ORDER_POLL_INTERVAL_MS = 5000;
 
 const el = id => document.getElementById(id);
 
+async function loadMenu() {
+  try {
+    const apiRes = await fetch('/api/menu', { cache: 'no-store' });
+    if (apiRes.ok) return await apiRes.json();
+  } catch {}
+
+  const fallbackRes = await fetch('/menu.json', { cache: 'force-cache' });
+  if (!fallbackRes.ok) throw new Error('Menu belum bisa dimuat.');
+  return fallbackRes.json();
+}
+
 async function init() {
-  state.menu = await fetch('/api/menu').then(r => r.json());
+  state.menu = await loadMenu();
   renderCategories();
   renderMenu();
   renderCart();
@@ -14,13 +25,15 @@ async function init() {
 
   const activeId = localStorage.getItem('lekerActiveOrderId');
   if (activeId) {
-    const res = await fetch(`/api/orders/${activeId}`);
-    if (res.ok) {
-      state.activeOrder = await res.json();
-      showStatus(state.activeOrder);
-    } else {
-      localStorage.removeItem('lekerActiveOrderId');
-    }
+    try {
+      const res = await fetch(`/api/orders/${activeId}`);
+      if (res.ok) {
+        state.activeOrder = await res.json();
+        showStatus(state.activeOrder);
+      } else if (res.status !== 429) {
+        localStorage.removeItem('lekerActiveOrderId');
+      }
+    } catch {}
   }
 }
 
@@ -104,8 +117,12 @@ async function submitOrder() {
       items: state.cart
     };
     const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Gagal mengirim pesanan');
+    const contentType = res.headers.get('content-type') || '';
+    const data = contentType.includes('application/json') ? await res.json() : {};
+    if (!res.ok) {
+      if (res.status === 429) throw new Error('Server order sedang kena limit sementara. Menu dan cart tetap bisa dites, lalu coba kirim lagi setelah quota reset.');
+      throw new Error(data.error || `Gagal mengirim pesanan (${res.status})`);
+    }
     state.activeOrder = data;
     localStorage.setItem('lekerActiveOrderId', data.id);
     showStatus(data);
@@ -191,4 +208,7 @@ function escapeHtml(str='') {
   return str.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 }
 
-init();
+init().catch(err => {
+  console.error('Prototype Leker customer init failed', err);
+  el('menuGrid').innerHTML = `<div class="empty">${escapeHtml(err.message || 'UI gagal dimuat.')}</div>`;
+});

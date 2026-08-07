@@ -1,10 +1,19 @@
 import { listOrders, listProducts, getOrder } from './db.js';
 import { createOrder, changeOrderStatus, resetOrders } from './orders.js';
+import { getPublicStore, handleAdminApi } from './admin.js';
 import { json, readJson } from './http.js';
 
 async function handleApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/menu') {
     return json(await listProducts(env.DB));
+  }
+
+  if (request.method === 'GET' && pathname === '/api/store') {
+    return json(await getPublicStore(env.DB));
+  }
+
+  if (pathname.startsWith('/api/admin/')) {
+    return handleAdminApi(request, env, pathname);
   }
 
   if (request.method === 'GET' && pathname === '/api/orders') {
@@ -46,7 +55,8 @@ async function handleAsset(request, env, pathname) {
   const routes = {
     '/': '/customer.html',
     '/customer': '/customer.html',
-    '/cashier': '/cashier.html'
+    '/cashier': '/cashier.html',
+    '/admin': '/admin.html'
   };
 
   const assetUrl = new URL(request.url);

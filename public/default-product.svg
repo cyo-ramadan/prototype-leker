@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-labelledby="title desc">
+  <title id="title">Default product image</title>
+  <desc id="desc">Illustration of a folded leker for products without a photo.</desc>
+  <rect width="400" height="300" rx="36" fill="#fff1df"/>
+  <circle cx="200" cy="148" r="94" fill="#f7d6ab"/>
+  <path d="M111 170c44-82 132-111 190-47-32 52-101 91-190 47Z" fill="#dc5b2b" opacity=".92"/>
+  <path d="M135 165c38-49 96-68 141-40-30 34-78 57-141 40Z" fill="#fff8ed" opacity=".84"/>
+  <circle cx="168" cy="142" r="10" fill="#7a2f15"/>
+  <circle cx="207" cy="126" r="8" fill="#7a2f15"/>
+  <circle cx="239" cy="145" r="9" fill="#7a2f15"/>
+  <text x="200" y="267" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#7a2f15">MAXI LEKER</text>
+</svg>

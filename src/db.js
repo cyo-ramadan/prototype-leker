@@ -52,7 +52,7 @@ async function loadItemsForOrders(db, orderIds) {
 
 export async function listProducts(db) {
   const result = await db.prepare(`
-    SELECT id, name, price, category, emoji
+    SELECT id, name, price, category, emoji, image_data
     FROM products
     WHERE is_active = 1
     ORDER BY display_order ASC, id ASC
@@ -63,7 +63,8 @@ export async function listProducts(db) {
     name: row.name,
     price: row.price,
     category: row.category,
-    emoji: row.emoji
+    emoji: row.emoji,
+    imageData: row.image_data || ''
   }));
 }
 

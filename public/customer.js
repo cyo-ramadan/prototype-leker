@@ -17,6 +17,18 @@ async function loadMenu() {
   return fallbackRes.json();
 }
 
+async function loadStoreBrand() {
+  try {
+    const response = await fetch('/api/store', { cache: 'no-store' });
+    if (!response.ok) return;
+    const store = await response.json();
+    if (store.storeName) el('storeBrandName').textContent = store.storeName;
+    if (store.logoData) {
+      el('brandMark').innerHTML = `<img src="${escapeHtml(store.logoData)}" alt="Logo ${escapeHtml(store.storeName || 'toko')}" />`;
+    }
+  } catch {}
+}
+
 async function init() {
   state.menu = await loadMenu();
   renderCategories();
@@ -25,6 +37,7 @@ async function init() {
   bindInputs();
   bindCartDrawer();
   startOrderPolling();
+  loadStoreBrand();
 
   const activeId = localStorage.getItem('lekerActiveOrderId');
   if (activeId) {
@@ -42,7 +55,7 @@ async function init() {
 
 function renderCategories() {
   const categories = ['Semua', ...new Set(state.menu.map(m => m.category))];
-  el('categoryRow').innerHTML = categories.map(c => `<button class="category-btn ${c === state.category ? 'active' : ''}" data-cat="${c}">${c}</button>`).join('');
+  el('categoryRow').innerHTML = categories.map(c => `<button class="category-btn ${c === state.category ? 'active' : ''}" data-cat="${c}">${escapeHtml(c)}</button>`).join('');
   document.querySelectorAll('.category-btn').forEach(btn => btn.onclick = () => {
     state.category = btn.dataset.cat;
     renderCategories();
@@ -61,16 +74,17 @@ function renderMenu() {
           <button class="menu-stepper-btn menu-stepper-plus" data-menu-action="plus" data-id="${menu.id}" aria-label="Tambah ${escapeHtml(menu.name)}">+</button>
         </div>`
       : `<button class="add-btn" data-menu-action="add" data-id="${menu.id}" aria-label="Tambah ${escapeHtml(menu.name)}">+</button>`;
+    const imageSource = menu.imageData || '/default-product.svg';
 
     return `
       <article class="menu-card ${cartItem ? 'selected' : ''}">
         <div class="menu-card-top">
-          <div class="menu-emoji">${menu.emoji}</div>
+          <img class="menu-product-image" src="${escapeHtml(imageSource)}" alt="${escapeHtml(menu.name)}" />
           ${cartItem ? `<span class="selected-badge">✓ ${cartItem.qty}</span>` : ''}
         </div>
-        <h3>${menu.name}</h3>
-        <div class="category">${menu.category}</div>
-        <div class="bottom"><span class="price">${rupiah(menu.price)}</span>${control}</div>
+        <h3>${escapeHtml(menu.name)}</h3>
+        <div class="category">${escapeHtml(menu.category)}</div>
+        <div class="bottom"><span class="price">${rupiah(menu.price)}</span><div class="menu-control-slot">${control}</div></div>
       </article>`;
   }).join('');
 
@@ -107,8 +121,9 @@ function renderCart() {
   } else {
     el('cartList').innerHTML = state.cart.map(item => {
       const menu = state.menu.find(menuItem => menuItem.id === item.menuId);
+      if (!menu) return '';
       return `<div class="cart-item">
-        <div class="cart-item-head"><h4>${menu.name}</h4><b>${rupiah(menu.price * item.qty)}</b></div>
+        <div class="cart-item-head"><h4>${escapeHtml(menu.name)}</h4><b>${rupiah(menu.price * item.qty)}</b></div>
         <div class="qty-row"><button class="qty-btn" data-cart-action="minus" data-id="${menu.id}">−</button><b>${item.qty}</b><button class="qty-btn" data-cart-action="plus" data-id="${menu.id}">+</button></div>
         <input class="note-input" data-note-id="${menu.id}" value="${escapeHtml(item.note)}" placeholder="Catatan item, contoh: tipis & crispy" maxlength="120" />
       </div>`;
@@ -126,7 +141,7 @@ function renderCart() {
   const itemCount = state.cart.reduce((sum, item) => sum + item.qty, 0);
   const total = state.cart.reduce((sum, item) => {
     const menu = state.menu.find(menuItem => menuItem.id === item.menuId);
-    return sum + menu.price * item.qty;
+    return menu ? sum + menu.price * item.qty : sum;
   }, 0);
 
   el('cartTotal').textContent = rupiah(total);

@@ -1,0 +1,121 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS olshop_products (
+  productId TEXT PRIMARY KEY NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
+  productName TEXT NOT NULL,
+  categoryName TEXT NOT NULL,
+  barcodeValue TEXT NOT NULL UNIQUE,
+  purchasePriceAmount INTEGER NOT NULL CHECK (purchasePriceAmount >= 0),
+  salePriceAmount INTEGER NOT NULL CHECK (salePriceAmount >= 0),
+  isActive INTEGER NOT NULL DEFAULT 1 CHECK (isActive IN (0,1)),
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS olshop_customers (
+  customerId TEXT PRIMARY KEY NOT NULL,
+  customerName TEXT NOT NULL,
+  phoneNumber TEXT,
+  emailAddress TEXT,
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS olshop_customers_phone_idx
+  ON olshop_customers(phoneNumber)
+  WHERE phoneNumber IS NOT NULL AND phoneNumber <> '';
+
+CREATE TABLE IF NOT EXISTS olshop_orders (
+  orderId TEXT PRIMARY KEY NOT NULL,
+  orderNumber TEXT NOT NULL UNIQUE,
+  orderChannel TEXT NOT NULL CHECK (orderChannel IN ('POS','WEB','SHOPEE','TIKTOK')),
+  orderStatus TEXT NOT NULL CHECK (orderStatus IN ('DRAFT','CONFIRMED','PAID','SHIPPED','COMPLETED','CANCELLED')),
+  customerId TEXT,
+  customerNameSnapshot TEXT NOT NULL,
+  customerPhoneSnapshot TEXT,
+  marketplaceOrderReference TEXT,
+  merchandiseAmount INTEGER NOT NULL CHECK (merchandiseAmount >= 0),
+  discountAmount INTEGER NOT NULL DEFAULT 0 CHECK (discountAmount >= 0),
+  shippingAmount INTEGER NOT NULL DEFAULT 0 CHECK (shippingAmount >= 0),
+  loyaltyRedeemedAmount INTEGER NOT NULL DEFAULT 0 CHECK (loyaltyRedeemedAmount >= 0),
+  totalAmount INTEGER NOT NULL CHECK (totalAmount >= 0),
+  paymentStatus TEXT NOT NULL CHECK (paymentStatus IN ('PENDING','PAID')),
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  shippedAt TEXT,
+  FOREIGN KEY (customerId) REFERENCES olshop_customers(customerId)
+);
+
+CREATE INDEX IF NOT EXISTS olshop_orders_channel_status_idx ON olshop_orders(orderChannel, orderStatus, createdAt);
+CREATE INDEX IF NOT EXISTS olshop_orders_customer_idx ON olshop_orders(customerId, createdAt);
+
+CREATE TABLE IF NOT EXISTS olshop_order_lines (
+  orderLineId TEXT PRIMARY KEY NOT NULL,
+  orderId TEXT NOT NULL,
+  productId TEXT NOT NULL,
+  productNameSnapshot TEXT NOT NULL,
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  unitPriceAmount INTEGER NOT NULL CHECK (unitPriceAmount >= 0),
+  lineAmount INTEGER NOT NULL CHECK (lineAmount >= 0),
+  FOREIGN KEY (orderId) REFERENCES olshop_orders(orderId),
+  FOREIGN KEY (productId) REFERENCES olshop_products(productId)
+);
+
+CREATE TABLE IF NOT EXISTS olshop_marketplace_receivables (
+  receivableId TEXT PRIMARY KEY NOT NULL,
+  orderId TEXT NOT NULL UNIQUE,
+  marketplaceName TEXT NOT NULL CHECK (marketplaceName IN ('SHOPEE','TIKTOK')),
+  grossAmount INTEGER NOT NULL CHECK (grossAmount >= 0),
+  settledAmount INTEGER NOT NULL DEFAULT 0 CHECK (settledAmount >= 0),
+  feeAmount INTEGER NOT NULL DEFAULT 0 CHECK (feeAmount >= 0),
+  otherDeductionAmount INTEGER NOT NULL DEFAULT 0 CHECK (otherDeductionAmount >= 0),
+  receivableStatus TEXT NOT NULL CHECK (receivableStatus IN ('OPEN','SETTLED','DISPUTED')),
+  openedAt TEXT NOT NULL,
+  settledAt TEXT,
+  FOREIGN KEY (orderId) REFERENCES olshop_orders(orderId)
+);
+
+CREATE INDEX IF NOT EXISTS olshop_receivables_status_idx ON olshop_marketplace_receivables(receivableStatus, marketplaceName, openedAt);
+
+CREATE TABLE IF NOT EXISTS olshop_marketplace_settlements (
+  settlementId TEXT PRIMARY KEY NOT NULL,
+  receivableId TEXT NOT NULL,
+  marketplaceName TEXT NOT NULL,
+  payoutReference TEXT,
+  grossAmount INTEGER NOT NULL,
+  feeAmount INTEGER NOT NULL,
+  otherDeductionAmount INTEGER NOT NULL,
+  settledAmount INTEGER NOT NULL,
+  reconciliationDifferenceAmount INTEGER NOT NULL,
+  settledAt TEXT NOT NULL,
+  FOREIGN KEY (receivableId) REFERENCES olshop_marketplace_receivables(receivableId)
+);
+
+CREATE TABLE IF NOT EXISTS olshop_loyalty_ledger (
+  ledgerEntryId TEXT PRIMARY KEY NOT NULL,
+  customerId TEXT NOT NULL,
+  orderId TEXT,
+  entryType TEXT NOT NULL CHECK (entryType IN ('CASHBACK_EARNED','CASHBACK_REDEEMED','ADJUSTMENT')),
+  amount INTEGER NOT NULL,
+  createdAt TEXT NOT NULL,
+  FOREIGN KEY (customerId) REFERENCES olshop_customers(customerId),
+  FOREIGN KEY (orderId) REFERENCES olshop_orders(orderId)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS olshop_cashback_once_per_order_idx
+  ON olshop_loyalty_ledger(orderId, entryType)
+  WHERE entryType = 'CASHBACK_EARNED';
+
+CREATE TABLE IF NOT EXISTS olshop_integration_outbox (
+  factId TEXT PRIMARY KEY NOT NULL,
+  factType TEXT NOT NULL,
+  aggregateId TEXT NOT NULL,
+  correlationId TEXT NOT NULL,
+  payloadJson TEXT NOT NULL,
+  contractVersion TEXT NOT NULL,
+  syncStatus TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  processedAt TEXT
+);
+
+CREATE INDEX IF NOT EXISTS olshop_outbox_status_idx ON olshop_integration_outbox(syncStatus, createdAt);

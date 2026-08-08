@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CI=1
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$DEPLOY_DIR/.." && pwd)"
 DB_NAME='program-olshop-db'
@@ -9,7 +10,7 @@ echo '[program-olshop] locating dedicated D1'
 DB_ID="$(npx wrangler d1 list --json --config wrangler.jsonc | jq -r --arg name "$DB_NAME" '.[] | select(.name == $name) | .uuid' | head -1)"
 if [ -z "$DB_ID" ]; then
   echo '[program-olshop] creating dedicated D1 in Daily Napkin'
-  npx wrangler d1 create "$DB_NAME" --location apac --config wrangler.jsonc
+  printf 'n\n' | npx wrangler d1 create "$DB_NAME" --location apac --config wrangler.jsonc
   DB_ID="$(npx wrangler d1 list --json --config wrangler.jsonc | jq -r --arg name "$DB_NAME" '.[] | select(.name == $name) | .uuid' | head -1)"
 fi
 if [ -z "$DB_ID" ]; then
@@ -35,6 +36,6 @@ PY
 cd "$DEPLOY_DIR"
 echo "[program-olshop] D1 ready: $DB_NAME"
 echo '[program-olshop] applying remote migrations'
-npx wrangler d1 migrations apply "$DB_NAME" --remote --config wrangler.jsonc
+yes | npx wrangler d1 migrations apply "$DB_NAME" --remote --config wrangler.jsonc
 echo '[program-olshop] deploying permanent Worker'
 npx wrangler deploy --yes --config wrangler.jsonc

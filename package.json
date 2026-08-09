@@ -6,6 +6,6 @@
     "test": "node --test",
     "check": "node --check src/index.js && node --check src/orders.js && node --check src/db.js && node --check src/admin.js && node --check public/customer.js && node --check public/admin.js",
     "db:migrations:apply": "npx wrangler d1 migrations apply DB --remote",
-    "deploy": "bash ops/olshop/bootstrap-api.sh"
+    "deploy": "bash ops/cloudflare-env-check.sh"
   }
 }

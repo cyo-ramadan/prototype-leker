@@ -15,6 +15,10 @@
       "database_name": "prototype-leker-db",
       "database_id": "6977b54c-afce-4275-a0ad-d28e7d942e19",
       "migrations_dir": "migrations"
+    },
+    {
+      "binding": "OLSHOP_DB",
+      "database_name": "program-olshop-db"
     }
   ]
 }

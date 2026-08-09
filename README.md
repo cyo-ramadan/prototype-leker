@@ -10,6 +10,8 @@ Prototype self-ordering kiosk untuk produk leker. Customer memilih menu di UI ki
 
 Customer UI menggunakan side cart drawer: menu tetap berada di posisi scroll terakhir, handle keranjang kecil di sisi kanan menampilkan total quantity, dan tap atau swipe dari tepi kanan membuka review order. Item yang sudah dipilih menampilkan quantity stepper langsung pada menu card. Pada mobile, slot control memiliki ukuran tetap supaya perubahan `+` menjadi `− qty +` tidak mengubah proporsi card atau mendorong grid keluar viewport.
 
+Setelah checkout berhasil, status order tetap ditampilkan seperti biasa tetapi customer memiliki tombol **Pilih menu lagi**. Tombol ini mengembalikan UI ke katalog dengan cart baru tanpa membatalkan atau mengubah order yang sudah dikirim ke kasir. Nama customer dan booth tetap dipertahankan supaya customer dapat membuat order/invoice berikutnya lebih cepat; cart dan general note dimulai ulang.
+
 ## Prototype scope
 
 - 20 varian leker + harga
@@ -17,7 +19,8 @@ Customer UI menggunakan side cart drawer: menu tetap berada di posisi scroll ter
 - Cart, quantity, item note, general note
 - Nomor pesanan harian otomatis
 - Shared multi-device order state via Cloudflare D1
-- Customer status polling sampai READY
+- Customer status polling sampai READY selama customer tetap berada pada status order aktif
+- Back to menu after checkout untuk membuat order/invoice baru tanpa membatalkan order sebelumnya
 - Green READY notification/button
 - Cashier queue dan status update
 - Admin master toko/logo
@@ -48,6 +51,8 @@ Database resmi `maxi-db` di account **Dwicahya** tidak digunakan oleh prototype 
 Static UI menggunakan Cloudflare Static Assets secara asset-first. Worker script dijalankan lebih dulu hanya untuk `/api/*`, sehingga request HTML/CSS/JS tidak menghabiskan Workers Free request quota. Customer dan cashier polling setiap 5 detik dan berhenti ketika tab tidak visible.
 
 Customer menu normalnya dibaca dari `GET /api/menu`. File static `public/menu.json` menyimpan snapshot 20 produk yang sama sebagai fallback UI ketika API tidak tersedia atau sedang terkena quota limit. Produk yang mempunyai foto dari admin mengirim `imageData`; produk tanpa foto menggunakan `public/default-product.svg`.
+
+Saat customer memilih **Pilih menu lagi**, browser berhenti mem-poll order lama dan membuka cart baru. Order lama tetap tersimpan serta tetap diproses oleh cashier/D1. Order baru yang berhasil dikirim menjadi order aktif terbaru pada customer screen.
 
 ## Database schema
 
@@ -115,4 +120,4 @@ Workers Free memiliki quota harian untuk Worker invocations. Static asset reques
 
 ## DOC-IMPACT
 
-**REQUIRED** — Customer mobile grid sekarang memakai fixed-size control slot untuk menjaga proporsi saat quantity berubah. Prototype juga memiliki protected `/admin` untuk master toko/logo, barang, kategori, dan customer/contact, dengan migration D1 baru. Order lifecycle, cashier status contract, Worker identity, account boundary, dan deployment flow tetap sama.
+**REQUIRED** — Customer flow sekarang mengizinkan kembali ke katalog setelah checkout untuk membuat order/invoice baru tanpa mengubah order yang sudah terkirim. Customer mobile grid tetap memakai fixed-size control slot, admin master tetap protected, dan order lifecycle/API/D1 schema/cashier status contract tidak berubah.

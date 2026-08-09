@@ -1,0 +1,42 @@
+.repeat-order-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.repeat-order-btn {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  font-weight: 900;
+}
+
+.repeat-order-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.repeat-order-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 95;
+  transform: translate(-50%, 18px);
+  opacity: 0;
+  width: min(520px, calc(100vw - 28px));
+  padding: 11px 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: white;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: var(--shadow);
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+.repeat-order-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}

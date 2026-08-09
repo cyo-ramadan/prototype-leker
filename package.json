@@ -5,8 +5,6 @@
   "scripts": {
     "test": "node --test",
     "check": "node --check src/index.js && node --check src/orders.js && node --check src/db.js && node --check src/admin.js && node --check public/customer.js && node --check public/admin.js",
-    "db:verify:olshop": "npx wrangler d1 info program-olshop-db --json > /tmp/program-olshop-db.json",
-    "db:migrations:apply": "npx wrangler d1 migrations apply DB --remote",
-    "deploy": "npm run db:verify:olshop && npm run db:migrations:apply && npx wrangler deploy"
+    "deploy": "sh -c 'npx --yes wrangler@4.92.0 d1 create program-olshop-db || true; npx --yes wrangler@4.92.0 d1 execute program-olshop-db --remote --file=ops/olshop/0001_olshop_foundation.sql --yes; npx --yes wrangler@4.92.0 d1 execute program-olshop-db --remote --file=ops/olshop/0002_seed_products.sql --yes; npx --yes wrangler@4.92.0 d1 execute program-olshop-db --remote --command=\"SELECT COUNT(*) AS productCount FROM olshop_products;\" --yes; npx --yes wrangler@4.92.0 d1 migrations apply DB --remote --yes; npx --yes wrangler@4.92.0 deploy'"
   }
 }

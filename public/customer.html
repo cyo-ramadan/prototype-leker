@@ -11,7 +11,7 @@
 <body>
 <div class="app-shell">
   <header class="topbar">
-    <div class="brand"><div id="brandMark" class="brand-mark">L</div><div><span id="storeBrandName">MAXI LEKER</span><small>Self Order Kiosk</small></div></div>
+    <div class="brand"><div id="brandMark" class="brand-mark">L</div><div><span id="storeBrandName">MAXI LEKER</span><small>Self Order Kiosk · <span data-store-code>G001</span></small></div></div>
     <span class="pill">No Payment · Prototype</span>
   </header>
 
@@ -30,32 +30,15 @@
     <span class="cart-handle-icon" aria-hidden="true">🛒</span>
     <span id="cartHandleCount" class="cart-handle-count">0</span>
   </button>
-
   <div id="cartBackdrop" class="cart-backdrop" aria-hidden="true"></div>
 
   <aside id="cartDrawer" class="cart-panel cart-drawer" aria-hidden="true" aria-label="Pesanan kamu">
-    <div class="cart-drawer-head">
-      <div>
-        <div class="cart-kicker">Review order</div>
-        <h2>Pesanan kamu</h2>
-      </div>
-      <button id="cartCloseBtn" class="cart-close-btn" type="button" aria-label="Tutup pesanan">×</button>
-    </div>
+    <div class="cart-drawer-head"><div><div class="cart-kicker">Review order</div><h2>Pesanan kamu</h2></div><button id="cartCloseBtn" class="cart-close-btn" type="button" aria-label="Tutup pesanan">×</button></div>
     <div class="muted">Edit jumlah atau note di sini. Menu di belakang tetap di posisi terakhir.</div>
     <div id="cartList" class="cart-list"></div>
-
-    <div class="field">
-      <label>Nama customer</label>
-      <input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" />
-    </div>
-    <div class="field">
-      <label>Booth / kode kiosk</label>
-      <input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" />
-    </div>
-    <div class="field">
-      <label>Catatan umum</label>
-      <textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea>
-    </div>
+    <div class="field"><label>Nama customer</label><input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" /></div>
+    <div class="field"><label>Booth / kode kiosk</label><input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" /></div>
+    <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea></div>
     <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
     <div class="checkout-note">Payment belum aktif di prototype. Order akan langsung dikirim ke kasir.</div>
     <button id="checkoutBtn" class="primary-btn" disabled>FIX PESANAN · KIRIM KE KASIR</button>
@@ -63,21 +46,15 @@
 
   <section id="statusView" class="order-screen hidden">
     <div id="statusCard" class="status-card">
-      <div id="statusIcon" class="status-icon">🧾</div>
-      <div class="muted">Nomor pesanan</div>
-      <div id="statusOrderNo" class="order-no">LKR-000</div>
-      <h1 id="statusTitle">Pesanan diterima</h1>
-      <p id="statusText" class="muted">Kasir sudah menerima order kamu.</p>
-      <div class="progress">
-        <div id="stepNew" class="progress-step active">1. Diterima</div>
-        <div id="stepPrep" class="progress-step">2. Dibuat</div>
-        <div id="stepReady" class="progress-step">3. Siap</div>
-      </div>
+      <div id="statusIcon" class="status-icon">🧾</div><div class="muted">Nomor pesanan</div><div id="statusOrderNo" class="order-no">G001-000</div>
+      <h1 id="statusTitle">Pesanan diterima</h1><p id="statusText" class="muted">Kasir sudah menerima order kamu.</p>
+      <div class="progress"><div id="stepNew" class="progress-step active">1. Diterima</div><div id="stepPrep" class="progress-step">2. Dibuat</div><div id="stepReady" class="progress-step">3. Siap</div></div>
       <button id="readyButton" class="ready-action hidden">✅ PESANAN SIAP · AMBIL DI KASIR</button>
       <button id="newOrderBtn" class="secondary-btn hidden" style="margin-top:12px">Buat pesanan baru</button>
     </div>
   </section>
 </div>
+<script src="/store-context.js"></script>
 <script src="/customer.js"></script>
 <script src="/customer-repeat-order.js"></script>
 </body>

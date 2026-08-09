@@ -1,125 +1,120 @@
 # Prototype Leker
 
-Prototype self-ordering kiosk untuk produk leker. Customer memilih menu di UI kiosk, mengirim order ke kasir, lalu kasir mengubah status pesanan dari **NEW → PREPARING → READY → COMPLETED**.
+Prototype self-ordering kiosk untuk produk leker. Customer memilih menu, order masuk ke kasir, lalu kasir mengubah status **NEW → PREPARING → READY → COMPLETED**.
 
-## UI
+## Multi-store
 
-- `/customer` — self-order UI customer
-- `/cashier` — dashboard kasir
-- `/admin` — protected admin master console
+Prototype sekarang memakai **satu Cloudflare D1 dengan isolasi per gerai**. Gerai default hasil migrasi adalah `G001` (`store_001`). Existing products, categories, contacts, orders, order items, dan status history dipindahkan ke gerai default sehingga data lama tetap tersedia.
 
-Customer UI menggunakan side cart drawer: menu tetap berada di posisi scroll terakhir, handle keranjang kecil di sisi kanan menampilkan total quantity, dan tap atau swipe dari tepi kanan membuka review order. Item yang sudah dipilih menampilkan quantity stepper langsung pada menu card. Pada mobile, slot control memiliki ukuran tetap supaya perubahan `+` menjadi `− qty +` tidak mengubah proporsi card atau mendorong grid keluar viewport.
+Setiap gerai mempunyai master sendiri untuk:
 
-Setelah checkout berhasil, status order tetap ditampilkan seperti biasa tetapi customer memiliki tombol **Pilih menu lagi**. Tombol ini mengembalikan UI ke katalog dengan cart baru tanpa membatalkan atau mengubah order yang sudah dikirim ke kasir. Nama customer dan booth tetap dipertahankan supaya customer dapat membuat order/invoice berikutnya lebih cepat; cart dan general note dimulai ulang.
+- identitas gerai dan logo
+- barang, harga beli, harga jual, foto, status aktif
+- kategori
+- customer/contact
+- orders, cashier queue, dan riwayat status
 
-## Prototype scope
+Store context wajib divalidasi server-side. Endpoint public menerima query `?store=<CODE>` dan hanya membaca/menulis row milik store yang berhasil di-resolve. Admin memakai PIN prototype global untuk memilih serta mengelola gerai, tetapi CRUD master tetap difilter dengan `store_id`.
 
-- 20 varian leker + harga
-- Side cart drawer + quantity indicator pada menu card
-- Cart, quantity, item note, general note
-- Nomor pesanan harian otomatis
-- Shared multi-device order state via Cloudflare D1
-- Customer status polling sampai READY selama customer tetap berada pada status order aktif
-- Back to menu after checkout untuk membuat order/invoice baru tanpa membatalkan order sebelumnya
-- Green READY notification/button
-- Cashier queue dan status update
-- Admin master toko/logo
-- Admin master barang: tambah/edit, harga beli, harga jual, kategori, status aktif, foto optional
-- Default product image ketika foto kosong
-- Admin master kategori
-- Admin master customer/contact
-- No payment yet; CTA customer mengirim order langsung ke kasir
+## UI routes
+
+Legacy/default:
+
+- `/customer`
+- `/cashier`
+- `/admin`
+
+Store-scoped:
+
+- `/s/G001/customer`
+- `/s/G001/cashier`
+- `/s/G001/admin`
+
+Untuk gerai lain ganti `G001` dengan kode gerai. Browser menambahkan store context ke setiap `/api/*` request. Active order customer di `localStorage` juga di-scope per store supaya satu perangkat tidak mencampur order antar gerai.
+
+Admin memiliki **Gerai selector** dan master **Gerai** untuk membuat store baru. Setelah memilih gerai, tab Toko, Barang, Kategori, dan Customer hanya memuat data gerai tersebut. Link Customer dan Cashier mengikuti gerai aktif.
+
+## Customer UX
+
+Customer UI menggunakan side cart drawer, quantity stepper pada menu card, fixed-size mobile control slot, dan tombol **Pilih menu lagi** setelah checkout. Customer dapat membuat invoice/order berikutnya tanpa membatalkan order sebelumnya.
+
+Menu normal dibaca dari `GET /api/menu?store=...`. Static `public/menu.json` hanya menjadi fallback untuk gerai default `G001`. Gerai lain tidak menggunakan fallback global supaya master antar gerai tidak bocor saat API unavailable.
 
 ## Admin security
 
-Untuk fase prototype saat ini, PIN admin ditetapkan sementara menjadi **`123456`**. Hash SHA-256 PIN disimpan di D1 melalui migration `0003_set_prototype_admin_pin.sql`; browser tetap mengirim PIN melalui header `X-Admin-Pin` dan menyimpannya hanya di `sessionStorage` selama tab/session aktif.
+PIN admin prototype sementara: **`123456`**. Hash SHA-256 disimpan di D1 lewat migration `0003_set_prototype_admin_pin.sql`. Browser mengirim PIN melalui `X-Admin-Pin` dan menyimpannya di `sessionStorage` selama tab/session aktif.
 
-PIN fixed ini hanya untuk testing prototype. Sebelum program dipromosikan menjadi program resmi/production, authentication harus diganti dengan mekanisme yang sesuai dan PIN prototype tidak boleh dipakai.
-
-## Runtime architecture
-
-Environment prototype dipisahkan dari environment resmi MAXI:
-
-- GitHub: source code
-- Cloudflare account: **Daily Napkin**
-- Cloudflare Worker: `prototype-leker-v2` — HTTP API + static UI
-- Cloudflare D1: relational persistence melalui binding `env.DB`
-- Prototype D1: `prototype-leker-db` (`6977b54c-afce-4275-a0ad-d28e7d942e19`)
-
-Database resmi `maxi-db` di account **Dwicahya** tidak digunakan oleh prototype ini.
-
-Static UI menggunakan Cloudflare Static Assets secara asset-first. Worker script dijalankan lebih dulu hanya untuk `/api/*`, sehingga request HTML/CSS/JS tidak menghabiskan Workers Free request quota. Customer dan cashier polling setiap 5 detik dan berhenti ketika tab tidak visible.
-
-Customer menu normalnya dibaca dari `GET /api/menu`. File static `public/menu.json` menyimpan snapshot 20 produk yang sama sebagai fallback UI ketika API tidak tersedia atau sedang terkena quota limit. Produk yang mempunyai foto dari admin mengirim `imageData`; produk tanpa foto menggunakan `public/default-product.svg`.
-
-Saat customer memilih **Pilih menu lagi**, browser berhenti mem-poll order lama dan membuka cart baru. Order lama tetap tersimpan serta tetap diproses oleh cashier/D1. Order baru yang berhasil dikirim menjadi order aktif terbaru pada customer screen.
+PIN fixed hanya untuk prototype/testing dan tidak boleh dibawa ke production.
 
 ## Database schema
 
-Migration `migrations/0001_leker_order_schema.sql` membuat:
+- `0001_leker_order_schema.sql` membuat schema order awal.
+- `0002_admin_master_data.sql` menambahkan master admin.
+- `0003_set_prototype_admin_pin.sql` menetapkan PIN prototype `123456`.
+- `0004_multi_store.sql` membuat `stores`, membangun ulang tabel operasional dengan `store_id`, membuat composite uniqueness per store, dan memigrasikan seluruh data existing ke `store_001`.
+
+Tabel store-scoped:
 
 - `products`
+- `categories`
+- `contacts`
 - `orders`
 - `order_items`
 - `order_status_history`
 
-Migration `migrations/0002_admin_master_data.sql` menambahkan `purchase_price` dan `image_data` pada products, serta membuat:
-
-- `categories`
-- `store_settings`
-- `contacts`
-
-Migration `migrations/0003_set_prototype_admin_pin.sql` menetapkan PIN admin prototype menjadi `123456` melalui SHA-256 hash di `store_settings`.
-
-## Deployment
-
-Apply migration dan deploy Worker dengan satu command:
-
-```bash
-npm run deploy
-```
-
-Script tersebut menjalankan:
-
-```bash
-npx wrangler d1 migrations apply DB --remote
-npx wrangler deploy
-```
-
-Cloudflare Workers Builds production configuration:
-
-- Repository: `cyo-ramadan/prototype-leker`
-- Production branch: `main`
-- Build command: **leave completely blank**
-- Deploy command: `npm run deploy`
-- Root directory: `/`
+`store_settings` tetap dipakai untuk admin PIN prototype global. Identitas/logo operasional gerai dibaca dari `stores`.
 
 ## API
 
-Public/customer:
+Public/store scoped:
 
-- `GET /api/menu`
-- `GET /api/store`
-- `GET /api/orders`
-- `GET /api/orders/:id`
-- `POST /api/orders`
-- `PATCH /api/orders/:id/status`
-- `POST /api/reset` (prototype/test only)
+- `GET /api/menu?store=G001`
+- `GET /api/store?store=G001`
+- `GET /api/orders?store=G001`
+- `GET /api/orders/:id?store=G001`
+- `POST /api/orders?store=G001`
+- `PATCH /api/orders/:id/status?store=G001`
+- `POST /api/reset?store=G001`
 
-Admin:
+Admin protected:
 
 - `GET /api/admin/status`
 - `POST /api/admin/setup`
-- `GET /api/admin/bootstrap`
-- `PUT /api/admin/store`
-- `POST/PATCH/DELETE /api/admin/products`
-- `POST/PATCH/DELETE /api/admin/categories`
-- `POST/PATCH/DELETE /api/admin/contacts`
+- `GET /api/admin/bootstrap?store=G001`
+- `POST /api/admin/stores`
+- `PATCH /api/admin/stores/:id`
+- `PUT /api/admin/store?store=G001`
+- `POST/PATCH/DELETE /api/admin/products...`
+- `POST/PATCH/DELETE /api/admin/categories...`
+- `POST/PATCH/DELETE /api/admin/contacts...`
 
-## Workers Free quota note
+## Runtime architecture
 
-Workers Free memiliki quota harian untuk Worker invocations. Static asset request tidak perlu memanggil Worker. Karena itu `assets.run_worker_first` hanya diarahkan ke `/api/*`, dan polling UI tidak boleh agresif. Jika Cloudflare mengembalikan Error 1027 / HTTP 429, tunggu quota harian reset atau gunakan plan yang sesuai; jangan menganggap pesan "temporarily rate limited" sebagai status temporary account.
+- GitHub: `cyo-ramadan/prototype-leker`
+- Cloudflare account: **Daily Napkin**
+- Worker: `prototype-leker-v2`
+- D1: `prototype-leker-db` (`6977b54c-afce-4275-a0ad-d28e7d942e19`)
+
+Database resmi di account **Dwicahya** tidak digunakan prototype.
+
+Static assets tetap asset-first dan Worker dijalankan lebih dulu hanya untuk `/api/*`. Polling customer/cashier tetap 5 detik dan pause saat tab hidden.
+
+## Deployment
+
+`npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`.
+
+Cloudflare Workers Builds:
+
+- Repository: `cyo-ramadan/prototype-leker`
+- Production branch: `main`
+- Build command: kosong
+- Deploy command: `npm run deploy`
+- Root: `/`
+
+### Migration recovery
+
+`0004_multi_store.sql` mempertahankan row existing dengan menyalinnya ke tabel baru di bawah `store_001`. Sebelum promotion ke production, backup D1 wajib diambil. Jika migration gagal sebelum selesai, hentikan deployment dan restore database dari backup/Time Travel sebelum mencoba migration yang sudah dikoreksi. Jangan menjalankan query manual parsial untuk menebak state schema.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Admin prototype sekarang memakai PIN sementara `123456` yang di-reset melalui migration D1 agar login dan CRUD master barang dapat langsung diuji. Customer repeat-order flow tetap berjalan. Order lifecycle, cashier status contract, public API, Worker identity, dan environment boundary tidak berubah.
+**REQUIRED** — Data model, API scoping, admin navigation, customer/cashier routes, order numbering, migration/recovery, dan compatibility berubah untuk mendukung multi-gerai. Legacy `/customer`, `/cashier`, `/admin` tetap diarahkan ke gerai default `G001` untuk backward compatibility.

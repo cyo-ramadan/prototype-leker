@@ -12,30 +12,21 @@
   <header class="topbar admin-topbar">
     <div class="brand"><div class="brand-mark">A</div><div>MAXI LEKER<small>Admin Console</small></div></div>
     <div class="admin-top-actions">
-      <a class="admin-link" href="/customer">Customer</a>
-      <a class="admin-link" href="/cashier">Cashier</a>
+      <a class="admin-link" data-store-page="customer" href="/customer">Customer</a>
+      <a class="admin-link" data-store-page="cashier" href="/cashier">Cashier</a>
       <button id="logoutBtn" class="secondary-btn hidden" type="button">Lock</button>
     </div>
   </header>
 
   <main class="admin-shell">
     <section id="authGate" class="admin-auth-card">
-      <div class="admin-eyebrow">Protected admin</div>
-      <h1 id="authTitle">Buka Admin</h1>
-      <p id="authHelp" class="muted">Masukkan PIN admin.</p>
-      <label class="admin-field">PIN
-        <input id="adminPin" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="4–12 digit" />
-      </label>
-      <button id="authBtn" class="primary-btn" type="button">Masuk</button>
-      <div id="authMessage" class="admin-message" aria-live="polite"></div>
+      <div class="admin-eyebrow">Protected admin</div><h1 id="authTitle">Buka Admin</h1><p id="authHelp" class="muted">Masukkan PIN admin.</p>
+      <label class="admin-field">PIN<input id="adminPin" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="4–12 digit" /></label>
+      <button id="authBtn" class="primary-btn" type="button">Masuk</button><div id="authMessage" class="admin-message" aria-live="polite"></div>
     </section>
 
     <section id="adminApp" class="hidden">
-      <div class="admin-heading">
-        <div><div class="admin-eyebrow">Master data</div><h1>Admin Leker</h1></div>
-        <div id="adminSummary" class="admin-summary"></div>
-      </div>
-
+      <div class="admin-heading"><div><div class="admin-eyebrow">Master data per gerai</div><h1>Admin Leker</h1></div><div id="adminSummary" class="admin-summary"></div></div>
       <nav class="admin-tabs" aria-label="Admin sections">
         <button class="admin-tab active" data-tab="store" type="button">Toko</button>
         <button class="admin-tab" data-tab="products" type="button">Barang</button>
@@ -46,16 +37,13 @@
       <section id="tab-store" class="admin-section active">
         <div class="admin-grid two">
           <form id="storeForm" class="admin-card">
-            <h2>Identitas toko</h2>
+            <h2>Identitas gerai aktif</h2>
             <label class="admin-field">Nama toko<input id="storeName" maxlength="80" required /></label>
             <label class="admin-field">Logo toko <span class="field-note">optional</span><input id="storeLogo" type="file" accept="image/*" /></label>
             <div class="image-preview-wrap"><img id="storeLogoPreview" class="logo-preview" src="/default-product.svg" alt="Preview logo toko" /></div>
             <button class="primary-btn" type="submit">Simpan identitas toko</button>
           </form>
-          <div class="admin-card admin-tip">
-            <h2>Logo & foto</h2>
-            <p>Upload otomatis diperkecil sebelum disimpan supaya prototype tetap ringan. Kalau foto produk kosong, customer melihat gambar default.</p>
-          </div>
+          <div class="admin-card admin-tip"><h2>Multi-gerai</h2><p>Pilih gerai dari switcher. Barang, kategori, customer, order, dan cashier dipisahkan per gerai. Foto produk tetap optional dan memakai gambar default jika kosong.</p></div>
         </div>
       </section>
 
@@ -65,62 +53,43 @@
             <input id="productId" type="hidden" />
             <div class="form-title-row"><h2 id="productFormTitle">Tambah barang</h2><button id="productCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
             <label class="admin-field">Nama barang<input id="productName" maxlength="100" required /></label>
-            <div class="admin-grid two compact">
-              <label class="admin-field">Harga beli<input id="productPurchasePrice" type="number" min="0" step="1" required /></label>
-              <label class="admin-field">Harga jual<input id="productPrice" type="number" min="0" step="1" required /></label>
-            </div>
+            <div class="admin-grid two compact"><label class="admin-field">Harga beli<input id="productPurchasePrice" type="number" min="0" step="1" required /></label><label class="admin-field">Harga jual<input id="productPrice" type="number" min="0" step="1" required /></label></div>
             <label class="admin-field">Kategori<select id="productCategory" required></select></label>
             <label class="admin-field">Foto barang <span class="field-note">optional</span><input id="productImage" type="file" accept="image/*" /></label>
             <div class="image-preview-wrap"><img id="productImagePreview" class="product-preview" src="/default-product.svg" alt="Preview foto barang" /></div>
             <label class="admin-check"><input id="productActive" type="checkbox" checked /> Aktif dijual</label>
             <button class="primary-btn" type="submit">Simpan barang</button>
           </form>
-          <div class="admin-card list-card">
-            <div class="list-head"><h2>Master barang</h2><span id="productCount" class="master-count">0</span></div>
-            <div id="productList" class="master-list"></div>
-          </div>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master barang</h2><span id="productCount" class="master-count">0</span></div><div id="productList" class="master-list"></div></div>
         </div>
       </section>
 
       <section id="tab-categories" class="admin-section">
         <div class="admin-grid master-layout">
           <form id="categoryForm" class="admin-card sticky-form">
-            <input id="categoryId" type="hidden" />
-            <div class="form-title-row"><h2 id="categoryFormTitle">Tambah kategori</h2><button id="categoryCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
-            <label class="admin-field">Nama kategori<input id="categoryName" maxlength="60" required /></label>
-            <label class="admin-check"><input id="categoryActive" type="checkbox" checked /> Aktif</label>
-            <button class="primary-btn" type="submit">Simpan kategori</button>
+            <input id="categoryId" type="hidden" /><div class="form-title-row"><h2 id="categoryFormTitle">Tambah kategori</h2><button id="categoryCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama kategori<input id="categoryName" maxlength="60" required /></label><label class="admin-check"><input id="categoryActive" type="checkbox" checked /> Aktif</label><button class="primary-btn" type="submit">Simpan kategori</button>
           </form>
-          <div class="admin-card list-card">
-            <div class="list-head"><h2>Master kategori</h2><span id="categoryCount" class="master-count">0</span></div>
-            <div id="categoryList" class="master-list"></div>
-          </div>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master kategori</h2><span id="categoryCount" class="master-count">0</span></div><div id="categoryList" class="master-list"></div></div>
         </div>
       </section>
 
       <section id="tab-contacts" class="admin-section">
         <div class="admin-grid master-layout">
           <form id="contactForm" class="admin-card sticky-form">
-            <input id="contactId" type="hidden" />
-            <div class="form-title-row"><h2 id="contactFormTitle">Tambah customer/contact</h2><button id="contactCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
-            <label class="admin-field">Nama<input id="contactName" maxlength="100" required /></label>
-            <label class="admin-field">No. HP<input id="contactPhone" maxlength="40" /></label>
-            <label class="admin-field">Email<input id="contactEmail" type="email" maxlength="120" /></label>
-            <label class="admin-field">Catatan<textarea id="contactNotes" rows="3" maxlength="500"></textarea></label>
-            <button class="primary-btn" type="submit">Simpan customer</button>
+            <input id="contactId" type="hidden" /><div class="form-title-row"><h2 id="contactFormTitle">Tambah customer/contact</h2><button id="contactCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama<input id="contactName" maxlength="100" required /></label><label class="admin-field">No. HP<input id="contactPhone" maxlength="40" /></label><label class="admin-field">Email<input id="contactEmail" type="email" maxlength="120" /></label><label class="admin-field">Catatan<textarea id="contactNotes" rows="3" maxlength="500"></textarea></label><button class="primary-btn" type="submit">Simpan customer</button>
           </form>
-          <div class="admin-card list-card">
-            <div class="list-head"><h2>Master customer/contact</h2><span id="contactCount" class="master-count">0</span></div>
-            <div id="contactList" class="master-list"></div>
-          </div>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master customer/contact</h2><span id="contactCount" class="master-count">0</span></div><div id="contactList" class="master-list"></div></div>
         </div>
       </section>
-
       <div id="adminToast" class="admin-toast" aria-live="polite"></div>
     </section>
   </main>
 
+  <script src="/store-context.js"></script>
   <script src="/admin.js"></script>
   <script src="/admin-preview.js"></script>
+  <script src="/admin-multistore.js"></script>
 </body>
 </html>

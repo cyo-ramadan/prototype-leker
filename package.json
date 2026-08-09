@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/index.js && node --check src/orders.js && node --check src/db.js && node --check src/admin.js && node --check public/customer.js && node --check public/customer-repeat-order.js && node --check public/admin.js",
+    "check": "node --check src/index.js && node --check src/orders.js && node --check src/db.js && node --check src/admin.js && node --check src/stores.js && node --check src/db-multistore.js && node --check src/orders-multistore.js && node --check src/admin-multistore.js && node --check public/store-context.js && node --check public/customer.js && node --check public/customer-repeat-order.js && node --check public/admin.js && node --check public/admin-multistore.js",
     "db:migrations:apply": "npx wrangler d1 migrations apply DB --remote",
     "deploy": "npm run db:migrations:apply && npx wrangler deploy"
   }

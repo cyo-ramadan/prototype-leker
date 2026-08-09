@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 WRANGLER=(npx --yes wrangler@4.92.0)
+
+# Create once, without Wrangler's post-create config prompt. If it already exists, continue.
+"${WRANGLER[@]}" d1 create program-olshop-db --update-config=false || true
+
 "${WRANGLER[@]}" d1 execute program-olshop-db --remote --file=ops/olshop/0001_olshop_foundation.sql --yes
 "${WRANGLER[@]}" d1 execute program-olshop-db --remote --file=ops/olshop/0002_seed_products.sql --yes
 "${WRANGLER[@]}" d1 execute program-olshop-db --remote --command="SELECT COUNT(*) AS productCount FROM olshop_products;" --json > /tmp/olshop-count.json
@@ -20,5 +24,7 @@ if (count !== 20) {
 }
 console.log(`OLSHOP_D1_PRODUCT_COUNT=${count}`);
 NODE
+
+# Finish by deploying the unchanged stable Leker runtime so this control job gets a terminal Cloudflare status.
 "${WRANGLER[@]}" d1 migrations apply DB --remote --yes
 "${WRANGLER[@]}" deploy

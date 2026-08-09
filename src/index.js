@@ -1,7 +1,8 @@
 import { listOrders, listProducts, getOrder } from './db-multistore.js';
 import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore.js';
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
-import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
+import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
+import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
 function storeTokenFromUrl(url) {
@@ -12,11 +13,50 @@ async function requirePublicStore(env, url) {
   return resolveStore(env.DB, storeTokenFromUrl(url));
 }
 
+async function handleCashierOrders(request, env, pathname) {
+  const authResponse = await handleCashierAuthApi(request, env, pathname);
+  if (authResponse) return authResponse;
+
+  if (!pathname.startsWith('/api/cashier/')) return null;
+  const auth = await requireCashier(request, env.DB);
+  if (!auth.ok) return auth.response;
+  const storeId = auth.cashier.store.id;
+
+  if (request.method === 'GET' && pathname === '/api/cashier/orders') {
+    return json({ cashier: auth.cashier, orders: await listOrders(env.DB, storeId) });
+  }
+
+  const statusMatch = pathname.match(/^\/api\/cashier\/orders\/([^/]+)\/status$/);
+  if (request.method === 'PATCH' && statusMatch) {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
+    const result = await changeOrderStatus(env.DB, storeId, statusMatch[1], body.value?.status);
+    return result.ok ? json(result.order) : json({ error: result.error }, result.status);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/cashier/reset') {
+    return json(await resetOrders(env.DB, storeId));
+  }
+
+  return json({ error: 'Route kasir tidak ditemukan.' }, 404);
+}
+
 async function handleApi(request, env, url) {
   const { pathname } = url;
 
+  const adminCashierResponse = await handleAdminCashierApi(request, env, pathname);
+  if (adminCashierResponse) return adminCashierResponse;
+
   if (pathname.startsWith('/api/admin/')) {
     return handleAdminApi(request, env, pathname);
+  }
+
+  const cashierResponse = await handleCashierOrders(request, env, pathname);
+  if (cashierResponse) return cashierResponse;
+
+  if (request.method === 'GET' && pathname === '/api/stores') {
+    const stores = await listStores(env.DB);
+    return json(stores.map(store => ({ id: store.id, code: store.code, storeName: store.storeName, address: store.address })));
   }
 
   const store = await requirePublicStore(env, url);
@@ -30,13 +70,7 @@ async function handleApi(request, env, url) {
     return json(await getPublicStore(env.DB, store.id));
   }
 
-  if (request.method === 'GET' && pathname === '/api/orders') {
-    return json(await listOrders(env.DB, store.id));
-  }
-
-  const statusMatch = pathname.match(/^\/api\/orders\/([^/]+)\/status$/);
   const orderMatch = pathname.match(/^\/api\/orders\/([^/]+)$/);
-
   if (request.method === 'GET' && orderMatch) {
     const order = await getOrder(env.DB, store.id, orderMatch[1]);
     return order ? json(order) : json({ error: 'Order not found' }, 404);
@@ -49,15 +83,9 @@ async function handleApi(request, env, url) {
     return result.ok ? json(result.order, 201) : json({ error: result.error }, result.status);
   }
 
-  if (request.method === 'PATCH' && statusMatch) {
-    const body = await readJson(request);
-    if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
-    const result = await changeOrderStatus(env.DB, store.id, statusMatch[1], body.value?.status);
-    return result.ok ? json(result.order) : json({ error: result.error }, result.status);
-  }
-
-  if (request.method === 'POST' && pathname === '/api/reset') {
-    return json(await resetOrders(env.DB, store.id));
+  // Queue listing, status mutation, and reset are cashier-authenticated now.
+  if (pathname === '/api/orders' || pathname === '/api/reset' || pathname.match(/^\/api\/orders\/[^/]+\/status$/)) {
+    return json({ error: 'Login kasir diperlukan untuk akses queue atau perubahan status.' }, 401);
   }
 
   return json({ error: 'Not found' }, 404);

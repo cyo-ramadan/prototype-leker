@@ -19,7 +19,7 @@
     <section>
       <div class="hero">
         <h1>Pilih leker.<br>Tap, order, beres.</h1>
-        <p>Pesanan langsung masuk ke kasir. Setelah siap, layar ini berubah hijau supaya customer tinggal meluncur ke counter.</p>
+        <p>Pesanan langsung masuk ke kasir gerai yang dipilih. Setelah siap, layar ini berubah hijau supaya customer tinggal meluncur ke counter.</p>
       </div>
       <div id="categoryRow" class="category-row"></div>
       <div id="menuGrid" class="menu-grid"></div>
@@ -37,10 +37,10 @@
     <div class="muted">Edit jumlah atau note di sini. Menu di belakang tetap di posisi terakhir.</div>
     <div id="cartList" class="cart-list"></div>
     <div class="field"><label>Nama customer</label><input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" /></div>
-    <div class="field"><label>Booth / kode kiosk</label><input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" /></div>
+    <div class="field"><label>Kode kiosk / perangkat</label><input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" /></div>
     <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea></div>
     <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
-    <div class="checkout-note">Payment belum aktif di prototype. Order akan langsung dikirim ke kasir.</div>
+    <div class="checkout-note">Payment belum aktif di prototype. Order akan langsung dikirim ke kasir gerai aktif.</div>
     <button id="checkoutBtn" class="primary-btn" disabled>FIX PESANAN · KIRIM KE KASIR</button>
   </aside>
 
@@ -55,6 +55,7 @@
   </section>
 </div>
 <script src="/store-context.js"></script>
+<script src="/customer-store-select.js"></script>
 <script src="/customer.js"></script>
 <script src="/customer-repeat-order.js"></script>
 </body>

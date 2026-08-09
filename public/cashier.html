@@ -5,24 +5,44 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Prototype Leker · Kasir</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/cashier-auth.css" />
 </head>
 <body>
 <div class="app-shell">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark">K</div><div>MAXI LEKER<small>Cashier · <span data-store-code>G001</span></small></div></div>
-    <div style="display:flex;gap:8px"><a class="pill" data-store-page="customer" href="/customer" style="text-decoration:none;color:inherit">Buka Kiosk</a><button id="resetBtn" class="danger-btn">Reset test data</button></div>
+    <div class="brand"><div class="brand-mark">K</div><div>MAXI LEKER<small id="cashierBrandSub">Cashier Login</small></div></div>
+    <div id="cashierTopActions" class="cashier-user-chip hidden">
+      <span id="cashierIdentity">Kasir</span>
+      <a id="openKioskLink" class="pill" href="/customer" style="text-decoration:none;color:inherit">Buka Kiosk</a>
+      <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
+    </div>
   </header>
-  <main class="cashier-wrap">
-    <div class="cashier-header"><div><div class="muted">Realtime order queue per gerai</div><h1>Kasir Dashboard</h1></div><div class="stats"><div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div><div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div><div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div></div></div>
+
+  <main id="cashierLoginView" class="cashier-login-wrap">
+    <form id="cashierLoginForm" class="cashier-login-card">
+      <div class="muted">Akun menentukan gerai otomatis</div>
+      <h1>Login Kasir</h1>
+      <p class="muted">Masukkan username dan password dari master kasir. Setelah login, queue yang terlihat hanya milik gerai akun ini.</p>
+      <div class="field"><label>Username</label><input id="cashierUsername" class="text-input" autocomplete="username" maxlength="40" required /></div>
+      <div class="field"><label>Password</label><input id="cashierPassword" class="text-input" type="password" autocomplete="current-password" required /></div>
+      <button class="primary-btn" type="submit">MASUK KE KASIR</button>
+      <div id="cashierLoginMessage" class="cashier-login-message" aria-live="polite"></div>
+    </form>
+  </main>
+
+  <main id="cashierDashboard" class="cashier-wrap cashier-dashboard hidden">
+    <div class="cashier-header">
+      <div><div class="muted">Realtime order queue · <span id="cashierStoreLabel">Gerai</span></div><h1>Kasir Dashboard</h1></div>
+      <div class="stats"><div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div><div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div><div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div></div>
+    </div>
     <section class="columns">
       <div class="column"><div class="column-title"><h2>🧾 Pesanan Baru</h2><span id="badgeNew" class="badge">0</span></div><div id="colNew"></div></div>
       <div class="column"><div class="column-title"><h2>🥞 Sedang Dibuat</h2><span id="badgePrep" class="badge">0</span></div><div id="colPrep"></div></div>
       <div class="column"><div class="column-title"><h2>✅ Siap Diambil</h2><span id="badgeReady" class="badge">0</span></div><div id="colReady"></div></div>
     </section>
-    <section class="done-list"><h2>Riwayat selesai</h2><div id="doneList"></div></section>
+    <section class="done-list"><div class="list-head"><h2>Riwayat selesai</h2><button id="resetBtn" class="danger-btn" type="button">Reset order gerai ini</button></div><div id="doneList"></div></section>
   </main>
 </div>
-<script src="/store-context.js"></script>
 <script src="/cashier.js"></script>
 </body>
 </html>

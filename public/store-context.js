@@ -3,7 +3,7 @@
   const pathStore = match ? decodeURIComponent(match[1]).toUpperCase() : '';
   const isAdmin = /\/(?:admin)\/?$/.test(location.pathname) || location.pathname === '/admin';
   const selected = isAdmin
-    ? (localStorage.getItem('lekerAdminStoreCode') || pathStore || 'G001')
+    ? (pathStore || localStorage.getItem('lekerAdminStoreCode') || 'G001')
     : (pathStore || 'G001');
 
   window.LEKER_STORE_CODE = selected;

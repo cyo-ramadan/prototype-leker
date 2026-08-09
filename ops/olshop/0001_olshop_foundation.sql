@@ -1,5 +1,17 @@
 PRAGMA foreign_keys = ON;
-CREATE TABLE IF NOT EXISTS olshop_products (productId TEXT PRIMARY KEY NOT NULL, sku TEXT NOT NULL UNIQUE, productName TEXT NOT NULL, categoryName TEXT NOT NULL, barcodeValue TEXT NOT NULL UNIQUE, purchasePriceAmount INTEGER NOT NULL CHECK (purchasePriceAmount >= 0), salePriceAmount INTEGER NOT NULL CHECK (salePriceAmount >= 0), isActive INTEGER NOT NULL DEFAULT 1 CHECK (isActive IN (0,1)), createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
+
+CREATE TABLE IF NOT EXISTS olshop_products (
+  productId TEXT PRIMARY KEY NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
+  productName TEXT NOT NULL,
+  categoryName TEXT NOT NULL,
+  barcodeValue TEXT NOT NULL UNIQUE,
+  purchasePriceAmount INTEGER NOT NULL CHECK (purchasePriceAmount >= 0),
+  salePriceAmount INTEGER NOT NULL CHECK (salePriceAmount >= 0),
+  isActive INTEGER NOT NULL DEFAULT 1 CHECK (isActive IN (0,1)),
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 CREATE TABLE IF NOT EXISTS olshop_customers (customerId TEXT PRIMARY KEY NOT NULL, customerName TEXT NOT NULL, phoneNumber TEXT, emailAddress TEXT, createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 CREATE UNIQUE INDEX IF NOT EXISTS olshop_customers_phone_idx ON olshop_customers(phoneNumber) WHERE phoneNumber IS NOT NULL AND phoneNumber <> '';
 CREATE TABLE IF NOT EXISTS olshop_orders (orderId TEXT PRIMARY KEY NOT NULL, orderNumber TEXT NOT NULL UNIQUE, orderChannel TEXT NOT NULL CHECK (orderChannel IN ('POS','WEB','SHOPEE','TIKTOK')), orderStatus TEXT NOT NULL CHECK (orderStatus IN ('DRAFT','CONFIRMED','PAID','SHIPPED','COMPLETED','CANCELLED')), customerId TEXT, customerNameSnapshot TEXT NOT NULL, customerPhoneSnapshot TEXT, marketplaceOrderReference TEXT, merchandiseAmount INTEGER NOT NULL CHECK (merchandiseAmount >= 0), discountAmount INTEGER NOT NULL DEFAULT 0 CHECK (discountAmount >= 0), shippingAmount INTEGER NOT NULL DEFAULT 0 CHECK (shippingAmount >= 0), loyaltyRedeemedAmount INTEGER NOT NULL DEFAULT 0 CHECK (loyaltyRedeemedAmount >= 0), totalAmount INTEGER NOT NULL CHECK (totalAmount >= 0), paymentStatus TEXT NOT NULL CHECK (paymentStatus IN ('PENDING','PAID')), createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, shippedAt TEXT, FOREIGN KEY (customerId) REFERENCES olshop_customers(customerId));

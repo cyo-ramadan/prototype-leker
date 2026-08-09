@@ -1,0 +1,22 @@
+INSERT OR IGNORE INTO olshop_products (productId, sku, productName, categoryName, barcodeValue, purchasePriceAmount, salePriceAmount) VALUES
+('PRD-001','GDB-001','Gendongan Bayi Basic Cotton','Soft Carrier','899900000001',45000,89000),
+('PRD-002','GDB-002','Gendongan Bayi Soft Mesh','Soft Carrier','899900000002',55000,109000),
+('PRD-003','GDB-003','Gendongan Bayi Ergonomic Basic','Ergonomic Carrier','899900000003',85000,169000),
+('PRD-004','GDB-004','Gendongan Bayi Hipseat Basic','Hipseat','899900000004',95000,189000),
+('PRD-005','GDB-005','Gendongan Bayi Hipseat Premium','Hipseat','899900000005',125000,249000),
+('PRD-006','GDB-006','Baby Carrier 3 Posisi','Ergonomic Carrier','899900000006',75000,149000),
+('PRD-007','GDB-007','Baby Carrier 6 Posisi','Ergonomic Carrier','899900000007',105000,209000),
+('PRD-008','GDB-008','Gendongan Ring Sling Cotton','Ring Sling','899900000008',50000,99000),
+('PRD-009','GDB-009','Ring Sling Premium','Ring Sling','899900000009',70000,139000),
+('PRD-010','GDB-010','Gendongan Instan Newborn','Newborn','899900000010',60000,119000),
+('PRD-011','GDB-011','Gendongan Kangaroo Premium','Soft Carrier','899900000011',110000,219000),
+('PRD-012','GDB-012','Baby Wrap Cotton','Baby Wrap','899900000012',65000,129000),
+('PRD-013','GDB-013','Baby Wrap Premium','Baby Wrap','899900000013',85000,169000),
+('PRD-014','GDB-014','Gendongan Hipseat + Carrier','Hipseat','899900000014',145000,289000),
+('PRD-015','GDB-015','Gendongan Travel Compact','Travel Carrier','899900000015',80000,159000),
+('PRD-016','GDB-016','Baby Carrier Airflow','Ergonomic Carrier','899900000016',120000,239000),
+('PRD-017','GDB-017','Baby Carrier Premium Support','Ergonomic Carrier','899900000017',155000,309000),
+('PRD-018','GDB-018','Gendongan Toddler Support','Toddler Carrier','899900000018',90000,179000),
+('PRD-019','GDB-019','Gendongan Newborn Premium','Newborn','899900000019',100000,199000),
+('PRD-020','GDB-020','Baby Carrier All-in-One','Premium Carrier','899900000020',175000,349000);
+INSERT OR IGNORE INTO olshop_customers (customerId, customerName, phoneNumber, emailAddress) VALUES ('CUS-DEMO-001','Alya Demo','081234567890','alya@example.test');

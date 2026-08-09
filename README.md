@@ -24,7 +24,7 @@ Setelah checkout berhasil, status order tetap ditampilkan seperti biasa tetapi c
 - Green READY notification/button
 - Cashier queue dan status update
 - Admin master toko/logo
-- Admin master barang: harga beli, harga jual, kategori, status aktif, foto optional
+- Admin master barang: tambah/edit, harga beli, harga jual, kategori, status aktif, foto optional
 - Default product image ketika foto kosong
 - Admin master kategori
 - Admin master customer/contact
@@ -32,9 +32,9 @@ Setelah checkout berhasil, status order tetap ditampilkan seperti biasa tetapi c
 
 ## Admin security
 
-Admin master data dilindungi PIN 4–12 digit. Pada setup pertama, PIN dibuat langsung di `/admin` dan hash SHA-256 disimpan di D1. Browser mengirim PIN melalui header `X-Admin-Pin` untuk request admin dan menyimpannya hanya di `sessionStorage` selama tab/session aktif. PIN tidak perlu dikirim lewat chat atau ditulis di source repository.
+Untuk fase prototype saat ini, PIN admin ditetapkan sementara menjadi **`123456`**. Hash SHA-256 PIN disimpan di D1 melalui migration `0003_set_prototype_admin_pin.sql`; browser tetap mengirim PIN melalui header `X-Admin-Pin` dan menyimpannya hanya di `sessionStorage` selama tab/session aktif.
 
-Setup pertama hanya boleh dilakukan sekali. Prototype ini tetap belum memiliki identity provider atau role-based access control produksi.
+PIN fixed ini hanya untuk testing prototype. Sebelum program dipromosikan menjadi program resmi/production, authentication harus diganti dengan mekanisme yang sesuai dan PIN prototype tidak boleh dipakai.
 
 ## Runtime architecture
 
@@ -68,6 +68,8 @@ Migration `migrations/0002_admin_master_data.sql` menambahkan `purchase_price` d
 - `categories`
 - `store_settings`
 - `contacts`
+
+Migration `migrations/0003_set_prototype_admin_pin.sql` menetapkan PIN admin prototype menjadi `123456` melalui SHA-256 hash di `store_settings`.
 
 ## Deployment
 
@@ -120,4 +122,4 @@ Workers Free memiliki quota harian untuk Worker invocations. Static asset reques
 
 ## DOC-IMPACT
 
-**REQUIRED** — Customer flow sekarang mengizinkan kembali ke katalog setelah checkout untuk membuat order/invoice baru tanpa mengubah order yang sudah terkirim. Customer mobile grid tetap memakai fixed-size control slot, admin master tetap protected, dan order lifecycle/API/D1 schema/cashier status contract tidak berubah.
+**REQUIRED** — Admin prototype sekarang memakai PIN sementara `123456` yang di-reset melalui migration D1 agar login dan CRUD master barang dapat langsung diuji. Customer repeat-order flow tetap berjalan. Order lifecycle, cashier status contract, public API, Worker identity, dan environment boundary tidak berubah.

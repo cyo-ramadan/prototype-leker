@@ -1,75 +1,136 @@
 # Prototype Leker
 
-Prototype self-ordering kiosk untuk produk leker. Customer memilih menu, order masuk ke kasir gerai terkait, lalu kasir mengubah status **NEW → PREPARING → READY → COMPLETED**.
+Prototype self-ordering + cashier workspace untuk produk leker. Customer membuat order ke gerai tertentu, sedangkan kasir gerai menangani queue, penjualan walk-in, dan cash drawer.
 
-## Multi-store
+## Hierarki aplikasi
 
-Prototype memakai **satu Cloudflare D1 dengan isolasi per gerai**. Gerai default hasil migrasi adalah `G001` (`store_001`). Existing products, categories, contacts, orders, order items, dan status history dipindahkan ke gerai default sehingga data lama tetap tersedia.
+Struktur aktif sekarang:
 
-Setiap gerai mempunyai master sendiri untuk identitas/logo, barang dan harga, kategori, customer/contact, order, cashier queue, serta akun kasir. Store context untuk data operasional divalidasi server-side.
+1. **Owner** — akun tertinggi. Owner membuat dan memilih gerai.
+2. **Gerai** — boundary operasional dan data.
+3. **Workspace Gerai** — seluruh master dan transaksi milik gerai tersebut.
+4. **Kasir** — akun karyawan yang terikat ke tepat satu gerai pada prototype ini.
+5. **Cash Drawer Session** — satu laci aktif per gerai. Kasir yang membuka laci menjadi pemegang write mode sampai laci ditutup.
+
+Gerai bukan master data. `/admin` adalah **Owner Console** untuk create/list gerai. Master baru muncul setelah Owner membuka `/s/<KODE>/admin`.
+
+## Data isolation per gerai
+
+Satu Cloudflare D1 tetap digunakan, tetapi semua data operasional membawa `store_id`. Barang, kategori, supplier, customer, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas tidak dibaca lintas gerai.
+
+Gerai baru yang dibuat dari Owner Console dimulai dengan master kosong. Barang dari gerai lain tidak otomatis disalin. Existing `G001` dan `G002` tetap dipertahankan sebagai data prototype yang sudah ada.
 
 ## UI routes
 
-- `/customer` — customer prototype, default `G001`, dengan selector gerai
-- `/cashier` — halaman login kasir
-- `/admin` — admin master console
+- `/admin` — Owner Console
+- `/s/<KODE>/admin` — workspace/master gerai
+- `/cashier` — login dan workspace kasir
+- `/customer` — customer prototype default `G001`
 - `/s/<KODE>/customer` — customer langsung pada gerai tertentu
 
-Customer prototype menampilkan selector **Gerai**. Field **Kode kiosk / perangkat** tetap terpisah; kiosk adalah identitas perangkat/booth di dalam gerai dan bukan identitas gerai.
+Customer prototype masih memiliki selector gerai untuk testing. Field **Kiosk / Booth** adalah identitas perangkat di dalam gerai, bukan identitas gerai.
+
+## Owner authentication
+
+Migration `0006_owner_branch_drawer_transactions.sql` membuat `owner_accounts` dan `owner_sessions`.
+
+Temporary prototype Owner:
+
+- username: `owner`
+- password: `123456`
+
+Owner session disimpan sebagai bearer token di browser, sementara token hash disimpan di D1. PIN admin lama `123456` dipertahankan hanya sebagai compatibility fallback untuk prototype dan bukan jalur UI utama baru.
+
+## Master per gerai
+
+Workspace gerai menyediakan:
+
+- identitas dan logo gerai
+- master barang dengan harga beli/jual dan foto optional
+- master kategori
+- master supplier
+- master customer/contact
+- master kasir
+
+Kasir yang dibuat dari sebuah workspace otomatis terikat ke gerai workspace tersebut. Form kasir tidak lagi menyediakan dropdown pindah gerai.
+
+## Cashier workspace
+
+Setelah login, server mengambil gerai dari akun kasir. Kasir tidak memilih gerai dari browser.
+
+Halaman kasir mempunyai:
+
+- **Pilih Menu** seperti customer UI
+- **Draft Menu** untuk item yang sedang disusun sebelum penjualan disimpan
+- queue order customer
+- **Buka Laci**
+- **Beli Bahan**
+- **Pengeluaran**
+- **Pendapatan Lain**
+- **Lihat Rincian**
+- **Tutup Laci**
+
+### Drawer write ownership
+
+Satu gerai hanya boleh mempunyai satu `OPEN` cash drawer session pada waktu yang sama. Banyak akun kasir boleh login bersamaan dan membaca menu/order, tetapi hanya kasir yang membuka laci aktif yang boleh:
+
+- memproses penjualan walk-in
+- mengubah status order customer
+- mencatat pembelian bahan
+- mencatat pengeluaran
+- mencatat pendapatan lain
+- menutup laci
+
+Kasir lain berada pada **read-only mode** sampai laci ditutup.
+
+Pembelian bahan pada prototype ini adalah fakta cash movement dan **tidak mengubah stok resmi**. Inventory tetap domain terpisah dan tidak boleh diinfer dari tabel pembelian prototype.
+
+## Transaction tables
+
+Migration `0006_owner_branch_drawer_transactions.sql` menambahkan:
+
+- `suppliers`
+- `cash_drawer_sessions`
+- `sales`
+- `sale_items`
+- `purchases`
+- `expenses`
+- `other_income`
+
+Semua tabel transaksi membawa `store_id`. Transaksi yang berasal dari laci juga membawa `drawer_session_id` dan `cashier_id`.
 
 ## Cashier authentication
 
-Migration `0005_cashier_auth.sql` menambahkan:
+Migration `0005_cashier_auth.sql` menyediakan `cashiers` dan `cashier_sessions`.
 
-- `cashiers` — username, password hash, nama karyawan, gerai, status aktif
-- `cashier_sessions` — session token hashed dengan masa berlaku 12 jam
+Seed prototype yang tetap tersedia:
 
-Kasir login melalui `/cashier`. Setelah kredensial valid, server mengambil `store_id` dari akun kasir. Browser tidak menentukan gerai queue. Semua list order, perubahan status, dan reset kasir memakai authenticated cashier session dan `store_id` dari server.
+- Wowo — username `wowo`, password `wowo123`, gerai `G001`
+- Wiwi — username `wiwi`, password `wiwi123`, gerai `G002`
 
-Prototype seed accounts:
+Password seed hanya untuk prototype/testing.
 
-- Wowo — username `wowo`, gerai `G001`
-- Wiwi — username `wiwi`, gerai `G002`
-
-Password seed hanya untuk prototype/testing dan tidak boleh dibawa ke production.
-
-Admin memiliki tab **Kasir** untuk tambah/edit/nonaktifkan akun. Master kasir berisi username, password, nama karyawan, dan gerai. Password tidak pernah dikirim kembali oleh API; admin hanya dapat menggantinya.
-
-## Customer UX
-
-Customer UI menggunakan side cart drawer, quantity stepper pada menu card, fixed-size mobile control slot, tombol **Pilih menu lagi** setelah checkout, dan selector gerai untuk prototype testing.
-
-Menu normal dibaca dari `GET /api/menu?store=...`. Static `public/menu.json` hanya menjadi fallback untuk gerai default `G001`. Gerai lain tidak menggunakan fallback global agar master antar-gerai tidak tercampur ketika API unavailable.
-
-## Admin security
-
-PIN admin prototype sementara: **`123456`**. Hash SHA-256 disimpan di D1 lewat migration `0003_set_prototype_admin_pin.sql`. Browser mengirim PIN melalui `X-Admin-Pin` dan menyimpannya di `sessionStorage` selama tab/session aktif.
-
-PIN fixed hanya untuk prototype/testing dan tidak boleh dibawa ke production.
-
-## Database schema
+## Database migrations
 
 - `0001_leker_order_schema.sql` — schema order awal
-- `0002_admin_master_data.sql` — master admin
-- `0003_set_prototype_admin_pin.sql` — PIN prototype `123456`
-- `0004_multi_store.sql` — `stores` + `store_id` isolation dan migrasi existing data ke `store_001`
-- `0005_cashier_auth.sql` — akun/session kasir, seed `G002`, Wowo dan Wiwi
-
-Tabel store-scoped utama:
-
-- `products`
-- `categories`
-- `contacts`
-- `orders`
-- `order_items`
-- `order_status_history`
-- `cashiers`
-
-`store_settings` tetap dipakai untuk admin PIN prototype global. Identitas/logo operasional gerai dibaca dari `stores`.
+- `0002_admin_master_data.sql` — master admin awal
+- `0003_set_prototype_admin_pin.sql` — PIN compatibility prototype
+- `0004_multi_store.sql` — store isolation dan migrasi existing data ke `G001`
+- `0005_cashier_auth.sql` — akun/session kasir, seed `G002`, Wowo, Wiwi
+- `0006_owner_branch_drawer_transactions.sql` — Owner hierarchy, supplier, drawer, dan transaksi store-scoped
 
 ## API
 
-Public/customer:
+Owner:
+
+- `POST /api/owner/login`
+- `GET /api/owner/me`
+- `POST /api/owner/logout`
+- `GET /api/owner/stores`
+- `POST /api/owner/stores`
+- `PATCH /api/owner/stores/:id`
+
+Customer/public:
 
 - `GET /api/stores`
 - `GET /api/menu?store=G001`
@@ -77,30 +138,33 @@ Public/customer:
 - `GET /api/orders/:id?store=G001`
 - `POST /api/orders?store=G001`
 
+Branch master, Owner-authenticated:
+
+- `GET /api/admin/bootstrap?store=G001`
+- `PUT /api/admin/store?store=G001`
+- `POST/PATCH/DELETE /api/admin/products...`
+- `POST/PATCH/DELETE /api/admin/categories...`
+- `POST/PATCH/DELETE /api/admin/contacts...`
+- `GET/POST/PATCH/DELETE /api/admin/suppliers...`
+- `GET/POST/PATCH/DELETE /api/admin/cashiers...`
+
 Cashier authenticated:
 
 - `POST /api/cashier/login`
 - `GET /api/cashier/me`
 - `POST /api/cashier/logout`
+- `GET /api/cashier/menu`
 - `GET /api/cashier/orders`
+- `GET /api/cashier/drawer`
+- `POST /api/cashier/drawer/open`
+- `POST /api/cashier/drawer/close`
+- `GET /api/cashier/drawer/details`
+- `GET /api/cashier/suppliers`
+- `POST /api/cashier/sales`
+- `POST /api/cashier/purchases`
+- `POST /api/cashier/expenses`
+- `POST /api/cashier/other-income`
 - `PATCH /api/cashier/orders/:id/status`
-- `POST /api/cashier/reset`
-
-Legacy public queue listing/status mutation/reset are no longer permitted and return `401` because cashier identity is now required.
-
-Admin protected:
-
-- `GET /api/admin/status`
-- `POST /api/admin/setup`
-- `GET /api/admin/bootstrap?store=G001`
-- `POST /api/admin/stores`
-- `PATCH /api/admin/stores/:id`
-- `PUT /api/admin/store?store=G001`
-- `POST/PATCH/DELETE /api/admin/products...`
-- `POST/PATCH/DELETE /api/admin/categories...`
-- `POST/PATCH/DELETE /api/admin/contacts...`
-- `GET/POST /api/admin/cashiers`
-- `PATCH/DELETE /api/admin/cashiers/:id`
 
 ## Runtime architecture
 
@@ -109,9 +173,9 @@ Admin protected:
 - Worker: `prototype-leker-v2`
 - D1: `prototype-leker-db` (`6977b54c-afce-4275-a0ad-d28e7d942e19`)
 
-Database resmi di account **Dwicahya** tidak digunakan prototype.
+Database resmi di account **Dwicahya** tidak digunakan prototype ini.
 
-Static assets tetap asset-first dan Worker dijalankan lebih dulu hanya untuk `/api/*`. Polling customer/cashier 5 detik dan pause saat tab hidden.
+Static assets tetap asset-first. Worker dijalankan lebih dulu hanya untuk `/api/*`. Polling kasir tetap 5 detik dan pause ketika tab hidden.
 
 ## Deployment
 
@@ -127,8 +191,8 @@ Cloudflare Workers Builds:
 
 ### Migration recovery
 
-`0004_multi_store.sql` mempertahankan row existing di `store_001`. `0005_cashier_auth.sql` additive untuk auth dan seed gerai/kasir prototype. Sebelum promotion ke production, backup D1 wajib diambil. Jika migration gagal, hentikan deployment dan restore database dari backup/Time Travel sebelum mencoba migration yang sudah dikoreksi. Jangan menjalankan query manual parsial untuk menebak state schema.
+`0006` bersifat additive terhadap schema multi-store existing. Sebelum promotion ke production, backup D1 wajib diambil. Jika migration gagal, hentikan deployment dan restore database dari backup/Time Travel sebelum mencoba migration yang sudah dikoreksi. Jangan menjalankan query manual parsial untuk menebak state schema.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Cashier queue sekarang membutuhkan authenticated cashier identity dan server-derived store scope. Admin mendapat master kasir, customer mendapat selector gerai, `G002` serta dua akun kasir prototype ditambahkan, dan public queue mutation endpoints ditutup.
+**REQUIRED** — Hierarki admin berubah menjadi Owner → Gerai → Workspace Gerai. Gerai dikeluarkan dari master, supplier menjadi master store-scoped, cashier master menjadi branch-scoped, dan cashier mendapat cash drawer ownership serta transaction workspace. Penjualan, pembelian, pengeluaran, dan pendapatan lain sekarang mempunyai store isolation dan drawer attribution.

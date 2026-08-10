@@ -7,6 +7,7 @@ const migrationUrl = new URL('../migrations/0004_multi_store.sql', import.meta.u
 const indexUrl = new URL('../src/index.js', import.meta.url);
 const dbUrl = new URL('../src/db-multistore.js', import.meta.url);
 const adminUrl = new URL('../src/admin-multistore.js', import.meta.url);
+const ownerUrl = new URL('../src/owner-auth.js', import.meta.url);
 const browserUrl = new URL('../public/store-context.js', import.meta.url);
 
 test('multi-store migration isolates all operational master and order tables', async () => {
@@ -30,9 +31,10 @@ test('runtime resolves store context server-side before public data access', asy
   assert.match(db, /WHERE store_id = \? AND id = \?/);
 });
 
-test('admin masters and store creation are store scoped', async () => {
-  const admin = await readFile(adminUrl, 'utf8');
-  assert.match(admin, /POST' && pathname === '\/api\/admin\/stores'/);
+test('Owner creates stores while branch masters remain store scoped', async () => {
+  const [admin, owner] = await Promise.all([readFile(adminUrl, 'utf8'), readFile(ownerUrl, 'utf8')]);
+  assert.match(owner, /POST' && pathname === '\/api\/owner\/stores'/);
+  assert.doesNotMatch(owner, /INSERT INTO products/);
   assert.match(admin, /WHERE store_id = \? AND name = \?/);
   assert.match(admin, /WHERE id = \? AND store_id = \?/);
   assert.match(admin, /INSERT INTO contacts \(id, store_id/);
@@ -43,7 +45,6 @@ test('browser route scopes API and active-order storage by store', async () => {
   const browser = await readFile(browserUrl, 'utf8');
   assert.match(browser, /url\.searchParams\.set\('store'/);
   assert.match(browser, /lekerActiveOrderId/);
-  assert.match(browser, /lekerAdminStoreCode/);
   assert.match(browser, /window\.lekerStorePath/);
 });
 

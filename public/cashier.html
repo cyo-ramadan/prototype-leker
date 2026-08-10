@@ -6,6 +6,7 @@
   <title>Prototype Leker · Kasir</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/cashier-auth.css" />
+  <link rel="stylesheet" href="/cashier-pos.css" />
 </head>
 <body>
 <div class="app-shell">
@@ -22,7 +23,7 @@
     <form id="cashierLoginForm" class="cashier-login-card">
       <div class="muted">Akun menentukan gerai otomatis</div>
       <h1>Login Kasir</h1>
-      <p class="muted">Masukkan username dan password dari master kasir. Setelah login, queue yang terlihat hanya milik gerai akun ini.</p>
+      <p class="muted">Semua menu, order, laci, dan transaksi setelah login otomatis terikat ke gerai akun kasir.</p>
       <div class="field"><label>Username</label><input id="cashierUsername" class="text-input" autocomplete="username" maxlength="40" required /></div>
       <div class="field"><label>Password</label><input id="cashierPassword" class="text-input" type="password" autocomplete="current-password" required /></div>
       <button class="primary-btn" type="submit">MASUK KE KASIR</button>
@@ -31,18 +32,63 @@
   </main>
 
   <main id="cashierDashboard" class="cashier-wrap cashier-dashboard hidden">
-    <div class="cashier-header">
-      <div><div class="muted">Realtime order queue · <span id="cashierStoreLabel">Gerai</span></div><h1>Kasir Dashboard</h1></div>
-      <div class="stats"><div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div><div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div><div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div></div>
-    </div>
-    <section class="columns">
-      <div class="column"><div class="column-title"><h2>🧾 Pesanan Baru</h2><span id="badgeNew" class="badge">0</span></div><div id="colNew"></div></div>
-      <div class="column"><div class="column-title"><h2>🥞 Sedang Dibuat</h2><span id="badgePrep" class="badge">0</span></div><div id="colPrep"></div></div>
-      <div class="column"><div class="column-title"><h2>✅ Siap Diambil</h2><span id="badgeReady" class="badge">0</span></div><div id="colReady"></div></div>
+    <section class="drawer-command-card">
+      <div class="drawer-status-block">
+        <div class="muted">Cash drawer · <span id="cashierStoreLabel">Gerai</span></div>
+        <div class="drawer-title-row"><h1 id="drawerTitle">Laci belum dibuka</h1><span id="drawerModeBadge" class="drawer-mode-badge">READ ONLY</span></div>
+        <p id="drawerStatusText" class="muted">Buka laci untuk mulai mencatat transaksi gerai.</p>
+      </div>
+      <div class="drawer-actions">
+        <button id="openDrawerBtn" class="primary-btn" type="button">🔓 Buka Laci</button>
+        <button id="closeDrawerBtn" class="secondary-btn hidden" type="button">🔒 Tutup Laci</button>
+        <button id="purchaseBtn" class="drawer-action-btn" type="button" disabled>🧺 Beli Bahan</button>
+        <button id="expenseBtn" class="drawer-action-btn" type="button" disabled>💸 Pengeluaran</button>
+        <button id="otherIncomeBtn" class="drawer-action-btn" type="button" disabled>💰 Pendapatan Lain</button>
+        <button id="drawerDetailsBtn" class="drawer-action-btn" type="button" disabled>📋 Lihat Rincian</button>
+      </div>
     </section>
-    <section class="done-list"><div class="list-head"><h2>Riwayat selesai</h2><button id="resetBtn" class="danger-btn" type="button">Reset order gerai ini</button></div><div id="doneList"></div></section>
+
+    <section class="cashier-pos-layout">
+      <div class="cashier-menu-panel">
+        <div class="cashier-panel-head"><div><div class="muted">Walk-in / input kasir</div><h2>Pilih Menu</h2></div><span id="cashierMenuCount" class="badge">0</span></div>
+        <div id="cashierCategoryRow" class="cashier-category-row"></div>
+        <div id="cashierMenuGrid" class="cashier-menu-grid"></div>
+      </div>
+
+      <aside class="cashier-draft-panel">
+        <div class="cashier-panel-head"><div><div class="muted">Belum tersimpan</div><h2>Draft Menu</h2></div><span id="draftCount" class="badge">0</span></div>
+        <div id="cashierDraftList" class="cashier-draft-list"></div>
+        <div class="field"><label>Nama customer <span class="muted">optional</span></label><input id="saleCustomerName" class="text-input" maxlength="100" placeholder="Walk-in" /></div>
+        <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="saleNote" rows="2" maxlength="500"></textarea></div>
+        <div class="cashier-draft-total"><span>Total</span><strong id="draftTotal">Rp0</strong></div>
+        <button id="processSaleBtn" class="primary-btn" type="button" disabled>PROSES PENJUALAN</button>
+        <div id="cashierWriteLockNote" class="cashier-lock-note">Buka laci untuk mengaktifkan write mode.</div>
+      </aside>
+    </section>
+
+    <section class="cashier-order-section">
+      <div class="cashier-header">
+        <div><div class="muted">Order dari customer kiosk</div><h1>Pesanan Masuk</h1></div>
+        <div class="stats"><div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div><div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div><div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div></div>
+      </div>
+      <section class="columns">
+        <div class="column"><div class="column-title"><h2>🧾 Pesanan Baru</h2><span id="badgeNew" class="badge">0</span></div><div id="colNew"></div></div>
+        <div class="column"><div class="column-title"><h2>🥞 Sedang Dibuat</h2><span id="badgePrep" class="badge">0</span></div><div id="colPrep"></div></div>
+        <div class="column"><div class="column-title"><h2>✅ Siap Diambil</h2><span id="badgeReady" class="badge">0</span></div><div id="colReady"></div></div>
+      </section>
+      <section class="done-list"><h2>Riwayat order selesai</h2><div id="doneList"></div></section>
+    </section>
   </main>
 </div>
+
+<dialog id="cashierDialog" class="cashier-dialog">
+  <form id="cashierDialogForm" method="dialog">
+    <div class="cashier-dialog-head"><div><div id="cashierDialogEyebrow" class="muted">Laci</div><h2 id="cashierDialogTitle">Form</h2></div><button id="cashierDialogClose" class="cart-close-btn" type="button">×</button></div>
+    <div id="cashierDialogBody"></div>
+    <div id="cashierDialogActions" class="cashier-dialog-actions"><button id="cashierDialogCancel" class="secondary-btn" type="button">Batal</button><button id="cashierDialogSubmit" class="primary-btn" type="submit">Simpan</button></div>
+  </form>
+</dialog>
+
 <script src="/cashier.js"></script>
 </body>
 </html>

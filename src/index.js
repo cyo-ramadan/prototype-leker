@@ -2,6 +2,9 @@ import { listOrders, listProducts, getOrder } from './db-multistore.js';
 import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore.js';
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
+import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
+import { handleOwnerApi } from './owner-auth.js';
+import { handleSupplierApi } from './suppliers.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -14,9 +17,6 @@ async function requirePublicStore(env, url) {
 }
 
 async function handleCashierOrders(request, env, pathname) {
-  const authResponse = await handleCashierAuthApi(request, env, pathname);
-  if (authResponse) return authResponse;
-
   if (!pathname.startsWith('/api/cashier/')) return null;
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
@@ -28,6 +28,8 @@ async function handleCashierOrders(request, env, pathname) {
 
   const statusMatch = pathname.match(/^\/api\/cashier\/orders\/([^/]+)\/status$/);
   if (request.method === 'PATCH' && statusMatch) {
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    if (!drawerAuth.ok) return drawerAuth.response;
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const result = await changeOrderStatus(env.DB, storeId, statusMatch[1], body.value?.status);
@@ -35,6 +37,8 @@ async function handleCashierOrders(request, env, pathname) {
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/reset') {
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    if (!drawerAuth.ok) return drawerAuth.response;
     return json(await resetOrders(env.DB, storeId));
   }
 
@@ -44,6 +48,12 @@ async function handleCashierOrders(request, env, pathname) {
 async function handleApi(request, env, url) {
   const { pathname } = url;
 
+  const ownerResponse = await handleOwnerApi(request, env, pathname);
+  if (ownerResponse) return ownerResponse;
+
+  const supplierResponse = await handleSupplierApi(request, env, pathname);
+  if (supplierResponse) return supplierResponse;
+
   const adminCashierResponse = await handleAdminCashierApi(request, env, pathname);
   if (adminCashierResponse) return adminCashierResponse;
 
@@ -51,8 +61,14 @@ async function handleApi(request, env, url) {
     return handleAdminApi(request, env, pathname);
   }
 
-  const cashierResponse = await handleCashierOrders(request, env, pathname);
-  if (cashierResponse) return cashierResponse;
+  const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);
+  if (cashierAuthResponse) return cashierAuthResponse;
+
+  const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
+  if (cashierDrawerResponse) return cashierDrawerResponse;
+
+  const cashierOrdersResponse = await handleCashierOrders(request, env, pathname);
+  if (cashierOrdersResponse) return cashierOrdersResponse;
 
   if (request.method === 'GET' && pathname === '/api/stores') {
     const stores = await listStores(env.DB);
@@ -83,9 +99,8 @@ async function handleApi(request, env, url) {
     return result.ok ? json(result.order, 201) : json({ error: result.error }, result.status);
   }
 
-  // Queue listing, status mutation, and reset are cashier-authenticated now.
   if (pathname === '/api/orders' || pathname === '/api/reset' || pathname.match(/^\/api\/orders\/[^/]+\/status$/)) {
-    return json({ error: 'Login kasir diperlukan untuk akses queue atau perubahan status.' }, 401);
+    return json({ error: 'Login kasir dan laci aktif diperlukan untuk perubahan data kasir.' }, 401);
   }
 
   return json({ error: 'Not found' }, 404);
@@ -96,13 +111,15 @@ function assetRoute(pathname) {
     '/': '/customer.html',
     '/customer': '/customer.html',
     '/cashier': '/cashier.html',
-    '/admin': '/admin.html'
+    '/admin': '/owner.html',
+    '/owner': '/owner.html'
   };
   if (direct[pathname]) return direct[pathname];
 
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
+    if (page === 'admin') return '/branch-admin.html';
     return `/${page}.html`;
   }
   return pathname;

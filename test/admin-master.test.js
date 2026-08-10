@@ -4,12 +4,13 @@ import { readFile } from 'node:fs/promises';
 
 const migrationUrl = new URL('../migrations/0002_admin_master_data.sql', import.meta.url);
 const indexUrl = new URL('../src/index.js', import.meta.url);
-const adminApiUrl = new URL('../src/admin.js', import.meta.url);
-const adminHtmlUrl = new URL('../public/admin.html', import.meta.url);
+const adminApiUrl = new URL('../src/admin-multistore.js', import.meta.url);
+const ownerHtmlUrl = new URL('../public/owner.html', import.meta.url);
+const branchHtmlUrl = new URL('../public/branch-admin.html', import.meta.url);
 const customerJsUrl = new URL('../public/customer.js', import.meta.url);
 const responsiveCssUrl = new URL('../public/customer-responsive.css', import.meta.url);
 
-test('admin master schema covers store, products, categories, and contacts', async () => {
+test('branch master schema covers store identity products categories and contacts', async () => {
   const migration = await readFile(migrationUrl, 'utf8');
   assert.match(migration, /purchase_price INTEGER/);
   assert.match(migration, /image_data TEXT/);
@@ -18,21 +19,24 @@ test('admin master schema covers store, products, categories, and contacts', asy
   assert.match(migration, /CREATE TABLE IF NOT EXISTS contacts/);
 });
 
-test('admin routes require a PIN for protected master data', async () => {
-  const [index, adminApi, html] = await Promise.all([
+test('owner console sits above branch master workspace', async () => {
+  const [index, adminApi, ownerHtml, branchHtml] = await Promise.all([
     readFile(indexUrl, 'utf8'),
     readFile(adminApiUrl, 'utf8'),
-    readFile(adminHtmlUrl, 'utf8')
+    readFile(ownerHtmlUrl, 'utf8'),
+    readFile(branchHtmlUrl, 'utf8')
   ]);
-  assert.match(index, /'\/admin': '\/admin\.html'/);
-  assert.match(index, /pathname\.startsWith\('\/api\/admin\/'\)/);
-  assert.match(adminApi, /x-admin-pin/);
-  assert.match(adminApi, /\/api\/admin\/setup/);
+  assert.match(index, /'\/admin': '\/owner\.html'/);
+  assert.match(index, /page === 'admin'.*branch-admin\.html/s);
+  assert.match(adminApi, /requireManagement/);
   assert.match(adminApi, /\/api\/admin\/products/);
   assert.match(adminApi, /\/api\/admin\/categories/);
   assert.match(adminApi, /\/api\/admin\/contacts/);
-  assert.match(html, /Master barang/);
-  assert.match(html, /Master customer\/contact/);
+  assert.match(ownerHtml, /Create gerai/i);
+  assert.match(branchHtml, /Master barang/);
+  assert.match(branchHtml, /Master supplier/);
+  assert.match(branchHtml, /Master customer\/contact/);
+  assert.doesNotMatch(branchHtml, /data-tab="branches"/);
 });
 
 test('mobile menu uses a fixed control slot so quantity changes do not resize cards', async () => {

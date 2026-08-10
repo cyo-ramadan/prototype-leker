@@ -1,5 +1,6 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, listStores, normalizeStoreCode, resolveStore } from './stores.js';
+import { requireManagement } from './owner-auth.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const MAX_LOGO_IMAGE_LENGTH = 500_000;
@@ -27,13 +28,7 @@ async function getAdminSettings(db) {
 }
 
 async function requireAdmin(request, db) {
-  const settings = await getAdminSettings(db);
-  if (!settings?.admin_pin_hash) return { ok: false, response: json({ error: 'Admin PIN belum dibuat.' }, 428) };
-  const pin = request.headers.get('x-admin-pin') ?? '';
-  if (!pin || await hashPin(pin) !== settings.admin_pin_hash) {
-    return { ok: false, response: json({ error: 'PIN admin salah.' }, 401) };
-  }
-  return { ok: true };
+  return requireManagement(request, db);
 }
 
 function storeTokenFrom(request) {

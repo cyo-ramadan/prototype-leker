@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MAXI Leker · Owner</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/owner.css" />
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar admin-topbar">
+    <div class="brand"><div class="brand-mark">O</div><div>MAXI LEKER<small>Owner Console</small></div></div>
+    <div class="admin-top-actions">
+      <a class="admin-link" href="/customer">Customer</a>
+      <a class="admin-link" href="/cashier">Kasir</a>
+      <button id="ownerLogoutBtn" class="secondary-btn hidden" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="owner-shell">
+    <section id="ownerLoginView" class="admin-auth-card">
+      <div class="admin-eyebrow">Akun tertinggi</div>
+      <h1>Login Owner</h1>
+      <p class="muted">Owner membuat dan memilih gerai. Master serta transaksi baru dikelola setelah masuk ke workspace gerai.</p>
+      <label class="admin-field">Username<input id="ownerUsername" autocomplete="username" maxlength="40" required /></label>
+      <label class="admin-field">Password<input id="ownerPassword" type="password" autocomplete="current-password" required /></label>
+      <button id="ownerLoginBtn" class="primary-btn" type="button">MASUK OWNER</button>
+      <div id="ownerLoginMessage" class="admin-message" aria-live="polite"></div>
+    </section>
+
+    <section id="ownerApp" class="hidden">
+      <div class="owner-heading">
+        <div><div class="admin-eyebrow">Structure level 1</div><h1>Gerai</h1><p class="muted">Gerai berada di atas seluruh master dan transaksi.</p></div>
+        <div id="ownerIdentity" class="owner-chip"></div>
+      </div>
+
+      <div class="owner-layout">
+        <form id="storeCreateForm" class="admin-card owner-create-card">
+          <h2>Create gerai</h2>
+          <label class="admin-field">Kode gerai<input id="ownerStoreCode" maxlength="16" placeholder="Contoh: G003" required /></label>
+          <label class="admin-field">Nama gerai<input id="ownerStoreName" maxlength="80" placeholder="MAXI Leker Gerai 3" required /></label>
+          <label class="admin-field">Alamat<textarea id="ownerStoreAddress" rows="3" maxlength="180"></textarea></label>
+          <button class="primary-btn" type="submit">＋ CREATE GERAI</button>
+          <p class="field-note">Gerai baru dimulai dengan master kosong. Barang gerai lain tidak otomatis disalin.</p>
+        </form>
+
+        <section class="admin-card">
+          <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Pilih gerai untuk masuk ke workspace-nya.</div></div><span id="ownerStoreCount" class="master-count">0</span></div>
+          <div id="ownerStoreList" class="owner-store-grid"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <div id="ownerToast" class="admin-toast" aria-live="polite"></div>
+</div>
+<script src="/owner.js"></script>
+</body>
+</html>

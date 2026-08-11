@@ -54,6 +54,8 @@ export async function createOrder(db, store, payload) {
     generalNote: sanitizeText(payload?.generalNote, 240),
     total: items.reduce((sum, item) => sum + item.price * item.qty, 0),
     status: ORDER_STATUS.NEW,
+    source: 'customer',
+    drawerSessionId: null,
     createdAt: now,
     updatedAt: now,
     readyAt: null,
@@ -74,7 +76,7 @@ export async function createOrder(db, store, payload) {
   return { ok: false, status: 409, error: 'Nomor pesanan bentrok. Silakan coba lagi.' };
 }
 
-export async function changeOrderStatus(db, storeId, orderId, nextStatus) {
+export async function changeOrderStatus(db, storeId, orderId, nextStatus, drawerSessionId = null) {
   if (!Object.values(ORDER_STATUS).includes(nextStatus)) {
     return { ok: false, status: 400, error: 'Status tidak valid.' };
   }
@@ -84,7 +86,7 @@ export async function changeOrderStatus(db, storeId, orderId, nextStatus) {
     return { ok: false, status: 409, error: `Transisi ${currentOrder.status} → ${nextStatus} tidak diizinkan.` };
   }
   const changedAt = isoNow();
-  const result = await persistOrderStatus(db, storeId, orderId, currentOrder.status, nextStatus, changedAt);
+  const result = await persistOrderStatus(db, storeId, orderId, currentOrder.status, nextStatus, changedAt, drawerSessionId);
   if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
     return { ok: false, status: 409, error: 'Status order berubah di request lain. Refresh lalu coba lagi.' };
   }

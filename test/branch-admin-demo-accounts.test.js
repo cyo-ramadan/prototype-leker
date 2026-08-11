@@ -37,7 +37,7 @@ test('each branch has two seeded cashier logins without deleting existing cashie
   assert.match(demoAccounts, /'cashier_mewing'.*'store_002'/s);
 });
 
-test('unified login recognizes ADMIN and creates branch-scoped admin session', async () => {
+test('staff login recognizes ADMIN and creates branch-scoped admin session', async () => {
   const [unified, auth, index] = await Promise.all([
     read('src/unified-login.js'),
     read('src/owner-auth.js'),
@@ -45,7 +45,8 @@ test('unified login recognizes ADMIN and creates branch-scoped admin session', a
   ]);
   assert.match(unified, /FROM store_admins a/);
   assert.match(unified, /role: 'ADMIN'/);
-  assert.match(unified, /createStoreAdminSession/);
+  assert.match(unified, /store_admin_sessions/);
+  assert.match(unified, /\/api\/auth\/staff-login/);
   assert.match(auth, /storeAdminFromRequest/);
   assert.match(auth, /ADMIN_STORE_SCOPE_MISMATCH/);
   assert.match(auth, /Create dan pengaturan gerai hanya boleh dilakukan Owner/);
@@ -53,13 +54,13 @@ test('unified login recognizes ADMIN and creates branch-scoped admin session', a
 });
 
 test('browser stores admin session separately and branch workspace accepts it', async () => {
-  const [customerLogin, branchAuth] = await Promise.all([
-    read('public/customer-login.js'),
+  const [entry, branchAuth] = await Promise.all([
+    read('public/auth-entry-split.js'),
     read('public/branch-owner-auth.js')
   ]);
-  assert.match(customerLogin, /payload\.role === 'ADMIN'/);
-  assert.match(customerLogin, /lekerAdminToken/);
-  assert.match(customerLogin, /lekerAdminStoreCode/);
+  assert.match(entry, /payload\.role === 'ADMIN'/);
+  assert.match(entry, /lekerAdminToken/);
+  assert.match(entry, /lekerAdminStoreCode/);
   assert.match(branchAuth, /lekerOwnerToken/);
   assert.match(branchAuth, /lekerAdminToken/);
   assert.match(branchAuth, /STORE_ADMIN_SESSION/);

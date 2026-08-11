@@ -1,15 +1,17 @@
 # Known Issues — Prototype Leker
 
-## Duplicate cashier tabs can share an initial session token
+Tidak ada known issue aktif yang ditambahkan oleh perubahan login/session 0011.
 
-A browser tab duplicated from an already logged-in cashier tab can begin with a copied `sessionStorage` token. If one of those tabs logs out, the server deletes that token and another tab still using the same token can receive `401 CASHIER_SESSION_EXPIRED` and require login again.
+Issue sebelumnya tentang duplicate cashier tab ditutup oleh kombinasi:
 
-This issue is separate from periodic polling. Removing polling reduces unnecessary requests but does not change server-side logout semantics.
+- canonical login dipisah menjadi Pelanggan dan Karyawan;
+- satu staff account hanya mempunyai satu active server session;
+- satu browser hanya mempunyai satu active staff tab melalui local browser lease;
+- takeover session harus explicit;
+- customer session tetap terpisah dan boleh coexist dengan satu staff tab.
 
-**Current recovery:** close stale duplicate tabs and login again on the tab that will be used.
-
-**Future fix candidate:** use a multi-tab-safe cashier session strategy that preserves explicit logout semantics without one copied tab unexpectedly invalidating another active tab. This requires its own focused change and tests.
+Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live, catat sebagai issue baru dengan langkah reproduksi dan jangan menghidupkan kembali periodic network polling sebagai workaround.
 
 ## DOC-IMPACT
 
-**REQUIRED** — unresolved multi-tab session behavior is explicitly tracked and must not be reported as fixed by the polling-removal change.
+**REQUIRED** — duplicate staff-tab problem yang sebelumnya unresolved sekarang memiliki implemented mitigation dan regression coverage pada changeset auth 0011.

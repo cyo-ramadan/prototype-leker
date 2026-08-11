@@ -30,48 +30,41 @@ test('customer login and customer master use explicit owner sharing scope', asyn
   assert.match(sharing, /bentrok antar gerai/);
 });
 
-test('main customer page uses one login form without role selection and keeps guest checkout', async () => {
-  const [html, login] = await Promise.all([
+test('main customer page exposes Pelanggan and Karyawan login tabs while keeping guest checkout', async () => {
+  const [html, split] = await Promise.all([
     read('public/customer.html'),
-    read('public/customer-login.js')
+    read('public/auth-entry-split.js')
   ]);
   assert.match(html, /customer-login\.css/);
-  assert.match(html, /customer-login\.js/);
+  assert.match(html, /auth-entry-split\.css/);
+  assert.match(html, /customer-login\.js[\s\S]*auth-entry-split\.js/);
   assert.match(html, /Bisa beli tanpa login/);
-  assert.doesNotMatch(login, /data-entry-role=/);
-  assert.doesNotMatch(login, /setRole\(/);
-  assert.match(login, /\/api\/auth\/login/);
-  assert.match(login, /payload\.role === 'OWNER'/);
-  assert.match(login, /payload\.role === 'ADMIN'/);
-  assert.match(login, /payload\.role === 'CASHIER'/);
-  assert.match(login, /payload\.role !== 'CUSTOMER'/);
-  assert.match(login, /lekerOwnerToken/);
-  assert.match(login, /lekerAdminToken/);
-  assert.match(login, /lekerAdminStoreCode/);
-  assert.match(login, /lekerCashierToken/);
-  assert.match(login, /lekerCustomerToken:/);
-  assert.match(login, /Customer ID:/);
-  assert.match(login, /Lanjut beli tanpa login/);
+  assert.match(split, />Pelanggan<\/button>/);
+  assert.match(split, />Karyawan<\/button>/);
+  assert.match(split, /\/api\/auth\/customer-login/);
+  assert.match(split, /\/api\/auth\/staff-login/);
+  assert.match(split, /lekerOwnerToken/);
+  assert.match(split, /lekerAdminToken/);
+  assert.match(split, /lekerAdminStoreCode/);
+  assert.match(split, /lekerCashierToken/);
+  assert.match(split, /lekerCustomerToken:/);
 });
 
-test('unified login resolves role server side and shared customer scope server side', async () => {
+test('separated login resolves staff rank and customer sharing scope server side', async () => {
   const [index, unified] = await Promise.all([
     read('src/index.js'),
     read('src/unified-login.js')
   ]);
   assert.match(index, /handleUnifiedLoginApi/);
   assert.match(index, /unifiedLoginResponse/);
-  assert.match(unified, /pathname !== '\/api\/auth\/login'/);
+  assert.match(unified, /\/api\/auth\/customer-login/);
+  assert.match(unified, /\/api\/auth\/staff-login/);
   assert.match(unified, /FROM owner_accounts/);
   assert.match(unified, /FROM store_admins a/);
   assert.match(unified, /FROM cashiers c/);
   assert.match(unified, /FROM customers c/);
-  assert.match(unified, /role: 'OWNER'/);
-  assert.match(unified, /role: 'ADMIN'/);
-  assert.match(unified, /role: 'CASHIER'/);
-  assert.match(unified, /role: 'CUSTOMER'/);
-  assert.match(unified, /AMBIGUOUS_LOGIN/);
-  assert.match(unified, /resolveCustomerScope\(env\.DB, selectedStore\.id\)/);
+  assert.match(unified, /AMBIGUOUS_STAFF_LOGIN/);
+  assert.match(unified, /resolveCustomerScope\(db, selectedStore\.id\)/);
 });
 
 test('logged customer identity is derived server side when order is created', async () => {

@@ -11,7 +11,11 @@
       button.textContent = '↻ Memuat...';
     }
 
-    refreshInFlight = Promise.all([loadOrders(), loadDrawer()])
+    const refresh = window.refreshCashierWorkspace
+      ? () => window.refreshCashierWorkspace({ includeMenu: false })
+      : () => loadOrders();
+
+    refreshInFlight = refresh()
       .then(() => {
         if (notify) toast('Pesanan dan status laci diperbarui');
       })

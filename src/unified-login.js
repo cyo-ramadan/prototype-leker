@@ -1,10 +1,12 @@
 import { json, readJson } from './http.js';
+import { resolveCustomerScope } from './customer-sharing.js';
 import { hashCredential } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 
 const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
+const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
 function createSessionWindow() {
   const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
@@ -119,22 +121,29 @@ export async function handleUnifiedLoginApi(request, env, pathname) {
     resolveStore(env.DB, storeToken)
   ]);
 
-  const customer = selectedStore ? await env.DB.prepare(`
-    SELECT c.id, c.store_id, c.customer_code, c.username, c.password_hash,
-           c.customer_name, c.phone, c.email, c.notes, c.is_active,
-           c.created_at, c.updated_at, s.code AS store_code, s.store_name
-    FROM customers c
-    JOIN stores s ON s.id = c.store_id
-    WHERE c.store_id = ? AND c.username = ? COLLATE NOCASE
-      AND c.is_active = 1 AND s.is_active = 1
-    LIMIT 1
-  `).bind(selectedStore.id, username).first() : null;
+  let customerRows = [];
+  if (selectedStore) {
+    const scope = await resolveCustomerScope(env.DB, selectedStore.id);
+    const rows = await env.DB.prepare(`
+      SELECT c.id, c.store_id, c.customer_code, c.username, c.password_hash,
+             c.customer_name, c.phone, c.email, c.notes, c.is_active,
+             c.created_at, c.updated_at, s.code AS store_code, s.store_name
+      FROM customers c
+      JOIN stores s ON s.id = c.store_id
+      WHERE c.store_id IN (${placeholders(scope.storeIds.length)})
+        AND c.username = ? COLLATE NOCASE
+        AND c.is_active = 1 AND s.is_active = 1
+    `).bind(...scope.storeIds, username).all();
+    customerRows = rows.results ?? [];
+  }
 
   const passwordHash = await hashCredential(password);
   const matches = [];
   if (owner?.password_hash && owner.password_hash === passwordHash) matches.push({ role: 'OWNER', row: owner });
   if (cashier?.password_hash && cashier.password_hash === passwordHash) matches.push({ role: 'CASHIER', row: cashier });
-  if (customer?.password_hash && customer.password_hash === passwordHash) matches.push({ role: 'CUSTOMER', row: customer });
+  for (const customer of customerRows) {
+    if (customer.password_hash && customer.password_hash === passwordHash) matches.push({ role: 'CUSTOMER', row: customer });
+  }
 
   if (!matches.length) {
     if (!selectedStore && !owner && !cashier) return json({ error: 'Gerai yang dipilih tidak tersedia.' }, 404);

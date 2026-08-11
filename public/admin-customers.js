@@ -2,6 +2,8 @@
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   let customers = [];
+  let sharing = null;
+  let sharedStores = [];
 
   const legacyTab = document.querySelector('[data-tab="contacts"]');
   const legacySection = el('tab-contacts');
@@ -38,6 +40,7 @@
           </form>
           <div class="admin-card list-card">
             <div class="list-head"><h2>Master pelanggan</h2><span id="customerMasterCount" class="master-count">0</span></div>
+            <div id="customerSharingScopeNote" class="admin-tip" style="margin:10px 0"></div>
             <div class="muted" style="margin-bottom:10px">Customer ID selalu dibuat. Username/password hanya diperlukan jika pelanggan ingin login.</div>
             <div id="customerMasterList" class="master-list"></div>
           </div>
@@ -73,11 +76,14 @@
 
   function render() {
     el('customerMasterCount').textContent = customers.length;
+    el('customerSharingScopeNote').innerHTML = sharing
+      ? `🔗 <b>Berbagi Pelanggan: ${escapeHtml(sharing.name)}</b><br><span class="muted">Database pelanggan dapat dipakai di ${sharedStores.map(store => escapeHtml(store.code)).join(' ↔ ')}. Master operasional lain tetap terpisah.</span>`
+      : `🔒 <b>Pelanggan khusus gerai ini</b><br><span class="muted">Owner belum mengaktifkan Berbagi Pelanggan untuk gerai ini.</span>`;
     el('customerMasterList').innerHTML = customers.length ? customers.map(customer => `
       <div class="master-row contact-row ${customer.isActive ? '' : 'inactive'}">
         <div class="master-main">
           <strong>${escapeHtml(customer.customerName)}</strong>
-          <div class="master-meta">ID ${escapeHtml(customer.customerCode)}</div>
+          <div class="master-meta">ID ${escapeHtml(customer.customerCode)} · Asal ${escapeHtml(customer.store?.code || window.LEKER_STORE_CODE || '-')}</div>
           <div class="master-meta">${escapeHtml([customer.phone, customer.email].filter(Boolean).join(' · ') || 'Tanpa kontak')}</div>
           <div class="master-meta">${customer.hasLogin ? `Login @${escapeHtml(customer.username)}` : 'Belum punya akun login'} · ${customer.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
@@ -85,7 +91,7 @@
           <button class="mini-btn" type="button" data-edit-customer="${escapeHtml(customer.id)}">Edit</button>
           <button class="mini-btn danger" type="button" data-delete-customer="${escapeHtml(customer.id)}">Nonaktifkan</button>
         </div>
-      </div>`).join('') : '<div class="empty">Belum ada pelanggan di gerai ini.</div>';
+      </div>`).join('') : '<div class="empty">Belum ada pelanggan pada scope gerai ini.</div>';
     document.querySelectorAll('[data-edit-customer]').forEach(button => button.onclick = () => edit(button.dataset.editCustomer));
     document.querySelectorAll('[data-delete-customer]').forEach(button => button.onclick = () => deactivate(button.dataset.deleteCustomer));
   }
@@ -94,6 +100,8 @@
     try {
       const payload = await request('/api/admin/customers');
       customers = payload.customers || [];
+      sharing = payload.sharing || null;
+      sharedStores = payload.sharedStores || [];
       render();
     } catch (error) { toast(error.message); }
   }

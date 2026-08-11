@@ -5,7 +5,7 @@
 
   const tabs = document.querySelector('.admin-tabs');
   if (tabs && !document.querySelector('[data-tab="cashiers"]')) {
-    tabs.insertAdjacentHTML('beforeend', '<button class="admin-tab" data-tab="cashiers" type="button">Kasir</button>');
+    tabs.insertAdjacentHTML('beforeend', '<button class="admin-tab" data-tab="cashiers" type="button">Create Kasir</button>');
   }
 
   const contacts = el('tab-contacts');

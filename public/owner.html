@@ -51,6 +51,24 @@
           <div id="ownerStoreList" class="owner-store-grid"></div>
         </section>
       </div>
+
+      <section class="admin-card" style="margin-top:18px">
+        <div class="list-head"><div><h2>Berbagi Pelanggan</h2><div class="muted">Owner menentukan gerai mana yang memakai database pelanggan bersama. Barang, transaksi, laci, dan master operasional lain tetap terpisah.</div></div></div>
+        <div class="admin-grid two" style="margin-top:14px">
+          <form id="customerSharingForm" class="admin-card" style="box-shadow:none">
+            <input id="customerSharingId" type="hidden" />
+            <div class="form-title-row"><h3 id="customerSharingTitle">Buat grup berbagi pelanggan</h3><button id="customerSharingCancel" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama grup<input id="customerSharingName" maxlength="80" placeholder="Contoh: Area Tulungagung" required /></label>
+            <div class="admin-field"><label>Gerai yang berbagi pelanggan</label><div id="customerSharingStores" class="master-list"></div></div>
+            <button class="primary-btn" type="submit">Simpan Berbagi Pelanggan</button>
+            <p class="field-note">Username pelanggan yang bentrok antar gerai akan ditolak. Infrastruktur poin sudah disiapkan, tetapi rumus earn/redeem belum diaktifkan sampai aturan poin ditentukan.</p>
+          </form>
+          <div class="admin-card" style="box-shadow:none">
+            <div class="list-head"><h3>Grup aktif</h3><span id="customerSharingCount" class="master-count">0</span></div>
+            <div id="customerSharingList" class="master-list"></div>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
   <div id="ownerToast" class="admin-toast" aria-live="polite"></div>

@@ -1,10 +1,12 @@
 import { json, readJson } from './http.js';
 import { bearerToken, hashCredential, requireManagement } from './owner-auth.js';
+import { resolveCustomerScope } from './customer-sharing.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 
 const CUSTOMER_SESSION_HOURS = 12;
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
+const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
 function storeTokenFrom(request) {
   return new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
@@ -36,9 +38,9 @@ async function selectedStore(db, request, includeInactive = true) {
   return resolveStore(db, storeTokenFrom(request), { includeInactive });
 }
 
-async function customerFromToken(request, db, storeId = null) {
+async function customerFromToken(request, db, storeIds) {
   const token = bearerToken(request);
-  if (!token) return null;
+  if (!token || !storeIds?.length) return null;
   const tokenHash = await hashCredential(token);
   const now = new Date().toISOString();
   const row = await db.prepare(`
@@ -50,21 +52,19 @@ async function customerFromToken(request, db, storeId = null) {
     JOIN stores s ON s.id = c.store_id
     WHERE cs.token_hash = ? AND cs.expires_at > ?
       AND c.is_active = 1 AND s.is_active = 1
-      ${storeId ? 'AND c.store_id = ?' : ''}
+      AND c.store_id IN (${placeholders(storeIds.length)})
     LIMIT 1
-  `);
-  const bound = storeId
-    ? await row.bind(tokenHash, now, storeId).first()
-    : await row.bind(tokenHash, now).first();
-  return mapCustomer(bound);
+  `).bind(tokenHash, now, ...storeIds).first();
+  return mapCustomer(row);
 }
 
 export async function optionalCustomerFromRequest(request, db, storeId) {
-  return customerFromToken(request, db, storeId);
+  const scope = await resolveCustomerScope(db, storeId);
+  return customerFromToken(request, db, scope.storeIds);
 }
 
-async function requireCustomer(request, db, storeId) {
-  const customer = await customerFromToken(request, db, storeId);
+async function requireCustomer(request, db, storeIds) {
+  const customer = await customerFromToken(request, db, storeIds);
   return customer
     ? { ok: true, customer }
     : { ok: false, response: json({ error: 'Login pelanggan tidak valid atau sudah habis.', code: 'CUSTOMER_LOGIN_REQUIRED' }, 401) };
@@ -75,6 +75,18 @@ function customerCode(storeCode) {
   return `CUST-${storeCode}-${suffix}`;
 }
 
+async function findCustomerById(db, id, storeIds) {
+  return db.prepare(`
+    SELECT c.id, c.store_id, c.customer_code, c.username, c.password_hash,
+           c.customer_name, c.phone, c.email, c.notes, c.is_active,
+           c.created_at, c.updated_at, s.code AS store_code, s.store_name
+    FROM customers c
+    JOIN stores s ON s.id = c.store_id
+    WHERE c.id = ? AND c.store_id IN (${placeholders(storeIds.length)})
+    LIMIT 1
+  `).bind(id, ...storeIds).first();
+}
+
 export async function handleCustomerApi(request, env, pathname) {
   const isCustomerAuth = pathname.startsWith('/api/customer/');
   const isAdminMaster = pathname.startsWith('/api/admin/customers');
@@ -83,6 +95,8 @@ export async function handleCustomerApi(request, env, pathname) {
   const db = env.DB;
   const store = await selectedStore(db, request, true);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  const scope = await resolveCustomerScope(db, store.id);
+  const scopedIds = scope.storeIds;
 
   if (isCustomerAuth) {
     if (request.method === 'POST' && pathname === '/api/customer/login') {
@@ -92,19 +106,21 @@ export async function handleCustomerApi(request, env, pathname) {
       const password = String(body.value?.password ?? '');
       if (!username || !password) return json({ error: 'Username dan password wajib diisi.' }, 400);
 
-      const row = await db.prepare(`
+      const rows = await db.prepare(`
         SELECT c.id, c.store_id, c.customer_code, c.username, c.password_hash,
                c.customer_name, c.phone, c.email, c.notes, c.is_active,
                c.created_at, c.updated_at, s.code AS store_code, s.store_name
         FROM customers c
         JOIN stores s ON s.id = c.store_id
-        WHERE c.store_id = ? AND c.username = ? COLLATE NOCASE
-        LIMIT 1
-      `).bind(store.id, username).first();
-
-      if (!row || !row.is_active || !row.password_hash || await hashCredential(password) !== row.password_hash) {
-        return json({ error: 'Username atau password pelanggan salah untuk gerai ini.' }, 401);
-      }
+        WHERE c.store_id IN (${placeholders(scopedIds.length)})
+          AND c.username = ? COLLATE NOCASE
+          AND c.is_active = 1 AND s.is_active = 1
+      `).bind(...scopedIds, username).all();
+      const passwordHash = await hashCredential(password);
+      const matches = (rows.results ?? []).filter(row => row.password_hash && row.password_hash === passwordHash);
+      if (!matches.length) return json({ error: 'Username atau password pelanggan salah untuk jaringan gerai ini.' }, 401);
+      if (matches.length > 1) return json({ error: 'Akun pelanggan bentrok di jaringan gerai. Hubungi Owner.', code: 'AMBIGUOUS_CUSTOMER_LOGIN' }, 409);
+      const row = matches[0];
 
       const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
       const tokenHash = await hashCredential(token);
@@ -115,12 +131,12 @@ export async function handleCustomerApi(request, env, pathname) {
         db.prepare('INSERT INTO customer_sessions (token_hash, customer_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
           .bind(tokenHash, row.id, now.toISOString(), expiresAt)
       ]);
-      return json({ token, expiresAt, customer: mapCustomer(row) });
+      return json({ token, expiresAt, customer: mapCustomer(row), sharing: scope.group });
     }
 
     if (request.method === 'GET' && pathname === '/api/customer/me') {
-      const auth = await requireCustomer(request, db, store.id);
-      return auth.ok ? json({ customer: auth.customer }) : auth.response;
+      const auth = await requireCustomer(request, db, scopedIds);
+      return auth.ok ? json({ customer: auth.customer, sharing: scope.group }) : auth.response;
     }
 
     if (request.method === 'POST' && pathname === '/api/customer/logout') {
@@ -137,13 +153,15 @@ export async function handleCustomerApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/admin/customers') {
     const rows = await db.prepare(`
-      SELECT id, store_id, customer_code, username, password_hash, customer_name,
-             phone, email, notes, is_active, created_at, updated_at
-      FROM customers
-      WHERE store_id = ?
-      ORDER BY customer_name COLLATE NOCASE, created_at
-    `).bind(store.id).all();
-    return json({ store, customers: (rows.results ?? []).map(mapCustomer) });
+      SELECT c.id, c.store_id, c.customer_code, c.username, c.password_hash, c.customer_name,
+             c.phone, c.email, c.notes, c.is_active, c.created_at, c.updated_at,
+             s.code AS store_code, s.store_name
+      FROM customers c
+      JOIN stores s ON s.id = c.store_id
+      WHERE c.store_id IN (${placeholders(scopedIds.length)})
+      ORDER BY c.customer_name COLLATE NOCASE, c.created_at
+    `).bind(...scopedIds).all();
+    return json({ store, sharing: scope.group, sharedStores: scope.stores, customers: (rows.results ?? []).map(mapCustomer) });
   }
 
   if (request.method === 'POST' && pathname === '/api/admin/customers') {
@@ -157,8 +175,12 @@ export async function handleCustomerApi(request, env, pathname) {
       return json({ error: 'Untuk akun login, isi username dan password minimal 6 karakter.' }, 400);
     }
     if (username) {
-      const duplicate = await db.prepare('SELECT id FROM customers WHERE store_id = ? AND username = ? COLLATE NOCASE').bind(store.id, username).first();
-      if (duplicate) return json({ error: 'Username pelanggan sudah dipakai di gerai ini.' }, 409);
+      const duplicate = await db.prepare(`
+        SELECT id FROM customers
+        WHERE store_id IN (${placeholders(scopedIds.length)}) AND username = ? COLLATE NOCASE
+        LIMIT 1
+      `).bind(...scopedIds, username).first();
+      if (duplicate) return json({ error: 'Username pelanggan sudah dipakai di jaringan gerai yang berbagi pelanggan.' }, 409);
     }
 
     const id = `customer_${crypto.randomUUID()}`;
@@ -173,23 +195,14 @@ export async function handleCustomerApi(request, env, pathname) {
       id, store.id, code, username, username ? await hashCredential(password) : '', customerName,
       text(body.value?.phone, 40), text(body.value?.email, 120), text(body.value?.notes, 500), now, now
     ).run();
-    return json({ ok: true, customer: mapCustomer(await db.prepare(`
-      SELECT id, store_id, customer_code, username, password_hash, customer_name,
-             phone, email, notes, is_active, created_at, updated_at
-      FROM customers WHERE id = ? AND store_id = ?
-    `).bind(id, store.id).first()) }, 201);
+    return json({ ok: true, customer: mapCustomer(await findCustomerById(db, id, [store.id])) }, 201);
   }
 
   const match = pathname.match(/^\/api\/admin\/customers\/([^/]+)$/);
   if (!match) return json({ error: 'Route master pelanggan tidak ditemukan.' }, 404);
   const id = decodeURIComponent(match[1]);
-  const current = await db.prepare(`
-    SELECT id, store_id, customer_code, username, password_hash, customer_name,
-           phone, email, notes, is_active, created_at, updated_at
-    FROM customers
-    WHERE id = ? AND store_id = ?
-  `).bind(id, store.id).first();
-  if (!current) return json({ error: 'Pelanggan tidak ditemukan di gerai ini.' }, 404);
+  const current = await findCustomerById(db, id, scopedIds);
+  if (!current) return json({ error: 'Pelanggan tidak ditemukan di jaringan gerai ini.' }, 404);
 
   if (request.method === 'PATCH') {
     const body = await readJson(request);
@@ -204,8 +217,12 @@ export async function handleCustomerApi(request, env, pathname) {
       return json({ error: 'Password wajib diisi saat akun login pertama kali diaktifkan.' }, 400);
     }
     if (username) {
-      const duplicate = await db.prepare('SELECT id FROM customers WHERE store_id = ? AND username = ? COLLATE NOCASE AND id <> ?').bind(store.id, username, id).first();
-      if (duplicate) return json({ error: 'Username pelanggan sudah dipakai di gerai ini.' }, 409);
+      const duplicate = await db.prepare(`
+        SELECT id FROM customers
+        WHERE store_id IN (${placeholders(scopedIds.length)}) AND username = ? COLLATE NOCASE AND id <> ?
+        LIMIT 1
+      `).bind(...scopedIds, username, id).first();
+      if (duplicate) return json({ error: 'Username pelanggan sudah dipakai di jaringan gerai yang berbagi pelanggan.' }, 409);
     }
 
     const passwordHash = !username ? '' : (password ? await hashCredential(password) : current.password_hash);
@@ -217,7 +234,7 @@ export async function handleCustomerApi(request, env, pathname) {
     `).bind(
       username, passwordHash, customerName, text(body.value?.phone ?? current.phone, 40),
       text(body.value?.email ?? current.email, 120), text(body.value?.notes ?? current.notes, 500),
-      isActive, new Date().toISOString(), id, store.id
+      isActive, new Date().toISOString(), id, current.store_id
     ).run();
     if (password || !username || !isActive) {
       await db.prepare('DELETE FROM customer_sessions WHERE customer_id = ?').bind(id).run();
@@ -227,7 +244,7 @@ export async function handleCustomerApi(request, env, pathname) {
 
   if (request.method === 'DELETE') {
     await db.batch([
-      db.prepare('UPDATE customers SET is_active = 0, updated_at = ? WHERE id = ? AND store_id = ?').bind(new Date().toISOString(), id, store.id),
+      db.prepare('UPDATE customers SET is_active = 0, updated_at = ? WHERE id = ? AND store_id = ?').bind(new Date().toISOString(), id, current.store_id),
       db.prepare('DELETE FROM customer_sessions WHERE customer_id = ?').bind(id)
     ]);
     return json({ ok: true });

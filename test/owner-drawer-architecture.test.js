@@ -50,9 +50,10 @@ test('only drawer owner can perform cashier writes', async () => {
 });
 
 test('cashier page has product menu, draft, and drawer controls', async () => {
-  const [html, js] = await Promise.all([
+  const [html, js, enhancement] = await Promise.all([
     read('public/cashier.html'),
-    read('public/cashier.js')
+    read('public/cashier.js'),
+    read('public/cashier-enhancements.js')
   ]);
   assert.match(html, /Pilih Menu/);
   assert.match(html, /Draft Menu/);
@@ -60,7 +61,8 @@ test('cashier page has product menu, draft, and drawer controls', async () => {
   assert.match(html, /Beli Bahan/);
   assert.match(html, /Pengeluaran/);
   assert.match(html, /Pendapatan Lain/);
-  assert.match(html, /Lihat Rincian/);
+  assert.match(html, /Rincian Aktif/);
+  assert.match(enhancement, /Detail Laci/);
   assert.match(js, /\/api\/cashier\/menu/);
   assert.match(js, /\/api\/cashier\/drawer\/open/);
   assert.match(js, /PROSES PENJUALAN|processSale/);

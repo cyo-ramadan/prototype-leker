@@ -3,7 +3,9 @@ import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
+import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
+import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleOwnerApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
@@ -53,6 +55,9 @@ async function handleApi(request, env, url) {
   const unifiedLoginResponse = await handleUnifiedLoginApi(request, env, pathname);
   if (unifiedLoginResponse) return unifiedLoginResponse;
 
+  const sharingResponse = await handleOwnerCustomerSharingApi(request, env, pathname);
+  if (sharingResponse) return sharingResponse;
+
   const ownerResponse = await handleOwnerApi(request, env, pathname);
   if (ownerResponse) return ownerResponse;
 
@@ -64,6 +69,9 @@ async function handleApi(request, env, url) {
 
   const adminCashierResponse = await handleAdminCashierApi(request, env, pathname);
   if (adminCashierResponse) return adminCashierResponse;
+
+  const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
+  if (adminDrawerResponse) return adminDrawerResponse;
 
   if (pathname.startsWith('/api/admin/')) {
     return handleAdminApi(request, env, pathname);

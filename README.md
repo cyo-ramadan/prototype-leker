@@ -1,31 +1,33 @@
 # Prototype Leker
 
-Prototype self-ordering + cashier workspace untuk produk leker. Halaman utama domain adalah customer ordering. Customer dapat membeli sebagai guest atau login. Dari form login yang sama, backend dapat mengenali akun Pelanggan, Kasir, atau Owner secara otomatis.
+Prototype self-ordering + cashier workspace untuk produk leker. Halaman utama domain adalah customer ordering. Customer dapat membeli sebagai guest atau login. Dari satu form username/password, backend mengenali akun Pelanggan, Kasir, atau Owner secara otomatis.
 
 ## Hierarki aplikasi
 
-1. **Owner** - akun tertinggi untuk create dan memilih gerai.
+1. **Owner** - akun tertinggi untuk create gerai dan mengatur kebijakan lintas gerai seperti Berbagi Pelanggan.
 2. **Gerai** - boundary operasional dan data.
-3. **Workspace Gerai** - seluruh master milik gerai tersebut.
+3. **Workspace Gerai** - master dan detail operasional milik gerai tersebut.
 4. **Kasir** - akun karyawan yang terikat ke satu gerai.
 5. **Cash Drawer Session** - satu laci aktif per gerai; pemegang laci mendapat write mode.
-6. **Pelanggan** - identity store-scoped yang boleh login, tetapi login tidak diwajibkan untuk membeli.
+6. **Pelanggan** - customer identity dengan home store dan optional login.
 
-Gerai bukan master data. `/admin` adalah Owner Console. Master baru muncul setelah Owner membuka `/s/<KODE>/admin`.
+Gerai bukan master data. `/admin` adalah Owner Console. Workspace gerai dibuka melalui `/s/<KODE>/admin`.
 
 ## Identity boundary
 
-Master Pelanggan hanya menyimpan identitas pelanggan milik gerai. Owner, future Admin roles, dan Kasir tidak disimpan di master pelanggan.
+Master Pelanggan hanya menyimpan identitas pelanggan. Owner, future Admin roles, dan Kasir tidak disimpan di Master Pelanggan.
 
-Internal access identity dan customer identity tetap domain terpisah walaupun public UI menggunakan satu form login. Future Admin role harus masuk ke internal access/staff domain, bukan ke tabel `customers`.
+Internal access identity dan customer identity tetap domain terpisah walaupun public UI memakai satu form login. Separate Admin account role belum didefinisikan pada prototype ini; branch Admin workspace saat ini memakai existing Owner management session.
 
-## Data isolation per gerai
+## Data isolation dan customer-sharing exception
 
-Satu Cloudflare D1 digunakan dengan isolasi `store_id`. Barang, kategori, supplier, pelanggan, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas tidak dibaca lintas gerai.
+Satu Cloudflare D1 digunakan dengan server-side `store_id` isolation. Barang, kategori, supplier, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas tetap terpisah per gerai.
 
-Gerai baru dimulai dengan master kosong. Existing `G001` dan `G002` tetap dipertahankan.
+**Pelanggan adalah satu-satunya scope yang boleh melebar antar gerai**, dan hanya bila Owner memasukkan gerai-gerai tersebut ke Customer Sharing Group yang sama. Customer tetap mempunyai home `store_id`; row customer tidak dicopy atau digabung secara fisik.
 
-## Customer-first entry
+Gerai baru dimulai dengan master operasional kosong. Existing `G001` dan `G002` tetap dipertahankan.
+
+## Customer-first entry dan unified login
 
 Routes:
 
@@ -34,84 +36,119 @@ Routes:
 - `/s/<KODE>/customer` - customer langsung pada gerai tertentu
 - `/cashier` - workspace/login kasir
 - `/admin` - Owner Console
-- `/s/<KODE>/admin` - workspace/master gerai
+- `/s/<KODE>/admin` - workspace gerai
 
-Customer page mempunyai selector gerai dan satu tombol **Login**. Form login hanya berisi username dan password, tanpa pilihan role.
+Customer page mempunyai selector gerai dan satu tombol **Login**. Form login hanya username + password, tanpa pilihan role.
 
-`POST /api/auth/login?store=<KODE>` mencocokkan credential pair ke account type yang aktif:
+`POST /api/auth/login?store=<KODE>` melakukan role resolution server-side:
 
-- **Owner** - resolved global, session Owner dibuat, lalu redirect `/admin`.
-- **Kasir** - resolved global, session Kasir dibuat, lalu redirect `/cashier`.
-- **Pelanggan** - resolved hanya pada gerai yang sedang dipilih, lalu tetap berada di halaman customer dengan Customer ID aktif.
+- **Owner** - global account, redirect `/admin`.
+- **Kasir** - global username, account menentukan gerai, redirect `/cashier`.
+- **Pelanggan** - dicari pada selected gerai atau explicit Customer Sharing Group gerai tersebut.
 
-Jika credential pair yang sama cocok ke lebih dari satu role aktif, login ditolak dengan `AMBIGUOUS_LOGIN`. Sistem tidak memakai role precedence tersembunyi.
+Jika credential yang sama cocok ke lebih dari satu akun aktif, login ditolak dengan `AMBIGUOUS_LOGIN`. Guest checkout tetap aktif.
 
-Guest checkout tetap aktif. Login pelanggan bukan syarat pembelian.
+## Owner Console
 
-## Master Pelanggan per gerai
+Owner dapat:
 
-Migration `0007_customer_identity_unified_entry.sql` menambahkan tabel `customers` dan `customer_sessions`.
+- create dan melihat gerai;
+- membuka workspace tiap gerai;
+- mengatur **Berbagi Pelanggan** dengan membuat grup dan memilih gerai anggota.
 
-Setiap pelanggan memiliki:
+Satu gerai hanya boleh menjadi anggota satu Customer Sharing Group. Saat sebuah grup akan diaktifkan, sistem menolak konfigurasi bila ada username pelanggan yang bentrok antar gerai anggota.
 
-- `customer_code` / Customer ID
-- nama
-- telepon
-- email
-- catatan
-- status aktif
-- username optional
-- password hash optional
-- `store_id`
+Customer sharing tidak membagikan barang, kasir, supplier, order, sales, purchase, expense, atau drawer.
 
-Username/password hanya diperlukan jika pelanggan ingin login. Customer master tetap valid tanpa akun login.
-
-Existing `contacts` dimigrasikan ke `customers` sebagai pelanggan tanpa credential login, sehingga data lama tidak hilang. UI workspace gerai menjadikan **Master Pelanggan** sebagai master customer canonical; tabel `contacts` tetap dipertahankan sebagai compatibility data lama.
-
-Customer username hanya harus unik di dalam gerai yang sama. Akun pelanggan G001 tidak dapat dipakai sebagai akun pelanggan G002.
-
-## Customer order attribution
-
-Migration `0007` menambahkan nullable `orders.customer_id`.
-
-- Guest checkout -> `customer_id = NULL`.
-- Pelanggan login -> server membaca Customer ID dari customer bearer session dan menyimpan `customer_id` pada order.
-- Browser tidak boleh memilih atau mengirim Customer ID sebagai sumber otoritatif.
-
-## Owner authentication
-
-Temporary prototype Owner:
-
-- username: `owner`
-- password: `123456`
-
-Owner token disimpan pada browser session dan token hash disimpan di D1. PIN admin lama dipertahankan hanya sebagai compatibility fallback prototype.
-
-## Master per gerai
+## Workspace Admin Gerai
 
 Workspace gerai menyediakan:
 
-- identitas/logo gerai
-- barang
-- kategori
-- supplier
-- pelanggan
-- kasir
+- Toko / identitas gerai;
+- Data Barang;
+- Kategori;
+- Supplier;
+- Master Pelanggan;
+- Create Kasir / Master Kasir;
+- Akuntansi - placeholder kosong;
+- Laporan - placeholder kosong;
+- Detail Laci.
 
-Master dan transaksi seluruhnya store-scoped.
+Akuntansi sengaja belum membuat jurnal, chart of accounts, atau mapping akun. Laporan general juga masih placeholder; laporan operasional shift tersedia lewat Detail Laci.
 
-## Cashier workspace
+## Master Pelanggan
 
-Setelah login, server mengambil gerai dari akun kasir. Kasir tidak memilih gerai sendiri.
+Migration `0007_customer_identity_unified_entry.sql` menambahkan `customers`, `customer_sessions`, dan nullable `orders.customer_id`.
 
-Cashier workspace mempunyai Pilih Menu, Draft Menu, queue customer, Buka Laci, Beli Bahan, Pengeluaran, Pendapatan Lain, Lihat Rincian, dan Tutup Laci.
+Pelanggan mempunyai Customer ID, nama, kontak, catatan, status, optional username/password, dan home `store_id`. Existing legacy contacts dimigrasikan tanpa credential login.
 
-Satu gerai hanya boleh mempunyai satu laci `OPEN`. Banyak kasir boleh login bersamaan, tetapi hanya pemegang laci yang boleh melakukan cashier write actions.
+Jika gerai tidak berada dalam sharing group, Master Pelanggan hanya membaca customer gerai itu. Jika Owner mengaktifkan sharing, gerai anggota membaca authorized customer scope yang sama dan UI tetap menunjukkan **Asal Gerai** setiap customer.
 
-Seed kasir prototype:
+- Guest order -> `customer_id = NULL`.
+- Logged customer -> server menurunkan `customer_id` dari bearer session.
+- Browser tidak berwenang memilih Customer ID.
+
+## Loyalty point foundation
+
+Migration `0008_branch_admin_drawer_customer_sharing.sql` menambahkan `customer_point_ledger` untuk future point system. Ledger menyimpan signed `points_delta`, `EARN | REDEEM | ADJUSTMENT`, customer, source gerai, optional sharing group, reference, notes, dan timestamp.
+
+**Belum ada automatic earn atau redeem.** Formula seperti rupiah per poin, nilai redeem, minimum redeem, expiry, multiplier promo, dan reversal belum ditentukan oleh business rule, jadi prototype tidak mengarang nilai tersebut.
+
+Setelah aturan poin ditentukan, customer dari G001 dapat earn/redeem di G002/G003 selama gerai-gerai itu berada pada Customer Sharing Group yang sama.
+
+## Cashier workspace dan laci
+
+Kasir tidak memilih gerai sendiri; server mengambil gerai dari akun kasir.
+
+Cashier workspace mempunyai Pilih Menu, Draft Menu, queue customer, Buka Laci, Beli Bahan, Pengeluaran, Pendapatan Lain, Detail Laci, dan Tutup Laci.
+
+Satu gerai hanya boleh mempunyai satu laci `OPEN`. Banyak kasir boleh login bersamaan, tetapi hanya kasir yang membuka laci aktif yang boleh melakukan cashier write actions. Kasir lain tetap dapat melihat data gerainya dalam read-only mode.
+
+Seed prototype:
 
 - Wowo - `wowo` / `wowo123` - `G001`
 - Wiwi - `wiwi` / `wiwi123` - `G002`
+
+## Detail Laci
+
+Detail Laci dapat dibaca dari Admin Gerai dan Kasir, tetapi server selalu membatasi drawer ke gerai authorized.
+
+Header report meliputi:
+
+- ID Laci;
+- Penanggung Jawab / kasir pembuka;
+- Shift;
+- Datang dan Pulang;
+- Modal / opening amount;
+- closing amount;
+- Insentif;
+- status;
+- Keterangan Pulang.
+
+Report menyediakan section:
+
+1. Penjualan Bayar Tunai
+2. Promosi
+3A. Belanja Bahan Bayar Tunai
+4.1 Operasional Kas
+4.2 Operasional Non Kas
+5. Masak
+6. Stok Sisa
+7. Perhitungan Kas
+8. Penjualan Bayar Non Tunai
+9. Belanja Bahan Bayar Non Tunai
+10. Penyesuaian Stok
+11. Kas Masuk
+
+Sale, purchase, dan expense sekarang menyimpan payment channel `CASH` atau `NON_CASH`. Existing historical records default `CASH` untuk backward compatibility.
+
+Promotion, Masak, Stok Sisa, dan Penyesuaian Stok saat ini tampil sebagai explicit empty sections karena prototype belum memiliki canonical promotion/production/inventory ledger. Drawer report tidak menebak official stock atau valuation.
+
+Perhitungan expected drawer cash menggunakan cash facts saja:
+
+`opening amount + cash sales - cash promotions + cash-in - cash purchases - cash expenses`
+
+Non-cash sales/purchases/expenses ditampilkan terpisah dan tidak menambah atau mengurangi kas fisik laci.
 
 ## Database migrations
 
@@ -121,32 +158,28 @@ Seed kasir prototype:
 - `0004_multi_store.sql` - store isolation
 - `0005_cashier_auth.sql` - cashier auth + G002 seed
 - `0006_owner_branch_drawer_transactions.sql` - Owner hierarchy, supplier, drawer, transaksi
-- `0007_customer_identity_unified_entry.sql` - branch customer master, customer session, customer attribution pada order
+- `0007_customer_identity_unified_entry.sql` - customer identity + order attribution
+- `0008_branch_admin_drawer_customer_sharing.sql` - drawer reporting metadata/payment channel, customer sharing groups, point-ledger foundation
 
-Role-agnostic unified login tidak memerlukan migration tambahan.
+## API additions
 
-## API authentication
+Owner sharing:
 
-Unified entry:
+- `GET /api/owner/customer-sharing`
+- `POST /api/owner/customer-sharing/groups`
+- `PATCH /api/owner/customer-sharing/groups/:id`
+- `DELETE /api/owner/customer-sharing/groups/:id`
 
-- `POST /api/auth/login?store=<KODE>`
+Admin Gerai drawer:
 
-Customer:
+- `GET /api/admin/drawers?store=<KODE>`
+- `GET /api/admin/drawers/:id?store=<KODE>`
 
-- `POST /api/customer/login?store=<KODE>` - compatibility/direct role endpoint
-- `GET /api/customer/me?store=<KODE>`
-- `POST /api/customer/logout?store=<KODE>`
+Cashier drawer:
 
-Owner and Cashier direct login endpoints tetap tersedia untuk workspace khusus, tetapi halaman customer utama memakai unified endpoint.
-
-Owner-authenticated branch customer master:
-
-- `GET /api/admin/customers?store=<KODE>`
-- `POST /api/admin/customers?store=<KODE>`
-- `PATCH /api/admin/customers/:id?store=<KODE>`
-- `DELETE /api/admin/customers/:id?store=<KODE>`
-
-Existing Owner, cashier, menu, order, supplier, product, category, dan drawer APIs tetap tersedia.
+- `GET /api/cashier/drawers`
+- `GET /api/cashier/drawers/:id/details`
+- existing drawer open/close/sale/purchase/expense/income endpoints remain available and drawer-owner protected for writes.
 
 ## Runtime architecture
 
@@ -161,13 +194,16 @@ Database Dwicahya tidak digunakan prototype.
 
 `npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`.
 
-Perubahan unified login ini tidak mengubah schema. Rollback cukup mengembalikan application version jika runtime bermasalah. Untuk migration D1 sebelumnya, gunakan backup/Time Travel sesuai recovery procedure dan jangan menjalankan query manual parsial untuk menebak state schema.
+Migration `0008` additive. Bila migration/deploy gagal, stop promotion dan restore prototype D1 menggunakan Cloudflare D1 backup/Time Travel sebelum retry migration yang dikoreksi. Jangan menjalankan partial manual schema edits untuk menebak state.
+
+Mematikan Customer Sharing Group menghapus membership sharing dan mengembalikan branch-only customer scope tanpa menghapus customer atau transaksi.
 
 ## Architecture decisions
 
 - `adr/ADR-001-owner-branch-drawer-hierarchy.md`
 - `adr/ADR-002-customer-first-entry-and-optional-identity.md`
+- `adr/ADR-003-branch-admin-drawer-and-customer-sharing.md`
 
 ## DOC-IMPACT
 
-**REQUIRED** - Login customer-first sekarang hanya satu username/password form tanpa role picker. Server menentukan Owner, Kasir, atau Pelanggan dari credential pair. Master Pelanggan tetap branch-scoped dan hanya berisi pelanggan; internal access accounts tetap domain terpisah.
+**REQUIRED** - Branch Admin navigation, detailed store-scoped drawer reporting, payment channels, Owner-controlled Customer Sharing Group, and customer point-ledger foundation are material behavior. Point earning/redemption and separate Admin account permissions remain intentionally undefined until business rules are supplied.

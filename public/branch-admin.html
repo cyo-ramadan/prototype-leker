@@ -6,6 +6,7 @@
   <title>MAXI Leker · Workspace Gerai</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/drawer-report.css" />
 </head>
 <body>
   <header class="topbar admin-topbar">
@@ -20,16 +21,16 @@
 
   <main class="admin-shell">
     <section id="authGate" class="admin-auth-card hidden">
-      <div class="admin-eyebrow">Owner session</div><h1>Akses Gerai</h1><p class="muted">Login Owner diperlukan untuk membuka workspace gerai.</p>
+      <div class="admin-eyebrow">Owner session</div><h1 id="authTitle">Akses Gerai</h1><p id="authHelp" class="muted">Login Owner diperlukan untuk membuka workspace gerai.</p>
       <label class="admin-field hidden">PIN<input id="adminPin" /></label>
       <button id="authBtn" class="primary-btn" type="button">Kembali ke Owner</button><div id="authMessage" class="admin-message"></div>
     </section>
 
     <section id="adminApp" class="hidden">
-      <div class="admin-heading"><div><div class="admin-eyebrow">Structure level 2 · <span data-store-code>G001</span></div><h1>Workspace Gerai</h1><p class="muted">Seluruh master dan transaksi di halaman ini hanya milik gerai aktif.</p></div><div id="adminSummary" class="admin-summary"></div></div>
-      <nav class="admin-tabs" aria-label="Master gerai">
+      <div class="admin-heading"><div><div class="admin-eyebrow">Admin Gerai · <span data-store-code>G001</span></div><h1>Workspace Gerai</h1><p class="muted">Master dan transaksi di halaman ini mengikuti scope gerai aktif.</p></div><div id="adminSummary" class="admin-summary"></div></div>
+      <nav class="admin-tabs" aria-label="Menu admin gerai">
         <button class="admin-tab active" data-tab="store" type="button">Toko</button>
-        <button class="admin-tab" data-tab="products" type="button">Barang</button>
+        <button class="admin-tab" data-tab="products" type="button">Data Barang</button>
         <button class="admin-tab" data-tab="categories" type="button">Kategori</button>
         <button class="admin-tab" data-tab="suppliers" type="button">Supplier</button>
         <button class="admin-tab" data-tab="contacts" type="button">Customer</button>
@@ -44,7 +45,7 @@
             <div class="image-preview-wrap"><img id="storeLogoPreview" class="logo-preview" src="/default-product.svg" alt="Preview logo toko" /></div>
             <button class="primary-btn" type="submit">Simpan identitas toko</button>
           </form>
-          <div class="admin-card admin-tip"><h2>Scope gerai</h2><p>Barang, kategori, supplier, pelanggan, kasir, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas dipisahkan berdasarkan gerai ini.</p></div>
+          <div class="admin-card admin-tip"><h2>Scope gerai</h2><p>Barang, kategori, supplier, kasir, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas tetap terpisah per gerai. Pelanggan dapat dibagikan hanya bila Owner mengaktifkan Berbagi Pelanggan.</p></div>
         </div>
       </section>
 
@@ -110,5 +111,7 @@
   <script src="/admin-suppliers.js"></script>
   <script src="/admin-customers.js"></script>
   <script src="/admin-cashiers.js"></script>
+  <script src="/drawer-report-ui.js"></script>
+  <script src="/admin-drawers.js"></script>
 </body>
 </html>

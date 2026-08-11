@@ -15,14 +15,19 @@ test('customer identity migration is store scoped and preserves guest orders', a
   assert.match(sql, /ALTER TABLE orders ADD COLUMN customer_id TEXT/);
 });
 
-test('customer login and customer master are isolated to selected branch', async () => {
-  const customers = await read('src/customers.js');
-  assert.match(customers, /WHERE c\.store_id = \? AND c\.username = \? COLLATE NOCASE/);
+test('customer login and customer master use explicit owner sharing scope', async () => {
+  const [customers, sharing] = await Promise.all([
+    read('src/customers.js'),
+    read('src/customer-sharing.js')
+  ]);
+  assert.match(customers, /resolveCustomerScope\(db, store\.id\)/);
+  assert.match(customers, /c\.store_id IN \(\$\{placeholders\(scopedIds\.length\)\}\)/);
   assert.match(customers, /requireManagement\(request, db\)/);
-  assert.match(customers, /WHERE store_id = \?/);
   assert.match(customers, /customerCode/);
   assert.match(customers, /customer_sessions/);
-  assert.match(customers, /Username atau password pelanggan salah untuk gerai ini/);
+  assert.match(sharing, /customer_share_group_stores/);
+  assert.match(sharing, /username_key/);
+  assert.match(sharing, /bentrok antar gerai/);
 });
 
 test('main customer page uses one login form without role selection and keeps guest checkout', async () => {
@@ -46,7 +51,7 @@ test('main customer page uses one login form without role selection and keeps gu
   assert.match(login, /Lanjut beli tanpa login/);
 });
 
-test('unified login resolves role server side and rejects ambiguous credentials', async () => {
+test('unified login resolves role server side and shared customer scope server side', async () => {
   const [index, unified] = await Promise.all([
     read('src/index.js'),
     read('src/unified-login.js')
@@ -61,7 +66,7 @@ test('unified login resolves role server side and rejects ambiguous credentials'
   assert.match(unified, /role: 'CASHIER'/);
   assert.match(unified, /role: 'CUSTOMER'/);
   assert.match(unified, /AMBIGUOUS_LOGIN/);
-  assert.match(unified, /const customer = selectedStore \?/);
+  assert.match(unified, /resolveCustomerScope\(env\.DB, selectedStore\.id\)/);
 });
 
 test('logged customer identity is derived server side when order is created', async () => {
@@ -77,7 +82,7 @@ test('logged customer identity is derived server side when order is created', as
   assert.match(db, /order\.customerId \|\| null/);
 });
 
-test('branch workspace keeps Pelanggan as a branch-only customer master', async () => {
+test('branch workspace keeps Pelanggan separate from staff access and shows sharing status', async () => {
   const [html, ui] = await Promise.all([
     read('public/branch-admin.html'),
     read('public/admin-customers.js')
@@ -86,6 +91,8 @@ test('branch workspace keeps Pelanggan as a branch-only customer master', async 
   assert.match(ui, /Master pelanggan/);
   assert.match(ui, /Tambah pelanggan/);
   assert.match(ui, /\/api\/admin\/customers/);
+  assert.match(ui, /Berbagi Pelanggan/);
+  assert.match(ui, /Asal/);
   assert.match(ui, /legacyTab\.hidden = true/);
   assert.doesNotMatch(html, /Tambah gerai/);
   assert.doesNotMatch(ui, /owner_accounts/);

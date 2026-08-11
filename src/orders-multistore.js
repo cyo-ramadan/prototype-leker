@@ -85,6 +85,9 @@ export async function changeOrderStatus(db, storeId, orderId, nextStatus, drawer
   if (!canTransition(currentOrder.status, nextStatus)) {
     return { ok: false, status: 409, error: `Transisi ${currentOrder.status} → ${nextStatus} tidak diizinkan.` };
   }
+  if (currentOrder.drawerSessionId && drawerSessionId && currentOrder.drawerSessionId !== drawerSessionId) {
+    return { ok: false, status: 409, error: 'Pesanan terikat ke sesi laci yang berbeda.' };
+  }
   const changedAt = isoNow();
   const result = await persistOrderStatus(db, storeId, orderId, currentOrder.status, nextStatus, changedAt, drawerSessionId);
   if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {

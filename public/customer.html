@@ -49,9 +49,9 @@
   <section id="statusView" class="order-screen hidden">
     <div id="statusCard" class="status-card">
       <div id="statusIcon" class="status-icon">🧾</div><div class="muted">Nomor pesanan</div><div id="statusOrderNo" class="order-no">G001-000</div>
-      <h1 id="statusTitle">Pesanan diterima</h1><p id="statusText" class="muted">Kasir sudah menerima order kamu.</p>
-      <div class="progress"><div id="stepNew" class="progress-step active">1. Diterima</div><div id="stepPrep" class="progress-step">2. Dibuat</div><div id="stepReady" class="progress-step">3. Siap</div></div>
-      <button id="readyButton" class="ready-action hidden">✅ PESANAN SIAP · AMBIL DI KASIR</button>
+      <h1 id="statusTitle">Pesanan sudah dikirim</h1><p id="statusText" class="muted">Menunggu kasir menerima pesanan.</p>
+      <div class="progress"><div id="stepNew" class="progress-step active">1. Dipesan</div><div id="stepPrep" class="progress-step">2. Diterima</div><div id="stepReady" class="progress-step">3. Dibuat</div><div id="stepDone" class="progress-step">4. Sudah Jadi</div></div>
+      <button id="readyButton" class="ready-action hidden">✅ PESANAN SUDAH JADI · AMBIL DI KASIR</button>
       <button id="newOrderBtn" class="secondary-btn hidden" style="margin-top:12px">Buat pesanan baru</button>
     </div>
   </section>
@@ -62,5 +62,6 @@
 <script src="/auth-entry-split.js"></script>
 <script src="/customer.js"></script>
 <script src="/customer-repeat-order.js"></script>
+<script src="/customer-order-status.js"></script>
 </body>
 </html>

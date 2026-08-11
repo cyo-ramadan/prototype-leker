@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import { canTransition, validateRequestedItems } from '../src/orders.js';
 import { getJakartaBusinessDate } from '../src/time.js';
 
-test('order status transitions follow kiosk flow', () => {
+test('order lifecycle is Dipesan -> Diterima -> Dibuat -> Sudah Jadi', () => {
   assert.equal(canTransition('NEW', 'PREPARING'), true);
+  assert.equal(canTransition('NEW', 'CANCELLED'), true);
   assert.equal(canTransition('PREPARING', 'READY'), true);
+  assert.equal(canTransition('PREPARING', 'CANCELLED'), false);
   assert.equal(canTransition('READY', 'COMPLETED'), true);
+  assert.equal(canTransition('READY', 'CANCELLED'), false);
   assert.equal(canTransition('COMPLETED', 'READY'), false);
+  assert.equal(canTransition('CANCELLED', 'PREPARING'), false);
 });
 
 test('requested item quantity is validated', () => {

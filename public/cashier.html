@@ -70,7 +70,12 @@
     <section class="cashier-order-section">
       <div class="cashier-header">
         <div><div class="muted">Order dari customer</div><h1>Pesanan Masuk</h1></div>
-        <div class="stats"><div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div><div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div><div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div></div>
+        <div class="stats">
+          <button id="refreshOrdersBtn" class="secondary-btn" type="button">↻ Refresh Pesanan</button>
+          <div class="stat"><span class="muted">Baru</span><b id="statNew">0</b></div>
+          <div class="stat"><span class="muted">Dibuat</span><b id="statPrep">0</b></div>
+          <div class="stat"><span class="muted">Siap</span><b id="statReady">0</b></div>
+        </div>
       </div>
       <section class="columns">
         <div class="column"><div class="column-title"><h2>🧾 Pesanan Baru</h2><span id="badgeNew" class="badge">0</span></div><div id="colNew"></div></div>
@@ -92,6 +97,7 @@
 
 <script src="/drawer-report-ui.js"></script>
 <script src="/cashier.js"></script>
+<script src="/cashier-refresh.js"></script>
 <script src="/cashier-order-cleanup.js"></script>
 <script src="/cashier-enhancements.js"></script>
 </body>

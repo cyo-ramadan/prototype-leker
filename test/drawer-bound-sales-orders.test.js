@@ -18,6 +18,7 @@ test('sales and orders workspace is nested inside the drawer card', () => {
 test('accepting a customer order binds the active drawer and snapshots PATCH response into draft', () => {
   assert.match(index, /changeOrderStatus\(env\.DB, storeId, statusMatch\[1\], body\.value\?\.status, drawerAuth\.drawer\.id\)/);
   assert.match(orders, /drawerSessionId = null/);
+  assert.match(orders, /currentOrder\.drawerSessionId !== drawerSessionId/);
   assert.match(db, /drawer_session_id = CASE[\s\S]*WHEN \? = 'PREPARING'/);
   assert.match(ui, /snapshotOrderToDraft\(data\)/);
   const snapshotStart = ui.indexOf('function snapshotOrderToDraft');
@@ -32,6 +33,7 @@ test('order source is legacy-safe and filter rendering groups in one pass', () =
   assert.match(ui, /Dari Customer/);
   assert.match(ui, /Dari Kasir/);
   assert.match(ui, /for \(const order of state\.orders \|\| \[\]\)/);
+  assert.match(ui, /belongsToActiveDrawer\(order\)/);
 });
 
 test('search selection clears and hides the result dropdown', () => {

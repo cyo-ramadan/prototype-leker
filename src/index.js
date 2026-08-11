@@ -5,6 +5,7 @@ import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './c
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
+import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
@@ -54,6 +55,9 @@ async function handleApi(request, env, url) {
 
   const unifiedLoginResponse = await handleUnifiedLoginApi(request, env, pathname);
   if (unifiedLoginResponse) return unifiedLoginResponse;
+
+  const membershipResponse = await handleCustomerMembershipApi(request, env, pathname);
+  if (membershipResponse) return membershipResponse;
 
   const sharingResponse = await handleOwnerCustomerSharingApi(request, env, pathname);
   if (sharingResponse) return sharingResponse;
@@ -115,7 +119,11 @@ async function handleApi(request, env, url) {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const customer = await optionalCustomerFromRequest(request, env.DB, store.id);
-    const result = await createOrder(env.DB, store, { ...body.value, customerId: customer?.id || null });
+    const result = await createOrder(env.DB, store, {
+      ...body.value,
+      customerId: customer?.id || null,
+      customerName: customer?.customerName || body.value?.customerName
+    });
     return result.ok ? json(result.order, 201) : json({ error: result.error }, result.status);
   }
 

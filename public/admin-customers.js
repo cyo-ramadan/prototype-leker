@@ -2,6 +2,7 @@
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   let customers = [];
+  let registrationRequests = [];
   let sharing = null;
   let sharedStores = [];
 
@@ -39,6 +40,10 @@
             <button class="primary-btn" type="submit">Simpan pelanggan</button>
           </form>
           <div class="admin-card list-card">
+            <div class="list-head"><h2>Request jadi pelanggan</h2><span id="customerRequestCount" class="master-count">0</span></div>
+            <div class="admin-tip" style="margin:10px 0">Request dari halaman customer belum menjadi pelanggan sampai Admin Gerai menekan <b>ACC</b>.</div>
+            <div id="customerRequestList" class="master-list" style="margin-bottom:18px"></div>
+            <hr style="border:0;border-top:1px solid var(--line);margin:18px 0" />
             <div class="list-head"><h2>Master pelanggan</h2><span id="customerMasterCount" class="master-count">0</span></div>
             <div id="customerSharingScopeNote" class="admin-tip" style="margin:10px 0"></div>
             <div class="muted" style="margin-bottom:10px">Customer ID selalu dibuat. Username/password hanya diperlukan jika pelanggan ingin login.</div>
@@ -53,7 +58,7 @@
     if (!node) return;
     node.textContent = message;
     node.classList.add('show');
-    setTimeout(() => node.classList.remove('show'), 2000);
+    setTimeout(() => node.classList.remove('show'), 2200);
   }
 
   async function request(path, options = {}) {
@@ -74,10 +79,29 @@
     document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-customers'));
   }
 
-  function render() {
+  function renderRequests() {
+    el('customerRequestCount').textContent = registrationRequests.length;
+    el('customerRequestList').innerHTML = registrationRequests.length ? registrationRequests.map(item => `
+      <div class="master-row contact-row">
+        <div class="master-main">
+          <strong>${escapeHtml(item.customerName)}</strong>
+          <div class="master-meta">${escapeHtml(item.requestCode)} · @${escapeHtml(item.username)}</div>
+          <div class="master-meta">${escapeHtml([item.phone, item.email].filter(Boolean).join(' · ') || 'Tanpa kontak')}</div>
+          <div class="master-meta">Status: PENDING · ${escapeHtml(item.createdAt || '')}</div>
+        </div>
+        <div class="master-actions">
+          <button class="mini-btn" type="button" data-approve-customer-request="${escapeHtml(item.id)}">ACC</button>
+          <button class="mini-btn danger" type="button" data-reject-customer-request="${escapeHtml(item.id)}">Reject</button>
+        </div>
+      </div>`).join('') : '<div class="empty">Tidak ada request pelanggan yang menunggu.</div>';
+    document.querySelectorAll('[data-approve-customer-request]').forEach(button => button.onclick = () => reviewRequest(button.dataset.approveCustomerRequest, 'APPROVE'));
+    document.querySelectorAll('[data-reject-customer-request]').forEach(button => button.onclick = () => reviewRequest(button.dataset.rejectCustomerRequest, 'REJECT'));
+  }
+
+  function renderCustomers() {
     el('customerMasterCount').textContent = customers.length;
     el('customerSharingScopeNote').innerHTML = sharing
-      ? `🔗 <b>Berbagi Pelanggan: ${escapeHtml(sharing.name)}</b><br><span class="muted">Database pelanggan dapat dipakai di ${sharedStores.map(store => escapeHtml(store.code)).join(' ↔ ')}. Master operasional lain tetap terpisah.</span>`
+      ? `🔗 <b>Berbagi Pelanggan: ${escapeHtml(sharing.name)}</b><br><span class="muted">Database pelanggan dapat dipakai di ${sharedStores.map(store => escapeHtml(store.code)).join(' ↔ ')}. Request pendaftaran tetap direview oleh gerai tujuan.</span>`
       : `🔒 <b>Pelanggan khusus gerai ini</b><br><span class="muted">Owner belum mengaktifkan Berbagi Pelanggan untuk gerai ini.</span>`;
     el('customerMasterList').innerHTML = customers.length ? customers.map(customer => `
       <div class="master-row contact-row ${customer.isActive ? '' : 'inactive'}">
@@ -96,13 +120,35 @@
     document.querySelectorAll('[data-delete-customer]').forEach(button => button.onclick = () => deactivate(button.dataset.deleteCustomer));
   }
 
+  function render() {
+    renderRequests();
+    renderCustomers();
+  }
+
   async function load() {
     try {
-      const payload = await request('/api/admin/customers');
-      customers = payload.customers || [];
-      sharing = payload.sharing || null;
-      sharedStores = payload.sharedStores || [];
+      const [customerPayload, requestPayload] = await Promise.all([
+        request('/api/admin/customers'),
+        request('/api/admin/customer-requests')
+      ]);
+      customers = customerPayload.customers || [];
+      sharing = customerPayload.sharing || null;
+      sharedStores = customerPayload.sharedStores || [];
+      registrationRequests = requestPayload.requests || [];
       render();
+    } catch (error) { toast(error.message); }
+  }
+
+  async function reviewRequest(id, action) {
+    let reason = '';
+    if (action === 'REJECT') reason = prompt('Alasan penolakan (optional):') || '';
+    try {
+      await request(`/api/admin/customer-requests/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action, reason })
+      });
+      await load();
+      toast(action === 'APPROVE' ? 'Pelanggan disetujui dan Customer ID dibuat' : 'Request pelanggan ditolak');
     } catch (error) { toast(error.message); }
   }
 

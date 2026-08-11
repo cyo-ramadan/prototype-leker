@@ -50,7 +50,7 @@ export async function createOrder(db, store, payload) {
     customerId: sanitizeText(payload?.customerId, 120) || null,
     businessDate,
     customerName: sanitizeText(payload?.customerName, 60) || 'Customer',
-    tableLabel: sanitizeText(payload?.tableLabel, 40) || 'Kiosk',
+    tableLabel: '',
     generalNote: sanitizeText(payload?.generalNote, 240),
     total: items.reduce((sum, item) => sum + item.price * item.qty, 0),
     status: ORDER_STATUS.NEW,

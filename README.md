@@ -1,17 +1,23 @@
 # Prototype Leker
 
-Prototype self-ordering + cashier workspace untuk produk leker. Halaman utama domain adalah customer ordering. Customer dapat membeli sebagai guest atau login sebagai pelanggan. Dari halaman yang sama tersedia login Kasir dan Owner.
+Prototype self-ordering + cashier workspace untuk produk leker. Halaman utama domain adalah customer ordering. Customer dapat membeli sebagai guest atau login. Dari form login yang sama, backend dapat mengenali akun Pelanggan, Kasir, atau Owner secara otomatis.
 
 ## Hierarki aplikasi
 
-1. **Owner** — akun tertinggi untuk create dan memilih gerai.
-2. **Gerai** — boundary operasional dan data.
-3. **Workspace Gerai** — seluruh master milik gerai tersebut.
-4. **Kasir** — akun karyawan yang terikat ke satu gerai.
-5. **Cash Drawer Session** — satu laci aktif per gerai; pemegang laci mendapat write mode.
-6. **Pelanggan** — identity store-scoped yang boleh login, tetapi login tidak diwajibkan untuk membeli.
+1. **Owner** - akun tertinggi untuk create dan memilih gerai.
+2. **Gerai** - boundary operasional dan data.
+3. **Workspace Gerai** - seluruh master milik gerai tersebut.
+4. **Kasir** - akun karyawan yang terikat ke satu gerai.
+5. **Cash Drawer Session** - satu laci aktif per gerai; pemegang laci mendapat write mode.
+6. **Pelanggan** - identity store-scoped yang boleh login, tetapi login tidak diwajibkan untuk membeli.
 
 Gerai bukan master data. `/admin` adalah Owner Console. Master baru muncul setelah Owner membuka `/s/<KODE>/admin`.
+
+## Identity boundary
+
+Master Pelanggan hanya menyimpan identitas pelanggan milik gerai. Owner, future Admin roles, dan Kasir tidak disimpan di master pelanggan.
+
+Internal access identity dan customer identity tetap domain terpisah walaupun public UI menggunakan satu form login. Future Admin role harus masuk ke internal access/staff domain, bukan ke tabel `customers`.
 
 ## Data isolation per gerai
 
@@ -23,18 +29,22 @@ Gerai baru dimulai dengan master kosong. Existing `G001` dan `G002` tetap dipert
 
 Routes:
 
-- `/` — halaman customer utama
-- `/customer` — halaman customer
-- `/s/<KODE>/customer` — customer langsung pada gerai tertentu
-- `/cashier` — workspace/login kasir
-- `/admin` — Owner Console
-- `/s/<KODE>/admin` — workspace/master gerai
+- `/` - halaman customer utama
+- `/customer` - halaman customer
+- `/s/<KODE>/customer` - customer langsung pada gerai tertentu
+- `/cashier` - workspace/login kasir
+- `/admin` - Owner Console
+- `/s/<KODE>/admin` - workspace/master gerai
 
-Customer page mempunyai selector gerai dan tombol **Login**. Login memiliki role:
+Customer page mempunyai selector gerai dan satu tombol **Login**. Form login hanya berisi username dan password, tanpa pilihan role.
 
-- **Pelanggan** — tetap di halaman customer setelah login dan menampilkan Customer ID.
-- **Kasir** — memakai cashier auth yang sudah ada lalu masuk `/cashier`.
-- **Owner** — memakai Owner auth lalu masuk `/admin`.
+`POST /api/auth/login?store=<KODE>` mencocokkan credential pair ke account type yang aktif:
+
+- **Owner** - resolved global, session Owner dibuat, lalu redirect `/admin`.
+- **Kasir** - resolved global, session Kasir dibuat, lalu redirect `/cashier`.
+- **Pelanggan** - resolved hanya pada gerai yang sedang dipilih, lalu tetap berada di halaman customer dengan Customer ID aktif.
+
+Jika credential pair yang sama cocok ke lebih dari satu role aktif, login ditolak dengan `AMBIGUOUS_LOGIN`. Sistem tidak memakai role precedence tersembunyi.
 
 Guest checkout tetap aktif. Login pelanggan bukan syarat pembelian.
 
@@ -56,16 +66,16 @@ Setiap pelanggan memiliki:
 
 Username/password hanya diperlukan jika pelanggan ingin login. Customer master tetap valid tanpa akun login.
 
-Existing `contacts` dimigrasikan ke `customers` sebagai pelanggan tanpa credential login, sehingga data lama tidak hilang. UI workspace gerai sekarang menjadikan **Master Pelanggan** sebagai master customer canonical; tabel `contacts` tetap dipertahankan sebagai compatibility data lama.
+Existing `contacts` dimigrasikan ke `customers` sebagai pelanggan tanpa credential login, sehingga data lama tidak hilang. UI workspace gerai menjadikan **Master Pelanggan** sebagai master customer canonical; tabel `contacts` tetap dipertahankan sebagai compatibility data lama.
 
-Customer username hanya harus unik di dalam gerai yang sama. Akun pelanggan G001 tidak dapat dipakai sebagai akun G002.
+Customer username hanya harus unik di dalam gerai yang sama. Akun pelanggan G001 tidak dapat dipakai sebagai akun pelanggan G002.
 
 ## Customer order attribution
 
 Migration `0007` menambahkan nullable `orders.customer_id`.
 
-- Guest checkout → `customer_id = NULL`.
-- Pelanggan login → server membaca Customer ID dari customer bearer session dan menyimpan `customer_id` pada order.
+- Guest checkout -> `customer_id = NULL`.
+- Pelanggan login -> server membaca Customer ID dari customer bearer session dan menyimpan `customer_id` pada order.
 - Browser tidak boleh memilih atau mengirim Customer ID sebagai sumber otoritatif.
 
 ## Owner authentication
@@ -100,35 +110,43 @@ Satu gerai hanya boleh mempunyai satu laci `OPEN`. Banyak kasir boleh login bers
 
 Seed kasir prototype:
 
-- Wowo — `wowo` / `wowo123` — `G001`
-- Wiwi — `wiwi` / `wiwi123` — `G002`
+- Wowo - `wowo` / `wowo123` - `G001`
+- Wiwi - `wiwi` / `wiwi123` - `G002`
 
 ## Database migrations
 
-- `0001_leker_order_schema.sql` — schema order awal
-- `0002_admin_master_data.sql` — master admin awal
-- `0003_set_prototype_admin_pin.sql` — PIN compatibility prototype
-- `0004_multi_store.sql` — store isolation
-- `0005_cashier_auth.sql` — cashier auth + G002 seed
-- `0006_owner_branch_drawer_transactions.sql` — Owner hierarchy, supplier, drawer, transaksi
-- `0007_customer_identity_unified_entry.sql` — branch customer master, customer session, customer attribution pada order
+- `0001_leker_order_schema.sql` - schema order awal
+- `0002_admin_master_data.sql` - master admin awal
+- `0003_set_prototype_admin_pin.sql` - PIN compatibility prototype
+- `0004_multi_store.sql` - store isolation
+- `0005_cashier_auth.sql` - cashier auth + G002 seed
+- `0006_owner_branch_drawer_transactions.sql` - Owner hierarchy, supplier, drawer, transaksi
+- `0007_customer_identity_unified_entry.sql` - branch customer master, customer session, customer attribution pada order
 
-## API tambahan pelanggan
+Role-agnostic unified login tidak memerlukan migration tambahan.
 
-Public/authenticated customer:
+## API authentication
 
-- `POST /api/customer/login?store=<KODE>`
+Unified entry:
+
+- `POST /api/auth/login?store=<KODE>`
+
+Customer:
+
+- `POST /api/customer/login?store=<KODE>` - compatibility/direct role endpoint
 - `GET /api/customer/me?store=<KODE>`
 - `POST /api/customer/logout?store=<KODE>`
 
-Owner-authenticated branch master:
+Owner and Cashier direct login endpoints tetap tersedia untuk workspace khusus, tetapi halaman customer utama memakai unified endpoint.
+
+Owner-authenticated branch customer master:
 
 - `GET /api/admin/customers?store=<KODE>`
 - `POST /api/admin/customers?store=<KODE>`
 - `PATCH /api/admin/customers/:id?store=<KODE>`
 - `DELETE /api/admin/customers/:id?store=<KODE>`
 
-Existing Owner, cashier, menu, order, supplier, product, category, and drawer APIs remain in place.
+Existing Owner, cashier, menu, order, supplier, product, category, dan drawer APIs tetap tersedia.
 
 ## Runtime architecture
 
@@ -143,7 +161,7 @@ Database Dwicahya tidak digunakan prototype.
 
 `npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`.
 
-`0007` bersifat additive dan menyalin legacy contacts ke customer master baru. Jika migration gagal, hentikan deployment dan restore database dari backup/Time Travel sebelum mencoba migration yang sudah dikoreksi. Jangan menjalankan query manual parsial untuk menebak state schema.
+Perubahan unified login ini tidak mengubah schema. Rollback cukup mengembalikan application version jika runtime bermasalah. Untuk migration D1 sebelumnya, gunakan backup/Time Travel sesuai recovery procedure dan jangan menjalankan query manual parsial untuk menebak state schema.
 
 ## Architecture decisions
 
@@ -152,4 +170,4 @@ Database Dwicahya tidak digunakan prototype.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Entry utama sekarang customer-first dengan unified login menu. Customer login bersifat optional, Master Pelanggan menjadi store-scoped master di setiap gerai, legacy contacts dimigrasikan, dan order pelanggan login menyimpan Customer ID yang diturunkan server-side dari session.
+**REQUIRED** - Login customer-first sekarang hanya satu username/password form tanpa role picker. Server menentukan Owner, Kasir, atau Pelanggan dari credential pair. Master Pelanggan tetap branch-scoped dan hanya berisi pelanggan; internal access accounts tetap domain terpisah.

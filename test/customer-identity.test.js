@@ -25,7 +25,7 @@ test('customer login and customer master are isolated to selected branch', async
   assert.match(customers, /Username atau password pelanggan salah untuk gerai ini/);
 });
 
-test('main customer page exposes unified login while guest checkout stays visible', async () => {
+test('main customer page uses one login form without role selection and keeps guest checkout', async () => {
   const [html, login] = await Promise.all([
     read('public/customer.html'),
     read('public/customer-login.js')
@@ -33,14 +33,35 @@ test('main customer page exposes unified login while guest checkout stays visibl
   assert.match(html, /customer-login\.css/);
   assert.match(html, /customer-login\.js/);
   assert.match(html, /Bisa beli tanpa login/);
-  assert.match(login, /data-entry-role="customer"/);
-  assert.match(login, /data-entry-role="cashier"/);
-  assert.match(login, /data-entry-role="owner"/);
+  assert.doesNotMatch(login, /data-entry-role=/);
+  assert.doesNotMatch(login, /setRole\(/);
+  assert.match(login, /\/api\/auth\/login/);
+  assert.match(login, /payload\.role === 'OWNER'/);
+  assert.match(login, /payload\.role === 'CASHIER'/);
+  assert.match(login, /payload\.role !== 'CUSTOMER'/);
   assert.match(login, /lekerOwnerToken/);
   assert.match(login, /lekerCashierToken/);
   assert.match(login, /lekerCustomerToken:/);
   assert.match(login, /Customer ID:/);
   assert.match(login, /Lanjut beli tanpa login/);
+});
+
+test('unified login resolves role server side and rejects ambiguous credentials', async () => {
+  const [index, unified] = await Promise.all([
+    read('src/index.js'),
+    read('src/unified-login.js')
+  ]);
+  assert.match(index, /handleUnifiedLoginApi/);
+  assert.match(index, /unifiedLoginResponse/);
+  assert.match(unified, /pathname !== '\/api\/auth\/login'/);
+  assert.match(unified, /FROM owner_accounts/);
+  assert.match(unified, /FROM cashiers c/);
+  assert.match(unified, /FROM customers c/);
+  assert.match(unified, /role: 'OWNER'/);
+  assert.match(unified, /role: 'CASHIER'/);
+  assert.match(unified, /role: 'CUSTOMER'/);
+  assert.match(unified, /AMBIGUOUS_LOGIN/);
+  assert.match(unified, /const customer = selectedStore \?/);
 });
 
 test('logged customer identity is derived server side when order is created', async () => {
@@ -56,7 +77,7 @@ test('logged customer identity is derived server side when order is created', as
   assert.match(db, /order\.customerId \|\| null/);
 });
 
-test('branch workspace promotes Pelanggan master without exposing branch creation as a master', async () => {
+test('branch workspace keeps Pelanggan as a branch-only customer master', async () => {
   const [html, ui] = await Promise.all([
     read('public/branch-admin.html'),
     read('public/admin-customers.js')
@@ -67,4 +88,6 @@ test('branch workspace promotes Pelanggan master without exposing branch creatio
   assert.match(ui, /\/api\/admin\/customers/);
   assert.match(ui, /legacyTab\.hidden = true/);
   assert.doesNotMatch(html, /Tambah gerai/);
+  assert.doesNotMatch(ui, /owner_accounts/);
+  assert.doesNotMatch(ui, /cashier_sessions/);
 });

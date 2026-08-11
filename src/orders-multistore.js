@@ -47,6 +47,7 @@ export async function createOrder(db, store, payload) {
   const orderBase = {
     id: `ord_${crypto.randomUUID()}`,
     storeId: store.id,
+    customerId: sanitizeText(payload?.customerId, 120) || null,
     businessDate,
     customerName: sanitizeText(payload?.customerName, 60) || 'Customer',
     tableLabel: sanitizeText(payload?.tableLabel, 40) || 'Kiosk',

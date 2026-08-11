@@ -6,6 +6,7 @@ function mapOrderRow(row) {
   return {
     id: row.id,
     storeId: row.store_id,
+    customerId: row.customer_id || null,
     orderNo: row.order_no,
     customerName: row.customer_name,
     tableLabel: row.table_label,
@@ -74,7 +75,7 @@ export async function getProductsByIds(db, storeId, productIds) {
 
 export async function listOrders(db, storeId, limit = 100) {
   const result = await db.prepare(`
-    SELECT id, store_id, order_no, customer_name, table_label, general_note,
+    SELECT id, store_id, customer_id, order_no, customer_name, table_label, general_note,
            total_amount, status, created_at, updated_at, ready_at,
            completed_at, cancelled_at
     FROM orders
@@ -90,7 +91,7 @@ export async function listOrders(db, storeId, limit = 100) {
 
 export async function getOrder(db, storeId, orderId) {
   const row = await db.prepare(`
-    SELECT id, store_id, order_no, customer_name, table_label, general_note,
+    SELECT id, store_id, customer_id, order_no, customer_name, table_label, general_note,
            total_amount, status, created_at, updated_at, ready_at,
            completed_at, cancelled_at
     FROM orders
@@ -116,11 +117,11 @@ export async function insertOrder(db, order, items) {
   const statements = [
     db.prepare(`
       INSERT INTO orders (
-        id, store_id, business_date, order_no, customer_name, table_label, general_note,
+        id, store_id, customer_id, business_date, order_no, customer_name, table_label, general_note,
         total_amount, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      order.id, order.storeId, order.businessDate, order.orderNo, order.customerName,
+      order.id, order.storeId, order.customerId || null, order.businessDate, order.orderNo, order.customerName,
       order.tableLabel, order.generalNote, order.total, order.status, order.createdAt, order.updatedAt
     ),
     ...items.map(item => db.prepare(`

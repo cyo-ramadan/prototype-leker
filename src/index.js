@@ -3,6 +3,7 @@ import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
+import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleOwnerApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
@@ -51,6 +52,9 @@ async function handleApi(request, env, url) {
   const ownerResponse = await handleOwnerApi(request, env, pathname);
   if (ownerResponse) return ownerResponse;
 
+  const customerResponse = await handleCustomerApi(request, env, pathname);
+  if (customerResponse) return customerResponse;
+
   const supplierResponse = await handleSupplierApi(request, env, pathname);
   if (supplierResponse) return supplierResponse;
 
@@ -95,7 +99,8 @@ async function handleApi(request, env, url) {
   if (request.method === 'POST' && pathname === '/api/orders') {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
-    const result = await createOrder(env.DB, store, body.value);
+    const customer = await optionalCustomerFromRequest(request, env.DB, store.id);
+    const result = await createOrder(env.DB, store, { ...body.value, customerId: customer?.id || null });
     return result.ok ? json(result.order, 201) : json({ error: result.error }, result.status);
   }
 

@@ -7,19 +7,20 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/customer-responsive.css" />
   <link rel="stylesheet" href="/customer-repeat-order.css" />
+  <link rel="stylesheet" href="/customer-login.css" />
 </head>
 <body>
 <div class="app-shell">
   <header class="topbar">
     <div class="brand"><div id="brandMark" class="brand-mark">L</div><div><span id="storeBrandName">MAXI LEKER</span><small>Self Order Kiosk · <span data-store-code>G001</span></small></div></div>
-    <span class="pill">No Payment · Prototype</span>
+    <span class="pill">Bisa beli tanpa login</span>
   </header>
 
   <main id="shopView" class="layout customer-layout">
     <section>
       <div class="hero">
         <h1>Pilih leker.<br>Tap, order, beres.</h1>
-        <p>Pesanan langsung masuk ke kasir gerai yang dipilih. Setelah siap, layar ini berubah hijau supaya customer tinggal meluncur ke counter.</p>
+        <p>Pesanan langsung masuk ke kasir gerai yang dipilih. Login pelanggan optional, jadi guest tetap bisa langsung beli.</p>
       </div>
       <div id="categoryRow" class="category-row"></div>
       <div id="menuGrid" class="menu-grid"></div>
@@ -40,7 +41,7 @@
     <div class="field"><label>Kode kiosk / perangkat</label><input id="tableLabel" class="text-input" value="Kiosk 01" maxlength="40" /></div>
     <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering"></textarea></div>
     <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
-    <div class="checkout-note">Payment belum aktif di prototype. Order akan langsung dikirim ke kasir gerai aktif.</div>
+    <div class="checkout-note">Login pelanggan tidak wajib. Kalau login, order otomatis terkait Customer ID akun tersebut.</div>
     <button id="checkoutBtn" class="primary-btn" disabled>FIX PESANAN · KIRIM KE KASIR</button>
   </aside>
 
@@ -56,6 +57,7 @@
 </div>
 <script src="/store-context.js"></script>
 <script src="/customer-store-select.js"></script>
+<script src="/customer-login.js"></script>
 <script src="/customer.js"></script>
 <script src="/customer-repeat-order.js"></script>
 </body>

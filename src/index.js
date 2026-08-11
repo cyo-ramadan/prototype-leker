@@ -4,6 +4,7 @@ import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
+import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
@@ -38,7 +39,7 @@ async function handleCashierOrders(request, env, pathname) {
     if (!drawerAuth.ok) return drawerAuth.response;
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
-    const result = await changeOrderStatus(env.DB, storeId, statusMatch[1], body.value?.status);
+    const result = await changeOrderStatus(env.DB, storeId, statusMatch[1], body.value?.status, drawerAuth.drawer.id);
     return result.ok ? json(result.order) : json({ error: result.error }, result.status);
   }
 
@@ -90,6 +91,9 @@ async function handleApi(request, env, url) {
 
   const cashierWorkspaceResponse = await handleCashierWorkspaceApi(request, env, pathname);
   if (cashierWorkspaceResponse) return cashierWorkspaceResponse;
+
+  const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
+  if (trackedSaleResponse) return trackedSaleResponse;
 
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;

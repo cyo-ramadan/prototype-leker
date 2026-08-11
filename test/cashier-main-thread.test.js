@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+
+test('cashier order cleanup is idempotent and cannot self-trigger forever', async () => {
+  const cleanup = await read('public/cashier-order-cleanup.js');
+  assert.match(cleanup, /new MutationObserver\(cleanOrderMeta\)/);
+  assert.match(cleanup, /text !== customerName/);
+  assert.doesNotMatch(cleanup, /if \(customerName\) node\.textContent = customerName/);
+});

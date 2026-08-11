@@ -10,6 +10,12 @@
     return order?.source === 'cashier' ? 'cashier' : 'customer';
   }
 
+  function belongsToActiveDrawer(order) {
+    const drawerId = state.drawer?.id || null;
+    if (normalizeSource(order) === 'customer' && order.status === 'NEW' && !order.drawerSessionId) return true;
+    return Boolean(drawerId && order.drawerSessionId === drawerId);
+  }
+
   function injectStyle() {
     if (byId('cashierSalesOrdersStyle')) return;
     const style = document.createElement('style');
@@ -301,7 +307,7 @@
     if (!byId('statNew')) return;
     const groups = { NEW: [], PREPARING: [], READY: [], COMPLETED: [], CANCELLED: [] };
     for (const order of state.orders || []) {
-      if (normalizeSource(order) !== orderSourceFilter) continue;
+      if (normalizeSource(order) !== orderSourceFilter || !belongsToActiveDrawer(order)) continue;
       if (groups[order.status]) groups[order.status].push(order);
     }
     byId('statNew').textContent = groups.NEW.length;
@@ -326,7 +332,7 @@
     for (const line of state.draft.values()) draftCount += Number(line.quantity || 0);
     let pendingOrders = 0;
     for (const order of state.orders || []) {
-      if (order.drawerSessionId && state.drawer?.id && order.drawerSessionId !== state.drawer.id) continue;
+      if (!belongsToActiveDrawer(order)) continue;
       if (order.status === 'NEW' || order.status === 'PREPARING' || order.status === 'READY') pendingOrders += 1;
     }
     if (byId('cashierSalesCount')) byId('cashierSalesCount').textContent = draftCount;

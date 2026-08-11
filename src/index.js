@@ -6,7 +6,7 @@ import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js'
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
-import { handleOwnerApi } from './owner-auth.js';
+import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
@@ -60,6 +60,9 @@ async function handleApi(request, env, url) {
 
   const ownerResponse = await handleOwnerApi(request, env, pathname);
   if (ownerResponse) return ownerResponse;
+
+  const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
+  if (storeAdminResponse) return storeAdminResponse;
 
   const customerResponse = await handleCustomerApi(request, env, pathname);
   if (customerResponse) return customerResponse;

@@ -42,9 +42,12 @@ test('main customer page uses one login form without role selection and keeps gu
   assert.doesNotMatch(login, /setRole\(/);
   assert.match(login, /\/api\/auth\/login/);
   assert.match(login, /payload\.role === 'OWNER'/);
+  assert.match(login, /payload\.role === 'ADMIN'/);
   assert.match(login, /payload\.role === 'CASHIER'/);
   assert.match(login, /payload\.role !== 'CUSTOMER'/);
   assert.match(login, /lekerOwnerToken/);
+  assert.match(login, /lekerAdminToken/);
+  assert.match(login, /lekerAdminStoreCode/);
   assert.match(login, /lekerCashierToken/);
   assert.match(login, /lekerCustomerToken:/);
   assert.match(login, /Customer ID:/);
@@ -60,9 +63,11 @@ test('unified login resolves role server side and shared customer scope server s
   assert.match(index, /unifiedLoginResponse/);
   assert.match(unified, /pathname !== '\/api\/auth\/login'/);
   assert.match(unified, /FROM owner_accounts/);
+  assert.match(unified, /FROM store_admins a/);
   assert.match(unified, /FROM cashiers c/);
   assert.match(unified, /FROM customers c/);
   assert.match(unified, /role: 'OWNER'/);
+  assert.match(unified, /role: 'ADMIN'/);
   assert.match(unified, /role: 'CASHIER'/);
   assert.match(unified, /role: 'CUSTOMER'/);
   assert.match(unified, /AMBIGUOUS_LOGIN/);
@@ -97,4 +102,5 @@ test('branch workspace keeps Pelanggan separate from staff access and shows shar
   assert.doesNotMatch(html, /Tambah gerai/);
   assert.doesNotMatch(ui, /owner_accounts/);
   assert.doesNotMatch(ui, /cashier_sessions/);
+  assert.doesNotMatch(ui, /store_admin_sessions/);
 });

@@ -46,7 +46,7 @@
         <div id="entryAccountView" class="hidden"></div>
         <div id="entryLoginView">
           <form id="entryLoginForm" class="entry-login-form">
-            <div class="entry-login-note">Masukkan akun. Sistem otomatis mengenali Owner, Kasir, atau Pelanggan. Untuk beli, login tetap optional.</div>
+            <div class="entry-login-note">Masukkan akun. Sistem otomatis mengenali Owner, Admin Gerai, Kasir, atau Pelanggan. Untuk beli, login tetap optional.</div>
             <div class="field"><label>Username</label><input id="entryUsername" class="text-input" autocomplete="username" maxlength="40" required /></div>
             <div class="field"><label>Password</label><input id="entryPassword" class="text-input" type="password" autocomplete="current-password" required /></div>
             <button id="entrySubmit" class="primary-btn" type="submit">LOGIN</button>
@@ -112,6 +112,13 @@
       if (payload.role === 'OWNER') {
         sessionStorage.setItem('lekerOwnerToken', payload.token);
         location.href = payload.redirect || '/admin';
+        return;
+      }
+
+      if (payload.role === 'ADMIN') {
+        sessionStorage.setItem('lekerAdminToken', payload.token);
+        sessionStorage.setItem('lekerAdminStoreCode', payload.admin?.store?.code || storeCode);
+        location.href = payload.redirect || `/s/${encodeURIComponent(payload.admin?.store?.code || storeCode)}/admin`;
         return;
       }
 

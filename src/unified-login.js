@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { resolveCustomerScope } from './customer-sharing.js';
-import { hashCredential } from './owner-auth.js';
+import { createStoreAdminSession, hashCredential } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 
 const SESSION_HOURS = 12;
@@ -103,11 +103,19 @@ export async function handleUnifiedLoginApi(request, env, pathname) {
 
   const url = new URL(request.url);
   const storeToken = url.searchParams.get('store') || DEFAULT_STORE_CODE;
-  const [owner, cashier, selectedStore] = await Promise.all([
+  const [owner, admin, cashier, selectedStore] = await Promise.all([
     env.DB.prepare(`
       SELECT id, username, password_hash, display_name, is_active
       FROM owner_accounts
       WHERE username = ? COLLATE NOCASE AND is_active = 1
+      LIMIT 1
+    `).bind(username).first(),
+    env.DB.prepare(`
+      SELECT a.id, a.username, a.password_hash, a.display_name, a.is_active,
+             s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active
+      FROM store_admins a
+      JOIN stores s ON s.id = a.store_id
+      WHERE a.username = ? COLLATE NOCASE AND a.is_active = 1 AND s.is_active = 1
       LIMIT 1
     `).bind(username).first(),
     env.DB.prepare(`
@@ -140,13 +148,14 @@ export async function handleUnifiedLoginApi(request, env, pathname) {
   const passwordHash = await hashCredential(password);
   const matches = [];
   if (owner?.password_hash && owner.password_hash === passwordHash) matches.push({ role: 'OWNER', row: owner });
+  if (admin?.password_hash && admin.password_hash === passwordHash) matches.push({ role: 'ADMIN', row: admin });
   if (cashier?.password_hash && cashier.password_hash === passwordHash) matches.push({ role: 'CASHIER', row: cashier });
   for (const customer of customerRows) {
     if (customer.password_hash && customer.password_hash === passwordHash) matches.push({ role: 'CUSTOMER', row: customer });
   }
 
   if (!matches.length) {
-    if (!selectedStore && !owner && !cashier) return json({ error: 'Gerai yang dipilih tidak tersedia.' }, 404);
+    if (!selectedStore && !owner && !admin && !cashier) return json({ error: 'Gerai yang dipilih tidak tersedia.' }, 404);
     return json({ error: 'Username atau password salah.' }, 401);
   }
   if (matches.length > 1) {
@@ -158,6 +167,7 @@ export async function handleUnifiedLoginApi(request, env, pathname) {
 
   const match = matches[0];
   if (match.role === 'OWNER') return json(await createOwnerSession(env.DB, match.row));
+  if (match.role === 'ADMIN') return json(await createStoreAdminSession(env.DB, match.row));
   if (match.role === 'CASHIER') return json(await createCashierSession(env.DB, match.row));
   return json(await createCustomerSession(env.DB, match.row));
 }

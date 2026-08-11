@@ -2,6 +2,8 @@ import { json, readJson } from './http.js';
 import { listStores, normalizeStoreCode, resolveStore } from './stores.js';
 
 const OWNER_SESSION_HOURS = 12;
+const STORE_ADMIN_SESSION_HOURS = 12;
+const DEFAULT_STORE_CODE = 'G001';
 const text = (value, max = 180) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
 
@@ -25,6 +27,20 @@ function mapOwner(row) {
   } : null;
 }
 
+function mapStoreAdmin(row) {
+  return row ? {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    isActive: Boolean(row.is_active),
+    store: {
+      id: row.store_id,
+      code: row.store_code,
+      storeName: row.store_name
+    }
+  } : null;
+}
+
 export async function ownerFromRequest(request, db) {
   const token = bearerToken(request);
   if (!token) return null;
@@ -40,6 +56,44 @@ export async function ownerFromRequest(request, db) {
   return mapOwner(row);
 }
 
+export async function storeAdminFromRequest(request, db) {
+  const token = bearerToken(request);
+  if (!token) return null;
+  const tokenHash = await hashCredential(token);
+  const now = new Date().toISOString();
+  const row = await db.prepare(`
+    SELECT a.id, a.username, a.display_name, a.is_active,
+           s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active
+    FROM store_admin_sessions ss
+    JOIN store_admins a ON a.id = ss.admin_id
+    JOIN stores s ON s.id = a.store_id
+    WHERE ss.token_hash = ? AND ss.expires_at > ?
+      AND a.is_active = 1 AND s.is_active = 1
+    LIMIT 1
+  `).bind(tokenHash, now).first();
+  return row?.store_active ? mapStoreAdmin(row) : null;
+}
+
+export async function createStoreAdminSession(db, row) {
+  const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
+  const tokenHash = await hashCredential(token);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + STORE_ADMIN_SESSION_HOURS * 60 * 60 * 1000).toISOString();
+  await db.batch([
+    db.prepare('DELETE FROM store_admin_sessions WHERE expires_at <= ?').bind(now.toISOString()),
+    db.prepare('INSERT INTO store_admin_sessions (token_hash, admin_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+      .bind(tokenHash, row.id, now.toISOString(), expiresAt)
+  ]);
+  const admin = mapStoreAdmin(row);
+  return {
+    role: 'ADMIN',
+    token,
+    expiresAt,
+    admin,
+    redirect: `/s/${encodeURIComponent(admin.store.code)}/admin`
+  };
+}
+
 export async function requireOwner(request, db) {
   const owner = await ownerFromRequest(request, db);
   return owner
@@ -47,18 +101,85 @@ export async function requireOwner(request, db) {
     : { ok: false, response: json({ error: 'Login Owner diperlukan.', code: 'OWNER_LOGIN_REQUIRED' }, 401) };
 }
 
+function adminStoreMatchesRequest(request, admin) {
+  const url = new URL(request.url);
+  const requestedStore = String(url.searchParams.get('store') || DEFAULT_STORE_CODE).trim().toUpperCase();
+  return requestedStore === String(admin.store.code).toUpperCase()
+    || requestedStore === String(admin.store.id).toUpperCase();
+}
+
 export async function requireManagement(request, db) {
   const owner = await ownerFromRequest(request, db);
-  if (owner) return { ok: true, owner, authType: 'OWNER' };
+  if (owner) return { ok: true, owner, admin: null, authType: 'OWNER' };
+
+  const admin = await storeAdminFromRequest(request, db);
+  if (admin) {
+    const pathname = new URL(request.url).pathname;
+    if (/^\/api\/admin\/stores(?:\/|$)/.test(pathname)) {
+      return { ok: false, response: json({ error: 'Create dan pengaturan gerai hanya boleh dilakukan Owner.', code: 'OWNER_ONLY' }, 403) };
+    }
+    if (!adminStoreMatchesRequest(request, admin)) {
+      return {
+        ok: false,
+        response: json({
+          error: `Admin ${admin.displayName} hanya berwenang pada gerai ${admin.store.code}.`,
+          code: 'ADMIN_STORE_SCOPE_MISMATCH'
+        }, 403)
+      };
+    }
+    return { ok: true, owner: null, admin, authType: 'ADMIN' };
+  }
 
   // Backward-compatible prototype fallback while the old PIN UI is being retired.
   const settings = await db.prepare('SELECT admin_pin_hash FROM store_settings WHERE id = 1').first();
   const pin = request.headers.get('x-admin-pin') || '';
   if (settings?.admin_pin_hash && pin && await hashCredential(pin) === settings.admin_pin_hash) {
-    return { ok: true, owner: null, authType: 'LEGACY_PIN' };
+    return { ok: true, owner: null, admin: null, authType: 'LEGACY_PIN' };
   }
 
-  return { ok: false, response: json({ error: 'Login Owner diperlukan.' }, 401) };
+  return { ok: false, response: json({ error: 'Login Owner atau Admin Gerai diperlukan.' }, 401) };
+}
+
+export async function handleStoreAdminApi(request, env, pathname) {
+  if (!pathname.startsWith('/api/store-admin/')) return null;
+  const db = env.DB;
+
+  if (request.method === 'POST' && pathname === '/api/store-admin/login') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload login Admin Gerai tidak valid.' }, 400);
+    const username = usernameText(body.value?.username);
+    const password = String(body.value?.password ?? '');
+    if (!username || !password) return json({ error: 'Username dan password wajib diisi.' }, 400);
+
+    const row = await db.prepare(`
+      SELECT a.id, a.username, a.password_hash, a.display_name, a.is_active,
+             s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active
+      FROM store_admins a
+      JOIN stores s ON s.id = a.store_id
+      WHERE a.username = ? COLLATE NOCASE
+      LIMIT 1
+    `).bind(username).first();
+
+    if (!row || !row.is_active || !row.store_active || await hashCredential(password) !== row.password_hash) {
+      return json({ error: 'Username atau password Admin Gerai salah.' }, 401);
+    }
+    return json(await createStoreAdminSession(db, row));
+  }
+
+  if (request.method === 'GET' && pathname === '/api/store-admin/me') {
+    const admin = await storeAdminFromRequest(request, db);
+    return admin
+      ? json({ admin })
+      : json({ error: 'Session Admin Gerai tidak valid atau sudah habis.', code: 'ADMIN_SESSION_EXPIRED' }, 401);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/store-admin/logout') {
+    const token = bearerToken(request);
+    if (token) await db.prepare('DELETE FROM store_admin_sessions WHERE token_hash = ?').bind(await hashCredential(token)).run();
+    return json({ ok: true });
+  }
+
+  return json({ error: 'Route Admin Gerai tidak ditemukan.' }, 404);
 }
 
 export async function handleOwnerApi(request, env, pathname) {

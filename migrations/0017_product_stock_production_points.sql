@@ -4,6 +4,10 @@ PRAGMA foreign_keys = ON;
 ALTER TABLE products ADD COLUMN points_per_unit INTEGER NOT NULL DEFAULT 0 CHECK (points_per_unit >= 0);
 ALTER TABLE products ADD COLUMN production_mode TEXT NOT NULL DEFAULT 'STOCK' CHECK (production_mode IN ('STOCK', 'DADAKAN'));
 ALTER TABLE products ADD COLUMN recipe_link_enabled INTEGER NOT NULL DEFAULT 0 CHECK (recipe_link_enabled IN (0, 1));
+ALTER TABLE products ADD COLUMN stock_tracking_enabled INTEGER NOT NULL DEFAULT 1 CHECK (stock_tracking_enabled IN (0, 1));
+
+-- Existing products predate reliable opening-stock history. Keep them sellable until Admin initializes stock.
+UPDATE products SET stock_tracking_enabled = 0;
 
 ALTER TABLE sales ADD COLUMN customer_id TEXT REFERENCES customers(id);
 ALTER TABLE sales ADD COLUMN total_points INTEGER NOT NULL DEFAULT 0 CHECK (total_points >= 0);
@@ -87,7 +91,7 @@ ALTER TABLE sale_items ADD COLUMN recipe_id TEXT REFERENCES manufacturing_recipe
 ALTER TABLE sale_items ADD COLUMN production_run_id TEXT REFERENCES production_runs(id);
 
 CREATE INDEX IF NOT EXISTS idx_products_store_production_policy
-  ON products(store_id, production_mode, recipe_link_enabled, is_active);
+  ON products(store_id, production_mode, recipe_link_enabled, stock_tracking_enabled, is_active);
 CREATE INDEX IF NOT EXISTS idx_sales_store_customer_created
   ON sales(store_id, customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_production_runs_store_created

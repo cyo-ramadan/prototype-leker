@@ -23,11 +23,11 @@
     style.textContent = `
       .drawer-command-card{flex-wrap:wrap;align-items:flex-start}
       .cashier-drawer-workspace{flex:1 0 100%;min-width:0;padding-top:16px;margin-top:2px;border-top:1px solid #eadfd4}
-      .cashier-workspace-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 16px}
-      .cashier-workspace-nav button{border:1px solid #ddd0c3;background:#fffaf4;border-radius:16px;padding:14px 12px;font-weight:900;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
-      .cashier-workspace-nav button.active{background:#281f18;color:#fff;border-color:#281f18;box-shadow:0 10px 26px rgba(40,31,24,.14)}
+      .cashier-workspace-nav{display:flex;gap:10px;margin:0 0 16px}
+      .cashier-workspace-nav button{border:1px solid #ddd0c3;background:#fffaf4;border-radius:16px;padding:12px 14px;font-weight:900;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+      .cashier-workspace-nav button.active,.drawer-action-btn[data-cashier-workspace-mode].active{background:#281f18;color:#fff;border-color:#281f18;box-shadow:0 10px 26px rgba(40,31,24,.14)}
       .cashier-workspace-count{min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:rgba(128,128,128,.16);font-size:11px}
-      .cashier-workspace-nav button.active .cashier-workspace-count{background:rgba(255,255,255,.18)}
+      .cashier-workspace-nav button.active .cashier-workspace-count,.drawer-action-btn[data-cashier-workspace-mode].active .cashier-workspace-count{background:rgba(255,255,255,.18)}
       .cashier-sales-only{grid-template-columns:minmax(0,1fr)!important}
       .cashier-sales-only .cashier-draft-panel{max-width:none}
       .cashier-product-search{border:1px solid #eadfd4;background:#fffaf5;border-radius:16px;padding:12px;margin-bottom:12px}
@@ -46,7 +46,7 @@
       .cashier-rejected-block h2{margin:0 0 10px}
       .cashier-rejected-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eee3d8}
       .cashier-order-status-label{font-weight:800}
-      @media(max-width:720px){.cashier-workspace-nav{grid-template-columns:1fr}.cashier-workspace-nav button{justify-content:space-between}.cashier-search-result{align-items:flex-start}}
+      @media(max-width:720px){.cashier-workspace-nav{flex-wrap:wrap}.cashier-search-result{align-items:flex-start}}
     `;
     document.head.appendChild(style);
   }
@@ -64,11 +64,12 @@
     injectStyle();
     const dashboard = byId('cashierDashboard');
     const drawerCard = document.querySelector('.drawer-command-card');
+    const drawerActions = drawerCard?.querySelector('.drawer-actions');
     const posLayout = document.querySelector('.cashier-pos-layout');
     const menuPanel = document.querySelector('.cashier-menu-panel');
     const draftPanel = document.querySelector('.cashier-draft-panel');
     const orderSection = document.querySelector('.cashier-order-section');
-    if (!dashboard || !drawerCard || !posLayout || !menuPanel || !draftPanel || !orderSection) return;
+    if (!dashboard || !drawerCard || !drawerActions || !posLayout || !menuPanel || !draftPanel || !orderSection) return;
 
     let workspace = byId('cashierDrawerWorkspace');
     if (!workspace) {
@@ -80,17 +81,25 @@
       workspace.appendChild(orderSection);
     }
 
+    if (!byId('cashierSalesActionBtn')) {
+      const purchaseButton = byId('purchaseBtn');
+      purchaseButton?.insertAdjacentHTML('beforebegin', `
+        <button id="cashierSalesActionBtn" class="drawer-action-btn" type="button" data-cashier-workspace-mode="sales"><span>🧾 Penjualan</span><span id="cashierSalesCount" class="cashier-workspace-count">0</span></button>
+        <button id="cashierOrdersActionBtn" class="drawer-action-btn" type="button" data-cashier-workspace-mode="orders"><span>📥 Pesanan</span><span id="cashierOrdersCount" class="cashier-workspace-count">0</span></button>`);
+    }
+
     if (!byId('cashierWorkspaceNav')) {
       workspace.insertAdjacentHTML('afterbegin', `
-        <nav id="cashierWorkspaceNav" class="cashier-workspace-nav" aria-label="Aktivitas laci aktif">
-          <button type="button" data-cashier-workspace-mode="sales"><span>🧾 Penjualan</span><span id="cashierSalesCount" class="cashier-workspace-count">0</span></button>
-          <button type="button" data-cashier-workspace-mode="menu"><span>📖 Menu</span><span id="cashierMenuDraftCount" class="cashier-workspace-count">0</span></button>
-          <button type="button" data-cashier-workspace-mode="orders"><span>📥 Pesanan</span><span id="cashierOrdersCount" class="cashier-workspace-count">0</span></button>
+        <nav id="cashierWorkspaceNav" class="cashier-workspace-nav" aria-label="Buku menu laci aktif">
+          <button type="button" data-cashier-workspace-mode="menu"><span>📖 Buku Menu</span><span id="cashierMenuDraftCount" class="cashier-workspace-count">0</span></button>
         </nav>`);
-      document.querySelectorAll('[data-cashier-workspace-mode]').forEach(button => {
-        button.addEventListener('click', () => setMode(button.dataset.cashierWorkspaceMode));
-      });
     }
+
+    document.querySelectorAll('[data-cashier-workspace-mode]').forEach(button => {
+      if (button.dataset.workspaceBound === '1') return;
+      button.dataset.workspaceBound = '1';
+      button.addEventListener('click', () => setMode(button.dataset.cashierWorkspaceMode));
+    });
 
     if (!byId('cashierProductSearch')) {
       const header = draftPanel.querySelector('.cashier-panel-head');

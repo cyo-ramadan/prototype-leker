@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS units (
   code TEXT NOT NULL,
   name TEXT NOT NULL,
   symbol TEXT NOT NULL,
-  decimal_scale INTEGER NOT NULL DEFAULT 0 CHECK (decimal_scale BETWEEN 0 AND 3),
+  decimal_scale INTEGER NOT NULL DEFAULT 0 CHECK (decimal_scale = 0),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -54,13 +54,13 @@ FROM stores;
 INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
 SELECT 'unit_' || id || '_pcs', id, 'PCS', 'Pcs', 'pcs', 0, 1 FROM stores;
 INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-SELECT 'unit_' || id || '_gram', id, 'GRAM', 'Gram', 'g', 3, 1 FROM stores;
+SELECT 'unit_' || id || '_gram', id, 'GRAM', 'Gram', 'g', 0, 1 FROM stores;
 INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-SELECT 'unit_' || id || '_kg', id, 'KG', 'Kilogram', 'kg', 3, 1 FROM stores;
+SELECT 'unit_' || id || '_kg', id, 'KG', 'Kilogram', 'kg', 0, 1 FROM stores;
 INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-SELECT 'unit_' || id || '_ml', id, 'ML', 'Mililiter', 'ml', 3, 1 FROM stores;
+SELECT 'unit_' || id || '_ml', id, 'ML', 'Mililiter', 'ml', 0, 1 FROM stores;
 INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-SELECT 'unit_' || id || '_liter', id, 'LITER', 'Liter', 'L', 3, 1 FROM stores;
+SELECT 'unit_' || id || '_liter', id, 'LITER', 'Liter', 'L', 0, 1 FROM stores;
 
 CREATE TRIGGER IF NOT EXISTS trg_stores_seed_manufacturing_defaults
 AFTER INSERT ON stores
@@ -74,13 +74,13 @@ BEGIN
   INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
   VALUES ('unit_' || NEW.id || '_pcs', NEW.id, 'PCS', 'Pcs', 'pcs', 0, 1);
   INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-  VALUES ('unit_' || NEW.id || '_gram', NEW.id, 'GRAM', 'Gram', 'g', 3, 1);
+  VALUES ('unit_' || NEW.id || '_gram', NEW.id, 'GRAM', 'Gram', 'g', 0, 1);
   INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-  VALUES ('unit_' || NEW.id || '_kg', NEW.id, 'KG', 'Kilogram', 'kg', 3, 1);
+  VALUES ('unit_' || NEW.id || '_kg', NEW.id, 'KG', 'Kilogram', 'kg', 0, 1);
   INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-  VALUES ('unit_' || NEW.id || '_ml', NEW.id, 'ML', 'Mililiter', 'ml', 3, 1);
+  VALUES ('unit_' || NEW.id || '_ml', NEW.id, 'ML', 'Mililiter', 'ml', 0, 1);
   INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-  VALUES ('unit_' || NEW.id || '_liter', NEW.id, 'LITER', 'Liter', 'L', 3, 1);
+  VALUES ('unit_' || NEW.id || '_liter', NEW.id, 'LITER', 'Liter', 'L', 0, 1);
 END;
 
 ALTER TABLE products ADD COLUMN item_type_id TEXT REFERENCES item_types(id);
@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS manufacturing_recipes (
   store_id TEXT NOT NULL,
   output_product_id INTEGER NOT NULL,
   output_unit_id TEXT NOT NULL,
-  output_quantity_milli INTEGER NOT NULL CHECK (output_quantity_milli > 0),
+  output_quantity INTEGER NOT NULL CHECK (output_quantity > 0),
   revision INTEGER NOT NULL CHECK (revision > 0),
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'ARCHIVED')),
   notes TEXT NOT NULL DEFAULT '',
@@ -185,7 +185,7 @@ CREATE TABLE IF NOT EXISTS manufacturing_recipe_components (
   store_id TEXT NOT NULL,
   component_product_id INTEGER NOT NULL,
   component_unit_id TEXT NOT NULL,
-  quantity_milli INTEGER NOT NULL CHECK (quantity_milli > 0),
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
   display_order INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (recipe_id) REFERENCES manufacturing_recipes(id) ON DELETE CASCADE,
   FOREIGN KEY (store_id) REFERENCES stores(id),

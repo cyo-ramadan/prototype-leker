@@ -50,7 +50,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -79,6 +79,12 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       FROM other_income
       WHERE store_id = ? AND drawer_session_id = ?
       ORDER BY created_at
+    `).bind(storeId, drawerId).all(),
+    db.prepare(`
+      SELECT id, approval_request_id, direction, amount, description, note, posted_at
+      FROM cash_ledger_entries
+      WHERE store_id = ? AND drawer_session_id = ?
+      ORDER BY posted_at
     `).bind(storeId, drawerId).all()
   ]);
 
@@ -113,6 +119,15 @@ export async function buildDrawerReport(db, storeId, drawerId) {
     incomeAccount: row.income_account_label || '',
     createdAt: row.created_at
   }));
+  const operationalCash = (operationalCashRows.results ?? []).map(row => ({
+    id: row.id,
+    approvalRequestId: row.approval_request_id,
+    direction: row.direction === 'OUT' ? 'OUT' : 'IN',
+    amount: number(row.amount),
+    description: row.description,
+    note: row.note || '',
+    postedAt: row.posted_at
+  }));
 
   const cashSales = sales.filter(row => row.paymentMethod === 'CASH');
   const nonCashSales = sales.filter(row => row.paymentMethod === 'NON_CASH');
@@ -129,18 +144,19 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const cashExpenseTotal = sum(cashExpenses, 'amount');
   const nonCashExpenseTotal = sum(nonCashExpenses, 'amount');
   const cashInTotal = sum(cashIn, 'amount');
+  const operationalCashInTotal = operationalCash.reduce((total, row) => total + (row.direction === 'IN' ? row.amount : 0), 0);
+  const operationalCashOutTotal = operationalCash.reduce((total, row) => total + (row.direction === 'OUT' ? row.amount : 0), 0);
   const cashSalesItems = cashSales.reduce((total, row) => total + row.quantity, 0);
   const nonCashSalesItems = nonCashSales.reduce((total, row) => total + row.quantity, 0);
 
-  // Promotion, cooking, stock snapshot and stock adjustment remain explicit empty
-  // sections until their own canonical operational modules are defined.
   const promotions = [];
   const cooking = [];
   const stockRemaining = [];
   const stockAdjustments = [];
   const promotionTotal = 0;
   const realCashRevenue = cashSalesTotal - promotionTotal;
-  const expectedCash = drawer.openingAmount + realCashRevenue + cashInTotal - cashPurchaseTotal - cashExpenseTotal;
+  const expectedCash = drawer.openingAmount + realCashRevenue + cashInTotal + operationalCashInTotal
+    - cashPurchaseTotal - cashExpenseTotal - operationalCashOutTotal;
 
   return {
     drawer,
@@ -155,7 +171,8 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       nonCashSales,
       nonCashPurchases,
       stockAdjustments,
-      cashIn
+      cashIn,
+      operationalCash
     },
     totals: {
       cashSales: cashSalesTotal,
@@ -168,6 +185,8 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       cashExpenses: cashExpenseTotal,
       nonCashExpenses: nonCashExpenseTotal,
       cashIn: cashInTotal,
+      operationalCashIn: operationalCashInTotal,
+      operationalCashOut: operationalCashOutTotal,
       realCashRevenue,
       expectedCash,
       closingAmount: drawer.closingAmount,

@@ -1,7 +1,9 @@
 # Stock, Production & Product Points Contract v1
 
-Status: ACTIVE for Prototype Leker
+Status: SUPERSEDED by `contracts/stock-production-points-v2.md`
 Version: 1
+
+> Historical contract retained for audit history. Current costing and fulfillment ownership boundaries are defined by v2 and ADR-015.
 
 ## Purpose
 
@@ -128,3 +130,7 @@ Historical transaction detail is immutable and may display the exact recipe revi
 - Stock movements and transaction lists use bounded cursor pagination.
 - Transaction detail is fetched only on click.
 - No periodic polling is introduced.
+
+## DOC-IMPACT
+
+**REQUIRED** — historical v1 retained; current behavior moved to v2.

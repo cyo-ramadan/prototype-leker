@@ -6,6 +6,8 @@ import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js'
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
+import { handleCashDrawerLivePhotoApi } from './cashdrawer-live-photo.js';
+import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
@@ -86,12 +88,16 @@ async function handleApi(request, env, url) {
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
 
-  if (pathname.startsWith('/api/admin/')) {
-    return handleAdminApi(request, env, pathname);
-  }
+  if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
 
   const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);
   if (cashierAuthResponse) return cashierAuthResponse;
+
+  const staffPortalResponse = await handleStaffPortalApi(request, env, pathname);
+  if (staffPortalResponse) return staffPortalResponse;
+
+  const livePhotoDrawerResponse = await handleCashDrawerLivePhotoApi(request, env, pathname);
+  if (livePhotoDrawerResponse) return livePhotoDrawerResponse;
 
   const cashierWorkspaceResponse = await handleCashierWorkspaceApi(request, env, pathname);
   if (cashierWorkspaceResponse) return cashierWorkspaceResponse;
@@ -113,13 +119,8 @@ async function handleApi(request, env, url) {
   const store = await requirePublicStore(env, url);
   if (!store) return json({ error: 'Gerai tidak ditemukan atau sedang nonaktif.' }, 404);
 
-  if (request.method === 'GET' && pathname === '/api/menu') {
-    return json(await listProducts(env.DB, store.id));
-  }
-
-  if (request.method === 'GET' && pathname === '/api/store') {
-    return json(await getPublicStore(env.DB, store.id));
-  }
+  if (request.method === 'GET' && pathname === '/api/menu') return json(await listProducts(env.DB, store.id));
+  if (request.method === 'GET' && pathname === '/api/store') return json(await getPublicStore(env.DB, store.id));
 
   const orderMatch = pathname.match(/^\/api\/orders\/([^/]+)$/);
   if (request.method === 'GET' && orderMatch) {
@@ -151,6 +152,7 @@ function assetRoute(pathname) {
     '/': '/customer.html',
     '/customer': '/customer.html',
     '/cashier': '/cashier.html',
+    '/staff': '/staff.html',
     '/admin': '/owner.html',
     '/owner': '/owner.html'
   };

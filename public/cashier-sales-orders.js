@@ -5,6 +5,8 @@
   let activeMode = 'sales';
   let orderSourceFilter = 'customer';
   let draftOriginOrderId = null;
+  let selectedSaleCustomer = null;
+  let customerSearchTimer = null;
 
   function normalizeSource(order) {
     return order?.source === 'cashier' ? 'cashier' : 'customer';
@@ -38,6 +40,9 @@
       .cashier-search-result:hover{border-color:#8b6d50;transform:translateY(-1px)}
       .cashier-search-result strong{display:block}.cashier-search-result small{display:block;color:#7b6c60;margin-top:2px}
       .cashier-search-add{font-weight:900;white-space:nowrap}
+      .cashier-customer-selected{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding:9px 10px;border-radius:12px;background:#f4eee7;font-size:12px}
+      .cashier-customer-selected.hidden{display:none}
+      .cashier-customer-selected button{border:0;background:transparent;font-weight:900;cursor:pointer}
       .cashier-menu-continue{width:100%;margin:0 0 12px}
       .cashier-order-source-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
       .cashier-order-source-tabs button{border:1px solid #ddd0c3;background:#fffaf4;border-radius:999px;padding:9px 13px;font-weight:900;cursor:pointer}
@@ -110,6 +115,21 @@
           <div id="cashierSearchResults" class="cashier-search-results hidden"></div>
         </section>`);
       byId('cashierProductSearch')?.addEventListener('input', renderSearchResults);
+    }
+
+    if (!byId('cashierCustomerIdentitySearch')) {
+      const customerField = byId('saleCustomerName')?.closest('.field');
+      customerField?.insertAdjacentHTML('beforebegin', `
+        <section class="cashier-product-search">
+          <label for="cashierCustomerIdentitySearch">Customer terdaftar <span class="muted">optional · untuk poin</span></label>
+          <input id="cashierCustomerIdentitySearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama, kode, HP, username..." />
+          <div id="cashierCustomerIdentityResults" class="cashier-search-results hidden"></div>
+          <div id="cashierSelectedCustomer" class="cashier-customer-selected hidden"></div>
+        </section>`);
+      byId('cashierCustomerIdentitySearch')?.addEventListener('input', scheduleCustomerSearch);
+      byId('saleCustomerName')?.addEventListener('input', () => {
+        if (selectedSaleCustomer && byId('saleCustomerName').value.trim() !== selectedSaleCustomer.customerName) clearSelectedCustomer();
+      });
     }
 
     const menuHeading = menuPanel.querySelector('h2');
@@ -214,8 +234,70 @@
     });
   }
 
+  function scheduleCustomerSearch() {
+    clearTimeout(customerSearchTimer);
+    customerSearchTimer = setTimeout(searchCustomers, 180);
+  }
+
+  async function searchCustomers() {
+    const input = byId('cashierCustomerIdentitySearch');
+    const target = byId('cashierCustomerIdentityResults');
+    if (!input || !target) return;
+    const query = input.value.trim();
+    if (query.length < 2) {
+      target.innerHTML = '';
+      target.classList.add('hidden');
+      return;
+    }
+    try {
+      const payload = await api(`/api/cashier/customers/search?q=${encodeURIComponent(query)}`);
+      const customers = payload.customers || [];
+      target.innerHTML = customers.length ? customers.map(customer => `
+        <button class="cashier-search-result" type="button" data-customer-id="${esc(customer.id)}">
+          <span><strong>${esc(customer.customerName)}</strong><small>${esc(customer.customerCode)}${customer.phone ? ` · ${esc(customer.phone)}` : ''}${customer.store?.code ? ` · ${esc(customer.store.code)}` : ''}</small></span>
+          <span class="cashier-search-add">Pakai</span>
+        </button>`).join('') : '<div class="empty">Customer tidak ditemukan.</div>';
+      target.classList.remove('hidden');
+      target.querySelectorAll('[data-customer-id]').forEach(button => {
+        button.addEventListener('click', () => {
+          const customer = customers.find(item => item.id === button.dataset.customerId);
+          if (!customer) return;
+          selectedSaleCustomer = customer;
+          byId('saleCustomerName').value = customer.customerName;
+          input.value = '';
+          target.innerHTML = '';
+          target.classList.add('hidden');
+          renderSelectedCustomer();
+          byId('cashierProductSearch')?.focus();
+        });
+      });
+    } catch (error) {
+      target.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+      target.classList.remove('hidden');
+    }
+  }
+
+  function renderSelectedCustomer() {
+    const target = byId('cashierSelectedCustomer');
+    if (!target) return;
+    if (!selectedSaleCustomer) {
+      target.innerHTML = '';
+      target.classList.add('hidden');
+      return;
+    }
+    target.innerHTML = `<span><b>${esc(selectedSaleCustomer.customerName)}</b> · ${esc(selectedSaleCustomer.customerCode)} · poin akan masuk ke akun ini</span><button type="button" id="clearSaleCustomer">×</button>`;
+    target.classList.remove('hidden');
+    byId('clearSaleCustomer')?.addEventListener('click', clearSelectedCustomer);
+  }
+
+  function clearSelectedCustomer() {
+    selectedSaleCustomer = null;
+    renderSelectedCustomer();
+  }
+
   function snapshotOrderToDraft(order) {
     draftOriginOrderId = order.id;
+    clearSelectedCustomer();
     state.draft.clear();
     for (const item of order.items || []) {
       const product = {
@@ -273,6 +355,7 @@
       const payload = await api('/api/cashier/sales', {
         method: 'POST',
         body: JSON.stringify({
+          customerId: draftOriginOrderId ? null : selectedSaleCustomer?.id || null,
           customerName: byId('saleCustomerName').value,
           note: byId('saleNote').value,
           sourceOrderId: draftOriginOrderId,
@@ -281,12 +364,14 @@
       });
       if (payload.order) state.orders.unshift(payload.order);
       draftOriginOrderId = null;
+      clearSelectedCustomer();
       state.draft.clear();
       byId('saleCustomerName').value = '';
       byId('saleNote').value = '';
       renderDraft();
       renderOrders();
-      toast(`Penjualan tersimpan · ${money(payload.sale.total)}`);
+      const pointText = Number(payload.sale.points || 0) > 0 ? ` · +${Number(payload.sale.points)} poin` : '';
+      toast(`Penjualan tersimpan · ${money(payload.sale.total)}${pointText}`);
     } catch (error) {
       toast(error.message);
       await loadDrawer().catch(() => {});

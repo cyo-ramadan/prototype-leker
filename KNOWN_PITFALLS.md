@@ -36,6 +36,20 @@ Cara itu merusak historical costing karena harga bahan dapat berubah setelah pro
 
 Explorer hanya read model dengan `sourceReference`. Perubahan transaksi tetap harus lewat module pemilik business fact. Detail jurnal juga tidak boleh dipindahkan ke Admin.
 
+## Accounting reference bukan COA/jurnal source of truth
+
+**Pitfall:** Jangan memperlakukan `accounting_account_refs` sebagai Chart of Accounts canonical atau menghasilkan debit/kredit langsung dari reference ini.
+
+Reference `1101`, `1301`, `4101`, `5101`, dan akun dasar lain hanya placeholder connector berstatus `PROVISIONAL` sampai modul Accounting memberikan external account identity yang canonical.
+
+**Current strategy:**
+
+- Admin boleh menampilkan Portal Referensi Akun dan menyimpan explicit product reference.
+- Tidak ada account mapping yang dipilih otomatis hanya karena kode akun dasar tersedia.
+- Mapping transaksi ditambahkan satu per satu melalui contract berikutnya.
+- Journal, buku besar, neraca saldo, neraca, laba rugi, dan closing tetap dimiliki modul Accounting.
+- Program lain tidak menulis langsung ke database Accounting.
+
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap manual/event-driven, Manufacturing Master memakai immutable recipe revision, dan Admin Transaction Explorer ditegaskan sebagai operational read model dengan Accounting tetap sebagai owner jurnal.
+**REQUIRED** — refresh kasir tetap manual/event-driven, Manufacturing Master memakai immutable recipe revision, Admin Transaction Explorer tetap operational read model, dan Accounting reference ditegaskan sebagai connector-only dengan Accounting tetap sebagai owner jurnal.

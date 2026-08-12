@@ -20,13 +20,28 @@ Current behavior:
 - GOODS_FLOW updates the quantity ledger/balance only after posting;
 - ASSET updates aggregate asset-value ledger/balance only after posting.
 
-V1 intentionally does not define accounting journal/account mapping, inventory costing/valuation, lot/expiry, individual asset depreciation, or production/BOM semantics. Those are future versioned contracts, not blockers for the V1 CASH_FLOW / GOODS_FLOW / ASSET workflow.
+V1 intentionally does not define accounting journal/account mapping, inventory costing/valuation, lot/expiry, or individual asset depreciation.
 
-## Penyesuaian Stok dan Produksi
+## Manufacturing master active; production posting masih pending
 
-The action-bar entry points exist, but their write workflows are not yet active. They require their own versioned contracts because stock adjustment semantics and production recipe/BOM/yield behavior are separate domains from GOODS_FLOW.
+Manufacturing Master v1 is now defined by:
 
-This is a visible product limitation, not a blocker for ordinary sales/orders or V1 approval posting.
+- `contracts/manufacturing-master-v1.md`;
+- ADR-012;
+- migration `0016_manufacturing_master_v1.sql`;
+- `src/manufacturing-master.js`.
+
+Item Type, Unit, product classification, and versioned Recipe/BOM masters are active in the Admin architecture. Product sellability can now be governed by item-type policy.
+
+The **Produksi** and **Penyesuaian Stok** cashier write workflows are still intentionally inactive. Production posting still needs a separate versioned contract for production order/batch identity, recipe revision snapshot, actual component consumption, actual output, waste/yield variance, and inventory movement linkage.
+
+HPP is also intentionally not calculated yet. Cost valuation must be defined by Inventory/Costing; recipe quantity alone is not a valid HPP source.
+
+## Accounting integration seam prepared
+
+Prototype Leker exposes only the `MAXI_ACCOUNTING_BUSINESS_FACT_V1` integration seam and operational source references. The separate Accounting program owns journals, account mapping, buku besar, neraca saldo, neraca, laba rugi, and accounting closing.
+
+Current sync state is `NOT_CONNECTED`. This is expected while the Accounting/Integration Bridge implementation is being developed and is not a blocker for operational transaction tracking.
 
 ## Portal Staf V1
 
@@ -48,4 +63,4 @@ Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live
 
 ## DOC-IMPACT
 
-**REQUIRED** — approval posting is implemented under Operational Posting Contract v1, and Live Photo / Staff Portal attendance is implemented under `contracts/live-photo-staff-portal-v1.md`. Remaining inactive Stock Adjustment, Production, KPI, Deposit, and Payroll writes stay explicitly visible until their own contracts are introduced.
+**REQUIRED** — approval posting is implemented under Operational Posting Contract v1; Live Photo / Staff Portal attendance is implemented under `contracts/live-photo-staff-portal-v1.md`; Manufacturing Master and the Admin transaction/accounting boundary are defined under ADR-012 and their versioned contracts. Remaining inactive Production, Stock Adjustment, KPI, Deposit, and Payroll writes stay explicitly visible until their own contracts are introduced.

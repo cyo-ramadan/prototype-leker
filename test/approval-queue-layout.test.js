@@ -25,7 +25,7 @@ test('sales and orders are aligned into drawer action bar without replacing exis
   assert.match(cashierHtml, /id="otherIncomeBtn"/);
 });
 
-test('new drawer action buttons exist and staged modules do not direct-post', () => {
+test('new drawer action buttons exist and staged modules do not direct-post at cashier entry', () => {
   for (const id of ['stockAdjustmentBtn', 'productionBtn', 'cashFlowBtn', 'goodsFlowBtn', 'assetBtn']) {
     assert.match(cashierHtml, new RegExp(`id="${id}"`));
   }
@@ -45,14 +45,16 @@ test('approval queue is isolated and defaults cashier submissions to pending app
   assert.doesNotMatch(approvalApi, /UPDATE products/);
 });
 
-test('admin and owner can decide queue while posting stays explicitly blocked without a domain contract', () => {
+test('admin and owner can decide queue and ACC invokes atomic operational posting', () => {
   assert.match(branchAdminHtml, /management-approval-queue\.js/);
   assert.match(ownerHtml, /management-approval-queue\.js/);
   assert.match(managementUi, /data-approval-acc/);
+  assert.match(managementUi, /ACC \+ POSTING/);
   assert.match(managementUi, /data-approval-reject/);
   assert.match(managementUi, /sessionStorage\.getItem\('lekerOwnerToken'\)/);
-  assert.match(approvalApi, /posting_status = 'blocked'/);
-  assert.match(approvalApi, /POSTING_CONTRACT_REQUIRED/);
+  assert.match(approvalApi, /buildOperationalPostingStatements/);
+  assert.match(approvalApi, /await env\.DB\.batch\(statements\)/);
+  assert.doesNotMatch(approvalApi, /POSTING_CONTRACT_REQUIRED/);
 });
 
 test('retained order and search flow stays present', () => {

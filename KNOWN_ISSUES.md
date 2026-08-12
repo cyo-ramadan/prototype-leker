@@ -20,69 +20,74 @@ Current behavior:
 - GOODS_FLOW updates stock only after posting;
 - ASSET updates aggregate asset-value ledger/balance only after posting.
 
-V1 intentionally does not define accounting journal/account mapping, inventory costing/valuation, lot/expiry, or individual asset depreciation.
+V1 intentionally does not define canonical Accounting journal generation, lot/expiry, or individual asset depreciation.
 
-## Manufacturing master and production posting — resolved operationally
+## Manufacturing, stock, production, and moving-average HPP
 
-Manufacturing Master is defined by:
+Current behavior is governed by:
 
 - `contracts/manufacturing-master-v1.md`;
-- ADR-012 and ADR-013;
-- migration `0016_manufacturing_master_v1.sql`;
-- `src/manufacturing-master.js`.
-
-Stock, production, DADAKAN fulfillment, and product points are defined by:
-
-- `contracts/stock-production-points-v1.md`;
-- ADR-013;
-- migration `0017_product_stock_production_points.sql`;
-- `src/stock-production.js`.
+- `contracts/stock-production-points-v2.md`;
+- ADR-012, ADR-013, and ADR-015;
+- migrations `0016_manufacturing_master_v1.sql`, `0017_product_stock_production_points.sql`, and `0019_product_costing_and_kinds.sql`;
+- `src/manufacturing-master.js` and `src/stock-production.js`.
 
 Current behavior:
 
-- physical stock and recipe quantities are integer values in each product's smallest chosen base unit;
-- manual Produksi and AUTO_DADAKAN use the same production engine;
-- production snapshots recipe id/revision, integer input/output quantities, actor, and source sale when applicable;
-- DADAKAN production + stock movement + sale + customer points run inside one atomic D1 batch;
+- physical stock and recipe quantities are integer values in each product's smallest selected base unit;
+- `inventory_stock_balances` is the current quantity source and `stock_movements` is the auditable movement history;
+- manual Produksi and the legacy AUTO_DADAKAN path use the same production engine;
 - tracked stock may not become negative;
-- Admin has a dedicated Stok read panel and lazy movement history;
-- Admin transaction detail exposes recipe/production snapshots without mutating master data.
+- inventory purchases are itemized and create PURCHASE stock-in movements;
+- `products.average_cost` is the running HPP source;
+- `products.last_purchase_price` updates automatically from the newest itemized purchase;
+- purchase rows snapshot average cost before/after;
+- production components snapshot average cost, production derives HPP total/unit, and output average cost is updated;
+- sale items snapshot unit HPP and line COGS so history is not recomputed from current master values;
+- Admin has dedicated Stok and lazy transaction-detail read models.
 
-### Still intentionally open: HPP / Inventory Costing
+### Still intentionally open: Sale-level fulfillment migration
 
-Production tables reserve decimal-capable HPP and component cost snapshot fields, but the costing method is not implemented yet.
+Mode Pemenuhan is no longer editable in Master Barang. The legacy `products.production_mode` column remains temporarily because existing sale execution still reads it.
 
-FIFO, moving average, standard cost, landed cost, waste/yield valuation, and inventory-account journal mapping require a versioned Inventory/Costing contract. Recipe quantities alone are not a valid HPP value.
+A future Sale contract must move fulfillment ownership to the Penjualan transaction and define the requested default `DADAKAN`. Until that versioned migration is implemented, do not delete or reinterpret the legacy column and do not silently change existing sale behavior.
 
 ### Still intentionally open: Penyesuaian Stok write contract
 
 The cashier Penyesuaian Stok entry point remains inactive until an explicit adjustment reason/audit/approval contract is defined. Future adjustment posting must reuse `stock_movements` and must not bypass the stock audit model.
 
-## Product Master consolidation and Accounting reference bridge
+## Product Master, Jenis Barang, and Accounting reference seam
 
-Product configuration is now governed by `contracts/product-master-accounting-reference-v1.md` and ADR-014.
+Current behavior is governed by:
+
+- `contracts/product-master-accounting-reference-v2.md`;
+- ADR-015;
+- migration `0019_product_costing_and_kinds.sql` plus the provisional Accounting reference objects from migration 0018.
 
 Current behavior:
 
-- Master Barang is the visible editor for product core fields, Tipe Barang, Satuan Dasar, points, stock policy, STOCK/DADAKAN mode, Recipe Linked, and optional Accounting references;
-- Tipe Barang, Satuan, and Resep/BOM remain separate reusable masters;
-- the duplicate Klasifikasi Barang panel in the technical master is hidden but retained in DOM for compatibility;
-- Recipe Linked is explicit and must point to an active recipe whose output is the same product;
+- Master Barang edits product identity, Tipe Barang, Jenis Barang, Satuan Dasar, points, stock tracking, and Recipe Linked;
+- Average Cost and Harga Beli Terakhir are automatic read-only fields;
+- Jenis Barang is a separate user-defined classification with stable code and no invented seed values;
+- Tipe Barang, Jenis Barang, Satuan, and Resep/BOM remain separate reusable masters;
+- Recipe Linked is explicit and must point to an active same-store recipe whose output is the same product;
 - unsafe base-unit changes are rejected after recipe/stock history exists;
-- Admin exposes basic provisional Accounting references and product reference fields;
-- no product or transaction account mapping is assigned automatically.
+- product cost fields cannot be assigned directly through Product Master writes;
+- Product Kind and cost identity are snapshotted into relevant transaction facts.
 
-### Still intentionally open: canonical Accounting synchronization and transaction mapping
+### Still intentionally open: canonical Accounting settings and synchronization
 
-`MAXI_ACCOUNTING_REFERENCE_V1` is only a provisional connector registry. The separate Accounting module remains the canonical owner of account identities and journal interpretation.
+Migration 0018 currently provides a provisional `MAXI_ACCOUNTING_REFERENCE_V1` registry, mapping slots, and immutable transaction mapping snapshots. It does not own canonical Accounting journals.
 
-External account synchronization, transaction-level mapping, dispatcher behavior, journal references, and reconciliation will be introduced by a later bridge contract. Prototype Leker must not write directly to the Accounting program database.
+The final Accounting Settings schema, canonical account identities, payment-method/account rules, item-category rules, warehouse registration rules, external synchronization, dispatcher behavior, journal references, and reconciliation remain separate work. Those changes require a fresh cross-module type/schema audit and explicit approval before final schema creation.
+
+Prototype Leker must not write directly to the separate Accounting program database.
 
 ## Accounting integration seam prepared
 
-Prototype Leker exposes `MAXI_ACCOUNTING_BUSINESS_FACT_V1` for business facts and `MAXI_ACCOUNTING_REFERENCE_V1` for provisional account references. The separate Accounting program owns journals, canonical account mapping, buku besar, neraca saldo, neraca, laba rugi, and accounting closing.
+Prototype Leker exposes `MAXI_ACCOUNTING_BUSINESS_FACT_V1` for business facts and `MAXI_ACCOUNTING_REFERENCE_V1` for provisional connector references. The separate Accounting program owns journal interpretation, canonical chart of accounts, buku besar, neraca saldo, neraca, laba rugi, and accounting closing.
 
-Current business-fact sync state remains `NOT_CONNECTED`. This is expected while the Accounting/Integration Bridge implementation is being developed and is not a blocker for operational transaction tracking or manual preparation of reference mappings.
+Current cross-program sync state remains `NOT_CONNECTED`. This does not block operational transaction tracking or local immutable reference snapshots.
 
 ## Portal Staf V1
 
@@ -104,4 +109,4 @@ Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live
 
 ## DOC-IMPACT
 
-**REQUIRED** — approval posting is implemented under Operational Posting Contract v1; Live Photo / Staff Portal attendance is implemented under `contracts/live-photo-staff-portal-v1.md`; Manufacturing Master is governed by ADR-012/ADR-013; Stock, Production, DADAKAN fulfillment, and Product Points are governed by `contracts/stock-production-points-v1.md`; Product Master consolidation and provisional Accounting references are governed by `contracts/product-master-accounting-reference-v1.md` and ADR-014. Remaining inactive Stock Adjustment, KPI, Deposit, Payroll, HPP/Costing, canonical Accounting sync, and transaction account mapping stay visible until their own contracts are introduced.
+**REQUIRED** — current Product Master/costing behavior is governed by `contracts/product-master-accounting-reference-v2.md`, `contracts/stock-production-points-v2.md`, and ADR-015. Remaining inactive Stock Adjustment, Sale-level fulfillment migration, KPI, Deposit, Payroll, canonical Accounting settings/sync, and journal-generation engine stay open until their own contracts are approved.

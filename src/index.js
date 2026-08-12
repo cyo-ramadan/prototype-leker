@@ -9,6 +9,7 @@ import { handleApprovalQueueApi } from './approval-queue.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
+import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
@@ -88,6 +89,9 @@ async function handleApi(request, env, url) {
 
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+
+  const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
+  if (classificationResponse) return classificationResponse;
 
   const manufacturingMasterResponse = await handleManufacturingMasterApi(request, env, pathname);
   if (manufacturingMasterResponse) return manufacturingMasterResponse;

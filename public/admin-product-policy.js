@@ -1,10 +1,12 @@
 (() => {
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
+  const cost = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 4 }).format(Number(value) || 0);
   const state = {
     editor: null,
     accounting: null,
     activeProductId: 0,
+    editingProductKindId: '',
     loadingEditor: null,
     loadingAccounting: null
   };
@@ -36,26 +38,73 @@
     return items.map(item => `<option value="${esc(item.id)}" ${String(item.id) === String(selectedId || '') ? 'selected' : ''}>${esc(label(item))}</option>`).join('');
   }
 
+  function makeLegacyPurchasePriceReadOnly() {
+    const input = el('productPurchasePrice');
+    if (!input) return;
+    input.readOnly = true;
+    input.required = false;
+    input.step = 'any';
+    input.title = 'Otomatis dari pembelian terakhir per satuan dasar';
+    const label = input.closest('label');
+    if (label?.firstChild) label.firstChild.textContent = 'Harga Beli Terakhir';
+    const priceGrid = label?.parentElement;
+    if (priceGrid && !el('productAverageCost')) {
+      priceGrid.insertAdjacentHTML('afterend', `
+        <label class="admin-field">Average Cost · HPP berjalan
+          <input id="productAverageCost" type="number" min="0" step="any" value="0" readonly title="Otomatis dari moving average inventory cost" />
+          <span class="field-note">otomatis · read only · acuan HPP</span>
+        </label>`);
+    }
+  }
+
   function mountProductFields() {
     const form = el('productForm');
     const category = el('productCategory')?.closest('label');
     if (!form || !category || el('productMasterFields')) return;
+    makeLegacyPurchasePriceReadOnly();
     category.insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
         <div class="admin-grid two compact">
           <label class="admin-field">Tipe Barang<select id="productItemType" required></select></label>
-          <label class="admin-field">Satuan Dasar<select id="productBaseUnit" required></select></label>
+          <label class="admin-field">Jenis Barang<select id="productKind"><option value="">Belum ditentukan</option></select><span class="field-note">classification key untuk linkage Accounting berikutnya</span></label>
         </div>
-        <label class="admin-field">Poin per 1 barang<input id="productPointsPerUnit" type="number" min="0" step="1" value="0" required /></label>
+        <div class="admin-grid two compact">
+          <label class="admin-field">Satuan Dasar<select id="productBaseUnit" required></select></label>
+          <label class="admin-field">Poin per 1 barang<input id="productPointsPerUnit" type="number" min="0" step="1" value="0" required /></label>
+        </div>
         <label class="admin-check"><input id="productStockTracking" type="checkbox" checked /> Track & enforce stok</label>
-        <label class="admin-field">Mode Pemenuhan<select id="productProductionMode"><option value="STOCK">STOCK · jual dari stok tersedia</option><option value="DADAKAN">DADAKAN · produksi dulu sesuai resep lalu jual</option></select></label>
         <label class="admin-field">Recipe Linked<select id="productLinkedRecipe"><option value="">Tidak terhubung</option></select></label>
         <div id="productRecipeNote" class="muted" style="margin:-5px 0 12px"></div>
       </div>`);
-    el('productProductionMode')?.addEventListener('change', renderRecipeNote);
     el('productLinkedRecipe')?.addEventListener('change', renderRecipeNote);
     form.addEventListener('submit', saveProductMaster, true);
     el('productCancelEdit')?.addEventListener('click', () => setTimeout(resetExtendedForm, 0));
+  }
+
+  function mountProductKindMaster() {
+    const manufacturing = el('tab-manufacturing');
+    if (!manufacturing || el('productKindMasterCard')) return;
+    const firstCard = manufacturing.querySelector('.admin-card');
+    const html = `
+      <div id="productKindMasterCard" class="admin-grid two" style="margin-top:14px;align-items:start">
+        <form id="productKindForm" class="admin-card">
+          <input id="productKindId" type="hidden" />
+          <div class="form-title-row"><h2 id="productKindFormTitle">Jenis Barang</h2><button id="productKindCancel" class="text-btn hidden" type="button">Batal edit</button></div>
+          <div class="muted" style="margin-bottom:10px">Jenis Barang adalah classification key yang nanti bisa dilink ke rule Accounting. Karen tidak seed nilai bisnis agar mapping tetap explicit.</div>
+          <label class="admin-field">Kode<input id="productKindCode" maxlength="32" placeholder="Contoh: BAHAN_DAPUR" required /></label>
+          <label class="admin-field">Nama<input id="productKindName" maxlength="80" placeholder="Contoh: Bahan Dapur" required /></label>
+          <label class="admin-check"><input id="productKindActive" type="checkbox" checked /> Aktif</label>
+          <button class="primary-btn" type="submit">Simpan Jenis Barang</button>
+        </form>
+        <div class="admin-card list-card">
+          <div class="list-head"><div><h2>Master Jenis Barang</h2><div class="muted">Kode dibuat stabil supaya aman dipakai sebagai integration reference.</div></div><span id="productKindCount" class="master-count">0</span></div>
+          <div id="productKindList" class="master-list"></div>
+        </div>
+      </div>`;
+    if (firstCard) firstCard.insertAdjacentHTML('afterend', html);
+    else manufacturing.insertAdjacentHTML('afterbegin', html);
+    el('productKindForm')?.addEventListener('submit', saveProductKind);
+    el('productKindCancel')?.addEventListener('click', resetProductKindForm);
   }
 
   function mountAccountingPortal() {
@@ -131,7 +180,7 @@
       const eyebrow = manufacturing.querySelector('.admin-eyebrow');
       if (eyebrow) eyebrow.textContent = 'Master Teknis';
       const heading = manufacturing.querySelector('.list-head h2');
-      if (heading) heading.textContent = 'Tipe Barang, Satuan & Resep';
+      if (heading) heading.textContent = 'Tipe Barang, Jenis Barang, Satuan & Resep';
     }
   }
 
@@ -148,21 +197,24 @@
     if (!state.editor || !el('productItemType')) return;
     const types = (state.editor.itemTypes || []).filter(item => item.isActive || item.id === product?.itemTypeId);
     const units = (state.editor.units || []).filter(item => item.isActive || item.id === product?.baseUnitId);
+    const kinds = (state.editor.productKinds || []).filter(item => item.isActive || item.id === product?.productKindId);
     el('productItemType').innerHTML = optionRows(types, product?.itemTypeId, item => item.name);
+    el('productKind').innerHTML = `<option value="">Belum ditentukan</option>${optionRows(kinds, product?.productKindId, item => `${item.name} · ${item.code}`)}`;
     el('productBaseUnit').innerHTML = optionRows(units, product?.baseUnitId, item => `${item.name} (${item.symbol})`);
     el('productPointsPerUnit').value = String(product?.pointsPerUnit || 0);
     el('productStockTracking').checked = product ? Boolean(product.stockTrackingEnabled) : true;
-    el('productProductionMode').value = product?.productionMode || 'STOCK';
+    if (el('productPurchasePrice')) el('productPurchasePrice').value = String(product?.lastPurchasePrice || 0);
+    if (el('productAverageCost')) el('productAverageCost').value = String(product?.averageCost || 0);
 
     const recipes = recipesForProduct(product?.id || 0);
     el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
     el('productLinkedRecipe').disabled = !product?.id;
     renderRecipeNote();
+    renderProductKinds();
   }
 
   function renderRecipeNote() {
     const productId = Number(el('productId')?.value || 0);
-    const mode = el('productProductionMode')?.value || 'STOCK';
     const recipeId = el('productLinkedRecipe')?.value || '';
     const note = el('productRecipeNote');
     if (!note) return;
@@ -170,17 +222,63 @@
       note.textContent = 'Barang baru disimpan dulu. Setelah resep untuk barang ini dibuat di Master Resep, edit barang lalu pilih Recipe Linked.';
       return;
     }
-    if (mode === 'DADAKAN' && !recipeId) {
-      note.textContent = 'Mode DADAKAN wajib memilih Recipe Linked.';
-      return;
-    }
-    if (mode === 'DADAKAN') {
-      note.textContent = 'Saat penjualan, sistem produksi sesuai resep linked terlebih dulu, lalu melakukan stock-out penjualan dalam satu flow atomic.';
-      return;
-    }
     note.textContent = recipeId
-      ? 'Resep tersimpan sebagai linkage barang, tetapi mode STOCK tidak auto-produksi saat dijual.'
-      : 'Mode STOCK menjual dari stok yang tersedia tanpa auto-produksi.';
+      ? 'Resep ini menjadi linkage eksplisit barang. Mode pemenuhan tidak disimpan di Master Barang; nanti ditentukan di transaksi Penjualan.'
+      : 'Belum ada resep yang dilink. Resep tetap dikelola dari Master Resep.';
+  }
+
+  function renderProductKinds() {
+    const items = state.editor?.productKinds || [];
+    if (el('productKindCount')) el('productKindCount').textContent = String(items.length);
+    const list = el('productKindList');
+    if (!list) return;
+    list.innerHTML = items.length ? items.map(item => `
+      <div class="master-row contact-row ${item.isActive ? '' : 'inactive'}">
+        <div class="master-main"><strong>${esc(item.name)}</strong><div class="master-meta">${esc(item.code)} · ${item.isActive ? 'aktif' : 'nonaktif'}</div></div>
+        <div class="master-actions"><button class="mini-btn" type="button" data-edit-product-kind="${esc(item.id)}">Edit</button></div>
+      </div>`).join('') : '<div class="empty">Belum ada Jenis Barang. Tambahkan sesuai classification bisnis yang nanti akan dilink ke Accounting.</div>';
+    list.querySelectorAll('[data-edit-product-kind]').forEach(button => button.addEventListener('click', () => editProductKind(button.dataset.editProductKind)));
+  }
+
+  function editProductKind(id) {
+    const item = (state.editor?.productKinds || []).find(row => row.id === id);
+    if (!item) return;
+    state.editingProductKindId = item.id;
+    el('productKindId').value = item.id;
+    el('productKindCode').value = item.code;
+    el('productKindCode').disabled = true;
+    el('productKindName').value = item.name;
+    el('productKindActive').checked = item.isActive;
+    el('productKindFormTitle').textContent = 'Edit Jenis Barang';
+    el('productKindCancel').classList.remove('hidden');
+  }
+
+  function resetProductKindForm() {
+    state.editingProductKindId = '';
+    el('productKindForm')?.reset();
+    if (el('productKindId')) el('productKindId').value = '';
+    if (el('productKindCode')) el('productKindCode').disabled = false;
+    if (el('productKindActive')) el('productKindActive').checked = true;
+    if (el('productKindFormTitle')) el('productKindFormTitle').textContent = 'Jenis Barang';
+    el('productKindCancel')?.classList.add('hidden');
+  }
+
+  async function saveProductKind(event) {
+    event.preventDefault();
+    const id = state.editingProductKindId;
+    try {
+      await api(id ? `/api/admin/master/product-kinds/${encodeURIComponent(id)}` : '/api/admin/master/product-kinds', {
+        method: id ? 'PATCH' : 'POST',
+        body: JSON.stringify({
+          code: el('productKindCode').value,
+          name: el('productKindName').value,
+          isActive: el('productKindActive').checked
+        })
+      });
+      resetProductKindForm();
+      await loadEditor(true);
+      toast(id ? 'Jenis Barang diperbarui' : 'Jenis Barang ditambahkan');
+    } catch (error) { toast(error.message); }
   }
 
   function enhanceProductRows() {
@@ -201,7 +299,8 @@
       }
       const stock = product.stockQuantity == null ? 'stok belum init' : `stok ${product.stockQuantity} ${product.unitSymbol || ''}`;
       const recipe = product.linkedRecipeId ? 'resep linked' : 'tanpa resep';
-      meta.textContent = `${product.itemTypeName || 'Tanpa tipe'} · ${product.unitSymbol || '-'} · Poin ${product.pointsPerUnit} · ${stock} · ${product.productionMode} · ${recipe}`;
+      const kind = product.productKindName || 'jenis belum ditentukan';
+      meta.textContent = `${product.itemTypeName || 'Tanpa tipe'} · ${kind} · ${product.unitSymbol || '-'} · Poin ${product.pointsPerUnit} · ${stock} · HPP ${cost(product.averageCost)} · Beli terakhir ${cost(product.lastPurchasePrice)} · ${recipe}`;
       if (button.dataset.productMasterBound !== '1') {
         button.dataset.productMasterBound = '1';
         button.addEventListener('click', () => setTimeout(() => selectProduct(productId), 0));
@@ -227,6 +326,7 @@
         const productId = Number(el('productId')?.value || state.activeProductId || 0);
         renderEditorFields(productById(productId) || null);
         enhanceProductRows();
+        renderProductKinds();
         return payload;
       })
       .finally(() => { state.loadingEditor = null; });
@@ -246,17 +346,16 @@
       const productId = Number(el('productId')?.value || 0);
       const payload = {
         name: el('productName').value,
-        purchasePrice: Number(el('productPurchasePrice').value),
         price: Number(el('productPrice').value),
         category: el('productCategory').value,
         emoji: '🥞',
         imageData: productImagePayload(),
         isActive: el('productActive').checked,
         itemTypeId: el('productItemType').value,
+        productKindId: el('productKind').value || null,
         baseUnitId: el('productBaseUnit').value,
         pointsPerUnit: Number(el('productPointsPerUnit').value),
         stockTrackingEnabled: el('productStockTracking').checked,
-        productionMode: el('productProductionMode').value,
         linkedRecipeId: el('productLinkedRecipe').value || null
       };
       const response = await api(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
@@ -268,7 +367,8 @@
       if (typeof window.resetProductForm === 'function') window.resetProductForm();
       resetExtendedForm();
       enhanceProductRows();
-      toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Buat resep lalu edit barang untuk melakukan Recipe Linked.');
+      renderProductKinds();
+      toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.');
     } catch (error) {
       toast(error.message);
     }
@@ -322,11 +422,11 @@
           ? 'Contoh: Debit Persediaan Bahan · Kredit Bank.'
           : method === 'CASH'
             ? 'Contoh: Debit Persediaan Bahan · Kredit Kas.'
-            : 'Debit mengikuti pembelian bahan; kredit mengikuti cara bayar.';
+            : 'Debit mengikuti klasifikasi barang; kredit mengikuti cara bayar.';
       return;
     }
     if (event === 'SALE_REVENUE') {
-      hint.textContent = 'Revenue rule: debit biasanya mengikuti penerimaan pembayaran, kredit ke akun Penjualan. HPP dibuat sebagai rule/fact terpisah setelah costing siap.';
+      hint.textContent = 'Revenue mapping menangani sisi penjualan. Snapshot HPP transaksi berasal dari average_cost barang; rule jurnal HPP tetap dilink terpisah ke modul Accounting.';
       return;
     }
     hint.textContent = 'Pilih akun debit dan kredit secara explicit. Tidak ada auto-mapping.';
@@ -428,6 +528,7 @@
 
   function mount() {
     mountProductFields();
+    mountProductKindMaster();
     mountAccountingPortal();
     removeDuplicateClassificationPanel();
     const productTab = document.querySelector('[data-tab="products"]');

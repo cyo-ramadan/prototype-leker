@@ -28,6 +28,8 @@ async function saleDetail(db, storeId, saleId) {
   const items = await db.prepare(`
     SELECT si.id, si.product_id, si.product_name, si.unit_price, si.quantity, si.line_total,
            si.points_per_unit, si.line_points, si.recipe_id, si.production_run_id,
+           si.product_kind_id, si.product_kind_code, si.product_kind_name,
+           si.unit_cost_snapshot, si.line_cogs,
            r.revision AS recipe_revision
     FROM sale_items si
     LEFT JOIN manufacturing_recipes r ON r.id = si.recipe_id AND r.store_id = si.store_id
@@ -103,6 +105,11 @@ async function saleDetail(db, storeId, saleId) {
       lineTotal: Number(row.line_total),
       pointsPerUnit: Number(row.points_per_unit || 0),
       linePoints: Number(row.line_points || 0),
+      productKindId: row.product_kind_id || null,
+      productKindCode: row.product_kind_code || '',
+      productKindName: row.product_kind_name || '',
+      unitCostSnapshot: row.unit_cost_snapshot == null ? null : Number(row.unit_cost_snapshot),
+      lineCogs: row.line_cogs == null ? null : Number(row.line_cogs),
       recipeId: row.recipe_id || null,
       recipeRevision: row.recipe_revision == null ? null : Number(row.recipe_revision),
       productionRunId: row.production_run_id || null

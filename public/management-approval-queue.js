@@ -1,13 +1,16 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
-  const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
-  const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
-  const token = ownerToken || adminToken;
   const isBranchAdmin = Boolean(document.getElementById('adminApp'));
   const storeCode = String(window.LEKER_STORE_CODE || sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
 
-  function requestUrl(path) {
+  function authSnapshot() {
+    const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
+    const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
+    return { ownerToken, adminToken, token: ownerToken || adminToken };
+  }
+
+  function requestUrl(path, ownerToken) {
     if (ownerToken || !storeCode) return path;
     const url = new URL(path, location.origin);
     url.searchParams.set('store', storeCode);
@@ -15,10 +18,11 @@
   }
 
   async function managementApi(path, options = {}) {
-    if (!token) throw new Error('Session management tidak tersedia.');
-    const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
+    const auth = authSnapshot();
+    if (!auth.token) throw new Error('Session management tidak tersedia.');
+    const headers = { ...(options.headers || {}), Authorization: `Bearer ${auth.token}` };
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const response = await fetch(requestUrl(path), { ...options, headers });
+    const response = await fetch(requestUrl(path, auth.ownerToken), { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw Object.assign(new Error(payload.error || `Request gagal (${response.status})`), { status: response.status, payload });
     return payload;

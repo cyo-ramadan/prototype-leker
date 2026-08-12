@@ -11,6 +11,7 @@ import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
+import { handleIntegrationSettingsApi } from './integration-settings.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -80,6 +81,9 @@ async function handleApi(request, env, url) {
 
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+
+  const integrationSettingsResponse = await handleIntegrationSettingsApi(request, env, pathname);
+  if (integrationSettingsResponse) return integrationSettingsResponse;
 
   if (pathname.startsWith('/api/admin/')) {
     return handleAdminApi(request, env, pathname);

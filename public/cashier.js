@@ -9,7 +9,8 @@ const state = {
   canWrite: false,
   poller: null,
   visibilityBound: false,
-  dialogSubmit: null
+  dialogSubmit: null,
+  lastReceipt: null
 };
 
 const el = id => document.getElementById(id);
@@ -60,6 +61,7 @@ async function init() {
   el('otherIncomeBtn').addEventListener('click', () => moneyMovementDialog('income'));
   el('drawerDetailsBtn').addEventListener('click', showDrawerDetails);
   el('processSaleBtn').addEventListener('click', processSale);
+  el('lastReceiptBtn').addEventListener('click', printLastReceipt);
   el('cashierDialogCancel').addEventListener('click', closeDialog);
   el('cashierDialogClose').addEventListener('click', closeDialog);
   el('cashierDialogForm').addEventListener('submit', submitDialog);
@@ -109,6 +111,8 @@ function clearSession() {
   state.draft.clear();
   state.drawer = null;
   state.canWrite = false;
+  state.lastReceipt = null;
+  if (el('lastReceiptBtn')) el('lastReceiptBtn').disabled = true;
   sessionStorage.removeItem('lekerCashierToken');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
@@ -335,6 +339,8 @@ async function processSale() {
         items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity }))
       })
     });
+    state.lastReceipt = { ...payload.sale, customerName: el('saleCustomerName').value || 'Walk-in', cashierName: state.cashier.employeeName, storeName: state.cashier.store.storeName };
+    el('lastReceiptBtn').disabled = false;
     state.draft.clear();
     el('saleCustomerName').value = '';
     el('saleNote').value = '';
@@ -344,6 +350,16 @@ async function processSale() {
     toast(error.message);
     await loadDrawer().catch(() => {});
   }
+}
+
+function printLastReceipt() {
+  const receipt = state.lastReceipt;
+  if (!receipt) return;
+  const rows = receipt.items.map(item => `<tr><td>${escapeHtml(item.productName)}</td><td>${item.quantity}</td><td>${rupiah(item.lineTotal)}</td></tr>`).join('');
+  const popup = window.open('', '_blank', 'width=420,height=680');
+  if (!popup) return toast('Popup struk diblokir browser. Izinkan popup lalu coba lagi.');
+  popup.document.write(`<!doctype html><html><head><title>Struk ${escapeHtml(receipt.id)}</title><style>body{font:14px system-ui;padding:24px;color:#211}h1{font-size:20px}table{width:100%;border-collapse:collapse}td{padding:7px 0;border-bottom:1px dashed #bbb}td:nth-child(2),td:last-child{text-align:right}.total{font-size:18px;font-weight:800;text-align:right;margin-top:18px}@media print{button{display:none}}</style></head><body><h1>${escapeHtml(receipt.storeName)}</h1><div>${escapeHtml(receipt.id)}</div><div>${escapeHtml(receipt.createdAt)}</div><div>Kasir: ${escapeHtml(receipt.cashierName)} · Customer: ${escapeHtml(receipt.customerName)}</div><table>${rows}</table><div class="total">Total ${rupiah(receipt.total)}</div><div>Pembayaran: ${escapeHtml(receipt.paymentMethod)}</div><p>Terima kasih.</p><button onclick="window.print()">Cetak</button></body></html>`);
+  popup.document.close();
 }
 
 function openDialog({ eyebrow = 'Laci', title, body, submitText = 'Simpan', onSubmit = null, readOnly = false }) {

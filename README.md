@@ -98,7 +98,7 @@ Admin Gerai dapat mengelola gerainya sendiri: identitas toko, Data Barang, Kateg
 
 Admin Gerai tidak boleh create/mengelola gerai atau mengubah Customer Sharing Group. Dua capability tersebut tetap Owner-only.
 
-Menu **Akuntansi** dan **Laporan** general masih placeholder kosong sesuai scope prototype saat ini.
+Menu **Akuntansi** menyediakan COA hierarchy (group/subaccount postable), retained earnings, mapping transaksi/payment method, serta mapping produk ke Warehouse. **Laporan** menampilkan readiness outbox; laporan finansial tetap berasal dari modul Accounting setelah posting berhasil.
 
 ## Cashier dan laci
 
@@ -161,6 +161,7 @@ Promotion, Masak, Stok Sisa, dan Penyesuaian Stok masih explicit empty sections 
 - `0009_branch_admin_and_demo_accounts.sql` — Admin Gerai + demo credentials.
 - `0010_customer_registration_points_order_ux.sql` — pending registration requests + distinct G002 demo menu.
 - `0011_staff_single_session.sql` — single active staff session invariant; customer session tetap multi-session.
+- `0012_pos_integration_foundation.sql` — identity terminal, Accounting/Warehouse settings, mapping, dan tenant-scoped integration outbox.
 
 ## Relevant APIs
 
@@ -211,6 +212,8 @@ Database Dwicahya tidak digunakan untuk prototype.
 - `adr/ADR-004-store-admin-role-and-demo-accounts.md`
 - `adr/ADR-005-customer-approval-and-order-identity.md`
 - `adr/ADR-006-separated-customer-staff-login.md`
+- `adr/ADR-007-cashier-sales-entry-and-order-lifecycle.md`
+- `adr/ADR-008-pos-module-bridges.md`
 
 ## DOC-IMPACT
 

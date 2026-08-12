@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { listProducts } from './db-multistore.js';
 import { requireCashier } from './cashier-auth.js';
 import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
+import { transactionIntegrationStatements } from './integration-outbox.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const money = value => {
@@ -22,6 +23,7 @@ function mapDrawer(row) {
     incentiveAmount: Number(row.incentive_amount || 0),
     shiftLabel: row.shift_label || '',
     closingNote: row.closing_note || '',
+    terminalId: row.terminal_id || '',
     status: row.status,
     openedAt: row.opened_at,
     closedAt: row.closed_at
@@ -31,7 +33,7 @@ function mapDrawer(row) {
 export async function getOpenDrawer(db, storeId) {
   const row = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
-           d.incentive_amount, d.shift_label, d.closing_note,
+           d.incentive_amount, d.shift_label, d.closing_note, d.terminal_id,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id
@@ -106,6 +108,10 @@ async function createSale(db, cashier, drawer, payload) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(`sale_item_${crypto.randomUUID()}`, saleId, cashier.store.id, line.productId, line.productName, line.unitPrice, line.quantity, line.lineTotal));
   }
+  statements.push(...await transactionIntegrationStatements(db, {
+    id: saleId, type: 'SALE', storeId: cashier.store.id, shiftId: drawer.id,
+    paymentMethod: channel, amount: total, lines, occurredAt: now
+  }));
   await db.batch(statements);
   return { ok: true, response: json({ ok: true, sale: { id: saleId, total, paymentMethod: channel, items: lines, createdAt: now } }, 201) };
 }
@@ -134,12 +140,14 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (openingAmount === null) return json({ error: 'Saldo awal laci tidak valid.' }, 400);
     const id = `drawer_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
+    const integration = await db.prepare('SELECT terminal_id FROM pos_integration_settings WHERE store_id = ?').bind(cashier.store.id).first();
+    const terminalId = integration?.terminal_id || `terminal_${cashier.store.id}`;
     await db.prepare(`
       INSERT INTO cash_drawer_sessions (
         id, store_id, cashier_id, opening_amount, closing_amount, status,
-        opened_at, closed_at, shift_label, closing_note, incentive_amount
-      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, '', 0)
-    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60)).run();
+        opened_at, closed_at, shift_label, closing_note, incentive_amount, terminal_id
+      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, '', 0, ?)
+    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), terminalId).run();
     return json({ ok: true, drawer: await getOpenDrawer(db, cashier.store.id), canWrite: true }, 201);
   }
 
@@ -222,10 +230,12 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     }
     const id = `purchase_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    await db.prepare(`
+    const statements = [db.prepare(`
       INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, cashier.store.id, drawer.id, cashier.id, supplierId, description, totalAmount, note, now, channel).run();
+    `).bind(id, cashier.store.id, drawer.id, cashier.id, supplierId, description, totalAmount, note, now, channel)];
+    statements.push(...await transactionIntegrationStatements(db, { id, type: 'PURCHASE', storeId: cashier.store.id, shiftId: drawer.id, paymentMethod: channel, amount: totalAmount, occurredAt: now }));
+    await db.batch(statements);
     return json({ ok: true, id, paymentMethod: channel, createdAt: now }, 201);
   }
 
@@ -238,10 +248,12 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (!description || amount === null || amount <= 0) return json({ error: 'Deskripsi dan nominal pengeluaran wajib valid.' }, 400);
     const id = `expense_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    await db.prepare(`
+    const statements = [db.prepare(`
       INSERT INTO expenses (id, store_id, drawer_session_id, cashier_id, description, amount, created_at, payment_method)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, cashier.store.id, drawer.id, cashier.id, description, amount, now, channel).run();
+    `).bind(id, cashier.store.id, drawer.id, cashier.id, description, amount, now, channel)];
+    statements.push(...await transactionIntegrationStatements(db, { id, type: 'EXPENSE', storeId: cashier.store.id, shiftId: drawer.id, paymentMethod: channel, amount, occurredAt: now }));
+    await db.batch(statements);
     return json({ ok: true, id, paymentMethod: channel, createdAt: now }, 201);
   }
 
@@ -253,7 +265,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (!description || amount === null || amount <= 0) return json({ error: 'Deskripsi dan nominal pendapatan wajib valid.' }, 400);
     const id = `income_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    await db.prepare(`
+    const statements = [db.prepare(`
       INSERT INTO other_income (
         id, store_id, drawer_session_id, cashier_id, description, amount, created_at,
         cash_account_label, income_account_label
@@ -261,7 +273,9 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     `).bind(
       id, cashier.store.id, drawer.id, cashier.id, description, amount, now,
       text(body.value?.cashAccount, 80), text(body.value?.incomeAccount, 80)
-    ).run();
+    )];
+    statements.push(...await transactionIntegrationStatements(db, { id, type: 'OTHER_INCOME', storeId: cashier.store.id, shiftId: drawer.id, paymentMethod: 'CASH', amount, occurredAt: now }));
+    await db.batch(statements);
     return json({ ok: true, id, createdAt: now }, 201);
   }
 

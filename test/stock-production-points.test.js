@@ -27,7 +27,7 @@ test('product policy stores points recipe link dadakan mode and staged legacy st
   assert.match(productPolicy, /Mode DADAKAN/);
   assert.match(productPolicy, /Track & enforce stok/);
   assert.match(productPolicyUi, /Poin per 1 barang/);
-  assert.match(productPolicyUi, /Link ke resep aktif/);
+  assert.match(productPolicyUi, /Recipe Linked/);
 });
 
 test('physical stock and production quantities are integer while HPP fields allow decimals', () => {

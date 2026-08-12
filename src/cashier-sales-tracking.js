@@ -103,12 +103,20 @@ function buildSaleStatements(db, {
     statements.push(db.prepare(`
       INSERT INTO sale_items (
         id, sale_id, store_id, product_id, product_name, unit_price, quantity, line_total,
-        points_per_unit, line_points, recipe_id, production_run_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        points_per_unit, line_points, recipe_id, production_run_id,
+        product_kind_id, product_kind_code, product_kind_name, unit_cost_snapshot, line_cogs
+      )
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             p.product_kind_id, COALESCE(k.code, ''), COALESCE(k.name, ''),
+             p.average_cost, p.average_cost * ?
+      FROM products p
+      LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
+      WHERE p.id = ? AND p.store_id = ?
     `).bind(
       `sale_item_${crypto.randomUUID()}`, saleId, storeId, line.productId, line.productName,
       line.unitPrice, line.quantity, line.lineTotal,
-      line.pointsPerUnit || 0, line.linePoints || 0, line.recipeId || null, line.productionRunId || null
+      line.pointsPerUnit || 0, line.linePoints || 0, line.recipeId || null, line.productionRunId || null,
+      line.quantity, line.productId, storeId
     ));
   }
   if (customerId && totalPoints > 0) {

@@ -18,16 +18,18 @@ const masterMenuUi = readFileSync(new URL('../public/admin-master-menu.js', impo
 const cashierUi = readFileSync(new URL('../public/cashier-sales-orders.js', import.meta.url), 'utf8');
 const cashierActions = readFileSync(new URL('../public/cashier-approval-actions.js', import.meta.url), 'utf8');
 
-test('product policy stores points recipe link dadakan mode and staged legacy stock tracking', () => {
+test('product policy stores points recipe link and stock tracking while product fulfillment mode is legacy-only', () => {
   assert.match(migration, /points_per_unit INTEGER NOT NULL DEFAULT 0/);
   assert.match(migration, /production_mode TEXT NOT NULL DEFAULT 'STOCK'/);
   assert.match(migration, /recipe_link_enabled INTEGER NOT NULL DEFAULT 0/);
   assert.match(migration, /stock_tracking_enabled INTEGER NOT NULL DEFAULT 1/);
   assert.match(migration, /UPDATE products SET stock_tracking_enabled = 0/);
-  assert.match(productPolicy, /Mode DADAKAN/);
-  assert.match(productPolicy, /Track & enforce stok/);
+  assert.match(productPolicy, /legacyProductionMode/);
+  assert.doesNotMatch(productPolicy, /SET points_per_unit = \?, production_mode/);
+  assert.match(productPolicy, /linked_recipe_id/);
   assert.match(productPolicyUi, /Poin per 1 barang/);
   assert.match(productPolicyUi, /Recipe Linked/);
+  assert.doesNotMatch(productPolicyUi, /id="productProductionMode"/);
 });
 
 test('physical stock and production quantities are integer while HPP fields allow decimals', () => {
@@ -40,7 +42,7 @@ test('physical stock and production quantities are integer while HPP fields allo
   assert.match(stockProduction, /Number\.isInteger\(batchCount\)/);
 });
 
-test('dadakan sale snapshots production then stock and customer points in one database batch', () => {
+test('legacy dadakan execution still snapshots production then stock until sale-level fulfillment replaces it', () => {
   assert.match(stockProduction, /AUTO_DADAKAN/);
   assert.match(stockProduction, /Math\.ceil\(Number\(line\.quantity\) \/ recipe\.outputQuantity\)/);
   assert.match(stockProduction, /PRODUCTION_INPUT/);
@@ -96,6 +98,7 @@ test('admin groups master entities under Master while stock and transactions rem
   }
   assert.match(masterMenuUi, /adminMasterMenuLabel">Master<\/span> ▾/);
   assert.match(masterMenuUi, /Tipe Barang/);
+  assert.match(masterMenuUi, /Jenis Barang/);
   assert.match(masterMenuUi, /Satuan/);
   assert.match(masterMenuUi, /Resep \/ BOM/);
   assert.match(stockUi, /dataset\.tab = 'stock'/);

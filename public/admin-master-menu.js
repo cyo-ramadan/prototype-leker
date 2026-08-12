@@ -38,11 +38,11 @@
     const manufacturing = document.getElementById('tab-manufacturing');
     if (manufacturing) {
       const eyebrow = manufacturing.querySelector('.admin-eyebrow');
-      if (eyebrow) eyebrow.textContent = 'Master Data';
+      if (eyebrow) eyebrow.textContent = 'Master Teknis';
       const heading = manufacturing.querySelector('.list-head h2');
       if (heading && heading.textContent.includes('Barang, Satuan')) heading.textContent = 'Tipe Barang, Satuan & Resep';
       const muted = manufacturing.querySelector('.list-head .muted');
-      if (muted) muted.textContent = 'Master teknis untuk klasifikasi barang, satuan terkecil, recipe/BOM, produksi, dan costing/HPP.';
+      if (muted) muted.textContent = 'Master reusable untuk tipe barang, satuan terkecil, dan recipe/BOM. Konfigurasi per barang dilakukan dari Master Barang.';
     }
   }
 
@@ -65,7 +65,7 @@
     panel.className = 'admin-master-menu-panel';
     panel.setAttribute('role', 'menu');
     panel.innerHTML = `
-      <button type="button" role="menuitem" data-master-open="products">Barang</button>
+      <button type="button" role="menuitem" data-master-open="products">Master Barang</button>
       <button type="button" role="menuitem" data-master-open="categories">Kategori</button>
       <button type="button" role="menuitem" data-master-open="suppliers">Supplier</button>
       <button type="button" role="menuitem" data-master-open="customers">Pelanggan</button>

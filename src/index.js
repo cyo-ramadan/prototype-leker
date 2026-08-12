@@ -5,6 +5,7 @@ import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './c
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
+import { handleApprovalQueueApi } from './approval-queue.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
@@ -69,6 +70,9 @@ async function handleApi(request, env, url) {
 
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
   if (storeAdminResponse) return storeAdminResponse;
+
+  const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
+  if (approvalResponse) return approvalResponse;
 
   const customerResponse = await handleCustomerApi(request, env, pathname);
   if (customerResponse) return customerResponse;

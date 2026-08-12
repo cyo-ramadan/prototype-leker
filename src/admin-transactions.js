@@ -8,7 +8,7 @@ const KIND_FILTER = {
   SALES: new Set(['SALE']),
   PURCHASES: new Set(['PURCHASE']),
   OPERATIONS: new Set(['EXPENSE', 'OTHER_INCOME', 'CASH_FLOW']),
-  INVENTORY: new Set(['GOODS_FLOW']),
+  INVENTORY: new Set(['GOODS_FLOW', 'PRODUCTION']),
   ASSETS: new Set(['ASSET'])
 };
 
@@ -147,6 +147,16 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
       FROM approval_requests a
       LEFT JOIN cashiers c ON c.id = a.cashier_id
       WHERE a.store_id = ?
+
+      UNION ALL
+
+      SELECT pr.id, 'PRODUCTION', pr.created_at, NULL,
+             'Produksi · ' || pr.output_product_name || ' · ' || pr.total_output_quantity || ' ' || pr.output_unit_symbol,
+             LOWER(pr.status), '', pr.drawer_session_id, pr.created_by_id, c.employee_name,
+             'PRODUCTION_RUN', pr.id, NULL
+      FROM production_runs pr
+      LEFT JOIN cashiers c ON c.id = pr.created_by_id
+      WHERE pr.store_id = ?
     )
     SELECT *
     FROM transaction_facts
@@ -161,7 +171,7 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
     ORDER BY occurred_at DESC, id DESC
     LIMIT ?
   `).bind(
-    store.id, store.id, store.id, store.id, store.id,
+    store.id, store.id, store.id, store.id, store.id, store.id,
     from, from, to, to,
     before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
     ...kindValues,

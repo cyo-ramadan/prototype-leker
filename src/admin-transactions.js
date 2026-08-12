@@ -19,6 +19,16 @@ function parseIso(value) {
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
 }
 
+function parseCursor(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const separator = raw.lastIndexOf('|');
+  if (separator < 1) return null;
+  const occurredAt = parseIso(raw.slice(0, separator));
+  const id = raw.slice(separator + 1).trim();
+  return occurredAt && id ? { occurredAt, id } : null;
+}
+
 function safeJson(value) {
   try { return JSON.parse(value || '{}'); } catch { return {}; }
 }
@@ -73,10 +83,11 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
   if (!FILTERS.has(filter)) return json({ error: 'Filter transaksi tidak valid.' }, 400);
   const from = parseIso(url.searchParams.get('from'));
   const to = parseIso(url.searchParams.get('to'));
-  const before = parseIso(url.searchParams.get('before'));
+  const rawCursor = url.searchParams.get('before');
+  const before = parseCursor(rawCursor);
   if (url.searchParams.get('from') && !from) return json({ error: 'Tanggal awal tidak valid.' }, 400);
   if (url.searchParams.get('to') && !to) return json({ error: 'Tanggal akhir tidak valid.' }, 400);
-  if (url.searchParams.get('before') && !before) return json({ error: 'Cursor transaksi tidak valid.' }, 400);
+  if (rawCursor && !before) return json({ error: 'Cursor transaksi tidak valid.' }, 400);
   const requestedLimit = Number(url.searchParams.get('limit') || 50);
   const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
 
@@ -141,13 +152,18 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
     FROM transaction_facts
     WHERE (? IS NULL OR occurred_at >= ?)
       AND (? IS NULL OR occurred_at <= ?)
-      AND (? IS NULL OR occurred_at < ?)
+      AND (
+        ? IS NULL
+        OR occurred_at < ?
+        OR (occurred_at = ? AND id < ?)
+      )
       ${kindClause}
     ORDER BY occurred_at DESC, id DESC
     LIMIT ?
   `).bind(
     store.id, store.id, store.id, store.id, store.id,
-    from, from, to, to, before, before,
+    from, from, to, to,
+    before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
     ...kindValues,
     limit + 1
   ).all();
@@ -155,11 +171,12 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
   const rows = result.results ?? [];
   const hasMore = rows.length > limit;
   const visible = rows.slice(0, limit).map(normalizeRow);
+  const last = visible.at(-1);
   return json({
     store,
     filter,
     transactions: visible,
     hasMore,
-    nextCursor: hasMore ? visible.at(-1)?.occurredAt || null : null
+    nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null
   });
 }

@@ -212,6 +212,20 @@ Database Dwicahya tidak digunakan untuk prototype.
 - `adr/ADR-005-customer-approval-and-order-identity.md`
 - `adr/ADR-006-separated-customer-staff-login.md`
 
+## Live Photo, Portal Staf, dan deploy gate
+
+Changeset drawer-bound terbaru menambahkan protocol versioned tanpa mengganti domain lama:
+
+- reusable camera canonical: `public/camera-snapshot-modal.js`;
+- Portal Staf: `/staff` dengan Presensi aktif serta isolated KPI, Riwayat Setoran, dan Riwayat Gaji;
+- attendance endpoint `POST /api/staff/attendance`, terikat ke authenticated employee dan tidak tergantung status laci;
+- Tutup Laci tetap memakai endpoint canonical `POST /api/cashier/drawer/close`, dengan multipart Blob Live Photo dan JSON compatibility;
+- per-tab Authorization untuk cashier/staff API dibaca ulang dari `sessionStorage` setiap request;
+- migrations `0012` sampai `0015` menambah drawer-bound order source, approval queue, operational ledgers, serta Live Photo/attendance;
+- `.github/workflows/ci-deploy.yml` menjalankan syntax check + regression test pada PR, kemudian remote migration + Cloudflare deploy hanya setelah quality gate lolos pada `main`/manual dispatch.
+
+Contract dan rationale berada di `contracts/operational-posting-v1.md`, `contracts/live-photo-staff-portal-v1.md`, ADR-008 sampai ADR-011.
+
 ## DOC-IMPACT
 
-**REQUIRED** — login boundary berubah menjadi Pelanggan/Karyawan, staff session/tab exclusivity menjadi security invariant, dan cashier refresh/bootstrap berubah menjadi snapshot-based request discipline.
+**REQUIRED** — login boundary berubah menjadi Pelanggan/Karyawan, staff session/tab exclusivity menjadi security invariant, cashier refresh/bootstrap berubah menjadi snapshot-based request discipline, dan changeset terbaru menambah drawer-bound transactions, approval posting V1, reusable Live Photo, Portal Staf attendance, serta CI/deploy gate.

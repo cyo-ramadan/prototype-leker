@@ -21,7 +21,17 @@
     if (title === 'Tutup Laci' && !el('dialogClosingNote')) {
       body.insertAdjacentHTML('beforeend', '<div class="field"><label>Keterangan pulang <span class="muted">optional</span></label><textarea id="dialogClosingNote" rows="3" maxlength="500" placeholder="Catatan akhir shift"></textarea></div>');
     }
-    if ((title === 'Beli Bahan' || title === 'Pengeluaran') && !el('dialogPaymentMethod')) {
+    if (title === 'Beli Bahan' && !el('dialogPaymentMethod')) {
+      body.insertAdjacentHTML('beforeend', `
+        <div class="field"><label>Cara bayar</label><select id="dialogPaymentMethod" class="text-input">
+          <option value="CASH">Cash / Kas</option>
+          <option value="BANK">Bank / Transfer</option>
+          <option value="PAYABLE">Hutang / Utang Usaha</option>
+        </select></div>
+        <p class="muted">Cara bayar dipakai untuk Accounting mapping. Contoh: pembelian bahan cash → Dr Persediaan Bahan / Cr Kas.</p>`);
+      if (el('cashierDialogEyebrow')) el('cashierDialogEyebrow').textContent = 'Pembelian · Business Fact';
+    }
+    if (title === 'Pengeluaran' && !el('dialogPaymentMethod')) {
       body.insertAdjacentHTML('beforeend', '<div class="field"><label>Metode pembayaran</label><select id="dialogPaymentMethod" class="text-input"><option value="CASH">Tunai</option><option value="NON_CASH">Non Tunai</option></select></div>');
     }
   }
@@ -119,7 +129,6 @@
   if (dialogBody) new MutationObserver(enhanceDialog).observe(dialogBody, { childList: true, subtree: true });
   ensureHistoryUi();
 
-  // Replace the old compact active-drawer summary with the canonical full drawer history/report.
   el('drawerDetailsBtn')?.addEventListener('click', event => {
     event.preventDefault();
     event.stopImmediatePropagation();

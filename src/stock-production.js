@@ -53,7 +53,7 @@ function stockDeltaStatements(db, product, delta, context) {
 async function loadSaleProducts(db, storeId, productIds) {
   const rows = await db.prepare(`
     SELECT p.id, p.name, p.base_unit_id, p.points_per_unit,
-           p.production_mode, p.recipe_link_enabled, p.stock_tracking_enabled,
+           p.production_mode, p.linked_recipe_id, p.stock_tracking_enabled,
            u.symbol AS unit_symbol,
            COALESCE(t.track_stock, 1) AS type_track_stock,
            COALESCE(t.can_produce, 1) AS can_produce,
@@ -62,7 +62,10 @@ async function loadSaleProducts(db, storeId, productIds) {
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN manufacturing_recipes r
-      ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+      ON r.id = p.linked_recipe_id
+     AND r.store_id = p.store_id
+     AND r.output_product_id = p.id
+     AND r.status = 'ACTIVE'
     WHERE p.store_id = ? AND p.id IN (${placeholders(productIds.length)})
   `).bind(storeId, ...productIds).all();
   return new Map((rows.results ?? []).map(row => [Number(row.id), {
@@ -72,7 +75,7 @@ async function loadSaleProducts(db, storeId, productIds) {
     unitSymbol: row.unit_symbol || '',
     pointsPerUnit: Number(row.points_per_unit || 0),
     productionMode: row.production_mode || 'STOCK',
-    recipeLinkEnabled: Boolean(row.recipe_link_enabled),
+    recipeLinkEnabled: Boolean(row.linked_recipe_id),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
     trackStock: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
     canProduce: Boolean(row.can_produce),
@@ -141,10 +144,14 @@ function productionRunStatements(db, {
         id, production_run_id, store_id, component_product_id, component_product_name,
         component_unit_id, component_unit_symbol, quantity_per_batch, total_quantity,
         unit_cost_snapshot, total_cost_snapshot
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+      )
+      SELECT ?, ?, ?, p.id, p.name, ?, ?, ?, ?, p.average_cost, p.average_cost * ?
+      FROM products p
+      WHERE p.id = ? AND p.store_id = ?
     `).bind(
-      `production_component_${crypto.randomUUID()}`, runId, storeId, component.id, component.name,
-      component.unitId, component.unitSymbol, component.quantityPerBatch, totalQuantity
+      `production_component_${crypto.randomUUID()}`, runId, storeId,
+      component.unitId, component.unitSymbol, component.quantityPerBatch, totalQuantity,
+      totalQuantity, component.id, storeId
     ));
     statements.push(...stockDeltaStatements(db, component, -totalQuantity, {
       sourceKey: `PRODUCTION_INPUT:${runId}:${component.id}`,
@@ -153,6 +160,52 @@ function productionRunStatements(db, {
       note: `${notePrefix} · komponen ${product.name}`
     }));
   }
+
+  statements.push(
+    db.prepare(`
+      UPDATE production_runs
+      SET hpp_total = COALESCE((
+            SELECT SUM(total_cost_snapshot)
+            FROM production_run_components
+            WHERE production_run_id = ?
+          ), 0),
+          hpp_per_unit = COALESCE((
+            SELECT SUM(total_cost_snapshot)
+            FROM production_run_components
+            WHERE production_run_id = ?
+          ), 0) * 1.0 / total_output_quantity
+      WHERE id = ? AND store_id = ?
+    `).bind(runId, runId, runId, storeId),
+    db.prepare(`
+      UPDATE products
+      SET average_cost = CASE
+            WHEN COALESCE((
+              SELECT quantity FROM inventory_stock_balances
+              WHERE store_id = ? AND product_id = ?
+            ), 0) <= 0
+              THEN COALESCE((SELECT hpp_per_unit FROM production_runs WHERE id = ?), 0)
+            ELSE (
+              COALESCE((
+                SELECT quantity FROM inventory_stock_balances
+                WHERE store_id = ? AND product_id = ?
+              ), 0) * average_cost
+              + COALESCE((SELECT hpp_total FROM production_runs WHERE id = ?), 0)
+            ) * 1.0 / (
+              COALESCE((
+                SELECT quantity FROM inventory_stock_balances
+                WHERE store_id = ? AND product_id = ?
+              ), 0) + ?
+            )
+          END,
+          cost_updated_at = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND store_id = ?
+    `).bind(
+      storeId, product.id, runId,
+      storeId, product.id, runId,
+      storeId, product.id, totalOutputQuantity,
+      now, product.id, storeId
+    )
+  );
 
   statements.push(...stockDeltaStatements(db, product, totalOutputQuantity, {
     sourceKey: `PRODUCTION_OUTPUT:${runId}:${product.id}`,
@@ -252,11 +305,11 @@ export async function prepareManualProduction(db, {
   const products = await loadSaleProducts(db, storeId, [productId]);
   const product = products.get(productId);
   if (!product || !product.canProduce || !product.recipe || product.recipe.outputQuantity < 1) {
-    return { ok: false, status: 409, error: 'Barang belum memiliki resep aktif atau tipenya tidak mengizinkan produksi.' };
+    return { ok: false, status: 409, error: 'Barang belum memiliki Recipe Linked aktif atau tipenya tidak mengizinkan produksi.' };
   }
   const componentsByRecipe = await loadRecipeComponents(db, storeId, [product.recipe.id]);
   const components = componentsByRecipe.get(product.recipe.id) || [];
-  if (!components.length) return { ok: false, status: 409, error: 'Resep aktif tidak memiliki komponen.' };
+  if (!components.length) return { ok: false, status: 409, error: 'Recipe Linked tidak memiliki komponen.' };
   const tracking = validateTrackedProduction(product, components);
   if (!tracking.ok) return tracking;
   const runId = `production_${crypto.randomUUID()}`;
@@ -295,7 +348,10 @@ export async function listManualProductionOptions(db, storeId) {
            r.id AS recipe_id, r.revision, r.output_quantity
     FROM products p
     JOIN manufacturing_recipes r
-      ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+      ON r.id = p.linked_recipe_id
+     AND r.store_id = p.store_id
+     AND r.output_product_id = p.id
+     AND r.status = 'ACTIVE'
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     WHERE p.store_id = ? AND p.is_active = 1

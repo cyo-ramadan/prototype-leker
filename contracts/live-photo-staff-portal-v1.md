@@ -17,12 +17,13 @@ Version: 1
 
 ## Drawer Close
 
-Canonical endpoint remains `POST /api/cashier/drawer/close`.
+Canonical endpoint remains `POST /api/cashier/drawer/close` because drawer ownership, active-session boundary, and close lifecycle already belong to the cashier drawer domain.
 
 - Drawer ownership remains required.
 - New camera-enabled UI submits `multipart/form-data` with `closingAmount`, optional `closingNote`, and `photo` Blob.
 - JSON close requests remain accepted for backward compatibility during rollout.
 - Live photo is stored on the drawer session and is not loaded into ordinary drawer list/report queries.
+- No duplicate `/api/cashdrawer/close` alias is maintained.
 
 ## Staff Attendance
 

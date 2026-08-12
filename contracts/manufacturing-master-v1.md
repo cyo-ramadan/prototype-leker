@@ -7,7 +7,7 @@ Version: 1
 
 Prototype Leker owns operational product classification and recipe/BOM master data for the store scope.
 
-This contract does not own inventory costing, accounting journals, production posting, or financial statements.
+Inventory movement and production execution are defined separately by the Stock, Production & Points Contract. Accounting journal interpretation remains owned by the separate Accounting program.
 
 ## Item Type
 
@@ -32,21 +32,25 @@ Default store types:
 
 Product menu/order/sale reads must respect `can_sell`. Database guards also reject new sale/order lines for a product whose type is not sellable.
 
-## Unit
+## Unit and Integer Quantity Invariant
 
 Canonical entity: `units`.
 
-A product has one `base_unit_id`. Recipe V1 records quantities in the product base unit with up to three decimal places using scaled integer storage (`quantity_milli`).
+A product has one `base_unit_id`. All physical quantities in product stock, recipe output, recipe component usage, production output, production consumption, sale quantity, and stock movement are stored as **positive integers** in that base unit.
 
-Default units are PCS, GRAM, KG, ML, and LITER.
+Fractional physical quantities are not represented with decimal quantity fields. The master must choose a sufficiently small base unit so the operational quantity becomes an integer. Example: use GRAM instead of 1.5 KG when the business needs 1500 GRAM.
 
-Unit conversion and packaging conversion are intentionally outside V1. A later version must define conversion semantics before recipes mix different measurement units for the same product.
+Default units are PCS, GRAM, KG, ML, and LITER. Additional smaller operational units may be created when needed.
+
+Unit conversion and packaging conversion are intentionally outside V1. A later version must define conversion semantics before one product can transact in multiple physical units.
+
+Costing/HPP values are a separate monetary calculation and may use decimal precision.
 
 ## Product Classification
 
 `products.item_type_id` and `products.base_unit_id` classify each product.
 
-Existing products are backfilled as Barang Jadi + PCS for backward compatibility. New products receive the same defaults automatically at database level.
+Existing products are backfilled as Barang Jadi + PCS for backward compatibility. New products receive the same classification defaults automatically at database level.
 
 Item type and unit references must belong to the same store as the product. Cross-store references are rejected at database level.
 
@@ -60,10 +64,10 @@ Canonical entities:
 A recipe contains:
 
 - one output product;
-- output quantity;
+- integer output quantity in the output product base unit;
 - output base unit snapshot;
 - one or more component products;
-- quantity for every component;
+- integer quantity for every component in each component base unit;
 - component base unit snapshot;
 - revision number;
 - status ACTIVE or ARCHIVED;
@@ -75,14 +79,20 @@ Updating a recipe creates a new immutable revision and archives the previous ACT
 
 Direct self-reference and circular BOM graphs are rejected.
 
-## Manufacturing and HPP Boundary
+## Product Link Boundary
 
-Recipe master provides the quantity structure required by future production and HPP calculation.
+A recipe remains a standalone master revision. Whether an active recipe is automatically used by sales is a **Master Barang policy**, not a property of a historical transaction.
 
-Production posting must later snapshot the exact recipe revision used, actual output quantity, actual component consumption, waste/yield variance, and inventory costing references.
+Historical transactions may only reference the exact recipe revision and production run that were used. A transaction detail view must never edit the recipe link.
 
-HPP must not be calculated by blindly reading the latest `products.purchase_price`. Cost valuation belongs to the Inventory/Costing domain and accounting interpretation belongs to Accounting.
+## HPP Boundary
+
+Recipe master supplies physical quantity structure. Production execution snapshots the exact recipe revision and component/output quantities.
+
+HPP fields may use decimal precision. Current production snapshots reserve decimal HPP/cost fields, while valuation logic remains a future Inventory/Costing integration concern. Accounting interpretation remains owned by Accounting.
+
+HPP must not be calculated by blindly reading the latest `products.purchase_price`.
 
 ## Performance
 
-Manufacturing data is loaded only when the Admin Manufaktur tab is opened. Recipe components are fetched in one grouped query for the selected recipe set. No periodic polling is introduced.
+Master data is loaded only when the relevant Master section is opened. Recipe components are fetched in grouped queries rather than one request per row. No periodic polling is introduced.

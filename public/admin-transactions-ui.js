@@ -1,6 +1,7 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const money = value => value == null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+  const decimalMoney = value => value == null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 4 }).format(Number(value) || 0);
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
   const state = { filter: 'ALL', transactions: [], nextCursor: null, hasMore: false };
 
@@ -22,6 +23,7 @@
 
   function activate() {
     document.querySelectorAll('.admin-tab').forEach(button => button.classList.toggle('active', button.dataset.tab === 'transactions'));
+    document.getElementById('adminMasterMenuToggle')?.classList.remove('active');
     document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-transactions'));
     loadTransactions({ reset: true });
   }
@@ -44,7 +46,7 @@
       <section id="tab-transactions" class="admin-section">
         <div class="admin-card">
           <div class="list-head">
-            <div><div class="admin-eyebrow">Operational Data Explorer</div><h2>Tracking Transaksi Gerai</h2><div class="muted">Business facts untuk penjualan, pembelian, operasional, inventory, dan aset. Detail jurnal tetap menjadi domain Accounting.</div></div>
+            <div><div class="admin-eyebrow">Operational Data Explorer</div><h2>Tracking Transaksi Gerai</h2><div class="muted">Klik Detail untuk mengambil snapshot transaksi, item penjualan, poin, dan jejak produksi hanya saat diperlukan. Jurnal tetap domain Accounting.</div></div>
             <button id="adminTransactionsRefresh" class="secondary-btn" type="button">↻ Refresh</button>
           </div>
           <div id="adminTransactionFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
@@ -62,6 +64,7 @@
           <div id="adminTransactionsList" class="master-list" style="margin-top:12px"></div>
           <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminTransactionsMore" class="secondary-btn hidden" type="button">Muat lagi</button></div>
         </div>
+        <div id="adminTransactionDetail" class="admin-card hidden" style="margin-top:14px"></div>
       </section>`);
 
     button.addEventListener('click', activate);
@@ -161,10 +164,72 @@
           <div class="master-prices"><span>${transaction.cashierName ? `PIC ${esc(transaction.cashierName)}` : 'System'}</span><span>${money(transaction.amount)}</span></div>
           <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentMethod)}` : ''}</div>
           <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>
-          ${transaction.operationalPayload ? `<details style="margin-top:6px"><summary class="text-btn">Snapshot operasional</summary><pre style="white-space:pre-wrap;font-size:12px">${esc(JSON.stringify(transaction.operationalPayload, null, 2))}</pre></details>` : ''}
         </div>
+        <div class="master-actions"><button class="mini-btn" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">Detail</button></div>
       </article>`).join('') : '<div class="empty">Belum ada transaksi pada filter ini.</div>';
+    target.querySelectorAll('[data-transaction-detail-id]').forEach(button => button.addEventListener('click', () => openDetail(button.dataset.transactionDetailKind, button.dataset.transactionDetailId)));
     document.getElementById('adminTransactionsMore')?.classList.toggle('hidden', !state.hasMore);
+  }
+
+  async function openDetail(kind, id) {
+    const panel = document.getElementById('adminTransactionDetail');
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<div class="muted">Memuat detail transaksi...</div>';
+    try {
+      const payload = await api(`/api/admin/transactions/detail/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
+      renderDetail(payload.detail);
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      panel.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+    }
+  }
+
+  function accountingDetail(detail) {
+    const ref = detail.accounting || {};
+    return ref.journalReference ? `Jurnal ${ref.journalReference}` : (ref.syncStatus || (ref.eligible ? 'Pending connector' : 'Belum eligible'));
+  }
+
+  function renderSaleDetail(detail) {
+    const items = detail.items || [];
+    const runs = detail.productionRuns || [];
+    return `
+      <div class="admin-grid two compact">
+        <div class="admin-tip"><b>Customer</b><div>${esc(detail.customerName || 'Walk-in')}${detail.customerId ? ` · ${esc(detail.customerId)}` : ''}</div></div>
+        <div class="admin-tip"><b>Tracking</b><div>${esc(detail.orderNo || detail.orderId || '-')} · ${esc(detail.paymentMethod || '-')}</div></div>
+      </div>
+      <div class="master-list" style="margin-top:12px">${items.map(item => `
+        <div class="master-row">
+          <div class="master-main">
+            <strong>${item.quantity}× ${esc(item.productName)} · ${money(item.lineTotal)}</strong>
+            <div class="master-meta">Harga ${money(item.unitPrice)} · Poin ${item.pointsPerUnit}/unit · Earn ${item.linePoints}</div>
+            <div class="master-meta">${item.recipeId ? `Recipe ${esc(item.recipeId)} v${item.recipeRevision || '-'}${item.productionRunId ? ` · Production ${esc(item.productionRunId)}` : ''}` : 'Tanpa auto-production recipe'}</div>
+          </div>
+        </div>`).join('')}</div>
+      <div class="admin-tip" style="margin-top:12px"><b>Total</b> ${money(detail.total)} · <b>Poin customer</b> ${detail.totalPoints || 0}</div>
+      ${runs.length ? `<div style="margin-top:16px"><h3>Production Snapshot</h3>${runs.map(run => `
+        <details class="admin-tip" style="margin-top:8px"><summary><b>${esc(run.outputProductName)}</b> · Recipe v${run.recipeRevision} · ${run.batches} batch</summary>
+          <div style="margin-top:8px">Hasil ${run.totalOutputQuantity} ${esc(run.unitSymbol)} · kebutuhan sale ${run.requestedSaleQuantity || '-'} · HPP/unit ${decimalMoney(run.hppPerUnit)}</div>
+          <ul>${(run.components || []).map(component => `<li>${esc(component.productName)}: ${component.totalQuantity} ${esc(component.unitSymbol)} · cost snapshot ${decimalMoney(component.totalCostSnapshot)}</li>`).join('')}</ul>
+        </details>`).join('')}</div>` : ''}`;
+  }
+
+  function renderDetail(detail) {
+    const panel = document.getElementById('adminTransactionDetail');
+    const content = detail.kind === 'SALE'
+      ? renderSaleDetail(detail)
+      : `<div class="admin-tip"><pre style="white-space:pre-wrap;margin:0;font-size:12px">${esc(JSON.stringify(detail.payload || {
+          description: detail.description,
+          amount: detail.amount,
+          supplierName: detail.supplierName,
+          paymentMethod: detail.paymentMethod,
+          approvalStatus: detail.approvalStatus,
+          postingStatus: detail.postingStatus,
+          decisionNote: detail.decisionNote
+        }, null, 2))}</pre></div>`;
+    panel.innerHTML = `
+      <div class="list-head"><div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div><button id="adminTransactionDetailClose" class="mini-btn" type="button">Tutup</button></div>
+      <div style="margin-top:14px">${content}</div>`;
+    document.getElementById('adminTransactionDetailClose')?.addEventListener('click', () => panel.classList.add('hidden'));
   }
 
   mount();

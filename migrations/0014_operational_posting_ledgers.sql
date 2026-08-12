@@ -76,3 +76,39 @@ CREATE INDEX IF NOT EXISTS idx_inventory_ledger_store_product_posted
   ON inventory_ledger_entries(store_id, product_id, posted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_asset_ledger_store_posted
   ON asset_ledger_entries(store_id, posted_at DESC);
+
+CREATE TRIGGER IF NOT EXISTS trg_cash_ledger_requires_pending_approval
+BEFORE INSERT ON cash_ledger_entries
+WHEN NOT EXISTS (
+  SELECT 1 FROM approval_requests
+  WHERE id = NEW.approval_request_id
+    AND approval_status = 'pending_approval'
+    AND posting_status = 'unposted'
+)
+BEGIN
+  SELECT RAISE(ABORT, 'APPROVAL_NOT_PENDING');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_inventory_ledger_requires_pending_approval
+BEFORE INSERT ON inventory_ledger_entries
+WHEN NOT EXISTS (
+  SELECT 1 FROM approval_requests
+  WHERE id = NEW.approval_request_id
+    AND approval_status = 'pending_approval'
+    AND posting_status = 'unposted'
+)
+BEGIN
+  SELECT RAISE(ABORT, 'APPROVAL_NOT_PENDING');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_asset_ledger_requires_pending_approval
+BEFORE INSERT ON asset_ledger_entries
+WHEN NOT EXISTS (
+  SELECT 1 FROM approval_requests
+  WHERE id = NEW.approval_request_id
+    AND approval_status = 'pending_approval'
+    AND posting_status = 'unposted'
+)
+BEGIN
+  SELECT RAISE(ABORT, 'APPROVAL_NOT_PENDING');
+END;

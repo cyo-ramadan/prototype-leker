@@ -3,11 +3,6 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
-import {
-  listAccountingAccountRefs,
-  productAccountingRefStatement,
-  resolveProductAccountingRefs
-} from './accounting-reference.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const MODES = new Set(['STOCK', 'DADAKAN']);
@@ -72,13 +67,11 @@ async function listEditorProducts(db, storeId) {
            p.points_per_unit, p.production_mode, p.recipe_link_enabled, p.linked_recipe_id,
            p.stock_tracking_enabled,
            t.name AS item_type_name, u.name AS unit_name, u.symbol AS unit_symbol,
-           b.quantity AS stock_quantity,
-           ar.sales_account_ref_id, ar.inventory_account_ref_id, ar.cogs_account_ref_id
+           b.quantity AS stock_quantity
     FROM products p
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
-    LEFT JOIN product_accounting_refs ar ON ar.store_id = p.store_id AND ar.product_id = p.id
     WHERE p.store_id = ?
     ORDER BY p.display_order, p.id
   `).bind(storeId).all();
@@ -102,23 +95,17 @@ async function listEditorProducts(db, storeId) {
     linkedRecipeId: row.linked_recipe_id || null,
     recipeLinkEnabled: Boolean(row.linked_recipe_id || row.recipe_link_enabled),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
-    stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity),
-    accounting: {
-      salesAccountRefId: row.sales_account_ref_id || null,
-      inventoryAccountRefId: row.inventory_account_ref_id || null,
-      cogsAccountRefId: row.cogs_account_ref_id || null
-    }
+    stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity)
   }));
 }
 
 async function editorPayload(db, store) {
-  const [refs, products, recipes, accountingAccounts] = await Promise.all([
+  const [refs, products, recipes] = await Promise.all([
     getManufacturingReferenceData(db, store.id),
     listEditorProducts(db, store.id),
-    listActiveRecipes(db, store.id),
-    listAccountingAccountRefs(db, store.id)
+    listActiveRecipes(db, store.id)
   ]);
-  return { store, products, recipes, accountingAccounts, ...refs };
+  return { store, products, recipes, ...refs };
 }
 
 async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId) {
@@ -180,9 +167,6 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     return { ok: false, status: 409, error: 'Mode DADAKAN wajib mengaktifkan tracking stok.' };
   }
 
-  const accounting = await resolveProductAccountingRefs(db, storeId, body?.accounting || {});
-  if (!accounting.ok) return { ok: false, status: 400, error: accounting.error };
-
   return {
     ok: true,
     name,
@@ -198,8 +182,7 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     productionMode,
     linkedRecipeId: recipeLink.linkedRecipeId,
     recipeLinkEnabled: recipeLink.recipe ? 1 : 0,
-    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0,
-    accounting
+    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0
   };
 }
 
@@ -238,8 +221,7 @@ export async function handleProductMasterApi(request, env, pathname) {
         normalized.isActive, normalized.itemTypeId, normalized.baseUnitId,
         normalized.pointsPerUnit, normalized.productionMode, normalized.recipeLinkEnabled,
         normalized.linkedRecipeId, normalized.stockTrackingEnabled
-      ),
-      productAccountingRefStatement(env.DB, store.id, id, normalized.accounting)
+      )
     ];
     if (normalized.stockTrackingEnabled) {
       statements.push(env.DB.prepare(`
@@ -281,8 +263,7 @@ export async function handleProductMasterApi(request, env, pathname) {
       normalized.itemTypeId, normalized.baseUnitId, normalized.pointsPerUnit,
       normalized.productionMode, normalized.recipeLinkEnabled, normalized.linkedRecipeId,
       normalized.stockTrackingEnabled, productId, store.id
-    ),
-    productAccountingRefStatement(env.DB, store.id, productId, normalized.accounting)
+    )
   ];
   if (normalized.stockTrackingEnabled) {
     statements.push(env.DB.prepare(`

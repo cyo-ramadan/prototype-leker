@@ -23,13 +23,12 @@ ALTER TABLE products ADD COLUMN last_purchase_price REAL NOT NULL DEFAULT 0 CHEC
 ALTER TABLE products ADD COLUMN cost_updated_at TEXT;
 ALTER TABLE products ADD COLUMN last_purchase_at TEXT;
 
--- Legacy bootstrap only. Historical purchase lines did not exist yet, so old purchase_price is the safest known estimate.
+-- Legacy bootstrap only. Old purchase_price was manually editable and is not evidence of an actual last purchase.
+-- Use it only as the best known opening HPP estimate; last_purchase_* starts unknown until a new itemized purchase posts.
 UPDATE products
 SET average_cost = CASE WHEN purchase_price > 0 THEN purchase_price ELSE 0 END,
-    last_purchase_price = CASE WHEN purchase_price > 0 THEN purchase_price ELSE 0 END,
-    cost_updated_at = CASE WHEN purchase_price > 0 THEN CURRENT_TIMESTAMP ELSE NULL END,
-    last_purchase_at = CASE WHEN purchase_price > 0 THEN CURRENT_TIMESTAMP ELSE NULL END
-WHERE average_cost = 0 AND last_purchase_price = 0;
+    cost_updated_at = CASE WHEN purchase_price > 0 THEN CURRENT_TIMESTAMP ELSE NULL END
+WHERE average_cost = 0;
 
 CREATE INDEX IF NOT EXISTS idx_products_store_kind
   ON products(store_id, product_kind_id, is_active, display_order);

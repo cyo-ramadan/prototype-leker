@@ -3,16 +3,11 @@ import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
+import { normalizeApprovalPayload, buildOperationalPostingStatements, postingFailureResponse } from './operational-posting.js';
 
 const REQUEST_TYPES = new Set(['CASH_FLOW', 'GOODS_FLOW', 'ASSET']);
 const APPROVAL_STATUSES = new Set(['pending_approval', 'approved', 'rejected']);
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
-
-function parsePayload(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const serialized = JSON.stringify(value);
-  return serialized.length <= 8000 ? serialized : null;
-}
 
 function mapRequest(row) {
   if (!row) return null;
@@ -81,9 +76,12 @@ async function handleCashierApprovalQueue(request, env, pathname) {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload pengajuan tidak valid.' }, 400);
     const requestType = String(body.value?.requestType || '').trim().toUpperCase();
-    const payloadJson = parsePayload(body.value?.payload);
     if (!REQUEST_TYPES.has(requestType)) return json({ error: 'Jenis pengajuan tidak valid.' }, 400);
-    if (!payloadJson) return json({ error: 'Detail pengajuan wajib berupa object valid dan maksimal 8 KB.' }, 400);
+
+    const normalized = await normalizeApprovalPayload(env.DB, auth.cashier.store.id, requestType, body.value?.payload);
+    if (!normalized.ok) return json({ error: normalized.error }, 400);
+    const payloadJson = JSON.stringify(normalized.payload);
+    if (payloadJson.length > 8000) return json({ error: 'Detail pengajuan maksimal 8 KB.' }, 400);
 
     const now = new Date().toISOString();
     const id = `approval_${crypto.randomUUID()}`;
@@ -157,8 +155,8 @@ async function handleManagementApprovalQueue(request, env, pathname) {
     if (scope.storeId && current.storeId !== scope.storeId) {
       return json({ error: 'Pengajuan berada di gerai di luar kewenangan akun ini.', code: 'APPROVAL_STORE_SCOPE_MISMATCH' }, 403);
     }
-    if (current.approvalStatus !== 'pending_approval') {
-      return json({ error: 'Pengajuan ini sudah memiliki keputusan.' }, 409);
+    if (current.approvalStatus !== 'pending_approval' || current.postingStatus !== 'unposted') {
+      return json({ error: 'Pengajuan ini sudah memiliki keputusan atau sudah diproses.' }, 409);
     }
 
     const body = await readJson(request);
@@ -175,25 +173,25 @@ async function handleManagementApprovalQueue(request, env, pathname) {
         UPDATE approval_requests
         SET approval_status = 'rejected', decision_note = ?, updated_at = ?, rejected_at = ?,
             approved_by_role = ?, approved_by_id = ?
-        WHERE id = ? AND approval_status = 'pending_approval'
+        WHERE id = ? AND approval_status = 'pending_approval' AND posting_status = 'unposted'
       `).bind(note, now, now, approverRole, approverId, requestId).run();
-      return json({ ok: true, request: await getRequest(env.DB, requestId) });
+      return json({ ok: true, request: await getRequest(env.DB, requestId), posted: false });
     }
 
-    await env.DB.prepare(`
-      UPDATE approval_requests
-      SET approval_status = 'approved', posting_status = 'blocked',
-          posting_block_reason = 'POSTING_CONTRACT_REQUIRED', decision_note = ?,
-          updated_at = ?, approved_at = ?, approved_by_role = ?, approved_by_id = ?
-      WHERE id = ? AND approval_status = 'pending_approval'
-    `).bind(note, now, now, approverRole, approverId, requestId).run();
+    const statements = buildOperationalPostingStatements(env.DB, current, { approverRole, approverId, now, note });
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      const known = postingFailureResponse(current.requestType, error);
+      if (known) return json({ error: known.error, code: 'POSTING_REJECTED' }, known.status);
+      throw error;
+    }
 
     return json({
       ok: true,
       request: await getRequest(env.DB, requestId),
-      postingBlocked: true,
-      code: 'POSTING_CONTRACT_REQUIRED',
-      message: 'ACC tercatat. Posting belum dijalankan karena contract ledger/stok/aset belum ditetapkan.'
+      posted: true,
+      message: 'ACC berhasil dan posting snapshot sudah diterapkan.'
     });
   }
 

@@ -9,6 +9,7 @@ const productDb = readFileSync(new URL('../src/db-multistore.js', import.meta.ur
 const transactionApi = readFileSync(new URL('../src/admin-transactions.js', import.meta.url), 'utf8');
 const accountingSeam = readFileSync(new URL('../src/accounting-bridge-seam.js', import.meta.url), 'utf8');
 const manufacturingUi = readFileSync(new URL('../public/admin-manufacturing.js', import.meta.url), 'utf8');
+const masterMenuUi = readFileSync(new URL('../public/admin-master-menu.js', import.meta.url), 'utf8');
 const transactionUi = readFileSync(new URL('../public/admin-transactions-ui.js', import.meta.url), 'utf8');
 const branchAdmin = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
@@ -20,7 +21,7 @@ test('manufacturing master schema separates types, units, recipe headers, and re
   assert.match(migration, /CREATE TABLE IF NOT EXISTS manufacturing_recipe_components/);
   assert.match(migration, /ALTER TABLE products ADD COLUMN item_type_id/);
   assert.match(migration, /ALTER TABLE products ADD COLUMN base_unit_id/);
-  assert.match(migration, /output_quantity_milli INTEGER NOT NULL CHECK \(output_quantity_milli > 0\)/);
+  assert.match(migration, /output_quantity INTEGER NOT NULL CHECK \(output_quantity > 0\)/);
   assert.match(migration, /UNIQUE \(store_id, output_product_id, revision\)/);
   assert.match(migration, /WHERE status = 'ACTIVE'/);
   assert.match(migration, /trg_products_default_manufacturing_metadata/);
@@ -49,12 +50,17 @@ test('recipe writes create immutable revisions and reject circular BOMs', () => 
   assert.doesNotMatch(manufacturingApi, /UPDATE manufacturing_recipe_components\s+SET/);
 });
 
-test('admin manufacturing UI is modular and loaded without replacing existing admin listeners', () => {
+test('admin master UI groups master entities without replacing existing listeners', () => {
   assert.match(branchAdmin, /admin-manufacturing\.js/);
+  assert.match(branchAdmin, /admin-master-menu\.js/);
   assert.match(manufacturingUi, /dataset\.tab = 'manufacturing'/);
   assert.match(manufacturingUi, /Klasifikasi Barang/);
   assert.match(manufacturingUi, /Buat Resep \/ BOM/);
   assert.match(manufacturingUi, /Simpan sebagai revision baru/);
+  assert.match(masterMenuUi, /Master ·/);
+  assert.match(masterMenuUi, /Tipe Barang/);
+  assert.match(masterMenuUi, /Resep \/ BOM/);
+  assert.match(masterMenuUi, /button\.click\(\)/);
   assert.doesNotMatch(manufacturingUi, /setInterval\s*\(/);
 });
 
@@ -65,27 +71,35 @@ test('admin transaction explorer reads operational facts lazily and exposes acco
   assert.match(transactionApi, /'PURCHASE'/);
   assert.match(transactionApi, /'EXPENSE'/);
   assert.match(transactionApi, /'OTHER_INCOME'/);
+  assert.match(transactionApi, /'PRODUCTION'/);
   assert.match(transactionApi, /approval_requests/);
   assert.match(transactionApi, /accountingReferenceForTransaction/);
   assert.match(transactionApi, /occurred_at = \? AND id < \?/);
   assert.match(transactionApi, /nextCursor: hasMore && last \? `\$\{last\.occurredAt\}\|\$\{last\.id\}`/);
-  assert.match(transactionUi, /Detail jurnal tetap menjadi domain Accounting/);
+  assert.match(transactionUi, /Klik Detail/);
+  assert.match(transactionUi, /Production Snapshot/);
+  assert.match(transactionUi, /Stok & Produksi/);
   assert.doesNotMatch(transactionUi, /setInterval\s*\(/);
 });
 
 test('accounting connector seam never owns journal interpretation', () => {
   assert.match(accountingSeam, /MAXI_ACCOUNTING_BUSINESS_FACT_V1/);
+  assert.match(accountingSeam, /PRODUCTION_POSTED/);
   assert.match(accountingSeam, /syncStatus: eligible \? 'NOT_CONNECTED' : 'NOT_POSTABLE'/);
   assert.match(accountingSeam, /journalReference: null/);
   assert.doesNotMatch(accountingSeam, /debit|credit|chart.?of.?accounts|general.?ledger/i);
   assert.doesNotMatch(accountingSeam, /fetch\s*\(/);
 });
 
-test('specific manufacturing routes are evaluated before generic admin route', () => {
+test('specific master transaction and production routes are evaluated before generic admin route', () => {
   const classificationPosition = indexSource.indexOf('const classificationResponse = await handleAdminProductClassificationApi');
   const manufacturingPosition = indexSource.indexOf('const manufacturingMasterResponse = await handleManufacturingMasterApi');
+  const productionDetailPosition = indexSource.indexOf('const adminProductionDetailResponse = await handleAdminProductionDetailApi');
+  const transactionDetailPosition = indexSource.indexOf('const adminTransactionDetailResponse = await handleAdminTransactionDetailApi');
   const genericAdminPosition = indexSource.indexOf("if (pathname.startsWith('/api/admin/'))");
-  assert.ok(classificationPosition >= 0 && manufacturingPosition >= 0 && genericAdminPosition >= 0);
+  assert.ok(classificationPosition >= 0 && manufacturingPosition >= 0 && productionDetailPosition >= 0 && transactionDetailPosition >= 0 && genericAdminPosition >= 0);
   assert.ok(classificationPosition < manufacturingPosition);
-  assert.ok(manufacturingPosition < genericAdminPosition);
+  assert.ok(manufacturingPosition < productionDetailPosition);
+  assert.ok(productionDetailPosition < transactionDetailPosition);
+  assert.ok(transactionDetailPosition < genericAdminPosition);
 });

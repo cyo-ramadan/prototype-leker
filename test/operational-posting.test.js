@@ -39,7 +39,9 @@ test('cash goods and asset staging payloads are normalized server-side', () => {
   assert.match(posting, /requestType === 'CASH_FLOW'/);
   assert.match(posting, /requestType === 'GOODS_FLOW'/);
   assert.match(posting, /requestType === 'ASSET'/);
-  assert.match(posting, /SELECT id, name FROM products WHERE store_id = \? AND id = \? LIMIT 1/);
+  assert.match(posting, /SELECT p\.id, p\.name, p\.base_unit_id, u\.symbol AS unit_symbol/);
+  assert.match(posting, /LEFT JOIN units u ON u\.id = p\.base_unit_id AND u\.store_id = p\.store_id/);
+  assert.match(posting, /unitId: product\.base_unit_id/);
   assert.match(approval, /normalizeApprovalPayload/);
 });
 
@@ -47,6 +49,7 @@ test('ACC writes domain movement and approval posted state in one D1 batch', () 
   assert.match(posting, /posting_status = 'posted'/);
   assert.match(posting, /INSERT INTO cash_ledger_entries/);
   assert.match(posting, /INSERT INTO inventory_ledger_entries/);
+  assert.match(posting, /INSERT INTO stock_movements/);
   assert.match(posting, /INSERT INTO asset_ledger_entries/);
   assert.match(posting, /INSERT OR IGNORE INTO inventory_stock_balances/);
   assert.match(posting, /SET quantity = quantity \+ \?/);

@@ -13,16 +13,9 @@ function codeText(value, max = 32) {
     .replace(/^_+|_+$/g, '');
 }
 
-function quantityMilli(value) {
-  const normalized = String(value ?? '').trim().replace(',', '.');
-  const number = Number(normalized);
-  if (!Number.isFinite(number) || number <= 0 || number > 1_000_000) return null;
-  const milli = Math.round(number * 1000);
-  return milli > 0 ? milli : null;
-}
-
-function quantityValue(milli) {
-  return Number(milli || 0) / 1000;
+function positiveInteger(value, max = 1_000_000_000) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 && number <= max ? number : null;
 }
 
 function actorFromAuth(auth) {
@@ -43,11 +36,11 @@ export async function ensureManufacturingDefaults(db, storeId) {
     ['semi', 'SEMI_FINISHED', 'Bahan Setengah Jadi', 0, 1, 1, 1, 1]
   ];
   const unitRows = [
-    ['pcs', 'PCS', 'Pcs', 'pcs', 0],
-    ['gram', 'GRAM', 'Gram', 'g', 3],
-    ['kg', 'KG', 'Kilogram', 'kg', 3],
-    ['ml', 'ML', 'Mililiter', 'ml', 3],
-    ['liter', 'LITER', 'Liter', 'L', 3]
+    ['pcs', 'PCS', 'Pcs', 'pcs'],
+    ['gram', 'GRAM', 'Gram', 'g'],
+    ['kg', 'KG', 'Kilogram', 'kg'],
+    ['ml', 'ML', 'Mililiter', 'ml'],
+    ['liter', 'LITER', 'Liter', 'L']
   ];
   await db.batch([
     ...typeRows.map(([suffix, code, name, canSell, canPurchase, canProduce, canConsume, trackStock]) => db.prepare(`
@@ -55,10 +48,10 @@ export async function ensureManufacturingDefaults(db, storeId) {
         id, store_id, code, name, can_sell, can_purchase, can_produce, can_consume, track_stock, is_active
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `).bind(`item_type_${storeId}_${suffix}`, storeId, code, name, canSell, canPurchase, canProduce, canConsume, trackStock)),
-    ...unitRows.map(([suffix, code, name, symbol, decimalScale]) => db.prepare(`
+    ...unitRows.map(([suffix, code, name, symbol]) => db.prepare(`
       INSERT OR IGNORE INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, 1)
-    `).bind(`unit_${storeId}_${suffix}`, storeId, code, name, symbol, decimalScale))
+      VALUES (?, ?, ?, ?, ?, 0, 1)
+    `).bind(`unit_${storeId}_${suffix}`, storeId, code, name, symbol))
   ]);
 }
 
@@ -114,7 +107,7 @@ async function listRecipeRows(db, storeId, includeArchived = false) {
   const rows = await db.prepare(`
     SELECT r.id, r.output_product_id, p.name AS output_product_name,
            r.output_unit_id, u.symbol AS output_unit_symbol,
-           r.output_quantity_milli, r.revision, r.status, r.notes,
+           r.output_quantity, r.revision, r.status, r.notes,
            r.created_by_role, r.created_by_id, r.created_at, r.archived_at
     FROM manufacturing_recipes r
     JOIN products p ON p.id = r.output_product_id AND p.store_id = r.store_id
@@ -129,7 +122,7 @@ async function listRecipeRows(db, storeId, includeArchived = false) {
   const components = await db.prepare(`
     SELECT c.recipe_id, c.component_product_id, p.name AS component_product_name,
            c.component_unit_id, u.symbol AS component_unit_symbol,
-           c.quantity_milli, c.display_order
+           c.quantity, c.display_order
     FROM manufacturing_recipe_components c
     JOIN products p ON p.id = c.component_product_id AND p.store_id = c.store_id
     JOIN units u ON u.id = c.component_unit_id AND u.store_id = c.store_id
@@ -143,7 +136,7 @@ async function listRecipeRows(db, storeId, includeArchived = false) {
       productName: row.component_product_name,
       unitId: row.component_unit_id,
       unitSymbol: row.component_unit_symbol,
-      quantity: quantityValue(row.quantity_milli),
+      quantity: Number(row.quantity || 0),
       displayOrder: Number(row.display_order || 0)
     });
   }
@@ -153,7 +146,7 @@ async function listRecipeRows(db, storeId, includeArchived = false) {
     outputProductName: row.output_product_name,
     outputUnitId: row.output_unit_id,
     outputUnitSymbol: row.output_unit_symbol,
-    outputQuantity: quantityValue(row.output_quantity_milli),
+    outputQuantity: Number(row.output_quantity || 0),
     revision: Number(row.revision),
     status: row.status,
     notes: row.notes,
@@ -197,25 +190,25 @@ async function recipeWouldCycle(db, storeId, outputProductId, componentProductId
 
 async function createRecipeRevision(db, store, auth, payload) {
   const outputProductId = Number(payload?.outputProductId);
-  const outputQuantityMilli = quantityMilli(payload?.outputQuantity);
+  const outputQuantity = positiveInteger(payload?.outputQuantity);
   const requested = Array.isArray(payload?.components) ? payload.components : [];
-  if (!Number.isInteger(outputProductId) || !outputQuantityMilli || !requested.length) {
-    return { ok: false, response: json({ error: 'Hasil barang, qty hasil, dan minimal satu komponen wajib valid.' }, 400) };
+  if (!Number.isInteger(outputProductId) || !outputQuantity || !requested.length) {
+    return { ok: false, response: json({ error: 'Hasil barang, qty hasil bulat, dan minimal satu komponen wajib valid.' }, 400) };
   }
 
   const normalized = [];
   const seen = new Set();
   for (const [index, component] of requested.entries()) {
     const productId = Number(component?.productId);
-    const qtyMilli = quantityMilli(component?.quantity);
-    if (!Number.isInteger(productId) || !qtyMilli || seen.has(productId)) {
-      return { ok: false, response: json({ error: 'Komponen resep tidak valid atau duplikat.' }, 400) };
+    const quantity = positiveInteger(component?.quantity);
+    if (!Number.isInteger(productId) || !quantity || seen.has(productId)) {
+      return { ok: false, response: json({ error: 'Komponen resep wajib memakai qty bilangan bulat dan tidak boleh duplikat.' }, 400) };
     }
     if (productId === outputProductId) {
       return { ok: false, response: json({ error: 'Barang hasil tidak boleh menjadi komponennya sendiri.' }, 400) };
     }
     seen.add(productId);
-    normalized.push({ productId, quantityMilli: qtyMilli, displayOrder: index + 1 });
+    normalized.push({ productId, quantity, displayOrder: index + 1 });
   }
 
   const output = await db.prepare(`
@@ -260,11 +253,11 @@ async function createRecipeRevision(db, store, auth, payload) {
     `).bind(now, store.id, outputProductId),
     db.prepare(`
       INSERT INTO manufacturing_recipes (
-        id, store_id, output_product_id, output_unit_id, output_quantity_milli,
+        id, store_id, output_product_id, output_unit_id, output_quantity,
         revision, status, notes, created_by_role, created_by_id, created_at, archived_at
       ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, NULL)
     `).bind(
-      recipeId, store.id, outputProductId, output.base_unit_id, outputQuantityMilli,
+      recipeId, store.id, outputProductId, output.base_unit_id, outputQuantity,
       revision, text(payload?.notes, 500), actor.role, actor.id, now
     )
   ];
@@ -273,11 +266,11 @@ async function createRecipeRevision(db, store, auth, payload) {
     statements.push(db.prepare(`
       INSERT INTO manufacturing_recipe_components (
         id, recipe_id, store_id, component_product_id, component_unit_id,
-        quantity_milli, display_order
+        quantity, display_order
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
       `recipe_component_${crypto.randomUUID()}`, recipeId, store.id, item.productId,
-      product.base_unit_id, item.quantityMilli, item.displayOrder
+      product.base_unit_id, item.quantity, item.displayOrder
     ));
   }
   try {
@@ -380,16 +373,15 @@ export async function handleManufacturingMasterApi(request, env, pathname) {
     const code = codeText(body.value?.code, 20);
     const name = text(body.value?.name, 60);
     const symbol = text(body.value?.symbol, 12);
-    const decimalScale = Number(body.value?.decimalScale ?? 0);
-    if (!code || !name || !symbol || !Number.isInteger(decimalScale) || decimalScale < 0 || decimalScale > 3) {
-      return json({ error: 'Kode, nama, simbol, atau presisi satuan tidak valid.' }, 400);
+    if (!code || !name || !symbol || Number(body.value?.decimalScale || 0) !== 0) {
+      return json({ error: 'Satuan wajib memakai qty bulat. Buat satuan terkecil jika membutuhkan pecahan.' }, 400);
     }
     const id = `unit_${crypto.randomUUID()}`;
     try {
       await db.prepare(`
         INSERT INTO units (id, store_id, code, name, symbol, decimal_scale, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, 1)
-      `).bind(id, store.id, code, name, symbol, decimalScale).run();
+        VALUES (?, ?, ?, ?, ?, 0, 1)
+      `).bind(id, store.id, code, name, symbol).run();
     } catch (error) {
       if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode atau nama satuan sudah dipakai.' }, 409);
       throw error;
@@ -406,15 +398,14 @@ export async function handleManufacturingMasterApi(request, env, pathname) {
     if (!current) return json({ error: 'Satuan tidak ditemukan.' }, 404);
     const name = text(body.value?.name, 60);
     const symbol = text(body.value?.symbol, 12);
-    const decimalScale = Number(body.value?.decimalScale ?? 0);
-    if (!name || !symbol || !Number.isInteger(decimalScale) || decimalScale < 0 || decimalScale > 3) {
-      return json({ error: 'Nama, simbol, atau presisi satuan tidak valid.' }, 400);
+    if (!name || !symbol || Number(body.value?.decimalScale || 0) !== 0) {
+      return json({ error: 'Satuan wajib memakai qty bulat. Gunakan satuan terkecil untuk kebutuhan yang sebelumnya pecahan.' }, 400);
     }
     await db.prepare(`
       UPDATE units
-      SET name = ?, symbol = ?, decimal_scale = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+      SET name = ?, symbol = ?, decimal_scale = 0, is_active = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
-    `).bind(name, symbol, decimalScale, body.value?.isActive === false ? 0 : 1, id, store.id).run();
+    `).bind(name, symbol, body.value?.isActive === false ? 0 : 1, id, store.id).run();
     return json({ ok: true });
   }
 

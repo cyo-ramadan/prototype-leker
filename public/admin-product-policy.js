@@ -109,10 +109,9 @@
     return items.map(item => `<option value="${esc(item.id)}" ${String(item.id) === String(selectedId || '') ? 'selected' : ''}>${esc(label(item))}</option>`).join('');
   }
 
-  function accountOptions(type, selectedId, defaultCode) {
+  function accountOptions(type, selectedId) {
     const items = (state.editor?.accountingAccounts || []).filter(account => account.isActive && account.accountType === type);
-    const selected = selectedId || items.find(account => account.code === defaultCode)?.id || '';
-    return `<option value="">Belum dipetakan</option>${optionRows(items, selected, account => `${account.code} · ${account.name}`)}`;
+    return `<option value="" ${selectedId ? '' : 'selected'}>Belum dipetakan</option>${optionRows(items, selectedId || '', account => `${account.code} · ${account.name}`)}`;
   }
 
   function recipesForProduct(productId) {
@@ -134,9 +133,9 @@
     el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
     el('productLinkedRecipe').disabled = !product?.id;
 
-    el('productSalesAccount').innerHTML = accountOptions('REVENUE', product?.accounting?.salesAccountRefId, '4101');
-    el('productInventoryAccount').innerHTML = accountOptions('ASSET', product?.accounting?.inventoryAccountRefId, '1301');
-    el('productCogsAccount').innerHTML = accountOptions('EXPENSE', product?.accounting?.cogsAccountRefId, '5101');
+    el('productSalesAccount').innerHTML = accountOptions('REVENUE', product?.accounting?.salesAccountRefId);
+    el('productInventoryAccount').innerHTML = accountOptions('ASSET', product?.accounting?.inventoryAccountRefId);
+    el('productCogsAccount').innerHTML = accountOptions('EXPENSE', product?.accounting?.cogsAccountRefId);
     renderRecipeNote();
   }
 
@@ -160,7 +159,7 @@
     }
     note.textContent = recipeId
       ? 'Resep tersimpan sebagai linkage barang, tetapi mode STOCK tidak auto-produksi saat dijual.'
-      : 'Mode STOCK menjual dari stok yang sudah tersedia.';
+      : 'Mode STOCK menjual dari stok yang tersedia tanpa auto-produksi.';
   }
 
   function renderAccountingPortal() {

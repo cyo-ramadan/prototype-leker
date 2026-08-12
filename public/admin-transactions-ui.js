@@ -54,7 +54,7 @@
             <button class="mini-btn" data-transaction-filter="SALES" type="button">Penjualan</button>
             <button class="mini-btn" data-transaction-filter="PURCHASES" type="button">Pembelian</button>
             <button class="mini-btn" data-transaction-filter="OPERATIONS" type="button">Operasional</button>
-            <button class="mini-btn" data-transaction-filter="INVENTORY" type="button">Arus Barang</button>
+            <button class="mini-btn" data-transaction-filter="INVENTORY" type="button">Stok & Produksi</button>
             <button class="mini-btn" data-transaction-filter="ASSETS" type="button">Aset</button>
           </div>
           <div class="admin-grid two compact" style="margin-top:12px">
@@ -213,19 +213,36 @@
         </details>`).join('')}</div>` : ''}`;
   }
 
+  function renderProductionDetail(detail) {
+    return `
+      <div class="admin-grid two compact">
+        <div class="admin-tip"><b>Hasil</b><div>${esc(detail.outputProductName)} · ${detail.totalOutputQuantity} ${esc(detail.unitSymbol || '')}</div></div>
+        <div class="admin-tip"><b>Recipe Snapshot</b><div>${esc(detail.recipeId)} · v${detail.recipeRevision} · ${detail.batches} batch</div></div>
+      </div>
+      <div class="admin-tip" style="margin-top:12px">Mode ${esc(detail.mode)}${detail.saleId ? ` · Sale ${esc(detail.saleId)}` : ''}${detail.orderId ? ` · Order ${esc(detail.orderId)}` : ''}</div>
+      <div class="master-list" style="margin-top:12px">${(detail.components || []).map(component => `
+        <div class="master-row"><div class="master-main">
+          <strong>${esc(component.productName)} · ${component.totalQuantity} ${esc(component.unitSymbol || '')}</strong>
+          <div class="master-meta">Per batch ${component.quantityPerBatch} · Unit cost snapshot ${decimalMoney(component.unitCostSnapshot)} · Total cost ${decimalMoney(component.totalCostSnapshot)}</div>
+        </div></div>`).join('') || '<div class="empty">Tidak ada komponen snapshot.</div>'}</div>
+      <div class="admin-tip" style="margin-top:12px"><b>HPP total</b> ${decimalMoney(detail.hppTotal)} · <b>HPP/unit</b> ${decimalMoney(detail.hppPerUnit)}</div>`;
+  }
+
   function renderDetail(detail) {
     const panel = document.getElementById('adminTransactionDetail');
     const content = detail.kind === 'SALE'
       ? renderSaleDetail(detail)
-      : `<div class="admin-tip"><pre style="white-space:pre-wrap;margin:0;font-size:12px">${esc(JSON.stringify(detail.payload || {
-          description: detail.description,
-          amount: detail.amount,
-          supplierName: detail.supplierName,
-          paymentMethod: detail.paymentMethod,
-          approvalStatus: detail.approvalStatus,
-          postingStatus: detail.postingStatus,
-          decisionNote: detail.decisionNote
-        }, null, 2))}</pre></div>`;
+      : detail.kind === 'PRODUCTION'
+        ? renderProductionDetail(detail)
+        : `<div class="admin-tip"><pre style="white-space:pre-wrap;margin:0;font-size:12px">${esc(JSON.stringify(detail.payload || {
+            description: detail.description,
+            amount: detail.amount,
+            supplierName: detail.supplierName,
+            paymentMethod: detail.paymentMethod,
+            approvalStatus: detail.approvalStatus,
+            postingStatus: detail.postingStatus,
+            decisionNote: detail.decisionNote
+          }, null, 2))}</pre></div>`;
     panel.innerHTML = `
       <div class="list-head"><div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div><button id="adminTransactionDetailClose" class="mini-btn" type="button">Tutup</button></div>
       <div style="margin-top:14px">${content}</div>`;

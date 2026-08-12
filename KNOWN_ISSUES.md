@@ -1,6 +1,22 @@
 # Known Issues — Prototype Leker
 
-Tidak ada known issue aktif yang ditambahkan oleh perubahan login/session 0011.
+## Approval posting contract
+
+Approval queue migration `0013_approval_queue.sql` sudah menyediakan staging terpisah untuk `CASH_FLOW`, `GOODS_FLOW`, dan `ASSET`.
+
+Current behavior:
+
+- input Kasir selalu masuk sebagai `approval_status = pending_approval` dan `posting_status = unposted`;
+- Admin Gerai dapat ACC/Reject hanya pada gerainya;
+- Owner dapat ACC/Reject lintas gerai;
+- ACC saat ini mencatat approval tetapi mengubah `posting_status` menjadi `blocked` dengan alasan `POSTING_CONTRACT_REQUIRED`;
+- belum ada saldo kas, stok, atau aset yang dimutasi oleh approval queue.
+
+**Blocker:** canonical posting contract untuk financial ledger/account mapping, inventory movement/valuation, dan asset lifecycle belum tersedia di Prototype Leker. Jangan menghubungkan row approval langsung ke `expenses`, `other_income`, `products`, atau entity aset buatan baru sebagai workaround.
+
+Saat domain contract sudah disetujui, implementasikan posting adapter yang idempotent dan atomic: baca approval snapshot, tulis ke canonical ledger/domain owner, lalu set `posting_status = posted` dan `posted_at` hanya bila seluruh posting berhasil.
+
+## Staff session dan duplicate tab
 
 Issue sebelumnya tentang duplicate cashier tab ditutup oleh kombinasi:
 
@@ -14,4 +30,4 @@ Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live
 
 ## DOC-IMPACT
 
-**REQUIRED** — duplicate staff-tab problem yang sebelumnya unresolved sekarang memiliki implemented mitigation dan regression coverage pada changeset auth 0011.
+**REQUIRED** — approval queue kini memiliki unresolved posting-contract gate yang harus tetap visible sampai canonical ledger/inventory/asset behavior ditetapkan. Session/tab mitigation 0011 tetap dianggap implemented.

@@ -101,3 +101,11 @@ test('admin groups master entities under Master while stock and transactions rem
   assert.match(stockUi, /dataset\.tab = 'stock'/);
   assert.match(transactionUi, /dataset\.tab = 'transactions'/);
 });
+
+test('Master dropdown escapes the horizontally scrolling tab container', () => {
+  assert.match(masterMenuUi, /\.admin-master-menu-panel\{position:fixed/);
+  assert.match(masterMenuUi, /document\.body\.appendChild\(panel\)/);
+  assert.match(masterMenuUi, /panel\.contains\(event\.target\)/);
+  assert.match(masterMenuUi, /aria-expanded/);
+  assert.match(masterMenuUi, /window\.addEventListener\('resize', positionPanel/);
+});

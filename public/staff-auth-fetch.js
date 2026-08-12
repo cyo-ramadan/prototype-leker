@@ -4,7 +4,6 @@
   function isStaffApi(url) {
     return url.origin === location.origin && (
       url.pathname.startsWith('/api/cashier/') ||
-      url.pathname.startsWith('/api/cashdrawer/') ||
       url.pathname.startsWith('/api/staff/')
     );
   }
@@ -18,6 +17,9 @@
     const token = sessionStorage.getItem('lekerCashierToken') || '';
     if (token) headers.set('Authorization', `Bearer ${token}`);
     else headers.delete('Authorization');
+
+    const body = Object.prototype.hasOwnProperty.call(init, 'body') ? init.body : null;
+    if (body instanceof FormData) headers.delete('Content-Type');
 
     const nextInit = { ...init, headers };
     return request

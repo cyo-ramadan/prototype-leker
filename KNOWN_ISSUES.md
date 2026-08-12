@@ -1,20 +1,32 @@
 # Known Issues — Prototype Leker
 
-## Approval posting contract
+## Approval posting contract — resolved by V1
 
-Approval queue migration `0013_approval_queue.sql` sudah menyediakan staging terpisah untuk `CASH_FLOW`, `GOODS_FLOW`, dan `ASSET`.
+The posting-contract blocker introduced with approval queue 0013 is resolved by:
+
+- `contracts/operational-posting-v1.md`;
+- ADR-010;
+- migration `0014_operational_posting_ledgers.sql`;
+- `src/operational-posting.js`.
 
 Current behavior:
 
-- input Kasir selalu masuk sebagai `approval_status = pending_approval` dan `posting_status = unposted`;
-- Admin Gerai dapat ACC/Reject hanya pada gerainya;
-- Owner dapat ACC/Reject lintas gerai;
-- ACC saat ini mencatat approval tetapi mengubah `posting_status` menjadi `blocked` dengan alasan `POSTING_CONTRACT_REQUIRED`;
-- belum ada saldo kas, stok, atau aset yang dimutasi oleh approval queue.
+- Kasir entry remains `pending_approval` + `unposted`;
+- Admin Gerai can ACC/Reject only within its store;
+- Owner can ACC/Reject across stores;
+- ACC atomically writes the V1 domain movement and marks the approval `approved` + `posted`;
+- failed non-negative stock/asset checks roll back the full batch and leave the request pending;
+- CASH_FLOW affects drawer expected cash only after posting;
+- GOODS_FLOW updates the quantity ledger/balance only after posting;
+- ASSET updates aggregate asset-value ledger/balance only after posting.
 
-**Blocker:** canonical posting contract untuk financial ledger/account mapping, inventory movement/valuation, dan asset lifecycle belum tersedia di Prototype Leker. Jangan menghubungkan row approval langsung ke `expenses`, `other_income`, `products`, atau entity aset buatan baru sebagai workaround.
+V1 intentionally does not define accounting journal/account mapping, inventory costing/valuation, lot/expiry, individual asset depreciation, or production/BOM semantics. Those are future versioned contracts, not blockers for the V1 CASH_FLOW / GOODS_FLOW / ASSET workflow.
 
-Saat domain contract sudah disetujui, implementasikan posting adapter yang idempotent dan atomic: baca approval snapshot, tulis ke canonical ledger/domain owner, lalu set `posting_status = posted` dan `posted_at` hanya bila seluruh posting berhasil.
+## Penyesuaian Stok dan Produksi
+
+The action-bar entry points exist, but their write workflows are not yet active. They require their own versioned contracts because stock adjustment semantics and production recipe/BOM/yield behavior are separate domains from GOODS_FLOW.
+
+This is a visible product limitation, not a blocker for ordinary sales/orders or V1 approval posting.
 
 ## Staff session dan duplicate tab
 
@@ -30,4 +42,4 @@ Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live
 
 ## DOC-IMPACT
 
-**REQUIRED** — approval queue kini memiliki unresolved posting-contract gate yang harus tetap visible sampai canonical ledger/inventory/asset behavior ditetapkan. Session/tab mitigation 0011 tetap dianggap implemented.
+**REQUIRED** — approval posting is now implemented under Operational Posting Contract v1. Remaining inactive Stock Adjustment and Production writes stay explicitly visible until their own contracts are introduced.

@@ -87,12 +87,14 @@ export function buildOperationalPostingStatements(db, request, { approverRole, a
     const delta = payload.direction === 'OUT' ? -Number(payload.quantity) : Number(payload.quantity);
     statements.push(
       db.prepare(`
-        INSERT INTO inventory_stock_balances (store_id, product_id, quantity, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(store_id, product_id) DO UPDATE SET
-          quantity = inventory_stock_balances.quantity + excluded.quantity,
-          updated_at = excluded.updated_at
-      `).bind(request.storeId, payload.productId, delta, now),
+        INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at)
+        VALUES (?, ?, 0, ?)
+      `).bind(request.storeId, payload.productId, now),
+      db.prepare(`
+        UPDATE inventory_stock_balances
+        SET quantity = quantity + ?, updated_at = ?
+        WHERE store_id = ? AND product_id = ?
+      `).bind(delta, now, request.storeId, payload.productId),
       db.prepare(`
         INSERT INTO inventory_ledger_entries (
           id, store_id, drawer_session_id, approval_request_id, product_id, product_name,
@@ -108,12 +110,14 @@ export function buildOperationalPostingStatements(db, request, { approverRole, a
     const delta = payload.direction === 'DECREASE' ? -Number(payload.amount) : Number(payload.amount);
     statements.push(
       db.prepare(`
-        INSERT INTO asset_value_balances (store_id, total_amount, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(store_id) DO UPDATE SET
-          total_amount = asset_value_balances.total_amount + excluded.total_amount,
-          updated_at = excluded.updated_at
-      `).bind(request.storeId, delta, now),
+        INSERT OR IGNORE INTO asset_value_balances (store_id, total_amount, updated_at)
+        VALUES (?, 0, ?)
+      `).bind(request.storeId, now),
+      db.prepare(`
+        UPDATE asset_value_balances
+        SET total_amount = total_amount + ?, updated_at = ?
+        WHERE store_id = ?
+      `).bind(delta, now, request.storeId),
       db.prepare(`
         INSERT INTO asset_ledger_entries (
           id, store_id, drawer_session_id, approval_request_id, direction, amount,

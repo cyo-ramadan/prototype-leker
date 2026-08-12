@@ -10,7 +10,10 @@ import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
+import { handleProductPolicyApi } from './product-policy.js';
+import { handleAdminStockApi } from './admin-stock.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
+import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
@@ -93,8 +96,17 @@ async function handleApi(request, env, url) {
   const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
   if (classificationResponse) return classificationResponse;
 
+  const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
+  if (productPolicyResponse) return productPolicyResponse;
+
   const manufacturingMasterResponse = await handleManufacturingMasterApi(request, env, pathname);
   if (manufacturingMasterResponse) return manufacturingMasterResponse;
+
+  const adminStockResponse = await handleAdminStockApi(request, env, pathname);
+  if (adminStockResponse) return adminStockResponse;
+
+  const adminTransactionDetailResponse = await handleAdminTransactionDetailApi(request, env, pathname);
+  if (adminTransactionDetailResponse) return adminTransactionDetailResponse;
 
   const adminTransactionsResponse = await handleAdminTransactionsApi(request, env, pathname);
   if (adminTransactionsResponse) return adminTransactionsResponse;

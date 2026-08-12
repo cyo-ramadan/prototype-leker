@@ -90,8 +90,8 @@
   }
 
   function removeDuplicateClassificationPanel() {
-    const classification = el('classificationList');
-    classification?.closest('.admin-card')?.remove();
+    const classificationCard = el('classificationList')?.closest('.admin-card');
+    if (classificationCard) classificationCard.style.display = 'none';
     const manufacturing = el('tab-manufacturing');
     if (manufacturing) {
       const eyebrow = manufacturing.querySelector('.admin-eyebrow');
@@ -168,7 +168,7 @@
     const status = el('accountingReferenceStatus');
     const list = el('accountingReferenceList');
     if (!status || !list) return;
-    status.innerHTML = `<b>MAXI_ACCOUNTING_REFERENCE_V1</b> · ${accounts.length} akun referensi dasar · status PROVISIONAL.<br>Next step: bos bisa mulai menetapkan mapping per transaksi tanpa memindahkan journal engine ke Admin.`;
+    status.innerHTML = `<b>MAXI_ACCOUNTING_REFERENCE_V1</b> · ${accounts.length} akun referensi dasar · status PROVISIONAL.<br>Next step: mapping per transaksi dapat ditambahkan tanpa memindahkan journal engine ke Admin.`;
     const groups = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
     list.innerHTML = groups.map(type => {
       const items = accounts.filter(account => account.accountType === type);

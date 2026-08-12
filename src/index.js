@@ -6,7 +6,6 @@ import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js'
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
-import { handleCashDrawerLivePhotoApi } from './cashdrawer-live-photo.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
@@ -95,9 +94,6 @@ async function handleApi(request, env, url) {
 
   const staffPortalResponse = await handleStaffPortalApi(request, env, pathname);
   if (staffPortalResponse) return staffPortalResponse;
-
-  const livePhotoDrawerResponse = await handleCashDrawerLivePhotoApi(request, env, pathname);
-  if (livePhotoDrawerResponse) return livePhotoDrawerResponse;
 
   const cashierWorkspaceResponse = await handleCashierWorkspaceApi(request, env, pathname);
   if (cashierWorkspaceResponse) return cashierWorkspaceResponse;

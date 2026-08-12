@@ -40,9 +40,9 @@
       const eyebrow = manufacturing.querySelector('.admin-eyebrow');
       if (eyebrow) eyebrow.textContent = 'Master Teknis';
       const heading = manufacturing.querySelector('.list-head h2');
-      if (heading && heading.textContent.includes('Barang, Satuan')) heading.textContent = 'Tipe Barang, Satuan & Resep';
+      if (heading && heading.textContent.includes('Barang, Satuan')) heading.textContent = 'Tipe Barang, Jenis Barang, Satuan & Resep';
       const muted = manufacturing.querySelector('.list-head .muted');
-      if (muted) muted.textContent = 'Master reusable untuk tipe barang, satuan terkecil, dan recipe/BOM. Konfigurasi per barang dilakukan dari Master Barang.';
+      if (muted) muted.textContent = 'Master reusable untuk tipe operasional, jenis/accounting classification, satuan terkecil, dan recipe/BOM. Konfigurasi per barang dilakukan dari Master Barang.';
     }
   }
 
@@ -72,6 +72,7 @@
       <button type="button" role="menuitem" data-master-open="cashiers">Kasir / Staf</button>
       <div class="admin-master-menu-separator"></div>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="itemTypeForm">Tipe Barang</button>
+      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="productKindMasterCard">Jenis Barang</button>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="unitForm">Satuan</button>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="recipeForm">Resep / BOM</button>`;
     document.body.appendChild(panel);

@@ -33,6 +33,30 @@ export async function handleAdminPurchaseDetailApi(request, env, pathname) {
   `).bind(store.id, id).first();
   if (!row) return json({ error: 'Detail pembelian tidak ditemukan.' }, 404);
 
+  const itemRows = await env.DB.prepare(`
+    SELECT product_id, product_name, product_kind_id, product_kind_code, product_kind_name,
+           unit_id, unit_symbol, quantity, line_total, unit_cost,
+           average_cost_before, average_cost_after, created_at
+    FROM purchase_items
+    WHERE store_id = ? AND purchase_id = ?
+    ORDER BY product_name COLLATE NOCASE, product_id
+  `).bind(store.id, id).all();
+  const items = (itemRows.results ?? []).map(item => ({
+    productId: Number(item.product_id),
+    productName: item.product_name,
+    productKindId: item.product_kind_id || null,
+    productKindCode: item.product_kind_code || '',
+    productKindName: item.product_kind_name || '',
+    unitId: item.unit_id,
+    unitSymbol: item.unit_symbol || '',
+    quantity: Number(item.quantity || 0),
+    lineTotal: Number(item.line_total || 0),
+    unitCost: Number(item.unit_cost || 0),
+    averageCostBefore: Number(item.average_cost_before || 0),
+    averageCostAfter: Number(item.average_cost_after || 0),
+    occurredAt: item.created_at
+  }));
+
   const transaction = {
     id: row.id,
     kind: 'PURCHASE',
@@ -43,33 +67,39 @@ export async function handleAdminPurchaseDetailApi(request, env, pathname) {
   };
   const snapshot = await getTransactionAccountingSnapshot(env.DB, store.id, 'PURCHASE', row.id);
 
-  return json({
-    store,
-    detail: {
-      kind: 'PURCHASE',
-      id: row.id,
-      description: row.description,
-      amount: Number(row.total_amount || 0),
-      note: row.note || '',
-      paymentMethod: row.payment_method || '',
-      drawerSessionId: row.drawer_session_id || null,
-      cashierId: row.cashier_id || null,
-      cashierName: row.cashier_name || '',
-      supplierId: row.supplier_id || null,
-      supplierName: row.supplier_name || '',
-      occurredAt: row.created_at,
-      accounting: {
-        ...accountingReferenceForTransaction(transaction),
-        transactionLink: snapshot || {
-          contract: 'MAXI_ACCOUNTING_REFERENCE_V1',
-          businessEvent: 'PURCHASE_MATERIAL',
-          paymentMethod: row.payment_method || '',
-          mappingStatus: 'LEGACY_NO_SNAPSHOT',
-          debitAccount: null,
-          creditAccount: null,
-          journalReference: null
-        }
+  const detail = {
+    kind: 'PURCHASE',
+    id: row.id,
+    description: row.description,
+    amount: Number(row.total_amount || 0),
+    note: row.note || '',
+    paymentMethod: row.payment_method || '',
+    drawerSessionId: row.drawer_session_id || null,
+    cashierId: row.cashier_id || null,
+    cashierName: row.cashier_name || '',
+    supplierId: row.supplier_id || null,
+    supplierName: row.supplier_name || '',
+    occurredAt: row.created_at,
+    items,
+    accounting: {
+      ...accountingReferenceForTransaction(transaction),
+      transactionLink: snapshot || {
+        contract: 'MAXI_ACCOUNTING_REFERENCE_V1',
+        businessEvent: 'PURCHASE_MATERIAL',
+        paymentMethod: row.payment_method || '',
+        mappingStatus: 'LEGACY_NO_SNAPSHOT',
+        debitAccount: null,
+        creditAccount: null,
+        journalReference: null
       }
     }
-  });
+  };
+  detail.payload = {
+    description: detail.description,
+    supplierName: detail.supplierName,
+    paymentMethod: detail.paymentMethod,
+    amount: detail.amount,
+    items: detail.items
+  };
+  return json({ store, detail });
 }

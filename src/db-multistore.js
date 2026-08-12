@@ -49,10 +49,13 @@ async function loadItemsForOrders(db, storeId, orderIds) {
 
 export async function listProducts(db, storeId) {
   const result = await db.prepare(`
-    SELECT id, name, price, category, emoji, image_data
-    FROM products
-    WHERE store_id = ? AND is_active = 1
-    ORDER BY display_order ASC, id ASC
+    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data
+    FROM products p
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    WHERE p.store_id = ?
+      AND p.is_active = 1
+      AND COALESCE(t.can_sell, 1) = 1
+    ORDER BY p.display_order ASC, p.id ASC
   `).bind(storeId).all();
   return (result.results ?? []).map(row => ({
     id: row.id,
@@ -68,9 +71,13 @@ export async function getProductsByIds(db, storeId, productIds) {
   const uniqueIds = [...new Set(productIds)];
   if (!uniqueIds.length) return [];
   const result = await db.prepare(`
-    SELECT id, name, price, category, emoji
-    FROM products
-    WHERE store_id = ? AND is_active = 1 AND id IN (${placeholders(uniqueIds.length)})
+    SELECT p.id, p.name, p.price, p.category, p.emoji
+    FROM products p
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    WHERE p.store_id = ?
+      AND p.is_active = 1
+      AND COALESCE(t.can_sell, 1) = 1
+      AND p.id IN (${placeholders(uniqueIds.length)})
   `).bind(storeId, ...uniqueIds).all();
   return result.results ?? [];
 }

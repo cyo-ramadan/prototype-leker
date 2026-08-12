@@ -94,7 +94,7 @@ test('admin groups master entities under Master while stock and transactions rem
   for (const tab of ['products', 'categories', 'suppliers', 'customers', 'cashiers', 'manufacturing']) {
     assert.match(masterMenuUi, new RegExp(`['\"]${tab}['\"]`));
   }
-  assert.match(masterMenuUi, /Master ▾/);
+  assert.match(masterMenuUi, /adminMasterMenuLabel">Master<\/span> ▾/);
   assert.match(masterMenuUi, /Tipe Barang/);
   assert.match(masterMenuUi, /Satuan/);
   assert.match(masterMenuUi, /Resep \/ BOM/);

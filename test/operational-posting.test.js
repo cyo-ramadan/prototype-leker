@@ -26,11 +26,20 @@ test('migration creates isolated idempotent cash inventory and asset ledgers', (
   assert.match(migration, /total_amount INTEGER NOT NULL DEFAULT 0 CHECK \(total_amount >= 0\)/);
 });
 
+test('database triggers prevent posting a request that is no longer pending', () => {
+  assert.match(migration, /trg_cash_ledger_requires_pending_approval/);
+  assert.match(migration, /trg_inventory_ledger_requires_pending_approval/);
+  assert.match(migration, /trg_asset_ledger_requires_pending_approval/);
+  assert.match(migration, /RAISE\(ABORT, 'APPROVAL_NOT_PENDING'\)/);
+  assert.match(posting, /approval_not_pending/);
+  assert.match(approval, /result\.meta\?\.changes/);
+});
+
 test('cash goods and asset staging payloads are normalized server-side', () => {
   assert.match(posting, /requestType === 'CASH_FLOW'/);
   assert.match(posting, /requestType === 'GOODS_FLOW'/);
   assert.match(posting, /requestType === 'ASSET'/);
-  assert.match(posting, /SELECT id, name[\s\S]*FROM products[\s\S]*WHERE store_id = \? AND id = \?/);
+  assert.match(posting, /SELECT id, name FROM products WHERE store_id = \? AND id = \? LIMIT 1/);
   assert.match(approval, /normalizeApprovalPayload/);
 });
 

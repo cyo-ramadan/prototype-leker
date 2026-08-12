@@ -26,6 +26,65 @@
     });
   }
 
+  async function productionDialog() {
+    try {
+      const payload = await api('/api/cashier/production/options');
+      const products = payload.products || [];
+      if (!products.length) {
+        openDialog({
+          eyebrow: 'Laci · Produksi',
+          title: 'Produksi',
+          readOnly: true,
+          body: '<p class="muted">Belum ada barang yang punya resep aktif dan diizinkan sebagai hasil produksi. Atur resep dari Master terlebih dahulu.</p>'
+        });
+        return;
+      }
+      const options = products.map(product => `
+        <option value="${Number(product.productId)}" data-output-qty="${Number(product.outputQuantityPerBatch)}" data-unit="${escapeHtml(product.unitSymbol)}" data-revision="${Number(product.recipeRevision)}">
+          ${escapeHtml(product.productName)} · resep v${Number(product.recipeRevision)}
+        </option>`).join('');
+      openDialog({
+        eyebrow: 'Laci · Produksi',
+        title: 'Produksi dari Resep',
+        body: `
+          <div class="field"><label>Barang hasil</label><select id="manualProductionProduct" class="text-input" required>${options}</select></div>
+          <div class="field"><label>Jumlah batch</label><input id="manualProductionBatches" class="text-input" type="number" min="1" step="1" value="1" required /></div>
+          <div id="manualProductionSummary" class="cashier-lock-note"></div>
+          <p class="muted">Sistem snapshot resep aktif, mengurangi komponen, menambah hasil produksi, dan mencatat mutasi stok dalam satu batch atomic.</p>`,
+        submitText: 'PRODUKSI SEKARANG',
+        onSubmit: async () => {
+          const outputProductId = Number(el('manualProductionProduct').value);
+          const batches = Number(el('manualProductionBatches').value);
+          if (!Number.isInteger(outputProductId) || !Number.isInteger(batches) || batches < 1) {
+            throw new Error('Barang hasil dan jumlah batch wajib valid.');
+          }
+          const result = await api('/api/cashier/production', {
+            method: 'POST',
+            body: JSON.stringify({ outputProductId, batches })
+          });
+          toast(`Produksi tersimpan · ${result.production.totalOutputQuantity} ${result.production.unitSymbol} ${result.production.outputProductName}`);
+          return true;
+        }
+      });
+
+      const renderSummary = () => {
+        const select = el('manualProductionProduct');
+        const batches = Number(el('manualProductionBatches')?.value || 0);
+        const option = select?.selectedOptions?.[0];
+        const qty = Number(option?.dataset.outputQty || 0);
+        const unit = option?.dataset.unit || '';
+        const revision = option?.dataset.revision || '-';
+        const summary = el('manualProductionSummary');
+        if (summary) summary.textContent = batches > 0 ? `Resep v${revision} · hasil ${qty * batches} ${unit}` : 'Jumlah batch minimal 1.';
+      };
+      el('manualProductionProduct')?.addEventListener('change', renderSummary);
+      el('manualProductionBatches')?.addEventListener('input', renderSummary);
+      renderSummary();
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+
   function cashFlowDialog() {
     openDialog({
       eyebrow: 'Laci · Approval Queue',
@@ -104,8 +163,8 @@
     });
   }
 
-  el('stockAdjustmentBtn')?.addEventListener('click', () => pendingContractDialog('Penyesuaian Stok', 'Entry point tersedia. Protocol adjustment akan memakai inventory ledger yang sama, dengan rule snapshot adjustment versioned terpisah.'));
-  el('productionBtn')?.addEventListener('click', () => pendingContractDialog('Produksi', 'Entry point tersedia. Protocol produksi akan dibuat saat recipe/BOM master pertama kali diaktifkan agar input-output produksinya eksplisit.'));
+  el('stockAdjustmentBtn')?.addEventListener('click', () => pendingContractDialog('Penyesuaian Stok', 'Entry point tersedia. Protocol adjustment akan memakai stock movement ledger yang sama, dengan rule snapshot adjustment versioned terpisah.'));
+  el('productionBtn')?.addEventListener('click', productionDialog);
   el('cashFlowBtn')?.addEventListener('click', cashFlowDialog);
   el('goodsFlowBtn')?.addEventListener('click', goodsFlowDialog);
   el('assetBtn')?.addEventListener('click', assetDialog);

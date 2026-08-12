@@ -17,7 +17,6 @@
     <div class="brand"><div class="brand-mark">K</div><div>MAXI LEKER<small id="cashierBrandSub">Cashier Login</small></div></div>
     <div id="cashierTopActions" class="cashier-user-chip hidden">
       <span id="cashierIdentity">Kasir</span>
-      <a id="openKioskLink" class="pill" href="/customer" style="text-decoration:none;color:inherit">Buka Customer</a>
       <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
     </div>
   </header>
@@ -47,6 +46,11 @@
         <button id="purchaseBtn" class="drawer-action-btn" type="button" disabled>🧺 Beli Bahan</button>
         <button id="expenseBtn" class="drawer-action-btn" type="button" disabled>💸 Pengeluaran</button>
         <button id="otherIncomeBtn" class="drawer-action-btn" type="button" disabled>💰 Pendapatan Lain</button>
+        <button id="stockAdjustmentBtn" class="drawer-action-btn" type="button" disabled>🧮 Penyesuaian Stok</button>
+        <button id="productionBtn" class="drawer-action-btn" type="button" disabled>🏭 Produksi</button>
+        <button id="cashFlowBtn" class="drawer-action-btn" type="button" disabled>💱 Arus Kas</button>
+        <button id="goodsFlowBtn" class="drawer-action-btn" type="button" disabled>📦 Arus Barang</button>
+        <button id="assetBtn" class="drawer-action-btn" type="button" disabled>🏷️ Aset</button>
         <button id="drawerDetailsBtn" class="drawer-action-btn" type="button" disabled>📋 Rincian Aktif</button>
       </div>
     </section>
@@ -89,6 +93,8 @@
   </main>
 </div>
 
+<a id="openKioskLink" hidden aria-hidden="true" tabindex="-1"></a>
+
 <dialog id="cashierDialog" class="cashier-dialog">
   <form id="cashierDialogForm" method="dialog">
     <div class="cashier-dialog-head"><div><div id="cashierDialogEyebrow" class="muted">Laci</div><h2 id="cashierDialogTitle">Form</h2></div><button id="cashierDialogClose" class="cart-close-btn" type="button">×</button></div>
@@ -104,5 +110,6 @@
 <script src="/cashier-order-cleanup.js"></script>
 <script src="/cashier-enhancements.js"></script>
 <script src="/cashier-sales-orders.js"></script>
+<script src="/cashier-approval-actions.js"></script>
 </body>
 </html>

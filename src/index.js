@@ -8,6 +8,8 @@ import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
+import { handleManufacturingMasterApi } from './manufacturing-master.js';
+import { handleAdminTransactionsApi } from './admin-transactions.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
@@ -86,6 +88,12 @@ async function handleApi(request, env, url) {
 
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+
+  const manufacturingMasterResponse = await handleManufacturingMasterApi(request, env, pathname);
+  if (manufacturingMasterResponse) return manufacturingMasterResponse;
+
+  const adminTransactionsResponse = await handleAdminTransactionsApi(request, env, pathname);
+  if (adminTransactionsResponse) return adminTransactionsResponse;
 
   if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
 

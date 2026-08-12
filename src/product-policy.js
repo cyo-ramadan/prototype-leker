@@ -103,6 +103,9 @@ export async function handleProductPolicyApi(request, env, pathname) {
   if (productionMode === 'DADAKAN' && (!recipeLinkEnabled || !current.activeRecipe)) {
     return json({ error: 'Mode DADAKAN membutuhkan Link Resep aktif dan resep aktif untuk barang ini.' }, 409);
   }
+  if (productionMode === 'DADAKAN' && !stockTrackingEnabled) {
+    return json({ error: 'Mode DADAKAN wajib mengaktifkan Track & enforce stok.' }, 409);
+  }
 
   const statements = [
     env.DB.prepare(`

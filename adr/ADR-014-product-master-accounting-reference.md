@@ -1,7 +1,9 @@
 # ADR-014 — Product Master Consolidation and Accounting Reference Boundary
 
-Status: ACCEPTED
+Status: SUPERSEDED IN PART by ADR-015
 Date: 2026-08-13
+
+> Historical decision retained. ADR-015 supersedes Product Master ownership of `production_mode`, the product-account-reference direction, and the previously undefined costing seam.
 
 ## Context
 
@@ -46,4 +48,4 @@ All Product Master and Accounting reference reads/writes remain management-authe
 
 ## DOC-IMPACT
 
-**REQUIRED** — contract `product-master-accounting-reference-v1.md`, tests, migration, UI, and this ADR are part of the same change.
+**REQUIRED** — historical ADR retained; current Product Kind/costing/fulfillment boundary is ADR-015.

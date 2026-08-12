@@ -13,6 +13,7 @@ import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
+import { handleAccountingReferenceApi } from './accounting-reference.js';
 import { handleAdminStockApi } from './admin-stock.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
 import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
@@ -101,6 +102,9 @@ async function handleApi(request, env, url) {
 
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
   if (productPolicyResponse) return productPolicyResponse;
+
+  const accountingReferenceResponse = await handleAccountingReferenceApi(request, env, pathname);
+  if (accountingReferenceResponse) return accountingReferenceResponse;
 
   const manufacturingMasterResponse = await handleManufacturingMasterApi(request, env, pathname);
   if (manufacturingMasterResponse) return manufacturingMasterResponse;

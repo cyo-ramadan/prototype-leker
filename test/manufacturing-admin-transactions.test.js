@@ -23,6 +23,10 @@ test('manufacturing master schema separates types, units, recipe headers, and re
   assert.match(migration, /output_quantity_milli INTEGER NOT NULL CHECK \(output_quantity_milli > 0\)/);
   assert.match(migration, /UNIQUE \(store_id, output_product_id, revision\)/);
   assert.match(migration, /WHERE status = 'ACTIVE'/);
+  assert.match(migration, /trg_products_default_manufacturing_metadata/);
+  assert.match(migration, /PRODUCT_MASTER_SCOPE_MISMATCH/);
+  assert.match(migration, /RECIPE_OUTPUT_SCOPE_MISMATCH/);
+  assert.match(migration, /RECIPE_COMPONENT_SCOPE_MISMATCH/);
 });
 
 test('default item types carry policy capabilities and raw material is not sellable', () => {
@@ -30,6 +34,7 @@ test('default item types carry policy capabilities and raw material is not sella
   assert.match(migration, /'RAW_MATERIAL', 'Bahan', 0, 1, 0, 1, 1, 1/);
   assert.match(migration, /'SEMI_FINISHED', 'Bahan Setengah Jadi', 0, 1, 1, 1, 1, 1/);
   assert.match(productDb, /COALESCE\(t\.can_sell, 1\) = 1/);
+  assert.match(migration, /PRODUCT_NOT_SELLABLE/);
   assert.match(classificationApi, /itemTypeId/);
   assert.match(classificationApi, /baseUnitId/);
 });
@@ -46,7 +51,7 @@ test('recipe writes create immutable revisions and reject circular BOMs', () => 
 
 test('admin manufacturing UI is modular and loaded without replacing existing admin listeners', () => {
   assert.match(branchAdmin, /admin-manufacturing\.js/);
-  assert.match(manufacturingUi, /data-tab = 'manufacturing'|dataset\.tab = 'manufacturing'/);
+  assert.match(manufacturingUi, /dataset\.tab = 'manufacturing'/);
   assert.match(manufacturingUi, /Klasifikasi Barang/);
   assert.match(manufacturingUi, /Buat Resep \/ BOM/);
   assert.match(manufacturingUi, /Simpan sebagai revision baru/);
@@ -62,6 +67,8 @@ test('admin transaction explorer reads operational facts lazily and exposes acco
   assert.match(transactionApi, /'OTHER_INCOME'/);
   assert.match(transactionApi, /approval_requests/);
   assert.match(transactionApi, /accountingReferenceForTransaction/);
+  assert.match(transactionApi, /occurred_at = \? AND id < \?/);
+  assert.match(transactionApi, /nextCursor: hasMore && last \? `\$\{last\.occurredAt\}\|\$\{last\.id\}`/);
   assert.match(transactionUi, /Detail jurnal tetap menjadi domain Accounting/);
   assert.doesNotMatch(transactionUi, /setInterval\s*\(/);
 });
@@ -75,10 +82,10 @@ test('accounting connector seam never owns journal interpretation', () => {
 });
 
 test('specific manufacturing routes are evaluated before generic admin route', () => {
-  const classificationPosition = indexSource.indexOf('handleAdminProductClassificationApi');
-  const manufacturingPosition = indexSource.indexOf('handleManufacturingMasterApi(request');
+  const classificationPosition = indexSource.indexOf('const classificationResponse = await handleAdminProductClassificationApi');
+  const manufacturingPosition = indexSource.indexOf('const manufacturingMasterResponse = await handleManufacturingMasterApi');
   const genericAdminPosition = indexSource.indexOf("if (pathname.startsWith('/api/admin/'))");
   assert.ok(classificationPosition >= 0 && manufacturingPosition >= 0 && genericAdminPosition >= 0);
-  assert.ok(classificationPosition < genericAdminPosition);
+  assert.ok(classificationPosition < manufacturingPosition);
   assert.ok(manufacturingPosition < genericAdminPosition);
 });

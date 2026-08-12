@@ -83,9 +83,12 @@ test('admin stock panel exposes balance and lazy stock movement history', () => 
   assert.match(stockUi, /Muat lagi/);
 });
 
-test('transaction detail snapshots sale recipe production and accounting references lazily', () => {
+test('transaction detail snapshots sale HPP, kind, recipe production and accounting references lazily', () => {
   assert.match(transactionDetail, /productionRuns/);
   assert.match(transactionDetail, /recipeRevision/);
+  assert.match(transactionDetail, /unitCostSnapshot/);
+  assert.match(transactionDetail, /lineCogs/);
+  assert.match(transactionDetail, /productKindCode/);
   assert.match(productionDetail, /PRODUCTION_RUN/);
   assert.match(transactionUi, /data-transaction-detail-id/);
   assert.match(transactionUi, /renderProductionDetail/);

@@ -13,6 +13,8 @@ function mapOrderRow(row) {
     generalNote: row.general_note,
     total: row.total_amount,
     status: row.status,
+    source: row.source || 'customer',
+    drawerSessionId: row.drawer_session_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     readyAt: row.ready_at,
@@ -47,10 +49,13 @@ async function loadItemsForOrders(db, storeId, orderIds) {
 
 export async function listProducts(db, storeId) {
   const result = await db.prepare(`
-    SELECT id, name, price, category, emoji, image_data
-    FROM products
-    WHERE store_id = ? AND is_active = 1
-    ORDER BY display_order ASC, id ASC
+    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data
+    FROM products p
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    WHERE p.store_id = ?
+      AND p.is_active = 1
+      AND COALESCE(t.can_sell, 1) = 1
+    ORDER BY p.display_order ASC, p.id ASC
   `).bind(storeId).all();
   return (result.results ?? []).map(row => ({
     id: row.id,
@@ -66,9 +71,13 @@ export async function getProductsByIds(db, storeId, productIds) {
   const uniqueIds = [...new Set(productIds)];
   if (!uniqueIds.length) return [];
   const result = await db.prepare(`
-    SELECT id, name, price, category, emoji
-    FROM products
-    WHERE store_id = ? AND is_active = 1 AND id IN (${placeholders(uniqueIds.length)})
+    SELECT p.id, p.name, p.price, p.category, p.emoji
+    FROM products p
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    WHERE p.store_id = ?
+      AND p.is_active = 1
+      AND COALESCE(t.can_sell, 1) = 1
+      AND p.id IN (${placeholders(uniqueIds.length)})
   `).bind(storeId, ...uniqueIds).all();
   return result.results ?? [];
 }
@@ -76,7 +85,7 @@ export async function getProductsByIds(db, storeId, productIds) {
 export async function listOrders(db, storeId, limit = 100) {
   const result = await db.prepare(`
     SELECT id, store_id, customer_id, order_no, customer_name, table_label, general_note,
-           total_amount, status, created_at, updated_at, ready_at,
+           total_amount, status, source, drawer_session_id, created_at, updated_at, ready_at,
            completed_at, cancelled_at
     FROM orders
     WHERE store_id = ?
@@ -92,7 +101,7 @@ export async function listOrders(db, storeId, limit = 100) {
 export async function getOrder(db, storeId, orderId) {
   const row = await db.prepare(`
     SELECT id, store_id, customer_id, order_no, customer_name, table_label, general_note,
-           total_amount, status, created_at, updated_at, ready_at,
+           total_amount, status, source, drawer_session_id, created_at, updated_at, ready_at,
            completed_at, cancelled_at
     FROM orders
     WHERE store_id = ? AND id = ?
@@ -118,11 +127,12 @@ export async function insertOrder(db, order, items) {
     db.prepare(`
       INSERT INTO orders (
         id, store_id, customer_id, business_date, order_no, customer_name, table_label, general_note,
-        total_amount, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_amount, status, source, drawer_session_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       order.id, order.storeId, order.customerId || null, order.businessDate, order.orderNo, order.customerName,
-      order.tableLabel, order.generalNote, order.total, order.status, order.createdAt, order.updatedAt
+      order.tableLabel, order.generalNote, order.total, order.status, order.source || 'customer', order.drawerSessionId || null,
+      order.createdAt, order.updatedAt
     ),
     ...items.map(item => db.prepare(`
       INSERT INTO order_items (
@@ -141,16 +151,21 @@ export async function insertOrder(db, order, items) {
   await db.batch(statements);
 }
 
-export async function updateOrderStatus(db, storeId, orderId, currentStatus, nextStatus, changedAt) {
+export async function updateOrderStatus(db, storeId, orderId, currentStatus, nextStatus, changedAt, drawerSessionId = null) {
   return db.prepare(`
     UPDATE orders
     SET status = ?, updated_at = ?,
+        drawer_session_id = CASE
+          WHEN ? = 'PREPARING' AND drawer_session_id IS NULL THEN ?
+          ELSE drawer_session_id
+        END,
         ready_at = CASE WHEN ? = 'READY' THEN ? ELSE ready_at END,
         completed_at = CASE WHEN ? = 'COMPLETED' THEN ? ELSE completed_at END,
         cancelled_at = CASE WHEN ? = 'CANCELLED' THEN ? ELSE cancelled_at END
     WHERE store_id = ? AND id = ? AND status = ?
   `).bind(
     nextStatus, changedAt,
+    nextStatus, drawerSessionId,
     nextStatus, changedAt,
     nextStatus, changedAt,
     nextStatus, changedAt,

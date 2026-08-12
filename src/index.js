@@ -4,7 +4,19 @@ import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
+import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
+import { handleCashierProductionApi } from './cashier-production.js';
+import { handleCashierCustomerSearchApi } from './cashier-customers.js';
+import { handleApprovalQueueApi } from './approval-queue.js';
+import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
+import { handleManufacturingMasterApi } from './manufacturing-master.js';
+import { handleAdminProductClassificationApi } from './admin-product-classification.js';
+import { handleProductPolicyApi } from './product-policy.js';
+import { handleAdminStockApi } from './admin-stock.js';
+import { handleAdminTransactionsApi } from './admin-transactions.js';
+import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
+import { handleAdminProductionDetailApi } from './admin-production-detail.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
@@ -38,7 +50,7 @@ async function handleCashierOrders(request, env, pathname) {
     if (!drawerAuth.ok) return drawerAuth.response;
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
-    const result = await changeOrderStatus(env.DB, storeId, statusMatch[1], body.value?.status);
+    const result = await changeOrderStatus(env.DB, storeId, statusMatch[1], body.value?.status, drawerAuth.drawer.id);
     return result.ok ? json(result.order) : json({ error: result.error }, result.status);
   }
 
@@ -69,6 +81,9 @@ async function handleApi(request, env, url) {
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
   if (storeAdminResponse) return storeAdminResponse;
 
+  const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
+  if (approvalResponse) return approvalResponse;
+
   const customerResponse = await handleCustomerApi(request, env, pathname);
   if (customerResponse) return customerResponse;
 
@@ -81,15 +96,46 @@ async function handleApi(request, env, url) {
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
 
-  if (pathname.startsWith('/api/admin/')) {
-    return handleAdminApi(request, env, pathname);
-  }
+  const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
+  if (classificationResponse) return classificationResponse;
+
+  const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
+  if (productPolicyResponse) return productPolicyResponse;
+
+  const manufacturingMasterResponse = await handleManufacturingMasterApi(request, env, pathname);
+  if (manufacturingMasterResponse) return manufacturingMasterResponse;
+
+  const adminStockResponse = await handleAdminStockApi(request, env, pathname);
+  if (adminStockResponse) return adminStockResponse;
+
+  const adminProductionDetailResponse = await handleAdminProductionDetailApi(request, env, pathname);
+  if (adminProductionDetailResponse) return adminProductionDetailResponse;
+
+  const adminTransactionDetailResponse = await handleAdminTransactionDetailApi(request, env, pathname);
+  if (adminTransactionDetailResponse) return adminTransactionDetailResponse;
+
+  const adminTransactionsResponse = await handleAdminTransactionsApi(request, env, pathname);
+  if (adminTransactionsResponse) return adminTransactionsResponse;
+
+  if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
 
   const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);
   if (cashierAuthResponse) return cashierAuthResponse;
 
+  const staffPortalResponse = await handleStaffPortalApi(request, env, pathname);
+  if (staffPortalResponse) return staffPortalResponse;
+
+  const cashierCustomerSearchResponse = await handleCashierCustomerSearchApi(request, env, pathname);
+  if (cashierCustomerSearchResponse) return cashierCustomerSearchResponse;
+
+  const cashierProductionResponse = await handleCashierProductionApi(request, env, pathname);
+  if (cashierProductionResponse) return cashierProductionResponse;
+
   const cashierWorkspaceResponse = await handleCashierWorkspaceApi(request, env, pathname);
   if (cashierWorkspaceResponse) return cashierWorkspaceResponse;
+
+  const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
+  if (trackedSaleResponse) return trackedSaleResponse;
 
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;
@@ -105,13 +151,8 @@ async function handleApi(request, env, url) {
   const store = await requirePublicStore(env, url);
   if (!store) return json({ error: 'Gerai tidak ditemukan atau sedang nonaktif.' }, 404);
 
-  if (request.method === 'GET' && pathname === '/api/menu') {
-    return json(await listProducts(env.DB, store.id));
-  }
-
-  if (request.method === 'GET' && pathname === '/api/store') {
-    return json(await getPublicStore(env.DB, store.id));
-  }
+  if (request.method === 'GET' && pathname === '/api/menu') return json(await listProducts(env.DB, store.id));
+  if (request.method === 'GET' && pathname === '/api/store') return json(await getPublicStore(env.DB, store.id));
 
   const orderMatch = pathname.match(/^\/api\/orders\/([^/]+)$/);
   if (request.method === 'GET' && orderMatch) {
@@ -143,6 +184,7 @@ function assetRoute(pathname) {
     '/': '/customer.html',
     '/customer': '/customer.html',
     '/cashier': '/cashier.html',
+    '/staff': '/staff.html',
     '/admin': '/owner.html',
     '/owner': '/owner.html'
   };

@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { listProducts } from './db-multistore.js';
 import { requireCashier } from './cashier-auth.js';
 import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
+import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const money = value => {
@@ -146,17 +147,41 @@ export async function handleCashierDrawerApi(request, env, pathname) {
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/close') {
     const ownership = await requireDrawerOwner(db, cashier);
     if (!ownership.ok) return ownership.response;
-    const body = await readJson(request);
-    if (!body.ok) return json({ error: 'Payload tutup laci tidak valid.' }, 400);
-    const closingAmount = money(body.value?.closingAmount);
+
+    let closingAmount;
+    let closingNote = '';
+    let photo = null;
+    if (isMultipartRequest(request)) {
+      const form = await request.formData();
+      closingAmount = money(form.get('closingAmount'));
+      closingNote = text(form.get('closingNote'), 500);
+      photo = await readLivePhoto(form, 'photo');
+      if (!photo.ok) return json({ error: photo.error }, photo.status);
+    } else {
+      const body = await readJson(request);
+      if (!body.ok) return json({ error: 'Payload tutup laci tidak valid.' }, 400);
+      closingAmount = money(body.value?.closingAmount);
+      closingNote = text(body.value?.closingNote, 500);
+    }
     if (closingAmount === null) return json({ error: 'Saldo akhir laci wajib berupa angka valid.' }, 400);
+
     const now = new Date().toISOString();
-    await db.prepare(`
-      UPDATE cash_drawer_sessions
-      SET closing_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?
-      WHERE id = ? AND cashier_id = ? AND status = 'OPEN'
-    `).bind(closingAmount, now, text(body.value?.closingNote, 500), ownership.drawer.id, cashier.id).run();
-    return json({ ok: true, drawerId: ownership.drawer.id, closedAt: now });
+    const result = photo
+      ? await db.prepare(`
+          UPDATE cash_drawer_sessions
+          SET closing_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?,
+              closing_photo = ?, closing_photo_type = ?
+          WHERE id = ? AND cashier_id = ? AND status = 'OPEN'
+        `).bind(closingAmount, now, closingNote, photo.bytes, photo.type, ownership.drawer.id, cashier.id).run()
+      : await db.prepare(`
+          UPDATE cash_drawer_sessions
+          SET closing_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?
+          WHERE id = ? AND cashier_id = ? AND status = 'OPEN'
+        `).bind(closingAmount, now, closingNote, ownership.drawer.id, cashier.id).run();
+    if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
+      return json({ error: 'Laci sudah berubah status di request lain.' }, 409);
+    }
+    return json({ ok: true, drawerId: ownership.drawer.id, closedAt: now, photoType: photo?.type || null });
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/menu') {

@@ -26,7 +26,7 @@ test('runtime resolves store context server-side before public data access', asy
   assert.match(index, /resolveStore/);
   assert.match(index, /storeTokenFromUrl/);
   assert.match(index, /\/s\\\/\(\[\^\/\]\+\)/);
-  assert.match(db, /WHERE store_id = \? AND is_active = 1/);
+  assert.match(db, /WHERE p\.store_id = \?[\s\S]*?p\.is_active = 1[\s\S]*?COALESCE\(t\.can_sell, 1\) = 1/);
   assert.match(db, /WHERE store_id = \?\n    ORDER BY created_at DESC/);
   assert.match(db, /WHERE store_id = \? AND id = \?/);
 });

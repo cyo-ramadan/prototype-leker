@@ -7,11 +7,11 @@ const cashierFlow = readFileSync(new URL('../public/cashier-sales-orders.js', im
 const customerHtml = readFileSync(new URL('../public/customer.html', import.meta.url), 'utf8');
 const customerStatus = readFileSync(new URL('../public/customer-order-status.js', import.meta.url), 'utf8');
 
-test('cashier exposes Penjualan, Menu, and Pesanan as explicit input modes', () => {
+test('cashier exposes drawer-bound Penjualan, Buku Menu, and Pesanan modes', () => {
   assert.match(cashierHtml, /cashier-sales-orders\.js/);
   assert.match(cashierFlow, /data-cashier-workspace-mode="sales"/);
   assert.match(cashierFlow, /🧾 Penjualan/);
-  assert.match(cashierFlow, /📖 Menu/);
+  assert.match(cashierFlow, /📖 Buku Menu/);
   assert.match(cashierFlow, /📥 Pesanan/);
   assert.match(cashierFlow, /id="cashierProductSearch"/);
 });

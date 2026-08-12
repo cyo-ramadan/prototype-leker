@@ -161,6 +161,10 @@ Promotion, Masak, Stok Sisa, dan Penyesuaian Stok masih explicit empty sections 
 - `0009_branch_admin_and_demo_accounts.sql` — Admin Gerai + demo credentials.
 - `0010_customer_registration_points_order_ux.sql` — pending registration requests + distinct G002 demo menu.
 - `0011_staff_single_session.sql` — single active staff session invariant; customer session tetap multi-session.
+- `0012_drawer_bound_sales_orders.sql` — drawer-bound order source + sale lineage.
+- `0013_approval_queue.sql` — isolated approval staging.
+- `0014_operational_posting_ledgers.sql` — operational cash/inventory/asset posting V1.
+- `0015_staff_attendance_live_photo.sql` — drawer-close Live Photo + staff attendance.
 
 ## Relevant APIs
 
@@ -179,6 +183,12 @@ Customer:
 Cashier:
 
 - `GET /api/cashier/workspace`
+- `POST /api/cashier/drawer/close` — JSON compatibility atau multipart Live Photo.
+
+Portal Staf:
+
+- `GET /api/staff/portal`
+- `POST /api/staff/attendance`
 
 Admin Gerai customer approval:
 
@@ -203,6 +213,8 @@ Database Dwicahya tidak digunakan untuk prototype.
 
 `npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`.
 
+GitHub Actions `.github/workflows/ci-deploy.yml` menjalankan `npm run check` + `npm test` pada PR. Push `main`/manual dispatch menjalankan remote migration dan deploy setelah quality gate lolos.
+
 ## Architecture decisions
 
 - `adr/ADR-001-owner-branch-drawer-hierarchy.md`
@@ -211,7 +223,11 @@ Database Dwicahya tidak digunakan untuk prototype.
 - `adr/ADR-004-store-admin-role-and-demo-accounts.md`
 - `adr/ADR-005-customer-approval-and-order-identity.md`
 - `adr/ADR-006-separated-customer-staff-login.md`
+- `adr/ADR-008-drawer-bound-sales-order-drafts.md`
+- `adr/ADR-009-approval-queue-and-drawer-action-bar.md`
+- `adr/ADR-010-operational-posting-v1.md`
+- `adr/ADR-011-live-photo-staff-portal.md`
 
 ## DOC-IMPACT
 
-**REQUIRED** — login boundary berubah menjadi Pelanggan/Karyawan, staff session/tab exclusivity menjadi security invariant, dan cashier refresh/bootstrap berubah menjadi snapshot-based request discipline.
+**REQUIRED** — login boundary berubah menjadi Pelanggan/Karyawan, staff session/tab exclusivity menjadi security invariant, cashier refresh/bootstrap berubah menjadi snapshot-based request discipline, dan changeset terbaru menambah drawer-bound transactions, approval posting V1, reusable Live Photo, Portal Staf attendance, serta CI/deploy gate.

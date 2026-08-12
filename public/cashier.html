@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/drawer-report.css" />
   <script src="/staff-entry-guard.js"></script>
   <script src="/staff-tab-lock.js"></script>
+  <script src="/staff-auth-fetch.js"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -17,7 +18,7 @@
     <div class="brand"><div class="brand-mark">K</div><div>MAXI LEKER<small id="cashierBrandSub">Cashier Login</small></div></div>
     <div id="cashierTopActions" class="cashier-user-chip hidden">
       <span id="cashierIdentity">Kasir</span>
-      <a id="openKioskLink" class="pill" href="/customer" style="text-decoration:none;color:inherit">Buka Customer</a>
+      <a class="secondary-btn" href="/staff" style="text-decoration:none;color:inherit">Portal Staf</a>
       <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
     </div>
   </header>
@@ -47,6 +48,11 @@
         <button id="purchaseBtn" class="drawer-action-btn" type="button" disabled>🧺 Beli Bahan</button>
         <button id="expenseBtn" class="drawer-action-btn" type="button" disabled>💸 Pengeluaran</button>
         <button id="otherIncomeBtn" class="drawer-action-btn" type="button" disabled>💰 Pendapatan Lain</button>
+        <button id="stockAdjustmentBtn" class="drawer-action-btn" type="button" disabled>🧮 Penyesuaian Stok</button>
+        <button id="productionBtn" class="drawer-action-btn" type="button" disabled>🏭 Produksi</button>
+        <button id="cashFlowBtn" class="drawer-action-btn" type="button" disabled>💱 Arus Kas</button>
+        <button id="goodsFlowBtn" class="drawer-action-btn" type="button" disabled>📦 Arus Barang</button>
+        <button id="assetBtn" class="drawer-action-btn" type="button" disabled>🏷️ Aset</button>
         <button id="drawerDetailsBtn" class="drawer-action-btn" type="button" disabled>📋 Rincian Aktif</button>
       </div>
     </section>
@@ -81,13 +87,15 @@
       </div>
       <section class="columns">
         <div class="column"><div class="column-title"><h2>🧾 Pesanan Baru</h2><span id="badgeNew" class="badge">0</span></div><div id="colNew"></div></div>
-        <div class="column"><div class="column-title"><h2>🥞 Sedang Dibuat</h2><span id="badgePrep" class="badge">0</span></div><div id="colPrep"></div></div>
+        <div class="column"><div class="column-title"><h2>🥞 Sedang Dibuat</h2><span id="badgePrep">0</span></div><div id="colPrep"></div></div>
         <div class="column"><div class="column-title"><h2>✅ Siap Diambil</h2><span id="badgeReady" class="badge">0</span></div><div id="colReady"></div></div>
       </section>
       <section class="done-list"><h2>Riwayat order selesai</h2><div id="doneList"></div></section>
     </section>
   </main>
 </div>
+
+<a id="openKioskLink" hidden aria-hidden="true" tabindex="-1"></a>
 
 <dialog id="cashierDialog" class="cashier-dialog">
   <form id="cashierDialogForm" method="dialog">
@@ -99,10 +107,13 @@
 
 <script src="/drawer-report-ui.js"></script>
 <script src="/cashier.js"></script>
+<script src="/camera-snapshot-modal.js"></script>
+<script src="/cashier-live-photo.js"></script>
 <script src="/cashier-workspace.js"></script>
 <script src="/cashier-refresh.js"></script>
 <script src="/cashier-order-cleanup.js"></script>
 <script src="/cashier-enhancements.js"></script>
 <script src="/cashier-sales-orders.js"></script>
+<script src="/cashier-approval-actions.js"></script>
 </body>
 </html>

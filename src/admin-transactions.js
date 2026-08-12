@@ -1,6 +1,7 @@
 import { json } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
+import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
 
 const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'INVENTORY', 'ASSETS']);
 const KIND_FILTER = {
@@ -42,7 +43,7 @@ function normalizeRow(row) {
     if (kind === 'CASH_FLOW' || kind === 'ASSET') amount = Number(payload.amount || 0) || null;
     description = approvalDescription(kind, payload);
   }
-  return {
+  const transaction = {
     id: row.id,
     kind,
     occurredAt: row.occurred_at,
@@ -56,6 +57,7 @@ function normalizeRow(row) {
     sourceReference: { type: row.reference_type || kind, id: row.reference_id || row.id },
     operationalPayload: payload
   };
+  return { ...transaction, accounting: accountingReferenceForTransaction(transaction) };
 }
 
 export async function handleAdminTransactionsApi(request, env, pathname) {

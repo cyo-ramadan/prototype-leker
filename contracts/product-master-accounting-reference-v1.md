@@ -1,7 +1,9 @@
 # Product Master & Accounting Reference Contract v1
 
-Status: ACTIVE for Prototype Leker
+Status: SUPERSEDED by `contracts/product-master-accounting-reference-v2.md`
 Version: 1
+
+> Historical contract retained for audit history. Current Product Master/costing behavior is defined by v2 and ADR-015.
 
 ## Purpose
 
@@ -112,4 +114,4 @@ No normal sale/order state machine is changed by this contract.
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract is the current source of truth for Product Master consolidation and the provisional Accounting reference bridge.
+**REQUIRED** — historical v1 retained; current behavior moved to v2.

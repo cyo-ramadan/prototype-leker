@@ -3,9 +3,9 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
+import { listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
-const MODES = new Set(['STOCK', 'DADAKAN']);
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 
 function money(value) {
@@ -62,14 +62,17 @@ async function listActiveRecipes(db, storeId) {
 
 async function listEditorProducts(db, storeId) {
   const rows = await db.prepare(`
-    SELECT p.id, p.name, p.purchase_price, p.price, p.category, p.emoji, p.image_data,
-           p.display_order, p.is_active, p.item_type_id, p.base_unit_id,
-           p.points_per_unit, p.production_mode, p.recipe_link_enabled, p.linked_recipe_id,
-           p.stock_tracking_enabled,
-           t.name AS item_type_name, u.name AS unit_name, u.symbol AS unit_symbol,
+    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data,
+           p.display_order, p.is_active, p.item_type_id, p.product_kind_id, p.base_unit_id,
+           p.points_per_unit, p.recipe_link_enabled, p.linked_recipe_id, p.stock_tracking_enabled,
+           p.average_cost, p.last_purchase_price, p.cost_updated_at, p.last_purchase_at,
+           t.name AS item_type_name,
+           k.code AS product_kind_code, k.name AS product_kind_name,
+           u.name AS unit_name, u.symbol AS unit_symbol,
            b.quantity AS stock_quantity
     FROM products p
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
     WHERE p.store_id = ?
@@ -78,7 +81,6 @@ async function listEditorProducts(db, storeId) {
   return (rows.results ?? []).map(row => ({
     id: Number(row.id),
     name: row.name,
-    purchasePrice: Number(row.purchase_price || 0),
     price: Number(row.price || 0),
     category: row.category,
     emoji: row.emoji,
@@ -87,25 +89,32 @@ async function listEditorProducts(db, storeId) {
     isActive: Boolean(row.is_active),
     itemTypeId: row.item_type_id || null,
     itemTypeName: row.item_type_name || '',
+    productKindId: row.product_kind_id || null,
+    productKindCode: row.product_kind_code || '',
+    productKindName: row.product_kind_name || '',
     baseUnitId: row.base_unit_id || null,
     unitName: row.unit_name || '',
     unitSymbol: row.unit_symbol || '',
     pointsPerUnit: Number(row.points_per_unit || 0),
-    productionMode: row.production_mode || 'STOCK',
     linkedRecipeId: row.linked_recipe_id || null,
     recipeLinkEnabled: Boolean(row.linked_recipe_id || row.recipe_link_enabled),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
-    stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity)
+    stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity),
+    averageCost: Number(row.average_cost || 0),
+    lastPurchasePrice: Number(row.last_purchase_price || 0),
+    costUpdatedAt: row.cost_updated_at || null,
+    lastPurchaseAt: row.last_purchase_at || null
   }));
 }
 
 async function editorPayload(db, store) {
-  const [refs, products, recipes] = await Promise.all([
+  const [refs, productKinds, products, recipes] = await Promise.all([
     getManufacturingReferenceData(db, store.id),
+    listProductKinds(db, store.id),
     listEditorProducts(db, store.id),
     listActiveRecipes(db, store.id)
   ]);
-  return { store, products, recipes, ...refs };
+  return { store, products, recipes, productKinds, ...refs };
 }
 
 async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId) {
@@ -129,23 +138,25 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
 
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
   const name = text(body?.name, 100);
-  const purchasePrice = money(body?.purchasePrice);
   const price = money(body?.price);
   const category = text(body?.category, 60);
   const emoji = text(body?.emoji, 8) || '🥞';
   const productImage = imageData(body?.imageData);
   const pointsPerUnit = nonNegativeInteger(body?.pointsPerUnit ?? 0);
-  const productionMode = String(body?.productionMode || 'STOCK').trim().toUpperCase();
   const stockTrackingEnabled = body?.stockTrackingEnabled !== false;
 
-  if (!name || purchasePrice === null || price === null || !category || productImage === null) {
-    return { ok: false, status: 400, error: 'Nama, kategori, harga beli/jual, atau foto barang tidak valid.' };
+  if (!name || price === null || !category || productImage === null) {
+    return { ok: false, status: 400, error: 'Nama, kategori, harga jual, atau foto barang tidak valid.' };
   }
   if (pointsPerUnit === null) return { ok: false, status: 400, error: 'Poin barang harus bilangan bulat nol atau positif.' };
-  if (!MODES.has(productionMode)) return { ok: false, status: 400, error: 'Mode barang harus STOCK atau DADAKAN.' };
 
   const refs = await resolveProductMasterReferences(db, storeId, body?.itemTypeId, body?.baseUnitId);
   if (!refs.ok) return { ok: false, status: 400, error: refs.error };
+
+  const kind = await resolveProductKind(db, storeId, body?.productKindId, {
+    allowInactive: Boolean(current?.product_kind_id && current.product_kind_id === body?.productKindId)
+  });
+  if (!kind.ok) return { ok: false, status: 400, error: kind.error };
 
   if (current) {
     const unitGuard = await validateBaseUnitChange(db, storeId, productId, current.base_unit_id, refs.baseUnitId);
@@ -160,26 +171,19 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     recipeLink = await resolveLinkedRecipe(db, storeId, productId, body.linkedRecipeId);
     if (!recipeLink.ok) return { ok: false, status: 400, error: recipeLink.error };
   }
-  if (productionMode === 'DADAKAN' && !recipeLink.recipe) {
-    return { ok: false, status: 409, error: 'Mode DADAKAN membutuhkan Recipe Linked dari Master Resep.' };
-  }
-  if (productionMode === 'DADAKAN' && !stockTrackingEnabled) {
-    return { ok: false, status: 409, error: 'Mode DADAKAN wajib mengaktifkan tracking stok.' };
-  }
 
   return {
     ok: true,
     name,
-    purchasePrice,
     price,
     category,
     emoji,
     productImage,
     isActive: body?.isActive === false ? 0 : 1,
     itemTypeId: refs.itemTypeId,
+    productKindId: kind.productKindId,
     baseUnitId: refs.baseUnitId,
     pointsPerUnit,
-    productionMode,
     linkedRecipeId: recipeLink.linkedRecipeId,
     recipeLinkEnabled: recipeLink.recipe ? 1 : 0,
     stockTrackingEnabled: stockTrackingEnabled ? 1 : 0
@@ -211,15 +215,14 @@ export async function handleProductMasterApi(request, env, pathname) {
       env.DB.prepare(`
         INSERT INTO products (
           id, store_id, name, purchase_price, price, category, emoji, image_data,
-          display_order, is_active, item_type_id, base_unit_id,
-          points_per_unit, production_mode, recipe_link_enabled, linked_recipe_id,
-          stock_tracking_enabled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          display_order, is_active, item_type_id, product_kind_id, base_unit_id,
+          points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled
+        ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
+        id, store.id, normalized.name, normalized.price,
         normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
-        normalized.isActive, normalized.itemTypeId, normalized.baseUnitId,
-        normalized.pointsPerUnit, normalized.productionMode, normalized.recipeLinkEnabled,
+        normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
+        normalized.pointsPerUnit, normalized.recipeLinkEnabled,
         normalized.linkedRecipeId, normalized.stockTrackingEnabled
       )
     ];
@@ -239,7 +242,7 @@ export async function handleProductMasterApi(request, env, pathname) {
 
   const productId = Number(match[1]);
   const current = await env.DB.prepare(`
-    SELECT id, base_unit_id FROM products WHERE id = ? AND store_id = ?
+    SELECT id, base_unit_id, product_kind_id FROM products WHERE id = ? AND store_id = ?
   `).bind(productId, store.id).first();
   if (!current) return json({ error: 'Barang tidak ditemukan di gerai ini.' }, 404);
 
@@ -252,16 +255,15 @@ export async function handleProductMasterApi(request, env, pathname) {
   const statements = [
     env.DB.prepare(`
       UPDATE products
-      SET name = ?, purchase_price = ?, price = ?, category = ?, emoji = ?, image_data = ?,
-          is_active = ?, item_type_id = ?, base_unit_id = ?, points_per_unit = ?,
-          production_mode = ?, recipe_link_enabled = ?, linked_recipe_id = ?,
-          stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
+      SET name = ?, price = ?, category = ?, emoji = ?, image_data = ?,
+          is_active = ?, item_type_id = ?, product_kind_id = ?, base_unit_id = ?, points_per_unit = ?,
+          recipe_link_enabled = ?, linked_recipe_id = ?, stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
-      normalized.name, normalized.purchasePrice, normalized.price, normalized.category,
+      normalized.name, normalized.price, normalized.category,
       normalized.emoji, normalized.productImage, normalized.isActive,
-      normalized.itemTypeId, normalized.baseUnitId, normalized.pointsPerUnit,
-      normalized.productionMode, normalized.recipeLinkEnabled, normalized.linkedRecipeId,
+      normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId, normalized.pointsPerUnit,
+      normalized.recipeLinkEnabled, normalized.linkedRecipeId,
       normalized.stockTrackingEnabled, productId, store.id
     )
   ];

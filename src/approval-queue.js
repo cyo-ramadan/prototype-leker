@@ -90,29 +90,14 @@ async function handleCashierApprovalQueue(request, env, pathname) {
         id, store_id, drawer_session_id, cashier_id, request_type,
         approval_status, posting_status, payload_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 'pending_approval', 'unposted', ?, ?, ?)
-    `).bind(
-      id,
-      auth.cashier.store.id,
-      drawerAuth.drawer.id,
-      auth.cashier.id,
-      requestType,
-      payloadJson,
-      now,
-      now
-    ).run();
+    `).bind(id, auth.cashier.store.id, drawerAuth.drawer.id, auth.cashier.id, requestType, payloadJson, now, now).run();
     return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/approval-requests') {
     const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
-    return json({
-      requests: await listRequests(env.DB, {
-        storeId: auth.cashier.store.id,
-        drawerId: drawerAuth.drawer.id,
-        cashierId: auth.cashier.id
-      })
-    });
+    return json({ requests: await listRequests(env.DB, { storeId: auth.cashier.store.id, drawerId: drawerAuth.drawer.id, cashierId: auth.cashier.id }) });
   }
 
   return json({ error: 'Route approval kasir tidak ditemukan.' }, 404);
@@ -121,9 +106,7 @@ async function handleCashierApprovalQueue(request, env, pathname) {
 async function managementScope(request, env) {
   const auth = await requireManagement(request, env.DB);
   if (!auth.ok) return auth;
-  if (auth.authType === 'LEGACY_PIN') {
-    return { ok: false, response: json({ error: 'Approval membutuhkan akun Admin Gerai atau Owner.', code: 'ACCOUNT_APPROVAL_REQUIRED' }, 403) };
-  }
+  if (auth.authType === 'LEGACY_PIN') return { ok: false, response: json({ error: 'Approval membutuhkan akun Admin Gerai atau Owner.', code: 'ACCOUNT_APPROVAL_REQUIRED' }, 403) };
   if (auth.admin) return { ...auth, storeId: auth.admin.store.id };
 
   const url = new URL(request.url);
@@ -152,12 +135,8 @@ async function handleManagementApprovalQueue(request, env, pathname) {
     const requestId = decodeURIComponent(decisionMatch[1]);
     const current = await getRequest(env.DB, requestId);
     if (!current) return json({ error: 'Pengajuan tidak ditemukan.' }, 404);
-    if (scope.storeId && current.storeId !== scope.storeId) {
-      return json({ error: 'Pengajuan berada di gerai di luar kewenangan akun ini.', code: 'APPROVAL_STORE_SCOPE_MISMATCH' }, 403);
-    }
-    if (current.approvalStatus !== 'pending_approval' || current.postingStatus !== 'unposted') {
-      return json({ error: 'Pengajuan ini sudah memiliki keputusan atau sudah diproses.' }, 409);
-    }
+    if (scope.storeId && current.storeId !== scope.storeId) return json({ error: 'Pengajuan berada di gerai di luar kewenangan akun ini.', code: 'APPROVAL_STORE_SCOPE_MISMATCH' }, 403);
+    if (current.approvalStatus !== 'pending_approval' || current.postingStatus !== 'unposted') return json({ error: 'Pengajuan ini sudah memiliki keputusan atau sudah diproses.' }, 409);
 
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload keputusan approval tidak valid.' }, 400);
@@ -169,12 +148,12 @@ async function handleManagementApprovalQueue(request, env, pathname) {
     const approverId = scope.owner?.id || scope.admin?.id || '';
 
     if (decision === 'REJECT') {
-      await env.DB.prepare(`
+      const result = await env.DB.prepare(`
         UPDATE approval_requests
-        SET approval_status = 'rejected', decision_note = ?, updated_at = ?, rejected_at = ?,
-            approved_by_role = ?, approved_by_id = ?
+        SET approval_status = 'rejected', decision_note = ?, updated_at = ?, rejected_at = ?, approved_by_role = ?, approved_by_id = ?
         WHERE id = ? AND approval_status = 'pending_approval' AND posting_status = 'unposted'
       `).bind(note, now, now, approverRole, approverId, requestId).run();
+      if (!result.success || Number(result.meta?.changes ?? 0) !== 1) return json({ error: 'Pengajuan sudah diputuskan oleh request lain.' }, 409);
       return json({ ok: true, request: await getRequest(env.DB, requestId), posted: false });
     }
 
@@ -187,12 +166,7 @@ async function handleManagementApprovalQueue(request, env, pathname) {
       throw error;
     }
 
-    return json({
-      ok: true,
-      request: await getRequest(env.DB, requestId),
-      posted: true,
-      message: 'ACC berhasil dan posting snapshot sudah diterapkan.'
-    });
+    return json({ ok: true, request: await getRequest(env.DB, requestId), posted: true, message: 'ACC berhasil dan posting snapshot sudah diterapkan.' });
   }
 
   return json({ error: 'Route management approval tidak ditemukan.' }, 404);

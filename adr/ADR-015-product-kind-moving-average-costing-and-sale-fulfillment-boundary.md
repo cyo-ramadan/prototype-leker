@@ -51,7 +51,7 @@ Migration `0019_product_costing_and_kinds.sql` is additive.
 
 Existing `purchase_price` and `production_mode` columns are retained for compatibility. Application rollback can ignore new Product Kind/costing fields, but after purchase or production cost snapshots exist, destructive schema rollback is not permitted. Recovery must use a forward migration.
 
-Historical products bootstrap average/latest purchase cost from the only previously stored per-product purchase-price estimate where available. This is explicitly a migration estimate because old purchase transactions had no item-level history.
+Historical products may bootstrap `average_cost` from the previously stored per-product `purchase_price` as an opening HPP estimate. The migration does **not** claim that value is an actual latest purchase: `last_purchase_price` / `last_purchase_at` remain unknown until the first new itemized purchase posts.
 
 ## Security and Scope
 

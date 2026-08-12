@@ -36,7 +36,19 @@
     if (request.requestType === 'GOODS_FLOW') {
       return `${payload.direction === 'OUT' ? 'Barang Keluar' : 'Barang Masuk'} · ${esc(payload.productName || `#${payload.productId || ''}`)} · ${Number(payload.quantity || 0)} qty`;
     }
-    return `${esc(payload.description || 'Aset')} · ${payload.referenceValue == null ? 'nilai belum diisi' : money(payload.referenceValue)}`;
+    return `${payload.direction === 'DECREASE' ? 'Kurangi Aset' : 'Tambah Aset'} · ${money(payload.amount)} · ${esc(payload.description || '')}`;
+  }
+
+  function showMessage(message) {
+    if (typeof ownerToast === 'function') {
+      ownerToast(message);
+      return;
+    }
+    const node = document.getElementById('adminToast');
+    if (!node) return;
+    node.textContent = message;
+    node.classList.add('show');
+    setTimeout(() => node.classList.remove('show'), 2200);
   }
 
   function renderQueue(target, requests) {
@@ -50,7 +62,7 @@
         <p>${payloadSummary(request)}</p>
         <div class="muted">${esc(request.payload?.note || '')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC</button>
+          <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC + POSTING</button>
           <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">Reject</button>
         </div>
       </article>`).join('');
@@ -76,16 +88,7 @@
         method: 'PATCH',
         body: JSON.stringify({ decision })
       });
-      if (payload.postingBlocked) {
-        const message = 'ACC tercatat. Posting masih blocked sampai contract ledger/stok/aset tersedia.';
-        if (typeof ownerToast === 'function') ownerToast(message);
-        else if (document.getElementById('adminToast')) {
-          const node = document.getElementById('adminToast');
-          node.textContent = message;
-          node.classList.add('show');
-          setTimeout(() => node.classList.remove('show'), 2200);
-        }
-      }
+      showMessage(payload.posted ? 'ACC berhasil · posting snapshot selesai.' : 'Pengajuan ditolak tanpa posting.');
       await loadQueue();
     } catch (error) {
       alert(error.message);
@@ -101,7 +104,7 @@
     toast.insertAdjacentHTML('beforebegin', `
       <section id="tab-approvals" class="admin-section">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Arus Kas, Arus Barang, dan Aset dari kasir. ACC tidak mengeksekusi posting sebelum domain contract tersedia.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+          <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Arus Kas, Arus Barang, dan Aset dari kasir. ACC mengeksekusi posting snapshot secara atomic sesuai Operational Posting Contract v1.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
           <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
         </div>
       </section>`);
@@ -119,7 +122,7 @@
     if (!app || document.getElementById('ownerApprovalQueue')) return;
     app.insertAdjacentHTML('beforeend', `
       <section id="ownerApprovalQueue" class="admin-card" style="margin-top:18px">
-        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Owner dapat mereview pending approval seluruh gerai.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Owner dapat mereview pending approval seluruh gerai. ACC langsung posting atomic sesuai contract V1.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
         <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
       </section>`);
     document.getElementById('managementApprovalRefresh')?.addEventListener('click', loadQueue);

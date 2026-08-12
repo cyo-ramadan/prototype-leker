@@ -39,8 +39,10 @@ test('ACC writes domain movement and approval posted state in one D1 batch', () 
   assert.match(posting, /INSERT INTO cash_ledger_entries/);
   assert.match(posting, /INSERT INTO inventory_ledger_entries/);
   assert.match(posting, /INSERT INTO asset_ledger_entries/);
-  assert.match(posting, /ON CONFLICT\(store_id, product_id\) DO UPDATE/);
-  assert.match(posting, /ON CONFLICT\(store_id\) DO UPDATE/);
+  assert.match(posting, /INSERT OR IGNORE INTO inventory_stock_balances/);
+  assert.match(posting, /SET quantity = quantity \+ \?/);
+  assert.match(posting, /INSERT OR IGNORE INTO asset_value_balances/);
+  assert.match(posting, /SET total_amount = total_amount \+ \?/);
   assert.match(approval, /await env\.DB\.batch\(statements\)/);
 });
 

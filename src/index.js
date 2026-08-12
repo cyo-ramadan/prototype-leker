@@ -18,6 +18,7 @@ import { handleProductMasterApi } from './product-master.js';
 import { handleAccountingReferenceApi } from './accounting-reference.js';
 import { handleAdminStockApi } from './admin-stock.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
+import { handleAdminPurchaseDetailApi } from './admin-purchase-detail.js';
 import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
 import { handleAdminProductionDetailApi } from './admin-production-detail.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
@@ -119,6 +120,9 @@ async function handleApi(request, env, url) {
 
   const adminProductionDetailResponse = await handleAdminProductionDetailApi(request, env, pathname);
   if (adminProductionDetailResponse) return adminProductionDetailResponse;
+
+  const adminPurchaseDetailResponse = await handleAdminPurchaseDetailApi(request, env, pathname);
+  if (adminPurchaseDetailResponse) return adminPurchaseDetailResponse;
 
   const adminTransactionDetailResponse = await handleAdminTransactionDetailApi(request, env, pathname);
   if (adminTransactionDetailResponse) return adminTransactionDetailResponse;

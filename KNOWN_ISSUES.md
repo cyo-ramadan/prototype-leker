@@ -28,6 +28,12 @@ The action-bar entry points exist, but their write workflows are not yet active.
 
 This is a visible product limitation, not a blocker for ordinary sales/orders or V1 approval posting.
 
+## Portal Staf V1
+
+Live-photo attendance is active for authenticated cashier/employee sessions and is independent from drawer state. KPI, Riwayat Setoran, and Riwayat Gaji are intentionally exposed as isolated empty portal sections until their own versioned data contracts are implemented.
+
+This is not a blocker for attendance or cashier operations.
+
 ## Staff session dan duplicate tab
 
 Issue sebelumnya tentang duplicate cashier tab ditutup oleh kombinasi:
@@ -42,4 +48,4 @@ Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live
 
 ## DOC-IMPACT
 
-**REQUIRED** — approval posting is now implemented under Operational Posting Contract v1. Remaining inactive Stock Adjustment and Production writes stay explicitly visible until their own contracts are introduced.
+**REQUIRED** — approval posting is implemented under Operational Posting Contract v1, and Live Photo / Staff Portal attendance is implemented under `contracts/live-photo-staff-portal-v1.md`. Remaining inactive Stock Adjustment, Production, KPI, Deposit, and Payroll writes stay explicitly visible until their own contracts are introduced.

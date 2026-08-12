@@ -1,14 +1,102 @@
 (() => {
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
-  const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+  const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 4 }).format(Number(value) || 0);
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
+  const purchaseState = { products: [], rowSeq: 0 };
 
   function insertSalePayment() {
     if (el('salePaymentMethod')) return;
     const note = el('saleNote')?.closest('.field');
     if (!note) return;
     note.insertAdjacentHTML('afterend', '<div class="field"><label>Metode pembayaran</label><select id="salePaymentMethod" class="text-input"><option value="CASH">Tunai</option><option value="NON_CASH">Non Tunai</option></select></div>');
+  }
+
+  function purchaseProductOptions(selectedId = '') {
+    return purchaseState.products.map(product => `<option value="${product.productId}" ${String(product.productId) === String(selectedId) ? 'selected' : ''}>${esc(product.productName)} · ${esc(product.unitSymbol || '-')}</option>`).join('');
+  }
+
+  function updatePurchaseRow(row) {
+    const product = purchaseState.products.find(item => String(item.productId) === String(row.querySelector('[data-purchase-product]')?.value));
+    const quantity = Math.max(0, Number(row.querySelector('[data-purchase-qty]')?.value || 0));
+    const lineTotal = Math.max(0, Number(row.querySelector('[data-purchase-line-total]')?.value || 0));
+    const unitCost = quantity > 0 ? lineTotal / quantity : 0;
+    const info = row.querySelector('[data-purchase-cost-preview]');
+    if (info) {
+      info.textContent = product
+        ? `Unit ${product.unitSymbol || '-'} · Harga/unit ${money(unitCost)} · Avg sekarang ${money(product.averageCost)} · Beli terakhir ${money(product.lastPurchasePrice)}`
+        : 'Pilih barang.';
+    }
+    updatePurchaseTotal();
+  }
+
+  function updatePurchaseTotal() {
+    const rows = [...document.querySelectorAll('[data-purchase-row]')];
+    const total = rows.reduce((sum, row) => sum + Math.max(0, Number(row.querySelector('[data-purchase-line-total]')?.value || 0)), 0);
+    if (el('purchaseItemsTotal')) el('purchaseItemsTotal').textContent = money(total);
+  }
+
+  function addPurchaseRow(productId = '') {
+    const target = el('purchaseItemsRows');
+    if (!target || !purchaseState.products.length) return;
+    const id = ++purchaseState.rowSeq;
+    const selected = productId || purchaseState.products[0].productId;
+    const product = purchaseState.products.find(item => String(item.productId) === String(selected));
+    const suggested = Math.max(0, Math.round(Number(product?.lastPurchasePrice || 0)));
+    target.insertAdjacentHTML('beforeend', `
+      <div data-purchase-row="${id}" style="display:grid;grid-template-columns:minmax(0,1fr) 90px 150px auto;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.08)">
+        <div class="field" style="margin:0"><label>Barang</label><select data-purchase-product class="text-input">${purchaseProductOptions(selected)}</select></div>
+        <div class="field" style="margin:0"><label>Qty</label><input data-purchase-qty class="text-input" type="number" min="1" step="1" value="1" required /></div>
+        <div class="field" style="margin:0"><label>Total baris</label><input data-purchase-line-total class="text-input" type="number" min="1" step="1" value="${suggested || ''}" required /></div>
+        <button data-remove-purchase-row="${id}" class="mini-btn danger" type="button">×</button>
+        <div data-purchase-cost-preview class="muted" style="grid-column:1/-1"></div>
+      </div>`);
+    const row = target.querySelector(`[data-purchase-row="${id}"]`);
+    row.querySelector('[data-purchase-product]')?.addEventListener('change', () => {
+      const next = purchaseState.products.find(item => String(item.productId) === String(row.querySelector('[data-purchase-product]').value));
+      const qty = Math.max(1, Number(row.querySelector('[data-purchase-qty]').value || 1));
+      if (next?.lastPurchasePrice > 0) row.querySelector('[data-purchase-line-total]').value = String(Math.round(next.lastPurchasePrice * qty));
+      updatePurchaseRow(row);
+    });
+    row.querySelector('[data-purchase-qty]')?.addEventListener('input', () => updatePurchaseRow(row));
+    row.querySelector('[data-purchase-line-total]')?.addEventListener('input', () => updatePurchaseRow(row));
+    row.querySelector('[data-remove-purchase-row]')?.addEventListener('click', () => {
+      row.remove();
+      if (!target.children.length) addPurchaseRow();
+      updatePurchaseTotal();
+    });
+    updatePurchaseRow(row);
+  }
+
+  async function preparePurchaseItemsEditor() {
+    if (!el('purchaseItemsEditor') || el('purchaseItemsEditor')?.dataset.loaded === '1') return;
+    const editor = el('purchaseItemsEditor');
+    editor.dataset.loaded = 'loading';
+    try {
+      const payload = await cashierRequest('/api/cashier/purchases/options');
+      purchaseState.products = payload.products || [];
+      editor.dataset.loaded = '1';
+      const rows = el('purchaseItemsRows');
+      rows.innerHTML = '';
+      if (!purchaseState.products.length) {
+        rows.innerHTML = '<div class="muted">Belum ada barang aktif yang bisa dibeli dan ditrack stoknya. Cek Master Barang/Tipe Barang.</div>';
+        el('addPurchaseItemRow').disabled = true;
+        return;
+      }
+      el('addPurchaseItemRow').disabled = false;
+      addPurchaseRow();
+    } catch (error) {
+      editor.dataset.loaded = '';
+      el('purchaseItemsRows').innerHTML = `<div class="muted">${esc(error.message)}</div>`;
+    }
+  }
+
+  function purchaseItemsPayload() {
+    return [...document.querySelectorAll('[data-purchase-row]')].map(row => ({
+      productId: Number(row.querySelector('[data-purchase-product]')?.value),
+      quantity: Number(row.querySelector('[data-purchase-qty]')?.value),
+      lineTotal: Number(row.querySelector('[data-purchase-line-total]')?.value)
+    }));
   }
 
   function enhanceDialog() {
@@ -21,15 +109,37 @@
     if (title === 'Tutup Laci' && !el('dialogClosingNote')) {
       body.insertAdjacentHTML('beforeend', '<div class="field"><label>Keterangan pulang <span class="muted">optional</span></label><textarea id="dialogClosingNote" rows="3" maxlength="500" placeholder="Catatan akhir shift"></textarea></div>');
     }
-    if (title === 'Beli Bahan' && !el('dialogPaymentMethod')) {
-      body.insertAdjacentHTML('beforeend', `
-        <div class="field"><label>Cara bayar</label><select id="dialogPaymentMethod" class="text-input">
-          <option value="CASH">Cash / Kas</option>
-          <option value="BANK">Bank / Transfer</option>
-          <option value="PAYABLE">Hutang / Utang Usaha</option>
-        </select></div>
-        <p class="muted">Cara bayar dipakai untuk Accounting mapping. Contoh: pembelian bahan cash → Dr Persediaan Bahan / Cr Kas.</p>`);
-      if (el('cashierDialogEyebrow')) el('cashierDialogEyebrow').textContent = 'Pembelian · Business Fact';
+    if (title === 'Beli Bahan') {
+      if (!el('purchaseItemsEditor')) {
+        const descriptionField = el('dialogPurchaseDescription')?.closest('.field');
+        const amountField = el('dialogPurchaseAmount')?.closest('.field');
+        if (descriptionField) descriptionField.style.display = 'none';
+        if (amountField) amountField.style.display = 'none';
+        if (el('dialogPurchaseDescription')) el('dialogPurchaseDescription').required = false;
+        if (el('dialogPurchaseAmount')) el('dialogPurchaseAmount').required = false;
+        const noteField = el('dialogPurchaseNote')?.closest('.field');
+        const markup = `
+          <div id="purchaseItemsEditor" class="field">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><label>Barang Pembelian</label><button id="addPurchaseItemRow" class="mini-btn" type="button">+ Barang</button></div>
+            <div id="purchaseItemsRows"></div>
+            <div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:900"><span>Total Pembelian</span><span id="purchaseItemsTotal">${money(0)}</span></div>
+            <p class="muted">Qty memakai satuan dasar terkecil dan wajib bulat. Average Cost/HPP serta Harga Beli Terakhir di Master Barang diupdate otomatis saat transaksi tersimpan.</p>
+          </div>`;
+        if (noteField) noteField.insertAdjacentHTML('beforebegin', markup);
+        else body.insertAdjacentHTML('beforeend', markup);
+        el('addPurchaseItemRow')?.addEventListener('click', () => addPurchaseRow());
+      }
+      if (!el('dialogPaymentMethod')) {
+        body.insertAdjacentHTML('beforeend', `
+          <div class="field"><label>Cara bayar</label><select id="dialogPaymentMethod" class="text-input">
+            <option value="CASH">Cash / Kas</option>
+            <option value="BANK">Bank / Transfer</option>
+            <option value="PAYABLE">Hutang / Utang Usaha</option>
+          </select></div>
+          <p class="muted">Cara bayar dipakai untuk Accounting mapping. Cash mengurangi ekspektasi kas laci; Bank/Hutang tidak.</p>`);
+        if (el('cashierDialogEyebrow')) el('cashierDialogEyebrow').textContent = 'Pembelian · Stock + Cost Fact';
+      }
+      preparePurchaseItemsEditor();
     }
     if (title === 'Pengeluaran' && !el('dialogPaymentMethod')) {
       body.insertAdjacentHTML('beforeend', '<div class="field"><label>Metode pembayaran</label><select id="dialogPaymentMethod" class="text-input"><option value="CASH">Tunai</option><option value="NON_CASH">Non Tunai</option></select></div>');
@@ -53,7 +163,13 @@
     let body;
     try { body = init.body ? JSON.parse(init.body) : {}; } catch { return originalFetch(input, init); }
     if (url.pathname === '/api/cashier/sales') body.paymentMethod = el('salePaymentMethod')?.value || 'CASH';
-    if (url.pathname === '/api/cashier/purchases' || url.pathname === '/api/cashier/expenses') body.paymentMethod = el('dialogPaymentMethod')?.value || 'CASH';
+    if (url.pathname === '/api/cashier/purchases') {
+      body.paymentMethod = el('dialogPaymentMethod')?.value || 'CASH';
+      body.items = purchaseItemsPayload();
+      body.description = '';
+      body.totalAmount = body.items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
+    }
+    if (url.pathname === '/api/cashier/expenses') body.paymentMethod = el('dialogPaymentMethod')?.value || 'CASH';
     if (url.pathname === '/api/cashier/drawer/open') body.shiftLabel = el('dialogShiftLabel')?.value || '';
     if (url.pathname === '/api/cashier/drawer/close') body.closingNote = el('dialogClosingNote')?.value || '';
     return originalFetch(input, { ...init, body: JSON.stringify(body) });

@@ -56,6 +56,7 @@ async function loadSaleProducts(db, storeId, productIds) {
            p.production_mode, p.recipe_link_enabled, p.stock_tracking_enabled,
            u.symbol AS unit_symbol,
            COALESCE(t.track_stock, 1) AS type_track_stock,
+           COALESCE(t.can_produce, 1) AS can_produce,
            r.id AS recipe_id, r.revision AS recipe_revision, r.output_quantity AS recipe_output_quantity
     FROM products p
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
@@ -74,6 +75,7 @@ async function loadSaleProducts(db, storeId, productIds) {
     recipeLinkEnabled: Boolean(row.recipe_link_enabled),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
     trackStock: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
+    canProduce: Boolean(row.can_produce),
     recipe: row.recipe_id ? {
       id: row.recipe_id,
       revision: Number(row.recipe_revision || 0),
@@ -108,6 +110,57 @@ async function loadRecipeComponents(db, storeId, recipeIds) {
     });
   }
   return grouped;
+}
+
+function productionRunStatements(db, {
+  runId, storeId, drawerId, saleId, mode, product, recipe, batches,
+  requestedSaleQuantity, components, actorRole, actorId, now, notePrefix
+}) {
+  const totalOutputQuantity = batches * recipe.outputQuantity;
+  const statements = [
+    db.prepare(`
+      INSERT INTO production_runs (
+        id, store_id, drawer_session_id, sale_id, mode,
+        output_product_id, output_product_name, output_unit_id, output_unit_symbol,
+        recipe_id, recipe_revision, batches, output_quantity_per_batch, total_output_quantity,
+        requested_sale_quantity, hpp_total, hpp_per_unit, status,
+        created_by_role, created_by_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'POSTED', ?, ?, ?)
+    `).bind(
+      runId, storeId, drawerId, saleId, mode,
+      product.id, product.name, product.unitId, product.unitSymbol,
+      recipe.id, recipe.revision, batches, recipe.outputQuantity, totalOutputQuantity,
+      requestedSaleQuantity, actorRole, actorId, now
+    )
+  ];
+
+  for (const component of components) {
+    const totalQuantity = component.quantityPerBatch * batches;
+    statements.push(db.prepare(`
+      INSERT INTO production_run_components (
+        id, production_run_id, store_id, component_product_id, component_product_name,
+        component_unit_id, component_unit_symbol, quantity_per_batch, total_quantity,
+        unit_cost_snapshot, total_cost_snapshot
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+    `).bind(
+      `production_component_${crypto.randomUUID()}`, runId, storeId, component.id, component.name,
+      component.unitId, component.unitSymbol, component.quantityPerBatch, totalQuantity
+    ));
+    statements.push(...stockDeltaStatements(db, component, -totalQuantity, {
+      sourceKey: `PRODUCTION_INPUT:${runId}:${component.id}`,
+      sourceType: 'PRODUCTION_INPUT', sourceId: runId,
+      storeId, drawerId, actorRole, actorId, now,
+      note: `${notePrefix} · komponen ${product.name}`
+    }));
+  }
+
+  statements.push(...stockDeltaStatements(db, product, totalOutputQuantity, {
+    sourceKey: `PRODUCTION_OUTPUT:${runId}:${product.id}`,
+    sourceType: 'PRODUCTION_OUTPUT', sourceId: runId,
+    storeId, drawerId, actorRole, actorId, now,
+    note: `${notePrefix} · hasil ${product.name}`
+  }));
+  return { statements, totalOutputQuantity };
 }
 
 export async function prepareSaleStockProduction(db, {
@@ -149,52 +202,15 @@ export async function prepareSaleStockProduction(db, {
       const components = componentsByRecipe.get(recipe.id) || [];
       if (!components.length) return { ok: false, status: 409, error: `Resep ${product.name} tidak memiliki komponen.` };
       const batches = Math.ceil(Number(line.quantity) / recipe.outputQuantity);
-      const totalOutputQuantity = batches * recipe.outputQuantity;
       const runId = `production_${crypto.randomUUID()}`;
       enriched.recipeId = recipe.id;
       enriched.productionRunId = runId;
-
-      statements.push(db.prepare(`
-        INSERT INTO production_runs (
-          id, store_id, drawer_session_id, sale_id, mode,
-          output_product_id, output_product_name, output_unit_id, output_unit_symbol,
-          recipe_id, recipe_revision, batches, output_quantity_per_batch, total_output_quantity,
-          requested_sale_quantity, hpp_total, hpp_per_unit, status,
-          created_by_role, created_by_id, created_at
-        ) VALUES (?, ?, ?, ?, 'AUTO_DADAKAN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'POSTED', 'CASHIER', ?, ?)
-      `).bind(
-        runId, storeId, drawerId, saleId,
-        product.id, product.name, product.unitId, product.unitSymbol,
-        recipe.id, recipe.revision, batches, recipe.outputQuantity, totalOutputQuantity,
-        Number(line.quantity), cashierId, now
-      ));
-
-      for (const component of components) {
-        const totalQuantity = component.quantityPerBatch * batches;
-        statements.push(db.prepare(`
-          INSERT INTO production_run_components (
-            id, production_run_id, store_id, component_product_id, component_product_name,
-            component_unit_id, component_unit_symbol, quantity_per_batch, total_quantity,
-            unit_cost_snapshot, total_cost_snapshot
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
-        `).bind(
-          `production_component_${crypto.randomUUID()}`, runId, storeId, component.id, component.name,
-          component.unitId, component.unitSymbol, component.quantityPerBatch, totalQuantity
-        ));
-        statements.push(...stockDeltaStatements(db, component, -totalQuantity, {
-          sourceKey: `PRODUCTION_INPUT:${runId}:${component.id}`,
-          sourceType: 'PRODUCTION_INPUT', sourceId: runId,
-          storeId, drawerId, actorRole: 'CASHIER', actorId: cashierId, now,
-          note: `Komponen auto-produksi ${product.name}`
-        }));
-      }
-
-      statements.push(...stockDeltaStatements(db, product, totalOutputQuantity, {
-        sourceKey: `PRODUCTION_OUTPUT:${runId}:${product.id}`,
-        sourceType: 'PRODUCTION_OUTPUT', sourceId: runId,
-        storeId, drawerId, actorRole: 'CASHIER', actorId: cashierId, now,
-        note: `Hasil auto-produksi dadakan ${product.name}`
-      }));
+      const run = productionRunStatements(db, {
+        runId, storeId, drawerId, saleId, mode: 'AUTO_DADAKAN', product, recipe, batches,
+        requestedSaleQuantity: Number(line.quantity), components,
+        actorRole: 'CASHIER', actorId: cashierId, now, notePrefix: 'Auto produksi dadakan'
+      });
+      statements.push(...run.statements);
     }
 
     statements.push(...stockDeltaStatements(db, product, -Number(line.quantity), {
@@ -207,6 +223,74 @@ export async function prepareSaleStockProduction(db, {
   }
 
   return { ok: true, lines: enrichedLines, totalPoints, statements };
+}
+
+export async function prepareManualProduction(db, {
+  storeId, drawerId, cashierId, outputProductId, batches, now
+}) {
+  const productId = Number(outputProductId);
+  const batchCount = Number(batches);
+  if (!Number.isInteger(productId) || !Number.isInteger(batchCount) || batchCount < 1 || batchCount > 10_000) {
+    return { ok: false, status: 400, error: 'Barang hasil dan jumlah batch wajib bilangan bulat positif.' };
+  }
+  const products = await loadSaleProducts(db, storeId, [productId]);
+  const product = products.get(productId);
+  if (!product || !product.canProduce || !product.recipe || product.recipe.outputQuantity < 1) {
+    return { ok: false, status: 409, error: 'Barang belum memiliki resep aktif atau tipenya tidak mengizinkan produksi.' };
+  }
+  const componentsByRecipe = await loadRecipeComponents(db, storeId, [product.recipe.id]);
+  const components = componentsByRecipe.get(product.recipe.id) || [];
+  if (!components.length) return { ok: false, status: 409, error: 'Resep aktif tidak memiliki komponen.' };
+  const runId = `production_${crypto.randomUUID()}`;
+  const run = productionRunStatements(db, {
+    runId, storeId, drawerId, saleId: null, mode: 'MANUAL', product, recipe: product.recipe,
+    batches: batchCount, requestedSaleQuantity: null, components,
+    actorRole: 'CASHIER', actorId: cashierId, now, notePrefix: 'Produksi manual'
+  });
+  return {
+    ok: true,
+    run: {
+      id: runId,
+      outputProductId: product.id,
+      outputProductName: product.name,
+      recipeId: product.recipe.id,
+      recipeRevision: product.recipe.revision,
+      batches: batchCount,
+      outputQuantityPerBatch: product.recipe.outputQuantity,
+      totalOutputQuantity: run.totalOutputQuantity,
+      unitSymbol: product.unitSymbol,
+      components: components.map(component => ({
+        productId: component.id,
+        productName: component.name,
+        quantityPerBatch: component.quantityPerBatch,
+        totalQuantity: component.quantityPerBatch * batchCount,
+        unitSymbol: component.unitSymbol
+      }))
+    },
+    statements: run.statements
+  };
+}
+
+export async function listManualProductionOptions(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT p.id, p.name, u.symbol AS unit_symbol,
+           r.id AS recipe_id, r.revision, r.output_quantity
+    FROM products p
+    JOIN manufacturing_recipes r
+      ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+    WHERE p.store_id = ? AND p.is_active = 1 AND COALESCE(t.can_produce, 1) = 1
+    ORDER BY p.name COLLATE NOCASE
+  `).bind(storeId).all();
+  return (rows.results ?? []).map(row => ({
+    productId: Number(row.id),
+    productName: row.name,
+    unitSymbol: row.unit_symbol || '',
+    recipeId: row.recipe_id,
+    recipeRevision: Number(row.revision),
+    outputQuantityPerBatch: Number(row.output_quantity)
+  }));
 }
 
 export function stockPostingFailure(error) {

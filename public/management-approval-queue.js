@@ -10,8 +10,8 @@
     return { ownerToken, adminToken, token: ownerToken || adminToken };
   }
 
-  function requestUrl(path, ownerToken) {
-    if (ownerToken || !storeCode) return path;
+  function requestUrl(path) {
+    if (!isBranchAdmin || !storeCode) return path;
     const url = new URL(path, location.origin);
     url.searchParams.set('store', storeCode);
     return `${url.pathname}${url.search}`;
@@ -22,7 +22,7 @@
     if (!auth.token) throw new Error('Session management tidak tersedia.');
     const headers = { ...(options.headers || {}), Authorization: `Bearer ${auth.token}` };
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const response = await fetch(requestUrl(path, auth.ownerToken), { ...options, headers });
+    const response = await fetch(requestUrl(path), { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw Object.assign(new Error(payload.error || `Request gagal (${response.status})`), { status: response.status, payload });
     return payload;

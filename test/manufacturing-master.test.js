@@ -49,10 +49,13 @@ test('recipe updates create immutable revisions and reject circular BOMs', () =>
   assert.match(migration, /idx_manufacturing_recipe_one_active_output/);
 });
 
-test('recipe quantities use scaled integers and base-unit snapshots', () => {
-  assert.match(migration, /output_quantity_milli INTEGER NOT NULL/);
-  assert.match(migration, /quantity_milli INTEGER NOT NULL/);
-  assert.match(moduleSource, /Math\.round\(number \* 1000\)/);
+test('recipe and stock physical quantities stay integer with smallest-unit semantics', () => {
+  assert.match(migration, /decimal_scale INTEGER NOT NULL DEFAULT 0 CHECK \(decimal_scale = 0\)/);
+  assert.match(migration, /output_quantity INTEGER NOT NULL CHECK \(output_quantity > 0\)/);
+  assert.match(migration, /quantity INTEGER NOT NULL CHECK \(quantity > 0\)/);
+  assert.match(moduleSource, /Number\.isInteger\(number\)/);
+  assert.match(moduleSource, /Satuan wajib memakai qty bulat/);
   assert.match(moduleSource, /output\.base_unit_id/);
   assert.match(moduleSource, /product\.base_unit_id/);
+  assert.doesNotMatch(migration, /quantity_milli|output_quantity_milli/);
 });

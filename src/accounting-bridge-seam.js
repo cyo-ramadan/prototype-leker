@@ -7,12 +7,13 @@ const FACT_TYPE = Object.freeze({
   OTHER_INCOME: 'OTHER_INCOME_RECORDED',
   CASH_FLOW: 'CASH_FLOW_POSTED',
   GOODS_FLOW: 'INVENTORY_MOVEMENT_POSTED',
+  PRODUCTION: 'PRODUCTION_POSTED',
   ASSET: 'ASSET_MOVEMENT_POSTED'
 });
 
 function isAccountingEligible(transaction) {
   const kind = String(transaction?.kind || '').toUpperCase();
-  if (['SALE', 'PURCHASE', 'EXPENSE', 'OTHER_INCOME'].includes(kind)) return transaction?.status === 'posted';
+  if (['SALE', 'PURCHASE', 'EXPENSE', 'OTHER_INCOME', 'PRODUCTION'].includes(kind)) return transaction?.status === 'posted';
   if (['CASH_FLOW', 'GOODS_FLOW', 'ASSET'].includes(kind)) return String(transaction?.status || '').endsWith('/posted');
   return false;
 }

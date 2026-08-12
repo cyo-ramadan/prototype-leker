@@ -2,8 +2,6 @@ import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 
-const MODES = new Set(['STOCK', 'DADAKAN']);
-
 function nonNegativeInteger(value, max = 1_000_000_000) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number <= max ? number : null;
@@ -23,7 +21,7 @@ function mapRow(row) {
     baseUnitId: row.base_unit_id || null,
     unitSymbol: row.unit_symbol || '',
     pointsPerUnit: Number(row.points_per_unit || 0),
-    productionMode: row.production_mode || 'STOCK',
+    legacyProductionMode: row.production_mode || 'STOCK',
     linkedRecipeId: row.linked_recipe_id || null,
     recipeLinkEnabled: Boolean(row.linked_recipe_id || row.recipe_link_enabled),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
@@ -114,8 +112,6 @@ export async function handleProductPolicyApi(request, env, pathname) {
     : nonNegativeInteger(body.value.pointsPerUnit, 10_000_000);
   if (pointsPerUnit === null) return json({ error: 'Poin per barang harus bilangan bulat nol atau positif.' }, 400);
 
-  const productionMode = String(body.value?.productionMode ?? current.productionMode).trim().toUpperCase();
-  if (!MODES.has(productionMode)) return json({ error: 'Mode produksi harus STOCK atau DADAKAN.' }, 400);
   const stockTrackingEnabled = body.value?.stockTrackingEnabled === undefined
     ? current.stockTrackingEnabled
     : Boolean(body.value.stockTrackingEnabled);
@@ -131,22 +127,14 @@ export async function handleProductPolicyApi(request, env, pathname) {
   const recipeLink = await resolveLinkedRecipe(env.DB, store.id, productId, requestedRecipeId);
   if (!recipeLink.ok) return json({ error: recipeLink.error }, 400);
 
-  if (productionMode === 'DADAKAN' && !recipeLink.recipe) {
-    return json({ error: 'Mode DADAKAN membutuhkan Recipe Linked yang aktif.' }, 409);
-  }
-  if (productionMode === 'DADAKAN' && !stockTrackingEnabled) {
-    return json({ error: 'Mode DADAKAN wajib mengaktifkan Track & enforce stok.' }, 409);
-  }
-
   const statements = [
     env.DB.prepare(`
       UPDATE products
-      SET points_per_unit = ?, production_mode = ?, recipe_link_enabled = ?, linked_recipe_id = ?,
+      SET points_per_unit = ?, recipe_link_enabled = ?, linked_recipe_id = ?,
           stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
       pointsPerUnit,
-      productionMode,
       recipeLink.recipe ? 1 : 0,
       recipeLink.linkedRecipeId,
       stockTrackingEnabled ? 1 : 0,

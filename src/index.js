@@ -15,6 +15,7 @@ import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
 import { handleProductMasterApi } from './product-master.js';
+import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingReferenceApi } from './accounting-reference.js';
 import { handleAdminStockApi } from './admin-stock.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
@@ -99,6 +100,9 @@ async function handleApi(request, env, url) {
 
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+
+  const productKindResponse = await handleProductKindApi(request, env, pathname);
+  if (productKindResponse) return productKindResponse;
 
   const productMasterResponse = await handleProductMasterApi(request, env, pathname);
   if (productMasterResponse) return productMasterResponse;

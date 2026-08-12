@@ -4,11 +4,14 @@ import { requireDrawerOwner } from './cashier-drawer.js';
 import { getNextOrderSequence, getOrder, listProducts } from './db-multistore.js';
 import { buildOrderNo } from './orders-multistore.js';
 import { getJakartaBusinessDate, isoNow } from './time.js';
+import { resolveCustomerScope } from './customer-sharing.js';
+import { prepareSaleStockProduction, stockPostingFailure } from './stock-production.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const paymentMethod = value => String(value || '').toUpperCase() === 'NON_CASH' ? 'NON_CASH' : 'CASH';
+const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
-function isConstraintConflict(error) {
+function isOrderNumberConflict(error) {
   const message = String(error?.message ?? error).toLowerCase();
   return message.includes('unique') || message.includes('constraint');
 }
@@ -60,22 +63,77 @@ function validateOrderSnapshotLines(order, requested) {
   return { ok: true, lines, total };
 }
 
-function buildSaleStatements(db, { saleId, storeId, drawerId, cashierId, linkedOrderId, customerName, total, note, now, channel, lines }) {
+async function resolveDirectCustomer(db, storeId, customerId) {
+  const id = text(customerId, 160);
+  if (!id) return { customer: null, scope: null };
+  const scope = await resolveCustomerScope(db, storeId);
+  const customer = await db.prepare(`
+    SELECT id, customer_name, store_id
+    FROM customers
+    WHERE id = ? AND is_active = 1
+      AND store_id IN (${placeholders(scope.storeIds.length)})
+    LIMIT 1
+  `).bind(id, ...scope.storeIds).first();
+  return customer ? { customer, scope } : { error: 'Customer poin tidak ditemukan pada scope gerai ini.' };
+}
+
+async function pointContext(db, storeId, customerId) {
+  if (!customerId) return null;
+  const scope = await resolveCustomerScope(db, storeId);
+  return { customerId, shareGroupId: scope.group?.id || null };
+}
+
+function buildSaleStatements(db, {
+  saleId, storeId, drawerId, cashierId, linkedOrderId, customerId, customerName,
+  total, totalPoints, note, now, channel, lines, operationalStatements, pointShareGroupId
+}) {
   const statements = [
     db.prepare(`
       INSERT INTO sales (
         id, store_id, drawer_session_id, cashier_id, customer_name,
-        total_amount, note, created_at, payment_method, order_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(saleId, storeId, drawerId, cashierId, customerName, total, note, now, channel, linkedOrderId)
+        total_amount, note, created_at, payment_method, order_id, customer_id, total_points
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      saleId, storeId, drawerId, cashierId, customerName,
+      total, note, now, channel, linkedOrderId, customerId, totalPoints
+    ),
+    ...(operationalStatements || [])
   ];
   for (const line of lines) {
     statements.push(db.prepare(`
-      INSERT INTO sale_items (id, sale_id, store_id, product_id, product_name, unit_price, quantity, line_total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(`sale_item_${crypto.randomUUID()}`, saleId, storeId, line.productId, line.productName, line.unitPrice, line.quantity, line.lineTotal));
+      INSERT INTO sale_items (
+        id, sale_id, store_id, product_id, product_name, unit_price, quantity, line_total,
+        points_per_unit, line_points, recipe_id, production_run_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      `sale_item_${crypto.randomUUID()}`, saleId, storeId, line.productId, line.productName,
+      line.unitPrice, line.quantity, line.lineTotal,
+      line.pointsPerUnit || 0, line.linePoints || 0, line.recipeId || null, line.productionRunId || null
+    ));
+  }
+  if (customerId && totalPoints > 0) {
+    statements.push(db.prepare(`
+      INSERT INTO customer_point_ledger (
+        id, customer_id, share_group_id, source_store_id, points_delta,
+        activity_type, reference_type, reference_id, notes, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'EARN', 'SALE', ?, ?, ?)
+    `).bind(
+      `point_sale_${crypto.randomUUID()}`, customerId, pointShareGroupId, storeId, totalPoints,
+      saleId, `Poin barang dari penjualan ${saleId}`, now
+    ));
   }
   return statements;
+}
+
+async function prepareEffects(db, context, lines, customerId) {
+  const prepared = await prepareSaleStockProduction(db, { ...context, lines });
+  if (!prepared.ok) return prepared;
+  const totalPoints = customerId ? prepared.totalPoints : 0;
+  return {
+    ...prepared,
+    totalPoints,
+    lines: prepared.lines.map(line => ({ ...line, linePoints: customerId ? line.linePoints : 0 }))
+  };
 }
 
 export async function handleCashierTrackedSaleApi(request, env, pathname) {
@@ -93,6 +151,13 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   const now = isoNow();
   const saleId = `sale_${crypto.randomUUID()}`;
   const channel = paymentMethod(body.value?.paymentMethod);
+  const effectContext = {
+    storeId,
+    drawerId: ownership.drawer.id,
+    cashierId: auth.cashier.id,
+    saleId,
+    now
+  };
 
   if (sourceOrderId) {
     const sourceOrder = await getOrder(env.DB, storeId, sourceOrderId);
@@ -108,6 +173,10 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
 
     const validated = validateOrderSnapshotLines(sourceOrder, body.value?.items);
     if (!validated.ok) return json({ error: validated.error }, 400);
+    const customerId = sourceOrder.customerId || null;
+    const point = await pointContext(env.DB, storeId, customerId);
+    const effects = await prepareEffects(env.DB, effectContext, validated.lines, customerId);
+    if (!effects.ok) return json({ error: effects.error }, effects.status);
     const customerName = text(body.value?.customerName, 100) || sourceOrder.customerName || 'Customer';
     const note = text(body.value?.note, 500) || sourceOrder.generalNote || '';
     const statements = buildSaleStatements(env.DB, {
@@ -116,17 +185,36 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
       drawerId: ownership.drawer.id,
       cashierId: auth.cashier.id,
       linkedOrderId: sourceOrder.id,
+      customerId,
       customerName,
       total: validated.total,
+      totalPoints: effects.totalPoints,
       note,
       now,
       channel,
-      lines: validated.lines
+      lines: effects.lines,
+      operationalStatements: effects.statements,
+      pointShareGroupId: point?.shareGroupId || null
     });
-    await env.DB.batch(statements);
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      const stockFailure = stockPostingFailure(error);
+      if (stockFailure) return json({ error: stockFailure.error }, stockFailure.status);
+      throw error;
+    }
     return json({
       ok: true,
-      sale: { id: saleId, orderId: sourceOrder.id, total: validated.total, paymentMethod: channel, items: validated.lines, createdAt: now },
+      sale: {
+        id: saleId,
+        orderId: sourceOrder.id,
+        customerId,
+        total: validated.total,
+        points: effects.totalPoints,
+        paymentMethod: channel,
+        items: effects.lines,
+        createdAt: now
+      },
       sourceOrderId: sourceOrder.id,
       order: null
     }, 201);
@@ -136,8 +224,14 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   const validated = validateDirectLines(products, body.value?.items);
   if (!validated.ok) return json({ error: validated.error }, 400);
 
+  const customerResolution = await resolveDirectCustomer(env.DB, storeId, body.value?.customerId);
+  if (customerResolution.error) return json({ error: customerResolution.error }, 404);
+  const customerId = customerResolution.customer?.id || null;
+  const effects = await prepareEffects(env.DB, effectContext, validated.lines, customerId);
+  if (!effects.ok) return json({ error: effects.error }, effects.status);
+
   const businessDate = getJakartaBusinessDate();
-  const customerName = text(body.value?.customerName, 100) || 'Walk-in';
+  const customerName = customerResolution.customer?.customer_name || text(body.value?.customerName, 100) || 'Walk-in';
   const note = text(body.value?.note, 500);
   const orderId = `ord_${crypto.randomUUID()}`;
 
@@ -150,12 +244,16 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
       drawerId: ownership.drawer.id,
       cashierId: auth.cashier.id,
       linkedOrderId: orderId,
+      customerId,
       customerName,
       total: validated.total,
+      totalPoints: effects.totalPoints,
       note,
       now,
       channel,
-      lines: validated.lines
+      lines: effects.lines,
+      operationalStatements: effects.statements,
+      pointShareGroupId: customerResolution.scope?.group?.id || null
     });
     statements.push(
       env.DB.prepare(`
@@ -163,14 +261,14 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
           id, store_id, customer_id, business_date, order_no, customer_name, table_label, general_note,
           total_amount, status, created_at, updated_at, ready_at, completed_at, cancelled_at,
           source, drawer_session_id
-        ) VALUES (?, ?, NULL, ?, ?, ?, '', ?, ?, 'PREPARING', ?, ?, NULL, NULL, NULL, 'cashier', ?)
-      `).bind(orderId, storeId, businessDate, orderNo, customerName, note, validated.total, now, now, ownership.drawer.id),
+        ) VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, 'PREPARING', ?, ?, NULL, NULL, NULL, 'cashier', ?)
+      `).bind(orderId, storeId, customerId, businessDate, orderNo, customerName, note, validated.total, now, now, ownership.drawer.id),
       env.DB.prepare(`
         INSERT INTO order_status_history (store_id, order_id, from_status, to_status, changed_at)
         VALUES (?, ?, NULL, 'PREPARING', ?)
       `).bind(storeId, orderId, now)
     );
-    for (const line of validated.lines) {
+    for (const line of effects.lines) {
       statements.push(env.DB.prepare(`
         INSERT INTO order_items (
           id, store_id, order_id, product_id, product_name, unit_price,
@@ -192,11 +290,20 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
       await env.DB.batch(statements);
       return json({
         ok: true,
-        sale: { id: saleId, orderId, total: validated.total, paymentMethod: channel, items: validated.lines, createdAt: now },
+        sale: {
+          id: saleId,
+          orderId,
+          customerId,
+          total: validated.total,
+          points: effects.totalPoints,
+          paymentMethod: channel,
+          items: effects.lines,
+          createdAt: now
+        },
         order: {
           id: orderId,
           storeId,
-          customerId: null,
+          customerId,
           orderNo,
           customerName,
           tableLabel: '',
@@ -210,11 +317,13 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
           readyAt: now,
           completedAt: now,
           cancelledAt: null,
-          items: validated.lines.map(line => ({ menuId: line.productId, name: line.productName, price: line.unitPrice, qty: line.quantity, note: line.note }))
+          items: effects.lines.map(line => ({ menuId: line.productId, name: line.productName, price: line.unitPrice, qty: line.quantity, note: line.note }))
         }
       }, 201);
     } catch (error) {
-      if (attempt === 2 || !isConstraintConflict(error)) throw error;
+      const stockFailure = stockPostingFailure(error);
+      if (stockFailure) return json({ error: stockFailure.error }, stockFailure.status);
+      if (attempt === 2 || !isOrderNumberConflict(error)) throw error;
     }
   }
 

@@ -14,9 +14,9 @@ export async function readLivePhoto(formData, fieldName = 'photo') {
   if (!ALLOWED_IMAGE_TYPES.has(type)) {
     return { ok: false, status: 415, error: 'Format foto wajib JPEG, WebP, atau PNG.' };
   }
-  const buffer = await photo.arrayBuffer();
-  if (!buffer.byteLength || buffer.byteLength > MAX_LIVE_PHOTO_BYTES) {
+  const bytes = await photo.arrayBuffer();
+  if (!bytes.byteLength || bytes.byteLength > MAX_LIVE_PHOTO_BYTES) {
     return { ok: false, status: 413, error: 'Ukuran foto terlalu besar. Maksimal 800 KB.' };
   }
-  return { ok: true, type, bytes: new Uint8Array(buffer), size: buffer.byteLength };
+  return { ok: true, type, bytes, size: bytes.byteLength };
 }

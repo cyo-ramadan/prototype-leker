@@ -163,6 +163,17 @@ function productionRunStatements(db, {
   return { statements, totalOutputQuantity };
 }
 
+function validateTrackedProduction(product, components) {
+  if (!product.trackStock) {
+    return { ok: false, status: 409, error: `${product.name} wajib mengaktifkan Track & enforce stok sebelum diproduksi.` };
+  }
+  const untracked = components.find(component => !component.trackStock);
+  if (untracked) {
+    return { ok: false, status: 409, error: `Komponen ${untracked.name} belum mengaktifkan Track & enforce stok.` };
+  }
+  return { ok: true };
+}
+
 export async function prepareSaleStockProduction(db, {
   storeId, drawerId, cashierId, saleId, lines, now
 }) {
@@ -176,6 +187,9 @@ export async function prepareSaleStockProduction(db, {
     if (product.productionMode === 'DADAKAN') {
       if (!product.recipeLinkEnabled || !product.recipe || product.recipe.outputQuantity < 1) {
         return { ok: false, status: 409, error: `${product.name} mode DADAKAN tetapi belum terhubung ke resep aktif.` };
+      }
+      if (!product.trackStock) {
+        return { ok: false, status: 409, error: `${product.name} mode DADAKAN wajib mengaktifkan Track & enforce stok.` };
       }
       recipeIds.push(product.recipe.id);
     }
@@ -201,6 +215,8 @@ export async function prepareSaleStockProduction(db, {
       const recipe = product.recipe;
       const components = componentsByRecipe.get(recipe.id) || [];
       if (!components.length) return { ok: false, status: 409, error: `Resep ${product.name} tidak memiliki komponen.` };
+      const tracking = validateTrackedProduction(product, components);
+      if (!tracking.ok) return tracking;
       const batches = Math.ceil(Number(line.quantity) / recipe.outputQuantity);
       const runId = `production_${crypto.randomUUID()}`;
       enriched.recipeId = recipe.id;
@@ -241,6 +257,8 @@ export async function prepareManualProduction(db, {
   const componentsByRecipe = await loadRecipeComponents(db, storeId, [product.recipe.id]);
   const components = componentsByRecipe.get(product.recipe.id) || [];
   if (!components.length) return { ok: false, status: 409, error: 'Resep aktif tidak memiliki komponen.' };
+  const tracking = validateTrackedProduction(product, components);
+  if (!tracking.ok) return tracking;
   const runId = `production_${crypto.randomUUID()}`;
   const run = productionRunStatements(db, {
     runId, storeId, drawerId, saleId: null, mode: 'MANUAL', product, recipe: product.recipe,
@@ -280,7 +298,10 @@ export async function listManualProductionOptions(db, storeId) {
       ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
-    WHERE p.store_id = ? AND p.is_active = 1 AND COALESCE(t.can_produce, 1) = 1
+    WHERE p.store_id = ? AND p.is_active = 1
+      AND p.stock_tracking_enabled = 1
+      AND COALESCE(t.track_stock, 1) = 1
+      AND COALESCE(t.can_produce, 1) = 1
     ORDER BY p.name COLLATE NOCASE
   `).bind(storeId).all();
   return (rows.results ?? []).map(row => ({

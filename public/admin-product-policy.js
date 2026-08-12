@@ -1,7 +1,13 @@
 (() => {
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
-  const state = { editor: null, activeProductId: 0, loading: null };
+  const state = {
+    editor: null,
+    accounting: null,
+    activeProductId: 0,
+    loadingEditor: null,
+    loadingAccounting: null
+  };
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -26,6 +32,10 @@
     toast.timer = setTimeout(() => node.classList.remove('show'), 2400);
   }
 
+  function optionRows(items, selectedId, label) {
+    return items.map(item => `<option value="${esc(item.id)}" ${String(item.id) === String(selectedId || '') ? 'selected' : ''}>${esc(label(item))}</option>`).join('');
+  }
+
   function mountProductFields() {
     const form = el('productForm');
     const category = el('productCategory')?.closest('label');
@@ -41,13 +51,6 @@
         <label class="admin-field">Mode Pemenuhan<select id="productProductionMode"><option value="STOCK">STOCK · jual dari stok tersedia</option><option value="DADAKAN">DADAKAN · produksi dulu sesuai resep lalu jual</option></select></label>
         <label class="admin-field">Recipe Linked<select id="productLinkedRecipe"><option value="">Tidak terhubung</option></select></label>
         <div id="productRecipeNote" class="muted" style="margin:-5px 0 12px"></div>
-        <details id="productAccountingPortal" class="admin-card" style="padding:12px;margin:4px 0 14px;box-shadow:none">
-          <summary style="cursor:pointer;font-weight:900">Portal Akuntansi Barang</summary>
-          <div class="muted" style="margin:8px 0 12px">Hanya account-reference bridge. Jurnal, buku besar, neraca, dan laporan keuangan tetap milik modul Accounting.</div>
-          <label class="admin-field">Akun Penjualan<select id="productSalesAccount"></select></label>
-          <label class="admin-field">Akun Persediaan<select id="productInventoryAccount"></select></label>
-          <label class="admin-field">Akun HPP<select id="productCogsAccount"></select></label>
-        </details>
       </div>`);
     el('productProductionMode')?.addEventListener('change', renderRecipeNote);
     el('productLinkedRecipe')?.addEventListener('change', renderRecipeNote);
@@ -59,6 +62,7 @@
     const tabs = document.querySelector('.admin-tabs');
     const toastNode = el('adminToast');
     if (!tabs || !toastNode || el('accountingReferenceTab')) return;
+
     const button = document.createElement('button');
     button.id = 'accountingReferenceTab';
     button.className = 'admin-tab';
@@ -66,27 +70,57 @@
     button.type = 'button';
     button.textContent = 'Akuntansi';
     tabs.appendChild(button);
+
     toastNode.insertAdjacentHTML('beforebegin', `
       <section id="tab-accounting-reference" class="admin-section">
         <div class="admin-card">
           <div class="list-head">
             <div>
               <div class="admin-eyebrow">Accounting Connector</div>
-              <h2>Portal Referensi Akun</h2>
-              <div class="muted">Akun di bawah adalah reference awal untuk mapping. Tidak ada jurnal yang dibuat dari panel ini.</div>
+              <h2>Portal Link Akuntansi</h2>
+              <div class="muted">Atur hubungan business transaction → akun debit/kredit. Panel ini tidak membuat jurnal; modul Accounting tetap melakukan journal interpretation dan posting.</div>
             </div>
             <button id="accountingReferenceRefresh" class="secondary-btn" type="button">↻ Refresh</button>
           </div>
           <div id="accountingReferenceStatus" class="admin-tip" style="margin-top:12px"></div>
-          <div id="accountingReferenceList" class="master-list"></div>
+        </div>
+
+        <div class="admin-grid two" style="margin-top:14px;align-items:start">
+          <form id="accountingMappingForm" class="admin-card">
+            <h2>Link Transaksi</h2>
+            <label class="admin-field">Jenis transaksi<select id="accountingBusinessEvent"></select></label>
+            <label class="admin-field">Cara bayar<select id="accountingPaymentMethod"></select></label>
+            <label class="admin-field">Debit<select id="accountingDebitAccount"></select></label>
+            <label class="admin-field">Kredit<select id="accountingCreditAccount"></select></label>
+            <div id="accountingMappingHint" class="muted" style="margin-bottom:12px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="primary-btn" type="submit">Simpan Link</button>
+              <button id="accountingMappingClear" class="secondary-btn" type="button">Kosongkan Link</button>
+            </div>
+          </form>
+
+          <div class="admin-card list-card">
+            <div class="list-head"><div><h2>Mapping Transaksi</h2><div class="muted">Rule aktif akan di-snapshot saat transaction fact dibuat.</div></div><span id="accountingMappingCount" class="master-count">0</span></div>
+            <div id="accountingMappingList" class="master-list"></div>
+          </div>
+        </div>
+
+        <div class="admin-card" style="margin-top:14px">
+          <div class="list-head"><div><h2>Akun Referensi Dasar</h2><div class="muted">Status PROVISIONAL sampai terhubung ke akun canonical dari modul Accounting.</div></div><span id="accountingAccountCount" class="master-count">0</span></div>
+          <div id="accountingReferenceList" class="master-list" style="margin-top:12px"></div>
         </div>
       </section>`);
+
     button.addEventListener('click', () => {
       document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.toggle('active', tab === button));
       document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-accounting-reference'));
-      loadEditor().catch(error => toast(error.message));
+      loadAccountingPortal().catch(error => toast(error.message));
     });
-    el('accountingReferenceRefresh')?.addEventListener('click', () => loadEditor(true).catch(error => toast(error.message)));
+    el('accountingReferenceRefresh')?.addEventListener('click', () => loadAccountingPortal(true).catch(error => toast(error.message)));
+    el('accountingBusinessEvent')?.addEventListener('change', renderAccountingHint);
+    el('accountingPaymentMethod')?.addEventListener('change', renderAccountingHint);
+    el('accountingMappingForm')?.addEventListener('submit', saveAccountingMapping);
+    el('accountingMappingClear')?.addEventListener('click', clearAccountingMapping);
   }
 
   function removeDuplicateClassificationPanel() {
@@ -103,15 +137,6 @@
 
   function productById(id) {
     return (state.editor?.products || []).find(product => product.id === Number(id));
-  }
-
-  function optionRows(items, selectedId, label) {
-    return items.map(item => `<option value="${esc(item.id)}" ${String(item.id) === String(selectedId || '') ? 'selected' : ''}>${esc(label(item))}</option>`).join('');
-  }
-
-  function accountOptions(type, selectedId) {
-    const items = (state.editor?.accountingAccounts || []).filter(account => account.isActive && account.accountType === type);
-    return `<option value="" ${selectedId ? '' : 'selected'}>Belum dipetakan</option>${optionRows(items, selectedId || '', account => `${account.code} · ${account.name}`)}`;
   }
 
   function recipesForProduct(productId) {
@@ -132,10 +157,6 @@
     const recipes = recipesForProduct(product?.id || 0);
     el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
     el('productLinkedRecipe').disabled = !product?.id;
-
-    el('productSalesAccount').innerHTML = accountOptions('REVENUE', product?.accounting?.salesAccountRefId);
-    el('productInventoryAccount').innerHTML = accountOptions('ASSET', product?.accounting?.inventoryAccountRefId);
-    el('productCogsAccount').innerHTML = accountOptions('EXPENSE', product?.accounting?.cogsAccountRefId);
     renderRecipeNote();
   }
 
@@ -160,23 +181,6 @@
     note.textContent = recipeId
       ? 'Resep tersimpan sebagai linkage barang, tetapi mode STOCK tidak auto-produksi saat dijual.'
       : 'Mode STOCK menjual dari stok yang tersedia tanpa auto-produksi.';
-  }
-
-  function renderAccountingPortal() {
-    const accounts = state.editor?.accountingAccounts || [];
-    const status = el('accountingReferenceStatus');
-    const list = el('accountingReferenceList');
-    if (!status || !list) return;
-    status.innerHTML = `<b>MAXI_ACCOUNTING_REFERENCE_V1</b> · ${accounts.length} akun referensi dasar · status PROVISIONAL.<br>Next step: mapping per transaksi dapat ditambahkan tanpa memindahkan journal engine ke Admin.`;
-    const groups = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
-    list.innerHTML = groups.map(type => {
-      const items = accounts.filter(account => account.accountType === type);
-      if (!items.length) return '';
-      return `<div class="admin-card" style="box-shadow:none"><strong>${esc(type)}</strong><div class="master-list">${items.map(account => `
-        <div class="master-row contact-row">
-          <div class="master-main"><strong>${esc(account.code)} · ${esc(account.name)}</strong><div class="master-meta">${esc(account.syncStatus)}${account.externalAccountId ? ` · external ${esc(account.externalAccountId)}` : ' · belum terhubung ke modul Accounting'}</div></div>
-        </div>`).join('')}</div></div>`;
-    }).join('');
   }
 
   function enhanceProductRows() {
@@ -216,18 +220,17 @@
   }
 
   async function loadEditor(force = false) {
-    if (state.loading && !force) return state.loading;
-    state.loading = api('/api/admin/master/products/editor')
+    if (state.loadingEditor && !force) return state.loadingEditor;
+    state.loadingEditor = api('/api/admin/master/products/editor')
       .then(payload => {
         state.editor = payload;
         const productId = Number(el('productId')?.value || state.activeProductId || 0);
         renderEditorFields(productById(productId) || null);
-        renderAccountingPortal();
         enhanceProductRows();
         return payload;
       })
-      .finally(() => { state.loading = null; });
-    return state.loading;
+      .finally(() => { state.loadingEditor = null; });
+    return state.loadingEditor;
   }
 
   function productImagePayload() {
@@ -254,12 +257,7 @@
         pointsPerUnit: Number(el('productPointsPerUnit').value),
         stockTrackingEnabled: el('productStockTracking').checked,
         productionMode: el('productProductionMode').value,
-        linkedRecipeId: el('productLinkedRecipe').value || null,
-        accounting: {
-          salesAccountRefId: el('productSalesAccount').value || null,
-          inventoryAccountRefId: el('productInventoryAccount').value || null,
-          cogsAccountRefId: el('productCogsAccount').value || null
-        }
+        linkedRecipeId: el('productLinkedRecipe').value || null
       };
       const response = await api(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
         method: productId ? 'PATCH' : 'POST',
@@ -270,11 +268,162 @@
       if (typeof window.resetProductForm === 'function') window.resetProductForm();
       resetExtendedForm();
       enhanceProductRows();
-      renderAccountingPortal();
       toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Buat resep lalu edit barang untuk melakukan Recipe Linked.');
     } catch (error) {
       toast(error.message);
     }
+  }
+
+  function accountOptions(selectedId = '') {
+    const accounts = (state.accounting?.accounts || []).filter(account => account.isActive && account.isPostable);
+    return `<option value="">Belum dipilih</option>${optionRows(accounts, selectedId, account => `${account.code} · ${account.name} · ${account.accountType}`)}`;
+  }
+
+  function renderAccountingSelectors() {
+    if (!state.accounting) return;
+    const event = el('accountingBusinessEvent');
+    const method = el('accountingPaymentMethod');
+    const currentEvent = event?.value || '';
+    const currentMethod = method?.value || '';
+    if (event) {
+      event.innerHTML = (state.accounting.businessEvents || []).map(item => `<option value="${esc(item.code)}">${esc(item.label)}</option>`).join('');
+      if ([...event.options].some(option => option.value === currentEvent)) event.value = currentEvent;
+    }
+    if (method) {
+      method.innerHTML = (state.accounting.paymentMethods || []).map(item => `<option value="${esc(item.code)}">${esc(item.label)}</option>`).join('');
+      if ([...method.options].some(option => option.value === currentMethod)) method.value = currentMethod;
+    }
+    loadSelectedMappingIntoForm();
+  }
+
+  function selectedAccountingMapping() {
+    const event = el('accountingBusinessEvent')?.value || '';
+    const method = el('accountingPaymentMethod')?.value || '';
+    return (state.accounting?.mappings || []).find(mapping => mapping.businessEvent === event && mapping.paymentMethod === method) || null;
+  }
+
+  function loadSelectedMappingIntoForm() {
+    const mapping = selectedAccountingMapping();
+    if (el('accountingDebitAccount')) el('accountingDebitAccount').innerHTML = accountOptions(mapping?.debitAccountRefId || '');
+    if (el('accountingCreditAccount')) el('accountingCreditAccount').innerHTML = accountOptions(mapping?.creditAccountRefId || '');
+    renderAccountingHint();
+  }
+
+  function renderAccountingHint() {
+    if (!state.accounting) return;
+    const event = el('accountingBusinessEvent')?.value || '';
+    const method = el('accountingPaymentMethod')?.value || '';
+    const hint = el('accountingMappingHint');
+    if (!hint) return;
+    if (event === 'PURCHASE_MATERIAL') {
+      hint.textContent = method === 'PAYABLE'
+        ? 'Contoh sesuai flow bos: Debit Persediaan Bahan · Kredit Utang Usaha.'
+        : method === 'BANK'
+          ? 'Contoh: Debit Persediaan Bahan · Kredit Bank.'
+          : method === 'CASH'
+            ? 'Contoh: Debit Persediaan Bahan · Kredit Kas.'
+            : 'Debit mengikuti pembelian bahan; kredit mengikuti cara bayar.';
+      return;
+    }
+    if (event === 'SALE_REVENUE') {
+      hint.textContent = 'Revenue rule: debit biasanya mengikuti penerimaan pembayaran, kredit ke akun Penjualan. HPP dibuat sebagai rule/fact terpisah setelah costing siap.';
+      return;
+    }
+    hint.textContent = 'Pilih akun debit dan kredit secara explicit. Tidak ada auto-mapping.';
+  }
+
+  function renderAccountingPortal() {
+    if (!state.accounting) return;
+    const accounts = state.accounting.accounts || [];
+    const mappings = state.accounting.mappings || [];
+    if (el('accountingReferenceStatus')) {
+      el('accountingReferenceStatus').innerHTML = `<b>${esc(state.accounting.contract)}</b> · ${accounts.length} akun referensi · journal engine tetap <b>ACCOUNTING_MODULE</b>. Mapping baru berlaku sebagai connector reference dan di-snapshot saat transaksi dibuat.`;
+    }
+    if (el('accountingAccountCount')) el('accountingAccountCount').textContent = String(accounts.length);
+    if (el('accountingMappingCount')) el('accountingMappingCount').textContent = String(mappings.length);
+
+    const groups = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
+    if (el('accountingReferenceList')) {
+      el('accountingReferenceList').innerHTML = groups.map(type => {
+        const items = accounts.filter(account => account.accountType === type);
+        if (!items.length) return '';
+        return `<div class="admin-card" style="box-shadow:none"><strong>${esc(type)}</strong><div class="master-list">${items.map(account => `
+          <div class="master-row contact-row"><div class="master-main"><strong>${esc(account.code)} · ${esc(account.name)}</strong><div class="master-meta">${esc(account.syncStatus)}${account.externalAccountId ? ` · external ${esc(account.externalAccountId)}` : ' · belum terhubung ke modul Accounting'}</div></div></div>`).join('')}</div></div>`;
+      }).join('');
+    }
+
+    const eventLabels = new Map((state.accounting.businessEvents || []).map(item => [item.code, item.label]));
+    const methodLabels = new Map((state.accounting.paymentMethods || []).map(item => [item.code, item.label]));
+    if (el('accountingMappingList')) {
+      el('accountingMappingList').innerHTML = mappings.length ? mappings.map(mapping => `
+        <div class="master-row contact-row">
+          <div class="master-main">
+            <strong>${esc(eventLabels.get(mapping.businessEvent) || mapping.businessEvent)} · ${esc(methodLabels.get(mapping.paymentMethod) || mapping.paymentMethod)}</strong>
+            <div class="master-meta">${mapping.status === 'ACTIVE'
+              ? `Dr ${esc(mapping.debitAccount?.code || '')} ${esc(mapping.debitAccount?.name || '')} · Cr ${esc(mapping.creditAccount?.code || '')} ${esc(mapping.creditAccount?.name || '')}`
+              : 'Belum dilink'}</div>
+          </div>
+          <div class="master-actions"><button class="mini-btn" type="button" data-edit-accounting-mapping="${esc(mapping.id)}">Atur</button></div>
+        </div>`).join('') : '<div class="empty">Belum ada slot mapping transaksi.</div>';
+      document.querySelectorAll('[data-edit-accounting-mapping]').forEach(button => button.addEventListener('click', () => editAccountingMapping(button.dataset.editAccountingMapping)));
+    }
+    renderAccountingSelectors();
+  }
+
+  function editAccountingMapping(id) {
+    const mapping = (state.accounting?.mappings || []).find(item => item.id === id);
+    if (!mapping) return;
+    el('accountingBusinessEvent').value = mapping.businessEvent;
+    el('accountingPaymentMethod').value = mapping.paymentMethod;
+    loadSelectedMappingIntoForm();
+    el('accountingMappingForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function loadAccountingPortal(force = false) {
+    if (state.loadingAccounting && !force) return state.loadingAccounting;
+    state.loadingAccounting = api('/api/admin/accounting/reference')
+      .then(payload => {
+        state.accounting = payload;
+        renderAccountingPortal();
+        return payload;
+      })
+      .finally(() => { state.loadingAccounting = null; });
+    return state.loadingAccounting;
+  }
+
+  async function saveAccountingMapping(event) {
+    event.preventDefault();
+    try {
+      const payload = await api('/api/admin/accounting/reference/mappings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          businessEvent: el('accountingBusinessEvent').value,
+          paymentMethod: el('accountingPaymentMethod').value,
+          debitAccountRefId: el('accountingDebitAccount').value || null,
+          creditAccountRefId: el('accountingCreditAccount').value || null
+        })
+      });
+      state.accounting = payload.portal;
+      renderAccountingPortal();
+      toast('Link transaksi Accounting tersimpan');
+    } catch (error) { toast(error.message); }
+  }
+
+  async function clearAccountingMapping() {
+    try {
+      const payload = await api('/api/admin/accounting/reference/mappings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          businessEvent: el('accountingBusinessEvent').value,
+          paymentMethod: el('accountingPaymentMethod').value,
+          debitAccountRefId: null,
+          creditAccountRefId: null
+        })
+      });
+      state.accounting = payload.portal;
+      renderAccountingPortal();
+      toast('Link transaksi dikosongkan');
+    } catch (error) { toast(error.message); }
   }
 
   function mount() {

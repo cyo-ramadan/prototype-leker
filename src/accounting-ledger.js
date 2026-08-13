@@ -411,14 +411,22 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
   };
 }
 
-async function groupedBalances(db, storeId, periodClause, values) {
+async function groupedBalances(db, storeId, journalPeriodClause, values) {
   const rows = await db.prepare(`
     SELECT a.id AS account_id, a.code AS account_code, a.name AS account_name, a.type AS account_type,
            COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_minor ELSE 0 END), 0) AS debit_minor,
            COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_minor ELSE 0 END), 0) AS credit_minor
     FROM chart_of_accounts a
-    LEFT JOIN accounting_journal_lines l ON l.account_id = a.id AND l.store_id = a.store_id
-    LEFT JOIN accounting_journal_headers h ON h.id = l.journal_id AND h.store_id = l.store_id ${periodClause}
+    LEFT JOIN accounting_journal_lines l
+      ON l.account_id = a.id
+     AND l.store_id = a.store_id
+     AND EXISTS (
+       SELECT 1
+       FROM accounting_journal_headers h
+       WHERE h.id = l.journal_id
+         AND h.store_id = l.store_id
+         ${journalPeriodClause}
+     )
     WHERE a.store_id = ?
     GROUP BY a.id
     ORDER BY a.code COLLATE NOCASE, a.name COLLATE NOCASE

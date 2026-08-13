@@ -126,9 +126,9 @@ function productionRunStatements(db, {
         id, store_id, drawer_session_id, sale_id, mode,
         output_product_id, output_product_name, output_unit_id, output_unit_symbol,
         recipe_id, recipe_revision, batches, output_quantity_per_batch, total_output_quantity,
-        requested_sale_quantity, hpp_total, hpp_per_unit, status,
+        requested_sale_quantity, hpp_total, hpp_per_unit, hpp_total_scaled, hpp_per_unit_scaled, status,
         created_by_role, created_by_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'POSTED', ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'POSTED', ?, ?, ?)
     `).bind(
       runId, storeId, drawerId, saleId, mode,
       product.id, product.name, product.unitId, product.unitSymbol,
@@ -143,9 +143,10 @@ function productionRunStatements(db, {
       INSERT INTO production_run_components (
         id, production_run_id, store_id, component_product_id, component_product_name,
         component_unit_id, component_unit_symbol, quantity_per_batch, total_quantity,
-        unit_cost_snapshot, total_cost_snapshot
+        unit_cost_snapshot, total_cost_snapshot,
+        unit_cost_snapshot_scaled, total_cost_snapshot_scaled
       )
-      SELECT ?, ?, ?, p.id, p.name, ?, ?, ?, ?, p.average_cost, p.average_cost * ?
+      SELECT ?, ?, ?, p.id, p.name, ?, ?, ?, ?, NULL, NULL, p.average_cost, p.average_cost * ?
       FROM products p
       WHERE p.id = ? AND p.store_id = ?
     `).bind(
@@ -164,16 +165,18 @@ function productionRunStatements(db, {
   statements.push(
     db.prepare(`
       UPDATE production_runs
-      SET hpp_total = COALESCE((
-            SELECT SUM(total_cost_snapshot)
+      SET hpp_total_scaled = COALESCE((
+            SELECT SUM(total_cost_snapshot_scaled)
             FROM production_run_components
             WHERE production_run_id = ?
           ), 0),
-          hpp_per_unit = COALESCE((
-            SELECT SUM(total_cost_snapshot)
-            FROM production_run_components
-            WHERE production_run_id = ?
-          ), 0) * 1.0 / total_output_quantity
+          hpp_per_unit_scaled = CAST((
+            COALESCE((
+              SELECT SUM(total_cost_snapshot_scaled)
+              FROM production_run_components
+              WHERE production_run_id = ?
+            ), 0) + CAST(total_output_quantity / 2 AS INTEGER)
+          ) / total_output_quantity AS INTEGER)
       WHERE id = ? AND store_id = ?
     `).bind(runId, runId, runId, storeId),
     db.prepare(`
@@ -183,25 +186,32 @@ function productionRunStatements(db, {
               SELECT quantity FROM inventory_stock_balances
               WHERE store_id = ? AND product_id = ?
             ), 0) <= 0
-              THEN COALESCE((SELECT hpp_per_unit FROM production_runs WHERE id = ?), 0)
-            ELSE (
+              THEN COALESCE((SELECT hpp_per_unit_scaled FROM production_runs WHERE id = ?), 0)
+            ELSE CAST((
               COALESCE((
                 SELECT quantity FROM inventory_stock_balances
                 WHERE store_id = ? AND product_id = ?
               ), 0) * average_cost
-              + COALESCE((SELECT hpp_total FROM production_runs WHERE id = ?), 0)
-            ) * 1.0 / (
+              + COALESCE((SELECT hpp_total_scaled FROM production_runs WHERE id = ?), 0)
+              + CAST((
+                COALESCE((
+                  SELECT quantity FROM inventory_stock_balances
+                  WHERE store_id = ? AND product_id = ?
+                ), 0) + ?
+              ) / 2 AS INTEGER)
+            ) / (
               COALESCE((
                 SELECT quantity FROM inventory_stock_balances
                 WHERE store_id = ? AND product_id = ?
               ), 0) + ?
-            )
+            ) AS INTEGER)
           END,
           cost_updated_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
       storeId, product.id, runId,
       storeId, product.id, runId,
+      storeId, product.id, totalOutputQuantity,
       storeId, product.id, totalOutputQuantity,
       now, product.id, storeId
     )

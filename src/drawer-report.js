@@ -56,7 +56,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
       FROM sales s
       JOIN sale_items si ON si.sale_id = s.id AND si.store_id = s.store_id
-      WHERE s.store_id = ? AND s.drawer_session_id = ?
+      WHERE s.store_id = ? AND s.drawer_session_id = ? AND s.voided_at IS NULL
       GROUP BY s.payment_method, si.product_name, si.unit_price
       ORDER BY s.payment_method, si.product_name COLLATE NOCASE, si.unit_price
     `).bind(storeId, drawerId).all(),
@@ -65,13 +65,13 @@ export async function buildDrawerReport(db, storeId, drawerId) {
              p.created_at, s.name AS supplier_name
       FROM purchases p
       LEFT JOIN suppliers s ON s.id = p.supplier_id AND s.store_id = p.store_id
-      WHERE p.store_id = ? AND p.drawer_session_id = ?
+      WHERE p.store_id = ? AND p.drawer_session_id = ? AND p.voided_at IS NULL
       ORDER BY p.created_at
     `).bind(storeId, drawerId).all(),
     db.prepare(`
       SELECT id, payment_method, description, amount, created_at
       FROM expenses
-      WHERE store_id = ? AND drawer_session_id = ?
+      WHERE store_id = ? AND drawer_session_id = ? AND voided_at IS NULL
       ORDER BY created_at
     `).bind(storeId, drawerId).all(),
     db.prepare(`

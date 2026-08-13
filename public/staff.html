@@ -20,11 +20,11 @@
     <div class="cashier-user-chip"><span id="staffIdentity">Staf</span><button id="backCashierBtn" class="secondary-btn" type="button">← Kasir</button><button id="staffLogoutBtn" class="secondary-btn" type="button">Logout</button></div>
   </header>
   <main class="staff-wrap">
-    <section class="staff-hero"><div><div class="muted">Personal workspace</div><h1>Portal Staf</h1><p class="muted">Presensi, KPI, setoran, dan gaji terikat ke akun staf yang sedang login pada tab ini.</p></div></section>
+    <section class="staff-hero"><div><div class="muted">Personal workspace</div><h1>Portal Staf</h1><p class="muted">Presensi, Raport/KPI, setoran, dan gaji terikat ke akun staf yang sedang login pada tab ini.</p></div></section>
     <section class="staff-grid">
       <nav class="staff-nav" aria-label="Portal Staf">
         <button class="active" type="button" data-staff-tab="attendance">📸 Presensi</button>
-        <button type="button" data-staff-tab="kpi">📊 KPI</button>
+        <button type="button" data-staff-tab="kpi">📊 Raport / KPI</button>
         <button type="button" data-staff-tab="deposits">💵 Riwayat Setoran</button>
         <button type="button" data-staff-tab="payroll">🧾 Riwayat Gaji</button>
       </nav>
@@ -33,7 +33,7 @@
           <div class="staff-card"><div class="muted">Live Photo Attendance</div><h2>Presensi</h2><p class="muted">Presensi berdiri sendiri dari laci kas. Kamera hanya aktif saat modal foto terbuka.</p><div class="attendance-actions"><button id="attendanceInBtn" class="primary-btn" type="button">📸 Presensi Masuk</button><button id="attendanceOutBtn" class="secondary-btn" type="button">📸 Presensi Keluar</button></div><div id="staffCameraMessage" class="staff-message hidden" aria-live="polite"></div></div>
           <div class="staff-card"><h2>Riwayat Presensi</h2><div id="attendanceList" class="attendance-list"><div class="muted">Memuat...</div></div></div>
         </section>
-        <section id="staffPanelKpi" class="staff-panel"><div class="staff-card"><h2>KPI</h2><div id="staffKpiList" class="staff-empty">Belum ada data KPI pada modul V1.</div></div></section>
+        <section id="staffPanelKpi" class="staff-panel"><div id="staffKpiList"><div class="staff-empty">Memuat fakta Raport...</div></div></section>
         <section id="staffPanelDeposits" class="staff-panel"><div class="staff-card"><h2>Riwayat Setoran</h2><div id="staffDepositList" class="staff-empty">Belum ada data setoran personal pada modul V1.</div></div></section>
         <section id="staffPanelPayroll" class="staff-panel"><div class="staff-card"><h2>Riwayat Gaji</h2><div id="staffPayrollList" class="staff-empty">Belum ada data gaji pada modul V1.</div></div></section>
       </div>

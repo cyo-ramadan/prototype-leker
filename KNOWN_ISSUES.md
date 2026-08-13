@@ -28,10 +28,9 @@ Current behavior is governed by:
 
 - `contracts/manufacturing-master-v1.md`;
 - `contracts/stock-production-points-v2.md`;
-- `contracts/stock-adjustment-v1.md`;
-- ADR-012, ADR-013, ADR-015, and ADR-020;
+- ADR-012, ADR-013, and ADR-015;
 - migrations `0016_manufacturing_master_v1.sql`, `0017_product_stock_production_points.sql`, `0019_product_costing_and_kinds.sql`, and `0021_exact_production_costing.sql`;
-- `src/manufacturing-master.js`, `src/stock-production.js`, and `src/operational-posting.js`.
+- `src/manufacturing-master.js` and `src/stock-production.js`.
 
 Current behavior:
 
@@ -48,15 +47,11 @@ Current behavior:
 - production components and runs use `*_scaled` exact integer HPP fields;
 - legacy production REAL cost columns remain read-only history fallback and are not written by the new engine;
 - sale items snapshot scaled unit HPP and line COGS so history is not recomputed from current master values;
-- Admin has dedicated Stok and lazy transaction-detail read models;
-- Penyesuaian Stok uses the existing Approval Queue, snapshots current stock at cashier staging, and rechecks that snapshot before management ACC;
-- a stale Penyesuaian Stok request is rejected with `STOCK_ADJUSTMENT_STALE` and never overwrites later inventory movement;
-- a valid Penyesuaian Stok posts to `inventory_stock_balances`, `inventory_ledger_entries`, and canonical `stock_movements.source_type = STOCK_ADJUSTMENT` atomically;
-- Penyesuaian Stok v1 changes quantity only and does not rewrite Average Cost or historical HPP.
+- Admin has dedicated Stok and lazy transaction-detail read models.
 
 ### Open: canonical fractional inventory quantity migration
 
-Current stock balances, stock movements, recipe quantities, purchase inventory quantities, sale quantities, production quantities, and Stock Adjustment target quantities still use the legacy integer representation.
+Current stock balances, stock movements, recipe quantities, purchase inventory quantities, sale quantities, and production quantities still use the legacy integer representation.
 
 The approved target is one exact fractional-capable quantity model for all physical inventory, with unit-level decimal-scale validation. This requires a dedicated migration/compatibility plan so legacy quantity columns are not silently reinterpreted and no dual stock source is created.
 
@@ -72,24 +67,45 @@ Desired behavior when enabled:
 
 - before a cost-affecting purchase posts, Inventory/Costing checks the current stock balance for every purchased item;
 - if any current balance is `< 0`, the entire purchase is rejected with an explicit product/current-balance error rather than partially posting;
-- the user must correct stock through the approved Penyesuaian Stok flow until the balance is at least `0`, then retry the purchase;
+- the user must correct stock through Penyesuaian Stok until the balance is at least `0`, then retry the purchase;
 - the purpose is to prevent a negative-stock anomaly from being silently absorbed into a new moving-average HPP baseline.
 
 Ownership note: this policy belongs to Inventory/Costing even if surfaced from a shared Settings UI such as a `Policy Integritas HPP` section near Setting Akuntansi. Accounting must not become the owner of stock/HPP mutation rules.
 
-**Dependency status:** the audited Penyesuaian Stok correction path is now available. The negative-stock purchase policy itself is still not implemented and therefore remains OFF until its own store-level policy contract, server guard, UI, and tests are active.
+The audited Penyesuaian Stok path is now active, so the former operational-deadlock dependency is resolved. The store-level negative-stock purchase toggle itself is still not implemented and must remain OFF/nonexistent until its own contract/tests are added.
 
-### Still intentionally open: Sale-level fulfillment migration
+### Active: audited Penyesuaian Stok
+
+Cashier Penyesuaian Stok now reuses the Approval Queue and canonical inventory source:
+
+- cashier chooses a tracked Product Master item and target physical quantity;
+- server snapshots current stock and derives IN/OUT delta;
+- Admin/Owner ACC rechecks the snapshot;
+- stale requests fail closed without stock mutation;
+- successful ACC updates `inventory_stock_balances`, inventory ledger evidence, and `stock_movements` atomically;
+- no second stock table/source is created;
+- V1 does not rewrite Average Cost/HPP merely because quantity is corrected.
+
+### Open: Sale-level fulfillment migration
 
 Mode Pemenuhan is no longer editable in Master Barang. The legacy `products.production_mode` column remains temporarily because existing sale execution still reads it.
 
 A future Sale contract must move fulfillment ownership to the Penjualan transaction and define the requested default `DADAKAN`. Until that versioned migration is implemented, do not delete or reinterpret the legacy column and do not silently change existing sale behavior.
 
-### Resolved: audited Penyesuaian Stok write contract
+### Open: Production V2 editable execution form
 
-`MAXI_STOCK_ADJUSTMENT_V1` is active. The cashier supplies a target physical quantity plus required reason; the server snapshots current stock and derives direction/delta. Admin/Owner ACC rechecks current stock against the staged snapshot before posting. A mismatch rejects the request as stale without stock mutation.
+Bos Cyo defined the next Production interaction:
 
-The flow reuses the existing `GOODS_FLOW` approval envelope with explicit `payload.purpose = STOCK_ADJUSTMENT` and reuses the canonical stock balance/movement ledgers. It does not create a second stock source and does not generate an Accounting journal until signed valuation/gain-loss semantics are defined.
+- choose output item from Product Master and enter actual output Qty;
+- allow multiple dynamic raw-material rows selected from Product Master with editable Qty;
+- optionally select a Recipe to populate an editable template rather than locking the form;
+- snapshot the final edited output/material quantities as the actual production fact;
+- calculate output HPP from exact material snapshots plus explicitly configured production-cost allocations;
+- keep Bahan Baku and Biaya Produksi as distinct audit components;
+- Accounting normally reclassifies inventory value from input inventory to output inventory rather than treating production as immediate profit/loss;
+- any capitalization/reclassification of already-recorded operational expense must be explicit to avoid double-counting.
+
+Production V1 remains recipe + batch driven until this separate contract/migration is implemented.
 
 ## Product Master, Jenis Barang, Purchase Qty, and Operational Qty
 
@@ -129,6 +145,7 @@ Implemented configuration:
 - Jenis Barang links to Inventory/HPP/Revenue accounts through `item_categories`;
 - transaction categories can contain multiple ordered Debit/Credit rule rows;
 - structural `Lengkap` requires at least one active Debit and one active Credit;
+- cash-flow and goods-flow counterpart presets are available as Accounting configuration aids rather than a second mapping engine;
 - Warehouse Settings owns warehouse/location, staff access, and stock-opname parameters;
 - Warehouse registers `wh_transfer`, `wh_opname`, `wh_production`, and `wh_return` into Accounting `transaction_categories`;
 - Warehouse has no account-mapping table;
@@ -136,9 +153,11 @@ Implemented configuration:
 - `wh_return` remains deliberately without default rules until return direction/subtype is defined;
 - old provisional pair-mapping writer is retired.
 
+Warehouse master exists, but canonical physical stock remains store-scoped. Do not pretend a warehouse selector moves warehouse-level stock until the warehouse location ledger/source contract exists.
+
 ## Accounting Workspace and POS bridge — deployed live
 
-Accounting Workspace, Setting Akuntansi, POS Accounting bridge, and six-decimal Accounting precision are deployed on the permanent Prototype Leker Worker. The remote dedicated D1 migration chain is applied through `0026_accounting_six_decimal_precision.sql`.
+Accounting Workspace, Setting Akuntansi, POS Accounting bridge, and six-decimal Accounting precision are deployed on the permanent Prototype Leker Worker. The remote dedicated D1 migration chain is applied through `0026_accounting_six_decimal_precision.sql` before the transaction-correction feature in the current branch.
 
 Current behavior is governed by:
 
@@ -150,28 +169,6 @@ Current behavior is governed by:
 - `src/accounting-workspace.js`;
 - `src/accounting-pos-bridge.js`;
 - `src/accounting-pos-bridge-response.js`.
-
-### Resolved production deployment incident — historical D1 schema drift
-
-On 2026-08-13 the remote D1 migration ledger reported migrations through `0022` as applied, but two compatibility objects originally defined by migration `0018_product_master_accounting_reference.sql` were absent from the live schema:
-
-- `transaction_accounting_mappings`;
-- `transaction_accounting_snapshots`.
-
-That drift caused migration `0023_accounting_snapshot_settings_compat.sql` to fail before Accounting Workspace migrations could continue. The failure was diagnosed through the existing Cloudflare Workers Git Integration without exposing Cloudflare credentials.
-
-Recovery performed under Bos Cyo's explicit deployment authority:
-
-- captured a D1 Time Travel checkpoint before mutation;
-- inspected live `sqlite_schema` and migration state;
-- recreated only the exact missing compatibility objects from the authoritative `0018` definition using idempotent DDL/seed operations;
-- resumed canonical remote migrations `0023` through `0026`;
-- restored the repository-owned deploy command to `npm run db:migrations:apply && npx wrangler deploy`;
-- removed temporary diagnostic/recovery scripts and public diagnostic assets;
-- verified a subsequent normal Cloudflare Git build succeeds without the recovery path;
-- verified live Accounting assets and protected API routes through the reusable smoke workflow in `cyo-ramadan/program-kasir`.
-
-The incident is resolved. Do not rewrite or retroactively alter already-applied migration history to hide this drift; use schema inspection and an explicit recovery path if a similar mismatch appears again.
 
 Implemented Accounting work:
 
@@ -200,8 +197,8 @@ Implemented POS bridge:
 - missing mapping returns `NEEDS_CONFIGURATION` without rolling back the operational POS fact;
 - retry is idempotent by source fact;
 - Transaction Explorer reads actual bridge delivery status/journal reference for SALE/PURCHASE/EXPENSE;
-- manual reconciliation/retry is available from the Accounting workspace for older or not-yet-journalized POS facts;
-- sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly, so the former cost-rounding blocker is resolved by ADR-019;
+- manual sync is reconciliation/retry only; normal POS posting remains automatic;
+- sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly;
 - missing sale COGS snapshot fails closed with `NEEDS_COST_SNAPSHOT` rather than recomputing from current Product Master cost.
 
 ### Open: dynamic cashier payment-method integration
@@ -228,15 +225,52 @@ The default `wh_opname` category contains labeled gain and loss rule rows. A fut
 
 `wh_return` is registered but fail-closed. Supplier return, customer return, and internal return can have different Accounting meaning, so no default rule is invented yet.
 
-### Legacy business-fact seam
+## Transaction correction permit + cashier Raport — implementation in current feature branch
+
+Governed by:
+
+- `contracts/transaction-void-permit-v1.md`;
+- `contracts/staff-raport-facts-v1.md`;
+- ADR-022;
+- migration `0027_transaction_void_permits.sql`;
+- `src/transaction-void-permits.js`;
+- `src/transaction-correction-executor.js`;
+- `src/accounting-pos-reversal.js`;
+- `src/accounting-reconciliation-guard.js`;
+- `src/staff-raport.js`.
+
+Planned active behavior after merge/deploy:
+
+- Cashier Hapus for committed SALE/PURCHASE/EXPENSE creates an approval permit with mandatory reason rather than hard-deleting history;
+- Admin Gerai/Owner ACC or Reject from the existing Approval Queue surface;
+- until ACC, original transaction remains fully active;
+- approved Operational Expense correction soft-deletes the source and reconciles drawer/accounting;
+- normal-stock Sale correction returns stock using the original exact sale COGS snapshot, reverses earned points, soft-deletes source, and reverses any POSTED Accounting journal;
+- Sale with generated AUTO_DADAKAN production remains explicit `HOLD` until production-correction meaning is decided;
+- Purchase correction runs only when no later dependent stock/cost history exists; otherwise it remains explicit HOLD without rewriting downstream HPP;
+- Accounting reversal uses the same positive exact line amounts as the original journal with Debit/Credit sides swapped; negative journal-line amounts are not introduced;
+- corrected source facts are excluded from later manual POS Accounting reconciliation;
+- Transaction Explorer preserves corrected facts as history with `voided` state;
+- Staff/Admin Raport exposes raw integrity facts from correction requests, decisions, drawer discrepancy and related operational data;
+- no automatic fraud label or opaque KPI score is generated.
+
+### Open: KPI score/grade policy
+
+Raport facts are available, but score/grade remain `NEEDS_KPI_POLICY`. Bos Cyo still needs to define evaluation period, weights, target/direction, thresholds, and whether individual signals affect integrity score, operational score, or both.
+
+### Open: AUTO_DADAKAN Sale correction meaning
+
+If a Sale generated a production run, the correction executor currently HOLDs. Required business decision: should deleting/correcting the Sale also reverse that production run, or should produced goods remain as inventory? The system must not guess this because the two choices produce different stock/HPP history.
+
+## Legacy business-fact seam
 
 `MAXI_ACCOUNTING_BUSINESS_FACT_V1` is superseded for SALE/PURCHASE/EXPENSE by `MAXI_ACCOUNTING_POS_BRIDGE_V1`.
 
 The old helper remains only for operational fact kinds that have not yet migrated to an active bridge. The shared `@maxi/accounting@1.3.0` service is still not deployed; the current Accounting implementation is a Prototype Leker composition host with an explicit future adapter boundary.
 
-## Portal Staf V1
+## Portal Staf
 
-Live-photo attendance is active for authenticated cashier/employee sessions and is independent from drawer state. KPI, Riwayat Setoran, and Riwayat Gaji are intentionally exposed as isolated empty portal sections until their own versioned data contracts are implemented.
+Live-photo attendance is active for authenticated cashier/employee sessions. The current feature branch also supplies personal Raport/KPI facts from the shared staff read model. Riwayat Setoran and Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
 
 ## Staff session dan duplicate tab
 
@@ -246,4 +280,4 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Stock Adjustment contract/ADR, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, migrations through 0026, deployment recovery evidence, and regression/live-smoke tests describe the active implementation state. Accounting Workspace, Setting Akuntansi, and audited Stock Adjustment are active capabilities. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, store-level HPP integrity policy for negative stock, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI/Raport, transaction void permits, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, dynamic cashier payment methods/components, warehouse-level stock routing, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations.

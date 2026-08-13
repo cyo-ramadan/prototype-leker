@@ -1,0 +1,10 @@
+{
+  "requestedAt": "2026-08-13T00:00:00Z",
+  "environment": "prototype",
+  "cloudflareAccount": "Daily Napkin",
+  "worker": "prototype-leker-v2",
+  "database": "prototype-leker-db",
+  "action": "apply-migrations-and-deploy",
+  "requiredMigration": "0025_accounting_pos_bridge.sql",
+  "reason": "Recover Accounting API after source deployment without remote D1 migrations"
+}

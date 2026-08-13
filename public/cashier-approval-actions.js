@@ -13,17 +13,85 @@
       method: 'POST',
       body: JSON.stringify({ requestType, payload })
     });
-    toast(`Pengajuan ${result.request.requestType} masuk · pending approval`);
+    const label = result.request?.payload?.purpose === 'STOCK_ADJUSTMENT' ? 'Penyesuaian Stok' : result.request.requestType;
+    toast(`Pengajuan ${label} masuk · pending approval`);
     return result;
   }
 
-  function pendingContractDialog(title, description) {
-    openDialog({
-      eyebrow: 'Laci · Modul Baru',
-      title,
-      readOnly: true,
-      body: `<p class="muted">${escapeHtml(description)}</p><p class="muted">Modul ini akan memakai contract versioned sendiri sebelum write behavior diaktifkan.</p>`
-    });
+  async function stockAdjustmentDialog() {
+    try {
+      const payload = await api('/api/cashier/stock-adjustment/options');
+      const products = payload.products || [];
+      if (!products.length) {
+        openDialog({
+          eyebrow: 'Laci · Inventory',
+          title: 'Penyesuaian Stok',
+          readOnly: true,
+          body: '<p class="muted">Belum ada barang aktif dengan stock tracking yang dapat disesuaikan.</p>'
+        });
+        return;
+      }
+      const options = products.map(product => `
+        <option value="${Number(product.productId)}" data-current="${Number(product.currentQuantity)}" data-unit="${escapeHtml(product.unitSymbol || '')}">
+          ${escapeHtml(product.productName)} · stok ${Number(product.currentQuantity)} ${escapeHtml(product.unitSymbol || '')}
+        </option>`).join('');
+
+      openDialog({
+        eyebrow: 'Laci · Approval Queue',
+        title: 'Penyesuaian Stok',
+        body: `
+          <div class="field"><label>Barang</label><select id="stockAdjustmentProduct" class="text-input" required>${options}</select></div>
+          <div id="stockAdjustmentCurrent" class="cashier-lock-note"></div>
+          <div class="field"><label>Target stok fisik</label><input id="stockAdjustmentTarget" class="text-input" type="number" min="0" step="1" required /></div>
+          <div class="field"><label>Alasan penyesuaian</label><input id="stockAdjustmentReason" class="text-input" maxlength="220" placeholder="Contoh: hasil hitung fisik" required /></div>
+          <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500"></textarea></div>
+          <div id="stockAdjustmentDelta" class="cashier-lock-note"></div>
+          <p class="muted">Saat diajukan, server menyimpan snapshot stok saat ini. Saat Admin/Owner ACC, stok dicek ulang. Jika sudah berubah karena transaksi lain, pengajuan ditolak sebagai stale dan harus diajukan ulang.</p>`,
+        submitText: 'AJUKAN PENYESUAIAN',
+        onSubmit: async () => {
+          const productId = Number(el('stockAdjustmentProduct').value);
+          const targetQuantity = Number(el('stockAdjustmentTarget').value);
+          const reason = el('stockAdjustmentReason').value.trim();
+          if (!Number.isInteger(productId)) throw new Error('Barang Penyesuaian Stok tidak valid.');
+          if (!Number.isInteger(targetQuantity) || targetQuantity < 0) throw new Error('Target stok wajib bilangan bulat minimal 0.');
+          if (!reason) throw new Error('Alasan Penyesuaian Stok wajib diisi.');
+          await submitApprovalRequest('GOODS_FLOW', {
+            purpose: 'STOCK_ADJUSTMENT',
+            productId,
+            targetQuantity,
+            reason,
+            note: el('stockAdjustmentNote').value.trim()
+          });
+          return true;
+        }
+      });
+
+      const renderAdjustment = () => {
+        const option = el('stockAdjustmentProduct')?.selectedOptions?.[0];
+        const currentQuantity = Number(option?.dataset.current || 0);
+        const unit = option?.dataset.unit || '';
+        const targetInput = el('stockAdjustmentTarget');
+        if (targetInput && targetInput.value === '') targetInput.value = String(currentQuantity);
+        const targetQuantity = Number(targetInput?.value || currentQuantity);
+        const currentNode = el('stockAdjustmentCurrent');
+        if (currentNode) currentNode.textContent = `Stok sistem saat ini · ${currentQuantity} ${unit}`;
+        const deltaNode = el('stockAdjustmentDelta');
+        if (deltaNode) {
+          if (!Number.isInteger(targetQuantity) || targetQuantity < 0) deltaNode.textContent = 'Target stok belum valid.';
+          else if (targetQuantity === currentQuantity) deltaNode.textContent = 'Tidak ada selisih. Ubah target sesuai hasil stok fisik.';
+          else deltaNode.textContent = `Perubahan saat ACC · ${currentQuantity} → ${targetQuantity} ${unit} · ${targetQuantity > currentQuantity ? '+' : ''}${targetQuantity - currentQuantity}`;
+        }
+      };
+      el('stockAdjustmentProduct')?.addEventListener('change', () => {
+        const option = el('stockAdjustmentProduct')?.selectedOptions?.[0];
+        if (el('stockAdjustmentTarget')) el('stockAdjustmentTarget').value = option?.dataset.current || '0';
+        renderAdjustment();
+      });
+      el('stockAdjustmentTarget')?.addEventListener('input', renderAdjustment);
+      renderAdjustment();
+    } catch (error) {
+      toast(error.message);
+    }
   }
 
   async function productionDialog() {
@@ -163,7 +231,7 @@
     });
   }
 
-  el('stockAdjustmentBtn')?.addEventListener('click', () => pendingContractDialog('Penyesuaian Stok', 'Entry point tersedia. Protocol adjustment akan memakai stock movement ledger yang sama, dengan rule snapshot adjustment versioned terpisah.'));
+  el('stockAdjustmentBtn')?.addEventListener('click', stockAdjustmentDialog);
   el('productionBtn')?.addEventListener('click', productionDialog);
   el('cashFlowBtn')?.addEventListener('click', cashFlowDialog);
   el('goodsFlowBtn')?.addEventListener('click', goodsFlowDialog);

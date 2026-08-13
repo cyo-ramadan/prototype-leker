@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
+import { getAccountingBridgeSummary } from './accounting-pos-bridge.js';
 import {
   ACCOUNT_TYPES,
   createAccountingAccount,
@@ -37,9 +38,10 @@ function monthStart(businessDate) {
 
 async function bootstrap(db, store) {
   const businessDate = getJakartaBusinessDate();
-  const [accounts, journals] = await Promise.all([
+  const [accounts, journals, bridgeSummary] = await Promise.all([
     listAccountingAccounts(db, store.id),
-    listAccountingJournals(db, store.id, { limit: 12 })
+    listAccountingJournals(db, store.id, { limit: 12 }),
+    getAccountingBridgeSummary(db, store.id)
   ]);
   return {
     contract: 'MAXI_ACCOUNTING_WORKSPACE_V1',
@@ -53,7 +55,8 @@ async function bootstrap(db, store) {
     accountCodePolicy: 'AUTO_UNIQUE_SERVER_SEQUENCE',
     postedJournalPolicy: 'IMMUTABLE_REVERSAL_ONLY',
     accounts,
-    recentJournals: journals
+    recentJournals: journals,
+    bridgeSummary
   };
 }
 

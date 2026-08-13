@@ -3,6 +3,13 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
 
+const COST_SCALE = 1_000_000;
+const costFromScaled = value => value == null ? null : Number(value) / COST_SCALE;
+function exactCost(scaled, legacy) {
+  if (scaled != null) return Number(scaled) / COST_SCALE;
+  return legacy == null ? null : Number(legacy);
+}
+
 function safeJson(value) {
   try { return JSON.parse(value || '{}'); } catch { return {}; }
 }
@@ -28,6 +35,8 @@ async function saleDetail(db, storeId, saleId) {
   const items = await db.prepare(`
     SELECT si.id, si.product_id, si.product_name, si.unit_price, si.quantity, si.line_total,
            si.points_per_unit, si.line_points, si.recipe_id, si.production_run_id,
+           si.product_kind_id, si.product_kind_code, si.product_kind_name,
+           si.unit_cost_snapshot, si.line_cogs,
            r.revision AS recipe_revision
     FROM sale_items si
     LEFT JOIN manufacturing_recipes r ON r.id = si.recipe_id AND r.store_id = si.store_id
@@ -38,7 +47,8 @@ async function saleDetail(db, storeId, saleId) {
   const runs = await db.prepare(`
     SELECT id, mode, output_product_id, output_product_name, output_unit_symbol,
            recipe_id, recipe_revision, batches, output_quantity_per_batch, total_output_quantity,
-           requested_sale_quantity, hpp_total, hpp_per_unit, status, created_at
+           requested_sale_quantity, hpp_total, hpp_per_unit, hpp_total_scaled, hpp_per_unit_scaled,
+           status, created_at
     FROM production_runs
     WHERE store_id = ? AND sale_id = ?
     ORDER BY created_at, id
@@ -51,7 +61,8 @@ async function saleDetail(db, storeId, saleId) {
     const components = await db.prepare(`
       SELECT production_run_id, component_product_id, component_product_name,
              component_unit_symbol, quantity_per_batch, total_quantity,
-             unit_cost_snapshot, total_cost_snapshot
+             unit_cost_snapshot, total_cost_snapshot,
+             unit_cost_snapshot_scaled, total_cost_snapshot_scaled
       FROM production_run_components
       WHERE store_id = ? AND production_run_id IN (${placeholders})
       ORDER BY production_run_id, component_product_id
@@ -66,8 +77,8 @@ async function saleDetail(db, storeId, saleId) {
       unitSymbol: row.component_unit_symbol,
       quantityPerBatch: Number(row.quantity_per_batch),
       totalQuantity: Number(row.total_quantity),
-      unitCostSnapshot: row.unit_cost_snapshot == null ? null : Number(row.unit_cost_snapshot),
-      totalCostSnapshot: row.total_cost_snapshot == null ? null : Number(row.total_cost_snapshot)
+      unitCostSnapshot: exactCost(row.unit_cost_snapshot_scaled, row.unit_cost_snapshot),
+      totalCostSnapshot: exactCost(row.total_cost_snapshot_scaled, row.total_cost_snapshot)
     });
   }
 
@@ -103,6 +114,13 @@ async function saleDetail(db, storeId, saleId) {
       lineTotal: Number(row.line_total),
       pointsPerUnit: Number(row.points_per_unit || 0),
       linePoints: Number(row.line_points || 0),
+      productKindId: row.product_kind_id || null,
+      productKindCode: row.product_kind_code || '',
+      productKindName: row.product_kind_name || '',
+      unitCostSnapshot: costFromScaled(row.unit_cost_snapshot),
+      unitCostSnapshotScaled: row.unit_cost_snapshot == null ? null : Number(row.unit_cost_snapshot),
+      lineCogs: costFromScaled(row.line_cogs),
+      lineCogsScaled: row.line_cogs == null ? null : Number(row.line_cogs),
       recipeId: row.recipe_id || null,
       recipeRevision: row.recipe_revision == null ? null : Number(row.recipe_revision),
       productionRunId: row.production_run_id || null
@@ -119,8 +137,8 @@ async function saleDetail(db, storeId, saleId) {
       outputQuantityPerBatch: Number(row.output_quantity_per_batch),
       totalOutputQuantity: Number(row.total_output_quantity),
       requestedSaleQuantity: row.requested_sale_quantity == null ? null : Number(row.requested_sale_quantity),
-      hppTotal: row.hpp_total == null ? null : Number(row.hpp_total),
-      hppPerUnit: row.hpp_per_unit == null ? null : Number(row.hpp_per_unit),
+      hppTotal: exactCost(row.hpp_total_scaled, row.hpp_total),
+      hppPerUnit: exactCost(row.hpp_per_unit_scaled, row.hpp_per_unit),
       status: row.status,
       occurredAt: row.created_at,
       components: componentsByRun.get(row.id) || []
@@ -134,7 +152,7 @@ async function simpleDetail(db, storeId, kind, id) {
     PURCHASE: {
       sql: `SELECT p.id, p.description, p.total_amount AS amount, p.note, p.payment_method,
                    p.drawer_session_id, p.cashier_id, p.created_at, c.employee_name AS cashier_name,
-                   p.supplier_id, s.name AS supplier_name
+                   p.supplier_id, s.name AS supplier_name, NULL AS quantity
             FROM purchases p LEFT JOIN cashiers c ON c.id = p.cashier_id
             LEFT JOIN suppliers s ON s.id = p.supplier_id AND s.store_id = p.store_id
             WHERE p.store_id = ? AND p.id = ? LIMIT 1`
@@ -142,14 +160,14 @@ async function simpleDetail(db, storeId, kind, id) {
     EXPENSE: {
       sql: `SELECT e.id, e.description, e.amount, '' AS note, e.payment_method,
                    e.drawer_session_id, e.cashier_id, e.created_at, c.employee_name AS cashier_name,
-                   NULL AS supplier_id, '' AS supplier_name
+                   NULL AS supplier_id, '' AS supplier_name, e.quantity
             FROM expenses e LEFT JOIN cashiers c ON c.id = e.cashier_id
             WHERE e.store_id = ? AND e.id = ? LIMIT 1`
     },
     OTHER_INCOME: {
       sql: `SELECT i.id, i.description, i.amount, '' AS note, 'CASH' AS payment_method,
                    i.drawer_session_id, i.cashier_id, i.created_at, c.employee_name AS cashier_name,
-                   NULL AS supplier_id, '' AS supplier_name
+                   NULL AS supplier_id, '' AS supplier_name, NULL AS quantity
             FROM other_income i LEFT JOIN cashiers c ON c.id = i.cashier_id
             WHERE i.store_id = ? AND i.id = ? LIMIT 1`
     }
@@ -171,6 +189,7 @@ async function simpleDetail(db, storeId, kind, id) {
     id: row.id,
     description: row.description,
     amount: Number(row.amount || 0),
+    quantity: row.quantity == null ? null : String(row.quantity),
     note: row.note || '',
     paymentMethod: row.payment_method || '',
     drawerSessionId: row.drawer_session_id || null,

@@ -2,8 +2,6 @@ import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 
-const MODES = new Set(['STOCK', 'DADAKAN']);
-
 function nonNegativeInteger(value, max = 1_000_000_000) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number <= max ? number : null;
@@ -23,8 +21,9 @@ function mapRow(row) {
     baseUnitId: row.base_unit_id || null,
     unitSymbol: row.unit_symbol || '',
     pointsPerUnit: Number(row.points_per_unit || 0),
-    productionMode: row.production_mode || 'STOCK',
-    recipeLinkEnabled: Boolean(row.recipe_link_enabled),
+    legacyProductionMode: row.production_mode || 'STOCK',
+    linkedRecipeId: row.linked_recipe_id || null,
+    recipeLinkEnabled: Boolean(row.linked_recipe_id || row.recipe_link_enabled),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
     stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity),
     activeRecipe: row.recipe_id ? {
@@ -35,10 +34,32 @@ function mapRow(row) {
   };
 }
 
+export async function resolveLinkedRecipe(db, storeId, productId, linkedRecipeId) {
+  const id = linkedRecipeId ? String(linkedRecipeId) : '';
+  if (!id) return { ok: true, linkedRecipeId: null, recipe: null };
+  const recipe = await db.prepare(`
+    SELECT id, revision, output_quantity
+    FROM manufacturing_recipes
+    WHERE id = ? AND store_id = ? AND output_product_id = ? AND status = 'ACTIVE'
+    LIMIT 1
+  `).bind(id, storeId, productId).first();
+  if (!recipe) return { ok: false, error: 'Resep linked harus resep aktif dengan hasil barang yang sama.' };
+  return {
+    ok: true,
+    linkedRecipeId: recipe.id,
+    recipe: {
+      id: recipe.id,
+      revision: Number(recipe.revision || 0),
+      outputQuantity: Number(recipe.output_quantity || 0)
+    }
+  };
+}
+
 export async function getProductPolicies(db, storeId) {
   const rows = await db.prepare(`
     SELECT p.id, p.name, p.item_type_id, p.base_unit_id,
-           p.points_per_unit, p.production_mode, p.recipe_link_enabled, p.stock_tracking_enabled,
+           p.points_per_unit, p.production_mode, p.recipe_link_enabled, p.linked_recipe_id,
+           p.stock_tracking_enabled,
            t.name AS item_type_name, u.symbol AS unit_symbol,
            b.quantity AS stock_quantity,
            r.id AS recipe_id, r.revision AS recipe_revision, r.output_quantity AS recipe_output_quantity
@@ -47,7 +68,7 @@ export async function getProductPolicies(db, storeId) {
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
     LEFT JOIN manufacturing_recipes r
-      ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+      ON r.id = p.linked_recipe_id AND r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
     WHERE p.store_id = ?
     ORDER BY p.name COLLATE NOCASE, p.id
   `).bind(storeId).all();
@@ -91,28 +112,35 @@ export async function handleProductPolicyApi(request, env, pathname) {
     : nonNegativeInteger(body.value.pointsPerUnit, 10_000_000);
   if (pointsPerUnit === null) return json({ error: 'Poin per barang harus bilangan bulat nol atau positif.' }, 400);
 
-  const productionMode = String(body.value?.productionMode ?? current.productionMode).trim().toUpperCase();
-  if (!MODES.has(productionMode)) return json({ error: 'Mode produksi harus STOCK atau DADAKAN.' }, 400);
-  const recipeLinkEnabled = body.value?.recipeLinkEnabled === undefined
-    ? current.recipeLinkEnabled
-    : Boolean(body.value.recipeLinkEnabled);
   const stockTrackingEnabled = body.value?.stockTrackingEnabled === undefined
     ? current.stockTrackingEnabled
     : Boolean(body.value.stockTrackingEnabled);
 
-  if (productionMode === 'DADAKAN' && (!recipeLinkEnabled || !current.activeRecipe)) {
-    return json({ error: 'Mode DADAKAN membutuhkan Link Resep aktif dan resep aktif untuk barang ini.' }, 409);
+  let requestedRecipeId;
+  if (Object.prototype.hasOwnProperty.call(body.value || {}, 'linkedRecipeId')) {
+    requestedRecipeId = body.value.linkedRecipeId || null;
+  } else if (body.value?.recipeLinkEnabled === false) {
+    requestedRecipeId = null;
+  } else {
+    requestedRecipeId = current.linkedRecipeId || current.activeRecipe?.id || null;
   }
-  if (productionMode === 'DADAKAN' && !stockTrackingEnabled) {
-    return json({ error: 'Mode DADAKAN wajib mengaktifkan Track & enforce stok.' }, 409);
-  }
+  const recipeLink = await resolveLinkedRecipe(env.DB, store.id, productId, requestedRecipeId);
+  if (!recipeLink.ok) return json({ error: recipeLink.error }, 400);
 
   const statements = [
     env.DB.prepare(`
       UPDATE products
-      SET points_per_unit = ?, production_mode = ?, recipe_link_enabled = ?, stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
+      SET points_per_unit = ?, recipe_link_enabled = ?, linked_recipe_id = ?,
+          stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
-    `).bind(pointsPerUnit, productionMode, recipeLinkEnabled ? 1 : 0, stockTrackingEnabled ? 1 : 0, productId, store.id)
+    `).bind(
+      pointsPerUnit,
+      recipeLink.recipe ? 1 : 0,
+      recipeLink.linkedRecipeId,
+      stockTrackingEnabled ? 1 : 0,
+      productId,
+      store.id
+    )
   ];
   if (stockTrackingEnabled) {
     statements.push(env.DB.prepare(`

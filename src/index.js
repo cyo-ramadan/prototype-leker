@@ -5,6 +5,7 @@ import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './c
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
+import { handleCashierPurchaseApi } from './cashier-purchase.js';
 import { handleCashierProductionApi } from './cashier-production.js';
 import { handleCashierCustomerSearchApi } from './cashier-customers.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
@@ -13,8 +14,12 @@ import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
+import { handleProductMasterApi } from './product-master.js';
+import { handleProductKindApi } from './product-kinds.js';
+import { handleAccountingReferenceApi } from './accounting-reference.js';
 import { handleAdminStockApi } from './admin-stock.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
+import { handleAdminPurchaseDetailApi } from './admin-purchase-detail.js';
 import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
 import { handleAdminProductionDetailApi } from './admin-production-detail.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
@@ -96,11 +101,20 @@ async function handleApi(request, env, url) {
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
 
+  const productKindResponse = await handleProductKindApi(request, env, pathname);
+  if (productKindResponse) return productKindResponse;
+
+  const productMasterResponse = await handleProductMasterApi(request, env, pathname);
+  if (productMasterResponse) return productMasterResponse;
+
   const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
   if (classificationResponse) return classificationResponse;
 
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
   if (productPolicyResponse) return productPolicyResponse;
+
+  const accountingReferenceResponse = await handleAccountingReferenceApi(request, env, pathname);
+  if (accountingReferenceResponse) return accountingReferenceResponse;
 
   const manufacturingMasterResponse = await handleManufacturingMasterApi(request, env, pathname);
   if (manufacturingMasterResponse) return manufacturingMasterResponse;
@@ -110,6 +124,9 @@ async function handleApi(request, env, url) {
 
   const adminProductionDetailResponse = await handleAdminProductionDetailApi(request, env, pathname);
   if (adminProductionDetailResponse) return adminProductionDetailResponse;
+
+  const adminPurchaseDetailResponse = await handleAdminPurchaseDetailApi(request, env, pathname);
+  if (adminPurchaseDetailResponse) return adminPurchaseDetailResponse;
 
   const adminTransactionDetailResponse = await handleAdminTransactionDetailApi(request, env, pathname);
   if (adminTransactionDetailResponse) return adminTransactionDetailResponse;
@@ -136,6 +153,9 @@ async function handleApi(request, env, url) {
 
   const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
   if (trackedSaleResponse) return trackedSaleResponse;
+
+  const purchaseResponse = await handleCashierPurchaseApi(request, env, pathname);
+  if (purchaseResponse) return purchaseResponse;
 
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;

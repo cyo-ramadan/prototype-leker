@@ -26,9 +26,26 @@ Cara itu merusak historical costing karena harga bahan dapat berubah setelah pro
 **Current strategy:**
 
 - Recipe/BOM disimpan sebagai immutable revision.
-- Production contract berikutnya wajib snapshot recipe revision, actual input/output, waste/yield, dan costing reference saat posting.
+- Production snapshots exact scaled component cost and production-run HPP when posting.
 - Inventory/Costing memiliki ownership valuation.
 - Accounting memiliki ownership journal interpretation dan financial statements.
+
+## HPP tidak boleh kembali ke REAL/FLOAT
+
+**Pitfall:** Jangan menyimpan atau menghitung authoritative Average Cost, Harga Beli Terakhir, sale COGS, atau production HPP baru menggunakan SQLite `REAL`, JavaScript floating-point sebagai source of truth, atau SQL `* 1.0`.
+
+**Current strategy:**
+
+- current exact cost scale = `1,000,000` cost units per rupiah;
+- authoritative new cost fields are scaled INTEGER;
+- UI/API converts scaled values only for presentation;
+- legacy production REAL fields from migration 0017 are history fallback only and new writers leave them NULL.
+
+## Qty operasional bukan stock movement
+
+**Pitfall:** Jangan menganggap `expenses.quantity` sebagai inventory consumption hanya karena user mengisi Qty pada Pengeluaran Operasional.
+
+Qty tersebut adalah customer-behaviour metadata. Inventory moves only through an explicit inventory-owned movement contract. Jika suatu operasional memang memakai barang stok, link ke inventory must be an explicit future flow rather than inferred from description or quantity.
 
 ## Transaction explorer bukan source of truth
 
@@ -36,6 +53,20 @@ Cara itu merusak historical costing karena harga bahan dapat berubah setelah pro
 
 Explorer hanya read model dengan `sourceReference`. Perubahan transaksi tetap harus lewat module pemilik business fact. Detail jurnal juga tidak boleh dipindahkan ke Admin.
 
+## Accounting reference bukan COA/jurnal source of truth
+
+**Pitfall:** Jangan memperlakukan `accounting_account_refs` sebagai Chart of Accounts canonical atau menghasilkan debit/kredit langsung dari reference ini.
+
+Reference `1101`, `1301`, `4101`, `5101`, dan akun dasar lain hanya placeholder connector berstatus `PROVISIONAL` sampai modul Accounting memberikan external account identity yang canonical.
+
+**Current strategy:**
+
+- Admin boleh menampilkan Portal Referensi Akun dan menyimpan explicit product reference.
+- Tidak ada account mapping yang dipilih otomatis hanya karena kode akun dasar tersedia.
+- Mapping transaksi ditambahkan satu per satu melalui contract berikutnya.
+- Journal, buku besar, neraca saldo, neraca, laba rugi, dan closing tetap dimiliki modul Accounting.
+- Program lain tidak menulis langsung ke database Accounting.
+
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap manual/event-driven, Manufacturing Master memakai immutable recipe revision, dan Admin Transaction Explorer ditegaskan sebagai operational read model dengan Accounting tetap sebagai owner jurnal.
+**REQUIRED** — refresh kasir tetap event-driven, costing memakai exact scaled integer snapshots, operational Qty tidak bocor menjadi stock movement, Transaction Explorer tetap read model, dan Accounting reference tetap connector-only.

@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
+import { handleCashierOperationalExpenseApi } from './cashier-operational-expense.js';
 
 const PAYMENT_METHODS = new Set(['CASH', 'BANK', 'PAYABLE', 'NON_CASH']);
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
@@ -171,6 +172,9 @@ function purchaseItemStatements(db, {
 }
 
 export async function handleCashierPurchaseApi(request, env, pathname) {
+  const operationalExpenseResponse = await handleCashierOperationalExpenseApi(request, env, pathname);
+  if (operationalExpenseResponse) return operationalExpenseResponse;
+
   if (!pathname.startsWith('/api/cashier/purchases')) return null;
 
   const auth = await requireCashier(request, env.DB);

@@ -3,7 +3,7 @@
 Status: ACTIVE WORKING AUDIT
 Scope: transaction/action surfaces in Cashier and Branch Admin.
 
-Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional through Approval Queue. PARTIAL/HOLD = action works up to a boundary whose business meaning must not be guessed.
+Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional through authorization. PARTIAL/HOLD = action works up to a boundary whose business meaning must not be guessed.
 
 ## Cashier
 
@@ -16,13 +16,15 @@ Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional t
 | Beli Bahan | PASS | itemized purchase → stock/cost + Accounting POS bridge. |
 | Pengeluaran | PASS | operational expense → Accounting POS bridge. |
 | Pendapatan Lain | PASS | operational income route exists; separate Accounting taxonomy remains future work. |
-| Penyesuaian Stok | PASS + APPROVAL | existing Approval Queue, target snapshot, stale guard, canonical stock movement. |
-| Produksi | PASS | recipe/stock-production module. |
+| Penyesuaian Stok | PASS + APPROVAL | Approval Queue, target snapshot, stale guard, canonical stock movement. |
+| Produksi | PASS V1 | linked recipe + batch production works. Production V2 editable output/material template is separate future work. |
 | Arus Kas | PARTIAL/HOLD | operational approval/posting works; Accounting counterpart presets exist; CASH_FLOW Accounting delivery is not active yet. |
 | Arus Barang | PARTIAL/HOLD | store-level quantity posting works; warehouse routing and exact Accounting valuation are intentionally held. |
 | Aset | PASS + APPROVAL | aggregate asset-value V1. |
-| Permit koreksi transaksi | PARTIAL/HOLD | request + Admin ACC/Reject works; downstream Sale/Purchase/Expense correction executors remain explicit HOLD. |
-| Rincian Aktif | PASS | current drawer report API. |
+| Hapus Penjualan | PASS + APPROVAL, conditional HOLD | request + Admin ACC/Reject + soft-delete + stock/HPP/points + Accounting reversal. Sale with AUTO_DADAKAN remains HOLD pending production-correction meaning. |
+| Hapus Pembelian | PASS + APPROVAL, guarded | deterministic only before later dependent stock/cost movement; otherwise explicit HOLD. |
+| Hapus Operasional | PASS + APPROVAL | soft-delete + drawer reconciliation + Accounting reversal when original journal exists. |
+| Rincian Aktif | PASS | current drawer report reads only active source transactions. |
 | Detail Laci | PASS | lazy drawer history/detail API. |
 | Refresh Pesanan | PASS | explicit authenticated refresh path. |
 
@@ -30,13 +32,13 @@ Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional t
 
 | Surface | Status | Evidence / boundary |
 |---|---|---|
-| Transaksi filters / Refresh / Muat lagi | PASS | `admin-transactions-ui.js` + paginated read model. |
+| Transaksi filters / Refresh / Muat lagi | PASS | `admin-transactions-ui.js` + paginated read model; corrected POS facts remain history with status `voided`. |
 | Detail transaksi | PASS | lazy detail APIs. |
 | Approval Queue ACC / Reject | PASS | operational approval queue. |
-| Permit koreksi ACC / Reject | PARTIAL/HOLD | authorization is real; unresolved executors return visible HOLD. |
-| Raport Kasir Refresh | PASS | shared Raport read model; scoring unconfigured. |
+| Permit Hapus ACC / Reject | PASS + guarded execution | same Approval Queue surface; recent lifecycle shows approval, execution, Accounting status, and journal references. |
+| Raport Kasir Refresh | PASS | shared Raport read model; score/grade remains `NEEDS_KPI_POLICY`. |
 | Akuntansi workspace | PASS | account, journal, journal data, GL, P&L, Balance Sheet. |
-| Sync Transaksi POS | PASS | existing Accounting bridge reconciliation. |
+| Sync Transaksi POS | PASS technical / UX rename pending | retry/reconciliation only; corrected source facts are excluded. Normal POS posting remains automatic. |
 | Setting Akuntansi | PASS | canonical registries + cash/goods counterpart presets. |
 | Warehouse Settings | PASS | real warehouse master/access/settings; transaction routing remains separate. |
 | Stok / detail | PASS | canonical stock/movement read model. |
@@ -44,11 +46,10 @@ Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional t
 ## Held business meanings
 
 1. KPI period, target, weights, grade thresholds.
-2. Sale correction: stock, COGS, points, order/production lineage, Accounting reversal.
-3. Purchase correction: moving-average HPP history and later dependent stock/cost facts.
-4. Expense correction: auditable operational status + Accounting reversal executor.
-5. Warehouse routing for Arus Barang: canonical stock is still store-scoped.
-6. Generic Arus Barang Accounting: quantity alone has no exact valuation meaning.
+2. Sale + AUTO_DADAKAN correction: whether generated production is reversed or produced goods remain stock.
+3. Warehouse routing for Arus Barang: canonical stock is still store-scoped.
+4. Generic Arus Barang Accounting valuation: quantity alone has no exact valuation meaning.
+5. Production V2: editable output Qty, dynamic raw materials, optional recipe template, and production-cost allocation into HPP.
 
 ## DOC-IMPACT
 

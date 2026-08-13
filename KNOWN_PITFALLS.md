@@ -117,10 +117,26 @@ Customer return, supplier return, dan internal return dapat mempunyai arah inven
 
 Compatibility endpoint pair-mapping sudah dipensiunkan. Semua konfigurasi baru memakai `MAXI_ACCOUNTING_SETTINGS_V1`, sedangkan `transaction_accounting_snapshots` hanya menyimpan readiness evidence dan tidak berisi pasangan debit/kredit palsu.
 
+## Migration ledger tidak membuktikan schema object lengkap
+
+**Pitfall:** Jangan menganggap row pada tabel migration D1 otomatis membuktikan semua table/index/trigger yang pernah didefinisikan migration tersebut masih ada di remote database.
+
+Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai migration ledger yang menyatakan `0018` sudah applied sementara dua compatibility table dari migration itu tidak ada. Migration `0023` kemudian gagal saat mencoba mengubah object yang hilang.
+
+**Current recovery discipline:**
+
+- ketika remote migration gagal karena missing/shape-mismatched object, inspect `d1 migrations list`, `sqlite_schema`, dan `PRAGMA table_info(...)` sebelum mengubah source migration;
+- jangan rewrite migration yang sudah pernah dianggap applied hanya untuk membuat deploy hijau;
+- capture D1 Time Travel checkpoint atau approved backup sebelum production repair;
+- repair hanya object yang terbukti hilang menggunakan definisi authoritative dari migration/versioned contract yang bersangkutan;
+- buat repair idempotent dan scoped, lalu resume canonical repository migration chain;
+- setelah recovery, restore normal repository-owned deploy command dan buktikan fresh Git Integration deploy berhasil tanpa recovery script;
+- temporary diagnostic assets/script harus dihapus dan live smoke harus membuktikan asset tersebut tidak lagi public.
+
 ## Accounting tetap owner posting jurnal
 
 Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak boleh menulis langsung ke database Accounting atau membuat General Ledger tandingan. Dalam local composition host, semua journal write tetap wajib melalui Accounting posting entry point yang sama.
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, dan stock-integrity policy tetap milik Inventory/Costing.
+**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, stock-integrity policy tetap milik Inventory/Costing, dan production D1 recovery harus memverifikasi schema object—bukan hanya migration ledger.

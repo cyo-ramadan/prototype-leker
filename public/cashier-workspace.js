@@ -53,4 +53,12 @@
   loadDrawer = async function loadWorkspaceDrawer() {
     return loadOrders();
   };
+
+  setTimeout(() => {
+    if (document.querySelector('script[data-cashier-payment-methods]')) return;
+    const script = document.createElement('script');
+    script.src = '/cashier-payment-methods.js';
+    script.dataset.cashierPaymentMethods = '1';
+    document.body.appendChild(script);
+  }, 0);
 })();

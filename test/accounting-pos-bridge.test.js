@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { postAccountingJournal } from '../src/accounting-ledger.js';
+import {
+  ACCOUNTING_AMOUNT_SCALE,
+  postAccountingJournal
+} from '../src/accounting-ledger.js';
 import {
   ACCOUNTING_POS_BRIDGE_CONTRACT,
   resolvePosFactToJournalCommand
@@ -10,6 +13,7 @@ import {
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 const migration25 = readFileSync(new URL('../migrations/0025_accounting_pos_bridge.sql', import.meta.url), 'utf8');
+const migration26 = readFileSync(new URL('../migrations/0026_accounting_six_decimal_precision.sql', import.meta.url), 'utf8');
 const bridgeSource = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
 const bridgeResponseSource = readFileSync(new URL('../src/accounting-pos-bridge-response.js', import.meta.url), 'utf8');
 const workspaceSource = readFileSync(new URL('../src/accounting-workspace.js', import.meta.url), 'utf8');
@@ -111,9 +115,9 @@ test('POS bridge resolves sale purchase and operational facts without POS-owned 
       itemLines: [{ productKindId: 'kind_pentol', productKindName: 'Pentol', lineAmountMinor: 50000, lineCogsScaled: 17500000000 }]
     });
     assert.equal(sale.ok, true);
-    assert.deepEqual(sale.command.journalLines.map(line => [line.side, line.accountId, line.amountMinor]), [
-      ['DEBIT', setup.kas, 50000],
-      ['CREDIT', setup.revenue, 50000]
+    assert.deepEqual(sale.command.journalLines.map(line => [line.side, line.accountId, line.amountScaled]), [
+      ['DEBIT', setup.kas, 50000 * ACCOUNTING_AMOUNT_SCALE],
+      ['CREDIT', setup.revenue, 50000 * ACCOUNTING_AMOUNT_SCALE]
     ]);
     const posted = await postAccountingJournal(db, setup.store, sale.command);
     assert.equal(posted.ok, true);
@@ -129,9 +133,9 @@ test('POS bridge resolves sale purchase and operational facts without POS-owned 
       itemLines: [{ productKindId: 'kind_pentol', productKindName: 'Pentol', lineAmountMinor: 22000, lineCogsScaled: null }]
     });
     assert.equal(purchase.ok, true);
-    assert.deepEqual(purchase.command.journalLines.map(line => [line.side, line.accountId, line.amountMinor]), [
-      ['DEBIT', setup.inventory, 22000],
-      ['CREDIT', setup.kas, 22000]
+    assert.deepEqual(purchase.command.journalLines.map(line => [line.side, line.accountId, line.amountScaled]), [
+      ['DEBIT', setup.inventory, 22000 * ACCOUNTING_AMOUNT_SCALE],
+      ['CREDIT', setup.kas, 22000 * ACCOUNTING_AMOUNT_SCALE]
     ]);
 
     const expense = await resolvePosFactToJournalCommand(db, setup.store, {
@@ -145,16 +149,16 @@ test('POS bridge resolves sale purchase and operational facts without POS-owned 
       itemLines: []
     });
     assert.equal(expense.ok, true, 'single fixed debit component may resolve without an explicit selection');
-    assert.deepEqual(expense.command.journalLines.map(line => [line.side, line.accountId, line.amountMinor]), [
-      ['DEBIT', setup.expense, 15000],
-      ['CREDIT', setup.kas, 15000]
+    assert.deepEqual(expense.command.journalLines.map(line => [line.side, line.accountId, line.amountScaled]), [
+      ['DEBIT', setup.expense, 15000 * ACCOUNTING_AMOUNT_SCALE],
+      ['CREDIT', setup.kas, 15000 * ACCOUNTING_AMOUNT_SCALE]
     ]);
   } finally {
     sqlite.close();
   }
 });
 
-test('sale COGS bridge fails closed until exact scaled-cost rounding policy is approved', async () => {
+test('sale COGS bridge posts exact six-decimal HPP and inventory journal lines', async () => {
   const sqlite = freshDatabase();
   const db = d1(sqlite);
   try {
@@ -166,10 +170,20 @@ test('sale COGS bridge fails closed until exact scaled-cost rounding policy is a
       description: 'Penjualan dengan HPP', createdAt: '2026-08-13T02:00:00.000Z',
       itemLines: [{ productKindId: 'kind_pentol', productKindName: 'Pentol', lineAmountMinor: 50000, lineCogsScaled: 17500123456 }]
     });
-    assert.equal(result.ok, false);
-    assert.equal(result.status, 'NEEDS_CONFIGURATION');
-    assert.equal(result.code, 'NEEDS_COST_ROUNDING_POLICY');
-    assert.match(result.error, /scaled cost/i);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.command.journalLines.map(line => [line.side, line.accountId, line.amountScaled]), [
+      ['DEBIT', setup.kas, 50_000_000_000],
+      ['CREDIT', setup.revenue, 50_000_000_000],
+      ['DEBIT', setup.cogs, 17_500_123_456],
+      ['CREDIT', setup.inventory, 17_500_123_456]
+    ]);
+    const posted = await postAccountingJournal(db, setup.store, result.command);
+    assert.equal(posted.ok, true);
+    assert.equal(posted.journal.lines.find(line => line.accountId === setup.cogs)?.amountExact, '17500.123456');
+    assert.equal(posted.journal.lines.find(line => line.accountId === setup.inventory)?.amountExact, '17500.123456');
+    const debit = posted.journal.lines.filter(line => line.side === 'DEBIT').reduce((sum, line) => sum + line.amountScaled, 0);
+    const credit = posted.journal.lines.filter(line => line.side === 'CREDIT').reduce((sum, line) => sum + line.amountScaled, 0);
+    assert.equal(debit, credit);
   } finally {
     sqlite.close();
   }
@@ -182,8 +196,13 @@ test('bridge migration stores delivery status not duplicate mapping and post-com
   assert.match(migration25, /accounting_component_rule_id/);
   assert.match(migration25, /Non Tunai \(Legacy\)/);
   assert.doesNotMatch(migration25, /\bREAL\b|\bFLOAT\b/i);
+  assert.match(migration26, /amount_scaled INTEGER/);
+  assert.doesNotMatch(migration26, /\bREAL\b|\bFLOAT\b/i);
   assert.doesNotMatch(bridgeSource, /INSERT INTO accounting_journal_headers|INSERT INTO accounting_journal_lines/);
   assert.match(bridgeSource, /postAccountingJournal/);
+  assert.match(bridgeSource, /lineCogsScaled/);
+  assert.match(bridgeSource, /SYSTEM_ADJUSTMENT_POLICY/);
+  assert.doesNotMatch(bridgeSource, /NEEDS_COST_ROUNDING_POLICY/);
   assert.match(bridgeResponseSource, /Transaksi POS sudah tersimpan, tetapi delivery Accounting gagal/);
   assert.match(indexSource, /attachAccountingBridgeToCommittedResponse/);
   assert.match(adminHtml, /admin-accounting-bridge-ui\.js/);
@@ -200,12 +219,14 @@ test('workspace route must not shadow the Accounting bridge routes', () => {
   assert.ok(bridgeRoute >= 0 && bridgeRoute < genericRoute);
 });
 
-test('active Accounting contracts document composition ownership and precision fail-closed behavior', () => {
+test('active Accounting contracts document composition ownership and exact precision policy', () => {
   assert.match(workspaceContract, /actual Accounting work area|actual Accounting/i);
   assert.match(workspaceContract, /same Accounting journal store/i);
   assert.match(workspaceContract, /must not insert directly/i);
-  assert.match(bridgeContract, /NEEDS_COST_ROUNDING_POLICY/);
-  assert.match(bridgeContract, /must not silently floor, ceil, truncate, or round/i);
+  assert.match(bridgeContract, /six|6 decimal|6 desimal/i);
+  assert.match(bridgeContract, /Penyesuaian/i);
+  assert.match(bridgeContract, /Rp100|100 rupiah/i);
+  assert.doesNotMatch(bridgeContract, /NEEDS_COST_ROUNDING_POLICY/);
   assert.match(architectureDecision, /Accounting owns/);
   assert.match(architectureDecision, /Post-commit bridge/i);
 });

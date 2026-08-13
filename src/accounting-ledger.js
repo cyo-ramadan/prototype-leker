@@ -28,11 +28,14 @@ export function validateBusinessDate(value) {
   return businessDate;
 }
 
-function safeScaledInteger(value, { allowZero = false } = {}) {
+function positiveScaledInteger(value) {
   const number = Number(value);
-  if (!Number.isSafeInteger(number)) return null;
-  if (allowZero ? number < 0 : number <= 0) return null;
-  return number;
+  return Number.isSafeInteger(number) && number > 0 ? number : null;
+}
+
+function signedScaledInteger(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) ? number : null;
 }
 
 function wholeRupiahToScaled(value) {
@@ -56,12 +59,14 @@ export function parseRupiahAmountToScaled(value) {
 }
 
 export function scaledAmountToExactString(value) {
-  const scaled = safeScaledInteger(value, { allowZero: true });
+  const scaled = signedScaledInteger(value);
   if (scaled === null) return null;
-  const amount = BigInt(scaled);
+  const signed = BigInt(scaled);
+  const negative = signed < 0n;
+  const amount = negative ? -signed : signed;
   const whole = amount / 1000000n;
   const fraction = String(amount % 1000000n).padStart(6, '0').replace(/0+$/, '');
-  return fraction ? `${whole}.${fraction}` : String(whole);
+  return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`;
 }
 
 function scaledToCompatibilityRupiah(value) {
@@ -71,7 +76,7 @@ function scaledToCompatibilityRupiah(value) {
 
 function normalizeJournalAmount(raw) {
   if (raw?.amountScaled !== undefined && raw?.amountScaled !== null && raw?.amountScaled !== '') {
-    return safeScaledInteger(raw.amountScaled);
+    return positiveScaledInteger(raw.amountScaled);
   }
   if (raw?.amountExact !== undefined && raw?.amountExact !== null && raw?.amountExact !== '') {
     return parseRupiahAmountToScaled(raw.amountExact);
@@ -543,7 +548,7 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
       balanceScaled: runningBalanceScaled,
       debitExact: scaledAmountToExactString(debitScaled),
       creditExact: scaledAmountToExactString(creditScaled),
-      balanceExact: scaledAmountToExactString(Math.abs(runningBalanceScaled)),
+      balanceExact: scaledAmountToExactString(runningBalanceScaled),
       debitMinor: scaledToCompatibilityRupiah(debitScaled),
       creditMinor: scaledToCompatibilityRupiah(creditScaled),
       balanceMinor: scaledToCompatibilityRupiah(runningBalanceScaled),
@@ -561,11 +566,11 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
     },
     period: { from: fromDate, to: toDate },
     openingBalanceScaled,
-    openingBalanceExact: scaledAmountToExactString(Math.abs(openingBalanceScaled)),
+    openingBalanceExact: scaledAmountToExactString(openingBalanceScaled),
     openingBalanceMinor: scaledToCompatibilityRupiah(openingBalanceScaled),
     entries,
     closingBalanceScaled: runningBalanceScaled,
-    closingBalanceExact: scaledAmountToExactString(Math.abs(runningBalanceScaled)),
+    closingBalanceExact: scaledAmountToExactString(runningBalanceScaled),
     closingBalanceMinor: scaledToCompatibilityRupiah(runningBalanceScaled)
   };
 }
@@ -604,7 +609,7 @@ async function groupedBalances(db, storeId, journalPeriodClause, values) {
       balanceScaled,
       debitExact: scaledAmountToExactString(debitScaled),
       creditExact: scaledAmountToExactString(creditScaled),
-      balanceExact: scaledAmountToExactString(Math.abs(balanceScaled)),
+      balanceExact: scaledAmountToExactString(balanceScaled),
       debitMinor: scaledToCompatibilityRupiah(debitScaled),
       creditMinor: scaledToCompatibilityRupiah(creditScaled),
       balanceMinor: scaledToCompatibilityRupiah(balanceScaled)
@@ -626,7 +631,7 @@ export function summarizeProfitLoss(rows) {
     netIncomeScaled,
     totalRevenueExact: scaledAmountToExactString(totalRevenueScaled),
     totalExpenseExact: scaledAmountToExactString(totalExpenseScaled),
-    netIncomeExact: scaledAmountToExactString(Math.abs(netIncomeScaled)),
+    netIncomeExact: scaledAmountToExactString(netIncomeScaled),
     totalRevenueMinor: scaledToCompatibilityRupiah(totalRevenueScaled),
     totalExpenseMinor: scaledToCompatibilityRupiah(totalExpenseScaled),
     netIncomeMinor: scaledToCompatibilityRupiah(netIncomeScaled)
@@ -663,11 +668,11 @@ export function summarizeBalanceSheet(rows, currentEarningsScaled) {
     totalLiabilitiesScaled,
     totalEquityScaled,
     totalLiabilitiesAndEquityScaled,
-    currentEarningsExact: scaledAmountToExactString(Math.abs(currentEarningsScaled)),
-    totalAssetsExact: scaledAmountToExactString(Math.abs(totalAssetsScaled)),
-    totalLiabilitiesExact: scaledAmountToExactString(Math.abs(totalLiabilitiesScaled)),
-    totalEquityExact: scaledAmountToExactString(Math.abs(totalEquityScaled)),
-    totalLiabilitiesAndEquityExact: scaledAmountToExactString(Math.abs(totalLiabilitiesAndEquityScaled)),
+    currentEarningsExact: scaledAmountToExactString(currentEarningsScaled),
+    totalAssetsExact: scaledAmountToExactString(totalAssetsScaled),
+    totalLiabilitiesExact: scaledAmountToExactString(totalLiabilitiesScaled),
+    totalEquityExact: scaledAmountToExactString(totalEquityScaled),
+    totalLiabilitiesAndEquityExact: scaledAmountToExactString(totalLiabilitiesAndEquityScaled),
     currentEarningsMinor: scaledToCompatibilityRupiah(currentEarningsScaled),
     totalAssetsMinor: scaledToCompatibilityRupiah(totalAssetsScaled),
     totalLiabilitiesMinor: scaledToCompatibilityRupiah(totalLiabilitiesScaled),

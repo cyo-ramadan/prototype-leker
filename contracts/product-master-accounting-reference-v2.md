@@ -60,7 +60,7 @@ Rules:
 
 ## Base Unit Safety
 
-Physical stock quantities remain integer values in the product's smallest selected base unit.
+Current deployed inventory tables still store physical stock quantities using the legacy integer representation in the product's selected base unit. The approved canonical direction is fractional-capable exact decimal quantity; that storage migration is handled separately so no partial dual source of truth is introduced in this Product Master change.
 
 A base unit cannot be changed after recipe history, stock movement history, or a non-zero stock balance exists. Unit conversion requires a separate migration contract.
 
@@ -68,10 +68,12 @@ A base unit cannot be changed after recipe history, stock movement history, or a
 
 A purchase that affects inventory is itemized by:
 
-- product;
-- integer quantity in base unit;
+- product selected from the active store-scoped Product Master database; free-text product identity is not accepted;
+- explicit quantity shown to the cashier;
 - exact line total;
 - unit cost derived from line total / quantity.
+
+The current inventory quantity engine still accepts integer purchase quantities until the canonical fractional-quantity migration replaces the legacy stock representation. The UI and API must not hide the quantity field.
 
 Purchase posting atomically creates the purchase fact, item snapshots, stock-in movement, stock balance update, Accounting connector snapshot, and product costing update.
 
@@ -84,6 +86,14 @@ For each purchased product:
 Purchase rows snapshot `average_cost_before` and `average_cost_after`.
 
 Legacy `products.purchase_price` is retained only for compatibility and mirrors a rounded latest purchase price. It is not the HPP source of truth.
+
+## Operational Expense Quantity
+
+Operational expense entry stores an explicit `quantity` in addition to description and total amount.
+
+The quantity is customer-behaviour metadata and is stored as canonical positive decimal text with up to six decimal places. It does not create an inventory movement by itself. Examples include multiple refills, parking units, service units, or other repeated operational consumption that the user wants to quantify.
+
+`amount` remains the total monetary value of the operational expense. Quantity does not silently multiply or rewrite the total amount.
 
 ## HPP Source of Truth
 
@@ -113,9 +123,11 @@ Product classification (`product_kind_id`) is data prepared for later Accounting
 
 - `products.production_mode` remains in the database only to preserve existing behavior until Sale fulfillment is versioned.
 - `products.purchase_price` remains as a compatibility mirror; new Product Master UI treats latest purchase price as read-only.
+- purchase product identity comes from the active store Product Master; legacy free-text purchase UI is superseded.
+- operational expenses default quantity to `1`, so historical rows remain valid after migration 0020.
 - existing Product Master and transaction routes remain store-scoped and management/cashier authenticated as applicable.
 - no direct write to another program database is introduced.
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract, ADR-015, migration `0019_product_costing_and_kinds.sql`, Product Master/Purchase/Production code, and regression tests form one change set.
+**REQUIRED** — this contract, ADR-015, migrations `0019_product_costing_and_kinds.sql` and `0020_expense_quantity_behavior.sql`, Product Master/Purchase/Operational code, and regression tests form one change set.

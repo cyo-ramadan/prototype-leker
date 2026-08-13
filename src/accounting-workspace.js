@@ -101,7 +101,7 @@ async function createManualJournal(request, env, store) {
 }
 
 export async function handleAccountingWorkspaceApi(request, env, pathname) {
-  if (!pathname.startsWith('/api/admin/accounting')) return null;
+  if (!pathname.startsWith('/api/admin/accounting') || pathname.startsWith('/api/admin/accounting/bridge')) return null;
   const ctx = await managementContext(request, env);
   if (!ctx.ok) return ctx.response;
   const { store } = ctx;

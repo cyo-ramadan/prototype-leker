@@ -1,12 +1,126 @@
 <!doctype html>
 <html lang="id">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>MAXI Leker · Workspace Gerai</title><link rel="stylesheet" href="/styles.css" /><link rel="stylesheet" href="/admin.css" /><link rel="stylesheet" href="/drawer-report.css" /><script src="/staff-entry-guard.js"></script><script src="/staff-tab-lock.js"></script></head>
-<body><header class="topbar admin-topbar"><div class="brand"><div class="brand-mark">G</div><div>MAXI LEKER<small>Workspace Gerai · <span data-store-code>G001</span></small></div></div><div class="admin-top-actions"><a class="admin-link" href="/admin">← Owner</a><a class="admin-link" data-store-page="customer" href="/customer">Customer</a><a class="admin-link" href="/cashier">Kasir Login</a><button id="logoutBtn" class="secondary-btn hidden" type="button">Lock</button></div></header>
-<main class="admin-shell"><section id="authGate" class="admin-auth-card hidden"><div class="admin-eyebrow">Owner session</div><h1 id="authTitle">Akses Gerai</h1><p id="authHelp" class="muted">Login Owner diperlukan untuk membuka workspace gerai.</p><label class="admin-field hidden">PIN<input id="adminPin" /></label><button id="authBtn" class="primary-btn" type="button">Kembali ke Owner</button><div id="authMessage" class="admin-message"></div></section>
-<section id="adminApp" class="hidden"><div class="admin-heading"><div><div class="admin-eyebrow">Admin Gerai · <span data-store-code>G001</span></div><h1>Workspace Gerai</h1><p class="muted">Master dan transaksi di halaman ini mengikuti scope gerai aktif.</p></div><div id="adminSummary" class="admin-summary"></div></div><nav class="admin-tabs" aria-label="Menu admin gerai"><button class="admin-tab active" data-tab="store" type="button">Toko</button><button class="admin-tab" data-tab="products" type="button">Data Barang</button><button class="admin-tab" data-tab="categories" type="button">Kategori</button><button class="admin-tab" data-tab="suppliers" type="button">Supplier</button><button class="admin-tab" data-tab="contacts" type="button">Customer</button></nav>
-<section id="tab-store" class="admin-section active"><div class="admin-grid two"><form id="storeForm" class="admin-card"><h2>Identitas gerai</h2><label class="admin-field">Nama toko<input id="storeName" maxlength="80" required /></label><label class="admin-field">Logo toko <span class="field-note">optional</span><input id="storeLogo" type="file" accept="image/*" /></label><div class="image-preview-wrap"><img id="storeLogoPreview" class="logo-preview" src="/default-product.svg" alt="Preview logo toko" /></div><button class="primary-btn" type="submit">Simpan identitas toko</button></form><div class="admin-card admin-tip"><h2>Scope gerai</h2><p>Barang, kategori, supplier, kasir, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas tetap terpisah per gerai. Pelanggan dapat dibagikan hanya bila Owner mengaktifkan Berbagi Pelanggan.</p></div></div></section>
-<section id="tab-products" class="admin-section"><div class="admin-grid master-layout"><form id="productForm" class="admin-card sticky-form"><input id="productId" type="hidden" /><div class="form-title-row"><h2 id="productFormTitle">Tambah barang</h2><button id="productCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div><label class="admin-field">Nama barang<input id="productName" maxlength="100" required /></label><div class="admin-grid two compact"><label class="admin-field">Harga beli<input id="productPurchasePrice" type="number" min="0" step="1" required /></label><label class="admin-field">Harga jual<input id="productPrice" type="number" min="0" step="1" required /></label></div><label class="admin-field">Kategori<select id="productCategory" required></select></label><label class="admin-field">Foto barang <span class="field-note">optional</span><input id="productImage" type="file" accept="image/*" /></label><div class="image-preview-wrap"><img id="productImagePreview" class="product-preview" src="/default-product.svg" alt="Preview foto barang" /></div><label class="admin-check"><input id="productActive" type="checkbox" checked /> Aktif dijual</label><button class="primary-btn" type="submit">Simpan barang</button></form><div class="admin-card list-card"><div class="list-head"><h2>Master barang</h2><span id="productCount" class="master-count">0</span></div><div id="productList" class="master-list"></div></div></div></section>
-<section id="tab-categories" class="admin-section"><div class="admin-grid master-layout"><form id="categoryForm" class="admin-card sticky-form"><input id="categoryId" type="hidden" /><div class="form-title-row"><h2 id="categoryFormTitle">Tambah kategori</h2><button id="categoryCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div><label class="admin-field">Nama kategori<input id="categoryName" maxlength="60" required /></label><label class="admin-check"><input id="categoryActive" type="checkbox" checked /> Aktif</label><button class="primary-btn" type="submit">Simpan kategori</button></form><div class="admin-card list-card"><div class="list-head"><h2>Master kategori</h2><span id="categoryCount" class="master-count">0</span></div><div id="categoryList" class="master-list"></div></div></div></section>
-<section id="tab-suppliers" class="admin-section"><div class="admin-grid master-layout"><form id="supplierForm" class="admin-card sticky-form"><input id="supplierId" type="hidden" /><div class="form-title-row"><h2 id="supplierFormTitle">Tambah supplier</h2><button id="supplierCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div><label class="admin-field">Nama supplier<input id="supplierName" maxlength="100" required /></label><label class="admin-field">No. HP<input id="supplierPhone" maxlength="40" /></label><label class="admin-field">Alamat<textarea id="supplierAddress" rows="2" maxlength="180"></textarea></label><label class="admin-field">Catatan<textarea id="supplierNotes" rows="3" maxlength="500"></textarea></label><label class="admin-check"><input id="supplierActive" type="checkbox" checked /> Aktif</label><button class="primary-btn" type="submit">Simpan supplier</button></form><div class="admin-card list-card"><div class="list-head"><h2>Master supplier</h2><span id="supplierCount" class="master-count">0</span></div><div id="supplierList" class="master-list"></div></div></div></section>
-<section id="tab-contacts" class="admin-section"><div class="admin-grid master-layout"><form id="contactForm" class="admin-card sticky-form"><input id="contactId" type="hidden" /><div class="form-title-row"><h2 id="contactFormTitle">Tambah customer/contact</h2><button id="contactCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div><label class="admin-field">Nama<input id="contactName" maxlength="100" required /></label><label class="admin-field">No. HP<input id="contactPhone" maxlength="40" /></label><label class="admin-field">Email<input id="contactEmail" type="email" maxlength="120" /></label><label class="admin-field">Catatan<textarea id="contactNotes" rows="3" maxlength="500"></textarea></label><button class="primary-btn" type="submit">Simpan customer</button></form><div class="admin-card list-card"><div class="list-head"><h2>Master customer/contact</h2><span id="contactCount" class="master-count">0</span></div><div id="contactList" class="master-list"></div></div></div></section><div id="adminToast" class="admin-toast" aria-live="polite"></div></section></main>
-<script src="/store-context.js"></script><script src="/branch-owner-auth.js"></script><script src="/admin.js"></script><script src="/admin-suppliers.js"></script><script src="/admin-customers.js"></script><script src="/admin-cashiers.js"></script><script src="/drawer-report-ui.js"></script><script src="/admin-drawers.js"></script><script src="/admin-manufacturing.js"></script><script src="/admin-product-policy.js"></script><script src="/admin-settings-panels.js"></script><script src="/accounting-settings-boundary.js"></script><script src="/admin-accounting-settings-comfort.js"></script><script src="/admin-accounting-flow-presets.js"></script><script src="/admin-accounting-settings-reference-layout.js"></script><script src="/admin-accounting-workspace.js"></script><script src="/admin-accounting-bridge-ui.js"></script><script src="/admin-master-menu.js"></script><script src="/admin-transactions-ui.js"></script><script src="/admin-stock.js"></script><script src="/management-approval-queue.js"></script><script src="/management-transaction-void-permits.js"></script><script src="/admin-cashier-raport.js"></script></body></html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MAXI Leker · Workspace Gerai</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/drawer-report.css" />
+  <script src="/staff-entry-guard.js"></script>
+  <script src="/staff-tab-lock.js"></script>
+</head>
+<body>
+  <header class="topbar admin-topbar">
+    <div class="brand"><div class="brand-mark">G</div><div>MAXI LEKER<small>Workspace Gerai · <span data-store-code>G001</span></small></div></div>
+    <div class="admin-top-actions">
+      <a class="admin-link" href="/admin">← Owner</a>
+      <a class="admin-link" data-store-page="customer" href="/customer">Customer</a>
+      <a class="admin-link" href="/cashier">Kasir Login</a>
+      <button id="logoutBtn" class="secondary-btn hidden" type="button">Lock</button>
+    </div>
+  </header>
+  <main class="admin-shell">
+    <section id="authGate" class="admin-auth-card hidden">
+      <div class="admin-eyebrow">Owner session</div><h1 id="authTitle">Akses Gerai</h1><p id="authHelp" class="muted">Login Owner diperlukan untuk membuka workspace gerai.</p>
+      <label class="admin-field hidden">PIN<input id="adminPin" /></label>
+      <button id="authBtn" class="primary-btn" type="button">Kembali ke Owner</button><div id="authMessage" class="admin-message"></div>
+    </section>
+    <section id="adminApp" class="hidden">
+      <div class="admin-heading"><div><div class="admin-eyebrow">Admin Gerai · <span data-store-code>G001</span></div><h1>Workspace Gerai</h1><p class="muted">Master dan transaksi di halaman ini mengikuti scope gerai aktif.</p></div><div id="adminSummary" class="admin-summary"></div></div>
+      <nav class="admin-tabs" aria-label="Menu admin gerai">
+        <button class="admin-tab active" data-tab="store" type="button">Toko</button>
+        <button class="admin-tab" data-tab="products" type="button">Data Barang</button>
+        <button class="admin-tab" data-tab="categories" type="button">Kategori</button>
+        <button class="admin-tab" data-tab="suppliers" type="button">Supplier</button>
+        <button class="admin-tab" data-tab="contacts" type="button">Customer</button>
+      </nav>
+      <section id="tab-store" class="admin-section active">
+        <div class="admin-grid two">
+          <form id="storeForm" class="admin-card">
+            <h2>Identitas gerai</h2>
+            <label class="admin-field">Nama toko<input id="storeName" maxlength="80" required /></label>
+            <label class="admin-field">Logo toko <span class="field-note">optional</span><input id="storeLogo" type="file" accept="image/*" /></label>
+            <div class="image-preview-wrap"><img id="storeLogoPreview" class="logo-preview" src="/default-product.svg" alt="Preview logo toko" /></div>
+            <button class="primary-btn" type="submit">Simpan identitas toko</button>
+          </form>
+          <div class="admin-card admin-tip"><h2>Scope gerai</h2><p>Barang, kategori, supplier, kasir, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas tetap terpisah per gerai. Pelanggan dapat dibagikan hanya bila Owner mengaktifkan Berbagi Pelanggan.</p></div>
+        </div>
+      </section>
+      <section id="tab-products" class="admin-section">
+        <div class="admin-grid master-layout">
+          <form id="productForm" class="admin-card sticky-form">
+            <input id="productId" type="hidden" />
+            <div class="form-title-row"><h2 id="productFormTitle">Tambah barang</h2><button id="productCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama barang<input id="productName" maxlength="100" required /></label>
+            <div class="admin-grid two compact"><label class="admin-field">Harga beli<input id="productPurchasePrice" type="number" min="0" step="1" required /></label><label class="admin-field">Harga jual<input id="productPrice" type="number" min="0" step="1" required /></label></div>
+            <label class="admin-field">Kategori<select id="productCategory" required></select></label>
+            <label class="admin-field">Foto barang <span class="field-note">optional</span><input id="productImage" type="file" accept="image/*" /></label>
+            <div class="image-preview-wrap"><img id="productImagePreview" class="product-preview" src="/default-product.svg" alt="Preview foto barang" /></div>
+            <label class="admin-check"><input id="productActive" type="checkbox" checked /> Aktif dijual</label>
+            <button class="primary-btn" type="submit">Simpan barang</button>
+          </form>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master barang</h2><span id="productCount" class="master-count">0</span></div><div id="productList" class="master-list"></div></div>
+        </div>
+      </section>
+      <section id="tab-categories" class="admin-section">
+        <div class="admin-grid master-layout">
+          <form id="categoryForm" class="admin-card sticky-form">
+            <input id="categoryId" type="hidden" /><div class="form-title-row"><h2 id="categoryFormTitle">Tambah kategori</h2><button id="categoryCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama kategori<input id="categoryName" maxlength="60" required /></label><label class="admin-check"><input id="categoryActive" type="checkbox" checked /> Aktif</label><button class="primary-btn" type="submit">Simpan kategori</button>
+          </form>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master kategori</h2><span id="categoryCount" class="master-count">0</span></div><div id="categoryList" class="master-list"></div></div>
+        </div>
+      </section>
+      <section id="tab-suppliers" class="admin-section">
+        <div class="admin-grid master-layout">
+          <form id="supplierForm" class="admin-card sticky-form">
+            <input id="supplierId" type="hidden" />
+            <div class="form-title-row"><h2 id="supplierFormTitle">Tambah supplier</h2><button id="supplierCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama supplier<input id="supplierName" maxlength="100" required /></label>
+            <label class="admin-field">No. HP<input id="supplierPhone" maxlength="40" /></label>
+            <label class="admin-field">Alamat<textarea id="supplierAddress" rows="2" maxlength="180"></textarea></label>
+            <label class="admin-field">Catatan<textarea id="supplierNotes" rows="3" maxlength="500"></textarea></label>
+            <label class="admin-check"><input id="supplierActive" type="checkbox" checked /> Aktif</label>
+            <button class="primary-btn" type="submit">Simpan supplier</button>
+          </form>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master supplier</h2><span id="supplierCount" class="master-count">0</span></div><div id="supplierList" class="master-list"></div></div>
+        </div>
+      </section>
+      <section id="tab-contacts" class="admin-section">
+        <div class="admin-grid master-layout">
+          <form id="contactForm" class="admin-card sticky-form">
+            <input id="contactId" type="hidden" /><div class="form-title-row"><h2 id="contactFormTitle">Tambah customer/contact</h2><button id="contactCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama<input id="contactName" maxlength="100" required /></label><label class="admin-field">No. HP<input id="contactPhone" maxlength="40" /></label><label class="admin-field">Email<input id="contactEmail" type="email" maxlength="120" /></label><label class="admin-field">Catatan<textarea id="contactNotes" rows="3" maxlength="500"></textarea></label><button class="primary-btn" type="submit">Simpan customer</button>
+          </form>
+          <div class="admin-card list-card"><div class="list-head"><h2>Master customer/contact</h2><span id="contactCount" class="master-count">0</span></div><div id="contactList" class="master-list"></div></div>
+        </div>
+      </section>
+      <div id="adminToast" class="admin-toast" aria-live="polite"></div>
+    </section>
+  </main>
+  <script src="/store-context.js"></script>
+  <script src="/branch-owner-auth.js"></script>
+  <script src="/admin.js"></script>
+  <script src="/admin-suppliers.js"></script>
+  <script src="/admin-customers.js"></script>
+  <script src="/admin-cashiers.js"></script>
+  <script src="/drawer-report-ui.js"></script>
+  <script src="/admin-drawers.js"></script>
+  <script src="/admin-manufacturing.js"></script>
+  <script src="/admin-product-policy.js"></script>
+  <script src="/admin-settings-panels.js"></script>
+  <script src="/accounting-settings-boundary.js"></script>
+  <script src="/admin-accounting-settings-comfort.js"></script>
+  <script src="/admin-accounting-flow-presets.js"></script>
+  <script src="/admin-accounting-settings-reference-layout.js"></script>
+  <script src="/admin-accounting-workspace.js"></script>
+  <script src="/admin-accounting-bridge-ui.js"></script>
+  <script src="/admin-master-menu.js"></script>
+  <script src="/admin-transactions-ui.js"></script>
+  <script src="/admin-stock.js"></script>
+  <script src="/management-approval-queue.js"></script>
+  <script src="/management-transaction-void-permits.js"></script>
+  <script src="/admin-cashier-raport.js"></script>
+</body>
+</html>

@@ -115,7 +115,7 @@ Categories may remain **Belum Lengkap / INCOMPLETE** safely. No fallback account
 
 ## Immutable Configuration Snapshot
 
-Operational facts may write a `transaction_accounting_snapshots` row containing:
+Operational facts may write a `transaction_accounting_snapshots` row containing canonical readiness fields:
 
 - source type/id;
 - transaction category code;
@@ -123,7 +123,9 @@ Operational facts may write a `transaction_accounting_snapshots` row containing:
 - configuration status at fact creation;
 - timestamp.
 
-It does not store or post debit/credit journal lines. It exists as audit evidence of configuration readiness at the time the operational fact was recorded.
+The original 0018 compatibility columns remain because PR #4 may be deployed independently. Migration 0023 adds the canonical readiness fields and backfills prior snapshots. New writers populate the old mandatory columns only as compatibility metadata; `mapping_id`, debit reference, and credit reference stay NULL.
+
+The snapshot does not post debit/credit journal lines. It exists as audit evidence of configuration readiness at the time the operational fact was recorded.
 
 ## UI
 
@@ -159,8 +161,10 @@ Both are marked `review_required = 1` because business/accounting ownership must
 
 ## Compatibility
 
-The old provisional `accounting_account_refs` and pair-style `transaction_accounting_mappings` are superseded before deployment of this stack. The legacy compatibility endpoint is read-only; its old PUT pair-mapping route returns `410 Gone` and directs callers to Accounting Settings.
+The old provisional `accounting_account_refs` and pair-style `transaction_accounting_mappings` tables from migration 0018 are retained as legacy schema so stacked deployment remains forward-compatible. They are no longer a source of truth: the current application does not read/write them, the old pair-mapping PUT route returns `410 Gone`, and migration 0023 disables the legacy new-store seed trigger.
+
+Canonical configuration lives in `chart_of_accounts`, `payment_methods`, `item_categories`, `transaction_categories`, and `journal_rules`.
 
 ## DOC-IMPACT
 
-**REQUIRED** — migration 0022, `src/accounting-settings.js`, the compatibility seam, UI, tests, Warehouse Settings contract, and ADR-016 belong to the same settings changeset.
+**REQUIRED** — migrations 0022–0023, `src/accounting-settings.js`, the compatibility seam, UI, tests, Warehouse Settings contract, and ADR-016 belong to the same settings changeset.

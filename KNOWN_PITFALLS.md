@@ -53,20 +53,40 @@ Qty tersebut adalah customer-behaviour metadata. Inventory moves only through an
 
 Explorer hanya read model dengan `sourceReference`. Perubahan transaksi tetap harus lewat module pemilik business fact. Detail jurnal juga tidak boleh dipindahkan ke Admin.
 
-## Accounting reference bukan COA/jurnal source of truth
+## Journal Rules bukan journal-generation engine
 
-**Pitfall:** Jangan memperlakukan `accounting_account_refs` sebagai Chart of Accounts canonical atau menghasilkan debit/kredit langsung dari reference ini.
+**Pitfall:** Status `Lengkap` pada `transaction_categories` tidak berarti transaksi boleh langsung dibuatkan jurnal.
 
-Reference `1101`, `1301`, `4101`, `5101`, dan akun dasar lain hanya placeholder connector berstatus `PROVISIONAL` sampai modul Accounting memberikan external account identity yang canonical.
+`Lengkap` hanya membuktikan ada minimal satu Debit dan satu Kredit aktif. Future posting masih wajib resolve payment method aktual, Jenis Barang transaksi, amount, direction/subtype, period, tenant/store context, idempotency, dan contract Accounting. Jangan membuat fallback account ketika source rule tidak bisa di-resolve.
 
-**Current strategy:**
+## Warehouse tidak boleh punya mapping akun tandingan
 
-- Admin boleh menampilkan Portal Referensi Akun dan menyimpan explicit product reference.
-- Tidak ada account mapping yang dipilih otomatis hanya karena kode akun dasar tersedia.
-- Mapping transaksi ditambahkan satu per satu melalui contract berikutnya.
-- Journal, buku besar, neraca saldo, neraca, laba rugi, dan closing tetap dimiliki modul Accounting.
-- Program lain tidak menulis langsung ke database Accounting.
+**Pitfall:** Jangan membuat `warehouse_account_mapping`, account dropdown di Warehouse Settings, atau hardcoded akun di kode Warehouse.
+
+Warehouse mendaftarkan financially-relevant transaction types ke `transaction_categories` milik Accounting Settings. Akun/rule kemudian dikonfigurasi dari Module A. Ini mencegah dua source of truth yang bisa menghasilkan interpretasi jurnal berbeda.
+
+## Stock Opname tidak boleh menjalankan semua default rules
+
+**Pitfall:** `wh_opname` memiliki labeled gain dan loss rows. Future journal engine tidak boleh mengeksekusi keempat row sekaligus.
+
+Signed stock adjustment harus menentukan branch gain atau loss secara explicit. `4201 Pendapatan Koreksi Stok` dan `6103 Beban Susut Persediaan` juga tetap berstatus `review_required` sampai pemilik bisnis menyetujui penggunaannya.
+
+## Retur harus fail-closed sampai arah transaksi jelas
+
+**Pitfall:** Jangan menggunakan satu jurnal default untuk semua `wh_return`.
+
+Customer return, supplier return, dan internal return dapat mempunyai arah inventory/settlement berbeda. `wh_return` sengaja terdaftar tanpa journal rule sampai subtype/direction disepakati.
+
+## Legacy pair mapping tidak boleh hidup kembali
+
+**Pitfall:** Jangan menghidupkan kembali `accounting_account_refs` + `transaction_accounting_mappings` sebagai engine paralel terhadap `chart_of_accounts` + `journal_rules`.
+
+Compatibility endpoint pair-mapping sudah dipensiunkan. Semua konfigurasi baru memakai `MAXI_ACCOUNTING_SETTINGS_V1`, sedangkan `transaction_accounting_snapshots` hanya menyimpan readiness evidence dan tidak berisi pasangan debit/kredit palsu.
+
+## Accounting tetap owner posting jurnal
+
+Prototype Leker boleh menyimpan Settings dan business facts. Ia tidak boleh menulis langsung ke database Accounting, membuat General Ledger tandingan, atau menganggap journal preview sebagai posted journal.
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing memakai exact scaled integer snapshots, operational Qty tidak bocor menjadi stock movement, Transaction Explorer tetap read model, dan Accounting reference tetap connector-only.
+**REQUIRED** — refresh kasir tetap event-driven, costing memakai exact scaled integer snapshots, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, dan journal generation tetap boundary terpisah.

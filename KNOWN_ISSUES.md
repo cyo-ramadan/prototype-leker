@@ -28,9 +28,10 @@ Current behavior is governed by:
 
 - `contracts/manufacturing-master-v1.md`;
 - `contracts/stock-production-points-v2.md`;
-- ADR-012, ADR-013, and ADR-015;
+- `contracts/stock-adjustment-v1.md`;
+- ADR-012, ADR-013, ADR-015, and ADR-020;
 - migrations `0016_manufacturing_master_v1.sql`, `0017_product_stock_production_points.sql`, `0019_product_costing_and_kinds.sql`, and `0021_exact_production_costing.sql`;
-- `src/manufacturing-master.js` and `src/stock-production.js`.
+- `src/manufacturing-master.js`, `src/stock-production.js`, and `src/operational-posting.js`.
 
 Current behavior:
 
@@ -47,11 +48,15 @@ Current behavior:
 - production components and runs use `*_scaled` exact integer HPP fields;
 - legacy production REAL cost columns remain read-only history fallback and are not written by the new engine;
 - sale items snapshot scaled unit HPP and line COGS so history is not recomputed from current master values;
-- Admin has dedicated Stok and lazy transaction-detail read models.
+- Admin has dedicated Stok and lazy transaction-detail read models;
+- Penyesuaian Stok uses the existing Approval Queue, snapshots current stock at cashier staging, and rechecks that snapshot before management ACC;
+- a stale Penyesuaian Stok request is rejected with `STOCK_ADJUSTMENT_STALE` and never overwrites later inventory movement;
+- a valid Penyesuaian Stok posts to `inventory_stock_balances`, `inventory_ledger_entries`, and canonical `stock_movements.source_type = STOCK_ADJUSTMENT` atomically;
+- Penyesuaian Stok v1 changes quantity only and does not rewrite Average Cost or historical HPP.
 
 ### Open: canonical fractional inventory quantity migration
 
-Current stock balances, stock movements, recipe quantities, purchase inventory quantities, sale quantities, and production quantities still use the legacy integer representation.
+Current stock balances, stock movements, recipe quantities, purchase inventory quantities, sale quantities, production quantities, and Stock Adjustment target quantities still use the legacy integer representation.
 
 The approved target is one exact fractional-capable quantity model for all physical inventory, with unit-level decimal-scale validation. This requires a dedicated migration/compatibility plan so legacy quantity columns are not silently reinterpreted and no dual stock source is created.
 
@@ -67,12 +72,12 @@ Desired behavior when enabled:
 
 - before a cost-affecting purchase posts, Inventory/Costing checks the current stock balance for every purchased item;
 - if any current balance is `< 0`, the entire purchase is rejected with an explicit product/current-balance error rather than partially posting;
-- the user must correct stock through an approved Penyesuaian Stok flow until the balance is at least `0`, then retry the purchase;
+- the user must correct stock through the approved Penyesuaian Stok flow until the balance is at least `0`, then retry the purchase;
 - the purpose is to prevent a negative-stock anomaly from being silently absorbed into a new moving-average HPP baseline.
 
 Ownership note: this policy belongs to Inventory/Costing even if surfaced from a shared Settings UI such as a `Policy Integritas HPP` section near Setting Akuntansi. Accounting must not become the owner of stock/HPP mutation rules.
 
-**Dependency:** the Penyesuaian Stok write contract below is still inactive on `main`. Therefore this policy must default OFF and must not be enabled in production until the user has an approved adjustment path, otherwise a negative-stock item could become operationally deadlocked.
+**Dependency status:** the audited Penyesuaian Stok correction path is now available. The negative-stock purchase policy itself is still not implemented and therefore remains OFF until its own store-level policy contract, server guard, UI, and tests are active.
 
 ### Still intentionally open: Sale-level fulfillment migration
 
@@ -80,11 +85,11 @@ Mode Pemenuhan is no longer editable in Master Barang. The legacy `products.prod
 
 A future Sale contract must move fulfillment ownership to the Penjualan transaction and define the requested default `DADAKAN`. Until that versioned migration is implemented, do not delete or reinterpret the legacy column and do not silently change existing sale behavior.
 
-### Still intentionally open: Penyesuaian Stok write contract
+### Resolved: audited Penyesuaian Stok write contract
 
-The cashier Penyesuaian Stok entry point remains inactive on `main` until an explicit adjustment reason/audit/approval contract is merged. Future adjustment posting must reuse `stock_movements` and must not bypass the stock audit model.
+`MAXI_STOCK_ADJUSTMENT_V1` is active. The cashier supplies a target physical quantity plus required reason; the server snapshots current stock and derives direction/delta. Admin/Owner ACC rechecks current stock against the staged snapshot before posting. A mismatch rejects the request as stale without stock mutation.
 
-This flow is now also a prerequisite for safely enabling the planned store-level `blockPurchaseWhenStockNegative` HPP integrity policy.
+The flow reuses the existing `GOODS_FLOW` approval envelope with explicit `payload.purpose = STOCK_ADJUSTMENT` and reuses the canonical stock balance/movement ledgers. It does not create a second stock source and does not generate an Accounting journal until signed valuation/gain-loss semantics are defined.
 
 ## Product Master, Jenis Barang, Purchase Qty, and Operational Qty
 
@@ -195,7 +200,7 @@ Implemented POS bridge:
 - missing mapping returns `NEEDS_CONFIGURATION` without rolling back the operational POS fact;
 - retry is idempotent by source fact;
 - Transaction Explorer reads actual bridge delivery status/journal reference for SALE/PURCHASE/EXPENSE;
-- manual sync is available from the Accounting workspace for older/unposted-to-Accounting POS facts;
+- manual reconciliation/retry is available from the Accounting workspace for older or not-yet-journalized POS facts;
 - sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly, so the former cost-rounding blocker is resolved by ADR-019;
 - missing sale COGS snapshot fails closed with `NEEDS_COST_SNAPSHOT` rather than recomputing from current Product Master cost.
 
@@ -241,4 +246,4 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, ADR-015 through ADR-019, migrations through 0026, deployment recovery evidence, and regression/live-smoke tests describe the active implementation state. Accounting Workspace and Setting Akuntansi are live. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, store-level HPP integrity policy for negative stock, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Stock Adjustment contract/ADR, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, migrations through 0026, deployment recovery evidence, and regression/live-smoke tests describe the active implementation state. Accounting Workspace, Setting Akuntansi, and audited Stock Adjustment are active capabilities. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, store-level HPP integrity policy for negative stock, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI/Raport, transaction void permits, Deposit, and Payroll transaction implementations.

@@ -25,7 +25,7 @@ test('sales and orders are aligned into drawer action bar without replacing exis
   assert.match(cashierHtml, /id="otherIncomeBtn"/);
 });
 
-test('new drawer action buttons exist and staged modules do not direct-post at cashier entry', () => {
+test('drawer action buttons exist and Stock Adjustment now uses approval staging', () => {
   for (const id of ['stockAdjustmentBtn', 'productionBtn', 'cashFlowBtn', 'goodsFlowBtn', 'assetBtn']) {
     assert.match(cashierHtml, new RegExp(`id="${id}"`));
   }
@@ -33,6 +33,10 @@ test('new drawer action buttons exist and staged modules do not direct-post at c
   assert.match(cashierApprovals, /CASH_FLOW/);
   assert.match(cashierApprovals, /GOODS_FLOW/);
   assert.match(cashierApprovals, /ASSET/);
+  assert.match(cashierApprovals, /purpose: 'STOCK_ADJUSTMENT'/);
+  assert.match(cashierApprovals, /stockAdjustmentDialog/);
+  assert.match(cashierApprovals, /Target stok fisik/);
+  assert.doesNotMatch(cashierApprovals, /pendingContractDialog\('Penyesuaian Stok'/);
   assert.doesNotMatch(cashierApprovals, /\/api\/cashier\/(expenses|other-income|purchases|sales)/);
 });
 
@@ -51,9 +55,11 @@ test('admin and owner can decide queue and ACC invokes atomic operational postin
   assert.match(managementUi, /data-approval-acc/);
   assert.match(managementUi, /ACC \+ POSTING/);
   assert.match(managementUi, /data-approval-reject/);
+  assert.match(managementUi, /STOCK ADJUSTMENT/);
   assert.match(managementUi, /sessionStorage\.getItem\('lekerOwnerToken'\)/);
   assert.match(approvalApi, /buildOperationalPostingStatements/);
   assert.match(approvalApi, /await env\.DB\.batch\(statements\)/);
+  assert.match(approvalApi, /STOCK_ADJUSTMENT_STALE/);
   assert.doesNotMatch(approvalApi, /POSTING_CONTRACT_REQUIRED/);
 });
 

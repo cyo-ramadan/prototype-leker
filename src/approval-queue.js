@@ -3,7 +3,12 @@ import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
-import { normalizeApprovalPayload, buildOperationalPostingStatements, postingFailureResponse } from './operational-posting.js';
+import {
+  normalizeApprovalPayload,
+  buildOperationalPostingStatements,
+  postingFailureResponse,
+  listStockAdjustmentOptions
+} from './operational-posting.js';
 
 const REQUEST_TYPES = new Set(['CASH_FLOW', 'GOODS_FLOW', 'ASSET']);
 const APPROVAL_STATUSES = new Set(['pending_approval', 'approved', 'rejected']);
@@ -66,9 +71,18 @@ async function listRequests(db, { storeId = null, drawerId = null, cashierId = n
 }
 
 async function handleCashierApprovalQueue(request, env, pathname) {
-  if (!pathname.startsWith('/api/cashier/approval-requests')) return null;
+  const isApprovalRoute = pathname.startsWith('/api/cashier/approval-requests');
+  const isStockAdjustmentOptions = pathname === '/api/cashier/stock-adjustment/options';
+  if (!isApprovalRoute && !isStockAdjustmentOptions) return null;
+
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
+
+  if (request.method === 'GET' && isStockAdjustmentOptions) {
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    if (!drawerAuth.ok) return drawerAuth.response;
+    return json({ products: await listStockAdjustmentOptions(env.DB, auth.cashier.store.id) });
+  }
 
   if (request.method === 'POST' && pathname === '/api/cashier/approval-requests') {
     const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
@@ -117,6 +131,38 @@ async function managementScope(request, env) {
   return { ...auth, storeId: store.id };
 }
 
+async function rejectStaleStockAdjustment(db, current, { approverRole, approverId, now }) {
+  if (current.requestType !== 'GOODS_FLOW' || current.payload?.purpose !== 'STOCK_ADJUSTMENT') return null;
+  const row = await db.prepare(`
+    SELECT COALESCE(quantity, 0) AS quantity
+    FROM inventory_stock_balances
+    WHERE store_id = ? AND product_id = ?
+    LIMIT 1
+  `).bind(current.storeId, current.payload.productId).first();
+  const actualQuantity = Number(row?.quantity || 0);
+  const snapshotQuantity = Number(current.payload.currentQuantitySnapshot);
+  if (actualQuantity === snapshotQuantity) return null;
+
+  const reason = `STOCK_ADJUSTMENT_STALE: stok berubah dari snapshot ${snapshotQuantity} menjadi ${actualQuantity}; ajukan ulang Penyesuaian Stok.`;
+  const result = await db.prepare(`
+    UPDATE approval_requests
+    SET approval_status = 'rejected', posting_status = 'unposted',
+        posting_block_reason = ?, decision_note = ?, updated_at = ?, rejected_at = ?,
+        approved_by_role = ?, approved_by_id = ?
+    WHERE id = ? AND approval_status = 'pending_approval' AND posting_status = 'unposted'
+  `).bind(reason, reason, now, now, approverRole, approverId, current.id).run();
+  if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
+    return { status: 409, code: 'APPROVAL_ALREADY_DECIDED', error: 'Pengajuan sudah diputuskan oleh request lain.' };
+  }
+  return {
+    status: 409,
+    code: 'STOCK_ADJUSTMENT_STALE',
+    error: `Penyesuaian Stok tidak diposting karena stok berubah dari ${snapshotQuantity} menjadi ${actualQuantity}. Ajukan ulang berdasarkan stok terbaru.`,
+    actualQuantity,
+    snapshotQuantity
+  };
+}
+
 async function handleManagementApprovalQueue(request, env, pathname) {
   if (!pathname.startsWith('/api/management/approval-requests')) return null;
   const scope = await managementScope(request, env);
@@ -156,6 +202,9 @@ async function handleManagementApprovalQueue(request, env, pathname) {
       if (!result.success || Number(result.meta?.changes ?? 0) !== 1) return json({ error: 'Pengajuan sudah diputuskan oleh request lain.' }, 409);
       return json({ ok: true, request: await getRequest(env.DB, requestId), posted: false });
     }
+
+    const stale = await rejectStaleStockAdjustment(env.DB, current, { approverRole, approverId, now });
+    if (stale) return json({ ...stale, request: await getRequest(env.DB, requestId) }, stale.status);
 
     const statements = buildOperationalPostingStatements(env.DB, current, { approverRole, approverId, now, note });
     try {

@@ -28,10 +28,19 @@
     return payload;
   }
 
+  function requestLabel(request) {
+    if (request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT') return 'STOCK ADJUSTMENT';
+    return request.requestType;
+  }
+
   function payloadSummary(request) {
     const payload = request.payload || {};
     if (request.requestType === 'CASH_FLOW') {
       return `${payload.direction === 'OUT' ? 'Kas Keluar' : 'Kas Masuk'} · ${money(payload.amount)} · ${esc(payload.description || '')}`;
+    }
+    if (request.requestType === 'GOODS_FLOW' && payload.purpose === 'STOCK_ADJUSTMENT') {
+      const delta = Number(payload.targetQuantity || 0) - Number(payload.currentQuantitySnapshot || 0);
+      return `Penyesuaian Stok · ${esc(payload.productName || `#${payload.productId || ''}`)} · ${Number(payload.currentQuantitySnapshot || 0)} → ${Number(payload.targetQuantity || 0)} ${esc(payload.unitSymbol || '')} · ${delta > 0 ? '+' : ''}${delta} · ${esc(payload.reason || '')}`;
     }
     if (request.requestType === 'GOODS_FLOW') {
       return `${payload.direction === 'OUT' ? 'Barang Keluar' : 'Barang Masuk'} · ${esc(payload.productName || `#${payload.productId || ''}`)} · ${Number(payload.quantity || 0)} qty`;
@@ -58,9 +67,10 @@
     }
     target.innerHTML = requests.map(request => `
       <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-        <div class="list-head"><div><strong>${esc(request.requestType)}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="master-count">pending</span></div>
+        <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="master-count">pending</span></div>
         <p>${payloadSummary(request)}</p>
         <div class="muted">${esc(request.payload?.note || '')}</div>
+        ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? '<div class="muted" style="margin-top:8px">ACC akan re-check stok aktual terhadap snapshot. Jika stok sudah berubah, request otomatis ditolak sebagai stale.</div>' : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
           <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC + POSTING</button>
           <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">Reject</button>
@@ -91,6 +101,11 @@
       showMessage(payload.posted ? 'ACC berhasil · posting snapshot selesai.' : 'Pengajuan ditolak tanpa posting.');
       await loadQueue();
     } catch (error) {
+      if (error.payload?.code === 'STOCK_ADJUSTMENT_STALE') {
+        alert(`${error.message}\n\nRequest sudah ditolak otomatis. Buat Penyesuaian Stok baru dari saldo terbaru.`);
+        await loadQueue();
+        return;
+      }
       alert(error.message);
     }
   }
@@ -104,7 +119,7 @@
     toast.insertAdjacentHTML('beforebegin', `
       <section id="tab-approvals" class="admin-section">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Arus Kas, Arus Barang, dan Aset dari kasir. ACC mengeksekusi posting snapshot secara atomic sesuai Operational Posting Contract v1.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+          <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Arus Kas, Arus Barang, Penyesuaian Stok, dan Aset dari kasir. ACC mengeksekusi posting snapshot secara atomic sesuai contract aktif.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
           <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
         </div>
       </section>`);
@@ -122,7 +137,7 @@
     if (!app || document.getElementById('ownerApprovalQueue')) return;
     app.insertAdjacentHTML('beforeend', `
       <section id="ownerApprovalQueue" class="admin-card" style="margin-top:18px">
-        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Owner dapat mereview pending approval seluruh gerai. ACC langsung posting atomic sesuai contract V1.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Owner dapat mereview pending approval seluruh gerai. Penyesuaian Stok memakai snapshot dan stale guard sebelum posting.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
         <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
       </section>`);
     document.getElementById('managementApprovalRefresh')?.addEventListener('click', loadQueue);

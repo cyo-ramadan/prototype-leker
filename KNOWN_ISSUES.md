@@ -72,7 +72,7 @@ Desired behavior when enabled:
 
 Ownership note: this policy belongs to Inventory/Costing even if surfaced from a shared Settings UI such as a `Policy Integritas HPP` section near Setting Akuntansi. Accounting must not become the owner of stock/HPP mutation rules.
 
-**Dependency:** the Penyesuaian Stok write contract below is still inactive. Therefore this policy must default OFF and must not be enabled in production until the user has an approved adjustment path, otherwise a negative-stock item could become operationally deadlocked.
+**Dependency:** the Penyesuaian Stok write contract below is still inactive on `main`. Therefore this policy must default OFF and must not be enabled in production until the user has an approved adjustment path, otherwise a negative-stock item could become operationally deadlocked.
 
 ### Still intentionally open: Sale-level fulfillment migration
 
@@ -82,7 +82,7 @@ A future Sale contract must move fulfillment ownership to the Penjualan transact
 
 ### Still intentionally open: Penyesuaian Stok write contract
 
-The cashier Penyesuaian Stok entry point remains inactive until an explicit adjustment reason/audit/approval contract is defined. Future adjustment posting must reuse `stock_movements` and must not bypass the stock audit model.
+The cashier Penyesuaian Stok entry point remains inactive on `main` until an explicit adjustment reason/audit/approval contract is merged. Future adjustment posting must reuse `stock_movements` and must not bypass the stock audit model.
 
 This flow is now also a prerequisite for safely enabling the planned store-level `blockPurchaseWhenStockNegative` HPP integrity policy.
 
@@ -131,15 +131,9 @@ Implemented configuration:
 - `wh_return` remains deliberately without default rules until return direction/subtype is defined;
 - old provisional pair-mapping writer is retired.
 
-## Accounting Workspace and POS bridge — precision feature not deployed
+## Accounting Workspace and POS bridge — deployed live
 
-### Deployment prerequisite
-
-Cloudflare Worker source and static assets must not be considered deployed merely because GitHub main/feature code exists. Before deploying code that reads the current Accounting workspace, the dedicated prototype D1 migration chain must be applied through the migration required by the deployed source.
-
-For the six-decimal precision feature this means migration `0026_accounting_six_decimal_precision.sql` must be applied before its Worker source is deployed.
-
-Required recovery order: export/backup the dedicated prototype D1 database, inspect remote migration status, apply pending migrations, deploy the Worker, then smoke-test Setting Akuntansi, Akuntansi, and POS-to-Accounting bridge. Do not use the Dwicahya database.
+Accounting Workspace, Setting Akuntansi, POS Accounting bridge, and six-decimal Accounting precision are deployed on the permanent Prototype Leker Worker. The remote dedicated D1 migration chain is applied through `0026_accounting_six_decimal_precision.sql`.
 
 Current behavior is governed by:
 
@@ -151,6 +145,28 @@ Current behavior is governed by:
 - `src/accounting-workspace.js`;
 - `src/accounting-pos-bridge.js`;
 - `src/accounting-pos-bridge-response.js`.
+
+### Resolved production deployment incident — historical D1 schema drift
+
+On 2026-08-13 the remote D1 migration ledger reported migrations through `0022` as applied, but two compatibility objects originally defined by migration `0018_product_master_accounting_reference.sql` were absent from the live schema:
+
+- `transaction_accounting_mappings`;
+- `transaction_accounting_snapshots`.
+
+That drift caused migration `0023_accounting_snapshot_settings_compat.sql` to fail before Accounting Workspace migrations could continue. The failure was diagnosed through the existing Cloudflare Workers Git Integration without exposing Cloudflare credentials.
+
+Recovery performed under Bos Cyo's explicit deployment authority:
+
+- captured a D1 Time Travel checkpoint before mutation;
+- inspected live `sqlite_schema` and migration state;
+- recreated only the exact missing compatibility objects from the authoritative `0018` definition using idempotent DDL/seed operations;
+- resumed canonical remote migrations `0023` through `0026`;
+- restored the repository-owned deploy command to `npm run db:migrations:apply && npx wrangler deploy`;
+- removed temporary diagnostic/recovery scripts and public diagnostic assets;
+- verified a subsequent normal Cloudflare Git build succeeds without the recovery path;
+- verified live Accounting assets and protected API routes through the reusable smoke workflow in `cyo-ramadan/program-kasir`.
+
+The incident is resolved. Do not rewrite or retroactively alter already-applied migration history to hide this drift; use schema inspection and an explicit recovery path if a similar mismatch appears again.
 
 Implemented Accounting work:
 
@@ -180,7 +196,7 @@ Implemented POS bridge:
 - retry is idempotent by source fact;
 - Transaction Explorer reads actual bridge delivery status/journal reference for SALE/PURCHASE/EXPENSE;
 - manual sync is available from the Accounting workspace for older/unposted-to-Accounting POS facts;
-- sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly, so the former `NEEDS_COST_ROUNDING_POLICY` blocker is resolved by ADR-019;
+- sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly, so the former cost-rounding blocker is resolved by ADR-019;
 - missing sale COGS snapshot fails closed with `NEEDS_COST_SNAPSHOT` rather than recomputing from current Product Master cost.
 
 ### Open: dynamic cashier payment-method integration
@@ -225,4 +241,4 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, ADR-015 through ADR-019, migrations through 0026, and regression tests describe the active implementation/feature state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, store-level HPP integrity policy for negative stock, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, ADR-015 through ADR-019, migrations through 0026, deployment recovery evidence, and regression/live-smoke tests describe the active implementation state. Accounting Workspace and Setting Akuntansi are live. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, store-level HPP integrity policy for negative stock, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.

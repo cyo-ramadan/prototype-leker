@@ -1,6 +1,10 @@
 export const ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);
 export const JOURNAL_SIDES = Object.freeze(['DEBIT', 'CREDIT']);
+export const ACCOUNTING_AMOUNT_SCALE = 1_000_000;
+export const SYSTEM_ADJUSTMENT_TOLERANCE_SCALED = 100 * ACCOUNTING_AMOUNT_SCALE;
+export const SYSTEM_ADJUSTMENT_POLICY = 'AUTO_EQUITY_UP_TO_100_RUPIAH';
 
+const SYSTEM_ADJUSTMENT_SUBTYPE = 'ROUNDING_ADJUSTMENT';
 const MAX_TEXT = 500;
 const text = (value, max = MAX_TEXT) => String(value ?? '').trim().slice(0, max);
 
@@ -24,9 +28,58 @@ export function validateBusinessDate(value) {
   return businessDate;
 }
 
-function amountMinor(value) {
+function safeScaledInteger(value, { allowZero = false } = {}) {
   const number = Number(value);
-  return Number.isSafeInteger(number) && number > 0 ? number : null;
+  if (!Number.isSafeInteger(number)) return null;
+  if (allowZero ? number < 0 : number <= 0) return null;
+  return number;
+}
+
+function wholeRupiahToScaled(value) {
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || amount <= 0) return null;
+  const scaled = amount * ACCOUNTING_AMOUNT_SCALE;
+  return Number.isSafeInteger(scaled) ? scaled : null;
+}
+
+export function parseRupiahAmountToScaled(value) {
+  const raw = String(value ?? '').trim().replace(',', '.');
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(raw);
+  if (!match) return null;
+  const whole = BigInt(match[1]);
+  const fraction = match[2] || '';
+  const kept = fraction.slice(0, 6).padEnd(6, '0');
+  let scaled = whole * 1000000n + BigInt(kept || '0');
+  if (fraction.length > 6 && Number(fraction[6]) >= 5) scaled += 1n;
+  if (scaled <= 0n || scaled > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return Number(scaled);
+}
+
+export function scaledAmountToExactString(value) {
+  const scaled = safeScaledInteger(value, { allowZero: true });
+  if (scaled === null) return null;
+  const amount = BigInt(scaled);
+  const whole = amount / 1000000n;
+  const fraction = String(amount % 1000000n).padStart(6, '0').replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : String(whole);
+}
+
+function scaledToCompatibilityRupiah(value) {
+  const exact = scaledAmountToExactString(value);
+  return exact === null ? null : Number(exact);
+}
+
+function normalizeJournalAmount(raw) {
+  if (raw?.amountScaled !== undefined && raw?.amountScaled !== null && raw?.amountScaled !== '') {
+    return safeScaledInteger(raw.amountScaled);
+  }
+  if (raw?.amountExact !== undefined && raw?.amountExact !== null && raw?.amountExact !== '') {
+    return parseRupiahAmountToScaled(raw.amountExact);
+  }
+  if (raw?.amountMinor !== undefined && raw?.amountMinor !== null && raw?.amountMinor !== '') {
+    return wholeRupiahToScaled(raw.amountMinor);
+  }
+  return null;
 }
 
 function safeAdd(current, next) {
@@ -35,52 +88,68 @@ function safeAdd(current, next) {
   return total;
 }
 
-export function calculateNormalBalance(accountType, debitMinor, creditMinor) {
-  const debit = Number(debitMinor || 0);
-  const credit = Number(creditMinor || 0);
+export function calculateNormalBalance(accountType, debitAmount, creditAmount) {
+  const debit = Number(debitAmount || 0);
+  const credit = Number(creditAmount || 0);
   return accountNormalSide(accountType) === 'DEBIT' ? debit - credit : credit - debit;
 }
 
-export function validateJournalLines(lines, allowedAccountIds = null) {
-  if (!Array.isArray(lines) || lines.length < 2 || lines.length > 100) {
-    return { ok: false, code: 'JOURNAL_LINES_INVALID', error: 'Jurnal wajib memiliki 2–100 baris.' };
+export function validateJournalLines(lines, allowedAccountIds = null, options = {}) {
+  const maxLines = Number(options.maxLines || 100);
+  if (!Array.isArray(lines) || lines.length < 2 || lines.length > maxLines) {
+    return { ok: false, code: 'JOURNAL_LINES_INVALID', error: `Jurnal wajib memiliki 2–${maxLines} baris.` };
   }
-  let totalDebitMinor = 0;
-  let totalCreditMinor = 0;
+  let totalDebitScaled = 0;
+  let totalCreditScaled = 0;
   const normalized = [];
   for (let index = 0; index < lines.length; index += 1) {
     const raw = lines[index] || {};
     const accountId = text(raw.accountId, 180);
     const side = text(raw.side, 10).toUpperCase();
-    const amount = amountMinor(raw.amountMinor);
-    if (!accountId || !JOURNAL_SIDES.includes(side) || amount === null) {
-      return { ok: false, code: 'JOURNAL_LINE_INVALID', error: `Baris ${index + 1} wajib memiliki akun, sisi, dan nominal positif.` };
+    const amountScaled = normalizeJournalAmount(raw);
+    if (!accountId || !JOURNAL_SIDES.includes(side) || amountScaled === null) {
+      return { ok: false, code: 'JOURNAL_LINE_INVALID', error: `Baris ${index + 1} wajib memiliki akun, sisi, dan nominal positif maksimal 6 desimal.` };
     }
     if (allowedAccountIds && !allowedAccountIds.has(accountId)) {
       return { ok: false, code: 'ACCOUNT_NOT_POSTABLE', error: `Akun pada baris ${index + 1} tidak aktif / tidak tersedia.` };
     }
-    if (side === 'DEBIT') totalDebitMinor = safeAdd(totalDebitMinor, amount);
-    else totalCreditMinor = safeAdd(totalCreditMinor, amount);
+    if (side === 'DEBIT') totalDebitScaled = safeAdd(totalDebitScaled, amountScaled);
+    else totalCreditScaled = safeAdd(totalCreditScaled, amountScaled);
     normalized.push({
       accountId,
       side,
-      amountMinor: amount,
-      description: text(raw.description, 240)
+      amountScaled,
+      amountExact: scaledAmountToExactString(amountScaled),
+      description: text(raw.description, 240),
+      isSystemGenerated: Boolean(raw.isSystemGenerated)
     });
   }
-  if (totalDebitMinor !== totalCreditMinor) {
+  if (totalDebitScaled <= 0) {
+    return { ok: false, code: 'EMPTY_JOURNAL', error: 'Nominal jurnal harus lebih dari nol.' };
+  }
+  if (options.requireBalanced !== false && totalDebitScaled !== totalCreditScaled) {
     return {
       ok: false,
       code: 'UNBALANCED_JOURNAL',
       error: 'Total Debit dan Kredit harus sama.',
-      totalDebitMinor,
-      totalCreditMinor
+      totalDebitScaled,
+      totalCreditScaled,
+      totalDebitExact: scaledAmountToExactString(totalDebitScaled),
+      totalCreditExact: scaledAmountToExactString(totalCreditScaled),
+      totalDebitMinor: scaledToCompatibilityRupiah(totalDebitScaled),
+      totalCreditMinor: scaledToCompatibilityRupiah(totalCreditScaled)
     };
   }
-  if (totalDebitMinor <= 0) {
-    return { ok: false, code: 'EMPTY_JOURNAL', error: 'Nominal jurnal harus lebih dari nol.' };
-  }
-  return { ok: true, lines: normalized, totalDebitMinor, totalCreditMinor };
+  return {
+    ok: true,
+    lines: normalized,
+    totalDebitScaled,
+    totalCreditScaled,
+    totalDebitExact: scaledAmountToExactString(totalDebitScaled),
+    totalCreditExact: scaledAmountToExactString(totalCreditScaled),
+    totalDebitMinor: scaledToCompatibilityRupiah(totalDebitScaled),
+    totalCreditMinor: scaledToCompatibilityRupiah(totalCreditScaled)
+  };
 }
 
 async function nextSequence(db, storeId, sequenceKey) {
@@ -120,6 +189,7 @@ export async function listAccountingAccounts(db, storeId) {
     normalSide: accountNormalSide(row.type),
     isActive: Boolean(row.is_active),
     reviewRequired: Boolean(row.review_required),
+    isSystemManaged: row.subtype === SYSTEM_ADJUSTMENT_SUBTYPE,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }));
@@ -142,6 +212,9 @@ export async function createAccountingAccount(db, store, input) {
   const subtype = text(input?.subtype, 60).toUpperCase();
   if (!accountName || !ACCOUNT_TYPES.includes(accountType)) {
     return { ok: false, status: 400, code: 'ACCOUNT_INPUT_INVALID', error: 'Nama dan tipe akun wajib valid.' };
+  }
+  if (subtype === SYSTEM_ADJUSTMENT_SUBTYPE) {
+    return { ok: false, status: 400, code: 'ACCOUNT_SUBTYPE_RESERVED', error: 'Subtype ROUNDING_ADJUSTMENT dikelola otomatis oleh Accounting.' };
   }
   const sequence = await nextSequence(db, store.id, 'ACCOUNT_CODE');
   const accountCode = sequenceCode('ACC', sequence);
@@ -168,10 +241,15 @@ export async function updateAccountingAccount(db, store, accountId, input) {
     WHERE id = ? AND store_id = ?
   `).bind(accountId, store.id).first();
   if (!current) return { ok: false, status: 404, code: 'ACCOUNT_NOT_FOUND', error: 'Akun tidak ditemukan.' };
+  if (current.subtype === SYSTEM_ADJUSTMENT_SUBTYPE) {
+    return { ok: false, status: 409, code: 'SYSTEM_ACCOUNT_IMMUTABLE', error: 'Akun Penyesuaian dikelola otomatis oleh Accounting.' };
+  }
   const accountName = text(input?.accountName ?? current.name, 100);
   const subtype = text(input?.subtype ?? current.subtype, 60).toUpperCase();
   const isActive = input?.isActive === undefined ? Boolean(current.is_active) : Boolean(input.isActive);
-  if (!accountName) return { ok: false, status: 400, code: 'ACCOUNT_NAME_REQUIRED', error: 'Nama akun wajib diisi.' };
+  if (!accountName || subtype === SYSTEM_ADJUSTMENT_SUBTYPE) {
+    return { ok: false, status: 400, code: 'ACCOUNT_INPUT_INVALID', error: 'Nama/subtype akun tidak valid.' };
+  }
   if (!isActive && Boolean(current.is_active) && await activeAccountReferenceCount(db, store.id, accountId) > 0) {
     return {
       ok: false,
@@ -193,6 +271,16 @@ async function activeAccountIds(db, storeId) {
   return new Set((rows.results ?? []).map(row => row.id));
 }
 
+async function systemAdjustmentAccount(db, storeId) {
+  return db.prepare(`
+    SELECT id, code, name
+    FROM chart_of_accounts
+    WHERE store_id = ? AND subtype = ? AND type = 'EQUITY' AND is_active = 1
+    ORDER BY code
+    LIMIT 1
+  `).bind(storeId, SYSTEM_ADJUSTMENT_SUBTYPE).first();
+}
+
 export async function getAccountingJournal(db, storeId, journalId) {
   const header = await db.prepare(`
     SELECT id, journal_number, business_date, occurred_at, currency_code,
@@ -203,7 +291,8 @@ export async function getAccountingJournal(db, storeId, journalId) {
   `).bind(journalId, storeId).first();
   if (!header) return null;
   const rows = await db.prepare(`
-    SELECT l.id, l.line_number, l.account_id, l.side, l.amount_minor, l.description,
+    SELECT l.id, l.line_number, l.account_id, l.side, l.amount_scaled,
+           l.is_system_generated, l.description,
            a.code AS account_code, a.name AS account_name, a.type AS account_type
     FROM accounting_journal_lines l
     JOIN chart_of_accounts a ON a.id = l.account_id AND a.store_id = l.store_id
@@ -224,17 +313,23 @@ export async function getAccountingJournal(db, storeId, journalId) {
     journalStatus: header.journal_status,
     postedAt: header.posted_at,
     reversalOfJournalId: header.reversal_of_journal_id || null,
-    lines: (rows.results ?? []).map(row => ({
-      journalLineId: row.id,
-      lineNumber: Number(row.line_number),
-      accountId: row.account_id,
-      accountCode: row.account_code,
-      accountName: row.account_name,
-      accountType: row.account_type,
-      side: row.side,
-      amountMinor: Number(row.amount_minor),
-      description: row.description || ''
-    }))
+    lines: (rows.results ?? []).map(row => {
+      const amountScaled = Number(row.amount_scaled);
+      return {
+        journalLineId: row.id,
+        lineNumber: Number(row.line_number),
+        accountId: row.account_id,
+        accountCode: row.account_code,
+        accountName: row.account_name,
+        accountType: row.account_type,
+        side: row.side,
+        amountScaled,
+        amountExact: scaledAmountToExactString(amountScaled),
+        amountMinor: scaledToCompatibilityRupiah(amountScaled),
+        isSystemGenerated: Boolean(row.is_system_generated),
+        description: row.description || ''
+      };
+    })
   };
 }
 
@@ -253,9 +348,16 @@ export async function postAccountingJournal(db, store, command) {
   `).bind(store.id, idempotencyKey).first();
   if (existing) return { ok: true, duplicate: true, journal: await getAccountingJournal(db, store.id, existing.id) };
 
+  const allowSystemAdjustment = sourceSystem !== 'MANUAL'
+    && command?.systemAdjustmentPolicy === SYSTEM_ADJUSTMENT_POLICY;
+
   let checked;
   try {
-    checked = validateJournalLines(command?.journalLines, await activeAccountIds(db, store.id));
+    checked = validateJournalLines(
+      command?.journalLines,
+      await activeAccountIds(db, store.id),
+      { requireBalanced: !allowSystemAdjustment, maxLines: 100 }
+    );
   } catch (error) {
     if (String(error?.message || '') === 'ACCOUNTING_AMOUNT_OVERFLOW') {
       return { ok: false, status: 400, code: 'ACCOUNTING_AMOUNT_OVERFLOW', error: 'Total jurnal melampaui batas integer aman.' };
@@ -263,6 +365,38 @@ export async function postAccountingJournal(db, store, command) {
     throw error;
   }
   if (!checked.ok) return { ...checked, status: 400 };
+
+  if (checked.totalDebitScaled !== checked.totalCreditScaled) {
+    const differenceScaled = Math.abs(checked.totalDebitScaled - checked.totalCreditScaled);
+    if (!allowSystemAdjustment || differenceScaled > SYSTEM_ADJUSTMENT_TOLERANCE_SCALED) {
+      return {
+        ok: false,
+        status: 400,
+        code: 'UNBALANCED_JOURNAL_OUTSIDE_TOLERANCE',
+        error: allowSystemAdjustment
+          ? 'Selisih jurnal sistem melebihi toleransi Penyesuaian Rp100.'
+          : 'Total Debit dan Kredit harus sama.',
+        totalDebitScaled: checked.totalDebitScaled,
+        totalCreditScaled: checked.totalCreditScaled,
+        differenceScaled,
+        differenceExact: scaledAmountToExactString(differenceScaled)
+      };
+    }
+    const adjustment = await systemAdjustmentAccount(db, store.id);
+    if (!adjustment) {
+      return { ok: false, status: 409, code: 'SYSTEM_ADJUSTMENT_ACCOUNT_MISSING', error: 'Akun sistem Penyesuaian tidak tersedia / tidak aktif.' };
+    }
+    checked.lines.push({
+      accountId: adjustment.id,
+      side: checked.totalDebitScaled > checked.totalCreditScaled ? 'CREDIT' : 'DEBIT',
+      amountScaled: differenceScaled,
+      amountExact: scaledAmountToExactString(differenceScaled),
+      description: 'Penyesuaian',
+      isSystemGenerated: true
+    });
+    checked = validateJournalLines(checked.lines, await activeAccountIds(db, store.id), { requireBalanced: true, maxLines: 101 });
+    if (!checked.ok) return { ...checked, status: 400 };
+  }
 
   const journalId = `journal_${crypto.randomUUID()}`;
   const journalNumber = sequenceCode('JRN', await nextSequence(db, store.id, 'JOURNAL_NUMBER'));
@@ -290,8 +424,9 @@ export async function postAccountingJournal(db, store, command) {
   checked.lines.forEach((line, index) => {
     statements.push(db.prepare(`
       INSERT INTO accounting_journal_lines (
-        id, store_id, journal_id, line_number, account_id, side, amount_minor, description
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, store_id, journal_id, line_number, account_id, side,
+        amount_scaled, is_system_generated, description
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       `${journalId}:L${String(index + 1).padStart(3, '0')}`,
       store.id,
@@ -299,7 +434,8 @@ export async function postAccountingJournal(db, store, command) {
       index + 1,
       line.accountId,
       line.side,
-      line.amountMinor,
+      line.amountScaled,
+      line.isSystemGenerated ? 1 : 0,
       line.description
     ));
   });
@@ -320,8 +456,8 @@ export async function listAccountingJournals(db, storeId, { from = '', to = '', 
   const rows = await db.prepare(`
     SELECT h.id, h.journal_number, h.business_date, h.source_system, h.source_reference_id,
            h.description, h.posted_at, h.reversal_of_journal_id,
-           COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_minor ELSE 0 END), 0) AS total_debit,
-           COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_minor ELSE 0 END), 0) AS total_credit
+           COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_scaled ELSE 0 END), 0) AS total_debit_scaled,
+           COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_scaled ELSE 0 END), 0) AS total_credit_scaled
     FROM accounting_journal_headers h
     LEFT JOIN accounting_journal_lines l ON l.journal_id = h.id AND l.store_id = h.store_id
     WHERE h.store_id = ?
@@ -331,18 +467,26 @@ export async function listAccountingJournals(db, storeId, { from = '', to = '', 
     ORDER BY h.business_date DESC, h.journal_number DESC
     LIMIT ?
   `).bind(storeId, fromDate, fromDate, toDate, toDate, safeLimit).all();
-  return (rows.results ?? []).map(row => ({
-    journalId: row.id,
-    journalNumber: row.journal_number,
-    businessDate: row.business_date,
-    sourceSystem: row.source_system,
-    sourceReferenceId: row.source_reference_id,
-    description: row.description,
-    postedAt: row.posted_at,
-    reversalOfJournalId: row.reversal_of_journal_id || null,
-    totalDebitMinor: Number(row.total_debit || 0),
-    totalCreditMinor: Number(row.total_credit || 0)
-  }));
+  return (rows.results ?? []).map(row => {
+    const totalDebitScaled = Number(row.total_debit_scaled || 0);
+    const totalCreditScaled = Number(row.total_credit_scaled || 0);
+    return {
+      journalId: row.id,
+      journalNumber: row.journal_number,
+      businessDate: row.business_date,
+      sourceSystem: row.source_system,
+      sourceReferenceId: row.source_reference_id,
+      description: row.description,
+      postedAt: row.posted_at,
+      reversalOfJournalId: row.reversal_of_journal_id || null,
+      totalDebitScaled,
+      totalCreditScaled,
+      totalDebitExact: scaledAmountToExactString(totalDebitScaled),
+      totalCreditExact: scaledAmountToExactString(totalCreditScaled),
+      totalDebitMinor: scaledToCompatibilityRupiah(totalDebitScaled),
+      totalCreditMinor: scaledToCompatibilityRupiah(totalCreditScaled)
+    };
+  });
 }
 
 async function accountRow(db, storeId, accountId) {
@@ -361,17 +505,19 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
   if (!fromDate || !toDate || fromDate > toDate) return { error: 'Periode buku besar tidak valid.', code: 'INVALID_REPORT_PERIOD' };
   const opening = await db.prepare(`
     SELECT
-      COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_minor ELSE 0 END), 0) AS debit_minor,
-      COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_minor ELSE 0 END), 0) AS credit_minor
+      COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_scaled ELSE 0 END), 0) AS debit_scaled,
+      COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_scaled ELSE 0 END), 0) AS credit_scaled
     FROM accounting_journal_lines l
     JOIN accounting_journal_headers h ON h.id = l.journal_id AND h.store_id = l.store_id
     WHERE l.store_id = ? AND l.account_id = ? AND h.business_date < ?
   `).bind(storeId, accountId, fromDate).first();
-  let runningBalanceMinor = calculateNormalBalance(account.type, opening?.debit_minor || 0, opening?.credit_minor || 0);
+  const openingDebitScaled = Number(opening?.debit_scaled || 0);
+  const openingCreditScaled = Number(opening?.credit_scaled || 0);
+  let runningBalanceScaled = calculateNormalBalance(account.type, openingDebitScaled, openingCreditScaled);
   const rows = await db.prepare(`
     SELECT h.id AS journal_id, h.journal_number, h.business_date, h.description AS journal_description,
            h.source_system, h.source_reference_id,
-           l.side, l.amount_minor, l.description AS line_description, l.line_number
+           l.side, l.amount_scaled, l.description AS line_description, l.line_number, l.is_system_generated
     FROM accounting_journal_lines l
     JOIN accounting_journal_headers h ON h.id = l.journal_id AND h.store_id = l.store_id
     WHERE l.store_id = ? AND l.account_id = ?
@@ -379,11 +525,12 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
     ORDER BY h.business_date, h.journal_number, l.line_number
   `).bind(storeId, accountId, fromDate, toDate).all();
   const entries = (rows.results ?? []).map(row => {
-    const debitMinor = row.side === 'DEBIT' ? Number(row.amount_minor) : 0;
-    const creditMinor = row.side === 'CREDIT' ? Number(row.amount_minor) : 0;
-    runningBalanceMinor += accountNormalSide(account.type) === 'DEBIT'
-      ? debitMinor - creditMinor
-      : creditMinor - debitMinor;
+    const amountScaled = Number(row.amount_scaled);
+    const debitScaled = row.side === 'DEBIT' ? amountScaled : 0;
+    const creditScaled = row.side === 'CREDIT' ? amountScaled : 0;
+    runningBalanceScaled += accountNormalSide(account.type) === 'DEBIT'
+      ? debitScaled - creditScaled
+      : creditScaled - debitScaled;
     return {
       journalId: row.journal_id,
       journalNumber: row.journal_number,
@@ -391,11 +538,19 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
       description: row.line_description || row.journal_description,
       sourceSystem: row.source_system,
       sourceReferenceId: row.source_reference_id,
-      debitMinor,
-      creditMinor,
-      balanceMinor: runningBalanceMinor
+      debitScaled,
+      creditScaled,
+      balanceScaled: runningBalanceScaled,
+      debitExact: scaledAmountToExactString(debitScaled),
+      creditExact: scaledAmountToExactString(creditScaled),
+      balanceExact: scaledAmountToExactString(Math.abs(runningBalanceScaled)),
+      debitMinor: scaledToCompatibilityRupiah(debitScaled),
+      creditMinor: scaledToCompatibilityRupiah(creditScaled),
+      balanceMinor: scaledToCompatibilityRupiah(runningBalanceScaled),
+      isSystemGenerated: Boolean(row.is_system_generated)
     };
   });
+  const openingBalanceScaled = calculateNormalBalance(account.type, openingDebitScaled, openingCreditScaled);
   return {
     account: {
       accountId: account.id,
@@ -405,17 +560,21 @@ export async function getGeneralLedger(db, storeId, accountId, from, to) {
       normalSide: accountNormalSide(account.type)
     },
     period: { from: fromDate, to: toDate },
-    openingBalanceMinor: calculateNormalBalance(account.type, opening?.debit_minor || 0, opening?.credit_minor || 0),
+    openingBalanceScaled,
+    openingBalanceExact: scaledAmountToExactString(Math.abs(openingBalanceScaled)),
+    openingBalanceMinor: scaledToCompatibilityRupiah(openingBalanceScaled),
     entries,
-    closingBalanceMinor: runningBalanceMinor
+    closingBalanceScaled: runningBalanceScaled,
+    closingBalanceExact: scaledAmountToExactString(Math.abs(runningBalanceScaled)),
+    closingBalanceMinor: scaledToCompatibilityRupiah(runningBalanceScaled)
   };
 }
 
 async function groupedBalances(db, storeId, journalPeriodClause, values) {
   const rows = await db.prepare(`
     SELECT a.id AS account_id, a.code AS account_code, a.name AS account_name, a.type AS account_type,
-           COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_minor ELSE 0 END), 0) AS debit_minor,
-           COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_minor ELSE 0 END), 0) AS credit_minor
+           COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_scaled ELSE 0 END), 0) AS debit_scaled,
+           COALESCE(SUM(CASE WHEN l.side = 'CREDIT' THEN l.amount_scaled ELSE 0 END), 0) AS credit_scaled
     FROM chart_of_accounts a
     LEFT JOIN accounting_journal_lines l
       ON l.account_id = a.id
@@ -431,28 +590,46 @@ async function groupedBalances(db, storeId, journalPeriodClause, values) {
     GROUP BY a.id
     ORDER BY a.code COLLATE NOCASE, a.name COLLATE NOCASE
   `).bind(...values, storeId).all();
-  return (rows.results ?? []).map(row => ({
-    accountId: row.account_id,
-    accountCode: row.account_code,
-    accountName: row.account_name,
-    accountType: row.account_type,
-    debitMinor: Number(row.debit_minor || 0),
-    creditMinor: Number(row.credit_minor || 0),
-    balanceMinor: calculateNormalBalance(row.account_type, row.debit_minor, row.credit_minor)
-  }));
+  return (rows.results ?? []).map(row => {
+    const debitScaled = Number(row.debit_scaled || 0);
+    const creditScaled = Number(row.credit_scaled || 0);
+    const balanceScaled = calculateNormalBalance(row.account_type, debitScaled, creditScaled);
+    return {
+      accountId: row.account_id,
+      accountCode: row.account_code,
+      accountName: row.account_name,
+      accountType: row.account_type,
+      debitScaled,
+      creditScaled,
+      balanceScaled,
+      debitExact: scaledAmountToExactString(debitScaled),
+      creditExact: scaledAmountToExactString(creditScaled),
+      balanceExact: scaledAmountToExactString(Math.abs(balanceScaled)),
+      debitMinor: scaledToCompatibilityRupiah(debitScaled),
+      creditMinor: scaledToCompatibilityRupiah(creditScaled),
+      balanceMinor: scaledToCompatibilityRupiah(balanceScaled)
+    };
+  });
 }
 
 export function summarizeProfitLoss(rows) {
-  const revenue = rows.filter(row => row.accountType === 'REVENUE' && row.balanceMinor !== 0);
-  const expenses = rows.filter(row => row.accountType === 'EXPENSE' && row.balanceMinor !== 0);
-  const totalRevenueMinor = revenue.reduce((sum, row) => safeAdd(sum, row.balanceMinor), 0);
-  const totalExpenseMinor = expenses.reduce((sum, row) => safeAdd(sum, row.balanceMinor), 0);
+  const revenue = rows.filter(row => row.accountType === 'REVENUE' && row.balanceScaled !== 0);
+  const expenses = rows.filter(row => row.accountType === 'EXPENSE' && row.balanceScaled !== 0);
+  const totalRevenueScaled = revenue.reduce((sum, row) => safeAdd(sum, row.balanceScaled), 0);
+  const totalExpenseScaled = expenses.reduce((sum, row) => safeAdd(sum, row.balanceScaled), 0);
+  const netIncomeScaled = totalRevenueScaled - totalExpenseScaled;
   return {
     revenue,
     expenses,
-    totalRevenueMinor,
-    totalExpenseMinor,
-    netIncomeMinor: totalRevenueMinor - totalExpenseMinor
+    totalRevenueScaled,
+    totalExpenseScaled,
+    netIncomeScaled,
+    totalRevenueExact: scaledAmountToExactString(totalRevenueScaled),
+    totalExpenseExact: scaledAmountToExactString(totalExpenseScaled),
+    netIncomeExact: scaledAmountToExactString(Math.abs(netIncomeScaled)),
+    totalRevenueMinor: scaledToCompatibilityRupiah(totalRevenueScaled),
+    totalExpenseMinor: scaledToCompatibilityRupiah(totalExpenseScaled),
+    netIncomeMinor: scaledToCompatibilityRupiah(netIncomeScaled)
   };
 }
 
@@ -469,24 +646,34 @@ export async function getProfitLoss(db, storeId, from, to) {
   return { period: { from: fromDate, to: toDate }, ...summarizeProfitLoss(rows) };
 }
 
-export function summarizeBalanceSheet(rows, currentEarningsMinor) {
-  const assets = rows.filter(row => row.accountType === 'ASSET' && row.balanceMinor !== 0);
-  const liabilities = rows.filter(row => row.accountType === 'LIABILITY' && row.balanceMinor !== 0);
-  const equity = rows.filter(row => row.accountType === 'EQUITY' && row.balanceMinor !== 0);
-  const totalAssetsMinor = assets.reduce((sum, row) => safeAdd(sum, row.balanceMinor), 0);
-  const totalLiabilitiesMinor = liabilities.reduce((sum, row) => safeAdd(sum, row.balanceMinor), 0);
-  const totalEquityMinor = equity.reduce((sum, row) => safeAdd(sum, row.balanceMinor), 0);
-  const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor + currentEarningsMinor;
+export function summarizeBalanceSheet(rows, currentEarningsScaled) {
+  const assets = rows.filter(row => row.accountType === 'ASSET' && row.balanceScaled !== 0);
+  const liabilities = rows.filter(row => row.accountType === 'LIABILITY' && row.balanceScaled !== 0);
+  const equity = rows.filter(row => row.accountType === 'EQUITY' && row.balanceScaled !== 0);
+  const totalAssetsScaled = assets.reduce((sum, row) => safeAdd(sum, row.balanceScaled), 0);
+  const totalLiabilitiesScaled = liabilities.reduce((sum, row) => safeAdd(sum, row.balanceScaled), 0);
+  const totalEquityScaled = equity.reduce((sum, row) => safeAdd(sum, row.balanceScaled), 0);
+  const totalLiabilitiesAndEquityScaled = totalLiabilitiesScaled + totalEquityScaled + currentEarningsScaled;
   return {
     assets,
     liabilities,
     equity,
-    currentEarningsMinor,
-    totalAssetsMinor,
-    totalLiabilitiesMinor,
-    totalEquityMinor,
-    totalLiabilitiesAndEquityMinor,
-    isBalanced: totalAssetsMinor === totalLiabilitiesAndEquityMinor
+    currentEarningsScaled,
+    totalAssetsScaled,
+    totalLiabilitiesScaled,
+    totalEquityScaled,
+    totalLiabilitiesAndEquityScaled,
+    currentEarningsExact: scaledAmountToExactString(Math.abs(currentEarningsScaled)),
+    totalAssetsExact: scaledAmountToExactString(Math.abs(totalAssetsScaled)),
+    totalLiabilitiesExact: scaledAmountToExactString(Math.abs(totalLiabilitiesScaled)),
+    totalEquityExact: scaledAmountToExactString(Math.abs(totalEquityScaled)),
+    totalLiabilitiesAndEquityExact: scaledAmountToExactString(Math.abs(totalLiabilitiesAndEquityScaled)),
+    currentEarningsMinor: scaledToCompatibilityRupiah(currentEarningsScaled),
+    totalAssetsMinor: scaledToCompatibilityRupiah(totalAssetsScaled),
+    totalLiabilitiesMinor: scaledToCompatibilityRupiah(totalLiabilitiesScaled),
+    totalEquityMinor: scaledToCompatibilityRupiah(totalEquityScaled),
+    totalLiabilitiesAndEquityMinor: scaledToCompatibilityRupiah(totalLiabilitiesAndEquityScaled),
+    isBalanced: totalAssetsScaled === totalLiabilitiesAndEquityScaled
   };
 }
 
@@ -495,5 +682,5 @@ export async function getBalanceSheet(db, storeId, asOf) {
   if (!asOfDate) return { error: 'Tanggal neraca tidak valid.', code: 'INVALID_REPORT_DATE' };
   const rows = await groupedBalances(db, storeId, `AND h.business_date <= ?`, [asOfDate]);
   const profitLoss = summarizeProfitLoss(rows);
-  return { asOfDate, ...summarizeBalanceSheet(rows, profitLoss.netIncomeMinor) };
+  return { asOfDate, ...summarizeBalanceSheet(rows, profitLoss.netIncomeScaled) };
 }

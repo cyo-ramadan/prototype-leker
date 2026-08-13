@@ -1,4 +1,5 @@
 import { ACCOUNTING_AMOUNT_SCALE, postAccountingJournal } from './accounting-ledger.js';
+import { getJakartaBusinessDate } from './time.js';
 
 export const ACCOUNTING_CASH_FLOW_BRIDGE_CONTRACT = 'MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1';
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
@@ -152,11 +153,18 @@ export async function dispatchApprovedCashFlowToAccounting(db, storeId, approval
     return value;
   }
 
+  const occurredAt = new Date(source.posted_at);
+  if (Number.isNaN(occurredAt.valueOf())) {
+    const value = bridgeResult('FAILED', 'CASH_FLOW_DATE_INVALID', 'Waktu posting Arus Kas tidak valid.');
+    await saveDelivery(db, storeId, requestId, categoryCode, value);
+    return value;
+  }
+
   let posted;
   try {
     posted = await postAccountingJournal(db, { id: storeId }, {
-      businessDate: String(source.posted_at).slice(0, 10),
-      occurredAt: source.posted_at,
+      businessDate: getJakartaBusinessDate(occurredAt),
+      occurredAt: occurredAt.toISOString(),
       sourceSystem: 'LEKER_POS',
       sourceReferenceId: `CASH_FLOW:${requestId}`,
       correlationId: requestId,

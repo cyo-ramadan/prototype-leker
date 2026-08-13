@@ -5,16 +5,28 @@ import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
 import { handleCashierOperationalExpenseApi } from './cashier-operational-expense.js';
 
 const PAYMENT_METHODS = new Set(['CASH', 'BANK', 'PAYABLE', 'NON_CASH']);
+const COST_SCALE = 1_000_000;
+const MAX_LINE_TOTAL = 9_000_000_000;
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
 function money(value) {
   const number = Number(value);
-  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+  return Number.isSafeInteger(number) && number >= 0 && number <= MAX_LINE_TOTAL ? number : null;
 }
 
 function positiveInteger(value, max = 1_000_000_000) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 && number <= max ? number : null;
+}
+
+function scaledUnitCost(lineTotal, quantity) {
+  const numerator = lineTotal * COST_SCALE;
+  if (!Number.isSafeInteger(numerator)) return null;
+  return Math.floor((numerator + Math.floor(quantity / 2)) / quantity);
+}
+
+function costFromScaled(value) {
+  return Number(value || 0) / COST_SCALE;
 }
 
 function purchasePaymentMethod(value) {
@@ -48,8 +60,8 @@ async function listPurchaseOptions(db, storeId) {
     productKindId: row.product_kind_id || null,
     productKindCode: row.product_kind_code || '',
     productKindName: row.product_kind_name || '',
-    averageCost: Number(row.average_cost || 0),
-    lastPurchasePrice: Number(row.last_purchase_price || 0)
+    averageCost: costFromScaled(row.average_cost),
+    lastPurchasePrice: costFromScaled(row.last_purchase_price)
   }));
 }
 
@@ -70,10 +82,12 @@ function normalizeItems(options, requested) {
     if (!option || !quantity || lineTotal === null || lineTotal <= 0 || seen.has(productId)) {
       return { ok: false, error: 'Barang, qty, atau total baris pembelian tidak valid / duplikat.' };
     }
+    const unitCostScaled = scaledUnitCost(lineTotal, quantity);
+    if (unitCostScaled === null) return { ok: false, error: 'Nilai biaya per unit terlalu besar untuk skala HPP.' };
     if (!Number.isSafeInteger(totalAmount + lineTotal)) return { ok: false, error: 'Total pembelian terlalu besar.' };
     seen.add(productId);
     totalAmount += lineTotal;
-    items.push({ ...option, quantity, lineTotal, unitCost: lineTotal / quantity });
+    items.push({ ...option, quantity, lineTotal, unitCostScaled });
   }
   return { ok: true, items, totalAmount };
 }
@@ -94,11 +108,15 @@ function purchaseItemStatements(db, {
       SELECT
         ?, ?, p.store_id, p.id, p.name,
         p.product_kind_id, COALESCE(k.code, ''), COALESCE(k.name, ''),
-        p.base_unit_id, u.symbol, ?, ?, (? * 1.0 / ?),
+        p.base_unit_id, u.symbol, ?, ?, ?,
         p.average_cost,
         CASE
-          WHEN COALESCE(b.quantity, 0) <= 0 THEN (? * 1.0 / ?)
-          ELSE ((COALESCE(b.quantity, 0) * p.average_cost) + ?) * 1.0 / (COALESCE(b.quantity, 0) + ?)
+          WHEN COALESCE(b.quantity, 0) <= 0 THEN ?
+          ELSE CAST((
+            (COALESCE(b.quantity, 0) * p.average_cost)
+            + (? * 1000000)
+            + CAST((COALESCE(b.quantity, 0) + ?) / 2 AS INTEGER)
+          ) / (COALESCE(b.quantity, 0) + ?) AS INTEGER)
         END,
         ?
       FROM products p
@@ -112,8 +130,9 @@ function purchaseItemStatements(db, {
         AND COALESCE(t.track_stock, 1) = 1
     `).bind(
       itemId, purchaseId,
-      item.quantity, item.lineTotal, item.lineTotal, item.quantity,
-      item.lineTotal, item.quantity, item.lineTotal, item.quantity,
+      item.quantity, item.lineTotal, item.unitCostScaled,
+      item.unitCostScaled,
+      item.lineTotal, item.quantity, item.quantity,
       now, item.productId, storeId
     ),
     db.prepare(`
@@ -126,10 +145,10 @@ function purchaseItemStatements(db, {
             SELECT unit_cost FROM purchase_items
             WHERE id = ? AND purchase_id = ? AND store_id = ?
           ),
-          purchase_price = ROUND((
-            SELECT unit_cost FROM purchase_items
-            WHERE id = ? AND purchase_id = ? AND store_id = ?
-          )),
+          purchase_price = CAST((
+            (SELECT unit_cost FROM purchase_items
+             WHERE id = ? AND purchase_id = ? AND store_id = ?) + 500000
+          ) / 1000000 AS INTEGER),
           cost_updated_at = ?, last_purchase_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
@@ -268,7 +287,8 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
       quantity: item.quantity,
       unitSymbol: item.unitSymbol,
       lineTotal: item.lineTotal,
-      unitCost: item.unitCost
+      unitCost: costFromScaled(item.unitCostScaled),
+      unitCostScaled: item.unitCostScaled
     })),
     accounting: {
       contract: 'MAXI_ACCOUNTING_REFERENCE_V1',

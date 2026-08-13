@@ -60,6 +60,31 @@ function baseFixture(sqlite) {
   return { store: { id: store.id, code: store.code, storeName: store.store_name }, cashierId: cashier.id, drawerId };
 }
 
+function insertPermit(sqlite, fixture, { subjectType, subjectId, reason }) {
+  const permitId = `permit_${crypto.randomUUID()}`;
+  const now = '2026-08-13T10:19:00.000Z';
+  sqlite.prepare(`
+    INSERT INTO approval_permits (
+      id, store_id, drawer_session_id, cashier_id, permit_type,
+      subject_type, subject_id, subject_snapshot_json, reason,
+      approval_status, execution_status, requested_at, updated_at,
+      decided_at, approved_by_role, approved_by_id
+    ) VALUES (?, ?, ?, ?, 'TRANSACTION_VOID', ?, ?, '{}', ?, 'approved', 'NOT_ATTEMPTED', ?, ?, ?, 'ADMIN', 'admin_test')
+  `).run(
+    permitId,
+    fixture.store.id,
+    fixture.drawerId,
+    fixture.cashierId,
+    subjectType,
+    subjectId,
+    reason,
+    now,
+    now,
+    now
+  );
+  return permitId;
+}
+
 test('approved CASH expense correction soft-deletes source, restores drawer expectation, and posts exact Accounting reversal', async () => {
   const sqlite = freshDatabase();
   const db = d1(sqlite);
@@ -96,14 +121,16 @@ test('approved CASH expense correction soft-deletes source, restores drawer expe
     const before = await buildDrawerReport(db, fixture.store.id, fixture.drawerId);
     assert.equal(before.totals.expectedCash, 90000);
 
+    const permitId = insertPermit(sqlite, fixture, { subjectType: 'EXPENSE', subjectId: expenseId, reason: 'Salah entry' });
     const result = await executeTransactionCorrection(db, fixture.store, {
-      id: `permit_${crypto.randomUUID()}`, subjectType: 'EXPENSE', subjectId: expenseId, reason: 'Salah entry'
+      id: permitId, subjectType: 'EXPENSE', subjectId: expenseId, reason: 'Salah entry'
     }, { role: 'ADMIN', id: 'admin_test' }, '2026-08-13T10:20:00.000Z');
     assert.equal(result.ok, true);
     assert.equal(result.accounting.accountingStatus, 'REVERSED');
 
-    const source = sqlite.prepare('SELECT voided_at, void_reason FROM expenses WHERE id = ?').get(expenseId);
+    const source = sqlite.prepare('SELECT voided_at, void_reason, void_permit_id FROM expenses WHERE id = ?').get(expenseId);
     assert.equal(source.void_reason, 'Salah entry');
+    assert.equal(source.void_permit_id, permitId);
     assert.ok(source.voided_at);
     const after = await buildDrawerReport(db, fixture.store.id, fixture.drawerId);
     assert.equal(after.totals.expectedCash, 100000);
@@ -152,8 +179,9 @@ test('purchase correction HOLDs without mutation when a later stock movement dep
       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'OUT', 1, 'SALE', 'later_sale', ?, '', 'CASHIER', ?, '2026-08-13T10:06:00.000Z')
     `).run(`stock_move_${crypto.randomUUID()}`, `SALE:later:${product.id}`, fixture.store.id, product.id, product.name, product.base_unit_id, product.symbol, fixture.drawerId, fixture.cashierId);
 
+    const permitId = insertPermit(sqlite, fixture, { subjectType: 'PURCHASE', subjectId: purchaseId, reason: 'Salah beli' });
     const result = await executeTransactionCorrection(db, fixture.store, {
-      id: `permit_${crypto.randomUUID()}`, subjectType: 'PURCHASE', subjectId: purchaseId, reason: 'Salah beli'
+      id: permitId, subjectType: 'PURCHASE', subjectId: purchaseId, reason: 'Salah beli'
     }, { role: 'ADMIN', id: 'admin_test' }, '2026-08-13T10:20:00.000Z');
     assert.equal(result.ok, false);
     assert.equal(result.status, 'HOLD');

@@ -2,6 +2,7 @@ import { json } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
+import { ACCOUNTING_POS_BRIDGE_CONTRACT } from './accounting-pos-bridge.js';
 
 const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'INVENTORY', 'ASSETS']);
 const KIND_FILTER = {
@@ -11,6 +12,7 @@ const KIND_FILTER = {
   INVENTORY: new Set(['GOODS_FLOW', 'PRODUCTION']),
   ASSETS: new Set(['ASSET'])
 };
+const POS_ACCOUNTING_FACT_KINDS = new Set(['SALE', 'PURCHASE', 'EXPENSE']);
 
 function parseIso(value) {
   const raw = String(value || '').trim();
@@ -44,7 +46,26 @@ function approvalDescription(kind, payload) {
   return kind;
 }
 
-function normalizeRow(row) {
+function accountingForPosFact(transaction, deliveryMap) {
+  if (!POS_ACCOUNTING_FACT_KINDS.has(transaction.kind)) return accountingReferenceForTransaction(transaction);
+  const delivery = deliveryMap.get(`${transaction.kind}:${transaction.id}`) || null;
+  return {
+    contract: ACCOUNTING_POS_BRIDGE_CONTRACT,
+    sourceProgram: 'PROTOTYPE_LEKER',
+    factType: transaction.kind,
+    factId: transaction.id,
+    sourceReference: `${transaction.kind}:${transaction.id}`,
+    eligible: true,
+    syncStatus: delivery?.status || 'NOT_ATTEMPTED',
+    journalReference: delivery?.journal_id || null,
+    failureCode: delivery?.failure_code || '',
+    failureDetail: delivery?.failure_detail || '',
+    attempts: Number(delivery?.attempts || 0),
+    lastAttemptAt: delivery?.last_attempt_at || null
+  };
+}
+
+function normalizeRow(row, deliveryMap) {
   const payload = row.payload_json ? safeJson(row.payload_json) : null;
   const kind = row.kind;
   let amount = row.amount == null ? null : Number(row.amount);
@@ -67,7 +88,22 @@ function normalizeRow(row) {
     sourceReference: { type: row.reference_type || kind, id: row.reference_id || row.id },
     operationalPayload: payload
   };
-  return { ...transaction, accounting: accountingReferenceForTransaction(transaction) };
+  return { ...transaction, accounting: accountingForPosFact(transaction, deliveryMap) };
+}
+
+async function loadPosDeliveryMap(db, storeId, rows) {
+  const refs = rows
+    .filter(row => POS_ACCOUNTING_FACT_KINDS.has(row.kind))
+    .map(row => ({ factType: row.kind, factId: row.id }));
+  if (!refs.length) return new Map();
+  const clauses = refs.map(() => '(fact_type = ? AND fact_id = ?)').join(' OR ');
+  const bindings = refs.flatMap(ref => [ref.factType, ref.factId]);
+  const result = await db.prepare(`
+    SELECT fact_type, fact_id, status, journal_id, failure_code, failure_detail, attempts, last_attempt_at
+    FROM accounting_bridge_deliveries
+    WHERE store_id = ? AND producer_module = 'POS' AND (${clauses})
+  `).bind(storeId, ...bindings).all();
+  return new Map((result.results ?? []).map(row => [`${row.fact_type}:${row.fact_id}`, row]));
 }
 
 export async function handleAdminTransactionsApi(request, env, pathname) {
@@ -180,7 +216,9 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
 
   const rows = result.results ?? [];
   const hasMore = rows.length > limit;
-  const visible = rows.slice(0, limit).map(normalizeRow);
+  const visibleRows = rows.slice(0, limit);
+  const deliveryMap = await loadPosDeliveryMap(env.DB, store.id, visibleRows);
+  const visible = visibleRows.map(row => normalizeRow(row, deliveryMap));
   const last = visible.at(-1);
   return json({
     store,

@@ -114,6 +114,12 @@ Implemented configuration:
 
 ## Accounting Workspace and POS bridge — active in stacked draft, not deployed
 
+### Deployment prerequisite
+
+Cloudflare Git Deploy publishes Worker source and static assets, but it does not apply the repository's D1 migration files automatically. Before deploying code that reads the Accounting workspace, the prototype D1 migration chain must be applied through `0025_accounting_pos_bridge.sql`. Deploying the source without migrations `0022`–`0025` can expose the new tabs while their APIs fail because the required tables do not exist remotely.
+
+Required recovery order: export/backup the dedicated prototype D1 database, inspect remote migration status, apply pending migrations, deploy the Worker, then smoke-test Setting Akuntansi and Akuntansi. Do not use the Dwicahya database.
+
 Current behavior is governed by:
 
 - `contracts/accounting-workspace-v1.md`;

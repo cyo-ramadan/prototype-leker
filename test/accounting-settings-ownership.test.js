@@ -23,6 +23,13 @@ test('Setting Akuntansi exposes accounts read-only rather than account-maintenan
   assert.doesNotThrow(() => new Function(boundaryUi));
 });
 
+test('Setting Akuntansi boundary observer is idempotent and cannot self-trigger forever', () => {
+  assert.match(boundaryUi, /node\.textContent !== value/);
+  assert.match(boundaryUi, /node\.innerHTML !== value/);
+  assert.doesNotMatch(boundaryUi, /if \(tab\) tab\.textContent =/);
+  assert.doesNotMatch(boundaryUi, /if \(warehouseHint\) warehouseHint\.innerHTML =/);
+});
+
 test('Accounting work stays outside Settings', () => {
   assert.match(boundaryUi, /Pekerjaan akuntansi tetap dilakukan di modul Akuntansi/);
   assert.doesNotMatch(boundaryUi, /Buku Besar|Neraca Saldo|Closing|Posting Jurnal/);

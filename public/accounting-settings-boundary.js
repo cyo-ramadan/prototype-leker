@@ -5,29 +5,37 @@
     document.querySelectorAll('[data-edit-account]').forEach(button => button.remove());
   }
 
+  function setText(node, value) {
+    if (node && node.textContent !== value) node.textContent = value;
+  }
+
+  function setHtml(node, value) {
+    if (node && node.innerHTML !== value) node.innerHTML = value;
+  }
+
   function applyBoundary() {
     const tab = el('accountingSettingsTab');
-    if (tab) tab.textContent = 'Setting Akuntansi';
+    setText(tab, 'Setting Akuntansi');
 
     const section = el('tab-accounting-settings');
     if (!section) return;
 
     const heading = section.querySelector('.list-head h2');
-    if (heading) heading.textContent = 'Setting Akuntansi';
+    setText(heading, 'Setting Akuntansi');
     const intro = heading?.parentElement?.querySelector('.muted');
-    if (intro) intro.textContent = 'Tempat menghubungkan transaksi, jenis barang, dan cara pembayaran ke akun. Pekerjaan akuntansi tetap dilakukan di modul Akuntansi.';
+    setText(intro, 'Tempat menghubungkan transaksi, jenis barang, dan cara pembayaran ke akun. Pekerjaan akuntansi tetap dilakukan di modul Akuntansi.');
 
     const warning = section.querySelector('.settings-warning');
-    if (warning) warning.innerHTML = '<b>Boundary:</b> akun dibuat dan dikelola di modul <b>Akuntansi</b>. Setting Akuntansi hanya membaca akun tersebut untuk mapping. Kode akun dibuat unik otomatis oleh program Akuntansi.';
+    setHtml(warning, '<b>Boundary:</b> akun dibuat dan dikelola di modul <b>Akuntansi</b>. Setting Akuntansi hanya membaca akun tersebut untuk mapping. Kode akun dibuat unik otomatis oleh program Akuntansi.');
 
     const accountNav = section.querySelector('[data-accounting-section="coa"]');
-    if (accountNav) accountNav.textContent = 'Akun dari Akuntansi';
+    setText(accountNav, 'Akun dari Akuntansi');
     const paymentNav = section.querySelector('[data-accounting-section="payment"]');
-    if (paymentNav) paymentNav.textContent = 'Cara Pembayaran';
+    setText(paymentNav, 'Cara Pembayaran');
     const itemNav = section.querySelector('[data-accounting-section="item"]');
-    if (itemNav) itemNav.textContent = 'Jenis Barang → Akun';
+    setText(itemNav, 'Jenis Barang → Akun');
     const rulesNav = section.querySelector('[data-accounting-section="rules"]');
-    if (rulesNav) rulesNav.textContent = 'Aturan Transaksi';
+    setText(rulesNav, 'Aturan Transaksi');
 
     const accountPanel = el('accountingSectionCoa');
     if (accountPanel && accountPanel.dataset.boundaryAdjusted !== '1') {
@@ -55,7 +63,7 @@
     }
 
     const warehouseHint = el('tab-warehouse-settings')?.querySelector('.settings-warning');
-    if (warehouseHint) warehouseHint.innerHTML = 'Transaksi warehouse yang berdampak nilai hanya mendaftarkan jenis transaksinya ke <b>Setting Akuntansi</b>. Pemilihan akun tetap dilakukan di Setting Akuntansi; pembuatan akun tetap milik modul Akuntansi.';
+    setHtml(warehouseHint, 'Transaksi warehouse yang berdampak nilai hanya mendaftarkan jenis transaksinya ke <b>Setting Akuntansi</b>. Pemilihan akun tetap dilakukan di Setting Akuntansi; pembuatan akun tetap milik modul Akuntansi.');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBoundary);

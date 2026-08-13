@@ -7,6 +7,8 @@ const explorer = readFileSync(new URL('../src/admin-transactions.js', import.met
 const ui = readFileSync(new URL('../public/admin-transactions-ui.js', import.meta.url), 'utf8');
 const contract = readFileSync(new URL('../contracts/admin-transaction-explorer-v1.md', import.meta.url), 'utf8');
 const bridgeContract = readFileSync(new URL('../contracts/accounting-bridge-seam-v1.md', import.meta.url), 'utf8');
+const activeBridgeContract = readFileSync(new URL('../contracts/accounting-pos-bridge-v1.md', import.meta.url), 'utf8');
+
 
 test('admin explorer aggregates operational facts without taking source ownership', () => {
   assert.match(explorer, /FROM sales s/);
@@ -26,28 +28,29 @@ test('transaction explorer is bounded and cursor-paginated', () => {
   assert.match(ui, /loadTransactions\(\{ reset: true \}\)/);
 });
 
-test('accounting bridge remains a seam only and never journals inside Prototype Leker', () => {
-  assert.equal(ACCOUNTING_BRIDGE_CONTRACT, 'MAXI_ACCOUNTING_BUSINESS_FACT_V1');
-  const ref = accountingReferenceForTransaction({ id: 'sale_1', kind: 'SALE', status: 'posted' });
-  assert.equal(ref.eligible, true);
-  assert.equal(ref.syncStatus, 'NOT_CONNECTED');
-  assert.equal(ref.journalReference, null);
-  assert.match(bridgeContract, /must never write directly to the Accounting database/i);
-  assert.match(bridgeContract, /general ledger \/ buku besar/i);
-  assert.match(bridgeContract, /balance sheet \/ neraca/i);
+test('SALE PURCHASE and EXPENSE expose active Accounting bridge delivery instead of legacy NOT_CONNECTED', () => {
+  assert.match(explorer, /MAXI_ACCOUNTING_POS_BRIDGE_V1|ACCOUNTING_POS_BRIDGE_CONTRACT/);
+  assert.match(explorer, /accounting_bridge_deliveries/);
+  assert.match(explorer, /journalReference: delivery\?\.journal_id/);
+  assert.match(explorer, /syncStatus: delivery\?\.status \|\| 'NOT_ATTEMPTED'/);
+  assert.match(activeBridgeContract, /POSTED/);
+  assert.match(activeBridgeContract, /NEEDS_CONFIGURATION/);
+  assert.match(activeBridgeContract, /Data Jurnal|journal/i);
 });
 
-test('unposted operational facts are not eligible for Accounting', () => {
+test('legacy business-fact seam remains only for fact kinds not yet migrated to active bridge', () => {
+  assert.equal(ACCOUNTING_BRIDGE_CONTRACT, 'MAXI_ACCOUNTING_BUSINESS_FACT_V1');
   const pending = accountingReferenceForTransaction({ id: 'approval_1', kind: 'CASH_FLOW', status: 'pending_approval/unposted' });
   const posted = accountingReferenceForTransaction({ id: 'approval_1', kind: 'CASH_FLOW', status: 'approved/posted' });
   assert.equal(pending.eligible, false);
   assert.equal(pending.syncStatus, 'NOT_POSTABLE');
   assert.equal(posted.eligible, true);
   assert.equal(posted.factType, 'CASH_FLOW_POSTED');
+  assert.match(bridgeContract, /SUPERSEDED/);
+  assert.match(bridgeContract, /SALE\/PURCHASE\/EXPENSE/);
 });
 
-test('admin UI communicates Accounting ownership instead of exposing debit credit editor', () => {
-  assert.match(ui, /Accounting module tetap terpisah/);
-  assert.match(ui, /Journal entry, COA, buku besar, neraca, laba rugi/);
+test('transaction explorer stays operational and does not expose a debit credit journal editor', () => {
+  assert.match(ui, /Jurnal tetap domain Accounting/);
   assert.doesNotMatch(ui, /debitAmount|creditAmount|journalLineEditor/);
 });

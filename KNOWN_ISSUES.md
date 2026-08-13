@@ -20,7 +20,7 @@ Current behavior:
 - GOODS_FLOW updates stock only after posting;
 - ASSET updates aggregate asset-value ledger/balance only after posting.
 
-V1 intentionally does not define canonical Accounting journal generation, lot/expiry, or individual asset depreciation.
+V1 intentionally does not define lot/expiry or individual asset depreciation.
 
 ## Manufacturing, stock, production, and moving-average HPP
 
@@ -86,61 +86,106 @@ Current behavior:
 - Pengeluaran Operasional stores explicit Qty, default `1`, as customer-behaviour metadata while its amount remains the total expense value;
 - operational Qty alone never posts stock.
 
-## Accounting Settings and Warehouse Settings — registry implemented, posting intentionally open
+## Accounting Settings and Warehouse Settings — mapping registry active in stacked draft
 
 Current settings behavior is governed by:
 
 - `contracts/accounting-settings-v1.md`;
 - `contracts/warehouse-settings-v1.md`;
-- ADR-016;
+- ADR-016 and ADR-017;
 - migration `0022_accounting_warehouse_settings.sql`;
 - `src/accounting-settings.js`;
-- `src/warehouse-settings.js`;
-- `public/admin-settings-panels.js`.
+- `src/warehouse-settings.js`.
 
 Implemented configuration:
 
 - canonical local `chart_of_accounts`, `payment_methods`, `item_categories`, `transaction_categories`, and `journal_rules`;
-- Chart of Accounts add/edit/deactivate with no hard-delete API and reference guard;
+- account references are selected by Setting Akuntansi, while account creation/maintenance belongs to Akuntansi;
 - Payment Methods select accounts from COA data;
 - Jenis Barang links to Inventory/HPP/Revenue accounts through `item_categories`;
 - transaction categories can contain multiple ordered Debit/Credit rule rows;
 - structural `Lengkap` requires at least one active Debit and one active Credit;
-- journal preview displays configured sources only;
 - Warehouse Settings owns warehouse/location, staff access, and stock-opname parameters;
 - Warehouse registers `wh_transfer`, `wh_opname`, `wh_production`, and `wh_return` into Accounting `transaction_categories`;
 - Warehouse has no account-mapping table;
 - adjustment accounts `4201 Pendapatan Koreksi Stok` and `6103 Beban Susut Persediaan` are marked `review_required=1`;
 - `wh_return` remains deliberately without default rules until return direction/subtype is defined;
-- old provisional pair-mapping writer is retired before this undeployed stack is promoted.
+- old provisional pair-mapping writer is retired.
 
-### Open: automatic journal generation and cross-program posting
+## Accounting Workspace and POS bridge — active in stacked draft, not deployed
 
-Accounting Settings is configuration only. No engine currently:
+Current behavior is governed by:
 
-- resolves a specific transaction's rule rows into final journal lines;
-- calculates posting amounts from the rule registry;
-- validates Accounting periods/dimensions for posting;
-- sends a balanced journal command to the separate Accounting module;
-- performs retry/reconciliation against Accounting.
+- `contracts/accounting-workspace-v1.md`;
+- `contracts/accounting-pos-bridge-v1.md`;
+- ADR-018;
+- migrations `0024_accounting_workspace.sql` and `0025_accounting_pos_bridge.sql`;
+- `src/accounting-ledger.js`;
+- `src/accounting-workspace.js`;
+- `src/accounting-pos-bridge.js`;
+- `src/accounting-pos-bridge-response.js`.
 
-That journal-generation/integration engine is a separate task after the Settings panels and rule semantics are reviewed. Prototype Leker must not write directly to the separate Accounting program database.
+Implemented Accounting work:
+
+- Akuntansi and Setting Akuntansi are separate top-level capabilities;
+- Akuntansi can create accounts with server-generated unique codes;
+- manual journals and system/POS journals share one posted-journal source;
+- journal posting requires exact balanced Debit/Credit lines;
+- posted journal headers and lines are immutable;
+- duplicate idempotency keys return the original journal;
+- Data Jurnal exposes manual and bridge-generated journal sources;
+- Buku Besar uses posted journal lines with normal-side running balances;
+- Rugi Laba is period-scoped and uses posted Revenue/Expense balances;
+- Neraca uses posted balances through the requested date plus current cumulative earnings;
+- financial journal values use INTEGER `amountMinor`, not binary floating point.
+
+Implemented POS bridge:
+
+- committed `SALE`, `PURCHASE`, and `EXPENSE` facts are dispatched after POS commit;
+- the bridge reads `payment_methods`, `item_categories`, `transaction_categories`, and `journal_rules` rather than accepting account choices from POS;
+- delivery status is stored in `accounting_bridge_deliveries`, which is reconciliation state and not a mapping table;
+- missing mapping returns `NEEDS_CONFIGURATION` without rolling back the operational POS fact;
+- retry is idempotent by source fact;
+- Transaction Explorer reads actual bridge delivery status/journal reference for SALE/PURCHASE/EXPENSE;
+- manual sync is available from the Accounting workspace for older/unposted-to-Accounting POS facts.
+
+### BLOCKED: sale HPP / inventory journal amount conversion
+
+Sale line COGS is stored as exact scaled cost with `1 rupiah = 1,000,000 cost units`. Accounting journal lines use integer `amountMinor`.
+
+No approved canonical rule currently defines how non-integral scaled COGS must convert to the journal currency unit. Therefore sale rules using `item_category_cogs` or sale-side `item_category_inventory` fail closed with `NEEDS_COST_ROUNDING_POLICY`.
+
+Do not silently floor, ceil, truncate, or round. A Bos Cyo / canonical Accounting policy decision is required before this part can post.
+
+### Open: dynamic cashier payment-method integration
+
+The Accounting resolver can resolve any active configured `payment_methods.code` carried by a POS fact, but cashier entry screens still contain legacy payment choices in parts of the current UI.
+
+Before arbitrary Settings payment methods such as QRIS/EDC/aggregators are exposed in Cashier:
+
+- sale/purchase/expense inputs must load active payment methods from Settings;
+- drawer classification must treat only `CASH` as physical drawer cash and all other methods as non-cash;
+- legacy `NON_CASH` remains an explicit compatibility payment component and intentionally has no default account mapping.
+
+### Open: operational component selection UI
+
+The bridge supports `expenses.accounting_component_rule_id` so Operasional can select one configured Debit expense component without POS carrying an account ID.
+
+Current cashier UI does not yet expose that selector. If there is exactly one active operational Debit fixed-account rule, v1 may resolve it automatically. Multiple Debit components without a selected component fail `NEEDS_COMPONENT_SELECTION`.
 
 ### Open: Stock Opname rule branch semantics
 
-The default `wh_opname` category contains labeled gain and loss rule rows. A future journal engine must choose the correct branch from the actual signed adjustment and must never execute all four rows blindly. The two adjustment accounts require owner review before posting is enabled.
+The default `wh_opname` category contains labeled gain and loss rule rows. A future Warehouse-to-Accounting bridge must choose the correct branch from the actual signed adjustment and must never execute all four rows blindly. The two adjustment accounts require owner review before posting is enabled.
 
 ### Open: return taxonomy
 
 `wh_return` is registered but fail-closed. Supplier return, customer return, and internal return can have different Accounting meaning, so no default rule is invented yet.
 
-## Accounting integration seam
+### Legacy business-fact seam
 
-Prototype Leker still exposes `MAXI_ACCOUNTING_BUSINESS_FACT_V1` for operational business facts. Local configuration uses `MAXI_ACCOUNTING_SETTINGS_V1`.
+`MAXI_ACCOUNTING_BUSINESS_FACT_V1` is superseded for SALE/PURCHASE/EXPENSE by `MAXI_ACCOUNTING_POS_BRIDGE_V1`.
 
-`transaction_accounting_snapshots` records configuration readiness at operational fact creation but stores no fake debit/credit pair and no journal reference.
-
-Current cross-program sync remains not connected. This does not block operational tracking or Settings configuration.
+The old helper remains only for operational fact kinds that have not yet migrated to an active bridge. The shared `@maxi/accounting@1.3.0` service is still not deployed; the current Accounting implementation is a Prototype Leker composition host with an explicit future adapter boundary.
 
 ## Portal Staf V1
 
@@ -154,4 +199,4 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings v1, Warehouse Settings v1, ADR-015/016, migration 0022, and regression tests describe the active stacked draft. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, journal-generation/Accounting integration, Stock Opname posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, ADR-015 through ADR-018, migrations through 0025, and regression tests describe the active stacked draft. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, HPP-to-journal precision policy, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.

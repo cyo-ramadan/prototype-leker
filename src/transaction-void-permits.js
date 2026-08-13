@@ -3,7 +3,7 @@ import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
-import { executeTransactionVoid } from './transaction-void-executor.js';
+import { executeTransactionCorrection } from './transaction-correction-executor.js';
 
 export const TRANSACTION_VOID_PERMIT_CONTRACT = 'MAXI_TRANSACTION_VOID_PERMIT_V1';
 const SUBJECT_TYPES = new Set(['SALE', 'PURCHASE', 'EXPENSE']);
@@ -246,7 +246,7 @@ async function handleManagement(request, env, pathname) {
     if (!claimed.success || Number(claimed.meta?.changes ?? 0) !== 1) return json({ error: 'Permit sudah diputuskan request lain.' }, 409);
 
     const approved = await getPermit(env.DB, current.id);
-    const executed = await executeTransactionVoid(env.DB, scope.store, approved, { role: approverRole, id: approverId }, now);
+    const executed = await executeTransactionCorrection(env.DB, scope.store, approved, { role: approverRole, id: approverId }, now);
 
     if (!executed.ok) {
       await env.DB.prepare(`
@@ -277,12 +277,7 @@ async function handleManagement(request, env, pathname) {
       current.id
     ).run();
 
-    return json({
-      ok: true,
-      permit: await getPermit(env.DB, current.id),
-      executed: true,
-      accounting
-    });
+    return json({ ok: true, permit: await getPermit(env.DB, current.id), executed: true, accounting });
   }
 
   return json({ error: 'Route permit management tidak ditemukan.' }, 404);

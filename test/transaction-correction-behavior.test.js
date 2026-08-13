@@ -8,6 +8,10 @@ import { buildDrawerReport } from '../src/drawer-report.js';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
+function d1Result(result) {
+  return { success: true, meta: { changes: Number(result?.changes || 0) } };
+}
+
 function d1(sqlite) {
   function prepared(sql) {
     const statement = sqlite.prepare(sql);
@@ -18,7 +22,7 @@ function d1(sqlite) {
           _args: args,
           async first() { return statement.get(...args) || null; },
           async all() { return { results: statement.all(...args) }; },
-          async run() { return statement.run(...args); }
+          async run() { return d1Result(statement.run(...args)); }
         };
       }
     };
@@ -28,7 +32,7 @@ function d1(sqlite) {
     async batch(boundStatements) {
       sqlite.exec('BEGIN');
       try {
-        const results = boundStatements.map(item => item._statement.run(...item._args));
+        const results = boundStatements.map(item => d1Result(item._statement.run(...item._args)));
         sqlite.exec('COMMIT');
         return results;
       } catch (error) {

@@ -29,22 +29,33 @@ Current behavior is governed by:
 - `contracts/manufacturing-master-v1.md`;
 - `contracts/stock-production-points-v2.md`;
 - ADR-012, ADR-013, and ADR-015;
-- migrations `0016_manufacturing_master_v1.sql`, `0017_product_stock_production_points.sql`, and `0019_product_costing_and_kinds.sql`;
+- migrations `0016_manufacturing_master_v1.sql`, `0017_product_stock_production_points.sql`, `0019_product_costing_and_kinds.sql`, and `0021_exact_production_costing.sql`;
 - `src/manufacturing-master.js` and `src/stock-production.js`.
 
 Current behavior:
 
-- physical stock and recipe quantities are integer values in each product's smallest selected base unit;
+- the deployed/legacy inventory engine still persists physical stock and recipe quantities as integer values;
+- the approved MAXI canonical direction is fractional-capable exact decimal quantity; a dedicated compatibility migration remains required before changing the inventory source of truth;
 - `inventory_stock_balances` is the current quantity source and `stock_movements` is the auditable movement history;
 - manual Produksi and the legacy AUTO_DADAKAN path use the same production engine;
 - tracked stock may not become negative;
-- inventory purchases are itemized and create PURCHASE stock-in movements;
+- inventory purchases are itemized, select Product IDs from the store database, expose Qty explicitly, and create PURCHASE stock-in movements;
 - `products.average_cost` is the running HPP source;
 - `products.last_purchase_price` updates automatically from the newest itemized purchase;
-- purchase rows snapshot average cost before/after;
-- production components snapshot average cost, production derives HPP total/unit, and output average cost is updated;
-- sale items snapshot unit HPP and line COGS so history is not recomputed from current master values;
+- new authoritative unit-cost/HPP values use scaled INTEGER with `1,000,000` cost units per rupiah;
+- purchase rows snapshot scaled average cost before/after;
+- production components and runs use `*_scaled` exact integer HPP fields;
+- legacy production REAL cost columns remain read-only history fallback and are not written by the new engine;
+- sale items snapshot scaled unit HPP and line COGS so history is not recomputed from current master values;
 - Admin has dedicated Stok and lazy transaction-detail read models.
+
+### Open: canonical fractional inventory quantity migration
+
+Current stock balances, stock movements, recipe quantities, purchase inventory quantities, sale quantities, and production quantities still use the legacy integer representation.
+
+The approved target is one exact fractional-capable quantity model for all physical inventory, with unit-level decimal-scale validation. This requires a dedicated migration/compatibility plan so legacy quantity columns are not silently reinterpreted and no dual stock source is created.
+
+Operational expense quantity is already stored as canonical decimal text because it is behavioural metadata and does not change inventory stock.
 
 ### Still intentionally open: Sale-level fulfillment migration
 
@@ -56,13 +67,13 @@ A future Sale contract must move fulfillment ownership to the Penjualan transact
 
 The cashier Penyesuaian Stok entry point remains inactive until an explicit adjustment reason/audit/approval contract is defined. Future adjustment posting must reuse `stock_movements` and must not bypass the stock audit model.
 
-## Product Master, Jenis Barang, and Accounting reference seam
+## Product Master, Jenis Barang, Purchase Qty, Operational Qty, and Accounting reference seam
 
 Current behavior is governed by:
 
 - `contracts/product-master-accounting-reference-v2.md`;
 - ADR-015;
-- migration `0019_product_costing_and_kinds.sql` plus the provisional Accounting reference objects from migration 0018.
+- migrations `0019_product_costing_and_kinds.sql`, `0020_expense_quantity_behavior.sql`, and `0021_exact_production_costing.sql` plus the provisional Accounting reference objects from migration 0018.
 
 Current behavior:
 
@@ -73,13 +84,16 @@ Current behavior:
 - Recipe Linked is explicit and must point to an active same-store recipe whose output is the same product;
 - unsafe base-unit changes are rejected after recipe/stock history exists;
 - product cost fields cannot be assigned directly through Product Master writes;
-- Product Kind and cost identity are snapshotted into relevant transaction facts.
+- Product Kind and cost identity are snapshotted into relevant transaction facts;
+- Beli Bahan selects products from the active store Product Master database and requires an explicit Qty per line;
+- Pengeluaran Operasional stores explicit Qty, default `1`, as customer-behaviour metadata while its amount remains the total expense value;
+- operational Qty alone never posts stock.
 
 ### Still intentionally open: canonical Accounting settings and synchronization
 
 Migration 0018 currently provides a provisional `MAXI_ACCOUNTING_REFERENCE_V1` registry, mapping slots, and immutable transaction mapping snapshots. It does not own canonical Accounting journals.
 
-The final Accounting Settings schema, canonical account identities, payment-method/account rules, item-category rules, warehouse registration rules, external synchronization, dispatcher behavior, journal references, and reconciliation remain separate work. Those changes require a fresh cross-module type/schema audit and explicit approval before final schema creation.
+The final Accounting Settings schema, canonical account identities, payment-method/account rules, item-category rules, warehouse registration rules, external synchronization, dispatcher behavior, journal references, and reconciliation remain separate work. The type/schema audit was completed and Bos Cyo approved the canonical direction: Leker follows MAXI canonical conventions, exact money/costing is required, and physical quantities will become fractional-capable under an explicit compatibility migration.
 
 Prototype Leker must not write directly to the separate Accounting program database.
 
@@ -109,4 +123,4 @@ Jika browser-tab lease atau takeover menghasilkan failure baru pada testing live
 
 ## DOC-IMPACT
 
-**REQUIRED** — current Product Master/costing behavior is governed by `contracts/product-master-accounting-reference-v2.md`, `contracts/stock-production-points-v2.md`, and ADR-015. Remaining inactive Stock Adjustment, Sale-level fulfillment migration, KPI, Deposit, Payroll, canonical Accounting settings/sync, and journal-generation engine stay open until their own contracts are approved.
+**REQUIRED** — Product Master/costing behavior is governed by contracts v2 and ADR-015. Remaining fractional inventory quantity migration, Sale-level fulfillment migration, Stock Adjustment, KPI, Deposit, Payroll, canonical Accounting settings/sync, and journal-generation engine stay open until their own contracts are implemented.

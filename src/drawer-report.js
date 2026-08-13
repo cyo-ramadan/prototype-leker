@@ -89,7 +89,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   ]);
 
   const sales = (saleRows.results ?? []).map(row => ({
-    paymentMethod: row.payment_method === 'NON_CASH' ? 'NON_CASH' : 'CASH',
+    paymentMethod: row.payment_method || 'CASH',
     productName: row.product_name,
     unitPrice: number(row.unit_price),
     quantity: number(row.quantity),
@@ -106,7 +106,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   }));
   const expenses = (expenseRows.results ?? []).map(row => ({
     id: row.id,
-    paymentMethod: row.payment_method === 'NON_CASH' ? 'NON_CASH' : 'CASH',
+    paymentMethod: row.payment_method || 'CASH',
     description: row.description,
     amount: number(row.amount),
     createdAt: row.created_at
@@ -130,11 +130,11 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   }));
 
   const cashSales = sales.filter(row => row.paymentMethod === 'CASH');
-  const nonCashSales = sales.filter(row => row.paymentMethod === 'NON_CASH');
+  const nonCashSales = sales.filter(row => row.paymentMethod !== 'CASH');
   const cashPurchases = purchases.filter(row => row.paymentMethod === 'CASH');
   const nonCashPurchases = purchases.filter(row => row.paymentMethod !== 'CASH');
   const cashExpenses = expenses.filter(row => row.paymentMethod === 'CASH');
-  const nonCashExpenses = expenses.filter(row => row.paymentMethod === 'NON_CASH');
+  const nonCashExpenses = expenses.filter(row => row.paymentMethod !== 'CASH');
 
   const sum = (rows, key) => rows.reduce((total, row) => total + number(row[key]), 0);
   const cashSalesTotal = sum(cashSales, 'total');

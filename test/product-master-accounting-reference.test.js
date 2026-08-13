@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const referenceMigration = readFileSync(new URL('../migrations/0018_product_master_accounting_reference.sql', import.meta.url), 'utf8');
 const settingsMigration = readFileSync(new URL('../migrations/0022_accounting_warehouse_settings.sql', import.meta.url), 'utf8');
+const snapshotCompatMigration = readFileSync(new URL('../migrations/0023_accounting_snapshot_settings_compat.sql', import.meta.url), 'utf8');
 const costingMigration = readFileSync(new URL('../migrations/0019_product_costing_and_kinds.sql', import.meta.url), 'utf8');
 const productionCostMigration = readFileSync(new URL('../migrations/0021_exact_production_costing.sql', import.meta.url), 'utf8');
 const productMaster = readFileSync(new URL('../src/product-master.js', import.meta.url), 'utf8');
@@ -17,17 +18,18 @@ const procurementUi = readFileSync(new URL('../public/cashier-procurement-ui.js'
 const masterMenu = readFileSync(new URL('../public/admin-master-menu.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 
-test('Product Master owns recipe link while canonical Accounting Settings owns account and rule configuration', () => {
+test('Product Master owns recipe link while canonical Accounting Settings supersedes the legacy pair registry forward-compatibly', () => {
   assert.match(referenceMigration, /ALTER TABLE products ADD COLUMN linked_recipe_id/);
   assert.match(referenceMigration, /PRODUCT_RECIPE_LINK_MISMATCH/);
+  assert.match(referenceMigration, /CREATE TABLE IF NOT EXISTS accounting_account_refs/);
+  assert.match(referenceMigration, /CREATE TABLE IF NOT EXISTS transaction_accounting_mappings/);
   assert.match(referenceMigration, /CREATE TABLE IF NOT EXISTS transaction_accounting_snapshots/);
-  assert.doesNotMatch(referenceMigration, /CREATE TABLE IF NOT EXISTS accounting_account_refs/);
-  assert.doesNotMatch(referenceMigration, /CREATE TABLE IF NOT EXISTS transaction_accounting_mappings/);
   assert.match(settingsMigration, /CREATE TABLE IF NOT EXISTS chart_of_accounts/);
   assert.match(settingsMigration, /CREATE TABLE IF NOT EXISTS journal_rules/);
+  assert.match(snapshotCompatMigration, /ALTER TABLE transaction_accounting_snapshots ADD COLUMN transaction_category_code/);
 });
 
-test('basic accounts live in canonical chart of accounts rather than provisional references', () => {
+test('basic accounts live in canonical chart of accounts while provisional references are compatibility-only', () => {
   for (const code of ['1101', '1102', '1201', '1301', '1302', '1303', '2101', '3101', '3201', '4101', '5101', '6101']) {
     assert.match(settingsMigration, new RegExp(`'${code}'`));
   }
@@ -36,14 +38,20 @@ test('basic accounts live in canonical chart of accounts rather than provisional
   assert.match(accountingReference, /MAXI_ACCOUNTING_SETTINGS_V1/);
   assert.match(accountingReference, /journalGeneration: 'OUT_OF_SCOPE'/);
   assert.match(accountingReference, /Pair mapping legacy sudah dipensiunkan/);
+  assert.doesNotMatch(accountingReference, /transaction_accounting_mappings/);
+  assert.doesNotMatch(accountingReference, /accounting_account_refs/);
   assert.doesNotMatch(accountingReference, /INSERT INTO journal/i);
 });
 
-test('transaction snapshot stores configuration evidence without freezing a fake debit credit pair', () => {
-  assert.match(referenceMigration, /transaction_category_code TEXT NOT NULL/);
-  assert.match(referenceMigration, /payment_method_code TEXT NOT NULL DEFAULT ''/);
-  assert.match(referenceMigration, /configuration_status TEXT NOT NULL/);
-  assert.doesNotMatch(referenceMigration, /debit_account_ref_id|credit_account_ref_id|mapping_id/);
+test('transaction snapshot adds canonical configuration evidence without breaking 0018 history', () => {
+  assert.match(referenceMigration, /business_event TEXT NOT NULL/);
+  assert.match(referenceMigration, /mapping_status TEXT NOT NULL/);
+  assert.match(snapshotCompatMigration, /transaction_category_code TEXT NOT NULL DEFAULT ''/);
+  assert.match(snapshotCompatMigration, /payment_method_code TEXT NOT NULL DEFAULT ''/);
+  assert.match(snapshotCompatMigration, /configuration_status TEXT NOT NULL DEFAULT 'INCOMPLETE'/);
+  assert.match(snapshotCompatMigration, /WHEN 'PURCHASE_MATERIAL' THEN 'purchase_material'/);
+  assert.match(accountingReference, /mapping_id, debit_account_ref_id, credit_account_ref_id, mapping_status/);
+  assert.match(accountingReference, /NULL, NULL, NULL/);
   assert.match(accountingReference, /configurationStatus/);
   assert.match(accountingReference, /COMPLETE/);
   assert.match(accountingReference, /INCOMPLETE/);

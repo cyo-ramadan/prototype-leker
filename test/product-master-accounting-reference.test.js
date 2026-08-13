@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const referenceMigration = readFileSync(new URL('../migrations/0018_product_master_accounting_reference.sql', import.meta.url), 'utf8');
+const settingsMigration = readFileSync(new URL('../migrations/0022_accounting_warehouse_settings.sql', import.meta.url), 'utf8');
 const costingMigration = readFileSync(new URL('../migrations/0019_product_costing_and_kinds.sql', import.meta.url), 'utf8');
 const productionCostMigration = readFileSync(new URL('../migrations/0021_exact_production_costing.sql', import.meta.url), 'utf8');
 const productMaster = readFileSync(new URL('../src/product-master.js', import.meta.url), 'utf8');
@@ -16,36 +17,37 @@ const procurementUi = readFileSync(new URL('../public/cashier-procurement-ui.js'
 const masterMenu = readFileSync(new URL('../public/admin-master-menu.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 
-test('Product Master owns explicit recipe link while Accounting linkage is transaction-owned', () => {
+test('Product Master owns recipe link while canonical Accounting Settings owns account and rule configuration', () => {
   assert.match(referenceMigration, /ALTER TABLE products ADD COLUMN linked_recipe_id/);
   assert.match(referenceMigration, /PRODUCT_RECIPE_LINK_MISMATCH/);
-  assert.match(referenceMigration, /CREATE TABLE IF NOT EXISTS accounting_account_refs/);
-  assert.match(referenceMigration, /CREATE TABLE IF NOT EXISTS transaction_accounting_mappings/);
   assert.match(referenceMigration, /CREATE TABLE IF NOT EXISTS transaction_accounting_snapshots/);
-  assert.doesNotMatch(referenceMigration, /CREATE TABLE IF NOT EXISTS product_accounting_refs/);
+  assert.doesNotMatch(referenceMigration, /CREATE TABLE IF NOT EXISTS accounting_account_refs/);
+  assert.doesNotMatch(referenceMigration, /CREATE TABLE IF NOT EXISTS transaction_accounting_mappings/);
+  assert.match(settingsMigration, /CREATE TABLE IF NOT EXISTS chart_of_accounts/);
+  assert.match(settingsMigration, /CREATE TABLE IF NOT EXISTS journal_rules/);
 });
 
-test('basic Accounting references include inventory material cash bank payable and stay provisional', () => {
+test('basic accounts live in canonical chart of accounts rather than provisional references', () => {
   for (const code of ['1101', '1102', '1201', '1301', '1302', '1303', '2101', '3101', '3201', '4101', '5101', '6101']) {
-    assert.match(referenceMigration, new RegExp(`'${code}'`));
+    assert.match(settingsMigration, new RegExp(`'${code}'`));
   }
-  assert.match(referenceMigration, /'1301', 'Persediaan Bahan'/);
-  assert.match(referenceMigration, /'2101', 'Utang Usaha'/);
-  assert.match(accountingReference, /MAXI_ACCOUNTING_REFERENCE_V1/);
-  assert.match(accountingReference, /accountingOwner: 'ACCOUNTING_MODULE'/);
-  assert.match(accountingReference, /syncStatus: 'PROVISIONAL'/);
+  assert.match(settingsMigration, /'1301', 'Persediaan Bahan'/);
+  assert.match(settingsMigration, /'2101', 'Utang Usaha'/);
+  assert.match(accountingReference, /MAXI_ACCOUNTING_SETTINGS_V1/);
+  assert.match(accountingReference, /journalGeneration: 'OUT_OF_SCOPE'/);
+  assert.match(accountingReference, /Pair mapping legacy sudah dipensiunkan/);
   assert.doesNotMatch(accountingReference, /INSERT INTO journal/i);
-  assert.doesNotMatch(accountingReference, /debit_amount|credit_amount/i);
 });
 
-test('material purchase mapping slots are created but never auto-linked', () => {
-  assert.match(referenceMigration, /'PURCHASE_MATERIAL', 'CASH'/);
-  assert.match(referenceMigration, /'PURCHASE_MATERIAL', 'BANK'/);
-  assert.match(referenceMigration, /'PURCHASE_MATERIAL', 'PAYABLE'/);
-  assert.match(referenceMigration, /Debit\/credit stay NULL until explicitly configured/);
-  assert.match(accountingReference, /Debit dan kredit wajib dipilih, berbeda/);
-  assert.match(accountingReference, /status: 'NEEDS_MAPPING'/);
-  assert.match(accountingReference, /ON CONFLICT\(store_id, business_event, payment_method\)/);
+test('transaction snapshot stores configuration evidence without freezing a fake debit credit pair', () => {
+  assert.match(referenceMigration, /transaction_category_code TEXT NOT NULL/);
+  assert.match(referenceMigration, /payment_method_code TEXT NOT NULL DEFAULT ''/);
+  assert.match(referenceMigration, /configuration_status TEXT NOT NULL/);
+  assert.doesNotMatch(referenceMigration, /debit_account_ref_id|credit_account_ref_id|mapping_id/);
+  assert.match(accountingReference, /configurationStatus/);
+  assert.match(accountingReference, /COMPLETE/);
+  assert.match(accountingReference, /INCOMPLETE/);
+  assert.match(accountingReference, /CATEGORY_NOT_FOUND/);
 });
 
 test('Product Master validates type unit points recipe and product kind without owning fulfillment or journal accounts', () => {
@@ -94,7 +96,7 @@ test('Master Barang UI contains type kind unit points and recipe while fulfillme
   assert.match(masterMenu, /data-master-target="productKindMasterCard">Jenis Barang/);
 });
 
-test('purchase is itemized from database products and atomically snapshots accounting stock last price and moving average cost', () => {
+test('purchase is itemized from database products and atomically snapshots configuration stock last price and moving average cost', () => {
   assert.match(procurementUi, /\/api\/cashier\/purchases\/options/);
   assert.match(procurementUi, /id="dialogPurchaseProduct"/);
   assert.match(procurementUi, /id="dialogPurchaseQty"/);
@@ -113,7 +115,7 @@ test('purchase is itemized from database products and atomically snapshots accou
   assert.doesNotMatch(cashierPurchase, /\* 1\.0/);
 });
 
-test('transaction mapping snapshot remains immutable evidence for purchase detail while journal stays external', () => {
+test('transaction configuration snapshot remains immutable evidence for purchase detail while journal stays external', () => {
   assert.match(accountingReference, /transaction_accounting_snapshots/);
   assert.match(accountingReference, /getTransactionAccountingSnapshot/);
   assert.match(purchaseDetail, /transactionLink: snapshot/);
@@ -130,8 +132,12 @@ test('new focused handlers win before legacy generic routes', () => {
   assert.ok(purchaseHandler >= 0 && purchaseHandler < drawerHandler);
 
   const productKindHandler = indexSource.indexOf('const productKindResponse = await handleProductKindApi');
+  const accountingSettingsHandler = indexSource.indexOf('const accountingSettingsResponse = await handleAccountingSettingsApi');
+  const warehouseSettingsHandler = indexSource.indexOf('const warehouseSettingsResponse = await handleWarehouseSettingsApi');
   const genericAdminHandler = indexSource.indexOf("if (pathname.startsWith('/api/admin/')) return handleAdminApi");
   assert.ok(productKindHandler >= 0 && productKindHandler < genericAdminHandler);
+  assert.ok(accountingSettingsHandler >= 0 && accountingSettingsHandler < genericAdminHandler);
+  assert.ok(warehouseSettingsHandler >= 0 && warehouseSettingsHandler < genericAdminHandler);
 
   const purchaseDetailHandler = indexSource.indexOf('const adminPurchaseDetailResponse = await handleAdminPurchaseDetailApi');
   const genericDetailHandler = indexSource.indexOf('const adminTransactionDetailResponse = await handleAdminTransactionDetailApi');

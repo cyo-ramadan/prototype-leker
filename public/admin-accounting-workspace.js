@@ -1,7 +1,8 @@
 (() => {
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
-  const money = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
+  const integerFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
+  const SCALE = 1000000n;
   const state = {
     bootstrap: null,
     view: 'accounts',
@@ -33,9 +34,41 @@
     toast.timer = setTimeout(() => node.classList.remove('show'), 2800);
   }
 
-  function rp(value) {
-    const number = Number(value || 0);
-    return `${number < 0 ? '- ' : ''}Rp ${money.format(Math.abs(number))}`;
+  function normalizeExact(value) {
+    const raw = String(value ?? '0').trim().replace(',', '.');
+    const match = /^(-?)(\d+)(?:\.(\d{1,6}))?$/.exec(raw);
+    if (!match) return null;
+    const fraction = (match[3] || '').replace(/0+$/, '');
+    return `${match[1]}${BigInt(match[2])}${fraction ? `.${fraction}` : ''}`;
+  }
+
+  function rpExact(value) {
+    const normalized = normalizeExact(value) || '0';
+    const negative = normalized.startsWith('-');
+    const unsigned = negative ? normalized.slice(1) : normalized;
+    const [whole, fraction = ''] = unsigned.split('.');
+    return `${negative ? '- ' : ''}Rp ${integerFormat.format(BigInt(whole || '0'))}${fraction ? `,${fraction}` : ''}`;
+  }
+
+  function inputToScaled(value) {
+    const raw = String(value ?? '').trim().replace(',', '.');
+    const match = /^(\d+)(?:\.(\d+))?$/.exec(raw);
+    if (!match) return null;
+    const whole = BigInt(match[1]);
+    const fraction = match[2] || '';
+    const kept = fraction.slice(0, 6).padEnd(6, '0');
+    let scaled = whole * SCALE + BigInt(kept || '0');
+    if (fraction.length > 6 && Number(fraction[6]) >= 5) scaled += 1n;
+    return scaled;
+  }
+
+  function scaledToExact(value) {
+    const amount = BigInt(value || 0);
+    const negative = amount < 0n;
+    const unsigned = negative ? -amount : amount;
+    const whole = unsigned / SCALE;
+    const fraction = String(unsigned % SCALE).padStart(6, '0').replace(/0+$/, '');
+    return `${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`;
   }
 
   function sourceLabel(source) {
@@ -93,7 +126,7 @@
           ${navButton('profit-loss','Rugi Laba')}
           ${navButton('balance-sheet','Neraca')}
         </nav>
-        <div class="acct-note">Akuntansi adalah pemilik akun, jurnal, ledger, dan laporan. Setting Akuntansi hanya menghubungkan transaksi POS/Warehouse ke akun.</div>
+        <div class="acct-note">Akuntansi adalah pemilik akun, jurnal, ledger, dan laporan. Nominal jurnal disimpan exact sampai 6 desimal; jurnal sistem boleh memakai akun Penyesuaian untuk selisih maksimal Rp100.</div>
       </aside>
       <main class="acct-main"><div class="acct-toolbar"><b>Gerai <span data-store-code>${esc(window.LEKER_STORE_CODE || 'G001')}</span></b><button id="accountingWorkspaceRefresh" class="acct-refresh" type="button">↻ Refresh</button></div><div id="accountingWorkspaceBody"></div></main>
     </div>`;
@@ -127,7 +160,7 @@
 
   function renderAccounts(host) {
     const editing = state.bootstrap.accounts.find(account => account.accountId === state.editingAccountId) || null;
-    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Akun</h2><p>Buat dan kelola akun di sini. Kode akun dibuat otomatis oleh program dan tidak diedit manual.</p></div></div>
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Akun</h2><p>Buat dan kelola akun di sini. Kode akun dibuat otomatis oleh program dan tidak diedit manual. Akun sistem Penyesuaian dikunci oleh Accounting.</p></div></div>
       <div class="acct-grid">
         <form id="acctAccountForm" class="acct-card">
           <h3>${editing ? `Atur ${esc(editing.accountCode)}` : 'Buat Akun Baru'}</h3>
@@ -138,7 +171,7 @@
           ${editing ? `<label class="acct-field"><span>Status</span><select id="acctAccountActive" class="acct-select"><option value="1" ${editing.isActive ? 'selected' : ''}>Aktif</option><option value="0" ${!editing.isActive ? 'selected' : ''}>Nonaktif</option></select></label>` : ''}
           <div class="acct-actions"><button class="acct-btn primary" type="submit">${editing ? 'Simpan Perubahan' : 'Buat Akun'}</button>${editing ? '<button id="acctCancelAccountEdit" class="acct-btn" type="button">Batal</button>' : ''}</div>
         </form>
-        <div class="acct-card"><h3>Chart of Accounts</h3><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Kode</th><th>Nama</th><th>Tipe</th><th>Status</th><th></th></tr></thead><tbody>${state.bootstrap.accounts.map(account => `<tr><td class="acct-code">${esc(account.accountCode)}</td><td>${esc(account.accountName)}${account.reviewRequired ? ' <span class="acct-chip">Review</span>' : ''}</td><td>${esc(account.accountType)}</td><td><span class="acct-chip ${account.isActive ? '' : 'inactive'}">${account.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td><button class="acct-btn" data-edit-acct-account="${esc(account.accountId)}" type="button">Atur</button></td></tr>`).join('')}</tbody></table></div></div>
+        <div class="acct-card"><h3>Chart of Accounts</h3><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Kode</th><th>Nama</th><th>Tipe</th><th>Status</th><th></th></tr></thead><tbody>${state.bootstrap.accounts.map(account => `<tr><td class="acct-code">${esc(account.accountCode)}</td><td>${esc(account.accountName)}${account.isSystemManaged ? ' <span class="acct-chip">System</span>' : account.reviewRequired ? ' <span class="acct-chip">Review</span>' : ''}</td><td>${esc(account.accountType)}</td><td><span class="acct-chip ${account.isActive ? '' : 'inactive'}">${account.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td>${account.isSystemManaged ? '<span class="acct-code">Dikelola sistem</span>' : `<button class="acct-btn" data-edit-acct-account="${esc(account.accountId)}" type="button">Atur</button>`}</td></tr>`).join('')}</tbody></table></div></div>
       </div></div>`;
     el('acctAccountForm').addEventListener('submit', saveAccount);
     el('acctCancelAccountEdit')?.addEventListener('click', () => { state.editingAccountId = ''; renderAccounts(host); });
@@ -159,37 +192,43 @@
     } catch (error) { toast(error.message); }
   }
 
-  function journalLineHtml(line, index) {
+  function journalLineHtml(line) {
     return `<div class="acct-journal-line" data-journal-line="${esc(line.key)}">
       <div class="acct-line-account"><div class="acct-line-head">Akun</div><select class="acct-select" data-line-account>${accountOptions(line.accountId)}</select></div>
-      <div><div class="acct-line-head">Debit (Rp)</div><input class="acct-input" data-line-debit type="number" min="0" step="1" value="${esc(line.debit)}" placeholder="0" /></div>
-      <div><div class="acct-line-head">Kredit (Rp)</div><input class="acct-input" data-line-credit type="number" min="0" step="1" value="${esc(line.credit)}" placeholder="0" /></div>
+      <div><div class="acct-line-head">Debit (Rp)</div><input class="acct-input" data-line-debit type="number" min="0" step="0.000001" value="${esc(line.debit)}" placeholder="0" /></div>
+      <div><div class="acct-line-head">Kredit (Rp)</div><input class="acct-input" data-line-credit type="number" min="0" step="0.000001" value="${esc(line.credit)}" placeholder="0" /></div>
       <div class="acct-line-desc"><div class="acct-line-head">Keterangan baris</div><input class="acct-input" data-line-desc value="${esc(line.description)}" /></div>
       <button class="acct-btn danger" data-remove-line type="button" ${state.journalLines.length <= 2 ? 'disabled' : ''}>×</button>
     </div>`;
   }
 
   function journalTotals() {
-    let debit = 0;
-    let credit = 0;
+    let debitScaled = 0n;
+    let creditScaled = 0n;
     for (const line of state.journalLines) {
-      const d = Number(line.debit || 0);
-      const c = Number(line.credit || 0);
-      if (Number.isSafeInteger(d) && d > 0) debit += d;
-      if (Number.isSafeInteger(c) && c > 0) credit += c;
+      const debit = inputToScaled(line.debit);
+      const credit = inputToScaled(line.credit);
+      if (debit && debit > 0n) debitScaled += debit;
+      if (credit && credit > 0n) creditScaled += credit;
     }
-    return { debit, credit, balanced: debit > 0 && debit === credit };
+    return {
+      debitScaled,
+      creditScaled,
+      debitExact: scaledToExact(debitScaled),
+      creditExact: scaledToExact(creditScaled),
+      balanced: debitScaled > 0n && debitScaled === creditScaled
+    };
   }
 
   function renderJournalCreate(host) {
     const totals = journalTotals();
-    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buat Jurnal</h2><p>Jurnal manual langsung diposting ke source jurnal Accounting yang sama dengan jurnal sistem. Posted journal tidak diedit; koreksi memakai reversal/adjustment.</p></div></div>
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buat Jurnal</h2><p>Jurnal manual wajib balance exact. Nominal menerima sampai 6 desimal; digit selebihnya dibulatkan half-up oleh server. Auto Penyesuaian Rp100 hanya berlaku untuk jurnal sistem.</p></div></div>
       <form id="acctJournalForm" class="acct-card">
         <div class="acct-grid" style="grid-template-columns:180px minmax(0,1fr)"><label class="acct-field"><span>Tanggal</span><input id="acctJournalDate" class="acct-input" type="date" value="${esc(state.bootstrap.currentBusinessDate)}" required /></label><label class="acct-field"><span>Keterangan Jurnal</span><input id="acctJournalDescription" class="acct-input" maxlength="300" placeholder="Contoh: Setoran modal tambahan" required /></label></div>
         <h3 style="margin-top:14px">Baris Jurnal</h3><div id="acctJournalLines" class="acct-journal-lines">${state.journalLines.map(journalLineHtml).join('')}</div>
         <button id="acctAddJournalLine" class="acct-btn" type="button" style="margin-top:9px">＋ Tambah Baris</button>
-        <div class="acct-total"><div><small>Total Debit</small><b id="acctDebitTotal">${rp(totals.debit)}</b></div><div><small>Total Kredit</small><b id="acctCreditTotal" class="${totals.balanced ? 'balanced' : 'unbalanced'}">${rp(totals.credit)}</b></div></div>
-        <div class="acct-actions"><button id="acctPostJournal" class="acct-btn primary" type="submit" ${totals.balanced ? '' : 'disabled'}>Posting Jurnal</button><span id="acctJournalBalanceHelp" class="acct-chip ${totals.balanced ? '' : 'inactive'}">${totals.balanced ? 'Debit = Kredit' : 'Jurnal belum balance'}</span></div>
+        <div class="acct-total"><div><small>Total Debit</small><b id="acctDebitTotal">${rpExact(totals.debitExact)}</b></div><div><small>Total Kredit</small><b id="acctCreditTotal" class="${totals.balanced ? 'balanced' : 'unbalanced'}">${rpExact(totals.creditExact)}</b></div></div>
+        <div class="acct-actions"><button id="acctPostJournal" class="acct-btn primary" type="submit" ${totals.balanced ? '' : 'disabled'}>Posting Jurnal</button><span id="acctJournalBalanceHelp" class="acct-chip ${totals.balanced ? '' : 'inactive'}">${totals.balanced ? 'Debit = Kredit exact' : 'Jurnal manual belum balance'}</span></div>
       </form></div>`;
     bindJournalLines(host);
     el('acctAddJournalLine').addEventListener('click', () => { state.journalLines.push({ key: `l_${crypto.randomUUID()}`, accountId: '', debit: '', credit: '', description: '' }); renderJournalCreate(host); });
@@ -201,8 +240,8 @@
       const line = state.journalLines.find(item => item.key === row.dataset.journalLine);
       if (!line) return;
       row.querySelector('[data-line-account]').addEventListener('change', event => { line.accountId = event.target.value; });
-      row.querySelector('[data-line-debit]').addEventListener('input', event => { line.debit = event.target.value; if (Number(event.target.value) > 0) { line.credit = ''; row.querySelector('[data-line-credit]').value = ''; } refreshJournalTotals(); });
-      row.querySelector('[data-line-credit]').addEventListener('input', event => { line.credit = event.target.value; if (Number(event.target.value) > 0) { line.debit = ''; row.querySelector('[data-line-debit]').value = ''; } refreshJournalTotals(); });
+      row.querySelector('[data-line-debit]').addEventListener('input', event => { line.debit = event.target.value; if ((inputToScaled(event.target.value) || 0n) > 0n) { line.credit = ''; row.querySelector('[data-line-credit]').value = ''; } refreshJournalTotals(); });
+      row.querySelector('[data-line-credit]').addEventListener('input', event => { line.credit = event.target.value; if ((inputToScaled(event.target.value) || 0n) > 0n) { line.debit = ''; row.querySelector('[data-line-debit]').value = ''; } refreshJournalTotals(); });
       row.querySelector('[data-line-desc]').addEventListener('input', event => { line.description = event.target.value; });
       row.querySelector('[data-remove-line]').addEventListener('click', () => { if (state.journalLines.length > 2) { state.journalLines = state.journalLines.filter(item => item.key !== line.key); renderJournalCreate(host); } });
     });
@@ -210,22 +249,22 @@
 
   function refreshJournalTotals() {
     const totals = journalTotals();
-    el('acctDebitTotal').textContent = rp(totals.debit);
-    el('acctCreditTotal').textContent = rp(totals.credit);
+    el('acctDebitTotal').textContent = rpExact(totals.debitExact);
+    el('acctCreditTotal').textContent = rpExact(totals.creditExact);
     el('acctCreditTotal').className = totals.balanced ? 'balanced' : 'unbalanced';
     el('acctPostJournal').disabled = !totals.balanced;
-    el('acctJournalBalanceHelp').textContent = totals.balanced ? 'Debit = Kredit' : 'Jurnal belum balance';
+    el('acctJournalBalanceHelp').textContent = totals.balanced ? 'Debit = Kredit exact' : 'Jurnal manual belum balance';
   }
 
   async function postManualJournal(event) {
     event.preventDefault();
     const journalLines = [];
     for (const line of state.journalLines) {
-      const debit = Number(line.debit || 0);
-      const credit = Number(line.credit || 0);
+      const debit = inputToScaled(line.debit);
+      const credit = inputToScaled(line.credit);
       if (!line.accountId) return toast('Semua baris jurnal wajib memilih akun');
-      if (debit > 0) journalLines.push({ accountId: line.accountId, side: 'DEBIT', amountMinor: debit, description: line.description });
-      else if (credit > 0) journalLines.push({ accountId: line.accountId, side: 'CREDIT', amountMinor: credit, description: line.description });
+      if (debit && debit > 0n) journalLines.push({ accountId: line.accountId, side: 'DEBIT', amountExact: String(line.debit).replace(',', '.'), description: line.description });
+      else if (credit && credit > 0n) journalLines.push({ accountId: line.accountId, side: 'CREDIT', amountExact: String(line.credit).replace(',', '.'), description: line.description });
       else return toast('Setiap baris wajib memiliki Debit atau Kredit');
     }
     try {
@@ -239,7 +278,7 @@
 
   function renderJournals(host) {
     const p = period();
-    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Jurnal</h2><p>Semua posted journal ada di sini: jurnal manual dan jurnal yang nantinya dihasilkan dari transaksi POS/Warehouse melalui bridge.</p></div></div>
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Jurnal</h2><p>Semua posted journal ada di sini: jurnal manual dan jurnal hasil transaksi sistem melalui bridge.</p></div></div>
       <div class="acct-card"><div class="acct-filters"><label class="acct-field"><span>Dari</span><input id="acctJournalFrom" class="acct-input" type="date" value="${esc(p.from)}" /></label><label class="acct-field"><span>Sampai</span><input id="acctJournalTo" class="acct-input" type="date" value="${esc(p.to)}" /></label><button id="acctLoadJournals" class="acct-btn primary" type="button">Tampilkan</button></div><div id="acctJournalList"></div><div id="acctJournalDetail"></div></div></div>`;
     el('acctLoadJournals').addEventListener('click', loadJournals);
     renderJournalList(state.bootstrap.recentJournals || []);
@@ -256,7 +295,7 @@
   function renderJournalList(rows) {
     const host = el('acctJournalList');
     if (!host) return;
-    host.innerHTML = rows.length ? `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>No Jurnal</th><th>Tanggal</th><th>Sumber</th><th>Keterangan</th><th>Debit</th><th></th></tr></thead><tbody>${rows.map(row => `<tr><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.businessDate)}</td><td><span class="acct-chip ${row.sourceSystem === 'MANUAL' ? 'manual' : 'pos'}">${esc(sourceLabel(row.sourceSystem))}</span></td><td>${esc(row.description)}</td><td>${rp(row.totalDebitMinor)}</td><td><button class="acct-btn" data-journal-detail="${esc(row.journalId)}" type="button">Detail</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="acct-empty">Belum ada jurnal pada periode ini.</div>';
+    host.innerHTML = rows.length ? `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>No Jurnal</th><th>Tanggal</th><th>Sumber</th><th>Keterangan</th><th>Debit</th><th></th></tr></thead><tbody>${rows.map(row => `<tr><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.businessDate)}</td><td><span class="acct-chip ${row.sourceSystem === 'MANUAL' ? 'manual' : 'pos'}">${esc(sourceLabel(row.sourceSystem))}</span></td><td>${esc(row.description)}</td><td>${rpExact(row.totalDebitExact ?? row.totalDebitMinor)}</td><td><button class="acct-btn" data-journal-detail="${esc(row.journalId)}" type="button">Detail</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="acct-empty">Belum ada jurnal pada periode ini.</div>';
     host.querySelectorAll('[data-journal-detail]').forEach(button => button.addEventListener('click', () => loadJournalDetail(button.dataset.journalDetail)));
   }
 
@@ -265,13 +304,13 @@
       const result = await api(`/api/admin/accounting/journals/${encodeURIComponent(journalId)}`);
       state.journalDetail = result.journal;
       const j = result.journal;
-      el('acctJournalDetail').innerHTML = `<div class="acct-card acct-detail"><div class="acct-detail-head"><div><b>${esc(j.journalNumber)}</b><div class="acct-code">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)}</div></div><span class="acct-chip">POSTED · immutable</span></div><div>${esc(j.description)} · ${esc(j.businessDate)}</div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}</td><td>${line.side === 'DEBIT' ? rp(line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rp(line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div></div>`;
+      el('acctJournalDetail').innerHTML = `<div class="acct-card acct-detail"><div class="acct-detail-head"><div><b>${esc(j.journalNumber)}</b><div class="acct-code">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)}</div></div><span class="acct-chip">POSTED · immutable</span></div><div>${esc(j.description)} · ${esc(j.businessDate)}</div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}${line.isSystemGenerated ? ' <span class="acct-chip">System</span>' : ''}</td><td>${line.side === 'DEBIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div></div>`;
     } catch (error) { toast(error.message); }
   }
 
   function renderLedger(host) {
     const p = period();
-    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buku Besar</h2><p>Pilih akun dan periode untuk melihat mutasi Debit/Kredit serta saldo berjalan.</p></div></div><div class="acct-card"><div class="acct-filters"><label class="acct-field" style="min-width:260px"><span>Akun</span><select id="acctLedgerAccount" class="acct-select">${accountOptions('', false)}</select></label><label class="acct-field"><span>Dari</span><input id="acctLedgerFrom" class="acct-input" type="date" value="${esc(p.from)}" /></label><label class="acct-field"><span>Sampai</span><input id="acctLedgerTo" class="acct-input" type="date" value="${esc(p.to)}" /></label><button id="acctLoadLedger" class="acct-btn primary" type="button">Tampilkan</button></div><div id="acctLedgerResult" class="acct-empty">Pilih akun untuk membuka buku besar.</div></div></div>`;
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buku Besar</h2><p>Pilih akun dan periode untuk melihat mutasi Debit/Kredit serta saldo berjalan exact.</p></div></div><div class="acct-card"><div class="acct-filters"><label class="acct-field" style="min-width:260px"><span>Akun</span><select id="acctLedgerAccount" class="acct-select">${accountOptions('', false)}</select></label><label class="acct-field"><span>Dari</span><input id="acctLedgerFrom" class="acct-input" type="date" value="${esc(p.from)}" /></label><label class="acct-field"><span>Sampai</span><input id="acctLedgerTo" class="acct-input" type="date" value="${esc(p.to)}" /></label><button id="acctLoadLedger" class="acct-btn primary" type="button">Tampilkan</button></div><div id="acctLedgerResult" class="acct-empty">Pilih akun untuk membuka buku besar.</div></div></div>`;
     el('acctLoadLedger').addEventListener('click', loadLedger);
   }
 
@@ -281,7 +320,7 @@
       const result = await api(`/api/admin/accounting/ledger?${params}`);
       const ledger = result.ledger;
       el('acctLedgerResult').className = '';
-      el('acctLedgerResult').innerHTML = `<div style="margin:12px 0"><b>${esc(ledger.account.accountCode)} — ${esc(ledger.account.accountName)}</b><div class="acct-code">Saldo awal: ${rp(ledger.openingBalanceMinor)} · Normal ${esc(ledger.account.normalSide)}</div></div><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Tanggal</th><th>Jurnal</th><th>Keterangan</th><th>Debit</th><th>Kredit</th><th>Saldo</th></tr></thead><tbody>${ledger.entries.map(row => `<tr><td>${esc(row.businessDate)}</td><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.description)}</td><td>${row.debitMinor ? rp(row.debitMinor) : ''}</td><td>${row.creditMinor ? rp(row.creditMinor) : ''}</td><td>${rp(row.balanceMinor)}</td></tr>`).join('') || '<tr><td colspan="6">Tidak ada mutasi.</td></tr>'}</tbody></table></div><div class="acct-report-total"><span>Saldo akhir</span><span>${rp(ledger.closingBalanceMinor)}</span></div>`;
+      el('acctLedgerResult').innerHTML = `<div style="margin:12px 0"><b>${esc(ledger.account.accountCode)} — ${esc(ledger.account.accountName)}</b><div class="acct-code">Saldo awal: ${rpExact(ledger.openingBalanceExact ?? ledger.openingBalanceMinor)} · Normal ${esc(ledger.account.normalSide)}</div></div><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Tanggal</th><th>Jurnal</th><th>Keterangan</th><th>Debit</th><th>Kredit</th><th>Saldo</th></tr></thead><tbody>${ledger.entries.map(row => `<tr><td>${esc(row.businessDate)}</td><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.description)}</td><td>${row.debitScaled ? rpExact(row.debitExact) : ''}</td><td>${row.creditScaled ? rpExact(row.creditExact) : ''}</td><td>${rpExact(row.balanceExact ?? row.balanceMinor)}</td></tr>`).join('') || '<tr><td colspan="6">Tidak ada mutasi.</td></tr>'}</tbody></table></div><div class="acct-report-total"><span>Saldo akhir</span><span>${rpExact(ledger.closingBalanceExact ?? ledger.closingBalanceMinor)}</span></div>`;
     } catch (error) { toast(error.message); }
   }
 
@@ -296,12 +335,12 @@
       const params = new URLSearchParams({ from: el('acctPlFrom').value, to: el('acctPlTo').value });
       const { report } = await api(`/api/admin/accounting/profit-loss?${params}`);
       el('acctPlResult').className = '';
-      el('acctPlResult').innerHTML = `${reportSection('Pendapatan', report.revenue)}<div class="acct-report-total"><span>Total Pendapatan</span><span>${rp(report.totalRevenueMinor)}</span></div>${reportSection('Beban', report.expenses)}<div class="acct-report-total"><span>Total Beban</span><span>${rp(report.totalExpenseMinor)}</span></div><div class="acct-report-total grand"><span>${report.netIncomeMinor >= 0 ? 'Laba Bersih' : 'Rugi Bersih'}</span><span>${rp(report.netIncomeMinor)}</span></div>`;
+      el('acctPlResult').innerHTML = `${reportSection('Pendapatan', report.revenue)}<div class="acct-report-total"><span>Total Pendapatan</span><span>${rpExact(report.totalRevenueExact ?? report.totalRevenueMinor)}</span></div>${reportSection('Beban', report.expenses)}<div class="acct-report-total"><span>Total Beban</span><span>${rpExact(report.totalExpenseExact ?? report.totalExpenseMinor)}</span></div><div class="acct-report-total grand"><span>${report.netIncomeScaled >= 0 ? 'Laba Bersih' : 'Rugi Bersih'}</span><span>${rpExact(report.netIncomeExact ?? report.netIncomeMinor)}</span></div>`;
     } catch (error) { toast(error.message); }
   }
 
   function reportSection(title, rows) {
-    return `<div class="acct-report-section"><h3>${esc(title)}</h3><div class="acct-table-wrap"><table class="acct-table"><tbody>${rows.map(row => `<tr><td class="acct-code">${esc(row.accountCode)}</td><td>${esc(row.accountName)}</td><td style="text-align:right">${rp(row.balanceMinor)}</td></tr>`).join('') || '<tr><td>Tidak ada saldo.</td></tr>'}</tbody></table></div></div>`;
+    return `<div class="acct-report-section"><h3>${esc(title)}</h3><div class="acct-table-wrap"><table class="acct-table"><tbody>${rows.map(row => `<tr><td class="acct-code">${esc(row.accountCode)}</td><td>${esc(row.accountName)}</td><td style="text-align:right">${rpExact(row.balanceExact ?? row.balanceMinor)}</td></tr>`).join('') || '<tr><td>Tidak ada saldo.</td></tr>'}</tbody></table></div></div>`;
   }
 
   function renderBalanceSheet(host) {
@@ -314,7 +353,7 @@
       const params = new URLSearchParams({ asOf: el('acctBsDate').value });
       const { report } = await api(`/api/admin/accounting/balance-sheet?${params}`);
       el('acctBsResult').className = '';
-      el('acctBsResult').innerHTML = `${reportSection('Aset', report.assets)}<div class="acct-report-total"><span>Total Aset</span><span>${rp(report.totalAssetsMinor)}</span></div>${reportSection('Liabilitas', report.liabilities)}<div class="acct-report-total"><span>Total Liabilitas</span><span>${rp(report.totalLiabilitiesMinor)}</span></div>${reportSection('Ekuitas', report.equity)}<div class="acct-report-total"><span>Ekuitas Akun</span><span>${rp(report.totalEquityMinor)}</span></div><div class="acct-report-total"><span>Laba Berjalan</span><span>${rp(report.currentEarningsMinor)}</span></div><div class="acct-report-total grand"><span>Total Liabilitas + Ekuitas</span><span>${rp(report.totalLiabilitiesAndEquityMinor)}</span></div><div style="margin-top:10px" class="${report.isBalanced ? 'acct-balance-ok' : 'acct-balance-bad'}"><b>${report.isBalanced ? '✓ Neraca balance' : '⚠ Neraca belum balance'}</b></div>`;
+      el('acctBsResult').innerHTML = `${reportSection('Aset', report.assets)}<div class="acct-report-total"><span>Total Aset</span><span>${rpExact(report.totalAssetsExact ?? report.totalAssetsMinor)}</span></div>${reportSection('Liabilitas', report.liabilities)}<div class="acct-report-total"><span>Total Liabilitas</span><span>${rpExact(report.totalLiabilitiesExact ?? report.totalLiabilitiesMinor)}</span></div>${reportSection('Ekuitas', report.equity)}<div class="acct-report-total"><span>Ekuitas Akun</span><span>${rpExact(report.totalEquityExact ?? report.totalEquityMinor)}</span></div><div class="acct-report-total"><span>Laba Berjalan</span><span>${rpExact(report.currentEarningsExact ?? report.currentEarningsMinor)}</span></div><div class="acct-report-total grand"><span>Total Liabilitas + Ekuitas</span><span>${rpExact(report.totalLiabilitiesAndEquityExact ?? report.totalLiabilitiesAndEquityMinor)}</span></div><div style="margin-top:10px" class="${report.isBalanced ? 'acct-balance-ok' : 'acct-balance-bad'}"><b>${report.isBalanced ? '✓ Neraca balance' : '⚠ Neraca belum balance'}</b></div>`;
     } catch (error) { toast(error.message); }
   }
 

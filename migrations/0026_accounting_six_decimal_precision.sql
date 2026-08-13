@@ -68,7 +68,7 @@ BEGIN
   SELECT RAISE(ABORT, 'POSTED_JOURNAL_IMMUTABLE');
 END;
 
--- Dedicated system-owned Equity account for tiny automatic balancing adjustments.
+-- Dedicated system-owned Equity account for approved automatic balancing adjustments.
 -- It is intentionally separate from the owner's primary Modal account.
 INSERT OR IGNORE INTO chart_of_accounts (
   id, store_id, code, name, type, subtype, is_active, review_required, created_at, updated_at
@@ -81,7 +81,7 @@ SELECT
   'EQUITY',
   'ROUNDING_ADJUSTMENT',
   1,
-  1,
+  0,
   CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP
 FROM stores;
@@ -99,7 +99,7 @@ BEGIN
     'EQUITY',
     'ROUNDING_ADJUSTMENT',
     1,
-    1,
+    0,
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
   );

@@ -26,9 +26,26 @@ Cara itu merusak historical costing karena harga bahan dapat berubah setelah pro
 **Current strategy:**
 
 - Recipe/BOM disimpan sebagai immutable revision.
-- Production contract berikutnya wajib snapshot recipe revision, actual input/output, waste/yield, dan costing reference saat posting.
+- Production snapshots exact scaled component cost and production-run HPP when posting.
 - Inventory/Costing memiliki ownership valuation.
 - Accounting memiliki ownership journal interpretation dan financial statements.
+
+## HPP tidak boleh kembali ke REAL/FLOAT
+
+**Pitfall:** Jangan menyimpan atau menghitung authoritative Average Cost, Harga Beli Terakhir, sale COGS, atau production HPP baru menggunakan SQLite `REAL`, JavaScript floating-point sebagai source of truth, atau SQL `* 1.0`.
+
+**Current strategy:**
+
+- current exact cost scale = `1,000,000` cost units per rupiah;
+- authoritative new cost fields are scaled INTEGER;
+- UI/API converts scaled values only for presentation;
+- legacy production REAL fields from migration 0017 are history fallback only and new writers leave them NULL.
+
+## Qty operasional bukan stock movement
+
+**Pitfall:** Jangan menganggap `expenses.quantity` sebagai inventory consumption hanya karena user mengisi Qty pada Pengeluaran Operasional.
+
+Qty tersebut adalah customer-behaviour metadata. Inventory moves only through an explicit inventory-owned movement contract. Jika suatu operasional memang memakai barang stok, link ke inventory must be an explicit future flow rather than inferred from description or quantity.
 
 ## Transaction explorer bukan source of truth
 
@@ -52,4 +69,4 @@ Reference `1101`, `1301`, `4101`, `5101`, dan akun dasar lain hanya placeholder 
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap manual/event-driven, Manufacturing Master memakai immutable recipe revision, Admin Transaction Explorer tetap operational read model, dan Accounting reference ditegaskan sebagai connector-only dengan Accounting tetap sebagai owner jurnal.
+**REQUIRED** — refresh kasir tetap event-driven, costing memakai exact scaled integer snapshots, operational Qty tidak bocor menjadi stock movement, Transaction Explorer tetap read model, dan Accounting reference tetap connector-only.

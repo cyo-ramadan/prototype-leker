@@ -178,6 +178,8 @@ export async function getAccountingSettingsBootstrap(db, store) {
   return {
     contract: 'MAXI_ACCOUNTING_SETTINGS_V1',
     journalGeneration: 'OUT_OF_SCOPE',
+    accountMaintenance: 'ACCOUNTING_MODULE_ONLY',
+    accountCodePolicy: 'AUTO_UNIQUE_BY_ACCOUNTING_MODULE',
     store,
     accountTypes: ACCOUNT_TYPES,
     sourceTypes: JOURNAL_SOURCE_TYPES,
@@ -381,12 +383,17 @@ export async function handleAccountingSettingsApi(request, env, pathname) {
     return json(await getAccountingSettingsBootstrap(env.DB, store));
   }
 
+  const accountMaintenancePath = pathname === '/api/admin/settings/accounting/accounts'
+    || /^\/api\/admin\/settings\/accounting\/accounts\/[^/]+$/.test(pathname);
+  if (accountMaintenancePath) {
+    return json({
+      error: 'Pembuatan dan pemeliharaan akun dimiliki modul Akuntansi. Setting Akuntansi hanya membaca akun untuk mapping.',
+      code: 'ACCOUNT_MAINTENANCE_OWNED_BY_ACCOUNTING'
+    }, 405);
+  }
+
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload Accounting Settings tidak valid.' }, 400);
-
-  if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/accounts') return createAccount(env.DB, store, body.value);
-  const accountMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/accounts\/([^/]+)$/);
-  if (request.method === 'PATCH' && accountMatch) return updateAccount(env.DB, store, decodeURIComponent(accountMatch[1]), body.value);
 
   if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/payment-methods') return savePaymentMethod(env.DB, store, body.value);
   const paymentMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/payment-methods\/([^/]+)$/);

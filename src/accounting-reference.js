@@ -17,6 +17,7 @@ const EVENT_TO_CATEGORY = Object.freeze({
   WH_PRODUCTION: 'wh_production',
   WH_RETURN: 'wh_return'
 });
+const LEGACY_PAYMENT_METHODS = new Set(['ANY', 'CASH', 'BANK', 'PAYABLE', 'NON_CASH']);
 
 async function selectedStore(db, request) {
   const token = new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
@@ -75,10 +76,13 @@ async function configurationStatus(db, storeId, transactionCategoryCode, payment
 export async function buildTransactionAccountingSnapshot(db, {
   storeId, sourceType, sourceId, businessEvent, paymentMethod, now
 }) {
-  const transactionCategoryCode = categoryCode(businessEvent);
+  const legacyBusinessEvent = String(businessEvent || '').trim().toUpperCase();
+  const transactionCategoryCode = categoryCode(legacyBusinessEvent);
   const paymentMethodCode = String(paymentMethod || '').trim().toUpperCase();
+  const legacyPaymentMethod = LEGACY_PAYMENT_METHODS.has(paymentMethodCode) ? paymentMethodCode : 'ANY';
   const configuration = await configurationStatus(db, storeId, transactionCategoryCode, paymentMethodCode);
   const snapshotId = `accounting_snapshot_${crypto.randomUUID()}`;
+  const legacyMappingStatus = configuration.status === 'COMPLETE' ? 'MAPPED' : 'NEEDS_MAPPING';
   return {
     status: configuration.status,
     mappingId: null,
@@ -87,12 +91,14 @@ export async function buildTransactionAccountingSnapshot(db, {
     transactionCategoryCode,
     statement: db.prepare(`
       INSERT INTO transaction_accounting_snapshots (
-        id, store_id, source_type, source_id, transaction_category_code,
-        payment_method_code, configuration_status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, store_id, source_type, source_id,
+        business_event, payment_method, mapping_id, debit_account_ref_id, credit_account_ref_id, mapping_status,
+        transaction_category_code, payment_method_code, configuration_status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?)
     `).bind(
-      snapshotId, storeId, sourceType, sourceId, transactionCategoryCode,
-      paymentMethodCode, configuration.status, now
+      snapshotId, storeId, sourceType, sourceId,
+      legacyBusinessEvent || transactionCategoryCode.toUpperCase(), legacyPaymentMethod, legacyMappingStatus,
+      transactionCategoryCode, paymentMethodCode, configuration.status, now
     )
   };
 }

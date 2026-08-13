@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const referenceMigration = readFileSync(new URL('../migrations/0018_product_master_accounting_reference.sql', import.meta.url), 'utf8');
 const costingMigration = readFileSync(new URL('../migrations/0019_product_costing_and_kinds.sql', import.meta.url), 'utf8');
+const productionCostMigration = readFileSync(new URL('../migrations/0021_exact_production_costing.sql', import.meta.url), 'utf8');
 const productMaster = readFileSync(new URL('../src/product-master.js', import.meta.url), 'utf8');
 const productKinds = readFileSync(new URL('../src/product-kinds.js', import.meta.url), 'utf8');
 const productPolicy = readFileSync(new URL('../src/product-policy.js', import.meta.url), 'utf8');
@@ -11,7 +12,7 @@ const accountingReference = readFileSync(new URL('../src/accounting-reference.js
 const cashierPurchase = readFileSync(new URL('../src/cashier-purchase.js', import.meta.url), 'utf8');
 const purchaseDetail = readFileSync(new URL('../src/admin-purchase-detail.js', import.meta.url), 'utf8');
 const productUi = readFileSync(new URL('../public/admin-product-policy.js', import.meta.url), 'utf8');
-const cashierEnhancements = readFileSync(new URL('../public/cashier-enhancements.js', import.meta.url), 'utf8');
+const procurementUi = readFileSync(new URL('../public/cashier-procurement-ui.js', import.meta.url), 'utf8');
 const masterMenu = readFileSync(new URL('../public/admin-master-menu.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 
@@ -68,10 +69,15 @@ test('Jenis Barang is user-defined accounting classification with stable code an
   assert.match(indexSource, /handleProductKindApi/);
 });
 
-test('Average Cost and Last Purchase Price are automatic server-owned Product Master fields', () => {
-  assert.match(costingMigration, /ALTER TABLE products ADD COLUMN average_cost REAL NOT NULL DEFAULT 0/);
-  assert.match(costingMigration, /ALTER TABLE products ADD COLUMN last_purchase_price REAL NOT NULL DEFAULT 0/);
-  assert.match(productMaster, /p\.average_cost, p\.last_purchase_price/);
+test('Average Cost and Last Purchase Price use exact scaled integers and remain server-owned', () => {
+  assert.match(costingMigration, /ALTER TABLE products ADD COLUMN average_cost INTEGER NOT NULL DEFAULT 0/);
+  assert.match(costingMigration, /ALTER TABLE products ADD COLUMN last_purchase_price INTEGER NOT NULL DEFAULT 0/);
+  assert.match(costingMigration, /purchase_price \* 1000000/);
+  assert.doesNotMatch(costingMigration, /average_cost REAL|last_purchase_price REAL|unit_cost REAL/);
+  assert.match(productionCostMigration, /hpp_total_scaled INTEGER/);
+  assert.match(productionCostMigration, /unit_cost_snapshot_scaled INTEGER/);
+  assert.match(productMaster, /COST_SCALE = 1_000_000/);
+  assert.match(productMaster, /costFromScaled\(row\.average_cost\)/);
   assert.match(productUi, /Average Cost · HPP berjalan/);
   assert.match(productUi, /Harga Beli Terakhir/);
   assert.match(productUi, /readonly/);
@@ -88,19 +94,23 @@ test('Master Barang UI contains type kind unit points and recipe while fulfillme
   assert.match(masterMenu, /data-master-target="productKindMasterCard">Jenis Barang/);
 });
 
-test('purchase is itemized and atomically snapshots accounting stock last price and moving average cost', () => {
-  assert.match(cashierEnhancements, /<option value="CASH">Cash \/ Kas<\/option>/);
-  assert.match(cashierEnhancements, /<option value="BANK">Bank \/ Transfer<\/option>/);
-  assert.match(cashierEnhancements, /<option value="PAYABLE">Hutang \/ Utang Usaha<\/option>/);
-  assert.match(cashierEnhancements, /purchaseItemsPayload/);
+test('purchase is itemized from database products and atomically snapshots accounting stock last price and moving average cost', () => {
+  assert.match(procurementUi, /\/api\/cashier\/purchases\/options/);
+  assert.match(procurementUi, /id="dialogPurchaseProduct"/);
+  assert.match(procurementUi, /id="dialogPurchaseQty"/);
+  assert.match(procurementUi, /<option value="CASH">Cash \/ Kas<\/option>/);
+  assert.match(procurementUi, /<option value="BANK">Bank \/ Transfer<\/option>/);
+  assert.match(procurementUi, /<option value="PAYABLE">Hutang \/ Utang Usaha<\/option>/);
   assert.match(cashierPurchase, /PURCHASE_MATERIAL/);
   assert.match(cashierPurchase, /buildTransactionAccountingSnapshot/);
   assert.match(cashierPurchase, /INSERT INTO purchase_items/);
   assert.match(cashierPurchase, /average_cost_after/);
   assert.match(cashierPurchase, /last_purchase_price/);
+  assert.match(cashierPurchase, /unitCostScaled/);
   assert.match(cashierPurchase, /UPDATE inventory_stock_balances/);
   assert.match(cashierPurchase, /await env\.DB\.batch\(statements\)/);
   assert.match(cashierPurchase, /accounting\.statement/);
+  assert.doesNotMatch(cashierPurchase, /\* 1\.0/);
 });
 
 test('transaction mapping snapshot remains immutable evidence for purchase detail while journal stays external', () => {
@@ -111,6 +121,7 @@ test('transaction mapping snapshot remains immutable evidence for purchase detai
   assert.match(purchaseDetail, /PURCHASE_MATERIAL/);
   assert.match(purchaseDetail, /averageCostBefore/);
   assert.match(purchaseDetail, /averageCostAfter/);
+  assert.match(purchaseDetail, /costFromScaled/);
 });
 
 test('new focused handlers win before legacy generic routes', () => {

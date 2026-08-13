@@ -5,96 +5,119 @@ Contract: `MAXI_ACCOUNTING_SETTINGS_V1`
 
 ## Purpose
 
-Accounting Settings is the store-scoped configuration registry used to describe accounts, settlement methods, item-account classifications, transaction categories, and debit/credit rule rows before any automatic journal engine exists.
+Setting Akuntansi adalah registry konfigurasi untuk menghubungkan transaksi operasional, Jenis Barang, cara pembayaran, dan rule sumber akun sebelum journal-generation engine dibangun.
 
-This contract does **not** authorize Prototype Leker to post journals or write to another Accounting database.
+Setting Akuntansi **bukan** workspace pekerjaan Akuntansi.
+
+Pembuatan akun, pemeliharaan akun, kode akun, jurnal, buku besar, neraca saldo, laporan keuangan, closing, koreksi, dan review posting tetap dimiliki modul **Akuntansi**.
+
+## Ownership Boundary
+
+### Modul Akuntansi owns
+
+- membuat akun;
+- mengubah/nonaktifkan akun;
+- menghasilkan kode akun secara otomatis;
+- menjaga uniqueness kode akun;
+- canonical Chart of Accounts;
+- journal generation/posting;
+- General Ledger;
+- trial balance;
+- financial statements;
+- period/closing/reversal/reconciliation.
+
+### Setting Akuntansi owns
+
+- memilih akun yang sudah tersedia dari modul Akuntansi;
+- menghubungkan cara pembayaran ke akun;
+- menghubungkan Jenis Barang ke akun Persediaan/HPP/Penjualan;
+- mendefinisikan Jenis Transaksi;
+- menyimpan ordered Debit/Credit source rules;
+- menampilkan status konfigurasi Lengkap / Belum Lengkap;
+- menampilkan preview konfigurasi rule tanpa posting.
+
+Tidak ada input kode akun atau account-maintenance workflow di Setting Akuntansi.
+
+## Account Reference Compatibility
+
+Prototype saat ini belum tersambung ke canonical Accounting account source. Karena itu tabel lokal `chart_of_accounts` diperlakukan sebagai **bootstrap/reference mirror sementara** agar dropdown mapping dapat diuji.
+
+Runtime Setting Akuntansi memperlakukan daftar akun tersebut read-only.
+
+API account-maintenance melalui `/api/admin/settings/accounting/accounts...` ditolak dengan `ACCOUNT_MAINTENANCE_OWNED_BY_ACCOUNTING`.
+
+Saat modul Akuntansi terkoneksi, daftar akun untuk dropdown harus dibaca/sinkronkan dari source canonical Akuntansi tanpa mengubah UX mapping transaksi.
+
+Account code policy canonical adalah `AUTO_UNIQUE_BY_ACCOUNTING_MODULE`: user tidak mengetik kode akun secara manual di Setting Akuntansi.
 
 ## Canonical Storage Conventions
 
-- IDs are stable `TEXT` strings.
-- Internal Prototype Leker SQL uses `snake_case`.
-- Booleans use `INTEGER` constrained to `0/1`.
-- Financial transaction totals remain exact integer money values.
-- New unit-cost/HPP facts use exact scaled integers rather than `REAL/FLOAT`.
-- Inventory quantity migration to fractional-capable exact decimal is a separate compatibility change.
+- IDs adalah stable `TEXT` strings.
+- Internal Prototype Leker SQL menggunakan `snake_case`.
+- Boolean menggunakan `INTEGER` constrained `0/1`.
+- Financial transaction totals tetap exact integer money values.
+- Unit-cost/HPP baru menggunakan exact scaled integers, tidak `REAL/FLOAT`.
+- Inventory quantity fractional-capable exact decimal tetap compatibility migration terpisah.
 
-## Owned Tables
+## Configuration Structures
 
 ### `chart_of_accounts`
 
-Store-scoped account registry:
+Local reference/bootstrap mirror untuk akun yang secara domain dimiliki modul Akuntansi.
 
-- `id`, `store_id`, `code`, `name`;
-- `type`: `ASSET | LIABILITY | EQUITY | REVENUE | EXPENSE`;
-- `subtype`;
-- `is_active`;
-- `review_required`;
-- audit timestamps.
+Fields mencakup `id`, `store_id`, `code`, `name`, `type`, `subtype`, `is_active`, `review_required`, timestamps.
 
-Account codes are unique per store. Accounts are not hard-deleted by the Settings API. An active referenced account cannot be deactivated until active references are removed or changed.
+Setting Akuntansi tidak menyediakan create/edit/deactivate UI untuk akun ini.
 
 ### `payment_methods`
 
-Store-scoped settlement methods:
+Cara pembayaran/settlement yang dapat dipakai transaksi operasional. Setiap row dapat menunjuk `account_id` dari account reference list.
 
-- stable `code` and `name`;
-- optional `account_id` FK to `chart_of_accounts`;
-- active state.
+Contoh:
 
-The UI uses account dropdowns. Free-text account identity is not accepted.
+- Uang Laci → Kas;
+- Non Tunai/Transfer → Bank;
+- settlement tertunda → Piutang settlement;
+- Hutang → Utang Usaha.
 
-Initial methods:
-
-- `CASH` → Kas;
-- `BANK` → Bank;
-- `PAYABLE` → Utang Usaha.
-
-These are settlement references. They do not themselves generate journal lines.
+User boleh menambah lebih dari dua komponen pembayaran.
 
 ### `item_categories`
 
-Accounting mapping for the existing Product Master `product_kinds` / Jenis Barang classification:
+Mapping Jenis Barang (`product_kinds`) ke akun:
 
-- one active mapping per `product_kind_id`;
-- required Inventory account (`ASSET`);
-- required COGS account (`EXPENSE`);
-- optional Revenue account (`REVENUE`).
+- Inventory/Persediaan;
+- HPP;
+- Revenue/Penjualan nullable.
 
-This preserves the explicit business decision that Jenis Barang is the stable product classification hook for Accounting without duplicating Tipe Barang.
+Satu transaksi dapat berisi banyak barang dari banyak Jenis Barang. Journal engine masa depan harus resolve setiap kelompok Jenis Barang berdasarkan mapping ini.
 
 ### `transaction_categories`
 
-Store-scoped transaction categories with:
+Jenis transaksi store-scoped dengan stable code, flags kebutuhan payment/item category, status aktif, description, dan registering module.
 
-- unique stable `code`;
-- name and description;
-- `involves_payment`;
-- `involves_item_category`;
-- active state;
-- `registered_by_module = ACCOUNTING | WAREHOUSE`.
+Initial categories:
 
-Initial Accounting categories:
+- Penjualan;
+- Pembelian Bahan;
+- Operasional;
+- Gaji;
+- Setoran.
 
-- `sale` — Penjualan;
-- `purchase_material` — Pembelian Bahan;
-- `operational` — Operasional;
-- `payroll` — Gaji;
-- `deposit` — Setoran.
-
-These start without invented journal rules so the business owner can link them explicitly.
+Warehouse mendaftarkan transaction categories terkait ke registry yang sama.
 
 ### `journal_rules`
 
-Each row belongs to one transaction category and defines:
+Ordered configuration rows per transaction category dengan:
 
-- `label`;
-- `side = DEBIT | CREDIT`;
-- `source_type`;
-- optional `fixed_account_id`;
+- label;
+- side `DEBIT | CREDIT`;
+- source type;
+- optional fixed account;
 - active state;
-- `sort_order`.
+- sort order.
 
-Allowed `source_type` values:
+Allowed source types:
 
 - `fixed_account`;
 - `payment_method`;
@@ -103,68 +126,57 @@ Allowed `source_type` values:
 - `item_category_revenue`;
 - `cost_center_cash`.
 
-`fixed_account` requires a same-store account. Other source types may not carry `fixed_account_id`.
+Rule dapat berjumlah lebih dari dua. Satu kategori transaksi boleh memiliki banyak baris Debit dan banyak baris Credit.
+
+## Transaction-Centric UI Direction
+
+UI utama Setting Akuntansi harus dibaca berdasarkan **Jenis Transaksi**, bukan berdasarkan istilah teknis database.
+
+Contoh Penjualan:
+
+- sisi pembayaran menampilkan komponen Uang Laci, Non Tunai, QRIS, settlement lain, dst.;
+- setiap komponen pembayaran dilink ke akun dari Akuntansi;
+- sisi barang membaca Jenis Barang seperti Pentol, Leker, Minuman;
+- setiap Jenis Barang menampilkan akun Persediaan/HPP/Penjualan yang sudah dilink.
+
+Contoh Operasional:
+
+- sisi Debit dapat memiliki Beban 1, Beban 2, Beban 3, dst.;
+- sisi Credit dapat memiliki Uang Laci, Bank, Hutang, atau settlement lain;
+- jumlah komponennya tidak dibatasi dua.
+
+Istilah teknis seperti `source_type` boleh tetap ada di persistence/API, tetapi UI harus menerjemahkannya menjadi bahasa operasional yang mudah dibaca pemilik bisnis.
 
 ## Completeness
 
-A transaction category is visually **Lengkap / COMPLETE** when it has at least one active Debit rule and at least one active Credit rule.
+Kategori structurally **Lengkap** jika memiliki minimal satu active Debit rule dan satu active Credit rule.
 
-This is a structural Settings check only. It is **not proof that a specific business transaction can be posted**, because a future journal-generation engine must still resolve the actual payment method, Product/Jenis Barang, dimensions, amount, authorization, idempotency, and Accounting command contract for that transaction.
-
-Categories may remain **Belum Lengkap / INCOMPLETE** safely. No fallback account may be guessed.
+Status ini hanya menilai konfigurasi. Ia tidak berarti jurnal sudah/postable secara otomatis.
 
 ## Immutable Configuration Snapshot
 
-Operational facts may write a `transaction_accounting_snapshots` row containing canonical readiness fields:
+Operational facts dapat menyimpan `transaction_accounting_snapshots` sebagai evidence konfigurasi saat transaksi terjadi:
 
 - source type/id;
 - transaction category code;
 - payment method code;
-- configuration status at fact creation;
+- configuration status;
 - timestamp.
 
-The original 0018 compatibility columns remain because PR #4 may be deployed independently. Migration 0023 adds the canonical readiness fields and backfills prior snapshots. New writers populate the old mandatory columns only as compatibility metadata; `mapping_id`, debit reference, and credit reference stay NULL.
-
-The snapshot does not post debit/credit journal lines. It exists as audit evidence of configuration readiness at the time the operational fact was recorded.
-
-## UI
-
-Accounting Settings exposes four panels:
-
-1. Chart of Accounts — list/add/edit/deactivate.
-2. Payment Methods — account dropdown + active state.
-3. Item Categories — Jenis Barang plus Inventory/HPP/Revenue account dropdowns.
-4. Transaction Categories & Journal Rules — category list, rule editor, completeness indicator, add Debit/Credit rows, and simple journal preview.
-
-The preview displays configured sources only. It is not a posting simulation and does not calculate journal amounts.
-
-## Seed Accounts
-
-The initial COA contains practical linking references including Kas, Bank, Piutang, inventory accounts, Utang Usaha, Modal, Laba Ditahan, Penjualan, HPP, Beban Operasional, and Beban Gaji.
-
-Warehouse adjustment accounts are also created by the shared settings migration:
-
-- `4201 Pendapatan Koreksi Stok`;
-- `6103 Beban Susut Persediaan`.
-
-Both are marked `review_required = 1` because business/accounting ownership must review their suitability before automatic posting is enabled.
+Snapshot tidak menyimpan atau mem-post journal lines.
 
 ## Explicitly Out of Scope
 
+- create/edit akun dari Setting Akuntansi;
+- account-code generation dari Setting Akuntansi;
 - journal generation;
-- posting to General Ledger;
-- automatic amount resolution;
-- Accounting period enforcement;
-- journal reversal;
-- financial statement generation;
-- direct writes to the separate Accounting program database.
-
-## Compatibility
-
-The old provisional `accounting_account_refs` and pair-style `transaction_accounting_mappings` tables from migration 0018 are retained as legacy schema so stacked deployment remains forward-compatible. They are no longer a source of truth: the current application does not read/write them, the old pair-mapping PUT route returns `410 Gone`, and migration 0023 disables the legacy new-store seed trigger.
-
-Canonical configuration lives in `chart_of_accounts`, `payment_methods`, `item_categories`, `transaction_categories`, and `journal_rules`.
+- journal posting;
+- General Ledger;
+- trial balance;
+- laporan keuangan;
+- closing/reversal;
+- direct write ke separate Accounting program database.
 
 ## DOC-IMPACT
 
-**REQUIRED** — migrations 0022–0023, `src/accounting-settings.js`, the compatibility seam, UI, tests, Warehouse Settings contract, and ADR-016 belong to the same settings changeset.
+**REQUIRED** — ownership boundary diperjelas: Accounting owns account maintenance + automatic unique account-code generation + accounting work; Setting Akuntansi hanya owns mapping/configuration.

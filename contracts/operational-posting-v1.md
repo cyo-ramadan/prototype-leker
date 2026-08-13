@@ -1,11 +1,11 @@
 # Operational Posting Contract v1
 
 Status: ACTIVE for Prototype Leker
-Version: 1
+Version: 1.1
 
 ## Purpose
 
-This contract defines the first canonical posting behavior for cashier-originated approval requests. It exists because no earlier Prototype Leker manual or contract defines cash-flow, inventory-flow, or asset-value posting semantics.
+This contract defines the canonical posting behavior for cashier-originated approval requests. It covers CASH_FLOW, GOODS_FLOW, ASSET, and the explicit Stock Adjustment subtype that reuses the GOODS_FLOW approval envelope.
 
 ## Core Rules
 
@@ -15,7 +15,7 @@ This contract defines the first canonical posting behavior for cashier-originate
 4. `REJECT` never posts.
 5. Every posting ledger has `approval_request_id UNIQUE`; one approval request can post at most once.
 6. Posting updates `approval_requests` to `approval_status = approved`, `posting_status = posted`, and sets `approved_at` + `posted_at` only in the same successful batch as its domain movement.
-7. A posting failure leaves the approval request pending and unposted.
+7. A normal posting failure leaves the approval request pending and unposted unless a subtype contract explicitly defines a fail-closed terminal outcome such as stale Stock Adjustment rejection.
 8. Store and drawer identity come from the original staged request, never from approval-client input.
 
 ## CASH_FLOW
@@ -31,7 +31,7 @@ Posting creates one `cash_ledger_entries` row. Cash balance for a drawer is deri
 
 ## GOODS_FLOW
 
-Canonical payload:
+Canonical generic payload:
 
 - `productId`: product in the same store
 - `productName`: server-produced snapshot of the product name at staging time
@@ -42,6 +42,25 @@ Canonical payload:
 Posting creates one `inventory_ledger_entries` row and atomically changes `inventory_stock_balances.quantity`. Inventory balance may never become negative. An `OUT` that would make stock negative fails the whole posting and leaves the request pending.
 
 Inventory V1 is quantity-only. It does not invent costing, valuation, lot, expiry, or unit-conversion rules.
+
+### GOODS_FLOW subtype: STOCK_ADJUSTMENT
+
+Stock Adjustment is governed by `contracts/stock-adjustment-v1.md`.
+
+For approval-table compatibility it uses:
+
+- `request_type = GOODS_FLOW`;
+- `payload.purpose = STOCK_ADJUSTMENT`.
+
+Its immutable server-normalized payload additionally contains:
+
+- `currentQuantitySnapshot`;
+- `targetQuantity`;
+- derived `direction` and positive `quantity` delta;
+- required `reason`;
+- optional `note`.
+
+Before ACC, current canonical stock must still equal `currentQuantitySnapshot`. A mismatch rejects the stale request with `STOCK_ADJUSTMENT_STALE`; no stock mutation occurs. A successful adjustment appends canonical `stock_movements.source_type = STOCK_ADJUSTMENT`.
 
 ## ASSET
 
@@ -68,4 +87,8 @@ Approval queues and posting ledgers are separate from ordinary sales/orders tabl
 
 ## Future Versions
 
-Costing, accounting journals, individual asset register, stock units, production/BOM, and depreciation require later versioned contracts. Future versions must preserve historical V1 ledger facts rather than reinterpret them in-place.
+Fractional inventory quantity, valuation treatment for stock adjustments, accounting journals for adjustment gain/loss, individual asset register, stock units, and depreciation require later versioned contracts. Future versions must preserve historical V1 ledger facts rather than reinterpret them in-place.
+
+## DOC-IMPACT
+
+REQUIRED — changes to approval staging, atomic posting, GOODS_FLOW semantics, or Stock Adjustment subtype behavior require matching tests/ADR/contracts.

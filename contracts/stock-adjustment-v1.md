@@ -1,6 +1,6 @@
 # Stock Adjustment Contract v1
 
-Status: ACTIVE IN FEATURE BRANCH / NOT DEPLOYED
+Status: ACTIVE for Prototype Leker
 Contract identifier: `MAXI_STOCK_ADJUSTMENT_V1`
 Owner: Inventory / Costing
 

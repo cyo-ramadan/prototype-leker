@@ -127,9 +127,21 @@ Untuk Penjualan, baseline resolver mendukung settlement Debit, Pendapatan Credit
 
 ## Cashier dan laci
 
-Kasir tidak memilih gerai sendiri; server mengambil gerai dari akun kasir. Cashier workspace mempunyai Pilih Menu, Draft Menu, queue order customer, Buka Laci, Beli Bahan, Pengeluaran, Pendapatan Lain, Detail Laci, dan Tutup Laci.
+Kasir tidak memilih gerai sendiri; server mengambil gerai dari akun kasir. Cashier workspace mempunyai Pilih Menu, Draft Menu, queue order customer, Buka Laci, Beli Bahan, Pengeluaran, Pendapatan Lain, Penyesuaian Stok, Produksi, Arus Kas, Arus Barang, Aset, Detail Laci, dan Tutup Laci.
 
 Satu gerai hanya boleh mempunyai satu laci `OPEN`. Banyak akun kasir berbeda dapat digunakan bergantian, tetapi browser yang sama hanya mempunyai satu tab staff aktif. Hanya kasir pembuka laci aktif yang mempunyai cashier write authority.
+
+### Penyesuaian Stok
+
+Penyesuaian Stok adalah audited Inventory/Costing correction flow dan menggunakan Approval Queue yang sama dengan Arus Kas/Arus Barang/Aset.
+
+- Kasir memilih barang stock-tracked, mengisi target stok fisik, alasan wajib, dan optional note.
+- Server menyimpan snapshot stok saat pengajuan dan menghitung delta IN/OUT.
+- Pengajuan tidak mengubah stok saat dibuat.
+- Admin Gerai/Owner ACC melakukan re-check current stock terhadap snapshot.
+- Jika stok berubah setelah pengajuan, request ditolak sebagai `STOCK_ADJUSTMENT_STALE` dan harus diajukan ulang.
+- ACC yang valid mengubah `inventory_stock_balances`, menambah `inventory_ledger_entries`, menambah `stock_movements` dengan source `STOCK_ADJUSTMENT`, dan menandai approval posted dalam satu batch.
+- Flow v1 hanya mengoreksi quantity; Average Cost dan historical HPP tidak ditulis ulang.
 
 ### Refresh dan bootstrap kasir
 
@@ -147,7 +159,7 @@ Jika realtime push dibutuhkan kemudian, gunakan mekanisme push yang disetujui se
 
 Detail Laci dibatasi server-side ke gerai authorized dan dapat dibaca Admin Gerai serta Kasir. Report mencakup identitas laci/penanggung jawab, shift, Datang/Pulang, modal, closing amount, insentif, penjualan tunai/non-tunai, pembelian bahan tunai/non-tunai, operasional kas/non-kas, kas masuk, dan perhitungan kas.
 
-Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang melalui contract masing-masing. Penyesuaian Stok audited write flow belum aktif di `main` sampai branch/contract terkait selesai dan lolos gate.
+Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang melalui contract masing-masing. Penyesuaian Stok audited write flow sudah aktif; valuation journal untuk stock gain/loss tetap menunggu explicit Inventory→Accounting semantics.
 
 ## Demo accounts
 
@@ -222,6 +234,14 @@ Cashier:
 
 - `GET /api/cashier/workspace`
 - `POST /api/cashier/drawer/close` — JSON compatibility atau multipart Live Photo.
+- `GET /api/cashier/stock-adjustment/options`
+- `POST /api/cashier/approval-requests` — termasuk `GOODS_FLOW` dengan `purpose=STOCK_ADJUSTMENT`.
+- `GET /api/cashier/approval-requests`
+
+Management approval:
+
+- `GET /api/management/approval-requests`
+- `PATCH /api/management/approval-requests/:id`
 
 Portal Staf:
 
@@ -298,7 +318,8 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 - `adr/ADR-017-accounting-workspace-vs-accounting-settings-ownership.md`
 - `adr/ADR-018-accounting-workspace-and-pos-bridge.md`
 - `adr/ADR-019-accounting-six-decimal-precision.md`
+- `adr/ADR-020-audited-stock-adjustment-and-stale-snapshot-guard.md`
 
 ## DOC-IMPACT
 
-**REQUIRED** — README reflects the live Accounting/Setting Akuntansi capability, exact journal precision, remote migration state through 0026, canonical Cloudflare Git Integration deployment route, and the production D1 schema-drift recovery discipline. Open Inventory/Stock Adjustment and other future capabilities remain governed by their own branches/contracts.
+**REQUIRED** — README reflects the live Accounting/Setting Akuntansi capability, exact journal precision, remote migration state through 0026, canonical Cloudflare Git Integration deployment route, production D1 schema-drift recovery discipline, and active audited Penyesuaian Stok correction flow. Remaining Inventory/transaction-integrity and HR/KPI capabilities are governed by their own contracts.

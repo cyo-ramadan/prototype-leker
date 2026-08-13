@@ -27,6 +27,21 @@ Master Barang owns:
 
 `average_cost` and `last_purchase_price` are server-owned values. Client Product Master writes must not set or override them.
 
+## Exact Cost Representation
+
+Monetary transaction totals remain exact integer rupiah in the current Prototype Leker schema.
+
+Unit-cost and HPP values that need sub-rupiah precision are stored as **scaled INTEGER**, never SQLite `REAL/FLOAT`:
+
+- scale = `1,000,000` cost units per rupiah;
+- `12500000` scaled cost = `Rp12.5`;
+- API/UI presentation divides the stored value by the scale;
+- calculations use integer arithmetic with deterministic rounding.
+
+Authoritative scaled fields include product Average Cost / Harga Beli Terakhir, purchase unit-cost snapshots, sale HPP snapshots, and the production `*_scaled` costing fields introduced by migration `0021_exact_production_costing.sql`.
+
+Legacy `REAL` cost columns from migration 0017 remain nullable compatibility columns for old production history. New production writers do not populate them.
+
 ## Jenis Barang
 
 `product_kinds` is a store-scoped, user-defined classification master.
@@ -71,7 +86,7 @@ A purchase that affects inventory is itemized by:
 - product selected from the active store-scoped Product Master database; free-text product identity is not accepted;
 - explicit quantity shown to the cashier;
 - exact line total;
-- unit cost derived from line total / quantity.
+- exact scaled unit cost derived from line total / quantity.
 
 The current inventory quantity engine still accepts integer purchase quantities until the canonical fractional-quantity migration replaces the legacy stock representation. The UI and API must not hide the quantity field.
 
@@ -79,11 +94,11 @@ Purchase posting atomically creates the purchase fact, item snapshots, stock-in 
 
 For each purchased product:
 
-- `last_purchase_price = line_total / purchased_quantity`;
-- if current stock quantity is zero or less, `average_cost = last_purchase_price`;
-- otherwise moving average cost is `(old_stock_quantity × old_average_cost + line_total) / (old_stock_quantity + purchased_quantity)`.
+- `last_purchase_price_scaled = round(line_total × COST_SCALE / purchased_quantity)`;
+- if current stock quantity is zero or less, `average_cost_scaled = last_purchase_price_scaled`;
+- otherwise moving average uses exact scaled integer arithmetic over old stock, old average cost, incoming line total, and incoming quantity.
 
-Purchase rows snapshot `average_cost_before` and `average_cost_after`.
+Purchase rows snapshot scaled `average_cost_before` and `average_cost_after`.
 
 Legacy `products.purchase_price` is retained only for compatibility and mirrors a rounded latest purchase price. It is not the HPP source of truth.
 
@@ -97,11 +112,11 @@ The quantity is customer-behaviour metadata and is stored as canonical positive 
 
 ## HPP Source of Truth
 
-`products.average_cost` is the current running HPP source for stock valuation snapshots in this prototype.
+`products.average_cost` is the current running HPP source for stock valuation snapshots in this prototype, stored as scaled INTEGER.
 
-Sale items snapshot the product average cost and line COGS when the sale posts. Later changes to Product Master cost do not rewrite historical sale HPP.
+Sale items snapshot the product average cost and scaled line COGS when the sale posts. Later changes to Product Master cost do not rewrite historical sale HPP.
 
-Production components snapshot their current product average cost. The production run derives total HPP and HPP per output unit from those component snapshots. The output product then receives a moving-average update using its existing stock and the cost of newly produced output.
+Production components snapshot their current scaled product average cost. The production run derives exact scaled HPP total/unit from those component snapshots. The output product then receives a moving-average update using its existing stock and the cost of newly produced output.
 
 ## Accounting Reference Boundary
 
@@ -123,6 +138,7 @@ Product classification (`product_kind_id`) is data prepared for later Accounting
 
 - `products.production_mode` remains in the database only to preserve existing behavior until Sale fulfillment is versioned.
 - `products.purchase_price` remains as a compatibility mirror; new Product Master UI treats latest purchase price as read-only.
+- legacy production `REAL` costing columns are read-only fallback for historical rows; authoritative new writes use scaled INTEGER fields.
 - purchase product identity comes from the active store Product Master; legacy free-text purchase UI is superseded.
 - operational expenses default quantity to `1`, so historical rows remain valid after migration 0020.
 - existing Product Master and transaction routes remain store-scoped and management/cashier authenticated as applicable.
@@ -130,4 +146,4 @@ Product classification (`product_kind_id`) is data prepared for later Accounting
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract, ADR-015, migrations `0019_product_costing_and_kinds.sql` and `0020_expense_quantity_behavior.sql`, Product Master/Purchase/Operational code, and regression tests form one change set.
+**REQUIRED** — this contract, ADR-015, migrations `0019_product_costing_and_kinds.sql`, `0020_expense_quantity_behavior.sql`, and `0021_exact_production_costing.sql`, Product Master/Purchase/Operational/Production code, and regression tests form one change set.

@@ -5,6 +5,8 @@
     state.orders = payload.orders || [];
     state.drawer = payload.drawer || null;
     state.canWrite = Boolean(payload.canWrite);
+    state.paymentMethods = payload.paymentMethods || [];
+    state.operationalAccountingComponents = payload.operationalAccountingComponents || [];
     if (includeMenu) {
       state.products = payload.products || [];
       renderMenu();
@@ -12,6 +14,7 @@
     renderDrawer();
     renderOrders();
     renderDraft();
+    document.dispatchEvent(new CustomEvent('cashier:workspace-applied'));
     return payload;
   }
 

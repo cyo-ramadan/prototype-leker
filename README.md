@@ -16,7 +16,7 @@ Gerai bukan master data. `/admin` adalah Owner Console. Workspace gerai berada d
 
 ## Data isolation
 
-Satu Cloudflare D1 digunakan dengan server-side `store_id` isolation. Barang, kategori, supplier, admin, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, dan laci kas terpisah per gerai.
+Satu Cloudflare D1 digunakan dengan server-side `store_id` isolation. Barang, kategori, supplier, admin, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, accounting configuration, posted journal, dan laci kas terpisah per gerai.
 
 Pelanggan adalah satu-satunya scope yang dapat melebar antar gerai, hanya jika Owner memasukkan gerai-gerai tersebut ke Customer Sharing Group yang sama. Sharing pelanggan tidak membagikan barang atau transaksi operasional.
 
@@ -94,11 +94,36 @@ Halaman customer mempunyai tombol **Pesanan Saya**.
 
 ## Admin Gerai
 
-Admin Gerai dapat mengelola gerainya sendiri: identitas toko, Data Barang, Kategori, Supplier, Master Pelanggan, Create/Master Kasir, panel request pelanggan, serta Detail Laci.
+Admin Gerai dapat mengelola gerainya sendiri: identitas toko, Data Barang, Kategori, Supplier, Master Pelanggan, Create/Master Kasir, panel request pelanggan, Detail Laci, Stok, Transaksi, **Akuntansi**, **Setting Akuntansi**, dan Warehouse Settings sesuai capability yang aktif.
 
 Admin Gerai tidak boleh create/mengelola gerai atau mengubah Customer Sharing Group. Dua capability tersebut tetap Owner-only.
 
-Menu **Akuntansi** dan **Laporan** general masih placeholder kosong sesuai scope prototype saat ini.
+### Akuntansi
+
+**Akuntansi** adalah workspace kerja Accounting dan terpisah dari **Setting Akuntansi**.
+
+Aktivitas Accounting yang aktif:
+
+- **Data Akun** — create/maintenance account; account code dibuat otomatis oleh program;
+- **Buat Jurnal** — manual balanced journal;
+- **Data Jurnal** — sumber yang sama untuk manual journal dan journal dari integration/POS;
+- **Buku Besar** — ledger per account;
+- **Rugi Laba** — period-scoped revenue/expense report;
+- **Neraca** — asset/liability/equity/current-earnings position.
+
+Posted journal immutable. Exact journal values menggunakan scaled INTEGER `1 rupiah = 1,000,000 units`, maksimal enam angka desimal dengan half-up pada digit ketujuh. Derived account/report balances boleh negatif. Manual journal wajib balance exact; system journal hanya boleh memakai dedicated Equity `Penyesuaian` sampai Rp100 bila command secara explicit meminta approved tolerance policy.
+
+### Setting Akuntansi
+
+**Setting Akuntansi** hanya mengatur mapping/configuration dan tidak membuat akun atau melakukan posting jurnal.
+
+- account reference dibaca dari Akuntansi;
+- payment method diarahkan ke account settlement;
+- Jenis Barang diarahkan ke account Persediaan/HPP/Penjualan;
+- transaction categories memiliki ordered Debit/Credit rules;
+- status `Lengkap` hanya readiness structure, bukan izin bypass Accounting posting engine.
+
+Untuk Penjualan, baseline resolver mendukung settlement Debit, Pendapatan Credit, HPP Debit, dan Persediaan Credit melalui configured payment method + Jenis Barang. POS mengirim business fact; Accounting yang menginterpretasikan dan mem-posting journal.
 
 ## Cashier dan laci
 
@@ -122,7 +147,7 @@ Jika realtime push dibutuhkan kemudian, gunakan mekanisme push yang disetujui se
 
 Detail Laci dibatasi server-side ke gerai authorized dan dapat dibaca Admin Gerai serta Kasir. Report mencakup identitas laci/penanggung jawab, shift, Datang/Pulang, modal, closing amount, insentif, penjualan tunai/non-tunai, pembelian bahan tunai/non-tunai, operasional kas/non-kas, kas masuk, dan perhitungan kas.
 
-Promotion, Masak, Stok Sisa, dan Penyesuaian Stok masih explicit empty sections sampai canonical promotion/inventory/production facts tersedia.
+Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang melalui contract masing-masing. Penyesuaian Stok audited write flow belum aktif di `main` sampai branch/contract terkait selesai dan lolos gate.
 
 ## Demo accounts
 
@@ -165,6 +190,19 @@ Promotion, Masak, Stok Sisa, dan Penyesuaian Stok masih explicit empty sections 
 - `0013_approval_queue.sql` — isolated approval staging.
 - `0014_operational_posting_ledgers.sql` — operational cash/inventory/asset posting V1.
 - `0015_staff_attendance_live_photo.sql` — drawer-close Live Photo + staff attendance.
+- `0016_manufacturing_master_v1.sql` — manufacturing master foundation.
+- `0017_product_stock_production_points.sql` — stock/production/points extension.
+- `0018_product_master_accounting_reference.sql` — legacy Accounting compatibility/reference objects.
+- `0019_product_costing_and_kinds.sql` — Product Master costing + Jenis Barang.
+- `0020_expense_quantity_behavior.sql` — operational quantity metadata.
+- `0021_exact_production_costing.sql` — exact scaled production costing.
+- `0022_accounting_warehouse_settings.sql` — canonical Accounting/Warehouse Settings registry.
+- `0023_accounting_snapshot_settings_compat.sql` — forward compatibility for Accounting readiness snapshots.
+- `0024_accounting_workspace.sql` — Accounting journal/workspace storage.
+- `0025_accounting_pos_bridge.sql` — POS Accounting delivery/reconciliation state.
+- `0026_accounting_six_decimal_precision.sql` — six-decimal exact Accounting precision.
+
+Remote dedicated prototype D1 is currently migrated through `0026`.
 
 ## Relevant APIs
 
@@ -190,6 +228,17 @@ Portal Staf:
 - `GET /api/staff/portal`
 - `POST /api/staff/attendance`
 
+Accounting:
+
+- `GET /api/admin/accounting`
+- `POST /api/admin/accounting/accounts`
+- `POST /api/admin/accounting/journals`
+- `GET /api/admin/accounting/journals`
+- `GET /api/admin/accounting/ledger`
+- `GET /api/admin/accounting/profit-loss`
+- `GET /api/admin/accounting/balance-sheet`
+- `GET /api/admin/settings/accounting`
+
 Admin Gerai customer approval:
 
 - `GET /api/admin/customer-requests`
@@ -205,15 +254,30 @@ Owner sharing:
 ## Runtime
 
 - GitHub: `cyo-ramadan/prototype-leker`
+- production branch: `main`
 - Cloudflare account: **Daily Napkin**
 - Worker: `prototype-leker-v2`
 - D1: `prototype-leker-db` (`6977b54c-afce-4275-a0ad-d28e7d942e19`)
+- D1 binding: `DB`
+- permanent live URL: `https://prototype-leker-v2.daily-napkin.workers.dev`
 
 Database Dwicahya tidak digunakan untuk prototype.
 
-`npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`. Gunakan command ini hanya setelah backup dan verifikasi account/database prototype.
+`npm run deploy` adalah repository-owned canonical deploy command dan menjalankan remote D1 migrations lebih dulu, kemudian `wrangler deploy`.
 
-GitHub Actions `.github/workflows/ci-deploy.yml` hanya menjalankan `npm run check` + `npm test`. Cloudflare Git Deploy mempublikasikan source dari GitHub, tetapi tidak menjalankan D1 migration repository. Karena itu migration remote harus menjadi explicit pre-deploy gate; source yang membutuhkan migration baru tidak boleh dipromosikan sebelum migration tersebut applied.
+### Canonical production deployment
+
+Normal deployment menggunakan **Cloudflare Workers Git Integration** yang terhubung ke repository `cyo-ramadan/prototype-leker` branch `main`. Ordinary flow:
+
+`AI changes → tests → merge/push main → Cloudflare Workers Build → npm run deploy → remote D1 migrations → Worker deploy → live validation`.
+
+Bukti deployment canonical di GitHub adalah check **`Workers Builds: prototype-leker-v2`** dari Cloudflare Workers and Pages app. Check tersebut harus `SUCCESS` sebelum deployment dianggap PASS.
+
+Repository juga mempunyai GitHub Actions quality/deploy workflow. Quality gate tetap berguna. Secret-based GitHub Actions deploy path adalah fallback/secondary automation dan membutuhkan `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` pada approved GitHub secret store. Kegagalan job fallback karena secret tidak tersedia tidak membatalkan Cloudflare Git deployment yang sudah terbukti `SUCCESS`; jangan meminta token plaintext kepada Bos Cyo jika Git Integration canonical tersedia.
+
+### D1 migration recovery discipline
+
+Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika remote migration gagal karena missing object, inspect remote migration state + `sqlite_schema`/`PRAGMA`, capture D1 Time Travel checkpoint/approved backup, repair hanya object yang terbukti hilang dari authoritative migration definition, lalu resume canonical migrations. Jangan rewrite historical migration yang sudah applied untuk menutupi schema drift.
 
 ## Architecture decisions
 
@@ -227,7 +291,14 @@ GitHub Actions `.github/workflows/ci-deploy.yml` hanya menjalankan `npm run chec
 - `adr/ADR-009-approval-queue-and-drawer-action-bar.md`
 - `adr/ADR-010-operational-posting-v1.md`
 - `adr/ADR-011-live-photo-staff-portal.md`
+- `adr/ADR-012-manufacturing-master.md`
+- `adr/ADR-013-stock-production-points.md`
+- `adr/ADR-015-product-master-accounting-reference.md`
+- `adr/ADR-016-accounting-warehouse-settings.md`
+- `adr/ADR-017-accounting-workspace-vs-accounting-settings-ownership.md`
+- `adr/ADR-018-accounting-workspace-and-pos-bridge.md`
+- `adr/ADR-019-accounting-six-decimal-precision.md`
 
 ## DOC-IMPACT
 
-**REQUIRED** — login boundary berubah menjadi Pelanggan/Karyawan, staff session/tab exclusivity menjadi security invariant, cashier refresh/bootstrap berubah menjadi snapshot-based request discipline, dan changeset terbaru menambah drawer-bound transactions, approval posting V1, reusable Live Photo, Portal Staf attendance, serta CI/deploy gate.
+**REQUIRED** — README reflects the live Accounting/Setting Akuntansi capability, exact journal precision, remote migration state through 0026, canonical Cloudflare Git Integration deployment route, and the production D1 schema-drift recovery discipline. Open Inventory/Stock Adjustment and other future capabilities remain governed by their own branches/contracts.

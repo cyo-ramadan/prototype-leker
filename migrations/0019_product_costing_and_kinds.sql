@@ -18,15 +18,18 @@ CREATE INDEX IF NOT EXISTS idx_product_kinds_store_active_name
   ON product_kinds(store_id, is_active, name COLLATE NOCASE);
 
 ALTER TABLE products ADD COLUMN product_kind_id TEXT REFERENCES product_kinds(id);
-ALTER TABLE products ADD COLUMN average_cost REAL NOT NULL DEFAULT 0 CHECK (average_cost >= 0);
-ALTER TABLE products ADD COLUMN last_purchase_price REAL NOT NULL DEFAULT 0 CHECK (last_purchase_price >= 0);
+
+-- Exact unit-cost scale: 1 rupiah = 1,000,000 cost units.
+-- This preserves sub-rupiah HPP precision without SQLite REAL/FLOAT arithmetic.
+ALTER TABLE products ADD COLUMN average_cost INTEGER NOT NULL DEFAULT 0 CHECK (average_cost >= 0);
+ALTER TABLE products ADD COLUMN last_purchase_price INTEGER NOT NULL DEFAULT 0 CHECK (last_purchase_price >= 0);
 ALTER TABLE products ADD COLUMN cost_updated_at TEXT;
 ALTER TABLE products ADD COLUMN last_purchase_at TEXT;
 
 -- Legacy bootstrap only. Old purchase_price was manually editable and is not evidence of an actual last purchase.
 -- Use it only as the best known opening HPP estimate; last_purchase_* starts unknown until a new itemized purchase posts.
 UPDATE products
-SET average_cost = CASE WHEN purchase_price > 0 THEN purchase_price ELSE 0 END,
+SET average_cost = CASE WHEN purchase_price > 0 THEN purchase_price * 1000000 ELSE 0 END,
     cost_updated_at = CASE WHEN purchase_price > 0 THEN CURRENT_TIMESTAMP ELSE NULL END
 WHERE average_cost = 0;
 
@@ -55,7 +58,7 @@ BEGIN
   SELECT RAISE(ABORT, 'PRODUCT_KIND_SCOPE_MISMATCH');
 END;
 
--- Purchases become itemized so stock and costing are based on product + integer quantity + exact line amount.
+-- Purchases become itemized so stock and costing are based on product + quantity + exact line amount.
 CREATE TABLE IF NOT EXISTS purchase_items (
   id TEXT PRIMARY KEY,
   purchase_id TEXT NOT NULL,
@@ -69,9 +72,9 @@ CREATE TABLE IF NOT EXISTS purchase_items (
   unit_symbol TEXT NOT NULL,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   line_total INTEGER NOT NULL CHECK (line_total > 0),
-  unit_cost REAL NOT NULL CHECK (unit_cost >= 0),
-  average_cost_before REAL NOT NULL CHECK (average_cost_before >= 0),
-  average_cost_after REAL NOT NULL CHECK (average_cost_after >= 0),
+  unit_cost INTEGER NOT NULL CHECK (unit_cost >= 0),
+  average_cost_before INTEGER NOT NULL CHECK (average_cost_before >= 0),
+  average_cost_after INTEGER NOT NULL CHECK (average_cost_after >= 0),
   created_at TEXT NOT NULL,
   FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
   FOREIGN KEY (store_id) REFERENCES stores(id),
@@ -110,8 +113,8 @@ END;
 ALTER TABLE sale_items ADD COLUMN product_kind_id TEXT REFERENCES product_kinds(id);
 ALTER TABLE sale_items ADD COLUMN product_kind_code TEXT NOT NULL DEFAULT '';
 ALTER TABLE sale_items ADD COLUMN product_kind_name TEXT NOT NULL DEFAULT '';
-ALTER TABLE sale_items ADD COLUMN unit_cost_snapshot REAL CHECK (unit_cost_snapshot IS NULL OR unit_cost_snapshot >= 0);
-ALTER TABLE sale_items ADD COLUMN line_cogs REAL CHECK (line_cogs IS NULL OR line_cogs >= 0);
+ALTER TABLE sale_items ADD COLUMN unit_cost_snapshot INTEGER CHECK (unit_cost_snapshot IS NULL OR unit_cost_snapshot >= 0);
+ALTER TABLE sale_items ADD COLUMN line_cogs INTEGER CHECK (line_cogs IS NULL OR line_cogs >= 0);
 
 CREATE INDEX IF NOT EXISTS idx_sale_items_store_kind
   ON sale_items(store_id, product_kind_id, sale_id);

@@ -9,7 +9,9 @@ import { handleCashierPurchaseApi } from './cashier-purchase.js';
 import { handleCashierProductionApi } from './cashier-production.js';
 import { handleCashierCustomerSearchApi } from './cashier-customers.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
+import { handleTransactionVoidPermitApi } from './transaction-void-permits.js';
 import { handleStaffPortalApi } from './staff-portal.js';
+import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
@@ -94,6 +96,9 @@ async function handleApi(request, env, url) {
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
 
+  const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);
+  if (permitResponse) return permitResponse;
+
   const customerResponse = await handleCustomerApi(request, env, pathname);
   if (customerResponse) return customerResponse;
 
@@ -150,6 +155,9 @@ async function handleApi(request, env, url) {
 
   const adminTransactionsResponse = await handleAdminTransactionsApi(request, env, pathname);
   if (adminTransactionsResponse) return adminTransactionsResponse;
+
+  const adminRaportResponse = await handleAdminCashierRaportApi(request, env, pathname);
+  if (adminRaportResponse) return adminRaportResponse;
 
   if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
 

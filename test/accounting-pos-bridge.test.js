@@ -12,9 +12,13 @@ const migrationDir = new URL('../migrations/', import.meta.url);
 const migration25 = readFileSync(new URL('../migrations/0025_accounting_pos_bridge.sql', import.meta.url), 'utf8');
 const bridgeSource = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
 const bridgeResponseSource = readFileSync(new URL('../src/accounting-pos-bridge-response.js', import.meta.url), 'utf8');
+const workspaceSource = readFileSync(new URL('../src/accounting-workspace.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
 const bridgeUi = readFileSync(new URL('../public/admin-accounting-bridge-ui.js', import.meta.url), 'utf8');
+const bridgeContract = readFileSync(new URL('../contracts/accounting-pos-bridge-v1.md', import.meta.url), 'utf8');
+const workspaceContract = readFileSync(new URL('../contracts/accounting-workspace-v1.md', import.meta.url), 'utf8');
+const architectureDecision = readFileSync(new URL('../adr/ADR-018-accounting-composition-host-and-pos-bridge.md', import.meta.url), 'utf8');
 
 function d1(sqlite) {
   function prepared(sql) {
@@ -185,4 +189,23 @@ test('bridge migration stores delivery status not duplicate mapping and post-com
   assert.match(adminHtml, /admin-accounting-bridge-ui\.js/);
   assert.match(bridgeUi, /Sync Transaksi POS/);
   assert.match(bridgeUi, /perlu setting/);
+});
+
+test('workspace route must not shadow the Accounting bridge routes', () => {
+  assert.match(workspaceSource, /pathname\.startsWith\('\/api\/admin\/accounting\/bridge'\)/);
+  const workspaceRoute = indexSource.indexOf('handleAccountingWorkspaceApi');
+  const bridgeRoute = indexSource.indexOf('handleAccountingPosBridgeApi');
+  const genericRoute = indexSource.indexOf("if (pathname.startsWith('/api/admin/')) return handleAdminApi");
+  assert.ok(workspaceRoute >= 0 && workspaceRoute < bridgeRoute);
+  assert.ok(bridgeRoute >= 0 && bridgeRoute < genericRoute);
+});
+
+test('active Accounting contracts document composition ownership and precision fail-closed behavior', () => {
+  assert.match(workspaceContract, /actual Accounting work area|actual Accounting/i);
+  assert.match(workspaceContract, /same Accounting journal store/i);
+  assert.match(workspaceContract, /must not insert directly/i);
+  assert.match(bridgeContract, /NEEDS_COST_ROUNDING_POLICY/);
+  assert.match(bridgeContract, /must not silently floor, ceil, truncate, or round/i);
+  assert.match(architectureDecision, /Accounting owns/);
+  assert.match(architectureDecision, /Post-commit bridge/i);
 });

@@ -84,7 +84,7 @@ For `SALE`:
 - missing HPP snapshot fails `NEEDS_COST_SNAPSHOT`;
 - invalid scaled HPP fails `BUSINESS_FACT_COST_INVALID`.
 
-The previous `NEEDS_COST_ROUNDING_POLICY` blocker is resolved by the approved six-decimal Accounting precision contract.
+The former whole-rupiah HPP conversion blocker is resolved by the approved six-decimal Accounting precision contract.
 
 ### Purchase inventory
 
@@ -161,7 +161,7 @@ It must not contain debit/credit account mappings.
 
 ## Current Input Limitations
 
-The resolver supports any active configured payment-method code carried by a source fact, but current cashier screens still have legacy payment-method choices in parts of the POS UI.
+The resolver supports any active configured payment-method code carried by a POS fact, but current cashier screens still have legacy payment-method choices in parts of the POS UI.
 
 Before arbitrary new payment methods are fully exposed in Cashier:
 

@@ -23,6 +23,8 @@ V1 resolves:
 
 The bridge reads committed source facts after POS persistence succeeds.
 
+`CASH_FLOW` uses the separate `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1` because its source fact is created only after Approval Queue ACC/posting.
+
 ## Post-Commit Safety
 
 Accounting delivery happens **after** the operational POS fact is committed.
@@ -68,6 +70,8 @@ A `payment_method` rule resolves the transaction payment-method code through `pa
 
 If the method or account mapping is unavailable, the bridge returns `NEEDS_PAYMENT_METHOD` or `NEEDS_PAYMENT_MAPPING`.
 
+Cashier SALE/PURCHASE/EXPENSE inputs consume the active `payment_methods` registry. Only code `CASH` represents physical drawer cash; every other active code is classified as non-cash by the drawer read model.
+
 ### Sale revenue
 
 `item_category_revenue` resolves each sale item through its snapshotted `productKindId` and `item_categories.revenue_account_id`.
@@ -98,7 +102,7 @@ Operational Debit components use active fixed-account Debit rules from the `oper
 
 The POS fact may carry `accountingComponentRuleId`, which identifies the chosen **rule/component**, not an account. The bridge then resolves the account owned by Accounting Settings.
 
-If exactly one applicable Debit fixed-account rule exists, v1 may resolve it without an explicit component selection. Multiple applicable components without a selected rule fail `NEEDS_COMPONENT_SELECTION`.
+If exactly one applicable Debit fixed-account rule exists, the cashier input may use it automatically. If multiple applicable Debit components exist, Cashier requires component selection by `journalRuleId`. Missing selection remains fail-closed as `NEEDS_COMPONENT_SELECTION`.
 
 ## System Adjustment Tolerance
 
@@ -159,18 +163,18 @@ A repeated bridge dispatch for an already-posted fact returns the existing journ
 
 It must not contain debit/credit account mappings.
 
-## Current Input Limitations
+## Cashier Input Integration
 
-The resolver supports any active configured payment-method code carried by a POS fact, but current cashier screens still have legacy payment-method choices in parts of the POS UI.
+Active in this feature branch:
 
-Before arbitrary new payment methods are fully exposed in Cashier:
+- SALE loads active payment methods from Setting Akuntansi;
+- PURCHASE loads active payment methods from the same registry;
+- EXPENSE loads active payment methods from the same registry;
+- Cash Drawer classification treats only `CASH` as physical cash and every other method as non-cash;
+- Operational entry selects a configured Debit component by `journalRuleId` when multiple components exist;
+- POS does not receive the Account ID behind the selected component.
 
-- Cash Drawer classification must treat only `CASH` as physical cash;
-- all other payment-method codes must be non-cash;
-- Sale/Purchase/Expense entry screens must load active payment methods from Settings;
-- Operational entry must expose component selection when multiple Debit expense components exist.
-
-These are integration/UI follow-ups, not permission to duplicate mappings inside POS.
+Legacy `NON_CASH` remains a compatibility payment code when active/configured; it no longer has special hardcoded classification beyond being a non-`CASH` code.
 
 A separate store-level Inventory/Costing policy is planned for transaction integrity such as blocking cost-affecting purchases while stock is negative. That policy is not owned by Accounting even if surfaced from a shared Settings UI.
 
@@ -180,9 +184,12 @@ A separate store-level Inventory/Costing policy is planned for transaction integ
 - `migrations/0026_accounting_six_decimal_precision.sql`
 - `src/accounting-pos-bridge.js`
 - `src/accounting-pos-bridge-response.js`
+- `src/cashier-workspace.js`
+- `public/cashier-payment-methods.js`
 - `public/admin-accounting-bridge-ui.js`
 - `test/accounting-pos-bridge.test.js`
+- `test/cashier-accounting-inputs.test.js`
 
 ## DOC-IMPACT
 
-REQUIRED — changes to supported fact types, mapping semantics, idempotency, status behavior, precision/adjustment policy, or post-commit safety require contract/ADR/test updates.
+REQUIRED — changes to supported fact types, mapping semantics, idempotency, status behavior, precision/adjustment policy, cashier input registry behavior, or post-commit safety require contract/ADR/test updates.

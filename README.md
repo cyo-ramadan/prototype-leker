@@ -211,9 +211,9 @@ Owner sharing:
 
 Database Dwicahya tidak digunakan untuk prototype.
 
-`npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`.
+`npm run deploy` menjalankan remote D1 migrations lalu `wrangler deploy`. Gunakan command ini hanya setelah backup dan verifikasi account/database prototype.
 
-GitHub Actions `.github/workflows/ci-deploy.yml` menjalankan `npm run check` + `npm test` pada PR. Push `main`/manual dispatch menjalankan remote migration dan deploy setelah quality gate lolos.
+GitHub Actions `.github/workflows/ci-deploy.yml` hanya menjalankan `npm run check` + `npm test`. Cloudflare Git Deploy mempublikasikan source dari GitHub, tetapi tidak menjalankan D1 migration repository. Karena itu migration remote harus menjadi explicit pre-deploy gate; source yang membutuhkan migration baru tidak boleh dipromosikan sebelum migration tersebut applied.
 
 ## Architecture decisions
 

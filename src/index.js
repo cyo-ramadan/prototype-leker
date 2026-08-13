@@ -16,6 +16,7 @@ import { handleAdminProductClassificationApi } from './admin-product-classificat
 import { handleProductPolicyApi } from './product-policy.js';
 import { handleProductMasterApi } from './product-master.js';
 import { handleProductKindApi } from './product-kinds.js';
+import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingSettingsApi } from './accounting-settings.js';
 import { handleWarehouseSettingsApi } from './warehouse-settings.js';
 import { handleAccountingReferenceApi } from './accounting-reference.js';
@@ -114,6 +115,9 @@ async function handleApi(request, env, url) {
 
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
   if (productPolicyResponse) return productPolicyResponse;
+
+  const accountingWorkspaceResponse = await handleAccountingWorkspaceApi(request, env, pathname);
+  if (accountingWorkspaceResponse) return accountingWorkspaceResponse;
 
   const accountingSettingsResponse = await handleAccountingSettingsApi(request, env, pathname);
   if (accountingSettingsResponse) return accountingSettingsResponse;

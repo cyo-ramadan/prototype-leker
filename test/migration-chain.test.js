@@ -16,7 +16,7 @@ test('all migrations apply in order on a fresh SQLite database', () => {
     const files = readdirSync(migrationDir)
       .filter(name => /^\d{4}_.+\.sql$/.test(name))
       .sort();
-    assert.ok(files.length >= 22, 'expected the complete migration history through 0022');
+    assert.ok(files.length >= 23, 'expected the complete migration history through 0023');
 
     for (const file of files) {
       const sql = readFileSync(new URL(file, migrationDir), 'utf8');
@@ -58,6 +58,8 @@ test('all migrations apply in order on a fresh SQLite database', () => {
 
     const snapshotColumns = tableColumns(db, 'transaction_accounting_snapshots');
     assert.equal(snapshotColumns.get('id'), 'TEXT');
+    assert.equal(snapshotColumns.get('business_event'), 'TEXT');
+    assert.equal(snapshotColumns.get('mapping_status'), 'TEXT');
     assert.equal(snapshotColumns.get('transaction_category_code'), 'TEXT');
     assert.equal(snapshotColumns.get('payment_method_code'), 'TEXT');
     assert.equal(snapshotColumns.get('configuration_status'), 'TEXT');

@@ -18,6 +18,7 @@ import { handleProductMasterApi } from './product-master.js';
 import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingPosBridgeApi } from './accounting-pos-bridge.js';
+import { attachAccountingBridgeToCommittedResponse } from './accounting-pos-bridge-response.js';
 import { handleAccountingSettingsApi } from './accounting-settings.js';
 import { handleWarehouseSettingsApi } from './warehouse-settings.js';
 import { handleAccountingReferenceApi } from './accounting-reference.js';
@@ -168,10 +169,22 @@ async function handleApi(request, env, url) {
   if (cashierWorkspaceResponse) return cashierWorkspaceResponse;
 
   const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
-  if (trackedSaleResponse) return trackedSaleResponse;
+  if (trackedSaleResponse) {
+    return request.method === 'POST' && pathname === '/api/cashier/sales'
+      ? attachAccountingBridgeToCommittedResponse(trackedSaleResponse, env, 'SALE')
+      : trackedSaleResponse;
+  }
 
   const purchaseResponse = await handleCashierPurchaseApi(request, env, pathname);
-  if (purchaseResponse) return purchaseResponse;
+  if (purchaseResponse) {
+    if (request.method === 'POST' && pathname === '/api/cashier/purchases') {
+      return attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'PURCHASE');
+    }
+    if (request.method === 'POST' && pathname === '/api/cashier/expenses') {
+      return attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'EXPENSE');
+    }
+    return purchaseResponse;
+  }
 
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;

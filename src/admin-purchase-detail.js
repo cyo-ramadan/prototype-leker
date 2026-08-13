@@ -4,6 +4,9 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
 import { getTransactionAccountingSnapshot } from './accounting-reference.js';
 
+const COST_SCALE = 1_000_000;
+const costFromScaled = value => Number(value || 0) / COST_SCALE;
+
 async function selectedStore(db, request) {
   const token = new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
   return resolveStore(db, token, { includeInactive: true });
@@ -51,9 +54,12 @@ export async function handleAdminPurchaseDetailApi(request, env, pathname) {
     unitSymbol: item.unit_symbol || '',
     quantity: Number(item.quantity || 0),
     lineTotal: Number(item.line_total || 0),
-    unitCost: Number(item.unit_cost || 0),
-    averageCostBefore: Number(item.average_cost_before || 0),
-    averageCostAfter: Number(item.average_cost_after || 0),
+    unitCost: costFromScaled(item.unit_cost),
+    unitCostScaled: Number(item.unit_cost || 0),
+    averageCostBefore: costFromScaled(item.average_cost_before),
+    averageCostBeforeScaled: Number(item.average_cost_before || 0),
+    averageCostAfter: costFromScaled(item.average_cost_after),
+    averageCostAfterScaled: Number(item.average_cost_after || 0),
     occurredAt: item.created_at
   }));
 

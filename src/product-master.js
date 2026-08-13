@@ -6,7 +6,9 @@ import { resolveLinkedRecipe } from './product-policy.js';
 import { listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
+const COST_SCALE = 1_000_000;
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
+const costFromScaled = value => Number(value || 0) / COST_SCALE;
 
 function money(value) {
   const number = Number(value);
@@ -100,8 +102,8 @@ async function listEditorProducts(db, storeId) {
     recipeLinkEnabled: Boolean(row.linked_recipe_id || row.recipe_link_enabled),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
     stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity),
-    averageCost: Number(row.average_cost || 0),
-    lastPurchasePrice: Number(row.last_purchase_price || 0),
+    averageCost: costFromScaled(row.average_cost),
+    lastPurchasePrice: costFromScaled(row.last_purchase_price),
     costUpdatedAt: row.cost_updated_at || null,
     lastPurchaseAt: row.last_purchase_at || null
   }));

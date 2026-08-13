@@ -28,3 +28,7 @@ WHERE transaction_category_code = '';
 
 CREATE INDEX IF NOT EXISTS idx_transaction_accounting_snapshots_configuration
   ON transaction_accounting_snapshots(store_id, configuration_status, created_at DESC);
+
+-- Keep the legacy tables for historical compatibility, but prevent new stores from
+-- receiving obsolete provisional account references and pair-mapping slots.
+DROP TRIGGER IF EXISTS trg_stores_seed_accounting_reference_defaults;

@@ -32,14 +32,48 @@ Cara itu merusak historical costing karena harga bahan dapat berubah setelah pro
 
 ## HPP tidak boleh kembali ke REAL/FLOAT
 
-**Pitfall:** Jangan menyimpan atau menghitung authoritative Average Cost, Harga Beli Terakhir, sale COGS, atau production HPP baru menggunakan SQLite `REAL`, JavaScript floating-point sebagai source of truth, atau SQL `* 1.0`.
+**Pitfall:** Jangan menyimpan atau menghitung authoritative Average Cost, Harga Beli Terakhir, sale COGS, production HPP, atau journal amount baru menggunakan SQLite `REAL`, JavaScript floating-point sebagai source of truth, atau SQL `* 1.0`.
 
 **Current strategy:**
 
-- current exact cost scale = `1,000,000` cost units per rupiah;
-- authoritative new cost fields are scaled INTEGER;
+- current exact cost and Accounting journal scale = `1,000,000` units per rupiah;
+- authoritative new cost/journal fields are scaled INTEGER;
+- Accounting accepts maximum 6 fractional decimal places and rounds half-up at digit 7;
 - UI/API converts scaled values only for presentation;
 - legacy production REAL fields from migration 0017 are history fallback only and new writers leave them NULL.
+
+## Saldo negatif bukan jurnal tidak balance
+
+**Pitfall:** Jangan mengubah saldo akun negatif menjadi positif memakai `abs()` hanya supaya UI terlihat rapi, dan jangan menganggap saldo negatif otomatis berarti jurnal invalid.
+
+**Current strategy:**
+
+- journal-line amount tetap positif dengan sisi `DEBIT`/`CREDIT` explicit;
+- integrity posting = total Debit dan total Credit balance sesuai policy;
+- General Ledger / Rugi Laba / Neraca mempertahankan sign saldo akun;
+- investigasi saldo negatif dilakukan sebagai business/accounting review, bukan disamarkan oleh formatter.
+
+## Toleransi Penyesuaian bukan karpet error
+
+**Pitfall:** Jangan memakai akun `Penyesuaian` untuk membuat semua jurnal yang salah menjadi balance.
+
+**Current strategy:**
+
+- hanya command non-manual yang explicit meminta `AUTO_EQUITY_UP_TO_100_RUPIAH` yang boleh auto-adjust;
+- maximum difference = `Rp100.000000`;
+- difference lebih besar harus fail closed;
+- manual journal wajib balance exact;
+- line otomatis ditandai system-generated dan masuk dedicated Equity `Penyesuaian`, bukan akun Modal utama.
+
+## Stok minus tidak boleh diam-diam diserap HPP baru
+
+**Pitfall:** Kalau balance stok sudah negatif karena anomaly/history, jangan menganggap purchase baru otomatis memperbaiki integritas costing.
+
+Current purchase logic mempunyai compatibility behavior saat stok `<= 0` yang dapat memakai unit cost pembelian terbaru sebagai baseline Average Cost. Policy store-level yang direncanakan akan dapat memblok purchase ketika current stock `< 0` supaya anomaly diperbaiki dulu.
+
+**Guard:** jangan mengaktifkan policy blok tersebut sebelum Penyesuaian Stok write flow tersedia. Kalau tidak, item minus dapat terkunci: purchase ditolak tetapi user tidak punya approved path untuk mengoreksi saldo.
+
+Ownership policy tetap Inventory/Costing, walaupun toggle boleh surfaced dari shared Settings UI.
 
 ## Qty operasional bukan stock movement
 
@@ -57,7 +91,7 @@ Explorer hanya read model dengan `sourceReference`. Perubahan transaksi tetap ha
 
 **Pitfall:** Status `Lengkap` pada `transaction_categories` tidak berarti transaksi boleh langsung dibuatkan jurnal.
 
-`Lengkap` hanya membuktikan ada minimal satu Debit dan satu Kredit aktif. Future posting masih wajib resolve payment method aktual, Jenis Barang transaksi, amount, direction/subtype, period, tenant/store context, idempotency, dan contract Accounting. Jangan membuat fallback account ketika source rule tidak bisa di-resolve.
+`Lengkap` hanya membuktikan ada minimal satu Debit dan satu Kredit aktif. Posting masih wajib resolve payment method aktual, Jenis Barang transaksi, amount, direction/subtype, period, tenant/store context, idempotency, dan contract Accounting. Jangan membuat fallback account ketika source rule tidak bisa di-resolve.
 
 ## Warehouse tidak boleh punya mapping akun tandingan
 
@@ -85,8 +119,8 @@ Compatibility endpoint pair-mapping sudah dipensiunkan. Semua konfigurasi baru m
 
 ## Accounting tetap owner posting jurnal
 
-Prototype Leker boleh menyimpan Settings dan business facts. Ia tidak boleh menulis langsung ke database Accounting, membuat General Ledger tandingan, atau menganggap journal preview sebagai posted journal.
+Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak boleh menulis langsung ke database Accounting atau membuat General Ledger tandingan. Dalam local composition host, semua journal write tetap wajib melalui Accounting posting entry point yang sama.
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing memakai exact scaled integer snapshots, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, dan journal generation tetap boundary terpisah.
+**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, dan stock-integrity policy tetap milik Inventory/Costing.

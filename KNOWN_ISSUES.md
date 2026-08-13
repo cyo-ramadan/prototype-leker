@@ -38,7 +38,7 @@ Current behavior:
 - the approved MAXI canonical direction is fractional-capable exact decimal quantity; a dedicated compatibility migration remains required before changing the inventory source of truth;
 - `inventory_stock_balances` is the current quantity source and `stock_movements` is the auditable movement history;
 - manual Produksi and the legacy AUTO_DADAKAN path use the same production engine;
-- tracked stock may not become negative;
+- tracked stock may not become negative through guarded stock-out execution, but historical/legacy balance anomalies can still exist and must not be silently repaired;
 - inventory purchases are itemized, select Product IDs from the store database, expose Qty explicitly, and create PURCHASE stock-in movements;
 - `products.average_cost` is the running HPP source;
 - `products.last_purchase_price` updates automatically from the newest itemized purchase;
@@ -57,6 +57,23 @@ The approved target is one exact fractional-capable quantity model for all physi
 
 Operational expense quantity is already stored as canonical decimal text because it is behavioural metadata and does not change inventory stock.
 
+### Open: store-level HPP integrity policy for negative stock
+
+Bos Cyo approved the product direction that each store/POS may have its own transaction-integrity policies. The first planned policy is conceptually:
+
+`blockPurchaseWhenStockNegative`
+
+Desired behavior when enabled:
+
+- before a cost-affecting purchase posts, Inventory/Costing checks the current stock balance for every purchased item;
+- if any current balance is `< 0`, the entire purchase is rejected with an explicit product/current-balance error rather than partially posting;
+- the user must correct stock through an approved Penyesuaian Stok flow until the balance is at least `0`, then retry the purchase;
+- the purpose is to prevent a negative-stock anomaly from being silently absorbed into a new moving-average HPP baseline.
+
+Ownership note: this policy belongs to Inventory/Costing even if surfaced from a shared Settings UI such as a `Policy Integritas HPP` section near Setting Akuntansi. Accounting must not become the owner of stock/HPP mutation rules.
+
+**Dependency:** the Penyesuaian Stok write contract below is still inactive. Therefore this policy must default OFF and must not be enabled in production until the user has an approved adjustment path, otherwise a negative-stock item could become operationally deadlocked.
+
 ### Still intentionally open: Sale-level fulfillment migration
 
 Mode Pemenuhan is no longer editable in Master Barang. The legacy `products.production_mode` column remains temporarily because existing sale execution still reads it.
@@ -66,6 +83,8 @@ A future Sale contract must move fulfillment ownership to the Penjualan transact
 ### Still intentionally open: Penyesuaian Stok write contract
 
 The cashier Penyesuaian Stok entry point remains inactive until an explicit adjustment reason/audit/approval contract is defined. Future adjustment posting must reuse `stock_movements` and must not bypass the stock audit model.
+
+This flow is now also a prerequisite for safely enabling the planned store-level `blockPurchaseWhenStockNegative` HPP integrity policy.
 
 ## Product Master, Jenis Barang, Purchase Qty, and Operational Qty
 
@@ -86,7 +105,7 @@ Current behavior:
 - Pengeluaran Operasional stores explicit Qty, default `1`, as customer-behaviour metadata while its amount remains the total expense value;
 - operational Qty alone never posts stock.
 
-## Accounting Settings and Warehouse Settings — mapping registry active in stacked draft
+## Accounting Settings and Warehouse Settings
 
 Current settings behavior is governed by:
 
@@ -112,20 +131,22 @@ Implemented configuration:
 - `wh_return` remains deliberately without default rules until return direction/subtype is defined;
 - old provisional pair-mapping writer is retired.
 
-## Accounting Workspace and POS bridge — active in stacked draft, not deployed
+## Accounting Workspace and POS bridge — precision feature not deployed
 
 ### Deployment prerequisite
 
-Cloudflare Git Deploy publishes Worker source and static assets, but it does not apply the repository's D1 migration files automatically. Before deploying code that reads the Accounting workspace, the prototype D1 migration chain must be applied through `0025_accounting_pos_bridge.sql`. Deploying the source without migrations `0022`–`0025` can expose the new tabs while their APIs fail because the required tables do not exist remotely.
+Cloudflare Worker source and static assets must not be considered deployed merely because GitHub main/feature code exists. Before deploying code that reads the current Accounting workspace, the dedicated prototype D1 migration chain must be applied through the migration required by the deployed source.
 
-Required recovery order: export/backup the dedicated prototype D1 database, inspect remote migration status, apply pending migrations, deploy the Worker, then smoke-test Setting Akuntansi and Akuntansi. Do not use the Dwicahya database.
+For the six-decimal precision feature this means migration `0026_accounting_six_decimal_precision.sql` must be applied before its Worker source is deployed.
+
+Required recovery order: export/backup the dedicated prototype D1 database, inspect remote migration status, apply pending migrations, deploy the Worker, then smoke-test Setting Akuntansi, Akuntansi, and POS-to-Accounting bridge. Do not use the Dwicahya database.
 
 Current behavior is governed by:
 
 - `contracts/accounting-workspace-v1.md`;
 - `contracts/accounting-pos-bridge-v1.md`;
-- ADR-018;
-- migrations `0024_accounting_workspace.sql` and `0025_accounting_pos_bridge.sql`;
+- ADR-018 and ADR-019;
+- migrations `0024_accounting_workspace.sql`, `0025_accounting_pos_bridge.sql`, and `0026_accounting_six_decimal_precision.sql`;
 - `src/accounting-ledger.js`;
 - `src/accounting-workspace.js`;
 - `src/accounting-pos-bridge.js`;
@@ -136,14 +157,19 @@ Implemented Accounting work:
 - Akuntansi and Setting Akuntansi are separate top-level capabilities;
 - Akuntansi can create accounts with server-generated unique codes;
 - manual journals and system/POS journals share one posted-journal source;
-- journal posting requires exact balanced Debit/Credit lines;
 - posted journal headers and lines are immutable;
 - duplicate idempotency keys return the original journal;
 - Data Jurnal exposes manual and bridge-generated journal sources;
 - Buku Besar uses posted journal lines with normal-side running balances;
 - Rugi Laba is period-scoped and uses posted Revenue/Expense balances;
 - Neraca uses posted balances through the requested date plus current cumulative earnings;
-- financial journal values use INTEGER `amountMinor`, not binary floating point.
+- exact Accounting journal amounts use scaled INTEGER at `1 rupiah = 1,000,000` units;
+- exact decimal inputs are rounded half-up at digit 7 to a maximum of 6 decimal places;
+- journal line amounts remain positive with explicit Debit/Credit sides, while derived account/report balances may be negative and retain their sign;
+- manual journals must balance exactly;
+- non-manual system journals may explicitly request the approved `AUTO_EQUITY_UP_TO_100_RUPIAH` policy;
+- a system imbalance `<= Rp100.000000` is closed with one auditable system-generated Equity line to the dedicated `Penyesuaian` account;
+- an imbalance greater than Rp100 fails closed.
 
 Implemented POS bridge:
 
@@ -153,15 +179,9 @@ Implemented POS bridge:
 - missing mapping returns `NEEDS_CONFIGURATION` without rolling back the operational POS fact;
 - retry is idempotent by source fact;
 - Transaction Explorer reads actual bridge delivery status/journal reference for SALE/PURCHASE/EXPENSE;
-- manual sync is available from the Accounting workspace for older/unposted-to-Accounting POS facts.
-
-### BLOCKED: sale HPP / inventory journal amount conversion
-
-Sale line COGS is stored as exact scaled cost with `1 rupiah = 1,000,000 cost units`. Accounting journal lines use integer `amountMinor`.
-
-No approved canonical rule currently defines how non-integral scaled COGS must convert to the journal currency unit. Therefore sale rules using `item_category_cogs` or sale-side `item_category_inventory` fail closed with `NEEDS_COST_ROUNDING_POLICY`.
-
-Do not silently floor, ceil, truncate, or round. A Bos Cyo / canonical Accounting policy decision is required before this part can post.
+- manual sync is available from the Accounting workspace for older/unposted-to-Accounting POS facts;
+- sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly, so the former `NEEDS_COST_ROUNDING_POLICY` blocker is resolved by ADR-019;
+- missing sale COGS snapshot fails closed with `NEEDS_COST_SNAPSHOT` rather than recomputing from current Product Master cost.
 
 ### Open: dynamic cashier payment-method integration
 
@@ -205,4 +225,4 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, ADR-015 through ADR-018, migrations through 0025, and regression tests describe the active stacked draft. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, HPP-to-journal precision policy, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge contracts, ADR-015 through ADR-019, migrations through 0026, and regression tests describe the active implementation/feature state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Stock Adjustment execution, store-level HPP integrity policy for negative stock, dynamic cashier payment methods/components, Warehouse-to-Accounting posting semantics, return taxonomy, KPI, Deposit, and Payroll transaction implementations.

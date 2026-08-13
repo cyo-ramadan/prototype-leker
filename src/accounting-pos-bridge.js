@@ -2,7 +2,11 @@ import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
-import { postAccountingJournal } from './accounting-ledger.js';
+import {
+  ACCOUNTING_AMOUNT_SCALE,
+  SYSTEM_ADJUSTMENT_POLICY,
+  postAccountingJournal
+} from './accounting-ledger.js';
 
 export const ACCOUNTING_POS_BRIDGE_CONTRACT = 'MAXI_ACCOUNTING_POS_BRIDGE_V1';
 
@@ -13,7 +17,6 @@ const FACT_CONFIG = Object.freeze({
 });
 
 const text = (value, max = 300) => String(value ?? '').trim().slice(0, max);
-const safeInteger = value => Number.isSafeInteger(Number(value)) ? Number(value) : null;
 
 function configurationFailure(code, error, detail = {}) {
   return { ok: false, status: 'NEEDS_CONFIGURATION', code, error, detail };
@@ -27,6 +30,13 @@ function safeAdd(current, amount) {
   const next = current + amount;
   if (!Number.isSafeInteger(next)) throw new Error('ACCOUNTING_BRIDGE_AMOUNT_OVERFLOW');
   return next;
+}
+
+function rupiahIntegerToScaled(value) {
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || amount < 0) return null;
+  const scaled = amount * ACCOUNTING_AMOUNT_SCALE;
+  return Number.isSafeInteger(scaled) ? scaled : null;
 }
 
 export async function listPosPaymentMethods(db, storeId) {
@@ -278,6 +288,11 @@ function verifyBusinessFact(fact) {
         return bridgeFailure('BUSINESS_FACT_LINE_AMOUNT_INVALID', 'Nilai baris business fact tidak valid.');
       }
       sum = safeAdd(sum, item.lineAmountMinor);
+      if (item.lineCogsScaled !== null && item.lineCogsScaled !== undefined) {
+        if (!Number.isSafeInteger(item.lineCogsScaled) || item.lineCogsScaled < 0) {
+          return bridgeFailure('BUSINESS_FACT_COST_INVALID', 'Snapshot HPP business fact tidak valid.');
+        }
+      }
     }
     if (sum !== fact.totalAmountMinor) {
       return bridgeFailure('BUSINESS_FACT_TOTAL_MISMATCH', 'Total business fact tidak sama dengan jumlah baris.', { expected: fact.totalAmountMinor, actual: sum });
@@ -302,17 +317,17 @@ function detectAmbiguousGenericRules(rules) {
   return null;
 }
 
-function aggregateLine(target, side, accountId, amountMinor, description, order) {
-  if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) throw new Error('ACCOUNTING_BRIDGE_AMOUNT_INVALID');
+function aggregateLine(target, side, accountId, amountScaled, description, order) {
+  if (!Number.isSafeInteger(amountScaled) || amountScaled <= 0) throw new Error('ACCOUNTING_BRIDGE_AMOUNT_INVALID');
   const key = `${side}:${accountId}`;
   const current = target.get(key);
   if (current) {
-    current.amountMinor = safeAdd(current.amountMinor, amountMinor);
+    current.amountScaled = safeAdd(current.amountScaled, amountScaled);
     if (description && !current.description.includes(description)) current.description = `${current.description}; ${description}`.slice(0, 240);
     current.order = Math.min(current.order, order);
     return;
   }
-  target.set(key, { accountId, side, amountMinor, description: text(description, 240), order });
+  target.set(key, { accountId, side, amountScaled, description: text(description, 240), order });
 }
 
 function itemAccountForSource(mapping, sourceType) {
@@ -323,9 +338,13 @@ function itemAccountForSource(mapping, sourceType) {
 }
 
 function itemAmountForSource(fact, item, sourceType) {
-  if (fact.factType === 'PURCHASE' && sourceType === 'item_category_inventory') return item.lineAmountMinor;
-  if (fact.factType === 'SALE' && sourceType === 'item_category_revenue') return item.lineAmountMinor;
-  if (fact.factType === 'SALE' && ['item_category_cogs', 'item_category_inventory'].includes(sourceType)) return 'NEEDS_COST_ROUNDING_POLICY';
+  if (fact.factType === 'PURCHASE' && sourceType === 'item_category_inventory') return rupiahIntegerToScaled(item.lineAmountMinor);
+  if (fact.factType === 'SALE' && sourceType === 'item_category_revenue') return rupiahIntegerToScaled(item.lineAmountMinor);
+  if (fact.factType === 'SALE' && ['item_category_cogs', 'item_category_inventory'].includes(sourceType)) {
+    if (item.lineCogsScaled === null || item.lineCogsScaled === undefined) return 'NEEDS_COST_SNAPSHOT';
+    if (!Number.isSafeInteger(item.lineCogsScaled) || item.lineCogsScaled < 0) return 'INVALID_COST_SNAPSHOT';
+    return item.lineCogsScaled;
+  }
   return null;
 }
 
@@ -364,11 +383,14 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
     }
   }
 
+  const totalAmountScaled = rupiahIntegerToScaled(fact.totalAmountMinor);
+  if (!totalAmountScaled) return bridgeFailure('ACCOUNTING_BRIDGE_AMOUNT_INVALID', 'Nominal transaksi terlalu besar untuk precision Accounting.');
+
   const resultLines = new Map();
   try {
     for (const rule of rules) {
       if (rule.sourceType === 'payment_method') {
-        aggregateLine(resultLines, rule.side, payment.accountId, fact.totalAmountMinor, `${rule.label} · ${payment.name}`, rule.sortOrder);
+        aggregateLine(resultLines, rule.side, payment.accountId, totalAmountScaled, `${rule.label} · ${payment.name}`, rule.sortOrder);
         continue;
       }
 
@@ -379,18 +401,18 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
           if (!accountId) {
             return configurationFailure('NEEDS_ITEM_CATEGORY_MAPPING', `${mapping?.name || item.productKindName || 'Jenis Barang'} belum memiliki akun untuk ${rule.sourceType}.`);
           }
-          const amount = itemAmountForSource(fact, item, rule.sourceType);
-          if (amount === 'NEEDS_COST_ROUNDING_POLICY') {
-            return configurationFailure(
-              'NEEDS_COST_ROUNDING_POLICY',
-              'HPP transaksi tersimpan dalam exact scaled cost, sedangkan jurnal memakai integer amountMinor. Policy pembulatan belum ditetapkan.',
-              { costScale: 1000000, sourceType: rule.sourceType }
-            );
+          const amountScaled = itemAmountForSource(fact, item, rule.sourceType);
+          if (amountScaled === 'NEEDS_COST_SNAPSHOT') {
+            return configurationFailure('NEEDS_COST_SNAPSHOT', 'Snapshot HPP penjualan belum tersedia untuk posting HPP/Persediaan.');
           }
-          if (amount === null) {
+          if (amountScaled === 'INVALID_COST_SNAPSHOT') {
+            return bridgeFailure('BUSINESS_FACT_COST_INVALID', 'Snapshot HPP penjualan tidak valid.');
+          }
+          if (amountScaled === null) {
             return configurationFailure('RULE_NOT_APPLICABLE_TO_FACT', `${rule.sourceType} belum memiliki amount resolver untuk ${fact.factType}.`);
           }
-          aggregateLine(resultLines, rule.side, accountId, amount, `${rule.label} · ${mapping.name}`, rule.sortOrder);
+          if (amountScaled === 0) continue;
+          aggregateLine(resultLines, rule.side, accountId, amountScaled, `${rule.label} · ${mapping.name}`, rule.sortOrder);
         }
         continue;
       }
@@ -407,13 +429,13 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
             return configurationFailure('NEEDS_COMPONENT_SELECTION', 'Pengeluaran operasional harus memilih komponen beban dari Setting Akuntansi.');
           }
           if (rule.journalRuleId !== selectedRuleId) continue;
-          aggregateLine(resultLines, rule.side, rule.fixedAccountId, fact.totalAmountMinor, rule.label, rule.sortOrder);
+          aggregateLine(resultLines, rule.side, rule.fixedAccountId, totalAmountScaled, rule.label, rule.sortOrder);
           continue;
         }
         if (fixedRulesOnSide.length > 1) {
           return configurationFailure('NEEDS_COMPONENT_ALLOCATION', `Transaksi ${fact.factType} memiliki beberapa fixed-account rule tanpa alokasi nominal.`);
         }
-        aggregateLine(resultLines, rule.side, rule.fixedAccountId, fact.totalAmountMinor, rule.label, rule.sortOrder);
+        aggregateLine(resultLines, rule.side, rule.fixedAccountId, totalAmountScaled, rule.label, rule.sortOrder);
         continue;
       }
 
@@ -447,6 +469,7 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
       correlationId: fact.factId,
       idempotencyKey: `LEKER_POS:${fact.factType}:${fact.factId}`,
       description: fact.description,
+      systemAdjustmentPolicy: SYSTEM_ADJUSTMENT_POLICY,
       journalLines
     }
   };

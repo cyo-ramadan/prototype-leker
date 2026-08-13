@@ -7,6 +7,7 @@ const accountingApi = readFileSync(new URL('../src/accounting-settings.js', impo
 const warehouseApi = readFileSync(new URL('../src/warehouse-settings.js', import.meta.url), 'utf8');
 const accountingReference = readFileSync(new URL('../src/accounting-reference.js', import.meta.url), 'utf8');
 const settingsUi = readFileSync(new URL('../public/admin-settings-panels.js', import.meta.url), 'utf8');
+const comfortUi = readFileSync(new URL('../public/admin-accounting-settings-comfort.js', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 
@@ -56,10 +57,10 @@ test('Accounting settings API supports configuration only and does not generate 
   assert.doesNotMatch(accountingReference, /INSERT INTO journal_headers|INSERT INTO journalHeaders|postJournal/i);
 });
 
-test('COA has no hard delete route and blocks deactivation while actively referenced', () => {
-  assert.match(accountingApi, /accountReferenceCount/);
-  assert.match(accountingApi, /Akun masih direferensikan konfigurasi aktif/);
-  assert.doesNotMatch(accountingApi, /request\.method === 'DELETE'/);
+test('account maintenance is owned by Accounting and blocked from Setting Akuntansi', () => {
+  assert.match(accountingApi, /accountMaintenance: 'ACCOUNTING_MODULE_ONLY'/);
+  assert.match(accountingApi, /accountCodePolicy: 'AUTO_UNIQUE_BY_ACCOUNTING_MODULE'/);
+  assert.match(accountingApi, /ACCOUNT_MAINTENANCE_OWNED_BY_ACCOUNTING/);
 });
 
 test('Accounting UI exposes all requested panels, completeness marker, and journal preview', () => {
@@ -74,6 +75,22 @@ test('Accounting UI exposes all requested panels, completeness marker, and journ
   assert.match(settingsUi, /Akun Persediaan/);
   assert.match(settingsUi, /Akun HPP/);
   assert.match(settingsUi, /Akun Penjualan/);
+});
+
+test('comfortable Accounting Settings renderer is transaction-centric and read-only for COA', () => {
+  assert.match(adminHtml, /admin-accounting-settings-comfort\.js/);
+  assert.match(comfortUi, /view: 'rules'/);
+  assert.match(comfortUi, /Setting Akuntansi/);
+  assert.match(comfortUi, /Daftar Akun/);
+  assert.match(comfortUi, /Metode Pembayaran/);
+  assert.match(comfortUi, /Jenis Barang/);
+  assert.match(comfortUi, /Aturan Transaksi/);
+  assert.match(comfortUi, /acc-columns/);
+  assert.match(comfortUi, /Debit/);
+  assert.match(comfortUi, /Kredit/);
+  assert.match(comfortUi, /Pratinjau saat transaksi berjalan/);
+  assert.match(comfortUi, /Read-only dari modul Akuntansi/);
+  assert.doesNotMatch(comfortUi, /\/api\/admin\/settings\/accounting\/accounts[^'`]*['`],\s*\{\s*method:\s*'(POST|PATCH)'/);
 });
 
 test('Warehouse UI exposes locations access and stock opname parameters without direct accounting editor', () => {

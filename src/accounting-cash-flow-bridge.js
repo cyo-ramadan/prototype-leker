@@ -7,7 +7,7 @@ const bridgeResult = (status, code = '', error = '', extra = {}) => ({ ok: statu
 
 async function loadFact(db, storeId, requestId) {
   return db.prepare(`
-    SELECT r.id, c.direction, c.amount, c.description, c.note, c.posted_at
+    SELECT r.id, r.payload_json, c.direction, c.amount, c.description, c.note, c.posted_at
     FROM approval_requests r
     JOIN cash_ledger_entries c ON c.approval_request_id = r.id AND c.store_id = r.store_id
     WHERE r.id = ? AND r.store_id = ? AND r.request_type = 'CASH_FLOW'
@@ -24,8 +24,9 @@ async function loadRules(db, storeId, categoryCode) {
   `).bind(storeId, categoryCode).first();
   if (!category) return null;
   const rows = await db.prepare(`
-    SELECT r.label, r.side, r.source_type, r.fixed_account_id,
-           a.id AS active_fixed_account_id
+    SELECT r.id, r.label, r.side, r.source_type, r.fixed_account_id,
+           a.id AS active_fixed_account_id, a.code AS fixed_account_code,
+           a.name AS fixed_account_name
     FROM journal_rules r
     LEFT JOIN chart_of_accounts a
       ON a.id = r.fixed_account_id
@@ -35,6 +36,66 @@ async function loadRules(db, storeId, categoryCode) {
     ORDER BY r.sort_order, r.id
   `).bind(storeId, category.id).all();
   return rows.results ?? [];
+}
+
+export async function listCashFlowCounterpartOptions(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT r.id AS journal_rule_id, r.label, r.side, r.fixed_account_id, r.is_default,
+           c.code AS category_code, a.code AS account_code, a.name AS account_name
+    FROM journal_rules r
+    JOIN transaction_categories c
+      ON c.id = r.transaction_category_id
+     AND c.store_id = r.store_id
+     AND c.is_active = 1
+    JOIN chart_of_accounts a
+      ON a.id = r.fixed_account_id
+     AND a.store_id = r.store_id
+     AND a.is_active = 1
+    WHERE r.store_id = ? AND r.is_active = 1
+      AND r.source_type = 'fixed_account'
+      AND ((c.code = 'cash_flow_in' AND r.side = 'CREDIT')
+        OR (c.code = 'cash_flow_out' AND r.side = 'DEBIT'))
+    ORDER BY c.code, r.is_default DESC, r.sort_order, a.code, r.id
+  `).bind(storeId).all();
+  return (rows.results ?? []).map(row => ({
+    direction: row.category_code === 'cash_flow_out' ? 'OUT' : 'IN',
+    journalRuleId: row.journal_rule_id,
+    isDefault: Boolean(row.is_default),
+    label: row.label,
+    accountCode: row.account_code,
+    accountName: row.account_name
+  }));
+}
+
+export async function resolveCashFlowCounterpartOption(db, storeId, direction, journalRuleId) {
+  const normalizedDirection = text(direction, 8).toUpperCase();
+  const ruleId = text(journalRuleId, 180);
+  if (!['IN', 'OUT'].includes(normalizedDirection) || !ruleId) return null;
+  const categoryCode = normalizedDirection === 'OUT' ? 'cash_flow_out' : 'cash_flow_in';
+  const expectedSide = normalizedDirection === 'OUT' ? 'DEBIT' : 'CREDIT';
+  const row = await db.prepare(`
+    SELECT r.id AS journal_rule_id, r.label, r.fixed_account_id,
+           a.code AS account_code, a.name AS account_name
+    FROM journal_rules r
+    JOIN transaction_categories c
+      ON c.id = r.transaction_category_id
+     AND c.store_id = r.store_id
+     AND c.is_active = 1
+    JOIN chart_of_accounts a
+      ON a.id = r.fixed_account_id
+     AND a.store_id = r.store_id
+     AND a.is_active = 1
+    WHERE r.id = ? AND r.store_id = ? AND r.is_active = 1
+      AND r.source_type = 'fixed_account' AND r.side = ? AND c.code = ?
+    LIMIT 1
+  `).bind(ruleId, storeId, expectedSide, categoryCode).first();
+  return row ? {
+    journalRuleId: row.journal_rule_id,
+    label: row.label,
+    accountId: row.fixed_account_id,
+    accountCode: row.account_code,
+    accountName: row.account_name
+  } : null;
 }
 
 async function loadCashAccount(db, storeId) {
@@ -129,13 +190,21 @@ export async function dispatchApprovedCashFlowToAccounting(db, storeId, approval
     return value;
   }
 
+  let payload = {};
+  try { payload = JSON.parse(source.payload_json || '{}'); } catch {}
+  const requestedCounterpartRuleId = text(payload.accountingCounterpartRuleId, 180);
   const paymentRules = rules.filter(rule => rule.source_type === 'payment_method');
   const fixedRules = rules.filter(rule => rule.source_type === 'fixed_account');
-  if (
-    rules.length !== 2 || paymentRules.length !== 1 || fixedRules.length !== 1
-    || !rules.some(rule => rule.side === 'DEBIT') || !rules.some(rule => rule.side === 'CREDIT')
-  ) {
-    const value = bridgeResult('NEEDS_CONFIGURATION', 'NEEDS_MAPPING', `Aturan ${categoryCode} wajib tepat satu payment_method dan satu fixed_account.`);
+  const counterpartRule = requestedCounterpartRuleId
+    ? fixedRules.find(rule => rule.id === requestedCounterpartRuleId)
+    : fixedRules.length === 1 ? fixedRules[0] : null;
+  if (paymentRules.length !== 1 || !fixedRules.length || rules.some(rule => !['payment_method', 'fixed_account'].includes(rule.source_type))) {
+    const value = bridgeResult('NEEDS_CONFIGURATION', 'NEEDS_MAPPING', `Aturan ${categoryCode} wajib memiliki tepat satu payment_method dan minimal satu fixed_account.`);
+    await saveDelivery(db, storeId, requestId, categoryCode, value);
+    return value;
+  }
+  if (!counterpartRule || paymentRules[0].side === counterpartRule.side) {
+    const value = bridgeResult('NEEDS_CONFIGURATION', 'NEEDS_COUNTERPART_SELECTION', 'Akun lawan Arus Kas belum dipilih atau tidak cocok dengan arah transaksi.');
     await saveDelivery(db, storeId, requestId, categoryCode, value);
     return value;
   }
@@ -146,7 +215,7 @@ export async function dispatchApprovedCashFlowToAccounting(db, storeId, approval
     await saveDelivery(db, storeId, requestId, categoryCode, value);
     return value;
   }
-  if (!fixedRules[0].active_fixed_account_id) {
+  if (!counterpartRule.active_fixed_account_id) {
     const value = bridgeResult('NEEDS_CONFIGURATION', 'NEEDS_FIXED_ACCOUNT', 'Akun lawan Arus Kas belum aktif.');
     await saveDelivery(db, storeId, requestId, categoryCode, value);
     return value;
@@ -176,7 +245,7 @@ export async function dispatchApprovedCashFlowToAccounting(db, storeId, approval
       correlationId: requestId,
       idempotencyKey: `LEKER_POS:CASH_FLOW:${requestId}`,
       description: source.description,
-      journalLines: rules.map(rule => ({
+      journalLines: [paymentRules[0], counterpartRule].map(rule => ({
         accountId: rule.source_type === 'payment_method' ? cash.account_id : rule.fixed_account_id,
         side: rule.side,
         amountScaled,

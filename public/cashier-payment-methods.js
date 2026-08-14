@@ -37,6 +37,12 @@
 
   async function purchaseDialog() {
     try {
+      if (!state.canWrite) {
+        toast(state.drawer
+          ? `Beli Bahan terkunci. Laci sedang dipegang ${state.drawer.cashierName}.`
+          : 'Buka Laci dulu untuk mencatat pembelian bahan.');
+        return;
+      }
       if (!methods().length) throw new Error('Belum ada cara bayar aktif di Setting Akuntansi.');
       const [supplierPayload, purchasePayload] = await Promise.all([
         api('/api/cashier/suppliers'),

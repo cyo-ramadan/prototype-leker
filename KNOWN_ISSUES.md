@@ -157,7 +157,7 @@ Warehouse master exists, but canonical physical stock remains store-scoped. Do n
 
 ## Accounting Workspace and POS bridge — deployed live
 
-Accounting Workspace, Setting Akuntansi, POS Accounting bridge, and six-decimal Accounting precision are deployed on the permanent Prototype Leker Worker. The remote dedicated D1 migration chain is applied through `0026_accounting_six_decimal_precision.sql` before the transaction-correction feature in the current branch.
+Accounting Workspace, Setting Akuntansi, POS Accounting bridge, six-decimal Accounting precision, transaction-correction permits/Raport, configured Cashier payment/component inputs, and the approved Cash Flow bridge are deployed on the permanent Prototype Leker Worker. The remote dedicated D1 migration chain is applied through `0027_transaction_void_permits.sql`. Deployment evidence: Prototype Leker main `b15838c7766073d0faed6a6ba56f8a26c49fb727`, canonical `Workers Builds: prototype-leker-v2` SUCCESS, and shared live smoke run `31781391476` SUCCESS.
 
 Current behavior is governed by:
 
@@ -201,7 +201,7 @@ Implemented POS bridge:
 - sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly;
 - missing sale COGS snapshot fails closed with `NEEDS_COST_SNAPSHOT` rather than recomputing from current Product Master cost.
 
-### Active in the current Cashier/Accounting integration change: dynamic payment methods
+### Active: dynamic payment methods
 
 Cashier sale, purchase, and operational-expense inputs now load active `payment_methods` from Accounting Settings. The POS fact carries the selected method code and never carries an Account ID or Debit/Credit decision.
 
@@ -210,11 +210,11 @@ Cashier sale, purchase, and operational-expense inputs now load active `payment_
 - legacy `NON_CASH` remains an explicit compatibility payment component and intentionally has no default account mapping;
 - inactive or unknown method codes fail closed before the POS fact is written.
 
-### Active in the current Cashier/Accounting integration change: operational component selection
+### Active: operational component selection
 
 The cashier UI selects one configured Debit expense component by `journalRuleId` without carrying an Account ID. If exactly one active component exists, it is selected automatically. Multiple Debit components require an explicit selection and fail `NEEDS_COMPONENT_SELECTION` when it is absent.
 
-### Active in the current Cashier/Accounting integration change: approved Cash Flow bridge
+### Active: approved Cash Flow bridge
 
 Approved and posted `CASH_FLOW` facts are delivered post-commit through `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`. `IN` resolves `cash_flow_in`, `OUT` resolves `cash_flow_out`, and V1 settles through the configured active `CASH` payment method. Missing configuration never rolls back the operational ACC; delivery remains reconcilable and retryable with the same idempotency identity.
 

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const workspace = readFileSync(new URL('../src/cashier-workspace.js', import.meta.url), 'utf8');
 const workspaceUi = readFileSync(new URL('../public/cashier-workspace.js', import.meta.url), 'utf8');
 const inputUi = readFileSync(new URL('../public/cashier-payment-methods.js', import.meta.url), 'utf8');
+const enhancedInputUi = readFileSync(new URL('../public/cashier-enhancements.js', import.meta.url), 'utf8');
 const sales = readFileSync(new URL('../src/cashier-sales-tracking.js', import.meta.url), 'utf8');
 const purchases = readFileSync(new URL('../src/cashier-purchase.js', import.meta.url), 'utf8');
 const expenses = readFileSync(new URL('../src/cashier-operational-expense.js', import.meta.url), 'utf8');
@@ -46,6 +47,14 @@ test('cashier UI consumes the configured registry for sale purchase and operatio
   assert.match(inputUi, /state\.paymentMethods/);
   assert.match(inputUi, /item\.isDefault/);
   assert.match(inputUi, /Hanya CASH/);
+});
+
+test('purchase dialog keeps one Accounting payment selector and starts with five empty item rows', () => {
+  assert.match(inputUi, /<select id="dialogPurchasePayment"/);
+  assert.match(enhancedInputUi, /!el\('dialogPurchasePayment'\) && !el\('dialogPaymentMethod'\)/);
+  assert.match(enhancedInputUi, /<option value=""[^>]*>None<\/option>/);
+  assert.match(enhancedInputUi, /for \(let index = 0; index < 5; index \+= 1\) addPurchaseRow\(\)/);
+  assert.match(enhancedInputUi, /purchaseItemsPayload\(\)\.filter\(item => item\.productId > 0\)/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

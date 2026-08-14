@@ -5,6 +5,8 @@
     state.orders = payload.orders || [];
     state.drawer = payload.drawer || null;
     state.canWrite = Boolean(payload.canWrite);
+    state.paymentMethods = payload.paymentMethods || [];
+    state.operationalAccountingComponents = payload.operationalAccountingComponents || [];
     if (includeMenu) {
       state.products = payload.products || [];
       renderMenu();
@@ -12,6 +14,7 @@
     renderDrawer();
     renderOrders();
     renderDraft();
+    document.dispatchEvent(new CustomEvent('cashier:workspace-applied'));
     return payload;
   }
 
@@ -50,4 +53,12 @@
   loadDrawer = async function loadWorkspaceDrawer() {
     return loadOrders();
   };
+
+  setTimeout(() => {
+    if (document.querySelector('script[data-cashier-payment-methods]')) return;
+    const script = document.createElement('script');
+    script.src = '/cashier-payment-methods.js';
+    script.dataset.cashierPaymentMethods = '1';
+    document.body.appendChild(script);
+  }, 0);
 })();

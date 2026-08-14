@@ -25,14 +25,14 @@ No new accounting mapping table is created.
 - Debit: `payment_method`
 - Credit: `fixed_account` selected by the administrator
 
-The intended operational fact for cashier Arus Kas uses the configured CASH settlement/payment method, so Kas is on Debit when cash increases.
+The operational fact for cashier Arus Kas uses the configured active `CASH` settlement/payment method, so Kas is on Debit when physical cash increases.
 
 ### `cash_flow_out`
 
 - Debit: `fixed_account` selected by the administrator
 - Credit: `payment_method`
 
-The intended operational fact uses CASH settlement/payment method, so Kas is on Credit when cash decreases.
+The operational fact uses the configured active `CASH` settlement/payment method, so Kas is on Credit when physical cash decreases.
 
 The counterpart can reference any active Accounting account. The UI explicitly classifies the selected counterpart:
 
@@ -40,6 +40,12 @@ The counterpart can reference any active Accounting account. The UI explicitly c
 - REVENUE / EXPENSE = affects Profit & Loss by design.
 
 This classification is informational. The administrator remains responsible for business meaning.
+
+### Active Cash Flow consumer
+
+Approved + posted `CASH_FLOW` facts are consumed by `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1` after the operational ACC has committed.
+
+The bridge uses these exact preset categories/rules rather than creating a private mapping table. Missing/incomplete cash-flow configuration returns `NEEDS_CONFIGURATION` and can be retried idempotently without recreating the operational transaction.
 
 ## Goods Flow Direction
 
@@ -56,6 +62,8 @@ This classification is informational. The administrator remains responsible for 
 The Persediaan account therefore follows the existing Jenis Barang mapping. The administrator may pair inventory movement with a balance-sheet account so the movement does not automatically become profit/loss, or intentionally choose Revenue/Expense when the business event really represents gain/loss.
 
 The preset does not invent valuation. A future Accounting bridge for generic GOODS_FLOW must consume an exact Inventory/Costing valuation snapshot; it must not value a quantity movement from current mutable master cost at posting time.
+
+**The goods-flow presets remain configuration-only. No generic GOODS_FLOW Accounting delivery is active in V1.**
 
 ## Safe Re-Apply
 
@@ -77,17 +85,20 @@ Future warehouse transfer must reuse that Warehouse capability and provide sourc
 
 ## Posting Boundary
 
-This contract configures journal shapes only. It does not activate an Accounting bridge for CASH_FLOW or generic GOODS_FLOW by itself.
+Cash Flow preset configuration is actively consumed only after an approved operational Cash Flow fact exists. Operational approval remains owned by the Approval Queue / cash domain; Accounting owns journal interpretation and posting after commit.
 
-Operational approval remains owned by the existing Approval Queue / Inventory or Cash domain. Accounting owns journal interpretation and posting after an approved business fact carries sufficient exact context.
+Goods Flow presets still configure intended journal shapes only. They do not activate a generic GOODS_FLOW bridge by themselves.
 
 ## Implementation
 
 - `public/admin-accounting-flow-presets.js`
+- `src/accounting-cash-flow-bridge.js`
+- `contracts/accounting-cash-flow-bridge-v1.md`
 - existing `/api/admin/settings/accounting/transaction-categories`
 - existing `/api/admin/settings/accounting/journal-rules`
 - existing `/api/admin/settings/warehouse`
 - `test/accounting-flow-presets.test.js`
+- `test/accounting-cash-flow-bridge.test.js`
 
 ## DOC-IMPACT
 

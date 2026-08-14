@@ -3,6 +3,7 @@ import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
+import { dispatchApprovedCashFlowToAccounting } from './accounting-cash-flow-bridge.js';
 import {
   normalizeApprovalPayload,
   buildOperationalPostingStatements,
@@ -163,6 +164,20 @@ async function rejectStaleStockAdjustment(db, current, { approverRole, approverI
   };
 }
 
+async function cashFlowAccountingAfterCommit(env, current) {
+  if (current.requestType !== 'CASH_FLOW') return null;
+  try {
+    return await dispatchApprovedCashFlowToAccounting(env.DB, current.storeId, current.id);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 'FAILED',
+      code: 'ACCOUNTING_DELIVERY_FAILED',
+      error: text(error?.message || error, 500)
+    };
+  }
+}
+
 async function handleManagementApprovalQueue(request, env, pathname) {
   if (!pathname.startsWith('/api/management/approval-requests')) return null;
   const scope = await managementScope(request, env);
@@ -174,6 +189,20 @@ async function handleManagementApprovalQueue(request, env, pathname) {
     const status = rawStatus === 'all' ? null : rawStatus;
     if (status && !APPROVAL_STATUSES.has(status)) return json({ error: 'Filter status approval tidak valid.' }, 400);
     return json({ requests: await listRequests(env.DB, { storeId: scope.storeId, status }) });
+  }
+
+  const accountingSyncMatch = pathname.match(/^\/api\/management\/approval-requests\/([^/]+)\/accounting-sync$/);
+  if (request.method === 'POST' && accountingSyncMatch) {
+    const requestId = decodeURIComponent(accountingSyncMatch[1]);
+    const current = await getRequest(env.DB, requestId);
+    if (!current) return json({ error: 'Pengajuan tidak ditemukan.' }, 404);
+    if (scope.storeId && current.storeId !== scope.storeId) return json({ error: 'Pengajuan berada di gerai di luar kewenangan akun ini.', code: 'APPROVAL_STORE_SCOPE_MISMATCH' }, 403);
+    if (current.requestType !== 'CASH_FLOW') return json({ error: 'Accounting sync ini hanya berlaku untuk Arus Kas.', code: 'ACCOUNTING_SYNC_UNSUPPORTED_TYPE' }, 400);
+    if (current.approvalStatus !== 'approved' || current.postingStatus !== 'posted') {
+      return json({ error: 'Arus Kas harus approved + posted sebelum Accounting sync.', code: 'CASH_FLOW_NOT_POSTED' }, 409);
+    }
+    const accounting = await cashFlowAccountingAfterCommit(env, current);
+    return json({ ok: Boolean(accounting?.ok), request: current, accounting }, accounting?.ok ? 200 : 409);
   }
 
   const decisionMatch = pathname.match(/^\/api\/management\/approval-requests\/([^/]+)$/);
@@ -215,7 +244,17 @@ async function handleManagementApprovalQueue(request, env, pathname) {
       throw error;
     }
 
-    return json({ ok: true, request: await getRequest(env.DB, requestId), posted: true, message: 'ACC berhasil dan posting snapshot sudah diterapkan.' });
+    const postedRequest = await getRequest(env.DB, requestId);
+    const accounting = await cashFlowAccountingAfterCommit(env, postedRequest);
+    return json({
+      ok: true,
+      request: postedRequest,
+      posted: true,
+      accounting,
+      message: accounting && !accounting.ok
+        ? 'ACC dan posting operasional berhasil. Accounting menunggu konfigurasi / retry.'
+        : 'ACC berhasil dan posting snapshot sudah diterapkan.'
+    });
   }
 
   return json({ error: 'Route management approval tidak ditemukan.' }, 404);

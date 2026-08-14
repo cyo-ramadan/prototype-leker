@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
+import { listOperationalAccountingComponents, resolvePosPaymentMethod } from './accounting-pos-bridge.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
@@ -22,10 +23,6 @@ function canonicalPositiveDecimal(value, maxScale = 6) {
   return /^0(?:\.0*)?$/.test(canonical) ? null : canonical;
 }
 
-function paymentMethod(value) {
-  return String(value || '').trim().toUpperCase() === 'NON_CASH' ? 'NON_CASH' : 'CASH';
-}
-
 export async function handleCashierOperationalExpenseApi(request, env, pathname) {
   if (pathname !== '/api/cashier/expenses') return null;
   if (request.method !== 'POST') return null;
@@ -41,11 +38,22 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
   const description = text(body.value?.description, 220);
   const amount = money(body.value?.amount);
   const quantity = canonicalPositiveDecimal(body.value?.quantity ?? '1');
-  const channel = paymentMethod(body.value?.paymentMethod);
+  const resolvedPayment = await resolvePosPaymentMethod(env.DB, auth.cashier.store.id, body.value?.paymentMethod, 'CASH');
+  if (!resolvedPayment) {
+    return json({ error: 'Cara bayar operasional tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+  }
+  const accountingComponentRuleId = text(body.value?.accountingComponentRuleId, 180) || null;
+  if (accountingComponentRuleId) {
+    const components = await listOperationalAccountingComponents(env.DB, auth.cashier.store.id);
+    if (!components.some(component => component.journalRuleId === accountingComponentRuleId)) {
+      return json({ error: 'Komponen beban Accounting tidak aktif / tidak tersedia.', code: 'ACCOUNTING_COMPONENT_NOT_AVAILABLE' }, 400);
+    }
+  }
   if (!description || amount === null || !quantity) {
     return json({ error: 'Deskripsi, qty, dan total nominal pengeluaran wajib valid.' }, 400);
   }
 
+  const channel = resolvedPayment.code;
   const id = `expense_${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   const accounting = await buildTransactionAccountingSnapshot(env.DB, {
@@ -61,8 +69,8 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
     env.DB.prepare(`
       INSERT INTO expenses (
         id, store_id, drawer_session_id, cashier_id,
-        description, amount, quantity, created_at, payment_method
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        description, amount, quantity, created_at, payment_method, accounting_component_rule_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       auth.cashier.store.id,
@@ -72,7 +80,8 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
       amount,
       quantity,
       now,
-      channel
+      channel,
+      accountingComponentRuleId
     ),
     accounting.statement
   ]);
@@ -84,6 +93,7 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
     quantity,
     amount,
     paymentMethod: channel,
+    accountingComponentRuleId,
     accounting: {
       contract: 'MAXI_ACCOUNTING_REFERENCE_V1',
       mappingStatus: accounting.status,

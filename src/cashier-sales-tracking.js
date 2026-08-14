@@ -6,9 +6,9 @@ import { buildOrderNo } from './orders-multistore.js';
 import { getJakartaBusinessDate, isoNow } from './time.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { prepareSaleStockProduction, stockPostingFailure } from './stock-production.js';
+import { resolvePosPaymentMethod } from './accounting-pos-bridge.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
-const paymentMethod = value => String(value || '').toUpperCase() === 'NON_CASH' ? 'NON_CASH' : 'CASH';
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
 function isOrderNumberConflict(error) {
@@ -51,14 +51,7 @@ function validateOrderSnapshotLines(order, requested) {
     const unitPrice = Number(snapshot.price);
     const lineTotal = unitPrice * quantity;
     total += lineTotal;
-    lines.push({
-      productId,
-      productName: snapshot.name,
-      unitPrice,
-      quantity,
-      lineTotal,
-      note: snapshot.note || ''
-    });
+    lines.push({ productId, productName: snapshot.name, unitPrice, quantity, lineTotal, note: snapshot.note || '' });
   }
   return { ok: true, lines, total };
 }
@@ -155,10 +148,14 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   if (!body.ok) return json({ error: 'Payload penjualan tidak valid.' }, 400);
 
   const storeId = auth.cashier.store.id;
+  const resolvedPayment = await resolvePosPaymentMethod(env.DB, storeId, body.value?.paymentMethod, 'CASH');
+  if (!resolvedPayment) {
+    return json({ error: 'Cara bayar penjualan tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+  }
   const sourceOrderId = text(body.value?.sourceOrderId, 160) || null;
   const now = isoNow();
   const saleId = `sale_${crypto.randomUUID()}`;
-  const channel = paymentMethod(body.value?.paymentMethod);
+  const channel = resolvedPayment.code;
   const effectContext = {
     storeId,
     drawerId: ownership.drawer.id,

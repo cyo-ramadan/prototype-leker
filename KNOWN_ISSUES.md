@@ -201,21 +201,22 @@ Implemented POS bridge:
 - sale `item_category_cogs` and sale-side `item_category_inventory` use the snapshotted `sale_items.line_cogs` scaled value directly;
 - missing sale COGS snapshot fails closed with `NEEDS_COST_SNAPSHOT` rather than recomputing from current Product Master cost.
 
-### Open: dynamic cashier payment-method integration
+### Active in the current Cashier/Accounting integration change: dynamic payment methods
 
-The Accounting resolver can resolve any active configured `payment_methods.code` carried by a POS fact, but cashier entry screens still contain legacy payment choices in parts of the current UI.
+Cashier sale, purchase, and operational-expense inputs now load active `payment_methods` from Accounting Settings. The POS fact carries the selected method code and never carries an Account ID or Debit/Credit decision.
 
-Before arbitrary Settings payment methods such as QRIS/EDC/aggregators are exposed in Cashier:
+- only `CASH` is classified as physical drawer cash;
+- every other active method is non-cash for drawer reconciliation;
+- legacy `NON_CASH` remains an explicit compatibility payment component and intentionally has no default account mapping;
+- inactive or unknown method codes fail closed before the POS fact is written.
 
-- sale/purchase/expense inputs must load active payment methods from Settings;
-- drawer classification must treat only `CASH` as physical drawer cash and all other methods as non-cash;
-- legacy `NON_CASH` remains an explicit compatibility payment component and intentionally has no default account mapping.
+### Active in the current Cashier/Accounting integration change: operational component selection
 
-### Open: operational component selection UI
+The cashier UI selects one configured Debit expense component by `journalRuleId` without carrying an Account ID. If exactly one active component exists, it is selected automatically. Multiple Debit components require an explicit selection and fail `NEEDS_COMPONENT_SELECTION` when it is absent.
 
-The bridge supports `expenses.accounting_component_rule_id` so Operasional can select one configured Debit expense component without POS carrying an account ID.
+### Active in the current Cashier/Accounting integration change: approved Cash Flow bridge
 
-Current cashier UI does not yet expose that selector. If there is exactly one active operational Debit fixed-account rule, v1 may resolve it automatically. Multiple Debit components without a selected component fail `NEEDS_COMPONENT_SELECTION`.
+Approved and posted `CASH_FLOW` facts are delivered post-commit through `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`. `IN` resolves `cash_flow_in`, `OUT` resolves `cash_flow_out`, and V1 settles through the configured active `CASH` payment method. Missing configuration never rolls back the operational ACC; delivery remains reconcilable and retryable with the same idempotency identity.
 
 ### Open: Stock Opname rule branch semantics
 
@@ -225,7 +226,7 @@ The default `wh_opname` category contains labeled gain and loss rule rows. A fut
 
 `wh_return` is registered but fail-closed. Supplier return, customer return, and internal return can have different Accounting meaning, so no default rule is invented yet.
 
-## Transaction correction permit + cashier Raport — implementation in current feature branch
+## Transaction correction permit + cashier Raport — active implementation
 
 Governed by:
 
@@ -239,7 +240,7 @@ Governed by:
 - `src/accounting-reconciliation-guard.js`;
 - `src/staff-raport.js`.
 
-Planned active behavior after merge/deploy:
+Active behavior:
 
 - Cashier Hapus for committed SALE/PURCHASE/EXPENSE creates an approval permit with mandatory reason rather than hard-deleting history;
 - Admin Gerai/Owner ACC or Reject from the existing Approval Queue surface;
@@ -270,7 +271,7 @@ The old helper remains only for operational fact kinds that have not yet migrate
 
 ## Portal Staf
 
-Live-photo attendance is active for authenticated cashier/employee sessions. The current feature branch also supplies personal Raport/KPI facts from the shared staff read model. Riwayat Setoran and Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
+Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Setoran and Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
 
 ## Staff session dan duplicate tab
 
@@ -280,4 +281,4 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, dynamic cashier payment methods/components, warehouse-level stock routing, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations.

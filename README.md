@@ -129,6 +129,10 @@ Untuk Penjualan, baseline resolver mendukung settlement Debit, Pendapatan Credit
 
 Kasir tidak memilih gerai sendiri; server mengambil gerai dari akun kasir. Cashier workspace mempunyai Pilih Menu, Draft Menu, queue order customer, Buka Laci, Beli Bahan, Pengeluaran, Pendapatan Lain, Penyesuaian Stok, Produksi, Arus Kas, Arus Barang, Aset, Detail Laci, dan Tutup Laci.
 
+Cara bayar Penjualan, Beli Bahan, dan Pengeluaran dibaca dari payment method aktif di Setting Akuntansi. POS hanya menyimpan kode metode yang dipilih; Account ID dan interpretasi Debit/Kredit tetap dimiliki Accounting. Hanya kode `CASH` yang memengaruhi kas fisik laci, sedangkan semua metode aktif lainnya diklasifikasikan non-cash.
+
+Jika Operasional memiliki beberapa komponen Debit aktif, kasir memilih komponen berdasarkan identitas journal rule. Arus Kas yang sudah ACC + posted dikirim post-commit ke Accounting melalui `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`; kegagalan konfigurasi Accounting tidak membatalkan fakta operasional dan dapat direkonsiliasi secara idempotent.
+
 Satu gerai hanya boleh mempunyai satu laci `OPEN`. Banyak akun kasir berbeda dapat digunakan bergantian, tetapi browser yang sama hanya mempunyai satu tab staff aktif. Hanya kasir pembuka laci aktif yang mempunyai cashier write authority.
 
 ### Penyesuaian Stok
@@ -213,8 +217,9 @@ Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang m
 - `0024_accounting_workspace.sql` — Accounting journal/workspace storage.
 - `0025_accounting_pos_bridge.sql` — POS Accounting delivery/reconciliation state.
 - `0026_accounting_six_decimal_precision.sql` — six-decimal exact Accounting precision.
+- `0027_transaction_void_permits.sql` — approval permit koreksi transaksi, reversal evidence, dan Raport facts.
 
-Remote dedicated prototype D1 is currently migrated through `0026`.
+Remote dedicated prototype D1 is currently migrated through `0027`.
 
 ## Relevant APIs
 

@@ -44,10 +44,24 @@
         return;
       }
       if (!methods().length) throw new Error('Belum ada cara bayar aktif di Setting Akuntansi.');
-      const [supplierPayload, purchasePayload] = await Promise.all([
-        api('/api/cashier/suppliers'),
-        api('/api/cashier/purchases/options')
-      ]);
+      let purchasePayload;
+      try {
+        purchasePayload = await api('/api/cashier/purchases/options');
+      } catch (error) {
+        openDialog({
+          eyebrow: 'Laci · Pembelian',
+          title: 'Beli Bahan',
+          readOnly: true,
+          body: `<div class="cashier-lock-note"><b>Master Barang gagal dimuat</b><br><span class="muted">${escapeHtml(error.message)}${error.code ? ` · ${escapeHtml(error.code)}` : ''}</span></div>`
+        });
+        return;
+      }
+      let supplierPayload = { suppliers: [] };
+      try {
+        supplierPayload = await api('/api/cashier/suppliers');
+      } catch (error) {
+        toast(`Supplier gagal dimuat (${error.code || error.status || 'error'}). Pembelian dilanjutkan tanpa supplier.`);
+      }
       const suppliers = supplierPayload.suppliers || [];
       const products = purchasePayload.products || [];
       if (!products.length) {

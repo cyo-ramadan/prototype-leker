@@ -122,7 +122,14 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
   const cashier = auth.cashier;
-  if (request.method === 'GET' && pathname === '/api/cashier/purchases/options') return json({ products: await listPurchaseOptions(env.DB, cashier.store.id) });
+  if (request.method === 'GET' && pathname === '/api/cashier/purchases/options') {
+    try {
+      return json({ products: await listPurchaseOptions(env.DB, cashier.store.id) });
+    } catch (error) {
+      console.error('cashier purchase options failed', { storeId: cashier.store.id, error });
+      return json({ error: 'Master Barang pembelian gagal dimuat.', code: 'PURCHASE_OPTIONS_UNAVAILABLE' }, 500);
+    }
+  }
   if (request.method !== 'POST' || pathname !== '/api/cashier/purchases') return null;
   const ownership = await requireDrawerOwner(env.DB, cashier);
   if (!ownership.ok) return ownership.response;

@@ -2,7 +2,7 @@
   const byId = id => document.getElementById(id);
   function methods() { return Array.isArray(state.paymentMethods) ? state.paymentMethods : []; }
   function components() { return Array.isArray(state.operationalAccountingComponents) ? state.operationalAccountingComponents : []; }
-  function defaultCode() { const list = methods(); return list.find(item => item.code === 'CASH')?.code || list[0]?.code || ''; }
+  function defaultCode() { const list = methods(); return list.find(item => item.isDefault)?.code || list.find(item => item.code === 'CASH')?.code || list[0]?.code || ''; }
   function methodOptions(selectedCode = '') {
     const selected = selectedCode || defaultCode();
     return methods().map(item => `<option value="${escapeHtml(item.code)}" ${item.code === selected ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('');

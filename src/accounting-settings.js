@@ -63,7 +63,7 @@ async function listAccounts(db, storeId) {
 
 async function listPaymentMethods(db, storeId) {
   const rows = await db.prepare(`
-    SELECT p.id, p.code, p.name, p.account_id, p.is_active,
+    SELECT p.id, p.code, p.name, p.account_id, p.is_active, p.is_default,
            a.code AS account_code, a.name AS account_name, a.type AS account_type
     FROM payment_methods p
     LEFT JOIN chart_of_accounts a ON a.id = p.account_id AND a.store_id = p.store_id
@@ -76,7 +76,8 @@ async function listPaymentMethods(db, storeId) {
     name: row.name,
     accountId: row.account_id || null,
     account: row.account_id ? { id: row.account_id, code: row.account_code || '', name: row.account_name || '', type: row.account_type || '' } : null,
-    isActive: Boolean(row.is_active)
+    isActive: Boolean(row.is_active),
+    isDefault: Boolean(row.is_default)
   }));
 }
 
@@ -256,17 +257,23 @@ async function savePaymentMethod(db, store, body, id = null) {
   const name = text(body?.name ?? current?.name, 80);
   const accountId = body?.accountId === undefined ? (current?.account_id || null) : (text(body.accountId, 180) || null);
   const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
+  const isDefault = body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault);
   if (!code || !name) return json({ error: 'Kode dan nama metode pembayaran wajib valid.' }, 400);
   if (accountId && !await activeAccount(db, store.id, accountId)) return json({ error: 'Akun metode pembayaran harus akun aktif di gerai ini.' }, 400);
+  if (isDefault && !isActive) return json({ error: 'Cara bayar default harus aktif.' }, 400);
+  if (current?.is_default && !isDefault) return json({ error: 'Pilih cara bayar lain sebagai default sebelum melepas default ini.' }, 400);
+  if (isDefault) {
+    await db.prepare(`UPDATE payment_methods SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND id <> ?`).bind(store.id, id || '').run();
+  }
   if (current) {
-    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
-      .bind(name, accountId, isActive, id, store.id).run();
+    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, is_active = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
+      .bind(name, accountId, isActive, isDefault, id, store.id).run();
     return json({ ok: true });
   }
   const nextId = `payment_${store.id}_${crypto.randomUUID()}`;
   try {
-    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, is_active) VALUES (?, ?, ?, ?, ?, ?)`)
-      .bind(nextId, store.id, code, name, accountId, isActive).run();
+    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, is_active, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(nextId, store.id, code, name, accountId, isActive, isDefault).run();
   } catch (error) {
     if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode/nama metode pembayaran sudah dipakai.' }, 409);
     throw error;

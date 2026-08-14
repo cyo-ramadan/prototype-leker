@@ -112,7 +112,7 @@
 
   function renderPayment(host) {
     const rows = state.accounting.paymentMethods || [];
-    host.innerHTML = `<div class="acc-page"><div class="acc-head"><h2>Metode Pembayaran</h2><p>Setiap cara bayar di transaksi diarahkan ke akun yang dipilih di sini. Contoh: Uang Laci → Kas, QRIS → Bank/Piutang Settlement.</p></div>
+    host.innerHTML = `<div class="acc-page"><div class="acc-head"><h2>Metode Pembayaran</h2><p>Setiap cara bayar di transaksi diarahkan ke akun yang dipilih di sini. Satu metode aktif wajib menjadi default ketika kasir belum memilih. Contoh: Uang Laci → Kas, QRIS → Bank/Piutang Settlement.</p></div>
       <div class="acc-card"><div id="accPaymentRows">${rows.map(paymentRow).join('')}</div><button id="accAddPayment" class="acc-add" type="button">＋ Tambah Metode Pembayaran</button></div></div>`;
     bindPaymentRows(host);
   }
@@ -122,6 +122,7 @@
       <input class="acc-input" data-payment-name value="${esc(item.name || '')}" placeholder="Nama metode" />
       <select class="acc-select" data-payment-account>${accountOptions('', item.accountId || '', true)}</select>
       <label class="acc-muted"><input type="checkbox" data-payment-active ${item.isActive !== false ? 'checked' : ''}/> Aktif</label>
+      <label class="acc-muted"><input type="checkbox" data-payment-default ${item.isDefault ? 'checked' : ''}/> Default</label>
       <button class="acc-mini primary" data-save-payment type="button">Simpan</button>
     </div>`;
   }
@@ -134,7 +135,7 @@
       try {
         await api(draft ? '/api/admin/settings/accounting/payment-methods' : `/api/admin/settings/accounting/payment-methods/${encodeURIComponent(id)}`, {
           method: draft ? 'POST' : 'PATCH',
-          body: JSON.stringify({ name: row.querySelector('[data-payment-name]').value, accountId: row.querySelector('[data-payment-account]').value || null, isActive: row.querySelector('[data-payment-active]').checked })
+          body: JSON.stringify({ name: row.querySelector('[data-payment-name]').value, accountId: row.querySelector('[data-payment-account]').value || null, isActive: row.querySelector('[data-payment-active]').checked, isDefault: row.querySelector('[data-payment-default]').checked })
         });
         await load(true); toast('Metode pembayaran tersimpan');
       } catch (error) { toast(error.message); }

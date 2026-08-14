@@ -1,3 +1,5 @@
+import { resolveCashFlowCounterpartOption } from './accounting-cash-flow-bridge.js';
+
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
 function positiveInteger(value) {
@@ -54,7 +56,18 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
     const amount = positiveInteger(payload.amount);
     const description = text(payload.description, 220);
     if (!['IN', 'OUT'].includes(direction) || !amount || !description) return { ok: false, error: 'Arus Kas membutuhkan arah, nominal positif, dan deskripsi.' };
-    return { ok: true, payload: { direction, amount, description, note: text(payload.note, 500) } };
+    const counterpart = await resolveCashFlowCounterpartOption(db, storeId, direction, payload.accountingCounterpartRuleId);
+    if (!counterpart) return { ok: false, error: 'Pilih akun lawan Arus Kas yang aktif dan sesuai arah dari Setting Akuntansi.' };
+    return {
+      ok: true,
+      payload: {
+        direction, amount, description, note: text(payload.note, 500),
+        accountingCounterpartRuleId: counterpart.journalRuleId,
+        accountingCounterpartLabel: counterpart.label,
+        accountingCounterpartAccountCode: counterpart.accountCode,
+        accountingCounterpartAccountName: counterpart.accountName
+      }
+    };
   }
 
   if (requestType === 'GOODS_FLOW') {

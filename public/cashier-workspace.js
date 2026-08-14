@@ -7,6 +7,7 @@
     state.canWrite = Boolean(payload.canWrite);
     state.paymentMethods = payload.paymentMethods || [];
     state.operationalAccountingComponents = payload.operationalAccountingComponents || [];
+    state.cashFlowCounterparts = payload.cashFlowCounterparts || [];
     if (includeMenu) {
       state.products = payload.products || [];
       renderMenu();

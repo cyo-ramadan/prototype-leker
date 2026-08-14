@@ -13,7 +13,7 @@
   }
 
   function purchaseProductOptions(selectedId = '') {
-    return purchaseState.products.map(product => `<option value="${product.productId}" ${String(product.productId) === String(selectedId) ? 'selected' : ''}>${esc(product.productName)} · ${esc(product.unitSymbol || '-')}</option>`).join('');
+    return `<option value="" ${selectedId ? '' : 'selected'}>None</option>` + purchaseState.products.map(product => `<option value="${product.productId}" ${String(product.productId) === String(selectedId) ? 'selected' : ''}>${esc(product.productName)} · ${esc(product.unitSymbol || '-')}</option>`).join('');
   }
 
   function updatePurchaseRow(row) {
@@ -38,9 +38,9 @@
 
   function addPurchaseRow(productId = '') {
     const target = el('purchaseItemsRows');
-    if (!target || !purchaseState.products.length) return;
+    if (!target) return;
     const id = ++purchaseState.rowSeq;
-    const selected = productId || purchaseState.products[0].productId;
+    const selected = productId || '';
     const product = purchaseState.products.find(item => String(item.productId) === String(selected));
     const suggested = Math.max(0, Math.round(Number(product?.lastPurchasePrice || 0)));
     target.insertAdjacentHTML('beforeend', `
@@ -84,7 +84,7 @@
         return;
       }
       el('addPurchaseItemRow').disabled = false;
-      addPurchaseRow();
+      for (let index = 0; index < 5; index += 1) addPurchaseRow();
     } catch (error) {
       editor.dataset.loaded = '';
       el('purchaseItemsRows').innerHTML = `<div class="muted">${esc(error.message)}</div>`;
@@ -117,6 +117,12 @@
         if (amountField) amountField.style.display = 'none';
         if (el('dialogPurchaseDescription')) el('dialogPurchaseDescription').required = false;
         if (el('dialogPurchaseAmount')) el('dialogPurchaseAmount').required = false;
+        [
+          el('dialogPurchaseProduct')?.closest('.field'),
+          el('dialogPurchaseQty')?.closest('.field'),
+          el('dialogPurchaseLineTotal')?.closest('.field'),
+          el('dialogPurchaseAddLine'), el('dialogPurchaseLines'), el('dialogPurchaseGrandTotal')
+        ].filter(Boolean).forEach(node => { node.style.display = 'none'; });
         const noteField = el('dialogPurchaseNote')?.closest('.field');
         const markup = `
           <div id="purchaseItemsEditor" class="field">
@@ -129,7 +135,7 @@
         else body.insertAdjacentHTML('beforeend', markup);
         el('addPurchaseItemRow')?.addEventListener('click', () => addPurchaseRow());
       }
-      if (!el('dialogPaymentMethod')) {
+      if (!el('dialogPurchasePayment') && !el('dialogPaymentMethod')) {
         body.insertAdjacentHTML('beforeend', `
           <div class="field"><label>Cara bayar</label><select id="dialogPaymentMethod" class="text-input">
             <option value="CASH">Cash / Kas</option>
@@ -164,8 +170,8 @@
     try { body = init.body ? JSON.parse(init.body) : {}; } catch { return originalFetch(input, init); }
     if (url.pathname === '/api/cashier/sales') body.paymentMethod = el('salePaymentMethod')?.value || 'CASH';
     if (url.pathname === '/api/cashier/purchases') {
-      body.paymentMethod = el('dialogPaymentMethod')?.value || 'CASH';
-      body.items = purchaseItemsPayload();
+      body.paymentMethod = el('dialogPurchasePayment')?.value || el('dialogPaymentMethod')?.value || 'CASH';
+      body.items = purchaseItemsPayload().filter(item => item.productId > 0);
       body.description = '';
       body.totalAmount = body.items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
     }

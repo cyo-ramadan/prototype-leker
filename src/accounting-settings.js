@@ -61,9 +61,16 @@ async function listAccounts(db, storeId) {
   return (rows.results ?? []).map(accountDto);
 }
 
+async function paymentMethodDefaultsAvailable(db) {
+  const schema = await db.prepare(`PRAGMA table_info(payment_methods)`).bind().all();
+  return (schema.results ?? []).some(column => column.name === 'is_default');
+}
+
 async function listPaymentMethods(db, storeId) {
+  const hasConfiguredDefault = await paymentMethodDefaultsAvailable(db);
+  const defaultSelect = hasConfiguredDefault ? 'p.is_default' : `CASE WHEN p.code = 'CASH' THEN 1 ELSE 0 END AS is_default`;
   const rows = await db.prepare(`
-    SELECT p.id, p.code, p.name, p.account_id, p.is_active, p.is_default,
+    SELECT p.id, p.code, p.name, p.account_id, p.is_active, ${defaultSelect},
            a.code AS account_code, a.name AS account_name, a.type AS account_type
     FROM payment_methods p
     LEFT JOIN chart_of_accounts a ON a.id = p.account_id AND a.store_id = p.store_id

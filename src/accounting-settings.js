@@ -123,7 +123,7 @@ async function listTransactionCategories(db, storeId) {
     `).bind(storeId),
     db.prepare(`
       SELECT r.id, r.transaction_category_id, r.label, r.side, r.source_type,
-             r.fixed_account_id, r.is_active, r.sort_order,
+             r.fixed_account_id, r.is_active, r.is_default, r.sort_order,
              a.code AS fixed_account_code, a.name AS fixed_account_name
       FROM journal_rules r
       LEFT JOIN chart_of_accounts a ON a.id = r.fixed_account_id AND a.store_id = r.store_id
@@ -142,6 +142,7 @@ async function listTransactionCategories(db, storeId) {
       fixedAccountId: row.fixed_account_id || null,
       fixedAccount: row.fixed_account_id ? { code: row.fixed_account_code || '', name: row.fixed_account_name || '' } : null,
       isActive: Boolean(row.is_active),
+      isDefault: Boolean(row.is_default),
       sortOrder: Number(row.sort_order || 0)
     });
   }
@@ -353,23 +354,29 @@ async function saveJournalRule(db, store, body, id = null) {
     ? (text(body?.fixedAccountId ?? current?.fixed_account_id, 180) || null)
     : null;
   const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
+  const isDefault = sourceType === 'fixed_account'
+    ? (body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault))
+    : 0;
   const sortOrder = Number.isInteger(Number(body?.sortOrder ?? current?.sort_order ?? 0)) ? Number(body?.sortOrder ?? current?.sort_order ?? 0) : 0;
   if (!label || !JOURNAL_SIDES.includes(side) || !JOURNAL_SOURCE_TYPES.includes(sourceType)) return json({ error: 'Label, sisi, atau source type journal rule tidak valid.' }, 400);
   if (sourceType === 'fixed_account' && !await activeAccount(db, store.id, fixedAccountId)) return json({ error: 'Fixed account wajib akun aktif di gerai ini.' }, 400);
+  if (isDefault) {
+    await db.prepare(`UPDATE journal_rules SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND transaction_category_id = ? AND source_type = 'fixed_account' AND id <> ?`).bind(store.id, transactionCategoryId, id || '').run();
+  }
   if (current) {
     await db.prepare(`
       UPDATE journal_rules
-      SET transaction_category_id = ?, label = ?, side = ?, source_type = ?, fixed_account_id = ?, is_active = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
+      SET transaction_category_id = ?, label = ?, side = ?, source_type = ?, fixed_account_id = ?, is_active = ?, is_default = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
-    `).bind(transactionCategoryId, label, side, sourceType, fixedAccountId, isActive, sortOrder, id, store.id).run();
+    `).bind(transactionCategoryId, label, side, sourceType, fixedAccountId, isActive, isDefault, sortOrder, id, store.id).run();
     return json({ ok: true });
   }
   const nextId = `jrule_${store.id}_${crypto.randomUUID()}`;
   await db.prepare(`
     INSERT INTO journal_rules (
-      id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, sort_order
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(nextId, store.id, transactionCategoryId, label, side, sourceType, fixedAccountId, isActive, sortOrder).run();
+      id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, is_default, sort_order
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(nextId, store.id, transactionCategoryId, label, side, sourceType, fixedAccountId, isActive, isDefault, sortOrder).run();
   return json({ ok: true, id: nextId }, 201);
 }
 

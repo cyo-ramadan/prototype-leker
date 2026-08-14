@@ -9,6 +9,7 @@ const sales = readFileSync(new URL('../src/cashier-sales-tracking.js', import.me
 const purchases = readFileSync(new URL('../src/cashier-purchase.js', import.meta.url), 'utf8');
 const expenses = readFileSync(new URL('../src/cashier-operational-expense.js', import.meta.url), 'utf8');
 const drawerReport = readFileSync(new URL('../src/drawer-report.js', import.meta.url), 'utf8');
+const purchaseDefaults = readFileSync(new URL('../migrations/0029_purchase_accounting_defaults.sql', import.meta.url), 'utf8');
 
 test('cashier workspace exposes configured payment methods and operational components', () => {
   assert.match(workspace, /listPosPaymentMethods/);
@@ -43,7 +44,17 @@ test('cashier UI consumes the configured registry for sale purchase and operatio
   assert.match(inputUi, /dialogPurchasePayment/);
   assert.match(inputUi, /dialogOperationalPayment/);
   assert.match(inputUi, /state\.paymentMethods/);
+  assert.match(inputUi, /item\.isDefault/);
   assert.match(inputUi, /Hanya CASH/);
+});
+
+test('purchase Accounting defaults are canonical and remain editable by admin', () => {
+  assert.match(purchaseDefaults, /Persediaan sesuai Jenis Barang/);
+  assert.match(purchaseDefaults, /item_category_inventory/);
+  assert.match(purchaseDefaults, /payment_method/);
+  assert.match(purchaseDefaults, /is_default/);
+  assert.match(purchaseDefaults, /Kompensasi Piutang \(review\)/);
+  assert.match(purchaseDefaults, /coa_' \|\| k\.store_id \|\| '_1301/);
 });
 
 test('drawer classification treats only CASH as physical cash', () => {

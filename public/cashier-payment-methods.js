@@ -96,7 +96,17 @@
           <p class="muted">Cara bayar berasal dari Setting Akuntansi. Hanya CASH memengaruhi kas fisik laci.</p>`,
         submitText: 'SIMPAN PEMBELIAN',
         onSubmit: async () => {
-          if (!lines.length) throw new Error('Tambahkan minimal satu barang pembelian.');
+          const editorItems = [...document.querySelectorAll('[data-purchase-row]')].map(row => ({
+            productId: Number(row.querySelector('[data-purchase-product]')?.value),
+            quantity: Number(row.querySelector('[data-purchase-qty]')?.value),
+            lineTotal: Number(row.querySelector('[data-purchase-line-total]')?.value)
+          })).filter(item => item.productId > 0);
+          const submittedItems = editorItems.length
+            ? editorItems
+            : lines.map(line => ({ productId: line.productId, quantity: line.quantity, lineTotal: line.lineTotal }));
+          if (!submittedItems.length) throw new Error('Pilih minimal satu barang pembelian.');
+          if (submittedItems.some(item => !Number.isInteger(item.quantity) || item.quantity <= 0)) throw new Error('Qty barang terpilih wajib bilangan bulat lebih dari 0.');
+          if (submittedItems.some(item => !Number.isSafeInteger(item.lineTotal) || item.lineTotal <= 0)) throw new Error('Total baris barang terpilih wajib lebih dari 0.');
           const result = await api('/api/cashier/purchases', {
             method: 'POST',
             body: JSON.stringify({
@@ -104,10 +114,10 @@
               paymentMethod: byId('dialogPurchasePayment').value,
               description: byId('dialogPurchaseDescription').value,
               note: byId('dialogPurchaseNote').value,
-              items: lines.map(line => ({ productId: line.productId, quantity: line.quantity, lineTotal: line.lineTotal }))
+              items: submittedItems
             })
           });
-          toast(`Pembelian tersimpan · ${lines.length} barang · ${rupiah(result.totalAmount)}`);
+          toast(`Pembelian tersimpan · ${submittedItems.length} barang · ${rupiah(result.totalAmount)}`);
           return true;
         }
       });

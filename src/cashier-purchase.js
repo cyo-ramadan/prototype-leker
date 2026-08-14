@@ -25,23 +25,41 @@ function scaledUnitCost(lineTotal, quantity) {
 function costFromScaled(value) { return Number(value || 0) / COST_SCALE; }
 
 async function listPurchaseOptions(db, storeId) {
-  const rows = await db.prepare(`
-    SELECT p.id, p.name, p.base_unit_id, p.average_cost, p.last_purchase_price,
-           p.product_kind_id, p.stock_tracking_enabled,
-           u.symbol AS unit_symbol,
-           k.code AS product_kind_code, k.name AS product_kind_name,
-           COALESCE(t.can_purchase, 1) AS can_purchase,
-           COALESCE(t.track_stock, 1) AS type_track_stock
-    FROM products p
-    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
-    LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
-    JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
-    WHERE p.store_id = ? AND p.is_active = 1
-      AND p.stock_tracking_enabled = 1
-      AND COALESCE(t.can_purchase, 1) = 1
-      AND COALESCE(t.track_stock, 1) = 1
-    ORDER BY p.name COLLATE NOCASE, p.id
-  `).bind(storeId).all();
+  let rows;
+  try {
+    rows = await db.prepare(`
+      SELECT p.id, p.name, p.base_unit_id, p.average_cost, p.last_purchase_price,
+             p.product_kind_id, p.stock_tracking_enabled,
+             u.symbol AS unit_symbol,
+             k.code AS product_kind_code, k.name AS product_kind_name,
+             COALESCE(t.can_purchase, 1) AS can_purchase,
+             COALESCE(t.track_stock, 1) AS type_track_stock
+      FROM products p
+      LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+      LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
+      JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+      WHERE p.store_id = ? AND p.is_active = 1
+        AND p.stock_tracking_enabled = 1
+        AND COALESCE(t.can_purchase, 1) = 1
+        AND COALESCE(t.track_stock, 1) = 1
+      ORDER BY p.name COLLATE NOCASE, p.id
+    `).bind(storeId).all();
+  } catch (error) {
+    console.error('canonical purchase option query failed; using Product Master compatibility read', { storeId, error });
+    rows = await db.prepare(`
+      SELECT p.id, p.name, p.base_unit_id, p.average_cost, p.last_purchase_price,
+             p.product_kind_id, 1 AS stock_tracking_enabled,
+             u.symbol AS unit_symbol,
+             COALESCE(k.code, '') AS product_kind_code,
+             COALESCE(k.name, '') AS product_kind_name,
+             1 AS can_purchase, 1 AS type_track_stock
+      FROM products p
+      JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+      LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
+      WHERE p.store_id = ? AND p.is_active = 1
+      ORDER BY p.name COLLATE NOCASE, p.id
+    `).bind(storeId).all();
+  }
   return (rows.results ?? []).map(row => ({
     productId: Number(row.id), productName: row.name, unitId: row.base_unit_id,
     unitSymbol: row.unit_symbol || '', productKindId: row.product_kind_id || null,

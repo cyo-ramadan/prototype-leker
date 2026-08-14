@@ -8,6 +8,8 @@ import {
 } from '../src/accounting-ledger.js';
 import {
   ACCOUNTING_POS_BRIDGE_CONTRACT,
+  listPosPaymentMethods,
+  resolvePosPaymentMethod,
   resolvePosFactToJournalCommand
 } from '../src/accounting-pos-bridge.js';
 
@@ -76,11 +78,10 @@ function setupMappings(sqlite) {
   assert.ok(kas && inventory && revenue && cogs && expense);
 
   sqlite.prepare(`INSERT INTO product_kinds (id, store_id, code, name, is_active) VALUES (?, ?, 'PENTOL', 'Pentol', 1)`).run('kind_pentol', store.id);
-  sqlite.prepare(`
-    INSERT INTO item_categories (
-      id, store_id, product_kind_id, name, inventory_account_id, cogs_account_id, revenue_account_id, is_active
-    ) VALUES ('itemcat_pentol', ?, 'kind_pentol', 'Pentol', ?, ?, ?, 1)
-  `).run(store.id, inventory, cogs, revenue);
+  const seededMapping = sqlite.prepare(`SELECT inventory_account_id, cogs_account_id, revenue_account_id FROM item_categories WHERE store_id = ? AND product_kind_id = 'kind_pentol'`).get(store.id);
+  assert.equal(seededMapping?.inventory_account_id, inventory);
+  assert.equal(seededMapping?.cogs_account_id, cogs);
+  assert.equal(seededMapping?.revenue_account_id, revenue);
 
   const category = code => sqlite.prepare(`SELECT id FROM transaction_categories WHERE store_id = ? AND code = ?`).get(store.id, code)?.id;
   const saleCategory = category('sale');
@@ -90,13 +91,26 @@ function setupMappings(sqlite) {
 
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('sale_dr_payment', ?, ?, 'Pembayaran', 'DEBIT', 'payment_method', 10)`).run(store.id, saleCategory);
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('sale_cr_revenue', ?, ?, 'Penjualan', 'CREDIT', 'item_category_revenue', 20)`).run(store.id, saleCategory);
-  sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('purchase_dr_inventory', ?, ?, 'Persediaan', 'DEBIT', 'item_category_inventory', 10)`).run(store.id, purchaseCategory);
-  sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('purchase_cr_payment', ?, ?, 'Pembayaran', 'CREDIT', 'payment_method', 20)`).run(store.id, purchaseCategory);
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, sort_order) VALUES ('operational_dr_expense', ?, ?, 'Beban Operasional', 'DEBIT', 'fixed_account', ?, 10)`).run(store.id, operationalCategory, expense);
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('operational_cr_payment', ?, ?, 'Pembayaran', 'CREDIT', 'payment_method', 20)`).run(store.id, operationalCategory);
 
   return { store: { id: store.id, code: store.code, storeName: store.store_name }, saleCategory, kas, inventory, revenue, cogs, expense };
 }
+
+test('POS payment default comes from Accounting Settings and can be changed by admin configuration', async () => {
+  const sqlite = freshDatabase();
+  const db = d1(sqlite);
+  try {
+    const store = sqlite.prepare(`SELECT id FROM stores ORDER BY id LIMIT 1`).get();
+    let methods = await listPosPaymentMethods(db, store.id);
+    assert.equal(methods.find(method => method.isDefault)?.code, 'CASH');
+    assert.equal((await resolvePosPaymentMethod(db, store.id, '')).code, 'CASH');
+    sqlite.prepare(`UPDATE payment_methods SET is_default = CASE WHEN code = 'PAYABLE' THEN 1 ELSE 0 END WHERE store_id = ?`).run(store.id);
+    methods = await listPosPaymentMethods(db, store.id);
+    assert.equal(methods.find(method => method.isDefault)?.code, 'PAYABLE');
+    assert.equal((await resolvePosPaymentMethod(db, store.id, '')).code, 'PAYABLE');
+  } finally { sqlite.close(); }
+});
 
 test('POS bridge resolves sale purchase and operational facts without POS-owned account decisions', async () => {
   const sqlite = freshDatabase();
@@ -136,6 +150,13 @@ test('POS bridge resolves sale purchase and operational facts without POS-owned 
     assert.deepEqual(purchase.command.journalLines.map(line => [line.side, line.accountId, line.amountScaled]), [
       ['DEBIT', setup.inventory, 22000 * ACCOUNTING_AMOUNT_SCALE],
       ['CREDIT', setup.kas, 22000 * ACCOUNTING_AMOUNT_SCALE]
+    ]);
+    const postedPurchase = await postAccountingJournal(db, setup.store, purchase.command);
+    assert.equal(postedPurchase.ok, true);
+    const purchaseJournalLines = sqlite.prepare(`SELECT l.side, a.code AS account_code, l.amount_scaled FROM accounting_journal_lines l JOIN chart_of_accounts a ON a.id = l.account_id WHERE l.journal_id = ? ORDER BY l.line_number`).all(postedPurchase.journal.journalId);
+    assert.deepEqual(purchaseJournalLines.map(line => ({ ...line })), [
+      { side: 'DEBIT', account_code: '1301', amount_scaled: 22000 * ACCOUNTING_AMOUNT_SCALE },
+      { side: 'CREDIT', account_code: '1101', amount_scaled: 22000 * ACCOUNTING_AMOUNT_SCALE }
     ]);
 
     const expense = await resolvePosFactToJournalCommand(db, setup.store, {

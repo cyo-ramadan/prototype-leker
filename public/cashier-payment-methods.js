@@ -201,9 +201,21 @@
     };
   }
 
+  function bindCanonicalPurchaseClick() {
+    if (window.__cashierPurchaseClickBound) return;
+    window.__cashierPurchaseClickBound = true;
+    document.addEventListener('click', event => {
+      const button = event.target.closest?.('#purchaseBtn');
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      purchaseDialog();
+    }, true);
+  }
+
   function mount() {
     renderSaleMethod();
-    replaceButton('purchaseBtn', 'configuredPurchaseBound', purchaseDialog);
+    bindCanonicalPurchaseClick();
     replaceButton('expenseBtn', 'accountingInputsBound', operationalDialog);
   }
 

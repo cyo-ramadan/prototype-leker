@@ -100,6 +100,15 @@
     return `<span class="acc-chip ${tx.completeness === 'COMPLETE' ? 'ok' : 'warn'}">${tx.completeness === 'COMPLETE' ? '✓ Lengkap' : '▲ Belum lengkap'}</span>`;
   }
 
+  const isCashPreset = code => code === 'cash_flow_in' || code === 'cash_flow_out';
+
+  function configuredCounterparts(code) {
+    const tx = (accounting?.transactionCategories || []).find(item => item.code === code);
+    const rules = (tx?.rules || []).filter(rule => rule.isActive && rule.sourceType === 'fixed_account');
+    if (!rules.length) return '<span class="acc-muted">Belum ada akun lawan.</span>';
+    return rules.map(rule => `<span class="acc-chip ${rule.isDefault ? 'ok' : ''}">${esc(rule.fixedAccount?.code)} ${esc(rule.fixedAccount?.name)}${rule.isDefault ? ' · DEFAULT' : ''}${rule.isDefault ? '' : ` <button type="button" class="acc-mini" data-default-flow-rule="${esc(rule.id)}" data-default-flow-code="${esc(code)}">Jadikan default</button>`}</span>`).join(' ');
+  }
+
   function warehouseReference() {
     const rows = (warehouse?.warehouses || []).filter(item => item.isActive);
     const chips = rows.length
@@ -119,13 +128,15 @@
       <div class="acc-head"><h2>Template Arus & Counterpart</h2><p>Shortcut ini memakai registry Setting Akuntansi yang sama: <b>transaction_categories</b> + <b>journal_rules</b>. Tidak ada mapping engine baru. Pilih akun lawan lalu apply; setelah itu rule tetap bisa diedit dari Aturan Transaksi.</p></div>
       <div class="acc-card" style="padding:14px">
         <div class="acc-field"><label>Akun lawan</label><select id="accFlowCounterpart" class="acc-select">${accountOptions()}</select></div>
+        <label class="acc-muted" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="accFlowMakeDefault" type="checkbox" checked /> Jadikan default untuk tombol Arus Kas</label>
         <div id="accFlowImpact" class="acc-chip" style="margin-top:10px">Pilih akun lawan untuk melihat dampak.</div>
         <div class="acc-item-grid" style="margin-top:14px">${Object.entries(FLOW_PRESETS).map(([code, preset]) => `
           <div class="acc-card acc-item-card" style="margin:0">
             <div class="acc-item-top"><div><b>${esc(preset.name)}</b><div class="acc-muted acc-code">${esc(code)}</div></div>${presetStatus(code)}</div>
             <p class="acc-muted" style="min-height:46px;line-height:1.45">${esc(preset.description)}</p>
             <div class="acc-preview">${preset.rules.map(rule => `<div class="acc-preview-row ${rule.side === 'CREDIT' ? 'credit' : ''}"><b>${rule.side}</b><span>${esc(rule.label)} ← ${esc(rule.sourceType === 'fixed_account' ? 'akun lawan pilihan' : rule.sourceType)}</span></div>`).join('')}</div>
-            <button class="acc-mini primary" style="margin-top:10px;width:100%" type="button" data-apply-flow-preset="${esc(code)}">Apply / Update Counterpart</button>
+            ${isCashPreset(code) ? `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px">${configuredCounterparts(code)}</div>` : ''}
+            <button class="acc-mini primary" style="margin-top:10px;width:100%" type="button" data-apply-flow-preset="${esc(code)}">${isCashPreset(code) ? 'Tambah Pilihan Akun Lawan' : 'Apply / Update Counterpart'}</button>
           </div>`).join('')}</div>
         <div class="acc-card" style="padding:13px;margin-top:14px"><b>Rule baca cepat</b><div class="acc-muted" style="line-height:1.6;margin-top:5px">Kas masuk: Debit Kas, Credit lawan. Kas keluar: Debit lawan, Credit Kas. Barang masuk: Debit Persediaan, Credit lawan. Barang keluar: Debit lawan, Credit Persediaan. Jika akun lawan bertipe Revenue/Expense, transaksi memang akan masuk Rugi Laba; jika ASSET/LIABILITY/EQUITY, pairing bersifat balance-sheet / non-P&L.</div></div>
       </div>
@@ -144,6 +155,19 @@
     counterpart?.addEventListener('change', syncImpact);
     syncImpact();
     host.querySelectorAll('[data-apply-flow-preset]').forEach(button => button.addEventListener('click', () => applyPreset(button.dataset.applyFlowPreset)));
+    host.querySelectorAll('[data-default-flow-rule]').forEach(button => button.addEventListener('click', () => setDefaultCounterpart(button.dataset.defaultFlowCode, button.dataset.defaultFlowRule)));
+  }
+
+  async function setDefaultCounterpart(code, ruleId) {
+    const tx = (accounting?.transactionCategories || []).find(item => item.code === code);
+    const rule = (tx?.rules || []).find(item => item.id === ruleId && item.isActive && item.sourceType === 'fixed_account');
+    if (!tx || !rule) return notify('Pilihan akun lawan tidak ditemukan.');
+    try {
+      await api(`/api/admin/settings/accounting/journal-rules/${encodeURIComponent(rule.id)}`, {
+        method: 'PATCH', body: JSON.stringify({ transactionCategoryId: tx.id, isDefault: true })
+      });
+      await loadData(); render(); notify(`${rule.fixedAccount?.code} ${rule.fixedAccount?.name} sekarang menjadi default ${tx.name}.`);
+    } catch (error) { notify(error.message); }
   }
 
   async function ensureCategory(code, preset) {
@@ -172,6 +196,11 @@
   }
 
   function matchesManagedShape(activeRules, preset) {
+    if (isCashPreset(Object.keys(FLOW_PRESETS).find(code => FLOW_PRESETS[code] === preset))) {
+      return activeRules.filter(rule => rule.sourceType === 'payment_method').length === 1
+        && activeRules.filter(rule => rule.sourceType === 'fixed_account').length >= 1
+        && activeRules.every(rule => ['payment_method', 'fixed_account'].includes(rule.sourceType));
+    }
     if (activeRules.length !== 2) return false;
     return preset.rules.every(expected => activeRules.some(rule =>
       rule.side === expected.side
@@ -195,7 +224,21 @@
         throw new Error('Kategori ini sudah dikustomisasi di Aturan Transaksi. Karen tidak overwrite rule custom; edit manual dari sana.');
       }
 
-      if (!activeRules.length) {
+      if (isCashPreset(code)) {
+        const paymentExpected = preset.rules.find(rule => rule.sourceType === 'payment_method');
+        let paymentRule = activeRules.find(rule => rule.sourceType === 'payment_method');
+        if (!paymentRule) {
+          await api('/api/admin/settings/accounting/journal-rules', { method: 'POST', body: JSON.stringify({ transactionCategoryId: current?.id || tx.id, ...paymentExpected, isActive: true }) });
+        }
+        const fixedExpected = preset.rules.find(rule => rule.sourceType === 'fixed_account');
+        const existing = activeRules.find(rule => rule.sourceType === 'fixed_account' && rule.fixedAccountId === counterpartId);
+        const makeDefault = Boolean(el('accFlowMakeDefault')?.checked) || !activeRules.some(rule => rule.sourceType === 'fixed_account' && rule.isDefault);
+        if (existing) {
+          await api(`/api/admin/settings/accounting/journal-rules/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ transactionCategoryId: current.id, label: counterpart.name, isDefault: makeDefault, isActive: true }) });
+        } else {
+          await api('/api/admin/settings/accounting/journal-rules', { method: 'POST', body: JSON.stringify({ transactionCategoryId: current?.id || tx.id, label: counterpart.name, side: fixedExpected.side, sourceType: 'fixed_account', fixedAccountId: counterpartId, isDefault: makeDefault, sortOrder: fixedExpected.sortOrder + activeRules.filter(rule => rule.sourceType === 'fixed_account').length, isActive: true }) });
+        }
+      } else if (!activeRules.length) {
         for (const rule of preset.rules) {
           await api('/api/admin/settings/accounting/journal-rules', {
             method: 'POST',

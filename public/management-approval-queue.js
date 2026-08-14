@@ -36,7 +36,8 @@
   function payloadSummary(request) {
     const payload = request.payload || {};
     if (request.requestType === 'CASH_FLOW') {
-      return `${payload.direction === 'OUT' ? 'Kas Keluar' : 'Kas Masuk'} · ${money(payload.amount)} · ${esc(payload.description || '')}`;
+      const counterpart = [payload.accountingCounterpartAccountCode, payload.accountingCounterpartAccountName].filter(Boolean).join(' ');
+      return `${payload.direction === 'OUT' ? 'Kas Keluar' : 'Kas Masuk'} · ${money(payload.amount)} · ${esc(payload.description || '')}${counterpart ? ` · Lawan: ${esc(counterpart)}` : ''}`;
     }
     if (request.requestType === 'GOODS_FLOW' && payload.purpose === 'STOCK_ADJUSTMENT') {
       const delta = Number(payload.targetQuantity || 0) - Number(payload.currentQuantitySnapshot || 0);

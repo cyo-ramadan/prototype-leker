@@ -154,21 +154,29 @@
   }
 
   function cashFlowDialog() {
+    const counterparts = state.cashFlowCounterparts || [];
+    const optionMarkup = direction => counterparts.filter(option => option.direction === direction).map(option =>
+      `<option value="${escapeHtml(option.journalRuleId)}"${option.isDefault ? ' data-default="1"' : ''}>${escapeHtml(option.accountCode)} — ${escapeHtml(option.accountName)}${option.isDefault ? ' · Default' : ''}</option>`
+    ).join('');
     openDialog({
       eyebrow: 'Laci · Approval Queue',
       title: 'Arus Kas',
       body: `
         <div class="field"><label>Arah arus</label><select id="approvalCashDirection" class="text-input"><option value="IN">Kas Masuk</option><option value="OUT">Kas Keluar</option></select></div>
+        <div class="field"><label>Akun lawan</label><select id="approvalCashCounterpart" class="text-input" required></select></div>
         <div class="field"><label>Nominal</label><input id="approvalCashAmount" class="text-input" type="number" min="1" step="1" required /></div>
         <div class="field"><label>Deskripsi</label><input id="approvalCashDescription" class="text-input" maxlength="220" required /></div>
         <div class="field"><label>Catatan</label><textarea id="approvalCashNote" rows="2" maxlength="500"></textarea></div>
-        <p class="muted">Entry kasir tetap unposted. Setelah ACC Admin/Owner, snapshot diposting atomic ke cash ledger laci.</p>`,
+        <p id="approvalCashCounterpartHelp" class="muted">Pilihan dan default berasal dari Setting Akuntansi. Entry tetap unposted sampai ACC Admin/Owner.</p>`,
       submitText: 'AJUKAN ARUS KAS',
       onSubmit: async () => {
         const amount = Number(el('approvalCashAmount').value);
         if (!Number.isInteger(amount) || amount <= 0) throw new Error('Nominal arus kas wajib bilangan bulat lebih dari 0.');
+        const accountingCounterpartRuleId = el('approvalCashCounterpart').value;
+        if (!accountingCounterpartRuleId) throw new Error('Setting Akuntansi belum memiliki akun lawan aktif untuk arah Arus Kas ini.');
         await submitApprovalRequest('CASH_FLOW', {
           direction: el('approvalCashDirection').value,
+          accountingCounterpartRuleId,
           amount,
           description: el('approvalCashDescription').value.trim(),
           note: el('approvalCashNote').value.trim()
@@ -176,6 +184,17 @@
         return true;
       }
     });
+    const direction = el('approvalCashDirection');
+    const counterpart = el('approvalCashCounterpart');
+    const syncCounterparts = () => {
+      const options = optionMarkup(direction.value);
+      counterpart.innerHTML = options || '<option value="">Belum diatur di Setting Akuntansi</option>';
+      const defaultOption = counterpart.querySelector('[data-default="1"]');
+      if (defaultOption) counterpart.value = defaultOption.value;
+      counterpart.disabled = !options;
+    };
+    direction?.addEventListener('change', syncCounterparts);
+    syncCounterparts();
   }
 
   function goodsFlowDialog() {

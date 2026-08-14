@@ -34,7 +34,11 @@ The operational fact for cashier Arus Kas uses the configured active `CASH` sett
 
 The operational fact uses the configured active `CASH` settlement/payment method, so Kas is on Credit when physical cash decreases.
 
-The counterpart can reference any active Accounting account. The UI explicitly classifies the selected counterpart:
+Each direction can expose multiple counterpart choices referencing active Accounting accounts. The administrator adds choices and marks exactly one as the default through Setting Akuntansi. The cashier sees only those configured choices and the default is preselected, while remaining changeable before submission.
+
+Initial canonical defaults are Pendapatan Lainnya for cash-in and Beban Lainnya for cash-out. They are stored in the same Setting Akuntansi registry and may be replaced by the administrator; they are not hardcoded form decisions.
+
+The UI explicitly classifies the selected counterpart:
 
 - ASSET / LIABILITY / EQUITY = balance-sheet / non-P&L pairing;
 - REVENUE / EXPENSE = affects Profit & Loss by design.
@@ -67,9 +71,9 @@ The preset does not invent valuation. A future Accounting bridge for generic GOO
 
 ## Safe Re-Apply
 
-A preset may create its canonical transaction category and two rules when none exist.
+A preset may create its canonical transaction category, settlement rule, and first counterpart when none exist.
 
-If the category already contains the managed two-rule shape, re-applying updates only the configurable fixed-account counterpart and canonical labels/source directions.
+For Cash Flow, re-applying adds a counterpart choice without overwriting existing choices. A selected choice may be promoted to default. For Goods Flow, the existing managed two-rule update behavior remains unchanged.
 
 If the category has a customized active rule shape, the preset must refuse to overwrite it. The administrator edits that category manually in Aturan Transaksi.
 

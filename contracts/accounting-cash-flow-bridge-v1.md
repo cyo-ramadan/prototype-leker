@@ -32,13 +32,17 @@ The category/rules are read from the existing Accounting Settings registries. No
 
 ## Rule Shape
 
-V1 requires exactly two active rules for the selected cash-flow category:
+V1 requires this active rule shape for the selected cash-flow category:
 
-1. one `payment_method` rule;
-2. one `fixed_account` rule;
+1. exactly one `payment_method` rule;
+2. one or more `fixed_account` counterpart choices;
 3. one rule is `DEBIT` and one rule is `CREDIT`.
 
-A customized or incomplete active shape fails closed as `NEEDS_CONFIGURATION` rather than being guessed.
+Exactly one active fixed counterpart may be marked `is_default = 1`. The default is configured by an administrator through Setting Akuntansi and is preselected by the cashier UI; it is not hardcoded in the cashier module.
+
+The cashier submits the selected journal-rule identity. Server normalization verifies that it belongs to the same store, direction/category, expected side, and an active fixed account, then snapshots its label/account code/account name into the approval payload. The producer still carries no Account ID or Debit/Credit decision.
+
+A customized, incomplete, or mismatched shape/selection fails closed as `NEEDS_CONFIGURATION` rather than being guessed. Legacy queued facts without a selection are accepted only when the category has exactly one fixed counterpart.
 
 ## Settlement Method
 
@@ -106,6 +110,7 @@ This table is not a mapping registry.
 - invalid rule shape -> `NEEDS_MAPPING`;
 - CASH account missing/inactive -> `NEEDS_PAYMENT_MAPPING`;
 - fixed counterpart missing/inactive -> `NEEDS_FIXED_ACCOUNT`;
+- counterpart missing or not valid for the selected direction -> `NEEDS_COUNTERPART_SELECTION`;
 - invalid amount/date -> `FAILED` integrity status.
 
 ## Explicitly Out of Scope

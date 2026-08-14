@@ -6,6 +6,7 @@ const ui = readFileSync(new URL('../public/admin-accounting-flow-presets.js', im
 const adminHtml = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
 const accountingSettings = readFileSync(new URL('../src/accounting-settings.js', import.meta.url), 'utf8');
 const warehouseSettings = readFileSync(new URL('../src/warehouse-settings.js', import.meta.url), 'utf8');
+const defaultsMigration = readFileSync(new URL('../migrations/0028_cash_flow_counterpart_defaults.sql', import.meta.url), 'utf8');
 
 test('Accounting flow presets reuse the existing settings registries instead of creating a parallel mapper', () => {
   assert.match(adminHtml, /admin-accounting-flow-presets\.js/);
@@ -46,4 +47,14 @@ test('preset reapply refuses to overwrite customized journal rule shapes', () =>
   assert.match(ui, /matchesManagedShape/);
   assert.match(ui, /sudah dikustomisasi/);
   assert.match(ui, /Karen tidak overwrite rule custom/);
+});
+
+test('cash flow choices and defaults are administered through canonical Accounting Settings', () => {
+  assert.match(ui, /Tambah Pilihan Akun Lawan/);
+  assert.match(ui, /Jadikan default/);
+  assert.match(ui, /isDefault: true/);
+  assert.match(accountingSettings, /is_default/);
+  assert.match(defaultsMigration, /Pendapatan Lainnya/);
+  assert.match(defaultsMigration, /Beban Lainnya/);
+  assert.match(defaultsMigration, /idx_journal_rules_one_default/);
 });

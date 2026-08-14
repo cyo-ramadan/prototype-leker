@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { ACCOUNTING_AMOUNT_SCALE } from '../src/accounting-ledger.js';
-import { dispatchApprovedCashFlowToAccounting } from '../src/accounting-cash-flow-bridge.js';
+import { dispatchApprovedCashFlowToAccounting, listCashFlowCounterpartOptions } from '../src/accounting-cash-flow-bridge.js';
+import { normalizeApprovalPayload } from '../src/operational-posting.js';
 
 const bridge = readFileSync(new URL('../src/accounting-cash-flow-bridge.js', import.meta.url), 'utf8');
 const approval = readFileSync(new URL('../src/approval-queue.js', import.meta.url), 'utf8');
@@ -71,6 +72,27 @@ test('cash flow bridge posts exact scaled journal values through the Accounting 
   assert.match(bridge, /CASH_FLOW_DIRECTION_INVALID/);
 });
 
+test('cashier choices come from Accounting Settings defaults and server rejects a rule from the wrong direction', async () => {
+  const sqlite = freshDatabase();
+  const db = d1(sqlite);
+  try {
+    const store = sqlite.prepare(`SELECT id FROM stores ORDER BY id LIMIT 1`).get();
+    const options = await listCashFlowCounterpartOptions(db, store.id);
+    const cashIn = options.find(option => option.direction === 'IN');
+    const cashOut = options.find(option => option.direction === 'OUT');
+    assert.equal(cashIn.accountName, 'Pendapatan Lainnya');
+    assert.equal(cashIn.isDefault, true);
+    assert.equal(cashOut.accountName, 'Beban Lainnya');
+    assert.equal(cashOut.isDefault, true);
+
+    const valid = await normalizeApprovalPayload(db, store.id, 'CASH_FLOW', { direction: 'IN', amount: 1000, description: 'Test', accountingCounterpartRuleId: cashIn.journalRuleId });
+    assert.equal(valid.ok, true);
+    assert.equal(valid.payload.accountingCounterpartAccountName, 'Pendapatan Lainnya');
+    const wrongDirection = await normalizeApprovalPayload(db, store.id, 'CASH_FLOW', { direction: 'IN', amount: 1000, description: 'Test', accountingCounterpartRuleId: cashOut.journalRuleId });
+    assert.equal(wrongDirection.ok, false);
+  } finally { sqlite.close(); }
+});
+
 test('approved cash flow posts once and returns the same journal on retry', async () => {
   const sqlite = freshDatabase();
   const db = d1(sqlite);
@@ -81,16 +103,14 @@ test('approved cash flow posts once and returns the same journal on retry', asyn
     sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, opening_amount, status, opened_at) VALUES ('drawer_cash_flow_test', ?, ?, 0, 'OPEN', '2026-08-14T01:00:00.000Z')`).run(store.id, cashier.id);
     const drawer = { id: 'drawer_cash_flow_test', cashier_id: cashier.id };
     const cashAccount = sqlite.prepare(`SELECT account_id FROM payment_methods WHERE store_id = ? AND code = 'CASH'`).get(store.id)?.account_id;
-    const counterpart = sqlite.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = ? AND code = '3201'`).get(store.id)?.id;
+    const counterpart = sqlite.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = ? AND code = '4202'`).get(store.id)?.id;
     assert.ok(cashAccount && counterpart);
-
-    sqlite.prepare(`INSERT INTO transaction_categories (id, store_id, code, name, involves_payment, involves_item_category, description) VALUES ('cash_flow_in_test', ?, 'cash_flow_in', 'Arus Kas Masuk', 1, 0, 'Test')`).run(store.id);
-    sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('cash_flow_in_dr_test', ?, 'cash_flow_in_test', 'Kas', 'DEBIT', 'payment_method', 10)`).run(store.id);
-    sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, sort_order) VALUES ('cash_flow_in_cr_test', ?, 'cash_flow_in_test', 'Lawan Arus Kas', 'CREDIT', 'fixed_account', ?, 20)`).run(store.id, counterpart);
+    const counterpartRule = sqlite.prepare(`SELECT r.id FROM journal_rules r JOIN transaction_categories c ON c.id = r.transaction_category_id WHERE r.store_id = ? AND c.code = 'cash_flow_in' AND r.fixed_account_id = ?`).get(store.id, counterpart)?.id;
+    assert.ok(counterpartRule);
 
     const requestId = 'approval_cash_flow_test';
     const postedAt = '2026-08-14T01:30:00.000Z';
-    sqlite.prepare(`INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, 'CASH_FLOW', '{}', ?, ?)`).run(requestId, store.id, drawer.id, drawer.cashier_id, postedAt, postedAt);
+    sqlite.prepare(`INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, 'CASH_FLOW', ?, ?, ?)`).run(requestId, store.id, drawer.id, drawer.cashier_id, JSON.stringify({ accountingCounterpartRuleId: counterpartRule }), postedAt, postedAt);
     sqlite.prepare(`INSERT INTO cash_ledger_entries (id, store_id, drawer_session_id, approval_request_id, direction, amount, description, note, posted_at, approved_by_role, approved_by_id) VALUES ('cash_ledger_test', ?, ?, ?, 'IN', 12500, 'Tambahan modal kas', '', ?, 'OWNER', 'owner_test')`).run(store.id, drawer.id, requestId, postedAt);
     sqlite.prepare(`UPDATE approval_requests SET approval_status = 'approved', posting_status = 'posted', approved_by_role = 'OWNER', approved_by_id = 'owner_test', approved_at = ?, posted_at = ?, updated_at = ? WHERE id = ?`).run(postedAt, postedAt, postedAt, requestId);
 

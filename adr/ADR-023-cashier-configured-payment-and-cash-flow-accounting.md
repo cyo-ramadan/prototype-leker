@@ -1,6 +1,6 @@
 # ADR-023 — Cashier Configured Payment Inputs and Cash Flow Accounting
 
-Status: ACTIVE IN FEATURE BRANCH / NOT DEPLOYED
+Status: ACTIVE / DEPLOYED LIVE
 Date: 2026-08-14
 
 ## Context

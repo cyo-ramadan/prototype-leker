@@ -1,6 +1,6 @@
 # Accounting Cash Flow Bridge v1
 
-Status: ACTIVE IN FEATURE BRANCH / NOT DEPLOYED
+Status: ACTIVE / DEPLOYED LIVE
 Contract identifier: `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`
 Owner: Accounting integration boundary
 

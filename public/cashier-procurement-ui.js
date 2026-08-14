@@ -18,6 +18,12 @@
 
   async function purchaseDialogV2() {
     try {
+      if (!state.canWrite) {
+        toast(state.drawer
+          ? `Beli Bahan terkunci. Laci sedang dipegang ${state.drawer.cashierName}.`
+          : 'Buka Laci dulu untuk mencatat pembelian bahan.');
+        return;
+      }
       const [supplierPayload, purchasePayload] = await Promise.all([
         api('/api/cashier/suppliers'),
         api('/api/cashier/purchases/options')

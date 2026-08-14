@@ -41,7 +41,7 @@ function rupiahIntegerToScaled(value) {
 
 export async function listPosPaymentMethods(db, storeId) {
   const rows = await db.prepare(`
-    SELECT p.id, p.code, p.name, p.account_id,
+    SELECT p.id, p.code, p.name, p.account_id, p.is_default,
            a.code AS account_code, a.name AS account_name
     FROM payment_methods p
     LEFT JOIN chart_of_accounts a
@@ -49,7 +49,7 @@ export async function listPosPaymentMethods(db, storeId) {
      AND a.store_id = p.store_id
      AND a.is_active = 1
     WHERE p.store_id = ? AND p.is_active = 1
-    ORDER BY CASE p.code WHEN 'CASH' THEN 0 ELSE 1 END, p.name COLLATE NOCASE, p.code
+    ORDER BY p.is_default DESC, p.name COLLATE NOCASE, p.code
   `).bind(storeId).all();
   return (rows.results ?? []).map(row => ({
     paymentMethodId: row.id,
@@ -59,12 +59,22 @@ export async function listPosPaymentMethods(db, storeId) {
     accountCode: row.account_code || '',
     accountName: row.account_name || '',
     accountingReady: Boolean(row.account_id && row.account_code),
+    isDefault: Boolean(row.is_default),
     usesCashDrawer: row.code === 'CASH'
   }));
 }
 
 export async function resolvePosPaymentMethod(db, storeId, requestedCode, fallbackCode = 'CASH') {
-  const code = text(requestedCode || fallbackCode, 32).toUpperCase();
+  const requested = text(requestedCode, 32).toUpperCase();
+  let code = requested;
+  if (!code) {
+    const configuredDefault = await db.prepare(`
+      SELECT code FROM payment_methods
+      WHERE store_id = ? AND is_active = 1 AND is_default = 1
+      LIMIT 1
+    `).bind(storeId).first();
+    code = text(configuredDefault?.code || fallbackCode, 32).toUpperCase();
+  }
   const row = await db.prepare(`
     SELECT id, code, name, account_id
     FROM payment_methods

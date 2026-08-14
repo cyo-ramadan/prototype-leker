@@ -96,6 +96,10 @@ The former whole-rupiah HPP conversion blocker is resolved by the approved six-d
 
 Amounts use the exact purchase line amount converted from whole rupiah to Accounting scale.
 
+The cashier may select only active Master Barang products that are purchasable and stock-tracked. Each Jenis Barang receives an editable initial mapping to `Persediaan Bahan`; administrators may map finished or semi-finished kinds to another active inventory account through Setting Akuntansi.
+
+The purchase journal shape is Debit `item_category_inventory` and Credit `payment_method`. The payment method and its account come from Setting Akuntansi. Exactly one active payment method is the store default when the cashier has not selected one; the initial default is `CASH`. `PAYABLE` credits Utang Usaha. `RECEIVABLE_OFFSET` is seeded inactive and is valid only for an intentional supplier-receivable offset after administrator review.
+
 ### Operational expense component
 
 Operational Debit components use active fixed-account Debit rules from the `operational` transaction category.

@@ -115,6 +115,12 @@ export async function dispatchApprovedCashFlowToAccounting(db, storeId, approval
     return value;
   }
 
+  if (source.direction !== 'IN' && source.direction !== 'OUT') {
+    const value = bridgeResult('FAILED', 'CASH_FLOW_DIRECTION_INVALID', 'Arah Arus Kas harus IN atau OUT.');
+    await saveDelivery(db, storeId, requestId, '', value);
+    return value;
+  }
+
   const categoryCode = source.direction === 'OUT' ? 'cash_flow_out' : 'cash_flow_in';
   const rules = await loadRules(db, storeId, categoryCode);
   if (!rules) {

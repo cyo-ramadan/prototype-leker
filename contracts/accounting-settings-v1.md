@@ -100,6 +100,12 @@ Initial categories:
 
 - Penjualan;
 - Pembelian Bahan;
+
+New Jenis Barang receive an editable starting mapping: Persediaan Bahan, Harga Pokok Penjualan, and Penjualan. This guarantees every account picker starts with a canonical default while the administrator remains able to change the mapping.
+
+### Payment default
+
+Exactly one active `payment_methods` row per store is marked `is_default = 1`. Cashier payment pickers read this flag from Setting Akuntansi. The initial default is CASH; changing the default is an administrator action in Setting Akuntansi.
 - Operasional;
 - Gaji;
 - Setoran.

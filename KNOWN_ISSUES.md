@@ -216,7 +216,7 @@ The cashier UI selects one configured Debit expense component by `journalRuleId`
 
 ### Active: approved Cash Flow bridge
 
-Approved and posted `CASH_FLOW` facts are delivered post-commit through `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`. `IN` resolves `cash_flow_in`, `OUT` resolves `cash_flow_out`, and V1 settles through the configured active `CASH` payment method. Missing configuration never rolls back the operational ACC; delivery remains reconcilable and retryable with the same idempotency identity.
+Approved and posted `CASH_FLOW` facts are delivered post-commit through `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`. `IN` resolves `cash_flow_in`, `OUT` resolves `cash_flow_out`, and V1 settles through the configured active `CASH` payment method. Cashier counterpart choices and their default are canonical `journal_rules` managed by Setting Akuntansi. Missing configuration never rolls back the operational ACC; delivery remains reconcilable and retryable with the same idempotency identity.
 
 ### Open: Stock Opname rule branch semantics
 

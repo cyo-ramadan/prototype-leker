@@ -230,7 +230,14 @@ function renderDrawer() {
     el('closeDrawerBtn').classList.add('hidden');
   }
 
-  ['purchaseBtn','expenseBtn','otherIncomeBtn'].forEach(id => { el(id).disabled = !state.canWrite; });
+  const purchaseButton = el('purchaseBtn');
+  purchaseButton.disabled = false;
+  purchaseButton.title = state.canWrite
+    ? 'Catat pembelian bahan'
+    : drawer
+      ? `Read-only: laci sedang dipegang ${drawer.cashierName}`
+      : 'Buka laci untuk mencatat pembelian bahan';
+  ['expenseBtn','otherIncomeBtn'].forEach(id => { el(id).disabled = !state.canWrite; });
   el('drawerDetailsBtn').disabled = !drawer;
   el('cashierWriteLockNote').textContent = state.canWrite
     ? `Write mode aktif atas nama ${state.cashier.employeeName}. Semua transaksi tercatat ke ${state.cashier.store.code}.`

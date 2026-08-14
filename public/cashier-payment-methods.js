@@ -37,6 +37,12 @@
 
   async function purchaseDialog() {
     try {
+      if (!state.canWrite) {
+        toast(state.drawer
+          ? `Beli Bahan terkunci. Laci sedang dipegang ${state.drawer.cashierName}.`
+          : 'Buka Laci dulu untuk mencatat pembelian bahan.');
+        return;
+      }
       if (!methods().length) throw new Error('Belum ada cara bayar aktif di Setting Akuntansi.');
       const [supplierPayload, purchasePayload] = await Promise.all([
         api('/api/cashier/suppliers'),
@@ -195,9 +201,21 @@
     };
   }
 
+  function bindCanonicalPurchaseClick() {
+    if (window.__cashierPurchaseClickBound) return;
+    window.__cashierPurchaseClickBound = true;
+    document.addEventListener('click', event => {
+      const button = event.target.closest?.('#purchaseBtn');
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      purchaseDialog();
+    }, true);
+  }
+
   function mount() {
     renderSaleMethod();
-    replaceButton('purchaseBtn', 'configuredPurchaseBound', purchaseDialog);
+    bindCanonicalPurchaseClick();
     replaceButton('expenseBtn', 'accountingInputsBound', operationalDialog);
   }
 

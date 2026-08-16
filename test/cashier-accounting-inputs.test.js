@@ -14,13 +14,12 @@ const purchaseDefaults = readFileSync(new URL('../migrations/0029_purchase_accou
 const cashierPosCss = readFileSync(new URL('../public/cashier-pos.css', import.meta.url), 'utf8');
 const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
 
-test('cashier workspace exposes configured payment methods and operational components', () => {
+test('cashier workspace exposes configured payment methods without Accounting rule components', () => {
   assert.match(workspace, /listPosPaymentMethods/);
-  assert.match(workspace, /listOperationalAccountingComponents/);
   assert.match(workspace, /paymentMethods/);
-  assert.match(workspace, /operationalAccountingComponents/);
+  assert.doesNotMatch(workspace, /listOperationalAccountingComponents|operationalAccountingComponents/);
   assert.match(workspaceUi, /state\.paymentMethods/);
-  assert.match(workspaceUi, /state\.operationalAccountingComponents/);
+  assert.doesNotMatch(workspaceUi, /state\.operationalAccountingComponents/);
   assert.match(workspaceUi, /cashier:workspace-applied/);
 });
 
@@ -33,14 +32,15 @@ test('sale purchase and operational writes validate payment codes through Accoun
   assert.doesNotMatch(purchases, /function purchasePaymentMethod/);
 });
 
-test('operational component selection carries rule identity rather than a POS-owned account decision', () => {
-  assert.match(expenses, /accountingComponentRuleId/);
-  assert.match(expenses, /listOperationalAccountingComponents/);
-  assert.match(expenses, /accounting_component_rule_id/);
+test('operational expense reports a business fact and never selects an Accounting rule', () => {
+  assert.match(expenses, /businessEvent:\s*'EXPENSE'/);
+  assert.match(expenses, /transactionCategoryCode:\s*'operational'/);
+  assert.match(expenses, /buildTransactionAccountingSnapshot/);
+  assert.doesNotMatch(expenses, /accountingComponentRuleId|accounting_component_rule_id|listOperationalAccountingComponents/);
   assert.match(inputUi, /cost-masters\/options/);
   assert.match(inputUi, /costMasterId/);
   assert.match(inputUi, /MAXIPimasatu/);
-  assert.doesNotMatch(inputUi, /debitAccountId|creditAccountId/);
+  assert.doesNotMatch(inputUi, /debitAccountId|creditAccountId|journalRuleId/);
 });
 
 test('cashier UI consumes the configured registry for sale purchase and operational payment inputs', () => {

@@ -17,19 +17,16 @@ async function selectedStore(db, request) {
 
 async function listCostTypes(db, storeId) {
   const rows = await db.prepare(`
-    SELECT ct.id, ct.code, ct.name, ct.accounting_component_rule_id, ct.is_active,
-           jr.label AS accounting_component_label
-    FROM cost_types ct
-    LEFT JOIN journal_rules jr ON jr.id = ct.accounting_component_rule_id
-    WHERE ct.store_id = ?
-    ORDER BY ct.name COLLATE NOCASE, ct.id
+    SELECT id, code, name, is_active
+    FROM cost_types
+    WHERE store_id = ?
+    ORDER BY name COLLATE NOCASE, id
   `).bind(storeId).all();
   return (rows.results ?? []).map(row => ({
     id: row.id,
     code: row.code,
     name: row.name,
-    accountingComponentRuleId: row.accounting_component_rule_id || null,
-    accountingComponentLabel: row.accounting_component_label || '',
+    transactionCategoryCode: 'operational',
     isActive: Boolean(row.is_active)
   }));
 }
@@ -38,11 +35,9 @@ async function listCosts(db, storeId, { activeOnly = false } = {}) {
   const rows = await db.prepare(`
     SELECT cm.id, cm.name, cm.contact, cm.outgoing_amount, cm.incoming_amount,
            cm.cost_type_id, cm.cost_group, cm.is_active,
-           ct.code AS cost_type_code, ct.name AS cost_type_name,
-           ct.accounting_component_rule_id, jr.label AS accounting_component_label
+           ct.code AS cost_type_code, ct.name AS cost_type_name
     FROM cost_masters cm
     JOIN cost_types ct ON ct.id = cm.cost_type_id AND ct.store_id = cm.store_id
-    LEFT JOIN journal_rules jr ON jr.id = ct.accounting_component_rule_id
     WHERE cm.store_id = ? ${activeOnly ? 'AND cm.is_active = 1 AND ct.is_active = 1' : ''}
     ORDER BY cm.cost_group COLLATE NOCASE, cm.name COLLATE NOCASE, cm.id
   `).bind(storeId).all();
@@ -56,8 +51,7 @@ async function listCosts(db, storeId, { activeOnly = false } = {}) {
     costTypeCode: row.cost_type_code,
     costTypeName: row.cost_type_name,
     costGroup: row.cost_group,
-    accountingComponentRuleId: row.accounting_component_rule_id || null,
-    accountingComponentLabel: row.accounting_component_label || '',
+    transactionCategoryCode: 'operational',
     isActive: Boolean(row.is_active)
   }));
 }
@@ -81,7 +75,7 @@ export async function handleCostMasterApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/cashier/cost-masters/options') {
     const auth = await requireCashier(request, env.DB);
     if (!auth.ok) return auth.response;
-    return json({ costs: await listCosts(env.DB, auth.cashier.store.id, { activeOnly: true }) });
+    return json({ transactionCategoryCode: 'operational', costs: await listCosts(env.DB, auth.cashier.store.id, { activeOnly: true }) });
   }
   if (!pathname.startsWith('/api/admin/master/costs')) return null;
   const auth = await requireManagement(request, env.DB);
@@ -90,7 +84,7 @@ export async function handleCostMasterApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
 
   if (request.method === 'GET' && pathname === '/api/admin/master/costs') {
-    return json({ store, costTypes: await listCostTypes(env.DB, store.id), costs: await listCosts(env.DB, store.id) });
+    return json({ store, transactionCategoryCode: 'operational', costTypes: await listCostTypes(env.DB, store.id), costs: await listCosts(env.DB, store.id) });
   }
   if (request.method === 'POST' && pathname === '/api/admin/master/costs') {
     const body = await readJson(request);

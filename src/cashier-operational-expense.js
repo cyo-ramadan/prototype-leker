@@ -2,7 +2,7 @@ import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
-import { listOperationalAccountingComponents, resolvePosPaymentMethod } from './accounting-pos-bridge.js';
+import { resolvePosPaymentMethod } from './accounting-pos-bridge.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
@@ -49,7 +49,7 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
     const placeholders = ids.map(() => '?').join(',');
     const rows = await env.DB.prepare(`
       SELECT cm.id, cm.name, cm.outgoing_amount, cm.cost_group,
-             ct.id AS cost_type_id, ct.accounting_component_rule_id
+             ct.id AS cost_type_id
       FROM cost_masters cm
       JOIN cost_types ct ON ct.id = cm.cost_type_id AND ct.store_id = cm.store_id
       WHERE cm.store_id = ? AND cm.is_active = 1 AND ct.is_active = 1
@@ -78,16 +78,25 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
       statements.push(env.DB.prepare(`
         INSERT INTO expenses (
           id, store_id, drawer_session_id, cashier_id, description, amount,
-          quantity, created_at, payment_method, accounting_component_rule_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          quantity, created_at, payment_method
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(id, auth.cashier.store.id, ownership.drawer.id, auth.cashier.id,
-        item.master.name, item.amount, String(item.quantity), now, resolvedPayment.code,
-        item.master.accounting_component_rule_id || null));
+        item.master.name, item.amount, String(item.quantity), now, resolvedPayment.code));
       statements.push(accounting.statement);
       committed.push({ id, costMasterId: item.master.id, name: item.master.name, quantity: item.quantity, unitAmount: item.unitAmount, amount: item.amount, costTypeId: item.master.cost_type_id, costGroup: item.master.cost_group });
     }
     await env.DB.batch(statements);
-    return json({ ok: true, id: committed[0].id, ids: committed.map(item => item.id), items: committed, totalAmount: committed.reduce((sum, item) => sum + item.amount, 0), paymentMethod: resolvedPayment.code, createdAt: now }, 201);
+    return json({
+      ok: true,
+      id: committed[0].id,
+      ids: committed.map(item => item.id),
+      items: committed,
+      businessEvent: 'EXPENSE',
+      transactionCategoryCode: 'operational',
+      totalAmount: committed.reduce((sum, item) => sum + item.amount, 0),
+      paymentMethod: resolvedPayment.code,
+      createdAt: now
+    }, 201);
   }
 
   const description = text(body.value?.description, 220);
@@ -96,13 +105,6 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, auth.cashier.store.id, body.value?.paymentMethod, 'CASH');
   if (!resolvedPayment) {
     return json({ error: 'Cara bayar operasional tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
-  }
-  const accountingComponentRuleId = text(body.value?.accountingComponentRuleId, 180) || null;
-  if (accountingComponentRuleId) {
-    const components = await listOperationalAccountingComponents(env.DB, auth.cashier.store.id);
-    if (!components.some(component => component.journalRuleId === accountingComponentRuleId)) {
-      return json({ error: 'Komponen beban Accounting tidak aktif / tidak tersedia.', code: 'ACCOUNTING_COMPONENT_NOT_AVAILABLE' }, 400);
-    }
   }
   if (!description || amount === null || !quantity) {
     return json({ error: 'Deskripsi, qty, dan total nominal pengeluaran wajib valid.' }, 400);
@@ -124,8 +126,8 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
     env.DB.prepare(`
       INSERT INTO expenses (
         id, store_id, drawer_session_id, cashier_id,
-        description, amount, quantity, created_at, payment_method, accounting_component_rule_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        description, amount, quantity, created_at, payment_method
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       auth.cashier.store.id,
@@ -135,8 +137,7 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
       amount,
       quantity,
       now,
-      channel,
-      accountingComponentRuleId
+      channel
     ),
     accounting.statement
   ]);
@@ -147,8 +148,9 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
     description,
     quantity,
     amount,
+    businessEvent: 'EXPENSE',
+    transactionCategoryCode: 'operational',
     paymentMethod: channel,
-    accountingComponentRuleId,
     accounting: {
       contract: 'MAXI_ACCOUNTING_REFERENCE_V1',
       mappingStatus: accounting.status,

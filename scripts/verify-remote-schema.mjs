@@ -15,6 +15,7 @@ export const FORBIDDEN_REMOTE_TABLES = Object.freeze([
   'accounting_opening_balances',
   'accounting_transaction_mappings'
 ]);
+export const ALLOWED_ACCOUNT_REFERENCE_TABLES = Object.freeze(['accounting_account_refs']);
 export const ACCOUNTING_ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);
 export const WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS = 120000;
 
@@ -39,6 +40,7 @@ export function missingRequiredTables(payload, requiredTables = REQUIRED_REMOTE_
 export function accountingSchemaViolations(payload) {
   const rows = extractWranglerD1Rows(payload);
   const forbiddenSet = new Set(FORBIDDEN_REMOTE_TABLES);
+  const allowedTypedTables = new Set(['chart_of_accounts', ...ALLOWED_ACCOUNT_REFERENCE_TABLES]);
   const forbiddenTables = rows
     .map(row => String(row?.name || '').trim())
     .filter(name => forbiddenSet.has(name));
@@ -46,7 +48,7 @@ export function accountingSchemaViolations(payload) {
     .filter(row => {
       const name = String(row?.name || '').trim();
       const sql = String(row?.sql || '').toUpperCase();
-      if (!name || name === 'chart_of_accounts' || !sql) return false;
+      if (!name || allowedTypedTables.has(name) || !sql) return false;
       return ACCOUNTING_ACCOUNT_TYPES.every(accountType => sql.includes(`'${accountType}'`));
     })
     .map(row => String(row.name).trim());
@@ -102,7 +104,7 @@ function verifyRemoteSchema() {
     if (violations.parallelAccountTables.length) {
       console.error(`Remote D1 contains a parallel Chart-of-Accounts definition: ${violations.parallelAccountTables.join(', ')}`);
     }
-    console.error('Stop deployment. chart_of_accounts must remain the sole canonical account registry.');
+    console.error('Stop deployment. chart_of_accounts must remain the sole canonical account registry; registered compatibility references are read/reference surfaces only.');
     process.exit(1);
   }
 

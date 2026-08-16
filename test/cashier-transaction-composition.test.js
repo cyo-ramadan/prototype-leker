@@ -7,6 +7,7 @@ const inputUi = readFileSync(new URL('../public/cashier-payment-methods.js', imp
 const salesUi = readFileSync(new URL('../public/cashier-sales-orders.js', import.meta.url), 'utf8');
 const pimasatuUi = readFileSync(new URL('../public/pimasatu-ui.js', import.meta.url), 'utf8');
 const pimasatuContract = readFileSync(new URL('../contracts/pimasatu-ui-v1.md', import.meta.url), 'utf8');
+const transactionContract = readFileSync(new URL('../contracts/cashier-transaction-composition-v1.md', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 const bridgeSource = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
 
@@ -20,11 +21,20 @@ function ordered(source, ...tokens) {
   }
 }
 
-test('PIMASATU remains a UI-only interaction component', () => {
+test('PIMASATU remains a UI-only item composer with no transaction-module ownership', () => {
   assert.match(pimasatuContract, /PIMASATU hanya mengatur \*\*format interaksi UI\/UX\*\*/);
   assert.match(pimasatuContract, /tidak memiliki ownership atas modul bisnis/);
-  assert.match(pimasatuContract, /PIMASATU item\/variabel → counterpart terkait .* → metode pembayaran/);
+  assert.match(pimasatuContract, /urutan field transaction modal di luar item composer/);
+  assert.doesNotMatch(pimasatuContract, /PIMASATU item\/variabel → counterpart/);
   assert.doesNotMatch(pimasatuUi, /accounting|journal|supplier|customer|payment_method|paymentMethod/i);
+});
+
+test('transaction composition owns item counterpart payment ordering outside PIMASATU', () => {
+  assert.match(transactionContract, /Kontrak ini terpisah dari PIMASATU/);
+  assert.match(transactionContract, /item\/variabel composer/);
+  assert.match(transactionContract, /counterpart yang relevan/);
+  assert.match(transactionContract, /metode pembayaran/);
+  assert.match(transactionContract, /counterpart dan metode pembayaran tetap berada di luar komponen PIMASATU/);
 });
 
 test('cashier loads canonical transaction inputs before enhancement scripts and does not load legacy procurement runtime', () => {
@@ -38,14 +48,14 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   assert.doesNotMatch(cashierHtml, /<script src="\/cashier-procurement-ui\.js"><\/script>/);
 });
 
-test('purchase and operational transaction composition is item first, counterpart second, payment third', () => {
+test('purchase and operational transaction composition is item first counterpart second payment third', () => {
   ordered(inputUi, 'id="purchasePimasatu"', 'id="dialogSupplier"', 'id="dialogPurchasePayment"');
   ordered(inputUi, 'id="operationalPimasatu"', 'id="operationalContactSummary"', 'id="dialogOperationalPayment"');
   assert.match(inputUi, /window\.MAXIPimasatu\.create\(\{[\s\S]*host: byId\('purchasePimasatu'\)/);
   assert.match(inputUi, /window\.MAXIPimasatu\.create\(\{[\s\S]*host: byId\('operationalPimasatu'\)/);
 });
 
-test('sale transaction keeps PIMASATU above customer and places configured payment before note', () => {
+test('sale transaction keeps item composer above customer and places configured payment before note', () => {
   ordered(salesUi, 'id="salePimasatu"', 'id="cashierCustomerIdentitySearch"', 'id="saleDialogCustomerName"', 'id="saleDialogNote"');
   assert.match(inputUi, /id = 'saleDialogPaymentField'/);
   assert.match(inputUi, /id="saleDialogPaymentMethod"/);
@@ -62,7 +72,7 @@ test('committed transaction writes use one canonical fact transport instead of l
   assert.match(inputUi, /path === '\/api\/cashier\/sales'[\s\S]*return canonicalFactPost\(path, payload\)/);
 });
 
-test('SALE PURCHASE and EXPENSE remain connected to the Accounting bridge after operational commit', () => {
+test('SALE PURCHASE and EXPENSE remain connected to Accounting bridge after operational commit', () => {
   assert.match(indexSource, /attachAccountingBridgeToCommittedResponse\(trackedSaleResponse, env, 'SALE'\)/);
   assert.match(indexSource, /attachAccountingBridgeToCommittedResponse\(purchaseResponse, env, 'PURCHASE'\)/);
   assert.match(indexSource, /attachAccountingBridgeToCommittedResponse\(purchaseResponse, env, 'EXPENSE'\)/);

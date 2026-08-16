@@ -37,8 +37,9 @@ test('operational component selection carries rule identity rather than a POS-ow
   assert.match(expenses, /accountingComponentRuleId/);
   assert.match(expenses, /listOperationalAccountingComponents/);
   assert.match(expenses, /accounting_component_rule_id/);
-  assert.match(inputUi, /dialogOperationalComponent/);
-  assert.match(inputUi, /accountingComponentRuleId/);
+  assert.match(inputUi, /cost-masters\/options/);
+  assert.match(inputUi, /costMasterId/);
+  assert.match(inputUi, /MAXIPimasatu/);
   assert.doesNotMatch(inputUi, /debitAccountId|creditAccountId/);
 });
 

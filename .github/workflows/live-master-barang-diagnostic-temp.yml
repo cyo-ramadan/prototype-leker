@@ -39,13 +39,21 @@ jobs:
             exit 1
           fi
 
-          curl -sS "$BASE/api/admin/master/products/editor?store=G001" \
-            -H "Authorization: Bearer $TOKEN" > /tmp/editor.json
+          STATUS="$(curl -sS -o /tmp/editor.json -w '%{http_code}' \
+            "$BASE/api/admin/master/products/editor?store=G001" \
+            -H "Authorization: Bearer $TOKEN")"
+          echo "EDITOR_HTTP_STATUS=$STATUS"
+          if [ "$STATUS" != '200' ]; then
+            echo 'EDITOR_ERROR_BODY'
+            cat /tmp/editor.json
+            exit 1
+          fi
 
           python - <<'PY'
           import json
           with open('/tmp/editor.json') as f:
               p=json.load(f)
+          print('TOP_LEVEL_KEYS', sorted(p.keys()))
           types={x.get('id'):x for x in p.get('itemTypes',[])}
           rows=[]
           eligible=[]

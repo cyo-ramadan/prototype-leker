@@ -1,0 +1,36 @@
+name: Inspect Operational Schema Temp
+
+on:
+  push:
+    branches:
+      - agent/fix-operational-accounting-boundary-20260817
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Print canonical migrated schema
+        shell: bash
+        run: |
+          node --experimental-sqlite --input-type=module <<'NODE'
+          import { readdirSync, readFileSync } from 'node:fs';
+          import { DatabaseSync } from 'node:sqlite';
+          const db = new DatabaseSync(':memory:');
+          db.exec('PRAGMA foreign_keys = ON;');
+          for (const file of readdirSync('migrations').filter(name => /^\d{4}_.+\.sql$/.test(name)).sort()) {
+            db.exec(readFileSync(`migrations/${file}`, 'utf8'));
+          }
+          for (const table of ['expenses', 'cost_types']) {
+            const row = db.prepare("SELECT sql FROM sqlite_schema WHERE type='table' AND name=?").get(table);
+            console.log(`SCHEMA_${table.toUpperCase()}=${row?.sql || 'MISSING'}`);
+            console.log(`FKS_${table.toUpperCase()}=${JSON.stringify(db.prepare(`PRAGMA foreign_key_list(${table})`).all())}`);
+            console.log(`INDEXES_${table.toUpperCase()}=${JSON.stringify(db.prepare(`PRAGMA index_list(${table})`).all())}`);
+          }
+          NODE

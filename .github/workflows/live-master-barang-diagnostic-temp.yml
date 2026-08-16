@@ -32,8 +32,8 @@ jobs:
           master=p.get('g001Master') or {}
           if master:
               print('G001_MASTER_COUNTS', json.dumps({k:len(v) for k,v in master.items()}))
-              print('G001_PRODUCTS', json.dumps(master.get('products',[]),ensure_ascii=False))
-              print('G001_ITEM_TYPES', json.dumps(master.get('itemTypes',[]),ensure_ascii=False))
+              print('G001_RECIPE_ROWS', json.dumps(master.get('recipeRows',[]),ensure_ascii=False))
+              print('G001_RECIPE_COMPONENTS', json.dumps(master.get('recipeComponents',[]),ensure_ascii=False))
           PY
           fi
 

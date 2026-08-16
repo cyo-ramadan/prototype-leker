@@ -30,6 +30,7 @@ import { handleAdminTransactionsApi } from './admin-transactions.js';
 import { handleAdminPurchaseDetailApi } from './admin-purchase-detail.js';
 import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
 import { handleAdminProductionDetailApi } from './admin-production-detail.js';
+import { handleTemporaryD1DiagnosticApi } from './d1-diagnostic-temp.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleCustomerFeedbackApi } from './customer-feedback.js';
@@ -107,6 +108,8 @@ async function handleApi(request, env, url) {
   if (adminCashierResponse) return adminCashierResponse;
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+  const diagnosticResponse = await handleTemporaryD1DiagnosticApi(request, env, pathname);
+  if (diagnosticResponse) return diagnosticResponse;
   const productKindResponse = await handleProductKindApi(request, env, pathname);
   if (productKindResponse) return productKindResponse;
   const productMasterResponse = await handleProductMasterApi(request, env, pathname);
@@ -178,55 +181,27 @@ async function handleApi(request, env, url) {
   if (!store) return json({ error: 'Gerai tidak ditemukan atau sedang nonaktif.' }, 404);
   if (request.method === 'GET' && pathname === '/api/menu') return json(await listProducts(env.DB, store.id));
   if (request.method === 'GET' && pathname === '/api/store') return json(await getPublicStore(env.DB, store.id));
-  const orderMatch = pathname.match(/^\/api\/orders\/([^/]+)$/);
-  if (request.method === 'GET' && orderMatch) {
-    const order = await getOrder(env.DB, store.id, orderMatch[1]);
-    return order ? json(order) : json({ error: 'Order not found' }, 404);
-  }
+  if (request.method === 'GET' && pathname === '/api/orders') return json(await listOrders(env.DB, store.id));
+  if (request.method === 'GET' && pathname.match(/^\/api\/orders\/[^/]+$/)) return json(await getOrder(env.DB, store.id, pathname.split('/').pop()));
   if (request.method === 'POST' && pathname === '/api/orders') {
-    const body = await readJson(request);
-    if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const customer = await optionalCustomerFromRequest(request, env.DB, store.id);
-    const result = await createOrder(env.DB, store, {
-      ...body.value,
-      customerId: customer?.id || null,
-      customerName: customer?.customerName || body.value?.customerName
-    });
-    return result.ok ? json(result.order, 201) : json({ error: result.error }, result.status);
+    return json(await createOrder(request, env.DB, store.id, customer), 201);
   }
-  if (pathname === '/api/orders' || pathname === '/api/reset' || pathname.match(/^\/api\/orders\/[^/]+\/status$/)) {
-    return json({ error: 'Login kasir dan laci aktif diperlukan untuk perubahan data kasir.' }, 401);
-  }
-  return json({ error: 'Not found' }, 404);
-}
 
-function assetRoute(pathname) {
-  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html' };
-  if (direct[pathname]) return direct[pathname];
-  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
-  if (scoped) {
-    const page = scoped[2] || 'customer';
-    if (page === 'admin') return '/branch-admin.html';
-    return `/${page}.html`;
-  }
-  return pathname;
-}
-
-async function handleAsset(request, env, pathname) {
-  const assetUrl = new URL(request.url);
-  assetUrl.pathname = assetRoute(pathname);
-  return env.ASSETS.fetch(new Request(assetUrl, request));
+  return json({ error: 'Route API tidak ditemukan.' }, 404);
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    try {
-      if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
-      return await handleAsset(request, env, url.pathname);
-    } catch (error) {
-      console.error('prototype-leker request failed', error);
-      return json({ error: 'Terjadi kesalahan server.' }, 500);
+    if (url.pathname.startsWith('/api/')) {
+      try {
+        return await handleApi(request, env, url);
+      } catch (error) {
+        console.error('API request failed', { pathname: url.pathname, error });
+        return json({ error: 'Terjadi kesalahan server.' }, 500);
+      }
     }
+    return env.ASSETS.fetch(request);
   }
 };

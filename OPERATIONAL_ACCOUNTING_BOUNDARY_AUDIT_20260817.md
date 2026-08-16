@@ -3,6 +3,7 @@
 Change ID: `LEKER-OPS-ACC-BOUNDARY-20260817`
 Protocol: MAXI AI Engineering Constitution v0.3, MAXI Integration Contract Standard v0.3, MAXI Mandatory Transaction Registration Protocol v0.1
 Repository baseline audited: `cyo-ramadan/prototype-leker@6d6eab52e1d3bbd5f00239036a9dac34948fbe91`
+Baseline quality gate: `Check & Test` re-run SUCCESS before implementation; secondary deploy lane stopped at credential validation before deployment mutation.
 
 ## Audit question
 

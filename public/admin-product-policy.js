@@ -70,17 +70,21 @@
     mountPurchaseCostFields();
     category.insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
+        <details id="productOperationalDetails" class="admin-card" style="padding:12px;margin:0 0 12px">
+          <summary style="cursor:pointer;font-weight:900">Stok & pengaturan lanjutan</summary>
+          <div class="muted" style="margin:8px 0 12px">Default barang baru: Barang Jadi + pcs. Buka bagian ini hanya saat barang punya kebutuhan stok, produksi, atau Accounting khusus.</div>
         <div class="admin-grid two compact">
-          <label class="admin-field">Tipe Barang<select id="productItemType" required></select></label>
-          <label class="admin-field">Jenis Barang<select id="productKind"><option value="">Belum ditentukan</option></select><span class="field-note">classification key untuk linkage Accounting berikutnya</span></label>
+          <label class="admin-field">Peran Barang<select id="productItemType"></select><span class="field-note">menentukan boleh dijual, dibeli, diproduksi, dan track stok</span></label>
+          <label class="admin-field">Klasifikasi Accounting<select id="productKind"><option value="">Belum ditentukan</option></select><span class="field-note">optional · untuk linkage Accounting</span></label>
         </div>
         <div class="admin-grid two compact">
-          <label class="admin-field">Satuan Dasar<select id="productBaseUnit" required></select></label>
+          <label class="admin-field">Satuan Dasar<select id="productBaseUnit"></select></label>
           <label class="admin-field">Poin per 1 barang<input id="productPointsPerUnit" type="number" min="0" step="1" value="0" required /></label>
         </div>
         <label class="admin-check"><input id="productStockTracking" type="checkbox" checked /> Track & enforce stok</label>
         <label class="admin-field">Recipe Linked<select id="productLinkedRecipe"><option value="">Tidak terhubung</option></select></label>
         <div id="productRecipeNote" class="muted" style="margin:-5px 0 12px"></div>
+        </details>
       </div>`);
     el('productLinkedRecipe')?.addEventListener('change', renderRecipeNote);
     form.addEventListener('submit', saveProductMaster, true);
@@ -95,15 +99,15 @@
       <div id="productKindMasterCard" class="admin-grid two" style="margin-top:14px;align-items:start">
         <form id="productKindForm" class="admin-card">
           <input id="productKindId" type="hidden" />
-          <div class="form-title-row"><h2 id="productKindFormTitle">Jenis Barang</h2><button id="productKindCancel" class="text-btn hidden" type="button">Batal edit</button></div>
-          <div class="muted" style="margin-bottom:10px">Jenis Barang adalah classification key yang nanti bisa dilink ke rule Accounting. Karen tidak seed nilai bisnis agar mapping tetap explicit.</div>
+          <div class="form-title-row"><h2 id="productKindFormTitle">Klasifikasi Accounting</h2><button id="productKindCancel" class="text-btn hidden" type="button">Batal edit</button></div>
+          <div class="muted" style="margin-bottom:10px">Klasifikasi optional untuk menghubungkan barang ke rule Accounting. Kosongkan jika belum diperlukan.</div>
           <label class="admin-field">Kode<input id="productKindCode" maxlength="32" placeholder="Contoh: BAHAN_DAPUR" required /></label>
           <label class="admin-field">Nama<input id="productKindName" maxlength="80" placeholder="Contoh: Bahan Dapur" required /></label>
           <label class="admin-check"><input id="productKindActive" type="checkbox" checked /> Aktif</label>
-          <button class="primary-btn" type="submit">Simpan Jenis Barang</button>
+          <button class="primary-btn" type="submit">Simpan Klasifikasi</button>
         </form>
         <div class="admin-card list-card">
-          <div class="list-head"><div><h2>Master Jenis Barang</h2><div class="muted">Kode dibuat stabil supaya aman dipakai sebagai integration reference.</div></div><span id="productKindCount" class="master-count">0</span></div>
+          <div class="list-head"><div><h2>Master Klasifikasi Accounting</h2><div class="muted">Kode stabil untuk integration reference.</div></div><span id="productKindCount" class="master-count">0</span></div>
           <div id="productKindList" class="master-list"></div>
         </div>
       </div>`;
@@ -186,7 +190,7 @@
       const eyebrow = manufacturing.querySelector('.admin-eyebrow');
       if (eyebrow) eyebrow.textContent = 'Master Teknis';
       const heading = manufacturing.querySelector('.list-head h2');
-      if (heading) heading.textContent = 'Tipe Barang, Jenis Barang, Satuan & Resep';
+      if (heading) heading.textContent = 'Peran Barang, Klasifikasi Accounting, Satuan & Resep';
     }
   }
 
@@ -204,9 +208,11 @@
     const types = (state.editor.itemTypes || []).filter(item => item.isActive || item.id === product?.itemTypeId);
     const units = (state.editor.units || []).filter(item => item.isActive || item.id === product?.baseUnitId);
     const kinds = (state.editor.productKinds || []).filter(item => item.isActive || item.id === product?.productKindId);
-    el('productItemType').innerHTML = optionRows(types, product?.itemTypeId, item => item.name);
+    const defaultTypeId = product?.itemTypeId || types.find(item => item.code === 'FINISHED_GOOD')?.id || types[0]?.id;
+    const defaultUnitId = product?.baseUnitId || units.find(item => item.code === 'PCS')?.id || units[0]?.id;
+    el('productItemType').innerHTML = optionRows(types, defaultTypeId, item => item.name);
     el('productKind').innerHTML = `<option value="">Belum ditentukan</option>${optionRows(kinds, product?.productKindId, item => `${item.name} · ${item.code}`)}`;
-    el('productBaseUnit').innerHTML = optionRows(units, product?.baseUnitId, item => `${item.name} (${item.symbol})`);
+    el('productBaseUnit').innerHTML = optionRows(units, defaultUnitId, item => `${item.name} (${item.symbol})`);
     el('productPointsPerUnit').value = String(product?.pointsPerUnit || 0);
     el('productStockTracking').checked = product ? Boolean(product.stockTrackingEnabled) : true;
     if (el('productPurchasePrice')) el('productPurchasePrice').value = String(product?.purchasePrice || 0);
@@ -248,7 +254,7 @@
       <div class="master-row contact-row ${item.isActive ? '' : 'inactive'}">
         <div class="master-main"><strong>${esc(item.name)}</strong><div class="master-meta">${esc(item.code)} · ${item.isActive ? 'aktif' : 'nonaktif'}</div></div>
         <div class="master-actions"><button class="mini-btn" type="button" data-edit-product-kind="${esc(item.id)}">Edit</button></div>
-      </div>`).join('') : '<div class="empty">Belum ada Jenis Barang. Tambahkan sesuai classification bisnis yang nanti akan dilink ke Accounting.</div>';
+      </div>`).join('') : '<div class="empty">Belum ada Klasifikasi Accounting. Field ini optional.</div>';
     list.querySelectorAll('[data-edit-product-kind]').forEach(button => button.addEventListener('click', () => editProductKind(button.dataset.editProductKind)));
   }
 
@@ -261,7 +267,7 @@
     el('productKindCode').disabled = true;
     el('productKindName').value = item.name;
     el('productKindActive').checked = item.isActive;
-    el('productKindFormTitle').textContent = 'Edit Jenis Barang';
+    el('productKindFormTitle').textContent = 'Edit Klasifikasi Accounting';
     el('productKindCancel').classList.remove('hidden');
   }
 
@@ -271,7 +277,7 @@
     if (el('productKindId')) el('productKindId').value = '';
     if (el('productKindCode')) el('productKindCode').disabled = false;
     if (el('productKindActive')) el('productKindActive').checked = true;
-    if (el('productKindFormTitle')) el('productKindFormTitle').textContent = 'Jenis Barang';
+    if (el('productKindFormTitle')) el('productKindFormTitle').textContent = 'Klasifikasi Accounting';
     el('productKindCancel')?.classList.add('hidden');
   }
 
@@ -289,7 +295,7 @@
       });
       resetProductKindForm();
       await loadEditor(true);
-      toast(id ? 'Jenis Barang diperbarui' : 'Jenis Barang ditambahkan');
+      toast(id ? 'Klasifikasi diperbarui' : 'Klasifikasi ditambahkan');
     } catch (error) { toast(error.message); }
   }
 
@@ -546,7 +552,8 @@
     mountAccountingPortal();
     removeDuplicateClassificationPanel();
     const productTab = document.querySelector('[data-tab="products"]');
-    productTab?.addEventListener('click', () => setTimeout(() => loadEditor().catch(error => toast(error.message)), 0));
+    productTab?.addEventListener('click', () => setTimeout(() => loadEditor(true).catch(error => toast(error.message)), 0));
+    window.addEventListener('product-master-reference-updated', () => loadEditor(true).catch(error => toast(error.message)));
     const list = el('productList');
     if (list) new MutationObserver(() => enhanceProductRows()).observe(list, { childList: true });
     const gate = el('authGate');

@@ -5,6 +5,7 @@ export const REQUIRED_REMOTE_TABLES = Object.freeze([
   'customer_feedback_reports',
   'customer_feedback_report_issues'
 ]);
+export const WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS = 120000;
 
 export function extractWranglerD1Rows(payload) {
   const containers = Array.isArray(payload) ? payload : [payload];
@@ -29,10 +30,19 @@ function verifyRemoteSchema() {
   const sql = `SELECT name FROM sqlite_schema WHERE type = 'table' AND name IN (${quotedNames}) ORDER BY name;`;
   const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   const result = spawnSync(executable, [
-    'wrangler', 'd1', 'execute', 'DB', '--remote', '--yes', '--json', '--command', sql
-  ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    '--yes', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--yes', '--json', '--command', sql
+  ], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS,
+    killSignal: 'SIGTERM'
+  });
 
   if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      console.error(`Remote D1 schema verification exceeded ${WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS / 1000}s. Stop deployment before Worker promotion.`);
+      process.exit(1);
+    }
     console.error('Remote D1 schema verification could not start:', result.error.message);
     process.exit(1);
   }

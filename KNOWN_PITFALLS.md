@@ -117,6 +117,32 @@ Customer return, supplier return, dan internal return dapat mempunyai arah inven
 
 Compatibility endpoint pair-mapping sudah dipensiunkan. Semua konfigurasi baru memakai `MAXI_ACCOUNTING_SETTINGS_V1`, sedangkan `transaction_accounting_snapshots` hanya menyimpan readiness evidence dan tidak berisi pasangan debit/kredit palsu.
 
+## Parallel Chart of Accounts tidak boleh lahir dari out-of-band schema
+
+**Pitfall:** Jangan membuat, menerapkan, atau mempertahankan tabel account registry paralel di luar canonical repository migration flow. Untuk Prototype Leker, `chart_of_accounts` adalah satu-satunya tabel definisi Chart of Accounts yang aktif.
+
+Pada audit 2026-08-17, live D1 mempunyai `accounting_accounts`, `accounting_dimensions`, `accounting_opening_balances`, dan `accounting_transaction_mappings`, sementara current `main` tidak mempunyai migration atau active code path yang memakai empat tabel tersebut. Definisi schema yang sama ditemukan di unmerged PR #3 commit `65b3faa0b130f9ecbbf21b9a592f9dcf376f8cec`, file `migrations/0012_pos_integration_foundation.sql`. Handoff 2026-08-13 sudah menandai PR #3 sebagai stale overlapping Accounting architecture dan melarang merge wholesale.
+
+**Root cause:** schema live menerima artifact dari jalur di luar canonical `main` migration flow. Repository history tidak membuktikan command/operator yang menjalankan perubahan itu, jadi jangan mengarang provenance lebih jauh dari evidence tersebut.
+
+**Prohibited regression behavior:**
+
+- jangan menjalankan migration/file schema dari unmerged/stale branch ke live D1;
+- jangan membuat `accounting_accounts` atau tabel lain yang mendefinisikan ASSET/LIABILITY/EQUITY/REVENUE/EXPENSE sebagai registry kedua;
+- jangan membuat duplicate account/mapping engine untuk mengejar compatibility cepat;
+- jangan drop artifact finansial tanpa pre-drop snapshot dan recovery point.
+
+**Correct pattern:**
+
+- `chart_of_accounts` tetap sole canonical COA registry;
+- `journal_rules` dan active Accounting Settings contract mengatur mapping/configuration;
+- `accounting_journal_lines.account_id` tetap menuju `chart_of_accounts`;
+- migration `0037_accounting_schema_reconciliation.sql` membackup row orphan sebelum drop dan mencatat row count;
+- `scripts/verify-remote-schema.mjs` harus fail closed bila exact orphan names atau second five-type COA table muncul lagi;
+- semua production schema change harus melalui PR + versioned migration tied to `main` dan canonical deployment road.
+
+Audit evidence lengkap ada di `ACCOUNTING_SCHEMA_RECONCILIATION_AUDIT_20260817.md`.
+
 ## Migration ledger tidak membuktikan schema object lengkap
 
 **Pitfall:** Jangan menganggap row pada tabel migration D1 otomatis membuktikan semua table/index/trigger yang pernah didefinisikan migration tersebut masih ada di remote database.
@@ -168,4 +194,4 @@ Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

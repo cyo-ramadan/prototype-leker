@@ -18,7 +18,6 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://prototype-leker-v2.daily-napkin.workers.dev'
-          export BASE
 
           mapfile -t ADMIN_CREDS < <(python - <<'PY'
           import re
@@ -34,51 +33,116 @@ jobs:
             --data "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\",\"takeover\":true}")"
           ADMIN_TOKEN="$(printf '%s' "$ADMIN_LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
           if [ -z "$ADMIN_TOKEN" ]; then echo 'Management session unavailable.'; exit 1; fi
-          export ADMIN_TOKEN
+
+          EDITOR_STATUS="$(curl -sS -o /tmp/editor.json -w '%{http_code}' \
+            "$BASE/api/admin/master/products/editor?store=G001" \
+            -H "Authorization: Bearer $ADMIN_TOKEN")"
+          if [ "$EDITOR_STATUS" != '200' ]; then
+            echo "Master Barang editor failed: HTTP $EDITOR_STATUS"
+            cat /tmp/editor.json
+            exit 1
+          fi
 
           python - <<'PY'
-          import json, os, urllib.request, urllib.error
-          BASE=os.environ['BASE']; TOKEN=os.environ['ADMIN_TOKEN']
-          def api(path, method='GET', body=None, token=TOKEN):
-              headers={'Authorization': f'Bearer {token}'}; data=None
-              if body is not None:
-                  headers['Content-Type']='application/json'; data=json.dumps(body,ensure_ascii=False).encode()
-              req=urllib.request.Request(BASE+path,data=data,headers=headers,method=method)
-              try:
-                  with urllib.request.urlopen(req,timeout=30) as r:
-                      raw=r.read().decode(); return r.status, json.loads(raw) if raw else {}
-              except urllib.error.HTTPError as e:
-                  raise RuntimeError(f'{method} {path} -> {e.code}: {e.read().decode()}')
-
-          status,editor=api('/api/admin/master/products/editor?store=G001')
-          if status!=200: raise RuntimeError(f'Master Barang editor status {status}')
+          import base64,json
+          editor=json.load(open('/tmp/editor.json'))
           item_type=next((x for x in editor.get('itemTypes',[]) if x.get('code')=='RAW_MATERIAL' and x.get('isActive',True)),None)
           kind=next((x for x in editor.get('productKinds',[]) if x.get('code')=='RAW_MATERIAL' and x.get('isActive',True)),None)
           units={x.get('code'):x for x in editor.get('units',[]) if x.get('isActive',True)}
           if not item_type or not kind or not all(code in units for code in ('GRAM','PCS','ML')):
-              raise RuntimeError('Canonical RAW_MATERIAL / GRAM / PCS / ML references are incomplete.')
+              raise SystemExit('Canonical RAW_MATERIAL / GRAM / PCS / ML references are incomplete.')
 
-          materials=[('Tepung Terigu','🌾','GRAM'),('Gula Pasir','🍚','GRAM'),('Telur Ayam','🥚','PCS'),('Margarin','🧈','GRAM'),('Susu Cair','🥛','ML'),('Air Mineral','💧','ML'),('Garam','🧂','GRAM'),('Minyak Goreng','🫗','ML'),('Cokelat Bubuk','🍫','GRAM'),('Keju','🧀','GRAM')]
-          existing={x.get('name'):x for x in editor.get('products',[])}; created=[]; unchanged=[]
+          materials=[
+              ('Tepung Terigu','🌾','GRAM'),
+              ('Gula Pasir','🍚','GRAM'),
+              ('Telur Ayam','🥚','PCS'),
+              ('Margarin','🧈','GRAM'),
+              ('Susu Cair','🥛','ML'),
+              ('Air Mineral','💧','ML'),
+              ('Garam','🧂','GRAM'),
+              ('Minyak Goreng','🫗','ML'),
+              ('Cokelat Bubuk','🍫','GRAM'),
+              ('Keju','🧀','GRAM'),
+          ]
+          existing={x.get('name'):x for x in editor.get('products',[])}
+          plan=[]
+          unchanged=[]
           for name,emoji,unit_code in materials:
               current=existing.get(name)
               if current:
-                  eligible=(current.get('isActive') is True and current.get('stockTrackingEnabled') is True and current.get('itemTypeId')==item_type.get('id') and current.get('productKindId')==kind.get('id') and current.get('baseUnitId')==units[unit_code].get('id'))
-                  if not eligible: raise RuntimeError(f'Existing row {name!r} conflicts with intended material references; refusing overwrite.')
-                  unchanged.append(name); continue
-              payload={'name':name,'purchasePrice':0,'price':0,'category':'Bahan Baku','emoji':emoji,'itemTypeId':item_type.get('id'),'productKindId':kind.get('id'),'baseUnitId':units[unit_code].get('id'),'pointsPerUnit':0,'stockTrackingEnabled':True,'isActive':True}
-              create_status,result=api('/api/admin/master/products/editor?store=G001','POST',payload)
-              if create_status!=201: raise RuntimeError(f'Unexpected create status {create_status} for {name}')
-              created.append({'name':name,'id':result.get('id')})
+                  eligible=(current.get('isActive') is True
+                            and current.get('stockTrackingEnabled') is True
+                            and current.get('itemTypeId')==item_type.get('id')
+                            and current.get('productKindId')==kind.get('id')
+                            and current.get('baseUnitId')==units[unit_code].get('id'))
+                  if not eligible:
+                      raise SystemExit(f'Existing Product Master row {name!r} conflicts with intended material references; refusing overwrite.')
+                  unchanged.append(name)
+                  continue
+              payload={
+                  'name':name,
+                  'purchasePrice':0,
+                  'price':0,
+                  'category':'Bahan Baku',
+                  'emoji':emoji,
+                  'itemTypeId':item_type.get('id'),
+                  'productKindId':kind.get('id'),
+                  'baseUnitId':units[unit_code].get('id'),
+                  'pointsPerUnit':0,
+                  'stockTrackingEnabled':True,
+                  'isActive':True,
+              }
+              raw=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode()
+              plan.append((name,base64.b64encode(raw).decode()))
+          with open('/tmp/seed-plan.tsv','w') as f:
+              for name,payload in plan:
+                  f.write(f'{name}\t{payload}\n')
+          print('EXISTING_ELIGIBLE_MATERIALS',json.dumps(unchanged,ensure_ascii=False))
+          print('MISSING_MATERIAL_COUNT',len(plan))
+          PY
 
-          _,final_editor=api('/api/admin/master/products/editor?store=G001')
-          final_types={x.get('id'):x for x in final_editor.get('itemTypes',[])}; final_products={x.get('name'):x for x in final_editor.get('products',[])}
+          CREATED=0
+          while IFS=$'\t' read -r MATERIAL_NAME PAYLOAD_B64; do
+            [ -n "$MATERIAL_NAME" ] || continue
+            printf '%s' "$PAYLOAD_B64" | base64 -d > /tmp/material-payload.json
+            CREATE_STATUS="$(curl -sS -o /tmp/material-create.json -w '%{http_code}' \
+              -X POST "$BASE/api/admin/master/products/editor?store=G001" \
+              -H "Authorization: Bearer $ADMIN_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data-binary @/tmp/material-payload.json)"
+            if [ "$CREATE_STATUS" != '201' ]; then
+              echo "Create material failed: $MATERIAL_NAME HTTP $CREATE_STATUS"
+              cat /tmp/material-create.json
+              exit 1
+            fi
+            CREATED=$((CREATED + 1))
+            echo "CREATED_MATERIAL=$MATERIAL_NAME"
+          done < /tmp/seed-plan.tsv
+          echo "CREATED_MATERIAL_COUNT=$CREATED"
+
+          FINAL_STATUS="$(curl -sS -o /tmp/final-editor.json -w '%{http_code}' \
+            "$BASE/api/admin/master/products/editor?store=G001" \
+            -H "Authorization: Bearer $ADMIN_TOKEN")"
+          if [ "$FINAL_STATUS" != '200' ]; then
+            echo "Final Master Barang editor failed: HTTP $FINAL_STATUS"
+            cat /tmp/final-editor.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          editor=json.load(open('/tmp/final-editor.json'))
+          expected={'Tepung Terigu','Gula Pasir','Telur Ayam','Margarin','Susu Cair','Air Mineral','Garam','Minyak Goreng','Cokelat Bubuk','Keju'}
+          types={x.get('id'):x for x in editor.get('itemTypes',[])}
+          products={x.get('name'):x for x in editor.get('products',[])}
           verified=[]
-          for name,_,_ in materials:
-              p=final_products.get(name); t=final_types.get(p.get('itemTypeId'),{}) if p else {}
-              if not p or not (p.get('isActive') and p.get('stockTrackingEnabled') and t.get('canPurchase') and t.get('trackStock')): raise RuntimeError(f'Material not purchase-eligible after create: {name}')
+          for name in sorted(expected):
+              p=products.get(name)
+              t=types.get(p.get('itemTypeId'),{}) if p else {}
+              if not p or not (p.get('isActive') and p.get('stockTrackingEnabled') and t.get('canPurchase') and t.get('trackStock')):
+                  raise SystemExit(f'Material is not purchase-eligible after Product Master write: {name}')
               verified.append({'name':name,'id':p.get('id'),'unit':p.get('unitSymbol'),'kind':p.get('productKindCode')})
-          print('CREATED_MATERIALS',json.dumps(created,ensure_ascii=False)); print('UNCHANGED_EXISTING_MATERIALS',json.dumps(unchanged,ensure_ascii=False)); print('VERIFIED_MATERIALS',json.dumps(verified,ensure_ascii=False)); print('MATERIAL_COUNT',len(verified))
+          print('MASTER_BARANG_VERIFIED',json.dumps(verified,ensure_ascii=False))
+          print('MASTER_BARANG_MATERIAL_COUNT',len(verified))
           PY
 
           mapfile -t CASHIER_CREDS < <(python - <<'PY'
@@ -89,18 +153,31 @@ jobs:
           print(match.group(1)); print(match.group(2))
           PY
           )
-          CASHIER_USER="${CASHIER_CREDS[0]}"; CASHIER_PASS="${CASHIER_CREDS[1]}"
+          CASHIER_USER="${CASHIER_CREDS[0]}"
+          CASHIER_PASS="${CASHIER_CREDS[1]}"
           CASHIER_LOGIN="$(curl -sS -X POST "$BASE/api/auth/staff-login" -H 'Content-Type: application/json' \
             --data "{\"username\":\"$CASHIER_USER\",\"password\":\"$CASHIER_PASS\",\"takeover\":true}")"
           CASHIER_TOKEN="$(printf '%s' "$CASHIER_LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
           if [ -z "$CASHIER_TOKEN" ]; then echo 'Cashier session unavailable.'; exit 1; fi
-          curl -sS "$BASE/api/cashier/purchases/options" -H "Authorization: Bearer $CASHIER_TOKEN" > /tmp/options.json
+
+          OPTIONS_STATUS="$(curl -sS -o /tmp/options.json -w '%{http_code}' \
+            "$BASE/api/cashier/purchases/options" \
+            -H "Authorization: Bearer $CASHIER_TOKEN")"
+          if [ "$OPTIONS_STATUS" != '200' ]; then
+            echo "Purchase options failed: HTTP $OPTIONS_STATUS"
+            cat /tmp/options.json
+            exit 1
+          fi
           python - <<'PY'
           import json
           expected={'Tepung Terigu','Gula Pasir','Telur Ayam','Margarin','Susu Cair','Air Mineral','Garam','Minyak Goreng','Cokelat Bubuk','Keju'}
-          with open('/tmp/options.json') as f: body=json.load(f)
-          products=body.get('products',[]); names={x.get('productName') for x in products}; missing=sorted(expected-names)
-          if missing: raise SystemExit(f'Purchase options missing intended materials: {missing}; body={body}')
+          body=json.load(open('/tmp/options.json'))
+          products=body.get('products',[])
+          names={x.get('productName') for x in products}
+          missing=sorted(expected-names)
+          if missing:
+              raise SystemExit(f'Purchase options missing intended materials: {missing}; body={body}')
           selected=[x for x in products if x.get('productName') in expected]
-          print('PURCHASE_OPTIONS_VERIFIED',json.dumps(selected,ensure_ascii=False)); print('PURCHASE_OPTIONS_MATERIAL_COUNT',len(selected))
+          print('PURCHASE_OPTIONS_VERIFIED',json.dumps(selected,ensure_ascii=False))
+          print('PURCHASE_OPTIONS_MATERIAL_COUNT',len(selected))
           PY

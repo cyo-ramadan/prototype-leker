@@ -10,7 +10,8 @@ test('Admin Gerai has a permanent Kotak Saran tab and panel in HTML', async () =
   assert.match(html, /id="tab-customer-feedback"/);
   assert.match(html, /<h2>Komentar Customer<\/h2>/);
   assert.match(html, /data-feedback-list/);
-  assert.match(html, /management-customer-feedback\.js\?v=20260816-static-admin-v1/);
+  assert.match(html, /Admin\/Owner yang berwenang dapat melihat identitas akun pengirim/);
+  assert.match(html, /management-customer-feedback\.js\?v=20260816-admin-delivery-identity-v2/);
 });
 
 test('modern Admin or Owner session can recover a hidden workspace without legacy PIN status', async () => {

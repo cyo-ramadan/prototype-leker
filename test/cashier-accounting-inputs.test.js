@@ -12,6 +12,7 @@ const expenses = readFileSync(new URL('../src/cashier-operational-expense.js', i
 const drawerReport = readFileSync(new URL('../src/drawer-report.js', import.meta.url), 'utf8');
 const purchaseDefaults = readFileSync(new URL('../migrations/0029_purchase_accounting_defaults.sql', import.meta.url), 'utf8');
 const cashierPosCss = readFileSync(new URL('../public/cashier-pos.css', import.meta.url), 'utf8');
+const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
 
 test('cashier workspace exposes configured payment methods and operational components', () => {
   assert.match(workspace, /listPosPaymentMethods/);
@@ -70,6 +71,11 @@ test('purchase item editor is mobile-first and retains a desktop layout', () => 
   assert.match(cashierPosCss, /\.purchase-item-row \.text-input\{[^}]*min-width:0;[^}]*width:100%/);
   assert.match(cashierPosCss, /@media\(min-width:700px\)/);
   assert.match(cashierPosCss, /grid-template-columns:minmax\(0,1fr\) 90px 150px 40px/);
+});
+
+test('cashier mobile purchase assets are versioned so deployed layout changes bypass stale browser cache', () => {
+  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-mobile-purchase-v2/);
+  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-mobile-purchase-v2/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

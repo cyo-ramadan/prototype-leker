@@ -1,0 +1,16 @@
+name: TEMP Live Product Master ID Audit
+on:
+  push:
+    branches: [agent/valid-master-transaction-smoke-20260816]
+    paths:
+      - .github/workflows/live-master-id-audit-temp.yml
+      - scripts/live-master-id-audit-temp.mjs
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/live-master-id-audit-temp.mjs

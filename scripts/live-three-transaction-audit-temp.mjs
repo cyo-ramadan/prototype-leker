@@ -43,12 +43,14 @@ const cashierLogin = await req('/api/cashier/login', { method: 'POST', body: cas
 must(cashierLogin.payload.token, 'Cashier login failed', cashierLogin.payload);
 const cashierToken = cashierLogin.payload.token;
 
-const [settings, purchaseOptions, stock, menu, journals] = await Promise.all([
+const [settings, purchaseOptions, stock, menu, journals, editor, kinds] = await Promise.all([
   req(`/api/admin/settings/accounting?store=${STORE}`, { token: adminToken }),
   req('/api/cashier/purchases/options', { token: cashierToken }),
   req(`/api/admin/stock?store=${STORE}`, { token: adminToken, allowError: true }),
   req(`/api/menu?store=${STORE}`),
-  req(`/api/admin/accounting/journals?store=${STORE}&from=2026-08-16&to=2026-08-16&limit=200`, { token: adminToken })
+  req(`/api/admin/accounting/journals?store=${STORE}&from=2026-08-16&to=2026-08-16&limit=200`, { token: adminToken }),
+  req(`/api/admin/master/products/editor?store=${STORE}`, { token: adminToken, allowError: true }),
+  req(`/api/admin/master/product-kinds?store=${STORE}`, { token: adminToken, allowError: true })
 ]);
 
 const categories = Object.fromEntries((settings.payload.transactionCategories || []).map(row => [row.code, row]));
@@ -59,49 +61,42 @@ for (const code of ['sale', 'purchase_material', 'operational']) {
 const cash = (settings.payload.paymentMethods || []).find(row => row.code === 'CASH' && row.isActive && row.accountId);
 must(cash, 'CASH payment mapping missing', settings.payload.paymentMethods);
 
-const productOptions = purchaseOptions.payload.products || [];
 const stockRows = stock.ok ? (stock.payload.stocks || []) : [];
 const stockByProduct = new Map(stockRows.map(row => [Number(row.productId), row]));
 const menuRows = Array.isArray(menu.payload) ? menu.payload : (menu.payload.products || []);
 const menuById = new Map(menuRows.map(row => [Number(row.id), row]));
-const itemCategoryByKind = new Map((settings.payload.itemCategories || []).filter(row => row.isActive).map(row => [row.productKindId, row]));
+const allItemCategories = settings.payload.itemCategories || [];
+const itemCategoryByKind = new Map(allItemCategories.map(row => [row.productKindId, row]));
 
-const candidates = productOptions.map(option => {
-  const itemCategory = itemCategoryByKind.get(option.productKindId) || null;
-  const stockRow = stockByProduct.get(Number(option.productId)) || null;
-  const menuRow = menuById.get(Number(option.productId)) || null;
-  return {
-    productId: Number(option.productId),
-    productName: option.productName,
-    productKindId: option.productKindId,
-    productKindCode: option.productKindCode,
-    averageCost: Number(option.averageCost || 0),
-    purchasePrice: Number(option.purchasePrice || 0),
-    stockQuantity: stockRow?.quantity ?? null,
-    stockTrackingEnabled: stockRow?.stockTrackingEnabled ?? null,
-    salePrice: Number(menuRow?.price || 0),
-    itemCategory
-  };
-}).filter(row => row.productKindId && row.itemCategory);
+const editorProducts = editor.ok ? (editor.payload.products || []) : [];
+const syntheticProducts = editorProducts.filter(row => /API Smoke/i.test(row.name || '') || /API_SMOKE/i.test(row.productKindCode || ''));
+const syntheticCandidates = syntheticProducts.map(product => ({
+  productId: Number(product.id),
+  productName: product.name,
+  isActive: product.isActive,
+  productKindId: product.productKindId,
+  productKindCode: product.productKindCode,
+  productKindName: product.productKindName,
+  stockTrackingEnabled: product.stockTrackingEnabled,
+  stockQuantity: product.stockQuantity,
+  averageCost: product.averageCost,
+  lastPurchasePrice: product.lastPurchasePrice,
+  salePrice: Number(menuById.get(Number(product.id))?.price || product.price || 0),
+  itemCategory: itemCategoryByKind.get(product.productKindId) || null,
+  stockRow: stockByProduct.get(Number(product.id)) || null
+}));
 
 const recentPurchase = (journals.payload.journals || []).find(row => row.sourceReferenceId?.startsWith('PURCHASE:'));
 let purchaseDetail = null;
-if (recentPurchase) {
-  purchaseDetail = (await req(`/api/admin/accounting/journals/${encodeURIComponent(recentPurchase.journalId)}?store=${STORE}`, { token: adminToken })).payload.journal;
-}
+if (recentPurchase) purchaseDetail = (await req(`/api/admin/accounting/journals/${encodeURIComponent(recentPurchase.journalId)}?store=${STORE}`, { token: adminToken })).payload.journal;
 
-console.log('=== LIVE TRANSACTION PRE-AUDIT ===');
+console.log('=== LIVE SYNTHETIC SALE CANDIDATE AUDIT ===');
 console.log(JSON.stringify({
-  settings: {
-    paymentCash: cash,
-    sale: categories.sale,
-    purchaseMaterial: categories.purchase_material,
-    operational: categories.operational,
-    itemCategories: settings.payload.itemCategories
-  },
-  stockEndpoint: { ok: stock.ok, status: stock.status, error: stock.ok ? null : stock.payload },
-  candidates,
+  settings: { paymentCash: cash, sale: categories.sale, purchaseMaterial: categories.purchase_material, operational: categories.operational, itemCategories: allItemCategories },
+  health: { stock: { ok: stock.ok, status: stock.status }, editor: { ok: editor.ok, status: editor.status }, kinds: { ok: kinds.ok, status: kinds.status } },
+  productKinds: kinds.ok ? (kinds.payload.productKinds || kinds.payload.kinds || []) : kinds.payload,
+  syntheticCandidates,
+  purchaseOptions: purchaseOptions.payload.products || [],
   recentPurchase,
-  purchaseDetail,
-  recentJournals: (journals.payload.journals || []).slice(0, 20)
+  purchaseDetail
 }, null, 2));

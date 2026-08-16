@@ -8,7 +8,7 @@ Customer Feedback V1 adds a private, structured **Kotak Saran** for authenticate
 
 ## Customer-facing behavior
 
-1. The customer page exposes **Kotak Saran**.
+1. The customer page exposes **Kotak Saran**. After the public feedback catalog loads, the category buttons are rendered immediately. Category visibility must not depend on customer login state or submission entitlement.
 2. The customer selects exactly one category:
    - `PRODUCT_QUALITY` / Mutu Produk;
    - `SERVICE` / Pelayanan;
@@ -18,7 +18,7 @@ Customer Feedback V1 adds a private, structured **Kotak Saran** for authenticate
 5. A report must contain at least one selected issue or a non-empty manual note.
 6. The page states that reporter privacy is protected, reports are for management evaluation, and reporter identity is not shared to cashier/customer-service staff through this feature.
 7. An accepted report earns the explicit Customer Feedback V1 reward of **500 points**. This reward is isolated to this contract and does not define a global point redemption value or generic sale earning ratio.
-8. Customer UI receives only whether submission is currently available. It must not publish quota thresholds, cooldown rules, internal entitlement type, or entitlement keys.
+8. Customer UI receives only whether submission is currently available. Entitlement controls whether **Laporkan** can execute, not whether the category catalog is visible. The UI must not publish quota thresholds, cooldown rules, internal entitlement type, or entitlement keys.
 
 ## Submission entitlement
 
@@ -45,8 +45,9 @@ Normalized issue rows are the reporting source for weekly aggregation and future
 
 - Customer identity is derived from the bearer customer session. The client never submits a trusted Customer ID.
 - Feedback is stored with `customer_id` for quota integrity and future authorized analysis.
-- The Customer Feedback UI must treat an existing customer session token as sufficient to ask the server for authoritative access even while the page-level customer identity is still being restored asynchronously. A transient `window.LEKER_CUSTOMER` restore race must not hide the feedback form for a valid session.
-- A stale or invalid token remains fail-closed because the access endpoint returns `401 CUSTOMER_LOGIN_REQUIRED`; the client must then show the login state.
+- The feedback catalog is public customer-page metadata and may render before authentication. Authentication is required for submission and remains server-authoritative.
+- The Customer Feedback UI must ask the server for authoritative access without gating category visibility on `window.LEKER_CUSTOMER` or any asynchronous page-level identity restoration.
+- A stale, absent, or invalid token remains fail-closed because the access endpoint returns `401 CUSTOMER_LOGIN_REQUIRED`; the client keeps the form visible but prevents submission and offers the customer login action.
 - Admin Gerai reads only reports from its own store.
 - Owner may read reports across stores.
 - Management list responses intentionally omit customer ID, customer code, name, phone, username, and email. The UI shows only a protected verified-customer marker.
@@ -99,4 +100,4 @@ If remote migration, remote schema verification, or deploy fails, stop promotion
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability. Customer session readiness behavior is also part of the Customer UI authorization contract.
+**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability. Visible-first category rendering and server-authoritative submission eligibility are part of the Customer UI contract.

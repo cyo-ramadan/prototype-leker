@@ -91,7 +91,7 @@ test('Master purchase price stays editable while Average Cost and Last Purchase 
   assert.match(productMaster, /COST_SCALE = 1_000_000/);
   assert.match(productMaster, /costFromScaled\(row\.average_cost\)/);
   assert.match(productMaster, /purchasePrice: Number\(row\.purchase_price/);
-  assert.match(productMaster, /const purchasePrice = money\(body\?\.purchasePrice\)/);
+  assert.match(productMaster, /const purchasePrice = money\(owns\(body, 'purchasePrice'\)/);
   assert.match(productMaster, /purchase_price = \?, price = \?/);
   assert.match(productUi, /Average Cost · HPP berjalan/);
   assert.match(productUi, /Harga Beli Terakhir/);
@@ -106,14 +106,21 @@ test('Master purchase price stays editable while Average Cost and Last Purchase 
   assert.doesNotMatch(productMaster, /body\?\.averageCost|body\?\.lastPurchasePrice/);
 });
 
-test('Master Barang UI contains type kind unit points and recipe while fulfillment is removed', () => {
-  assert.match(productUi, /Tipe Barang<select id="productItemType"/);
-  assert.match(productUi, /Jenis Barang<select id="productKind"/);
+test('Master Barang keeps scalable references behind a simple advanced surface', () => {
+  assert.match(productUi, /Stok & pengaturan lanjutan/);
+  assert.match(productUi, /Peran Barang<select id="productItemType"/);
+  assert.match(productUi, /Klasifikasi Accounting<select id="productKind"/);
   assert.match(productUi, /Satuan Dasar<select id="productBaseUnit"/);
   assert.match(productUi, /Poin per 1 barang/);
   assert.match(productUi, /Recipe Linked<select id="productLinkedRecipe"/);
   assert.doesNotMatch(productUi, /id="productProductionMode"/);
-  assert.match(masterMenu, /data-master-target="productKindMasterCard">Jenis Barang/);
+  assert.match(masterMenu, /data-master-target="productKindMasterCard">Klasifikasi Accounting/);
+  assert.match(productUi, /item\.code === 'FINISHED_GOOD'/);
+  assert.match(productUi, /item\.code === 'PCS'/);
+  assert.match(productUi, /loadEditor\(true\)/);
+  assert.match(productUi, /product-master-reference-updated/);
+  assert.match(productMaster, /owns\(body, 'purchasePrice'\)/);
+  assert.match(productMaster, /current\?\.purchase_price/);
 });
 
 test('purchase is itemized from database products and atomically snapshots configuration stock last price and moving average cost', () => {

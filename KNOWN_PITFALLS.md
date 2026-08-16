@@ -40,7 +40,7 @@ Cara itu merusak historical costing karena harga bahan dapat berubah setelah pro
 - authoritative new cost/journal fields are scaled INTEGER;
 - Accounting accepts maximum 6 fractional decimal places and rounds half-up at digit 7;
 - UI/API converts scaled values only for presentation;
-- legacy production REAL fields from migration 0017 are history fallback only and new writers leave them NULL.
+- legacy production REAL fields from migration 0017 are history fallback only dan new writers leave them NULL.
 
 ## Saldo negatif bukan jurnal tidak balance
 
@@ -133,6 +133,21 @@ Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai m
 - setelah recovery, restore normal repository-owned deploy command dan buktikan fresh Git Integration deploy berhasil tanpa recovery script;
 - temporary diagnostic assets/script harus dihapus dan live smoke harus membuktikan asset tersebut tidak lagi public.
 
+## Preview Worker tidak membuktikan remote D1 siap
+
+**Pitfall:** Successful Worker preview/source build bukan bukti bahwa migration baru sudah applied ke remote D1. Code baru dapat memanggil table yang belum ada dan baru meledak sebagai runtime 500 ketika user membuka fitur.
+
+**Current strategy:**
+
+- schema-changing production release harus menjalankan `db:migrations:apply` lalu `db:schema:verify` sebelum `wrangler deploy`;
+- verifier membaca remote `sqlite_schema` dan fail closed bila required object belum ada;
+- semua `npx` pada deploy road dibuat explicit non-interactive;
+- remote schema verifier punya bounded runtime dan gagal sebelum Worker promotion jika Wrangler/D1 tidak merespons;
+- branch preview dengan migration baru dianggap code-preview saja kecuali dedicated preview D1 dengan matching schema memang disediakan;
+- jangan membuat ad-hoc table production dari request handler atau rewrite migration history untuk menyelamatkan preview.
+
+Recovery dan deployment checklist lengkap ada di `RUNBOOK.md`.
+
 ## Accounting tetap owner posting jurnal
 
 ## Dialog transaksi jangan melakukan fetch berantai atau ganda
@@ -153,4 +168,4 @@ Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, stock-integrity policy tetap milik Inventory/Costing, dan production D1 recovery harus memverifikasi schema object—bukan hanya migration ledger.
+**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

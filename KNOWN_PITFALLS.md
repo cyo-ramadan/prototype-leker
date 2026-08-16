@@ -135,6 +135,14 @@ Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai m
 
 ## Accounting tetap owner posting jurnal
 
+## D1 default bootstrap tidak boleh overlap dengan editor reads
+
+**Pitfall:** Jangan menjalankan helper yang dapat menulis default reference dalam `Promise.all` yang sama dengan query snapshot editor.
+
+Selesaikan bootstrap/default write terlebih dahulu, kemudian jalankan independent read queries secara paralel. Overlap batch write + read pada request yang sama dapat membuat endpoint gabungan gagal walaupun endpoint reference individual tetap sehat.
+
+## Accounting tetap owner posting jurnal
+
 Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak boleh menulis langsung ke database Accounting atau membuat General Ledger tandingan. Dalam local composition host, semua journal write tetap wajib melalui Accounting posting entry point yang sama.
 
 ## DOC-IMPACT

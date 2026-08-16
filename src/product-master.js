@@ -112,8 +112,10 @@ async function listEditorProducts(db, storeId) {
 }
 
 async function editorPayload(db, store) {
-  const [refs, productKinds, products, recipes] = await Promise.all([
-    getManufacturingReferenceData(db, store.id),
+  // Reference bootstrap may write missing defaults. Finish it before concurrent
+  // reads so D1 never overlaps a bootstrap batch with the editor snapshot.
+  const refs = await getManufacturingReferenceData(db, store.id);
+  const [productKinds, products, recipes] = await Promise.all([
     listProductKinds(db, store.id),
     listEditorProducts(db, store.id),
     listActiveRecipes(db, store.id)

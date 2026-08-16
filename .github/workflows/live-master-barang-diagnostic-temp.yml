@@ -25,7 +25,10 @@ jobs:
           if [ -z "$TOKEN" ]; then printf '%s\n' "$LOGIN"; exit 1; fi
 
           probe() {
-            local label="$1" path="$2" file="/tmp/${label}.json" status
+            local label="$1"
+            local path="$2"
+            local file="/tmp/${label}.json"
+            local status
             status="$(curl -sS -o "$file" -w '%{http_code}' "$BASE$path" -H "Authorization: Bearer $TOKEN")"
             echo "${label}_HTTP_STATUS=$status"
             if [ "$status" != '200' ]; then echo "${label}_ERROR_BODY"; cat "$file"; echo; fi

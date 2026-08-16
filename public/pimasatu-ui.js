@@ -21,5 +21,5 @@
     renderLines(); setExpanded(false);
     return { getLines:()=>state.lines.slice(), clear:()=>{state.lines=[];reset();renderLines();}, open:()=>setExpanded(true) };
   }
-  window.MAXIPimasatu = { version:'1.0.0', create };
+  window.MAXIPimasatu = { version:'1.0.1', create };
 })();

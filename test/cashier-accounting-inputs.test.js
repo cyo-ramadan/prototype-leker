@@ -67,6 +67,7 @@ test('purchase dialog keeps one Accounting payment selector and uses an add-to-d
   assert.match(enhancedInputUi, /product\.purchasePrice/);
   assert.match(purchases, /p\.purchase_price/);
   assert.match(purchases, /purchasePrice: Number\(row\.purchase_price/);
+  assert.doesNotMatch(purchases, /purchase_price = CAST/);
   assert.doesNotMatch(enhancedInputUi, /resetPurchaseComposer[\s\S]*?purchaseProductSearch'\)\?\.focus\(\)/);
   assert.match(enhancedInputUi, /purchaseItemsPayload\(\)\.filter\(item => item\.productId > 0\)/);
 });

@@ -34,7 +34,7 @@ function query(sql) {
 const tables = [
   'products','sales','sale_items','orders','order_items','order_status_history',
   'inventory_stock_balances','stock_movements','production_runs','approval_permits',
-  'purchases','expenses'
+  'purchases','expenses','item_types','units','product_kinds','manufacturing_recipes'
 ];
 const schema = {};
 for (const table of tables) {
@@ -50,20 +50,30 @@ for (const table of tables) {
 const migrationNames = [
   '0007_customer_identity_unified_entry.sql',
   '0012_drawer_bound_sales_orders.sql',
+  '0016_manufacturing_master_v1.sql',
   '0017_product_stock_production_points.sql',
   '0019_product_costing_and_kinds.sql',
-  '0027_transaction_void_permits.sql'
+  '0027_transaction_void_permits.sql',
+  '0030_g001_purchase_material_master.sql',
+  '0031_g001_purchase_material_products.sql'
 ];
 const migrations = query(`SELECT id, name, applied_at FROM d1_migrations WHERE name IN (${migrationNames.map(name => `'${name}'`).join(',')}) ORDER BY id;`);
 const foreignKeyViolations = query('PRAGMA foreign_key_check;');
-const indexes = query(`SELECT name, tbl_name, sql FROM sqlite_schema WHERE type='index' AND tbl_name IN ('products','sales','sale_items','orders','order_items','order_status_history') ORDER BY tbl_name,name;`);
+const indexes = query(`SELECT name, tbl_name, sql FROM sqlite_schema WHERE type='index' AND tbl_name IN ('products','sales','sale_items','orders','order_items','order_status_history','item_types','units','product_kinds') ORDER BY tbl_name,name;`);
+const g001Master = {
+  itemTypes: query(`SELECT id, code, name, can_sell, can_purchase, can_produce, can_consume, track_stock, is_active FROM item_types WHERE store_id='store_001' ORDER BY code;`),
+  units: query(`SELECT id, code, name, symbol, decimal_scale, is_active FROM units WHERE store_id='store_001' ORDER BY code;`),
+  productKinds: query(`SELECT id, code, name, is_active FROM product_kinds WHERE store_id='store_001' ORDER BY code;`),
+  products: query(`SELECT id, name, purchase_price, price, category, is_active, item_type_id, product_kind_id, base_unit_id, stock_tracking_enabled FROM products WHERE store_id='store_001' ORDER BY display_order,id;`)
+};
 const payload = {
   generatedAt: new Date().toISOString(),
-  diagnostic: 'TEMP_REMOTE_SCHEMA_ARTIFACT_V1',
+  diagnostic: 'TEMP_REMOTE_SCHEMA_ARTIFACT_V2_MASTER_BARANG',
   schema,
   migrations,
   foreignKeyViolations,
-  indexes
+  indexes,
+  g001Master
 };
 writeFileSync('public/schema-diagnostic-temp.json', `${JSON.stringify(payload, null, 2)}\n`);
 console.log('Temporary schema diagnostic asset generated.');

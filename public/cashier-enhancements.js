@@ -44,12 +44,12 @@
     const product = purchaseState.products.find(item => String(item.productId) === String(selected));
     const suggested = Math.max(0, Math.round(Number(product?.lastPurchasePrice || 0)));
     target.insertAdjacentHTML('beforeend', `
-      <div data-purchase-row="${id}" style="display:grid;grid-template-columns:minmax(0,1fr) 90px 150px auto;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.08)">
-        <div class="field" style="margin:0"><label>Barang</label><select data-purchase-product class="text-input">${purchaseProductOptions(selected)}</select></div>
-        <div class="field" style="margin:0"><label>Qty</label><input data-purchase-qty class="text-input" type="number" min="1" step="1" value="1" required /></div>
-        <div class="field" style="margin:0"><label>Total baris</label><input data-purchase-line-total class="text-input" type="number" min="1" step="1" value="${suggested || ''}" required /></div>
-        <button data-remove-purchase-row="${id}" class="mini-btn danger" type="button">×</button>
-        <div data-purchase-cost-preview class="muted" style="grid-column:1/-1"></div>
+      <div data-purchase-row="${id}" class="purchase-item-row">
+        <div class="purchase-item-heading"><strong>Barang ${id}</strong><button data-remove-purchase-row="${id}" class="mini-btn danger purchase-item-remove" type="button" aria-label="Hapus barang ${id}">×</button></div>
+        <div class="field purchase-item-product"><label>Cari barang</label><select data-purchase-product class="text-input">${purchaseProductOptions(selected)}</select></div>
+        <div class="field purchase-item-quantity"><label>Qty</label><input data-purchase-qty class="text-input" type="number" min="1" step="1" value="1" required /></div>
+        <div class="field purchase-item-total"><label>Total baris</label><input data-purchase-line-total class="text-input" type="number" min="1" step="1" value="${suggested || ''}" required /></div>
+        <div data-purchase-cost-preview class="muted purchase-item-preview"></div>
       </div>`);
     const row = target.querySelector(`[data-purchase-row="${id}"]`);
     row.querySelector('[data-purchase-product]')?.addEventListener('change', () => {

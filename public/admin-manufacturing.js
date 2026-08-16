@@ -54,7 +54,7 @@
         <div class="admin-grid two" style="margin-top:14px">
           <form id="itemTypeForm" class="admin-card">
             <input id="itemTypeId" type="hidden" />
-            <div class="form-title-row"><h2 id="itemTypeFormTitle">Tipe Barang</h2><button id="itemTypeCancel" class="text-btn hidden" type="button">Batal edit</button></div>
+            <div class="form-title-row"><h2 id="itemTypeFormTitle">Peran Barang</h2><button id="itemTypeCancel" class="text-btn hidden" type="button">Batal edit</button></div>
             <label class="admin-field">Kode<input id="itemTypeCode" maxlength="32" placeholder="RAW_MATERIAL" required /></label>
             <label class="admin-field">Nama<input id="itemTypeName" maxlength="80" placeholder="Bahan" required /></label>
             <div class="admin-grid two compact">
@@ -83,7 +83,7 @@
         </div>
 
         <div class="admin-grid two" style="margin-top:14px">
-          <div class="admin-card list-card"><div class="list-head"><h2>Daftar Tipe Barang</h2><span id="itemTypeCount" class="master-count">0</span></div><div id="itemTypeList" class="master-list"></div></div>
+          <div class="admin-card list-card"><div class="list-head"><h2>Daftar Peran Barang</h2><span id="itemTypeCount" class="master-count">0</span></div><div id="itemTypeList" class="master-list"></div></div>
           <div class="admin-card list-card"><div class="list-head"><h2>Daftar Satuan</h2><span id="unitCount" class="master-count">0</span></div><div id="unitList" class="master-list"></div></div>
         </div>
 
@@ -179,7 +179,7 @@
     el('itemTypeCanConsume').checked = item.canConsume;
     el('itemTypeTrackStock').checked = item.trackStock;
     el('itemTypeActive').checked = item.isActive;
-    el('itemTypeFormTitle').textContent = 'Edit Tipe Barang';
+    el('itemTypeFormTitle').textContent = 'Edit Peran Barang';
     el('itemTypeCancel').classList.remove('hidden');
   }
 
@@ -202,7 +202,8 @@
       });
       resetItemTypeForm();
       await loadAll();
-      toast(id ? 'Tipe barang diperbarui' : 'Tipe barang ditambahkan');
+      window.dispatchEvent(new CustomEvent('product-master-reference-updated', { detail: { reference: 'itemType' } }));
+      toast(id ? 'Peran barang diperbarui' : 'Peran barang ditambahkan');
     } catch (error) { toast(error.message); }
   }
 
@@ -216,7 +217,7 @@
     el('itemTypeCanConsume').checked = true;
     el('itemTypeTrackStock').checked = true;
     el('itemTypeActive').checked = true;
-    el('itemTypeFormTitle').textContent = 'Tipe Barang';
+    el('itemTypeFormTitle').textContent = 'Peran Barang';
     el('itemTypeCancel').classList.add('hidden');
   }
 
@@ -261,6 +262,7 @@
       });
       resetUnitForm();
       await loadAll();
+      window.dispatchEvent(new CustomEvent('product-master-reference-updated', { detail: { reference: 'unit' } }));
       toast(id ? 'Satuan diperbarui' : 'Satuan ditambahkan');
     } catch (error) { toast(error.message); }
   }

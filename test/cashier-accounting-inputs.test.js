@@ -63,8 +63,11 @@ test('purchase dialog keeps one Accounting payment selector and uses an add-to-d
   assert.match(enhancedInputUi, />\+ Tambah Barang<\/button>/);
   assert.match(enhancedInputUi, /resetPurchaseComposer\(\)/);
   assert.match(enhancedInputUi, /insertAdjacentHTML\('afterbegin'/);
-  assert.match(enhancedInputUi, /lastPurchasePrice/);
   assert.match(enhancedInputUi, /masih bisa diedit/);
+  assert.match(enhancedInputUi, /product\.purchasePrice/);
+  assert.match(purchases, /p\.purchase_price/);
+  assert.match(purchases, /purchasePrice: Number\(row\.purchase_price/);
+  assert.doesNotMatch(enhancedInputUi, /resetPurchaseComposer[\s\S]*?purchaseProductSearch'\)\?\.focus\(\)/);
   assert.match(enhancedInputUi, /purchaseItemsPayload\(\)\.filter\(item => item\.productId > 0\)/);
 });
 
@@ -82,8 +85,8 @@ test('purchase composer is mobile-first with compact Qty and invoice-like detail
 });
 
 test('cashier mobile purchase assets are versioned so deployed layout changes bypass stale browser cache', () => {
-  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-search-v5/);
-  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-search-v5/);
+  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-autofill-v6/);
+  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-autofill-v6/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

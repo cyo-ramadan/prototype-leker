@@ -41,7 +41,7 @@
       .filter(product => !keyword || purchaseProductLabel(product).toLocaleLowerCase('id-ID').includes(keyword))
       .slice(0, 8);
     host.innerHTML = matches.length
-      ? matches.map(product => `<button type="button" data-purchase-search-result="${product.productId}"><strong>${esc(product.productName)}</strong><span>${esc(product.unitSymbol || '-')} · harga terakhir ${money(product.lastPurchasePrice)}</span></button>`).join('')
+      ? matches.map(product => `<button type="button" data-purchase-search-result="${product.productId}"><strong>${esc(product.productName)}</strong><span>${esc(product.unitSymbol || '-')} · harga beli Master ${money(product.purchasePrice)}</span></button>`).join('')
       : '<div class="purchase-search-empty">Barang tidak ditemukan.</div>';
     host.classList.remove('hidden');
   }
@@ -51,8 +51,8 @@
     if (!product) return;
     purchaseState.selectedProductId = Number(product.productId);
     el('purchaseProductSearch').value = purchaseProductLabel(product);
-    el('purchaseComposerUnitPrice').value = String(Math.max(0, Math.round(Number(product.lastPurchasePrice || 0))) || '');
-    el('purchaseComposerUnit').textContent = `Satuan ${product.unitSymbol || '-'} · Harga beli terakhir otomatis ${money(product.lastPurchasePrice)} · masih bisa diedit`;
+    el('purchaseComposerUnitPrice').value = String(Math.max(0, Math.round(Number(product.purchasePrice || 0))) || '');
+    el('purchaseComposerUnit').textContent = `Satuan ${product.unitSymbol || '-'} · Harga beli Master otomatis ${money(product.purchasePrice)} · masih bisa diedit`;
     el('purchaseProductResults')?.classList.add('hidden');
   }
 
@@ -63,7 +63,6 @@
     if (el('purchaseComposerUnitPrice')) el('purchaseComposerUnitPrice').value = '';
     if (el('purchaseComposerUnit')) el('purchaseComposerUnit').textContent = 'Pilih barang untuk melihat satuan dan harga terakhir.';
     el('purchaseProductResults')?.classList.add('hidden');
-    el('purchaseProductSearch')?.focus();
   }
 
   function addPurchaseRow() {

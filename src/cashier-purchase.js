@@ -28,7 +28,7 @@ async function listPurchaseOptions(db, storeId) {
   let rows;
   try {
     rows = await db.prepare(`
-      SELECT p.id, p.name, p.base_unit_id, p.average_cost, p.last_purchase_price,
+      SELECT p.id, p.name, p.base_unit_id, p.purchase_price, p.average_cost, p.last_purchase_price,
              p.product_kind_id, p.stock_tracking_enabled,
              u.symbol AS unit_symbol,
              k.code AS product_kind_code, k.name AS product_kind_name,
@@ -47,7 +47,7 @@ async function listPurchaseOptions(db, storeId) {
   } catch (error) {
     console.error('canonical purchase option query failed; using Product Master compatibility read', { storeId, error });
     rows = await db.prepare(`
-      SELECT p.id, p.name, p.base_unit_id, p.average_cost, p.last_purchase_price,
+      SELECT p.id, p.name, p.base_unit_id, p.purchase_price, p.average_cost, p.last_purchase_price,
              p.product_kind_id, 1 AS stock_tracking_enabled,
              u.symbol AS unit_symbol,
              COALESCE(k.code, '') AS product_kind_code,
@@ -64,6 +64,7 @@ async function listPurchaseOptions(db, storeId) {
     productId: Number(row.id), productName: row.name, unitId: row.base_unit_id,
     unitSymbol: row.unit_symbol || '', productKindId: row.product_kind_id || null,
     productKindCode: row.product_kind_code || '', productKindName: row.product_kind_name || '',
+    purchasePrice: Number(row.purchase_price || 0),
     averageCost: costFromScaled(row.average_cost), lastPurchasePrice: costFromScaled(row.last_purchase_price)
   }));
 }

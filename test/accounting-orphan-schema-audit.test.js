@@ -5,6 +5,7 @@ import { extname, relative, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   ACCOUNTING_ACCOUNT_TYPES,
+  ALLOWED_ACCOUNT_REFERENCE_TABLES,
   FORBIDDEN_REMOTE_TABLES,
   accountingSchemaViolations
 } from '../scripts/verify-remote-schema.mjs';
@@ -73,7 +74,7 @@ test('runtime source tree does not reference reconciled orphan Accounting tables
   assert.deepEqual(activeReferences, [], `active orphan-schema references detected: ${JSON.stringify(activeReferences)}`);
 });
 
-test('fresh schema keeps chart_of_accounts as the sole five-type Chart-of-Accounts table', () => {
+test('fresh schema keeps chart_of_accounts as canonical while typed compatibility references stay non-runtime', () => {
   const sqlite = freshDatabase();
   try {
     const rows = schemaRows(sqlite);
@@ -87,10 +88,12 @@ test('fresh schema keeps chart_of_accounts as the sole five-type Chart-of-Accoun
         return ACCOUNTING_ACCOUNT_TYPES.every(accountType => sql.includes(`'${accountType}'`));
       })
       .map(row => row.name);
-    assert.deepEqual(typedAccountTables, ['chart_of_accounts']);
+    assert.deepEqual(typedAccountTables, ['accounting_account_refs', 'chart_of_accounts']);
+    assert.deepEqual(ALLOWED_ACCOUNT_REFERENCE_TABLES, ['accounting_account_refs']);
 
     const journalLineForeignKeys = sqlite.prepare(`PRAGMA foreign_key_list(accounting_journal_lines)`).all();
     assert.equal(journalLineForeignKeys.some(row => row.table === 'chart_of_accounts'), true);
+    assert.equal(journalLineForeignKeys.some(row => row.table === 'accounting_account_refs'), false);
     assert.equal(journalLineForeignKeys.some(row => orphanTableNames.includes(row.table)), false);
 
     const reconciliation = sqlite.prepare(`
@@ -108,9 +111,13 @@ test('fresh schema keeps chart_of_accounts as the sole five-type Chart-of-Accoun
   }
 });
 
-test('remote schema verifier rejects orphan or parallel Chart-of-Accounts tables', () => {
+test('remote schema verifier allows registered compatibility refs and rejects orphan or parallel COA tables', () => {
   const canonicalSql = `CREATE TABLE chart_of_accounts (type TEXT CHECK (type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')))`;
-  assert.deepEqual(accountingSchemaViolations([{ results: [{ name: 'chart_of_accounts', sql: canonicalSql }] }]), {
+  const referenceSql = `CREATE TABLE accounting_account_refs (account_type TEXT CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')), external_account_id TEXT)`;
+  assert.deepEqual(accountingSchemaViolations([{ results: [
+    { name: 'chart_of_accounts', sql: canonicalSql },
+    { name: 'accounting_account_refs', sql: referenceSql }
+  ] }]), {
     forbiddenTables: [],
     parallelAccountTables: []
   });
@@ -118,6 +125,7 @@ test('remote schema verifier rejects orphan or parallel Chart-of-Accounts tables
   const rogueSql = `CREATE TABLE shadow_accounts (account_type TEXT CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')))`;
   const violations = accountingSchemaViolations([{ results: [
     { name: 'chart_of_accounts', sql: canonicalSql },
+    { name: 'accounting_account_refs', sql: referenceSql },
     { name: 'accounting_accounts', sql: 'CREATE TABLE accounting_accounts (id TEXT)' },
     { name: 'shadow_accounts', sql: rogueSql }
   ] }]);

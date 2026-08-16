@@ -3,7 +3,8 @@ import { pathToFileURL } from 'node:url';
 
 export const REQUIRED_REMOTE_TABLES = Object.freeze([
   'customer_feedback_reports',
-  'customer_feedback_report_issues'
+  'customer_feedback_report_issues',
+  'debugger_audit_log'
 ]);
 export const WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS = 120000;
 

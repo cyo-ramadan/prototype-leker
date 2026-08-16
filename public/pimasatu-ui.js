@@ -1,6 +1,6 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
-  function create({ host, items, getId = item => item.id, getLabel = item => item.name, getMeta = () => '', getDefaultAmount = () => 0, openLabel = 'Tambah Item', itemLabel = 'Item', priceLabel = 'Nominal / unit', detailTitle = 'Detail', priceEditable = true, renderDetails = true, onAdd = null, onError = () => {}, onLinesChange = () => {} }) {
+  function create({ host, items, getId = item => item.id, getLabel = item => item.name, getMeta = () => '', getDefaultAmount = () => 0, openLabel = 'Tambah Item', itemLabel = 'Item', priceLabel = 'Nominal / unit', detailTitle = 'Detail', priceEditable = true, renderDetails = true, initialExpanded = true, onAdd = null, onError = () => {}, onLinesChange = () => {} }) {
     host = typeof host === 'string' ? document.querySelector(host) : host;
     if (!host) throw new Error('PIMASATU host tidak ditemukan.');
     const state = { selectedId: null, lines: [], expanded: false };
@@ -18,8 +18,8 @@
     toggle.onclick = () => setExpanded(!state.expanded); search.onfocus = renderResults; search.oninput = () => { state.selectedId=null; price.value=''; renderResults(); };
     results.onclick = event => { const button=event.target.closest('[data-result]'); if(!button)return; const item=list().find(candidate=>String(getId(candidate))===String(button.dataset.result)); state.selectedId=getId(item); search.value=getLabel(item); price.value=String(Number(getDefaultAmount(item))||''); hint.textContent=getMeta(item); results.classList.add('hidden'); };
     host.querySelector('.pimasatu-add').onclick = () => { const item=list().find(candidate=>String(getId(candidate))===String(state.selectedId)); const quantity=Number(qty.value), unitAmount=Number(price.value); if(!item)return onError('Pilih item dari hasil pencarian.'); if(!(quantity>0))return onError('Qty wajib lebih dari 0.'); if(!Number.isSafeInteger(unitAmount)||unitAmount<0)return onError('Nominal tidak valid.'); if(renderDetails&&state.lines.some(line=>String(line.id)===String(getId(item))))return onError('Item sudah ada di detail.'); const line={id:getId(item),item,label:getLabel(item),meta:getMeta(item),quantity,unitAmount}; if(renderDetails) state.lines.unshift(line); if(onAdd) onAdd(line); renderLines(); onLinesChange(state.lines.slice()); reset(); setExpanded(false); };
-    renderLines(); setExpanded(false);
+    renderLines(); setExpanded(initialExpanded);
     return { getLines:()=>state.lines.slice(), clear:()=>{state.lines=[];reset();renderLines();}, open:()=>setExpanded(true) };
   }
-  window.MAXIPimasatu = { version:'1.0.1', create };
+  window.MAXIPimasatu = { version:'1.1.0', create };
 })();

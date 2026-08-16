@@ -14,6 +14,9 @@ test('PIMASATU is a reusable one-at-a-time component with mobile compact quantit
   assert.match(component, /window\.MAXIPimasatu/);
   assert.match(component, /state\.lines\.unshift/);
   assert.match(component, /setExpanded\(false\)/);
+  assert.match(component, /initialExpanded = true/);
+  assert.match(component, /setExpanded\(initialExpanded\)/);
+  assert.doesNotMatch(component, /renderLines\(\); setExpanded\(false\)/);
   assert.match(component, /qty\.value = '1'/);
   assert.match(css, /grid-template-columns:minmax\(72px,92px\) minmax\(0,1fr\)/);
   assert.match(css, /@media\(max-width:430px\)/);

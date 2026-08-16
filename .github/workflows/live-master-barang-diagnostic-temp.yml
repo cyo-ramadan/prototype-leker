@@ -1,0 +1,79 @@
+name: Live Master Barang Diagnostic Temp
+
+on:
+  push:
+    branches:
+      - agent/fix-purchase-master-data-20260816
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect live G001 Master Barang eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://prototype-leker-v2.daily-napkin.workers.dev'
+
+          login_staff() {
+            local username="$1"
+            local password="$2"
+            curl -sS -X POST "$BASE/api/auth/staff-login" \
+              -H 'Content-Type: application/json' \
+              --data "{\"username\":\"$username\",\"password\":\"$password\"}"
+          }
+
+          LOGIN="$(login_staff kingluhut luhut123)"
+          TOKEN="$(printf '%s' "$LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
+          if [ -z "$TOKEN" ]; then
+            LOGIN="$(login_staff bablil bablil123)"
+            TOKEN="$(printf '%s' "$LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
+          fi
+          if [ -z "$TOKEN" ]; then
+            echo 'Could not obtain an unused admin session.'
+            printf '%s\n' "$LOGIN"
+            exit 1
+          fi
+
+          curl -sS "$BASE/api/admin/master/products/editor?store=G001" \
+            -H "Authorization: Bearer $TOKEN" > /tmp/editor.json
+
+          python - <<'PY'
+          import json
+          with open('/tmp/editor.json') as f:
+              p=json.load(f)
+          types={x.get('id'):x for x in p.get('itemTypes',[])}
+          rows=[]
+          eligible=[]
+          for x in p.get('products',[]):
+              t=types.get(x.get('itemTypeId'),{})
+              row={
+                'id':x.get('id'),
+                'name':x.get('name'),
+                'active':x.get('isActive'),
+                'itemTypeId':x.get('itemTypeId'),
+                'itemTypeName':x.get('itemTypeName'),
+                'canPurchase':t.get('canPurchase'),
+                'typeTrackStock':t.get('trackStock'),
+                'stockTrackingEnabled':x.get('stockTrackingEnabled'),
+                'productKindId':x.get('productKindId'),
+                'productKindName':x.get('productKindName'),
+                'baseUnitId':x.get('baseUnitId'),
+                'unitSymbol':x.get('unitSymbol'),
+                'purchasePrice':x.get('purchasePrice')
+              }
+              rows.append(row)
+              if row['active'] and row['stockTrackingEnabled'] and row['canPurchase'] is not False and row['typeTrackStock'] is not False:
+                  eligible.append(row)
+          print('ITEM_TYPES')
+          print(json.dumps(p.get('itemTypes',[]),indent=2,ensure_ascii=False))
+          print('PRODUCTS')
+          print(json.dumps(rows,indent=2,ensure_ascii=False))
+          print('ELIGIBLE_PURCHASE_PRODUCTS')
+          print(json.dumps(eligible,indent=2,ensure_ascii=False))
+          print('SUMMARY',json.dumps({'productCount':len(rows),'eligiblePurchaseCount':len(eligible)},ensure_ascii=False))
+          PY

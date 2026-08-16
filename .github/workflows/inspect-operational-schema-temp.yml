@@ -27,10 +27,15 @@ jobs:
           for (const file of readdirSync('migrations').filter(name => /^\d{4}_.+\.sql$/.test(name)).sort()) {
             db.exec(readFileSync(`migrations/${file}`, 'utf8'));
           }
-          for (const table of ['expenses', 'cost_types']) {
+          for (const table of ['expenses', 'cost_types', 'cost_masters']) {
             const row = db.prepare("SELECT sql FROM sqlite_schema WHERE type='table' AND name=?").get(table);
             console.log(`SCHEMA_${table.toUpperCase()}=${row?.sql || 'MISSING'}`);
             console.log(`FKS_${table.toUpperCase()}=${JSON.stringify(db.prepare(`PRAGMA foreign_key_list(${table})`).all())}`);
-            console.log(`INDEXES_${table.toUpperCase()}=${JSON.stringify(db.prepare(`PRAGMA index_list(${table})`).all())}`);
           }
+          const objects = db.prepare(`
+            SELECT type, name, sql FROM sqlite_schema
+            WHERE tbl_name IN ('expenses','cost_types','cost_masters') AND type IN ('index','trigger') AND sql IS NOT NULL
+            ORDER BY type, name
+          `).all();
+          for (const object of objects) console.log(`OBJECT_${object.type.toUpperCase()}_${object.name}=${object.sql}`);
           NODE

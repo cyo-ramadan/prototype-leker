@@ -27,14 +27,10 @@ jobs:
               --data "{\"username\":\"$username\",\"password\":\"$password\"}"
           }
 
-          LOGIN="$(login_staff kingluhut luhut123)"
+          LOGIN="$(login_staff owner 123456)"
           TOKEN="$(printf '%s' "$LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
           if [ -z "$TOKEN" ]; then
-            LOGIN="$(login_staff bablil bablil123)"
-            TOKEN="$(printf '%s' "$LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
-          fi
-          if [ -z "$TOKEN" ]; then
-            echo 'Could not obtain an unused admin session.'
+            echo 'Owner diagnostic session unavailable without takeover.'
             printf '%s\n' "$LOGIN"
             exit 1
           fi

@@ -55,11 +55,16 @@ test('purchase dialog keeps one Accounting payment selector and uses an add-to-d
   assert.match(inputUi, /<select id="dialogPurchasePayment"/);
   assert.match(enhancedInputUi, /!el\('dialogPurchasePayment'\) && !el\('dialogPaymentMethod'\)/);
   assert.match(enhancedInputUi, /id="purchaseProductSearch"/);
-  assert.match(enhancedInputUi, /list="purchaseProductOptions"/);
+  assert.match(enhancedInputUi, /id="purchaseProductResults"/);
+  assert.match(enhancedInputUi, /renderPurchaseSearchResults/);
+  assert.match(enhancedInputUi, /selectPurchaseProduct/);
   assert.match(enhancedInputUi, /id="purchaseComposerQty"[^>]*value="1"/);
   assert.match(enhancedInputUi, /id="purchaseComposerUnitPrice"/);
   assert.match(enhancedInputUi, />\+ Tambah Barang<\/button>/);
   assert.match(enhancedInputUi, /resetPurchaseComposer\(\)/);
+  assert.match(enhancedInputUi, /insertAdjacentHTML\('afterbegin'/);
+  assert.match(enhancedInputUi, /lastPurchasePrice/);
+  assert.match(enhancedInputUi, /masih bisa diedit/);
   assert.match(enhancedInputUi, /purchaseItemsPayload\(\)\.filter\(item => item\.productId > 0\)/);
 });
 
@@ -68,16 +73,17 @@ test('purchase composer is mobile-first with compact Qty and invoice-like detail
   assert.match(enhancedInputUi, /purchase-detail-product/);
   assert.doesNotMatch(enhancedInputUi, /grid-template-columns:minmax\(0,1fr\) 90px 150px auto/);
   assert.match(cashierPosCss, /\.purchase-composer\{[^}]*grid-template-columns:76px minmax\(0,1fr\)/);
-  assert.match(cashierPosCss, /\.purchase-composer-product\{grid-column:1\/-1\}\.purchase-composer-qty\{grid-column:1\}\.purchase-composer-price\{grid-column:2\}/);
+  assert.match(cashierPosCss, /\.purchase-composer-product\{[^}]*grid-column:1\/-1\}\.purchase-composer-qty\{grid-column:1\}\.purchase-composer-price\{grid-column:2\}/);
   assert.match(cashierPosCss, /\.purchase-detail-row\{[^}]*grid-template-columns:minmax\(0,1fr\) 62px minmax\(82px,auto\)/);
   assert.match(cashierPosCss, /\.purchase-detail-quantity \.text-input\{[^}]*text-align:center/);
   assert.match(cashierPosCss, /\.purchase-detail-subtotal\{[^}]*background:#2b2118;color:#fff/);
+  assert.match(cashierPosCss, /\.purchase-search-results\{[^}]*position:absolute[^}]*max-height:230px/);
   assert.match(cashierPosCss, /@media\(min-width:700px\)/);
 });
 
 test('cashier mobile purchase assets are versioned so deployed layout changes bypass stale browser cache', () => {
-  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-composer-v4/);
-  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-composer-v4/);
+  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-search-v5/);
+  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-search-v5/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

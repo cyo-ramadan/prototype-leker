@@ -3,7 +3,7 @@
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 4 }).format(Number(value) || 0);
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
-  const purchaseState = { products: [], rowSeq: 0 };
+  const purchaseState = { products: [], rowSeq: 0, selectedProductId: null };
 
   function insertSalePayment() {
     if (el('salePaymentMethod')) return;
@@ -33,19 +33,43 @@
     if (el('purchaseItemsTotal')) el('purchaseItemsTotal').textContent = money(total);
   }
 
+  function renderPurchaseSearchResults(query = '') {
+    const host = el('purchaseProductResults');
+    if (!host) return;
+    const keyword = query.trim().toLocaleLowerCase('id-ID');
+    const matches = purchaseState.products
+      .filter(product => !keyword || purchaseProductLabel(product).toLocaleLowerCase('id-ID').includes(keyword))
+      .slice(0, 8);
+    host.innerHTML = matches.length
+      ? matches.map(product => `<button type="button" data-purchase-search-result="${product.productId}"><strong>${esc(product.productName)}</strong><span>${esc(product.unitSymbol || '-')} · harga terakhir ${money(product.lastPurchasePrice)}</span></button>`).join('')
+      : '<div class="purchase-search-empty">Barang tidak ditemukan.</div>';
+    host.classList.remove('hidden');
+  }
+
+  function selectPurchaseProduct(productId) {
+    const product = purchaseState.products.find(item => String(item.productId) === String(productId));
+    if (!product) return;
+    purchaseState.selectedProductId = Number(product.productId);
+    el('purchaseProductSearch').value = purchaseProductLabel(product);
+    el('purchaseComposerUnitPrice').value = String(Math.max(0, Math.round(Number(product.lastPurchasePrice || 0))) || '');
+    el('purchaseComposerUnit').textContent = `Satuan ${product.unitSymbol || '-'} · Harga beli terakhir otomatis ${money(product.lastPurchasePrice)} · masih bisa diedit`;
+    el('purchaseProductResults')?.classList.add('hidden');
+  }
+
   function resetPurchaseComposer() {
+    purchaseState.selectedProductId = null;
     if (el('purchaseProductSearch')) el('purchaseProductSearch').value = '';
     if (el('purchaseComposerQty')) el('purchaseComposerQty').value = '1';
     if (el('purchaseComposerUnitPrice')) el('purchaseComposerUnitPrice').value = '';
     if (el('purchaseComposerUnit')) el('purchaseComposerUnit').textContent = 'Pilih barang untuk melihat satuan dan harga terakhir.';
+    el('purchaseProductResults')?.classList.add('hidden');
     el('purchaseProductSearch')?.focus();
   }
 
   function addPurchaseRow() {
     const target = el('purchaseItemsRows');
     if (!target) return;
-    const productLabel = el('purchaseProductSearch')?.value.trim() || '';
-    const product = purchaseState.products.find(item => purchaseProductLabel(item) === productLabel);
+    const product = purchaseState.products.find(item => Number(item.productId) === purchaseState.selectedProductId);
     const quantity = Number(el('purchaseComposerQty')?.value);
     const unitPrice = Number(el('purchaseComposerUnitPrice')?.value);
     if (!product) return toast('Pilih barang dari hasil pencarian Master Barang.');
@@ -54,7 +78,7 @@
     if (target.querySelector(`[data-purchase-product-id="${product.productId}"]`)) return toast('Barang sudah ada di detail. Ubah Qty pada baris tersebut.');
     const id = ++purchaseState.rowSeq;
     const lineTotal = Math.round(quantity * unitPrice);
-    target.insertAdjacentHTML('beforeend', `
+    target.insertAdjacentHTML('afterbegin', `
       <div data-purchase-row="${id}" data-purchase-product-id="${product.productId}" data-purchase-unit-price="${unitPrice}" class="purchase-detail-row">
         <input data-purchase-product type="hidden" value="${product.productId}" />
         <input data-purchase-line-total type="hidden" value="${lineTotal}" />
@@ -87,7 +111,6 @@
         el('addPurchaseItemRow').disabled = true;
         return;
       }
-      el('purchaseProductOptions').innerHTML = purchaseState.products.map(product => `<option value="${esc(purchaseProductLabel(product))}"></option>`).join('');
       el('addPurchaseItemRow').disabled = false;
     } catch (error) {
       editor.dataset.loaded = '';
@@ -131,9 +154,9 @@
         const markup = `
           <div id="purchaseItemsEditor" class="purchase-editor">
             <div class="purchase-composer">
-              <div class="field purchase-composer-product"><label>Barang</label><input id="purchaseProductSearch" class="text-input" list="purchaseProductOptions" autocomplete="off" placeholder="Ketik / pilih barang" /><datalist id="purchaseProductOptions"></datalist></div>
+              <div class="field purchase-composer-product"><label>Barang</label><input id="purchaseProductSearch" class="text-input" autocomplete="off" placeholder="Cari barang dari Master Barang" /><div id="purchaseProductResults" class="purchase-search-results hidden"></div></div>
               <div class="field purchase-composer-qty"><label>Qty</label><input id="purchaseComposerQty" class="text-input" type="number" min="1" step="1" value="1" /></div>
-              <div class="field purchase-composer-price"><label>Harga beli / unit</label><input id="purchaseComposerUnitPrice" class="text-input" type="number" min="1" step="1" placeholder="Dari Master Barang" /></div>
+              <div class="field purchase-composer-price"><label>Harga beli / unit</label><input id="purchaseComposerUnitPrice" class="text-input" type="number" min="1" step="1" placeholder="Terisi otomatis" /></div>
               <div id="purchaseComposerUnit" class="muted purchase-composer-hint">Pilih barang untuk melihat satuan dan harga terakhir.</div>
               <button id="addPurchaseItemRow" class="secondary-btn purchase-composer-add" type="button">+ Tambah Barang</button>
               <div id="purchaseComposerEmpty" class="muted"></div>
@@ -145,11 +168,15 @@
           </div>`;
         if (noteField) noteField.insertAdjacentHTML('beforebegin', markup);
         else body.insertAdjacentHTML('beforeend', markup);
+        el('purchaseProductSearch')?.addEventListener('focus', () => renderPurchaseSearchResults(el('purchaseProductSearch').value));
         el('purchaseProductSearch')?.addEventListener('input', () => {
-          const product = purchaseState.products.find(item => purchaseProductLabel(item) === el('purchaseProductSearch').value.trim());
-          if (!product) return;
-          el('purchaseComposerUnitPrice').value = String(Math.max(0, Math.round(Number(product.lastPurchasePrice || 0))) || '');
-          el('purchaseComposerUnit').textContent = `Satuan ${product.unitSymbol || '-'} · Harga beli terakhir ${money(product.lastPurchasePrice)}`;
+          purchaseState.selectedProductId = null;
+          el('purchaseComposerUnitPrice').value = '';
+          renderPurchaseSearchResults(el('purchaseProductSearch').value);
+        });
+        el('purchaseProductResults')?.addEventListener('click', event => {
+          const button = event.target.closest('[data-purchase-search-result]');
+          if (button) selectPurchaseProduct(button.dataset.purchaseSearchResult);
         });
         el('addPurchaseItemRow')?.addEventListener('click', addPurchaseRow);
       }

@@ -48,19 +48,26 @@ console.log(`D1 recovery checkpoint: ${checkpoint}`);
 const inspection = d1Json(`
 SELECT 'TABLE' AS object_type, name AS object_name, '' AS parent_name
 FROM sqlite_schema
-WHERE type='table' AND name IN ('approval_permits','products','sales','purchases','expenses')
-UNION ALL
-SELECT 'COLUMN', name, 'products' FROM pragma_table_info('products')
-UNION ALL
-SELECT 'COLUMN', name, 'sales' FROM pragma_table_info('sales')
-UNION ALL
-SELECT 'COLUMN', name, 'purchases' FROM pragma_table_info('purchases')
-UNION ALL
-SELECT 'COLUMN', name, 'expenses' FROM pragma_table_info('expenses')
+WHERE type='table' AND name IN (
+  'approval_permits','products','sales','purchases','expenses','sale_items',
+  'orders','order_items','order_status_history'
+)
+UNION ALL SELECT 'COLUMN', name, 'products' FROM pragma_table_info('products')
+UNION ALL SELECT 'COLUMN', name, 'sales' FROM pragma_table_info('sales')
+UNION ALL SELECT 'COLUMN', name, 'purchases' FROM pragma_table_info('purchases')
+UNION ALL SELECT 'COLUMN', name, 'expenses' FROM pragma_table_info('expenses')
+UNION ALL SELECT 'COLUMN', name, 'sale_items' FROM pragma_table_info('sale_items')
+UNION ALL SELECT 'COLUMN', name, 'orders' FROM pragma_table_info('orders')
+UNION ALL SELECT 'COLUMN', name, 'order_items' FROM pragma_table_info('order_items')
+UNION ALL SELECT 'COLUMN', name, 'order_status_history' FROM pragma_table_info('order_status_history')
 UNION ALL
 SELECT 'INDEX', name, '' FROM sqlite_schema
 WHERE type='index' AND name IN (
   'idx_products_store_production_policy',
+  'idx_sales_store_customer_created',
+  'idx_orders_store_customer_created_at',
+  'idx_orders_store_drawer_source_created_at',
+  'idx_sales_store_order_id',
   'idx_sales_store_void_created',
   'idx_purchases_store_void_created',
   'idx_expenses_store_void_created',
@@ -79,6 +86,10 @@ for (const row of inspection.filter(row => row.object_type === 'COLUMN')) {
 }
 const indexes = new Set(inspection.filter(row => row.object_type === 'INDEX').map(row => row.object_name));
 const hasCol = (table, column) => colsByTable.get(table)?.has(column) === true;
+
+for (const table of ['products','sales','purchases','expenses','sale_items','orders','order_items','order_status_history']) {
+  if (!tables.has(table)) throw new Error(`Canonical table ${table} is missing; abort surgical column recovery.`);
+}
 
 const statements = [];
 if (!tables.has('approval_permits')) {
@@ -114,11 +125,25 @@ if (!tables.has('approval_permits')) {
   )`);
 }
 
+// Migration 0017 exact product behavior.
 if (!hasCol('products', 'stock_tracking_enabled')) {
   statements.push(`ALTER TABLE products ADD COLUMN stock_tracking_enabled INTEGER NOT NULL DEFAULT 1 CHECK (stock_tracking_enabled IN (0, 1))`);
   statements.push(`UPDATE products SET stock_tracking_enabled = 0`);
 }
 
+// Direct SALE dependencies introduced by canonical migrations 0007, 0012, and 0017.
+if (!hasCol('orders', 'customer_id')) statements.push(`ALTER TABLE orders ADD COLUMN customer_id TEXT`);
+if (!hasCol('orders', 'source')) statements.push(`ALTER TABLE orders ADD COLUMN source TEXT NOT NULL DEFAULT 'customer' CHECK (source IN ('customer', 'cashier'))`);
+if (!hasCol('orders', 'drawer_session_id')) statements.push(`ALTER TABLE orders ADD COLUMN drawer_session_id TEXT`);
+if (!hasCol('sales', 'order_id')) statements.push(`ALTER TABLE sales ADD COLUMN order_id TEXT`);
+if (!hasCol('sales', 'customer_id')) statements.push(`ALTER TABLE sales ADD COLUMN customer_id TEXT REFERENCES customers(id)`);
+if (!hasCol('sales', 'total_points')) statements.push(`ALTER TABLE sales ADD COLUMN total_points INTEGER NOT NULL DEFAULT 0 CHECK (total_points >= 0)`);
+if (!hasCol('sale_items', 'points_per_unit')) statements.push(`ALTER TABLE sale_items ADD COLUMN points_per_unit INTEGER NOT NULL DEFAULT 0 CHECK (points_per_unit >= 0)`);
+if (!hasCol('sale_items', 'line_points')) statements.push(`ALTER TABLE sale_items ADD COLUMN line_points INTEGER NOT NULL DEFAULT 0 CHECK (line_points >= 0)`);
+if (!hasCol('sale_items', 'recipe_id')) statements.push(`ALTER TABLE sale_items ADD COLUMN recipe_id TEXT REFERENCES manufacturing_recipes(id)`);
+if (!hasCol('sale_items', 'production_run_id')) statements.push(`ALTER TABLE sale_items ADD COLUMN production_run_id TEXT REFERENCES production_runs(id)`);
+
+// Migration 0027 exact void fields.
 for (const table of ['sales','purchases','expenses']) {
   if (!hasCol(table, 'voided_at')) statements.push(`ALTER TABLE ${table} ADD COLUMN voided_at TEXT`);
   if (!hasCol(table, 'voided_by_role')) statements.push(`ALTER TABLE ${table} ADD COLUMN voided_by_role TEXT`);
@@ -129,6 +154,10 @@ for (const table of ['sales','purchases','expenses']) {
 
 const indexSql = {
   idx_products_store_production_policy: `CREATE INDEX IF NOT EXISTS idx_products_store_production_policy ON products(store_id, production_mode, recipe_link_enabled, stock_tracking_enabled, is_active)`,
+  idx_sales_store_customer_created: `CREATE INDEX IF NOT EXISTS idx_sales_store_customer_created ON sales(store_id, customer_id, created_at DESC)`,
+  idx_orders_store_customer_created_at: `CREATE INDEX IF NOT EXISTS idx_orders_store_customer_created_at ON orders(store_id, customer_id, created_at DESC)`,
+  idx_orders_store_drawer_source_created_at: `CREATE INDEX IF NOT EXISTS idx_orders_store_drawer_source_created_at ON orders(store_id, drawer_session_id, source, created_at DESC)`,
+  idx_sales_store_order_id: `CREATE INDEX IF NOT EXISTS idx_sales_store_order_id ON sales(store_id, order_id)`,
   idx_sales_store_void_created: `CREATE INDEX IF NOT EXISTS idx_sales_store_void_created ON sales(store_id, voided_at, created_at DESC)`,
   idx_purchases_store_void_created: `CREATE INDEX IF NOT EXISTS idx_purchases_store_void_created ON purchases(store_id, voided_at, created_at DESC)`,
   idx_expenses_store_void_created: `CREATE INDEX IF NOT EXISTS idx_expenses_store_void_created ON expenses(store_id, voided_at, created_at DESC)`,
@@ -143,23 +172,23 @@ if (statements.length) {
   console.log(`Applying ${statements.length} exact canonical recovery statements.`);
   d1Exec(`PRAGMA foreign_keys = ON;\n${statements.map(sql => `${sql};`).join('\n')}`);
 } else {
-  console.log('No schema mutation required; canonical objects already exist.');
+  console.log('No schema mutation required; canonical SALE/transaction objects already exist.');
 }
 
-const verification = d1Json(`
-SELECT 'products.stock_tracking_enabled' AS requirement,
-       EXISTS(SELECT 1 FROM pragma_table_info('products') WHERE name='stock_tracking_enabled') AS ok
-UNION ALL SELECT 'sales.voided_at', EXISTS(SELECT 1 FROM pragma_table_info('sales') WHERE name='voided_at')
-UNION ALL SELECT 'sales.void_permit_id', EXISTS(SELECT 1 FROM pragma_table_info('sales') WHERE name='void_permit_id')
-UNION ALL SELECT 'purchases.voided_at', EXISTS(SELECT 1 FROM pragma_table_info('purchases') WHERE name='voided_at')
-UNION ALL SELECT 'purchases.void_permit_id', EXISTS(SELECT 1 FROM pragma_table_info('purchases') WHERE name='void_permit_id')
-UNION ALL SELECT 'expenses.voided_at', EXISTS(SELECT 1 FROM pragma_table_info('expenses') WHERE name='voided_at')
-UNION ALL SELECT 'expenses.void_permit_id', EXISTS(SELECT 1 FROM pragma_table_info('expenses') WHERE name='void_permit_id')
-UNION ALL SELECT 'approval_permits', EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='approval_permits');
-`);
+const requirements = [
+  ['products','stock_tracking_enabled'],
+  ['orders','customer_id'],['orders','source'],['orders','drawer_session_id'],
+  ['sales','order_id'],['sales','customer_id'],['sales','total_points'],
+  ['sale_items','points_per_unit'],['sale_items','line_points'],['sale_items','recipe_id'],['sale_items','production_run_id'],
+  ['sales','voided_at'],['sales','void_permit_id'],
+  ['purchases','voided_at'],['purchases','void_permit_id'],
+  ['expenses','voided_at'],['expenses','void_permit_id']
+];
+const verificationSql = requirements.map(([table,column], index) => `${index ? 'UNION ALL ' : ''}SELECT '${table}.${column}' AS requirement, EXISTS(SELECT 1 FROM pragma_table_info('${table}') WHERE name='${column}') AS ok`).join('\n');
+const verification = d1Json(`${verificationSql}\nUNION ALL SELECT 'approval_permits', EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='approval_permits');`);
 const failed = verification.filter(row => Number(row.ok) !== 1);
 if (failed.length) throw new Error(`Recovery verification failed: ${JSON.stringify(failed)}`);
-console.log('Exact transaction schema recovery verified.');
+console.log('Exact SALE/transaction schema recovery verified.');
 
 wrangler(['d1', 'migrations', 'apply', 'DB', '--remote']);
 const verify = spawnSync(process.execPath, ['scripts/verify-remote-schema.mjs'], {
@@ -168,4 +197,4 @@ const verify = spawnSync(process.execPath, ['scripts/verify-remote-schema.mjs'],
 if (verify.error || verify.status !== 0) throw new Error(verify.stderr || verify.stdout || verify.error?.message || 'Remote schema verifier failed.');
 process.stdout.write(verify.stdout);
 wrangler(['deploy']);
-console.log(`TRANSACTION_SCHEMA_RECOVERY_PASS checkpoint=${checkpoint}`);
+console.log(`SALE_SCHEMA_RECOVERY_PASS checkpoint=${checkpoint}`);

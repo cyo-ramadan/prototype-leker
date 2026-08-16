@@ -2,7 +2,7 @@
 
 ## Keputusan
 
-MAXI memakai **PIMASATU UI** (Pilih dan Masukkan Satu per Satu) sebagai komponen transaksi reusable. Saat surface transaksi pertama kali tampil, composer dan kolom pencarian langsung terbuka. Pengguna mencari satu item, memakai Qty default 1, memeriksa/mengubah nominal bila flow mengizinkan, lalu memasukkannya. Composer dikosongkan dan ditutup; tombol Tambah membuka composer lagi untuk item berikutnya; detail terbaru tampil paling atas. UI tidak boleh membuat banyak slot keranjang kosong terlebih dahulu.
+MAXI memakai **PIMASATU UI** (Pilih dan Masukkan Satu per Satu) sebagai komponen transaksi reusable. Saat surface transaksi pertama kali tampil, composer dan kolom pencarian langsung terbuka tanpa tombol toggle. Pengguna mencari satu item, memakai Qty default 1, memeriksa/mengubah nominal bila flow mengizinkan, lalu memasukkannya. Composer dikosongkan dan ditutup; tombol Tambah baru muncul untuk membuka input berikutnya dan tidak pernah berubah menjadi tombol Tutup. Membuka composer tidak memunculkan pilihan sampai user menyentuh atau mengetik pada search. Detail terbaru tampil paling atas. UI tidak boleh membuat banyak slot keranjang kosong terlebih dahulu. Pada transaksi kasir, adapter membuka surface ini sebagai modal transaksi, bukan panel inline di bawah tombol navigasi.
 
 Implementasi canonical berada di `public/pimasatu-ui.js` dan `public/pimasatu-ui.css`. Adapter flow hanya memasok data, label, harga default, permission edit harga, dan callback transaksi.
 

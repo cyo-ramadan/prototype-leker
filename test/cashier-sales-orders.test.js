@@ -13,11 +13,13 @@ test('cashier exposes drawer-bound Penjualan, Buku Menu, and Pesanan modes', () 
   assert.match(cashierFlow, /🧾 Penjualan/);
   assert.match(cashierFlow, /📖 Buku Menu/);
   assert.match(cashierFlow, /📥 Pesanan/);
-  assert.match(cashierFlow, /id="cashierProductSearch"/);
+  assert.match(cashierFlow, /openSaleDialog\(\)/);
+  assert.match(cashierFlow, /id="salePimasatu"/);
+  assert.doesNotMatch(cashierHtml, /id="salePimasatu"/);
 });
 
 test('search and book-menu entry share the existing sale draft', () => {
-  assert.match(cashierFlow, /changeDraft\(Number\(button\.dataset\.searchProduct\), 1\)/);
+  assert.match(cashierFlow, /cashier:sale-dialog-opened/);
   assert.match(cashierFlow, /Lanjut ke Penjualan/);
   assert.match(cashierHtml, /id="processSaleBtn"[^>]*>PROSES PENJUALAN</);
   assert.doesNotMatch(cashierFlow, /setInterval\s*\(/);

@@ -2,7 +2,7 @@
   const byId = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
-  let activeMode = 'sales';
+  let activeMode = 'menu';
   let orderSourceFilter = 'customer';
   let draftOriginOrderId = null;
   let selectedSaleCustomer = null;
@@ -106,32 +106,6 @@
       button.addEventListener('click', () => setMode(button.dataset.cashierWorkspaceMode));
     });
 
-    if (!byId('cashierProductSearch')) {
-      const header = draftPanel.querySelector('.cashier-panel-head');
-      header?.insertAdjacentHTML('afterend', `
-        <section class="cashier-product-search">
-          <label for="cashierProductSearch">Cari menu barang</label>
-          <input id="cashierProductSearch" class="text-input" type="search" autocomplete="off" placeholder="Ketik: cokelat, keju, sosis..." />
-          <div id="cashierSearchResults" class="cashier-search-results hidden"></div>
-        </section>`);
-      byId('cashierProductSearch')?.addEventListener('input', renderSearchResults);
-    }
-
-    if (!byId('cashierCustomerIdentitySearch')) {
-      const customerField = byId('saleCustomerName')?.closest('.field');
-      customerField?.insertAdjacentHTML('beforebegin', `
-        <section class="cashier-product-search">
-          <label for="cashierCustomerIdentitySearch">Customer terdaftar <span class="muted">optional · untuk poin</span></label>
-          <input id="cashierCustomerIdentitySearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama, kode, HP, username..." />
-          <div id="cashierCustomerIdentityResults" class="cashier-search-results hidden"></div>
-          <div id="cashierSelectedCustomer" class="cashier-customer-selected hidden"></div>
-        </section>`);
-      byId('cashierCustomerIdentitySearch')?.addEventListener('input', scheduleCustomerSearch);
-      byId('saleCustomerName')?.addEventListener('input', () => {
-        if (selectedSaleCustomer && byId('saleCustomerName').value.trim() !== selectedSaleCustomer.customerName) clearSelectedCustomer();
-      });
-    }
-
     const menuHeading = menuPanel.querySelector('h2');
     if (menuHeading) menuHeading.textContent = 'Buku Menu';
     const menuEyebrow = menuPanel.querySelector('.muted');
@@ -196,8 +170,35 @@
     document.querySelectorAll('[data-cashier-workspace-mode]').forEach(button => {
       button.classList.toggle('active', button.dataset.cashierWorkspaceMode === activeMode);
     });
-    if (activeMode === 'sales') setTimeout(() => byId('cashierProductSearch')?.focus(), 30);
+    if (activeMode === 'sales') openSaleDialog();
     if (activeMode === 'orders') renderOrders();
+  }
+
+  function openSaleDialog() {
+    openDialog({
+      eyebrow: 'Kasir · PIMASATU',
+      title: 'Penjualan',
+      body: `<div id="salePimasatu"></div>
+        <div class="pimasatu-detail-head"><strong>Detail Penjualan</strong><span>Terbaru di atas</span></div>
+        <div id="saleDialogDraftList" class="cashier-draft-list"></div>
+        <section class="cashier-product-search">
+          <label for="cashierCustomerIdentitySearch">Customer terdaftar <span class="muted">optional · untuk poin</span></label>
+          <input id="cashierCustomerIdentitySearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama, kode, HP, username..." />
+          <div id="cashierCustomerIdentityResults" class="cashier-search-results hidden"></div>
+          <div id="cashierSelectedCustomer" class="cashier-customer-selected hidden"></div>
+        </section>
+        <div class="field"><label>Nama customer <span class="muted">optional</span></label><input id="saleDialogCustomerName" class="text-input" maxlength="100" placeholder="Walk-in" value="${esc(byId('saleCustomerName')?.value || '')}" /></div>
+        <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="saleDialogNote" rows="2" maxlength="500">${esc(byId('saleNote')?.value || '')}</textarea></div>
+        <div class="cashier-draft-total"><span>Total</span><strong id="saleDialogTotal">${money([...state.draft.values()].reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0))}</strong></div>`,
+      submitText: 'PROSES PENJUALAN',
+      onSubmit: processTrackedSale
+    });
+    byId('cashierCustomerIdentitySearch')?.addEventListener('input', scheduleCustomerSearch);
+    byId('saleDialogCustomerName')?.addEventListener('input', () => {
+      if (selectedSaleCustomer && byId('saleDialogCustomerName').value.trim() !== selectedSaleCustomer.customerName) clearSelectedCustomer();
+    });
+    document.dispatchEvent(new CustomEvent('cashier:sale-dialog-opened'));
+    renderDraft();
   }
 
   function renderSearchResults() {
@@ -263,12 +264,13 @@
           const customer = customers.find(item => item.id === button.dataset.customerId);
           if (!customer) return;
           selectedSaleCustomer = customer;
-          byId('saleCustomerName').value = customer.customerName;
+          const customerName = byId('saleDialogCustomerName') || byId('saleCustomerName');
+          if (customerName) customerName.value = customer.customerName;
           input.value = '';
           target.innerHTML = '';
           target.classList.add('hidden');
           renderSelectedCustomer();
-          byId('cashierProductSearch')?.focus();
+          byId('salePimasatu')?.querySelector('.pimasatu-search')?.focus();
         });
       });
     } catch (error) {
@@ -333,6 +335,15 @@
   const baseRenderDraft = renderDraft;
   renderDraft = function renderDraftWithNavigation() {
     baseRenderDraft();
+    const modalList = byId('saleDialogDraftList');
+    if (modalList) {
+      const lines = [...state.draft.values()].reverse();
+      modalList.innerHTML = lines.length ? lines.map(line => `<div class="cashier-draft-row"><div><strong>${esc(line.product.name)}</strong><small>${money(line.product.price)} · ${money(Number(line.product.price) * line.quantity)}</small></div><div class="cashier-draft-controls"><button type="button" data-modal-draft-minus="${line.product.id}">−</button><span>${line.quantity}</span><button type="button" data-modal-draft-plus="${line.product.id}">＋</button></div></div>`).join('') : '<div class="cashier-draft-empty">Belum ada barang dipilih.</div>';
+      modalList.querySelectorAll('[data-modal-draft-minus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.modalDraftMinus), -1));
+      modalList.querySelectorAll('[data-modal-draft-plus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.modalDraftPlus), 1));
+      if (byId('saleDialogTotal')) byId('saleDialogTotal').textContent = money(lines.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0));
+      if (byId('cashierDialogSubmit')) byId('cashierDialogSubmit').disabled = !state.canWrite || !lines.length;
+    }
     updateNavigationCounts();
   };
 
@@ -356,8 +367,8 @@
         method: 'POST',
         body: JSON.stringify({
           customerId: draftOriginOrderId ? null : selectedSaleCustomer?.id || null,
-          customerName: byId('saleCustomerName').value,
-          note: byId('saleNote').value,
+          customerName: byId('saleDialogCustomerName')?.value ?? byId('saleCustomerName').value,
+          note: byId('saleDialogNote')?.value ?? byId('saleNote').value,
           sourceOrderId: draftOriginOrderId,
           items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity }))
         })
@@ -372,9 +383,11 @@
       renderOrders();
       const pointText = Number(payload.sale.points || 0) > 0 ? ` · +${Number(payload.sale.points)} poin` : '';
       toast(`Penjualan tersimpan · ${money(payload.sale.total)}${pointText}`);
+      return true;
     } catch (error) {
       toast(error.message);
       await loadDrawer().catch(() => {});
+      return false;
     }
   }
 

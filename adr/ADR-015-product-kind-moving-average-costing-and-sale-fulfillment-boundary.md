@@ -4,6 +4,8 @@ Status: ACCEPTED
 Date: 2026-08-13
 Supersedes in part: ADR-013 and ADR-014 where they assign Product Master ownership of `production_mode` or describe costing as undefined.
 
+> ADR-024 supersedes the compatibility-mirror semantics of `products.purchase_price`. Average Cost and Last Purchase Price remain automatic; Harga Beli master is now editable and independent.
+
 ## Context
 
 Master Barang needs a classification that can later drive Accounting rules, while HPP must become operationally usable rather than remain a nullable placeholder.

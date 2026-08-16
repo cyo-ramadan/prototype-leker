@@ -199,6 +199,7 @@ function mapManagementFeedback(row, issueRows) {
     code: issue.issue_code,
     label: issue.issue_label_snapshot
   }));
+  const reporterLabel = row.customer_name || row.customer_code || row.customer_username || 'Pelanggan terverifikasi';
   return {
     id: row.id,
     feedbackCode: row.feedback_code,
@@ -215,7 +216,12 @@ function mapManagementFeedback(row, issueRows) {
     },
     reporter: {
       verifiedCustomer: true,
-      label: 'Pelanggan terverifikasi · identitas dilindungi'
+      customerCode: row.customer_code || '',
+      username: row.customer_username || '',
+      customerName: row.customer_name || '',
+      phone: row.customer_phone || '',
+      email: row.customer_email || '',
+      label: reporterLabel
     }
   };
 }
@@ -323,6 +329,16 @@ async function submitCustomerFeedback(request, env) {
     throw error;
   }
 
+  const persisted = await env.DB.prepare(`
+    SELECT id, feedback_code
+    FROM customer_feedback_reports
+    WHERE id = ? AND store_id = ? AND customer_id = ?
+    LIMIT 1
+  `).bind(reportId, context.store.id, context.customer.id).first();
+  if (!persisted || persisted.feedback_code !== code) {
+    throw new Error(`Customer feedback persistence confirmation failed for ${reportId}`);
+  }
+
   return json({
     ok: true,
     feedbackCode: code,
@@ -360,11 +376,14 @@ async function handleManagementFeedback(request, env) {
 
   const whereSql = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const rows = await env.DB.prepare(`
-    SELECT r.id, r.feedback_code, r.store_id, r.category, r.manual_note,
+    SELECT r.id, r.feedback_code, r.store_id, r.customer_id, r.category, r.manual_note,
            r.reward_points, r.created_at,
-           s.code AS store_code, s.store_name
+           s.code AS store_code, s.store_name,
+           c.customer_code, c.username AS customer_username, c.customer_name,
+           c.phone AS customer_phone, c.email AS customer_email
     FROM customer_feedback_reports r
     JOIN stores s ON s.id = r.store_id
+    LEFT JOIN customers c ON c.id = r.customer_id
     ${whereSql}
     ORDER BY r.created_at DESC
     LIMIT 100
@@ -383,7 +402,7 @@ async function handleManagementFeedback(request, env) {
   }
 
   return json({
-    privacy: 'Identitas pelanggan tidak ditampilkan pada list evaluasi.',
+    privacy: 'Identitas pengirim tersedia hanya untuk Admin Gerai/Owner yang berwenang dan tidak dibagikan ke Kasir/CS melalui fitur ini.',
     feedback: reports.map(row => mapManagementFeedback(row, issueRows))
   });
 }

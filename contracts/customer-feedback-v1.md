@@ -30,8 +30,9 @@ Submission entitlement is enforced only on the server.
 - If no such sale unlock is available, a customer may submit when they have not submitted another feedback report in the current Asia/Jakarta business month.
 - The server stores an internal unique entitlement key and, for sale-backed submissions, the qualifying `sale_id`.
 - Concurrency must fail closed. The same monthly entitlement or qualifying sale cannot create two reports.
+- A qualifying-sale lookup is an additional unlock, not the baseline entitlement. If that lookup cannot be evaluated because a runtime/schema dependency is unavailable, the server must **not** grant a sale-backed unlock and must continue to the monthly entitlement guard. An already-consumed monthly entitlement remains unavailable. The degraded sale lookup must not turn an otherwise valid monthly path into an HTTP 500.
 
-These rules are intentionally internal and are not rendered in customer-facing copy.
+These rules are intentionally internal and are not rendered in customer-facing copy. The conservative fallback is service resilience only and does not replace schema-drift diagnosis or canonical repair.
 
 ## Persistence
 
@@ -101,4 +102,4 @@ If remote migration, remote schema verification, or deploy fails, stop promotion
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability. Visible-first category rendering, actionable CTA guidance, and server-authoritative submission eligibility are part of the Customer UI contract.
+**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability. Visible-first category rendering, actionable CTA guidance, conservative sale-entitlement fallback, and server-authoritative submission eligibility are part of the Customer UI contract.

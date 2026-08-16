@@ -108,7 +108,7 @@ function buildSaleFeedbackEntitlementKey(saleId) {
   return `SALE:${saleId}`;
 }
 
-async function findFeedbackAccess(db, storeId, customerId, businessDate = getJakartaBusinessDate()) {
+export async function findFeedbackAccess(db, storeId, customerId, businessDate = getJakartaBusinessDate()) {
   const latestReport = await db.prepare(`
     SELECT created_at
     FROM customer_feedback_reports
@@ -134,7 +134,15 @@ async function findFeedbackAccess(db, storeId, customerId, businessDate = getJak
   }
   saleSql += ' ORDER BY s.created_at DESC LIMIT 1';
 
-  const qualifyingSale = await db.prepare(saleSql).bind(...saleParams).first();
+  let qualifyingSale = null;
+  try {
+    qualifyingSale = await db.prepare(saleSql).bind(...saleParams).first();
+  } catch (error) {
+    // Sale-backed entitlement is an additional unlock, not the baseline path.
+    // If a legacy/partial sale schema cannot answer this query, fail closed for
+    // the sale unlock and continue with the unique monthly entitlement guard.
+    console.error('customer feedback sale entitlement lookup failed; using monthly fallback', { storeId, error });
+  }
   if (qualifyingSale) {
     return {
       available: true,

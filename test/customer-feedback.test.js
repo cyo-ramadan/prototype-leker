@@ -6,6 +6,7 @@ import {
   CUSTOMER_FEEDBACK_CATALOG,
   CUSTOMER_FEEDBACK_REWARD_POINTS,
   buildMonthlyFeedbackEntitlementKey,
+  findFeedbackAccess,
   normalizeFeedbackSubmission
 } from '../src/customer-feedback.js';
 import {
@@ -69,6 +70,64 @@ test('monthly entitlement key is deterministic by customer and Jakarta business 
   );
 });
 
+function feedbackAccessDbWithBrokenSaleLookup({ monthlyReport = null } = {}) {
+  return {
+    prepare(sql) {
+      return {
+        bind() {
+          return {
+            async first() {
+              if (sql.includes('SELECT created_at')) return null;
+              if (sql.includes('FROM sales s')) throw new Error('D1_ERROR: no such column: s.voided_at');
+              if (sql.includes('business_month = ?')) return monthlyReport;
+              throw new Error(`Unexpected feedback access query: ${sql}`);
+            }
+          };
+        }
+      };
+    }
+  };
+}
+
+test('feedback access falls back to the guarded monthly path when sale lookup is unavailable', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const access = await findFeedbackAccess(
+      feedbackAccessDbWithBrokenSaleLookup(),
+      'store_001',
+      'customer_1',
+      '2026-08-16'
+    );
+
+    assert.deepEqual(access, {
+      available: true,
+      entitlementType: 'MONTHLY',
+      entitlementKey: 'MONTHLY:customer_1:2026-08',
+      qualifyingSaleId: null
+    });
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('broken sale lookup never grants an extra report when the monthly entitlement is already consumed', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const access = await findFeedbackAccess(
+      feedbackAccessDbWithBrokenSaleLookup({ monthlyReport: { id: 'feedback_existing' } }),
+      'store_001',
+      'customer_1',
+      '2026-08-16'
+    );
+
+    assert.deepEqual(access, { available: false });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('customer feedback renders categories before entitlement resolution', async () => {
   const customerScript = await readFile(new URL('../public/customer-feedback.js', import.meta.url), 'utf8');
 
@@ -112,6 +171,25 @@ test('customer feedback UI keeps entitlement algorithm private and browser scrip
   assert.doesNotThrow(() => new vm.Script(customerScript));
   assert.doesNotThrow(() => new vm.Script(sessionBridge));
   assert.doesNotThrow(() => new vm.Script(managementScript));
+});
+
+test('accepted feedback has both Admin Gerai and Owner management read surfaces', async () => {
+  const [server, managementScript, branchAdminHtml, ownerHtml, adminHtml] = await Promise.all([
+    readFile(new URL('../src/customer-feedback.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/management-customer-feedback.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/branch-admin.html', import.meta.url), 'utf8'),
+    readFile(new URL('../public/owner.html', import.meta.url), 'utf8'),
+    readFile(new URL('../public/admin.html', import.meta.url), 'utf8')
+  ]);
+
+  assert.match(server, /FROM customer_feedback_reports r/);
+  assert.match(server, /if \(management\.admin\)[\s\S]*filters\.push\('r\.store_id = \?'\)/);
+  assert.match(server, /pathname === '\/api\/admin\/customer-feedback'/);
+  assert.match(managementScript, /tab\.textContent = 'Kotak Saran'/);
+  assert.match(managementScript, /Komentar Customer · Semua Gerai/);
+  assert.match(branchAdminHtml, /management-customer-feedback\.js/);
+  assert.match(ownerHtml, /management-customer-feedback\.js/);
+  assert.match(adminHtml, /management-customer-feedback\.js/);
 });
 
 test('feedback migration provides normalized report and issue facts with unique entitlement guards', async () => {

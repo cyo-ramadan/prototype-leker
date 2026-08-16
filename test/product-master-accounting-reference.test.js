@@ -121,6 +121,8 @@ test('Master Barang keeps scalable references behind a simple advanced surface',
   assert.match(productUi, /product-master-reference-updated/);
   assert.match(productMaster, /owns\(body, 'purchasePrice'\)/);
   assert.match(productMaster, /current\?\.purchase_price/);
+  assert.match(productMaster, /const refs = await getManufacturingReferenceData/);
+  assert.doesNotMatch(productMaster, /const \[refs, productKinds, products, recipes\] = await Promise\.all/);
 });
 
 test('purchase is itemized from database products and atomically snapshots configuration stock last price and moving average cost', () => {

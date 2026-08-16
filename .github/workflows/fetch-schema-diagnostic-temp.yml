@@ -1,0 +1,21 @@
+name: TEMP Fetch Production Schema Diagnostic
+
+on:
+  push:
+    branches:
+      - agent/inspect-remaining-schema-drift-20260816
+    paths:
+      - .github/workflows/fetch-schema-diagnostic-temp.yml
+      - scripts/fetch-schema-diagnostic-temp.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Poll permanent Worker diagnostic artifact
+        run: node scripts/fetch-schema-diagnostic-temp.mjs

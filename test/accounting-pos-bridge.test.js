@@ -91,8 +91,11 @@ function setupMappings(sqlite) {
 
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('sale_dr_payment', ?, ?, 'Pembayaran', 'DEBIT', 'payment_method', 10)`).run(store.id, saleCategory);
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('sale_cr_revenue', ?, ?, 'Penjualan', 'CREDIT', 'item_category_revenue', 20)`).run(store.id, saleCategory);
-  sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, sort_order) VALUES ('operational_dr_expense', ?, ?, 'Beban Operasional', 'DEBIT', 'fixed_account', ?, 10)`).run(store.id, operationalCategory, expense);
-  sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('operational_cr_payment', ?, ?, 'Pembayaran', 'CREDIT', 'payment_method', 20)`).run(store.id, operationalCategory);
+  const operationalRules = sqlite.prepare(`SELECT side, source_type, fixed_account_id FROM journal_rules WHERE store_id = ? AND transaction_category_id = ? ORDER BY sort_order`).all(store.id, operationalCategory);
+  assert.deepEqual(operationalRules.map(rule => [rule.side, rule.source_type, rule.fixed_account_id || null]), [
+    ['DEBIT', 'fixed_account', expense],
+    ['CREDIT', 'payment_method', null]
+  ]);
 
   return { store: { id: store.id, code: store.code, storeName: store.store_name }, saleCategory, kas, inventory, revenue, cogs, expense };
 }

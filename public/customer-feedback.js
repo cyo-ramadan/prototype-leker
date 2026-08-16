@@ -106,9 +106,7 @@
   function syncSubmitState() {
     const button = el('customerFeedbackSubmit');
     if (!button) return;
-    const hasIssue = Boolean(document.querySelector('[data-feedback-issue]:checked'));
-    const hasNote = Boolean(el('customerFeedbackNote')?.value.trim());
-    button.disabled = accessState !== 'AVAILABLE' || !selectedCategory || (!hasIssue && !hasNote);
+    button.disabled = button.dataset.busy === 'true';
   }
 
   function renderAccessState() {
@@ -130,7 +128,7 @@
       area.innerHTML = 'Kotak saran tetap bisa dibuka dan diisi. Pengiriman untuk akun ini belum tersedia saat ini.';
     } else if (accessState === 'ERROR') {
       area.className = 'customer-feedback-access unavailable';
-      area.innerHTML = 'Form saran tersedia, tetapi status pengiriman belum berhasil dicek. Coba buka ulang beberapa saat lagi.';
+      area.innerHTML = 'Form saran tersedia, tetapi status pengiriman belum berhasil dicek. Tekan Laporkan untuk mencoba cek lagi.';
     } else {
       area.className = 'customer-feedback-access';
       area.innerHTML = 'Mengecek akses pengiriman...';
@@ -144,7 +142,6 @@
     const config = selectedConfig();
     if (!config) {
       area.innerHTML = '<div class="muted">Pilih salah satu kategori di atas.</div>';
-      syncSubmitState();
       return;
     }
     area.innerHTML = `
@@ -158,10 +155,6 @@
         `).join('')}
       </div>
     `;
-    document.querySelectorAll('[data-feedback-issue]').forEach(input => {
-      input.addEventListener('change', syncSubmitState);
-    });
-    syncSubmitState();
   }
 
   function renderForm() {
@@ -180,7 +173,7 @@
         <textarea id="customerFeedbackNote" class="customer-feedback-note" maxlength="1200" placeholder="Tulis detail yang belum terwakili dari pilihan di atas..."></textarea>
       </div>
       <div class="customer-feedback-actions">
-        <button id="customerFeedbackSubmit" class="customer-feedback-submit" type="button" disabled>Laporkan</button>
+        <button id="customerFeedbackSubmit" class="customer-feedback-submit" type="button">Laporkan</button>
       </div>
       <div id="customerFeedbackMessage" class="customer-feedback-message" aria-live="polite"></div>
     `;
@@ -192,7 +185,6 @@
         renderIssues();
       };
     });
-    el('customerFeedbackNote').addEventListener('input', syncSubmitState);
     el('customerFeedbackSubmit').onclick = submitFeedback;
     renderIssues();
     renderAccessState();
@@ -236,19 +228,40 @@
     }
   }
 
+  function feedbackAccessMessage() {
+    if (accessState === 'LOGIN_REQUIRED') return 'Login pelanggan diperlukan sebelum saran dapat dikirim.';
+    if (accessState === 'UNAVAILABLE') return 'Pengiriman saran untuk akun ini belum tersedia saat ini.';
+    if (accessState === 'ERROR') return 'Status pengiriman belum berhasil dicek. Silakan tekan Laporkan lagi untuk mencoba ulang.';
+    return 'Status pengiriman masih dicek. Silakan coba lagi.';
+  }
+
   async function submitFeedback() {
     const button = el('customerFeedbackSubmit');
     const message = el('customerFeedbackMessage');
-    if (accessState !== 'AVAILABLE') {
-      await refreshFeedbackAccess();
+    const issues = [...document.querySelectorAll('[data-feedback-issue]:checked')].map(input => input.value);
+    const manualNote = el('customerFeedbackNote').value.trim();
+    message.textContent = '';
+
+    if (!selectedCategory) {
+      message.textContent = 'Pilih kategori saran terlebih dahulu.';
+      return;
+    }
+    if (!issues.length && !manualNote) {
+      message.textContent = 'Centang minimal satu poin evaluasi atau tulis saran lain.';
       return;
     }
 
-    const issues = [...document.querySelectorAll('[data-feedback-issue]:checked')].map(input => input.value);
-    const manualNote = el('customerFeedbackNote').value.trim();
+    if (accessState !== 'AVAILABLE') {
+      await refreshFeedbackAccess();
+      if (accessState !== 'AVAILABLE') {
+        message.textContent = feedbackAccessMessage();
+        return;
+      }
+    }
+
+    button.dataset.busy = 'true';
     button.disabled = true;
     button.textContent = 'Mengirim...';
-    message.textContent = '';
 
     try {
       const payload = await api(`/api/customer/feedback?store=${encodeURIComponent(storeCode)}`, {
@@ -269,12 +282,15 @@
       if (error.code === 'CUSTOMER_FEEDBACK_UNAVAILABLE') {
         accessState = 'UNAVAILABLE';
         renderAccessState();
+        message.textContent = feedbackAccessMessage();
       } else if (error.code === 'CUSTOMER_LOGIN_REQUIRED' || error.status === 401) {
         accessState = 'LOGIN_REQUIRED';
         renderAccessState();
+        message.textContent = feedbackAccessMessage();
       } else {
         message.textContent = error.message;
       }
+      button.dataset.busy = 'false';
       button.textContent = 'Laporkan';
       syncSubmitState();
     }

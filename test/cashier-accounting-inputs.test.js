@@ -11,6 +11,7 @@ const purchases = readFileSync(new URL('../src/cashier-purchase.js', import.meta
 const expenses = readFileSync(new URL('../src/cashier-operational-expense.js', import.meta.url), 'utf8');
 const drawerReport = readFileSync(new URL('../src/drawer-report.js', import.meta.url), 'utf8');
 const purchaseDefaults = readFileSync(new URL('../migrations/0029_purchase_accounting_defaults.sql', import.meta.url), 'utf8');
+const cashierPosCss = readFileSync(new URL('../public/cashier-pos.css', import.meta.url), 'utf8');
 
 test('cashier workspace exposes configured payment methods and operational components', () => {
   assert.match(workspace, /listPosPaymentMethods/);
@@ -55,6 +56,20 @@ test('purchase dialog keeps one Accounting payment selector and starts with five
   assert.match(enhancedInputUi, /<option value=""[^>]*>None<\/option>/);
   assert.match(enhancedInputUi, /for \(let index = 0; index < 5; index \+= 1\) addPurchaseRow\(\)/);
   assert.match(enhancedInputUi, /purchaseItemsPayload\(\)\.filter\(item => item\.productId > 0\)/);
+});
+
+test('purchase item editor is mobile-first and retains a desktop layout', () => {
+  assert.match(enhancedInputUi, /class="purchase-item-row"/);
+  assert.match(enhancedInputUi, /purchase-item-product/);
+  assert.doesNotMatch(enhancedInputUi, /grid-template-columns:minmax\(0,1fr\) 90px 150px auto/);
+  assert.match(enhancedInputUi, /purchase-item-heading"><strong>Barang \$\{id\}<\/strong>/);
+  assert.match(cashierPosCss, /grid-template-columns:72px minmax\(0,1fr\)/);
+  assert.match(cashierPosCss, /\.purchase-item-product\{grid-column:1\/-1\}/);
+  assert.match(cashierPosCss, /\.purchase-item-quantity\{grid-column:1\}\.purchase-item-total\{grid-column:2\}/);
+  assert.match(cashierPosCss, /border-radius:16px;background:#fffcf8/);
+  assert.match(cashierPosCss, /\.purchase-item-row \.text-input\{[^}]*min-width:0;[^}]*width:100%/);
+  assert.match(cashierPosCss, /@media\(min-width:700px\)/);
+  assert.match(cashierPosCss, /grid-template-columns:minmax\(0,1fr\) 90px 150px 40px/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

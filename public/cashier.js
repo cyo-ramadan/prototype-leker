@@ -177,7 +177,7 @@ function changeDraft(productId, delta) {
 }
 
 function renderDraft() {
-  const lines = [...state.draft.values()];
+  const lines = [...state.draft.values()].reverse();
   const totalQty = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0);
   el('draftCount').textContent = totalQty;

@@ -135,6 +135,12 @@ Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai m
 
 ## Accounting tetap owner posting jurnal
 
+## Dialog transaksi jangan melakukan fetch berantai atau ganda
+
+**Pitfall:** membuka Beli Bahan dengan fetch barang lalu supplier secara serial, kemudian editor meminta barang lagi, membuat dialog terasa lebih lambat daripada Operasional.
+
+Fetch independen harus paralel, hasilnya dibagi melalui cache satu sesi, dan boleh diprefetch setelah workspace kasir siap. Gunakan PIMASATU untuk input satu-per-satu; jangan membuat slot keranjang kosong.
+
 ## D1 default bootstrap tidak boleh overlap dengan editor reads
 
 **Pitfall:** Jangan menjalankan helper yang dapat menulis default reference dalam `Promise.all` yang sama dengan query snapshot editor.

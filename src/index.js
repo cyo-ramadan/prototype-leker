@@ -37,6 +37,7 @@ import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
+import { handleCostMasterApi } from './cost-master.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -82,6 +83,8 @@ async function handleApi(request, env, url) {
 
   const unifiedLoginResponse = await handleUnifiedLoginApi(request, env, pathname);
   if (unifiedLoginResponse) return unifiedLoginResponse;
+  const costMasterResponse = await handleCostMasterApi(request, env, pathname);
+  if (costMasterResponse) return costMasterResponse;
   const membershipResponse = await handleCustomerMembershipApi(request, env, pathname);
   if (membershipResponse) return membershipResponse;
   const feedbackResponse = await handleCustomerFeedbackApi(request, env, pathname);

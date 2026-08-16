@@ -309,6 +309,8 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 
 ## Architecture decisions
 
+- `adr/ADR-027-pimasatu-and-cost-master.md` — komponen transaksi PIMASATU reusable dan boundary Master Biaya/Jenis Biaya/Accounting.
+
 - `adr/ADR-001-owner-branch-drawer-hierarchy.md`
 - `adr/ADR-002-customer-first-entry-and-optional-identity.md`
 - `adr/ADR-003-branch-admin-drawer-and-customer-sharing.md`
@@ -330,4 +332,4 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 
 ## DOC-IMPACT
 
-**REQUIRED** — README reflects the live Accounting/Setting Akuntansi capability, exact journal precision, remote migration state through 0026, canonical Cloudflare Git Integration deployment route, production D1 schema-drift recovery discipline, and active audited Penyesuaian Stok correction flow. Remaining Inventory/transaction-integrity and HR/KPI capabilities are governed by their own contracts.
+**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting.

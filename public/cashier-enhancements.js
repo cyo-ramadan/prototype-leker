@@ -100,7 +100,7 @@
     const editor = el('purchaseItemsEditor');
     editor.dataset.loaded = 'loading';
     try {
-      const payload = await cashierRequest('/api/cashier/purchases/options');
+      const payload = window.__cashierPurchaseOptions || await cashierRequest('/api/cashier/purchases/options');
       purchaseState.products = payload.products || [];
       editor.dataset.loaded = '1';
       const rows = el('purchaseItemsRows');

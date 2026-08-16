@@ -1,5 +1,5 @@
 (() => {
-  const MASTER_TABS = ['products', 'categories', 'suppliers', 'customers', 'cashiers', 'manufacturing'];
+  const MASTER_TABS = ['products', 'categories', 'suppliers', 'customers', 'cashiers', 'costmasters', 'manufacturing'];
 
   function injectStyle() {
     if (document.getElementById('adminMasterMenuStyle')) return;
@@ -70,6 +70,7 @@
       <button type="button" role="menuitem" data-master-open="suppliers">Supplier</button>
       <button type="button" role="menuitem" data-master-open="customers">Pelanggan</button>
       <button type="button" role="menuitem" data-master-open="cashiers">Kasir / Staf</button>
+      <button type="button" role="menuitem" data-master-open="costmasters">Biaya</button>
       <div class="admin-master-menu-separator"></div>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="itemTypeForm">Peran Barang</button>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="productKindMasterCard">Klasifikasi Accounting</button>
@@ -131,7 +132,7 @@
       closeMenu();
       const label = document.getElementById('adminMasterMenuLabel');
       const names = {
-        products: 'Barang', categories: 'Kategori', suppliers: 'Supplier', customers: 'Pelanggan', cashiers: 'Kasir', manufacturing: 'Master Teknis'
+        products: 'Barang', categories: 'Kategori', suppliers: 'Supplier', customers: 'Pelanggan', cashiers: 'Kasir', costmasters: 'Biaya', manufacturing: 'Master Teknis'
       };
       if (label) label.textContent = `Master · ${names[tab] || tab}`;
       if (targetId) setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);

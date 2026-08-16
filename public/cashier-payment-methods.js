@@ -7,6 +7,22 @@
     const selected = selectedCode || defaultCode();
     return methods().map(item => `<option value="${escapeHtml(item.code)}" ${item.code === selected ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
   }
+  let purchaseDataPromise;
+  let costMasterPromise;
+  function loadPurchaseData() {
+    if (!purchaseDataPromise) purchaseDataPromise = Promise.all([
+      api('/api/cashier/purchases/options'),
+      api('/api/cashier/suppliers').catch(error => ({ suppliers: [], warning: error }))
+    ]).then(([purchase, suppliers]) => {
+      window.__cashierPurchaseOptions = purchase;
+      return { purchase, suppliers };
+    }).catch(error => { purchaseDataPromise = null; throw error; });
+    return purchaseDataPromise;
+  }
+  function loadCostMasters() {
+    if (!costMasterPromise) costMasterPromise = api('/api/cashier/cost-masters/options').catch(error => { costMasterPromise = null; throw error; });
+    return costMasterPromise;
+  }
 
   function renderSaleMethod() {
     const note = byId('saleNote');
@@ -44,9 +60,9 @@
         return;
       }
       if (!methods().length) throw new Error('Belum ada cara bayar aktif di Setting Akuntansi.');
-      let purchasePayload;
+      let purchasePayload, supplierPayload;
       try {
-        purchasePayload = await api('/api/cashier/purchases/options');
+        ({ purchase: purchasePayload, suppliers: supplierPayload } = await loadPurchaseData());
       } catch (error) {
         openDialog({
           eyebrow: 'Laci · Pembelian',
@@ -56,12 +72,7 @@
         });
         return;
       }
-      let supplierPayload = { suppliers: [] };
-      try {
-        supplierPayload = await api('/api/cashier/suppliers');
-      } catch (error) {
-        toast(`Supplier gagal dimuat (${error.code || error.status || 'error'}). Pembelian dilanjutkan tanpa supplier.`);
-      }
+      if (supplierPayload.warning) toast('Supplier gagal dimuat. Pembelian dilanjutkan tanpa supplier.');
       const suppliers = supplierPayload.suppliers || [];
       const products = purchasePayload.products || [];
       if (!products.length) {
@@ -165,48 +176,43 @@
     }
   }
 
-  function operationalDialog() {
+  async function operationalDialog() {
     if (!methods().length) return toast('Belum ada cara bayar aktif di Setting Akuntansi.');
-    const expenseComponents = components();
-    const componentField = expenseComponents.length > 1
-      ? `<div class="field"><label>Komponen beban</label><select id="dialogOperationalComponent" class="text-input" required><option value="">Pilih komponen…</option>${expenseComponents.map(component => `<option value="${escapeHtml(component.journalRuleId)}">${escapeHtml(component.label)}${component.accountCode ? ` · ${escapeHtml(component.accountCode)} ${escapeHtml(component.accountName)}` : ''}</option>`).join('')}</select></div>`
-      : expenseComponents.length === 1
-        ? `<div class="cashier-lock-note"><b>Komponen beban</b><br>${escapeHtml(expenseComponents[0].label)}${expenseComponents[0].accountCode ? ` · ${escapeHtml(expenseComponents[0].accountCode)} ${escapeHtml(expenseComponents[0].accountName)}` : ''}</div>`
-        : '<div class="cashier-lock-note"><b>Accounting belum lengkap</b><br><span class="muted">Belum ada komponen Debit Operasional aktif. Transaksi tetap tersimpan, Accounting akan fail-closed sampai setting dilengkapi.</span></div>';
+    let payload;
+    try { payload = await loadCostMasters(); } catch (error) { return toast(`Master Biaya gagal dimuat: ${error.message}`); }
+    const costs = payload.costs || [];
+    if (!costs.length) return toast('Belum ada Master Biaya aktif.');
+    let editor;
 
     openDialog({
       eyebrow: 'Laci · Operasional',
       title: 'Pengeluaran Operasional',
       body: `
-        <div class="field"><label>Deskripsi</label><input id="dialogOperationalDescription" class="text-input" maxlength="220" required /></div>
-        <div class="field"><label>Qty</label><input id="dialogOperationalQty" class="text-input" type="number" min="0.000001" step="any" value="1" required /></div>
-        <div class="field"><label>Total nominal</label><input id="dialogOperationalAmount" class="text-input" type="number" min="1" step="1" required /></div>
         <div class="field"><label>Cara bayar</label><select id="dialogOperationalPayment" class="text-input">${methodOptions()}</select></div>
-        ${componentField}
-        <p class="muted">Qty adalah metadata perilaku transaksi dan tidak mengubah stok. Hanya CASH memengaruhi kas fisik laci.</p>`,
+        <div id="operationalPimasatu"></div>
+        <p class="muted">Nominal awal mengikuti Biaya Keluar di Master Biaya dan tetap bisa diedit. Hanya CASH memengaruhi kas fisik laci.</p>`,
       submitText: 'SIMPAN OPERASIONAL',
       onSubmit: async () => {
-        const quantity = byId('dialogOperationalQty').value.trim();
-        const amount = Number(byId('dialogOperationalAmount').value);
-        if (!quantity) throw new Error('Qty operasional wajib diisi.');
-        if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('Total nominal operasional wajib valid.');
-        const accountingComponentRuleId = expenseComponents.length > 1
-          ? byId('dialogOperationalComponent').value
-          : expenseComponents[0]?.journalRuleId || null;
-        if (expenseComponents.length > 1 && !accountingComponentRuleId) throw new Error('Pilih komponen beban Accounting.');
+        const items = editor.getLines().map(line => ({ costMasterId: line.id, quantity: line.quantity, unitAmount: line.unitAmount }));
+        if (!items.length) throw new Error('Masukkan minimal satu biaya operasional.');
         const result = await api('/api/cashier/expenses', {
           method: 'POST',
           body: JSON.stringify({
-            description: byId('dialogOperationalDescription').value,
-            quantity,
-            amount,
+            items,
             paymentMethod: byId('dialogOperationalPayment').value,
-            accountingComponentRuleId
           })
         });
-        toast(`Operasional tersimpan · qty ${result.quantity} · ${rupiah(result.amount)}`);
+        toast(`Operasional tersimpan · ${items.length} biaya · ${rupiah(result.totalAmount)}`);
         return true;
       }
+    });
+    editor = window.MAXIPimasatu.create({
+      host: byId('operationalPimasatu'), items: costs,
+      getId: item => item.id, getLabel: item => item.name,
+      getMeta: item => [item.costTypeName, item.costGroup, item.contact].filter(Boolean).join(' · '),
+      getDefaultAmount: item => item.outgoingAmount,
+      openLabel: 'Tambah Biaya', itemLabel: 'Biaya', priceLabel: 'Biaya keluar / unit', detailTitle: 'Detail Operasional',
+      onError: toast
     });
   }
 
@@ -241,6 +247,7 @@
     renderSaleMethod();
     bindCanonicalPurchaseClick();
     replaceButton('expenseBtn', 'accountingInputsBound', operationalDialog);
+    if (state.canWrite) { loadPurchaseData().catch(() => {}); loadCostMasters().catch(() => {}); }
   }
 
   document.addEventListener('cashier:workspace-applied', mount);

@@ -15,6 +15,12 @@ function factIdFromPayload(factType, payload) {
   return payload?.id || null;
 }
 
+function factIdsFromPayload(factType, payload) {
+  if (factType === 'EXPENSE' && Array.isArray(payload?.ids) && payload.ids.length) return payload.ids;
+  const id = factIdFromPayload(factType, payload);
+  return id ? [id] : [];
+}
+
 function accountingPayload(existing, result) {
   return {
     ...(existing && typeof existing === 'object' ? existing : {}),
@@ -38,8 +44,27 @@ export async function attachAccountingBridgeToCommittedResponse(response, env, f
   } catch {
     return response;
   }
-  const factId = factIdFromPayload(type, payload);
-  if (!factId) return response;
+  const factIds = factIdsFromPayload(type, payload);
+  if (!factIds.length) return response;
+
+  if (factIds.length > 1) {
+    const deliveries = [];
+    for (const factId of factIds) {
+      try {
+        const store = await storeForFact(env.DB, type, factId);
+        const result = store
+          ? await dispatchPosAccountingFact(env.DB, store, { factType: type, factId })
+          : { ok: false, status: 'FAILED', code: 'BUSINESS_FACT_NOT_FOUND', error: 'Business fact POS tidak ditemukan setelah commit.' };
+        deliveries.push({ factId, ...accountingPayload(null, result) });
+      } catch (error) {
+        console.error('accounting bridge batch dispatch failed', { factType: type, factId, error });
+        deliveries.push({ factId, bridgeContract: ACCOUNTING_POS_BRIDGE_CONTRACT, bridgeStatus: 'FAILED', failureCode: 'ACCOUNTING_BRIDGE_EXCEPTION', failureDetail: 'Transaksi POS sudah tersimpan, tetapi delivery Accounting gagal diproses.' });
+      }
+    }
+    return json({ ...payload, accounting: { bridgeContract: ACCOUNTING_POS_BRIDGE_CONTRACT, deliveries } }, response.status);
+  }
+
+  const [factId] = factIds;
 
   let result;
   try {

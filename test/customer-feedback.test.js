@@ -8,6 +8,11 @@ import {
   buildMonthlyFeedbackEntitlementKey,
   normalizeFeedbackSubmission
 } from '../src/customer-feedback.js';
+import {
+  REQUIRED_REMOTE_TABLES,
+  extractWranglerD1Rows,
+  missingRequiredTables
+} from '../scripts/verify-remote-schema.mjs';
 
 test('customer feedback catalog has the three approved evaluation categories', () => {
   assert.deepEqual(Object.keys(CUSTOMER_FEEDBACK_CATALOG), [
@@ -85,4 +90,26 @@ test('feedback migration provides normalized report and issue facts with unique 
   assert.match(migration, /entitlement_key TEXT NOT NULL UNIQUE/);
   assert.match(migration, /qualifying_sale_id/);
   assert.match(migration, /idx_customer_feedback_qualifying_sale/);
+});
+
+test('remote schema verifier requires both feedback tables and parses Wrangler JSON shapes', () => {
+  assert.deepEqual(REQUIRED_REMOTE_TABLES, [
+    'customer_feedback_reports',
+    'customer_feedback_report_issues'
+  ]);
+
+  const wranglerPayload = [{
+    success: true,
+    results: [
+      { name: 'customer_feedback_report_issues' },
+      { name: 'customer_feedback_reports' }
+    ]
+  }];
+
+  assert.deepEqual(extractWranglerD1Rows(wranglerPayload), wranglerPayload[0].results);
+  assert.deepEqual(missingRequiredTables(wranglerPayload), []);
+  assert.deepEqual(
+    missingRequiredTables([{ success: true, results: [{ name: 'customer_feedback_reports' }] }]),
+    ['customer_feedback_report_issues']
+  );
 });

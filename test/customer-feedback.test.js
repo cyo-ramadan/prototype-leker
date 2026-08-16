@@ -10,6 +10,7 @@ import {
 } from '../src/customer-feedback.js';
 import {
   REQUIRED_REMOTE_TABLES,
+  WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS,
   extractWranglerD1Rows,
   missingRequiredTables
 } from '../scripts/verify-remote-schema.mjs';
@@ -92,11 +93,12 @@ test('feedback migration provides normalized report and issue facts with unique 
   assert.match(migration, /idx_customer_feedback_qualifying_sale/);
 });
 
-test('remote schema verifier requires both feedback tables and parses Wrangler JSON shapes', () => {
+test('remote schema verifier requires both feedback tables, bounded runtime, and Wrangler JSON parsing', () => {
   assert.deepEqual(REQUIRED_REMOTE_TABLES, [
     'customer_feedback_reports',
     'customer_feedback_report_issues'
   ]);
+  assert.equal(WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS, 120000);
 
   const wranglerPayload = [{
     success: true,

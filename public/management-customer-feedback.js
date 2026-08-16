@@ -123,21 +123,31 @@
   function initBranch() {
     const tabs = document.querySelector('.admin-tabs');
     const app = document.getElementById('adminApp');
-    if (!tabs || !app || document.getElementById('tab-customer-feedback')) return;
+    if (!tabs || !app) return;
 
-    const tab = document.createElement('button');
-    tab.className = 'admin-tab';
-    tab.type = 'button';
-    tab.textContent = 'Kotak Saran';
-    tab.dataset.customerFeedbackTab = 'true';
-    tabs.appendChild(tab);
+    let tab = document.querySelector('[data-customer-feedback-tab]');
+    if (!tab) {
+      tab = document.createElement('button');
+      tab.className = 'admin-tab';
+      tab.type = 'button';
+      tab.textContent = 'Kotak Saran';
+      tab.dataset.customerFeedbackTab = 'true';
+      tab.dataset.tab = 'customer-feedback';
+      tabs.appendChild(tab);
+    }
 
-    const section = document.createElement('section');
-    section.id = 'tab-customer-feedback';
-    section.className = 'admin-section';
-    section.innerHTML = `<div class="admin-card">${panelInnerHtml('Komentar Customer')}</div>`;
-    const toast = document.getElementById('adminToast');
-    app.insertBefore(section, toast || null);
+    let section = document.getElementById('tab-customer-feedback');
+    if (!section) {
+      section = document.createElement('section');
+      section.id = 'tab-customer-feedback';
+      section.className = 'admin-section';
+      const toast = document.getElementById('adminToast');
+      app.insertBefore(section, toast || null);
+    }
+
+    if (!section.querySelector('[data-feedback-list]')) {
+      section.innerHTML = `<div class="admin-card">${panelInnerHtml('Komentar Customer')}</div>`;
+    }
     bindPanel(section);
 
     tab.addEventListener('click', () => {

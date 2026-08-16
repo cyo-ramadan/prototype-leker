@@ -9,6 +9,7 @@ const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const COST_SCALE = 1_000_000;
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const costFromScaled = value => Number(value || 0) / COST_SCALE;
+const owns = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
 
 function money(value) {
   const number = Number(value);
@@ -140,25 +141,32 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
 }
 
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
-  const name = text(body?.name, 100);
-  const purchasePrice = money(body?.purchasePrice);
-  const price = money(body?.price);
-  const category = text(body?.category, 60);
-  const emoji = text(body?.emoji, 8) || '🥞';
-  const productImage = imageData(body?.imageData);
-  const pointsPerUnit = nonNegativeInteger(body?.pointsPerUnit ?? 0);
-  const stockTrackingEnabled = body?.stockTrackingEnabled !== false;
+  const name = text(owns(body, 'name') ? body.name : current?.name, 100);
+  const purchasePrice = money(owns(body, 'purchasePrice') ? body.purchasePrice : current?.purchase_price);
+  const price = money(owns(body, 'price') ? body.price : current?.price);
+  const category = text(owns(body, 'category') ? body.category : current?.category, 60);
+  const emoji = text(owns(body, 'emoji') ? body.emoji : current?.emoji, 8) || '🥞';
+  const productImage = imageData(owns(body, 'imageData') ? body.imageData : current?.image_data);
+  const pointsPerUnit = nonNegativeInteger(owns(body, 'pointsPerUnit') ? body.pointsPerUnit : (current?.points_per_unit ?? 0));
+  const stockTrackingEnabled = owns(body, 'stockTrackingEnabled')
+    ? body.stockTrackingEnabled !== false
+    : current?.stock_tracking_enabled !== 0;
 
   if (!name || purchasePrice === null || price === null || !category || productImage === null) {
     return { ok: false, status: 400, error: 'Nama, kategori, harga beli, harga jual, atau foto barang tidak valid.' };
   }
   if (pointsPerUnit === null) return { ok: false, status: 400, error: 'Poin barang harus bilangan bulat nol atau positif.' };
 
-  const refs = await resolveProductMasterReferences(db, storeId, body?.itemTypeId, body?.baseUnitId);
+  const itemTypeId = owns(body, 'itemTypeId') ? body.itemTypeId : current?.item_type_id;
+  const baseUnitId = owns(body, 'baseUnitId') ? body.baseUnitId : current?.base_unit_id;
+  const refs = await resolveProductMasterReferences(db, storeId, itemTypeId, baseUnitId, {
+    allowInactive: Boolean(current && current.item_type_id === itemTypeId && current.base_unit_id === baseUnitId)
+  });
   if (!refs.ok) return { ok: false, status: 400, error: refs.error };
 
-  const kind = await resolveProductKind(db, storeId, body?.productKindId, {
-    allowInactive: Boolean(current?.product_kind_id && current.product_kind_id === body?.productKindId)
+  const productKindId = owns(body, 'productKindId') ? body.productKindId : current?.product_kind_id;
+  const kind = await resolveProductKind(db, storeId, productKindId, {
+    allowInactive: Boolean(current?.product_kind_id && current.product_kind_id === productKindId)
   });
   if (!kind.ok) return { ok: false, status: 400, error: kind.error };
 
@@ -168,11 +176,12 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
   }
 
   let recipeLink = { ok: true, linkedRecipeId: null, recipe: null };
-  if (body?.linkedRecipeId) {
+  const requestedRecipeId = owns(body, 'linkedRecipeId') ? body.linkedRecipeId : current?.linked_recipe_id;
+  if (requestedRecipeId) {
     if (!current) {
       return { ok: false, status: 409, error: 'Barang baru harus disimpan dulu sebelum bisa memilih resep yang menghasilkan barang tersebut.' };
     }
-    recipeLink = await resolveLinkedRecipe(db, storeId, productId, body.linkedRecipeId);
+    recipeLink = await resolveLinkedRecipe(db, storeId, productId, requestedRecipeId);
     if (!recipeLink.ok) return { ok: false, status: 400, error: recipeLink.error };
   }
 
@@ -184,7 +193,7 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     category,
     emoji,
     productImage,
-    isActive: body?.isActive === false ? 0 : 1,
+    isActive: owns(body, 'isActive') ? (body.isActive === false ? 0 : 1) : (current?.is_active === 0 ? 0 : 1),
     itemTypeId: refs.itemTypeId,
     productKindId: kind.productKindId,
     baseUnitId: refs.baseUnitId,
@@ -247,7 +256,10 @@ export async function handleProductMasterApi(request, env, pathname) {
 
   const productId = Number(match[1]);
   const current = await env.DB.prepare(`
-    SELECT id, base_unit_id, product_kind_id FROM products WHERE id = ? AND store_id = ?
+    SELECT id, name, purchase_price, price, category, emoji, image_data, is_active,
+           item_type_id, product_kind_id, base_unit_id, points_per_unit,
+           stock_tracking_enabled, linked_recipe_id
+    FROM products WHERE id = ? AND store_id = ?
   `).bind(productId, store.id).first();
   if (!current) return json({ error: 'Barang tidak ditemukan di gerai ini.' }, 404);
 

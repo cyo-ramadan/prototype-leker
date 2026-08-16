@@ -58,7 +58,7 @@ test('admin master UI groups master entities without replacing existing listener
   assert.match(manufacturingUi, /Buat Resep \/ BOM/);
   assert.match(manufacturingUi, /Simpan sebagai revision baru/);
   assert.match(masterMenuUi, /Master ·/);
-  assert.match(masterMenuUi, /Tipe Barang/);
+  assert.match(masterMenuUi, /Peran Barang/);
   assert.match(masterMenuUi, /Resep \/ BOM/);
   assert.match(masterMenuUi, /button\.click\(\)/);
   assert.doesNotMatch(manufacturingUi, /setInterval\s*\(/);

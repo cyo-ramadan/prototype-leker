@@ -1,6 +1,6 @@
 # Product Master & Accounting Reference Contract v3
 
-Status: ACTIVE for Prototype Leker
+Status: SUPERSEDED IN PART by `product-master-accounting-reference-v4.md`
 Version: 3
 Supersedes: `contracts/product-master-accounting-reference-v2.md` only for purchase-price ownership; all unaffected v2 rules remain active.
 

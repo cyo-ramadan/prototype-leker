@@ -13,10 +13,14 @@ const defaults = readFileSync(new URL('../migrations/0035_operational_cost_accou
 test('PIMASATU is a reusable one-at-a-time component with mobile compact quantity', () => {
   assert.match(component, /window\.MAXIPimasatu/);
   assert.match(component, /state\.lines\.unshift/);
-  assert.match(component, /setExpanded\(false\)/);
+  assert.doesNotMatch(component, /reset\(\); setExpanded\(false\)/);
+  assert.match(component, /reset\(\); setExpanded\(true\)/);
   assert.match(component, /initialExpanded = true/);
   assert.match(component, /setExpanded\(initialExpanded\)/);
-  assert.doesNotMatch(component, /renderLines\(\); setExpanded\(false\)/);
+  assert.match(component, /toggle\.classList\.toggle\('hidden', value\)/);
+  assert.match(component, /toggle\.onclick = \(\) => setExpanded\(true\)/);
+  assert.doesNotMatch(component, /Tutup pilihan/);
+  assert.doesNotMatch(component, /search\.focus\(\)/);
   assert.match(component, /qty\.value = '1'/);
   assert.match(css, /grid-template-columns:minmax\(72px,92px\) minmax\(0,1fr\)/);
   assert.match(css, /@media\(max-width:430px\)/);

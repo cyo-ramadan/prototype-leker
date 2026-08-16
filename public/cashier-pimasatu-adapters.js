@@ -2,7 +2,8 @@
   let saleEditor;
   function mountSale() {
     const host = document.getElementById('salePimasatu');
-    if (!host || saleEditor || !window.MAXIPimasatu) return;
+    if (!host || host.dataset.pimasatuMounted === '1' || !window.MAXIPimasatu) return;
+    host.dataset.pimasatuMounted = '1';
     saleEditor = window.MAXIPimasatu.create({
       host, items: () => state.products || [],
       getId: product => product.id, getLabel: product => product.name,
@@ -18,6 +19,7 @@
       }
     });
   }
+  document.addEventListener('cashier:sale-dialog-opened', mountSale);
   document.addEventListener('cashier:workspace-applied', mountSale);
   document.addEventListener('DOMContentLoaded', mountSale);
   mountSale();

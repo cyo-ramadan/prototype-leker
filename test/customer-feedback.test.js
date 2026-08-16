@@ -69,6 +69,15 @@ test('monthly entitlement key is deterministic by customer and Jakarta business 
   );
 });
 
+test('customer feedback renders categories before entitlement resolution', async () => {
+  const customerScript = await readFile(new URL('../public/customer-feedback.js', import.meta.url), 'utf8');
+
+  assert.match(customerScript, /await loadCatalog\(\);\s*accessState = 'CHECKING';\s*renderForm\(\);\s*await refreshFeedbackAccess\(\);/);
+  assert.match(customerScript, /data-feedback-category/);
+  assert.doesNotMatch(customerScript, /if\s*\(!window\.LEKER_CUSTOMER\)\s*return\s+renderLoginRequired/);
+  assert.match(customerScript, /button\.disabled = accessState !== 'AVAILABLE'/);
+});
+
 test('customer feedback UI keeps entitlement algorithm private and browser scripts parse', async () => {
   const [customerScript, sessionBridge, customerHtml, managementScript] = await Promise.all([
     readFile(new URL('../public/customer-feedback.js', import.meta.url), 'utf8'),

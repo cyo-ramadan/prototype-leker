@@ -111,8 +111,8 @@ test('admin groups master entities under Master while stock and transactions rem
     assert.match(masterMenuUi, new RegExp(`['\"]${tab}['\"]`));
   }
   assert.match(masterMenuUi, /adminMasterMenuLabel">Master<\/span> ▾/);
-  assert.match(masterMenuUi, /Tipe Barang/);
-  assert.match(masterMenuUi, /Jenis Barang/);
+  assert.match(masterMenuUi, /Peran Barang/);
+  assert.match(masterMenuUi, /Klasifikasi Accounting/);
   assert.match(masterMenuUi, /Satuan/);
   assert.match(masterMenuUi, /Resep \/ BOM/);
   assert.match(stockUi, /dataset\.tab = 'stock'/);

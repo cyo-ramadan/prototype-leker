@@ -13,11 +13,30 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Pinpoint live Master Barang editor failure
+      - name: Inspect live Recipe schema and Master Barang failure
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://prototype-leker-v2.daily-napkin.workers.dev'
+
+          SCHEMA_STATUS="$(curl -sS -o /tmp/schema.json -w '%{http_code}' "$BASE/schema-diagnostic-temp.json")"
+          echo "SCHEMA_DIAGNOSTIC_HTTP_STATUS=$SCHEMA_STATUS"
+          if [ "$SCHEMA_STATUS" = '200' ]; then
+            python - <<'PY'
+          import json
+          with open('/tmp/schema.json') as f: p=json.load(f)
+          print('DIAGNOSTIC_VERSION', p.get('diagnostic'))
+          for table in ['manufacturing_recipes','manufacturing_recipe_components','products','inventory_stock_balances']:
+              cols=[x.get('name') for x in p.get('schema',{}).get(table,[])]
+              print(f'{table.upper()}_COLUMNS', json.dumps(cols))
+          master=p.get('g001Master') or {}
+          if master:
+              print('G001_MASTER_COUNTS', json.dumps({k:len(v) for k,v in master.items()}))
+              print('G001_PRODUCTS', json.dumps(master.get('products',[]),ensure_ascii=False))
+              print('G001_ITEM_TYPES', json.dumps(master.get('itemTypes',[]),ensure_ascii=False))
+          PY
+          fi
+
           LOGIN="$(curl -sS -X POST "$BASE/api/auth/staff-login" \
             -H 'Content-Type: application/json' \
             --data '{"username":"owner","password":"123456","takeover":true}')"
@@ -34,21 +53,6 @@ jobs:
             if [ "$status" != '200' ]; then echo "${label}_ERROR_BODY"; cat "$file"; echo; fi
           }
 
-          probe manufacturing '/api/admin/manufacturing/bootstrap?store=G001'
-          probe kinds '/api/admin/master/product-kinds?store=G001'
           probe recipes '/api/admin/manufacturing/recipes?store=G001&includeArchived=1'
           probe stock '/api/admin/stock?store=G001'
           probe editor '/api/admin/master/products/editor?store=G001'
-
-          python - <<'PY'
-          import json
-          for name in ['manufacturing','kinds','recipes','stock']:
-              try:
-                  with open(f'/tmp/{name}.json') as f: p=json.load(f)
-              except Exception:
-                  continue
-              if name=='manufacturing': print('MANUFACTURING', {'itemTypes':len(p.get('itemTypes',[])),'units':len(p.get('units',[])),'products':len(p.get('products',[]))})
-              if name=='kinds': print('KINDS', {'productKinds':len(p.get('productKinds',[]))})
-              if name=='recipes': print('RECIPES', {'recipes':len(p.get('recipes',[]))})
-              if name=='stock': print('STOCK_KEYS', sorted(p.keys()))
-          PY

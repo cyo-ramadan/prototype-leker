@@ -36,6 +36,7 @@
         <button class="admin-tab" data-tab="categories" type="button">Kategori</button>
         <button class="admin-tab" data-tab="suppliers" type="button">Supplier</button>
         <button class="admin-tab" data-tab="contacts" type="button">Customer</button>
+        <button class="admin-tab" data-tab="customer-feedback" data-customer-feedback-tab="true" type="button">Kotak Saran</button>
       </nav>
 
       <section id="tab-store" class="admin-section active">
@@ -103,6 +104,28 @@
           <div class="admin-card list-card"><div class="list-head"><h2>Master customer/contact</h2><span id="contactCount" class="master-count">0</span></div><div id="contactList" class="master-list"></div></div>
         </div>
       </section>
+
+      <section id="tab-customer-feedback" class="admin-section">
+        <div class="admin-card">
+          <div class="feedback-management-head">
+            <div>
+              <h2>Komentar Customer</h2>
+              <p class="muted">Komentar customer untuk evaluasi manajemen. Identitas pelapor disembunyikan dari list ini.</p>
+            </div>
+            <div class="feedback-management-tools">
+              <select data-feedback-filter aria-label="Filter kategori">
+                <option value="">Semua kategori</option>
+                <option value="PRODUCT_QUALITY">Mutu Produk</option>
+                <option value="SERVICE">Pelayanan</option>
+                <option value="CLEANLINESS">Kebersihan</option>
+              </select>
+              <button class="secondary-btn" data-feedback-refresh type="button">Refresh</button>
+              <span class="master-count" data-feedback-count>0</span>
+            </div>
+          </div>
+          <div class="feedback-management-list" data-feedback-list><div class="empty">Buka tab Kotak Saran untuk memuat laporan customer.</div></div>
+        </div>
+      </section>
       <div id="adminToast" class="admin-toast" aria-live="polite"></div>
     </section>
   </main>
@@ -131,6 +154,6 @@
   <script src="/management-approval-queue.js"></script>
   <script src="/management-transaction-void-permits.js"></script>
   <script src="/admin-cashier-raport.js"></script>
-  <script src="/management-customer-feedback.js"></script>
+  <script src="/management-customer-feedback.js?v=20260816-static-admin-v1"></script>
 </body>
 </html>

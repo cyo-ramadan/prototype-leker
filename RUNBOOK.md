@@ -28,6 +28,8 @@ A production deployment that contains a D1 schema change must follow this order 
 
 Repository command `npm run deploy` owns steps 3 through 5. The Cloudflare Workers production Deploy command MUST be `npm run deploy`, not bare `npx wrangler deploy`, whenever repository migrations are part of the release.
 
+Wrangler invocation on this road is explicitly non-interactive (`npx --yes`). The remote schema verification child process has a 120-second timeout. If Wrangler/D1 does not return within that bound, verification fails and Worker promotion stops instead of consuming the full Workers Builds timeout with an indeterminate deployment state.
+
 Current feedback schema gate checks:
 
 - `customer_feedback_reports`
@@ -68,6 +70,18 @@ Recovery:
 
 If remote migration state disagrees with actual `sqlite_schema`, follow D1 schema-drift recovery discipline: inspect migration state and real schema, capture a Time Travel checkpoint/approved backup when repair is required, restore only authoritative missing objects, then resume canonical migrations.
 
+## Hung or excessively long canonical build
+
+If a schema-changing build remains active abnormally long:
+
+1. do not bypass the gate by manually creating production tables from application code;
+2. confirm `npm run deploy` uses explicit non-interactive Wrangler calls;
+3. keep the schema verifier bounded so a stalled D1/CLI probe fails before Worker promotion;
+4. inspect the final canonical Worker Build conclusion and available build logs/evidence;
+5. fix the exact blocked stage, rerun through `main`, and require the full migration → schema verify → deploy sequence again.
+
+Cloudflare platform timeout must not be used as the normal timeout mechanism for an internal schema probe.
+
 ## GitHub Actions fallback
 
 The repository also contains a GitHub Actions deployment path. It may require `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. That workflow is secondary to the connected Cloudflare Workers Git Integration.
@@ -92,4 +106,4 @@ If any required item is missing, report `BLOCKED` or `FAIL`, never `PASS`.
 
 ## DOC-IMPACT
 
-This runbook is the canonical operational recovery and deployment-order reference for Prototype Leker schema-changing releases.
+This runbook is the canonical operational recovery, bounded execution, and deployment-order reference for Prototype Leker schema-changing releases.

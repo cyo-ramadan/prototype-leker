@@ -72,6 +72,18 @@ The existing customer point-balance read remains `SUM(customer_point_ledger.poin
 - `GET /api/admin/customer-feedback?store=<CODE>` for Admin Gerai or scoped Owner reads
 - `GET /api/admin/customer-feedback` for Owner cross-store reads
 
+## Deployment invariant
+
+Customer Feedback V1 is not deployment-ready merely because the Worker source builds. The production road must preserve this order:
+
+1. apply remote D1 migrations;
+2. verify remote `sqlite_schema` contains both Customer Feedback tables;
+3. deploy the Worker.
+
+`npm run deploy` enforces this sequence through `db:migrations:apply` followed by `db:schema:verify` and only then `wrangler deploy`. `scripts/verify-remote-schema.mjs` fails closed when either required table is absent.
+
+Non-production Cloudflare branch previews may use `wrangler versions upload` and therefore are not schema evidence for a migration-changing feature. See `RUNBOOK.md`.
+
 ## Compatibility
 
 - Guest ordering remains unchanged.
@@ -81,8 +93,8 @@ The existing customer point-balance read remains `SUM(customer_point_ledger.poin
 
 ## Recovery
 
-If remote migration or deploy fails, stop promotion. Follow the repository D1 backup / Time Travel recovery discipline. Do not rewrite a previously applied migration or manually create a second feedback source.
+If remote migration, remote schema verification, or deploy fails, stop promotion. Follow `RUNBOOK.md` and the repository D1 backup / Time Travel recovery discipline. Do not rewrite a previously applied migration or manually create a second feedback source.
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, and regression tests are part of the same change.
+**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability.

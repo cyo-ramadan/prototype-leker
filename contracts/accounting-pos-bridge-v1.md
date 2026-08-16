@@ -49,6 +49,8 @@ The bridge reads only the canonical Settings registry:
 
 `accounting_bridge_deliveries` is delivery/reconciliation state only. It is not an account-mapping table.
 
+Business-application tables must not foreign-key Accounting interpretation objects such as `journal_rules`, `chart_of_accounts`, `accounting_account_refs`, or `transaction_accounting_mappings`. Business modules report facts; the Bridge reads the Accounting registry and resolves journal interpretation after the fact is committed.
+
 ## Amount Precision
 
 Accounting journal amounts use the same exact scale as current authoritative HPP snapshots:
@@ -100,13 +102,13 @@ The cashier may select only active Master Barang products that are purchasable a
 
 The purchase journal shape is Debit `item_category_inventory` and Credit `payment_method`. The payment method and its account come from Setting Akuntansi. Exactly one active payment method is the store default when the cashier has not selected one; the initial default is `CASH`. `PAYABLE` credits Utang Usaha. `RECEIVABLE_OFFSET` is seeded inactive and is valid only for an intentional supplier-receivable offset after administrator review.
 
-### Operational expense component
+### Operational expense
 
-Operational Debit components use active fixed-account Debit rules from the `operational` transaction category.
+Operasional reports the committed business fact with `business_event = EXPENSE`, transaction category `operational`, amount, and payment method. Operasional and Cost Master do not select or own a `journal_rules` row.
 
-The POS fact may carry `accountingComponentRuleId`, which identifies the chosen **rule/component**, not an account. The bridge then resolves the account owned by Accounting Settings.
+The Bridge resolves active rules for the `operational` transaction category from Setting Akuntansi. If exactly one applicable fixed Debit rule exists, it is deterministic Accounting configuration and may be resolved automatically by the Bridge. If multiple applicable fixed Debit rules make the Accounting configuration ambiguous, delivery fails closed as configuration incomplete. Operasional must not choose a rule to break that ambiguity.
 
-If exactly one applicable Debit fixed-account rule exists, the cashier input may use it automatically. If multiple applicable Debit components exist, Cashier requires component selection by `journalRuleId`. Missing selection remains fail-closed as `NEEDS_COMPONENT_SELECTION`.
+Legacy `expenses.accounting_component_rule_id` values may still be read for historical retry/recovery compatibility, but new Operasional writes leave the compatibility field `NULL` and no Operasional API exposes it as current authority.
 
 ## System Adjustment Tolerance
 
@@ -138,7 +140,7 @@ Common configuration/integrity failures include:
 - `NEEDS_PAYMENT_MAPPING`;
 - `NEEDS_PRODUCT_KIND`;
 - `NEEDS_ITEM_CATEGORY_MAPPING`;
-- `NEEDS_COMPONENT_SELECTION`;
+- `NEEDS_COMPONENT_SELECTION` (legacy status code for ambiguous Operational fixed-rule configuration);
 - `NEEDS_COST_SNAPSHOT`;
 - `BUSINESS_FACT_COST_INVALID`;
 - `UNBALANCED_JOURNAL_OUTSIDE_TOLERANCE`.
@@ -175,8 +177,8 @@ Active in this feature branch:
 - PURCHASE loads active payment methods from the same registry;
 - EXPENSE loads active payment methods from the same registry;
 - Cash Drawer classification treats only `CASH` as physical cash and every other method as non-cash;
-- Operational entry selects a configured Debit component by `journalRuleId` when multiple components exist;
-- POS does not receive the Account ID behind the selected component.
+- Operational entry selects a Cost Master / Jenis Biaya business concept; it never receives or submits `journalRuleId`;
+- POS does not receive the Account ID or Accounting rule identity behind journal resolution.
 
 Legacy `NON_CASH` remains a compatibility payment code when active/configured; it no longer has special hardcoded classification beyond being a non-`CASH` code.
 
@@ -186,14 +188,19 @@ A separate store-level Inventory/Costing policy is planned for transaction integ
 
 - `migrations/0025_accounting_pos_bridge.sql`
 - `migrations/0026_accounting_six_decimal_precision.sql`
+- `migrations/0038_operational_accounting_boundary.sql`
 - `src/accounting-pos-bridge.js`
 - `src/accounting-pos-bridge-response.js`
+- `src/cashier-operational-expense.js`
 - `src/cashier-workspace.js`
+- `src/cost-master.js`
 - `public/cashier-payment-methods.js`
+- `public/admin-cost-master.js`
 - `public/admin-accounting-bridge-ui.js`
 - `test/accounting-pos-bridge.test.js`
 - `test/cashier-accounting-inputs.test.js`
+- `test/operational-accounting-boundary.test.js`
 
 ## DOC-IMPACT
 
-REQUIRED — changes to supported fact types, mapping semantics, idempotency, status behavior, precision/adjustment policy, cashier input registry behavior, or post-commit safety require contract/ADR/test updates.
+REQUIRED — changes to supported fact types, mapping semantics, idempotency, status behavior, precision/adjustment policy, cashier input registry behavior, or post-commit safety require contract/ADR/test updates. This change specifically changes how Operasional reports transactions to Accounting and removes a direct cross-module schema reference.

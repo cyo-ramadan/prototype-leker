@@ -8,6 +8,7 @@
   let catalog = null;
   let selectedCategory = '';
   let rewardPoints = 500;
+  let accessState = 'CHECKING';
 
   const style = document.createElement('style');
   style.textContent = `
@@ -21,6 +22,11 @@
     .customer-feedback-close{border:0;background:#f1f5f9;border-radius:12px;width:38px;height:38px;font-size:24px;cursor:pointer}
     .customer-feedback-reward{padding:13px 15px;border-radius:16px;background:#fff7ed;border:1px solid #fed7aa;margin:12px 0;font-weight:800}
     .customer-feedback-privacy{padding:12px 14px;border-radius:14px;background:#f8fafc;color:#475569;font-size:13px;line-height:1.5;margin-bottom:14px}
+    .customer-feedback-access{padding:11px 13px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;color:#475569;font-size:13px;line-height:1.45;margin-bottom:14px}
+    .customer-feedback-access.ready{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+    .customer-feedback-access.login{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .customer-feedback-access.unavailable{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+    .customer-feedback-access button{margin-top:8px;border:0;border-radius:10px;padding:8px 11px;background:#111827;color:#fff;font:inherit;font-weight:800;cursor:pointer}
     .customer-feedback-categories{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 16px}
     .customer-feedback-category{border:1px solid #dbe2ea;background:#fff;border-radius:14px;padding:12px 8px;font:inherit;font-weight:800;cursor:pointer}
     .customer-feedback-category.active{border-color:#111827;background:#111827;color:#fff}
@@ -33,7 +39,6 @@
     .customer-feedback-submit:disabled{opacity:.5;cursor:not-allowed}
     .customer-feedback-state{text-align:center;padding:18px 8px}
     .customer-feedback-state strong{display:block;font-size:20px;margin-bottom:8px}
-    .customer-feedback-login{border:0;border-radius:14px;padding:12px 16px;background:#111827;color:#fff;font:inherit;font-weight:800;cursor:pointer;margin-top:10px}
     .customer-feedback-message{min-height:20px;margin-top:10px;color:#b91c1c;font-size:13px}
     @media(max-width:620px){
       .customer-feedback-trigger{left:12px;bottom:12px;padding:10px 13px;border-radius:14px}
@@ -94,29 +99,6 @@
     return catalog;
   }
 
-  function renderLoginRequired() {
-    el('customerFeedbackBody').innerHTML = `
-      <div class="customer-feedback-state">
-        <strong>Login pelanggan dulu ya 👤</strong>
-        <p class="muted">Kotak saran terhubung ke akun pelanggan supaya laporan aman dan bonus poin masuk ke akun yang benar.</p>
-        <button id="customerFeedbackOpenLogin" class="customer-feedback-login" type="button">Buka Login</button>
-      </div>
-    `;
-    el('customerFeedbackOpenLogin').onclick = () => {
-      closeModal();
-      el('entryLoginBtn')?.click();
-    };
-  }
-
-  function renderUnavailable() {
-    el('customerFeedbackBody').innerHTML = `
-      <div class="customer-feedback-state">
-        <strong>Kotak saran belum tersedia saat ini</strong>
-        <p class="muted">Terima kasih sudah ikut menjaga kualitas. Silakan gunakan kembali saat fitur tersedia untuk akun ini.</p>
-      </div>
-    `;
-  }
-
   function selectedConfig() {
     return (catalog || []).find(item => item.code === selectedCategory);
   }
@@ -126,7 +108,34 @@
     if (!button) return;
     const hasIssue = Boolean(document.querySelector('[data-feedback-issue]:checked'));
     const hasNote = Boolean(el('customerFeedbackNote')?.value.trim());
-    button.disabled = !selectedCategory || (!hasIssue && !hasNote);
+    button.disabled = accessState !== 'AVAILABLE' || !selectedCategory || (!hasIssue && !hasNote);
+  }
+
+  function renderAccessState() {
+    const area = el('customerFeedbackAccess');
+    if (!area) return;
+
+    if (accessState === 'AVAILABLE') {
+      area.className = 'customer-feedback-access ready';
+      area.innerHTML = '✅ Saran siap dikirim dari akun pelanggan ini.';
+    } else if (accessState === 'LOGIN_REQUIRED') {
+      area.className = 'customer-feedback-access login';
+      area.innerHTML = '👤 Pilihan saran tetap bisa dibuka. Login pelanggan diperlukan saat akan mengirim.<br><button id="customerFeedbackOpenLogin" type="button">Buka Login</button>';
+      el('customerFeedbackOpenLogin')?.addEventListener('click', () => {
+        closeModal();
+        el('entryLoginBtn')?.click();
+      });
+    } else if (accessState === 'UNAVAILABLE') {
+      area.className = 'customer-feedback-access unavailable';
+      area.innerHTML = 'Kotak saran tetap bisa dibuka dan diisi. Pengiriman untuk akun ini belum tersedia saat ini.';
+    } else if (accessState === 'ERROR') {
+      area.className = 'customer-feedback-access unavailable';
+      area.innerHTML = 'Form saran tersedia, tetapi status pengiriman belum berhasil dicek. Coba buka ulang beberapa saat lagi.';
+    } else {
+      area.className = 'customer-feedback-access';
+      area.innerHTML = 'Mengecek akses pengiriman...';
+    }
+    syncSubmitState();
   }
 
   function renderIssues() {
@@ -160,6 +169,7 @@
     el('customerFeedbackBody').innerHTML = `
       <div class="customer-feedback-reward">🎁 Tips apresiasi Rp500 dikreditkan sebagai <b>+${rewardPoints.toLocaleString('id-ID')} poin</b> setelah laporan diterima.</div>
       <div class="customer-feedback-privacy">🔒 Privasi pelapor dijaga. Laporan masuk ke Admin/Owner untuk evaluasi mingguan dan identitas pelapor tidak dibagikan ke CS atau kasir melalui fitur ini.</div>
+      <div id="customerFeedbackAccess" class="customer-feedback-access">Mengecek akses pengiriman...</div>
       <div class="muted">Pilih area yang ingin dievaluasi:</div>
       <div id="customerFeedbackCategories" class="customer-feedback-categories">
         ${(catalog || []).map(item => `<button class="customer-feedback-category" type="button" data-feedback-category="${escapeHtml(item.code)}">${escapeHtml(item.label)}</button>`).join('')}
@@ -185,20 +195,32 @@
     el('customerFeedbackNote').addEventListener('input', syncSubmitState);
     el('customerFeedbackSubmit').onclick = submitFeedback;
     renderIssues();
+    renderAccessState();
+  }
+
+  async function refreshFeedbackAccess() {
+    accessState = 'CHECKING';
+    renderAccessState();
+    try {
+      const access = await api(`/api/customer/feedback/access?store=${encodeURIComponent(storeCode)}`, { cache: 'no-store' });
+      rewardPoints = Number(access.rewardPoints || rewardPoints);
+      accessState = access.available ? 'AVAILABLE' : 'UNAVAILABLE';
+    } catch (error) {
+      if (error.code === 'CUSTOMER_LOGIN_REQUIRED' || error.status === 401) accessState = 'LOGIN_REQUIRED';
+      else if (error.code === 'CUSTOMER_FEEDBACK_UNAVAILABLE') accessState = 'UNAVAILABLE';
+      else accessState = 'ERROR';
+    }
+    renderAccessState();
   }
 
   async function prepareFeedback() {
     el('customerFeedbackBody').innerHTML = '<div class="customer-feedback-state"><strong>Menyiapkan kotak saran...</strong></div>';
     try {
       await loadCatalog();
-      if (!window.LEKER_CUSTOMER) return renderLoginRequired();
-      const access = await api(`/api/customer/feedback/access?store=${encodeURIComponent(storeCode)}`, { cache: 'no-store' });
-      if (!access.available) return renderUnavailable();
-      rewardPoints = Number(access.rewardPoints || rewardPoints);
+      accessState = 'CHECKING';
       renderForm();
+      await refreshFeedbackAccess();
     } catch (error) {
-      if (error.code === 'CUSTOMER_LOGIN_REQUIRED' || error.status === 401) return renderLoginRequired();
-      if (error.code === 'CUSTOMER_FEEDBACK_UNAVAILABLE') return renderUnavailable();
       el('customerFeedbackBody').innerHTML = `<div class="customer-feedback-state"><strong>Belum bisa membuka kotak saran</strong><p class="muted">${escapeHtml(error.message)}</p></div>`;
     }
   }
@@ -217,6 +239,11 @@
   async function submitFeedback() {
     const button = el('customerFeedbackSubmit');
     const message = el('customerFeedbackMessage');
+    if (accessState !== 'AVAILABLE') {
+      await refreshFeedbackAccess();
+      return;
+    }
+
     const issues = [...document.querySelectorAll('[data-feedback-issue]:checked')].map(input => input.value);
     const manualNote = el('customerFeedbackNote').value.trim();
     button.disabled = true;
@@ -239,11 +266,17 @@
         </div>
       `;
     } catch (error) {
-      if (error.code === 'CUSTOMER_FEEDBACK_UNAVAILABLE') return renderUnavailable();
-      if (error.code === 'CUSTOMER_LOGIN_REQUIRED' || error.status === 401) return renderLoginRequired();
-      message.textContent = error.message;
-      button.disabled = false;
+      if (error.code === 'CUSTOMER_FEEDBACK_UNAVAILABLE') {
+        accessState = 'UNAVAILABLE';
+        renderAccessState();
+      } else if (error.code === 'CUSTOMER_LOGIN_REQUIRED' || error.status === 401) {
+        accessState = 'LOGIN_REQUIRED';
+        renderAccessState();
+      } else {
+        message.textContent = error.message;
+      }
       button.textContent = 'Laporkan';
+      syncSubmitState();
     }
   }
 

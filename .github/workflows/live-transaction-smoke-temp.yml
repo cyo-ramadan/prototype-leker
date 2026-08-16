@@ -6,8 +6,7 @@ on:
       - agent/governance-live-transaction-smoke-20260816
     paths:
       - .github/workflows/live-transaction-smoke-temp.yml
-      - scripts/live-transaction-diagnostics-temp.mjs
-      - scripts/live-transaction-smoke-temp.mjs
+      - scripts/live-transaction-execute-temp.mjs
 
 permissions:
   contents: read
@@ -18,5 +17,5 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect live transaction APIs and Accounting settings
-        run: node scripts/live-transaction-diagnostics-temp.mjs
+      - name: Execute API-only SALE PURCHASE EXPENSE and verify Accounting journals
+        run: node scripts/live-transaction-execute-temp.mjs

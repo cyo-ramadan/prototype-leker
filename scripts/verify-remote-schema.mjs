@@ -4,10 +4,16 @@ import { pathToFileURL } from 'node:url';
 export const REQUIRED_REMOTE_TABLES = Object.freeze([
   'customer_feedback_reports',
   'customer_feedback_report_issues',
-  'debugger_audit_log',
+  'debugger_audit_log'
+]);
+export const ACCOUNTING_REQUIRED_REMOTE_TABLES = Object.freeze([
   'chart_of_accounts',
   'accounting_journal_headers',
   'accounting_journal_lines'
+]);
+export const ALL_REQUIRED_REMOTE_TABLES = Object.freeze([
+  ...REQUIRED_REMOTE_TABLES,
+  ...ACCOUNTING_REQUIRED_REMOTE_TABLES
 ]);
 export const FORBIDDEN_REMOTE_TABLES = Object.freeze([
   'accounting_accounts',
@@ -89,7 +95,7 @@ function verifyRemoteSchema() {
     process.exit(1);
   }
 
-  const missing = missingRequiredTables(payload);
+  const missing = missingRequiredTables(payload, ALL_REQUIRED_REMOTE_TABLES);
   if (missing.length) {
     console.error(`Remote D1 schema is not ready. Missing: ${missing.join(', ')}`);
     console.error('Stop deployment. Apply canonical migrations and verify the remote schema before deploying the Worker.');

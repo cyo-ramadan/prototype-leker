@@ -45,6 +45,8 @@ Normalized issue rows are the reporting source for weekly aggregation and future
 
 - Customer identity is derived from the bearer customer session. The client never submits a trusted Customer ID.
 - Feedback is stored with `customer_id` for quota integrity and future authorized analysis.
+- The Customer Feedback UI must treat an existing customer session token as sufficient to ask the server for authoritative access even while the page-level customer identity is still being restored asynchronously. A transient `window.LEKER_CUSTOMER` restore race must not hide the feedback form for a valid session.
+- A stale or invalid token remains fail-closed because the access endpoint returns `401 CUSTOMER_LOGIN_REQUIRED`; the client must then show the login state.
 - Admin Gerai reads only reports from its own store.
 - Owner may read reports across stores.
 - Management list responses intentionally omit customer ID, customer code, name, phone, username, and email. The UI shows only a protected verified-customer marker.
@@ -97,4 +99,4 @@ If remote migration, remote schema verification, or deploy fails, stop promotion
 
 ## DOC-IMPACT
 
-**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability.
+**REQUIRED** — this contract, ADR-026, migration 0033, Customer UI, management read UI, API routing, deployment schema gate, runbook, and regression tests are part of the same deployed capability. Customer session readiness behavior is also part of the Customer UI authorization contract.

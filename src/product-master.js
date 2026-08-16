@@ -64,7 +64,7 @@ async function listActiveRecipes(db, storeId) {
 
 async function listEditorProducts(db, storeId) {
   const rows = await db.prepare(`
-    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data,
+    SELECT p.id, p.name, p.purchase_price, p.price, p.category, p.emoji, p.image_data,
            p.display_order, p.is_active, p.item_type_id, p.product_kind_id, p.base_unit_id,
            p.points_per_unit, p.recipe_link_enabled, p.linked_recipe_id, p.stock_tracking_enabled,
            p.average_cost, p.last_purchase_price, p.cost_updated_at, p.last_purchase_at,
@@ -83,6 +83,7 @@ async function listEditorProducts(db, storeId) {
   return (rows.results ?? []).map(row => ({
     id: Number(row.id),
     name: row.name,
+    purchasePrice: Number(row.purchase_price || 0),
     price: Number(row.price || 0),
     category: row.category,
     emoji: row.emoji,
@@ -140,6 +141,7 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
 
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
   const name = text(body?.name, 100);
+  const purchasePrice = money(body?.purchasePrice);
   const price = money(body?.price);
   const category = text(body?.category, 60);
   const emoji = text(body?.emoji, 8) || '🥞';
@@ -147,8 +149,8 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
   const pointsPerUnit = nonNegativeInteger(body?.pointsPerUnit ?? 0);
   const stockTrackingEnabled = body?.stockTrackingEnabled !== false;
 
-  if (!name || price === null || !category || productImage === null) {
-    return { ok: false, status: 400, error: 'Nama, kategori, harga jual, atau foto barang tidak valid.' };
+  if (!name || purchasePrice === null || price === null || !category || productImage === null) {
+    return { ok: false, status: 400, error: 'Nama, kategori, harga beli, harga jual, atau foto barang tidak valid.' };
   }
   if (pointsPerUnit === null) return { ok: false, status: 400, error: 'Poin barang harus bilangan bulat nol atau positif.' };
 
@@ -177,6 +179,7 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
   return {
     ok: true,
     name,
+    purchasePrice,
     price,
     category,
     emoji,
@@ -219,9 +222,9 @@ export async function handleProductMasterApi(request, env, pathname) {
           id, store_id, name, purchase_price, price, category, emoji, image_data,
           display_order, is_active, item_type_id, product_kind_id, base_unit_id,
           points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled
-        ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        id, store.id, normalized.name, normalized.price,
+        id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
         normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
         normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
         normalized.pointsPerUnit, normalized.recipeLinkEnabled,
@@ -257,12 +260,12 @@ export async function handleProductMasterApi(request, env, pathname) {
   const statements = [
     env.DB.prepare(`
       UPDATE products
-      SET name = ?, price = ?, category = ?, emoji = ?, image_data = ?,
+      SET name = ?, purchase_price = ?, price = ?, category = ?, emoji = ?, image_data = ?,
           is_active = ?, item_type_id = ?, product_kind_id = ?, base_unit_id = ?, points_per_unit = ?,
           recipe_link_enabled = ?, linked_recipe_id = ?, stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
-      normalized.name, normalized.price, normalized.category,
+      normalized.name, normalized.purchasePrice, normalized.price, normalized.category,
       normalized.emoji, normalized.productImage, normalized.isActive,
       normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId, normalized.pointsPerUnit,
       normalized.recipeLinkEnabled, normalized.linkedRecipeId,

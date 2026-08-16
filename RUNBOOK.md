@@ -30,13 +30,83 @@ Repository command `npm run deploy` owns steps 3 through 5. The Cloudflare Worke
 
 Wrangler invocation on this road is explicitly non-interactive (`npx --yes`). The remote schema verification child process has a 120-second timeout. If Wrangler/D1 does not return within that bound, verification fails and Worker promotion stops instead of consuming the full Workers Builds timeout with an indeterminate deployment state.
 
-Current remote schema gate checks:
+Current remote schema gate checks required tables:
 
 - `customer_feedback_reports`
 - `customer_feedback_report_issues`
 - `debugger_audit_log`
+- `chart_of_accounts`
+- `accounting_journal_headers`
+- `accounting_journal_lines`
 
-The gate is implemented by `scripts/verify-remote-schema.mjs`. Missing required tables stop deployment before the new Worker is promoted.
+Accounting reconciliation guard also requires these exact stale names to be absent:
+
+- `accounting_accounts`
+- `accounting_dimensions`
+- `accounting_opening_balances`
+- `accounting_transaction_mappings`
+
+The verifier rejects a second table whose schema defines all five Accounting account types (`ASSET`, `LIABILITY`, `EQUITY`, `REVENUE`, `EXPENSE`). `chart_of_accounts` must remain the sole canonical account-definition table.
+
+The gate is implemented by `scripts/verify-remote-schema.mjs`. Missing required tables, forbidden orphan tables, or a parallel five-type Chart of Accounts stop deployment before the new Worker is promoted.
+
+## Accounting schema reconciliation — 2026-08-17
+
+Change ID: `LEKER-ACC-SCHEMA-RECON-20260817`.
+
+Migration `0037_accounting_schema_reconciliation.sql` removes four orphan Accounting tables that match unmerged PR #3 commit `65b3faa0b130f9ecbbf21b9a592f9dcf376f8cec`. The migration must only run through the canonical repository deployment road.
+
+### Pre-migration safety
+
+1. capture the D1 Time Travel checkpoint before repository migrations run;
+2. do not manually drop any Accounting object in Dashboard/console as a shortcut;
+3. migration `0037` inspects `sqlite_schema` and fails before any drop if another table/view/trigger outside the approved cleanup scope still references the orphan namespace;
+4. if that guard fails, report `BLOCKED`, inspect the unexpected object, and request a governed decision rather than widening the drop scope silently.
+
+The current repository deploy wrapper captures a D1 Time Travel checkpoint before applying migrations. That checkpoint is the primary rollback anchor for this reconciliation.
+
+### Row backup and drop order
+
+Before a stale table is dropped, migration `0037` copies every source row into timestamped recovery-only tables:
+
+- `accounting_schema_backup_20260817_accounts`
+- `accounting_schema_backup_20260817_dimensions`
+- `accounting_schema_backup_20260817_opening_balances`
+- `accounting_schema_backup_20260817_transaction_mappings`
+
+It records source row counts in `accounting_schema_reconciliation_log` under change ID `LEKER-ACC-SCHEMA-RECON-20260817` and records canonical account ownership as `chart_of_accounts`.
+
+Drop order is child/reference objects first, then the stale account registry:
+
+1. `accounting_opening_balances`;
+2. `accounting_transaction_mappings`;
+3. `accounting_dimensions`;
+4. `accounting_accounts`.
+
+The snapshot tables are recovery evidence only. They are not an alternate COA registry and application code must never query them as runtime Accounting sources.
+
+### Post-migration verification
+
+Before Worker promotion, `npm run db:schema:verify` must prove:
+
+- `chart_of_accounts`, `accounting_journal_headers`, and `accounting_journal_lines` exist;
+- all four orphan table names are absent;
+- no second five-type Chart-of-Accounts table exists.
+
+After migration, inspect `accounting_schema_reconciliation_log` to capture the backed-up row counts in deployment evidence. A non-zero count is valid because rows were intentionally preserved before drop; it is not permission to reactivate stale tables.
+
+### Rollback / recovery
+
+Primary rollback when deployment validation fails after migration:
+
+1. stop further promotion/writes related to the failed release;
+2. use the D1 Time Travel checkpoint captured immediately before migration as the authoritative restore point;
+3. verify `PRAGMA foreign_key_check`, canonical Accounting journal reads, and migration/schema state after restore;
+4. correct the migration/guard in a new governed changeset before retrying.
+
+Secondary row-level evidence is available in the timestamped snapshot tables. Do not reconstruct and reactivate the stale PR #3 schema from those rows as an ad-hoc fix. If an explicit owner decision requires restoring those objects, create a new versioned recovery migration that defines the exact historical schema and copies from the snapshots, then document why canonical ownership is being temporarily changed.
+
+Full audit provenance is versioned in `ACCOUNTING_SCHEMA_RECONCILIATION_AUDIT_20260817.md`.
 
 ## Preview branch rule
 
@@ -131,4 +201,4 @@ If any required item is missing, report `BLOCKED` or `FAIL`, never `PASS`.
 
 ## DOC-IMPACT
 
-This runbook is the canonical operational recovery, bounded execution, deployment-order, and Debugger activation reference for Prototype Leker.
+This runbook is the canonical operational recovery, bounded execution, deployment-order, Accounting schema-reconciliation, and Debugger activation reference for Prototype Leker.

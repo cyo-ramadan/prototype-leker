@@ -201,10 +201,11 @@ test('feedback migration provides normalized report and issue facts with unique 
   assert.match(migration, /idx_customer_feedback_qualifying_sale/);
 });
 
-test('remote schema verifier requires both feedback tables, bounded runtime, and Wrangler JSON parsing', () => {
+test('remote schema verifier requires feedback and debugger audit tables with bounded Wrangler parsing', () => {
   assert.deepEqual(REQUIRED_REMOTE_TABLES, [
     'customer_feedback_reports',
-    'customer_feedback_report_issues'
+    'customer_feedback_report_issues',
+    'debugger_audit_log'
   ]);
   assert.equal(WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS, 120000);
 
@@ -212,7 +213,8 @@ test('remote schema verifier requires both feedback tables, bounded runtime, and
     success: true,
     results: [
       { name: 'customer_feedback_report_issues' },
-      { name: 'customer_feedback_reports' }
+      { name: 'customer_feedback_reports' },
+      { name: 'debugger_audit_log' }
     ]
   }];
 
@@ -220,6 +222,6 @@ test('remote schema verifier requires both feedback tables, bounded runtime, and
   assert.deepEqual(missingRequiredTables(wranglerPayload), []);
   assert.deepEqual(
     missingRequiredTables([{ success: true, results: [{ name: 'customer_feedback_reports' }] }]),
-    ['customer_feedback_report_issues']
+    ['customer_feedback_report_issues', 'debugger_audit_log']
   );
 });

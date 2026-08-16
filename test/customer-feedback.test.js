@@ -69,9 +69,11 @@ test('monthly entitlement key is deterministic by customer and Jakarta business 
   );
 });
 
-test('customer feedback UI keeps entitlement algorithm private and both new browser scripts parse', async () => {
-  const [customerScript, managementScript] = await Promise.all([
+test('customer feedback UI keeps entitlement algorithm private and browser scripts parse', async () => {
+  const [customerScript, sessionBridge, customerHtml, managementScript] = await Promise.all([
     readFile(new URL('../public/customer-feedback.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/customer-feedback-session-ready.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/customer.html', import.meta.url), 'utf8'),
     readFile(new URL('../public/management-customer-feedback.js', import.meta.url), 'utf8')
   ]);
 
@@ -80,7 +82,16 @@ test('customer feedback UI keeps entitlement algorithm private and both new brow
   assert.match(customerScript, /Laporkan/);
   assert.match(managementScript, /Identitas pelapor disembunyikan/);
 
+  assert.match(sessionBridge, /lekerCustomerToken:/);
+  assert.match(sessionBridge, /sessionRestoring/);
+  assert.match(sessionBridge, /window\.LEKER_CUSTOMER/);
+  assert.ok(
+    customerHtml.indexOf('/customer-feedback-session-ready.js') < customerHtml.indexOf('/customer-feedback.js'),
+    'session readiness bridge must load before customer feedback UI'
+  );
+
   assert.doesNotThrow(() => new vm.Script(customerScript));
+  assert.doesNotThrow(() => new vm.Script(sessionBridge));
   assert.doesNotThrow(() => new vm.Script(managementScript));
 });
 

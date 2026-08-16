@@ -1,0 +1,21 @@
+name: TEMP Three Transaction Accounting Smoke
+
+on:
+  push:
+    branches:
+      - agent/inspect-remaining-schema-drift-20260816
+    paths:
+      - .github/workflows/live-three-transaction-smoke-temp.yml
+      - scripts/live-three-transaction-smoke-temp.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  live-three-transaction-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute SALE PURCHASE EXPENSE via API and verify direct facts plus journals
+        run: node scripts/live-three-transaction-smoke-temp.mjs

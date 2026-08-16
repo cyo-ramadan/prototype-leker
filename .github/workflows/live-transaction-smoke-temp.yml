@@ -6,7 +6,9 @@ on:
       - agent/governance-live-transaction-smoke-20260816
     paths:
       - .github/workflows/live-transaction-smoke-temp.yml
-      - scripts/live-expense-smoke-temp.mjs
+      - scripts/live-d1-diagnostic-temp.mjs
+      - src/d1-diagnostic-temp.js
+      - src/index.js
 
 permissions:
   contents: read
@@ -17,5 +19,5 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Execute API-only EXPENSE and verify Accounting journal
-        run: node scripts/live-expense-smoke-temp.mjs
+      - name: Inspect live D1 schema through temporary admin-only diagnostic
+        run: node scripts/live-d1-diagnostic-temp.mjs

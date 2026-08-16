@@ -32,6 +32,7 @@ import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
 import { handleAdminProductionDetailApi } from './admin-production-detail.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
+import { handleCustomerFeedbackApi } from './customer-feedback.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
@@ -83,6 +84,8 @@ async function handleApi(request, env, url) {
   if (unifiedLoginResponse) return unifiedLoginResponse;
   const membershipResponse = await handleCustomerMembershipApi(request, env, pathname);
   if (membershipResponse) return membershipResponse;
+  const feedbackResponse = await handleCustomerFeedbackApi(request, env, pathname);
+  if (feedbackResponse) return feedbackResponse;
   const sharingResponse = await handleOwnerCustomerSharingApi(request, env, pathname);
   if (sharingResponse) return sharingResponse;
   const ownerResponse = await handleOwnerApi(request, env, pathname);

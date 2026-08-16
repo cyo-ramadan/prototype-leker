@@ -13,7 +13,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Isolate live Master Barang dependency failure
+      - name: Pinpoint live Master Barang editor failure
         shell: bash
         run: |
           set -euo pipefail
@@ -22,37 +22,30 @@ jobs:
             -H 'Content-Type: application/json' \
             --data '{"username":"owner","password":"123456","takeover":true}')"
           TOKEN="$(printf '%s' "$LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
-          if [ -z "$TOKEN" ]; then
-            printf '%s\n' "$LOGIN"
-            exit 1
-          fi
+          if [ -z "$TOKEN" ]; then printf '%s\n' "$LOGIN"; exit 1; fi
 
           probe() {
-            local label="$1"
-            local path="$2"
-            local file="/tmp/${label}.json"
-            local status
+            local label="$1" path="$2" file="/tmp/${label}.json" status
             status="$(curl -sS -o "$file" -w '%{http_code}' "$BASE$path" -H "Authorization: Bearer $TOKEN")"
             echo "${label}_HTTP_STATUS=$status"
-            if [ "$status" != '200' ]; then
-              echo "${label}_ERROR_BODY"
-              cat "$file"
-              echo
-            else
-              python - "$label" "$file" <<'PY'
-          import json,sys
-          label,path=sys.argv[1:]
-          with open(path) as f: p=json.load(f)
-          if label=='manufacturing':
-              print('MANUFACTURING_SUMMARY',json.dumps({'itemTypes':len(p.get('itemTypes',[])),'units':len(p.get('units',[])),'products':len(p.get('products',[]))}))
-          elif label=='kinds':
-              print('KINDS_SUMMARY',json.dumps({'productKinds':len(p.get('productKinds',[]))}))
-          elif label=='editor':
-              print('EDITOR_SUMMARY',json.dumps({'products':len(p.get('products',[])),'itemTypes':len(p.get('itemTypes',[])),'units':len(p.get('units',[])),'productKinds':len(p.get('productKinds',[])),'recipes':len(p.get('recipes',[]))}))
-          PY
-            fi
+            if [ "$status" != '200' ]; then echo "${label}_ERROR_BODY"; cat "$file"; echo; fi
           }
 
           probe manufacturing '/api/admin/manufacturing/bootstrap?store=G001'
           probe kinds '/api/admin/master/product-kinds?store=G001'
+          probe recipes '/api/admin/manufacturing/recipes?store=G001&includeArchived=1'
+          probe stock '/api/admin/stock?store=G001'
           probe editor '/api/admin/master/products/editor?store=G001'
+
+          python - <<'PY'
+          import json
+          for name in ['manufacturing','kinds','recipes','stock']:
+              try:
+                  with open(f'/tmp/{name}.json') as f: p=json.load(f)
+              except Exception:
+                  continue
+              if name=='manufacturing': print('MANUFACTURING', {'itemTypes':len(p.get('itemTypes',[])),'units':len(p.get('units',[])),'products':len(p.get('products',[]))})
+              if name=='kinds': print('KINDS', {'productKinds':len(p.get('productKinds',[]))})
+              if name=='recipes': print('RECIPES', {'recipes':len(p.get('recipes',[]))})
+              if name=='stock': print('STOCK_KEYS', sorted(p.keys()))
+          PY

@@ -8,6 +8,7 @@ const adapters = readFileSync(new URL('../public/cashier-pimasatu-adapters.js', 
 const payments = readFileSync(new URL('../public/cashier-payment-methods.js', import.meta.url), 'utf8');
 const api = readFileSync(new URL('../src/cost-master.js', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0034_cost_master.sql', import.meta.url), 'utf8');
+const defaults = readFileSync(new URL('../migrations/0035_operational_cost_accounting_defaults.sql', import.meta.url), 'utf8');
 
 test('PIMASATU is a reusable one-at-a-time component with mobile compact quantity', () => {
   assert.match(component, /window\.MAXIPimasatu/);
@@ -36,4 +37,7 @@ test('Master Biaya is store scoped and links separate Jenis Biaya to Accounting 
   assert.match(api, /requireManagement/);
   assert.match(api, /outgoingAmount/);
   assert.match(api, /incomingAmount/);
+  assert.match(defaults, /'DEBIT', 'fixed_account'/);
+  assert.match(defaults, /'CREDIT', 'payment_method'/);
+  assert.match(defaults, /UPDATE cost_types/);
 });

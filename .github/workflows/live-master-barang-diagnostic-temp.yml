@@ -13,25 +13,46 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect deployed remote schema diagnostic
+      - name: Isolate live Master Barang dependency failure
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://prototype-leker-v2.daily-napkin.workers.dev'
-          STATUS="$(curl -sS -o /tmp/schema.json -w '%{http_code}' "$BASE/schema-diagnostic-temp.json")"
-          echo "SCHEMA_DIAGNOSTIC_HTTP_STATUS=$STATUS"
-          if [ "$STATUS" != '200' ]; then
-            cat /tmp/schema.json
+          LOGIN="$(curl -sS -X POST "$BASE/api/auth/staff-login" \
+            -H 'Content-Type: application/json' \
+            --data '{"username":"owner","password":"123456","takeover":true}')"
+          TOKEN="$(printf '%s' "$LOGIN" | python -c 'import json,sys; print(json.load(sys.stdin).get("token", ""))')"
+          if [ -z "$TOKEN" ]; then
+            printf '%s\n' "$LOGIN"
             exit 1
           fi
-          python - <<'PY'
-          import json
-          with open('/tmp/schema.json') as f:
-              p=json.load(f)
-          targets=['products','sales','purchases','expenses']
-          for table in targets:
-              cols=[x.get('name') for x in p.get('schema',{}).get(table,[])]
-              print(f'{table.upper()}_COLUMNS', json.dumps(cols))
-          print('MIGRATIONS', json.dumps(p.get('migrations',[]),ensure_ascii=False))
-          print('FK_VIOLATIONS', json.dumps(p.get('foreignKeyViolations',[]),ensure_ascii=False))
+
+          probe() {
+            local label="$1"
+            local path="$2"
+            local file="/tmp/${label}.json"
+            local status
+            status="$(curl -sS -o "$file" -w '%{http_code}' "$BASE$path" -H "Authorization: Bearer $TOKEN")"
+            echo "${label}_HTTP_STATUS=$status"
+            if [ "$status" != '200' ]; then
+              echo "${label}_ERROR_BODY"
+              cat "$file"
+              echo
+            else
+              python - "$label" "$file" <<'PY'
+          import json,sys
+          label,path=sys.argv[1:]
+          with open(path) as f: p=json.load(f)
+          if label=='manufacturing':
+              print('MANUFACTURING_SUMMARY',json.dumps({'itemTypes':len(p.get('itemTypes',[])),'units':len(p.get('units',[])),'products':len(p.get('products',[]))}))
+          elif label=='kinds':
+              print('KINDS_SUMMARY',json.dumps({'productKinds':len(p.get('productKinds',[]))}))
+          elif label=='editor':
+              print('EDITOR_SUMMARY',json.dumps({'products':len(p.get('products',[])),'itemTypes':len(p.get('itemTypes',[])),'units':len(p.get('units',[])),'productKinds':len(p.get('productKinds',[])),'recipes':len(p.get('recipes',[]))}))
           PY
+            fi
+          }
+
+          probe manufacturing '/api/admin/manufacturing/bootstrap?store=G001'
+          probe kinds '/api/admin/master/product-kinds?store=G001'
+          probe editor '/api/admin/master/products/editor?store=G001'

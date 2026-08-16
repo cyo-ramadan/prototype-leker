@@ -38,6 +38,7 @@ import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
 import { handleCostMasterApi } from './cost-master.js';
+import { handleDebuggerApi } from './debugger-control-plane.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -81,6 +82,8 @@ async function handleCashierOrders(request, env, pathname) {
 async function handleApi(request, env, url) {
   const { pathname } = url;
 
+  const debuggerResponse = await handleDebuggerApi(request, env, pathname);
+  if (debuggerResponse) return debuggerResponse;
   const unifiedLoginResponse = await handleUnifiedLoginApi(request, env, pathname);
   if (unifiedLoginResponse) return unifiedLoginResponse;
   const costMasterResponse = await handleCostMasterApi(request, env, pathname);

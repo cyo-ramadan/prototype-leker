@@ -30,10 +30,11 @@ Repository command `npm run deploy` owns steps 3 through 5. The Cloudflare Worke
 
 Wrangler invocation on this road is explicitly non-interactive (`npx --yes`). The remote schema verification child process has a 120-second timeout. If Wrangler/D1 does not return within that bound, verification fails and Worker promotion stops instead of consuming the full Workers Builds timeout with an indeterminate deployment state.
 
-Current feedback schema gate checks:
+Current remote schema gate checks:
 
 - `customer_feedback_reports`
 - `customer_feedback_report_issues`
+- `debugger_audit_log`
 
 The gate is implemented by `scripts/verify-remote-schema.mjs`. Missing required tables stop deployment before the new Worker is promoted.
 
@@ -49,6 +50,30 @@ For schema-changing work:
 - DB-backed behavior is not deployment evidence unless the matching schema is known to exist;
 - do not manually create ad-hoc production tables just to make a preview work;
 - merge through the canonical production road so migration and Worker promotion remain ordered and auditable.
+
+## Debugger Control Plane activation
+
+Debugger is a machine identity, not a human login. The production Worker must receive `DEBUG_SUPERADMIN_TOKEN` as a **secret/environment binding outside the repository**.
+
+Rules:
+
+1. never commit the token to GitHub, migrations, docs, JS assets, or `wrangler.jsonc`;
+2. use a high-entropy token of at least 32 characters;
+3. send it only as `Authorization: Bearer <token>` to `/api/debug/*`;
+4. rotate the Worker secret if exposure is suspected;
+5. do not add Debugger recognition to normal Customer/Kasir/Admin/Owner endpoint auth.
+
+After code deployment and secret configuration, live activation validation is:
+
+1. request `/api/debug/me` without token → expect `401 DEBUGGER_AUTH_REQUIRED`;
+2. request with invalid token → expect `401 DEBUGGER_AUTH_REQUIRED`;
+3. request with valid token → expect principal `debugger`, role `DEBUGGER`, `readOnly: true`;
+4. request `/api/debug/health?store=G001` → inspect module results for Customer, Transactions, Inventory, Accounting, and other registered modules;
+5. request `/api/debug/audit` → verify the prior authenticated calls are recorded and no Authorization/token value appears in audit rows.
+
+Worker deployment may succeed while the secret is absent; in that state `/api/debug/*` returns `503 DEBUGGER_NOT_CONFIGURED`, and Debugger activation remains **BLOCKED**, not PASS.
+
+Debugger V1 is diagnostic read-only. Do not add generic SQL execution, arbitrary impersonation, or universal auth bypass. Future write/E2E probes require explicit module contract, debug fixtures/markers, cleanup/idempotency rules, and audit.
 
 ## Customer Feedback incident guard
 
@@ -106,4 +131,4 @@ If any required item is missing, report `BLOCKED` or `FAIL`, never `PASS`.
 
 ## DOC-IMPACT
 
-This runbook is the canonical operational recovery, bounded execution, and deployment-order reference for Prototype Leker schema-changing releases.
+This runbook is the canonical operational recovery, bounded execution, deployment-order, and Debugger activation reference for Prototype Leker.

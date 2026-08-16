@@ -108,6 +108,32 @@ Secondary row-level evidence is available in the timestamped snapshot tables. Do
 
 Full audit provenance is versioned in `ACCOUNTING_SCHEMA_RECONCILIATION_AUDIT_20260817.md`.
 
+## Operasional Accounting boundary recovery — 2026-08-17
+
+Change ID: `LEKER-OPS-ACC-BOUNDARY-20260817`.
+
+Migration `0038_operational_accounting_boundary.sql` rebuilds `expenses` and Cost Master type storage to remove direct foreign keys into Accounting-owned `journal_rules`. It preserves the legacy selector columns as nullable TEXT compatibility evidence and snapshots every non-null value into `operational_accounting_boundary_recovery_0038` before the rebuild.
+
+### Pre-migration safety
+
+1. capture the canonical D1 Time Travel checkpoint before applying migration `0038`;
+2. do not manually drop/recreate `expenses`, `cost_types`, or Accounting tables from Dashboard/console;
+3. run the full migration chain on disposable SQLite first;
+4. confirm `cost_masters` remains linked to rebuilt `cost_types` and `expenses.void_permit_id` still references `approval_permits`;
+5. do not alter `journal_rules`, Chart of Accounts, or Setting Akuntansi schema as part of this recovery.
+
+### Post-migration verification
+
+- `PRAGMA foreign_key_list(expenses)` and `PRAGMA foreign_key_list(cost_types)` must contain no `journal_rules`, `chart_of_accounts`, `accounting_account_refs`, or `transaction_accounting_mappings` target;
+- `operational_accounting_boundary_recovery_0038` must exist;
+- a newly created expense must keep `accounting_component_rule_id = NULL`;
+- the corresponding `transaction_accounting_snapshots` row must identify business event `EXPENSE` and transaction category `operational`;
+- the committed EXPENSE must still enter the same shared post-commit Accounting Bridge lane as PURCHASE/SALE.
+
+### Rollback / recovery
+
+Primary rollback is D1 Time Travel to the checkpoint captured immediately before migration application. `operational_accounting_boundary_recovery_0038` is secondary audit/recovery evidence only and must never become runtime mapping authority. Restoring the historical cross-module FK requires a new governed recovery migration and explicit decision.
+
 ## Preview branch rule
 
 Cloudflare non-production branch builds normally use `wrangler versions upload`. Preview uploads do not automatically apply repository D1 migrations.
@@ -201,4 +227,4 @@ If any required item is missing, report `BLOCKED` or `FAIL`, never `PASS`.
 
 ## DOC-IMPACT
 
-This runbook is the canonical operational recovery, bounded execution, deployment-order, Accounting schema-reconciliation, and Debugger activation reference for Prototype Leker.
+This runbook is the canonical operational recovery, bounded execution, deployment-order, Accounting schema-reconciliation, Operasional Accounting-boundary recovery, and Debugger activation reference for Prototype Leker.

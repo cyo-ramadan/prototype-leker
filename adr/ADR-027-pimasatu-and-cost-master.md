@@ -8,6 +8,8 @@ Implementasi canonical berada di `public/pimasatu-ui.js` dan `public/pimasatu-ui
 
 Master Biaya terpisah dari Master Barang. `cost_types` menghubungkan biaya ke rule Debit Operasional milik Accounting; POS tidak memilih akun debit/kredit sendiri. `cost_masters` menyimpan nama, kontak, biaya keluar, biaya masuk, jenis, kelompok, dan status per gerai.
 
+Default operasional yang belum dikonfigurasi memakai Debit `6101 Beban Operasional`; sisi Kredit tetap diselesaikan dari Cara Bayar oleh Accounting. Admin dapat mengganti komponen lewat konfigurasi Accounting.
+
 ## Konsekuensi
 
 - Penjualan memakai harga jual master read-only.

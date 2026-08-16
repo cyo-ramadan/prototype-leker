@@ -1,0 +1,21 @@
+name: TEMP Live Transaction API Smoke
+
+on:
+  push:
+    branches:
+      - agent/governance-live-transaction-smoke-20260816
+    paths:
+      - .github/workflows/live-transaction-smoke-temp.yml
+      - scripts/live-transaction-smoke-temp.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  live-transaction-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run API-only SALE PURCHASE EXPENSE smoke
+        run: node scripts/live-transaction-smoke-temp.mjs

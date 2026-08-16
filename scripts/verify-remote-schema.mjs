@@ -6,6 +6,23 @@ export const REQUIRED_REMOTE_TABLES = Object.freeze([
   'customer_feedback_report_issues',
   'debugger_audit_log'
 ]);
+export const ACCOUNTING_REQUIRED_REMOTE_TABLES = Object.freeze([
+  'chart_of_accounts',
+  'accounting_journal_headers',
+  'accounting_journal_lines'
+]);
+export const ALL_REQUIRED_REMOTE_TABLES = Object.freeze([
+  ...REQUIRED_REMOTE_TABLES,
+  ...ACCOUNTING_REQUIRED_REMOTE_TABLES
+]);
+export const FORBIDDEN_REMOTE_TABLES = Object.freeze([
+  'accounting_accounts',
+  'accounting_dimensions',
+  'accounting_opening_balances',
+  'accounting_transaction_mappings'
+]);
+export const ALLOWED_ACCOUNT_REFERENCE_TABLES = Object.freeze(['accounting_account_refs']);
+export const ACCOUNTING_ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);
 export const WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS = 120000;
 
 export function extractWranglerD1Rows(payload) {
@@ -26,9 +43,26 @@ export function missingRequiredTables(payload, requiredTables = REQUIRED_REMOTE_
   return requiredTables.filter(name => !names.has(name));
 }
 
+export function accountingSchemaViolations(payload) {
+  const rows = extractWranglerD1Rows(payload);
+  const forbiddenSet = new Set(FORBIDDEN_REMOTE_TABLES);
+  const allowedTypedTables = new Set(['chart_of_accounts', ...ALLOWED_ACCOUNT_REFERENCE_TABLES]);
+  const forbiddenTables = rows
+    .map(row => String(row?.name || '').trim())
+    .filter(name => forbiddenSet.has(name));
+  const parallelAccountTables = rows
+    .filter(row => {
+      const name = String(row?.name || '').trim();
+      const sql = String(row?.sql || '').toUpperCase();
+      if (!name || allowedTypedTables.has(name) || !sql) return false;
+      return ACCOUNTING_ACCOUNT_TYPES.every(accountType => sql.includes(`'${accountType}'`));
+    })
+    .map(row => String(row.name).trim());
+  return { forbiddenTables, parallelAccountTables };
+}
+
 function verifyRemoteSchema() {
-  const quotedNames = REQUIRED_REMOTE_TABLES.map(name => `'${name.replaceAll("'", "''")}'`).join(', ');
-  const sql = `SELECT name FROM sqlite_schema WHERE type = 'table' AND name IN (${quotedNames}) ORDER BY name;`;
+  const sql = `SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name;`;
   const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   const result = spawnSync(executable, [
     '--yes', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--yes', '--json', '--command', sql
@@ -61,14 +95,26 @@ function verifyRemoteSchema() {
     process.exit(1);
   }
 
-  const missing = missingRequiredTables(payload);
+  const missing = missingRequiredTables(payload, ALL_REQUIRED_REMOTE_TABLES);
   if (missing.length) {
     console.error(`Remote D1 schema is not ready. Missing: ${missing.join(', ')}`);
     console.error('Stop deployment. Apply canonical migrations and verify the remote schema before deploying the Worker.');
     process.exit(1);
   }
 
-  console.log(`Remote D1 schema ready: ${REQUIRED_REMOTE_TABLES.join(', ')}`);
+  const violations = accountingSchemaViolations(payload);
+  if (violations.forbiddenTables.length || violations.parallelAccountTables.length) {
+    if (violations.forbiddenTables.length) {
+      console.error(`Remote D1 still contains forbidden orphan Accounting tables: ${violations.forbiddenTables.join(', ')}`);
+    }
+    if (violations.parallelAccountTables.length) {
+      console.error(`Remote D1 contains a parallel Chart-of-Accounts definition: ${violations.parallelAccountTables.join(', ')}`);
+    }
+    console.error('Stop deployment. chart_of_accounts must remain the sole canonical account registry; registered compatibility references are read/reference surfaces only.');
+    process.exit(1);
+  }
+
+  console.log(`Remote D1 schema ready. Required tables present; canonical Accounting registry = chart_of_accounts.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) verifyRemoteSchema();

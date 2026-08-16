@@ -20,6 +20,9 @@
     .feedback-management-row{border:1px solid #e5e7eb;border-radius:16px;padding:14px;background:#fff}
     .feedback-management-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;color:#64748b;font-size:12px}
     .feedback-management-badge{display:inline-flex;padding:5px 8px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-weight:800}
+    .feedback-management-reporter{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 0;padding:10px 12px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}
+    .feedback-management-reporter strong{display:block;color:#172554}
+    .feedback-management-reporter-meta{font-size:12px;line-height:1.5;color:#475569}
     .feedback-management-row ul{margin:8px 0 0;padding-left:20px}
     .feedback-management-note{margin-top:10px;padding:10px 12px;border-radius:12px;background:#f8fafc;white-space:pre-wrap}
     .feedback-management-privacy{margin-top:10px;font-size:12px;color:#64748b}
@@ -52,6 +55,21 @@
     }
   }
 
+  function reporterHtml(reporter = {}) {
+    const name = reporter.customerName || reporter.label || reporter.customerCode || reporter.username || 'Pelanggan terverifikasi';
+    const details = [
+      reporter.customerCode ? `Kode ${reporter.customerCode}` : '',
+      reporter.username ? `Username ${reporter.username}` : '',
+      reporter.phone || '',
+      reporter.email || ''
+    ].filter(Boolean);
+    return `
+      <div class="feedback-management-reporter">
+        <div><strong>👤 ${escapeHtml(name)}</strong><div class="feedback-management-reporter-meta">Pengirim laporan</div></div>
+        <div class="feedback-management-reporter-meta">${details.length ? details.map(escapeHtml).join(' · ') : 'Akun pelanggan terverifikasi'}</div>
+      </div>`;
+  }
+
   function feedbackRowsHtml(rows) {
     if (!rows.length) return '<div class="empty">Belum ada laporan customer pada filter ini.</div>';
     return rows.map(item => `
@@ -62,9 +80,10 @@
           <span>${escapeHtml(formatDate(item.createdAt))}</span>
           <span>${escapeHtml(item.feedbackCode || '')}</span>
         </div>
+        ${reporterHtml(item.reporter)}
         ${(item.issues || []).length ? `<ul>${item.issues.map(issue => `<li>${escapeHtml(issue.label)}</li>`).join('')}</ul>` : ''}
         ${item.manualNote ? `<div class="feedback-management-note">${escapeHtml(item.manualNote)}</div>` : ''}
-        <div class="feedback-management-privacy">🔒 ${escapeHtml(item.reporter?.label || 'Identitas pelapor dilindungi')}</div>
+        <div class="feedback-management-privacy">🔐 Identitas tersedia untuk Admin/Owner yang berwenang dan tidak ditampilkan ke Kasir/CS melalui fitur ini.</div>
       </article>
     `).join('');
   }
@@ -98,7 +117,7 @@
       <div class="feedback-management-head">
         <div>
           <h2>${escapeHtml(title)}</h2>
-          <p class="muted">Komentar customer untuk evaluasi manajemen. Identitas pelapor disembunyikan dari list ini.</p>
+          <p class="muted">Laporan customer untuk evaluasi manajemen. Admin/Owner yang berwenang dapat melihat identitas akun pengirim.</p>
         </div>
         <div class="feedback-management-tools">
           <select data-feedback-filter aria-label="Filter kategori">
@@ -116,6 +135,8 @@
   }
 
   function bindPanel(container) {
+    if (container.dataset.feedbackBound === 'true') return;
+    container.dataset.feedbackBound = 'true';
     container.querySelector('[data-feedback-filter]')?.addEventListener('change', () => renderFiltered(container));
     container.querySelector('[data-feedback-refresh]')?.addEventListener('click', () => load(container));
   }
@@ -157,6 +178,18 @@
       section.classList.add('active');
       load(section);
     });
+
+    let loadedForSession = false;
+    const preloadWhenReady = () => {
+      const visible = !app.classList.contains('hidden');
+      if (visible && !loadedForSession) {
+        loadedForSession = true;
+        load(section);
+      }
+      if (!visible) loadedForSession = false;
+    };
+    preloadWhenReady();
+    new MutationObserver(preloadWhenReady).observe(app, { attributes: true, attributeFilter: ['class'] });
   }
 
   function initOwner() {

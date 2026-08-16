@@ -157,8 +157,11 @@ test('customer feedback UI keeps entitlement algorithm private and browser scrip
 
   assert.doesNotMatch(customerScript, /50000|50\.000|QUALIFYING_SALE|entitlement_key|MONTHLY:/i);
   assert.match(customerScript, /Privasi pelapor dijaga/);
+  assert.match(customerScript, /identitas pelapor tidak dibagikan ke CS atau kasir/);
   assert.match(customerScript, /Laporkan/);
-  assert.match(managementScript, /Identitas pelapor disembunyikan/);
+  assert.match(managementScript, /Admin\/Owner yang berwenang dapat melihat identitas akun pengirim/);
+  assert.match(managementScript, /tidak ditampilkan ke Kasir\/CS/);
+  assert.doesNotMatch(managementScript, /Identitas pelapor disembunyikan/);
 
   assert.match(sessionBridge, /lekerCustomerToken:/);
   assert.match(sessionBridge, /sessionRestoring/);
@@ -173,7 +176,19 @@ test('customer feedback UI keeps entitlement algorithm private and browser scrip
   assert.doesNotThrow(() => new vm.Script(managementScript));
 });
 
-test('accepted feedback has both Admin Gerai and Owner management read surfaces', async () => {
+test('accepted feedback is persistence-confirmed before customer success is returned', async () => {
+  const server = await readFile(new URL('../src/customer-feedback.js', import.meta.url), 'utf8');
+
+  assert.match(server, /await env\.DB\.batch\(statements\)/);
+  assert.match(server, /SELECT id, feedback_code[\s\S]*FROM customer_feedback_reports[\s\S]*WHERE id = \? AND store_id = \? AND customer_id = \?/);
+  assert.match(server, /Customer feedback persistence confirmation failed/);
+  assert.ok(
+    server.indexOf('await env.DB.batch(statements)') < server.indexOf('Customer feedback persistence confirmation failed'),
+    'read-after-write confirmation must happen after the atomic report batch'
+  );
+});
+
+test('accepted feedback has Admin Gerai and Owner read surfaces with management-visible sender identity', async () => {
   const [server, managementScript, branchAdminHtml, ownerHtml, adminHtml] = await Promise.all([
     readFile(new URL('../src/customer-feedback.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/management-customer-feedback.js', import.meta.url), 'utf8'),
@@ -184,10 +199,21 @@ test('accepted feedback has both Admin Gerai and Owner management read surfaces'
 
   assert.match(server, /FROM customer_feedback_reports r/);
   assert.match(server, /if \(management\.admin\)[\s\S]*filters\.push\('r\.store_id = \?'\)/);
+  assert.match(server, /LEFT JOIN customers c ON c\.id = r\.customer_id/);
+  assert.match(server, /c\.customer_code/);
+  assert.match(server, /c\.username AS customer_username/);
+  assert.match(server, /c\.customer_name/);
+  assert.match(server, /customerName: row\.customer_name/);
   assert.match(server, /pathname === '\/api\/admin\/customer-feedback'/);
+
   assert.match(managementScript, /tab\.textContent = 'Kotak Saran'/);
+  assert.match(managementScript, /reporterHtml\(item\.reporter\)/);
+  assert.match(managementScript, /preloadWhenReady/);
   assert.match(managementScript, /Komentar Customer · Semua Gerai/);
-  assert.match(branchAdminHtml, /management-customer-feedback\.js/);
+
+  assert.match(branchAdminHtml, /data-tab="customer-feedback"/);
+  assert.match(branchAdminHtml, /Admin\/Owner yang berwenang dapat melihat identitas akun pengirim/);
+  assert.match(branchAdminHtml, /management-customer-feedback\.js\?v=20260816-admin-delivery-identity-v2/);
   assert.match(ownerHtml, /management-customer-feedback\.js/);
   assert.match(adminHtml, /management-customer-feedback\.js/);
 });

@@ -67,7 +67,8 @@ test('purchase composer is mobile-first with compact Qty and invoice-like detail
   assert.match(enhancedInputUi, /class="purchase-detail-row"/);
   assert.match(enhancedInputUi, /purchase-detail-product/);
   assert.doesNotMatch(enhancedInputUi, /grid-template-columns:minmax\(0,1fr\) 90px 150px auto/);
-  assert.match(cashierPosCss, /\.purchase-composer\{[^}]*grid-template-columns:minmax\(0,1fr\) 68px/);
+  assert.match(cashierPosCss, /\.purchase-composer\{[^}]*grid-template-columns:76px minmax\(0,1fr\)/);
+  assert.match(cashierPosCss, /\.purchase-composer-product\{grid-column:1\/-1\}\.purchase-composer-qty\{grid-column:1\}\.purchase-composer-price\{grid-column:2\}/);
   assert.match(cashierPosCss, /\.purchase-detail-row\{[^}]*grid-template-columns:minmax\(0,1fr\) 62px minmax\(82px,auto\)/);
   assert.match(cashierPosCss, /\.purchase-detail-quantity \.text-input\{[^}]*text-align:center/);
   assert.match(cashierPosCss, /\.purchase-detail-subtotal\{[^}]*background:#2b2118;color:#fff/);
@@ -75,8 +76,8 @@ test('purchase composer is mobile-first with compact Qty and invoice-like detail
 });
 
 test('cashier mobile purchase assets are versioned so deployed layout changes bypass stale browser cache', () => {
-  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-composer-v3/);
-  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-composer-v3/);
+  assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-composer-v4/);
+  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-composer-v4/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

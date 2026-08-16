@@ -38,22 +38,28 @@
     return items.map(item => `<option value="${esc(item.id)}" ${String(item.id) === String(selectedId || '') ? 'selected' : ''}>${esc(label(item))}</option>`).join('');
   }
 
-  function makeLegacyPurchasePriceReadOnly() {
+  function mountPurchaseCostFields() {
     const input = el('productPurchasePrice');
     if (!input) return;
-    input.readOnly = true;
-    input.required = false;
-    input.step = 'any';
-    input.title = 'Otomatis dari pembelian terakhir per satuan dasar';
+    input.readOnly = false;
+    input.required = true;
+    input.step = '1';
+    input.title = 'Harga beli default dari Master Barang; tetap dapat diedit saat pembelian';
     const label = input.closest('label');
-    if (label?.firstChild) label.firstChild.textContent = 'Harga Beli Terakhir';
+    if (label?.firstChild) label.firstChild.textContent = 'Harga Beli';
     const priceGrid = label?.parentElement;
-    if (priceGrid && !el('productAverageCost')) {
+    if (priceGrid && !el('productLastPurchasePrice')) {
       priceGrid.insertAdjacentHTML('afterend', `
-        <label class="admin-field">Average Cost · HPP berjalan
-          <input id="productAverageCost" type="number" min="0" step="any" value="0" readonly title="Otomatis dari moving average inventory cost" />
-          <span class="field-note">otomatis · read only · acuan HPP</span>
-        </label>`);
+        <div class="admin-grid two compact">
+          <label class="admin-field">Harga Beli Terakhir
+            <input id="productLastPurchasePrice" type="number" min="0" step="any" value="0" readonly title="Otomatis dari transaksi pembelian terakhir" />
+            <span class="field-note">otomatis · read only</span>
+          </label>
+          <label class="admin-field">Average Cost · HPP berjalan
+            <input id="productAverageCost" type="number" min="0" step="any" value="0" readonly title="Otomatis dari moving average inventory cost" />
+            <span class="field-note">otomatis · read only · acuan HPP</span>
+          </label>
+        </div>`);
     }
   }
 
@@ -61,7 +67,7 @@
     const form = el('productForm');
     const category = el('productCategory')?.closest('label');
     if (!form || !category || el('productMasterFields')) return;
-    makeLegacyPurchasePriceReadOnly();
+    mountPurchaseCostFields();
     category.insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
         <div class="admin-grid two compact">
@@ -203,7 +209,13 @@
     el('productBaseUnit').innerHTML = optionRows(units, product?.baseUnitId, item => `${item.name} (${item.symbol})`);
     el('productPointsPerUnit').value = String(product?.pointsPerUnit || 0);
     el('productStockTracking').checked = product ? Boolean(product.stockTrackingEnabled) : true;
-    if (el('productPurchasePrice')) el('productPurchasePrice').value = String(product?.lastPurchasePrice || 0);
+    if (el('productPurchasePrice')) el('productPurchasePrice').value = String(product?.purchasePrice || 0);
+    if (el('productLastPurchasePrice')) {
+      el('productLastPurchasePrice').value = String(product?.lastPurchaseAt ? product.lastPurchasePrice : (product?.purchasePrice || 0));
+      el('productLastPurchasePrice').title = product?.lastPurchaseAt
+        ? 'Otomatis dari transaksi pembelian terakhir'
+        : 'Belum ada transaksi pembelian; sementara mengikuti Harga Beli master';
+    }
     if (el('productAverageCost')) el('productAverageCost').value = String(product?.averageCost || 0);
 
     const recipes = recipesForProduct(product?.id || 0);
@@ -300,7 +312,8 @@
       const stock = product.stockQuantity == null ? 'stok belum init' : `stok ${product.stockQuantity} ${product.unitSymbol || ''}`;
       const recipe = product.linkedRecipeId ? 'resep linked' : 'tanpa resep';
       const kind = product.productKindName || 'jenis belum ditentukan';
-      meta.textContent = `${product.itemTypeName || 'Tanpa tipe'} · ${kind} · ${product.unitSymbol || '-'} · Poin ${product.pointsPerUnit} · ${stock} · HPP ${cost(product.averageCost)} · Beli terakhir ${cost(product.lastPurchasePrice)} · ${recipe}`;
+      const latestPurchase = product.lastPurchaseAt ? product.lastPurchasePrice : product.purchasePrice;
+      meta.textContent = `${product.itemTypeName || 'Tanpa tipe'} · ${kind} · ${product.unitSymbol || '-'} · Poin ${product.pointsPerUnit} · ${stock} · Harga beli ${cost(product.purchasePrice)} · HPP ${cost(product.averageCost)} · Beli terakhir ${cost(latestPurchase)} · ${recipe}`;
       if (button.dataset.productMasterBound !== '1') {
         button.dataset.productMasterBound = '1';
         button.addEventListener('click', () => setTimeout(() => selectProduct(productId), 0));
@@ -346,6 +359,7 @@
       const productId = Number(el('productId')?.value || 0);
       const payload = {
         name: el('productName').value,
+        purchasePrice: Number(el('productPurchasePrice').value),
         price: Number(el('productPrice').value),
         category: el('productCategory').value,
         emoji: '🥞',

@@ -222,7 +222,6 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
   const statements = [];
   for (const { item, previous } of plans) {
     const priorUnitCost = Number(previous?.unit_cost || 0);
-    const priorPurchasePrice = Math.floor((priorUnitCost + 500000) / 1000000);
     statements.push(
       db.prepare(`
         UPDATE inventory_stock_balances
@@ -233,7 +232,6 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
         UPDATE products
         SET average_cost = CASE WHEN average_cost = ? THEN ? ELSE -1 END,
             last_purchase_price = ?,
-            purchase_price = ?,
             last_purchase_at = ?,
             cost_updated_at = ?,
             updated_at = CURRENT_TIMESTAMP
@@ -242,7 +240,6 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
         item.average_cost_after,
         item.average_cost_before,
         priorUnitCost,
-        priorPurchasePrice,
         previous?.created_at || null,
         now,
         item.product_id,

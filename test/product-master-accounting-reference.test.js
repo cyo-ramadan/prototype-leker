@@ -7,11 +7,13 @@ const settingsMigration = readFileSync(new URL('../migrations/0022_accounting_wa
 const snapshotCompatMigration = readFileSync(new URL('../migrations/0023_accounting_snapshot_settings_compat.sql', import.meta.url), 'utf8');
 const costingMigration = readFileSync(new URL('../migrations/0019_product_costing_and_kinds.sql', import.meta.url), 'utf8');
 const productionCostMigration = readFileSync(new URL('../migrations/0021_exact_production_costing.sql', import.meta.url), 'utf8');
+const masterPurchasePriceMigration = readFileSync(new URL('../migrations/0032_master_purchase_price.sql', import.meta.url), 'utf8');
 const productMaster = readFileSync(new URL('../src/product-master.js', import.meta.url), 'utf8');
 const productKinds = readFileSync(new URL('../src/product-kinds.js', import.meta.url), 'utf8');
 const productPolicy = readFileSync(new URL('../src/product-policy.js', import.meta.url), 'utf8');
 const accountingReference = readFileSync(new URL('../src/accounting-reference.js', import.meta.url), 'utf8');
 const cashierPurchase = readFileSync(new URL('../src/cashier-purchase.js', import.meta.url), 'utf8');
+const correctionExecutor = readFileSync(new URL('../src/transaction-correction-executor.js', import.meta.url), 'utf8');
 const purchaseDetail = readFileSync(new URL('../src/admin-purchase-detail.js', import.meta.url), 'utf8');
 const productUi = readFileSync(new URL('../public/admin-product-policy.js', import.meta.url), 'utf8');
 const procurementUi = readFileSync(new URL('../public/cashier-procurement-ui.js', import.meta.url), 'utf8');
@@ -79,7 +81,7 @@ test('Jenis Barang is user-defined accounting classification with stable code an
   assert.match(indexSource, /handleProductKindApi/);
 });
 
-test('Average Cost and Last Purchase Price use exact scaled integers and remain server-owned', () => {
+test('Master purchase price stays editable while Average Cost and Last Purchase Price remain server-owned', () => {
   assert.match(costingMigration, /ALTER TABLE products ADD COLUMN average_cost INTEGER NOT NULL DEFAULT 0/);
   assert.match(costingMigration, /ALTER TABLE products ADD COLUMN last_purchase_price INTEGER NOT NULL DEFAULT 0/);
   assert.match(costingMigration, /purchase_price \* 1000000/);
@@ -88,9 +90,19 @@ test('Average Cost and Last Purchase Price use exact scaled integers and remain 
   assert.match(productionCostMigration, /unit_cost_snapshot_scaled INTEGER/);
   assert.match(productMaster, /COST_SCALE = 1_000_000/);
   assert.match(productMaster, /costFromScaled\(row\.average_cost\)/);
+  assert.match(productMaster, /purchasePrice: Number\(row\.purchase_price/);
+  assert.match(productMaster, /const purchasePrice = money\(body\?\.purchasePrice\)/);
+  assert.match(productMaster, /purchase_price = \?, price = \?/);
   assert.match(productUi, /Average Cost · HPP berjalan/);
   assert.match(productUi, /Harga Beli Terakhir/);
   assert.match(productUi, /readonly/);
+  assert.match(productUi, /purchasePrice: Number\(el\('productPurchasePrice'\)\.value\)/);
+  assert.match(productUi, /Belum ada transaksi pembelian; sementara mengikuti Harga Beli master/);
+  assert.match(masterPurchasePriceMigration, /WHERE purchase_price = 0/);
+  assert.match(masterPurchasePriceMigration, /last_purchase_price > 0/);
+  assert.match(masterPurchasePriceMigration, /last_purchase_at IS NOT NULL/);
+  assert.doesNotMatch(cashierPurchase, /purchase_price = CAST/);
+  assert.doesNotMatch(correctionExecutor, /\n\s+purchase_price = \?/);
   assert.doesNotMatch(productMaster, /body\?\.averageCost|body\?\.lastPurchasePrice/);
 });
 
@@ -116,6 +128,7 @@ test('purchase is itemized from database products and atomically snapshots confi
   assert.match(cashierPurchase, /INSERT INTO purchase_items/);
   assert.match(cashierPurchase, /average_cost_after/);
   assert.match(cashierPurchase, /last_purchase_price/);
+  assert.doesNotMatch(cashierPurchase, /last_purchase_price[\s\S]{0,300}purchase_price = CAST/);
   assert.match(cashierPurchase, /unitCostScaled/);
   assert.match(cashierPurchase, /UPDATE inventory_stock_balances/);
   assert.match(cashierPurchase, /await env\.DB\.batch\(statements\)/);

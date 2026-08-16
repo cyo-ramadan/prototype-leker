@@ -111,17 +111,18 @@ Production V1 remains recipe + batch driven until this separate contract/migrati
 
 Current behavior is governed by:
 
-- `contracts/product-master-accounting-reference-v2.md`;
-- ADR-015;
+- `contracts/product-master-accounting-reference-v3.md`;
+- ADR-015 and ADR-024;
 - migrations `0019_product_costing_and_kinds.sql`, `0020_expense_quantity_behavior.sql`, and `0021_exact_production_costing.sql`.
 
 Current behavior:
 
 - Master Barang edits product identity, Tipe Barang, Jenis Barang, Satuan Dasar, points, stock tracking, and Recipe Linked;
-- Average Cost and Harga Beli Terakhir are automatic read-only fields;
+- Harga Beli is an editable Master Barang default and is used by the cashier purchase composer;
+- Average Cost and Harga Beli Terakhir are automatic read-only fields; before the first purchase, the UI may show Harga Beli master as the temporary last-price fallback without creating transaction evidence;
 - Jenis Barang is a separate user-defined classification with stable code and no invented seed values;
 - Recipe Linked is explicit and same-store/output validated;
-- product cost fields cannot be assigned directly through Product Master writes;
+- Product Master writes may assign only `purchase_price`; `average_cost` and `last_purchase_price` remain server-owned;
 - Beli Bahan selects products from the active store Product Master database and requires explicit Qty per line;
 - Pengeluaran Operasional stores explicit Qty, default `1`, as customer-behaviour metadata while its amount remains the total expense value;
 - operational Qty alone never posts stock.

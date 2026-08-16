@@ -218,8 +218,9 @@ Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang m
 - `0025_accounting_pos_bridge.sql` — POS Accounting delivery/reconciliation state.
 - `0026_accounting_six_decimal_precision.sql` — six-decimal exact Accounting precision.
 - `0027_transaction_void_permits.sql` — approval permit koreksi transaksi, reversal evidence, dan Raport facts.
+- `0032_master_purchase_price.sql` — bootstrap Harga Beli master kosong dari bukti pembelian terakhir; selanjutnya Harga Beli master tetap editable dan independen.
 
-Remote dedicated prototype D1 is currently migrated through `0027`.
+Remote dedicated prototype D1 is migrated through `0032` after the master purchase-price deployment.
 
 ## Relevant APIs
 

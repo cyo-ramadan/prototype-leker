@@ -119,10 +119,9 @@ function purchaseItemStatements(db, { purchaseId, storeId, drawerId, cashierId, 
       UPDATE products
       SET average_cost = (SELECT average_cost_after FROM purchase_items WHERE id = ? AND purchase_id = ? AND store_id = ?),
           last_purchase_price = (SELECT unit_cost FROM purchase_items WHERE id = ? AND purchase_id = ? AND store_id = ?),
-          purchase_price = CAST(((SELECT unit_cost FROM purchase_items WHERE id = ? AND purchase_id = ? AND store_id = ?) + 500000) / 1000000 AS INTEGER),
           cost_updated_at = ?, last_purchase_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
-    `).bind(itemId, purchaseId, storeId, itemId, purchaseId, storeId, itemId, purchaseId, storeId, now, now, item.productId, storeId),
+    `).bind(itemId, purchaseId, storeId, itemId, purchaseId, storeId, now, now, item.productId, storeId),
     db.prepare(`INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at) VALUES (?, ?, 0, ?)`).bind(storeId, item.productId, now),
     db.prepare(`UPDATE inventory_stock_balances SET quantity = quantity + ?, updated_at = ? WHERE store_id = ? AND product_id = ?`).bind(item.quantity, now, storeId, item.productId),
     db.prepare(`

@@ -1,6 +1,6 @@
 # Product Master & Accounting Reference Contract v2
 
-Status: ACTIVE for Prototype Leker
+Status: SUPERSEDED IN PART by `product-master-accounting-reference-v3.md`
 Version: 2
 Supersedes: `contracts/product-master-accounting-reference-v1.md`
 

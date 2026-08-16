@@ -111,8 +111,8 @@ Production V1 remains recipe + batch driven until this separate contract/migrati
 
 Current behavior is governed by:
 
-- `contracts/product-master-accounting-reference-v3.md`;
-- ADR-015 and ADR-024;
+- `contracts/product-master-accounting-reference-v4.md`;
+- ADR-015, ADR-024, and ADR-025;
 - migrations `0019_product_costing_and_kinds.sql`, `0020_expense_quantity_behavior.sql`, and `0021_exact_production_costing.sql`.
 
 Current behavior:
@@ -123,6 +123,8 @@ Current behavior:
 - Jenis Barang is a separate user-defined classification with stable code and no invented seed values;
 - Recipe Linked is explicit and same-store/output validated;
 - Product Master writes may assign only `purchase_price`; `average_cost` and `last_purchase_price` remain server-owned;
+- Item Type is presented as Peran Barang; Product Kind is presented as optional Klasifikasi Accounting;
+- Product Master PATCH is sparse, preserves omitted technical references, and refreshes reference options after Peran/Satuan writes;
 - Beli Bahan selects products from the active store Product Master database and requires explicit Qty per line;
 - Pengeluaran Operasional stores explicit Qty, default `1`, as customer-behaviour metadata while its amount remains the total expense value;
 - operational Qty alone never posts stock.

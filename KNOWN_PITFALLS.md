@@ -143,6 +143,29 @@ Pada audit 2026-08-17, live D1 mempunyai `accounting_accounts`, `accounting_dime
 
 Audit evidence lengkap ada di `ACCOUNTING_SCHEMA_RECONCILIATION_AUDIT_20260817.md`.
 
+## Operasional tidak boleh memiliki foreign key ke interpretasi Accounting
+
+**Pitfall:** Jangan menyimpan `journalRuleId`, Account ID, atau Accounting mapping identity sebagai foreign key/authority di tabel business application seperti `expenses` atau master Operasional.
+
+**Root cause:** Operasional pernah menyimpan `expenses.accounting_component_rule_id -> journal_rules(id)` dan Cost Master menyimpan dependency yang sama melalui `cost_types.accounting_component_rule_id`. Walaupun jurnal akhirnya tetap diposting oleh Accounting POS Bridge, schema Operasional sudah membawa keputusan interpretasi Accounting ke domain yang salah.
+
+**Prohibited regression behavior:**
+
+- tidak ada tabel business application yang boleh foreign-key langsung ke `journal_rules`, `chart_of_accounts`, `accounting_account_refs`, atau `transaction_accounting_mappings`;
+- handler Operasional tidak boleh menerima `journalRuleId`, Account ID, pasangan Debit/Credit, atau fallback account sebagai business input;
+- Cost Master/Jenis Biaya tidak boleh menjadi proxy untuk memilih rule/account Accounting;
+- jangan membuat resolver/outbox paralel hanya untuk menghindari boundary check.
+
+**Correct pattern:**
+
+- Operasional menyimpan business fact miliknya: jenis/konteks biaya, amount, Qty metadata, payment method, dan business event `EXPENSE`;
+- transaksi memakai current canonical shared post-commit Accounting Bridge lane yang juga dipakai SALE/PURCHASE;
+- Bridge membaca `transaction_categories`, `journal_rules`, payment mapping, dan Setting Akuntansi lain untuk interpretasi jurnal;
+- `transaction_accounting_snapshots` tetap readiness/configuration evidence, bukan pasangan akun tandingan;
+- konfigurasi Accounting yang ambigu harus fail closed; Operasional tidak boleh memecahkan ambiguity dengan memilih rule Accounting.
+
+Migration `0038_operational_accounting_boundary.sql` menghapus direct FK tersebut dan menyimpan legacy selector hanya sebagai recovery evidence.
+
 ## Migration ledger tidak membuktikan schema object lengkap
 
 **Pitfall:** Jangan menganggap row pada tabel migration D1 otomatis membuktikan semua table/index/trigger yang pernah didefinisikan migration tersebut masih ada di remote database.
@@ -194,4 +217,4 @@ Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

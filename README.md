@@ -96,6 +96,8 @@ Halaman customer mempunyai tombol **Pesanan Saya**.
 
 Admin Gerai dapat mengelola gerainya sendiri: identitas toko, Data Barang, Kategori, Supplier, Master Pelanggan, Create/Master Kasir, panel request pelanggan, Detail Laci, Stok, Transaksi, **Akuntansi**, **Setting Akuntansi**, dan Warehouse Settings sesuai capability yang aktif.
 
+Master Barang memakai surface harian yang ringkas. Peran Barang, Satuan Dasar, Klasifikasi Accounting, stock policy, points, dan Recipe berada di pengaturan lanjutan. Edit parsial seperti Harga Beli mempertahankan reference lain dan tidak mewajibkan admin memilih ulang field teknis.
+
 Admin Gerai tidak boleh create/mengelola gerai atau mengubah Customer Sharing Group. Dua capability tersebut tetap Owner-only.
 
 ### Akuntansi

@@ -75,7 +75,17 @@ test('customer feedback renders categories before entitlement resolution', async
   assert.match(customerScript, /await loadCatalog\(\);\s*accessState = 'CHECKING';\s*renderForm\(\);\s*await refreshFeedbackAccess\(\);/);
   assert.match(customerScript, /data-feedback-category/);
   assert.doesNotMatch(customerScript, /if\s*\(!window\.LEKER_CUSTOMER\)\s*return\s+renderLoginRequired/);
-  assert.match(customerScript, /button\.disabled = accessState !== 'AVAILABLE'/);
+});
+
+test('customer feedback keeps Laporkan actionable and explains unmet requirements', async () => {
+  const customerScript = await readFile(new URL('../public/customer-feedback.js', import.meta.url), 'utf8');
+
+  assert.match(customerScript, /<button id="customerFeedbackSubmit" class="customer-feedback-submit" type="button">Laporkan<\/button>/);
+  assert.doesNotMatch(customerScript, /id="customerFeedbackSubmit"[^>]*\sdisabled/);
+  assert.match(customerScript, /Pilih kategori saran terlebih dahulu\./);
+  assert.match(customerScript, /Centang minimal satu poin evaluasi atau tulis saran lain\./);
+  assert.match(customerScript, /Login pelanggan diperlukan sebelum saran dapat dikirim\./);
+  assert.match(customerScript, /Pengiriman saran untuk akun ini belum tersedia saat ini\./);
 });
 
 test('customer feedback UI keeps entitlement algorithm private and browser scripts parse', async () => {

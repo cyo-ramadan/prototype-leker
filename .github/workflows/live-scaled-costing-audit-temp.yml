@@ -1,0 +1,21 @@
+name: TEMP Live Scaled Costing Audit
+
+on:
+  push:
+    branches:
+      - audit/scaled-costing-live-20260817
+    paths:
+      - .github/workflows/live-scaled-costing-audit-temp.yml
+      - scripts/live-scaled-costing-audit-temp.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  live-scaled-costing-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit live scaled costing records
+        run: node scripts/live-scaled-costing-audit-temp.mjs

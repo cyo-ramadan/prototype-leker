@@ -57,8 +57,12 @@ group onto ledger rows would make every merge a rewrite of immutable records.
 
 ```
 entity_tenancy(entity_id, tenant_id, effective_from, effective_to)
-consolidation_membership(entity_id, group_id, effective_from, effective_to)
+consolidation_membership(entity_id, consolidation_group_id, effective_from, effective_to)
 ```
+
+The column is `consolidation_group_id`, not `group_id`. Customer Sharing Group (ADR-003)
+already owns the bare name `group_id` on `customer_share_group_stores` for an unrelated
+concept, and a schema where "group" means two things is the ambiguity C6 exists to prevent.
 
 Membership is closed and reopened, never overwritten. A merge of two customers is a
 platform operation that closes the old `entity_tenancy` rows and opens new ones pointing at
@@ -108,6 +112,20 @@ Constitution C8 prohibits a big-bang rewrite, so:
 5. add the group Chart-of-Accounts mapping and the consolidation read layer last.
 
 Steps 1–3 are backward compatible and safe to land while Leker is single-tenant.
+
+**Step 1 and the step 2 backfill are implemented** in
+`migrations/0039_tenancy_and_consolidation_foundation.sql`. The migration only creates new
+tables and adds one nullable `stores.entity_id`; no existing table is rebuilt and no existing
+column changes meaning. It refuses to complete if any gerai is left without an entity, since
+an unlinked store would be invisible to every future tenant-scoped query.
+
+`test/tenancy-foundation.test.js` holds the design to its promises rather than restating
+them: it performs the owner's scenario — a customer with 5 units merging into a customer
+with 3 — and asserts by full-database comparison that the merge writes to
+`entity_tenancy` and to nothing else. That is the immutability guarantee made checkable. It
+also asserts that `entities` carries no `tenant_id`, that no other table carries tenant or
+group identity, that an entity cannot hold two open tenancies, and that a consolidated view
+of a pre-merge period still resolves the pre-merge structure.
 
 ## Consequences
 

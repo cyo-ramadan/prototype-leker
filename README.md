@@ -231,6 +231,7 @@ Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang m
 - `0036_debugger_control_plane.sql` — debugger control plane dan audit log.
 - `0037_accounting_schema_reconciliation.sql` — rekonsiliasi orphan Accounting schema dari PR #3 yang tidak jadi di-merge; snapshot bukti disimpan inert, `chart_of_accounts` tetap satu-satunya registry akun canonical.
 - `0038_operational_accounting_boundary.sql` — penegakan boundary Operasional/Accounting.
+- `0039_tenancy_and_consolidation_foundation.sql` — pondasi SaaS multi-tenant per `ADR-030`: `tenants`, `entities`, `entity_tenancy`, `consolidation_groups`, `consolidation_membership`, plus `stores.entity_id` yang nullable. Aditif; tidak ada tabel lama yang dibangun ulang. Setiap gerai di-backfill jadi satu Entity di bawah satu tenant prototype.
 
 Remote dedicated prototype D1 is migrated through `0036` (applied 2026-08-16). Migration
 `0037` dan `0038` sudah ada di repository tetapi **belum applied** ke remote.

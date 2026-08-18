@@ -9,7 +9,7 @@ test('Production V2 recovery is migration-aware and fails closed on schema-ledge
   const preflightAt = recovery.indexOf('missingProductionColumns()');
   const listAt = recovery.indexOf("['d1', 'migrations', 'list', 'DB', '--remote']");
   const driftAt = recovery.indexOf('Production V2 schema drift detected');
-  const migrationAt = recovery.indexOf("['d1', 'migrations', 'apply', 'DB', '--remote', '--yes']");
+  const migrationAt = recovery.indexOf("['d1', 'migrations', 'apply', 'DB', '--remote']");
   const foreignKeyAt = recovery.indexOf("PRAGMA foreign_key_check;");
   const fullVerifyAt = recovery.indexOf('runRemoteSchemaVerifier();');
   const deployAt = recovery.indexOf("wrangler(['deploy']);");
@@ -23,7 +23,7 @@ test('Production V2 recovery is migration-aware and fails closed on schema-ledge
   assert.ok(deployAt > fullVerifyAt, 'Worker promotion must be last');
 
   assert.match(recovery, /0039_flexible_manual_production\.sql/);
-  assert.match(recovery, /--remote', '--yes/);
+  assert.doesNotMatch(recovery, /migrations', 'apply', 'DB', '--remote', '--yes'/);
   assert.doesNotMatch(recovery, /ALTER\s+TABLE|DROP\s+TABLE|UPDATE\s+d1_migrations|INSERT\s+INTO\s+d1_migrations|DELETE\s+FROM\s+d1_migrations/i);
 });
 

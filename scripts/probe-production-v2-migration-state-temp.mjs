@@ -1,9 +1,27 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const namespace = 'accounting';
+const staleNames = [
+  'accounts',
+  'dimensions',
+  'opening_balances',
+  'transaction_mappings'
+].map(suffix => `${namespace}_${suffix}`);
+const guardName = `${namespace}_schema_reconciliation_guard_20260817`;
+const quotedExclusions = [...staleNames, guardName].map(name => `'${name}'`).join(', ');
+const staleMatchers = staleNames.map(name => `lower(sql) LIKE '%${name}%'`).join('\n    OR ');
+const sql = `
+SELECT name, type
+FROM sqlite_schema
+WHERE type IN ('table', 'view', 'trigger')
+  AND sql IS NOT NULL
+  AND name NOT IN (${quotedExclusions})
+  AND (${staleMatchers})
+ORDER BY name;`;
+
 const result = spawnSync(npx, [
-  '--yes', 'wrangler', 'd1', 'migrations', 'list', 'DB', '--remote'
+  '--yes', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--yes', '--json', '--command', sql
 ], {
   encoding: 'utf8',
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -12,25 +30,32 @@ const result = spawnSync(npx, [
 });
 
 if (result.error || result.status !== 0) {
-  console.error('PRODUCTION_V2_MIGRATION_STATE_QUERY_FAILED');
+  console.error('ACCOUNTING_0037_GUARD_PROBE_FAILED');
   process.exit(31);
 }
 
-const output = `${result.stdout || ''}\n${result.stderr || ''}`;
-const localMigrations = readdirSync('migrations')
-  .filter(name => /^\d{4}_.+\.sql$/.test(name))
-  .sort();
-const pending = localMigrations.filter(name => output.includes(name));
-const expected = [
-  '0037_accounting_schema_reconciliation.sql',
-  '0038_operational_accounting_boundary.sql',
-  '0039_flexible_manual_production.sql'
-];
+let payload;
+try {
+  payload = JSON.parse(result.stdout);
+} catch {
+  console.error('ACCOUNTING_0037_GUARD_PROBE_JSON_FAILED');
+  process.exit(32);
+}
 
-if (pending.length === expected.length && expected.every((name, index) => pending[index] === name)) {
-  console.log('PRODUCTION_V2_PENDING_SET_IS_0037_THROUGH_0039');
+const containers = Array.isArray(payload) ? payload : [payload];
+const rows = [];
+for (const container of containers) {
+  if (Array.isArray(container?.results)) rows.push(...container.results);
+  else if (Array.isArray(container?.result?.results)) rows.push(...container.result.results);
+  else if (Array.isArray(container?.result)) rows.push(...container.result);
+}
+
+const names = rows.map(row => String(row?.name || '')).filter(Boolean).sort();
+const expected = ['pos_integration_settings'];
+if (names.length === expected.length && expected.every((name, index) => names[index] === name)) {
+  console.log('ACCOUNTING_0037_BLOCKER_IS_POS_INTEGRATION_SETTINGS');
   process.exit(0);
 }
 
-console.error(`PRODUCTION_V2_PENDING_MIGRATION_SET_UNEXPECTED count=${pending.length}`);
-process.exit(32);
+console.error(`ACCOUNTING_0037_UNEXPECTED_BLOCKER_SET count=${names.length}`);
+process.exit(33);

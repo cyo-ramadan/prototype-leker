@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-migration-state-probe-20260818",
-  "sourceCommit": "427e282ddf7e29d9060de7b33c70147fc362b51c",
-  "deploymentTrigger": "2026-08-18T23:12:00+07:00",
-  "deploymentTargetCommit": "427e282ddf7e29d9060de7b33c70147fc362b51c",
-  "deploymentReason": "Trigger Cloudflare Git Integration for read-only migration 0039 state probe; no Worker deploy in npm run deploy"
+  "publisherRunId": "production-v2-final-recovery-20260818",
+  "sourceCommit": "95c122b44d3fbbee739a1ce50f307183019febd2",
+  "deploymentTrigger": "2026-08-18T23:16:00+07:00",
+  "deploymentTargetCommit": "95c122b44d3fbbee739a1ce50f307183019febd2",
+  "deploymentReason": "Trigger Cloudflare Git Integration for migration-aware Production V2 recovery and Worker deployment after schema verification"
 }

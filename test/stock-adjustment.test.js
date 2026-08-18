@@ -7,6 +7,12 @@ import {
   listStockAdjustmentOptions,
   normalizeApprovalPayload
 } from '../src/operational-posting.js';
+import {
+  prepareStockAdjustmentRows,
+  selectStockAdjustmentProduct,
+  stockAdjustmentDifference,
+  updateStockAdjustmentActualQuantity
+} from '../public/stock-adjustment-pilatu.js';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 const approvalApiSource = readFileSync(new URL('../src/approval-queue.js', import.meta.url), 'utf8');
@@ -176,13 +182,47 @@ test('approved Stock Adjustment reuses canonical balance and stock_movements wit
   }
 });
 
-test('Stock Adjustment exposes stale-snapshot and approval UX guards', () => {
+test('PILATU stock adjustment keeps Mineral when Margarin is selected next', () => {
+  const mineral = { productId: 101, productName: 'Mineral', currentQuantity: 12, unitSymbol: 'PCS' };
+  const margarin = { productId: 102, productName: 'Margarin', currentQuantity: 7, unitSymbol: 'PCS' };
+
+  let rows = selectStockAdjustmentProduct([], mineral);
+  rows = updateStockAdjustmentActualQuantity(rows, mineral.productId, '10');
+  rows = selectStockAdjustmentProduct(rows, margarin);
+
+  assert.deepEqual(rows.map(row => row.productName), ['Margarin', 'Mineral']);
+  assert.equal(rows[1].actualQuantity, '10');
+
+  rows = updateStockAdjustmentActualQuantity(rows, margarin.productId, '9');
+  assert.equal(stockAdjustmentDifference(rows[0]), 2);
+  assert.equal(stockAdjustmentDifference(rows[1]), -2);
+
+  rows = selectStockAdjustmentProduct(rows, mineral);
+  assert.deepEqual(rows.map(row => row.productName), ['Mineral', 'Margarin']);
+  assert.equal(rows[0].actualQuantity, '10');
+
+  const prepared = prepareStockAdjustmentRows(rows);
+  assert.deepEqual(prepared.map(row => ({ name: row.productName, target: row.targetQuantity, difference: row.difference })), [
+    { name: 'Mineral', target: 10, difference: -2 },
+    { name: 'Margarin', target: 9, difference: 2 }
+  ]);
+});
+
+test('Stock Adjustment exposes stale-snapshot, PILATU and approval UX guards', () => {
   assert.match(approvalApiSource, /STOCK_ADJUSTMENT_STALE/);
   assert.match(approvalApiSource, /currentQuantitySnapshot/);
   assert.match(approvalApiSource, /approval_status = 'rejected'/);
   assert.match(cashierUiSource, /\/api\/cashier\/stock-adjustment\/options/);
+  assert.match(cashierUiSource, /import\('\/stock-adjustment-pilatu\.js'\)/);
+  assert.match(cashierUiSource, /Cari barang/);
+  assert.match(cashierUiSource, /Qty Tercatat/);
+  assert.match(cashierUiSource, /Qty Sebenarnya/);
+  assert.match(cashierUiSource, />HPP</);
+  assert.match(cashierUiSource, /Selisih/);
+  assert.match(cashierUiSource, /selectStockAdjustmentProduct\(selectedRows, product\)/);
+  assert.match(cashierUiSource, /for \(const row of changed\)/);
+  assert.doesNotMatch(cashierUiSource, /id="stockAdjustmentProduct"/);
   assert.match(cashierUiSource, /purpose: 'STOCK_ADJUSTMENT'/);
-  assert.match(cashierUiSource, /Target stok fisik/);
   assert.match(managementUiSource, /STOCK ADJUSTMENT/);
   assert.match(managementUiSource, /stale/);
   assert.match(contractSource, /target quantity/i);

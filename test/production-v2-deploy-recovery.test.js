@@ -32,7 +32,8 @@ test('temporary deployment routing remains inside an explicitly bounded Producti
     'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
     'node scripts/probe-production-v2-remote-schema-temp.mjs',
     'node scripts/probe-production-v2-d1-connectivity-temp.mjs',
-    'node scripts/probe-production-v2-migration-state-temp.mjs'
+    'node scripts/probe-production-v2-migration-state-temp.mjs',
+    'node scripts/probe-production-v2-zero-target-columns-temp.mjs'
   ]);
   assert.equal(allowed.has(packageJson.scripts.deploy), true);
   assert.match(packageJson.scripts.check, /deploy-production-v2-migration-recovery-temp\.mjs/);

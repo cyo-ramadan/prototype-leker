@@ -15,6 +15,7 @@ const REQUIRED_COLUMNS = Object.freeze({
     'component_product_kind_name'
   ])
 });
+const TARGET_MIGRATION = '0039_flexible_manual_production.sql';
 
 function wrangler(args, { json = false } = {}) {
   const result = spawnSync(npx, ['--yes', 'wrangler', ...args], {
@@ -25,7 +26,7 @@ function wrangler(args, { json = false } = {}) {
   });
   if (result.error) throw new Error(`Wrangler failed to start: ${result.error.message}`);
   if (result.status !== 0) throw new Error(result.stderr || result.stdout || `Wrangler exited ${result.status}`);
-  if (!json) return result.stdout;
+  if (!json) return `${result.stdout || ''}\n${result.stderr || ''}`;
   try {
     return JSON.parse(result.stdout);
   } catch {
@@ -45,7 +46,7 @@ function rows(payload) {
 }
 
 function d1Json(sql) {
-  return rows(wrangler(['d1', 'execute', 'DB', '--remote', '--json', '--command', sql], { json: true }));
+  return rows(wrangler(['d1', 'execute', 'DB', '--remote', '--yes', '--json', '--command', sql], { json: true }));
 }
 
 function columns(tableName) {
@@ -76,21 +77,27 @@ function runRemoteSchemaVerifier() {
   process.stdout.write(verify.stdout);
 }
 
-console.log('[PRODUCTION_V2_RECOVERY] stage=checkpoint');
-const checkpointPayload = wrangler(['d1', 'time-travel', 'info', 'DB', '--json'], { json: true });
-const checkpoint = checkpointPayload?.bookmark
-  || checkpointPayload?.result?.bookmark
-  || (Array.isArray(checkpointPayload) ? checkpointPayload.find(item => item?.bookmark)?.bookmark : '');
-if (!checkpoint) {
-  throw new Error('Unable to capture D1 Time Travel checkpoint. Production V2 deployment aborted before migration.');
-}
-console.log(`[PRODUCTION_V2_RECOVERY] checkpoint=${checkpoint}`);
-
+console.log('[PRODUCTION_V2_RECOVERY] stage=preflight');
 const missingBefore = missingProductionColumns();
-console.log(`[PRODUCTION_V2_RECOVERY] stage=preflight missing_before=${JSON.stringify(missingBefore)}`);
+console.log(`[PRODUCTION_V2_RECOVERY] missing_before=${JSON.stringify(missingBefore)}`);
 
-console.log('[PRODUCTION_V2_RECOVERY] stage=migrations_apply');
-wrangler(['d1', 'migrations', 'apply', 'DB', '--remote']);
+if (missingBefore.length) {
+  console.log('[PRODUCTION_V2_RECOVERY] stage=migration_state');
+  const migrationList = wrangler(['d1', 'migrations', 'list', 'DB', '--remote']);
+  const targetIsUnapplied = migrationList.includes(TARGET_MIGRATION);
+
+  if (!targetIsUnapplied) {
+    throw new Error(
+      `Production V2 schema drift detected: required columns are missing but ${TARGET_MIGRATION} is not listed as unapplied. `
+      + 'Refusing manual DDL or migration-ledger mutation.'
+    );
+  }
+
+  console.log(`[PRODUCTION_V2_RECOVERY] stage=migrations_apply target=${TARGET_MIGRATION}`);
+  wrangler(['d1', 'migrations', 'apply', 'DB', '--remote', '--yes']);
+} else {
+  console.log('[PRODUCTION_V2_RECOVERY] schema already contains Production V2 columns; migration apply skipped');
+}
 
 console.log('[PRODUCTION_V2_RECOVERY] stage=production_schema_verify');
 const missingAfter = missingProductionColumns();
@@ -100,7 +107,7 @@ if (missingAfter.length) {
 
 const foreignKeyViolations = d1Json('PRAGMA foreign_key_check;');
 if (foreignKeyViolations.length) {
-  throw new Error(`Foreign-key verification failed after canonical migrations: ${JSON.stringify(foreignKeyViolations)}`);
+  throw new Error(`Foreign-key verification failed after canonical migration state: ${JSON.stringify(foreignKeyViolations)}`);
 }
 console.log('[PRODUCTION_V2_RECOVERY] production_schema=READY foreign_keys=PASS');
 
@@ -109,4 +116,4 @@ runRemoteSchemaVerifier();
 
 console.log('[PRODUCTION_V2_RECOVERY] stage=worker_deploy');
 wrangler(['deploy']);
-console.log(`PRODUCTION_V2_MIGRATION_RECOVERY_PASS checkpoint=${checkpoint}`);
+console.log('PRODUCTION_V2_MIGRATION_RECOVERY_PASS');

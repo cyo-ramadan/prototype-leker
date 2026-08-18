@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-schema-probe-20260818",
-  "sourceCommit": "6fb1a7fed086d21757c23d66ae0ee45959a88ebe",
-  "deploymentTrigger": "2026-08-18T22:58:00+07:00",
-  "deploymentTargetCommit": "6fb1a7fed086d21757c23d66ae0ee45959a88ebe",
-  "deploymentReason": "Trigger Cloudflare Git Integration for read-only Production V2 remote schema probe; no Worker deploy in npm run deploy"
+  "publisherRunId": "production-v2-d1-connectivity-probe-20260818",
+  "sourceCommit": "99c6137a69fb01126f3841795363c9bb080f2d59",
+  "deploymentTrigger": "2026-08-18T23:05:00+07:00",
+  "deploymentTargetCommit": "99c6137a69fb01126f3841795363c9bb080f2d59",
+  "deploymentReason": "Trigger Cloudflare Git Integration for read-only D1 SELECT 1 connectivity probe; no Worker deploy in npm run deploy"
 }

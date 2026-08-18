@@ -11,9 +11,8 @@ permissions:
   checks: read
 
 jobs:
-  live-production-v2-smoke:
+  inspect-main-checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - name: Inspect main deployment checks
         shell: bash
@@ -33,6 +32,10 @@ jobs:
             "https://api.github.com/repos/$REPO/commits/$main_sha/check-runs" \
             | jq '{total_count, check_runs: [.check_runs[] | {name,status,conclusion,details_url,started_at,completed_at,output:{title:.output.title,summary:.output.summary,text:.output.text}}]}'
 
+  live-production-v2-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
       - name: Verify deployed Production V2 surface
         shell: bash
         env:

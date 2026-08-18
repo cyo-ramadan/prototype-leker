@@ -94,7 +94,7 @@ if (missingBefore.length) {
   }
 
   console.log(`[PRODUCTION_V2_RECOVERY] stage=migrations_apply target=${TARGET_MIGRATION}`);
-  wrangler(['d1', 'migrations', 'apply', 'DB', '--remote', '--yes']);
+  wrangler(['d1', 'migrations', 'apply', 'DB', '--remote']);
 } else {
   console.log('[PRODUCTION_V2_RECOVERY] schema already contains Production V2 columns; migration apply skipped');
 }

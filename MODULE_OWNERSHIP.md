@@ -1,4 +1,6 @@
 # Module Ownership
+Dikerjakan oleh: `hana1.1` — arsitektur, MAXI agent roster
+
 
 Constitution §5: *"Every system and shared interface must have an owner."* This registry is
 that record. A task written to the board (`MAXI_AGENT_TASK_BOARD_V1`) names a `module`, and a

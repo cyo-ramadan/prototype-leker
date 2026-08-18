@@ -1,3 +1,4 @@
+-- Dikerjakan oleh: hana1.1 — arsitektur, MAXI agent roster
 -- Real backlog from the 2026-08-18 audit, written as board tasks.
 --
 -- These exist so work continues when Hana does not. Writing tasks one at a time

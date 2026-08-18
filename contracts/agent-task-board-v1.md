@@ -2,6 +2,8 @@
 
 Status: ACTIVE
 Contract: `MAXI_AGENT_TASK_BOARD_V1`
+Dikerjakan oleh: `hana1.1` — arsitektur, MAXI agent roster
+
 Venue: D1 `maxi-agent-bus` (`cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6`), account `Daily Napkin`
 
 ## Why a board, and why there

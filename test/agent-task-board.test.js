@@ -30,7 +30,7 @@ test('a task is held by one session at a time', () => {
   claim(sqlite, 'C1', 'T-001', 'karen1.1');
   assert.throws(
     () => claim(sqlite, 'C2', 'T-001', 'elle1.1'),
-    /HANDOFF_REQUIRED|UNIQUE/,
+    /HANDOFF_OR_TAKEOVER_REQUIRED|UNIQUE/,
     'a second agent must not be able to take a held task'
   );
 });
@@ -44,7 +44,7 @@ test('a later session cannot pick up the work without a handoff', () => {
   // is the missing knowledge transfer: karen1.2 shares no memory with karen1.1.
   assert.throws(
     () => claim(sqlite, 'C2', 'T-001', 'karen1.2'),
-    /HANDOFF_REQUIRED/,
+    /HANDOFF_OR_TAKEOVER_REQUIRED/,
     'releasing a claim must not by itself make the task re-claimable by a new session'
   );
 });
@@ -313,4 +313,59 @@ test('no two open module tasks declare the same path', () => {
     WHERE a.path_prefix LIKE b.path_prefix || '%' OR b.path_prefix LIKE a.path_prefix || '%'
   `).all();
   assert.deepEqual(clashes, [], `module tasks must be disjoint by construction: ${JSON.stringify(clashes)}`);
+});
+
+test('a task is not stranded when a session dies without handing off', () => {
+  const sqlite = board();
+  claim(sqlite, 'C1', 'T-001', 'karen1.1');
+  // No handoff is written: the session ended mid-sentence and cannot write one.
+  sqlite.prepare(`UPDATE agent_task_claims SET released_at=CURRENT_TIMESTAMP, release_reason='ABANDONED' WHERE id='C1'`).run();
+  assert.throws(() => claim(sqlite, 'C2', 'T-001', 'karen1.2'), /HANDOFF_OR_TAKEOVER_REQUIRED/);
+
+  sqlite.prepare(`
+    INSERT INTO agent_task_takeovers (id, task_id, from_session_id, to_session_id, reason, reconstructed_from, reconstructed_state)
+    VALUES ('K1','T-001','karen1.1','karen1.2','UNEXPECTED_TERMINATION',
+            'branch karen1-T001 commit a1b2c3; board rows',
+            'qty split sudah ada di branch, tes belum ditambahkan')
+  `).run();
+  claim(sqlite, 'C2', 'T-001', 'karen1.2');
+  assert.equal(
+    sqlite.prepare(`SELECT session_id FROM agent_task_claims WHERE task_id='T-001' AND released_at IS NULL`).get().session_id,
+    'karen1.2'
+  );
+});
+
+test('a takeover cannot pretend to be knowledge it never received', () => {
+  const sqlite = board();
+  // Nobody may fabricate what the dead session knew, so a takeover with no
+  // stated evidence is refused. The trail must show reconstruction, not transfer.
+  for (const [from, state] of [['   ', 'x'], ['commit a1b2c3', '  ']]) {
+    assert.throws(
+      () => sqlite.prepare(`
+        INSERT INTO agent_task_takeovers (id, task_id, from_session_id, to_session_id, reason, reconstructed_from, reconstructed_state)
+        VALUES ('K','T-001','karen1.1','karen1.2','UNEXPECTED_TERMINATION',?,?)
+      `).run(from, state),
+      /CHECK|constraint/i
+    );
+  }
+});
+
+test('a task declares its blast radius, not just its module', () => {
+  const sqlite = board();
+  sqlite.prepare(`
+    INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by, system_scope, tenant_scope, canonical_touch)
+    VALUES ('T-SHARED','MIGRATION','accounting','t','o','d','hana.1','SHARED_MODULE','ALL_TENANTS',1)
+  `).run();
+  const task = sqlite.prepare(`SELECT system_scope, tenant_scope, canonical_touch FROM agent_tasks WHERE id='T-SHARED'`).get();
+  assert.equal(task.system_scope, 'SHARED_MODULE');
+  assert.equal(task.tenant_scope, 'ALL_TENANTS');
+  assert.equal(task.canonical_touch, 1);
+
+  assert.throws(
+    () => sqlite.prepare(`
+      INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by, system_scope)
+      VALUES ('T-BAD','FEATURE','accounting','t','o','d','hana.1','WHATEVER')
+    `).run(),
+    /CHECK|constraint/i
+  );
 });

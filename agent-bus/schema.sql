@@ -1,3 +1,4 @@
+-- Dikerjakan oleh: hana1.1 — arsitektur, MAXI agent roster
 PRAGMA foreign_keys = ON;
 
 -- MAXI Agent Task Board — MAXI_AGENT_TASK_BOARD_V1
@@ -59,6 +60,16 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
   -- same ones so the results compare, and the evidence decides rather than an
   -- impression formed in conversation.
   is_probe INTEGER NOT NULL DEFAULT 0 CHECK (is_probe IN (0, 1)),
+  -- Where the change lives, from issue #93. A shared module serves every tenant,
+  -- so the blast radius of an edit differs by scope even when the diff looks the
+  -- same size.
+  system_scope TEXT NOT NULL DEFAULT 'APPLICATION'
+    CHECK (system_scope IN ('SHARED_MODULE', 'APPLICATION', 'TENANT_CONFIG', 'PLATFORM_INFRA')),
+  tenant_scope TEXT NOT NULL DEFAULT 'NONE',
+  -- Whether the task touches a canonical object — chart_of_accounts, a posted
+  -- journal, a contract, a migration already applied. Declared rather than
+  -- discovered, so review effort goes where it is warranted.
+  canonical_touch INTEGER NOT NULL DEFAULT 0 CHECK (canonical_touch IN (0, 1)),
   forbidden TEXT NOT NULL DEFAULT '',     -- what this task must not touch
   status TEXT NOT NULL DEFAULT 'OPEN'
     CHECK (status IN ('OPEN', 'CLAIMED', 'REPORTED', 'BLOCKED', 'DONE')),
@@ -122,8 +133,12 @@ WHEN EXISTS (
       SELECT 1 FROM agent_task_handoffs h
       WHERE h.task_id = NEW.task_id AND h.to_session_id = NEW.session_id
     )
+ AND NOT EXISTS (
+      SELECT 1 FROM agent_task_takeovers k
+      WHERE k.task_id = NEW.task_id AND k.to_session_id = NEW.session_id
+    )
 BEGIN
-  SELECT RAISE(ABORT, 'HANDOFF_REQUIRED');
+  SELECT RAISE(ABORT, 'HANDOFF_OR_TAKEOVER_REQUIRED');
 END;
 
 -- An agent may only claim the kinds of work its family is registered for. Luna
@@ -175,6 +190,32 @@ WHEN EXISTS (
 BEGIN
   SELECT RAISE(ABORT, 'PATH_HELD_BY_ANOTHER_CLAIM');
 END;
+
+-- A session can die without warning: the tab is closed, the container is
+-- reclaimed, the quota ends mid-sentence. The handoff rule alone would strand
+-- that task forever, because the session that owed the handoff is gone and
+-- cannot write one. Issue #93 caught this; the first version of this schema
+-- deadlocked on it.
+--
+-- A takeover is deliberately not a handoff. Nobody may fabricate what the dead
+-- session knew, so the replacement states what it reconstructed and from which
+-- evidence, and that difference stays visible in the trail forever.
+CREATE TABLE IF NOT EXISTS agent_task_takeovers (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  from_session_id TEXT NOT NULL,
+  to_session_id TEXT NOT NULL,
+  reason TEXT NOT NULL CHECK (reason IN ('UNEXPECTED_TERMINATION', 'OWNER_REASSIGNMENT')),
+  reconstructed_from TEXT NOT NULL,   -- commits, PRs, board rows the state was rebuilt from
+  reconstructed_state TEXT NOT NULL,  -- what the new session believes is true, and why
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES agent_tasks(id),
+  FOREIGN KEY (from_session_id) REFERENCES agent_sessions(id),
+  FOREIGN KEY (to_session_id) REFERENCES agent_sessions(id),
+  CHECK (from_session_id <> to_session_id),
+  CHECK (length(trim(reconstructed_from)) > 0),
+  CHECK (length(trim(reconstructed_state)) > 0)
+);
 
 -- Reports carry evidence. A status claim with no evidence is not a report, and
 -- only Hana closes a task, so no agent verifies its own work.

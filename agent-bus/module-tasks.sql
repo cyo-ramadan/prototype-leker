@@ -1,3 +1,4 @@
+-- Dikerjakan oleh: hana1.1 — arsitektur, MAXI agent roster
 -- Five module revisions that may run at the same time, because their declared
 -- paths do not overlap. Shared files are owned by none of them: a change there
 -- is a separate, serialised task, which is the honest form of the hold that used

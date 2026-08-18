@@ -2,6 +2,8 @@
 
 Status: ACTIVE
 Contract: `MAXI_AGENT_RECRUITMENT_V1`
+Dikerjakan oleh: `hana1.1` — arsitektur, MAXI agent roster
+
 
 ## The problem this solves
 

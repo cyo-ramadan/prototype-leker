@@ -1,6 +1,8 @@
 # Accounting Posting Coverage Audit — 2026-08-18
 
 Change ID: `LEKER-ACC-POSTING-COVERAGE-20260818`
+Dikerjakan oleh: `hana1.1` — arsitektur, MAXI agent roster
+
 
 Protocol classification: `TRANSACTION_POTENTIAL: YES` (read-only audit; no production mutation performed)
 

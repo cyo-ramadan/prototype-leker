@@ -3,6 +3,8 @@
 Status: ACCEPTED
 Date: 2026-08-18
 Change ID: `MAXI-TENANCY-CONSOLIDATION-20260818`
+Dikerjakan oleh: `hana1.1` — arsitektur, MAXI agent roster
+
 
 ## Context
 

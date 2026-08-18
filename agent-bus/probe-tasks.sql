@@ -1,3 +1,4 @@
+-- Dikerjakan oleh: hana1.1 — arsitektur, MAXI agent roster
 -- Recruitment probes — MAXI_AGENT_RECRUITMENT_V1.
 -- Every candidate gets these, unchanged, so results compare.
 -- A probe is read-only or branch-scoped: a candidate never holds production access.

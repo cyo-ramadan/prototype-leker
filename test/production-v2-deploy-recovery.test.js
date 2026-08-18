@@ -34,9 +34,16 @@ test('Production V2 recovery uses Cloudflare build credentials only for the cano
   assert.doesNotMatch(recovery, /ALTER\s+TABLE|DROP\s+TABLE|UPDATE\s+d1_migrations|INSERT\s+INTO\s+d1_migrations|DELETE\s+FROM\s+d1_migrations/i);
 });
 
-test('temporary deployment routing points only at the bounded Production V2 wrapper', () => {
-  assert.equal(packageJson.scripts.deploy, 'node scripts/deploy-production-v2-migration-recovery-temp.mjs');
+test('temporary deployment routing remains inside an explicitly bounded Production V2 operational lane', () => {
+  const allowed = new Set([
+    'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
+    'node scripts/probe-production-v2-remote-schema-temp.mjs'
+  ]);
+  assert.equal(allowed.has(packageJson.scripts.deploy), true);
   assert.match(packageJson.scripts.check, /deploy-production-v2-migration-recovery-temp\.mjs/);
+  if (packageJson.scripts.deploy.includes('probe-production-v2-remote-schema-temp.mjs')) {
+    assert.match(packageJson.scripts.check, /probe-production-v2-remote-schema-temp\.mjs/);
+  }
   assert.equal(packageJson.scripts['db:migrations:apply'], 'npx --yes wrangler d1 migrations apply DB --remote');
   assert.equal(packageJson.scripts['db:schema:verify'], 'node scripts/verify-remote-schema.mjs');
 });

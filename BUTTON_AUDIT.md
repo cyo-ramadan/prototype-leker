@@ -1,4 +1,4 @@
-# Transaction Button Functional Audit — 2026-08-14
+# Transaction Button Functional Audit — 2026-08-18
 
 Status: ACTIVE WORKING AUDIT
 Scope: transaction/action surfaces in Cashier and Branch Admin.
@@ -17,7 +17,7 @@ Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional t
 | Pengeluaran | PASS | operational expense → Accounting POS bridge; payment method comes from Setting Akuntansi and multiple Debit components require component selection by rule ID. |
 | Pendapatan Lain | PASS | operational income route exists; separate Accounting taxonomy remains future work. |
 | Penyesuaian Stok | PASS + APPROVAL | Approval Queue, target snapshot, stale guard, canonical stock movement. |
-| Produksi | PASS V1 | linked recipe + batch production works. Production V2 editable output/material template is separate future work. |
+| Produksi | PASS V2 | output product + actual Qty, Recipe/BOM as immutable editable template, dynamic actual materials add/remove/edit, exact scaled HPP + moving-average output cost, `PRODUCTION_INPUT`/`PRODUCTION_OUTPUT` stock ledger, and post-commit Warehouse → Accounting inventory-account transfer. Same inventory account intentionally creates no journal movement. |
 | Arus Kas | PASS + APPROVAL / Accounting config-gated | operational ACC posts first; approved fact then resolves `cash_flow_in`/`cash_flow_out` through Setting Akuntansi and the Accounting journal engine. Missing mapping remains `NEEDS_CONFIGURATION` and can be retried idempotently. |
 | Arus Barang | PARTIAL/HOLD | store-level quantity posting works; warehouse routing and exact Accounting valuation are intentionally held. |
 | Aset | PASS + APPROVAL | aggregate asset-value V1. |
@@ -50,7 +50,6 @@ Legend: PASS = handler + server capability exist. PASS + APPROVAL = functional t
 3. Warehouse routing for Arus Barang: whether the cashier flow is warehouse transfer-first, also supports one-sided IN/OUT, and how canonical stock becomes location-aware.
 4. Generic Arus Barang Accounting valuation: quantity alone has no exact valuation meaning.
 5. Return taxonomy: Supplier Return, Customer Return, and internal return must not be collapsed until the transaction UX/taxonomy is decided.
-6. Production V2: editable output Qty, dynamic raw materials, optional recipe template, and production-cost allocation into HPP.
 
 ## DOC-IMPACT
 

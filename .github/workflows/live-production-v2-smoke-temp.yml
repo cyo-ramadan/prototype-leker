@@ -1,0 +1,49 @@
+name: Temporary Production V2 Live Smoke
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/live-production-v2-smoke-temp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-production-v2-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify deployed Production V2 surface
+        shell: bash
+        env:
+          WORKER_URL: https://prototype-leker-v2.daily-napkin.workers.dev
+        run: |
+          set -euo pipefail
+
+          fetch_until() {
+            local url="$1"
+            local output="$2"
+            local needle="$3"
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --show-error "$url" -o "$output" && grep -q "$needle" "$output"; then
+                return 0
+              fi
+              sleep 10
+            done
+            echo "Live marker not found: $needle at $url"
+            cat "$output" 2>/dev/null || true
+            return 1
+          }
+
+          fetch_until "$WORKER_URL/cashier" /tmp/cashier.html 'cashier-production-v2.js?v=20260818-production-panel-v2'
+          fetch_until "$WORKER_URL/cashier-production-v2.js?v=20260818-production-panel-v2" /tmp/production-v2.js 'Bahan baku aktual'
+          grep -q 'Tambah bahan' /tmp/production-v2.js
+          grep -q 'tidak mengubah Master Recipe' /tmp/production-v2.js
+          grep -q 'outputQuantity, recipeId, components' /tmp/production-v2.js
+
+          status="$(curl --silent --show-error --output /tmp/production-api.json --write-out '%{http_code}' "$WORKER_URL/api/cashier/production/options")"
+          test "$status" = "401"
+          grep -q 'Login kasir' /tmp/production-api.json
+
+          echo 'Production V2 live UI assets and cashier auth boundary verified.'

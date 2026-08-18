@@ -15,6 +15,19 @@ export const ALL_REQUIRED_REMOTE_TABLES = Object.freeze([
   ...REQUIRED_REMOTE_TABLES,
   ...ACCOUNTING_REQUIRED_REMOTE_TABLES
 ]);
+export const PRODUCTION_REQUIRED_COLUMNS = Object.freeze({
+  production_runs: Object.freeze([
+    'template_modified',
+    'output_product_kind_id',
+    'output_product_kind_code',
+    'output_product_kind_name'
+  ]),
+  production_run_components: Object.freeze([
+    'component_product_kind_id',
+    'component_product_kind_code',
+    'component_product_kind_name'
+  ])
+});
 export const FORBIDDEN_REMOTE_TABLES = Object.freeze([
   'accounting_accounts',
   'accounting_dimensions',
@@ -41,6 +54,22 @@ export function extractWranglerD1Rows(payload) {
 export function missingRequiredTables(payload, requiredTables = REQUIRED_REMOTE_TABLES) {
   const names = new Set(extractWranglerD1Rows(payload).map(row => String(row?.name || '').trim()).filter(Boolean));
   return requiredTables.filter(name => !names.has(name));
+}
+
+export function missingRequiredColumns(payload, requiredColumns = PRODUCTION_REQUIRED_COLUMNS) {
+  const rows = new Map(extractWranglerD1Rows(payload).map(row => [String(row?.name || '').trim(), String(row?.sql || '').toLowerCase()]));
+  const missing = [];
+  for (const [tableName, columns] of Object.entries(requiredColumns)) {
+    const sql = rows.get(tableName) || '';
+    if (!sql) {
+      missing.push(`${tableName}.*`);
+      continue;
+    }
+    for (const column of columns) {
+      if (!sql.includes(String(column).toLowerCase())) missing.push(`${tableName}.${column}`);
+    }
+  }
+  return missing;
 }
 
 export function accountingSchemaViolations(payload) {
@@ -102,6 +131,13 @@ function verifyRemoteSchema() {
     process.exit(1);
   }
 
+  const missingColumns = missingRequiredColumns(payload);
+  if (missingColumns.length) {
+    console.error(`Remote D1 Production V2 schema is not ready. Missing columns: ${missingColumns.join(', ')}`);
+    console.error('Stop deployment. Apply migration 0039 before promoting the Production Panel V2 Worker.');
+    process.exit(1);
+  }
+
   const violations = accountingSchemaViolations(payload);
   if (violations.forbiddenTables.length || violations.parallelAccountTables.length) {
     if (violations.forbiddenTables.length) {
@@ -114,7 +150,7 @@ function verifyRemoteSchema() {
     process.exit(1);
   }
 
-  console.log(`Remote D1 schema ready. Required tables present; canonical Accounting registry = chart_of_accounts.`);
+  console.log('Remote D1 schema ready. Required tables and Production V2 columns present; canonical Accounting registry = chart_of_accounts.');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) verifyRemoteSchema();

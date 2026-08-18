@@ -50,9 +50,19 @@ Breakdown of the 8 sales:
 | `store_001` | 6 | 6 | all failed: 5 `NEEDS_MAPPING`, 1 `NEEDS_PRODUCT_KIND` |
 | `store_002` | 2 | **0** | never reached the bridge at all |
 
-## Finding 2 — Failed facts are recorded but never re-driven
+## Finding 2 — Failed facts are never re-driven (corrected)
 
-**Severity: high. This is the actual defect.**
+**Severity: high, but the cause is not the one first recorded here.**
+
+An earlier revision of this audit claimed no re-drive path existed and that building
+one was the fix. That was wrong, and building it would have created the second
+reconciliation architecture ADR-029 warns against. `POST /api/admin/accounting/bridge/sync`
+(`src/accounting-reconciliation-guard.js`) already re-drives failed facts, already skips
+voided ones, and already reads its backlog from the fact tables rather than from the
+delivery ledger — so it covers Finding 3 as well.
+
+The mechanism exists and is correct. **Nobody has ever run it**, and nothing made anyone
+want to: see Finding 6.
 
 The five `NEEDS_MAPPING` failures occurred on 2026-08-13T14:02Z, when the `sale` transaction
 category had no journal rules. The rules were created on 2026-08-16T08:01Z and are correct
@@ -68,9 +78,9 @@ and complete — all four legs the design calls for:
 The configuration gap was therefore fixed three days ago. The five sales are still unposted,
 because nothing re-drove them: every failed delivery still shows `attempts = 1`.
 
-Fixing configuration does not retroactively post the facts that failed before it. Without a
-re-drive path, each configuration gap permanently loses the facts that arrived during it.
-The reconciliation capability is described as idempotent, but nothing is driving it.
+Fixing configuration does not retroactively post the facts that failed during the gap. The
+reconciliation endpoint that would repair this is idempotent and safe to run, but running it
+is a manual act, and until Finding 6 was fixed nothing told anyone it was needed.
 
 ## Finding 3 — Facts predating the bridge were never backfilled
 
@@ -78,9 +88,10 @@ The reconciliation capability is described as idempotent, but nothing is driving
 `0025_accounting_pos_bridge.sql` was applied 2026-08-13T10:38Z. Those sales predate the
 delivery ledger, so they produced no delivery row at all.
 
-This is worse than a recorded failure: reconciliation searching for failed deliveries will
-not find them, because there is nothing to find. Any backfill must work from `sales`, not
-from `accounting_bridge_deliveries`.
+This is worse than a recorded failure: a reconciliation searching for failed deliveries
+would not find them, because there is nothing to find. The existing endpoint already avoids
+that trap — it reads its backlog from `sales`, `purchases`, and `expenses` — but the summary
+that was supposed to reveal the backlog did not, which is Finding 6.
 
 ## Finding 4 — Sale posting is unconfigured outside store_001
 
@@ -98,18 +109,38 @@ The single current failure, `NEEDS_PRODUCT_KIND` on 2026-08-16T19:28Z, is legiti
 resolver cannot choose Persediaan/HPP/Penjualan accounts for an item with no Jenis Barang,
 and correctly refuses to guess. This is a data gap in Master Barang, not a code defect.
 
+## Finding 6 — The backlog was invisible, so nobody re-drove it (fixed)
+
+`getAccountingBridgeSummary` counted delivery rows by status, and the workspace badge
+rendered those counts. A fact with no delivery row appears in none of them, so `store_002`
+— two unposted sales, zero delivery rows — displayed `0 posted · 0 perlu setting · 0 gagal`
+and read as perfectly healthy.
+
+A correct re-drive button nobody knows to press is not a working recovery path. The summary
+now also reports `unsynced`, counted from the fact tables through the same predicate the
+reconciliation endpoint uses, and the badge shows `N belum masuk jurnal` when it is non-zero.
+
+Two related defects were fixed alongside it:
+
+- the backlog predicate existed in two copies, and only the newer one excluded voided facts.
+  It now has a single definition that both callers import, so the `voided_at` filter cannot
+  be present in one and forgotten in the other;
+- `POST /api/admin/accounting/bridge/sync` was claimed by two handlers. The shadowed copy in
+  `accounting-pos-bridge.js` skipped the voided check, so swapping two lines in `src/index.js`
+  would have silently re-enabled re-posting voided transactions. The route now has one owner.
+
 ## Recommended order
 
-1. **Give failed deliveries a re-drive path.** Without it, findings 1, 3, and 5 cannot be
-   cleared even after their causes are fixed. This is the only structural change required.
-2. **Backfill from `sales`, not from deliveries**, so facts predating `0025` are included.
-3. Configure `sale` rules for `store_002` and the third store.
-4. Set Jenis Barang on the product blocking the remaining sale.
-5. Decide `payroll` and `deposit`, or record that they stay closed deliberately, as
+1. **Run the existing reconciliation** (`POST /api/admin/accounting/bridge/sync`) per store.
+   The backlog is now visible in the Accounting workspace, so what needs re-driving is legible
+   before anyone presses it. This changes the books and needs Bos Cyo's authority.
+2. Configure `sale` rules for `store_002` and the third store.
+3. Set Jenis Barang on the product blocking the remaining sale.
+4. Decide `payroll` and `deposit`, or record that they stay closed deliberately, as
    `wh_return` already is.
 
-Steps 3–5 are configuration and data. Only step 1 is engineering, and it is what turns a
-recorded failure into a recoverable one.
+Steps 2–4 are configuration and data, not engineering. The engineering part is already
+done: the recovery path existed, and this change made the backlog it recovers visible.
 
 ## Not done here
 
@@ -120,4 +151,5 @@ changes the books and needs explicit task authority from Bos Cyo per Constitutio
 
 **REQUIRED** — README describes the Penjualan resolver as supporting settlement/revenue/HPP/
 inventory legs. That is true of the configuration, but no sale has exercised it in
-production. `KNOWN_ISSUES.md` should carry findings 1–4 until the re-drive path exists.
+production. `KNOWN_ISSUES.md` should carry findings 1 and 3–5 until the recorded backlog is
+actually re-driven and the remaining stores are configured.

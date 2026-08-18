@@ -7,6 +7,10 @@ const apiSource = readFileSync(new URL('../src/transaction-void-permits.js', imp
 const executorSource = readFileSync(new URL('../src/transaction-correction-executor.js', import.meta.url), 'utf8');
 const reversalSource = readFileSync(new URL('../src/accounting-pos-reversal.js', import.meta.url), 'utf8');
 const reconciliationGuard = readFileSync(new URL('../src/accounting-reconciliation-guard.js', import.meta.url), 'utf8');
+// The backlog predicate itself lives in the POS bridge, shared by the
+// reconciliation endpoint and the workspace summary so the voided_at filter
+// cannot be present in one and forgotten in the other.
+const posBridge = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
 const cashierUi = readFileSync(new URL('../public/cashier-transaction-void-permits.js', import.meta.url), 'utf8');
 const managementUi = readFileSync(new URL('../public/management-transaction-void-permits.js', import.meta.url), 'utf8');
 const contract = readFileSync(new URL('../contracts/transaction-void-permit-v1.md', import.meta.url), 'utf8');
@@ -41,7 +45,9 @@ test('Accounting correction is an exact immutable reversal', () => {
 });
 
 test('manual Accounting reconciliation excludes source facts already marked corrected', () => {
-  assert.match(reconciliationGuard, /voided_at IS NULL/);
+  // Every fact type in the shared backlog predicate must exclude voided rows;
+  // re-posting a deliberately voided transaction would resurrect it in the books.
+  assert.equal((posBridge.match(/voided_at IS NULL/g) || []).length, 3);
   assert.match(reconciliationGuard, /SKIPPED_VOIDED/);
   assert.match(reconciliationGuard, /BUSINESS_FACT_VOIDED/);
 });

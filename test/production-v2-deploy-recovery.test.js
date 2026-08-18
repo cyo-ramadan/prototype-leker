@@ -11,7 +11,6 @@ test('Production V2 recovery uses Cloudflare build credentials only for the cano
   const foreignKeyAt = recovery.indexOf("PRAGMA foreign_key_check;");
   const fullVerifyAt = recovery.indexOf('runRemoteSchemaVerifier();');
   const deployAt = recovery.indexOf("wrangler(['deploy']);");
-
   assert.ok(checkpointAt >= 0, 'D1 Time Travel checkpoint is mandatory');
   assert.ok(migrationAt > checkpointAt, 'canonical migrations must run after checkpoint');
   assert.ok(foreignKeyAt > migrationAt, 'foreign-key verification must run after migrations');
@@ -24,12 +23,18 @@ test('temporary deployment routing remains inside an explicitly bounded Producti
   const allowed = new Set([
     'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
     'node scripts/probe-production-v2-remote-schema-temp.mjs',
-    'node scripts/probe-production-v2-d1-connectivity-temp.mjs'
+    'node scripts/probe-production-v2-d1-connectivity-temp.mjs',
+    'node scripts/probe-production-v2-migration-state-temp.mjs'
   ]);
   assert.equal(allowed.has(packageJson.scripts.deploy), true);
   assert.match(packageJson.scripts.check, /deploy-production-v2-migration-recovery-temp\.mjs/);
-  if (packageJson.scripts.deploy.includes('probe-production-v2-remote-schema-temp.mjs')) assert.match(packageJson.scripts.check, /probe-production-v2-remote-schema-temp\.mjs/);
-  if (packageJson.scripts.deploy.includes('probe-production-v2-d1-connectivity-temp.mjs')) assert.match(packageJson.scripts.check, /probe-production-v2-d1-connectivity-temp\.mjs/);
+  for (const script of [
+    'probe-production-v2-remote-schema-temp.mjs',
+    'probe-production-v2-d1-connectivity-temp.mjs',
+    'probe-production-v2-migration-state-temp.mjs'
+  ]) {
+    if (packageJson.scripts.deploy.includes(script)) assert.match(packageJson.scripts.check, new RegExp(script.replaceAll('.', '\\.')));
+  }
   assert.equal(packageJson.scripts['db:migrations:apply'], 'npx --yes wrangler d1 migrations apply DB --remote');
   assert.equal(packageJson.scripts['db:schema:verify'], 'node scripts/verify-remote-schema.mjs');
 });

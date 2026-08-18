@@ -1,5 +1,27 @@
 # Changelog — Prototype Leker
 
+## 2026-08-18 — Flexible Production Panel V2
+
+Change ID: `LEKER-PRODUCTION-PANEL-V2-20260818`
+
+- Replace the cashier's recipe-locked manual-production interaction with an editable Production Panel V2: output product + actual qty, Recipe/BOM template selector, and dynamic actual material rows that can be edited, added, or removed.
+- Keep Recipe/BOM immutable. Selecting a recipe copies its ACTIVE revision into the transaction form; production edits never update `manufacturing_recipes` or `manufacturing_recipe_components`.
+- Add Warehouse-owned flexible production execution that snapshots actual component quantities and exact scaled costs, posts `PRODUCTION_INPUT` / `PRODUCTION_OUTPUT` stock movements, recalculates exact production HPP, and updates output moving-average cost.
+- Add migration `0039_flexible_manual_production.sql` to snapshot output/component Product Kind and whether the recipe template was modified, preserving deterministic Accounting interpretation after Master changes.
+- Add a Warehouse -> Accounting production bridge using the existing `wh_production` Accounting Settings category and Accounting journal poster.
+- When material and output Product Kinds map to the same inventory account, record successful processing with no journal movement. When accounts differ, Debit finished/output inventory and Credit the differing material inventory accounts by exact scaled consumed cost.
+- Keep stock/cost commit atomic. Accounting runs post-commit and fails closed as `NEEDS_CONFIGURATION` when Product Kind or inventory mappings are incomplete.
+- Preserve backward compatibility for legacy `outputProductId + batches` manual-production clients.
+- Add regression coverage for same-account no-op accounting, multi-account inventory transfer, immutable Recipe Master, dynamic component UI, stock/HPP wiring, and production bridge dispatch.
+
+### Recovery
+
+Migration 0039 is additive. Before deployment, rollback is branch/commit revert. After migration deployment, application rollback may leave the new snapshot columns inert. Posted stock movements, production runs, Accounting deliveries, and journals remain immutable and must be corrected through the existing adjustment/reversal patterns rather than destructive rewrites.
+
+### DOC-IMPACT
+
+**REQUIRED** — changes authoritative manual-production execution semantics and activates the Warehouse -> Accounting production integration boundary.
+
 ## 2026-08-17 — Operasional Accounting boundary
 
 Change ID: `LEKER-OPS-ACC-BOUNDARY-20260817`

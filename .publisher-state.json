@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-final-recovery-20260818",
-  "sourceCommit": "95c122b44d3fbbee739a1ce50f307183019febd2",
-  "deploymentTrigger": "2026-08-18T23:16:00+07:00",
-  "deploymentTargetCommit": "95c122b44d3fbbee739a1ce50f307183019febd2",
-  "deploymentReason": "Trigger Cloudflare Git Integration for migration-aware Production V2 recovery and Worker deployment after schema verification"
+  "publisherRunId": "production-v2-supported-wrangler-recovery-20260818",
+  "sourceCommit": "12bfbab597db419dc1e42e4b14b8f718c5a42c73",
+  "deploymentTrigger": "2026-08-18T23:25:00+07:00",
+  "deploymentTargetCommit": "12bfbab597db419dc1e42e4b14b8f718c5a42c73",
+  "deploymentReason": "Retry canonical Production V2 migration 0039 recovery after removing unsupported Wrangler migrations apply --yes flag"
 }

@@ -1,4 +1,4 @@
-# inspection pulse: recent Production V2 recovery checks
+# inspection pulse: supported Wrangler Production V2 recovery
 name: Temporary Production V2 Live Smoke
 
 on:

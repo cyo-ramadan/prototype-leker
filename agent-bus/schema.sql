@@ -17,8 +17,30 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
   UNIQUE (family, slot, session)
 );
 
+-- What each agent family is allowed to pick up. Agents differ in access and in
+-- what they are good at, so routing is by kind rather than by whoever is idle.
+CREATE TABLE IF NOT EXISTS agent_roles (
+  family TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('DEBUG', 'FEATURE', 'MIGRATION', 'AUDIT', 'DOCS', 'ARCHITECTURE')),
+  PRIMARY KEY (family, kind)
+);
+
+-- The standing rules for a family, served with the task itself.
+--
+-- An agent cannot be relied on to have read a document before starting: a fresh
+-- session has read nothing. So the rules travel with the work instead of being a
+-- prerequisite to it. Documents remain the place for judgement; anything that
+-- must not be violated is a constraint below, not a paragraph here.
+CREATE TABLE IF NOT EXISTS agent_sops (
+  family TEXT PRIMARY KEY,
+  rules TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS agent_tasks (
   id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'FEATURE'
+    CHECK (kind IN ('DEBUG', 'FEATURE', 'MIGRATION', 'AUDIT', 'DOCS', 'ARCHITECTURE')),
   module TEXT NOT NULL,                   -- must exist in MODULE_OWNERSHIP.md
   title TEXT NOT NULL,
   objective TEXT NOT NULL,
@@ -91,6 +113,23 @@ BEGIN
   SELECT RAISE(ABORT, 'HANDOFF_REQUIRED');
 END;
 
+-- An agent may only claim the kinds of work its family is registered for. Luna
+-- takes DEBUG; Karen takes operasional FEATURE work. Routing is enforced here
+-- rather than trusted to each agent recognising which tasks are "theirs",
+-- because a fresh session has no way to know that on its own.
+CREATE TRIGGER IF NOT EXISTS trg_agent_claim_matches_role
+BEFORE INSERT ON agent_task_claims
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM agent_sessions s
+  JOIN agent_tasks t ON t.id = NEW.task_id
+  JOIN agent_roles r ON r.family = s.family AND r.kind = t.kind
+  WHERE s.id = NEW.session_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'ROLE_NOT_PERMITTED_FOR_TASK_KIND');
+END;
+
 -- Reports carry evidence. A status claim with no evidence is not a report, and
 -- only Hana closes a task, so no agent verifies its own work.
 CREATE TABLE IF NOT EXISTS agent_task_reports (
@@ -118,3 +157,17 @@ CREATE TABLE IF NOT EXISTS agent_task_verdicts (
   FOREIGN KEY (report_id) REFERENCES agent_task_reports(id),
   FOREIGN KEY (decided_by) REFERENCES agent_sessions(id)
 );
+
+-- Seed the roster. Families are registered explicitly; an unregistered family
+-- can claim nothing, which is the safe default when a new agent appears.
+INSERT OR IGNORE INTO agent_roles (family, kind) VALUES
+  ('hana','ARCHITECTURE'), ('hana','AUDIT'), ('hana','DOCS'), ('hana','MIGRATION'),
+  ('karen','FEATURE'), ('karen','MIGRATION'), ('karen','DOCS'),
+  ('elle','FEATURE'), ('elle','DOCS'),
+  ('luna','DEBUG');
+
+INSERT OR IGNORE INTO agent_sops (family, rules) VALUES
+  ('luna', 'Kerjakan hanya task kind=DEBUG. Reproduksi dulu sebelum memperbaiki; "flaky" bukan diagnosis. Jangan menonaktifkan atau melewati tes untuk membuat hijau. Jangan mengubah kebijakan Accounting/Inventory — gagal-tertutup dan lapor. Report wajib memuat perintah yang dijalankan beserta outputnya.'),
+  ('karen', 'Modul operasional. POS hanya mengirim business fact; jangan menentukan akun atau baris jurnal. Fitur yang berpotensi transaksi wajib terdaftar di transaction_categories + journal_rules sebelum task ditutup. Jangan menyentuh tabel milik modul lain.'),
+  ('elle', 'Modul produksi. Recipe adalah revisi immutable; jangan menghitung HPP dari harga bahan terbaru. Snapshot biaya diambil saat posting. Uang dan biaya selalu scaled INTEGER, dilarang REAL/FLOAT.'),
+  ('hana', 'Arsitektur, audit, dan verifikasi. Tulis task berisi intent dan contract, bukan source code. Verifikasi report; audit kerjaan hanya bila report dan kenyataan tidak cocok. Jangan memutuskan kebijakan akuntansi/persediaan sendiri.');

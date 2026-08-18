@@ -105,3 +105,48 @@ test('the trail survives the handoff so nothing has to be re-derived', () => {
   const learned = sqlite.prepare(`SELECT learned FROM agent_task_handoffs WHERE task_id='T-001'`).get();
   assert.match(learned.learned, /dibajak/, 'what was learned must reach the next session');
 });
+
+const openTask = (sqlite, id, kind) =>
+  sqlite.prepare(`INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by)
+                  VALUES (?,?,'operasional','t','o','d','hana.1')`).run(id, kind);
+
+test('an agent can only claim the kinds of work its family is registered for', () => {
+  const sqlite = board();
+  sqlite.exec(`INSERT INTO agent_sessions (id, family, slot, session) VALUES ('luna1.1','luna',1,1);`);
+  openTask(sqlite, 'T-DEBUG', 'DEBUG');
+
+  // Luna takes debugging. A feature task is not hers, and Karen does not take
+  // debugging — routing cannot depend on each agent recognising which tasks are
+  // "theirs", because a fresh session has no way to know that.
+  assert.throws(() => claim(sqlite, 'CX', 'T-001', 'luna1.1'), /ROLE_NOT_PERMITTED/);
+  assert.throws(() => claim(sqlite, 'CY', 'T-DEBUG', 'karen1.1'), /ROLE_NOT_PERMITTED/);
+
+  claim(sqlite, 'CZ', 'T-DEBUG', 'luna1.1');
+  const holder = sqlite.prepare(`SELECT session_id FROM agent_task_claims WHERE task_id='T-DEBUG' AND released_at IS NULL`).get();
+  assert.equal(holder.session_id, 'luna1.1');
+});
+
+test('an unregistered family can claim nothing', () => {
+  const sqlite = board();
+  sqlite.exec(`INSERT INTO agent_sessions (id, family, slot, session) VALUES ('nova1.1','nova',1,1);`);
+  assert.throws(() => claim(sqlite, 'CN', 'T-001', 'nova1.1'), /ROLE_NOT_PERMITTED/,
+    'a new agent starts with no permissions rather than inheriting everything');
+});
+
+test('the rules travel with the task instead of being a prerequisite', () => {
+  const sqlite = board();
+  sqlite.exec(`INSERT INTO agent_sessions (id, family, slot, session) VALUES ('luna1.1','luna',1,1);`);
+  openTask(sqlite, 'T-DEBUG', 'DEBUG');
+  claim(sqlite, 'CZ', 'T-DEBUG', 'luna1.1');
+
+  const briefing = sqlite.prepare(`
+    SELECT t.kind, t.objective, t.done_when, p.rules
+    FROM agent_task_claims c
+    JOIN agent_sessions s ON s.id = c.session_id
+    JOIN agent_tasks t ON t.id = c.task_id
+    JOIN agent_sops p ON p.family = s.family
+    WHERE c.id = 'CZ'
+  `).get();
+  assert.equal(briefing.kind, 'DEBUG');
+  assert.match(briefing.rules, /Reproduksi dulu/, 'a session that has read nothing still receives its SOP');
+});

@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const result = spawnSync(npx, [
@@ -16,10 +17,15 @@ if (result.error || result.status !== 0) {
 }
 
 const output = `${result.stdout || ''}\n${result.stderr || ''}`;
-if (/0039_flexible_manual_production\.sql/.test(output)) {
-  console.log('PRODUCTION_V2_MIGRATION_0039_UNAPPLIED');
+const localMigrations = readdirSync('migrations')
+  .filter(name => /^\d{4}_.+\.sql$/.test(name))
+  .sort();
+const pending = localMigrations.filter(name => output.includes(name));
+
+if (pending.length === 1 && pending[0] === '0039_flexible_manual_production.sql') {
+  console.log('PRODUCTION_V2_MIGRATION_0039_IS_SOLE_PENDING');
   process.exit(0);
 }
 
-console.error('PRODUCTION_V2_MIGRATION_0039_NOT_LISTED_AS_UNAPPLIED');
+console.error(`PRODUCTION_V2_PENDING_MIGRATION_SET_UNEXPECTED count=${pending.length}`);
 process.exit(32);

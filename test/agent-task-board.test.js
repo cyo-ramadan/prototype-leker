@@ -186,3 +186,35 @@ test('any architecture-permitted family can write tasks, not only one agent', ()
   `).run();
   assert.equal(sqlite.prepare(`SELECT written_by FROM agent_tasks WHERE id='T-X'`).get().written_by, 'karen1.1');
 });
+
+test('the queue keeps moving when Hana is gone', () => {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  sqlite.exec(schema);
+  sqlite.exec(readFileSync(new URL('../agent-bus/seed-tasks.sql', import.meta.url), 'utf8'));
+
+  // Whatever remains claimable by someone other than hana is what survives her
+  // running out of context. If that set were empty the board would be a queue
+  // with one possible worker, which is the dependency it exists to remove.
+  const claimableWithoutHana = sqlite.prepare(`
+    SELECT COUNT(DISTINCT t.id) AS n
+    FROM agent_tasks t
+    JOIN agent_roles r ON r.kind = t.kind
+    WHERE t.status = 'OPEN' AND r.family <> 'hana'
+  `).get().n;
+  const total = sqlite.prepare(`SELECT COUNT(*) AS n FROM agent_tasks`).get().n;
+
+  assert.ok(total >= 5, 'the queue is written ahead, not one task at a time');
+  assert.ok(claimableWithoutHana >= total - 1, 'nearly every queued task must be claimable without Hana');
+
+  // The one that is not is the one that mutates production, and it waits for
+  // Bos Cyo rather than for any agent.
+  const stuck = sqlite.prepare(`
+    SELECT id, mutates_production, self_closing FROM agent_tasks
+    WHERE NOT EXISTS (SELECT 1 FROM agent_roles r WHERE r.kind = agent_tasks.kind AND r.family <> 'hana')
+  `).all();
+  for (const task of stuck) {
+    assert.equal(task.mutates_production, 1, `${task.id} blocks on Hana without needing to`);
+    assert.equal(task.self_closing, 0);
+  }
+});

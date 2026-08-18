@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolveProductionInventoryTransfer } from '../src/accounting-warehouse-production-bridge.js';
+import { missingRequiredColumns } from '../scripts/verify-remote-schema.mjs';
 
 const migration = readFileSync(new URL('../migrations/0039_flexible_manual_production.sql', import.meta.url), 'utf8');
 const warehouseProduction = readFileSync(new URL('../src/warehouse-production.js', import.meta.url), 'utf8');
@@ -76,4 +77,24 @@ test('production commit dispatches Warehouse accounting bridge after stock batch
   assert.match(accountingBridge, /code = 'wh_production'/);
   assert.match(accountingBridge, /sourceSystem: 'LEKER_WAREHOUSE'/);
   assert.match(accountingBridge, /postAccountingJournal/);
+});
+
+test('deployment schema gate requires Production V2 snapshot columns', () => {
+  const readyPayload = [{ results: [
+    { name: 'production_runs', sql: 'CREATE TABLE production_runs (template_modified INTEGER, output_product_kind_id TEXT, output_product_kind_code TEXT, output_product_kind_name TEXT)' },
+    { name: 'production_run_components', sql: 'CREATE TABLE production_run_components (component_product_kind_id TEXT, component_product_kind_code TEXT, component_product_kind_name TEXT)' }
+  ] }];
+  assert.deepEqual(missingRequiredColumns(readyPayload), []);
+
+  const stalePayload = [{ results: [
+    { name: 'production_runs', sql: 'CREATE TABLE production_runs (template_modified INTEGER)' },
+    { name: 'production_run_components', sql: 'CREATE TABLE production_run_components (component_product_kind_id TEXT)' }
+  ] }];
+  assert.deepEqual(missingRequiredColumns(stalePayload), [
+    'production_runs.output_product_kind_id',
+    'production_runs.output_product_kind_code',
+    'production_runs.output_product_kind_name',
+    'production_run_components.component_product_kind_code',
+    'production_run_components.component_product_kind_name'
+  ]);
 });

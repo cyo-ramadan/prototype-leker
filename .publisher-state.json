@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-sole-pending-migration-probe-20260818",
-  "sourceCommit": "c61fdf1aebb68153fb9f08e8df459ccbcdbca86b",
-  "deploymentTrigger": "2026-08-18T23:39:00+07:00",
-  "deploymentTargetCommit": "c61fdf1aebb68153fb9f08e8df459ccbcdbca86b",
-  "deploymentReason": "Trigger read-only probe to verify migration 0039 is the sole remote pending repository migration"
+  "publisherRunId": "production-v2-0038-plus-0039-probe-20260818",
+  "sourceCommit": "7e89a8ea33fc27980a2f3f6dd3bfbcd2789eabe5",
+  "deploymentTrigger": "2026-08-18T23:42:00+07:00",
+  "deploymentTargetCommit": "7e89a8ea33fc27980a2f3f6dd3bfbcd2789eabe5",
+  "deploymentReason": "Trigger read-only Cloudflare build probe for exact pending migration set 0038_operational_accounting_boundary + 0039_flexible_manual_production"
 }

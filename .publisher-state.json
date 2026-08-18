@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-partial-schema-probe-20260818",
-  "sourceCommit": "47b3c93d859fff27233e998876ced3e53c7f075b",
-  "deploymentTrigger": "2026-08-18T23:35:00+07:00",
-  "deploymentTargetCommit": "47b3c93d859fff27233e998876ced3e53c7f075b",
-  "deploymentReason": "Trigger read-only probe to distinguish zero Production V2 target columns from partial migration-0039 schema drift"
+  "publisherRunId": "production-v2-sole-pending-migration-probe-20260818",
+  "sourceCommit": "c61fdf1aebb68153fb9f08e8df459ccbcdbca86b",
+  "deploymentTrigger": "2026-08-18T23:39:00+07:00",
+  "deploymentTargetCommit": "c61fdf1aebb68153fb9f08e8df459ccbcdbca86b",
+  "deploymentReason": "Trigger read-only probe to verify migration 0039 is the sole remote pending repository migration"
 }

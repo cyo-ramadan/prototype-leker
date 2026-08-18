@@ -8,19 +8,22 @@
     }
   }
 
-  async function submitApprovalRequest(requestType, payload) {
+  async function submitApprovalRequest(requestType, payload, { silent = false } = {}) {
     const result = await api('/api/cashier/approval-requests', {
       method: 'POST',
       body: JSON.stringify({ requestType, payload })
     });
     const label = result.request?.payload?.purpose === 'STOCK_ADJUSTMENT' ? 'Penyesuaian Stok' : result.request.requestType;
-    toast(`Pengajuan ${label} masuk · pending approval`);
+    if (!silent) toast(`Pengajuan ${label} masuk · pending approval`);
     return result;
   }
 
   async function stockAdjustmentDialog() {
     try {
-      const payload = await api('/api/cashier/stock-adjustment/options');
+      const [payload, pilatu] = await Promise.all([
+        api('/api/cashier/stock-adjustment/options'),
+        import('/stock-adjustment-pilatu.js')
+      ]);
       const products = payload.products || [];
       if (!products.length) {
         openDialog({
@@ -31,64 +34,188 @@
         });
         return;
       }
-      const options = products.map(product => `
-        <option value="${Number(product.productId)}" data-current="${Number(product.currentQuantity)}" data-unit="${escapeHtml(product.unitSymbol || '')}">
-          ${escapeHtml(product.productName)} · stok ${Number(product.currentQuantity)} ${escapeHtml(product.unitSymbol || '')}
-        </option>`).join('');
+
+      let selectedRows = [];
+      const productById = new Map(products.map(product => [Number(product.productId), product]));
 
       openDialog({
         eyebrow: 'Laci · Approval Queue',
         title: 'Penyesuaian Stok',
         body: `
-          <div class="field"><label>Barang</label><select id="stockAdjustmentProduct" class="text-input" required>${options}</select></div>
-          <div id="stockAdjustmentCurrent" class="cashier-lock-note"></div>
-          <div class="field"><label>Target stok fisik</label><input id="stockAdjustmentTarget" class="text-input" type="number" min="0" step="1" required /></div>
+          <style>
+            .stock-adjustment-search-wrap{position:relative;margin-bottom:12px}
+            .stock-adjustment-search-results{display:none;position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);max-height:230px;overflow:auto;border:1px solid #d8dde6;border-radius:12px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.16);padding:6px}
+            .stock-adjustment-search-results.is-open{display:block}
+            .stock-adjustment-search-result{display:flex;width:100%;min-height:44px;align-items:center;justify-content:space-between;gap:12px;border:0;border-radius:9px;background:transparent;padding:9px 10px;text-align:left;cursor:pointer}
+            .stock-adjustment-search-result:hover,.stock-adjustment-search-result:focus{background:#f3f5f8;outline:none}
+            .stock-adjustment-search-result span,.stock-adjustment-search-result small{display:block}
+            .stock-adjustment-search-result small{color:#6b7280;margin-top:2px}
+            .stock-adjustment-table{border:1px solid #e1e5eb;border-radius:12px;overflow:hidden;margin:12px 0}
+            .stock-adjustment-grid{display:grid;grid-template-columns:minmax(135px,1.7fr) minmax(76px,.72fr) minmax(92px,.82fr) minmax(78px,.72fr) minmax(72px,.68fr);gap:8px;align-items:center}
+            .stock-adjustment-head{background:#111827;color:#fff;padding:9px 10px;font-size:11px;font-weight:800}
+            .stock-adjustment-row{padding:9px 10px;border-top:1px solid #edf0f4;background:#fff}
+            .stock-adjustment-item{position:relative;min-width:0;padding-right:28px}
+            .stock-adjustment-item strong,.stock-adjustment-item small,.stock-adjustment-readonly strong,.stock-adjustment-readonly small,.stock-adjustment-difference strong,.stock-adjustment-difference small{display:block}
+            .stock-adjustment-item strong{white-space:normal;overflow-wrap:anywhere}
+            .stock-adjustment-item small,.stock-adjustment-readonly small,.stock-adjustment-difference small{color:#6b7280;margin-top:2px;font-size:10px}
+            .stock-adjustment-readonly,.stock-adjustment-difference{text-align:right;min-width:0}
+            .stock-adjustment-actual{margin:0;min-width:0}
+            .stock-adjustment-actual span{display:none}
+            .stock-adjustment-actual input{width:100%;min-width:0;margin:0;text-align:right;font-weight:800}
+            .stock-adjustment-remove{position:absolute;right:0;top:50%;transform:translateY(-50%);width:26px;height:26px;border:0;border-radius:50%;background:#f3f4f6;color:#6b7280;cursor:pointer}
+            .stock-adjustment-remove:hover{background:#fee2e2;color:#b91c1c}
+            .stock-adjustment-empty{padding:18px 12px;text-align:center;color:#6b7280}
+            .stock-adjustment-source-note{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 14px}
+            .stock-adjustment-source-note>div{background:#f6f7f9;border-radius:10px;padding:9px 10px;font-size:11px;color:#4b5563;line-height:1.45}
+            @media(max-width:680px){
+              .stock-adjustment-head{display:none}
+              .stock-adjustment-row{grid-template-columns:1fr 1fr;gap:9px;padding:12px 10px}
+              .stock-adjustment-item{grid-column:1/-1;min-height:34px}
+              .stock-adjustment-readonly,.stock-adjustment-difference{background:#f6f7f9;border-radius:9px;padding:8px;text-align:left}
+              .stock-adjustment-actual{position:relative;padding-top:16px}
+              .stock-adjustment-actual span{display:block;position:absolute;top:0;left:0;font-size:10px;color:#6b7280;font-weight:700}
+              .stock-adjustment-source-note{grid-template-columns:1fr}
+            }
+          </style>
+          <div class="field stock-adjustment-search-wrap">
+            <label>Cari barang</label>
+            <input id="stockAdjustmentSearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama barang..." />
+            <div id="stockAdjustmentSearchResults" class="stock-adjustment-search-results" role="listbox"></div>
+          </div>
+          <div class="stock-adjustment-table">
+            <div class="stock-adjustment-grid stock-adjustment-head">
+              <span>Barang</span><span>Qty Tercatat</span><span>Qty Sebenarnya</span><span>HPP</span><span>Selisih</span>
+            </div>
+            <div id="stockAdjustmentRows"></div>
+          </div>
+          <div class="stock-adjustment-source-note">
+            <div><b>Qty Tercatat</b><br />Read-only dari snapshot stok Warehouse saat panel dibuka.</div>
+            <div><b>HPP</b><br />Read-only milik Accounting. Sampai read binding Accounting tersedia, panel tidak mengarang angka HPP.</div>
+          </div>
           <div class="field"><label>Alasan penyesuaian</label><input id="stockAdjustmentReason" class="text-input" maxlength="220" placeholder="Contoh: hasil hitung fisik" required /></div>
           <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500"></textarea></div>
-          <div id="stockAdjustmentDelta" class="cashier-lock-note"></div>
-          <p class="muted">Saat diajukan, server menyimpan snapshot stok saat ini. Saat Admin/Owner ACC, stok dicek ulang. Jika sudah berubah karena transaksi lain, pengajuan ditolak sebagai stale dan harus diajukan ulang.</p>`,
+          <p class="muted">Setiap barang yang punya selisih dibuat sebagai pengajuan Penyesuaian Stok terpisah di Approval Queue. Saat Admin/Owner ACC, server tetap melakukan stale-snapshot guard per barang.</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
-          const productId = Number(el('stockAdjustmentProduct').value);
-          const targetQuantity = Number(el('stockAdjustmentTarget').value);
           const reason = el('stockAdjustmentReason').value.trim();
-          if (!Number.isInteger(productId)) throw new Error('Barang Penyesuaian Stok tidak valid.');
-          if (!Number.isInteger(targetQuantity) || targetQuantity < 0) throw new Error('Target stok wajib bilangan bulat minimal 0.');
           if (!reason) throw new Error('Alasan Penyesuaian Stok wajib diisi.');
-          await submitApprovalRequest('GOODS_FLOW', {
-            purpose: 'STOCK_ADJUSTMENT',
-            productId,
-            targetQuantity,
-            reason,
-            note: el('stockAdjustmentNote').value.trim()
-          });
+
+          const prepared = pilatu.prepareStockAdjustmentRows(selectedRows);
+          const changed = prepared.filter(row => row.difference !== 0);
+          if (!changed.length) throw new Error('Tidak ada selisih stok yang perlu diajukan.');
+
+          const note = el('stockAdjustmentNote').value.trim();
+          const submittedProductIds = [];
+          try {
+            for (const row of changed) {
+              await submitApprovalRequest('GOODS_FLOW', {
+                purpose: 'STOCK_ADJUSTMENT',
+                productId: row.productId,
+                targetQuantity: row.targetQuantity,
+                reason,
+                note
+              }, { silent: true });
+              submittedProductIds.push(row.productId);
+            }
+          } catch (error) {
+            selectedRows = selectedRows.filter(row => !submittedProductIds.includes(Number(row.productId)));
+            renderRows();
+            throw new Error(`${submittedProductIds.length} barang sudah berhasil diajukan. Sisanya belum diajukan: ${error.message}`);
+          }
+
+          const skipped = prepared.length - changed.length;
+          toast(`${changed.length} Penyesuaian Stok masuk Approval Queue${skipped ? ` · ${skipped} tanpa selisih dilewati` : ''}.`);
           return true;
         }
       });
 
-      const renderAdjustment = () => {
-        const option = el('stockAdjustmentProduct')?.selectedOptions?.[0];
-        const currentQuantity = Number(option?.dataset.current || 0);
-        const unit = option?.dataset.unit || '';
-        const targetInput = el('stockAdjustmentTarget');
-        if (targetInput && targetInput.value === '') targetInput.value = String(currentQuantity);
-        const targetQuantity = Number(targetInput?.value || currentQuantity);
-        const currentNode = el('stockAdjustmentCurrent');
-        if (currentNode) currentNode.textContent = `Stok sistem saat ini · ${currentQuantity} ${unit}`;
-        const deltaNode = el('stockAdjustmentDelta');
-        if (deltaNode) {
-          if (!Number.isInteger(targetQuantity) || targetQuantity < 0) deltaNode.textContent = 'Target stok belum valid.';
-          else if (targetQuantity === currentQuantity) deltaNode.textContent = 'Tidak ada selisih. Ubah target sesuai hasil stok fisik.';
-          else deltaNode.textContent = `Perubahan saat ACC · ${currentQuantity} → ${targetQuantity} ${unit} · ${targetQuantity > currentQuantity ? '+' : ''}${targetQuantity - currentQuantity}`;
+      const searchInput = el('stockAdjustmentSearch');
+      const searchResults = el('stockAdjustmentSearchResults');
+      const rowsNode = el('stockAdjustmentRows');
+
+      const formatQty = value => Number(value).toLocaleString('id-ID');
+      const formatDifference = difference => `${difference > 0 ? '+' : ''}${formatQty(difference)}`;
+
+      const renderRows = () => {
+        if (!rowsNode) return;
+        if (!selectedRows.length) {
+          rowsNode.innerHTML = '<div class="stock-adjustment-empty">Belum ada barang. Search lalu klik barang; setiap pilihan baru akan turun menjadi row dan row sebelumnya tetap ada.</div>';
+          return;
         }
+        rowsNode.innerHTML = selectedRows.map(row => {
+          const difference = pilatu.stockAdjustmentDifference(row);
+          const differenceLabel = difference === null ? 'Isi fisik' : difference > 0 ? 'PLUS / IN' : difference < 0 ? 'MINUS / OUT' : 'SAMA';
+          return `
+            <div class="stock-adjustment-grid stock-adjustment-row" data-stock-adjustment-row="${Number(row.productId)}">
+              <div class="stock-adjustment-item">
+                <strong>${escapeHtml(row.productName)}</strong>
+                <small>${escapeHtml(row.unitSymbol || '')}</small>
+                <button class="stock-adjustment-remove" type="button" data-stock-adjustment-remove="${Number(row.productId)}" aria-label="Hapus ${escapeHtml(row.productName)}">×</button>
+              </div>
+              <div class="stock-adjustment-readonly"><strong>${formatQty(row.currentQuantity)}</strong><small>Warehouse</small></div>
+              <label class="stock-adjustment-actual"><span>Qty Sebenarnya</span><input class="text-input" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(row.actualQuantity)}" data-stock-adjustment-actual="${Number(row.productId)}" aria-label="Qty Sebenarnya ${escapeHtml(row.productName)}" /></label>
+              <div class="stock-adjustment-readonly"><strong>${escapeHtml(row.accountingHppDisplay || '—')}</strong><small>Accounting</small></div>
+              <div class="stock-adjustment-difference"><strong>${difference === null ? '—' : formatDifference(difference)}</strong><small>${differenceLabel}</small></div>
+            </div>`;
+        }).join('');
       };
-      el('stockAdjustmentProduct')?.addEventListener('change', () => {
-        const option = el('stockAdjustmentProduct')?.selectedOptions?.[0];
-        if (el('stockAdjustmentTarget')) el('stockAdjustmentTarget').value = option?.dataset.current || '0';
-        renderAdjustment();
+
+      const renderSearchResults = () => {
+        if (!searchInput || !searchResults) return;
+        const query = searchInput.value.trim().toLowerCase();
+        if (!query) {
+          searchResults.classList.remove('is-open');
+          searchResults.innerHTML = '';
+          return;
+        }
+        const matches = products.filter(product => `${product.productName} ${product.productId} ${product.unitSymbol || ''}`.toLowerCase().includes(query)).slice(0, 20);
+        searchResults.innerHTML = matches.length ? matches.map(product => `
+          <button class="stock-adjustment-search-result" type="button" role="option" data-stock-adjustment-result="${Number(product.productId)}">
+            <span><b>${escapeHtml(product.productName)}</b><small>#${Number(product.productId)} · ${escapeHtml(product.unitSymbol || '')}</small></span>
+            <span style="text-align:right"><b>${formatQty(product.currentQuantity)}</b><small>Qty tercatat</small></span>
+          </button>`).join('') : '<div class="stock-adjustment-empty">Barang tidak ditemukan.</div>';
+        searchResults.classList.add('is-open');
+      };
+
+      searchInput?.addEventListener('input', renderSearchResults);
+      searchInput?.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        const first = searchResults?.querySelector('[data-stock-adjustment-result]');
+        if (!first) return;
+        event.preventDefault();
+        first.click();
       });
-      el('stockAdjustmentTarget')?.addEventListener('input', renderAdjustment);
-      renderAdjustment();
+
+      searchResults?.addEventListener('click', event => {
+        const button = event.target.closest('[data-stock-adjustment-result]');
+        if (!button) return;
+        const product = productById.get(Number(button.dataset.stockAdjustmentResult));
+        if (!product) return;
+        selectedRows = pilatu.selectStockAdjustmentProduct(selectedRows, product);
+        searchInput.value = '';
+        searchResults.classList.remove('is-open');
+        searchResults.innerHTML = '';
+        renderRows();
+        requestAnimationFrame(() => rowsNode?.querySelector(`[data-stock-adjustment-actual="${Number(product.productId)}"]`)?.focus());
+      });
+
+      rowsNode?.addEventListener('input', event => {
+        const input = event.target.closest('[data-stock-adjustment-actual]');
+        if (!input) return;
+        selectedRows = pilatu.updateStockAdjustmentActualQuantity(selectedRows, Number(input.dataset.stockAdjustmentActual), input.value);
+        renderRows();
+        requestAnimationFrame(() => rowsNode?.querySelector(`[data-stock-adjustment-actual="${Number(input.dataset.stockAdjustmentActual)}"]`)?.focus());
+      });
+
+      rowsNode?.addEventListener('click', event => {
+        const button = event.target.closest('[data-stock-adjustment-remove]');
+        if (!button) return;
+        selectedRows = pilatu.removeStockAdjustmentRow(selectedRows, Number(button.dataset.stockAdjustmentRemove));
+        renderRows();
+      });
+
+      renderRows();
+      searchInput?.focus();
     } catch (error) {
       toast(error.message);
     }

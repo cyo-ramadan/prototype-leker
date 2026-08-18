@@ -1,4 +1,4 @@
-# inspection pulse: Production V2 final recovery result
+# inspection pulse: recent Production V2 recovery checks
 name: Temporary Production V2 Live Smoke
 
 on:
@@ -15,7 +15,7 @@ jobs:
   inspect-main-checks:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect main deployment checks
+      - name: Inspect recent main deployment checks
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -23,23 +23,21 @@ jobs:
         run: |
           set -euo pipefail
           headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
-          main_sha="$(curl --fail --silent --show-error "${headers[@]}" "https://api.github.com/repos/$REPO/commits/main" | jq -r '.sha')"
-          echo "MAIN_SHA=$main_sha"
           curl --fail --silent --show-error "${headers[@]}" \
-            "https://api.github.com/repos/$REPO/commits/$main_sha/check-runs" > /tmp/checks.json
-          jq '{total_count, check_runs: [.check_runs[] | {id,name,status,conclusion,details_url,external_id,started_at,completed_at,output,app:{name:.app.name,slug:.app.slug}}]}' /tmp/checks.json
-
-          cloudflare_check_id="$(jq -r '.check_runs[] | select(.name == "Workers Builds: prototype-leker-v2") | .id' /tmp/checks.json)"
-          test -n "$cloudflare_check_id" && test "$cloudflare_check_id" != "null"
-          echo "CLOUDFLARE_CHECK_RUN_ID=$cloudflare_check_id"
-          echo '--- CLOUDFLARE CHECK RUN ---'
-          curl --fail --silent --show-error "${headers[@]}" \
-            "https://api.github.com/repos/$REPO/check-runs/$cloudflare_check_id" \
-            | jq '{id,name,status,conclusion,details_url,external_id,output,actions,app:{name:.app.name,slug:.app.slug}}'
-          echo '--- CLOUDFLARE ANNOTATIONS ---'
-          curl --fail --silent --show-error "${headers[@]}" \
-            "https://api.github.com/repos/$REPO/check-runs/$cloudflare_check_id/annotations?per_page=100" \
-            | jq '.'
+            "https://api.github.com/repos/$REPO/commits?sha=main&per_page=8" > /tmp/commits.json
+          found=0
+          while read -r sha; do
+            echo "=== COMMIT $sha ==="
+            curl --fail --silent --show-error "${headers[@]}" \
+              "https://api.github.com/repos/$REPO/commits/$sha/check-runs" > /tmp/checks.json
+            jq '[.check_runs[] | {id,name,status,conclusion,details_url,external_id,started_at,completed_at,app:{name:.app.name,slug:.app.slug}}]' /tmp/checks.json
+            if jq -e '.check_runs[] | select(.name == "Workers Builds: prototype-leker-v2")' /tmp/checks.json >/dev/null; then
+              found=1
+              echo '--- CLOUDFLARE CHECK ---'
+              jq '.check_runs[] | select(.name == "Workers Builds: prototype-leker-v2") | {id,name,status,conclusion,details_url,external_id,started_at,completed_at,output}' /tmp/checks.json
+            fi
+          done < <(jq -r '.[].sha' /tmp/commits.json)
+          test "$found" = "1"
 
   live-production-v2-smoke:
     runs-on: ubuntu-latest

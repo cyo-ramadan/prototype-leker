@@ -129,18 +129,60 @@ Two related defects were fixed alongside it:
   `accounting-pos-bridge.js` skipped the voided check, so swapping two lines in `src/index.js`
   would have silently re-enabled re-posting voided transactions. The route now has one owner.
 
+## Finding 7 — Setting Akuntansi reported COMPLETE while sales could not post (fixed)
+
+**This is what made every other finding silent.**
+
+`completeness` was computed from the rule shape alone: at least one active Debit rule and
+one active Credit rule. `store_001`'s `sale` category has two of each, so Setting Akuntansi
+displayed **Lengkap** — while every sale failed closed, because the things those rules
+resolve *through* were not ready.
+
+A status that says complete when nothing can post is worse than no status. The admin has
+every reason to stop looking.
+
+Readiness is now computed from what the resolver actually needs, and blockers are matched to
+a category by the source types its own active rules use rather than hard-coded per category:
+
+| Blocker | Raised when |
+|---|---|
+| `NO_ACTIVE_DEBIT_CREDIT` | the category lacks an active side |
+| `PAYMENT_METHOD_UNMAPPED` | a `payment_method` rule exists and an active method has no account |
+| `PRODUCT_WITHOUT_KIND` | an `item_category_*` rule exists and active products carry no Jenis Barang |
+| `PRODUCT_KIND_UNMAPPED` | a Jenis Barang in use has no active `item_categories` row |
+| `PRODUCT_KIND_REVENUE_UNMAPPED` | an `item_category_revenue` rule exists and the mapping has no revenue account |
+
+`COMPLETE` now means a fact of that category can actually post. The blockers are rendered in
+the category panel, so what is missing is named where it is fixed.
+
+Building the tests surfaced a related fact: **the migration chain never seeds `sale` journal
+rules**. In production they were created by hand on 2026-08-16. Every newly migrated store
+therefore starts unable to post sales, which is why Finding 4 holds for `store_002` and the
+third store. A freshly migrated `store_001` also has `NON_CASH` active with no account and
+all 20 active products without a Jenis Barang — three independent reasons a new store cannot
+post a sale, none of which were previously visible.
+
 ## Recommended order
 
 1. **Run the existing reconciliation** (`POST /api/admin/accounting/bridge/sync`) per store.
    The backlog is now visible in the Accounting workspace, so what needs re-driving is legible
    before anyone presses it. This changes the books and needs Bos Cyo's authority.
-2. Configure `sale` rules for `store_002` and the third store.
+2. Configure `sale` rules for `store_002` and the third store. The Setting Akuntansi panel
+   now names what each store is still missing.
 3. Set Jenis Barang on the product blocking the remaining sale.
 4. Decide `payroll` and `deposit`, or record that they stay closed deliberately, as
    `wh_return` already is.
 
-Steps 2–4 are configuration and data, not engineering. The engineering part is already
-done: the recovery path existed, and this change made the backlog it recovers visible.
+Steps 2–4 are configuration and data, not engineering. The engineering part is done: the
+recovery path already existed, and these changes made both the backlog it recovers and the
+configuration it needs visible instead of silent.
+
+Still open as an owner decision, deliberately not taken here: whether Leker keeps **perpetual**
+inventory, where every sale needs a per-line cost snapshot and posts four legs, or moves to
+**periodic**, where a sale posts settlement and revenue only and HPP is computed at period
+close. That is an accounting policy with real consequences for mid-period margin and for the
+inventory figure on the Neraca, and Constitution R2 puts it with Bos Cyo rather than with an
+agent. It does not change the ownership boundary either way.
 
 ## Not done here
 

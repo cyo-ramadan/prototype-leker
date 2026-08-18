@@ -23,6 +23,7 @@ test('temporary deploy remains a bounded Production V2 recovery/probe command', 
   assert.equal([
     'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
     'node scripts/probe-production-v2-remote-schema-temp.mjs',
-    'node scripts/probe-production-v2-d1-connectivity-temp.mjs'
+    'node scripts/probe-production-v2-d1-connectivity-temp.mjs',
+    'node scripts/probe-production-v2-migration-state-temp.mjs'
   ].includes(packageJson.scripts.deploy), true);
 });

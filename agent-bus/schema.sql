@@ -1,260 +1,167 @@
 -- Dikerjakan oleh: hana1.1 — arsitektur, MAXI agent roster
-PRAGMA foreign_keys = ON;
-
--- MAXI Agent Task Board — MAXI_AGENT_TASK_BOARD_V1
+-- MAXI Agent Bus — reproduces D1 `maxi-agent-bus`
+-- (cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6), account Daily Napkin.
 --
--- Applies to D1 `maxi-agent-bus` (cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6), NOT to
--- prototype-leker-db. Agent coordination is tooling; putting it inside a product
--- database would place agent state inside a tenant's data once Leker is
--- multi-tenant, for no benefit.
+-- The base tables here were designed by Zee and already existed. Hana checked
+-- before building and found them: tasks, reports, escalations,
+-- core_change_requests, territory, handshake. Adding a second parallel board
+-- would have been the duplicate architecture this project keeps paying for, so
+-- what follows extends Zee's board rather than replacing it.
+--
+-- Zee's design contributed the richer report shape, the escalation path, core
+-- change requests, and territory-by-path. Hana's overlay adds what it lacked:
+-- session identity, handoff and takeover enforced by trigger, and role routing.
 
+-- ---------------------------------------------------------------- Zee's base
+CREATE TABLE IF NOT EXISTS tasks (
+  task_id TEXT PRIMARY KEY,
+  assigned_to TEXT NOT NULL,
+  issued_by TEXT NOT NULL DEFAULT 'ZEE',
+  role TEXT NOT NULL DEFAULT 'IMPLEMENTER',
+  territory TEXT NOT NULL,
+  migration_range TEXT,
+  protocol_version TEXT NOT NULL,
+  title TEXT NOT NULL,
+  brief TEXT NOT NULL,
+  acceptance_criteria TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT,
+  -- Hana's additions, applied by ALTER on the live bus.
+  kind TEXT NOT NULL DEFAULT 'FEATURE',
+  self_closing INTEGER NOT NULL DEFAULT 0,
+  mutates_production INTEGER NOT NULL DEFAULT 0,
+  is_probe INTEGER NOT NULL DEFAULT 0,
+  system_scope TEXT NOT NULL DEFAULT 'APPLICATION',
+  tenant_scope TEXT NOT NULL DEFAULT 'NONE',
+  canonical_touch INTEGER NOT NULL DEFAULT 0,
+  forbidden TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  report_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, agent TEXT NOT NULL,
+  role TEXT NOT NULL, territory TEXT, protocol_version_read TEXT,
+  migration_range_used TEXT, summary TEXT NOT NULL, files_changed TEXT,
+  contracts_changed TEXT, migrations TEXT, tests_and_results TEXT,
+  compatibility TEXT, doc_impact TEXT, deployment_notes TEXT, rollback TEXT,
+  files_read_outside_territory TEXT, transactions_registered TEXT,
+  known_issues TEXT, open_risks TEXT, final_status TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS escalations (
+  escalation_id TEXT PRIMARY KEY, raised_by TEXT NOT NULL, task_id TEXT,
+  blocking_item TEXT NOT NULL, ambiguity TEXT NOT NULL, sources_consulted TEXT,
+  options_considered TEXT, impact TEXT, decision_required TEXT NOT NULL,
+  routed_to TEXT NOT NULL DEFAULT 'ZEE', resolution TEXT,
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), resolved_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS core_change_requests (
+  ccr_id TEXT PRIMARY KEY, raised_by TEXT NOT NULL, task_id TEXT,
+  requesting_module TEXT NOT NULL, requested_change TEXT NOT NULL,
+  business_reason TEXT NOT NULL, affected_surface TEXT NOT NULL,
+  contract_impact TEXT NOT NULL, affected_consumers TEXT,
+  proposed_compatibility TEXT, verdict TEXT, verdict_reason TEXT,
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), decided_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS territory (
+  path_prefix TEXT PRIMARY KEY, owner TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'FROZEN', notes TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS handshake (
+  ping_id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL,
+  message TEXT NOT NULL, can_read_tasks TEXT, can_write_reports TEXT,
+  github_access TEXT, drive_access TEXT, cloudflare_account TEXT, notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ------------------------------------------------------- Hana's enforcement
+-- A session is one context window. `karen1.2` shares no memory with `karen1.1`.
 CREATE TABLE IF NOT EXISTS agent_sessions (
-  id TEXT PRIMARY KEY,                    -- e.g. karen1.2
-  family TEXT NOT NULL,                   -- karen | elle | hana | zee
-  slot INTEGER NOT NULL CHECK (slot >= 1),
-  session INTEGER NOT NULL CHECK (session >= 1),
-  started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ended_at TEXT,
+  id TEXT PRIMARY KEY, family TEXT NOT NULL,
+  slot INTEGER NOT NULL, session INTEGER NOT NULL,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')), ended_at TEXT,
   UNIQUE (family, slot, session)
 );
 
--- What each agent family is allowed to pick up. Agents differ in access and in
--- what they are good at, so routing is by kind rather than by whoever is idle.
 CREATE TABLE IF NOT EXISTS agent_roles (
-  family TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('DEBUG', 'FEATURE', 'MIGRATION', 'AUDIT', 'DOCS', 'ARCHITECTURE')),
-  PRIMARY KEY (family, kind)
+  family TEXT NOT NULL, kind TEXT NOT NULL, PRIMARY KEY (family, kind)
 );
 
--- The standing rules for a family, served with the task itself.
---
--- An agent cannot be relied on to have read a document before starting: a fresh
--- session has read nothing. So the rules travel with the work instead of being a
--- prerequisite to it. Documents remain the place for judgement; anything that
--- must not be violated is a constraint below, not a paragraph here.
+-- Rules travel with the work: a fresh session has read nothing, so requiring it
+-- to have read a document first is a rule broken by construction.
 CREATE TABLE IF NOT EXISTS agent_sops (
-  family TEXT PRIMARY KEY,
-  rules TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  family TEXT PRIMARY KEY, rules TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS agent_tasks (
-  id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL DEFAULT 'FEATURE'
-    CHECK (kind IN ('DEBUG', 'FEATURE', 'MIGRATION', 'AUDIT', 'DOCS', 'ARCHITECTURE')),
-  module TEXT NOT NULL,                   -- must exist in MODULE_OWNERSHIP.md
-  title TEXT NOT NULL,
-  objective TEXT NOT NULL,
-  inputs TEXT NOT NULL DEFAULT '',        -- files, tables, endpoints to read first
-  contract TEXT NOT NULL DEFAULT '',      -- ids that must line up, invariants to hold
-  done_when TEXT NOT NULL,                -- checkable conditions, not intentions
-  -- Reversible work whose done_when a machine can check does not wait for a
-  -- verdict. Constitution: reviewer approval is advisory and may not block
-  -- completing or merging. Only irreversible work needs a human decision, and
-  -- that decision belongs to Bos Cyo rather than to any agent.
-  self_closing INTEGER NOT NULL DEFAULT 0 CHECK (self_closing IN (0, 1)),
-  -- Production data mutation always needs Bos Cyo's explicit authority, so it
-  -- can never be self-closing regardless of how good the evidence looks.
-  mutates_production INTEGER NOT NULL DEFAULT 0 CHECK (mutates_production IN (0, 1)),
-  -- Probes are how a candidate agent earns its kinds. Every candidate gets the
-  -- same ones so the results compare, and the evidence decides rather than an
-  -- impression formed in conversation.
-  is_probe INTEGER NOT NULL DEFAULT 0 CHECK (is_probe IN (0, 1)),
-  -- Where the change lives, from issue #93. A shared module serves every tenant,
-  -- so the blast radius of an edit differs by scope even when the diff looks the
-  -- same size.
-  system_scope TEXT NOT NULL DEFAULT 'APPLICATION'
-    CHECK (system_scope IN ('SHARED_MODULE', 'APPLICATION', 'TENANT_CONFIG', 'PLATFORM_INFRA')),
-  tenant_scope TEXT NOT NULL DEFAULT 'NONE',
-  -- Whether the task touches a canonical object — chart_of_accounts, a posted
-  -- journal, a contract, a migration already applied. Declared rather than
-  -- discovered, so review effort goes where it is warranted.
-  canonical_touch INTEGER NOT NULL DEFAULT 0 CHECK (canonical_touch IN (0, 1)),
-  forbidden TEXT NOT NULL DEFAULT '',     -- what this task must not touch
-  status TEXT NOT NULL DEFAULT 'OPEN'
-    CHECK (status IN ('OPEN', 'CLAIMED', 'REPORTED', 'BLOCKED', 'DONE')),
-  written_by TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (written_by) REFERENCES agent_sessions(id),
-  CHECK (NOT (self_closing = 1 AND mutates_production = 1))
+CREATE TABLE IF NOT EXISTS task_claims (
+  id TEXT PRIMARY KEY, task_id TEXT NOT NULL, session_id TEXT NOT NULL,
+  claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  released_at TEXT, release_reason TEXT,
+  CHECK (released_at IS NULL OR release_reason IS NOT NULL)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_claims_open
+  ON task_claims (task_id) WHERE released_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_agent_tasks_open ON agent_tasks (status, module, created_at);
-
--- Handoffs are written before the receiving session may claim, so the trigger
--- below can see them. A handoff is the knowledge transfer itself, not a receipt.
-CREATE TABLE IF NOT EXISTS agent_task_handoffs (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL,
-  from_session_id TEXT NOT NULL,
-  to_session_id TEXT NOT NULL,
-  done_so_far TEXT NOT NULL,
-  not_done TEXT NOT NULL,
-  learned TEXT NOT NULL DEFAULT '',       -- what is true but not visible in the code
-  do_not_repeat TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (task_id) REFERENCES agent_tasks(id),
-  FOREIGN KEY (from_session_id) REFERENCES agent_sessions(id),
-  FOREIGN KEY (to_session_id) REFERENCES agent_sessions(id),
+CREATE TABLE IF NOT EXISTS task_handoffs (
+  id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+  from_session_id TEXT NOT NULL, to_session_id TEXT NOT NULL,
+  done_so_far TEXT NOT NULL, not_done TEXT NOT NULL,
+  learned TEXT NOT NULL DEFAULT '', do_not_repeat TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
   CHECK (from_session_id <> to_session_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_agent_handoffs_task ON agent_task_handoffs (task_id, created_at);
-
-CREATE TABLE IF NOT EXISTS agent_task_claims (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL,
-  session_id TEXT NOT NULL,
-  claimed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  released_at TEXT,
-  release_reason TEXT CHECK (release_reason IN ('REPORTED', 'HANDOFF', 'BLOCKED', 'ABANDONED')),
-  FOREIGN KEY (task_id) REFERENCES agent_tasks(id),
-  FOREIGN KEY (session_id) REFERENCES agent_sessions(id),
-  CHECK (released_at IS NULL OR release_reason IS NOT NULL)
-);
-
--- One task, one holder. Two agents editing the same module in parallel is the
--- collision the slot numbering exists to prevent.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_claims_open
-  ON agent_task_claims (task_id) WHERE released_at IS NULL;
-
--- A later session may not pick up another session's task unless a handoff names
--- it. This is a trigger and not a convention because the convention is exactly
--- what failed: sessions ended, their knowledge ended with them, and the next one
--- re-derived it wrongly.
-CREATE TRIGGER IF NOT EXISTS trg_agent_claim_requires_handoff
-BEFORE INSERT ON agent_task_claims
-WHEN EXISTS (
-      SELECT 1 FROM agent_task_claims c
-      WHERE c.task_id = NEW.task_id AND c.session_id <> NEW.session_id
-    )
- AND NOT EXISTS (
-      SELECT 1 FROM agent_task_handoffs h
-      WHERE h.task_id = NEW.task_id AND h.to_session_id = NEW.session_id
-    )
- AND NOT EXISTS (
-      SELECT 1 FROM agent_task_takeovers k
-      WHERE k.task_id = NEW.task_id AND k.to_session_id = NEW.session_id
-    )
-BEGIN
-  SELECT RAISE(ABORT, 'HANDOFF_OR_TAKEOVER_REQUIRED');
-END;
-
--- An agent may only claim the kinds of work its family is registered for. Luna
--- takes DEBUG; Karen takes operasional FEATURE work. Routing is enforced here
--- rather than trusted to each agent recognising which tasks are "theirs",
--- because a fresh session has no way to know that on its own.
-CREATE TRIGGER IF NOT EXISTS trg_agent_claim_matches_role
-BEFORE INSERT ON agent_task_claims
-WHEN NOT EXISTS (
-  SELECT 1
-  FROM agent_sessions s
-  JOIN agent_tasks t ON t.id = NEW.task_id
-  JOIN agent_roles r ON r.family = s.family AND r.kind = t.kind
-  WHERE s.id = NEW.session_id
-)
-BEGIN
-  SELECT RAISE(ABORT, 'ROLE_NOT_PERMITTED_FOR_TASK_KIND');
-END;
-
--- Which paths a task owns while it is held.
---
--- Slots stop two agents claiming the same task. They do not stop two different
--- tasks editing the same file, which is the collision that actually hurt: five
--- Karen tabs running at once, one holding because another had not deployed a
--- shared variable yet. Task-level isolation is not file-level isolation, and
--- only the second one prevents a git conflict.
-CREATE TABLE IF NOT EXISTS agent_task_paths (
-  task_id TEXT NOT NULL,
-  path_prefix TEXT NOT NULL,
-  PRIMARY KEY (task_id, path_prefix),
-  FOREIGN KEY (task_id) REFERENCES agent_tasks(id)
-);
-
--- Refuse a claim whose paths overlap paths already held. Overlap is prefix
--- containment in either direction, so declaring a directory reserves everything
--- under it. Five agents may run at once precisely when their path sets are
--- disjoint — and now that is enforced rather than hoped for.
-CREATE TRIGGER IF NOT EXISTS trg_agent_claim_path_conflict
-BEFORE INSERT ON agent_task_claims
-WHEN EXISTS (
-  SELECT 1
-  FROM agent_task_paths mine
-  JOIN agent_task_paths theirs ON theirs.task_id <> mine.task_id
-  JOIN agent_task_claims held ON held.task_id = theirs.task_id AND held.released_at IS NULL
-  WHERE mine.task_id = NEW.task_id
-    AND (mine.path_prefix LIKE theirs.path_prefix || '%'
-      OR theirs.path_prefix LIKE mine.path_prefix || '%')
-)
-BEGIN
-  SELECT RAISE(ABORT, 'PATH_HELD_BY_ANOTHER_CLAIM');
-END;
-
--- A session can die without warning: the tab is closed, the container is
--- reclaimed, the quota ends mid-sentence. The handoff rule alone would strand
--- that task forever, because the session that owed the handoff is gone and
--- cannot write one. Issue #93 caught this; the first version of this schema
--- deadlocked on it.
---
--- A takeover is deliberately not a handoff. Nobody may fabricate what the dead
--- session knew, so the replacement states what it reconstructed and from which
--- evidence, and that difference stays visible in the trail forever.
-CREATE TABLE IF NOT EXISTS agent_task_takeovers (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL,
-  from_session_id TEXT NOT NULL,
-  to_session_id TEXT NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('UNEXPECTED_TERMINATION', 'OWNER_REASSIGNMENT')),
-  reconstructed_from TEXT NOT NULL,   -- commits, PRs, board rows the state was rebuilt from
-  reconstructed_state TEXT NOT NULL,  -- what the new session believes is true, and why
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (task_id) REFERENCES agent_tasks(id),
-  FOREIGN KEY (from_session_id) REFERENCES agent_sessions(id),
-  FOREIGN KEY (to_session_id) REFERENCES agent_sessions(id),
+-- A session can die without warning. The handoff rule alone would strand its
+-- task forever. A takeover is not a handoff: nobody may fabricate what the dead
+-- session knew, so the replacement states what it rebuilt and from what.
+CREATE TABLE IF NOT EXISTS task_takeovers (
+  id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+  from_session_id TEXT NOT NULL, to_session_id TEXT NOT NULL,
+  reason TEXT NOT NULL, reconstructed_from TEXT NOT NULL,
+  reconstructed_state TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
   CHECK (from_session_id <> to_session_id),
   CHECK (length(trim(reconstructed_from)) > 0),
   CHECK (length(trim(reconstructed_state)) > 0)
 );
 
--- Reports carry evidence. A status claim with no evidence is not a report, and
--- only Hana closes a task, so no agent verifies its own work.
-CREATE TABLE IF NOT EXISTS agent_task_reports (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL,
-  session_id TEXT NOT NULL,
-  done_when_outcome TEXT NOT NULL,
-  evidence TEXT NOT NULL,                 -- commands run, output, tests added
-  open_risks TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (task_id) REFERENCES agent_tasks(id),
-  FOREIGN KEY (session_id) REFERENCES agent_sessions(id),
-  CHECK (length(trim(evidence)) > 0)
+-- Two tasks editing one file is the collision that actually hurt: a tab holding
+-- because another had not deployed a shared variable yet.
+CREATE TABLE IF NOT EXISTS task_paths (
+  task_id TEXT NOT NULL, path_prefix TEXT NOT NULL,
+  PRIMARY KEY (task_id, path_prefix)
 );
 
-CREATE TABLE IF NOT EXISTS agent_task_verdicts (
-  id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL,
-  report_id TEXT NOT NULL,
-  verdict TEXT NOT NULL CHECK (verdict IN ('ACCEPTED', 'REJECTED', 'AUDITED')),
-  reason TEXT NOT NULL DEFAULT '',
-  decided_by TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (task_id) REFERENCES agent_tasks(id),
-  FOREIGN KEY (report_id) REFERENCES agent_task_reports(id),
-  FOREIGN KEY (decided_by) REFERENCES agent_sessions(id)
-);
+CREATE TRIGGER IF NOT EXISTS trg_claim_requires_handoff
+BEFORE INSERT ON task_claims
+WHEN EXISTS (SELECT 1 FROM task_claims c WHERE c.task_id = NEW.task_id AND c.session_id <> NEW.session_id)
+ AND NOT EXISTS (SELECT 1 FROM task_handoffs h WHERE h.task_id = NEW.task_id AND h.to_session_id = NEW.session_id)
+ AND NOT EXISTS (SELECT 1 FROM task_takeovers k WHERE k.task_id = NEW.task_id AND k.to_session_id = NEW.session_id)
+BEGIN SELECT RAISE(ABORT, 'HANDOFF_OR_TAKEOVER_REQUIRED'); END;
 
--- Seed the roster. Families are registered explicitly; an unregistered family
--- can claim nothing, which is the safe default when a new agent appears.
-INSERT OR IGNORE INTO agent_roles (family, kind) VALUES
-  ('hana','ARCHITECTURE'), ('hana','AUDIT'), ('hana','DOCS'), ('hana','MIGRATION'),
-  ('karen','FEATURE'), ('karen','MIGRATION'), ('karen','DOCS'),
-  ('elle','FEATURE'), ('elle','DOCS'),
-  ('luna','DEBUG');
+CREATE TRIGGER IF NOT EXISTS trg_claim_matches_role
+BEFORE INSERT ON task_claims
+WHEN NOT EXISTS (
+  SELECT 1 FROM agent_sessions s JOIN tasks t ON t.task_id = NEW.task_id
+  JOIN agent_roles r ON r.family = s.family AND r.kind = t.kind
+  WHERE s.id = NEW.session_id)
+BEGIN SELECT RAISE(ABORT, 'ROLE_NOT_PERMITTED_FOR_TASK_KIND'); END;
 
-INSERT OR IGNORE INTO agent_sops (family, rules) VALUES
-  ('luna', 'Kerjakan hanya task kind=DEBUG. Reproduksi dulu sebelum memperbaiki; "flaky" bukan diagnosis. Jangan menonaktifkan atau melewati tes untuk membuat hijau. Jangan mengubah kebijakan Accounting/Inventory — gagal-tertutup dan lapor. Report wajib memuat perintah yang dijalankan beserta outputnya.'),
-  ('karen', 'Modul operasional. POS hanya mengirim business fact; jangan menentukan akun atau baris jurnal. Fitur yang berpotensi transaksi wajib terdaftar di transaction_categories + journal_rules sebelum task ditutup. Jangan menyentuh tabel milik modul lain.'),
-  ('elle', 'Modul produksi. Recipe adalah revisi immutable; jangan menghitung HPP dari harga bahan terbaru. Snapshot biaya diambil saat posting. Uang dan biaya selalu scaled INTEGER, dilarang REAL/FLOAT.'),
-  ('hana', 'Arsitektur, audit, dan verifikasi. Tulis task berisi intent dan contract, bukan source code. Verifikasi report; audit kerjaan hanya bila report dan kenyataan tidak cocok. Jangan memutuskan kebijakan akuntansi/persediaan sendiri.');
+CREATE TRIGGER IF NOT EXISTS trg_claim_path_conflict
+BEFORE INSERT ON task_claims
+WHEN EXISTS (
+  SELECT 1 FROM task_paths mine
+  JOIN task_paths theirs ON theirs.task_id <> mine.task_id
+  JOIN task_claims held ON held.task_id = theirs.task_id AND held.released_at IS NULL
+  WHERE mine.task_id = NEW.task_id
+    AND (mine.path_prefix LIKE theirs.path_prefix || '%'
+      OR theirs.path_prefix LIKE mine.path_prefix || '%'))
+BEGIN SELECT RAISE(ABORT, 'PATH_HELD_BY_ANOTHER_CLAIM'); END;

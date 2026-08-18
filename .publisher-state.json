@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-d1-connectivity-probe-20260818",
-  "sourceCommit": "99c6137a69fb01126f3841795363c9bb080f2d59",
-  "deploymentTrigger": "2026-08-18T23:05:00+07:00",
-  "deploymentTargetCommit": "99c6137a69fb01126f3841795363c9bb080f2d59",
-  "deploymentReason": "Trigger Cloudflare Git Integration for read-only D1 SELECT 1 connectivity probe; no Worker deploy in npm run deploy"
+  "publisherRunId": "production-v2-migration-state-probe-20260818",
+  "sourceCommit": "427e282ddf7e29d9060de7b33c70147fc362b51c",
+  "deploymentTrigger": "2026-08-18T23:12:00+07:00",
+  "deploymentTargetCommit": "427e282ddf7e29d9060de7b33c70147fc362b51c",
+  "deploymentReason": "Trigger Cloudflare Git Integration for read-only migration 0039 state probe; no Worker deploy in npm run deploy"
 }

@@ -27,8 +27,15 @@ npm test        # node --test, seluruh suite (termasuk agent-bridge/)
 npm run check   # syntax check; daftar file eksplisit — tambahkan file baru ke sini
 ```
 
-Jalankan keduanya sebelum commit. `npm run deploy` saat ini menunjuk ke script
-recovery temporer, **bukan** alur canonical — jangan dipakai sebagai bukti deploy.
+Jalankan keduanya sebelum commit.
+
+`npm run deploy` adalah alur canonical: `db:migrations:apply` → `db:schema:verify`
+→ `wrangler deploy`. Urutannya yang menjaga keamanan, bukan sekadar isinya —
+migration jalan dulu supaya rekonsiliasi yang tertunda ikut ter-apply sebelum
+verifier menilai schema, dan verifier jalan sebelum Worker dipromosikan supaya
+database yang drift menghentikan rilis. **Jangan** membelokkan script ini ke
+script recovery sekali-pakai; sudah tiga kali terjadi dan tidak pernah
+dikembalikan. `test/canonical-deploy-command.test.js` menjaga bentuknya.
 
 ## Invariant yang tidak boleh dilanggar
 

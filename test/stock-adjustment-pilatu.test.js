@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import {
   prepareStockAdjustmentRows,
   selectStockAdjustmentProduct,
@@ -37,6 +38,10 @@ test('PILATU keeps Mineral when Margarin is selected next', () => {
       { name: 'Margarin', target: 9, difference: 2 }
     ]
   );
+});
+
+test('live Stock Adjustment override is valid classic-script syntax', () => {
+  assert.doesNotThrow(() => new vm.Script(liveUiSource, { filename: 'cashier-stock-adjustment-pilatu.js' }));
 });
 
 test('live Stock Adjustment loads PILATU after legacy approval actions and intercepts its click', () => {

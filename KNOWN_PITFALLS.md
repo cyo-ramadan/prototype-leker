@@ -1,5 +1,22 @@
 # Known Pitfalls — Prototype Leker
 
+## Recipe acuan tidak boleh menjadi transaksi produksi yang kaku
+
+**Pitfall:** Jangan memperlakukan Recipe/BOM Master sebagai angka final yang wajib sama dengan real production, dan jangan menyimpan perubahan real production kembali ke Master Recipe.
+
+Actual yield dan actual consumption dapat berbeda dari standar karena kondisi lapangan. Memaksa transaksi mengikuti Recipe akan membuat stok/HPP salah; menulis deviasi transaksi ke Recipe akan merusak master standar dan historical meaning.
+
+**Correct pattern:**
+
+- Recipe/BOM tetap immutable revision dan hanya menjadi template/acuan awal;
+- Production Panel menyalin recipe ke form transaksi lalu output qty dan bahan aktual boleh diedit/add/remove;
+- `production_run_components` menyimpan actual consumed components dan `production_runs.total_output_quantity` menyimpan actual output;
+- HPP produksi dihitung server-side dari actual qty × exact scaled component cost snapshot;
+- perubahan stok harus muncul sebagai `PRODUCTION_INPUT` dan `PRODUCTION_OUTPUT` pada canonical `stock_movements`;
+- Product Kind transaksi disnapshot sebelum Accounting Bridge agar perubahan Master setelah posting tidak mengganti interpretasi historical production;
+- Accounting hanya memindahkan nilai antar akun persediaan yang benar-benar berbeda. Jika bahan dan hasil memakai akun persediaan yang sama, jangan membuat Debit/Credit noise ke akun yang sama;
+- Warehouse tidak memilih Account ID. Resolution tetap melalui `wh_production` + Product Kind mapping di Accounting Settings dan posting lewat Accounting module.
+
 ## Periodic cashier polling
 
 **Pitfall:** Jangan menjalankan polling periodik untuk queue order dan status laci pada prototype ini.
@@ -217,4 +234,4 @@ Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak
 
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot; refresh kasir tetap event-driven; costing/journal memakai exact scaled integer snapshots; saldo negatif dipertahankan sebagai signed balance; auto Penyesuaian dibatasi policy; operational Qty tidak bocor menjadi stock movement; Accounting Settings tetap configuration-only; Warehouse tidak memiliki duplicate mapping; `chart_of_accounts` tetap sole canonical COA registry; out-of-band schema dilarang; business-application tables tidak boleh FK langsung ke Accounting interpretation tables; stock-integrity policy tetap milik Inventory/Costing; production D1 recovery harus memverifikasi schema object; dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

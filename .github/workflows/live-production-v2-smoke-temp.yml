@@ -21,16 +21,24 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          main_sha="$(curl --fail --silent --show-error \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            "https://api.github.com/repos/$REPO/commits/main" | jq -r '.sha')"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
+          main_sha="$(curl --fail --silent --show-error "${headers[@]}" "https://api.github.com/repos/$REPO/commits/main" | jq -r '.sha')"
           echo "MAIN_SHA=$main_sha"
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            "https://api.github.com/repos/$REPO/commits/$main_sha/check-runs" \
-            | jq '{total_count, check_runs: [.check_runs[] | {name,status,conclusion,details_url,started_at,completed_at,output:{title:.output.title,summary:.output.summary,text:.output.text}}]}'
+          curl --fail --silent --show-error "${headers[@]}" \
+            "https://api.github.com/repos/$REPO/commits/$main_sha/check-runs" > /tmp/checks.json
+          jq '{total_count, check_runs: [.check_runs[] | {id,name,status,conclusion,details_url,external_id,started_at,completed_at,output,app:{name:.app.name,slug:.app.slug}}]}' /tmp/checks.json
+
+          cloudflare_check_id="$(jq -r '.check_runs[] | select(.name == "Workers Builds: prototype-leker-v2") | .id' /tmp/checks.json)"
+          test -n "$cloudflare_check_id" && test "$cloudflare_check_id" != "null"
+          echo "CLOUDFLARE_CHECK_RUN_ID=$cloudflare_check_id"
+          echo '--- CLOUDFLARE CHECK RUN ---'
+          curl --fail --silent --show-error "${headers[@]}" \
+            "https://api.github.com/repos/$REPO/check-runs/$cloudflare_check_id" \
+            | jq '{id,name,status,conclusion,details_url,external_id,output,actions,app:{name:.app.name,slug:.app.slug}}'
+          echo '--- CLOUDFLARE ANNOTATIONS ---'
+          curl --fail --silent --show-error "${headers[@]}" \
+            "https://api.github.com/repos/$REPO/check-runs/$cloudflare_check_id/annotations?per_page=100" \
+            | jq '.'
 
   live-production-v2-smoke:
     runs-on: ubuntu-latest

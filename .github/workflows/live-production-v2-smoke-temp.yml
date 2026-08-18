@@ -1,4 +1,4 @@
-# inspection pulse: Production V2 recovery
+# inspection pulse: Production V2 final recovery
 name: Temporary Production V2 Live Smoke
 
 on:

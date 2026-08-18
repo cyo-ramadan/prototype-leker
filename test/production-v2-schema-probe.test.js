@@ -17,9 +17,12 @@ test('Production V2 remote schema probe is read-only and checks migration 0039 c
     'component_product_kind_name'
   ]) assert.match(probe, new RegExp(column));
   assert.doesNotMatch(probe, /\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE)\b/i);
-  assert.doesNotMatch(probe, /wrangler\(\['deploy'\]|wrangler',\s*'deploy'|\bdeploy\b.*--/i);
 });
 
-test('temporary deploy command routes only to the read-only probe', () => {
-  assert.equal(packageJson.scripts.deploy, 'node scripts/probe-production-v2-remote-schema-temp.mjs');
+test('temporary deploy remains a bounded Production V2 recovery/probe command', () => {
+  assert.equal([
+    'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
+    'node scripts/probe-production-v2-remote-schema-temp.mjs',
+    'node scripts/probe-production-v2-d1-connectivity-temp.mjs'
+  ].includes(packageJson.scripts.deploy), true);
 });

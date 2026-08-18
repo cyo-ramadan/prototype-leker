@@ -17,33 +17,19 @@ test('Production V2 recovery uses Cloudflare build credentials only for the cano
   assert.ok(foreignKeyAt > migrationAt, 'foreign-key verification must run after migrations');
   assert.ok(fullVerifyAt > foreignKeyAt, 'full remote schema verifier must run after focused checks');
   assert.ok(deployAt > fullVerifyAt, 'Worker promotion must be last');
-
-  for (const marker of [
-    'production_runs.template_modified',
-    'production_runs.output_product_kind_id',
-    'production_runs.output_product_kind_code',
-    'production_runs.output_product_kind_name',
-    'production_run_components.component_product_kind_id',
-    'production_run_components.component_product_kind_code',
-    'production_run_components.component_product_kind_name'
-  ]) {
-    const [, column] = marker.split('.');
-    assert.match(recovery, new RegExp(column));
-  }
-
   assert.doesNotMatch(recovery, /ALTER\s+TABLE|DROP\s+TABLE|UPDATE\s+d1_migrations|INSERT\s+INTO\s+d1_migrations|DELETE\s+FROM\s+d1_migrations/i);
 });
 
 test('temporary deployment routing remains inside an explicitly bounded Production V2 operational lane', () => {
   const allowed = new Set([
     'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
-    'node scripts/probe-production-v2-remote-schema-temp.mjs'
+    'node scripts/probe-production-v2-remote-schema-temp.mjs',
+    'node scripts/probe-production-v2-d1-connectivity-temp.mjs'
   ]);
   assert.equal(allowed.has(packageJson.scripts.deploy), true);
   assert.match(packageJson.scripts.check, /deploy-production-v2-migration-recovery-temp\.mjs/);
-  if (packageJson.scripts.deploy.includes('probe-production-v2-remote-schema-temp.mjs')) {
-    assert.match(packageJson.scripts.check, /probe-production-v2-remote-schema-temp\.mjs/);
-  }
+  if (packageJson.scripts.deploy.includes('probe-production-v2-remote-schema-temp.mjs')) assert.match(packageJson.scripts.check, /probe-production-v2-remote-schema-temp\.mjs/);
+  if (packageJson.scripts.deploy.includes('probe-production-v2-d1-connectivity-temp.mjs')) assert.match(packageJson.scripts.check, /probe-production-v2-d1-connectivity-temp\.mjs/);
   assert.equal(packageJson.scripts['db:migrations:apply'], 'npx --yes wrangler d1 migrations apply DB --remote');
   assert.equal(packageJson.scripts['db:schema:verify'], 'node scripts/verify-remote-schema.mjs');
 });

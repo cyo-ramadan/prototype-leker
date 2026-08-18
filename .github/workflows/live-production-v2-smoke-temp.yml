@@ -8,12 +8,31 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   live-production-v2-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Inspect main deployment checks
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          main_sha="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$REPO/commits/main" | jq -r '.sha')"
+          echo "MAIN_SHA=$main_sha"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$REPO/commits/$main_sha/check-runs" \
+            | jq '{total_count, check_runs: [.check_runs[] | {name,status,conclusion,details_url,started_at,completed_at,output:{title:.output.title,summary:.output.summary,text:.output.text}}]}'
+
       - name: Verify deployed Production V2 surface
         shell: bash
         env:

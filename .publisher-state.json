@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-post-recovery-schema-probe-20260818",
-  "sourceCommit": "2212520e9f4a1e655b1fc225913284190d28ea1c",
-  "deploymentTrigger": "2026-08-18T23:31:00+07:00",
-  "deploymentTargetCommit": "2212520e9f4a1e655b1fc225913284190d28ea1c",
-  "deploymentReason": "Trigger read-only Production V2 schema probe after supported Wrangler migration recovery attempt"
+  "publisherRunId": "production-v2-partial-schema-probe-20260818",
+  "sourceCommit": "47b3c93d859fff27233e998876ced3e53c7f075b",
+  "deploymentTrigger": "2026-08-18T23:35:00+07:00",
+  "deploymentTargetCommit": "47b3c93d859fff27233e998876ced3e53c7f075b",
+  "deploymentReason": "Trigger read-only probe to distinguish zero Production V2 target columns from partial migration-0039 schema drift"
 }

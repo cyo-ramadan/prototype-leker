@@ -55,6 +55,10 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
   -- Production data mutation always needs Bos Cyo's explicit authority, so it
   -- can never be self-closing regardless of how good the evidence looks.
   mutates_production INTEGER NOT NULL DEFAULT 0 CHECK (mutates_production IN (0, 1)),
+  -- Probes are how a candidate agent earns its kinds. Every candidate gets the
+  -- same ones so the results compare, and the evidence decides rather than an
+  -- impression formed in conversation.
+  is_probe INTEGER NOT NULL DEFAULT 0 CHECK (is_probe IN (0, 1)),
   forbidden TEXT NOT NULL DEFAULT '',     -- what this task must not touch
   status TEXT NOT NULL DEFAULT 'OPEN'
     CHECK (status IN ('OPEN', 'CLAIMED', 'REPORTED', 'BLOCKED', 'DONE')),

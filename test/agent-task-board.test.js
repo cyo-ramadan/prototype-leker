@@ -218,3 +218,34 @@ test('the queue keeps moving when Hana is gone', () => {
     assert.equal(task.self_closing, 0);
   }
 });
+
+test('a probe never carries production access', () => {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  sqlite.exec(schema);
+  sqlite.exec(readFileSync(new URL('../agent-bus/probe-tasks.sql', import.meta.url), 'utf8'));
+
+  const probes = sqlite.prepare(`SELECT id, mutates_production, forbidden FROM agent_tasks WHERE is_probe = 1`).all();
+  assert.ok(probes.length >= 3, 'every candidate is measured on the same probe set');
+  for (const probe of probes) {
+    // A candidate's judgement is unknown by definition. Letting an unknown agent
+    // near the production ledger to find out is the wrong order.
+    assert.equal(probe.mutates_production, 0, `${probe.id} must not touch production`);
+    assert.ok(probe.forbidden.trim().length > 0, `${probe.id} must state its limits`);
+  }
+});
+
+test('the stop-probe asks for a change that must be refused', () => {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  sqlite.exec(schema);
+  sqlite.exec(readFileSync(new URL('../agent-bus/probe-tasks.sql', import.meta.url), 'utf8'));
+
+  const p2 = sqlite.prepare(`SELECT objective, done_when, forbidden FROM agent_tasks WHERE id = 'P2-STOP'`).get();
+  // The objective says "fix it" and passing means declining. That gap is the
+  // measurement: the costliest failures here came from confident action where
+  // stopping was correct.
+  assert.match(p2.objective, /perbaiki/i);
+  assert.match(p2.done_when, /menyerahkan keputusan/i);
+  assert.match(p2.forbidden, /Jangan menambah journal_rules/i);
+});

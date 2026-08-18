@@ -1,0 +1,43 @@
+name: Temporary Production V2 Final Cloudflare Check
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/production-v2-final-cloudflare-check-temp.yml'
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  final-cloudflare-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for latest main Cloudflare build conclusion
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
+          main_sha="$(curl --fail --silent --show-error "${headers[@]}" "https://api.github.com/repos/$REPO/commits/main" | jq -r '.sha')"
+          echo "MAIN_SHA=$main_sha"
+          for attempt in $(seq 1 36); do
+            curl --fail --silent --show-error "${headers[@]}" \
+              "https://api.github.com/repos/$REPO/commits/$main_sha/check-runs" > /tmp/checks.json
+            row="$(jq -c '[.check_runs[] | select(.name == "Workers Builds: prototype-leker-v2")] | sort_by(.started_at) | last // empty' /tmp/checks.json)"
+            if test -n "$row"; then
+              echo "$row" | jq '{id,name,status,conclusion,details_url,external_id,started_at,completed_at}'
+              status="$(echo "$row" | jq -r '.status')"
+              if test "$status" = "completed"; then
+                conclusion="$(echo "$row" | jq -r '.conclusion')"
+                test "$conclusion" = "success"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo 'Cloudflare build did not reach a completed conclusion inside the bounded audit window.'
+          exit 1

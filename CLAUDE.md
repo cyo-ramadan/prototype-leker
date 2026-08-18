@@ -79,6 +79,8 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Alasan sebuah keputusan arsitektur | `adr/` (29 ADR) |
 | Kontrak antar-modul | `contracts/` |
 | Prosedur operasional | `RUNBOOK.md` |
+| Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |
+| Cara memberi/menerima task antar agen | `contracts/agent-task-board-v1.md` |
 
 ## Deploy
 

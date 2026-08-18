@@ -249,3 +249,68 @@ test('the stop-probe asks for a change that must be refused', () => {
   assert.match(p2.done_when, /menyerahkan keputusan/i);
   assert.match(p2.forbidden, /Jangan menambah journal_rules/i);
 });
+
+function boardWithModules() {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  sqlite.exec(schema);
+  sqlite.exec(readFileSync(new URL('../agent-bus/module-tasks.sql', import.meta.url), 'utf8'));
+  for (let slot = 1; slot <= 6; slot += 1) {
+    sqlite.exec(`INSERT INTO agent_sessions (id, family, slot, session) VALUES ('karen${slot}.1','karen',${slot},1)`);
+  }
+  return sqlite;
+}
+
+test('five module tasks can be held at the same time', () => {
+  const sqlite = boardWithModules();
+  const ids = ['M-PENJUALAN', 'M-PEMBELIAN', 'M-OPERASIONAL', 'M-PRODUKSI', 'M-PENYESUAIAN'];
+  ids.forEach((task, index) => claim(sqlite, `C${index}`, task, `karen${index + 1}.1`));
+  assert.equal(
+    sqlite.prepare(`SELECT COUNT(*) AS n FROM agent_task_claims WHERE released_at IS NULL`).get().n,
+    5,
+    'the five tabs Bos Cyo actually runs must work concurrently'
+  );
+});
+
+test('a task overlapping a held file is refused at claim time, not at push time', () => {
+  const sqlite = boardWithModules();
+  claim(sqlite, 'C0', 'M-PRODUKSI', 'karen1.1');
+
+  sqlite.exec(`
+    INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by)
+    VALUES ('M-CLASH','FEATURE','produksi','t','o','d','hana1.1');
+    INSERT INTO agent_task_paths (task_id, path_prefix) VALUES ('M-CLASH','src/stock-production.js');
+  `);
+
+  // This is the collision that used to surface as one Karen holding while
+  // another deployed. Catching it when the work is picked up costs a sentence;
+  // catching it at push costs a stalled tab.
+  assert.throws(() => claim(sqlite, 'C1', 'M-CLASH', 'karen2.1'), /PATH_HELD_BY_ANOTHER_CLAIM/);
+
+  sqlite.prepare(`UPDATE agent_task_claims SET released_at = CURRENT_TIMESTAMP, release_reason='REPORTED' WHERE id='C0'`).run();
+  claim(sqlite, 'C2', 'M-CLASH', 'karen2.1');
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) AS n FROM agent_task_claims WHERE released_at IS NULL`).get().n, 1);
+});
+
+test('declaring a directory reserves everything beneath it', () => {
+  const sqlite = boardWithModules();
+  sqlite.exec(`
+    INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by)
+    VALUES ('M-DIR','FEATURE','platform','t','o','d','hana1.1'),
+           ('M-FILE','FEATURE','platform','t','o','d','hana1.1');
+    INSERT INTO agent_task_paths (task_id, path_prefix) VALUES
+      ('M-DIR','src/'), ('M-FILE','src/anything.js');
+  `);
+  claim(sqlite, 'CD', 'M-DIR', 'karen1.1');
+  assert.throws(() => claim(sqlite, 'CF', 'M-FILE', 'karen2.1'), /PATH_HELD_BY_ANOTHER_CLAIM/);
+});
+
+test('no two open module tasks declare the same path', () => {
+  const sqlite = boardWithModules();
+  const clashes = sqlite.prepare(`
+    SELECT a.task_id AS a, b.task_id AS b, a.path_prefix AS p
+    FROM agent_task_paths a JOIN agent_task_paths b ON a.task_id < b.task_id
+    WHERE a.path_prefix LIKE b.path_prefix || '%' OR b.path_prefix LIKE a.path_prefix || '%'
+  `).all();
+  assert.deepEqual(clashes, [], `module tasks must be disjoint by construction: ${JSON.stringify(clashes)}`);
+});

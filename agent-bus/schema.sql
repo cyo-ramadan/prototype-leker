@@ -143,6 +143,39 @@ BEGIN
   SELECT RAISE(ABORT, 'ROLE_NOT_PERMITTED_FOR_TASK_KIND');
 END;
 
+-- Which paths a task owns while it is held.
+--
+-- Slots stop two agents claiming the same task. They do not stop two different
+-- tasks editing the same file, which is the collision that actually hurt: five
+-- Karen tabs running at once, one holding because another had not deployed a
+-- shared variable yet. Task-level isolation is not file-level isolation, and
+-- only the second one prevents a git conflict.
+CREATE TABLE IF NOT EXISTS agent_task_paths (
+  task_id TEXT NOT NULL,
+  path_prefix TEXT NOT NULL,
+  PRIMARY KEY (task_id, path_prefix),
+  FOREIGN KEY (task_id) REFERENCES agent_tasks(id)
+);
+
+-- Refuse a claim whose paths overlap paths already held. Overlap is prefix
+-- containment in either direction, so declaring a directory reserves everything
+-- under it. Five agents may run at once precisely when their path sets are
+-- disjoint — and now that is enforced rather than hoped for.
+CREATE TRIGGER IF NOT EXISTS trg_agent_claim_path_conflict
+BEFORE INSERT ON agent_task_claims
+WHEN EXISTS (
+  SELECT 1
+  FROM agent_task_paths mine
+  JOIN agent_task_paths theirs ON theirs.task_id <> mine.task_id
+  JOIN agent_task_claims held ON held.task_id = theirs.task_id AND held.released_at IS NULL
+  WHERE mine.task_id = NEW.task_id
+    AND (mine.path_prefix LIKE theirs.path_prefix || '%'
+      OR theirs.path_prefix LIKE mine.path_prefix || '%')
+)
+BEGIN
+  SELECT RAISE(ABORT, 'PATH_HELD_BY_ANOTHER_CLAIM');
+END;
+
 -- Reports carry evidence. A status claim with no evidence is not a report, and
 -- only Hana closes a task, so no agent verifies its own work.
 CREATE TABLE IF NOT EXISTS agent_task_reports (

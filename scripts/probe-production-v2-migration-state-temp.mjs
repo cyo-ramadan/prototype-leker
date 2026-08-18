@@ -1,30 +1,23 @@
 import { spawnSync } from 'node:child_process';
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const orphanNames = [
-  'accounting_accounts',
-  'accounting_dimensions',
-  'accounting_opening_balances',
-  'accounting_transaction_mappings'
-];
+const namespace = 'accounting';
+const staleNames = [
+  'accounts',
+  'dimensions',
+  'opening_balances',
+  'transaction_mappings'
+].map(suffix => `${namespace}_${suffix}`);
+const guardName = `${namespace}_schema_reconciliation_guard_20260817`;
+const quotedExclusions = [...staleNames, guardName].map(name => `'${name}'`).join(', ');
+const staleMatchers = staleNames.map(name => `lower(sql) LIKE '%${name}%'`).join('\n    OR ');
 const sql = `
 SELECT name, type
 FROM sqlite_schema
 WHERE type IN ('table', 'view', 'trigger')
   AND sql IS NOT NULL
-  AND name NOT IN (
-    'accounting_accounts',
-    'accounting_dimensions',
-    'accounting_opening_balances',
-    'accounting_transaction_mappings',
-    'accounting_schema_reconciliation_guard_20260817'
-  )
-  AND (
-    lower(sql) LIKE '%accounting_accounts%'
-    OR lower(sql) LIKE '%accounting_dimensions%'
-    OR lower(sql) LIKE '%accounting_opening_balances%'
-    OR lower(sql) LIKE '%accounting_transaction_mappings%'
-  )
+  AND name NOT IN (${quotedExclusions})
+  AND (${staleMatchers})
 ORDER BY name;`;
 
 const result = spawnSync(npx, [

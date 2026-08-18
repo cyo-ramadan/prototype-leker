@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "production-v2-supported-wrangler-recovery-20260818",
-  "sourceCommit": "12bfbab597db419dc1e42e4b14b8f718c5a42c73",
-  "deploymentTrigger": "2026-08-18T23:25:00+07:00",
-  "deploymentTargetCommit": "12bfbab597db419dc1e42e4b14b8f718c5a42c73",
-  "deploymentReason": "Retry canonical Production V2 migration 0039 recovery after removing unsupported Wrangler migrations apply --yes flag"
+  "publisherRunId": "production-v2-post-recovery-schema-probe-20260818",
+  "sourceCommit": "2212520e9f4a1e655b1fc225913284190d28ea1c",
+  "deploymentTrigger": "2026-08-18T23:31:00+07:00",
+  "deploymentTargetCommit": "2212520e9f4a1e655b1fc225913284190d28ea1c",
+  "deploymentReason": "Trigger read-only Production V2 schema probe after supported Wrangler migration recovery attempt"
 }

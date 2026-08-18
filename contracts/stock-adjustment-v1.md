@@ -24,7 +24,7 @@ Therefore:
 
 Cashier with active drawer write authority may submit a Stock Adjustment request.
 
-Public/UI input:
+Public/API input for one Stock Adjustment request:
 
 - `productId`;
 - `targetQuantity`;
@@ -43,6 +43,21 @@ The server resolves and snapshots:
 A target equal to the current snapshot is rejected as a no-op.
 
 Only active stock-tracked products with a valid base unit are exposed as adjustment options.
+
+### Cashier PILATU composer
+
+The cashier panel may compose several V1 requests in one dialog using the reusable PILATU interaction pattern.
+
+- Search and selecting a product immediately materializes one working row below the search control; no separate Add button is used.
+- Each later selection is prepended above earlier rows. Earlier rows and their entered `Qty Sebenarnya` stay intact.
+- Selecting a product already present surfaces that existing row instead of silently creating a duplicate.
+- The working row exposes five business columns: `Barang | Qty Tercatat | Qty Sebenarnya | HPP | Selisih`.
+- `Qty Tercatat` is a read-only display reference from the stock-adjustment options snapshot. The server still resolves its official snapshot at request submission.
+- `Qty Sebenarnya` is the only editable row value and maps to V1 `targetQuantity`.
+- `Selisih` is a presentation derivation: `Qty Sebenarnya - Qty Tercatat`.
+- HPP is display-only and is not an input to Stock Adjustment V1 quantity posting. The panel must not fabricate HPP when its approved read source is unavailable.
+- On submit, every row with a non-zero difference becomes its own ordinary V1 approval request. Rows with zero difference are skipped.
+- Multi-row composition does not create a new atomic multi-item approval contract. Each product keeps its own server snapshot, approval identity, stale guard, and posting result.
 
 ## Approval Envelope Compatibility
 
@@ -123,10 +138,13 @@ That policy must use this approved Stock Adjustment flow (or its superseding ver
 - `src/operational-posting.js`
 - `src/approval-queue.js`
 - `public/cashier-approval-actions.js`
+- `public/stock-adjustment-pilatu.js`
+- `public/cashier-stock-adjustment-pilatu.js`
 - `public/management-approval-queue.js`
 - `test/stock-adjustment.test.js`
+- `test/stock-adjustment-pilatu.test.js`
 - `test/approval-queue-layout.test.js`
 
 ## DOC-IMPACT
 
-REQUIRED — changes to adjustment input, snapshot semantics, stale handling, approval authority, quantity representation, movement source, or costing/accounting boundary require matching contract, ADR, and regression updates.
+REQUIRED — changes to adjustment input, snapshot semantics, PILATU composition, stale handling, approval authority, quantity representation, movement source, or costing/accounting boundary require matching contract, ADR when semantics change, and regression updates.

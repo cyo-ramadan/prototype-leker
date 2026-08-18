@@ -54,9 +54,51 @@ OPEN ──claim──▶ CLAIMED ──report──▶ REPORTED ──verify─
                    └──block────▶ BLOCKED
 ```
 
-- **Hana** writes tasks and verifies reports. Only Hana moves a task to `DONE`.
+- **Hana** writes tasks and reviews reports.
 - **Implementers** claim, report, hand off, and block. They never verify their own work.
 - A task carries the module it belongs to, so ownership is never guessed.
+
+## Authority — Hana is not a gate
+
+An earlier draft of this contract said only Hana moves a task to `DONE`. That was wrong. The
+Constitution is explicit: *"Reviewer or affected-owner approval is advisory and may not block
+starting, completing, merging, deploying, or reporting PASS."* A standing approval gate held
+by one agent contradicts that, and makes the whole board stop when that agent stops.
+
+What actually blocks work:
+
+| Gate | Held by | Blocking |
+|---|---|---|
+| Technical gates — tests, `npm run check`, schema constraints, migrations | automation | **yes** |
+| Production data mutation | **Bos Cyo**, per Constitution §5 | **yes** |
+| Architecture decisions | Hana, expressed as ADRs and contracts written *in advance* | binding, not live |
+| Review of a finished report | Hana | **advisory** |
+
+Hana's authority is exercised through artifacts, not through permission. An ADR that already
+exists binds a task written next week whether or not Hana is awake. That is the difference
+between deciding and gatekeeping, and it is what lets the work continue without her.
+
+A task marked `self_closing` reaches `DONE` on a report whose evidence satisfies its
+`done_when`, with no verdict. It is for reversible work behind technical gates — the ordinary
+case. A task marked `mutates_production` can never be self-closing; it waits for Bos Cyo, not
+for Hana.
+
+## When Hana runs out of context
+
+Hana is subject to the same rule as everyone else, and being the architect makes that more
+important rather than less.
+
+- **Work in flight continues.** Claims, reports and handoffs need the board, not Hana.
+- **Tasks are written ahead.** A queue of `OPEN` tasks is the deliverable; writing them one
+  at a time on demand recreates the dependency this design exists to remove.
+- **Reports do not rot.** `self_closing` tasks close on their own evidence. A non-self-closing
+  report left unreviewed past its window escalates to Bos Cyo — it never sits waiting for an
+  agent who is not coming back.
+- **Hana hands off too.** A session ending mid-architecture writes the same handoff it
+  demands of others: what is decided, what is open, what was learned, what not to repeat.
+
+An architecture that only works while one particular agent has budget left is not an
+architecture. It is that agent's memory, and memory is what keeps failing here.
 
 ## What a task must contain
 

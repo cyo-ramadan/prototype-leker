@@ -150,3 +150,39 @@ test('the rules travel with the task instead of being a prerequisite', () => {
   assert.equal(briefing.kind, 'DEBUG');
   assert.match(briefing.rules, /Reproduksi dulu/, 'a session that has read nothing still receives its SOP');
 });
+
+test('reversible work does not wait for an architect to be awake', () => {
+  const sqlite = board();
+  sqlite.prepare(`
+    INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by, self_closing)
+    VALUES ('T-SELF','FEATURE','operasional','t','o','npm test hijau','hana.1',1)
+  `).run();
+  const task = sqlite.prepare(`SELECT self_closing, mutates_production FROM agent_tasks WHERE id='T-SELF'`).get();
+  assert.equal(task.self_closing, 1);
+  assert.equal(task.mutates_production, 0);
+});
+
+test('production mutation can never close on its own evidence', () => {
+  const sqlite = board();
+  // Constitution §5 reserves production data mutation for Bos Cyo. No quality of
+  // evidence substitutes for that, so the two flags are mutually exclusive by
+  // constraint rather than by anyone remembering the rule.
+  assert.throws(
+    () => sqlite.prepare(`
+      INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by, self_closing, mutates_production)
+      VALUES ('T-BAD','MIGRATION','accounting','t','o','d','hana.1',1,1)
+    `).run(),
+    /CHECK|constraint/i
+  );
+});
+
+test('any architecture-permitted family can write tasks, not only one agent', () => {
+  const sqlite = board();
+  // written_by is a session reference, not a privilege check: a board that only
+  // one agent can fill stops when that agent stops.
+  sqlite.prepare(`
+    INSERT INTO agent_tasks (id, kind, module, title, objective, done_when, written_by)
+    VALUES ('T-X','DEBUG','operasional','t','o','d','karen1.1')
+  `).run();
+  assert.equal(sqlite.prepare(`SELECT written_by FROM agent_tasks WHERE id='T-X'`).get().written_by, 'karen1.1');
+});

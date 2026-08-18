@@ -47,13 +47,22 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
   inputs TEXT NOT NULL DEFAULT '',        -- files, tables, endpoints to read first
   contract TEXT NOT NULL DEFAULT '',      -- ids that must line up, invariants to hold
   done_when TEXT NOT NULL,                -- checkable conditions, not intentions
+  -- Reversible work whose done_when a machine can check does not wait for a
+  -- verdict. Constitution: reviewer approval is advisory and may not block
+  -- completing or merging. Only irreversible work needs a human decision, and
+  -- that decision belongs to Bos Cyo rather than to any agent.
+  self_closing INTEGER NOT NULL DEFAULT 0 CHECK (self_closing IN (0, 1)),
+  -- Production data mutation always needs Bos Cyo's explicit authority, so it
+  -- can never be self-closing regardless of how good the evidence looks.
+  mutates_production INTEGER NOT NULL DEFAULT 0 CHECK (mutates_production IN (0, 1)),
   forbidden TEXT NOT NULL DEFAULT '',     -- what this task must not touch
   status TEXT NOT NULL DEFAULT 'OPEN'
     CHECK (status IN ('OPEN', 'CLAIMED', 'REPORTED', 'BLOCKED', 'DONE')),
   written_by TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (written_by) REFERENCES agent_sessions(id)
+  FOREIGN KEY (written_by) REFERENCES agent_sessions(id),
+  CHECK (NOT (self_closing = 1 AND mutates_production = 1))
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_tasks_open ON agent_tasks (status, module, created_at);

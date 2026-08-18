@@ -21,9 +21,13 @@ const localMigrations = readdirSync('migrations')
   .filter(name => /^\d{4}_.+\.sql$/.test(name))
   .sort();
 const pending = localMigrations.filter(name => output.includes(name));
+const expected = [
+  '0038_operational_accounting_boundary.sql',
+  '0039_flexible_manual_production.sql'
+];
 
-if (pending.length === 1 && pending[0] === '0039_flexible_manual_production.sql') {
-  console.log('PRODUCTION_V2_MIGRATION_0039_IS_SOLE_PENDING');
+if (pending.length === expected.length && expected.every((name, index) => pending[index] === name)) {
+  console.log('PRODUCTION_V2_PENDING_SET_IS_0038_AND_0039');
   process.exit(0);
 }
 

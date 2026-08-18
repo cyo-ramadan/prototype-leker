@@ -215,6 +215,20 @@ Selesaikan bootstrap/default write terlebih dahulu, kemudian jalankan independen
 
 Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak boleh menulis langsung ke database Accounting atau membuat General Ledger tandingan. Dalam local composition host, semua journal write tetap wajib melalui Accounting posting entry point yang sama.
 
+## `store_id` bukan batas tenant
+
+**Pitfall:** Jangan memperlakukan `store_id` sebagai batas isolasi pelanggan MAXI, dan jangan menambahkan tabel ledger baru tanpa memikirkan pemilik bukunya.
+
+`store_id` adalah **gerai** — scope operasional. Dalam arah SaaS multi-tenant, pemilik buku adalah **Entity (Badan Usaha)** dan pelanggan yang berlangganan adalah **Tenant**; keduanya belum ada di schema. Query yang hanya memfilter `store_id` aman selama Leker masih satu pelanggan, tetapi tidak memenuhi Constitution S3 begitu pelanggan kedua masuk.
+
+**Current strategy:**
+
+- Baris ledger (journal, stock movement, stock balance, valuation) akan berlabuh ke `entity_id`, **tidak** ke `tenant_id` atau `group_id`. Posted journal immutable, jadi identitas yang bisa berpindah saat merge tidak boleh menempel di sana.
+- Tenant dan consolidation group adalah relasi bertanggal yang di-resolve saat baca, bukan kolom yang didenormalisasi.
+- Tabel ledger baru yang dibuat sekarang tanpa mempertimbangkan `entity_id` menjadi utang migrasi begitu tenant kedua ada.
+
+Detail dan tahapan migrasinya di `adr/ADR-030-multi-entity-tenancy-and-accounting-consolidation.md`.
+
 ## DOC-IMPACT
 
-**REQUIRED** — refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — `store_id` tidak boleh diperlakukan sebagai batas tenant, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

@@ -54,6 +54,10 @@ sekadar bikin tes merah.
    punya foreign key ke interpretasi Accounting.
 5. **Isolasi `store_id` server-side.** Hanya Pelanggan yang boleh melebar antar
    gerai, dan hanya lewat Customer Sharing Group milik Owner.
+   Tapi **`store_id` bukan batas tenant** — itu gerai, scope operasional. Arah
+   SaaS: pemilik buku adalah Entity (Badan Usaha), pelanggan berlangganan adalah
+   Tenant, dan keduanya belum ada di schema. Tabel ledger baru yang dibuat tanpa
+   memikirkan `entity_id` jadi utang migrasi. Lihat `adr/ADR-030`.
 6. **Tanpa polling periodik.** Refresh kasir manual/on-focus. Kalau realtime
    dibutuhkan, pakai push (WebSocket/SSE) setelah impact assessment.
 7. **Jangan menulis ulang migration yang sudah applied** untuk menutupi schema

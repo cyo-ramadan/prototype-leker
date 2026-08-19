@@ -1,9 +1,14 @@
 # ADR-033 — Choice Group: satu tempat untuk daftar pilihan akun
 
-Status: PROPOSED — menunggu keputusan Bos Cyo atas tiga challenge di §3
+Status: ACCEPTED — Fase 1 (skema) landed, `migrations/0042_accounting_choice_groups.sql`.
+Fase 3-4 (resolver + Setting Akuntansi API/UI) belum dikerjakan.
 Date: 2026-08-19
 Change ID: `MAXI-ACC-CHOICE-GROUPS-20260819`
 Dikerjakan oleh: `hana1.1` — arsitektur, atas usulan Bos Cyo
+
+**Nama UI:** Bos Cyo memilih **"Setting Transaksi"**, bukan "Choice Group"/"Resep" —
+lihat §6 addendum di bawah. Nama tabel/kode tetap `accounting_choice_groups` /
+`accounting_choice_options`, istilah teknis tidak dipakai di layar admin.
 
 ## 1. Context
 
@@ -211,12 +216,55 @@ id rule lama **tidak menjadi otoritas kedua**, ia hanya dipetakan ke opsi baru.
 
 ## 6. Open — milik Bos Cyo
 
-1. **Nama:** setuju `Choice Group` sebagai nama canonical dengan label UI "Resep"?
-2. **Cara Bayar:** setuju opsi cara bayar mendelegasi ke `payment_methods`, bukan
-   memegang akun sendiri?
-3. **Jenis Barang:** setuju tetap di luar model resep?
+1. ~~**Nama:** setuju `Choice Group` sebagai nama canonical dengan label UI "Resep"?~~
+   **Dijawab 2026-08-19:** ditolak. Label UI jadi **"Setting Transaksi"**. Catatan
+   tersisa: nama ini berdempetan dengan istilah yang sudah dipakai sistem, "Aturan
+   Transaksi" (level `journal_rules`, beda level dari Choice Group). Belum
+   dikonfirmasi apakah dua istilah ini boleh berdampingan atau salah satu perlu
+   diganti — **masih terbuka**, tidak menghalangi Fase 1 yang sudah landed karena
+   Fase 1 tidak menyentuh UI.
+2. ~~**Cara Bayar:** setuju opsi cara bayar mendelegasi ke `payment_methods`?~~
+   **Dijawab 2026-08-19, arahnya beda dari usulan §3.2:** Bos Cyo mau Cara Bayar
+   tetap seperti sekarang — beberapa baris `payment_methods`, tiap baris di-link
+   manual ke akun lewat `payment_methods.account_id`. Itu **sudah** perilaku hari
+   ini, tidak perlu Choice Group untuk Cara Bayar sama sekali. §3.2 di atas
+   (delegasi opsi `PAYMENT_METHOD`) **tidak diimplementasikan** — bukan ditolak,
+   cuma tidak dibutuhkan untuk scope yang diminta (lihat §8 di bawah).
+3. **Jenis Barang:** **masih terbuka** — Bos Cyo minta didiskusikan lebih lanjut,
+   belum ada arah baru dari usulan §3.3 (tetap otomatis dari data, bukan resep).
+   **Tidak memblokir** Fase 1 karena Fase 1 tidak menyentuh `item_category_*`.
 
-Implementasi tidak dimulai sebelum ketiganya dijawab.
+## 7. Audit tambahan 2026-08-19 — urutan panggilan POS vs Accounting
+
+Bos Cyo mengangkat kekhawatiran: kalau urutannya "transaksi panggil Accounting dulu,
+baru POS jalan", maka Accounting tidak bisa dicopot bersih nanti (POS jadi
+bergantung padanya). Diverifikasi langsung ke kode sebelum Fase 1 mulai dikerjakan:
+
+- `src/index.js:158-162` — POS commit (`handleCashierTrackedSaleApi`) jalan dan
+  **selesai duluan**; `attachAccountingBridgeToCommittedResponse` baru dipanggil
+  memakai response yang sudah commit, dan hanya kalau POS-nya sukses
+  (`src/accounting-pos-bridge-response.js:37`).
+- Dispatch ke Accounting dibungkus try/catch (`accounting-pos-bridge-response.js:69-83`)
+  — kalau Accounting *throw* sekalipun, status response POS **tidak berubah**,
+  cuma field `accounting` di payload yang menandai gagal.
+
+Kesimpulan: urutannya sudah benar dan aman untuk arah "POS bisa jalan tanpa
+Accounting" — ini bukan sesuatu yang perlu diperbaiki sebelum Fase 3/4, dan
+sejalan dengan `ADR-034` §2 (gating di titik pemanggilan, bukan di resolver).
+
+## 8. Scope Fase 3-4 sesuai permintaan konkret Bos Cyo (2026-08-19)
+
+Dua tombol di Setting Akuntansi:
+
+1. **Bikin Grup** — panel bikin Grup Beban / Grup Pembayaran (nama grup dan
+   pilihan-pilihannya bebas ditentukan admin), tiap pilihan **opsional** di-link
+   ke akun yang sudah ada di `chart_of_accounts` lewat `accounting_choice_options`.
+2. **Pasang Grup** — panel pasang satu grup ke satu sisi (Debit/Kredit) satu
+   kategori transaksi yang sudah punya mapping — menulis satu baris `journal_rules`
+   dengan `source_type='choice_group'`.
+
+`item_category_*` dan `payment_method` tidak disentuh sama sekali oleh dua tombol
+ini — keduanya tetap jalur terpisah seperti sekarang, sesuai §6 butir 2-3 di atas.
 
 ## 7. Related
 

@@ -67,6 +67,113 @@ function schemaRows(sqlite) {
   return sqlite.prepare(`SELECT name, sql FROM sqlite_schema WHERE type = 'table' ORDER BY name`).all();
 }
 
+// Mirrors the actual drift found on live D1 on 2026-08-19: a second orphan family from the same
+// unmerged PR #3 experiment (pos_tenants/pos_terminals/pos_integration_settings, plus a trigger
+// that has been silently populating them on every store insert) that the original migration
+// 0037 never knew to clean up. Applying every migration up through 0036, then hand-creating this
+// drift exactly as it exists live, is what actually reproduces the CHECK constraint failure that
+// broke the real Cloudflare build (SQLITE_CONSTRAINT_CHECK, "ok = 1") -- a fresh database never
+// hits it, since these tables never exist there in the first place.
+function databaseWithLiveDrift() {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  const migrationFiles = readdirSync(migrationDirectory)
+    .filter(file => /^\d{4}_.+\.sql$/.test(file) && file < '0037')
+    .sort();
+  for (const name of migrationFiles) sqlite.exec(readFileSync(resolve(migrationDirectory, name), 'utf8'));
+
+  sqlite.exec(`
+    CREATE TABLE pos_tenants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE pos_terminals (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      store_id TEXT NOT NULL,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (store_id, code),
+      FOREIGN KEY (tenant_id) REFERENCES pos_tenants(id),
+      FOREIGN KEY (store_id) REFERENCES stores(id)
+    );
+    CREATE TABLE accounting_accounts (id TEXT PRIMARY KEY);
+    CREATE TABLE pos_integration_settings (
+      store_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      terminal_id TEXT NOT NULL DEFAULT '',
+      warehouse_id TEXT NOT NULL DEFAULT '',
+      retained_earnings_account_id TEXT,
+      accounting_module TEXT NOT NULL DEFAULT '@maxi/accounting',
+      accounting_version TEXT NOT NULL DEFAULT '1.3.0',
+      warehouse_module TEXT NOT NULL DEFAULT '@maxi/warehouse',
+      warehouse_version TEXT NOT NULL DEFAULT '2.0.0',
+      pos_module TEXT NOT NULL DEFAULT '@maxi/pos-core',
+      pos_version TEXT NOT NULL DEFAULT '1.0.0',
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (store_id) REFERENCES stores(id),
+      FOREIGN KEY (retained_earnings_account_id) REFERENCES accounting_accounts(id)
+    );
+    CREATE TRIGGER trg_store_integration_defaults
+    AFTER INSERT ON stores
+    BEGIN
+      INSERT OR IGNORE INTO pos_terminals (id, tenant_id, store_id, code, name)
+      VALUES ('terminal_' || NEW.id, 'tenant_leker', NEW.id, 'POS-01', 'Terminal Utama');
+      INSERT OR IGNORE INTO pos_integration_settings (store_id, tenant_id, terminal_id)
+      VALUES (NEW.id, 'tenant_leker', 'terminal_' || NEW.id);
+    END;
+    INSERT INTO pos_tenants (id, name) VALUES ('tenant_leker', 'Leker');
+  `);
+  const store = sqlite.prepare(`SELECT id FROM stores LIMIT 1`).get();
+  if (store) {
+    sqlite.prepare(`INSERT OR IGNORE INTO pos_terminals (id, tenant_id, store_id, code, name)
+      VALUES ('terminal_' || ?, 'tenant_leker', ?, 'POS-01', 'Terminal Utama')`).run(store.id, store.id);
+    sqlite.prepare(`INSERT OR IGNORE INTO pos_integration_settings (store_id, tenant_id, terminal_id)
+      VALUES (?, 'tenant_leker', 'terminal_' || ?)`).run(store.id, store.id);
+  }
+  return sqlite;
+}
+
+test('migration 0037 reconciles the second orphan family (pos_tenants/pos_terminals/pos_integration_settings) found on live D1', () => {
+  const sqlite = databaseWithLiveDrift();
+  try {
+    // Reproduces the exact live failure this migration is fixing: without the fix, this exec
+    // throws SQLITE_CONSTRAINT_CHECK ("ok = 1") because the guard correctly refuses to drop
+    // accounting_accounts while pos_integration_settings still references it.
+    sqlite.exec(readFileSync(resolve(migrationDirectory, '0037_accounting_schema_reconciliation.sql'), 'utf8'));
+
+    const names = new Set(schemaRows(sqlite).map(row => row.name));
+    for (const orphan of ['accounting_accounts', 'accounting_dimensions', 'accounting_opening_balances',
+      'accounting_transaction_mappings', 'pos_tenants', 'pos_terminals', 'pos_integration_settings']) {
+      assert.equal(names.has(orphan), false, `${orphan} must be dropped`);
+    }
+    assert.equal(
+      sqlite.prepare(`SELECT COUNT(*) AS n FROM sqlite_schema WHERE type='trigger' AND name='trg_store_integration_defaults'`).get().n,
+      0,
+      'the trigger that kept repopulating the orphan tables must be dropped too'
+    );
+
+    const log = sqlite.prepare(`
+      SELECT pos_tenants_rows, pos_terminals_rows, pos_integration_settings_rows
+      FROM accounting_schema_reconciliation_log WHERE change_id = 'LEKER-ACC-SCHEMA-RECON-20260817'
+    `).get();
+    assert.equal(log.pos_tenants_rows, 1);
+    assert.equal(log.pos_integration_settings_rows >= 0, true);
+
+    assert.equal(
+      sqlite.prepare(`SELECT COUNT(*) AS n FROM accounting_schema_backup_20260817_pos_tenants`).get().n,
+      1,
+      'the snapshot must preserve the row before drop'
+    );
+  } finally {
+    sqlite.close();
+  }
+});
+
 test('runtime source tree does not reference reconciled orphan Accounting tables', () => {
   const references = collectReferences();
   console.log(`ACCOUNTING_ORPHAN_SCHEMA_AUDIT=${JSON.stringify(references)}`);

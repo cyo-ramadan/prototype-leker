@@ -27,16 +27,14 @@ test('Production V2 recovery is migration-aware and fails closed on schema-ledge
   assert.doesNotMatch(recovery, /ALTER\s+TABLE|DROP\s+TABLE|UPDATE\s+d1_migrations|INSERT\s+INTO\s+d1_migrations|DELETE\s+FROM\s+d1_migrations/i);
 });
 
-test('temporary deployment routing remains inside an explicitly bounded Production V2 operational lane', () => {
-  const allowed = new Set([
-    'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
-    'node scripts/probe-production-v2-remote-schema-temp.mjs',
-    'node scripts/probe-production-v2-d1-connectivity-temp.mjs',
-    'node scripts/probe-production-v2-migration-state-temp.mjs',
-    'node scripts/probe-production-v2-zero-target-columns-temp.mjs'
-  ]);
-  assert.equal(allowed.has(packageJson.scripts.deploy), true);
-  assert.match(packageJson.scripts.check, /deploy-production-v2-migration-recovery-temp\.mjs/);
+// A prior version of this test pinned `npm run deploy` to this recovery script
+// as an "explicitly bounded operational lane" — which is exactly the pattern
+// CLAUDE.md's deploy discipline section forbids: a one-time recovery script
+// standing in as the permanent deploy path, this time with a test enshrining
+// it instead of catching it. `test/canonical-deploy-command.test.js` is the
+// one guard for what `scripts.deploy` may be; this file only verifies the
+// recovery script's own content, for when it is run manually and on purpose.
+test('the canonical deploy stages this recovery script mirrors still exist under their real names', () => {
   assert.equal(packageJson.scripts['db:migrations:apply'], 'npx --yes wrangler d1 migrations apply DB --remote');
   assert.equal(packageJson.scripts['db:schema:verify'], 'node scripts/verify-remote-schema.mjs');
 });

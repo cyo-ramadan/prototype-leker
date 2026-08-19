@@ -27,12 +27,10 @@ test('Production V2 partial-schema probe is read-only and only distinguishes zer
   assert.doesNotMatch(partialProbe, /\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE)\b/i);
 });
 
-test('temporary deploy remains a bounded Production V2 recovery/probe command', () => {
-  assert.equal([
-    'node scripts/deploy-production-v2-migration-recovery-temp.mjs',
-    'node scripts/probe-production-v2-remote-schema-temp.mjs',
-    'node scripts/probe-production-v2-d1-connectivity-temp.mjs',
-    'node scripts/probe-production-v2-migration-state-temp.mjs',
-    'node scripts/probe-production-v2-zero-target-columns-temp.mjs'
-  ].includes(packageJson.scripts.deploy), true);
+// A prior version of this test pinned `npm run deploy` to one of these probes.
+// That is the exact drift `test/canonical-deploy-command.test.js` now guards
+// against — see the comment in production-v2-deploy-recovery.test.js for why
+// it was removed rather than kept as a second, conflicting authority.
+test('package.json still parses and carries its own scripts block', () => {
+  assert.equal(typeof packageJson.scripts, 'object');
 });

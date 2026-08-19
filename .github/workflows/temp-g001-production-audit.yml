@@ -1,0 +1,72 @@
+name: TEMP G001 Production Eligibility Audit
+
+on:
+  push:
+    branches:
+      - karen/g001-production-eligibility-20260819
+    paths:
+      - .github/workflows/temp-g001-production-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Audit G001 production eligibility read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler d1 execute DB --remote --json --command "
+          SELECT
+            p.id AS product_id,
+            p.name AS product_name,
+            p.stock_tracking_enabled,
+            p.is_active,
+            t.code AS item_type_code,
+            COALESCE(t.track_stock,1) AS type_track_stock,
+            COALESCE(t.can_produce,1) AS can_produce,
+            COALESCE(t.can_consume,1) AS can_consume,
+            r.id AS active_recipe_id,
+            r.revision AS active_recipe_revision,
+            COALESCE(b.quantity,0) AS stock_quantity
+          FROM products p
+          LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+          LEFT JOIN manufacturing_recipes r ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+          LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
+          WHERE p.store_id = 'store_001'
+          ORDER BY p.id;"
+          echo '--- ACTIVE RECIPE COMPONENTS ---'
+          npx --yes wrangler d1 execute DB --remote --json --command "
+          SELECT
+            r.id AS recipe_id,
+            outp.id AS output_product_id,
+            outp.name AS output_product_name,
+            c.component_product_id,
+            cp.name AS component_product_name,
+            cp.stock_tracking_enabled,
+            COALESCE(t.track_stock,1) AS type_track_stock,
+            COALESCE(t.can_consume,1) AS can_consume,
+            COALESCE(b.quantity,0) AS stock_quantity,
+            c.quantity AS recipe_quantity
+          FROM manufacturing_recipes r
+          JOIN products outp ON outp.id = r.output_product_id AND outp.store_id = r.store_id
+          JOIN manufacturing_recipe_components c ON c.recipe_id = r.id AND c.store_id = r.store_id
+          JOIN products cp ON cp.id = c.component_product_id AND cp.store_id = r.store_id
+          LEFT JOIN item_types t ON t.id = cp.item_type_id AND t.store_id = cp.store_id
+          LEFT JOIN inventory_stock_balances b ON b.store_id = cp.store_id AND b.product_id = cp.id
+          WHERE r.store_id = 'store_001' AND r.status = 'ACTIVE'
+          ORDER BY r.id, c.display_order, c.component_product_id;"

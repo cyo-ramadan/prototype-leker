@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "leker-agent-bridge",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-07",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    // Repositories this bridge is allowed to read. Comma-separated.
+    // Widening this is a deliberate act: nothing else grants repository access.
+    "ALLOWED_REPOS": "cyo-ramadan/prototype-leker"
+  }
+  // Secrets are never stored here. Set them once with:
+  //   npx wrangler secret put GITHUB_TOKEN    --config agent-bridge/wrangler.jsonc
+  //   npx wrangler secret put MCP_AUTH_TOKEN  --config agent-bridge/wrangler.jsonc
+}

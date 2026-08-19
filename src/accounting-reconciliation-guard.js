@@ -1,7 +1,7 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { dispatchPosAccountingFact } from './accounting-pos-bridge.js';
+import { activePendingPosFacts, dispatchPosAccountingFact } from './accounting-pos-bridge.js';
 
 const FACT_TABLE = Object.freeze({ SALE: 'sales', PURCHASE: 'purchases', EXPENSE: 'expenses' });
 const text = (value, max = 300) => String(value ?? '').trim().slice(0, max);
@@ -15,26 +15,6 @@ async function factState(db, storeId, factType, factId) {
   const table = FACT_TABLE[factType];
   if (!table) return null;
   return db.prepare(`SELECT id, voided_at FROM ${table} WHERE id = ? AND store_id = ? LIMIT 1`).bind(factId, storeId).first();
-}
-
-async function activePendingFacts(db, storeId, limit) {
-  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
-  const rows = await db.prepare(`
-    SELECT fact_type, fact_id, created_at FROM (
-      SELECT 'SALE' AS fact_type, s.id AS fact_id, s.created_at FROM sales s
-      WHERE s.store_id = ? AND s.voided_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = s.store_id AND d.producer_module = 'POS' AND d.fact_type = 'SALE' AND d.fact_id = s.id AND d.status = 'POSTED')
-      UNION ALL
-      SELECT 'PURCHASE', p.id, p.created_at FROM purchases p
-      WHERE p.store_id = ? AND p.voided_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = p.store_id AND d.producer_module = 'POS' AND d.fact_type = 'PURCHASE' AND d.fact_id = p.id AND d.status = 'POSTED')
-      UNION ALL
-      SELECT 'EXPENSE', e.id, e.created_at FROM expenses e
-      WHERE e.store_id = ? AND e.voided_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = e.store_id AND d.producer_module = 'POS' AND d.fact_type = 'EXPENSE' AND d.fact_id = e.id AND d.status = 'POSTED')
-    ) ORDER BY created_at, fact_type, fact_id LIMIT ?
-  `).bind(storeId, storeId, storeId, safeLimit).all();
-  return rows.results ?? [];
 }
 
 export async function handleAccountingReconciliationGuardApi(request, env, pathname) {
@@ -55,7 +35,7 @@ export async function handleAccountingReconciliationGuardApi(request, env, pathn
     const result = await dispatchPosAccountingFact(env.DB, store, { factType, factId });
     return json(result, result.ok ? 200 : 409);
   }
-  const rows = await activePendingFacts(env.DB, store.id, body.value?.limit || 50);
+  const rows = await activePendingPosFacts(env.DB, store.id, body.value?.limit || 50);
   const results = [];
   for (const row of rows) {
     const result = await dispatchPosAccountingFact(env.DB, store, { factType: row.fact_type, factId: row.fact_id });

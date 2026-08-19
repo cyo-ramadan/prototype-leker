@@ -1,4 +1,4 @@
-# ADR-030 — Flexible Production Execution and Inventory-Account Transfer
+# ADR-035 — Flexible Production Execution and Inventory-Account Transfer
 
 Status: ACCEPTED
 Date: 2026-08-18

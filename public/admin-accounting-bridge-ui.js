@@ -22,7 +22,12 @@
   }
 
   function statusText(summary = {}) {
-    return `POS → Jurnal: ${Number(summary.posted || 0)} posted · ${Number(summary.needsConfiguration || 0)} perlu setting · ${Number(summary.failed || 0)} gagal`;
+    // "belum masuk jurnal" is counted from the facts themselves, not from delivery
+    // attempts, so a sale that never produced a delivery row still shows up here
+    // instead of leaving the badge reading a clean zero.
+    const unsynced = Number(summary.unsynced || 0);
+    const base = `POS → Jurnal: ${Number(summary.posted || 0)} posted · ${Number(summary.needsConfiguration || 0)} perlu setting · ${Number(summary.failed || 0)} gagal`;
+    return unsynced > 0 ? `${base} · ${unsynced} belum masuk jurnal` : base;
   }
 
   async function refreshStatus() {

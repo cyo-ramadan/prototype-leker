@@ -1,4 +1,4 @@
-import { json, readJson } from './http.js';
+import { json } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
@@ -606,68 +606,77 @@ export async function getAccountingBridgeSummary(db, storeId) {
     WHERE store_id = ? AND producer_module = 'POS'
     GROUP BY status
   `).bind(storeId).all();
-  const counts = { pending: 0, posted: 0, needsConfiguration: 0, failed: 0 };
+  const counts = { pending: 0, posted: 0, needsConfiguration: 0, failed: 0, unsynced: 0 };
   for (const row of rows.results ?? []) {
     if (row.status === 'PENDING') counts.pending = Number(row.count || 0);
     else if (row.status === 'POSTED') counts.posted = Number(row.count || 0);
     else if (row.status === 'NEEDS_CONFIGURATION') counts.needsConfiguration = Number(row.count || 0);
     else if (row.status === 'FAILED') counts.failed = Number(row.count || 0);
   }
+  // The four counts above describe delivery attempts. A fact that never produced
+  // a delivery row at all is absent from every one of them, so a store whose
+  // sales predate this lane reads as a clean zero while its revenue is missing
+  // from the books. unsynced is counted from the facts themselves so the backlog
+  // can never be silent.
+  counts.unsynced = await countUnsyncedPosFacts(db, storeId);
   return counts;
 }
 
-async function pendingFacts(db, storeId, limit) {
+// One definition of "a POS fact that still owes Accounting a journal", shared by
+// the reconciliation endpoint and by the summary the Accounting workspace shows.
+//
+// It is driven from the fact tables rather than from accounting_bridge_deliveries
+// deliberately. A fact created before the delivery ledger existed has no delivery
+// row at all, so a backlog counted from deliveries reports zero while the fact sits
+// unposted — the failure mode is silence, which is the worst kind here.
+//
+// voided_at arrived later, in migration 0027. A deliberately voided transaction
+// must never be re-posted, so the filter belongs in this shared definition rather
+// than in whichever caller happens to remember it.
+const UNSYNCED_POS_FACTS_SQL = `
+  SELECT 'SALE' AS fact_type, s.id AS fact_id, s.created_at
+  FROM sales s
+  WHERE s.store_id = ? AND s.voided_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM accounting_bridge_deliveries d
+      WHERE d.store_id = s.store_id AND d.producer_module = 'POS'
+        AND d.fact_type = 'SALE' AND d.fact_id = s.id AND d.status = 'POSTED'
+    )
+  UNION ALL
+  SELECT 'PURCHASE', p.id, p.created_at
+  FROM purchases p
+  WHERE p.store_id = ? AND p.voided_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM accounting_bridge_deliveries d
+      WHERE d.store_id = p.store_id AND d.producer_module = 'POS'
+        AND d.fact_type = 'PURCHASE' AND d.fact_id = p.id AND d.status = 'POSTED'
+    )
+  UNION ALL
+  SELECT 'EXPENSE', e.id, e.created_at
+  FROM expenses e
+  WHERE e.store_id = ? AND e.voided_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM accounting_bridge_deliveries d
+      WHERE d.store_id = e.store_id AND d.producer_module = 'POS'
+        AND d.fact_type = 'EXPENSE' AND d.fact_id = e.id AND d.status = 'POSTED'
+    )
+`;
+
+export async function activePendingPosFacts(db, storeId, limit) {
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
   const rows = await db.prepare(`
-    SELECT fact_type, fact_id, created_at
-    FROM (
-      SELECT 'SALE' AS fact_type, s.id AS fact_id, s.created_at
-      FROM sales s
-      WHERE s.store_id = ?
-        AND NOT EXISTS (
-          SELECT 1 FROM accounting_bridge_deliveries d
-          WHERE d.store_id = s.store_id AND d.producer_module = 'POS'
-            AND d.fact_type = 'SALE' AND d.fact_id = s.id AND d.status = 'POSTED'
-        )
-      UNION ALL
-      SELECT 'PURCHASE', p.id, p.created_at
-      FROM purchases p
-      WHERE p.store_id = ?
-        AND NOT EXISTS (
-          SELECT 1 FROM accounting_bridge_deliveries d
-          WHERE d.store_id = p.store_id AND d.producer_module = 'POS'
-            AND d.fact_type = 'PURCHASE' AND d.fact_id = p.id AND d.status = 'POSTED'
-        )
-      UNION ALL
-      SELECT 'EXPENSE', e.id, e.created_at
-      FROM expenses e
-      WHERE e.store_id = ?
-        AND NOT EXISTS (
-          SELECT 1 FROM accounting_bridge_deliveries d
-          WHERE d.store_id = e.store_id AND d.producer_module = 'POS'
-            AND d.fact_type = 'EXPENSE' AND d.fact_id = e.id AND d.status = 'POSTED'
-        )
-    )
+    SELECT fact_type, fact_id, created_at FROM (${UNSYNCED_POS_FACTS_SQL})
     ORDER BY created_at, fact_type, fact_id
     LIMIT ?
   `).bind(storeId, storeId, storeId, safeLimit).all();
   return rows.results ?? [];
 }
 
-export async function syncPendingPosAccountingFacts(db, store, limit = 50) {
-  const rows = await pendingFacts(db, store.id, limit);
-  const results = [];
-  for (const row of rows) {
-    const result = await dispatchPosAccountingFact(db, store, { factType: row.fact_type, factId: row.fact_id });
-    results.push({ factType: row.fact_type, factId: row.fact_id, status: result.status, code: result.code || '', journalId: result.journalId || null });
-  }
-  return {
-    attempted: results.length,
-    posted: results.filter(row => row.status === 'POSTED').length,
-    needsConfiguration: results.filter(row => row.status === 'NEEDS_CONFIGURATION').length,
-    failed: results.filter(row => row.status === 'FAILED').length,
-    results
-  };
+export async function countUnsyncedPosFacts(db, storeId) {
+  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${UNSYNCED_POS_FACTS_SQL})`)
+    .bind(storeId, storeId, storeId)
+    .first();
+  return Number(row?.count || 0);
 }
 
 async function selectedStore(db, request) {
@@ -685,16 +694,10 @@ export async function handleAccountingPosBridgeApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/admin/accounting/bridge') {
     return json({ contract: ACCOUNTING_POS_BRIDGE_CONTRACT, summary: await getAccountingBridgeSummary(env.DB, store.id) });
   }
-  if (request.method === 'POST' && pathname === '/api/admin/accounting/bridge/sync') {
-    const body = await readJson(request);
-    if (!body.ok) return json({ error: 'Payload sync Accounting bridge tidak valid.' }, 400);
-    const factType = text(body.value?.factType, 24).toUpperCase();
-    const factId = text(body.value?.factId, 180);
-    if (factType && factId) {
-      const result = await dispatchPosAccountingFact(env.DB, store, { factType, factId });
-      return json(result, result.ok ? 200 : 409);
-    }
-    return json(await syncPendingPosAccountingFacts(env.DB, store, body.value?.limit || 50));
-  }
+  // POST /api/admin/accounting/bridge/sync is owned by the reconciliation guard
+  // (src/accounting-reconciliation-guard.js), which runs ahead of this handler in
+  // src/index.js. A second copy lived here and skipped the voided_at check, so it
+  // would have re-posted deliberately voided transactions had the handler order
+  // ever been swapped. One route, one owner.
   return json({ error: 'Route Accounting bridge tidak ditemukan.' }, 404);
 }

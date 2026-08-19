@@ -120,6 +120,92 @@ async function listItemCategories(db, storeId) {
   }));
 }
 
+// What the POS→Accounting resolver actually needs before a fact of this category
+// can produce a journal.
+//
+// Having one active Debit rule and one active Credit rule is necessary but far
+// from sufficient: a rule sourced from a payment method still needs that payment
+// method linked to an account, and a rule sourced from Jenis Barang still needs
+// the kind mapped and the product carrying a kind at all. Reporting COMPLETE on
+// the rule shape alone told admins their setup was done while every sale failed
+// closed — silently, because the failure only appeared at posting time.
+async function postingBlockers(db, storeId) {
+  const [payments, unmappedKinds, kindsMissingRevenue, kindlessProducts] = await db.batch([
+    db.prepare(`
+      SELECT code FROM payment_methods
+      WHERE store_id = ? AND is_active = 1 AND (account_id IS NULL OR account_id = '')
+      ORDER BY code
+    `).bind(storeId),
+    db.prepare(`
+      SELECT DISTINCT k.code AS code
+      FROM products p
+      JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
+      WHERE p.store_id = ? AND p.is_active = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM item_categories c
+          WHERE c.store_id = p.store_id AND c.product_kind_id = p.product_kind_id AND c.is_active = 1
+        )
+      ORDER BY k.code
+    `).bind(storeId),
+    db.prepare(`
+      SELECT DISTINCT k.code AS code
+      FROM item_categories c
+      JOIN product_kinds k ON k.id = c.product_kind_id AND k.store_id = c.store_id
+      WHERE c.store_id = ? AND c.is_active = 1
+        AND (c.revenue_account_id IS NULL OR c.revenue_account_id = '')
+      ORDER BY k.code
+    `).bind(storeId),
+    db.prepare(`
+      SELECT COUNT(*) AS count FROM products
+      WHERE store_id = ? AND is_active = 1 AND (product_kind_id IS NULL OR product_kind_id = '')
+    `).bind(storeId)
+  ]);
+  return {
+    unmappedPaymentMethods: (payments.results ?? []).map(row => row.code),
+    unmappedProductKinds: (unmappedKinds.results ?? []).map(row => row.code),
+    productKindsWithoutRevenue: (kindsMissingRevenue.results ?? []).map(row => row.code),
+    productsWithoutKind: Number((kindlessProducts.results ?? [])[0]?.count || 0)
+  };
+}
+
+// Blockers are matched to a category by the source types its own active rules
+// use, rather than hard-coded per category code, so a category configured
+// differently is judged by what it actually asks the resolver to do.
+function blockersForCategory(activeRules, facts) {
+  const sourceTypes = new Set(activeRules.map(rule => rule.sourceType));
+  const blockers = [];
+
+  if (sourceTypes.has('payment_method') && facts.unmappedPaymentMethods.length) {
+    blockers.push({
+      code: 'PAYMENT_METHOD_UNMAPPED',
+      detail: `Cara bayar belum dilink ke akun: ${facts.unmappedPaymentMethods.join(', ')}.`
+    });
+  }
+
+  const usesItemCategory = [...sourceTypes].some(type => String(type).startsWith('item_category_'));
+  if (usesItemCategory) {
+    if (facts.productsWithoutKind > 0) {
+      blockers.push({
+        code: 'PRODUCT_WITHOUT_KIND',
+        detail: `${facts.productsWithoutKind} barang aktif belum punya Jenis Barang.`
+      });
+    }
+    if (facts.unmappedProductKinds.length) {
+      blockers.push({
+        code: 'PRODUCT_KIND_UNMAPPED',
+        detail: `Jenis Barang belum dipetakan ke akun: ${facts.unmappedProductKinds.join(', ')}.`
+      });
+    }
+  }
+  if (sourceTypes.has('item_category_revenue') && facts.productKindsWithoutRevenue.length) {
+    blockers.push({
+      code: 'PRODUCT_KIND_REVENUE_UNMAPPED',
+      detail: `Jenis Barang belum punya akun Pendapatan: ${facts.productKindsWithoutRevenue.join(', ')}.`
+    });
+  }
+  return blockers;
+}
+
 async function listTransactionCategories(db, storeId) {
   const [categories, rules] = await db.batch([
     db.prepare(`
@@ -154,11 +240,16 @@ async function listTransactionCategories(db, storeId) {
       sortOrder: Number(row.sort_order || 0)
     });
   }
+  const facts = await postingBlockers(db, storeId);
   return (categories.results ?? []).map(row => {
     const categoryRules = grouped.get(row.id) ?? [];
     const active = categoryRules.filter(rule => rule.isActive);
     const debitCount = active.filter(rule => rule.side === 'DEBIT').length;
     const creditCount = active.filter(rule => rule.side === 'CREDIT').length;
+    const hasBothSides = debitCount >= 1 && creditCount >= 1;
+    const blockers = hasBothSides
+      ? blockersForCategory(active, facts)
+      : [{ code: 'NO_ACTIVE_DEBIT_CREDIT', detail: 'Butuh minimal satu rule Debit dan satu rule Kredit aktif.' }];
     return {
       id: row.id,
       code: row.code,
@@ -168,7 +259,10 @@ async function listTransactionCategories(db, storeId) {
       isActive: Boolean(row.is_active),
       description: row.description || '',
       registeredByModule: row.registered_by_module || 'ACCOUNTING',
-      completeness: debitCount >= 1 && creditCount >= 1 ? 'COMPLETE' : 'INCOMPLETE',
+      // COMPLETE now means "a fact of this category can actually post", not
+      // merely "the rules have two sides".
+      completeness: blockers.length === 0 ? 'COMPLETE' : 'INCOMPLETE',
+      blockers,
       debitCount,
       creditCount,
       rules: categoryRules

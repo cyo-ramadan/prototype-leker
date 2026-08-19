@@ -232,6 +232,70 @@ Selesaikan bootstrap/default write terlebih dahulu, kemudian jalankan independen
 
 Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak boleh menulis langsung ke database Accounting atau membuat General Ledger tandingan. Dalam local composition host, semua journal write tetap wajib melalui Accounting posting entry point yang sama.
 
+## `store_id` bukan batas tenant
+
+**Pitfall:** Jangan memperlakukan `store_id` sebagai batas isolasi pelanggan MAXI, dan jangan menambahkan tabel ledger baru tanpa memikirkan pemilik bukunya.
+
+`store_id` adalah **gerai** — scope operasional. Dalam arah SaaS multi-tenant, pemilik buku adalah **Entity (Badan Usaha)** dan pelanggan yang berlangganan adalah **Tenant**; keduanya belum ada di schema. Query yang hanya memfilter `store_id` aman selama Leker masih satu pelanggan, tetapi tidak memenuhi Constitution S3 begitu pelanggan kedua masuk.
+
+**Current strategy:**
+
+- Baris ledger (journal, stock movement, stock balance, valuation) akan berlabuh ke `entity_id`, **tidak** ke `tenant_id` atau `group_id`. Posted journal immutable, jadi identitas yang bisa berpindah saat merge tidak boleh menempel di sana.
+- Tenant dan consolidation group adalah relasi bertanggal yang di-resolve saat baca, bukan kolom yang didenormalisasi.
+- Tabel ledger baru yang dibuat sekarang tanpa mempertimbangkan `entity_id` menjadi utang migrasi begitu tenant kedua ada.
+
+Detail dan tahapan migrasinya di `adr/ADR-030-multi-entity-tenancy-and-accounting-consolidation.md`.
+
+## Status `Lengkap` tanpa konsumen adalah janji palsu
+
+**Pitfall:** Jangan menandai sebuah Jenis Transaksi `Lengkap` hanya karena rule Debit/Kredit-nya terisi, kalau tidak ada satu pun modul yang memposting melaluinya.
+
+Enam Jenis Transaksi hari ini ada di Setting Akuntansi tanpa konsumen posting: `wh_opname`, `wh_production`, `wh_transfer`, `wh_return`, `deposit`, `payroll`. Tiga yang pertama bahkan sudah punya rule aktif yang dikonfigurasi admin. Admin melihat `Lengkap`, wajar menyimpulkan Stock Opname menghasilkan jurnal, dan jurnal itu tidak pernah terbit — tanpa error, tanpa jejak, karena tidak pernah ada yang mencoba.
+
+**Current strategy:**
+
+- konsumen posting yang sebenarnya hanya `src/accounting-pos-bridge.js` (`sale`, `purchase_material`, `operational`) dan `src/accounting-cash-flow-bridge.js` (`cash_flow_in`, `cash_flow_out`);
+- `src/accounting-reference.js` hanya registry, bukan poster — jangan dihitung sebagai konsumen;
+- Jenis Transaksi tanpa konsumen ditandai *belum tersambung*, bukan `Lengkap`;
+- membuat lane posting baru untuk `wh_*` berarti memutuskan semantik Inventory → Accounting, dan itu milik Bos Cyo (Constitution R2).
+
+Lihat `adr/ADR-031`.
+
+## Transfer dan produksi tidak boleh menyentuh Pendapatan atau Beban
+
+**Pitfall:** Jangan mengizinkan rule `wh_transfer` atau `wh_production` memakai akun bertipe `REVENUE` atau `EXPENSE`.
+
+`wh_production` memindahkan nilai antar sub-akun Persediaan sesuai jenis bahan — kedua kaki Aset, tidak ada kekayaan bertambah atau berkurang. `wh_transfer` berpindah di wilayah kas, piutang, dan hutang — kedua kaki Aset atau Liabilitas.
+
+Memindahkan uang antar rekening yang tercatat sebagai pendapatan akan **menggelembungkan omzet tanpa satu pun penjualan terjadi**, dan tidak ada tes yang gagal karenanya: jurnalnya tetap balance. Itu sebabnya larangan ini ditegakkan pada tipe akun saat rule disimpan, bukan diserahkan pada kehati-hatian saat memposting.
+
+Keputusan Bos Cyo 2026-08-19, lihat `adr/ADR-032`.
+
+## Seed migration memasang rule untuk semua Jenis Transaksi kecuali `sale`
+
+**Pitfall:** Jangan berasumsi Jenis Transaksi yang terdaftar di Setting Akuntansi sudah punya rule.
+
+`trg_stores_seed_accounting_settings_defaults` (migration `0022`) mendaftarkan `sale` sebagai
+Jenis Transaksi untuk tiap gerai baru dan memasang rule untuk `wh_transfer`, `wh_opname`, dan
+`wh_production`. Migration `0029` menambahkan rule `purchase_material`, `0035` menambahkan
+`operational`, `0028` menambahkan `cash_flow_*`. **Tidak satu pun memasang rule untuk `sale`.**
+
+Akibatnya setiap gerai — termasuk deployment yang benar-benar baru — lahir dengan Penjualan
+terdaftar tetapi tidak bisa memposting apa pun. Rule `sale` G001 di produksi dibuat manual
+tanggal 16 Agustus 2026; G002 tidak pernah dibuat, dan dua penjualannya menganggur sejak
+11 Agustus. Tidak ada tes yang gagal karenanya: kategorinya ada, resolvernya benar
+gagal-tertutup, dan yang hilang justru datanya.
+
+**Current strategy:**
+
+- migration `0040` memasang rule `sale` untuk gerai yang sudah ada **dan** trigger
+  `trg_sale_category_rules_after_insert` supaya gerai berikutnya ikut terkonfigurasi;
+- lane posting baru wajib memasang rule-nya lewat trigger `AFTER INSERT ON
+  transaction_categories`, mengikuti idiom `trg_purchase_category_rules_after_insert`, bukan
+  lewat INSERT satu kali yang hanya menambal gerai hari ini;
+- `test/sale-posting-config.test.js` menahan bentuk ini: tanpa `0040`, tidak satu gerai pun
+  di database baru bisa memposting penjualan.
+
 ## DOC-IMPACT
 
-**REQUIRED** — Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot; refresh kasir tetap event-driven; costing/journal memakai exact scaled integer snapshots; saldo negatif dipertahankan sebagai signed balance; auto Penyesuaian dibatasi policy; operational Qty tidak bocor menjadi stock movement; Accounting Settings tetap configuration-only; Warehouse tidak memiliki duplicate mapping; `chart_of_accounts` tetap sole canonical COA registry; out-of-band schema dilarang; business-application tables tidak boleh FK langsung ke Accounting interpretation tables; stock-integrity policy tetap milik Inventory/Costing; production D1 recovery harus memverifikasi schema object; dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

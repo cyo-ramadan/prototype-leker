@@ -254,6 +254,31 @@ Memindahkan uang antar rekening yang tercatat sebagai pendapatan akan **menggele
 
 Keputusan Bos Cyo 2026-08-19, lihat `adr/ADR-032`.
 
+## Seed migration memasang rule untuk semua Jenis Transaksi kecuali `sale`
+
+**Pitfall:** Jangan berasumsi Jenis Transaksi yang terdaftar di Setting Akuntansi sudah punya rule.
+
+`trg_stores_seed_accounting_settings_defaults` (migration `0022`) mendaftarkan `sale` sebagai
+Jenis Transaksi untuk tiap gerai baru dan memasang rule untuk `wh_transfer`, `wh_opname`, dan
+`wh_production`. Migration `0029` menambahkan rule `purchase_material`, `0035` menambahkan
+`operational`, `0028` menambahkan `cash_flow_*`. **Tidak satu pun memasang rule untuk `sale`.**
+
+Akibatnya setiap gerai — termasuk deployment yang benar-benar baru — lahir dengan Penjualan
+terdaftar tetapi tidak bisa memposting apa pun. Rule `sale` G001 di produksi dibuat manual
+tanggal 16 Agustus 2026; G002 tidak pernah dibuat, dan dua penjualannya menganggur sejak
+11 Agustus. Tidak ada tes yang gagal karenanya: kategorinya ada, resolvernya benar
+gagal-tertutup, dan yang hilang justru datanya.
+
+**Current strategy:**
+
+- migration `0040` memasang rule `sale` untuk gerai yang sudah ada **dan** trigger
+  `trg_sale_category_rules_after_insert` supaya gerai berikutnya ikut terkonfigurasi;
+- lane posting baru wajib memasang rule-nya lewat trigger `AFTER INSERT ON
+  transaction_categories`, mengikuti idiom `trg_purchase_category_rules_after_insert`, bukan
+  lewat INSERT satu kali yang hanya menambal gerai hari ini;
+- `test/sale-posting-config.test.js` menahan bentuk ini: tanpa `0040`, tidak satu gerai pun
+  di database baru bisa memposting penjualan.
+
 ## DOC-IMPACT
 
-**REQUIRED** — `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

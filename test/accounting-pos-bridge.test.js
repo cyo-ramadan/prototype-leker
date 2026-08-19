@@ -89,6 +89,11 @@ function setupMappings(sqlite) {
   const operationalCategory = category('operational');
   assert.ok(saleCategory && purchaseCategory && operationalCategory);
 
+  // Migration 0040 seeds a full four-rule sale composition. These tests reason
+  // about a rule set they build line by line, so the category starts empty
+  // rather than inheriting the default on top of it.
+  sqlite.prepare(`DELETE FROM journal_rules WHERE transaction_category_id = ?`).run(saleCategory);
+
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('sale_dr_payment', ?, ?, 'Pembayaran', 'DEBIT', 'payment_method', 10)`).run(store.id, saleCategory);
   sqlite.prepare(`INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, sort_order) VALUES ('sale_cr_revenue', ?, ?, 'Penjualan', 'CREDIT', 'item_category_revenue', 20)`).run(store.id, saleCategory);
   const operationalRules = sqlite.prepare(`SELECT side, source_type, fixed_account_id FROM journal_rules WHERE store_id = ? AND transaction_category_id = ? ORDER BY sort_order`).all(store.id, operationalCategory);

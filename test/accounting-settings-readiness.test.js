@@ -41,10 +41,15 @@ function freshDatabase() {
   return sqlite;
 }
 
-// The migration chain does not seed sale journal rules — in production they were
-// created by hand — so the test states the rule shape it is reasoning about
-// instead of depending on fixture data that may not exist.
+// Migration 0040 seeds a sale composition. These tests reason about a rule set
+// they state themselves, so each one starts from an empty category instead of
+// layering its rules on top of the default.
+function clearSaleRules(sqlite) {
+  sqlite.exec(`DELETE FROM journal_rules WHERE transaction_category_id = '${SALE_CATEGORY}';`);
+}
+
 function seedSaleRules(sqlite) {
+  clearSaleRules(sqlite);
   sqlite.exec(`
     INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, is_active, sort_order)
     VALUES
@@ -62,6 +67,7 @@ async function category(sqlite, code) {
 
 test('a category with no rules is incomplete and names the missing sides', async () => {
   const sqlite = freshDatabase();
+  clearSaleRules(sqlite);
   const sale = await category(sqlite, 'sale');
   assert.ok(sale, 'the sale category exists in the migrated fixture');
   assert.equal(sale.completeness, 'INCOMPLETE');
@@ -71,6 +77,11 @@ test('a category with no rules is incomplete and names the missing sides', async
 test('both sides present is not enough to call a category complete', async () => {
   const sqlite = freshDatabase();
   seedSaleRules(sqlite);
+  // Reproduces the state that stranded eleven sales: rules complete, products
+  // with no Jenis Barang. Migration 0040 has since given every product one, so
+  // the test recreates the condition rather than assuming the fixture still
+  // carries it.
+  sqlite.exec(`UPDATE products SET product_kind_id = NULL WHERE store_id = '${STORE}';`);
   const sale = await category(sqlite, 'sale');
 
   assert.ok(sale.debitCount >= 1 && sale.creditCount >= 1);

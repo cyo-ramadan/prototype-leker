@@ -150,17 +150,6 @@
     replacement.addEventListener('click', handler);
   }
 
-  function syncPurchaseButtonState() {
-    const button = byId('purchaseBtn');
-    if (!button) return;
-    button.disabled = !state.canWrite;
-    button.title = state.canWrite
-      ? 'Catat pembelian bahan'
-      : state.drawer
-        ? `Read-only: laci sedang dipegang ${state.drawer.cashierName}`
-        : 'Buka laci untuk mencatat pembelian bahan';
-  }
-
   async function purchaseDialog() {
     try {
       if (!state.canWrite) {
@@ -345,11 +334,22 @@
     };
   }
 
+  function bindCanonicalPurchaseClick() {
+    if (window.__cashierPurchaseClickBound) return;
+    window.__cashierPurchaseClickBound = true;
+    document.addEventListener('click', event => {
+      const button = event.target.closest?.('#purchaseBtn');
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      purchaseDialog();
+    }, true);
+  }
+
   function mount() {
     renderSaleMethod();
     renderSaleDialogMethod();
-    replaceButton('purchaseBtn', 'pimasatuPurchaseBound', purchaseDialog);
-    syncPurchaseButtonState();
+    bindCanonicalPurchaseClick();
     replaceButton('expenseBtn', 'accountingInputsBound', operationalDialog);
     if (state.canWrite) {
       loadPurchaseData().catch(() => {});

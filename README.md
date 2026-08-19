@@ -14,6 +14,13 @@ Prototype self-ordering + branch administration + cashier workspace untuk MAXI L
 
 Gerai bukan master data. `/admin` adalah Owner Console. Workspace gerai berada di `/s/<KODE>/admin`.
 
+## Jalan pintas — agen dengan tugas dari papan `maxi-agent-bus`
+
+Kalau kamu agen implementer (Karen, Kimi, Manus, Grok, atau lainnya) yang ditugaskan lewat
+papan tugas: **jangan mulai dari sini.** Buka `agent-bus/CLAIM-PROMPT.md` — prompt itu
+sengaja berdiri sendiri (termasuk pola panggilan lewat `curl` buat platform tanpa tool D1
+bawaan) supaya tidak ada langkah baca dokumen kedua sebelum kamu bisa mulai.
+
 ## Data isolation
 
 Satu Cloudflare D1 digunakan dengan server-side `store_id` isolation. Barang, kategori, supplier, admin, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, accounting configuration, posted journal, dan laci kas terpisah per gerai.
@@ -220,9 +227,29 @@ Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang m
 - `0025_accounting_pos_bridge.sql` — POS Accounting delivery/reconciliation state.
 - `0026_accounting_six_decimal_precision.sql` — six-decimal exact Accounting precision.
 - `0027_transaction_void_permits.sql` — approval permit koreksi transaksi, reversal evidence, dan Raport facts.
+- `0028_cash_flow_counterpart_defaults.sql` — default akun lawan Arus Kas per arah.
+- `0029_purchase_accounting_defaults.sql` — default Accounting untuk pembelian.
+- `0030_g001_purchase_material_master.sql` — master bahan pembelian G001.
+- `0031_g001_purchase_material_products.sql` — produk bahan pembelian G001.
 - `0032_master_purchase_price.sql` — bootstrap Harga Beli master kosong dari bukti pembelian terakhir; selanjutnya Harga Beli master tetap editable dan independen.
+- `0033_customer_feedback.sql` — customer feedback dan private evaluation.
+- `0034_cost_master.sql` — Master Biaya/Jenis Biaya.
+- `0035_operational_cost_accounting_defaults.sql` — default Accounting untuk biaya operasional.
+- `0036_debugger_control_plane.sql` — debugger control plane dan audit log.
+- `0037_accounting_schema_reconciliation.sql` — rekonsiliasi orphan Accounting schema dari PR #3 yang tidak jadi di-merge; snapshot bukti disimpan inert, `chart_of_accounts` tetap satu-satunya registry akun canonical.
+- `0038_operational_accounting_boundary.sql` — penegakan boundary Operasional/Accounting.
+- `0039_tenancy_and_consolidation_foundation.sql` — pondasi SaaS multi-tenant per `ADR-030`: `tenants`, `entities`, `entity_tenancy`, `consolidation_groups`, `consolidation_membership`, plus `stores.entity_id` yang nullable. Aditif; tidak ada tabel lama yang dibangun ulang. Setiap gerai di-backfill jadi satu Entity di bawah satu tenant prototype.
 
-Remote dedicated prototype D1 is migrated through `0032` after the master purchase-price deployment.
+Remote dedicated prototype D1 is migrated through `0036` (applied 2026-08-16). Migration
+`0037` dan `0038` sudah ada di repository tetapi **belum applied** ke remote.
+
+Selama `0037` belum applied, empat tabel orphan dari PR #3 (`accounting_accounts`,
+`accounting_dimensions`, `accounting_opening_balances`, `accounting_transaction_mappings`)
+masih ada di live D1. `scripts/verify-remote-schema.mjs` sengaja menolak deploy selama
+tabel itu ada, karena `accounting_accounts` terbaca sebagai parallel Chart of Accounts.
+Urutan `npm run deploy` adalah migrate → verify → deploy, jadi menjalankan deploy canonical
+akan menerapkan `0037` lebih dulu dan gate tersebut terbuka sendiri; tidak perlu DROP manual
+di produksi.
 
 ## Relevant APIs
 

@@ -1,0 +1,21 @@
+name: TEMP Live Three Transaction Audit
+
+on:
+  push:
+    branches:
+      - agent/accounting-journal-clarity-live-audit-20260816
+    paths:
+      - .github/workflows/live-three-transaction-audit-temp.yml
+      - scripts/live-three-transaction-audit-temp.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  live-three-transaction-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit current live transaction and Accounting prerequisites
+        run: node scripts/live-three-transaction-audit-temp.mjs

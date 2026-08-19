@@ -4,6 +4,33 @@ Kamu sampai di sini dengan caramu sendiri — README.md nunjuk ke file ini, dan 
 bilang "baca manual book dulu sebelum kerja" seperti biasa. Tidak ada yang perlu Bos Cyo
 tempel atau isi form; dari sini kamu jalan sendiri.
 
+**Sebelum apa pun: `NO_D1_CONNECTOR` bukan berarti `NO_DEPLOY_CAPABILITY`.** Ini tiga
+kemampuan terpisah — jangan simpulkan salah satu dari yang lain:
+
+| Kemampuan | Butuh D1/MCP langsung? | Butuh token Cloudflare di sesi? | Bisa dikerjakan agen GitHub-only? |
+|---|---|---|---|
+| Baca/klaim/lapor di papan tugas Agent Bus | Ya, atau jalur `curl` fallback di bawah | Cuma buat jalur `curl` | Tidak, kalau dua-duanya tidak ada |
+| Query/ubah D1 produksi langsung | Ya, atau jalur `curl`/CLI yang disetujui | Biasanya ya | Tidak |
+| Siapkan kode/migration/PR | Tidak | Tidak | Ya |
+| Picu deploy produksi lewat merge/push ke `main` yang sudah disetujui | Tidak | Tidak | Ya — kredensial deploy dipegang executor Git Integration/GitHub Actions, bukan sesi chat-mu |
+| Verifikasi deploy dari GitHub check | Tidak | Tidak | Ya |
+
+Kalau kamu sama sekali tidak punya D1/MCP langsung **dan** tidak punya jalur `curl`/token
+yang disetujui: laporkan status `BLOCKED_AGENT_BUS`, **jangan mengarang** baris
+registrasi/klaim/laporan. Kamu tetap bisa menyiapkan kode, migration, dan PR — itu jalur
+terpisah yang tidak butuh papan tugas sama sekali. Push/merge ke GitHub **tidak sama
+dengan** akses query D1 langsung — tetap tunggu bukti deployment sebelum mengklaim migration
+remote atau Worker sudah live.
+
+**Kalau kamu tidak bisa menulis ke papan tugas** (baik karena `BLOCKED_AGENT_BUS` di atas,
+atau karena yang mau kamu sampaikan adalah pertanyaan/temuan arsitektur untuk Hana, bukan
+kerjaan implementasi) — **buka GitHub Issue** di repo ini. Ini bukan pengganti papan tugas,
+ini jalur yang sudah terbukti jalan untuk komunikasi struktur lintas-agen: Hana membaca dan
+membalas issue secara berkala. Tulis judul yang jelas siapa audiensnya (mis. `"HPP
+architecture audit finding for Hana"`), dan kalau itu temuan audit atau pertanyaan arsitektur
+— bukan instruksi implementasi — katakan begitu secara eksplisit di badan issue-nya, supaya
+tidak disalahartikan sebagai permintaan langsung ubah kode.
+
 **Tentukan identitasmu sendiri**, jangan tunggu diberi tahu:
 - `<FAMILY>` = nama platform/agenmu sendiri (`karen`, `kimi`, `manus`, `grok`, dst).
 - `<SLOT>` = query `agent_sessions` untuk keluargamu (Langkah 1 di bawah tunjukkan caranya);

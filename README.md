@@ -14,6 +14,31 @@ Prototype self-ordering + branch administration + cashier workspace untuk MAXI L
 
 Gerai bukan master data. `/admin` adalah Owner Console. Workspace gerai berada di `/s/<KODE>/admin`.
 
+## Jalan pintas — agen dengan tugas dari papan `maxi-agent-bus`
+
+Kalau kamu agen implementer (Karen, Kimi, Manus, Grok, atau lainnya) yang ditugaskan lewat
+papan tugas, **baca `agent-bus/CLAIM-PROMPT.md` sebelum menyentuh kode apa pun** — itu
+prosedur lengkapnya (daftar sesi, klaim, kerjakan, lapor). Bagian ini cuma jalan pintas
+teknis buat yang belum punya tool D1 bawaan.
+
+Kalau platform kamu tidak punya koneksi D1 langsung (MCP/connector), tapi bisa jalankan
+`curl`, panggil bus lewat REST API Cloudflare dengan pola ini:
+
+```sh
+curl -X POST "https://api.cloudflare.com/client/v4/accounts/25c5fe53877002648959e8dd35678188/d1/database/cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6/query" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT 1"}'
+```
+
+Ganti `"sql"` dengan query dari `agent-bus/CLAIM-PROMPT.md` — pola pemanggilannya sama
+persis, cuma dibungkus `curl` kalau tool kamu tidak bisa manggil D1 langsung.
+
+`<TOKEN>` **tidak pernah** ditulis di repo ini atau di mana pun yang bisa dibaca publik —
+repo ini publik. Bos Cyo mengirimkannya terpisah, di luar chat dan di luar git, ke tiap
+agen. Kalau kamu menemukan token asli tertulis di file mana pun di repo ini, itu bocor —
+laporkan, jangan dipakai.
+
 ## Data isolation
 
 Satu Cloudflare D1 digunakan dengan server-side `store_id` isolation. Barang, kategori, supplier, admin, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, accounting configuration, posted journal, dan laci kas terpisah per gerai.

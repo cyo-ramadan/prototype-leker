@@ -101,3 +101,8 @@ ter-deploy oleh Git Integration. Deploy manual dengan config-nya sendiri.
 - File `src/` atau `public/` baru **wajib** ditambahkan ke script `check`.
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
 - Kerjakan di branch fitur, jangan commit langsung ke `main`.
+- Sebelum commit pertama tiap sesi, set `git config user.name "Hana"` dan
+  `git config user.email "hana@agent.maxi"` — supaya histori commit menunjukkan
+  Hana yang mengerjakan, bukan akun yang kebetulan dipakai untuk push. Sama
+  aturannya berlaku untuk agen implementer lain (`agent-bus/CLAIM-PROMPT.md`),
+  masing-masing pakai nama sendiri.

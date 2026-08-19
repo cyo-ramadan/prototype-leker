@@ -32,7 +32,10 @@ export const FORBIDDEN_REMOTE_TABLES = Object.freeze([
   'accounting_accounts',
   'accounting_dimensions',
   'accounting_opening_balances',
-  'accounting_transaction_mappings'
+  'accounting_transaction_mappings',
+  'pos_tenants',
+  'pos_terminals',
+  'pos_integration_settings'
 ]);
 export const ALLOWED_ACCOUNT_REFERENCE_TABLES = Object.freeze(['accounting_account_refs']);
 export const ACCOUNTING_ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);

@@ -1,5 +1,26 @@
 # Changelog — Prototype Leker
 
+## 2026-08-19 — Stock Adjustment PILATU composer release
+
+Change ID: `LEKER-STOCK-ADJUSTMENT-PILATU-20260819`
+
+- Replace the cashier Penyesuaian Stok single-product interaction with PILATU: search and selecting a product immediately materializes a persistent working row.
+- Keep prior selections when another product is chosen; newest selection is shown first and previously entered `Qty Sebenarnya` remains intact.
+- Duplicate selection surfaces the existing row rather than creating a duplicate.
+- Present five business columns: `Barang | Qty Tercatat | Qty Sebenarnya | HPP | Selisih`; only `Qty Sebenarnya` is editable.
+- Keep HPP display read-only and show `—` when no approved binding is available; the UI does not invent a costing value.
+- Submit each non-zero row through the existing per-product `GOODS_FLOW` / `STOCK_ADJUSTMENT` approval request path, preserving server snapshot and stale-guard semantics.
+- Add regression coverage for the exact `Mineral -> Margarin` sequence and include both new browser modules in `npm run check`.
+- No database migration, backend payload change, inventory-posting change, Accounting decision, or Approval authority change.
+
+### Recovery
+
+UI-only rollback is a release revert. Existing pending approvals and posted stock movements remain untouched because backend Stock Adjustment V1 semantics are unchanged.
+
+### DOC-IMPACT
+
+**REQUIRED** — user-visible cashier composition changed; the release preflight documents the preserved domain boundaries.
+
 ## 2026-08-18 — Flexible Production Panel V2
 
 Change ID: `LEKER-PRODUCTION-PANEL-V2-20260818`

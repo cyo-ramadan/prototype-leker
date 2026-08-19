@@ -1,12 +1,30 @@
-# Handoff — implementasi Choice Group (Resep Akun)
+# Handoff — implementasi Setting Transaksi (Choice Group di kode/schema)
 
 Disiapkan oleh: `hana1.1` — arsitektur
-Tanggal: 2026-08-19
-Architecture: `adr/ADR-033-accounting-choice-groups.md`
+Tanggal: 2026-08-19, diperbarui 2026-08-19 sore
+Architecture: `adr/ADR-033-accounting-choice-groups.md` (baca §6-§8 addendum dulu)
 Kontrak: `contracts/accounting-choice-groups-v1.md`
 
-**Jangan mulai sebelum tiga pertanyaan di `ADR-033` §6 dijawab Bos Cyo.** Ketiganya
-mengubah bentuk schema, bukan sekadar penamaan.
+**Label UI-nya "Setting Transaksi"**, bukan "Choice Group"/"Resep" — nama tabel dan
+kode tetap `accounting_choice_groups`/`accounting_choice_options`, istilah teknis
+tidak pernah muncul ke admin.
+
+**Status per fase (2026-08-19):**
+- ✅ **Fase 1 — landed.** `migrations/0042_accounting_choice_groups.sql`,
+  `test/setting-transaksi-schema.test.js` (7 tes). Nol perubahan perilaku,
+  dibuktikan tes yang membandingkan `journal_rules` sebelum/sesudah 0042.
+- ⬜ **Fase 3 & 4 — belum dikerjakan.** Ini yang bikin dua tombol di Setting
+  Akuntansi beneran berfungsi (lihat `ADR-033` §8 untuk scope persis dua tombol
+  itu). Mulai dari sini.
+- **Fase 2 (backfill baris `fixed_account` ganda lama) ditunda** — tidak
+  memblokir Fase 3/4, dan tidak diminta Bos Cyo di scope §8. Kategori lama yang
+  masih pakai baris `fixed_account` ganda terus jalan seperti sekarang.
+- **Fase 5-6 (modul operasional, tutup compatibility window) ditunda** — sama
+  alasannya, di luar scope §8.
+- Dua pertanyaan `ADR-033` §6 yang dulu memblokir semuanya **sudah terjawab**
+  (Cara Bayar dan Jenis Barang tetap di luar model ini sama sekali — jangan
+  disentuh oleh pekerjaan ini). Pertanyaan nama masih terbuka tapi tidak
+  memblokir — pakai "Setting Transaksi" apa adanya.
 
 Baca dulu, berurutan: `CLAUDE.md` → `ADR-033` → kontrak di atas → `ADR-029` §boundary →
 `ADR-031` §4 → `KNOWN_PITFALLS.md`.
@@ -23,36 +41,42 @@ Baca dulu, berurutan: `CLAUDE.md` → `ADR-033` → kontrak di atas → `ADR-029
 - Jangan menyentuh `package.json` script `deploy`.
 - Jangan pernah `DELETE` baris konfigurasi yang pernah menghasilkan jurnal.
 
-## Fase 1 — schema, tanpa perubahan perilaku
+## Fase 1 — schema, tanpa perubahan perilaku ✅ LANDED 2026-08-19
 
-**Paths:** `migrations/0041_*.sql`, `test/choice-groups-schema.test.js`
+**Paths:** `migrations/0042_accounting_choice_groups.sql`,
+`test/setting-transaksi-schema.test.js`
 
-1. `accounting_choice_groups`, `accounting_choice_options`,
-   `accounting_choice_option_legacy_rules` sesuai kontrak §1.
-2. **Rebuild `journal_rules`** untuk menerima `source_type = 'choice_group'` dan kolom
-   `choice_group_id`. SQLite tidak bisa mengubah `CHECK`, jadi: buat tabel baru, salin,
-   drop, rename, **pasang ulang semua index dan trigger**.
+Selesai dikerjakan Hana. Yang mendarat:
+
+1. `accounting_choice_groups`, `accounting_choice_options` (kolom `entity_id`
+   nullable per `ADR-030`, sesuai `ADR-033` §4.4). **`accounting_choice_option_legacy_rules`
+   belum dibuat** — itu milik Fase 2, yang ditunda (lihat status di atas).
+2. `journal_rules` di-rebuild untuk menerima `source_type='choice_group'` + kolom
+   `choice_group_id`. Ternyata ada jebakan yang tidak disebutkan draf semula:
+   `ALTER TABLE ... RENAME TO` non-legacy memvalidasi **semua** trigger di schema
+   terhadap state sebelum rename, termasuk trigger di tabel lain yang isi bodinya
+   menyebut `journal_rules` (`trg_stores_seed_accounting_settings_defaults`,
+   dll) — gagal dengan "no such table: journal_rules" walau trigger itu sama
+   sekali tidak berhubungan dengan rename-nya. Perbaikannya: `PRAGMA
+   legacy_alter_table = ON` sebelum drop+rename, `OFF` lagi sesudahnya. Lihat
+   komentar di migration untuk detailnya kalau ketemu jebakan serupa lagi.
 3. `accounting_journal_lines` + `choice_group_code`, `choice_option_code` (aditif).
 
-**Risiko terbesar ada di butir 2.** Sebelum menulis, jalankan
-`SELECT type, name, sql FROM sqlite_schema WHERE tbl_name='journal_rules'` di fixture
-migrasi penuh dan **daftar semua** index/trigger yang menyentuhnya —
-`idx_journal_rules_one_default` dan trigger seed
-(`trg_stores_seed_accounting_settings_defaults`, `trg_purchase_category_rules_after_insert`,
-`trg_sale_category_rules_after_insert`, dan padanan cash-flow/operational). Kehilangan
-salah satunya baru ketahuan berbulan-bulan kemudian sebagai konfigurasi yang diam-diam
-tidak terpasang di gerai baru — persis cacat yang baru saja diperbaiki migration `0040`.
+**Acceptance — semua terbukti oleh `test/setting-transaksi-schema.test.js`:**
+- kedua index dan kedua trigger yang menyentuh `journal_rules` masih ada sesudah rebuild;
+- setiap baris `journal_rules` lama identik sebelum/sesudah 0042 (dibandingkan
+  terhadap fixture yang berhenti satu migration sebelum 0042);
+- membuat gerai baru masih menghasilkan set rule yang sama persis;
+- `source_type='choice_group'` tanpa `choice_group_id` ditolak, dan sebaliknya,
+  dan kombinasi keduanya sekaligus juga ditolak;
+- guard cross-store (`trg_choice_option_scope_insert/update`) dan
+  unique-default-per-group (`idx_choice_options_one_default`) punya tes sendiri;
+- 305 tes total hijau (298 lama + 7 baru), tidak ada yang diubah.
 
-**Acceptance:**
-- semua index dan trigger yang menyentuh `journal_rules` masih ada sesudah rebuild,
-  dibuktikan tes yang membandingkan daftar `sqlite_schema` sebelum dan sesudah;
-- membuat gerai baru masih menghasilkan set rule yang sama persis seperti sebelum PR;
-- `source_type='choice_group'` tanpa `choice_group_id` ditolak, dan sebaliknya;
-- 283 tes lama tetap hijau tanpa satu pun diubah.
+## Fase 2 — migrasi data, jurnal harus identik (DITUNDA, di luar scope saat ini)
 
-## Fase 2 — migrasi data, jurnal harus identik
-
-**Paths:** `migrations/0042_*.sql`, `test/choice-groups-backfill.test.js`
+**Paths:** `migrations/0043_*.sql` (0042 sudah dipakai Fase 1),
+`test/choice-groups-backfill.test.js`
 
 Untuk tiap `(transaction_category_id, side)` yang punya **lebih dari satu** baris
 `fixed_account` aktif:
@@ -79,6 +103,11 @@ Tambahan acceptance: `expenses.accounting_component_rule_id` lama tetap me-resol
 akun yang sama lewat tabel legacy.
 
 ## Fase 3 — resolver
+
+**Mulai dari sini.** Baca `ADR-033` §8 dulu — itu scope persis dua tombol yang
+diminta Bos Cyo (Grup Beban/Grup Pembayaran; pasang grup ke kategori yang sudah
+di-mapping). `payment_method` dan `item_category_*` **tetap tidak disentuh sama
+sekali** — itu bukan bagian dari permintaan ini (`ADR-033` §6 butir 2-3).
 
 **Paths:** `src/accounting-pos-bridge.js`, `src/accounting-cash-flow-bridge.js`,
 `test/accounting-pos-bridge.test.js`, `test/choice-groups-resolver.test.js`

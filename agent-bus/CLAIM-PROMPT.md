@@ -5,6 +5,14 @@ Tempel ini di awal tiap tab. Satu tab = satu slot. Ganti `<FAMILY>`, `<SLOT>`, `
 Prompt ini sengaja berdiri sendiri: sesi baru belum membaca apa pun, jadi aturannya ikut di
 dalam prompt, bukan jadi prasyarat sebelum mulai.
 
+Kalau Bos Cyo menugaskan langsung lewat kalimat (bukan menunjuk task yang sudah ada di
+papan), isi ini sebelum menempel — itu satu-satunya bagian yang perlu Bos Cyo ketik:
+
+> **Instruksi:** _______________________________________________
+>
+> **Menyentuh data produksi / uang sungguhan?** YA / TIDAK _(coret salah satu; kalau ragu,
+> pilih YA — Langkah 2.5 akan menahannya untuk Bos Cyo, bukan menutup sendiri)_
+
 ---
 
 Kamu adalah **`<FAMILY><SLOT>.<SESSION>`** — contoh `karen1.1`. Kalau tab ini penuh dan Bos
@@ -37,6 +45,49 @@ ORDER BY t.created_at;
 ```
 
 Baca `sop` yang ikut terbawa. Itu aturan tetapmu, dan tidak ada di tempat lain.
+
+**Langkah 2.5 — kalau tidak ada yang cocok, tapi Bos Cyo menempel Instruksi di atas, buat
+task-nya sendiri.** Ini menggantikan Bos Cyo mengetik SQL, bukan menggantikan penjagaannya —
+setiap baris di bawah masih wajib diisi jujur, terutama `paths`.
+
+1. Pilih `<KIND>` dari `agent_roles` milikmu sendiri (hasil Langkah 2, kolom `r.kind` kalau
+   ada baris; kalau tidak ada satu pun baris untuk keluargamu, **ini bukan bagianmu** —
+   berhenti dan lapor, jangan memaksakan kind lain supaya cocok).
+2. Baca ulang kotak **Menyentuh data produksi?** di atas. Kalau YA, atau kamu ragu:
+   `<MUTATES>` = `1` dan `<SELF_CLOSING>` = `0`. Kalau TIDAK: `<MUTATES>` = `0` dan
+   `<SELF_CLOSING>` = `1`.
+3. `<PATHS>` = daftar file/folder yang **akan** kamu sentuh, ditentukan dari instruksinya
+   sendiri sebelum menulis kode apa pun — bukan dirapikan belakangan. Ini satu-satunya yang
+   melindungi tab lain yang sedang mengerjakan instruksi lain di saat yang sama; jangan
+   dikosongkan.
+4. `<TERRITORY>` = nama modul yang paling dekat dengan instruksinya, huruf kecil satu kata
+   (`operasional`, `akuntansi`, `produksi`, dst) — sama istilah yang dipakai `sop`-mu di
+   Langkah 2.
+
+```sql
+INSERT INTO tasks (task_id, assigned_to, issued_by, territory, protocol_version,
+                   title, brief, acceptance_criteria, kind, mutates_production, self_closing)
+VALUES ('<FAMILY><SLOT>-SELF-<TIMESTAMP>', '<FAMILY>', 'BOS_CYO', '<TERRITORY>',
+        'MAXI_AGENT_TASK_BOARD_V1',
+        'ringkas instruksi jadi satu baris',
+        'salin instruksi Bos Cyo apa adanya, jangan ditafsirkan ulang di sini',
+        'apa yang membuktikan ini selesai — turunkan dari instruksinya, tulis eksplisit',
+        '<KIND>', <MUTATES>, <SELF_CLOSING>);
+
+INSERT INTO task_paths (task_id, path_prefix) VALUES
+  ('<FAMILY><SLOT>-SELF-<TIMESTAMP>', '<PATH_1>');
+  -- ulangi baris ini untuk tiap path tambahan
+```
+
+`issued_by = 'BOS_CYO'` selalu, bukan namamu — baris ini mencatat siapa yang minta, bukan
+siapa yang mengetik. Lanjut ke Langkah 3 seperti biasa, klaim task yang baru dibuat ini.
+
+**Kalau `<MUTATES>` = `1`:** tulis rencana kerjanya (file yang disentuh, apa yang berubah)
+sebagai balasan di tab ini dan **berhenti sebelum benar-benar mengubah data** sampai Bos Cyo
+membalas "lanjut" di tab yang sama. Task sendiri yang dibuat lewat Langkah 2.5 tidak pernah
+di-screening Hana lebih dulu seperti task di papan biasanya — kotak centang di atas
+menggantikan screening itu, bukan menghapusnya, jadi jangan dianggap otomatis disetujui hanya
+karena berhasil di-INSERT.
 
 **Langkah 3 — klaim.** Pakai id unik, misal `<FAMILY><SLOT>-<TASK_ID>`.
 

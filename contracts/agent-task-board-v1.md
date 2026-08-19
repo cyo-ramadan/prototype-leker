@@ -115,6 +115,40 @@ The `contract` field is the one that prevents ambiguity at query time. State whi
 to which, in words, e.g. *"`production_runs.recipe_id` must reference an immutable recipe
 revision; never join to `manufacturing_recipes` by product alone."*
 
+## Self-issued tasks — Bos Cyo speaks in a sentence, the agent writes the SQL
+
+Every task above assumes Hana (or Bos Cyo) already wrote a row in `tasks`. That is the right
+default when the work is being planned. It is the wrong default when Bos Cyo just wants to
+hand one agent a small, direct instruction and does not want to type SQL to make that
+possible — and making him type SQL to get a small thing done is exactly the friction that
+pushes people to skip the board entirely, which is the failure mode this section exists to
+prevent.
+
+**An implementer may write its own task row** when Bos Cyo pastes a plain-language instruction
+directly into its session, under all of the following:
+
+1. The agent registers itself and checks the board first, same as always. If an open task
+   already covers the instruction, it claims that one — self-issuing is for when nothing does.
+2. The agent picks a `kind` it is actually registered for in `agent_roles`. It does not invent
+   a kind to make the work fit; if no registered kind fits, that is itself a sign the work
+   belongs to a different family, and the agent says so instead of claiming.
+3. `issued_by = 'BOS_CYO'`, never the agent's own family — the row must say who actually asked
+   for the work, not who happened to type the INSERT.
+4. The agent declares `task_paths` **before** claiming, from its own honest read of what it is
+   about to touch. This is the one step that cannot be skipped: it is the only thing that
+   protects a second agent, self-issuing an unrelated instruction at the same time, from
+   silently colliding on the same file. Declaring `src/` too broadly to be safe is fine;
+   declaring nothing is not.
+5. If the instruction reads as production data mutation, accounting policy, or anything
+   Constitution §5 reserves for Bos Cyo, the row is written with `mutates_production = 1,
+   self_closing = 0` — the same as any other task of that shape. Self-issuing changes who
+   writes the row, not what it is allowed to close on its own.
+6. Everything downstream is identical to a Hana-written task: claim, work inside the declared
+   paths only, report with evidence, escalate instead of guessing.
+
+The self-contained prompt in `agent-bus/CLAIM-PROMPT.md` carries the exact SQL for this, so an
+agent follows it the same way it follows a claim — no separate protocol to learn.
+
 ## The handoff rule
 
 A task may be held by exactly one open claim. When a session ends without finishing, it must

@@ -35,7 +35,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   system_scope TEXT NOT NULL DEFAULT 'APPLICATION',
   tenant_scope TEXT NOT NULL DEFAULT 'NONE',
   canonical_touch INTEGER NOT NULL DEFAULT 0,
-  forbidden TEXT NOT NULL DEFAULT ''
+  forbidden TEXT NOT NULL DEFAULT '',
+  -- Constitution §5: production mutation is Bos Cyo's authority alone, so a task
+  -- that mutates production can never also be self-closing. Until this line the
+  -- pairing was convention only — enforced by discipline when Hana was the only
+  -- one writing rows. Self-issued tasks (agent-task-board-v1 §"Self-issued tasks")
+  -- widen who can write a row, so the pairing needs a real constraint, not a habit.
+  CHECK (mutates_production = 0 OR self_closing = 0)
 );
 
 CREATE TABLE IF NOT EXISTS reports (

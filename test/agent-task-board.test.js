@@ -182,3 +182,19 @@ test('production mutation is flagged and never self-closing', () => {
   assert.equal(task.mutates_production, 1);
   assert.equal(task.self_closing, 0);
 });
+
+test('a production-mutating task cannot be self-closing at the database, not just by convention', () => {
+  const sqlite = bus();
+  // Self-issued tasks (agent-task-board-v1 §"Self-issued tasks") let any implementer
+  // write this row now, not only Hana. The pairing has to be a real constraint,
+  // not a habit an agent might get wrong under the same pressure that already
+  // enshrined a broken deploy script into a passing test once this session.
+  assert.throws(
+    () => sqlite.prepare(`
+      INSERT INTO tasks (task_id, assigned_to, issued_by, territory, protocol_version, title, brief,
+                         acceptance_criteria, kind, mutates_production, self_closing)
+      VALUES ('T-BAD','karen','BOS_CYO','accounting','v1','t','b','a','FEATURE',1,1)
+    `).run(),
+    /CHECK|constraint/i
+  );
+});

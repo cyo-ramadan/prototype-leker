@@ -244,6 +244,16 @@ Enam Jenis Transaksi hari ini ada di Setting Akuntansi tanpa konsumen posting: `
 
 Lihat `adr/ADR-031`.
 
+## Transfer dan produksi tidak boleh menyentuh Pendapatan atau Beban
+
+**Pitfall:** Jangan mengizinkan rule `wh_transfer` atau `wh_production` memakai akun bertipe `REVENUE` atau `EXPENSE`.
+
+`wh_production` memindahkan nilai antar sub-akun Persediaan sesuai jenis bahan — kedua kaki Aset, tidak ada kekayaan bertambah atau berkurang. `wh_transfer` berpindah di wilayah kas, piutang, dan hutang — kedua kaki Aset atau Liabilitas.
+
+Memindahkan uang antar rekening yang tercatat sebagai pendapatan akan **menggelembungkan omzet tanpa satu pun penjualan terjadi**, dan tidak ada tes yang gagal karenanya: jurnalnya tetap balance. Itu sebabnya larangan ini ditegakkan pada tipe akun saat rule disimpan, bukan diserahkan pada kehati-hatian saat memposting.
+
+Keputusan Bos Cyo 2026-08-19, lihat `adr/ADR-032`.
+
 ## DOC-IMPACT
 
-**REQUIRED** — status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.

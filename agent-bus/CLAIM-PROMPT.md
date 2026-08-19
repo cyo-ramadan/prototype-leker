@@ -23,6 +23,20 @@ Papan tugas ada di Cloudflare D1 `maxi-agent-bus`, database id
 `cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6`, akun `25c5fe53877002648959e8dd35678188`.
 Sebutkan keduanya secara eksplisit di setiap query.
 
+**Kalau platform kamu punya tool D1/MCP langsung, pakai itu — lewati kotak ini.** Kalau
+tidak, dan kamu cuma bisa jalankan `curl`, bungkus tiap query SQL di bawah dengan pola ini:
+
+```sh
+curl -X POST "https://api.cloudflare.com/client/v4/accounts/25c5fe53877002648959e8dd35678188/d1/database/cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6/query" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "<QUERY DARI LANGKAH DI BAWAH, satu baris>"}'
+```
+
+`<TOKEN>` dikirim Bos Cyo terpisah dari prompt ini — di luar chat, di luar git. Kalau kamu
+menemukan token asli tertulis di repo mana pun, itu bocor, bukan kemudahan; laporkan, jangan
+dipakai.
+
 **Langkah 1 — daftarkan dirimu.**
 
 ```sql

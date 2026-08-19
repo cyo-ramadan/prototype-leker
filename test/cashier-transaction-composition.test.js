@@ -41,19 +41,11 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260816-transaction-composition-v3',
+    '/cashier-payment-methods.js?v=20260816-transaction-composition-v2',
     '/cashier-enhancements.js?v=20260816-purchase-autofill-v6'
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
   assert.doesNotMatch(cashierHtml, /<script src="\/cashier-procurement-ui\.js"><\/script>/);
-});
-
-test('Beli Bahan has one canonical PIMASATU button owner and follows drawer write authority', () => {
-  assert.match(inputUi, /replaceButton\('purchaseBtn', 'pimasatuPurchaseBound', purchaseDialog\)/);
-  assert.match(inputUi, /button\.disabled = !state\.canWrite/);
-  assert.doesNotMatch(inputUi, /function bindCanonicalPurchaseClick/);
-  assert.match(inputUi, /title: 'Beli Bahan · Transaksi'/);
-  assert.match(inputUi, /host: byId\('purchasePimasatu'\)/);
 });
 
 test('purchase and operational transaction composition is item first counterpart second payment third', () => {

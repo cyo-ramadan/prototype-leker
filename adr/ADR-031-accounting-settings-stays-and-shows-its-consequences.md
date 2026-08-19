@@ -89,6 +89,27 @@ pemetaan itu diisi:
 Transaksi tidak punya modul yang mengkonsumsinya, statusnya adalah *belum tersambung*, bukan
 *Lengkap*.
 
+### 4. Yang wajib lewat Setting Akuntansi, dan yang tidak
+
+Pertanyaannya bukan "semua transaksi lewat Setting Akuntansi atau tidak". Garisnya adalah
+**asal fakta**:
+
+| Asal | Lewat Setting Akuntansi | Alasan |
+|---|---|---|
+| Fakta dari luar Accounting — POS, Pembelian, Operasional, Arus Kas, dan modul mana pun nanti | **Wajib** | modul asal tidak boleh menentukan akun (Constitution R5, Integration Contract §4), dan tiap tenant punya bagan akun berbeda |
+| Jurnal manual oleh akuntan | **Tidak** | akuntan memang memilih akun secara langsung; memaksanya lewat pemetaan membuat koreksi manual mustahil |
+| Reversal | **Tidak, dan tidak boleh** | reversal wajib cermin persis jurnal aslinya |
+| Entri konsolidasi/eliminasi tingkat group (`ADR-030`) | **Tidak** | turunan dari buku entity, bukan fakta operasional |
+
+Baris reversal itu bukan sekadar pengecualian, melainkan larangan. Kalau reversal
+me-resolve ulang lewat konfigurasi saat ini, sedangkan pemetaan sudah berubah sejak jurnal
+asli terbit, maka reversal-nya **berbeda** dari yang dibalik — dan selisihnya tidak akan
+pernah muncul sebagai error. Reversal menyalin, tidak menurunkan ulang.
+
+Untuk arah SaaS, konsekuensinya satu kalimat: **fakta jenis baru tidak boleh bisa memposting
+sebelum mendaftarkan `transaction_categories`-nya.** Itu yang membuat pelanggan baru
+onboarding lewat pengisian form, bukan lewat perubahan kode.
+
 ## Consequences
 
 - Gerai dan tenant baru tetap bisa onboarding lewat konfigurasi, tanpa deploy.

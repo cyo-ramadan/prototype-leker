@@ -134,6 +134,15 @@ Kalau klaim ditolak, **jangan diakali** — pesannya sudah menjelaskan sebabnya:
 
 **Langkah 4 — kerjakan.**
 
+- **Set identitas git-mu sendiri sebelum commit pertama**, supaya histori commit menunjukkan
+  siapa yang benar-benar mengetik, bukan akun yang kebetulan dipakai untuk push:
+  ```sh
+  git config user.name "<FAMILY>"
+  git config user.email "<FAMILY>@agent.maxi"
+  ```
+  Ganti `<FAMILY>` dengan identitasmu sendiri (`karen`, `kimi`, `manus`, `grok`, dst — sama
+  seperti yang kamu tentukan di awal). Ini `git config` lokal, bukan ganti akun/token yang
+  dipakai untuk push — cukup dijalankan sekali per sesi/tab, sebelum commit pertama.
 - Baca `inputs` sebelum menulis sebaris pun. `CLAUDE.md` dan berkas yang disebut di sana.
 - **Hanya sentuh berkas di `paths`.** Butuh yang lain? Berhenti dan lapor, jangan melebar.
 - Kerja di branch sendiri, buka PR. **Jangan pernah push ke `main`, jangan pernah force push.**

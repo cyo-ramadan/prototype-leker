@@ -2,7 +2,25 @@ import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { isoNow } from './time.js';
-import { listManualProductionOptions, prepareManualProduction, stockPostingFailure } from './stock-production.js';
+import { stockPostingFailure } from './stock-production.js';
+import { listManualProductionOptionsV2, prepareManualProductionV2 } from './warehouse-production.js';
+import {
+  ACCOUNTING_WAREHOUSE_PRODUCTION_BRIDGE_CONTRACT,
+  dispatchWarehouseProductionAccountingFact
+} from './accounting-warehouse-production-bridge.js';
+
+function accountingPayload(result) {
+  return {
+    bridgeContract: ACCOUNTING_WAREHOUSE_PRODUCTION_BRIDGE_CONTRACT,
+    bridgeStatus: result.status || (result.ok ? 'POSTED' : 'FAILED'),
+    accountingChange: result.accountingChange || null,
+    transferAmountScaled: result.transferAmountScaled ?? null,
+    journalReference: result.journalId || null,
+    journalNumber: result.journalNumber || null,
+    failureCode: result.ok ? null : (result.code || 'ACCOUNTING_BRIDGE_FAILED'),
+    failureDetail: result.ok ? null : (result.error || 'Accounting bridge produksi gagal.')
+  };
+}
 
 export async function handleCashierProductionApi(request, env, pathname) {
   if (!pathname.startsWith('/api/cashier/production')) return null;
@@ -11,10 +29,8 @@ export async function handleCashierProductionApi(request, env, pathname) {
   const storeId = auth.cashier.store.id;
 
   if (request.method === 'GET' && pathname === '/api/cashier/production/options') {
-    return json({
-      cashier: auth.cashier,
-      products: await listManualProductionOptions(env.DB, storeId)
-    });
+    const options = await listManualProductionOptionsV2(env.DB, storeId);
+    return json({ cashier: auth.cashier, ...options });
   }
 
   if (request.method !== 'POST' || pathname !== '/api/cashier/production') {
@@ -26,11 +42,14 @@ export async function handleCashierProductionApi(request, env, pathname) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload produksi tidak valid.' }, 400);
 
-  const prepared = await prepareManualProduction(env.DB, {
+  const prepared = await prepareManualProductionV2(env.DB, {
     storeId,
     drawerId: ownership.drawer.id,
     cashierId: auth.cashier.id,
     outputProductId: body.value?.outputProductId,
+    recipeId: body.value?.recipeId,
+    outputQuantity: body.value?.outputQuantity,
+    components: body.value?.components,
     batches: body.value?.batches,
     now: isoNow()
   });
@@ -38,10 +57,28 @@ export async function handleCashierProductionApi(request, env, pathname) {
 
   try {
     await env.DB.batch(prepared.statements);
-    return json({ ok: true, production: prepared.run }, 201);
   } catch (error) {
     const stockFailure = stockPostingFailure(error);
     if (stockFailure) return json({ error: stockFailure.error }, stockFailure.status);
     throw error;
   }
+
+  let accounting;
+  try {
+    accounting = await dispatchWarehouseProductionAccountingFact(env.DB, { id: storeId }, prepared.run.id);
+  } catch (error) {
+    console.error('production accounting bridge post-commit dispatch failed', { storeId, productionRunId: prepared.run.id, error });
+    accounting = {
+      ok: false,
+      status: 'FAILED',
+      code: 'ACCOUNTING_BRIDGE_EXCEPTION',
+      error: 'Produksi dan stok sudah tersimpan, tetapi delivery Accounting gagal diproses.'
+    };
+  }
+
+  return json({
+    ok: true,
+    production: prepared.run,
+    accounting: accountingPayload(accounting)
+  }, 201);
 }

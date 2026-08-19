@@ -1,7 +1,7 @@
 {
-  "publisherRunId": "31526266256",
-  "sourceCommit": "831bd1be750f1e76e860b5454bf7534f90cdd295",
-  "deploymentTrigger": "2026-08-13T17:00:00+07:00",
-  "deploymentTargetCommit": "38e4845857d6a4ed7b50989dd77d51c5b996609a",
-  "deploymentReason": "Trigger canonical Cloudflare Git Integration for current main after Accounting UI merge"
+  "publisherRunId": "production-v2-0037-through-0039-probe-20260818",
+  "sourceCommit": "3f7877ac870faf62cbe6d75dfa313ffec87ed47e",
+  "deploymentTrigger": "2026-08-18T23:46:00+07:00",
+  "deploymentTargetCommit": "3f7877ac870faf62cbe6d75dfa313ffec87ed47e",
+  "deploymentReason": "Trigger read-only Cloudflare build probe for exact pending migration set 0037_accounting_schema_reconciliation + 0038_operational_accounting_boundary + 0039_flexible_manual_production"
 }

@@ -1,17 +1,22 @@
 # Prompt untuk agen implementer
 
-Tempel ini di awal tiap tab. Satu tab = satu slot. Ganti `<FAMILY>`, `<SLOT>`, `<SESSION>`.
+Kamu sampai di sini dengan caramu sendiri — README.md nunjuk ke file ini, dan Bos Cyo cuma
+bilang "baca manual book dulu sebelum kerja" seperti biasa. Tidak ada yang perlu Bos Cyo
+tempel atau isi form; dari sini kamu jalan sendiri.
 
-Prompt ini sengaja berdiri sendiri: sesi baru belum membaca apa pun, jadi aturannya ikut di
-dalam prompt, bukan jadi prasyarat sebelum mulai.
+**Tentukan identitasmu sendiri**, jangan tunggu diberi tahu:
+- `<FAMILY>` = nama platform/agenmu sendiri (`karen`, `kimi`, `manus`, `grok`, dst).
+- `<SLOT>` = query `agent_sessions` untuk keluargamu (Langkah 1 di bawah tunjukkan caranya);
+  pakai slot terkecil yang belum terdaftar. Kalau kamu memang tab baru untuk kerjaan yang
+  sama seperti sesi sebelumnya yang sudah penuh, tanya Bos Cyo satu hal saja: "lanjutan sesi
+  yang mana?" — supaya `<SESSION>` naik dari yang benar, bukan mulai dari 1 lagi.
+- `<SESSION>` = 1, kecuali kamu memang kelanjutan sesi yang penuh (lihat di atas).
 
-Kalau Bos Cyo menugaskan langsung lewat kalimat (bukan menunjuk task yang sudah ada di
-papan), isi ini sebelum menempel — itu satu-satunya bagian yang perlu Bos Cyo ketik:
-
-> **Instruksi:** _______________________________________________
->
-> **Menyentuh data produksi / uang sungguhan?** YA / TIDAK _(coret salah satu; kalau ragu,
-> pilih YA — Langkah 2.5 akan menahannya untuk Bos Cyo, bukan menutup sendiri)_
+Kalau Bos Cyo memberi instruksi langsung dalam kalimat biasa (bukan menunjuk task yang sudah
+ada di papan) — itu instruksinya, apa adanya, tidak perlu form khusus. Langkah 2.5 di bawah
+yang menerjemahkannya jadi baris task. Satu hal yang tetap perlu kamu tentukan sendiri dari
+kalimatnya: apakah itu menyentuh data produksi/uang sungguhan. Kalau ragu, anggap YA —
+Langkah 2.5 akan menahannya untuk Bos Cyo, bukan menutup sendiri.
 
 ---
 
@@ -37,7 +42,15 @@ curl -X POST "https://api.cloudflare.com/client/v4/accounts/25c5fe53877002648959
 menemukan token asli tertulis di repo mana pun, itu bocor, bukan kemudahan; laporkan, jangan
 dipakai.
 
-**Langkah 1 — daftarkan dirimu.**
+**Langkah 1 — daftarkan dirimu.** Cek dulu slot mana yang sudah kepakai keluargamu:
+
+```sql
+SELECT slot, session FROM agent_sessions WHERE family = '<FAMILY>' ORDER BY slot, session;
+```
+
+Kosong → kamu `<SLOT>` = 1, `<SESSION>` = 1. Ada isinya tapi ini kerjaan baru (bukan
+lanjutan tab yang penuh) → `<SLOT>` = angka terkecil yang belum ada, `<SESSION>` = 1. Baru
+daftarkan:
 
 ```sql
 INSERT OR IGNORE INTO agent_sessions (id, family, slot, session)
@@ -60,16 +73,16 @@ ORDER BY t.created_at;
 
 Baca `sop` yang ikut terbawa. Itu aturan tetapmu, dan tidak ada di tempat lain.
 
-**Langkah 2.5 — kalau tidak ada yang cocok, tapi Bos Cyo menempel Instruksi di atas, buat
-task-nya sendiri.** Ini menggantikan Bos Cyo mengetik SQL, bukan menggantikan penjagaannya —
-setiap baris di bawah masih wajib diisi jujur, terutama `paths`.
+**Langkah 2.5 — kalau tidak ada yang cocok di papan, tapi Bos Cyo sudah kasih instruksi
+langsung, buat task-nya sendiri.** Ini menggantikan Bos Cyo mengetik SQL, bukan menggantikan
+penjagaannya — setiap baris di bawah masih wajib diisi jujur, terutama `paths`.
 
 1. Pilih `<KIND>` dari `agent_roles` milikmu sendiri (hasil Langkah 2, kolom `r.kind` kalau
    ada baris; kalau tidak ada satu pun baris untuk keluargamu, **ini bukan bagianmu** —
    berhenti dan lapor, jangan memaksakan kind lain supaya cocok).
-2. Baca ulang kotak **Menyentuh data produksi?** di atas. Kalau YA, atau kamu ragu:
-   `<MUTATES>` = `1` dan `<SELF_CLOSING>` = `0`. Kalau TIDAK: `<MUTATES>` = `0` dan
-   `<SELF_CLOSING>` = `1`.
+2. Nilai sendiri dari kalimat instruksinya: apakah ini menyentuh data produksi/uang
+   sungguhan? Kalau YA, atau kamu ragu: `<MUTATES>` = `1` dan `<SELF_CLOSING>` = `0`. Kalau
+   TIDAK: `<MUTATES>` = `0` dan `<SELF_CLOSING>` = `1`.
 3. `<PATHS>` = daftar file/folder yang **akan** kamu sentuh, ditentukan dari instruksinya
    sendiri sebelum menulis kode apa pun — bukan dirapikan belakangan. Ini satu-satunya yang
    melindungi tab lain yang sedang mengerjakan instruksi lain di saat yang sama; jangan
@@ -99,9 +112,9 @@ siapa yang mengetik. Lanjut ke Langkah 3 seperti biasa, klaim task yang baru dib
 **Kalau `<MUTATES>` = `1`:** tulis rencana kerjanya (file yang disentuh, apa yang berubah)
 sebagai balasan di tab ini dan **berhenti sebelum benar-benar mengubah data** sampai Bos Cyo
 membalas "lanjut" di tab yang sama. Task sendiri yang dibuat lewat Langkah 2.5 tidak pernah
-di-screening Hana lebih dulu seperti task di papan biasanya — kotak centang di atas
-menggantikan screening itu, bukan menghapusnya, jadi jangan dianggap otomatis disetujui hanya
-karena berhasil di-INSERT.
+di-screening Hana lebih dulu seperti task di papan biasanya — penilaianmu sendiri di langkah
+2 menggantikan screening itu, bukan menghapusnya, jadi jangan dianggap otomatis disetujui
+hanya karena berhasil di-INSERT.
 
 **Langkah 3 — klaim.** Pakai id unik, misal `<FAMILY><SLOT>-<TASK_ID>`.
 

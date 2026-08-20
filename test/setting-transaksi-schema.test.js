@@ -37,7 +37,8 @@ test('migration 0042 does not add, remove, or change any existing journal_rules 
   const withoutChoiceGroups = new DatabaseSync(':memory:');
   withoutChoiceGroups.exec('PRAGMA foreign_keys = ON;');
   for (const file of migrations()) {
-    if (file === '0042_accounting_choice_groups.sql') continue;
+    // 0043 rebuilds a table 0042 creates, so it cannot run without 0042.
+    if (file === '0042_accounting_choice_groups.sql' || file === '0043_choice_option_account_optional.sql') continue;
     withoutChoiceGroups.exec(read(file));
   }
   const beforeRowsPre0042 = JSON.stringify(
@@ -52,7 +53,8 @@ test('creating a new store still seeds journal_rules exactly as before (seed tri
   const withoutChoiceGroups = new DatabaseSync(':memory:');
   withoutChoiceGroups.exec('PRAGMA foreign_keys = ON;');
   for (const file of migrations()) {
-    if (file === '0042_accounting_choice_groups.sql') continue;
+    // 0043 rebuilds a table 0042 creates, so it cannot run without 0042.
+    if (file === '0042_accounting_choice_groups.sql' || file === '0043_choice_option_account_optional.sql') continue;
     withoutChoiceGroups.exec(read(file));
   }
 
@@ -125,6 +127,62 @@ test('accounting_choice_options allows at most one active default per group', ()
     INSERT INTO accounting_choice_options (id, choice_group_id, store_id, code, name, account_id, is_default)
     VALUES ('opt_b', 'grp_default', '${store.id}', 'B', 'B', '${accounts[1].id}', 1)
   `));
+});
+
+test('migration 0043 makes accounting_choice_options.account_id nullable, per ADR-033 §8 and Bos Cyo\'s 2026-08-20 clarification', () => {
+  const sqlite = migratedDb();
+  const info = sqlite.prepare(`PRAGMA table_info(accounting_choice_options)`).all();
+  const accountIdColumn = info.find(c => c.name === 'account_id');
+  assert.equal(accountIdColumn.notnull, 0);
+
+  const store = sqlite.prepare(`SELECT id FROM stores LIMIT 1`).get();
+  sqlite.exec(`INSERT INTO accounting_choice_groups (id, store_id, code, name) VALUES ('grp_noacc', '${store.id}', 'NOACC_GROUP', 'No Account Group')`);
+
+  assert.doesNotThrow(() => sqlite.exec(`
+    INSERT INTO accounting_choice_options (id, choice_group_id, store_id, code, name)
+    VALUES ('opt_noacc', 'grp_noacc', '${store.id}', 'GENERIC', 'Generic option, no account yet')
+  `));
+
+  const row = sqlite.prepare(`SELECT account_id FROM accounting_choice_options WHERE id = 'opt_noacc'`).get();
+  assert.equal(row.account_id, null);
+});
+
+test('migration 0043 does not add, remove, or change any existing accounting_choice_options row, and preserves its indexes/triggers', () => {
+  const before = migratedDb();
+  const beforeRows = JSON.stringify(
+    before.prepare(`SELECT id, choice_group_id, store_id, code, name, account_id, is_default, sort_order, is_active FROM accounting_choice_options ORDER BY id`).all()
+  );
+
+  const withoutFix = new DatabaseSync(':memory:');
+  withoutFix.exec('PRAGMA foreign_keys = ON;');
+  for (const file of migrations()) {
+    if (file === '0043_choice_option_account_optional.sql') continue;
+    withoutFix.exec(read(file));
+  }
+  const beforeRowsPre0043 = JSON.stringify(
+    withoutFix.prepare(`SELECT id, choice_group_id, store_id, code, name, account_id, is_default, sort_order, is_active FROM accounting_choice_options ORDER BY id`).all()
+  );
+  assert.equal(beforeRows, beforeRowsPre0043);
+
+  const objects = schemaObjects(before, 'accounting_choice_options').map(row => `${row.type}:${row.name}`);
+  assert.ok(objects.includes('index:idx_choice_options_group_order'));
+  assert.ok(objects.includes('index:idx_choice_options_one_default'));
+  assert.ok(objects.includes('trigger:trg_choice_option_scope_insert'));
+  assert.ok(objects.includes('trigger:trg_choice_option_scope_update'));
+});
+
+test('accounting_choice_options scope guard only checks the account when one is present (NULL account_id is not mistaken for a scope violation)', () => {
+  const sqlite = migratedDb();
+  const store = sqlite.prepare(`SELECT id FROM stores LIMIT 1`).get();
+  sqlite.exec(`INSERT INTO accounting_choice_groups (id, store_id, code, name) VALUES ('grp_guard', '${store.id}', 'GUARD_GROUP', 'Guard Group')`);
+  sqlite.exec(`INSERT INTO accounting_choice_options (id, choice_group_id, store_id, code, name) VALUES ('opt_guard', 'grp_guard', '${store.id}', 'A', 'A')`);
+
+  // A real cross-store account must still be rejected once one is provided.
+  const stores = sqlite.prepare(`SELECT id FROM stores ORDER BY id`).all();
+  const foreignAccount = sqlite.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = ? LIMIT 1`).get(stores[1].id);
+  assert.throws(() => sqlite.exec(`
+    UPDATE accounting_choice_options SET account_id = '${foreignAccount.id}' WHERE id = 'opt_guard'
+  `), /CHOICE_OPTION_SCOPE_MISMATCH/);
 });
 
 test('accounting_journal_lines gains choice_group_code/choice_option_code, default empty string, existing rows unaffected', () => {

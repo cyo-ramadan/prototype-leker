@@ -1,21 +1,25 @@
 # Handoff — implementasi Setting Transaksi (Choice Group di kode/schema)
 
 Disiapkan oleh: `hana1.1` — arsitektur
-Tanggal: 2026-08-19, diperbarui 2026-08-19 sore
-Architecture: `adr/ADR-033-accounting-choice-groups.md` (baca §6-§8 addendum dulu)
+Tanggal: 2026-08-19, diperbarui 2026-08-20 (koreksi `account_id` + scope Fase 3-4,
+ditemukan Karen lewat issue #107/#109)
+Architecture: `adr/ADR-033-accounting-choice-groups.md` (baca §6-§9, §9 itu koreksinya)
 Kontrak: `contracts/accounting-choice-groups-v1.md`
 
 **Label UI-nya "Setting Transaksi"**, bukan "Choice Group"/"Resep" — nama tabel dan
 kode tetap `accounting_choice_groups`/`accounting_choice_options`, istilah teknis
 tidak pernah muncul ke admin.
 
-**Status per fase (2026-08-19):**
+**Status per fase (2026-08-20):**
 - ✅ **Fase 1 — landed.** `migrations/0042_accounting_choice_groups.sql`,
-  `test/setting-transaksi-schema.test.js` (7 tes). Nol perubahan perilaku,
-  dibuktikan tes yang membandingkan `journal_rules` sebelum/sesudah 0042.
-- ⬜ **Fase 3 & 4 — belum dikerjakan.** Ini yang bikin dua tombol di Setting
-  Akuntansi beneran berfungsi (lihat `ADR-033` §8 untuk scope persis dua tombol
-  itu). Mulai dari sini.
+  dikoreksi `migrations/0043_choice_option_account_optional.sql` (`account_id`
+  jadi nullable — lihat `ADR-033` §9.1), `test/setting-transaksi-schema.test.js`
+  (11 tes). Nol perubahan perilaku ke data yang sudah ada di kedua migration,
+  dibuktikan tes yang membandingkan tabel sebelum/sesudah.
+- 🔧 **Fase 3 & 4 — sedang dikerjakan Karen** lewat GitHub-only fallback
+  (sesi Karen tidak punya akses D1 langsung — issue #107, #109). Scope-nya
+  berubah dari draf semula, baca `ADR-033` §9.2-9.3 sebelum lanjut: `accounting-ledger.js`
+  masuk Fase 3 paths, Cash Flow/Flow Preset **ditunda** ke follow-up terpisah.
 - **Fase 2 (backfill baris `fixed_account` ganda lama) ditunda** — tidak
   memblokir Fase 3/4, dan tidak diminta Bos Cyo di scope §8. Kategori lama yang
   masih pakai baris `fixed_account` ganda terus jalan seperti sekarang.
@@ -104,19 +108,32 @@ akun yang sama lewat tabel legacy.
 
 ## Fase 3 — resolver
 
-**Mulai dari sini.** Baca `ADR-033` §8 dulu — itu scope persis dua tombol yang
-diminta Bos Cyo (Grup Beban/Grup Pembayaran; pasang grup ke kategori yang sudah
-di-mapping). `payment_method` dan `item_category_*` **tetap tidak disentuh sama
-sekali** — itu bukan bagian dari permintaan ini (`ADR-033` §6 butir 2-3).
+**Mulai dari sini.** Baca `ADR-033` §8 dan **§9** (koreksi 2026-08-20, ditemukan Karen)
+dulu — §9 mengubah tiga hal di bawah ini dari draf semula. `payment_method` dan
+`item_category_*` **tetap tidak disentuh sama sekali** — itu bukan bagian dari
+permintaan ini (`ADR-033` §6 butir 2-3).
 
-**Paths:** `src/accounting-pos-bridge.js`, `src/accounting-cash-flow-bridge.js`,
+**Paths:** `src/accounting-pos-bridge.js`, `src/accounting-ledger.js`,
 `test/accounting-pos-bridge.test.js`, `test/choice-groups-resolver.test.js`
 
+`src/accounting-cash-flow-bridge.js` **sengaja tidak ada di paths ini** — lihat butir 3.
+
 1. Tangani `source_type='choice_group'` sesuai kontrak §2, termasuk urutan pemilihan
-   opsi 1→4 dan kode kegagalan §2.1.
-2. Isi `choice_group_code` / `choice_option_code` saat memposting.
-3. Cash-flow bridge: `requestedCounterpartRuleId` → `choiceSelections`, id lama tetap
-   diterima selama compatibility window.
+   opsi 1→4 dan kode kegagalan §2.1. **Tambahan (§9.1):** `account_id` opsi boleh
+   `NULL` sejak `migrations/0043` — kalau opsi terpilih tidak punya akun aktif, gagal
+   tertutup dengan `NEEDS_CHOICE_ACCOUNT`, jangan menebak atau melewatkan baris.
+2. Isi `choice_group_code` / `choice_option_code` saat memposting — ini butuh
+   `postAccountingJournal()` di `accounting-ledger.js` ikut ditulis ulang (§9.2), bukan
+   cuma bridge-nya. Cek dulu `PRAGMA table_info` sebelum menulis kode: kolom itu sudah
+   ada aditif sejak `0042`, tinggal diisi.
+3. **Cash-flow bridge DITUNDA (§9.3) — jangan disentuh di fase ini.**
+   `src/operational-posting.js::normalizeApprovalPayload()` untuk `CASH_FLOW` masih
+   menulis `accountingCounterpartRuleId`, dan file itu di luar scope Fase 3 (business-app
+   boundary). Kalau resolver arus kas dialihkan ke `choiceSelections` sekarang, tanpa
+   writer-nya ikut berubah, pengajuan bisa tertolak sebelum sampai Accounting. Resolver
+   POS boleh dibuat forward-compatible menerima `source_type='choice_group'`, tapi Cash
+   Flow tetap jalur `fixed_account`/`requestedCounterpartRuleId` untuk sekarang. Migrasi
+   writer-nya jadi follow-up terpisah dengan regression test Arus Kas sendiri.
 4. **Jangan sentuh** cabang `fixed_account`, `payment_method`, `item_category_*`.
 5. **Jangan** membuat reversal me-resolve ulang. `src/accounting-pos-reversal.js` tetap
    menyalin (`ADR-031` §4) — kalau kamu merasa perlu mengubahnya, itu tanda salah baca:
@@ -124,19 +141,30 @@ sekali** — itu bukan bagian dari permintaan ini (`ADR-033` §6 butir 2-3).
 
 **Acceptance:** invariant 1, 5, 6, 7 di kontrak §6 punya tes masing-masing. Tes
 invariant 5 harus membuktikan reversal tetap identik walau akun opsinya sudah diganti
-di antara posting dan reversal.
+di antara posting dan reversal. `NEEDS_CHOICE_ACCOUNT` punya tes yang membuktikan
+resolver gagal tertutup, bukan diam.
 
 ## Fase 4 — Setting Akuntansi: API dan UI
 
 **Paths:** `src/accounting-settings.js`, `public/admin-settings-panels.js`,
-`public/admin-accounting-settings-*.js`, `public/admin-accounting-flow-presets.js`,
+`public/admin-accounting-settings-*.js`,
 `test/accounting-settings-choice-groups.test.js`
 
-1. Bootstrap `choiceGroups` + route CRUD sesuai kontrak §4.
-2. Validasi simpan sesuai kontrak §5 — **semuanya**, terutama butir 6 (`ADR-032`).
+`public/admin-accounting-flow-presets.js` **sengaja tidak ada di paths ini** — lihat
+butir 5 (§9.3).
+
+1. Bootstrap `choiceGroups` + route CRUD sesuai kontrak §4. `account_id` di tiap opsi
+   boleh kosong saat disimpan (§9.1) — jangan tolak simpan hanya karena belum ada akun.
+2. Validasi simpan sesuai kontrak §5 — **semuanya**, terutama butir 6 (`ADR-032`), tapi
+   validasi akun cuma jalan kalau `account_id` diisi.
 3. Blocker baru `CHOICE_GROUP_EMPTY` masuk ke `postingBlockers`/`blockersForCategory`.
 4. `usedByCategories` dan `journalLineCount` wajib ada. Itu cermin `ADR-031` §3, bukan
    fitur opsional — tanpa itu admin mengedit resep tanpa tahu apa yang ikut berubah.
+5. **Jangan alihkan `admin-accounting-flow-presets.js` ke Choice Group di fase ini.**
+   Preset hari ini menulis fixed-account counterpart yang masih dipahami writer Cash
+   Flow (`operational-posting.js`) — mengalihkannya duluan bisa memutus Arus Kas yang
+   sedang jalan. Migrasi preset menyusul sebagai follow-up terpisah setelah writer Cash
+   Flow siap (§9.3).
 5. Flow presets menulis Choice Group, bukan lagi baris `fixed_account` ganda.
 
 ## Fase 5 — modul operasional

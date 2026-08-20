@@ -1,0 +1,8 @@
+release_sha=284f7f6e896a61afbfb447f30a09ae0aaff3e125
+api_url=https://prototype-leker-v2.daily-napkin.workers.dev/api/admin/settings/accounting?store=G001
+http_code=200
+valid_json=true
+contract_ok=true
+choice_groups_array=true
+choice_group_source=true
+choice_group_count=0

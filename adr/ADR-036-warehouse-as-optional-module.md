@@ -136,8 +136,19 @@ Leker saat ini untuk semua gerai yang sudah ada — sama seperti syarat `ADR-034
 
 ## 7. Open — milik Bos Cyo
 
-1. **Prioritas.** `ADR-034` (Accounting opsional) sendiri belum mulai dibangun. Warehouse
-   opsional antre di belakangnya, atau mau dikerjakan paralel oleh agen yang berbeda?
+1. ~~**Prioritas.**~~ **Dijawab 2026-08-20 — paralel, bukan antre.** Prinsip Bos Cyo:
+   kalau sebuah task sudah dirancang dengan barrier yang tidak membahayakan struktur lain,
+   defaultnya boleh paralel; sequence cuma dipaksakan kalau memang ada ketergantungan
+   nyata, dan itu dicatat eksplisit di task-nya, bukan diam-diam ditahan.
+
+   Dicek ulang dengan prinsip itu: `ADR-034` dan ADR ini **tidak** punya ketergantungan
+   struktural. `warehouse_enabled` dirancang sebagai sumbu independen (§5) — kolom
+   `ALTER TABLE stores ADD COLUMN warehouse_enabled` tidak butuh `stores.edition` (`ADR-034`)
+   sudah ada lebih dulu. Keduanya **boleh dikerjakan paralel oleh agen berbeda**.
+
+   Satu catatan koordinasi (bukan sequence, cuma supaya tidak tabrakan nomor):
+   implementer kedua yang mulai duluan mengambil nomor migration berikutnya; yang kedua
+   cek dulu migration terbaru di `main` sebelum menetapkan nomornya sendiri.
 2. **`warehouse_enabled` default gerai baru** — `1` (aman, sama seperti hari ini, mirip
    alasan `ADR-034` pilih default `ACCOUNTING`) atau `0` (mencerminkan porsi pasar kaki
    lima yang lebih besar)?

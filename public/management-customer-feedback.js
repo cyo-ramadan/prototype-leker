@@ -16,6 +16,7 @@
     .feedback-management-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .feedback-management-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .feedback-management-tools select{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;background:#fff}
+    .feedback-management-status{margin-top:8px;font-size:12px;color:#64748b}
     .feedback-management-list{display:grid;gap:10px;margin-top:14px}
     .feedback-management-row{border:1px solid #e5e7eb;border-radius:16px;padding:14px;background:#fff}
     .feedback-management-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;color:#64748b;font-size:12px}
@@ -29,14 +30,23 @@
   `;
   document.head.appendChild(style);
 
+  function managementToken() {
+    const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
+    const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
+    if (isBranch) return ownerToken || adminToken;
+    return ownerToken;
+  }
+
   async function feedbackApi(path) {
-    const headers = {};
-    if (!isBranch) {
-      const token = sessionStorage.getItem('lekerOwnerToken') || '';
-      if (!token) throw new Error('Login Owner diperlukan.');
-      headers.Authorization = `Bearer ${token}`;
+    const token = managementToken();
+    if (!token) {
+      throw new Error(isBranch ? 'Session Admin Gerai tidak ditemukan. Login ulang Admin.' : 'Login Owner diperlukan.');
     }
-    const response = await fetch(path, { cache: 'no-store', headers });
+
+    const response = await fetch(path, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}` }
+    });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `Gagal memuat kotak saran (${response.status})`);
     return payload;
@@ -81,7 +91,7 @@
           <span>${escapeHtml(item.feedbackCode || '')}</span>
         </div>
         ${reporterHtml(item.reporter)}
-        ${(item.issues || []).length ? `<ul>${item.issues.map(issue => `<li>${escapeHtml(issue.label)}</li>`).join('')}</ul>` : ''}
+        ${(item.issues || []).length ? `<ul>${item.issues.map(issue => `<li>${escapeHtml(issue.label || issue.code || '-')}</li>`).join('')}</ul>` : ''}
         ${item.manualNote ? `<div class="feedback-management-note">${escapeHtml(item.manualNote)}</div>` : ''}
         <div class="feedback-management-privacy">🔐 Identitas tersedia untuk Admin/Owner yang berwenang dan tidak ditampilkan ke Kasir/CS melalui fitur ini.</div>
       </article>
@@ -93,21 +103,27 @@
     const rows = filter ? cachedFeedback.filter(item => item.category === filter) : cachedFeedback;
     const list = container.querySelector('[data-feedback-list]');
     const count = container.querySelector('[data-feedback-count]');
+    const status = container.querySelector('[data-feedback-status]');
     if (count) count.textContent = String(rows.length);
+    if (status) status.textContent = `${cachedFeedback.length} laporan berhasil dibaca dari server.`;
     if (list) list.innerHTML = feedbackRowsHtml(rows);
   }
 
   async function load(container) {
     const list = container.querySelector('[data-feedback-list]');
+    const status = container.querySelector('[data-feedback-status]');
     if (list) list.innerHTML = '<div class="empty">Memuat komentar customer...</div>';
+    if (status) status.textContent = 'Mengambil laporan dari server...';
     try {
       const path = isBranch
         ? `/api/admin/customer-feedback?store=${encodeURIComponent(branchStoreCode)}`
         : '/api/admin/customer-feedback';
       const payload = await feedbackApi(path);
-      cachedFeedback = payload.feedback || [];
+      cachedFeedback = Array.isArray(payload.feedback) ? payload.feedback : [];
       renderFiltered(container);
     } catch (error) {
+      cachedFeedback = [];
+      if (status) status.textContent = `Gagal membaca laporan: ${error.message}`;
       if (list) list.innerHTML = `<div class="admin-message">${escapeHtml(error.message)}</div>`;
     }
   }
@@ -118,6 +134,7 @@
         <div>
           <h2>${escapeHtml(title)}</h2>
           <p class="muted">Laporan customer untuk evaluasi manajemen. Admin/Owner yang berwenang dapat melihat identitas akun pengirim.</p>
+          <div class="feedback-management-status" data-feedback-status>Menunggu data laporan...</div>
         </div>
         <div class="feedback-management-tools">
           <select data-feedback-filter aria-label="Filter kategori">
@@ -168,6 +185,11 @@
 
     if (!section.querySelector('[data-feedback-list]')) {
       section.innerHTML = `<div class="admin-card">${panelInnerHtml('Komentar Customer')}</div>`;
+    } else if (!section.querySelector('[data-feedback-status]')) {
+      section.querySelector('.feedback-management-head > div')?.insertAdjacentHTML(
+        'beforeend',
+        '<div class="feedback-management-status" data-feedback-status>Menunggu data laporan...</div>'
+      );
     }
     bindPanel(section);
 

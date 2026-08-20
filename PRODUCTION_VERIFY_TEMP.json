@@ -1,0 +1,13 @@
+{
+  "targetSha": "284f7f6e896a61afbfb447f30a09ae0aaff3e125",
+  "found": true,
+  "runId": 32329040062,
+  "runStatus": "completed",
+  "runConclusion": "failure",
+  "runUrl": "https://github.com/cyo-ramadan/prototype-leker/actions/runs/32329040062",
+  "qualityJob": "success",
+  "deployJob": "failure",
+  "liveUiHasBikinDanPasangGrup": false,
+  "liveBoundaryAsset": false,
+  "liveAccountingAuth401": false
+}

@@ -171,3 +171,23 @@ WHEN EXISTS (
     AND (mine.path_prefix LIKE theirs.path_prefix || '%'
       OR theirs.path_prefix LIKE mine.path_prefix || '%'))
 BEGIN SELECT RAISE(ABORT, 'PATH_HELD_BY_ANOTHER_CLAIM'); END;
+
+-- Self-issued tasks (agent-task-board-v1 §"Self-issued tasks", CLAIM-PROMPT.md Langkah
+-- 2.5) skip Langkah 2's filtered view of the board — that is the whole point, it is the
+-- fallback for when nothing there matches. But skipping the filtered view also means
+-- skipping the one place ownership was visible. Bos Cyo found the resulting gap by
+-- reasoning about it, not by hitting it: a self-created task's own id carries no memory
+-- of what already exists, so nothing stopped a family from quietly duplicating another
+-- family's open task under its own name and starting work MODULE_OWNERSHIP.md already
+-- assigned elsewhere. Checked directly against live `tasks` rather than a second copy of
+-- MODULE_OWNERSHIP.md, so this can never drift out of sync with the board itself the way
+-- two sources of truth always eventually do.
+CREATE TRIGGER IF NOT EXISTS trg_self_task_no_duplicate
+BEFORE INSERT ON tasks
+WHEN NEW.task_id LIKE '%-SELF-%'
+ AND EXISTS (
+   SELECT 1 FROM tasks t
+   WHERE t.status = 'OPEN'
+     AND t.territory = NEW.territory
+     AND t.assigned_to <> NEW.assigned_to)
+BEGIN SELECT RAISE(ABORT, 'TERRITORY_ALREADY_HAS_OPEN_TASK_FOR_ANOTHER_FAMILY'); END;

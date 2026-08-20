@@ -9,6 +9,8 @@ on:
 
 permissions:
   actions: read
+  checks: read
+  deployments: read
   contents: write
 
 jobs:
@@ -27,19 +29,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          result=''
-          for attempt in $(seq 1 24); do
-            payload="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${RELEASE_SHA}&event=push&per_page=20")"
-            result="$(printf '%s' "$payload" | jq -c --arg wf "$TARGET_WORKFLOW" '[.workflow_runs[] | select(.name == $wf)] | sort_by(.created_at) | last // empty')"
-            if [ -n "$result" ]; then
-              status="$(printf '%s' "$result" | jq -r '.status')"
-              if [ "$status" = 'completed' ]; then
-                break
-              fi
-            fi
-            sleep 5
-          done
-
+          payload="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${RELEASE_SHA}&event=push&per_page=20")"
+          result="$(printf '%s' "$payload" | jq -c --arg wf "$TARGET_WORKFLOW" '[.workflow_runs[] | select(.name == $wf)] | sort_by(.created_at) | last // empty')"
           if [ -z "$result" ]; then
             printf 'release_sha=%s\nstatus=NOT_FOUND\n' "$RELEASE_SHA" > deploy-observation.txt
           else
@@ -56,13 +47,33 @@ jobs:
               "updated_at=" + .updated_at
             ' > deploy-observation.txt
           fi
+
+          gh api -H 'Accept: application/vnd.github+json' "/repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}/check-runs?per_page=100" \
+            | jq '{total_count, check_runs: [.check_runs[] | {id,name,status,conclusion,details_url,started_at,completed_at,app:(.app.slug // .app.name)}]}' \
+            > deploy-check-runs.json
+
+          deployments="$(gh api "/repos/${GITHUB_REPOSITORY}/deployments?sha=${RELEASE_SHA}&per_page=100")"
+          printf '%s' "$deployments" | jq '[.[] | {id,sha,ref,task,environment,description,created_at,updated_at,statuses_url}]' > deploy-github-deployments.json
+          : > deploy-github-deployment-statuses.jsonl
+          for id in $(printf '%s' "$deployments" | jq -r '.[].id'); do
+            gh api "/repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses?per_page=100" \
+              | jq -c --argjson id "$id" '{deployment_id:$id,statuses:[.[] | {id,state,environment,environment_url,log_url,description,created_at,updated_at}]}' \
+              >> deploy-github-deployment-statuses.jsonl
+          done
+
+          echo '--- canonical workflow ---'
           cat deploy-observation.txt
+          echo '--- check runs ---'
+          cat deploy-check-runs.json
+          echo '--- deployments ---'
+          cat deploy-github-deployments.json
+          cat deploy-github-deployment-statuses.jsonl
       - name: Persist observation on observer branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "Karen"
           git config user.email "karen@agent.maxi"
-          git add deploy-observation.txt
-          git commit -m "chore: record Setting Transaksi deploy observation"
+          git add deploy-observation.txt deploy-check-runs.json deploy-github-deployments.json deploy-github-deployment-statuses.jsonl
+          git commit -m "chore: record external deploy integrations"
           git push origin HEAD:chore/observe-setting-transaksi-deploy

@@ -1,0 +1,7 @@
+release_sha=284f7f6e896a61afbfb447f30a09ae0aaff3e125
+asset_url=https://prototype-leker-v2.daily-napkin.workers.dev/admin-accounting-settings-comfort.js
+http_code=200
+bikin_grup=true
+pasang_grup=true
+choice_group_source=true
+sha256=bf56e864d51c3e4a6893b86451eaddc15ba05a5ba35e92c0afcb0e959f62d42b

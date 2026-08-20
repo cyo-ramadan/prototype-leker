@@ -1,0 +1,110 @@
+name: Verify Setting Transaksi production temp
+
+on:
+  push:
+    branches:
+      - diag/setting-transaksi-production-verify-20260820
+    paths:
+      - .github/workflows/verify-setting-transaksi-production-temp.yml
+      - verify-setting-transaksi-production-trigger.txt
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diag/setting-transaksi-production-verify-20260820
+          fetch-depth: 0
+      - name: Wait for canonical main deploy and smoke live Worker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 284f7f6e896a61afbfb447f30a09ae0aaff3e125
+          WORKER_URL: https://prototype-leker-v2.daily-napkin.workers.dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json=''
+          for attempt in $(seq 1 90); do
+            payload="$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?branch=main&event=push&per_page=30")"
+            run_json="$(printf '%s' "$payload" | TARGET_SHA="$TARGET_SHA" node -e '
+              let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+                const data=JSON.parse(s); const target=process.env.TARGET_SHA;
+                const run=(data.workflow_runs||[]).find(r=>r.head_sha===target && r.name==="Prototype Leker CI & Deploy");
+                if(run) process.stdout.write(JSON.stringify(run));
+              });
+            ')"
+            if [ -n "$run_json" ]; then
+              status="$(printf '%s' "$run_json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).status')"
+              if [ "$status" = "completed" ]; then break; fi
+            fi
+            sleep 4
+          done
+
+          if [ -z "$run_json" ]; then
+            printf '%s\n' '{"targetSha":"'"$TARGET_SHA"'","found":false,"status":"RUN_NOT_FOUND"}' > PRODUCTION_VERIFY_TEMP.json
+          else
+            run_id="$(printf '%s' "$run_json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).id')"
+            status="$(printf '%s' "$run_json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).status')"
+            conclusion="$(printf '%s' "$run_json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).conclusion || ""')"
+            run_url="$(printf '%s' "$run_json" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).html_url')"
+            jobs="$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=30")"
+            quality="$(printf '%s' "$jobs" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s);const j=(d.jobs||[]).find(x=>x.name==="Check & Test");process.stdout.write(j?.conclusion||j?.status||"missing")})')"
+            deploy="$(printf '%s' "$jobs" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s);const j=(d.jobs||[]).find(x=>x.name==="Backup, Migrate & Deploy Cloudflare");process.stdout.write(j?.conclusion||j?.status||"missing")})')"
+
+            live_ui=false
+            live_boundary=false
+            live_auth=false
+            if [ "$conclusion" = "success" ]; then
+              for attempt in $(seq 1 30); do
+                ui="$(curl --fail --silent --show-error "$WORKER_URL/admin-accounting-settings-comfort.js" || true)"
+                if printf '%s' "$ui" | grep -q 'Bikin Grup' && printf '%s' "$ui" | grep -q 'Pasang Grup'; then
+                  live_ui=true
+                  break
+                fi
+                sleep 2
+              done
+              boundary="$(curl --fail --silent --show-error "$WORKER_URL/accounting-settings-boundary.js" || true)"
+              if printf '%s' "$boundary" | grep -q 'node.textContent !== value'; then live_boundary=true; fi
+              auth_code="$(curl --silent --output /tmp/accounting-api.json --write-out '%{http_code}' "$WORKER_URL/api/admin/settings/accounting")"
+              if [ "$auth_code" = "401" ] && grep -q 'Login Owner atau Admin Gerai diperlukan' /tmp/accounting-api.json; then live_auth=true; fi
+            fi
+
+            RUN_ID="$run_id" RUN_STATUS="$status" RUN_CONCLUSION="$conclusion" RUN_URL="$run_url" QUALITY="$quality" DEPLOY="$deploy" LIVE_UI="$live_ui" LIVE_BOUNDARY="$live_boundary" LIVE_AUTH="$live_auth" TARGET_SHA="$TARGET_SHA" node - <<'NODE' > PRODUCTION_VERIFY_TEMP.json
+          const out = {
+            targetSha: process.env.TARGET_SHA,
+            found: true,
+            runId: Number(process.env.RUN_ID),
+            runStatus: process.env.RUN_STATUS,
+            runConclusion: process.env.RUN_CONCLUSION,
+            runUrl: process.env.RUN_URL,
+            qualityJob: process.env.QUALITY,
+            deployJob: process.env.DEPLOY,
+            liveUiHasBikinDanPasangGrup: process.env.LIVE_UI === 'true',
+            liveBoundaryAsset: process.env.LIVE_BOUNDARY === 'true',
+            liveAccountingAuth401: process.env.LIVE_AUTH === 'true'
+          };
+          process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+          NODE
+          fi
+      - name: Publish verifier evidence and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/verify-setting-transaksi-production-temp.yml verify-setting-transaksi-production-trigger.txt
+          git config user.name "Karen"
+          git config user.email "karen@agent.maxi"
+          git add PRODUCTION_VERIFY_TEMP.json
+          git add -u -- .github/workflows/verify-setting-transaksi-production-temp.yml verify-setting-transaksi-production-trigger.txt || true
+          git commit -m "chore: record Setting Transaksi production verification"
+          git push origin HEAD:diag/setting-transaksi-production-verify-20260820

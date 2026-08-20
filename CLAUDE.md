@@ -86,6 +86,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Accounting / Inventory / approval | `KNOWN_PITFALLS.md` |
 | Status fitur yang belum kelar | `KNOWN_ISSUES.md` |
 | Alasan sebuah keputusan arsitektur | `adr/` (29 ADR) |
+| Arah Bos Cyo soal POS berdiri sendiri dari Setting Akuntansi/Accounting/Warehouse | `POS_MODULE_INDEPENDENCE.md` |
 | Kontrak antar-modul | `contracts/` |
 | Prosedur operasional | `RUNBOOK.md` |
 | Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |

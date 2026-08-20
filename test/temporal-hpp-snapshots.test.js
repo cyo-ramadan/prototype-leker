@@ -53,5 +53,5 @@ test('Temporal costing decision is forward-only and exact-scaled across Sale and
   assert.match(temporalAdr, /unit_cost_snapshot/);
   assert.match(temporalAdr, /unitCostSnapshotScaled/);
   assert.match(temporalAdr, /scaled INTEGER/i);
-  assert.doesNotMatch(temporalAdr, /REAL\/FLOAT.*authoritative/i);
+  assert.match(temporalAdr, /must not use SQLite `REAL\/FLOAT` arithmetic as authoritative costing state/i);
 });

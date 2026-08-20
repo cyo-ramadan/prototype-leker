@@ -15,6 +15,7 @@ function nonNegativeInteger(value) {
 async function stockProductSnapshot(db, storeId, productId, { trackedOnly = false } = {}) {
   return db.prepare(`
     SELECT p.id, p.name, p.base_unit_id, p.stock_tracking_enabled,
+           COALESCE(p.average_cost, 0) AS average_cost_scaled,
            u.symbol AS unit_symbol,
            COALESCE(b.quantity, 0) AS current_quantity
     FROM products p
@@ -93,6 +94,11 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
       }
       const direction = targetQuantity > currentQuantitySnapshot ? 'IN' : 'OUT';
       const quantity = Math.abs(targetQuantity - currentQuantitySnapshot);
+      const unitCostSnapshotScaled = Number(product.average_cost_scaled || 0);
+      const totalCostSnapshotScaled = unitCostSnapshotScaled * quantity;
+      if (!Number.isSafeInteger(unitCostSnapshotScaled) || unitCostSnapshotScaled < 0 || !Number.isSafeInteger(totalCostSnapshotScaled)) {
+        return { ok: false, error: 'HPP barang tidak valid untuk snapshot Penyesuaian Stok.' };
+      }
       return {
         ok: true,
         payload: {
@@ -105,6 +111,8 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
           targetQuantity,
           direction,
           quantity,
+          unitCostSnapshotScaled,
+          totalCostSnapshotScaled,
           reason,
           note: text(payload.note, 500)
         }

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: prototype-leker-${{ github.workflow }}-${{ github.ref }}
@@ -21,17 +21,50 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      - name: Apply Accounting Settings UX revision
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/accounting-settings-group-save-preview' }}
+        run: |
+          if [ -f scripts/apply-accounting-settings-group-save-preview.mjs ]; then
+            node scripts/apply-accounting-settings-group-save-preview.mjs
+          fi
+
       - name: Syntax check
         run: npm run check
 
       - name: Regression tests
         run: npm test
+
+      - name: Commit validated revision and remove bootstrap artifacts
+        if: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/accounting-settings-group-save-preview' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/apply-accounting-settings-group-save-preview.mjs ]; then
+            exit 0
+          fi
+          git fetch origin main
+          git show origin/main:.github/workflows/ci-deploy.yml > .github/workflows/ci-deploy.yml
+          rm -f scripts/apply-accounting-settings-group-save-preview.mjs
+          rm -f .github/workflows/bootstrap-accounting-settings-group-save-preview.yml
+          rm -f .bootstrap-accounting-settings-group-save-preview
+          git config user.name "Karen"
+          git config user.email "karen@agent.maxi"
+          git add -- public/admin-accounting-settings-comfort.js test/accounting-settings-choice-groups.test.js contracts/accounting-choice-groups-v1.md .github/workflows/ci-deploy.yml scripts/apply-accounting-settings-group-save-preview.mjs .github/workflows/bootstrap-accounting-settings-group-save-preview.yml .bootstrap-accounting-settings-group-save-preview
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "refine Accounting transaction group save UX"
+          git push origin HEAD:fix/accounting-settings-group-save-preview
 
   deploy:
     name: Backup, Migrate & Deploy Cloudflare

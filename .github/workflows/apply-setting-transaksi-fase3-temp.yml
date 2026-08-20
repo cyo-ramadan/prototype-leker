@@ -7,12 +7,16 @@ on:
     paths:
       - scripts/apply-setting-transaksi-fase3-temp.mjs
       - .github/workflows/apply-setting-transaksi-fase3-temp.yml
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'feat/setting-transaksi-resolver-fase3' || github.ref == 'refs/heads/feat/setting-transaksi-resolver-fase3'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +39,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -f scripts/apply-setting-transaksi-fase3-temp.mjs .github/workflows/apply-setting-transaksi-fase3-temp.yml
-          git config user.name "Karen MAXI"
-          git config user.email "actions@users.noreply.github.com"
+          git config user.name "Karen"
+          git config user.email "karen@agent.maxi"
           git add -- src/accounting-pos-bridge.js src/accounting-ledger.js test/choice-groups-resolver.test.js contracts/accounting-choice-groups-v1.md
           git add -u -- scripts/apply-setting-transaksi-fase3-temp.mjs .github/workflows/apply-setting-transaksi-fase3-temp.yml
           git diff --cached --check

@@ -1,9 +1,12 @@
 # ADR-036 — Warehouse sebagai modul opsional, di luar Business Settings/Accounting
 
-Status: PROPOSED — audit dan konsep, atas usulan Bos Cyo 2026-08-20. Tidak ada kode yang
-berubah dari ADR ini. Tidak menyentuh path Setting Transaksi Fase 3-4 yang sedang
-dikerjakan Karen (`ADR-033`, issue #107/#109).
-Date: 2026-08-20
+Status: PROPOSED, **direvisi menyempit oleh `ADR-037`** — HPP/costing (§3 butir 1 dan 4
+di bawah) pindah jadi tanggung jawab modul Manufaktur (`ADR-037`), wajib ada. ADR ini
+sisa lingkupnya cuma soal **kuantitas stok** (`stock_movements`,
+`inventory_stock_balances`) — itu yang tetap opsional. Tidak ada kode yang berubah dari
+ADR ini. Tidak menyentuh path Setting Transaksi Fase 3-4 yang sudah selesai (`ADR-033`,
+issue #107/#109).
+Date: 2026-08-20, direvisi 2026-08-20
 Change ID: `MAXI-WAREHOUSE-OPTIONAL-20260820`
 Dikerjakan oleh: `hana1.1` — arsitektur, atas usulan Bos Cyo
 

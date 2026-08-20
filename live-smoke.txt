@@ -1,7 +1,10 @@
-release_sha=284f7f6e896a61afbfb447f30a09ae0aaff3e125
+release_sha=26e3d2379abcaa1e589f90b7f11bd0e981f71f95
 asset_url=https://prototype-leker-v2.daily-napkin.workers.dev/admin-accounting-settings-comfort.js
 http_code=200
-bikin_grup=true
-pasang_grup=true
-choice_group_source=true
-sha256=bf56e864d51c3e4a6893b86451eaddc15ba05a5ba35e92c0afcb0e959f62d42b
+grup_transaksi=true
+simpan_grup=true
+komponen_grup=true
+aturan_preview=true
+pasang_grup_present=false
+per_option_save_present=false
+sha256=9a7117f08ac16d73712803750f19ef00da705fae6c143d97754cad5c2f2f8228

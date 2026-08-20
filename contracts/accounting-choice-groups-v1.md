@@ -1,11 +1,11 @@
 # Accounting Choice Groups Contract v1
 
-Status: DRAFT — mengikuti `ADR-033`, belum diimplementasikan
+Status: ACTIVE — Fase 1 schema landed; Fase 3 resolver contract aktif sesuai `ADR-033 §9`
 Contract identifier: `MAXI_ACCOUNTING_CHOICE_GROUPS_V1`
 Owner: Setting Akuntansi (configuration layer)
 Dikerjakan oleh: `hana1.1`
 
-Label UI Indonesia: **Resep Akun** (group) dan **Pilihan** (option). Nama canonical di
+Label UI Indonesia: **Setting Transaksi** untuk library group dan **Pilihan** untuk option. Nama canonical di
 schema dan kode adalah *choice group* / *choice option*; `recipe` tidak dipakai karena
 sudah dimiliki `manufacturing_recipes`.
 
@@ -33,26 +33,22 @@ CREATE TABLE accounting_choice_groups (
 
 ### 1.2 `accounting_choice_options`
 
+Schema aktif setelah `migrations/0043_choice_option_account_optional.sql`:
+
 ```sql
 CREATE TABLE accounting_choice_options (
-  id                TEXT PRIMARY KEY,
-  store_id          TEXT NOT NULL REFERENCES stores(id),
-  choice_group_id   TEXT NOT NULL REFERENCES accounting_choice_groups(id) ON DELETE RESTRICT,
-  code              TEXT NOT NULL,                      -- LISTRIK, SEWA_LAPAK, GAJI / CASH, BCA, QRIS
-  name              TEXT NOT NULL,                      -- "Listrik"
-  resolver_kind     TEXT NOT NULL CHECK (resolver_kind IN ('FIXED_ACCOUNT','PAYMENT_METHOD')),
-  fixed_account_id  TEXT REFERENCES chart_of_accounts(id) ON DELETE RESTRICT,
-  payment_method_id TEXT REFERENCES payment_methods(id)  ON DELETE RESTRICT,
-  is_active         INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
-  is_default        INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
-  sort_order        INTEGER NOT NULL DEFAULT 0,
-  created_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (choice_group_id, code),
-  CHECK (
-    (resolver_kind = 'FIXED_ACCOUNT'  AND fixed_account_id IS NOT NULL AND payment_method_id IS NULL)
-    OR (resolver_kind = 'PAYMENT_METHOD' AND payment_method_id IS NOT NULL AND fixed_account_id IS NULL)
-  )
+  id              TEXT PRIMARY KEY,
+  choice_group_id TEXT NOT NULL REFERENCES accounting_choice_groups(id) ON DELETE RESTRICT,
+  store_id        TEXT NOT NULL REFERENCES stores(id),
+  code            TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  account_id      TEXT REFERENCES chart_of_accounts(id) ON DELETE RESTRICT,
+  is_default      INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  is_active       INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+  created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (choice_group_id, code)
 );
 
 CREATE UNIQUE INDEX idx_choice_options_one_default
@@ -60,8 +56,12 @@ CREATE UNIQUE INDEX idx_choice_options_one_default
   WHERE is_active = 1 AND is_default = 1;
 ```
 
-`CHECK` menegakkan **ADR-033 §4.3 invariant 5**: opsi cara bayar tidak memiliki akun
-sendiri, akunnya milik `payment_methods`.
+`account_id` **boleh NULL** saat option masih menjadi konfigurasi generic. Account baru
+wajib ketika option itu benar-benar di-resolve oleh lane Accounting. Pada saat itu
+resolver wajib fail closed `NEEDS_CHOICE_ACCOUNT` bila account kosong/tidak aktif.
+
+Untuk scope Fase 3-4 yang diminta Bos Cyo, `payment_method` dan `item_category_*`
+tetap registry/resolver terpisah dan **tidak menjadi Choice Option**.
 
 ### 1.3 `journal_rules` — perubahan
 
@@ -119,8 +119,8 @@ pilih opsi:
   4. selain itu                                               → NEEDS_CHOICE_SELECTION
 
 resolve akun:
-  resolver_kind = FIXED_ACCOUNT   → option.fixed_account_id, wajib aktif
-  resolver_kind = PAYMENT_METHOD  → payment_methods.account_id, wajib aktif dan terpetakan
+  option.account_id → wajib menunjuk `chart_of_accounts` aktif pada store yang sama saat posting
+  NULL / akun nonaktif → `NEEDS_CHOICE_ACCOUNT`
 
 nominal: seluruh nominal transaksi (totalAmountScaled)
 label baris: "<rule.label> · <option.name>"
@@ -136,8 +136,7 @@ resolve without an explicit selection"*.
 |---|---|---|
 | `NEEDS_CHOICE_SELECTION` | group punya banyak opsi aktif, fakta tidak memilih, tidak ada default | `NEEDS_CONFIGURATION` |
 | `NEEDS_CHOICE_OPTION` | kode opsi yang dikirim tidak ada / tidak aktif di group itu | `NEEDS_CONFIGURATION` |
-| `NEEDS_CHOICE_ACCOUNT` | opsi `FIXED_ACCOUNT` menunjuk akun tidak aktif | `NEEDS_CONFIGURATION` |
-| `NEEDS_PAYMENT_MAPPING` | opsi `PAYMENT_METHOD` menunjuk cara bayar tanpa akun | sudah ada, dipakai ulang |
+| `NEEDS_CHOICE_ACCOUNT` | opsi terpilih belum punya `account_id` atau akunnya tidak aktif | `NEEDS_CONFIGURATION` |
 | `NEEDS_CHOICE_GROUP` | rule menunjuk group tidak aktif / tidak ada | `NEEDS_CONFIGURATION` |
 
 `NEEDS_COMPONENT_ALLOCATION` **dihapus** setelah Fase 3 — kondisinya tidak bisa terjadi
@@ -241,3 +240,12 @@ Invariant 8 adalah tes terkuat dalam rencana ini dan wajib ditulis lebih dulu.
 **REQUIRED** — `contracts/accounting-settings-v1.md`, `contracts/operational-posting-v1.md`,
 `contracts/accounting-flow-presets-v1.md`, `contracts/accounting-pos-bridge-v1.md`,
 dan `KNOWN_PITFALLS.md` menyesuaikan saat implementasi tiap fase mendarat.
+
+
+## 9. Implementation note 2026-08-20
+
+Fase 3 hanya mengaktifkan resolver Choice Group pada POS Accounting bridge dan
+menyimpan provenance immutable di journal lines. Cash Flow dan Flow Preset tetap memakai
+jalur `fixed_account` legacy sampai writer operasional mendukung selection berbasis kode
+dalam follow-up terpisah. Ini mengikuti `ADR-033 §9.3`; jangan mengaktifkan Choice Group
+di Cash Flow hanya dari sisi Accounting reader.

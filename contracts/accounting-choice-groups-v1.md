@@ -192,13 +192,23 @@ Operasional ikut mendukung selection berbasis kode. Reader Accounting saja tidak
 
 ## 7. Fase 4 — API/UI Setting Transaksi
 
-Fase 4 menyediakan surface **Bikin Grup** dan **Pasang Grup** di Setting Akuntansi.
-Implementasi berada di changeset terpisah dari Fase 3.
+Fase 4 menyediakan dua surface dengan tanggung jawab yang tegas:
+
+1. **Grup Transaksi** di Setting Transaksi untuk menyusun satu paket reusable;
+2. **Aturan Transaksi** untuk memasang paket tersebut ke lane Debit/Kredit Accounting.
+
+### 7.1 Grup Transaksi
+
+Editor grup memakai **satu tombol `Simpan Grup`**. Admin mengisi nama grup, seluruh
+komponen, status aktif/default, dan link Account terlebih dahulu. Tidak ada tombol
+`Simpan` per komponen. Satu klik `Simpan Grup` adalah satu submit action dari sudut
+pandang admin; API canonical di bawah tetap menyimpan group dan option sebagai entitas
+terpisah agar schema/ownership Fase 4 tidak berubah.
 
 Bootstrap `GET /api/admin/settings/accounting` menambah `choiceGroups` dan mirror
 penggunaan group, termasuk kategori yang memakai group dan jumlah journal line historis.
 
-Target route:
+Target route tetap:
 
 | Method | Path |
 |---|---|
@@ -207,8 +217,21 @@ Target route:
 | `POST` | `/api/admin/settings/accounting/choice-options` |
 | `PATCH` | `/api/admin/settings/accounting/choice-options/{id}` |
 
-`POST/PATCH /journal-rules` menerima `sourceType: "choice_group"` + `choiceGroupId`.
 Tidak ada route `DELETE`; lifecycle menggunakan `isActive`.
+
+### 7.2 Pemasangan hanya dari Aturan Transaksi
+
+Tidak ada lagi surface **Pasang Grup** terpisah di Setting Transaksi. Pemasangan dilakukan
+langsung pada baris **Aturan Transaksi** dengan memilih `sourceType: "choice_group"`
+dan `choiceGroupId`.
+
+Ketika admin memilih grup, misalnya **Beban 1**, tepat di bawah selector harus tampil
+preview semua komponen aktif dalam grup tersebut beserta Account yang sedang ter-link.
+Preview ini read-only dan bersumber dari bootstrap Setting Akuntansi; ia tidak membuat
+registry Account kedua.
+
+`POST/PATCH /journal-rules` tetap menerima `sourceType: "choice_group"` +
+`choiceGroupId`.
 
 Runtime Fase 4 menjaga:
 

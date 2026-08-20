@@ -117,3 +117,8 @@ ter-deploy oleh Git Integration. Deploy manual dengan config-nya sendiri.
   Hana yang mengerjakan, bukan akun yang kebetulan dipakai untuk push. Sama
   aturannya berlaku untuk agen implementer lain (`agent-bus/CLAIM-PROMPT.md`),
   masing-masing pakai nama sendiri.
+- **Task/ADR baru defaultnya boleh dikerjakan paralel** oleh agen berbeda, kalau
+  barrier-nya sudah dirancang supaya tidak saling membahayakan struktur (mis. sumbu
+  independen, path terpisah, guard di migration). Sequence cuma dipaksakan kalau memang
+  ada ketergantungan nyata — dan itu ditulis eksplisit di task/ADR-nya ("selesaikan X
+  dulu"), bukan diam-diam ditahan tanpa alasan.

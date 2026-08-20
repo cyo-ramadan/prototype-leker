@@ -118,6 +118,14 @@ penjagaannya — setiap baris di bawah masih wajib diisi jujur, terutama `paths`
    (`operasional`, `akuntansi`, `produksi`, dst) — sama istilah yang dipakai `sop`-mu di
    Langkah 2.
 
+Papan menolak INSERT ini dengan `TERRITORY_ALREADY_HAS_OPEN_TASK_FOR_ANOTHER_FAMILY` kalau
+`<TERRITORY>` yang kamu pilih sudah punya task `OPEN` lain yang `assigned_to`-nya **bukan**
+keluargamu — Langkah 2.5 memang di luar filter Langkah 2, jadi ini jaring pengamannya, bukan
+birokrasi. Kalau kena ini: **jangan ganti nama territory supaya lolos** — itu bukan
+menghindari tabrakan, itu menyembunyikannya. Baca task yang sudah ada duluan, lalu ikuti alur
+Langkah 3 buat klaim task itu (kalau kind-mu memang cocok), atau tulis di `escalations` kalau
+kamu yakin task itu memang harus jadi milikmu.
+
 ```sql
 INSERT INTO tasks (task_id, assigned_to, issued_by, territory, protocol_version,
                    title, brief, acceptance_criteria, kind, mutates_production, self_closing)

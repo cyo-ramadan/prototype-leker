@@ -94,7 +94,7 @@ konektor tipis sejak §2.2.
 > berubah, di data transaksi waktu tanggal sebelumnya gak berubah, perubahan HPP
 > ngefek pada transaksi sesudahnya saja."
 
-Ini bukan aturan baru — persis `ADR-031`/`ADR-035` (HPP produksi = snapshot kuantitas
+Ini bukan aturan baru — persis `ADR-035` (HPP produksi = snapshot kuantitas
 aktual saat posting, reversal menyalin bukan resolve ulang) — ADR ini menegaskan
 berlaku di **kedua** tempat: baris `sale_items`/`production_run_components` **dan**
 baris `accounting_journal_lines`. Manufaktur tidak boleh dirancang sebagai fungsi yang
@@ -105,6 +105,21 @@ Konsekuensinya ke bentuk data: kalau `average_cost` yang sekarang (satu baris di
 diganti jadi ledger append-only seperti usul Karen di #88 — itu **memperkuat** invariant
 ini, bukan mengubahnya. Ledger menjelaskan *kenapa* HPP hari ini segini; snapshot di
 `sale_items`/jurnal tetap yang menentukan angka transaksi lama.
+
+### 2.6 Addendum 2026-08-20 — Penyesuaian Stok ikut invariant ini, tapi tidak menulis `average_cost`
+
+Bos Cyo memperjelas cakupan §2.5 lewat task `M-PRODUKSI` (issue #107): invariant snapshot
+berlaku juga untuk **Penyesuaian Stok**, bukan cuma Sale/Production. Adjustment wajib
+membawa HPP snapshot-nya sendiri di fakta yang dicatat — supaya nanti kalau ditanya
+"berapa nilai rupiah dari penyesuaian ini", jawabannya tidak bergantung ke `average_cost`
+hari ini dibaca. Tapi arahnya satu jalur, bukan dua: **adjustment tidak pernah menulis ke
+`products.average_cost`** — sama seperti Sale, dia cuma membaca dan menyimpan snapshot.
+Sumber perubahan `average_cost` yang sah tetap cuma dua: moving-average Purchase dan
+moving-average Production (§2.2).
+
+Detail penyimpanan (bukan keputusan arah, implementer bebas pilih selama invariant di
+atas terjaga): snapshot adjustment bisa dititipkan di `approval_requests.payload_json`
+yang sudah immutable-by-design — tidak perlu migration baru untuk ini.
 
 ## 3. Consequences
 
@@ -133,8 +148,7 @@ ini, bukan mengubahnya. Ledger menjelaskan *kenapa* HPP hari ini segini; snapsho
 
 ## 5. Related
 
-- `ADR-031` — HPP produksi = snapshot, reversal menyalin
-- `ADR-032` — semantik Inventory → Accounting
+- `ADR-032` — semantik Inventory → Accounting (Opname, Produksi, Transfer)
 - `ADR-034` — pola gating satu titik panggil, dipakai ulang di §2.2
 - `ADR-035` — mesin eksekusi Produksi yang diserap, tidak diubah isinya
 - `ADR-036` — direvisi menyempit ke kuantitas stok, lihat §2.3

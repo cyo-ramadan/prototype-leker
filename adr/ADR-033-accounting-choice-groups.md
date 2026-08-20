@@ -1,8 +1,10 @@
 # ADR-033 — Choice Group: satu tempat untuk daftar pilihan akun
 
-Status: ACCEPTED — Fase 1 (skema) landed, `migrations/0042_accounting_choice_groups.sql`.
-Fase 3-4 (resolver + Setting Akuntansi API/UI) belum dikerjakan.
-Date: 2026-08-19
+Status: ACCEPTED — Fase 1 (skema) landed, `migrations/0042_accounting_choice_groups.sql`,
+dikoreksi `migrations/0043_choice_option_account_optional.sql` (lihat §9).
+Fase 3-4 (resolver + Setting Akuntansi API/UI) sedang dikerjakan Karen lewat GitHub-only
+fallback (issue #107, #109) karena sesi Karen tidak punya akses D1 langsung.
+Date: 2026-08-19, dikoreksi 2026-08-20
 Change ID: `MAXI-ACC-CHOICE-GROUPS-20260819`
 Dikerjakan oleh: `hana1.1` — arsitektur, atas usulan Bos Cyo
 
@@ -265,6 +267,53 @@ Dua tombol di Setting Akuntansi:
 
 `item_category_*` dan `payment_method` tidak disentuh sama sekali oleh dua tombol
 ini — keduanya tetap jalur terpisah seperti sekarang, sesuai §6 butir 2-3 di atas.
+
+## 9. Koreksi 2026-08-20 — `account_id` opsional, dan tiga keputusan scope Fase 3-4
+
+Karen menemukan ini sambil menyiapkan Fase 3 lewat jalur GitHub-only (issue #107,
+#109 — sesi Karen tidak punya akses D1 langsung, lihat `agent-bus/CLAIM-PROMPT.md`).
+
+### 9.1 `accounting_choice_options.account_id` seharusnya nullable
+
+`migrations/0042` landed dengan `account_id TEXT NOT NULL` — itu salah, bertentangan
+dengan §8 di atas sendiri ("tiap pilihan **opsional** di-link ke akun") dan klarifikasi
+langsung Bos Cyo 2026-08-20: *"linked ke akun tidak wajib, kecuali konek dengan
+Akuntansi"*. Satu pilihan boleh ada sebagai konfigurasi generic tanpa akun; akunnya
+baru wajib ada saat pilihan itu benar-benar dipilih pada baris jurnal yang mau posting.
+
+**Tidak menulis ulang `0042`** (sudah landed — `CLAUDE.md` invariant 7). Dikoreksi maju
+lewat `migrations/0043_choice_option_account_optional.sql`: `account_id` jadi nullable,
+kedua trigger scope-guard disesuaikan supaya tidak salah menolak opsi yang memang belum
+punya akun.
+
+**Konsekuensi ke resolver (Fase 3, milik Karen):** kalau sebuah `journal_rules` aktif
+mencoba resolve opsi yang `account_id`-nya `NULL`, itu wajib gagal-tertutup dengan kode
+baru — sarannya `NEEDS_CHOICE_ACCOUNT` — bukan diam-diam dilewati atau menebak akun.
+
+### 9.2 Fase 3 paths diperluas: `src/accounting-ledger.js` masuk scope
+
+`choice_group_code`/`choice_option_code` di `accounting_journal_lines` (dari `0042`)
+tidak bisa terisi kalau cuma bridge (`accounting-pos-bridge.js`) yang diubah —
+`postAccountingJournal()` di `accounting-ledger.js` yang benar-benar menulis baris
+jurnal, dan hari ini menormalisasi baris ke account/side/amount/description/
+systemGenerated saja. `HANDOFF-choice-groups-implementation.md` Fase 3 diperbarui untuk
+memasukkan file ini ke `paths`.
+
+### 9.3 Cash Flow / Flow Preset: choice_group DITUNDA ke fase operasional terpisah
+
+Karen menemukan `src/operational-posting.js::normalizeApprovalPayload()` untuk
+`CASH_FLOW` masih menulis `accountingCounterpartRuleId` ke `approval_requests.payload_json`
+— kalau resolver arus kas dialihkan membaca `choiceSelections` tanpa writer-nya ikut
+diubah, pengajuan bisa ditolak sebelum sempat sampai ke Accounting. File itu di luar
+Fase 3 paths dan merupakan business-app boundary, jadi benar Karen tidak menyentuhnya.
+
+**Keputusan:** opsi 2 dari usulan Karen — Cash Flow choice-group activation **ditunda**.
+Fase 3 resolver dibuat forward-compatible (menerima `source_type='choice_group'`) tapi
+Cash Flow tetap jalur `fixed_account`/`requestedCounterpartRuleId` yang ada sekarang.
+Fase 4 **tidak** mengalihkan `public/admin-accounting-flow-presets.js` ke Choice Group
+pada perubahan yang sama. Migrasi writer Cash Flow ke selection berbasis kode jadi
+follow-up terpisah, fokus, dengan regression test Arus Kas sendiri — bukan bagian dari
+dua tombol yang diminta Bos Cyo (§8).
 
 ## 7. Related
 

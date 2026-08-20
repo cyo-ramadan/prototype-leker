@@ -1,0 +1,54 @@
+{
+  "targetSha": "284f7f6e896a61afbfb447f30a09ae0aaff3e125",
+  "checks": [
+    {
+      "name": "Workers Builds: prototype-leker-v2",
+      "app": "Cloudflare Workers and Pages",
+      "status": "completed",
+      "conclusion": "success",
+      "detailsUrl": "https://dash.cloudflare.com/25c5fe53877002648959e8dd35678188/workers/services/view/prototype-leker-v2/production/builds/290f9ba9-4f23-46d2-8dc7-b19e27defa83",
+      "startedAt": "2026-08-20T03:43:56Z",
+      "completedAt": "2026-08-20T03:43:56Z"
+    },
+    {
+      "name": "Backup, Migrate & Deploy Cloudflare",
+      "app": "GitHub Actions",
+      "status": "completed",
+      "conclusion": "failure",
+      "detailsUrl": "https://github.com/cyo-ramadan/prototype-leker/actions/runs/32329040062/job/96306056915",
+      "startedAt": "2026-08-20T03:40:18Z",
+      "completedAt": "2026-08-20T03:40:29Z"
+    },
+    {
+      "name": "Check & Test",
+      "app": "GitHub Actions",
+      "status": "completed",
+      "conclusion": "success",
+      "detailsUrl": "https://github.com/cyo-ramadan/prototype-leker/actions/runs/32329040062/job/96306003431",
+      "startedAt": "2026-08-20T03:39:57Z",
+      "completedAt": "2026-08-20T03:40:14Z"
+    }
+  ],
+  "combinedStatus": "pending",
+  "statuses": [],
+  "deployments": [
+    {
+      "id": 5995330433,
+      "environment": "production",
+      "createdAt": "2026-08-20T03:40:14Z",
+      "ref": "main",
+      "sha": "284f7f6e896a61afbfb447f30a09ae0aaff3e125",
+      "task": "deploy"
+    }
+  ],
+  "live": {
+    "uiHttpCode": 200,
+    "uiHasBikinDanPasangGrup": true,
+    "unauthAccountingHttpCode": 401,
+    "authBoundary401": true,
+    "authenticatedAccountingHttpCode": 200,
+    "authenticatedAccountingResponds": true,
+    "choiceGroupsArrayPresent": true,
+    "choiceGroupSourceTypePresent": true
+  }
+}

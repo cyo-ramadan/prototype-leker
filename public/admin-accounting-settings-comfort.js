@@ -1,10 +1,18 @@
 (() => {
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
-  const state = { accounting: null, view: 'rules', selectedTransactionId: '', drafts: new Map() };
+  const state = {
+    accounting: null,
+    view: 'rules',
+    selectedTransactionId: '',
+    selectedChoiceGroupId: '',
+    choiceMode: 'create',
+    drafts: new Map()
+  };
 
   const SOURCE_LABELS = {
     fixed_account: 'Akun tertentu',
+    choice_group: 'Setting Transaksi → pilihan',
     payment_method: 'Cara pembayaran → akun',
     item_category_inventory: 'Jenis barang → Persediaan',
     item_category_cogs: 'Jenis barang → HPP',
@@ -86,6 +94,7 @@
           ${navButton('accounts','▤','Daftar Akun')}
           ${navButton('payment','◉','Metode Pembayaran')}
           ${navButton('items','▦','Jenis Barang')}
+          ${navButton('choices','⌗','Setting Transaksi')}
           ${navButton('rules','⌘','Aturan Transaksi')}
         </nav>
         <div class="acc-boundary">Panel ini hanya mengatur mapping. Pembuatan akun, kode akun, jurnal, buku besar, laporan dan closing tetap dikerjakan di modul Akuntansi.</div>
@@ -100,6 +109,7 @@
     if (state.view === 'accounts') renderAccounts(host);
     else if (state.view === 'payment') renderPayment(host);
     else if (state.view === 'items') renderItems(host);
+    else if (state.view === 'choices') renderChoiceGroups(host);
     else renderRules(host);
     document.querySelectorAll('[data-acc-view]').forEach(button => button.classList.toggle('active', button.dataset.accView === state.view));
   }
@@ -182,6 +192,167 @@
     </div>`;
   }
 
+  function choiceGroupOptions(selected = '', onlyReady = false) {
+    const groups = (state.accounting?.choiceGroups || []).filter(group => {
+      if (!group.isActive) return false;
+      return !onlyReady || group.accountingReady;
+    });
+    return `<option value="">Pilih Setting Transaksi…</option>${groups.map(group =>
+      `<option value="${esc(group.id)}" ${group.id === selected ? 'selected' : ''}>${esc(group.name)} · ${esc(group.code)}</option>`
+    ).join('')}`;
+  }
+
+  function renderChoiceGroups(host) {
+    const groups = state.accounting.choiceGroups || [];
+    if (!groups.some(group => group.id === state.selectedChoiceGroupId)) state.selectedChoiceGroupId = groups[0]?.id || '';
+    const selected = groups.find(group => group.id === state.selectedChoiceGroupId) || null;
+    host.innerHTML = `<div class="acc-page">
+      <div class="acc-head"><h2>Setting Transaksi</h2><p>Bikin paket pilihan reusable. Link akun boleh kosong selama grup masih generic. Begitu dipasang ke Akuntansi, semua pilihan aktif wajib punya akun aktif.</p></div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="accChoiceCreateMode" class="acc-mini ${state.choiceMode === 'create' ? 'primary' : ''}" type="button">＋ Bikin Grup</button>
+        <button id="accChoiceAttachMode" class="acc-mini ${state.choiceMode === 'attach' ? 'primary' : ''}" type="button">↗ Pasang Grup</button>
+      </div>
+      ${state.choiceMode === 'attach' ? attachChoiceGroupHtml() : choiceGroupLibraryHtml(groups, selected)}
+    </div>`;
+    el('accChoiceCreateMode')?.addEventListener('click', () => { state.choiceMode = 'create'; renderChoiceGroups(host); });
+    el('accChoiceAttachMode')?.addEventListener('click', () => { state.choiceMode = 'attach'; renderChoiceGroups(host); });
+    if (state.choiceMode === 'attach') bindChoiceAttach();
+    else bindChoiceLibrary(host, selected);
+  }
+
+  function choiceGroupLibraryHtml(groups, selected) {
+    return `<div class="acc-rules-layout" style="margin:0;min-height:520px">
+      <aside class="acc-tx-list">
+        <div class="acc-new-tx" style="padding:12px">
+          <input id="accNewChoiceGroupName" class="acc-input" placeholder="Nama grup, contoh: Beban Tetap" />
+          <button id="accCreateChoiceGroup" class="acc-mini primary" style="margin-top:8px;width:100%" type="button">Bikin Grup</button>
+        </div>
+        ${groups.map(group => `<button type="button" class="acc-tx ${group.id === state.selectedChoiceGroupId ? 'active' : ''}" data-select-choice-group="${esc(group.id)}">
+          <div class="acc-tx-line"><span>${esc(group.name)}</span><span class="${group.accountingReady ? 'acc-status-ok' : 'acc-status-warn'}">${group.accountingReady ? '●' : '▲'}</span></div>
+          <div class="acc-tx-code">${esc(group.code)} · ${group.isActive ? 'aktif' : 'nonaktif'}</div>
+        </button>`).join('') || '<div class="acc-muted" style="padding:14px">Belum ada grup.</div>'}
+      </aside>
+      <section class="acc-rules-editor">${selected ? choiceGroupDetailHtml(selected) : '<div class="acc-muted">Bikin grup pertama untuk mulai.</div>'}</section>
+    </div>`;
+  }
+
+  function choiceGroupDetailHtml(group) {
+    const usage = group.usedByCategories || [];
+    return `<div class="acc-rule-title"><h2>${esc(group.name)}</h2><span class="acc-chip ${usage.length ? 'ok' : ''}">${usage.length ? 'Terhubung Akuntansi' : 'Generic'}</span><span class="acc-chip ${group.accountingReady ? 'ok' : 'warn'}">${group.accountingReady ? 'Account ready' : 'Perlu mapping akun'}</span></div>
+      <div class="acc-rule-desc"><span class="acc-code">${esc(group.code)}</span> · ${group.journalLineCount} journal line historis.</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px"><button class="acc-mini ${group.isActive ? 'danger' : 'primary'}" data-toggle-choice-group type="button">${group.isActive ? 'Nonaktifkan Grup' : 'Aktifkan Grup'}</button></div>
+      ${usage.length ? `<div class="acc-card" style="padding:10px;margin-bottom:12px"><div class="acc-muted">Dipakai oleh</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">${usage.map(item => `<span class="acc-chip">${esc(item.name)} · ${esc(item.side)}</span>`).join('')}</div></div>` : ''}
+      <div class="acc-card">
+        <div id="accChoiceOptionRows">${(group.options || []).map(choiceOptionRow).join('')}</div>
+        <button id="accAddChoiceOption" class="acc-add" type="button">＋ Tambah Pilihan</button>
+      </div>`;
+  }
+
+  function choiceOptionRow(option) {
+    const draft = String(option.id).startsWith('draft_choice_');
+    return `<div class="acc-form-row" data-choice-option="${esc(option.id)}" data-draft="${draft ? '1' : '0'}" style="grid-template-columns:minmax(130px,1fr) minmax(220px,1.4fr) 78px 86px 70px">
+      <div><input class="acc-input" data-choice-option-name value="${esc(option.name || '')}" placeholder="Nama pilihan" /><div class="acc-muted" style="margin-top:4px">${draft ? 'kode otomatis saat simpan' : `${esc(option.code)} · ${Number(option.journalLineCount || 0)} jurnal`}</div></div>
+      <div><select class="acc-select" data-choice-option-account>${accountOptions('', option.accountId || '', true).replace('Pilih akun…','Belum dilink ke Akuntansi')}</select><div class="acc-muted" style="margin-top:4px">${option.accountingReady ? 'Siap Accounting' : 'Link akun optional selama generic'}</div></div>
+      <label class="acc-muted"><input type="checkbox" data-choice-option-active ${option.isActive !== false ? 'checked' : ''}/> Aktif</label>
+      <label class="acc-muted"><input type="checkbox" data-choice-option-default ${option.isDefault ? 'checked' : ''}/> Default</label>
+      <button class="acc-mini primary" data-save-choice-option type="button">Simpan</button>
+    </div>`;
+  }
+
+  function attachChoiceGroupHtml() {
+    const categories = (state.accounting.transactionCategories || []).filter(tx => tx.isActive);
+    const readyGroups = (state.accounting.choiceGroups || []).filter(group => group.isActive && group.accountingReady);
+    return `<div class="acc-card" style="padding:16px;max-width:800px">
+      <div class="acc-head" style="margin-bottom:14px"><h2 style="font-size:17px">Pasang Grup ke Akuntansi</h2><p>Setelah dipasang, group menjadi resolver akun untuk sisi Debit/Kredit yang dipilih. Group yang belum Accounting-ready tidak ditawarkan.</p></div>
+      ${readyGroups.length ? `<div class="acc-item-grid">
+        <div class="acc-field"><label>Jenis Transaksi</label><select id="accAttachChoiceTx" class="acc-select">${categories.map(tx => `<option value="${esc(tx.id)}">${esc(tx.name)} · ${esc(tx.code)}</option>`).join('')}</select></div>
+        <div class="acc-field"><label>Sisi</label><select id="accAttachChoiceSide" class="acc-select"><option>DEBIT</option><option>CREDIT</option></select></div>
+        <div class="acc-field"><label>Setting Transaksi</label><select id="accAttachChoiceGroup" class="acc-select">${choiceGroupOptions('', true)}</select></div>
+      </div>
+      <div class="acc-field" style="margin-top:10px"><label>Label journal rule</label><input id="accAttachChoiceLabel" class="acc-input" placeholder="contoh: Beban Operasional" /></div>
+      <button id="accAttachChoiceSave" class="acc-mini primary" style="margin-top:12px" type="button">Pasang Grup</button>` : '<div class="acc-muted">Belum ada group yang siap Accounting. Buka Bikin Grup dan lengkapi akun semua pilihan aktif dulu.</div>'}
+    </div>`;
+  }
+
+  function bindChoiceLibrary(host, selected) {
+    host.querySelectorAll('[data-select-choice-group]').forEach(button => button.addEventListener('click', () => {
+      state.selectedChoiceGroupId = button.dataset.selectChoiceGroup;
+      renderChoiceGroups(host);
+    }));
+    el('accCreateChoiceGroup')?.addEventListener('click', async () => {
+      const name = el('accNewChoiceGroupName')?.value.trim();
+      if (!name) return toast('Nama grup wajib diisi');
+      try {
+        const result = await api('/api/admin/settings/accounting/choice-groups', { method: 'POST', body: JSON.stringify({ name }) });
+        state.selectedChoiceGroupId = result.id;
+        await load(true); toast('Grup dibuat');
+      } catch (error) { toast(error.message); }
+    });
+    el('accAddChoiceOption')?.addEventListener('click', () => {
+      if (!selected) return;
+      selected.options = [...(selected.options || []), {
+        id: `draft_choice_${Date.now()}`,
+        name: '', accountId: null, accountingReady: false,
+        isActive: true, isDefault: false,
+        sortOrder: (selected.options || []).length * 10 + 10,
+        journalLineCount: 0
+      }];
+      renderChoiceGroups(host);
+    });
+    el('accountingComfortBody')?.querySelector('[data-toggle-choice-group]')?.addEventListener('click', async () => {
+      if (!selected) return;
+      try {
+        await api(`/api/admin/settings/accounting/choice-groups/${encodeURIComponent(selected.id)}`, {
+          method: 'PATCH', body: JSON.stringify({ name: selected.name, isActive: !selected.isActive })
+        });
+        await load(true); toast(selected.isActive ? 'Grup dinonaktifkan' : 'Grup diaktifkan');
+      } catch (error) { toast(error.message); }
+    });
+    host.querySelectorAll('[data-save-choice-option]').forEach(button => button.addEventListener('click', async () => {
+      const row = button.closest('[data-choice-option]');
+      const draft = row.dataset.draft === '1';
+      try {
+        await api(draft ? '/api/admin/settings/accounting/choice-options' : `/api/admin/settings/accounting/choice-options/${encodeURIComponent(row.dataset.choiceOption)}`, {
+          method: draft ? 'POST' : 'PATCH',
+          body: JSON.stringify({
+            choiceGroupId: selected.id,
+            name: row.querySelector('[data-choice-option-name]').value,
+            accountId: row.querySelector('[data-choice-option-account]').value || null,
+            isActive: row.querySelector('[data-choice-option-active]').checked,
+            isDefault: row.querySelector('[data-choice-option-default]').checked,
+            sortOrder: draft ? (selected.options || []).findIndex(item => item.id === row.dataset.choiceOption) * 10 + 10 : undefined
+          })
+        });
+        await load(true); toast('Pilihan tersimpan');
+      } catch (error) { toast(error.message); }
+    }));
+  }
+
+  function bindChoiceAttach() {
+    el('accAttachChoiceSave')?.addEventListener('click', async () => {
+      const transactionCategoryId = el('accAttachChoiceTx')?.value || '';
+      const choiceGroupId = el('accAttachChoiceGroup')?.value || '';
+      const side = el('accAttachChoiceSide')?.value || 'DEBIT';
+      const group = (state.accounting.choiceGroups || []).find(item => item.id === choiceGroupId);
+      if (!transactionCategoryId || !group) return toast('Pilih transaksi dan group yang siap Accounting');
+      try {
+        await api('/api/admin/settings/accounting/journal-rules', {
+          method: 'POST',
+          body: JSON.stringify({
+            transactionCategoryId,
+            label: el('accAttachChoiceLabel')?.value.trim() || group.name,
+            side,
+            sourceType: 'choice_group',
+            choiceGroupId,
+            sortOrder: 10,
+            isActive: true
+          })
+        });
+        await load(true); toast('Grup terpasang ke Akuntansi');
+      } catch (error) { toast(error.message); }
+    });
+  }
+
   function renderRules(host) {
     const categories = state.accounting.transactionCategories || [];
     if (!categories.some(tx => tx.id === state.selectedTransactionId)) state.selectedTransactionId = categories[0]?.id || '';
@@ -212,11 +383,16 @@
   }
 
   function ruleCard(rule) {
-    return `<div class="acc-rule" data-rule-id="${esc(rule.id)}" data-rule-side="${esc(rule.side)}" data-draft="${String(rule.id).startsWith('draft_') ? '1' : '0'}"><div class="acc-rule-top"><input class="acc-input" data-rule-label value="${esc(rule.label || '')}"/><button class="acc-trash" data-disable-rule type="button" title="Nonaktifkan">×</button></div><select class="acc-select" data-rule-source>${(state.accounting.sourceTypes || []).map(source => `<option value="${esc(source)}" ${source === rule.sourceType ? 'selected' : ''}>${esc(SOURCE_LABELS[source] || source)}</option>`).join('')}</select><div class="acc-source-detail" data-rule-fixed-wrap ${rule.sourceType === 'fixed_account' ? '' : 'hidden'}><select class="acc-select" data-rule-fixed>${accountOptions('', rule.fixedAccountId || '', true)}</select></div><button class="acc-mini primary" data-save-rule type="button" style="margin-top:8px">Simpan</button></div>`;
+    return `<div class="acc-rule" data-rule-id="${esc(rule.id)}" data-rule-side="${esc(rule.side)}" data-draft="${String(rule.id).startsWith('draft_') ? '1' : '0'}"><div class="acc-rule-top"><input class="acc-input" data-rule-label value="${esc(rule.label || '')}"/><button class="acc-trash" data-disable-rule type="button" title="Nonaktifkan">×</button></div><select class="acc-select" data-rule-source>${(state.accounting.sourceTypes || []).map(source => `<option value="${esc(source)}" ${source === rule.sourceType ? 'selected' : ''}>${esc(SOURCE_LABELS[source] || source)}</option>`).join('')}</select><div class="acc-source-detail" data-rule-fixed-wrap ${rule.sourceType === 'fixed_account' ? '' : 'hidden'}><select class="acc-select" data-rule-fixed>${accountOptions('', rule.fixedAccountId || '', true)}</select></div><div class="acc-source-detail" data-rule-choice-wrap ${rule.sourceType === 'choice_group' ? '' : 'hidden'}><select class="acc-select" data-rule-choice>${choiceGroupOptions(rule.choiceGroupId || '', true)}</select></div><button class="acc-mini primary" data-save-rule type="button" style="margin-top:8px">Simpan</button></div>`;
   }
 
   function previewRow(rule) {
-    return `<div class="acc-preview-row ${rule.side === 'CREDIT' ? 'credit' : ''}"><b>${rule.side}</b><span>${esc(rule.label)} ← ${esc(rule.sourceType === 'fixed_account' && rule.fixedAccount ? `${rule.fixedAccount.code} ${rule.fixedAccount.name}` : (SOURCE_LABELS[rule.sourceType] || rule.sourceType))}</span></div>`;
+    const source = rule.sourceType === 'fixed_account' && rule.fixedAccount
+      ? `${rule.fixedAccount.code} ${rule.fixedAccount.name}`
+      : rule.sourceType === 'choice_group' && rule.choiceGroup
+        ? `${rule.choiceGroup.name} · ${rule.choiceGroup.code}`
+        : (SOURCE_LABELS[rule.sourceType] || rule.sourceType);
+    return `<div class="acc-preview-row ${rule.side === 'CREDIT' ? 'credit' : ''}"><b>${rule.side}</b><span>${esc(rule.label)} ← ${esc(source)}</span></div>`;
   }
 
   function bindRuleEditor(host, tx) {
@@ -224,6 +400,7 @@
     host.querySelectorAll('[data-rule-source]').forEach(select => select.addEventListener('change', () => {
       const card = select.closest('[data-rule-id]');
       card.querySelector('[data-rule-fixed-wrap]').hidden = select.value !== 'fixed_account';
+      card.querySelector('[data-rule-choice-wrap]').hidden = select.value !== 'choice_group';
     }));
     host.querySelectorAll('[data-save-rule]').forEach(button => button.addEventListener('click', async () => {
       const card = button.closest('[data-rule-id]');
@@ -232,7 +409,16 @@
       try {
         await api(draft ? '/api/admin/settings/accounting/journal-rules' : `/api/admin/settings/accounting/journal-rules/${encodeURIComponent(card.dataset.ruleId)}`, {
           method: draft ? 'POST' : 'PATCH',
-          body: JSON.stringify({ transactionCategoryId: tx.id, label: card.querySelector('[data-rule-label]').value, side: card.dataset.ruleSide, sourceType, fixedAccountId: sourceType === 'fixed_account' ? (card.querySelector('[data-rule-fixed]').value || null) : null, sortOrder: 10, isActive: true })
+          body: JSON.stringify({
+            transactionCategoryId: tx.id,
+            label: card.querySelector('[data-rule-label]').value,
+            side: card.dataset.ruleSide,
+            sourceType,
+            fixedAccountId: sourceType === 'fixed_account' ? (card.querySelector('[data-rule-fixed]').value || null) : null,
+            choiceGroupId: sourceType === 'choice_group' ? (card.querySelector('[data-rule-choice]').value || null) : null,
+            sortOrder: 10,
+            isActive: true
+          })
         });
         await load(true); toast('Aturan transaksi tersimpan');
       } catch (error) { toast(error.message); }
@@ -242,7 +428,15 @@
       if (card.dataset.draft === '1') { card.remove(); return; }
       const sourceType = card.querySelector('[data-rule-source]').value;
       try {
-        await api(`/api/admin/settings/accounting/journal-rules/${encodeURIComponent(card.dataset.ruleId)}`, { method: 'PATCH', body: JSON.stringify({ transactionCategoryId: tx.id, label: card.querySelector('[data-rule-label]').value, side: card.dataset.ruleSide, sourceType, fixedAccountId: sourceType === 'fixed_account' ? (card.querySelector('[data-rule-fixed]').value || null) : null, isActive: false }) });
+        await api(`/api/admin/settings/accounting/journal-rules/${encodeURIComponent(card.dataset.ruleId)}`, { method: 'PATCH', body: JSON.stringify({
+          transactionCategoryId: tx.id,
+          label: card.querySelector('[data-rule-label]').value,
+          side: card.dataset.ruleSide,
+          sourceType,
+          fixedAccountId: sourceType === 'fixed_account' ? (card.querySelector('[data-rule-fixed]').value || null) : null,
+          choiceGroupId: sourceType === 'choice_group' ? (card.querySelector('[data-rule-choice]').value || null) : null,
+          isActive: false
+        }) });
         await load(true); toast('Baris aturan dinonaktifkan');
       } catch (error) { toast(error.message); }
     }));

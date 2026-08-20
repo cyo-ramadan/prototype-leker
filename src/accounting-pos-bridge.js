@@ -227,7 +227,7 @@ async function loadSettingsResolver(db, storeId, transactionCategoryCode) {
   `).bind(storeId, transactionCategoryCode).first();
   if (!category) return null;
   const rows = await db.prepare(`
-    SELECT r.id, r.label, r.side, r.source_type, r.fixed_account_id, r.sort_order,
+    SELECT r.id, r.label, r.side, r.source_type, r.fixed_account_id, r.choice_group_id, r.sort_order,
            a.code AS fixed_account_code, a.name AS fixed_account_name
     FROM journal_rules r
     LEFT JOIN chart_of_accounts a
@@ -247,6 +247,7 @@ async function loadSettingsResolver(db, storeId, transactionCategoryCode) {
       side: row.side,
       sourceType: row.source_type,
       fixedAccountId: row.fixed_account_id || null,
+      choiceGroupId: row.choice_group_id || null,
       fixedAccountCode: row.fixed_account_code || '',
       fixedAccountName: row.fixed_account_name || '',
       sortOrder: Number(row.sort_order || 0)
@@ -335,9 +336,9 @@ function detectAmbiguousGenericRules(rules) {
   return null;
 }
 
-function aggregateLine(target, side, accountId, amountScaled, description, order) {
+function aggregateLine(target, side, accountId, amountScaled, description, order, metadata = {}) {
   if (!Number.isSafeInteger(amountScaled) || amountScaled <= 0) throw new Error('ACCOUNTING_BRIDGE_AMOUNT_INVALID');
-  const key = `${side}:${accountId}`;
+  const key = text(metadata.lineKey, 220) || `${side}:${accountId}`;
   const current = target.get(key);
   if (current) {
     current.amountScaled = safeAdd(current.amountScaled, amountScaled);
@@ -345,7 +346,14 @@ function aggregateLine(target, side, accountId, amountScaled, description, order
     current.order = Math.min(current.order, order);
     return;
   }
-  target.set(key, { accountId, side, amountScaled, description: text(description, 240), order });
+  const line = { accountId, side, amountScaled, description: text(description, 240), order };
+  const choiceGroupCode = text(metadata.choiceGroupCode, 80).toUpperCase();
+  const choiceOptionCode = text(metadata.choiceOptionCode, 80).toUpperCase();
+  if (choiceGroupCode && choiceOptionCode) {
+    line.choiceGroupCode = choiceGroupCode;
+    line.choiceOptionCode = choiceOptionCode;
+  }
+  target.set(key, line);
 }
 
 function itemAccountForSource(mapping, sourceType) {
@@ -364,6 +372,76 @@ function itemAmountForSource(fact, item, sourceType) {
     return item.lineCogsScaled;
   }
   return null;
+}
+
+function selectedChoiceCode(fact, groupCode) {
+  const expectedGroup = text(groupCode, 80).toUpperCase();
+  const selections = Array.isArray(fact?.choiceSelections) ? fact.choiceSelections : [];
+  for (const selection of selections) {
+    if (text(selection?.groupCode, 80).toUpperCase() !== expectedGroup) continue;
+    return text(selection?.optionCode, 80).toUpperCase() || null;
+  }
+  return null;
+}
+
+async function resolveChoiceGroupRule(db, storeId, rule, fact) {
+  if (!rule.choiceGroupId) {
+    return configurationFailure('NEEDS_CHOICE_GROUP', `Rule ${rule.label} belum menunjuk Setting Transaksi.`);
+  }
+  const group = await db.prepare(`
+    SELECT id, code, name
+    FROM accounting_choice_groups
+    WHERE id = ? AND store_id = ? AND is_active = 1
+    LIMIT 1
+  `).bind(rule.choiceGroupId, storeId).first();
+  if (!group) {
+    return configurationFailure('NEEDS_CHOICE_GROUP', `Setting Transaksi untuk rule ${rule.label} tidak aktif / tidak ditemukan.`);
+  }
+  const rows = await db.prepare(`
+    SELECT o.id, o.code, o.name, o.account_id, o.is_default, o.sort_order,
+           a.id AS active_account_id, a.code AS account_code, a.name AS account_name, a.type AS account_type
+    FROM accounting_choice_options o
+    LEFT JOIN chart_of_accounts a
+      ON a.id = o.account_id
+     AND a.store_id = o.store_id
+     AND a.is_active = 1
+    WHERE o.store_id = ? AND o.choice_group_id = ? AND o.is_active = 1
+    ORDER BY o.sort_order, o.code, o.id
+  `).bind(storeId, group.id).all();
+  const options = (rows.results ?? []).map(row => ({
+    id: row.id,
+    code: text(row.code, 80).toUpperCase(),
+    name: row.name,
+    accountId: row.account_id || null,
+    activeAccountId: row.active_account_id || null,
+    accountCode: row.account_code || '',
+    accountName: row.account_name || '',
+    accountType: row.account_type || '',
+    isDefault: Boolean(row.is_default),
+    sortOrder: Number(row.sort_order || 0)
+  }));
+  const requestedCode = selectedChoiceCode(fact, group.code);
+  let option = null;
+  if (requestedCode) option = options.find(candidate => candidate.code === requestedCode) || null;
+  else if (options.length === 1) option = options[0];
+  else option = options.find(candidate => candidate.isDefault) || null;
+
+  if (requestedCode && !option) {
+    return configurationFailure('NEEDS_CHOICE_OPTION', `Pilihan ${requestedCode} tidak aktif / tidak tersedia pada ${group.name}.`, {
+      groupCode: group.code,
+      optionCode: requestedCode
+    });
+  }
+  if (!option) {
+    return configurationFailure('NEEDS_CHOICE_SELECTION', `Pilih salah satu pilihan aktif pada ${group.name}.`, { groupCode: group.code });
+  }
+  if (!option.accountId || !option.activeAccountId) {
+    return configurationFailure('NEEDS_CHOICE_ACCOUNT', `Pilihan ${option.name} belum terhubung ke akun Accounting aktif.`, {
+      groupCode: group.code,
+      optionCode: option.code
+    });
+  }
+  return { ok: true, group, option };
 }
 
 export async function resolvePosFactToJournalCommand(db, store, fact) {
@@ -454,6 +532,25 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
           return configurationFailure('NEEDS_COMPONENT_ALLOCATION', `Transaksi ${fact.factType} memiliki beberapa fixed-account rule tanpa alokasi nominal.`);
         }
         aggregateLine(resultLines, rule.side, rule.fixedAccountId, totalAmountScaled, rule.label, rule.sortOrder);
+        continue;
+      }
+
+      if (rule.sourceType === 'choice_group') {
+        const choice = await resolveChoiceGroupRule(db, store.id, rule, fact);
+        if (!choice.ok) return choice;
+        aggregateLine(
+          resultLines,
+          rule.side,
+          choice.option.accountId,
+          totalAmountScaled,
+          `${rule.label} · ${choice.option.name}`,
+          rule.sortOrder,
+          {
+            lineKey: `choice_group:${rule.journalRuleId}`,
+            choiceGroupCode: choice.group.code,
+            choiceOptionCode: choice.option.code
+          }
+        );
         continue;
       }
 

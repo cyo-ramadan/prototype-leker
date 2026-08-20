@@ -120,14 +120,24 @@ export function validateJournalLines(lines, allowedAccountIds = null, options = 
     }
     if (side === 'DEBIT') totalDebitScaled = safeAdd(totalDebitScaled, amountScaled);
     else totalCreditScaled = safeAdd(totalCreditScaled, amountScaled);
-    normalized.push({
+    const choiceGroupCode = text(raw.choiceGroupCode, 80).toUpperCase();
+    const choiceOptionCode = text(raw.choiceOptionCode, 80).toUpperCase();
+    if (Boolean(choiceGroupCode) !== Boolean(choiceOptionCode)) {
+      return { ok: false, code: 'JOURNAL_LINE_CHOICE_PROVENANCE_INVALID', error: `Baris ${index + 1} harus membawa group dan option provenance secara berpasangan.` };
+    }
+    const normalizedLine = {
       accountId,
       side,
       amountScaled,
       amountExact: scaledAmountToExactString(amountScaled),
       description: text(raw.description, 240),
       isSystemGenerated: Boolean(raw.isSystemGenerated)
-    });
+    };
+    if (choiceGroupCode && choiceOptionCode) {
+      normalizedLine.choiceGroupCode = choiceGroupCode;
+      normalizedLine.choiceOptionCode = choiceOptionCode;
+    }
+    normalized.push(normalizedLine);
   }
   if (totalDebitScaled <= 0) {
     return { ok: false, code: 'EMPTY_JOURNAL', error: 'Nominal jurnal harus lebih dari nol.' };
@@ -206,8 +216,21 @@ async function activeAccountReferenceCount(db, storeId, accountId) {
       (SELECT COUNT(*) FROM payment_methods WHERE store_id = ? AND account_id = ? AND is_active = 1) +
       (SELECT COUNT(*) FROM item_categories WHERE store_id = ? AND is_active = 1
         AND (inventory_account_id = ? OR cogs_account_id = ? OR revenue_account_id = ?)) +
-      (SELECT COUNT(*) FROM journal_rules WHERE store_id = ? AND fixed_account_id = ? AND is_active = 1) AS count
-  `).bind(storeId, accountId, storeId, accountId, accountId, accountId, storeId, accountId).first();
+      (SELECT COUNT(*) FROM journal_rules WHERE store_id = ? AND fixed_account_id = ? AND is_active = 1) +
+      (SELECT COUNT(DISTINCT o.id)
+       FROM accounting_choice_options o
+       JOIN journal_rules r
+         ON r.store_id = o.store_id
+        AND r.choice_group_id = o.choice_group_id
+        AND r.source_type = 'choice_group'
+        AND r.is_active = 1
+       WHERE o.store_id = ? AND o.account_id = ? AND o.is_active = 1) AS count
+  `).bind(
+    storeId, accountId,
+    storeId, accountId, accountId, accountId,
+    storeId, accountId,
+    storeId, accountId
+  ).first();
   return Number(row?.count || 0);
 }
 
@@ -297,7 +320,7 @@ export async function getAccountingJournal(db, storeId, journalId) {
   if (!header) return null;
   const rows = await db.prepare(`
     SELECT l.id, l.line_number, l.account_id, l.side, l.amount_scaled,
-           l.is_system_generated, l.description,
+           l.is_system_generated, l.description, l.choice_group_code, l.choice_option_code,
            a.code AS account_code, a.name AS account_name, a.type AS account_type
     FROM accounting_journal_lines l
     JOIN chart_of_accounts a ON a.id = l.account_id AND a.store_id = l.store_id
@@ -320,7 +343,7 @@ export async function getAccountingJournal(db, storeId, journalId) {
     reversalOfJournalId: header.reversal_of_journal_id || null,
     lines: (rows.results ?? []).map(row => {
       const amountScaled = Number(row.amount_scaled);
-      return {
+      const line = {
         journalLineId: row.id,
         lineNumber: Number(row.line_number),
         accountId: row.account_id,
@@ -334,6 +357,11 @@ export async function getAccountingJournal(db, storeId, journalId) {
         isSystemGenerated: Boolean(row.is_system_generated),
         description: row.description || ''
       };
+      if (row.choice_group_code && row.choice_option_code) {
+        line.choiceGroupCode = row.choice_group_code;
+        line.choiceOptionCode = row.choice_option_code;
+      }
+      return line;
     })
   };
 }
@@ -409,8 +437,19 @@ export async function postAccountingJournal(db, store, command) {
   const postedAt = new Date().toISOString();
   const reversalOfJournalId = text(command?.reversalOfJournalId, 180) || null;
   if (reversalOfJournalId) {
-    const original = await db.prepare(`SELECT id FROM accounting_journal_headers WHERE id = ? AND store_id = ?`).bind(reversalOfJournalId, store.id).first();
+    const original = await getAccountingJournal(db, store.id, reversalOfJournalId);
     if (!original) return { ok: false, status: 400, code: 'REVERSAL_SOURCE_NOT_FOUND', error: 'Jurnal sumber reversal tidak ditemukan.' };
+    checked.lines.forEach((line, index) => {
+      const sourceLine = original.lines[index];
+      const exactCopy = sourceLine
+        && sourceLine.accountId === line.accountId
+        && sourceLine.amountScaled === line.amountScaled
+        && ((sourceLine.side === 'DEBIT' && line.side === 'CREDIT') || (sourceLine.side === 'CREDIT' && line.side === 'DEBIT'));
+      if (exactCopy && sourceLine.choiceGroupCode && sourceLine.choiceOptionCode) {
+        line.choiceGroupCode = sourceLine.choiceGroupCode;
+        line.choiceOptionCode = sourceLine.choiceOptionCode;
+      }
+    });
   }
 
   const statements = [
@@ -430,8 +469,8 @@ export async function postAccountingJournal(db, store, command) {
     statements.push(db.prepare(`
       INSERT INTO accounting_journal_lines (
         id, store_id, journal_id, line_number, account_id, side,
-        amount_scaled, is_system_generated, description
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        amount_scaled, is_system_generated, description, choice_group_code, choice_option_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       `${journalId}:L${String(index + 1).padStart(3, '0')}`,
       store.id,
@@ -441,7 +480,9 @@ export async function postAccountingJournal(db, store, command) {
       line.side,
       line.amountScaled,
       line.isSystemGenerated ? 1 : 0,
-      line.description
+      line.description,
+      line.choiceGroupCode || '',
+      line.choiceOptionCode || ''
     ));
   });
   try {

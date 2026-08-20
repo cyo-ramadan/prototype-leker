@@ -108,6 +108,9 @@ akun yang sama lewat tabel legacy.
 
 ## Fase 3 — resolver
 
+Status Fase 3: **IMPLEMENTED IN PR #113, CI GREEN; belum merge/deploy.**
+
+
 **Mulai dari sini.** Baca `ADR-033` §8 dan **§9** (koreksi 2026-08-20, ditemukan Karen)
 dulu — §9 mengubah tiga hal di bawah ini dari draf semula. `payment_method` dan
 `item_category_*` **tetap tidak disentuh sama sekali** — itu bukan bagian dari
@@ -145,6 +148,9 @@ di antara posting dan reversal. `NEEDS_CHOICE_ACCOUNT` punya tes yang membuktika
 resolver gagal tertutup, bukan diam.
 
 ## Fase 4 — Setting Akuntansi: API dan UI
+
+Status Fase 4: **IMPLEMENTED IN STACKED PR; belum merge/deploy.**
+
 
 **Paths:** `src/accounting-settings.js`, `public/admin-settings-panels.js`,
 `public/admin-accounting-settings-*.js`,

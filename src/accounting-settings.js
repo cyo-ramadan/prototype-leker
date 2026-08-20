@@ -7,6 +7,7 @@ export const ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REV
 export const JOURNAL_SIDES = Object.freeze(['DEBIT', 'CREDIT']);
 export const JOURNAL_SOURCE_TYPES = Object.freeze([
   'fixed_account',
+  'choice_group',
   'payment_method',
   'item_category_inventory',
   'item_category_cogs',
@@ -21,6 +22,13 @@ function codeText(value, max = 40) {
   return text(value, max)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function choiceCodeText(value, max = 48) {
+  return text(value, max)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
 
@@ -120,6 +128,96 @@ async function listItemCategories(db, storeId) {
   }));
 }
 
+async function listChoiceGroups(db, storeId) {
+  const [groups, options, usages] = await db.batch([
+    db.prepare(`
+      SELECT g.id, g.code, g.name, g.is_active,
+             (SELECT COUNT(*) FROM accounting_journal_lines l
+              WHERE l.store_id = g.store_id AND l.choice_group_code = g.code) AS journal_line_count
+      FROM accounting_choice_groups g
+      WHERE g.store_id = ?
+      ORDER BY g.name COLLATE NOCASE, g.code
+    `).bind(storeId),
+    db.prepare(`
+      SELECT o.id, o.choice_group_id, o.code, o.name, o.account_id,
+             o.is_default, o.sort_order, o.is_active,
+             a.code AS account_code, a.name AS account_name, a.type AS account_type,
+             a.is_active AS account_active, g.code AS group_code,
+             (SELECT COUNT(*) FROM accounting_journal_lines l
+              WHERE l.store_id = o.store_id
+                AND l.choice_group_code = g.code
+                AND l.choice_option_code = o.code) AS journal_line_count
+      FROM accounting_choice_options o
+      JOIN accounting_choice_groups g
+        ON g.id = o.choice_group_id AND g.store_id = o.store_id
+      LEFT JOIN chart_of_accounts a
+        ON a.id = o.account_id AND a.store_id = o.store_id
+      WHERE o.store_id = ?
+      ORDER BY o.choice_group_id, o.sort_order, o.name COLLATE NOCASE, o.code
+    `).bind(storeId),
+    db.prepare(`
+      SELECT r.choice_group_id, c.id AS category_id, c.code AS category_code,
+             c.name AS category_name, r.side
+      FROM journal_rules r
+      JOIN transaction_categories c
+        ON c.id = r.transaction_category_id AND c.store_id = r.store_id
+      WHERE r.store_id = ?
+        AND r.source_type = 'choice_group'
+        AND r.is_active = 1
+      ORDER BY c.name COLLATE NOCASE, r.side, r.id
+    `).bind(storeId)
+  ]);
+
+  const optionsByGroup = new Map();
+  for (const row of options.results ?? []) {
+    if (!optionsByGroup.has(row.choice_group_id)) optionsByGroup.set(row.choice_group_id, []);
+    optionsByGroup.get(row.choice_group_id).push({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      accountId: row.account_id || null,
+      account: row.account_id ? {
+        id: row.account_id,
+        code: row.account_code || '',
+        name: row.account_name || '',
+        type: row.account_type || '',
+        isActive: Boolean(row.account_active)
+      } : null,
+      accountingReady: Boolean(row.account_id && row.account_active),
+      isDefault: Boolean(row.is_default),
+      sortOrder: Number(row.sort_order || 0),
+      isActive: Boolean(row.is_active),
+      journalLineCount: Number(row.journal_line_count || 0)
+    });
+  }
+
+  const usageByGroup = new Map();
+  for (const row of usages.results ?? []) {
+    if (!usageByGroup.has(row.choice_group_id)) usageByGroup.set(row.choice_group_id, []);
+    usageByGroup.get(row.choice_group_id).push({
+      id: row.category_id,
+      code: row.category_code,
+      name: row.category_name,
+      side: row.side
+    });
+  }
+
+  return (groups.results ?? []).map(row => {
+    const groupOptions = optionsByGroup.get(row.id) ?? [];
+    const activeOptions = groupOptions.filter(option => option.isActive);
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      isActive: Boolean(row.is_active),
+      accountingReady: activeOptions.length > 0 && activeOptions.every(option => option.accountingReady),
+      usedByCategories: usageByGroup.get(row.id) ?? [],
+      journalLineCount: Number(row.journal_line_count || 0),
+      options: groupOptions
+    };
+  });
+}
+
 // What the POS→Accounting resolver actually needs before a fact of this category
 // can produce a journal.
 //
@@ -130,7 +228,7 @@ async function listItemCategories(db, storeId) {
 // the rule shape alone told admins their setup was done while every sale failed
 // closed — silently, because the failure only appeared at posting time.
 async function postingBlockers(db, storeId) {
-  const [payments, unmappedKinds, kindsMissingRevenue, kindlessProducts] = await db.batch([
+  const [payments, unmappedKinds, kindsMissingRevenue, kindlessProducts, choiceGroups] = await db.batch([
     db.prepare(`
       SELECT code FROM payment_methods
       WHERE store_id = ? AND is_active = 1 AND (account_id IS NULL OR account_id = '')
@@ -158,20 +256,46 @@ async function postingBlockers(db, storeId) {
     db.prepare(`
       SELECT COUNT(*) AS count FROM products
       WHERE store_id = ? AND is_active = 1 AND (product_kind_id IS NULL OR product_kind_id = '')
+    `).bind(storeId),
+    db.prepare(`
+      SELECT r.id AS rule_id, r.transaction_category_id,
+             COALESCE(g.code, '') AS group_code,
+             CASE WHEN g.id IS NOT NULL AND g.is_active = 1 THEN 1 ELSE 0 END AS group_active,
+             SUM(CASE WHEN o.id IS NOT NULL AND o.is_active = 1 THEN 1 ELSE 0 END) AS active_option_count,
+             SUM(CASE WHEN o.id IS NOT NULL AND o.is_active = 1
+                       AND (o.account_id IS NULL OR a.id IS NULL) THEN 1 ELSE 0 END) AS unmapped_option_count
+      FROM journal_rules r
+      LEFT JOIN accounting_choice_groups g
+        ON g.id = r.choice_group_id AND g.store_id = r.store_id
+      LEFT JOIN accounting_choice_options o
+        ON o.choice_group_id = g.id AND o.store_id = g.store_id
+      LEFT JOIN chart_of_accounts a
+        ON a.id = o.account_id AND a.store_id = o.store_id AND a.is_active = 1
+      WHERE r.store_id = ? AND r.is_active = 1 AND r.source_type = 'choice_group'
+      GROUP BY r.id, r.transaction_category_id, g.id, g.code, g.is_active
+      ORDER BY r.transaction_category_id, r.id
     `).bind(storeId)
   ]);
   return {
     unmappedPaymentMethods: (payments.results ?? []).map(row => row.code),
     unmappedProductKinds: (unmappedKinds.results ?? []).map(row => row.code),
     productKindsWithoutRevenue: (kindsMissingRevenue.results ?? []).map(row => row.code),
-    productsWithoutKind: Number((kindlessProducts.results ?? [])[0]?.count || 0)
+    productsWithoutKind: Number((kindlessProducts.results ?? [])[0]?.count || 0),
+    choiceGroups: (choiceGroups.results ?? []).map(row => ({
+      ruleId: row.rule_id,
+      transactionCategoryId: row.transaction_category_id,
+      groupCode: row.group_code || '',
+      groupActive: Boolean(row.group_active),
+      activeOptionCount: Number(row.active_option_count || 0),
+      unmappedOptionCount: Number(row.unmapped_option_count || 0)
+    }))
   };
 }
 
 // Blockers are matched to a category by the source types its own active rules
 // use, rather than hard-coded per category code, so a category configured
 // differently is judged by what it actually asks the resolver to do.
-function blockersForCategory(activeRules, facts) {
+function blockersForCategory(activeRules, facts, transactionCategoryId) {
   const sourceTypes = new Set(activeRules.map(rule => rule.sourceType));
   const blockers = [];
 
@@ -203,6 +327,23 @@ function blockersForCategory(activeRules, facts) {
       detail: `Jenis Barang belum punya akun Pendapatan: ${facts.productKindsWithoutRevenue.join(', ')}.`
     });
   }
+
+  for (const issue of facts.choiceGroups.filter(item => item.transactionCategoryId === transactionCategoryId)) {
+    if (!issue.groupActive) {
+      blockers.push({ code: 'NEEDS_CHOICE_GROUP', detail: 'Setting Transaksi yang dipasang tidak aktif / tidak ditemukan.' });
+      continue;
+    }
+    if (issue.activeOptionCount === 0) {
+      blockers.push({ code: 'CHOICE_GROUP_EMPTY', detail: `Setting Transaksi ${issue.groupCode} belum punya pilihan aktif.` });
+      continue;
+    }
+    if (issue.unmappedOptionCount > 0) {
+      blockers.push({
+        code: 'NEEDS_CHOICE_ACCOUNT',
+        detail: `Setting Transaksi ${issue.groupCode} punya ${issue.unmappedOptionCount} pilihan aktif tanpa akun Accounting aktif.`
+      });
+    }
+  }
   return blockers;
 }
 
@@ -217,10 +358,12 @@ async function listTransactionCategories(db, storeId) {
     `).bind(storeId),
     db.prepare(`
       SELECT r.id, r.transaction_category_id, r.label, r.side, r.source_type,
-             r.fixed_account_id, r.is_active, r.is_default, r.sort_order,
-             a.code AS fixed_account_code, a.name AS fixed_account_name
+             r.fixed_account_id, r.choice_group_id, r.is_active, r.is_default, r.sort_order,
+             a.code AS fixed_account_code, a.name AS fixed_account_name,
+             g.code AS choice_group_code, g.name AS choice_group_name, g.is_active AS choice_group_active
       FROM journal_rules r
       LEFT JOIN chart_of_accounts a ON a.id = r.fixed_account_id AND a.store_id = r.store_id
+      LEFT JOIN accounting_choice_groups g ON g.id = r.choice_group_id AND g.store_id = r.store_id
       WHERE r.store_id = ?
       ORDER BY r.transaction_category_id, r.sort_order, r.id
     `).bind(storeId)
@@ -235,6 +378,12 @@ async function listTransactionCategories(db, storeId) {
       sourceType: row.source_type,
       fixedAccountId: row.fixed_account_id || null,
       fixedAccount: row.fixed_account_id ? { code: row.fixed_account_code || '', name: row.fixed_account_name || '' } : null,
+      choiceGroupId: row.choice_group_id || null,
+      choiceGroup: row.choice_group_id ? {
+        code: row.choice_group_code || '',
+        name: row.choice_group_name || '',
+        isActive: Boolean(row.choice_group_active)
+      } : null,
       isActive: Boolean(row.is_active),
       isDefault: Boolean(row.is_default),
       sortOrder: Number(row.sort_order || 0)
@@ -248,7 +397,7 @@ async function listTransactionCategories(db, storeId) {
     const creditCount = active.filter(rule => rule.side === 'CREDIT').length;
     const hasBothSides = debitCount >= 1 && creditCount >= 1;
     const blockers = hasBothSides
-      ? blockersForCategory(active, facts)
+      ? blockersForCategory(active, facts, row.id)
       : [{ code: 'NO_ACTIVE_DEBIT_CREDIT', detail: 'Butuh minimal satu rule Debit dan satu rule Kredit aktif.' }];
     return {
       id: row.id,
@@ -271,12 +420,13 @@ async function listTransactionCategories(db, storeId) {
 }
 
 export async function getAccountingSettingsBootstrap(db, store) {
-  const [accounts, paymentMethods, itemCategories, transactionCategories, productKinds] = await Promise.all([
+  const [accounts, paymentMethods, itemCategories, transactionCategories, productKinds, choiceGroups] = await Promise.all([
     listAccounts(db, store.id),
     listPaymentMethods(db, store.id),
     listItemCategories(db, store.id),
     listTransactionCategories(db, store.id),
-    listProductKinds(db, store.id)
+    listProductKinds(db, store.id),
+    listChoiceGroups(db, store.id)
   ]);
   return {
     contract: 'MAXI_ACCOUNTING_SETTINGS_V1',
@@ -290,6 +440,7 @@ export async function getAccountingSettingsBootstrap(db, store) {
     paymentMethods,
     itemCategories,
     productKinds,
+    choiceGroups,
     transactionCategories
   };
 }
@@ -417,6 +568,147 @@ async function saveItemCategory(db, store, body, id = null) {
   return json({ ok: true, id: nextId }, 201);
 }
 
+async function choiceGroupUsage(db, storeId, groupId) {
+  const rows = await db.prepare(`
+    SELECT c.id, c.code, c.name, r.side
+    FROM journal_rules r
+    JOIN transaction_categories c
+      ON c.id = r.transaction_category_id AND c.store_id = r.store_id
+    WHERE r.store_id = ? AND r.choice_group_id = ?
+      AND r.source_type = 'choice_group' AND r.is_active = 1
+    ORDER BY c.code, r.side, r.id
+  `).bind(storeId, groupId).all();
+  return rows.results ?? [];
+}
+
+async function choiceGroupAccountingReadiness(db, storeId, groupId, categoryCode = '') {
+  const group = await db.prepare(`
+    SELECT id, code, name
+    FROM accounting_choice_groups
+    WHERE id = ? AND store_id = ? AND is_active = 1
+    LIMIT 1
+  `).bind(groupId, storeId).first();
+  if (!group) return { ok: false, code: 'NEEDS_CHOICE_GROUP', error: 'Setting Transaksi tidak aktif / tidak ditemukan.' };
+
+  const rows = await db.prepare(`
+    SELECT o.id, o.code, o.name, o.account_id,
+           a.id AS active_account_id, a.type AS account_type
+    FROM accounting_choice_options o
+    LEFT JOIN chart_of_accounts a
+      ON a.id = o.account_id AND a.store_id = o.store_id AND a.is_active = 1
+    WHERE o.store_id = ? AND o.choice_group_id = ? AND o.is_active = 1
+    ORDER BY o.sort_order, o.code, o.id
+  `).bind(storeId, groupId).all();
+  const options = rows.results ?? [];
+  if (!options.length) return { ok: false, code: 'CHOICE_GROUP_EMPTY', error: 'Setting Transaksi belum punya pilihan aktif.' };
+  if (options.some(row => !row.account_id || !row.active_account_id)) {
+    return { ok: false, code: 'NEEDS_CHOICE_ACCOUNT', error: 'Semua pilihan aktif wajib dilink ke akun aktif sebelum grup dipasang ke Akuntansi.' };
+  }
+  if (['wh_transfer', 'wh_production'].includes(categoryCode)
+      && options.some(row => ['REVENUE', 'EXPENSE'].includes(row.account_type))) {
+    return { ok: false, error: 'Transfer/Produksi tidak boleh memakai akun Pendapatan atau Beban.' };
+  }
+  return { ok: true, group, options };
+}
+
+async function saveChoiceGroup(db, store, body, id = null) {
+  const current = id ? await db.prepare(`SELECT * FROM accounting_choice_groups WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
+  if (id && !current) return json({ error: 'Setting Transaksi tidak ditemukan.' }, 404);
+  const code = current?.code || choiceCodeText(body?.code || body?.name);
+  const name = text(body?.name ?? current?.name, 100);
+  const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
+  if (!code || !name) return json({ error: 'Nama Setting Transaksi wajib valid.' }, 400);
+  if (!isActive && Number(current?.is_active || 0) === 1 && (await choiceGroupUsage(db, store.id, id)).length) {
+    return json({ error: 'Setting Transaksi masih dipasang ke aturan Akuntansi aktif. Lepas/nonaktifkan rule terkait lebih dulu.' }, 409);
+  }
+  if (current) {
+    await db.prepare(`
+      UPDATE accounting_choice_groups
+      SET name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND store_id = ?
+    `).bind(name, isActive, id, store.id).run();
+    return json({ ok: true, id, code: current.code });
+  }
+  const nextId = `choice_group_${store.id}_${crypto.randomUUID()}`;
+  try {
+    await db.prepare(`
+      INSERT INTO accounting_choice_groups (id, store_id, code, name, is_active)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(nextId, store.id, code, name, isActive).run();
+  } catch (error) {
+    if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode Setting Transaksi sudah dipakai.' }, 409);
+    throw error;
+  }
+  return json({ ok: true, id: nextId, code }, 201);
+}
+
+async function saveChoiceOption(db, store, body, id = null) {
+  const current = id ? await db.prepare(`SELECT * FROM accounting_choice_options WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
+  if (id && !current) return json({ error: 'Pilihan Setting Transaksi tidak ditemukan.' }, 404);
+  const choiceGroupId = current?.choice_group_id || text(body?.choiceGroupId, 180);
+  const group = await db.prepare(`SELECT id, code FROM accounting_choice_groups WHERE id = ? AND store_id = ?`).bind(choiceGroupId, store.id).first();
+  if (!group) return json({ error: 'Setting Transaksi induk tidak ditemukan.' }, 400);
+
+  const code = current?.code || choiceCodeText(body?.code || body?.name);
+  const name = text(body?.name ?? current?.name, 100);
+  const accountId = body?.accountId === undefined ? (current?.account_id || null) : (text(body.accountId, 180) || null);
+  const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
+  const isDefault = body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault);
+  const sortOrder = Number.isInteger(Number(body?.sortOrder ?? current?.sort_order ?? 0)) ? Number(body?.sortOrder ?? current?.sort_order ?? 0) : 0;
+  if (!code || !name) return json({ error: 'Nama pilihan wajib valid.' }, 400);
+  if (isDefault && !isActive) return json({ error: 'Pilihan default harus aktif.' }, 400);
+
+  const account = accountId ? await activeAccount(db, store.id, accountId) : null;
+  if (accountId && !account) return json({ error: 'Akun pilihan harus akun aktif di gerai ini.' }, 400);
+  const usages = await choiceGroupUsage(db, store.id, choiceGroupId);
+  if (usages.length && isActive && !accountId) {
+    return json({ error: 'Pilihan aktif boleh tanpa akun selama grup masih generic. Grup ini sudah terhubung ke Akuntansi, jadi akun wajib dilink.', code: 'NEEDS_CHOICE_ACCOUNT' }, 409);
+  }
+  if (usages.some(row => ['wh_transfer', 'wh_production'].includes(row.code))
+      && isActive && account && ['REVENUE', 'EXPENSE'].includes(account.type)) {
+    return json({ error: 'Transfer/Produksi tidak boleh memakai akun Pendapatan atau Beban.' }, 409);
+  }
+  if (!isActive && Number(current?.is_active || 0) === 1 && usages.length) {
+    const count = await db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM accounting_choice_options
+      WHERE store_id = ? AND choice_group_id = ? AND is_active = 1
+    `).bind(store.id, choiceGroupId).first();
+    if (Number(count?.count || 0) <= 1) {
+      return json({ error: 'Pilihan aktif terakhir tidak bisa dinonaktifkan selama grup masih dipasang ke Akuntansi.' }, 409);
+    }
+  }
+
+  if (isDefault) {
+    await db.prepare(`
+      UPDATE accounting_choice_options
+      SET is_default = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE store_id = ? AND choice_group_id = ? AND id <> ?
+    `).bind(store.id, choiceGroupId, id || '').run();
+  }
+  if (current) {
+    await db.prepare(`
+      UPDATE accounting_choice_options
+      SET name = ?, account_id = ?, is_default = ?, sort_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND store_id = ?
+    `).bind(name, accountId, isDefault, sortOrder, isActive, id, store.id).run();
+    return json({ ok: true, id, code: current.code });
+  }
+
+  const nextId = `choice_option_${store.id}_${crypto.randomUUID()}`;
+  try {
+    await db.prepare(`
+      INSERT INTO accounting_choice_options (
+        id, choice_group_id, store_id, code, name, account_id, is_default, sort_order, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(nextId, choiceGroupId, store.id, code, name, accountId, isDefault, sortOrder, isActive).run();
+  } catch (error) {
+    if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode pilihan sudah dipakai dalam grup ini.' }, 409);
+    throw error;
+  }
+  return json({ ok: true, id: nextId, code }, 201);
+}
+
 async function saveTransactionCategory(db, store, body, id = null) {
   const current = id ? await db.prepare(`SELECT * FROM transaction_categories WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
   if (id && !current) return json({ error: 'Kategori transaksi tidak ditemukan.' }, 404);
@@ -453,7 +745,7 @@ async function saveJournalRule(db, store, body, id = null) {
   const current = id ? await db.prepare(`SELECT * FROM journal_rules WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
   if (id && !current) return json({ error: 'Baris journal rule tidak ditemukan.' }, 404);
   const transactionCategoryId = text(body?.transactionCategoryId ?? current?.transaction_category_id, 180);
-  const category = await db.prepare(`SELECT id FROM transaction_categories WHERE id = ? AND store_id = ?`).bind(transactionCategoryId, store.id).first();
+  const category = await db.prepare(`SELECT id, code FROM transaction_categories WHERE id = ? AND store_id = ?`).bind(transactionCategoryId, store.id).first();
   if (!category) return json({ error: 'Kategori transaksi tidak ditemukan.' }, 400);
   const label = text(body?.label ?? current?.label, 140);
   const side = text(body?.side ?? current?.side, 12).toUpperCase();
@@ -461,30 +753,55 @@ async function saveJournalRule(db, store, body, id = null) {
   const fixedAccountId = sourceType === 'fixed_account'
     ? (text(body?.fixedAccountId ?? current?.fixed_account_id, 180) || null)
     : null;
+  const choiceGroupId = sourceType === 'choice_group'
+    ? (text(body?.choiceGroupId ?? current?.choice_group_id, 180) || null)
+    : null;
   const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
   const isDefault = sourceType === 'fixed_account'
     ? (body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault))
     : 0;
   const sortOrder = Number.isInteger(Number(body?.sortOrder ?? current?.sort_order ?? 0)) ? Number(body?.sortOrder ?? current?.sort_order ?? 0) : 0;
-  if (!label || !JOURNAL_SIDES.includes(side) || !JOURNAL_SOURCE_TYPES.includes(sourceType)) return json({ error: 'Label, sisi, atau source type journal rule tidak valid.' }, 400);
-  if (sourceType === 'fixed_account' && !await activeAccount(db, store.id, fixedAccountId)) return json({ error: 'Fixed account wajib akun aktif di gerai ini.' }, 400);
+  if (!label || !JOURNAL_SIDES.includes(side) || !JOURNAL_SOURCE_TYPES.includes(sourceType)) {
+    return json({ error: 'Label, sisi, atau source type journal rule tidak valid.' }, 400);
+  }
+  if (sourceType === 'fixed_account' && !await activeAccount(db, store.id, fixedAccountId)) {
+    return json({ error: 'Fixed account wajib akun aktif di gerai ini.' }, 400);
+  }
+  if (sourceType === 'choice_group' && isActive) {
+    const readiness = await choiceGroupAccountingReadiness(db, store.id, choiceGroupId, category.code);
+    if (!readiness.ok) return json({ error: readiness.error, ...(readiness.code ? { code: readiness.code } : {}) }, 409);
+  }
   if (isDefault) {
-    await db.prepare(`UPDATE journal_rules SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND transaction_category_id = ? AND source_type = 'fixed_account' AND id <> ?`).bind(store.id, transactionCategoryId, id || '').run();
+    await db.prepare(`
+      UPDATE journal_rules
+      SET is_default = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE store_id = ? AND transaction_category_id = ?
+        AND source_type = 'fixed_account' AND id <> ?
+    `).bind(store.id, transactionCategoryId, id || '').run();
   }
   if (current) {
     await db.prepare(`
       UPDATE journal_rules
-      SET transaction_category_id = ?, label = ?, side = ?, source_type = ?, fixed_account_id = ?, is_active = ?, is_default = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
+      SET transaction_category_id = ?, label = ?, side = ?, source_type = ?,
+          fixed_account_id = ?, choice_group_id = ?, is_active = ?, is_default = ?,
+          sort_order = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
-    `).bind(transactionCategoryId, label, side, sourceType, fixedAccountId, isActive, isDefault, sortOrder, id, store.id).run();
-    return json({ ok: true });
+    `).bind(
+      transactionCategoryId, label, side, sourceType, fixedAccountId, choiceGroupId,
+      isActive, isDefault, sortOrder, id, store.id
+    ).run();
+    return json({ ok: true, id });
   }
   const nextId = `jrule_${store.id}_${crypto.randomUUID()}`;
   await db.prepare(`
     INSERT INTO journal_rules (
-      id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, is_default, sort_order
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(nextId, store.id, transactionCategoryId, label, side, sourceType, fixedAccountId, isActive, isDefault, sortOrder).run();
+      id, store_id, transaction_category_id, label, side, source_type,
+      fixed_account_id, choice_group_id, is_active, is_default, sort_order
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    nextId, store.id, transactionCategoryId, label, side, sourceType,
+    fixedAccountId, choiceGroupId, isActive, isDefault, sortOrder
+  ).run();
   return json({ ok: true, id: nextId }, 201);
 }
 
@@ -517,6 +834,14 @@ export async function handleAccountingSettingsApi(request, env, pathname) {
   if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/item-categories') return saveItemCategory(env.DB, store, body.value);
   const itemCategoryMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/item-categories\/([^/]+)$/);
   if (request.method === 'PATCH' && itemCategoryMatch) return saveItemCategory(env.DB, store, body.value, decodeURIComponent(itemCategoryMatch[1]));
+
+  if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/choice-groups') return saveChoiceGroup(env.DB, store, body.value);
+  const choiceGroupMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/choice-groups\/([^/]+)$/);
+  if (request.method === 'PATCH' && choiceGroupMatch) return saveChoiceGroup(env.DB, store, body.value, decodeURIComponent(choiceGroupMatch[1]));
+
+  if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/choice-options') return saveChoiceOption(env.DB, store, body.value);
+  const choiceOptionMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/choice-options\/([^/]+)$/);
+  if (request.method === 'PATCH' && choiceOptionMatch) return saveChoiceOption(env.DB, store, body.value, decodeURIComponent(choiceOptionMatch[1]));
 
   if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/transaction-categories') return saveTransactionCategory(env.DB, store, body.value);
   const transactionMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/transaction-categories\/([^/]+)$/);

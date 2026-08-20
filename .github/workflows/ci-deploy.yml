@@ -32,8 +32,18 @@ jobs:
 
       - name: Apply Accounting Settings UX revision
         if: ${{ github.event_name == 'pull_request' && github.head_ref == 'fix/accounting-settings-group-save-preview' }}
+        shell: bash
         run: |
+          set -euo pipefail
           if [ -f scripts/apply-accounting-settings-group-save-preview.mjs ]; then
+            node - <<'NODE'
+            const fs = require('node:fs');
+            const path = 'scripts/apply-accounting-settings-group-save-preview.mjs';
+            let source = fs.readFileSync(path, 'utf8');
+            source = source.replace('${esc(group.code)}', '\\' + '${esc(group.code)}');
+            source = source.replace('${esc(option.code)}', '\\' + '${esc(option.code)}');
+            fs.writeFileSync(path, source);
+            NODE
             node scripts/apply-accounting-settings-group-save-preview.mjs
           fi
 

@@ -90,6 +90,29 @@ struktur modul `ikan` sudah diputuskan (repo `ikan-galeh` masih satu file, belum
 modul/`src/` untuk didaftarkan). Sampai saat itu, task `project='ikan'` boleh punya
 `territory` bebas asal konsisten, dan **belum** ditolak oleh registry modul manapun.
 
+## Task untuk Bos Cyo sendiri — `kind='HUMAN_ACTION'`
+
+Status: ACTIVE sejak 2026-08-20, atas permintaan Bos Cyo.
+
+Sebagian kerjaan bukan kerjaan agen sama sekali — bukan karena hak akses kurang, tapi karena
+memang tidak ada API-nya (mis. menyambungkan Cloudflare Git Integration ke repo baru itu
+klik OAuth di dashboard, bukan panggilan API). Sebelum 2026-08-20 hal begini cuma disebutkan
+di chat dan gampang hilang begitu sesi berakhir. Sekarang ditulis sebagai task juga, dengan
+bentuk:
+
+- `kind = 'HUMAN_ACTION'`, `role = 'BOS_CYO'`, `assigned_to = 'BOS_CYO'`.
+- `self_closing = 0`, `mutates_production = 1` — selalu, karena selalu menunggu Bos Cyo,
+  persis kategori yang sudah dijelaskan di § Authority di atas.
+- `brief` isinya **langkah klik demi klik** plus link langsung, bukan istilah teknis yang
+  butuh ditafsirkan — Bos Cyo yang baca, bukan agen.
+- `forbidden` selalu menyebut eksplisit: agen dilarang mengklaim atau mencari jalan pintas
+  (mis. minta token) sebagai pengganti langkah manual ini.
+
+Task jenis ini **tidak pernah diklaim lewat `task_claims`** oleh agen manapun — `kind`-nya
+sengaja tidak didaftarkan di `agent_roles` mana pun, jadi `trg_claim_matches_role` otomatis
+menolak siapa pun yang mencoba. Ditutup manual (UPDATE `status`) begitu Bos Cyo konfirmasi
+sudah dikerjakan, oleh Hana atau agen mana pun yang Bos Cyo minta cek buktinya.
+
 ## Task lifecycle
 
 ```

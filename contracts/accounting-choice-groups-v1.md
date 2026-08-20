@@ -1,6 +1,6 @@
 # Accounting Choice Groups Contract v1
 
-Status: ACTIVE — schema `0042` + correction `0043` landed; Fase 3 resolver active
+Status: ACTIVE — schema `0042` + correction `0043`, Fase 3 resolver, dan Fase 4 Setting Akuntansi API/UI active
 Contract identifier: `MAXI_ACCOUNTING_CHOICE_GROUPS_V1`
 Owner: Setting Akuntansi (configuration layer)
 Architecture authority: `ADR-033-accounting-choice-groups.md`
@@ -190,12 +190,12 @@ contract atau yang dapat memakai single/default resolution secara deterministik.
 Khusus Cash Flow, jangan mengganti Flow Preset legacy ke Choice Group sebelum writer
 Operasional ikut mendukung selection berbasis kode. Reader Accounting saja tidak cukup.
 
-## 7. Fase 4 — target API/UI, belum active runtime pada Fase 3
+## 7. Fase 4 — API/UI Setting Transaksi
 
-Fase 4 menambahkan surface **Bikin Grup** dan **Pasang Grup** di Setting Akuntansi.
-Implementasinya harus berada di PR terpisah setelah Fase 3 hijau.
+Fase 4 menyediakan surface **Bikin Grup** dan **Pasang Grup** di Setting Akuntansi.
+Implementasi berada di changeset terpisah dari Fase 3.
 
-Bootstrap `GET /api/admin/settings/accounting` akan menambah `choiceGroups` dan mirror
+Bootstrap `GET /api/admin/settings/accounting` menambah `choiceGroups` dan mirror
 penggunaan group, termasuk kategori yang memakai group dan jumlah journal line historis.
 
 Target route:
@@ -210,7 +210,7 @@ Target route:
 `POST/PATCH /journal-rules` menerima `sourceType: "choice_group"` + `choiceGroupId`.
 Tidak ada route `DELETE`; lifecycle menggunakan `isActive`.
 
-Fase 4 wajib menjaga:
+Runtime Fase 4 menjaga:
 
 - option generic boleh disimpan dengan `accountId = null`;
 - setelah group dipasang ke Accounting, readiness tidak boleh menyatakan siap jika

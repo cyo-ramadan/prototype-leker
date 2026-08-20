@@ -1,0 +1,68 @@
+name: Observe Setting Transaksi deploy temp
+
+on:
+  push:
+    branches:
+      - chore/observe-setting-transaksi-deploy
+    paths:
+      - .github/workflows/observe-setting-transaksi-deploy-temp.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: 284f7f6e896a61afbfb447f30a09ae0aaff3e125
+      TARGET_WORKFLOW: Prototype Leker CI & Deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/observe-setting-transaksi-deploy
+      - name: Observe canonical main deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result=''
+          for attempt in $(seq 1 24); do
+            payload="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${RELEASE_SHA}&event=push&per_page=20")"
+            result="$(printf '%s' "$payload" | jq -c --arg wf "$TARGET_WORKFLOW" '[.workflow_runs[] | select(.name == $wf)] | sort_by(.created_at) | last // empty')"
+            if [ -n "$result" ]; then
+              status="$(printf '%s' "$result" | jq -r '.status')"
+              if [ "$status" = 'completed' ]; then
+                break
+              fi
+            fi
+            sleep 5
+          done
+
+          if [ -z "$result" ]; then
+            printf 'release_sha=%s\nstatus=NOT_FOUND\n' "$RELEASE_SHA" > deploy-observation.txt
+          else
+            printf '%s' "$result" | jq -r --arg sha "$RELEASE_SHA" '
+              "release_sha=" + $sha,
+              "run_id=" + (.id|tostring),
+              "run_number=" + (.run_number|tostring),
+              "status=" + .status,
+              "conclusion=" + (.conclusion // ""),
+              "event=" + .event,
+              "workflow=" + .name,
+              "html_url=" + .html_url,
+              "created_at=" + .created_at,
+              "updated_at=" + .updated_at
+            ' > deploy-observation.txt
+          fi
+          cat deploy-observation.txt
+      - name: Persist observation on observer branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Karen"
+          git config user.email "karen@agent.maxi"
+          git add deploy-observation.txt
+          git commit -m "chore: record Setting Transaksi deploy observation"
+          git push origin HEAD:chore/observe-setting-transaksi-deploy

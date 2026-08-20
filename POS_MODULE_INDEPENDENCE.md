@@ -54,6 +54,10 @@ sudah dicoba dan hasilnya kombinasi yang gak masuk akal (lihat `ADR-036` §5).
 | Business Settings jadi lapisan generic, Accounting jadi extension opsional | `ADR-034` | **Baru rancangan.** Belum ada satu baris kode pun yang jalan dari 4 fase yang direncanakan. |
 | Warehouse jadi modul opsional | `ADR-036` | **Baru audit + konsep.** Ditemukan Warehouse lebih susah dicabut daripada Accounting — jelasnya di bawah. |
 
+Peta lengkap semua titik di kode yang nyambung ke Warehouse — file per file, mana yang
+riskan mana yang aman — ada di `WAREHOUSE_POS_LINKAGE_MAP.md`. Dibaca kalau sudah mau
+mulai implementasi, bukan buat diskusi arah.
+
 ## Temuan penting yang sudah ketemu — biar gak ditanya ulang tiap sesi
 
 **Accounting gampang dicabut. Warehouse tidak sama gampangnya — dan itu ketahuan lewat

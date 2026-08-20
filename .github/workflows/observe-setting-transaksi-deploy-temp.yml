@@ -17,7 +17,7 @@ jobs:
   observe:
     runs-on: ubuntu-latest
     env:
-      RELEASE_SHA: 284f7f6e896a61afbfb447f30a09ae0aaff3e125
+      RELEASE_SHA: 26e3d2379abcaa1e589f90b7f11bd0e981f71f95
       TARGET_WORKFLOW: Prototype Leker CI & Deploy
       WORKER_URL: https://prototype-leker-v2.daily-napkin.workers.dev
     steps:
@@ -68,52 +68,41 @@ jobs:
           asset_url="${WORKER_URL}/admin-accounting-settings-comfort.js"
           tmp="$(mktemp)"
           http_code="$(curl -L -sS --connect-timeout 15 --max-time 30 -o "$tmp" -w '%{http_code}' "$asset_url" || true)"
-          bikin='false'; pasang='false'; choice='false'
-          grep -Fq 'Bikin Grup' "$tmp" && bikin='true'
+          grup='false'; save='false'; component='false'; preview='false'; pasang='false'; per_option_save='false'
+          grep -Fq 'Grup Transaksi' "$tmp" && grup='true'
+          grep -Fq 'Simpan Grup' "$tmp" && save='true'
+          grep -Fq 'Komponen Grup' "$tmp" && component='true'
+          grep -Fq 'data-rule-choice-preview' "$tmp" && preview='true'
           grep -Fq 'Pasang Grup' "$tmp" && pasang='true'
-          grep -Fq "choice_group: 'Setting Transaksi" "$tmp" && choice='true'
+          grep -Fq 'data-save-choice-option' "$tmp" && per_option_save='true'
           hash="$(sha256sum "$tmp" | awk '{print $1}')"
           {
             echo "release_sha=${RELEASE_SHA}"
             echo "asset_url=${asset_url}"
             echo "http_code=${http_code}"
-            echo "bikin_grup=${bikin}"
-            echo "pasang_grup=${pasang}"
-            echo "choice_group_source=${choice}"
+            echo "grup_transaksi=${grup}"
+            echo "simpan_grup=${save}"
+            echo "komponen_grup=${component}"
+            echo "aturan_preview=${preview}"
+            echo "pasang_grup_present=${pasang}"
+            echo "per_option_save_present=${per_option_save}"
             echo "sha256=${hash}"
           } > live-smoke.txt
-      - name: Smoke live Setting Akuntansi API and D1 schema
-        shell: bash
-        run: |
-          set -u
-          api_url="${WORKER_URL}/api/admin/settings/accounting?store=G001"
-          tmp="$(mktemp)"
-          http_code="$(curl -L -sS --connect-timeout 15 --max-time 30 -H 'x-admin-pin: 123456' -o "$tmp" -w '%{http_code}' "$api_url" || true)"
-          valid_json='false'; contract='false'; has_choice_groups='false'; has_choice_source='false'; group_count='-1'
-          if jq -e . "$tmp" >/dev/null 2>&1; then
-            valid_json='true'
-            jq -e '.contract == "MAXI_ACCOUNTING_SETTINGS_V1"' "$tmp" >/dev/null 2>&1 && contract='true'
-            jq -e 'has("choiceGroups") and (.choiceGroups | type == "array")' "$tmp" >/dev/null 2>&1 && has_choice_groups='true'
-            jq -e '(.sourceTypes // []) | index("choice_group") != null' "$tmp" >/dev/null 2>&1 && has_choice_source='true'
-            group_count="$(jq -r 'if (.choiceGroups|type)=="array" then (.choiceGroups|length) else -1 end' "$tmp")"
-          fi
-          {
-            echo "release_sha=${RELEASE_SHA}"
-            echo "api_url=${api_url}"
-            echo "http_code=${http_code}"
-            echo "valid_json=${valid_json}"
-            echo "contract_ok=${contract}"
-            echo "choice_groups_array=${has_choice_groups}"
-            echo "choice_group_source=${has_choice_source}"
-            echo "choice_group_count=${group_count}"
-          } > live-api-smoke.txt
-          cat live-api-smoke.txt
+          cat live-smoke.txt
+          test "$http_code" = "200"
+          test "$grup" = "true"
+          test "$save" = "true"
+          test "$component" = "true"
+          test "$preview" = "true"
+          test "$pasang" = "false"
+          test "$per_option_save" = "false"
       - name: Persist observation on observer branch
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "Karen"
           git config user.email "karen@agent.maxi"
-          git add deploy-observation.txt deploy-check-runs.json deploy-github-deployments.json deploy-github-deployment-statuses.jsonl live-smoke.txt live-api-smoke.txt
-          git commit -m "chore: record live Setting Transaksi API smoke"
+          git add deploy-observation.txt deploy-check-runs.json deploy-github-deployments.json deploy-github-deployment-statuses.jsonl live-smoke.txt
+          git commit -m "chore: observe Accounting group UX release 26e3d237" || true
           git push origin HEAD:chore/observe-setting-transaksi-deploy

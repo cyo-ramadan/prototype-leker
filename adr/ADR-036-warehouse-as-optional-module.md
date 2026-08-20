@@ -59,6 +59,16 @@ Accounting (`attachAccountingBridgeToCommittedResponse`, dipanggil dari tiga tem
    diaudit dalam sekali jalan ini — pelaku kaki lima pada umumnya tidak pakai Produksi/BOM
    formal, mereka masak langsung tanpa resep tercatat.
 
+**Audit lanjutan 2026-08-20** — peta lengkap per-file, mana yang aman (layar Admin/laporan,
+tinggal disembunyikan) dan mana yang duduk langsung di jalur commit kasir, ada di
+`WAREHOUSE_POS_LINKAGE_MAP.md`. Satu temuan dari situ yang mengubah urutan risiko: dialog
+Beli Bahan kasir (`src/cashier-purchase.js`'s `listPurchaseOptions`) memfilter produk
+dengan `WHERE stock_tracking_enabled = 1` — kalau flag itu di-default-kan `0` begitu
+Warehouse dimatikan **tanpa** query-nya ikut diubah, dialog Beli Bahan langsung kosong
+total (bukan jatuh ke mode "catat sebagai beban langsung" yang sudah dibahas §4). Ini
+kandidat kuat jadi langkah pertama Fase 1 implementasi, karena silent-nya paling
+berbahaya — gejalanya "gak ada barang yang bisa dibeli", bukan error yang jelas.
+
 **Temuan yang perlu digarisbawahi:** `ADR-034` bisa membuat Accounting opsional dengan
 gating satu titik pemanggilan, tanpa mengubah `accounting-pos-bridge.js` sama sekali,
 karena dispatch-nya memang sudah post-commit dan best-effort. Warehouse **tidak** punya

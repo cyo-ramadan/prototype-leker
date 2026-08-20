@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/customer-feedback-production-e2e
+  pull_request:
+    branches:
+      - main
 
 jobs:
   smoke:

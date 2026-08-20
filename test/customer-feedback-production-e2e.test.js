@@ -16,6 +16,10 @@ const stores = [
     customers: [
       { username: 'elkecepatan', password: 'cepat123' },
       { username: 'aurafarming', password: 'aura123' }
+    ],
+    admins: [
+      { username: 'lordrizz', password: 'rizz123' },
+      { username: 'rusdiprime', password: 'rusdi123' }
     ]
   }
 ];
@@ -33,14 +37,13 @@ async function jsonRequest(path, { method = 'GET', token = '', body } = {}) {
   return { response, payload };
 }
 
-async function customerLogin(username, password) {
+async function staffOrCustomerLogin(username, password) {
   const { response, payload } = await jsonRequest('/api/auth/login', {
     method: 'POST',
     body: { username, password }
   });
-  console.log(`customer login ${username}: HTTP ${response.status} role=${payload.role || '-'} error=${payload.error || '-'}`);
-  if (!response.ok) return null;
-  return payload;
+  console.log(`login ${username}: HTTP ${response.status} role=${payload.role || '-'} error=${payload.error || '-'}`);
+  return { response, payload };
 }
 
 async function ownerLogin() {
@@ -54,26 +57,22 @@ async function ownerLogin() {
   return payload.token;
 }
 
-async function managementInbox(storeCode, ownerToken) {
-  const { response, payload } = await jsonRequest(`/api/admin/customer-feedback?store=${storeCode}`, {
-    token: ownerToken
-  });
-  console.log(`Management inbox ${storeCode}: HTTP ${response.status} count=${Array.isArray(payload.feedback) ? payload.feedback.length : '-'}`);
-  assert.equal(response.status, 200, `Management inbox ${storeCode} must return 200: ${JSON.stringify(payload)}`);
-  assert.ok(Array.isArray(payload.feedback), `Management inbox ${storeCode} must return feedback array`);
+async function managementInbox(storeCode, token, label = 'Management') {
+  const { response, payload } = await jsonRequest(`/api/admin/customer-feedback?store=${storeCode}`, { token });
+  console.log(`${label} inbox ${storeCode}: HTTP ${response.status} count=${Array.isArray(payload.feedback) ? payload.feedback.length : '-'}`);
+  assert.equal(response.status, 200, `${label} inbox ${storeCode} must return 200: ${JSON.stringify(payload)}`);
+  assert.ok(Array.isArray(payload.feedback), `${label} inbox ${storeCode} must return feedback array`);
   for (const item of payload.feedback.slice(0, 5)) {
-    console.log(`INBOX_ITEM store=${storeCode} feedbackCode=${item.feedbackCode || '-'} createdAt=${item.createdAt || '-'} category=${item.category || '-'} reporter=${item.reporter?.username || item.reporter?.name || '-'} note=${JSON.stringify(String(item.manualNote || '').slice(0, 120))} issues=${(item.issues || []).map(issue => issue.code).join(',') || '-'}`);
+    console.log(`INBOX_ITEM actor=${label} store=${storeCode} feedbackCode=${item.feedbackCode || '-'} createdAt=${item.createdAt || '-'} category=${item.category || '-'} reporter=${item.reporter?.username || item.reporter?.name || '-'} note=${JSON.stringify(String(item.manualNote || '').slice(0, 120))} issues=${(item.issues || []).map(issue => issue.code).join(',') || '-'}`);
   }
   return payload.feedback;
 }
 
 test('production customer feedback can be submitted by an entitled demo customer and read back by management', async () => {
   const ownerToken = await ownerLogin();
-  const inboxByStore = new Map();
 
   for (const store of stores) {
-    const feedback = await managementInbox(store.code, ownerToken);
-    inboxByStore.set(store.code, feedback);
+    const feedback = await managementInbox(store.code, ownerToken, 'Owner');
     const existing = feedback.find(item =>
       String(item.manualNote || '').startsWith(MARKER_PREFIX) &&
       Date.now() - Date.parse(item.createdAt || 0) < 24 * 60 * 60 * 1000
@@ -89,14 +88,14 @@ test('production customer feedback can be submitted by an entitled demo customer
   let chosen = null;
   for (const store of stores) {
     for (const customer of store.customers) {
-      const session = await customerLogin(customer.username, customer.password);
-      if (!session?.token || session.role !== 'CUSTOMER') continue;
+      const { response, payload: session } = await staffOrCustomerLogin(customer.username, customer.password);
+      if (!response.ok || !session?.token || session.role !== 'CUSTOMER') continue;
 
-      const { response, payload } = await jsonRequest(`/api/customer/feedback/access?store=${store.code}`, {
+      const { response: accessResponse, payload } = await jsonRequest(`/api/customer/feedback/access?store=${store.code}`, {
         token: session.token
       });
-      console.log(`feedback access ${store.code}/${customer.username}: HTTP ${response.status} available=${payload.available ?? '-'} code=${payload.code || '-'}`);
-      if (response.ok && payload.available === true) {
+      console.log(`feedback access ${store.code}/${customer.username}: HTTP ${accessResponse.status} available=${payload.available ?? '-'} code=${payload.code || '-'}`);
+      if (accessResponse.ok && payload.available === true) {
         chosen = { store, customer, token: session.token };
         break;
       }
@@ -112,11 +111,7 @@ test('production customer feedback can be submitted by an entitled demo customer
     {
       method: 'POST',
       token: chosen.token,
-      body: {
-        category: 'SERVICE',
-        issues: ['SERVICE_TOO_SLOW'],
-        manualNote
-      }
+      body: { category: 'SERVICE', issues: ['SERVICE_TOO_SLOW'], manualNote }
     }
   );
 
@@ -126,7 +121,7 @@ test('production customer feedback can be submitted by an entitled demo customer
   assert.ok(submitPayload.feedbackCode);
   console.log(`E2E_SUBMITTED feedbackCode=${submitPayload.feedbackCode} store=${chosen.store.code} customer=${chosen.customer.username}`);
 
-  const feedback = await managementInbox(chosen.store.code, ownerToken);
+  const feedback = await managementInbox(chosen.store.code, ownerToken, 'Owner');
   const received = feedback.find(item => item.feedbackCode === submitPayload.feedbackCode);
   assert.ok(received, `Management inbox must contain submitted feedback ${submitPayload.feedbackCode}`);
   assert.equal(received.manualNote, manualNote);
@@ -134,6 +129,31 @@ test('production customer feedback can be submitted by an entitled demo customer
   assert.equal(received.store?.code, chosen.store.code);
   assert.equal(received.category, 'SERVICE');
   assert.ok(received.issues?.some(issue => issue.code === 'SERVICE_TOO_SLOW'));
-
   console.log(`E2E_PASS feedbackCode=${received.feedbackCode} store=${received.store.code} customer=${received.reporter.username}`);
+});
+
+test('the same G002 production feedback is readable with an Admin Gerai session', async () => {
+  const g002 = stores.find(store => store.code === 'G002');
+  let adminSession = null;
+  const loginOutcomes = [];
+
+  for (const admin of g002.admins) {
+    const { response, payload } = await staffOrCustomerLogin(admin.username, admin.password);
+    loginOutcomes.push(`${admin.username}:HTTP${response.status}`);
+    if (response.ok && payload?.token && payload.role === 'ADMIN') {
+      adminSession = { username: admin.username, token: payload.token };
+      break;
+    }
+    // Intentionally do not use session takeover when an Admin is active elsewhere.
+  }
+
+  assert.ok(adminSession, `No G002 demo Admin session available without takeover (${loginOutcomes.join(', ')}).`);
+  const feedback = await managementInbox('G002', adminSession.token, `Admin:${adminSession.username}`);
+  const received = feedback.find(item =>
+    item.feedbackCode === 'FDB-G002-20260820-12F548B6' ||
+    String(item.manualNote || '').startsWith(MARKER_PREFIX)
+  );
+  assert.ok(received, 'G002 Admin inbox must contain the production E2E feedback');
+  assert.ok(received.reporter?.username, 'G002 Admin must see reporter identity');
+  console.log(`ADMIN_E2E_PASS feedbackCode=${received.feedbackCode} store=G002 admin=${adminSession.username} customer=${received.reporter.username}`);
 });

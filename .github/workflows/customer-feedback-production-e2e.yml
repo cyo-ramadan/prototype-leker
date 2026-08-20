@@ -1,0 +1,115 @@
+name: Customer Feedback Production E2E Smoke
+
+on:
+  push:
+    branches:
+      - agent/customer-feedback-production-e2e
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Submit feedback and verify Admin inbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://prototype-leker-v2.daily-napkin.workers.dev'
+
+          request() {
+            local method="$1"
+            local url="$2"
+            local body="${3:-}"
+            local token="${4:-}"
+            local args=(-sS -w $'\n%{http_code}' -X "$method" "$url")
+            if [[ -n "$body" ]]; then
+              args+=(-H 'Content-Type: application/json' --data "$body")
+            fi
+            if [[ -n "$token" ]]; then
+              args+=(-H "Authorization: Bearer $token")
+            fi
+            curl "${args[@]}"
+          }
+
+          chosen_store=''
+          customer_user=''
+          customer_token=''
+          admin_user=''
+          admin_pass=''
+
+          candidates=(
+            'G001|fafa|fafa123|bablil|bablil123'
+            'G001|fufu|fufu123|bablil|bablil123'
+            'G002|elkecepatan|cepat123|lordrizz|rizz123'
+            'G002|aurafarming|aura123|lordrizz|rizz123'
+          )
+
+          for candidate in "${candidates[@]}"; do
+            IFS='|' read -r store user pass candidate_admin candidate_admin_pass <<< "$candidate"
+            login_raw=$(request POST "$BASE/api/auth/login" "$(jq -nc --arg u "$user" --arg p "$pass" '{username:$u,password:$p}')")
+            login_status="${login_raw##*$'\n'}"
+            login_body="${login_raw%$'\n'*}"
+            echo "Customer login candidate $store/$user -> HTTP $login_status"
+            [[ "$login_status" == '200' ]] || continue
+            token=$(jq -r '.token // empty' <<< "$login_body")
+            [[ -n "$token" ]] || continue
+
+            access_raw=$(request GET "$BASE/api/customer/feedback/access?store=$store" '' "$token")
+            access_status="${access_raw##*$'\n'}"
+            access_body="${access_raw%$'\n'*}"
+            echo "Feedback access $store/$user -> HTTP $access_status"
+            if [[ "$access_status" == '200' ]] && jq -e '.available == true' >/dev/null <<< "$access_body"; then
+              chosen_store="$store"
+              customer_user="$user"
+              customer_token="$token"
+              admin_user="$candidate_admin"
+              admin_pass="$candidate_admin_pass"
+              break
+            fi
+          done
+
+          if [[ -z "$customer_token" ]]; then
+            echo 'E2E_BLOCKED: no seeded demo customer currently has feedback entitlement or login access.'
+            exit 23
+          fi
+
+          marker="Karen production E2E $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          submit_payload=$(jq -nc --arg note "$marker" '{category:"SERVICE",issues:["SERVICE_TOO_SLOW"],manualNote:$note}')
+          submit_raw=$(request POST "$BASE/api/customer/feedback?store=$chosen_store" "$submit_payload" "$customer_token")
+          submit_status="${submit_raw##*$'\n'}"
+          submit_body="${submit_raw%$'\n'*}"
+          echo "Submit feedback $chosen_store/$customer_user -> HTTP $submit_status"
+          echo "$submit_body" | jq '{ok,feedbackCode,rewardPoints,message,error,code}'
+          [[ "$submit_status" == '201' ]] || exit 24
+          feedback_code=$(jq -r '.feedbackCode // empty' <<< "$submit_body")
+          [[ -n "$feedback_code" ]] || exit 25
+
+          admin_login_raw=$(request POST "$BASE/api/auth/login" "$(jq -nc --arg u "$admin_user" --arg p "$admin_pass" '{username:$u,password:$p}')")
+          admin_login_status="${admin_login_raw##*$'\n'}"
+          admin_login_body="${admin_login_raw%$'\n'*}"
+          echo "Admin login $chosen_store/$admin_user -> HTTP $admin_login_status"
+          [[ "$admin_login_status" == '200' ]] || exit 26
+          admin_token=$(jq -r '.token // empty' <<< "$admin_login_body")
+          [[ -n "$admin_token" ]] || exit 27
+
+          inbox_raw=$(request GET "$BASE/api/admin/customer-feedback?store=$chosen_store" '' "$admin_token")
+          inbox_status="${inbox_raw##*$'\n'}"
+          inbox_body="${inbox_raw%$'\n'*}"
+          echo "Admin inbox $chosen_store -> HTTP $inbox_status"
+          [[ "$inbox_status" == '200' ]] || { echo "$inbox_body"; exit 28; }
+
+          match=$(jq -c --arg code "$feedback_code" '.feedback[] | select(.feedbackCode == $code)' <<< "$inbox_body" | head -n1)
+          if [[ -z "$match" ]]; then
+            echo "E2E_FAIL: submitted feedback $feedback_code was not returned by Admin inbox."
+            jq '{count:(.feedback|length), latest:(.feedback[0] // null)}' <<< "$inbox_body"
+            exit 29
+          fi
+
+          echo "$match" | jq '{feedbackCode,category,manualNote,store,reporter,issues}'
+          actual_reporter=$(jq -r '.reporter.username // empty' <<< "$match")
+          if [[ "$actual_reporter" != "$customer_user" ]]; then
+            echo "E2E_FAIL: reporter identity mismatch, expected $customer_user got $actual_reporter"
+            exit 30
+          fi
+
+          echo "E2E_PASS feedbackCode=$feedback_code store=$chosen_store customer=$customer_user admin=$admin_user"

@@ -1,0 +1,124 @@
+name: Inspect Cloudflare Git production temp
+
+on:
+  push:
+    branches:
+      - diag/setting-transaksi-production-verify-20260820
+    paths:
+      - .github/workflows/inspect-cloudflare-git-production-temp.yml
+      - inspect-cloudflare-git-production-trigger.txt
+
+permissions:
+  checks: read
+  contents: write
+  deployments: read
+  statuses: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diag/setting-transaksi-production-verify-20260820
+          fetch-depth: 0
+      - name: Inspect GitHub checks and live Worker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 284f7f6e896a61afbfb447f30a09ae0aaff3e125
+          WORKER_URL: https://prototype-leker-v2.daily-napkin.workers.dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          checks="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$TARGET_SHA/check-runs?per_page=100")"
+          status="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$TARGET_SHA/status")"
+          deployments="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments?sha=$TARGET_SHA&per_page=100")"
+
+          ui_code="$(curl --silent --output /tmp/ui.js --write-out '%{http_code}' "$WORKER_URL/admin-accounting-settings-comfort.js")"
+          live_ui=false
+          if [ "$ui_code" = "200" ] && grep -q 'Bikin Grup' /tmp/ui.js && grep -q 'Pasang Grup' /tmp/ui.js; then live_ui=true; fi
+
+          unauth_code="$(curl --silent --output /tmp/unauth.json --write-out '%{http_code}' "$WORKER_URL/api/admin/settings/accounting")"
+          live_auth_boundary=false
+          if [ "$unauth_code" = "401" ] && grep -q 'Login Owner atau Admin Gerai diperlukan' /tmp/unauth.json; then live_auth_boundary=true; fi
+
+          auth_code="$(curl --silent --output /tmp/accounting.json --write-out '%{http_code}' -H 'x-admin-pin: 123456' "$WORKER_URL/api/admin/settings/accounting?store=G001")"
+          live_choice_api=false
+          live_choice_group_key=false
+          live_choice_source=false
+          if [ "$auth_code" = "200" ]; then
+            live_choice_api=true
+            if node -e 'const j=require("/tmp/accounting.json"); process.exit(Array.isArray(j.choiceGroups)?0:1)'; then live_choice_group_key=true; fi
+            if node -e 'const j=require("/tmp/accounting.json"); process.exit(Array.isArray(j.sourceTypes)&&j.sourceTypes.includes("choice_group")?0:1)'; then live_choice_source=true; fi
+          fi
+
+          CHECKS="$checks" STATUS_JSON="$status" DEPLOYMENTS="$deployments" \
+          UI_CODE="$ui_code" LIVE_UI="$live_ui" UNAUTH_CODE="$unauth_code" LIVE_AUTH_BOUNDARY="$live_auth_boundary" \
+          AUTH_CODE="$auth_code" LIVE_CHOICE_API="$live_choice_api" LIVE_CHOICE_GROUP_KEY="$live_choice_group_key" LIVE_CHOICE_SOURCE="$live_choice_source" \
+          TARGET_SHA="$TARGET_SHA" node - <<'NODE' > CLOUDFLARE_GIT_VERIFY_TEMP.json
+          const checks = JSON.parse(process.env.CHECKS || '{}');
+          const status = JSON.parse(process.env.STATUS_JSON || '{}');
+          const deployments = JSON.parse(process.env.DEPLOYMENTS || '[]');
+          const summarizedChecks = (checks.check_runs || []).map(r => ({
+            name: r.name,
+            app: r.app?.name || '',
+            status: r.status,
+            conclusion: r.conclusion,
+            detailsUrl: r.details_url || '',
+            startedAt: r.started_at || '',
+            completedAt: r.completed_at || ''
+          }));
+          const summarizedStatuses = (status.statuses || []).map(s => ({
+            context: s.context,
+            state: s.state,
+            targetUrl: s.target_url || '',
+            description: s.description || ''
+          }));
+          const summarizedDeployments = deployments.map(d => ({
+            id: d.id,
+            environment: d.environment,
+            createdAt: d.created_at,
+            ref: d.ref,
+            sha: d.sha,
+            task: d.task
+          }));
+          const out = {
+            targetSha: process.env.TARGET_SHA,
+            checks: summarizedChecks,
+            combinedStatus: status.state || '',
+            statuses: summarizedStatuses,
+            deployments: summarizedDeployments,
+            live: {
+              uiHttpCode: Number(process.env.UI_CODE || 0),
+              uiHasBikinDanPasangGrup: process.env.LIVE_UI === 'true',
+              unauthAccountingHttpCode: Number(process.env.UNAUTH_CODE || 0),
+              authBoundary401: process.env.LIVE_AUTH_BOUNDARY === 'true',
+              authenticatedAccountingHttpCode: Number(process.env.AUTH_CODE || 0),
+              authenticatedAccountingResponds: process.env.LIVE_CHOICE_API === 'true',
+              choiceGroupsArrayPresent: process.env.LIVE_CHOICE_GROUP_KEY === 'true',
+              choiceGroupSourceTypePresent: process.env.LIVE_CHOICE_SOURCE === 'true'
+            }
+          };
+          process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+          NODE
+      - name: Publish evidence and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/inspect-cloudflare-git-production-temp.yml inspect-cloudflare-git-production-trigger.txt
+          git config user.name "Karen"
+          git config user.email "karen@agent.maxi"
+          git add CLOUDFLARE_GIT_VERIFY_TEMP.json
+          git add -u -- .github/workflows/inspect-cloudflare-git-production-temp.yml inspect-cloudflare-git-production-trigger.txt || true
+          git diff --cached --check
+          git commit -m "chore: record Cloudflare Git production evidence"
+          git push origin HEAD:diag/setting-transaksi-production-verify-20260820

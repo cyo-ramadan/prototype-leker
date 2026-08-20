@@ -46,6 +46,50 @@ ambiguity becomes unfixable once slot counts reach double digits.
 what the board and the repository tell it. That is the fact the handoff rule exists to
 survive.
 
+## Multi-project board — `project` sebagai sekat
+
+Status: ACTIVE sejak 2026-08-20, atas keputusan Bos Cyo. Ditulis dan diterapkan oleh `hana`
+(sesi Claude Code) langsung ke schema `maxi-agent-bus`.
+
+Board ini sekarang menaungi lebih dari satu produk: `leker` (`prototype-leker`, POS
+akuntansi+gudang penuh) dan `ikan` (`ikan-galeh`, olshop ikan dari petani — POS ringan, tanpa
+akuntansi/gudang penuh). Bos Cyo memilih tetap **satu papan**, bukan papan terpisah per
+produk — supaya semua agen tetap punya satu tempat untuk dicek — tapi wajib **disekat** biar
+tidak ketuker.
+
+Sekatnya bukan konvensi penamaan (nama `territory` gampang typo/ambigu antar produk — mis.
+`operasional` bisa berarti Operasional Leker atau Operasional Ikan). Sekatnya adalah kolom
+`tasks.project`, wajib diisi, divalidasi lewat trigger terhadap tabel referensi `projects`:
+
+```sql
+SELECT code, repo_full_name, description FROM projects;
+-- 'leker' → cyo-ramadan/prototype-leker
+-- 'ikan'  → cyo-ramadan/ikan-galeh
+```
+
+`tasks.project` default `'leker'` (semua task lama otomatis kebagian ini, tidak ada yang
+berubah perilakunya). Trigger `trg_tasks_project_registered` menolak INSERT/UPDATE dengan
+`project` yang belum terdaftar di tabel `projects` — pesan errornya `PROJECT_NOT_REGISTERED`.
+Produk baru di luar `leker`/`ikan` didaftarkan lewat satu `INSERT INTO projects`, bukan
+mengubah trigger.
+
+**Konsekuensi ke aturan self-issued task (§ di atas):** `trg_self_task_no_duplicate` sekarang
+dicocokkan **per-project** — `territory='operasional'` yang OPEN di project `leker` tidak lagi
+memblokir agen yang mau self-issue `territory='operasional'` di project `ikan`, dan
+sebaliknya. Sebelum 2026-08-20 trigger ini global lintas-project; itu sudah diperbaiki di
+migrasi yang sama dengan penambahan kolom `project`.
+
+**Wajib buat setiap agen:** tentukan `<PROJECT>` (`leker` atau `ikan`) dari repo yang Bos Cyo
+suruh kerjakan, sebelum menulis baris `tasks` apa pun — sama seperti `<FAMILY>` ditentukan di
+awal sesi. Jangan menebak dari isi instruksinya; tanya Bos Cyo kalau repo yang dimaksud tidak
+jelas. `agent-bus/CLAIM-PROMPT.md` sudah diperbarui dengan langkah ini.
+
+**Yang masih terbuka:** registry kepemilikan modul (`MODULE_OWNERSHIP.md`) hari ini isinya
+cuma modul-modul `leker`. `ikan` belum punya registry modulnya sendiri — itu ditulis begitu
+struktur modul `ikan` sudah diputuskan (repo `ikan-galeh` masih satu file, belum ada
+modul/`src/` untuk didaftarkan). Sampai saat itu, task `project='ikan'` boleh punya
+`territory` bebas asal konsisten, dan **belum** ditolak oleh registry modul manapun.
+
 ## Task lifecycle
 
 ```
@@ -189,3 +233,8 @@ report would cost more than doing the work.
 
 **REQUIRED** — `MODULE_OWNERSHIP.md` names the owner of each module referenced by a task's
 `module` field. A task naming a module absent from that registry is rejected at write time.
+
+**REQUIRED (2026-08-20)** — `agent-bus/CLAIM-PROMPT.md` mencatat `<PROJECT>` sebagai variabel
+wajib di samping `<FAMILY>`/`<SLOT>`/`<SESSION>`, dan menyertakan `project` di query Langkah 2
+dan template INSERT Langkah 2.5. `MODULE_OWNERSHIP.md` tetap khusus project `leker`; registry
+setara untuk `ikan` ditulis terpisah begitu struktur modulnya ada.

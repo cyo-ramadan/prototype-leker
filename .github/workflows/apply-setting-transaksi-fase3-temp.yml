@@ -6,6 +6,7 @@ on:
       - feat/setting-transaksi-resolver-fase3
     paths:
       - scripts/apply-setting-transaksi-fase3-temp.mjs
+      - scripts/fix-setting-transaksi-fase3-bootstrap-temp.mjs
       - .github/workflows/apply-setting-transaksi-fase3-temp.yml
   pull_request:
     branches: [main]
@@ -26,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Repair nested template escaping in bootstrap
+        run: node scripts/fix-setting-transaksi-fase3-bootstrap-temp.mjs
       - name: Apply focused Fase 3 transformation
         run: node scripts/apply-setting-transaksi-fase3-temp.mjs
       - name: Run focused resolver tests
@@ -38,11 +41,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f scripts/apply-setting-transaksi-fase3-temp.mjs .github/workflows/apply-setting-transaksi-fase3-temp.yml
+          rm -f scripts/apply-setting-transaksi-fase3-temp.mjs scripts/fix-setting-transaksi-fase3-bootstrap-temp.mjs .github/workflows/apply-setting-transaksi-fase3-temp.yml
           git config user.name "Karen"
           git config user.email "karen@agent.maxi"
           git add -- src/accounting-pos-bridge.js src/accounting-ledger.js test/choice-groups-resolver.test.js contracts/accounting-choice-groups-v1.md
-          git add -u -- scripts/apply-setting-transaksi-fase3-temp.mjs .github/workflows/apply-setting-transaksi-fase3-temp.yml
+          git add -u -- scripts/apply-setting-transaksi-fase3-temp.mjs scripts/fix-setting-transaksi-fase3-bootstrap-temp.mjs .github/workflows/apply-setting-transaksi-fase3-temp.yml
           git diff --cached --check
           git commit -m "feat(accounting): resolve Setting Transaksi choice groups"
           git push origin HEAD:feat/setting-transaksi-resolver-fase3

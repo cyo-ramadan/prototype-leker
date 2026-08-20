@@ -19,11 +19,12 @@ jobs:
     env:
       RELEASE_SHA: 284f7f6e896a61afbfb447f30a09ae0aaff3e125
       TARGET_WORKFLOW: Prototype Leker CI & Deploy
+      WORKER_URL: https://prototype-leker-v2.daily-napkin.workers.dev
     steps:
       - uses: actions/checkout@v4
         with:
           ref: chore/observe-setting-transaksi-deploy
-      - name: Observe canonical main deploy
+      - name: Observe canonical main deploy and external integrations
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -60,20 +61,34 @@ jobs:
               | jq -c --argjson id "$id" '{deployment_id:$id,statuses:[.[] | {id,state,environment,environment_url,log_url,description,created_at,updated_at}]}' \
               >> deploy-github-deployment-statuses.jsonl
           done
-
-          echo '--- canonical workflow ---'
-          cat deploy-observation.txt
-          echo '--- check runs ---'
-          cat deploy-check-runs.json
-          echo '--- deployments ---'
-          cat deploy-github-deployments.json
-          cat deploy-github-deployment-statuses.jsonl
+      - name: Smoke live Worker asset
+        shell: bash
+        run: |
+          set -u
+          asset_url="${WORKER_URL}/admin-accounting-settings-comfort.js"
+          tmp="$(mktemp)"
+          http_code="$(curl -L -sS --connect-timeout 15 --max-time 30 -o "$tmp" -w '%{http_code}' "$asset_url" || true)"
+          bikin='false'; pasang='false'; choice='false'
+          grep -Fq 'Bikin Grup' "$tmp" && bikin='true'
+          grep -Fq 'Pasang Grup' "$tmp" && pasang='true'
+          grep -Fq "choice_group: 'Setting Transaksi" "$tmp" && choice='true'
+          hash="$(sha256sum "$tmp" | awk '{print $1}')"
+          {
+            echo "release_sha=${RELEASE_SHA}"
+            echo "asset_url=${asset_url}"
+            echo "http_code=${http_code}"
+            echo "bikin_grup=${bikin}"
+            echo "pasang_grup=${pasang}"
+            echo "choice_group_source=${choice}"
+            echo "sha256=${hash}"
+          } > live-smoke.txt
+          cat live-smoke.txt
       - name: Persist observation on observer branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "Karen"
           git config user.email "karen@agent.maxi"
-          git add deploy-observation.txt deploy-check-runs.json deploy-github-deployments.json deploy-github-deployment-statuses.jsonl
-          git commit -m "chore: record external deploy integrations"
+          git add deploy-observation.txt deploy-check-runs.json deploy-github-deployments.json deploy-github-deployment-statuses.jsonl live-smoke.txt
+          git commit -m "chore: record live Setting Transaksi smoke"
           git push origin HEAD:chore/observe-setting-transaksi-deploy

@@ -24,7 +24,14 @@ function scaledUnitCost(lineTotal, quantity) {
 }
 function costFromScaled(value) { return Number(value || 0) / COST_SCALE; }
 
-async function listPurchaseOptions(db, storeId) {
+export async function storeWarehouseEnabled(db, storeId) {
+  const row = await db.prepare(`SELECT warehouse_enabled FROM stores WHERE id = ? LIMIT 1`).bind(storeId).first();
+  return row?.warehouse_enabled !== 0;
+}
+
+export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) {
+  if (warehouseEnabled === null) warehouseEnabled = await storeWarehouseEnabled(db, storeId);
+  const warehouseFlag = warehouseEnabled ? 1 : 0;
   let rows;
   try {
     rows = await db.prepare(`
@@ -39,11 +46,10 @@ async function listPurchaseOptions(db, storeId) {
       LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
       JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
       WHERE p.store_id = ? AND p.is_active = 1
-        AND p.stock_tracking_enabled = 1
         AND COALESCE(t.can_purchase, 1) = 1
-        AND COALESCE(t.track_stock, 1) = 1
+        AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
       ORDER BY p.name COLLATE NOCASE, p.id
-    `).bind(storeId).all();
+    `).bind(storeId, warehouseFlag).all();
   } catch (error) {
     console.error('canonical purchase option query failed; using Product Master compatibility read', { storeId, error });
     rows = await db.prepare(`
@@ -91,10 +97,13 @@ function normalizeItems(options, requested) {
   return { ok: true, items, totalAmount };
 }
 
-function purchaseItemStatements(db, { purchaseId, storeId, drawerId, cashierId, item, now }) {
+export function purchaseItemStatements(db, {
+  purchaseId, storeId, drawerId, cashierId, item, now, warehouseEnabled = true
+}) {
+  const warehouseFlag = warehouseEnabled ? 1 : 0;
   const itemId = `purchase_item_${crypto.randomUUID()}`;
   const movementId = `stock_move_${crypto.randomUUID()}`;
-  return [
+  const statements = [
     db.prepare(`
       INSERT INTO purchase_items (
         id, purchase_id, store_id, product_id, product_name,
@@ -113,8 +122,13 @@ function purchaseItemStatements(db, { purchaseId, storeId, drawerId, cashierId, 
       LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
       LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
       WHERE p.id = ? AND p.store_id = ? AND p.is_active = 1
-        AND p.stock_tracking_enabled = 1 AND COALESCE(t.can_purchase, 1) = 1 AND COALESCE(t.track_stock, 1) = 1
-    `).bind(itemId, purchaseId, item.quantity, item.lineTotal, item.unitCostScaled, item.unitCostScaled, item.lineTotal, item.quantity, item.quantity, now, item.productId, storeId),
+        AND COALESCE(t.can_purchase, 1) = 1
+        AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
+    `).bind(
+      itemId, purchaseId, item.quantity, item.lineTotal, item.unitCostScaled,
+      item.unitCostScaled, item.lineTotal, item.quantity, item.quantity, now,
+      item.productId, storeId, warehouseFlag
+    ),
     db.prepare(`
       UPDATE products
       SET average_cost = (SELECT average_cost_after FROM purchase_items WHERE id = ? AND purchase_id = ? AND store_id = ?),
@@ -122,6 +136,9 @@ function purchaseItemStatements(db, { purchaseId, storeId, drawerId, cashierId, 
           cost_updated_at = ?, last_purchase_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(itemId, purchaseId, storeId, itemId, purchaseId, storeId, now, now, item.productId, storeId),
+  ];
+  if (!warehouseEnabled) return statements;
+  statements.push(
     db.prepare(`INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at) VALUES (?, ?, 0, ?)`).bind(storeId, item.productId, now),
     db.prepare(`UPDATE inventory_stock_balances SET quantity = quantity + ?, updated_at = ? WHERE store_id = ? AND product_id = ?`).bind(item.quantity, now, storeId, item.productId),
     db.prepare(`
@@ -130,7 +147,8 @@ function purchaseItemStatements(db, { purchaseId, storeId, drawerId, cashierId, 
         direction, quantity, source_type, source_id, drawer_session_id, note, actor_role, actor_id, occurred_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN', ?, 'PURCHASE', ?, ?, ?, 'CASHIER', ?, ?)
     `).bind(movementId, `PURCHASE:${purchaseId}:${item.productId}`, storeId, item.productId, item.productName, item.unitId, item.unitSymbol, item.quantity, purchaseId, drawerId, `Pembelian · biaya baris ${item.lineTotal}`, cashierId, now)
-  ];
+  );
+  return statements;
 }
 
 export async function handleCashierPurchaseApi(request, env, pathname) {
@@ -142,7 +160,11 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const cashier = auth.cashier;
   if (request.method === 'GET' && pathname === '/api/cashier/purchases/options') {
     try {
-      return json({ products: await listPurchaseOptions(env.DB, cashier.store.id) });
+      const warehouseEnabled = await storeWarehouseEnabled(env.DB, cashier.store.id);
+      return json({
+        warehouseEnabled,
+        products: await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled)
+      });
     } catch (error) {
       console.error('cashier purchase options failed', { storeId: cashier.store.id, error });
       return json({ error: 'Master Barang pembelian gagal dimuat.', code: 'PURCHASE_OPTIONS_UNAVAILABLE' }, 500);
@@ -153,7 +175,8 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   if (!ownership.ok) return ownership.response;
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload pembelian tidak valid.' }, 400);
-  const options = await listPurchaseOptions(env.DB, cashier.store.id);
+  const warehouseEnabled = await storeWarehouseEnabled(env.DB, cashier.store.id);
+  const options = await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled);
   const normalized = normalizeItems(options, body.value?.items);
   if (!normalized.ok) return json({ error: normalized.error }, 400);
   const supplierId = text(body.value?.supplierId, 120) || null;
@@ -173,10 +196,19 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
     env.DB.prepare(`INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, cashier.store.id, ownership.drawer.id, cashier.id, supplierId, description, normalized.totalAmount, note, now, paymentMethod),
     accounting.statement
   ];
-  for (const item of normalized.items) statements.push(...purchaseItemStatements(env.DB, { purchaseId: id, storeId: cashier.store.id, drawerId: ownership.drawer.id, cashierId: cashier.id, item, now }));
+  for (const item of normalized.items) statements.push(...purchaseItemStatements(env.DB, {
+    purchaseId: id,
+    storeId: cashier.store.id,
+    drawerId: ownership.drawer.id,
+    cashierId: cashier.id,
+    item,
+    now,
+    warehouseEnabled
+  }));
   await env.DB.batch(statements);
   return json({
     ok: true, id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod, totalAmount: normalized.totalAmount,
+    warehouseEnabled,
     items: normalized.items.map(item => ({ productId: item.productId, productName: item.productName, productKindId: item.productKindId, productKindCode: item.productKindCode, quantity: item.quantity, unitSymbol: item.unitSymbol, lineTotal: item.lineTotal, unitCost: costFromScaled(item.unitCostScaled), unitCostScaled: item.unitCostScaled })),
     accounting: { contract: 'MAXI_ACCOUNTING_REFERENCE_V1', mappingStatus: accounting.status, mappingId: accounting.mappingId, debitAccountRefId: accounting.debitAccountRefId, creditAccountRefId: accounting.creditAccountRefId, journalReference: null },
     createdAt: now

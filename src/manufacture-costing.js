@@ -1,3 +1,7 @@
+export function saleHppSnapshotSelect() {
+  return 'p.average_cost, p.average_cost * ?';
+}
+
 export function buildProductionCostingStatements(db, {
   runId, storeId, outputProductId, outputQuantity, now
 }) {

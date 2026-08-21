@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { buildProductionCostingStatements } from '../src/manufacture-costing.js';
+import { buildProductionCostingStatements, saleHppSnapshotSelect } from '../src/manufacture-costing.js';
 
 const manufactureCosting = readFileSync(new URL('../src/manufacture-costing.js', import.meta.url), 'utf8');
 const stockProduction = readFileSync(new URL('../src/stock-production.js', import.meta.url), 'utf8');
 const warehouseProduction = readFileSync(new URL('../src/warehouse-production.js', import.meta.url), 'utf8');
+const cashierSalesTracking = readFileSync(new URL('../src/cashier-sales-tracking.js', import.meta.url), 'utf8');
 
 function d1(sqlite) {
   return {
@@ -89,6 +90,14 @@ test('legacy and V2 production callers delegate their shared HPP writer to Manuf
   assert.doesNotMatch(warehouseProduction, /UPDATE products/);
   assert.equal((manufactureCosting.match(/UPDATE products/g) || []).length, 1);
   assert.match(manufactureCosting, /SET average_cost = CASE/);
+});
+
+test('Sale reads its immutable HPP snapshot through the Manufaktur seam', () => {
+  assert.equal(saleHppSnapshotSelect(), 'p.average_cost, p.average_cost * ?');
+  assert.match(cashierSalesTracking, /import \{ saleHppSnapshotSelect \} from '\.\/manufacture-costing\.js'/);
+  assert.match(cashierSalesTracking, /\$\{saleHppSnapshotSelect\(\)\}/);
+  assert.doesNotMatch(cashierSalesTracking, /p\.average_cost/);
+  assert.equal((manufactureCosting.match(/p\.average_cost/g) || []).length, 2);
 });
 
 test('shared production costing preserves exact scaled HPP and moving-average rounding', () => {

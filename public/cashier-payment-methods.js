@@ -100,7 +100,7 @@
     if (!select) {
       const field = document.createElement('div');
       field.className = 'field';
-      field.innerHTML = '<label>Cara bayar</label><select id="salePaymentMethod" class="text-input"></select><div class="muted">Berasal dari Setting Akuntansi. Hanya CASH memengaruhi kas fisik laci.</div>';
+      field.innerHTML = '<label>Cara bayar</label><select id="salePaymentMethod" class="text-input"></select><div class="muted">Berasal dari metode bayar POS. Hanya CASH memengaruhi kas fisik laci.</div>';
       note.closest('.field')?.insertAdjacentElement('beforebegin', field);
       select = byId('salePaymentMethod');
     }
@@ -120,7 +120,7 @@
       field = document.createElement('div');
       field.id = 'saleDialogPaymentField';
       field.className = 'field';
-      field.innerHTML = '<label>Cara bayar</label><select id="saleDialogPaymentMethod" class="text-input"></select><div class="muted">Berasal dari Setting Akuntansi. Hanya CASH memengaruhi kas fisik laci.</div>';
+      field.innerHTML = '<label>Cara bayar</label><select id="saleDialogPaymentMethod" class="text-input"></select><div class="muted">Berasal dari metode bayar POS. Hanya CASH memengaruhi kas fisik laci.</div>';
       note.closest('.field')?.insertAdjacentElement('beforebegin', field);
       select = byId('saleDialogPaymentMethod');
     }
@@ -160,7 +160,7 @@
       }
 
       await refreshAccountingSettings();
-      if (!methods().length) throw new Error('Belum ada cara bayar aktif di Setting Akuntansi.');
+      if (!methods().length) throw new Error('Belum ada cara bayar POS yang aktif.');
 
       let purchasePayload, supplierPayload;
       try {
@@ -197,7 +197,7 @@
         body: `
           <div id="purchasePimasatu"></div>
           <div class="field"><label>Supplier</label><select id="dialogSupplier" class="text-input">${supplierOptions}</select></div>
-          <div class="field"><label>Cara bayar</label><select id="dialogPurchasePayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari Setting Akuntansi.</div></div>
+          <div class="field"><label>Cara bayar</label><select id="dialogPurchasePayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
           <div class="field"><label>Deskripsi <span class="muted">optional</span></label><input id="dialogPurchaseDescription" class="text-input" maxlength="220" placeholder="Otomatis dari nama barang jika kosong" /></div>
           <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>
           <div id="dialogPurchaseGrandTotal" class="cashier-lock-note">Total pembelian · Rp0</div>
@@ -250,7 +250,7 @@
 
   async function operationalDialog() {
     await refreshAccountingSettings();
-    if (!methods().length) return toast('Belum ada cara bayar aktif di Setting Akuntansi.');
+    if (!methods().length) return toast('Belum ada cara bayar POS yang aktif.');
 
     let payload;
     try {
@@ -269,7 +269,7 @@
       body: `
         <div id="operationalPimasatu"></div>
         <div class="field"><label>Kontak terkait</label><div id="operationalContactSummary" class="cashier-lock-note">Mengikuti kontak pada Master Biaya yang dipilih.</div></div>
-        <div class="field"><label>Cara bayar</label><select id="dialogOperationalPayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari Setting Akuntansi.</div></div>
+        <div class="field"><label>Cara bayar</label><select id="dialogOperationalPayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
         <div id="dialogOperationalTotal" class="cashier-lock-note">Total operasional · Rp0</div>
         <p class="muted">PIMASATU hanya mengatur pola input biaya. Kontak dan cara bayar tetap berada di layer transaksi.</p>`,
       submitText: 'SIMPAN OPERASIONAL',

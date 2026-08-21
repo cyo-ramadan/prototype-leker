@@ -8,10 +8,12 @@ import {
 } from '../src/accounting-ledger.js';
 import {
   ACCOUNTING_POS_BRIDGE_CONTRACT,
-  listPosPaymentMethods,
-  resolvePosPaymentMethod,
   resolvePosFactToJournalCommand
 } from '../src/accounting-pos-bridge.js';
+import {
+  listPosPaymentMethods,
+  resolvePosPaymentMethod
+} from '../src/pos-payment-methods.js';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 const migration25 = readFileSync(new URL('../migrations/0025_accounting_pos_bridge.sql', import.meta.url), 'utf8');
@@ -105,18 +107,48 @@ function setupMappings(sqlite) {
   return { store: { id: store.id, code: store.code, storeName: store.store_name }, saleCategory, kas, inventory, revenue, cogs, expense };
 }
 
-test('POS payment default comes from Accounting Settings and can be changed by admin configuration', async () => {
+test('POS payment default comes from the POS registry and does not require an Accounting account', async () => {
   const sqlite = freshDatabase();
   const db = d1(sqlite);
   try {
     const store = sqlite.prepare(`SELECT id FROM stores ORDER BY id LIMIT 1`).get();
+    sqlite.prepare(`UPDATE payment_methods SET account_id = NULL WHERE store_id = ?`).run(store.id);
     let methods = await listPosPaymentMethods(db, store.id);
     assert.equal(methods.find(method => method.isDefault)?.code, 'CASH');
+    assert.equal('accountId' in methods[0], false);
     assert.equal((await resolvePosPaymentMethod(db, store.id, '')).code, 'CASH');
     sqlite.prepare(`UPDATE payment_methods SET is_default = CASE WHEN code = 'PAYABLE' THEN 1 ELSE 0 END WHERE store_id = ?`).run(store.id);
     methods = await listPosPaymentMethods(db, store.id);
     assert.equal(methods.find(method => method.isDefault)?.code, 'PAYABLE');
     assert.equal((await resolvePosPaymentMethod(db, store.id, '')).code, 'PAYABLE');
+  } finally { sqlite.close(); }
+});
+
+test('Accounting delivery fails closed after an accountless POS payment fact is accepted', async () => {
+  const sqlite = freshDatabase();
+  const db = d1(sqlite);
+  try {
+    const setup = setupMappings(sqlite);
+    sqlite.prepare(`UPDATE payment_methods SET account_id = NULL WHERE store_id = ? AND code = 'CASH'`).run(setup.store.id);
+    assert.equal((await resolvePosPaymentMethod(db, setup.store.id, 'CASH'))?.code, 'CASH');
+
+    const outcome = await resolvePosFactToJournalCommand(db, setup.store, {
+      factType: 'SALE',
+      factId: 'sale_accountless_payment',
+      totalAmountMinor: 50000,
+      paymentMethodCode: 'CASH',
+      description: 'Penjualan dengan mapping Accounting belum siap',
+      createdAt: '2026-08-21T08:00:00.000Z',
+      itemLines: [{
+        productKindId: 'kind_pentol',
+        productKindName: 'Pentol',
+        lineAmountMinor: 50000,
+        lineCogsScaled: 17500000000
+      }]
+    });
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.status, 'NEEDS_CONFIGURATION');
+    assert.equal(outcome.code, 'NEEDS_PAYMENT_MAPPING');
   } finally { sqlite.close(); }
 });
 

@@ -3,7 +3,7 @@ import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
 import { handleCashierOperationalExpenseApi } from './cashier-operational-expense.js';
-import { resolvePosPaymentMethod } from './accounting-pos-bridge.js';
+import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 
 const COST_SCALE = 1_000_000;
 const MAX_LINE_TOTAL = 9_000_000_000;
@@ -159,7 +159,7 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const supplierId = text(body.value?.supplierId, 120) || null;
   const note = text(body.value?.note, 500);
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, cashier.store.id, body.value?.paymentMethod, 'CASH');
-  if (!resolvedPayment) return json({ error: 'Cara bayar pembelian tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+  if (!resolvedPayment) return json({ error: 'Cara bayar pembelian tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
   const paymentMethod = resolvedPayment.code;
   if (supplierId) {
     const supplier = await env.DB.prepare(`SELECT id FROM suppliers WHERE id = ? AND store_id = ? AND is_active = 1`).bind(supplierId, cashier.store.id).first();

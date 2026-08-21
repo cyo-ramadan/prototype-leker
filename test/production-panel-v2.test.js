@@ -8,6 +8,7 @@ import { missingRequiredColumns } from '../scripts/verify-remote-schema.mjs';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 const migration = readFileSync(new URL('../migrations/0039_flexible_manual_production.sql', import.meta.url), 'utf8');
+const manufactureCosting = readFileSync(new URL('../src/manufacture-costing.js', import.meta.url), 'utf8');
 const warehouseProduction = readFileSync(new URL('../src/warehouse-production.js', import.meta.url), 'utf8');
 const cashierProduction = readFileSync(new URL('../src/cashier-production.js', import.meta.url), 'utf8');
 const accountingBridge = readFileSync(new URL('../src/accounting-warehouse-production-bridge.js', import.meta.url), 'utf8');
@@ -157,7 +158,8 @@ test('production execution snapshots actual facts without mutating Recipe Master
   assert.match(warehouseProduction, /PRODUCTION_OUTPUT/);
   assert.match(warehouseProduction, /hpp_total_scaled/);
   assert.match(warehouseProduction, /hpp_per_unit_scaled/);
-  assert.match(warehouseProduction, /UPDATE products[\s\S]*average_cost/);
+  assert.match(warehouseProduction, /buildProductionCostingStatements/);
+  assert.match(manufactureCosting, /UPDATE products[\s\S]*average_cost/);
   assert.doesNotMatch(warehouseProduction, /UPDATE manufacturing_recipes/);
   assert.doesNotMatch(warehouseProduction, /UPDATE manufacturing_recipe_components/);
 });

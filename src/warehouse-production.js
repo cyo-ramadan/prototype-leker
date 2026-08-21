@@ -1,3 +1,5 @@
+import { buildProductionCostingStatements } from './manufacture-costing.js';
+
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 const MAX_COMPONENTS = 50;
 const MAX_QUANTITY = 1_000_000_000;
@@ -297,44 +299,13 @@ export async function prepareManualProductionV2(db, {
     }));
   }
 
-  statements.push(
-    db.prepare(`
-      UPDATE production_runs
-      SET hpp_total_scaled = COALESCE((
-            SELECT SUM(total_cost_snapshot_scaled)
-            FROM production_run_components
-            WHERE production_run_id = ?
-          ), 0),
-          hpp_per_unit_scaled = CAST((
-            COALESCE((
-              SELECT SUM(total_cost_snapshot_scaled)
-              FROM production_run_components
-              WHERE production_run_id = ?
-            ), 0) + CAST(total_output_quantity / 2 AS INTEGER)
-          ) / total_output_quantity AS INTEGER)
-      WHERE id = ? AND store_id = ?
-    `).bind(runId, runId, runId, storeId),
-    db.prepare(`
-      UPDATE products
-      SET average_cost = CASE
-            WHEN COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) <= 0
-              THEN COALESCE((SELECT hpp_per_unit_scaled FROM production_runs WHERE id = ?), 0)
-            ELSE CAST((
-              COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) * average_cost
-              + COALESCE((SELECT hpp_total_scaled FROM production_runs WHERE id = ?), 0)
-              + CAST((COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) + ?) / 2 AS INTEGER)
-            ) / (COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) + ?) AS INTEGER)
-          END,
-          cost_updated_at = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND store_id = ?
-    `).bind(
-      storeId, outputProduct.id, runId,
-      storeId, outputProduct.id, runId,
-      storeId, outputProduct.id, actualOutputQuantity,
-      storeId, outputProduct.id, actualOutputQuantity,
-      now, outputProduct.id, storeId
-    )
-  );
+  statements.push(...buildProductionCostingStatements(db, {
+    runId,
+    storeId,
+    outputProductId: outputProduct.id,
+    outputQuantity: actualOutputQuantity,
+    now
+  }));
 
   statements.push(...stockDeltaStatements(db, outputProduct, actualOutputQuantity, {
     sourceKey: `PRODUCTION_OUTPUT:${runId}:${outputProduct.id}`,

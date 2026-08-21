@@ -2,6 +2,11 @@ import { buildProductionCostingStatements } from './manufacture-costing.js';
 
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
+export async function storeWarehouseEnabled(db, storeId) {
+  const row = await db.prepare(`SELECT warehouse_enabled FROM stores WHERE id = ? LIMIT 1`).bind(storeId).first();
+  return row?.warehouse_enabled !== 0;
+}
+
 function movementStatement(db, {
   sourceKey, storeId, productId, productName, unitId, unitSymbol,
   direction, quantity, sourceType, sourceId, drawerId, note, actorRole, actorId, now
@@ -20,7 +25,7 @@ function movementStatement(db, {
 
 function stockDeltaStatements(db, product, delta, context) {
   const quantity = Math.abs(delta);
-  if (!product.trackStock || !quantity) return [];
+  if (context.warehouseEnabled === false || !product.trackStock || !quantity) return [];
   const direction = delta < 0 ? 'OUT' : 'IN';
   return [
     db.prepare(`
@@ -119,7 +124,8 @@ async function loadRecipeComponents(db, storeId, recipeIds) {
 
 function productionRunStatements(db, {
   runId, storeId, drawerId, saleId, mode, product, recipe, batches,
-  requestedSaleQuantity, components, actorRole, actorId, now, notePrefix
+  requestedSaleQuantity, components, actorRole, actorId, now, notePrefix,
+  warehouseEnabled = true
 }) {
   const totalOutputQuantity = batches * recipe.outputQuantity;
   const statements = [
@@ -160,6 +166,7 @@ function productionRunStatements(db, {
       sourceKey: `PRODUCTION_INPUT:${runId}:${component.id}`,
       sourceType: 'PRODUCTION_INPUT', sourceId: runId,
       storeId, drawerId, actorRole, actorId, now,
+      warehouseEnabled,
       note: `${notePrefix} · komponen ${product.name}`
     }));
   }
@@ -176,6 +183,7 @@ function productionRunStatements(db, {
     sourceKey: `PRODUCTION_OUTPUT:${runId}:${product.id}`,
     sourceType: 'PRODUCTION_OUTPUT', sourceId: runId,
     storeId, drawerId, actorRole, actorId, now,
+    warehouseEnabled,
     note: `${notePrefix} · hasil ${product.name}`
   }));
   return { statements, totalOutputQuantity };
@@ -198,6 +206,24 @@ export async function prepareSaleStockProduction(db, {
   const ids = [...new Set(lines.map(line => Number(line.productId)))];
   const products = await loadSaleProducts(db, storeId, ids);
   if (products.size !== ids.length) return { ok: false, status: 400, error: 'Policy stok barang penjualan tidak lengkap.' };
+  const warehouseEnabled = await storeWarehouseEnabled(db, storeId);
+
+  if (!warehouseEnabled) {
+    let totalPoints = 0;
+    const enrichedLines = lines.map(line => {
+      const product = products.get(Number(line.productId));
+      const linePoints = product.pointsPerUnit * Number(line.quantity);
+      totalPoints += linePoints;
+      return {
+        ...line,
+        pointsPerUnit: product.pointsPerUnit,
+        linePoints,
+        recipeId: null,
+        productionRunId: null
+      };
+    });
+    return { ok: true, lines: enrichedLines, totalPoints, statements: [] };
+  }
 
   const recipeIds = [];
   for (const line of lines) {
@@ -242,7 +268,8 @@ export async function prepareSaleStockProduction(db, {
       const run = productionRunStatements(db, {
         runId, storeId, drawerId, saleId, mode: 'AUTO_DADAKAN', product, recipe, batches,
         requestedSaleQuantity: Number(line.quantity), components,
-        actorRole: 'CASHIER', actorId: cashierId, now, notePrefix: 'Auto produksi dadakan'
+        actorRole: 'CASHIER', actorId: cashierId, now, notePrefix: 'Auto produksi dadakan',
+        warehouseEnabled
       });
       statements.push(...run.statements);
     }
@@ -275,13 +302,17 @@ export async function prepareManualProduction(db, {
   const componentsByRecipe = await loadRecipeComponents(db, storeId, [product.recipe.id]);
   const components = componentsByRecipe.get(product.recipe.id) || [];
   if (!components.length) return { ok: false, status: 409, error: 'Recipe Linked tidak memiliki komponen.' };
-  const tracking = validateTrackedProduction(product, components);
-  if (!tracking.ok) return tracking;
+  const warehouseEnabled = await storeWarehouseEnabled(db, storeId);
+  if (warehouseEnabled) {
+    const tracking = validateTrackedProduction(product, components);
+    if (!tracking.ok) return tracking;
+  }
   const runId = `production_${crypto.randomUUID()}`;
   const run = productionRunStatements(db, {
     runId, storeId, drawerId, saleId: null, mode: 'MANUAL', product, recipe: product.recipe,
     batches: batchCount, requestedSaleQuantity: null, components,
-    actorRole: 'CASHIER', actorId: cashierId, now, notePrefix: 'Produksi manual'
+    actorRole: 'CASHIER', actorId: cashierId, now, notePrefix: 'Produksi manual',
+    warehouseEnabled
   });
   return {
     ok: true,
@@ -308,6 +339,7 @@ export async function prepareManualProduction(db, {
 }
 
 export async function listManualProductionOptions(db, storeId) {
+  const warehouseFlag = await storeWarehouseEnabled(db, storeId) ? 1 : 0;
   const rows = await db.prepare(`
     SELECT p.id, p.name, u.symbol AS unit_symbol,
            r.id AS recipe_id, r.revision, r.output_quantity
@@ -320,11 +352,10 @@ export async function listManualProductionOptions(db, storeId) {
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     WHERE p.store_id = ? AND p.is_active = 1
-      AND p.stock_tracking_enabled = 1
-      AND COALESCE(t.track_stock, 1) = 1
+      AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
       AND COALESCE(t.can_produce, 1) = 1
     ORDER BY p.name COLLATE NOCASE
-  `).bind(storeId).all();
+  `).bind(storeId, warehouseFlag).all();
   return (rows.results ?? []).map(row => ({
     productId: Number(row.id),
     productName: row.name,

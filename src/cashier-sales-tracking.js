@@ -6,6 +6,7 @@ import { buildOrderNo } from './orders-multistore.js';
 import { getJakartaBusinessDate, isoNow } from './time.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { prepareSaleStockProduction, stockPostingFailure } from './stock-production.js';
+import { saleHppSnapshotSelect } from './manufacture-costing.js';
 import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
@@ -101,7 +102,7 @@ export function buildSaleStatements(db, {
       )
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
              p.product_kind_id, COALESCE(k.code, ''), COALESCE(k.name, ''),
-             p.average_cost, p.average_cost * ?
+             ${saleHppSnapshotSelect()}
       FROM products p
       LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
       WHERE p.id = ? AND p.store_id = ?

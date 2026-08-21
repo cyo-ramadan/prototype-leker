@@ -1,8 +1,15 @@
 # ADR-034 — Business Settings sebagai lapisan generic, Accounting sebagai extension opsional
 
-Status: PROPOSED — Bos Cyo memberi wewenang penuh ("setuju sama kamu aja"); ADR ini
-tetap ditulis sebagai proposal eksplisit, bukan keputusan senyap, karena
-menyangkut bentuk data yang menahan uang sungguhan (Constitution R2)
+Status: SEBAGIAN JALAN (update 2026-08-21) — §1 (`payment_methods` lepas dari kewajiban
+`account_id`) sudah kejawab lewat jalur lain: `karen-SA-PAYMENT-GATE-FIX` (PR #128)
+memindah runtime baca ke `src/pos-payment-methods.js` dan memakai `account_id` nullable +
+`NEEDS_PAYMENT_MAPPING` fail-closed di resolver Accounting — **bukan** tabel ekstensi
+`payment_method_accounts` yang diusulkan §1. Efeknya sama (POS tidak butuh `account_id`),
+caranya lebih sederhana. **Rekomendasi Hana: skip §1 apa adanya, tidak perlu tabel
+ekstensi baru** kecuali Bos Cyo mau tetap punya jalur multi-akun per cara bayar nanti.
+§2/§4 (gating dispatch + `stores.edition`) **belum jalan**, task-nya sudah di papan:
+`karen-BS-PAYMENT-ADMIN-ROUTE`, `karen-BS-STORES-EDITION`, `karen-BS-DISPATCH-GATING`.
+§3 sudah benar dari awal, tidak ada kerjaan.
 Date: 2026-08-19
 Change ID: `MAXI-BUSINESS-SETTINGS-BOUNDARY-20260819`
 Dikerjakan oleh: `hana1.1` — arsitektur, atas usulan dan wewenang Bos Cyo

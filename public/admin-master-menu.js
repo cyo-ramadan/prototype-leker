@@ -13,6 +13,27 @@
       .admin-master-menu-panel button{width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:10px 11px;font-weight:800;cursor:pointer;color:var(--ink)}
       .admin-master-menu-panel button:hover,.admin-master-menu-panel button:focus-visible{background:#f7f1ea;outline:none}
       .admin-master-menu-separator{height:1px;background:var(--line);margin:4px 2px}
+
+      .product-master-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 2px}
+      .product-master-search{position:relative;display:flex;align-items:center;flex:1 1 320px;min-width:220px}
+      .product-master-search::before{content:'⌕';position:absolute;left:12px;font-size:20px;line-height:1;color:var(--muted);pointer-events:none}
+      .product-master-search input{width:100%;min-width:0;border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px 10px 38px;font:inherit;color:var(--ink);outline:none}
+      .product-master-search input:focus{border-color:#b98253;box-shadow:0 0 0 3px rgba(185,130,83,.14)}
+      .product-master-search-meta{font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap}
+      .product-master-shortcut{border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px 11px;font:inherit;font-size:12px;font-weight:900;color:var(--ink);cursor:pointer;white-space:nowrap}
+      .product-master-shortcut:hover,.product-master-shortcut:focus-visible{background:#f7f1ea;outline:none}
+      #productList .master-row[hidden]{display:none!important}
+
+      @media (min-width:901px){
+        #tab-products #productForm{box-sizing:border-box;max-height:calc(100vh - 112px);max-height:calc(100dvh - 112px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:18px}
+        #tab-products .list-card{box-sizing:border-box;position:sticky;top:92px;max-height:calc(100vh - 112px);max-height:calc(100dvh - 112px);display:flex;flex-direction:column;min-height:0}
+        #tab-products .list-card #productList{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:4px}
+      }
+      @media (max-width:900px){
+        #tab-products #productForm,#tab-products .list-card{position:static;max-height:none;overflow:visible}
+        #tab-products .list-card #productList{overflow:visible;max-height:none;padding-right:0}
+        .product-master-search{flex-basis:100%;min-width:100%}
+      }
     `;
     document.head.appendChild(style);
   }
@@ -44,6 +65,82 @@
       const muted = manufacturing.querySelector('.list-head .muted');
       if (muted) muted.textContent = 'Master reusable untuk tipe operasional, jenis/accounting classification, satuan terkecil, dan recipe/BOM. Konfigurasi per barang dilakukan dari Master Barang.';
     }
+  }
+
+  function mountProductMasterUx() {
+    const productList = document.getElementById('productList');
+    const listCard = productList?.closest('.list-card');
+    if (!productList || !listCard || document.getElementById('productMasterTools')) return;
+
+    const tools = document.createElement('div');
+    tools.id = 'productMasterTools';
+    tools.className = 'product-master-tools';
+    tools.innerHTML = `
+      <label class="product-master-search" for="productSearch">
+        <span class="sr-only">Cari barang</span>
+        <input id="productSearch" type="search" autocomplete="off" placeholder="Cari nama, kategori, peran barang..." aria-label="Cari barang di Master Barang" />
+      </label>
+      <span id="productSearchMeta" class="product-master-search-meta" aria-live="polite">0 barang</span>
+      <button id="productSettingsShortcut" class="product-master-shortcut" type="button">⚙ Pengaturan</button>`;
+    listCard.insertBefore(tools, productList);
+
+    const search = document.getElementById('productSearch');
+    const meta = document.getElementById('productSearchMeta');
+    const settingsShortcut = document.getElementById('productSettingsShortcut');
+    const normalize = value => String(value ?? '').trim().toLocaleLowerCase('id-ID');
+
+    function applyProductFilter() {
+      const query = normalize(search?.value);
+      const rows = [...productList.querySelectorAll('.master-row')];
+      let visible = 0;
+      for (const row of rows) {
+        const matches = !query || normalize(row.textContent).includes(query);
+        row.hidden = !matches;
+        if (matches) visible += 1;
+      }
+      if (!meta) return;
+      if (!rows.length) meta.textContent = 'Belum ada barang';
+      else if (!query) meta.textContent = `${rows.length} barang`;
+      else if (!visible) meta.textContent = `0 dari ${rows.length} · tidak ada yang cocok`;
+      else meta.textContent = `${visible} dari ${rows.length} barang`;
+    }
+
+    let filterScheduled = false;
+    function scheduleFilter() {
+      if (filterScheduled) return;
+      filterScheduled = true;
+      queueMicrotask(() => {
+        filterScheduled = false;
+        applyProductFilter();
+      });
+    }
+
+    search?.addEventListener('input', applyProductFilter);
+    search?.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !search.value) return;
+      search.value = '';
+      applyProductFilter();
+    });
+
+    settingsShortcut?.addEventListener('click', () => {
+      const details = document.getElementById('productOperationalDetails');
+      const form = document.getElementById('productForm');
+      if (details) {
+        details.open = true;
+        details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        form?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+
+    productList.addEventListener('click', event => {
+      if (!event.target.closest?.('[data-edit-product]')) return;
+      if (!window.matchMedia('(min-width: 901px)').matches) return;
+      requestAnimationFrame(() => document.getElementById('productForm')?.scrollTo({ top: 0, behavior: 'smooth' }));
+    });
+
+    new MutationObserver(scheduleFilter).observe(productList, { childList: true, subtree: true });
+    applyProductFilter();
   }
 
   function mount() {
@@ -171,6 +268,7 @@
     });
 
     enforceIntegerMasterUi();
+    mountProductMasterUx();
     const components = document.getElementById('recipeComponents');
     if (components) new MutationObserver(enforceIntegerMasterUi).observe(components, { childList: true, subtree: true });
   }

@@ -9,12 +9,12 @@ function positiveInteger(value) {
 
 function nonNegativeInteger(value) {
   const number = Number(value);
-  return Number.isInteger(number) && number >= 0 ? number : null;
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
 async function stockProductSnapshot(db, storeId, productId, { trackedOnly = false } = {}) {
   return db.prepare(`
-    SELECT p.id, p.name, p.base_unit_id, p.stock_tracking_enabled,
+    SELECT p.id, p.name, p.base_unit_id, p.stock_tracking_enabled, p.average_cost,
            u.symbol AS unit_symbol,
            COALESCE(b.quantity, 0) AS current_quantity
     FROM products p
@@ -85,7 +85,7 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
         return { ok: false, error: 'Barang Penyesuaian Stok harus aktif dalam stock tracking dan memiliki satuan dasar.' };
       }
       const currentQuantitySnapshot = Number(product.current_quantity || 0);
-      if (!Number.isInteger(currentQuantitySnapshot) || currentQuantitySnapshot < 0) {
+      if (!Number.isSafeInteger(currentQuantitySnapshot) || currentQuantitySnapshot < 0) {
         return { ok: false, error: 'Saldo stok saat ini tidak valid untuk Penyesuaian Stok.' };
       }
       if (targetQuantity === currentQuantitySnapshot) {
@@ -93,6 +93,15 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
       }
       const direction = targetQuantity > currentQuantitySnapshot ? 'IN' : 'OUT';
       const quantity = Math.abs(targetQuantity - currentQuantitySnapshot);
+      const unitCostSnapshotScaled = Number(product.average_cost);
+      const totalCostSnapshotScaled = unitCostSnapshotScaled * quantity;
+      if (
+        !Number.isSafeInteger(unitCostSnapshotScaled)
+        || unitCostSnapshotScaled < 0
+        || !Number.isSafeInteger(totalCostSnapshotScaled)
+      ) {
+        return { ok: false, error: 'HPP barang tidak valid atau melampaui batas integer aman untuk Penyesuaian Stok.' };
+      }
       return {
         ok: true,
         payload: {
@@ -105,6 +114,8 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
           targetQuantity,
           direction,
           quantity,
+          unitCostSnapshotScaled,
+          totalCostSnapshotScaled,
           reason,
           note: text(payload.note, 500)
         }

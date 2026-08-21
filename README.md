@@ -149,12 +149,12 @@ Satu gerai hanya boleh mempunyai satu laci `OPEN`. Banyak akun kasir berbeda dap
 Penyesuaian Stok adalah audited Inventory/Costing correction flow dan menggunakan Approval Queue yang sama dengan Arus Kas/Arus Barang/Aset.
 
 - Kasir memilih barang stock-tracked, mengisi target stok fisik, alasan wajib, dan optional note.
-- Server menyimpan snapshot stok saat pengajuan dan menghitung delta IN/OUT.
+- Server menyimpan snapshot stok saat pengajuan, menghitung delta IN/OUT, lalu menyimpan `unitCostSnapshotScaled` dan `totalCostSnapshotScaled` dari HPP saat itu di payload approval yang immutable.
 - Pengajuan tidak mengubah stok saat dibuat.
 - Admin Gerai/Owner ACC melakukan re-check current stock terhadap snapshot.
 - Jika stok berubah setelah pengajuan, request ditolak sebagai `STOCK_ADJUSTMENT_STALE` dan harus diajukan ulang.
 - ACC yang valid mengubah `inventory_stock_balances`, menambah `inventory_ledger_entries`, menambah `stock_movements` dengan source `STOCK_ADJUSTMENT`, dan menandai approval posted dalam satu batch.
-- Flow v1 hanya mengoreksi quantity; Average Cost dan historical HPP tidak ditulis ulang.
+- Flow v2 mengoreksi quantity dan membawa valuation evidence exact-scaled. Posting adjustment tidak mengubah Average Cost; perubahan HPP berikutnya juga tidak menulis ulang snapshot adjustment lama.
 
 ### Refresh dan bootstrap kasir
 

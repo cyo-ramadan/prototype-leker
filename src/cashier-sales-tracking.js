@@ -76,7 +76,7 @@ async function pointContext(db, storeId, customerId) {
   return { customerId, shareGroupId: scope.group?.id || null };
 }
 
-function buildSaleStatements(db, {
+export function buildSaleStatements(db, {
   saleId, storeId, drawerId, cashierId, linkedOrderId, customerId, customerName,
   total, totalPoints, note, now, channel, lines, operationalStatements, pointShareGroupId
 }) {

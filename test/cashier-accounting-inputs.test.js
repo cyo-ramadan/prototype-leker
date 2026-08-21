@@ -9,13 +9,16 @@ const enhancedInputUi = readFileSync(new URL('../public/cashier-enhancements.js'
 const sales = readFileSync(new URL('../src/cashier-sales-tracking.js', import.meta.url), 'utf8');
 const purchases = readFileSync(new URL('../src/cashier-purchase.js', import.meta.url), 'utf8');
 const expenses = readFileSync(new URL('../src/cashier-operational-expense.js', import.meta.url), 'utf8');
+const posPayments = readFileSync(new URL('../src/pos-payment-methods.js', import.meta.url), 'utf8');
+const accountingBridge = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
 const drawerReport = readFileSync(new URL('../src/drawer-report.js', import.meta.url), 'utf8');
 const purchaseDefaults = readFileSync(new URL('../migrations/0029_purchase_accounting_defaults.sql', import.meta.url), 'utf8');
 const cashierPosCss = readFileSync(new URL('../public/cashier-pos.css', import.meta.url), 'utf8');
 const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
 
-test('cashier workspace exposes configured payment methods without Accounting rule components', () => {
+test('cashier workspace exposes POS-owned payment methods without Accounting rule components', () => {
   assert.match(workspace, /listPosPaymentMethods/);
+  assert.match(workspace, /from '\.\/pos-payment-methods\.js'/);
   assert.match(workspace, /paymentMethods/);
   assert.doesNotMatch(workspace, /listOperationalAccountingComponents|operationalAccountingComponents/);
   assert.match(workspaceUi, /state\.paymentMethods/);
@@ -23,10 +26,17 @@ test('cashier workspace exposes configured payment methods without Accounting ru
   assert.match(workspaceUi, /cashier:workspace-applied/);
 });
 
-test('sale purchase and operational writes validate payment codes through Accounting Settings', () => {
+test('sale purchase and operational writes validate payment codes through POS Core', () => {
   assert.match(sales, /resolvePosPaymentMethod/);
   assert.match(purchases, /resolvePosPaymentMethod/);
   assert.match(expenses, /resolvePosPaymentMethod/);
+  for (const source of [sales, purchases, expenses]) {
+    assert.match(source, /from '\.\/pos-payment-methods\.js'/);
+    assert.doesNotMatch(source, /PAYMENT_METHOD_NOT_AVAILABLE[\s\S]{0,200}Setting Akuntansi/);
+  }
+  assert.match(posPayments, /FROM payment_methods/);
+  assert.doesNotMatch(posPayments, /chart_of_accounts|account_id/i);
+  assert.doesNotMatch(accountingBridge, /export async function (?:list|resolve)PosPaymentMethods/);
   assert.doesNotMatch(sales, /NON_CASH'\s*\?\s*'NON_CASH'\s*:\s*'CASH'/);
   assert.doesNotMatch(purchases, /const PAYMENT_METHODS = new Set/);
   assert.doesNotMatch(purchases, /function purchasePaymentMethod/);
@@ -50,6 +60,8 @@ test('cashier UI consumes the configured registry for sale purchase and operatio
   assert.match(inputUi, /state\.paymentMethods/);
   assert.match(inputUi, /item\.isDefault/);
   assert.match(inputUi, /Hanya CASH/);
+  assert.match(inputUi, /metode bayar POS/);
+  assert.doesNotMatch(inputUi, /cara bayar aktif di Setting Akuntansi|Berasal dari Setting Akuntansi/);
 });
 
 test('purchase dialog keeps one Accounting payment selector and uses an add-to-detail composer', () => {

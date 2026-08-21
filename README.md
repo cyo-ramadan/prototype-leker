@@ -127,7 +127,7 @@ Posted journal immutable. Exact journal values menggunakan scaled INTEGER `1 rup
 **Setting Akuntansi** hanya mengatur mapping/configuration dan tidak membuat akun atau melakukan posting jurnal.
 
 - account reference dibaca dari Akuntansi;
-- payment method diarahkan ke account settlement;
+- payment method milik POS diarahkan ke account settlement sebagai mapping terpisah;
 - Jenis Barang diarahkan ke account Persediaan/HPP/Penjualan;
 - transaction categories memiliki ordered Debit/Credit rules;
 - status `Lengkap` hanya readiness structure, bukan izin bypass Accounting posting engine.
@@ -138,7 +138,7 @@ Untuk Penjualan, baseline resolver mendukung settlement Debit, Pendapatan Credit
 
 Kasir tidak memilih gerai sendiri; server mengambil gerai dari akun kasir. Cashier workspace mempunyai Pilih Menu, Draft Menu, queue order customer, Buka Laci, Beli Bahan, Pengeluaran, Pendapatan Lain, Penyesuaian Stok, Produksi, Arus Kas, Arus Barang, Aset, Detail Laci, dan Tutup Laci.
 
-Cara bayar Penjualan, Beli Bahan, dan Pengeluaran dibaca dari payment method aktif di Setting Akuntansi. POS hanya menyimpan kode metode yang dipilih; Account ID dan interpretasi Debit/Kredit tetap dimiliki Accounting. Hanya kode `CASH` yang memengaruhi kas fisik laci, sedangkan semua metode aktif lainnya diklasifikasikan non-cash.
+Cara bayar Penjualan, Beli Bahan, dan Pengeluaran dibaca dari registry `payment_methods` milik POS Core. Validasi transaksi POS tidak membaca Account ID atau readiness Setting Transaksi; metode aktif tetap sah walaupun belum dipetakan ke akun. POS hanya menyimpan kode metode yang dipilih. Accounting membaca mapping akun secara terpisah setelah fact committed dan fail-closed sebagai `NEEDS_PAYMENT_MAPPING` bila mapping belum tersedia. Hanya kode `CASH` yang memengaruhi kas fisik laci, sedangkan semua metode aktif lainnya diklasifikasikan non-cash.
 
 Jika Operasional memiliki beberapa komponen Debit aktif, kasir memilih komponen berdasarkan identitas journal rule. Untuk Arus Kas, kasir memilih akun lawan hanya dari pilihan per arah yang dikelola admin melalui Setting Akuntansi; pilihan default Setting Akuntansi otomatis terpilih. Pembelian hanya memakai barang purchasable + stock-tracked dari Master Barang; Debit persediaan mengikuti mapping Jenis Barang dan Credit mengikuti metode pembayaran canonical. Satu metode pembayaran aktif ditandai sebagai default oleh admin. Arus Kas yang sudah ACC + posted dikirim post-commit ke Accounting melalui `MAXI_ACCOUNTING_CASH_FLOW_BRIDGE_V1`; kegagalan konfigurasi Accounting tidak membatalkan fakta operasional dan dapat direkonsiliasi secara idempotent.
 

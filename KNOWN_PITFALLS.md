@@ -110,6 +110,12 @@ Explorer hanya read model dengan `sourceReference`. Perubahan transaksi tetap ha
 
 `Lengkap` hanya membuktikan ada minimal satu Debit dan satu Kredit aktif. Posting masih wajib resolve payment method aktual, Jenis Barang transaksi, amount, direction/subtype, period, tenant/store context, idempotency, dan contract Accounting. Jangan membuat fallback account ketika source rule tidak bisa di-resolve.
 
+## Payment method aktif bukan berarti mapping Accounting siap
+
+**Pitfall:** Jangan memakai `payment_methods.account_id` atau resolver Accounting untuk memutuskan apakah SALE/PURCHASE/EXPENSE boleh committed.
+
+Identity, status aktif, dan default payment method adalah kebutuhan POS Core. Row aktif tanpa akun tetap valid untuk business fact. Account mapping hanya dibaca Accounting bridge setelah commit; mapping kosong wajib menghasilkan `NEEDS_PAYMENT_MAPPING` tanpa membatalkan transaksi operasional.
+
 ## Warehouse tidak boleh punya mapping akun tandingan
 
 **Pitfall:** Jangan membuat `warehouse_account_mapping`, account dropdown di Warehouse Settings, atau hardcoded akun di kode Warehouse.

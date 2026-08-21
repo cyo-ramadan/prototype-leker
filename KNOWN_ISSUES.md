@@ -206,12 +206,13 @@ Implemented POS bridge:
 
 ### Active: dynamic payment methods
 
-Cashier sale, purchase, and operational-expense inputs now load active `payment_methods` from Accounting Settings. The POS fact carries the selected method code and never carries an Account ID or Debit/Credit decision.
+Cashier sale, purchase, and operational-expense inputs load active `payment_methods` through the POS Core boundary. The POS fact carries the selected method code and never carries an Account ID or Debit/Credit decision. The legacy management surface still lives on the Accounting Settings route while the broader ADR-038 variable-provider refactor is pending; cashier validation no longer imports the Accounting bridge.
 
 - only `CASH` is classified as physical drawer cash;
 - every other active method is non-cash for drawer reconciliation;
 - legacy `NON_CASH` remains an explicit compatibility payment component and intentionally has no default account mapping;
 - inactive or unknown method codes fail closed before the POS fact is written.
+- an active method with `account_id = NULL` remains valid for the POS fact; only the post-commit Accounting delivery reports `NEEDS_PAYMENT_MAPPING`.
 
 ### Active: operational component selection
 

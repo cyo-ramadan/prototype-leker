@@ -71,6 +71,7 @@ test('expense creation writes business fact and snapshot without an Accounting r
     assert.ok(cashier, 'G001 cashier seed required');
     const costMaster = db.prepare("SELECT id FROM cost_masters WHERE store_id = 'store_001' AND is_active = 1 ORDER BY id LIMIT 1").get();
     assert.ok(costMaster, 'G001 Cost Master seed required');
+    db.prepare("UPDATE payment_methods SET account_id = NULL WHERE store_id = ? AND code = 'CASH'").run(cashier.store_id);
 
     const token = 'operational-boundary-test-token';
     const tokenHash = await hashCredential(token);

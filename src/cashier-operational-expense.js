@@ -2,7 +2,7 @@ import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
-import { resolvePosPaymentMethod } from './accounting-pos-bridge.js';
+import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
@@ -43,7 +43,7 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
   if (Array.isArray(body.value?.items)) {
     if (!body.value.items.length || body.value.items.length > 50) return json({ error: 'Operasional wajib memiliki 1–50 detail biaya.' }, 400);
     const resolvedPayment = await resolvePosPaymentMethod(env.DB, auth.cashier.store.id, body.value?.paymentMethod, 'CASH');
-    if (!resolvedPayment) return json({ error: 'Cara bayar operasional tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+    if (!resolvedPayment) return json({ error: 'Cara bayar operasional tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
     const ids = body.value.items.map(item => text(item?.costMasterId, 160));
     if (ids.some(id => !id) || new Set(ids).size !== ids.length) return json({ error: 'Master Biaya wajib valid dan tidak boleh duplikat.' }, 400);
     const placeholders = ids.map(() => '?').join(',');
@@ -104,7 +104,7 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
   const quantity = canonicalPositiveDecimal(body.value?.quantity ?? '1');
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, auth.cashier.store.id, body.value?.paymentMethod, 'CASH');
   if (!resolvedPayment) {
-    return json({ error: 'Cara bayar operasional tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+    return json({ error: 'Cara bayar operasional tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
   }
   if (!description || amount === null || !quantity) {
     return json({ error: 'Deskripsi, qty, dan total nominal pengeluaran wajib valid.' }, 400);

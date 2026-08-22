@@ -18,6 +18,17 @@ transkrip tetap bisa dilacak siapa bilang/kerja apa.
 Bos Cyo bukan orang koding. Jelasin logic-nya aja saat lapor masalah — bukan nama
 file, mekanisme internal, atau istilah API/tooling — kecuali dia nanya lebih dalam.
 
+Bos Cyo itu pengusaha, bukan pemilik keputusan teknis. Kalau ada keputusan yang
+kelihatannya teknis (ADR nyisain "open decision", pilihan arsitektur, dst) tapi
+akarnya soal kebutuhan bisnis/customer, **jangan dilempar mentah-mentah** buat
+diputusin sendiri sama Bos Cyo. Terjemahin dulu ke bahasa bisnis/dampak ke
+customer, bentuk rekomendasi konkret berdasarkan pertimbangan itu, baru
+disodorin ke Bos Cyo buat di-ACC atau di-veto — bukan disodorin sebagai daftar
+opsi teknis yang dia harus milih sendiri. Beri rekomendasi, jangan cuma
+nanya. Keputusan yang sungguh-sungguh cuma Bos Cyo yang bisa jawab (duit,
+hukum, siapa customer yang diprioritaskan) tetap dibawa ke dia, tapi selalu
+dibungkus rekomendasi Hana lebih dulu — bukan pertanyaan telanjang.
+
 ## Siapa mengerjakan apa
 
 - **Zee** — Claude di claude.ai. Tidak punya akses GitHub langsung. Sejak

@@ -47,6 +47,7 @@ Current behavior:
 - production components and runs use `*_scaled` exact integer HPP fields;
 - legacy production REAL cost columns remain read-only history fallback and are not written by the new engine;
 - sale items snapshot scaled unit HPP and line COGS so history is not recomputed from current master values;
+- new Stock Adjustment requests snapshot exact scaled unit/total HPP in their immutable approval payload without becoming an `average_cost` writer;
 - Admin has dedicated Stok and lazy transaction-detail read models.
 
 ### Open: canonical fractional inventory quantity migration
@@ -79,12 +80,14 @@ The audited Penyesuaian Stok path is now active, so the former operational-deadl
 Cashier Penyesuaian Stok now reuses the Approval Queue and canonical inventory source:
 
 - cashier chooses a tracked Product Master item and target physical quantity;
-- server snapshots current stock and derives IN/OUT delta;
+- server snapshots current stock, derives IN/OUT delta, and records exact `unitCostSnapshotScaled` + `totalCostSnapshotScaled` valuation evidence;
 - Admin/Owner ACC rechecks the snapshot;
 - stale requests fail closed without stock mutation;
 - successful ACC updates `inventory_stock_balances`, inventory ledger evidence, and `stock_movements` atomically;
 - no second stock table/source is created;
-- V1 does not rewrite Average Cost/HPP merely because quantity is corrected.
+- V2 never rewrites Average Cost/HPP merely because quantity is corrected;
+- HPP changes after staging leave the older payload untouched, while the next adjustment snapshots the new HPP;
+- legacy V1 payloads remain quantity-only history and are never backfilled from today's Product Master HPP.
 
 ### Open: Sale-level fulfillment migration
 
@@ -206,12 +209,13 @@ Implemented POS bridge:
 
 ### Active: dynamic payment methods
 
-Cashier sale, purchase, and operational-expense inputs now load active `payment_methods` from Accounting Settings. The POS fact carries the selected method code and never carries an Account ID or Debit/Credit decision.
+Cashier sale, purchase, and operational-expense inputs load active `payment_methods` through the POS Core boundary. The POS fact carries the selected method code and never carries an Account ID or Debit/Credit decision. The legacy management surface still lives on the Accounting Settings route while the broader ADR-038 variable-provider refactor is pending; cashier validation no longer imports the Accounting bridge.
 
 - only `CASH` is classified as physical drawer cash;
 - every other active method is non-cash for drawer reconciliation;
 - legacy `NON_CASH` remains an explicit compatibility payment component and intentionally has no default account mapping;
 - inactive or unknown method codes fail closed before the POS fact is written.
+- an active method with `account_id = NULL` remains valid for the POS fact; only the post-commit Accounting delivery reports `NEEDS_PAYMENT_MAPPING`.
 
 ### Active: operational component selection
 

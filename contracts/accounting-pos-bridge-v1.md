@@ -39,9 +39,9 @@ If Accounting mapping is missing or Accounting delivery fails:
 
 ## Mapping Ownership
 
-The bridge reads only the canonical Settings registry:
+The bridge reads the canonical operational registries plus Accounting configuration:
 
-- `payment_methods`;
+- POS-owned `payment_methods` identity/status and its nullable Accounting mapping;
 - `item_categories`;
 - `transaction_categories`;
 - `journal_rules`;
@@ -68,11 +68,11 @@ Sale HPP snapshots already use this scale, so HPP can now flow to Accounting wit
 
 ### Payment method
 
-A `payment_method` rule resolves the transaction payment-method code through `payment_methods.account_id`.
+A `payment_method` rule resolves the POS-owned transaction payment-method code through the current compatibility mapping `payment_methods.account_id`.
 
 If the method or account mapping is unavailable, the bridge returns `NEEDS_PAYMENT_METHOD` or `NEEDS_PAYMENT_MAPPING`.
 
-Cashier SALE/PURCHASE/EXPENSE inputs consume the active `payment_methods` registry. Only code `CASH` represents physical drawer cash; every other active code is classified as non-cash by the drawer read model.
+Cashier SALE/PURCHASE/EXPENSE inputs consume the active `payment_methods` registry through `src/pos-payment-methods.js`, independently of this Accounting bridge. They may commit with an active method whose `account_id` is `NULL`; the operational fact succeeds and the post-commit bridge returns `NEEDS_PAYMENT_MAPPING`. Only code `CASH` represents physical drawer cash; every other active code is classified as non-cash by the drawer read model.
 
 ### Sale revenue
 
@@ -100,7 +100,7 @@ Amounts use the exact purchase line amount converted from whole rupiah to Accoun
 
 The cashier may select only active Master Barang products that are purchasable and stock-tracked. Each Jenis Barang receives an editable initial mapping to `Persediaan Bahan`; administrators may map finished or semi-finished kinds to another active inventory account through Setting Akuntansi.
 
-The purchase journal shape is Debit `item_category_inventory` and Credit `payment_method`. The payment method and its account come from Setting Akuntansi. Exactly one active payment method is the store default when the cashier has not selected one; the initial default is `CASH`. `PAYABLE` credits Utang Usaha. `RECEIVABLE_OFFSET` is seeded inactive and is valid only for an intentional supplier-receivable offset after administrator review.
+The purchase journal shape is Debit `item_category_inventory` and Credit `payment_method`. Payment identity/default come from POS Core; its Accounting account mapping is resolved only by this bridge. Exactly one active payment method is the store default when the cashier has not selected one; the initial default is `CASH`. `PAYABLE` credits Utang Usaha when that mapping exists. `RECEIVABLE_OFFSET` is seeded inactive and is valid only for an intentional supplier-receivable offset after administrator review.
 
 ### Operational expense
 

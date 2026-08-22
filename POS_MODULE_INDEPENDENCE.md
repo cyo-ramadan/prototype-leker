@@ -61,12 +61,12 @@ Poin yang gampang salah paham, dua lapis:
   paling canggih (`RECIPE_WEIGHTED_AVERAGE`) kebetulan butuh angka dari Warehouse.
   Detailnya `ADR-037` §2.3.
 
-## Status tiap bagian, per 2026-08-20
+## Status tiap bagian, per 2026-08-22
 
 | Bagian | ADR | Status |
 |---|---|---|
 | Setting Transaksi (cara Setting Akuntansi bikin & pasang aturan posting) | `ADR-033` | **Sudah jadi, sudah jalan.** Dua tombol (Bikin Grup, Pasang Grup) sudah bisa dipakai admin hari ini. |
-| Business Settings jadi lapisan generic, Accounting jadi extension opsional | `ADR-034` | **Baru rancangan.** Belum ada satu baris kode pun yang jalan dari 4 fase yang direncanakan. |
+| Business Settings jadi lapisan generic, Accounting jadi extension opsional | `ADR-034` | **Implementasi parsial.** Route admin Business Settings sudah mendarat di PR #136; `stores.edition` dan gating seed target di migration `0045`. Rencana extension table disupersede boundary nullable/fail-closed PR #128. Dispatch gating masih pending. |
 | Manufaktur — HPP dipusatkan, wajib ada, modenya pluggable | `ADR-037` | **Baru rancangan, arah disetujui Bos Cyo 2026-08-20.** Menyerap Produksi (`ADR-035`) dan menutup utang audit HPP (issue #88). Belum ada kode yang dipindah. |
 | Warehouse jadi modul opsional — sekarang lingkupnya murni kuantitas stok | `ADR-036` | **Baru audit + konsep, direvisi menyempit oleh `ADR-037`.** HPP-nya sudah pindah ke Manufaktur; sisa PR-nya cuma soal kuantitas stok — jelasnya di bawah. |
 

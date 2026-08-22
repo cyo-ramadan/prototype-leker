@@ -14,6 +14,11 @@ Prototype self-ordering + branch administration + cashier workspace untuk MAXI L
 
 Gerai bukan master data. `/admin` adalah Owner Console. Workspace gerai berada di `/s/<KODE>/admin`.
 
+Setiap gerai memiliki `stores.edition`: `LITE`, `FLEXIBLE`, atau `ACCOUNTING`. Default
+tetap `ACCOUNTING` agar gerai existing dan caller yang tidak mengirim edition tidak
+berubah perilaku; `LITE`/`FLEXIBLE` mempertahankan registry cara bayar POS Core tanpa
+Account ID sebagai fondasi produk tanpa Accounting.
+
 ## Jalan pintas — agen dengan tugas dari papan `maxi-agent-bus`
 
 Kalau kamu agen implementer (Karen, Kimi, Manus, Grok, atau lainnya) yang ditugaskan lewat

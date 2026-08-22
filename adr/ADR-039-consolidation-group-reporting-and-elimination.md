@@ -1,4 +1,4 @@
-# ADR-038 — Consolidation Group: laporan gabungan lintas-Entity, versioned mapping, dan eliminasi
+# ADR-039 — Consolidation Group: laporan gabungan lintas-Entity, versioned mapping, dan eliminasi
 
 Status: ACCEPTED — di-ACC Bos Cyo 2026-08-22, termasuk rekomendasi Hana di §5.
 Date: 2026-08-22
@@ -107,7 +107,7 @@ adalah **tempat yang enggak boleh dilewatin diam-diam**:
 - Titik resolusi periode di §2-3 (yang sekarang asumsi satu `business_date` seragam untuk
   semua Entity dalam grup) adalah titik yang harus direvisit begitu ada Entity berkalender
   fiskal beda. Task turunan ADR ini (§7) wajib nulis komentar eksplisit di titik itu yang
-  nunjuk balik ke ADR-038 §5.1 — supaya agen berikutnya enggak mengasumsikan kalender
+  nunjuk balik ke ADR-039 §5.1 — supaya agen berikutnya enggak mengasumsikan kalender
   seragam itu permanen.
 - Dicatat di `KNOWN_ISSUES.md` sebagai kebutuhan yang diketahui tapi belum kelar, supaya
   kelihatan di daftar rutin tanpa perlu ADR baru dulu buat sekadar melacaknya.

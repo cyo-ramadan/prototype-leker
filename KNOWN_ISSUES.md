@@ -284,18 +284,18 @@ If browser-tab lease or takeover creates a new failure, record a new issue and d
 
 ## Consolidation Group reporting
 
-Governed by ADR-030 and ADR-038. Combined Neraca/Laba-Rugi across Entities, versioned
+Governed by ADR-030 and ADR-039. Combined Neraca/Laba-Rugi across Entities, versioned
 account mapping to a group Chart of Accounts, and intercompany elimination are designed
-in ADR-038; implementation tasks are tracked on the `maxi-agent-bus` board under territory
+in ADR-039; implementation tasks are tracked on the `maxi-agent-bus` board under territory
 `consolidation-reporting`.
 
 ### Open: fiscal calendar alignment across entities
 
-ADR-030 left this an explicit open decision (Bos Cyo). ADR-038 §5 resolved the other three
+ADR-030 left this an explicit open decision (Bos Cyo). ADR-039 §5 resolved the other three
 open decisions from ADR-030 (reporting-only consolidation, no silent restatement, single
 money scale) but this one stays deliberately parked — no schema or code exists for it, on
 purpose, because there is no real customer case yet to shape it from. The period-resolution
-point in the consolidated report design (ADR-038 §2-3, which today assumes every Entity in
+point in the consolidated report design (ADR-039 §2-3, which today assumes every Entity in
 a group shares one calendar via the existing `business_date`) is the point that must be
 revisited once an Entity with a different fiscal year boundary exists. A placeholder task
 (`ON_HOLD`, territory `consolidation-reporting`) exists on the task board to keep this from
@@ -303,4 +303,4 @@ being rediscovered from scratch; it is intentionally not claimed by anyone.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations, and now Consolidation Group reporting (ADR-038).
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations, and now Consolidation Group reporting (ADR-039).

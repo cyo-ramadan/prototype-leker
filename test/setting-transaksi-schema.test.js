@@ -32,13 +32,13 @@ test('migration 0042 does not add, remove, or change any existing journal_rules 
     before.prepare(`SELECT id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, sort_order, is_default FROM journal_rules ORDER BY id`).all()
   );
 
-  // Re-derive the same snapshot but from a DB that stopped one migration short of 0042,
-  // to prove 0042 itself introduces zero behavior change for existing rows.
+  // Build the historical snapshot exactly as it existed before 0042. Later
+  // migrations may legitimately depend on schema introduced by 0042, so they
+  // must not be replayed into this pre-0042 fixture.
   const withoutChoiceGroups = new DatabaseSync(':memory:');
   withoutChoiceGroups.exec('PRAGMA foreign_keys = ON;');
   for (const file of migrations()) {
-    // 0043 rebuilds a table 0042 creates, so it cannot run without 0042.
-    if (file === '0042_accounting_choice_groups.sql' || file === '0043_choice_option_account_optional.sql') continue;
+    if (file >= '0042_') break;
     withoutChoiceGroups.exec(read(file));
   }
   const beforeRowsPre0042 = JSON.stringify(
@@ -53,8 +53,7 @@ test('creating a new store still seeds journal_rules exactly as before (seed tri
   const withoutChoiceGroups = new DatabaseSync(':memory:');
   withoutChoiceGroups.exec('PRAGMA foreign_keys = ON;');
   for (const file of migrations()) {
-    // 0043 rebuilds a table 0042 creates, so it cannot run without 0042.
-    if (file === '0042_accounting_choice_groups.sql' || file === '0043_choice_option_account_optional.sql') continue;
+    if (file >= '0042_') break;
     withoutChoiceGroups.exec(read(file));
   }
 

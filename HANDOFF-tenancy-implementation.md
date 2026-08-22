@@ -55,18 +55,27 @@ persis entity yang berada di bawah tenant yang diminta.
 
 ## Fase 2 — Kolom `entity_id` di tabel ledger (additive, belum dipakai filter)
 
-**Paths:** migration baru, `test/ledger-entity-backfill.test.js`
+**Paths:** `migrations/0046_tenancy_ledger_entity_column.sql`,
+`test/ledger-entity-backfill.test.js`
+
+**Implementasi:** PR #141 mengerjakan Fase 2 tanpa mengubah read/filter runtime.
+Tiga ledger Inventory (`inventory_stock_balances`, `inventory_ledger_entries`,
+`stock_movements`) memakai additive `ALTER TABLE` + backfill. Dua tabel posted
+journal (`accounting_journal_headers`, `accounting_journal_lines`) direbuild
+secara lossless karena trigger immutability melarang `UPDATE` terhadap posted
+journal; rebuild mempertahankan kolom existing, reversal link, index, scope
+trigger, dan immutable update/delete trigger lalu menambahkan `entity_id`.
 
 Tabel yang menyimpan fakta finansial/nilai (per `ADR-030` §2, ini yang
 sebenarnya butuh anchor ke Entity, bukan Tenant):
 `accounting_journal_headers`, `accounting_journal_lines`,
 `inventory_stock_balances`, `inventory_ledger_entries`, `stock_movements`.
 
-1. `ALTER TABLE <tabel> ADD COLUMN entity_id TEXT REFERENCES entities(id)` —
-   nullable, additive, persis pola `migrations/0039`/`0044`.
-2. Backfill lewat JOIN ke `stores.entity_id` (tabel-tabel itu semua punya
-   `store_id`). Kalau ada baris tanpa `store_id` yang valid, migration gagal
-   (guard pattern sama seperti `tenancy_backfill_guard_20260818` di `0039`) —
+1. Tambahkan `entity_id TEXT REFERENCES entities(id)` secara additive. Untuk
+   Inventory dipakai `ALTER TABLE`; untuk dua tabel posted journal dipakai
+   rebuild lossless agar tidak melewati invariant immutability.
+2. Backfill lewat `stores.entity_id` (tabel-tabel itu semua punya `store_id`).
+   Kalau ada baris tanpa owner Entity yang valid, migration gagal lewat guard;
    jangan biarkan baris finansial tanpa books-owner lolos diam-diam.
 3. **Belum ada satu query pun yang mulai FILTER pakai `entity_id`** di fase
    ini — itu Fase 3. Fase ini murni "kolomnya ada dan terisi benar."
@@ -74,10 +83,10 @@ sebenarnya butuh anchor ke Entity, bukan Tenant):
 **WAJIB:** migration baru, jangan sentuh migration yang sudah applied
 (invariant #7). Boleh paralel dengan Fase 1 — beda file total.
 
-**Acceptance:** 344+ test existing hijau; test baru buktikan tiap baris di
-lima tabel itu punya `entity_id` yang match dengan `entity_id` gerai
-pemiliknya lewat `store_id`; tidak ada baris finansial yang lolos tanpa
-`entity_id` terisi.
+**Acceptance:** seluruh test existing hijau; test Fase 2 membuktikan tiap baris
+di lima tabel punya `entity_id` yang match dengan `entity_id` gerai pemiliknya
+lewat `store_id`, row count/reversal link tetap utuh, immutability posted journal
+tetap aktif, dan migration fail-closed bila owner Entity tidak bisa di-resolve.
 
 ## Fase 3 — Enforcement (belum ditulis jadi task, sengaja)
 
@@ -103,4 +112,5 @@ diklaim segera, boleh paralel satu sama lain. Fase 3 menyusul.
 ## DOC-IMPACT
 
 **REQUIRED** — perbarui dokumen ini setiap fase mendarat. `MODULE_CATALOG.md`
-diperbarui begitu Fase 1-2 selesai.
+diperbarui begitu Fase 1-2 selesai. PR #141 memperbarui detail implementasi
+Fase 2 dalam changeset yang sama dengan migration dan regression-nya.

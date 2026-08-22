@@ -1,11 +1,25 @@
 # ADR-034 — Business Settings sebagai lapisan generic, Accounting sebagai extension opsional
 
-Status: PROPOSED — Bos Cyo memberi wewenang penuh ("setuju sama kamu aja"); ADR ini
-tetap ditulis sebagai proposal eksplisit, bukan keputusan senyap, karena
-menyangkut bentuk data yang menahan uang sungguhan (Constitution R2)
+Status: ACCEPTED, PARTIALLY IMPLEMENTED — Bos Cyo memberi wewenang penuh
+("setuju sama kamu aja"); riwayat proposal tetap dipertahankan karena menyangkut bentuk
+data yang menahan uang sungguhan (Constitution R2)
 Date: 2026-08-19
 Change ID: `MAXI-BUSINESS-SETTINGS-BOUNDARY-20260819`
 Dikerjakan oleh: `hana1.1` — arsitektur, atas usulan dan wewenang Bos Cyo
+
+## Implementation status — 2026-08-22
+
+| Fase | Status | Bukti |
+|---|---|---|
+| Business Settings payment admin route | landed | PR #136 (`f777e4a`) memindahkan route utama dan mempertahankan alias lama |
+| `payment_method_accounts` extension table | superseded | PR #128 (`9a656cf`) memisahkan pembacaan POS dari mapping Accounting; mapping compatibility nullable tetap fail-closed post-commit |
+| `stores.edition` dan seed gating | implemented | `migrations/0045_stores_edition.sql` + `test/stores-edition.test.js` |
+| Accounting dispatch gating | pending | fase berikutnya; tetap dilakukan hanya di call site `src/index.js` |
+
+Fase `stores.edition` mengoreksi scope trigger menjadi tiga coupling target: seed utama
+`0022`, mapping Jenis Barang `0029`, dan bagian `RECEIVABLE_OFFSET` pada trigger `0029`.
+Trigger compatibility `0025` tetap hidup untuk semua edition. Residual seed dari
+`0024`, `0026`, dan `0028` sengaja tidak digate pada fase ini dan dipin regression test.
 
 ## Context
 
@@ -142,6 +156,12 @@ Trigger `trg_stores_seed_accounting_settings_defaults` dan
 `stores.edition` gerai pemiliknya) untuk yang kedua. **Tidak dihapus** — gerai
 `edition='ACCOUNTING'` (yaitu semua gerai existing) terus menerima scaffolding penuh
 persis seperti hari ini.
+
+Implementasi juga membatasi seed `RECEIVABLE_OFFSET` ke edition `ACCOUNTING`, sambil
+mempertahankan aturan default `CASH` pada semua edition. Gerai `LITE`/`FLEXIBLE` tetap
+mendapat identitas cara bayar POS Core yang accountless dan baris compatibility
+`NON_CASH`. Seed residual dari migration `0024`, `0026`, dan `0028` tetap di luar
+boundary fase ini; keberadaannya bukan bukti bahwa tiga coupling target gagal digate.
 
 ## Consequences
 

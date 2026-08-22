@@ -1,6 +1,11 @@
 # ADR-033 — Choice Group: satu tempat untuk daftar pilihan akun
 
-Status: ACCEPTED — Fase 1 (skema) landed, `migrations/0042_accounting_choice_groups.sql`,
+Status: ACCEPTED, **direvisi material oleh `ADR-038`** (2026-08-21) — model "opsi
+nama bebas ketikan admin" di ADR ini diganti reference-based ke variable milik
+source module (POS/Inventory). Pola `source_type='choice_group'` di
+`journal_rules` tetap dipakai. Baca `ADR-038` sebelum implementasi apa pun di
+Choice Group/Setting Transaksi.
+Fase 1 (skema) landed, `migrations/0042_accounting_choice_groups.sql`,
 dikoreksi `migrations/0043_choice_option_account_optional.sql` (lihat §9).
 Fase 3-4 (resolver + Setting Akuntansi API/UI) sedang dikerjakan Karen lewat GitHub-only
 fallback (issue #107, #109) karena sesi Karen tidak punya akses D1 langsung.

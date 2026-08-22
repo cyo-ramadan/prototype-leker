@@ -46,7 +46,7 @@ Komponen item/variabel boleh memakai PIMASATU, tetapi counterpart dan metode pem
 
 ## Accounting Boundary
 
-Metode pembayaran dibaca dari snapshot workspace yang berasal dari Setting Akuntansi dan direfresh sebelum modal transaksi yang membutuhkan settlement digunakan.
+Metode pembayaran dibaca dari snapshot workspace registry POS Core dan direfresh sebelum modal transaksi yang membutuhkan settlement digunakan. Snapshot ini tidak membawa Account ID atau readiness Setting Transaksi.
 
 Cashier UI tidak memilih account ID, Debit, atau Credit. SALE, PURCHASE, dan EXPENSE dikirim ke endpoint transaksi POS. Setelah business fact berhasil committed, server-side Accounting bridge menyelesaikan mapping dari Setting Akuntansi dan meneruskan command ke canonical Accounting posting boundary.
 

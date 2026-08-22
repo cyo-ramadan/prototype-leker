@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { listProductKinds } from './product-kinds.js';
+import { savePaymentMethod } from './business-settings.js';
 
 export const ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);
 export const JOURNAL_SIDES = Object.freeze(['DEBIT', 'CREDIT']);
@@ -502,37 +503,6 @@ async function updateAccount(db, store, id, body) {
   return json({ ok: true });
 }
 
-async function savePaymentMethod(db, store, body, id = null) {
-  const current = id ? await db.prepare(`SELECT * FROM payment_methods WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
-  if (id && !current) return json({ error: 'Metode pembayaran tidak ditemukan.' }, 404);
-  const code = current?.code || codeText(body?.code || body?.name, 32).toUpperCase();
-  const name = text(body?.name ?? current?.name, 80);
-  const accountId = body?.accountId === undefined ? (current?.account_id || null) : (text(body.accountId, 180) || null);
-  const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
-  const isDefault = body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault);
-  if (!code || !name) return json({ error: 'Kode dan nama metode pembayaran wajib valid.' }, 400);
-  if (accountId && !await activeAccount(db, store.id, accountId)) return json({ error: 'Akun metode pembayaran harus akun aktif di gerai ini.' }, 400);
-  if (isDefault && !isActive) return json({ error: 'Cara bayar default harus aktif.' }, 400);
-  if (current?.is_default && !isDefault) return json({ error: 'Pilih cara bayar lain sebagai default sebelum melepas default ini.' }, 400);
-  if (isDefault) {
-    await db.prepare(`UPDATE payment_methods SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND id <> ?`).bind(store.id, id || '').run();
-  }
-  if (current) {
-    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, is_active = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
-      .bind(name, accountId, isActive, isDefault, id, store.id).run();
-    return json({ ok: true });
-  }
-  const nextId = `payment_${store.id}_${crypto.randomUUID()}`;
-  try {
-    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, is_active, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(nextId, store.id, code, name, accountId, isActive, isDefault).run();
-  } catch (error) {
-    if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode/nama metode pembayaran sudah dipakai.' }, 409);
-    throw error;
-  }
-  return json({ ok: true, id: nextId }, 201);
-}
-
 async function saveItemCategory(db, store, body, id = null) {
   const current = id ? await db.prepare(`SELECT * FROM item_categories WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
   if (id && !current) return json({ error: 'Item Category tidak ditemukan.' }, 404);
@@ -827,6 +797,7 @@ export async function handleAccountingSettingsApi(request, env, pathname) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload Accounting Settings tidak valid.' }, 400);
 
+  // Deprecated compatibility alias: the current Accounting UI still calls this path.
   if (request.method === 'POST' && pathname === '/api/admin/settings/accounting/payment-methods') return savePaymentMethod(env.DB, store, body.value);
   const paymentMatch = pathname.match(/^\/api\/admin\/settings\/accounting\/payment-methods\/([^/]+)$/);
   if (request.method === 'PATCH' && paymentMatch) return savePaymentMethod(env.DB, store, body.value, decodeURIComponent(paymentMatch[1]));

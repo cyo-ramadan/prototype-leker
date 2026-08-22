@@ -1,6 +1,13 @@
+import { buildProductionCostingStatements } from './manufacture-costing.js';
+
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 const MAX_COMPONENTS = 50;
 const MAX_QUANTITY = 1_000_000_000;
+
+export async function storeWarehouseEnabled(db, storeId) {
+  const row = await db.prepare(`SELECT warehouse_enabled FROM stores WHERE id = ? LIMIT 1`).bind(storeId).first();
+  return row?.warehouse_enabled !== 0;
+}
 
 function positiveInteger(value, max = MAX_QUANTITY) {
   const number = Number(value);
@@ -24,6 +31,7 @@ function movementStatement(db, {
 }
 
 function stockDeltaStatements(db, product, delta, context) {
+  if (context.warehouseEnabled === false) return [];
   const quantity = Math.abs(delta);
   const direction = delta < 0 ? 'OUT' : 'IN';
   return [
@@ -56,8 +64,9 @@ function stockDeltaStatements(db, product, delta, context) {
   ];
 }
 
-async function activeOutputProduct(db, storeId, outputProductId, recipeId = '') {
+async function activeOutputProduct(db, storeId, outputProductId, recipeId = '', warehouseEnabled = true) {
   const requestedRecipeId = String(recipeId || '').trim();
+  const warehouseFlag = warehouseEnabled ? 1 : 0;
   return db.prepare(`
     SELECT p.id, p.name, p.base_unit_id, p.product_kind_id, p.average_cost,
            u.symbol AS unit_symbol,
@@ -73,13 +82,12 @@ async function activeOutputProduct(db, storeId, outputProductId, recipeId = '') 
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
     WHERE p.store_id = ? AND p.id = ? AND p.is_active = 1
-      AND p.stock_tracking_enabled = 1
-      AND COALESCE(t.track_stock, 1) = 1
+      AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
       AND COALESCE(t.can_produce, 1) = 1
       AND (? = '' OR r.id = ?)
     ORDER BY r.revision DESC
     LIMIT 1
-  `).bind(storeId, outputProductId, requestedRecipeId, requestedRecipeId).first();
+  `).bind(storeId, outputProductId, warehouseFlag, requestedRecipeId, requestedRecipeId).first();
 }
 
 async function recipeTemplateComponents(db, storeId, recipeId) {
@@ -187,7 +195,8 @@ export async function prepareManualProductionV2(db, {
   const productId = Number(outputProductId);
   if (!Number.isInteger(productId)) return { ok: false, status: 400, error: 'Barang hasil produksi tidak valid.' };
 
-  const output = await activeOutputProduct(db, storeId, productId, recipeId);
+  const warehouseEnabled = await storeWarehouseEnabled(db, storeId);
+  const output = await activeOutputProduct(db, storeId, productId, recipeId, warehouseEnabled);
   if (!output) return { ok: false, status: 409, error: 'Barang hasil belum memiliki resep aktif atau tidak diizinkan untuk produksi.' };
   const recipe = {
     id: output.recipe_id,
@@ -231,7 +240,7 @@ export async function prepareManualProductionV2(db, {
   const materialMap = await materialProducts(db, storeId, actualRequests.map(component => component.productId));
   if (materialMap.size !== actualRequests.length) return { ok: false, status: 400, error: 'Sebagian bahan baku tidak ditemukan pada gerai aktif.' };
   const actualComponents = actualRequests.map(requested => ({ ...materialMap.get(requested.productId), quantity: requested.quantity }));
-  const invalidMaterial = actualComponents.find(component => !component.trackStock || !component.canConsume);
+  const invalidMaterial = actualComponents.find(component => !component.canConsume || (warehouseEnabled && !component.trackStock));
   if (invalidMaterial) {
     return { ok: false, status: 409, error: `${invalidMaterial.name} belum diizinkan sebagai bahan produksi / stock tracking belum aktif.` };
   }
@@ -293,53 +302,24 @@ export async function prepareManualProductionV2(db, {
       sourceKey: `PRODUCTION_INPUT:${runId}:${component.id}`,
       sourceType: 'PRODUCTION_INPUT', sourceId: runId,
       storeId, drawerId, actorRole: 'CASHIER', actorId: cashierId, now,
+      warehouseEnabled,
       note: `Produksi manual · bahan ${component.name} → ${outputProduct.name}`
     }));
   }
 
-  statements.push(
-    db.prepare(`
-      UPDATE production_runs
-      SET hpp_total_scaled = COALESCE((
-            SELECT SUM(total_cost_snapshot_scaled)
-            FROM production_run_components
-            WHERE production_run_id = ?
-          ), 0),
-          hpp_per_unit_scaled = CAST((
-            COALESCE((
-              SELECT SUM(total_cost_snapshot_scaled)
-              FROM production_run_components
-              WHERE production_run_id = ?
-            ), 0) + CAST(total_output_quantity / 2 AS INTEGER)
-          ) / total_output_quantity AS INTEGER)
-      WHERE id = ? AND store_id = ?
-    `).bind(runId, runId, runId, storeId),
-    db.prepare(`
-      UPDATE products
-      SET average_cost = CASE
-            WHEN COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) <= 0
-              THEN COALESCE((SELECT hpp_per_unit_scaled FROM production_runs WHERE id = ?), 0)
-            ELSE CAST((
-              COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) * average_cost
-              + COALESCE((SELECT hpp_total_scaled FROM production_runs WHERE id = ?), 0)
-              + CAST((COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) + ?) / 2 AS INTEGER)
-            ) / (COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) + ?) AS INTEGER)
-          END,
-          cost_updated_at = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND store_id = ?
-    `).bind(
-      storeId, outputProduct.id, runId,
-      storeId, outputProduct.id, runId,
-      storeId, outputProduct.id, actualOutputQuantity,
-      storeId, outputProduct.id, actualOutputQuantity,
-      now, outputProduct.id, storeId
-    )
-  );
+  statements.push(...buildProductionCostingStatements(db, {
+    runId,
+    storeId,
+    outputProductId: outputProduct.id,
+    outputQuantity: actualOutputQuantity,
+    now
+  }));
 
   statements.push(...stockDeltaStatements(db, outputProduct, actualOutputQuantity, {
     sourceKey: `PRODUCTION_OUTPUT:${runId}:${outputProduct.id}`,
     sourceType: 'PRODUCTION_OUTPUT', sourceId: runId,
     storeId, drawerId, actorRole: 'CASHIER', actorId: cashierId, now,
+    warehouseEnabled,
     note: `Produksi manual · hasil ${outputProduct.name}`
   }));
 
@@ -366,6 +346,7 @@ export async function prepareManualProductionV2(db, {
 }
 
 export async function listManualProductionOptionsV2(db, storeId) {
+  const warehouseFlag = await storeWarehouseEnabled(db, storeId) ? 1 : 0;
   const outputRows = await db.prepare(`
     SELECT p.id, p.name, u.symbol AS unit_symbol,
            r.id AS recipe_id, r.revision, r.output_quantity
@@ -377,11 +358,10 @@ export async function listManualProductionOptionsV2(db, storeId) {
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     WHERE p.store_id = ? AND p.is_active = 1
-      AND p.stock_tracking_enabled = 1
-      AND COALESCE(t.track_stock, 1) = 1
+      AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
       AND COALESCE(t.can_produce, 1) = 1
     ORDER BY p.name COLLATE NOCASE, r.revision DESC
-  `).bind(storeId).all();
+  `).bind(storeId, warehouseFlag).all();
   const recipeIds = (outputRows.results ?? []).map(row => row.recipe_id);
   const componentRows = recipeIds.length ? await db.prepare(`
     SELECT c.recipe_id, c.component_product_id, c.quantity,
@@ -423,11 +403,10 @@ export async function listManualProductionOptionsV2(db, storeId) {
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     WHERE p.store_id = ? AND p.is_active = 1
-      AND p.stock_tracking_enabled = 1
-      AND COALESCE(t.track_stock, 1) = 1
+      AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
       AND COALESCE(t.can_consume, 1) = 1
     ORDER BY p.name COLLATE NOCASE, p.id
-  `).bind(storeId).all();
+  `).bind(storeId, warehouseFlag).all();
 
   return {
     products,

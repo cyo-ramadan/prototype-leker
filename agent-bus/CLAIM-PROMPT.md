@@ -177,6 +177,19 @@ Kalau klaim ditolak, **jangan diakali** — pesannya sudah menjelaskan sebabnya:
 | `PATH_HELD_BY_ANOTHER_CLAIM` | berkasnya sedang dipegang tab lain | ambil yang lain, **jangan** tunggu, **jangan** force push |
 | `HANDOFF_OR_TAKEOVER_REQUIRED` | sesi lain pernah memegangnya dan belum menyerahkannya | tulis `task_takeovers` bila sesi itu memang mati, atau lapor |
 | `UNIQUE constraint` | sudah dipegang orang | ambil yang lain |
+| `LIKE or GLOB pattern too complex` | **BUKAN** masalah task-mu — ada `path_prefix` sepanjang ~50 karakter atau lebih yang sedang dipegang tab lain (Cloudflare D1 punya batas panjang pola `LIKE` yang jauh di bawah SQLite biasa, ditemukan 2026-08-22). Ini bikin SEMUA insert `task_claims` gagal, bukan cuma punyamu. | Lapor di Issue #107, jangan diakali. Perbaikannya: pendekkan `path_prefix` yang kepanjangan (ganti nama file penuh jadi prefix yang tetap unik, di bawah 50 karakter) — bukan hapus baris atau ubah trigger. |
+
+**Aturan buat dirimu sendiri saat mengisi `<PATHS>` (Langkah 2.5) atau `task_paths`:** jaga
+`path_prefix` di bawah 50 karakter. Nama file panjang (`adr/ADR-0xx-nama-panjang-sekali.md`,
+`public/nama-komponen-yang-sangat-deskriptif.js`) gampang lewat batas ini tanpa terasa —
+pakai prefix yang cukup unik, bukan path lengkap, kalau nama filenya panjang.
+
+**Kalau dua task sama-sama akan menulis migration baru** (`migrations/` sebagai prefix
+bareng), itu bentrok beneran walau nomor filenya nanti beda — sistem tidak tahu nomor mana
+yang akan kamu pakai sampai kamu bilang. Kunci nomor migration yang akan kamu pakai
+**sebelum** klaim (cek migration terakhir di `main`, tambah satu, tulis eksplisit
+`migrations/00XX` sebagai `path_prefix`, bukan `migrations/` polos) — supaya dua task migration
+paralel tidak saling mengunci padahal sebenarnya tidak akan tabrakan file.
 
 **Langkah 4 — kerjakan.**
 

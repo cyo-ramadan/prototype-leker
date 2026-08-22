@@ -2,6 +2,11 @@ import { resolveCashFlowCounterpartOption } from './accounting-cash-flow-bridge.
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
+export async function storeWarehouseEnabled(db, storeId) {
+  const row = await db.prepare(`SELECT warehouse_enabled FROM stores WHERE id = ? LIMIT 1`).bind(storeId).first();
+  return row?.warehouse_enabled !== 0;
+}
+
 function positiveInteger(value) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
@@ -9,12 +14,12 @@ function positiveInteger(value) {
 
 function nonNegativeInteger(value) {
   const number = Number(value);
-  return Number.isInteger(number) && number >= 0 ? number : null;
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
-async function stockProductSnapshot(db, storeId, productId, { trackedOnly = false } = {}) {
+async function stockProductSnapshot(db, storeId, productId, { trackedOnly = false, warehouseEnabled = true } = {}) {
   return db.prepare(`
-    SELECT p.id, p.name, p.base_unit_id, p.stock_tracking_enabled,
+    SELECT p.id, p.name, p.base_unit_id, p.stock_tracking_enabled, p.average_cost,
            u.symbol AS unit_symbol,
            COALESCE(b.quantity, 0) AS current_quantity
     FROM products p
@@ -23,10 +28,11 @@ async function stockProductSnapshot(db, storeId, productId, { trackedOnly = fals
     WHERE p.store_id = ? AND p.id = ?
       AND (? = 0 OR p.stock_tracking_enabled = 1)
     LIMIT 1
-  `).bind(storeId, productId, trackedOnly ? 1 : 0).first();
+  `).bind(storeId, productId, trackedOnly && warehouseEnabled ? 1 : 0).first();
 }
 
 export async function listStockAdjustmentOptions(db, storeId) {
+  const warehouseFlag = await storeWarehouseEnabled(db, storeId) ? 1 : 0;
   const rows = await db.prepare(`
     SELECT p.id, p.name, p.base_unit_id,
            u.symbol AS unit_symbol,
@@ -36,9 +42,9 @@ export async function listStockAdjustmentOptions(db, storeId) {
     LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
     WHERE p.store_id = ?
       AND p.is_active = 1
-      AND p.stock_tracking_enabled = 1
+      AND (? = 0 OR p.stock_tracking_enabled = 1)
     ORDER BY p.name COLLATE NOCASE, p.id
-  `).bind(storeId).all();
+  `).bind(storeId, warehouseFlag).all();
   return (rows.results || []).map(row => ({
     productId: Number(row.id),
     productName: row.name,
@@ -71,6 +77,7 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
   }
 
   if (requestType === 'GOODS_FLOW') {
+    const warehouseEnabled = await storeWarehouseEnabled(db, storeId);
     const productId = Number(payload.productId);
     if (!Number.isInteger(productId)) return { ok: false, error: 'Arus Barang membutuhkan barang yang valid.' };
 
@@ -80,12 +87,12 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
       if (targetQuantity === null || !reason) {
         return { ok: false, error: 'Penyesuaian Stok membutuhkan target qty non-negatif dan alasan.' };
       }
-      const product = await stockProductSnapshot(db, storeId, productId, { trackedOnly: true });
+      const product = await stockProductSnapshot(db, storeId, productId, { trackedOnly: true, warehouseEnabled });
       if (!product || !product.base_unit_id) {
         return { ok: false, error: 'Barang Penyesuaian Stok harus aktif dalam stock tracking dan memiliki satuan dasar.' };
       }
       const currentQuantitySnapshot = Number(product.current_quantity || 0);
-      if (!Number.isInteger(currentQuantitySnapshot) || currentQuantitySnapshot < 0) {
+      if (!Number.isSafeInteger(currentQuantitySnapshot) || currentQuantitySnapshot < 0) {
         return { ok: false, error: 'Saldo stok saat ini tidak valid untuk Penyesuaian Stok.' };
       }
       if (targetQuantity === currentQuantitySnapshot) {
@@ -93,6 +100,15 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
       }
       const direction = targetQuantity > currentQuantitySnapshot ? 'IN' : 'OUT';
       const quantity = Math.abs(targetQuantity - currentQuantitySnapshot);
+      const unitCostSnapshotScaled = Number(product.average_cost);
+      const totalCostSnapshotScaled = unitCostSnapshotScaled * quantity;
+      if (
+        !Number.isSafeInteger(unitCostSnapshotScaled)
+        || unitCostSnapshotScaled < 0
+        || !Number.isSafeInteger(totalCostSnapshotScaled)
+      ) {
+        return { ok: false, error: 'HPP barang tidak valid atau melampaui batas integer aman untuk Penyesuaian Stok.' };
+      }
       return {
         ok: true,
         payload: {
@@ -105,6 +121,9 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
           targetQuantity,
           direction,
           quantity,
+          unitCostSnapshotScaled,
+          totalCostSnapshotScaled,
+          ...(!warehouseEnabled ? { warehouseEnabled: false } : {}),
           reason,
           note: text(payload.note, 500)
         }
@@ -125,6 +144,7 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
         unitSymbol: product.unit_symbol || '',
         direction,
         quantity,
+        ...(!warehouseEnabled ? { warehouseEnabled: false } : {}),
         note: text(payload.note, 500)
       }
     };
@@ -166,26 +186,28 @@ export function buildOperationalPostingStatements(db, request, { approverRole, a
     const movementNote = isStockAdjustment
       ? `Penyesuaian Stok ${payload.currentQuantitySnapshot} -> ${payload.targetQuantity} ${payload.unitSymbol || ''} · ${payload.reason}${payload.note ? ` · ${payload.note}` : ''}`.slice(0, 500)
       : payload.note || '';
-    statements.push(
-      db.prepare(`INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at) VALUES (?, ?, 0, ?)`).bind(request.storeId, payload.productId, now),
-      db.prepare(`UPDATE inventory_stock_balances SET quantity = quantity + ?, updated_at = ? WHERE store_id = ? AND product_id = ?`).bind(delta, now, request.storeId, payload.productId),
-      db.prepare(`
-        INSERT INTO inventory_ledger_entries (id, store_id, drawer_session_id, approval_request_id, product_id, product_name, direction, quantity, note, posted_at, approved_by_role, approved_by_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(`inventory_ledger_${crypto.randomUUID()}`, request.storeId, request.drawerSessionId, request.id, payload.productId, payload.productName, payload.direction, payload.quantity, movementNote, now, approverRole, approverId),
-      db.prepare(`
-        INSERT INTO stock_movements (
-          id, source_key, store_id, product_id, product_name, unit_id, unit_symbol,
-          direction, quantity, source_type, source_id, drawer_session_id, note,
-          actor_role, actor_id, occurred_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        `stock_move_${crypto.randomUUID()}`, `${movementSourceType}:${request.id}`,
-        request.storeId, payload.productId, payload.productName, payload.unitId, payload.unitSymbol || '',
-        payload.direction, payload.quantity, movementSourceType, request.id, request.drawerSessionId, movementNote,
-        approverRole, approverId, now
-      )
-    );
+    if (payload.warehouseEnabled !== false) {
+      statements.push(
+        db.prepare(`INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at) VALUES (?, ?, 0, ?)`).bind(request.storeId, payload.productId, now),
+        db.prepare(`UPDATE inventory_stock_balances SET quantity = quantity + ?, updated_at = ? WHERE store_id = ? AND product_id = ?`).bind(delta, now, request.storeId, payload.productId),
+        db.prepare(`
+          INSERT INTO inventory_ledger_entries (id, store_id, drawer_session_id, approval_request_id, product_id, product_name, direction, quantity, note, posted_at, approved_by_role, approved_by_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(`inventory_ledger_${crypto.randomUUID()}`, request.storeId, request.drawerSessionId, request.id, payload.productId, payload.productName, payload.direction, payload.quantity, movementNote, now, approverRole, approverId),
+        db.prepare(`
+          INSERT INTO stock_movements (
+            id, source_key, store_id, product_id, product_name, unit_id, unit_symbol,
+            direction, quantity, source_type, source_id, drawer_session_id, note,
+            actor_role, actor_id, occurred_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          `stock_move_${crypto.randomUUID()}`, `${movementSourceType}:${request.id}`,
+          request.storeId, payload.productId, payload.productName, payload.unitId, payload.unitSymbol || '',
+          payload.direction, payload.quantity, movementSourceType, request.id, request.drawerSessionId, movementNote,
+          approverRole, approverId, now
+        )
+      );
+    }
   } else if (request.requestType === 'ASSET') {
     const delta = payload.direction === 'DECREASE' ? -Number(payload.amount) : Number(payload.amount);
     statements.push(

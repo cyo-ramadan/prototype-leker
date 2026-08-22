@@ -29,7 +29,7 @@ Pembuatan akun, pemeliharaan akun, kode akun, jurnal, buku besar, neraca saldo, 
 ### Setting Akuntansi owns
 
 - memilih akun yang sudah tersedia dari modul Akuntansi;
-- menghubungkan cara pembayaran ke akun;
+- menghubungkan reference cara pembayaran milik POS ke akun;
 - menghubungkan Jenis Barang ke akun Persediaan/HPP/Penjualan;
 - mendefinisikan Jenis Transaksi;
 - menyimpan ordered Debit/Credit source rules;
@@ -71,7 +71,9 @@ Setting Akuntansi tidak menyediakan create/edit/deactivate UI untuk akun ini.
 
 ### `payment_methods`
 
-Cara pembayaran/settlement yang dapat dipakai transaksi operasional. Setiap row dapat menunjuk `account_id` dari account reference list.
+Registry cara pembayaran/settlement milik POS Core yang dapat dipakai transaksi operasional. Setting Akuntansi tidak menentukan apakah suatu metode valid untuk commit POS; ia hanya mengatur mapping Accounting terhadap reference metode yang sudah ada.
+
+Schema compatibility saat ini masih menyimpan `account_id` nullable pada row yang sama. POS Core membaca hanya `id`, `code`, `name`, `is_active`, dan `is_default`; hanya Accounting bridge yang membaca `account_id`. Karena itu row aktif tanpa akun tetap valid bagi POS dan akan fail-closed sebagai `NEEDS_PAYMENT_MAPPING` hanya pada delivery Accounting post-commit.
 
 Contoh:
 
@@ -80,7 +82,7 @@ Contoh:
 - settlement tertunda → Piutang settlement;
 - Hutang → Utang Usaha.
 
-User boleh menambah lebih dari dua komponen pembayaran.
+Legacy management endpoint masih berada di route Setting Akuntansi selama refactor ADR-038 belum selesai. Posisi route tersebut bukan domain ownership baru dan tidak boleh dipakai POS runtime sebagai dependency ke Accounting.
 
 ### `item_categories`
 
@@ -105,7 +107,7 @@ New Jenis Barang receive an editable starting mapping: Persediaan Bahan, Harga P
 
 ### Payment default
 
-Exactly one active `payment_methods` row per store is marked `is_default = 1`. Cashier payment pickers read this flag from Setting Akuntansi. The initial default is CASH; changing the default is an administrator action in Setting Akuntansi.
+Exactly one active `payment_methods` row per store is marked `is_default = 1`. Cashier payment pickers read this flag through the POS Core payment-method boundary. The initial default is CASH. The current administrator writer remains a transitional legacy surface pending the ADR-038 provider refactor.
 - Operasional;
 - Gaji;
 - Setoran.

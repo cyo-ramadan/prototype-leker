@@ -2,7 +2,7 @@ import { json } from './http.js';
 import { listOrders, listProducts } from './db-multistore.js';
 import { requireCashier } from './cashier-auth.js';
 import { getOpenDrawer } from './cashier-drawer.js';
-import { listPosPaymentMethods } from './accounting-pos-bridge.js';
+import { listPosPaymentMethods } from './pos-payment-methods.js';
 import { listCashFlowCounterpartOptions } from './accounting-cash-flow-bridge.js';
 
 export async function handleCashierWorkspaceApi(request, env, pathname) {

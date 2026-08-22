@@ -2,6 +2,7 @@
 
 Disiapkan oleh: `hana1.1` — arsitektur
 Tanggal: 2026-08-19
+Pembaruan implementasi: 2026-08-22 oleh Karen
 Architecture: `adr/ADR-034-business-settings-pos-core-boundary.md`
 
 Baca dulu, berurutan: `CLAUDE.md` → `ADR-034` → `ADR-017`/`ADR-029`/`ADR-031` →
@@ -26,6 +27,9 @@ bawah, fase itu salah, bukan Leker yang perlu disesuaikan.
   dalam sehari yang sama, lihat riwayat commit `f36ca2d`/`244ed88`.
 
 ## Fase 0 — kepemilikan modul, tanpa migration
+
+**Status: LANDED** — route admin Business Settings dan alias compatibility mendarat
+melalui PR #136 (`f777e4a`).
 
 **Paths:** `src/business-settings.js` (baru), `src/accounting-settings.js`,
 `public/business-settings-panel.js` (baru), `test/business-settings-payment-methods.test.js`
@@ -52,6 +56,13 @@ terlepas dari fase-fase berikutnya.
 
 ## Fase 1 — `payment_method_accounts`, extension table
 
+**Status: SUPERSEDED, jangan diimplementasikan.** PR #128 (`9a656cf`) sudah menetapkan
+boundary yang dipakai saat ini: POS Core hanya membaca identitas/status/default cara
+bayar, `payment_methods.account_id` boleh `NULL`, dan Accounting bridge membaca mapping
+compatibility itu post-commit secara fail-closed sebagai `NEEDS_PAYMENT_MAPPING`.
+Extension table yang direncanakan di bawah tidak dibuat; butir-butirnya dipertahankan
+sebagai riwayat rencana awal ADR, bukan backlog aktif.
+
 **Paths:** `migrations/00XX_payment_method_accounts.sql`,
 `src/accounting-pos-bridge.js`, `src/accounting-settings.js`,
 `test/payment-method-accounts.test.js`
@@ -73,7 +84,10 @@ sama. **Baris jurnalnya harus identik.** Pola tes yang sama dengan
 
 ## Fase 2 — `stores.edition`
 
-**Paths:** `migrations/00XX_stores_edition.sql`, `test/stores-edition.test.js`
+**Status: IMPLEMENTED** — migration `0045_stores_edition.sql` dan empat regression test
+di `test/stores-edition.test.js` menjadi changeset fase ini.
+
+**Paths:** `migrations/0045_stores_edition.sql`, `test/stores-edition.test.js`
 
 1. Kolom sesuai `ADR-034` §4, default `'ACCOUNTING'`.
 2. Bungkus `trg_stores_seed_accounting_settings_defaults`
@@ -86,16 +100,27 @@ sama. **Baris jurnalnya harus identik.** Pola tes yang sama dengan
    (`migrations/0029_purchase_accounting_defaults.sql`) dengan kondisi yang menoleh ke
    `stores.edition` milik `NEW.store_id`. SQLite trigger boleh melakukan sub-select di
    `WHEN`, jadi ini tidak perlu rebuild tabel `product_kinds`.
+4. Gate hanya bagian seed `RECEIVABLE_OFFSET` dalam
+   `trg_payment_methods_cash_default_after_insert` untuk `ACCOUNTING`; pemilihan `CASH`
+   sebagai default tetap berlaku pada semua edition.
+5. Pertahankan `trg_stores_seed_accounting_bridge_compat` pada semua edition, termasuk
+   `NON_CASH` dengan `account_id=NULL`. Untuk `LITE`/`FLEXIBLE`, seed POS Core
+   `CASH`/`BANK`/`PAYABLE` juga tetap ada tanpa account mapping.
 
 **Acceptance:**
 - membuat gerai `edition='ACCOUNTING'` menghasilkan scaffolding **identik** dengan
   sebelum migration ini — dibuktikan tes snapshot tabel, bukan spot-check;
-- membuat gerai `edition='LITE'` atau `'FLEXIBLE'` **tidak** menghasilkan baris
-  `chart_of_accounts`/`payment_methods`/`transaction_categories`/`journal_rules` sama
-  sekali;
+- membuat gerai `edition='LITE'` atau `'FLEXIBLE'` tetap mendapat registry POS Core
+  `CASH`/`BANK`/`PAYABLE` serta compatibility `NON_CASH`, semuanya tanpa Account ID,
+  dan `CASH` tetap default;
+- gerai `LITE`/`FLEXIBLE` tidak mendapat seed Accounting target dari `0022`, mapping
+  `item_categories` dari `0029`, atau `RECEIVABLE_OFFSET`;
+- residual `accounting_sequences` (`0024`), akun dari `0026`/`0028`, serta kategori dan
+  journal rule Arus Kas dari `0028` sengaja tetap ada; ketiganya di luar scope fase ini
+  dan dipin eksplisit oleh regression test;
 - menambah `product_kinds` di gerai `LITE`/`FLEXIBLE` **tidak** membuat baris
   `item_categories` dan **tidak** gagal FK;
-- 283+ tes existing tetap hijau tanpa satu pun diubah — kalau ada yang perlu diubah,
+- seluruh tes existing tetap hijau tanpa satu pun diubah — kalau ada yang perlu diubah,
   itu tanda fase ini bocor ke luar scope-nya.
 
 ## Fase 3 — gating dispatch, bukan resolver

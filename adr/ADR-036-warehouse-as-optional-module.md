@@ -1,9 +1,12 @@
 # ADR-036 — Warehouse sebagai modul opsional, di luar Business Settings/Accounting
 
-Status: PROPOSED — audit dan konsep, atas usulan Bos Cyo 2026-08-20. Tidak ada kode yang
-berubah dari ADR ini. Tidak menyentuh path Setting Transaksi Fase 3-4 yang sedang
-dikerjakan Karen (`ADR-033`, issue #107/#109).
-Date: 2026-08-20
+Status: PROPOSED, **direvisi menyempit oleh `ADR-037`** — HPP/costing (§3 butir 1 dan 4
+di bawah) pindah jadi tanggung jawab modul Manufaktur (`ADR-037`), wajib ada. ADR ini
+sisa lingkupnya cuma soal **kuantitas stok** (`stock_movements`,
+`inventory_stock_balances`) — itu yang tetap opsional. Tidak ada kode yang berubah dari
+ADR ini. Tidak menyentuh path Setting Transaksi Fase 3-4 yang sudah selesai (`ADR-033`,
+issue #107/#109).
+Date: 2026-08-20, direvisi 2026-08-20
 Change ID: `MAXI-WAREHOUSE-OPTIONAL-20260820`
 Dikerjakan oleh: `hana1.1` — arsitektur, atas usulan Bos Cyo
 
@@ -58,6 +61,16 @@ Accounting (`attachAccountingBridgeToCommittedResponse`, dipanggil dari tiga tem
    lagi: konsumsi bahan lintas Jenis Barang, snapshot HPP produksi. Sengaja **tidak**
    diaudit dalam sekali jalan ini — pelaku kaki lima pada umumnya tidak pakai Produksi/BOM
    formal, mereka masak langsung tanpa resep tercatat.
+
+**Audit lanjutan 2026-08-20** — peta lengkap per-file, mana yang aman (layar Admin/laporan,
+tinggal disembunyikan) dan mana yang duduk langsung di jalur commit kasir, ada di
+`WAREHOUSE_POS_LINKAGE_MAP.md`. Satu temuan dari situ yang mengubah urutan risiko: dialog
+Beli Bahan kasir (`src/cashier-purchase.js`'s `listPurchaseOptions`) memfilter produk
+dengan `WHERE stock_tracking_enabled = 1` — kalau flag itu di-default-kan `0` begitu
+Warehouse dimatikan **tanpa** query-nya ikut diubah, dialog Beli Bahan langsung kosong
+total (bukan jatuh ke mode "catat sebagai beban langsung" yang sudah dibahas §4). Ini
+kandidat kuat jadi langkah pertama Fase 1 implementasi, karena silent-nya paling
+berbahaya — gejalanya "gak ada barang yang bisa dibeli", bukan error yang jelas.
 
 **Temuan yang perlu digarisbawahi:** `ADR-034` bisa membuat Accounting opsional dengan
 gating satu titik pemanggilan, tanpa mengubah `accounting-pos-bridge.js` sama sekali,

@@ -6,7 +6,8 @@ import { buildOrderNo } from './orders-multistore.js';
 import { getJakartaBusinessDate, isoNow } from './time.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { prepareSaleStockProduction, stockPostingFailure } from './stock-production.js';
-import { resolvePosPaymentMethod } from './accounting-pos-bridge.js';
+import { saleHppSnapshotSelect } from './manufacture-costing.js';
+import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
@@ -76,7 +77,7 @@ async function pointContext(db, storeId, customerId) {
   return { customerId, shareGroupId: scope.group?.id || null };
 }
 
-function buildSaleStatements(db, {
+export function buildSaleStatements(db, {
   saleId, storeId, drawerId, cashierId, linkedOrderId, customerId, customerName,
   total, totalPoints, note, now, channel, lines, operationalStatements, pointShareGroupId
 }) {
@@ -101,7 +102,7 @@ function buildSaleStatements(db, {
       )
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
              p.product_kind_id, COALESCE(k.code, ''), COALESCE(k.name, ''),
-             p.average_cost, p.average_cost * ?
+             ${saleHppSnapshotSelect()}
       FROM products p
       LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
       WHERE p.id = ? AND p.store_id = ?
@@ -150,7 +151,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   const storeId = auth.cashier.store.id;
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, storeId, body.value?.paymentMethod, 'CASH');
   if (!resolvedPayment) {
-    return json({ error: 'Cara bayar penjualan tidak aktif / tidak tersedia di Setting Akuntansi.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+    return json({ error: 'Cara bayar penjualan tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
   }
   const sourceOrderId = text(body.value?.sourceOrderId, 160) || null;
   const now = isoNow();

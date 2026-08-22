@@ -232,17 +232,21 @@ test('codes stay stable, one default is enforced, and Account Master remains Acc
   } finally { sqlite.close(); }
 });
 
-test('Setting Transaksi UI exposes Bikin Grup and Pasang Grup without migrating Flow Preset early', () => {
+test('Setting Transaksi UI saves one group bundle and attaches it only from Aturan Transaksi', () => {
   assert.match(settingsSource, /'choice_group'/);
   assert.match(settingsSource, /choiceGroups/);
   assert.match(settingsSource, /CHOICE_GROUP_EMPTY/);
   assert.match(settingsSource, /NEEDS_CHOICE_ACCOUNT/);
   assert.match(comfortUi, /Setting Transaksi/);
-  assert.match(comfortUi, /Bikin Grup/);
-  assert.match(comfortUi, /Pasang Grup/);
-  assert.match(comfortUi, /Belum dilink ke Akuntansi/);
-  assert.match(comfortUi, /Dipakai oleh/);
-  assert.match(comfortUi, /journal line historis/);
+  assert.match(comfortUi, /Grup Transaksi/);
+  assert.match(comfortUi, /Komponen Grup/);
+  assert.match(comfortUi, /Simpan Grup/);
+  assert.match(comfortUi, /data-save-choice-group/);
+  assert.doesNotMatch(comfortUi, /data-save-choice-option/);
+  assert.doesNotMatch(comfortUi, /Pasang Grup/);
+  assert.match(comfortUi, /data-rule-choice-preview/);
+  assert.match(comfortUi, /choiceGroupPreviewHtml/);
+  assert.match(comfortUi, /Belum dilink ke akun/);
   assert.match(comfortUi, /choiceGroupId/);
   assert.doesNotMatch(flowPresetUi, /sourceType:\s*'choice_group'|choiceGroupId/);
 });

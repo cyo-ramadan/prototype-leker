@@ -83,9 +83,8 @@ async function shouldDispatchAccountingForCommittedResponse(response, env, factT
 }
 
 export async function attachAccountingBridgeIfEnabled(response, env, factType, dispatch = attachAccountingBridgeToCommittedResponse) {
-  return await shouldDispatchAccountingForCommittedResponse(response, env, factType)
-    ? dispatch(response, env, factType)
-    : response;
+  const shouldDispatch = await shouldDispatchAccountingForCommittedResponse(response, env, factType);
+  return shouldDispatch ? dispatch(response, env, factType) : response;
 }
 
 async function handleCashierOrders(request, env, pathname) {
@@ -198,13 +197,32 @@ async function handleApi(request, env, url) {
   const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
   if (trackedSaleResponse) {
     return request.method === 'POST' && pathname === '/api/cashier/sales'
-      ? attachAccountingBridgeIfEnabled(trackedSaleResponse, env, 'SALE')
+      ? attachAccountingBridgeIfEnabled(
+          trackedSaleResponse,
+          env,
+          'SALE',
+          () => attachAccountingBridgeToCommittedResponse(trackedSaleResponse, env, 'SALE')
+        )
       : trackedSaleResponse;
   }
   const purchaseResponse = await handleCashierPurchaseApi(request, env, pathname);
   if (purchaseResponse) {
-    if (request.method === 'POST' && pathname === '/api/cashier/purchases') return attachAccountingBridgeIfEnabled(purchaseResponse, env, 'PURCHASE');
-    if (request.method === 'POST' && pathname === '/api/cashier/expenses') return attachAccountingBridgeIfEnabled(purchaseResponse, env, 'EXPENSE');
+    if (request.method === 'POST' && pathname === '/api/cashier/purchases') {
+      return attachAccountingBridgeIfEnabled(
+        purchaseResponse,
+        env,
+        'PURCHASE',
+        () => attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'PURCHASE')
+      );
+    }
+    if (request.method === 'POST' && pathname === '/api/cashier/expenses') {
+      return attachAccountingBridgeIfEnabled(
+        purchaseResponse,
+        env,
+        'EXPENSE',
+        () => attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'EXPENSE')
+      );
+    }
     return purchaseResponse;
   }
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);

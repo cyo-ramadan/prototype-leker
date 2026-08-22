@@ -182,9 +182,9 @@ test('new stores always receive RAW_MATERIAL without requiring Accounting catego
   const sqlite = database();
 
   sqlite.exec(`
-    INSERT INTO stores (id, code, name, edition) VALUES ('store_lite_new', 'LNEW', 'Lite New', 'LITE');
-    INSERT INTO stores (id, code, name, edition) VALUES ('store_flexible_new', 'FNEW', 'Flexible New', 'FLEXIBLE');
-    INSERT INTO stores (id, code, name, edition) VALUES ('store_accounting_new', 'ANEW', 'Accounting New', 'ACCOUNTING');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_lite_new', 'LNEW', 'Lite New', 'LITE');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_flexible_new', 'FNEW', 'Flexible New', 'FLEXIBLE');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_accounting_new', 'ANEW', 'Accounting New', 'ACCOUNTING');
   `);
 
   for (const storeId of ['store_lite_new', 'store_flexible_new', 'store_accounting_new']) {

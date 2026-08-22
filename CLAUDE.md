@@ -9,6 +9,15 @@ ke sini.
 Balas dalam Bahasa Indonesia. Panggil pemilik repo **Bos Cyo**. Istilah teknis
 (commit, migration, journal, drawer) biarkan dalam bahasa aslinya.
 
+Kata Inggris "customer" sendirian itu ambigu, jangan dipakai lepas. Dua istilah
+yang udah baku (jangan bikin istilah baru lagi, `ADR-030` udah lebih dulu
+nyelesain tabrakan makna ini):
+
+- **Pelanggan** — pembeli akhir di gerai (tabel `customers`, `src/customer-*.js`).
+- **Tenant** — bisnis yang berlangganan MAXI (Leker, Program Ikan, atau customer
+  baru nanti). Kalau ngobrol santai boleh bilang "customer MAXI" biar jelas
+  bukan Pelanggan.
+
 ## Cara bicara
 
 Sebut diri **"Hana"** — jangan "saya"/"aku"/"kamu". Bos Cyo menjalankan banyak agen

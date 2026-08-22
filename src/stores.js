@@ -20,8 +20,7 @@ const currentEntityContextJoin = `
   LEFT JOIN entities e ON e.id = s.entity_id
   LEFT JOIN entity_tenancy et
     ON et.entity_id = s.entity_id
-   AND julianday(et.effective_from) <= julianday(CURRENT_TIMESTAMP)
-   AND (et.effective_to IS NULL OR julianday(et.effective_to) > julianday(CURRENT_TIMESTAMP))
+   AND et.effective_to IS NULL
 `;
 
 export function normalizeStoreCode(value) {
@@ -55,7 +54,7 @@ export async function listStores(db, { includeInactive = false } = {}) {
   return (result.results ?? []).map(mapStore);
 }
 
-export async function resolveAuthorizedEntityIds(db, tenantId, { asOf = null } = {}) {
+export async function resolveAuthorizedEntityIds(db, tenantId) {
   const normalizedTenantId = String(tenantId ?? '').trim();
   if (!normalizedTenantId) return [];
 
@@ -63,10 +62,9 @@ export async function resolveAuthorizedEntityIds(db, tenantId, { asOf = null } =
     SELECT entity_id
     FROM entity_tenancy
     WHERE tenant_id = ?
-      AND julianday(effective_from) <= julianday(COALESCE(?, CURRENT_TIMESTAMP))
-      AND (effective_to IS NULL OR julianday(effective_to) > julianday(COALESCE(?, CURRENT_TIMESTAMP)))
+      AND effective_to IS NULL
     ORDER BY entity_id ASC
-  `).bind(normalizedTenantId, asOf, asOf).all();
+  `).bind(normalizedTenantId).all();
 
-  return [...new Set((result.results ?? []).map(row => row.entity_id).filter(Boolean))];
+  return (result.results ?? []).map(row => row.entity_id).filter(Boolean);
 }

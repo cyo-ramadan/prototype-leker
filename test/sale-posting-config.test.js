@@ -21,6 +21,8 @@ function database({ includeConfig = true } = {}) {
 
 const applyConfig = sqlite => sqlite.exec(read(CONFIG_MIGRATION));
 
+// Every store that has an active `sale` category and the rules it needs to
+// produce at least one Debit and one Credit line.
 const storesThatCannotPostSales = sqlite => sqlite.prepare(`
   SELECT c.store_id FROM transaction_categories c
   WHERE c.code = 'sale' AND c.is_active = 1
@@ -49,12 +51,18 @@ const CONFIG_TABLES = ['product_kinds', 'item_categories', 'journal_rules', 'pro
 
 test('without this migration no store in a fresh database can post a sale', () => {
   const sqlite = database({ includeConfig: false });
+
+  // This is the gap the eleven stranded sales fell into. The seed migrations
+  // wire up purchase, operational, cash flow and every warehouse category, but
+  // never once wire up `sale` — so a brand new deployment could not post a
+  // single sale either, and nothing failed to say so.
   assert.deepEqual(storesThatCannotPostSales(sqlite), ['store_001', 'store_002']);
   assert.ok(productsThatCannotResolveAccounts(sqlite) > 0, 'seeded products carry no Jenis Barang');
 });
 
 test('after this migration every store can post a sale', () => {
   const sqlite = database();
+
   assert.deepEqual(storesThatCannotPostSales(sqlite), []);
   assert.equal(productsThatCannotResolveAccounts(sqlite), 0);
 
@@ -92,6 +100,8 @@ test('the single kind resolves inventory to 1301, as Bos Cyo decided on 2026-08-
     assert.equal(mapping.revenue, '4101');
   }
 
+  // One kind for now. A second one is a deliberate act in Setting Akuntansi
+  // later, not something this migration decides on Bos Cyo's behalf.
   const kinds = sqlite.prepare(`SELECT DISTINCT code FROM product_kinds WHERE is_active = 1`)
     .all().map(row => row.code);
   assert.deepEqual(kinds, ['RAW_MATERIAL']);
@@ -106,6 +116,8 @@ test('configuration that already produced posted journals is left untouched', ()
 
   applyConfig(sqlite);
 
+  // store_001 already posts purchases against this mapping. Rewriting it would
+  // move the accounts behind entries that can no longer be edited.
   assert.deepEqual(
     sqlite.prepare(`
       SELECT id, inventory_account_id, cogs_account_id, revenue_account_id
@@ -117,6 +129,9 @@ test('configuration that already produced posted journals is left untouched', ()
 
 test('a product that already has a kind is never moved to another account', () => {
   const sqlite = database({ includeConfig: false });
+  // Inserting the kind is enough: trg_product_kinds_seed_accounting_mapping
+  // from migration 0029 creates its mapping, which the admin then points at
+  // Persediaan Barang Jadi.
   sqlite.exec(`
     INSERT INTO product_kinds (id, store_id, code, name)
     VALUES ('kind_finished', 'store_001', 'FINISHED', 'Barang Jadi');
@@ -137,6 +152,10 @@ test('a product that already has a kind is never moved to another account', () =
 
 test('the migration refuses to finish while a sale could still fail to post', () => {
   const sqlite = database({ includeConfig: false });
+  // An admin deactivated a Jenis Barang mapping while products were still using
+  // it. Step 3 will not touch those products — they already have a kind — so
+  // their sales would keep failing. A migration that reported success here is
+  // exactly how eleven sales failed for days unnoticed.
   sqlite.exec(`
     INSERT INTO product_kinds (id, store_id, code, name)
     VALUES ('kind_special', 'store_001', 'SPECIAL', 'Barang Titipan');
@@ -154,6 +173,8 @@ test('applying the migration twice changes nothing the second time', () => {
 
   applyConfig(sqlite);
 
+  // updated_at moves only if the UPDATE fires again, so an unchanged snapshot
+  // also proves the second run does not re-touch rows it already assigned.
   assert.deepEqual(tableRows(sqlite, CONFIG_TABLES), before);
 });
 

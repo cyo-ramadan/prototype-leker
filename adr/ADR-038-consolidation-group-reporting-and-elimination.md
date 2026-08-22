@@ -1,6 +1,6 @@
 # ADR-038 — Consolidation Group: laporan gabungan lintas-Entity, versioned mapping, dan eliminasi
 
-Status: PROPOSED — menunggu ACC Bos Cyo sebelum breakdown ke task papan `maxi-agent-bus`.
+Status: ACCEPTED — di-ACC Bos Cyo 2026-08-22, termasuk rekomendasi Hana di §5.
 Date: 2026-08-22
 Change ID: `MAXI-CONSOLIDATION-REPORTING-20260822`
 Dikerjakan oleh: `hana` — arsitektur, sesi Claude Code, atas permintaan Bos Cyo
@@ -15,9 +15,9 @@ eliminasi transaksi antar-Entity dihitung. **Tidak** membuat ulang tabel yang ud
 0039 — dipakai apa adanya.
 
 ADR ini murni desain baca. Enggak ada satu pun bagian di sini yang menulis jurnal baru ke
-buku Entity manapun, dan enggak ada buku baru di level kelompok yang diusulkan — itu domain
-Keputusan Terbuka #1 `ADR-030` yang belum diputuskan Bos Cyo, dan sengaja enggak dijawab di
-sini.
+buku Entity manapun, dan enggak ada buku baru di level kelompok yang diusulkan — Bos Cyo
+udah meng-ACC arah reporting-only buat Keputusan Terbuka #1 `ADR-030` (lihat §5 butir 1),
+jadi ini bukan lagi asumsi sementara.
 
 ## 2. Laporan apa yang bisa digabung
 
@@ -25,10 +25,10 @@ Neraca dan Laba-Rugi tergabung per Consolidation Group: ambil semua Entity anggo
 dari `consolidation_membership` yang berlaku di rentang tanggal laporan, jumlahkan saldo akun
 tiap Entity yang udah dipetakan ke akun kelompok yang sama (§3), lalu terapkan eliminasi (§4).
 
-Arus Kas kelompok **sengaja di luar cakupan** ADR ini. Metode arus kas kelompok (langsung/
-tidak langsung) nyambung ke pertanyaan apakah kelompok punya siklus pelaporan sendiri —
-itu Keputusan Terbuka #1 `ADR-030` yang belum diputuskan. Kalau nanti dibutuhin, itu ADR
-terpisah.
+Arus Kas kelompok **sengaja di luar cakupan** ADR ini. Sekarang kelompok udah diputuskan
+reporting-only (§5 butir 1), jadi arus kas kelompok — kalau nanti dibutuhin — bakal jadi
+agregasi arus kas per-Entity juga, bukan buku besar arus kas sendiri; tetap ADR terpisah,
+enggak dirancang di sini.
 
 ## 3. Pemetaan akun Entity ke CoA kelompok (versioned mapping)
 
@@ -74,23 +74,47 @@ Bagian ini **enggak bisa jalan** sampai dua prasyarat di luar ADR ini kelar: (a)
 merekam fakta intercompany yang carry `counterparty_entity_id`, dan (b) CoA kelompok punya
 subtype INTERCOMPANY yang konsisten dipakai semua Entity anggota.
 
-## 5. Yang sengaja enggak dijawab di sini
+## 5. Keputusan Bos Cyo atas 4 gerbang `ADR-030`
 
-Empat Keputusan Terbuka `ADR-030` masih milik Bos Cyo. ADR ini enggak nebak jawabannya,
-tapi nunjukkin di mana tiap keputusan jadi gerbang buat bagian desain ini:
+Empat Keputusan Terbuka `ADR-030` diajukan ke Bos Cyo lewat penerjemahan ke dampak
+bisnis/customer (bukan sebagai pertanyaan teknis mentah), dengan rekomendasi Hana. Bos Cyo
+meng-ACC ketiganya, dan minta satu poin ditunda tapi tetap dilacak eksplisit:
 
-1. **Legal books sendiri buat kelompok?** ADR ini asumsi "reporting-only" (asumsi default
-   `ADR-030`) — enggak ada bagian di sini yang posting jurnal ke buku baru. Kalau dijawab
-   "ya, kelompok butuh buku sendiri", itu jalur posting baru yang butuh ADR sendiri.
-2. **Kebijakan restatement.** ADR ini cuma nyediain resolusi "as of" tanggal (pola sama
-   kayak `entity_tenancy`/`consolidation_membership`) — belum nentuin gimana laporan
-   periode lama ditampilin ulang kalau ada restatement.
-3. **Kalender fiskal.** Desain di §2-3 asumsi semua Entity dalam satu grup pakai kalender
-   yang sama (`business_date` yang udah ada). Begitu ada Entity berkalender fiskal beda,
-   resolusi periode di sini harus dirombak.
-4. **Skala uang di kontrak.** Desain ini asumsi semua Entity yang dikonsolidasi pakai skala
-   scaled-integer yang sama kayak Leker sekarang (`amount_minor`, 1 rupiah = 1.000.000
-   unit). Entity berskala beda butuh keputusan #4 kelar dulu sebelum penjumlahan §2 valid.
+1. **Legal books sendiri buat kelompok? → DIPUTUSKAN: tidak, cukup laporan gabungan
+   (reporting-only).** Alasan bisnis: customer MAXI butuh "total kinerja semua unit",
+   bukan badan hukum baru dengan kewajiban pajak/audit sendiri. Legal books sendiri baru
+   jadi modul upgrade opsional per-customer kalau nanti ada yang beneran butuh — konsisten
+   sama prinsip modul opsional default-off. Desain §1-§4 ADR ini sudah mengasumsikan ini.
+2. **Kebijakan restatement → DIPUTUSKAN: tidak ditulis ulang.** Laporan periode sebelum
+   merger tetap nunjukin struktur yang berlaku waktu itu (resolusi "as of" di §3); gabungan
+   cuma berlaku dari tanggal merger ke depan. Restatement, kalau suatu saat diminta, adalah
+   operasi terpisah yang eksplisit diminta — bukan default.
+3. **Kalender fiskal → DITUNDA, disiapkan tempatnya (lihat §5.1), belum dikerjakan.**
+   Bos Cyo minta ini enggak hilang meski belum ada kebutuhan nyata sekarang.
+4. **Skala uang di kontrak → DIPUTUSKAN: satu skala yang sama** (`amount_minor`,
+   scaled-integer 1 rupiah = 1.000.000 unit) buat semua Entity yang dikonsolidasi, sama
+   kayak yang udah jalan di Leker. Alasan bisnis: semua customer MAXI transaksi dalam
+   Rupiah, jadi enggak ada alasan bikin beda skala — kalau nanti ada mata uang asing, itu
+   keputusan baru, bukan diasumsikan sekarang.
+
+### 5.1 Tempat yang disiapkan buat kalender fiskal (poin 3)
+
+Ini **bukan** implementasi — sengaja enggak ada kode atau kolom skema yang ditambahin buat
+ini sekarang, karena belum ada kebutuhan nyata yang membuktikan bentuknya seperti apa
+(nambah kolom spekulatif sebelum ada kasus nyata cuma jadi utang migrasi). Yang disiapkan
+adalah **tempat yang enggak boleh dilewatin diam-diam**:
+
+- Titik resolusi periode di §2-3 (yang sekarang asumsi satu `business_date` seragam untuk
+  semua Entity dalam grup) adalah titik yang harus direvisit begitu ada Entity berkalender
+  fiskal beda. Task turunan ADR ini (§7) wajib nulis komentar eksplisit di titik itu yang
+  nunjuk balik ke ADR-038 §5.1 — supaya agen berikutnya enggak mengasumsikan kalender
+  seragam itu permanen.
+- Dicatat di `KNOWN_ISSUES.md` sebagai kebutuhan yang diketahui tapi belum kelar, supaya
+  kelihatan di daftar rutin tanpa perlu ADR baru dulu buat sekadar melacaknya.
+- Task placeholder `ON_HOLD` dibuat di papan `maxi-agent-bus` (territory
+  `consolidation-reporting`) — enggak diklaim siapa pun sampai ada customer nyata yang
+  butuh kalender fiskal beda, tapi posisinya sudah tercatat sehingga enggak perlu digali
+  ulang dari nol nanti.
 
 ## 6. Skema tambahan yang diusulkan (aditif, sketsa — bukan migration jadi)
 
@@ -131,6 +155,5 @@ Enggak ada tabel `consolidation_groups`/`consolidation_membership` yang dibuat u
 
 ## DOC-IMPACT
 
-PENDING — enggak ada dokumen lain yang perlu diperbarui sampai ADR ini di-ACC dan mulai
-diimplementasi. Begitu implementasi mulai, `README.md` dan `KNOWN_ISSUES.md` perlu nyebut
-status Consolidation Group reporting.
+**REQUIRED** — `KNOWN_ISSUES.md` dapat entri baru untuk kalender fiskal (§5.1). `README.md`
+perlu nyebut status Consolidation Group reporting begitu task §7 mulai dikerjakan.

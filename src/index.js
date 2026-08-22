@@ -22,6 +22,7 @@ import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
 import { handleAccountingPosBridgeApi } from './accounting-pos-bridge.js';
 import { attachAccountingBridgeToCommittedResponse } from './accounting-pos-bridge-response.js';
+import { handleBusinessSettingsApi } from './business-settings.js';
 import { handleAccountingSettingsApi } from './accounting-settings.js';
 import { handleWarehouseSettingsApi } from './warehouse-settings.js';
 import { handleAccountingReferenceApi } from './accounting-reference.js';
@@ -124,6 +125,8 @@ async function handleApi(request, env, url) {
   if (accountingReconciliationGuard) return accountingReconciliationGuard;
   const accountingBridgeResponse = await handleAccountingPosBridgeApi(request, env, pathname);
   if (accountingBridgeResponse) return accountingBridgeResponse;
+  const businessSettingsResponse = await handleBusinessSettingsApi(request, env, pathname);
+  if (businessSettingsResponse) return businessSettingsResponse;
   const accountingSettingsResponse = await handleAccountingSettingsApi(request, env, pathname);
   if (accountingSettingsResponse) return accountingSettingsResponse;
   const warehouseSettingsResponse = await handleWarehouseSettingsApi(request, env, pathname);

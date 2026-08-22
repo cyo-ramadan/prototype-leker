@@ -11,11 +11,17 @@ const migrationFiles = () => readdirSync(migrationDir)
   .sort();
 const readMigration = file => readFileSync(new URL(file, migrationDir), 'utf8');
 
+// Any migration written after 0045 that touches the `edition` column (e.g. a
+// new store's onboarding migration setting edition='LITE') cannot run without
+// it either -- skip those too, not just 0045 itself, or the includeEdition:false
+// branch crashes on "no such column" instead of showing 0045's isolated effect.
+const dependsOnEdition = file => file === EDITION_MIGRATION || /\bedition\b/.test(readMigration(file));
+
 function migratedDb({ includeEdition = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON;');
   for (const file of migrationFiles()) {
-    if (!includeEdition && file === EDITION_MIGRATION) continue;
+    if (!includeEdition && dependsOnEdition(file)) continue;
     sqlite.exec(readMigration(file));
   }
   return sqlite;
@@ -56,8 +62,12 @@ test('stores.edition is constrained, defaults existing and new stores to ACCOUNT
     assert.equal(String(column?.type).toUpperCase(), 'TEXT');
     assert.equal(Number(column?.notnull), 1);
     assert.equal(String(column?.dflt_value), "'ACCOUNTING'");
+    // Scoped to Leker's own original gerai, not "every row in the table": a
+    // tenant onboarded later may legitimately set edition='LITE' explicitly.
+    // The default itself is proven right below by inserting a store that
+    // omits the column entirely.
     assert.deepEqual(
-      sqlite.prepare(`SELECT DISTINCT edition FROM stores ORDER BY edition`).all()
+      sqlite.prepare(`SELECT DISTINCT edition FROM stores WHERE code IN ('G001', 'G002', 'M002') ORDER BY edition`).all()
         .map(row => row.edition),
       ['ACCOUNTING']
     );

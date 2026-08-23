@@ -43,12 +43,48 @@ import { handleDebuggerApi } from './debugger-control-plane.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
+const ACCOUNTING_DISPATCH_FACT_TABLE = Object.freeze({ SALE: 'sales', PURCHASE: 'purchases', EXPENSE: 'expenses' });
+
 function storeTokenFromUrl(url) {
   return url.searchParams.get('store') || DEFAULT_STORE_CODE;
 }
 
 async function requirePublicStore(env, url) {
   return resolveStore(env.DB, storeTokenFromUrl(url));
+}
+
+function committedFactIds(factType, payload) {
+  if (factType === 'EXPENSE' && Array.isArray(payload?.ids) && payload.ids.length) return payload.ids;
+  if (factType === 'SALE') return payload?.sale?.id ? [payload.sale.id] : [];
+  return payload?.id ? [payload.id] : [];
+}
+
+async function shouldDispatchAccountingForCommittedResponse(response, env, factType) {
+  if (!response || response.status < 200 || response.status >= 300) return true;
+  const type = String(factType || '').toUpperCase();
+  const table = ACCOUNTING_DISPATCH_FACT_TABLE[type];
+  if (!table) return true;
+
+  let payload;
+  try {
+    payload = await response.clone().json();
+  } catch {
+    return true;
+  }
+
+  const [factId] = committedFactIds(type, payload);
+  if (!factId) return true;
+
+  const fact = await env.DB.prepare(`SELECT store_id FROM ${table} WHERE id = ? LIMIT 1`).bind(factId).first();
+  if (!fact?.store_id) return true;
+  const store = await env.DB.prepare('SELECT edition FROM stores WHERE id = ? LIMIT 1').bind(fact.store_id).first();
+  if (!store?.edition) return true;
+  return store.edition === 'ACCOUNTING';
+}
+
+export async function attachAccountingBridgeIfEnabled(response, env, factType, dispatch = attachAccountingBridgeToCommittedResponse) {
+  const shouldDispatch = await shouldDispatchAccountingForCommittedResponse(response, env, factType);
+  return shouldDispatch ? dispatch(response, env, factType) : response;
 }
 
 async function handleCashierOrders(request, env, pathname) {
@@ -161,13 +197,32 @@ async function handleApi(request, env, url) {
   const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
   if (trackedSaleResponse) {
     return request.method === 'POST' && pathname === '/api/cashier/sales'
-      ? attachAccountingBridgeToCommittedResponse(trackedSaleResponse, env, 'SALE')
+      ? attachAccountingBridgeIfEnabled(
+          trackedSaleResponse,
+          env,
+          'SALE',
+          () => attachAccountingBridgeToCommittedResponse(trackedSaleResponse, env, 'SALE')
+        )
       : trackedSaleResponse;
   }
   const purchaseResponse = await handleCashierPurchaseApi(request, env, pathname);
   if (purchaseResponse) {
-    if (request.method === 'POST' && pathname === '/api/cashier/purchases') return attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'PURCHASE');
-    if (request.method === 'POST' && pathname === '/api/cashier/expenses') return attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'EXPENSE');
+    if (request.method === 'POST' && pathname === '/api/cashier/purchases') {
+      return attachAccountingBridgeIfEnabled(
+        purchaseResponse,
+        env,
+        'PURCHASE',
+        () => attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'PURCHASE')
+      );
+    }
+    if (request.method === 'POST' && pathname === '/api/cashier/expenses') {
+      return attachAccountingBridgeIfEnabled(
+        purchaseResponse,
+        env,
+        'EXPENSE',
+        () => attachAccountingBridgeToCommittedResponse(purchaseResponse, env, 'EXPENSE')
+      );
+    }
     return purchaseResponse;
   }
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);

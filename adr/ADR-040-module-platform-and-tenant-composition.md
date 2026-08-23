@@ -112,12 +112,24 @@ keras di proyek ini; sisanya boleh paralel.
 
 ## Yang sengaja TIDAK diputuskan di sini
 
-- **Bentuk teknis registry** (tabel + kolom apa persisnya) — itu keputusan
-  implementer setelah membaca kode, bukan sesuatu yang berguna kalau Hana tebak
-  dari luar.
+- **Bentuk teknis registry** (nama tabel, tipe kolom) — keputusan implementer
+  setelah membaca kode. **Tapi bukan berarti bebas:** pertanyaan-pertanyaan yang
+  wajib bisa dijawab registry sudah dikunci di `contracts/module-contract-v1.md`,
+  termasuk dua yang paling sering dilupakan — riwayat kapan modul aktif, dan data
+  lama tetap terbaca setelah modul dimatikan. Keduanya tidak bisa ditambal
+  belakangan tanpa migrasi data.
 - **Batas modul Olshop vs F&B yang tepat** — hasil audit, bukan asumsi. Penjualan
   Leker dan Penjualan Ikan mungkin satu modul dengan dua profil, mungkin dua modul
-  berbeda. Yang menentukan adalah seberapa banyak logikanya benar-benar sama.
+  berbeda. **Aturan pemutusnya bukan selera implementer**: tiga syarat penggabungan
+  ada di `contracts/module-contract-v1.md`, dan defaultnya kalau ragu adalah
+  memisahkan. Audit memasok faktanya; aturan yang menyimpulkan.
+
+*Revisi 2026-08-23:* dua butir di atas semula ditulis sebagai "diserahkan ke
+implementer" tanpa batas apa pun. Bos Cyo benar menolak itu — bentuk registry dan
+batas modul adalah tulang punggung SaaS-nya, dan menyerahkannya utuh ke sesi yang
+kebetulan mengerjakan adalah cara yang sama persis dengan yang melahirkan salinan
+paralel Ikan Galeh. Yang diserahkan sekarang hanya bentuk teknisnya; kontraknya
+dikunci lebih dulu.
 - **Kapan `store_id` berhenti jadi batas** — sudah ditangani ADR-030 Fase 3, jalan
   terpisah, jangan digabung ke sini.
 

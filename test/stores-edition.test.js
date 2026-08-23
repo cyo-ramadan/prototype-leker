@@ -167,19 +167,19 @@ test('LITE and FLEXIBLE keep accountless POS methods while targeted Accounting s
       assert.deepEqual(
         sqlite.prepare(`SELECT code FROM chart_of_accounts WHERE store_id = ? ORDER BY code`)
           .all(storeId).map(row => row.code),
-        ['4202', '6104', 'SYS-ADJ'],
-        '0026/0028 residual accounts stay explicitly outside this task'
+        ['SYS-ADJ'],
+        '0026 residual account stays explicitly outside this task; 0028 cash-flow accounts are now gated (migration 0049)'
       );
       assert.deepEqual(
         sqlite.prepare(`SELECT code FROM transaction_categories WHERE store_id = ? ORDER BY code`)
           .all(storeId).map(row => row.code),
-        ['cash_flow_in', 'cash_flow_out'],
-        'only the out-of-scope 0028 cash-flow categories remain'
+        [],
+        '0028 cash-flow categories are now gated by edition (migration 0049)'
       );
       assert.equal(
         sqlite.prepare(`SELECT COUNT(*) AS n FROM journal_rules WHERE store_id = ?`).get(storeId).n,
-        4,
-        'only the out-of-scope 0028 cash-flow rules remain'
+        0,
+        '0028 cash-flow rules are now gated by edition (migration 0049)'
       );
       assert.equal(
         sqlite.prepare(`SELECT COUNT(*) AS n FROM item_categories WHERE store_id = ?`).get(storeId).n,

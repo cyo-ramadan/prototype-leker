@@ -78,7 +78,8 @@ test('normal journal posting anchors header and lines to the store entity withou
       FROM accounting_journal_headers
       WHERE id = ?
     `).get(posted.journal.journalId);
-    assert.deepEqual(header, { entity_id: expectedEntityId, journal_status: 'POSTED' });
+    assert.equal(header.entity_id, expectedEntityId);
+    assert.equal(header.journal_status, 'POSTED');
 
     const lines = sqlite.prepare(`
       SELECT entity_id

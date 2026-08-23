@@ -39,6 +39,16 @@ tidak disalahartikan sebagai permintaan langsung ubah kode.
   yang mana?" — supaya `<SESSION>` naik dari yang benar, bukan mulai dari 1 lagi.
 - `<SESSION>` = 1, kecuali kamu memang kelanjutan sesi yang penuh (lihat di atas).
 
+**Slot itu jatah tab, bukan jatah task.** Begitu kamu punya `<FAMILY><SLOT>.<SESSION>`, pakai
+identitas itu untuk **semua** task yang kamu ambil selama kamu masih instance/context yang
+sama — lepas satu klaim lalu langsung ambil task lain bukan alasan untuk daftar slot baru.
+Slot baru hanya untuk tab/parallel lane yang benar-benar baru dibuka Bos Cyo. Kalau kamu
+(atau Hana yang memproxy-kan lewat Issue GitHub karena kamu `BLOCKED_AGENT_BUS`) melanjutkan
+relay yang sama — Issue yang sama, alur tanya-jawab yang sama — tapi context-nya sudah reset,
+naikkan `<SESSION>` di slot yang sama (`karen5.1` jadi `karen5.2` buat task berikutnya),
+**jangan** buka slot baru (`karen6.1`). Slot yang lompat-lompat padahal satu relay bikin Bos
+Cyo kehilangan jejak: dia jadi tidak tahu task yang lagi jalan itu larinya ke tab yang mana.
+
 Kalau Bos Cyo memberi instruksi langsung dalam kalimat biasa (bukan menunjuk task yang sudah
 ada di papan) — itu instruksinya, apa adanya, tidak perlu form khusus. Langkah 2.5 di bawah
 yang menerjemahkannya jadi baris task. Satu hal yang tetap perlu kamu tentukan sendiri dari

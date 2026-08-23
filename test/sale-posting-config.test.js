@@ -188,6 +188,23 @@ test('applying the migration twice changes nothing the second time', () => {
   assert.deepEqual(tableRows(sqlite, CONFIG_TABLES), before);
 });
 
+test('new stores always receive RAW_MATERIAL without requiring Accounting categories', () => {
+  const sqlite = database();
+
+  sqlite.exec(`
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_lite_new', 'LNEW', 'Lite New', 'LITE');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_flexible_new', 'FNEW', 'Flexible New', 'FLEXIBLE');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_accounting_new', 'ANEW', 'Accounting New', 'ACCOUNTING');
+  `);
+
+  for (const storeId of ['store_lite_new', 'store_flexible_new', 'store_accounting_new']) {
+    const kinds = sqlite.prepare(`
+      SELECT code FROM product_kinds WHERE store_id = ? ORDER BY code
+    `).all(storeId).map(row => row.code);
+    assert.deepEqual(kinds, ['RAW_MATERIAL'], `${storeId} gets exactly one RAW_MATERIAL kind`);
+  }
+});
+
 test('the migration writes configuration, never journals', () => {
   const statements = read(CONFIG_MIGRATION).replace(/^\s*--.*$/gm, '');
   for (const table of ['accounting_journal_headers', 'accounting_journal_lines', 'accounting_bridge_deliveries']) {

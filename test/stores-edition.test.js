@@ -199,10 +199,14 @@ test('LITE and FLEXIBLE keep accountless POS methods while targeted Accounting s
         '0024 sequence rows are an accepted residual outside this task'
       );
 
-      assert.doesNotThrow(() => sqlite.prepare(`
-        INSERT INTO product_kinds (id, store_id, code, name)
-        VALUES (?, ?, 'RAW_MATERIAL', 'Bahan Baku')
-      `).run(`kind_${suffix}`, storeId));
+      assert.deepEqual(
+        sqlite.prepare(`
+          SELECT code, name
+          FROM product_kinds
+          WHERE store_id = ? AND code = 'RAW_MATERIAL'
+        `).all(storeId).map(row => ({ ...row })),
+        [{ code: 'RAW_MATERIAL', name: 'Bahan Baku' }]
+      );
       assert.equal(
         sqlite.prepare(`SELECT COUNT(*) AS n FROM item_categories WHERE store_id = ?`).get(storeId).n,
         0

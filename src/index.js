@@ -1,3 +1,9 @@
+import { handleMasterContactsApi as handleIkanContactsApi } from './ikan-master-contacts.js';
+import { handleMasterProductsApi as handleIkanProductsApi } from './ikan-master-products.js';
+import { handleSalesApi as handleIkanSalesApi } from './ikan-penjualan.js';
+import { handlePurchasesApi as handleIkanPurchasesApi } from './ikan-pembelian-dropship.js';
+import { handleTitipanBiayaApi as handleIkanCostPayablesApi } from './ikan-titipan-biaya.js';
+import { handleLaporanApi as handleIkanLaporanApi } from './ikan-laporan.js';
 import { listOrders, listProducts, getOrder } from './db-multistore.js';
 import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore.js';
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
@@ -116,8 +122,26 @@ async function handleCashierOrders(request, env, pathname) {
   return json({ error: 'Route kasir tidak ditemukan.' }, 404);
 }
 
+// Namespace terpisah buat modul Ikan-galeh (lihat migrations/0051_ikan_backend_tables.sql
+// -- tabel ikan_* diprefiks supaya tidak tabrakan dengan tabel Leker bernama sama).
+// Dicek paling awal karena prefiks path-nya tidak pernah overlap dengan rute Leker manapun.
+async function handleIkanApi(request, env, pathname) {
+  if (pathname.startsWith('/api/ikan/contacts')) return handleIkanContactsApi(request, env);
+  if (pathname.startsWith('/api/ikan/products')) return handleIkanProductsApi(request, env);
+  if (pathname.startsWith('/api/ikan/sales')) return handleIkanSalesApi(request, env);
+  if (pathname.startsWith('/api/ikan/purchases')) return handleIkanPurchasesApi(request, env);
+  if (pathname.startsWith('/api/ikan/cost-payables')) return handleIkanCostPayablesApi(request, env);
+  if (pathname.startsWith('/api/ikan/laporan')) return handleIkanLaporanApi(request, env);
+  return null;
+}
+
 async function handleApi(request, env, url) {
   const { pathname } = url;
+
+  if (pathname.startsWith('/api/ikan/')) {
+    const ikanResponse = await handleIkanApi(request, env, pathname);
+    if (ikanResponse) return ikanResponse;
+  }
 
   const debuggerResponse = await handleDebuggerApi(request, env, pathname);
   if (debuggerResponse) return debuggerResponse;

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS consolidation_group_accounts (
   consolidation_group_id TEXT NOT NULL,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')),
+  account_type TEXT NOT NULL CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')),
   effective_from TEXT NOT NULL,
   effective_to TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -1,8 +1,8 @@
 # Tenancy Fase 3 Audit — Admin & Reporting
 
-Status: audit-only evidence for `karen-TENANCY-AUDIT-ADMIN-REPORTING`  
-Scope: `src/admin*.js`, `src/db-multistore.js`, `src/orders-multistore.js`, plus the Customer Sharing Group path needed to classify intentional cross-store reads.  
-Execution baseline: `main` at `7831a64d302511c25dfada084e32bce885af3b57` (2026-08-23).  
+Status: audit-only evidence for `karen-TENANCY-AUDIT-ADMIN-REPORTING`
+Scope: `src/admin*.js`, `src/db-multistore.js`, `src/orders-multistore.js`, plus the Customer Sharing Group path needed to classify intentional cross-store reads.
+Execution baseline: `main` at `7831a64d302511c25dfada084e32bce885af3b57` (2026-08-23).
 DOC-IMPACT: REQUIRED by the claimed DOCS task and fulfilled by this file. No runtime, migration, schema, or implementation-task changes are made here.
 
 ## Classification

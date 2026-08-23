@@ -38,6 +38,12 @@ tidak disalahartikan sebagai permintaan langsung ubah kode.
   sama seperti sesi sebelumnya yang sudah penuh, tanya Bos Cyo satu hal saja: "lanjutan sesi
   yang mana?" — supaya `<SESSION>` naik dari yang benar, bukan mulai dari 1 lagi.
 - `<SESSION>` = 1, kecuali kamu memang kelanjutan sesi yang penuh (lihat di atas).
+- `<PROJECT>` = repo yang Bos Cyo suruh kamu kerjakan, bukan ditebak dari isi instruksinya:
+  `prototype-leker` → `leker`, `ikan-galeh` → `ikan`. Papan tugas sekarang menaungi dua
+  produk sekaligus (sejak 2026-08-20); tiap baris `tasks` wajib punya `project` yang valid
+  (cek `SELECT code FROM projects;` kalau ragu produk baru sudah terdaftar atau belum). Kalau
+  repo yang dimaksud tidak jelas dari instruksinya, tanya Bos Cyo — jangan menebak, salah
+  pilih `<PROJECT>` bikin task kamu nyasar ke produk yang salah.
 
 Kalau Bos Cyo memberi instruksi langsung dalam kalimat biasa (bukan menunjuk task yang sudah
 ada di papan) — itu instruksinya, apa adanya, tidak perlu form khusus. Langkah 2.5 di bawah
@@ -88,15 +94,20 @@ VALUES ('<FAMILY><SLOT>.<SESSION>', '<FAMILY>', <SLOT>, <SESSION>);
 keluargamu; kalau kosong, memang tidak ada bagianmu, jangan mengambil yang lain.
 
 ```sql
-SELECT t.task_id, t.kind, t.territory, t.title, t.brief, t.acceptance_criteria, t.forbidden,
+SELECT t.task_id, t.kind, t.project, t.territory, t.title, t.brief, t.acceptance_criteria, t.forbidden,
        (SELECT group_concat(path_prefix, ', ') FROM task_paths p WHERE p.task_id = t.task_id) AS paths,
        (SELECT rules FROM agent_sops WHERE family = '<FAMILY>') AS sop
 FROM tasks t
 JOIN agent_roles r ON r.kind = t.kind AND r.family = '<FAMILY>'
 WHERE t.status = 'OPEN'
+  AND t.project = '<PROJECT>'
   AND NOT EXISTS (SELECT 1 FROM task_claims c WHERE c.task_id = t.task_id AND c.released_at IS NULL)
 ORDER BY t.created_at;
 ```
+
+Task dari project lain memang tidak muncul di sini — itu sekat yang disengaja, bukan bug.
+Kalau kamu benar-benar perlu kerja lintas-project (jarang), ulangi query ini dengan
+`<PROJECT>` yang lain, sadar penuh bahwa itu produk yang berbeda.
 
 Baca `sop` yang ikut terbawa. Itu aturan tetapmu, dan tidak ada di tempat lain.
 
@@ -127,9 +138,9 @@ Langkah 3 buat klaim task itu (kalau kind-mu memang cocok), atau tulis di `escal
 kamu yakin task itu memang harus jadi milikmu.
 
 ```sql
-INSERT INTO tasks (task_id, assigned_to, issued_by, territory, protocol_version,
+INSERT INTO tasks (task_id, assigned_to, issued_by, project, territory, protocol_version,
                    title, brief, acceptance_criteria, kind, mutates_production, self_closing)
-VALUES ('<FAMILY><SLOT>-SELF-<TIMESTAMP>', '<FAMILY>', 'BOS_CYO', '<TERRITORY>',
+VALUES ('<FAMILY><SLOT>-SELF-<TIMESTAMP>', '<FAMILY>', 'BOS_CYO', '<PROJECT>', '<TERRITORY>',
         'MAXI_AGENT_TASK_BOARD_V1',
         'ringkas instruksi jadi satu baris',
         'salin instruksi Bos Cyo apa adanya, jangan ditafsirkan ulang di sini',
@@ -166,6 +177,19 @@ Kalau klaim ditolak, **jangan diakali** — pesannya sudah menjelaskan sebabnya:
 | `PATH_HELD_BY_ANOTHER_CLAIM` | berkasnya sedang dipegang tab lain | ambil yang lain, **jangan** tunggu, **jangan** force push |
 | `HANDOFF_OR_TAKEOVER_REQUIRED` | sesi lain pernah memegangnya dan belum menyerahkannya | tulis `task_takeovers` bila sesi itu memang mati, atau lapor |
 | `UNIQUE constraint` | sudah dipegang orang | ambil yang lain |
+| `LIKE or GLOB pattern too complex` | **BUKAN** masalah task-mu — ada `path_prefix` sepanjang ~50 karakter atau lebih yang sedang dipegang tab lain (Cloudflare D1 punya batas panjang pola `LIKE` yang jauh di bawah SQLite biasa, ditemukan 2026-08-22). Ini bikin SEMUA insert `task_claims` gagal, bukan cuma punyamu. | Lapor di Issue #107, jangan diakali. Perbaikannya: pendekkan `path_prefix` yang kepanjangan (ganti nama file penuh jadi prefix yang tetap unik, di bawah 50 karakter) — bukan hapus baris atau ubah trigger. |
+
+**Aturan buat dirimu sendiri saat mengisi `<PATHS>` (Langkah 2.5) atau `task_paths`:** jaga
+`path_prefix` di bawah 50 karakter. Nama file panjang (`adr/ADR-0xx-nama-panjang-sekali.md`,
+`public/nama-komponen-yang-sangat-deskriptif.js`) gampang lewat batas ini tanpa terasa —
+pakai prefix yang cukup unik, bukan path lengkap, kalau nama filenya panjang.
+
+**Kalau dua task sama-sama akan menulis migration baru** (`migrations/` sebagai prefix
+bareng), itu bentrok beneran walau nomor filenya nanti beda — sistem tidak tahu nomor mana
+yang akan kamu pakai sampai kamu bilang. Kunci nomor migration yang akan kamu pakai
+**sebelum** klaim (cek migration terakhir di `main`, tambah satu, tulis eksplisit
+`migrations/00XX` sebagai `path_prefix`, bukan `migrations/` polos) — supaya dua task migration
+paralel tidak saling mengunci padahal sebenarnya tidak akan tabrakan file.
 
 **Langkah 4 — kerjakan.**
 

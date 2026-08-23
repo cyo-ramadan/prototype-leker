@@ -44,8 +44,18 @@ const productsThatCannotResolveAccounts = sqlite => sqlite.prepare(`
     )
 `).get().n;
 
+// Scoped to ACCOUNTING-edition stores: migration 0040's seeding (and the
+// `sale` category trigger it installs) only ever fires for stores that get
+// Accounting scaffolding (0045's `trg_stores_seed_accounting_settings_defaults`
+// is gated the same way). A LITE/FLEXIBLE store legitimately never gets a
+// `product_kind`/`item_category` row at all -- that is not a defect, so a
+// store created by a later migration (e.g. a new tenant onboarding) must not
+// change what this idempotency check observes.
 const tableRows = (sqlite, tables) =>
-  tables.map(table => JSON.stringify(sqlite.prepare(`SELECT * FROM "${table}"`).all()));
+  tables.map(table => JSON.stringify(sqlite.prepare(`
+    SELECT * FROM "${table}"
+    WHERE store_id IN (SELECT id FROM stores WHERE edition = 'ACCOUNTING')
+  `).all()));
 
 const CONFIG_TABLES = ['product_kinds', 'item_categories', 'journal_rules', 'products'];
 
@@ -176,6 +186,23 @@ test('applying the migration twice changes nothing the second time', () => {
   // updated_at moves only if the UPDATE fires again, so an unchanged snapshot
   // also proves the second run does not re-touch rows it already assigned.
   assert.deepEqual(tableRows(sqlite, CONFIG_TABLES), before);
+});
+
+test('new stores always receive RAW_MATERIAL without requiring Accounting categories', () => {
+  const sqlite = database();
+
+  sqlite.exec(`
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_lite_new', 'LNEW', 'Lite New', 'LITE');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_flexible_new', 'FNEW', 'Flexible New', 'FLEXIBLE');
+    INSERT INTO stores (id, code, store_name, edition) VALUES ('store_accounting_new', 'ANEW', 'Accounting New', 'ACCOUNTING');
+  `);
+
+  for (const storeId of ['store_lite_new', 'store_flexible_new', 'store_accounting_new']) {
+    const kinds = sqlite.prepare(`
+      SELECT code FROM product_kinds WHERE store_id = ? ORDER BY code
+    `).all(storeId).map(row => row.code);
+    assert.deepEqual(kinds, ['RAW_MATERIAL'], `${storeId} gets exactly one RAW_MATERIAL kind`);
+  }
 });
 
 test('the migration writes configuration, never journals', () => {

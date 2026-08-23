@@ -186,6 +186,36 @@ directly into its session, under all of the following:
 The self-contained prompt in `agent-bus/CLAIM-PROMPT.md` carries the exact SQL for this, so an
 agent follows it the same way it follows a claim — no separate protocol to learn.
 
+### Writing tasks when Hana is out of budget
+
+Hana's context is finite, and a session that runs out cannot write the next task. When that
+happens the board must keep producing work, so **implementers write tasks for themselves and
+for each other** — under the six rules above, plus four more that exist because nobody is
+reviewing the row before it is claimed.
+
+7. **An architecture decision is not yours to make in a task row.** A task may *implement* a
+   decision that an ADR or contract already made. It may not *invent* one. If writing the task
+   requires choosing a boundary, a data shape, or an invariant that no document has settled,
+   that is an escalation to Bos Cyo, not a `brief` you compose. Splitting one decision across
+   several small task rows does not make it smaller — it makes it harder to find.
+8. **Verify the premise before you write the row, not after you claim it.** Every factual claim
+   in a `brief` — that a file exists, that a column is present, that a migration number is
+   free, that another task is finished — must come from reading the live code or the live
+   board in the same session. This rule was written after a task was authored against a
+   trigger design that the schema made impossible: the implementer caught it at preflight, but
+   only because they checked. Do not write "should be straightforward" into a brief you have
+   not verified.
+9. **`forbidden` is not optional, and it is not decoration.** Name what must not be touched and
+   why. A row whose `forbidden` is empty is a row that has not been thought through — the
+   author simply has not asked what the neighbouring work would lose. If nothing is genuinely
+   off-limits, write that sentence explicitly, so a reader knows it was considered.
+10. **Say who checks it.** The author of a task never verifies their own report on it —
+    that is the whole point of the split, and self-issuing does not dissolve it. Write the row
+    so a different session can tell PASS from FAIL by running something, not by trusting a
+    summary. If the only proof possible is "the author says so", the task is written wrong.
+
+A task written this way survives its author. That is the only test that matters.
+
 ## The handoff rule
 
 A task may be held by exactly one open claim. When a session ends without finishing, it must

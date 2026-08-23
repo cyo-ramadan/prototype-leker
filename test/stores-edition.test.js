@@ -11,11 +11,17 @@ const migrationFiles = () => readdirSync(migrationDir)
   .sort();
 const readMigration = file => readFileSync(new URL(file, migrationDir), 'utf8');
 
+// Any migration written after 0045 that touches the `edition` column (e.g. a
+// new store's onboarding migration setting edition='LITE') cannot run without
+// it either -- skip those too, not just 0045 itself, or the includeEdition:false
+// branch crashes on "no such column" instead of showing 0045's isolated effect.
+const dependsOnEdition = file => file === EDITION_MIGRATION || /\bedition\b/.test(readMigration(file));
+
 function migratedDb({ includeEdition = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON;');
   for (const file of migrationFiles()) {
-    if (!includeEdition && file === EDITION_MIGRATION) continue;
+    if (!includeEdition && dependsOnEdition(file)) continue;
     sqlite.exec(readMigration(file));
   }
   return sqlite;
@@ -56,8 +62,12 @@ test('stores.edition is constrained, defaults existing and new stores to ACCOUNT
     assert.equal(String(column?.type).toUpperCase(), 'TEXT');
     assert.equal(Number(column?.notnull), 1);
     assert.equal(String(column?.dflt_value), "'ACCOUNTING'");
+    // Scoped to Leker's own original gerai, not "every row in the table": a
+    // tenant onboarded later may legitimately set edition='LITE' explicitly.
+    // The default itself is proven right below by inserting a store that
+    // omits the column entirely.
     assert.deepEqual(
-      sqlite.prepare(`SELECT DISTINCT edition FROM stores ORDER BY edition`).all()
+      sqlite.prepare(`SELECT DISTINCT edition FROM stores WHERE code IN ('G001', 'G002', 'M002') ORDER BY edition`).all()
         .map(row => row.edition),
       ['ACCOUNTING']
     );
@@ -157,19 +167,19 @@ test('LITE and FLEXIBLE keep accountless POS methods while targeted Accounting s
       assert.deepEqual(
         sqlite.prepare(`SELECT code FROM chart_of_accounts WHERE store_id = ? ORDER BY code`)
           .all(storeId).map(row => row.code),
-        ['4202', '6104', 'SYS-ADJ'],
-        '0026/0028 residual accounts stay explicitly outside this task'
+        ['SYS-ADJ'],
+        '0026 residual account stays explicitly outside this task; 0028 cash-flow accounts are now gated (migration 0049)'
       );
       assert.deepEqual(
         sqlite.prepare(`SELECT code FROM transaction_categories WHERE store_id = ? ORDER BY code`)
           .all(storeId).map(row => row.code),
-        ['cash_flow_in', 'cash_flow_out'],
-        'only the out-of-scope 0028 cash-flow categories remain'
+        [],
+        '0028 cash-flow categories are now gated by edition (migration 0049)'
       );
       assert.equal(
         sqlite.prepare(`SELECT COUNT(*) AS n FROM journal_rules WHERE store_id = ?`).get(storeId).n,
-        4,
-        'only the out-of-scope 0028 cash-flow rules remain'
+        0,
+        '0028 cash-flow rules are now gated by edition (migration 0049)'
       );
       assert.equal(
         sqlite.prepare(`SELECT COUNT(*) AS n FROM item_categories WHERE store_id = ?`).get(storeId).n,

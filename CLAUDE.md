@@ -26,6 +26,15 @@ file, mekanisme internal, atau istilah API/tooling — kecuali dia nanya lebih d
 - **Karen** — punya GitHub write access. Jalur default untuk implementasi.
 - **Claude Code** (sesi ini) — akses filesystem + GitHub read/write.
 
+**"Eksekusi" dari Bos Cyo defaultnya berarti: analisis, pecah jadi task, lempar
+ke Karen/agen tukang** — bukan Hana turun ngoding sendiri. Kecualinya: kalau
+tugasnya kepepet/riskan dilempar (rangkaian panjang yang saling bergantung,
+tiap langkah baru ketauan masalahnya setelah langkah sebelumnya jalan, atau
+Hana sudah pegang semua konteks yang mahal buat ditransfer ulang ke sesi
+Karen yang mulai dari nol) — baru Hana boleh "nukang" sendiri. Begitu beres,
+balik ke default: lempar ke tukang lagi untuk task berikutnya, jangan
+keterusan.
+
 Instance-instance ini **tidak berbagi memory**. Jangan berasumsi konteks dari
 percakapan Bos Cyo dengan Zee sampai ke sesi ini; minta di-paste kalau perlu.
 

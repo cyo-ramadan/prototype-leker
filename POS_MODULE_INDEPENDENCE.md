@@ -135,6 +135,37 @@ Settings/Accounting) → `ADR-036` (Warehouse, sudah menyempit ke kuantitas stok
 `ADR-033` (Setting Transaksi) sudah selesai, dibaca kalau butuh detail teknis cara
 kerjanya, bukan buat keputusan arah.
 
+## Ikan-galeh — konsumen nyata pertama, 2026-08-22
+
+Bos Cyo memutuskan: **Ikan-galeh (olshop ikan dari petani) jadi Tenant kedua di
+platform yang sama** (`TEN-GALEH`, entity `ENT-GALEH`, store `IKAN01`), bukan
+database terpisah — lewat Entity/Tenant `ADR-030`, karena `store_id` sendirian
+tidak cukup begitu pelanggan kedua masuk (`KNOWN_PITFALLS.md`). Ini bukan lagi
+skenario hipotetis di ADR — ini kebutuhan nyata pertama yang benar-benar
+menagih janji `ADR-034`/`ADR-036`/`ADR-037` selesai dikerjakan.
+
+**Klarifikasi soal "dropship" buat siapa pun yang menyambung ke sini:** dropship
+**bukan** mode HPP baru yang perlu ditambah ke Manufaktur. Mode
+`DIRECT_FROM_PURCHASE` (§2.3, sudah default) sudah persis "HPP = harga beli baris
+itu sendiri" — itu yang dibutuhkan Ikan-galeh. Dropship murni soal **siapa yang
+membuat baris Pembelian** (otomatis dari Sale, bukan diketik kasir) — itu domain
+Operasional, bukan Manufaktur. Jangan desain mode HPP baru buat ini.
+
+**Temuan baru waktu nyiapkan gerai `IKAN01`, dicatat di sini biar tidak
+terulang:** gerai baru yang dibuat **setelah** migration `0040` tidak pernah
+kebagian Jenis Barang default (`RAW_MATERIAL`) — seeding-nya di `0040` itu
+backfill sekali jalan (`INSERT ... SELECT FROM stores` saat migration itu
+berjalan), **bukan** trigger `AFTER INSERT ON stores` seperti seeding
+Accounting/POS payment methods (`0045`). Store manapun yang lahir belakangan
+diam-diam kehilangan default itu, sampai ketahuan lewat
+`test/sale-posting-config.test.js` (assertion idempotency migration 0040) waktu
+Hana coba tambah `IKAN01`. Ini utang yang sudah ada sebelum Ikan-galeh, cuma
+belum pernah ketagih karena belum pernah ada gerai baru sejak `0040` applied.
+Perlu trigger setara sebelum gerai baru manapun (termasuk `IKAN01`) aman dibuat.
+
+Task papan (`maxi-agent-bus`, `project='ikan'`) yang menjalankan bagian ini
+ditulis 2026-08-22, urutannya tercatat di task masing-masing.
+
 ## DOC-IMPACT
 
 Perbarui tabel status setiap kali ada fase `ADR-034`/`ADR-036`/`ADR-037` yang mendarat,

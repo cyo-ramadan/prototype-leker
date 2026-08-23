@@ -18,7 +18,7 @@ PRAGMA foreign_keys = ON;
 --
 -- Uang tetap scaled INTEGER 1 rupiah = 1.000.000 unit, sama seperti versi asal.
 
-CREATE TABLE ikan_contacts (
+CREATE TABLE IF NOT EXISTS ikan_contacts (
   contact_id      TEXT PRIMARY KEY NOT NULL,
   store_id        TEXT NOT NULL REFERENCES stores(id),
   contact_name    TEXT NOT NULL,
@@ -30,9 +30,9 @@ CREATE TABLE ikan_contacts (
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX idx_ikan_contacts_store ON ikan_contacts(store_id);
+CREATE INDEX IF NOT EXISTS idx_ikan_contacts_store ON ikan_contacts(store_id);
 
-CREATE TABLE ikan_products (
+CREATE TABLE IF NOT EXISTS ikan_products (
   product_id             TEXT PRIMARY KEY NOT NULL,
   store_id               TEXT NOT NULL REFERENCES stores(id),
   product_name           TEXT NOT NULL,
@@ -43,9 +43,9 @@ CREATE TABLE ikan_products (
   created_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX idx_ikan_products_store ON ikan_products(store_id);
+CREATE INDEX IF NOT EXISTS idx_ikan_products_store ON ikan_products(store_id);
 
-CREATE TABLE ikan_sales (
+CREATE TABLE IF NOT EXISTS ikan_sales (
   sale_id                 TEXT PRIMARY KEY NOT NULL,
   store_id                TEXT NOT NULL REFERENCES stores(id),
   sale_number             TEXT NOT NULL UNIQUE,
@@ -61,9 +61,9 @@ CREATE TABLE ikan_sales (
   created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX idx_ikan_sales_store ON ikan_sales(store_id);
+CREATE INDEX IF NOT EXISTS idx_ikan_sales_store ON ikan_sales(store_id);
 
-CREATE TABLE ikan_sale_items (
+CREATE TABLE IF NOT EXISTS ikan_sale_items (
   sale_item_id            TEXT PRIMARY KEY NOT NULL,
   sale_id                 TEXT NOT NULL REFERENCES ikan_sales(sale_id),
   product_id              TEXT NOT NULL REFERENCES ikan_products(product_id),
@@ -75,14 +75,14 @@ CREATE TABLE ikan_sale_items (
   line_amount              INTEGER NOT NULL CHECK (line_amount >= 0)
 );
 
-CREATE TABLE ikan_sale_payments (
+CREATE TABLE IF NOT EXISTS ikan_sale_payments (
   sale_payment_id  TEXT PRIMARY KEY NOT NULL,
   sale_id          TEXT NOT NULL REFERENCES ikan_sales(sale_id),
   amount           INTEGER NOT NULL CHECK (amount > 0),
   paid_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
-CREATE TABLE ikan_purchases (
+CREATE TABLE IF NOT EXISTS ikan_purchases (
   purchase_id        TEXT PRIMARY KEY NOT NULL,
   store_id           TEXT NOT NULL REFERENCES stores(id),
   purchase_number    TEXT NOT NULL UNIQUE,
@@ -95,9 +95,9 @@ CREATE TABLE ikan_purchases (
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX idx_ikan_purchases_store ON ikan_purchases(store_id);
+CREATE INDEX IF NOT EXISTS idx_ikan_purchases_store ON ikan_purchases(store_id);
 
-CREATE TABLE ikan_purchase_items (
+CREATE TABLE IF NOT EXISTS ikan_purchase_items (
   purchase_item_id        TEXT PRIMARY KEY NOT NULL,
   purchase_id              TEXT NOT NULL REFERENCES ikan_purchases(purchase_id),
   product_id                TEXT NOT NULL REFERENCES ikan_products(product_id),
@@ -107,14 +107,14 @@ CREATE TABLE ikan_purchase_items (
   line_amount                INTEGER NOT NULL CHECK (line_amount >= 0)
 );
 
-CREATE TABLE ikan_purchase_payments (
+CREATE TABLE IF NOT EXISTS ikan_purchase_payments (
   purchase_payment_id  TEXT PRIMARY KEY NOT NULL,
   purchase_id           TEXT NOT NULL REFERENCES ikan_purchases(purchase_id),
   amount                INTEGER NOT NULL CHECK (amount > 0),
   paid_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
-CREATE TABLE ikan_cost_payables (
+CREATE TABLE IF NOT EXISTS ikan_cost_payables (
   cost_payable_id      TEXT PRIMARY KEY NOT NULL,
   store_id              TEXT NOT NULL REFERENCES stores(id),
   sale_id               TEXT NOT NULL REFERENCES ikan_sales(sale_id),
@@ -125,16 +125,16 @@ CREATE TABLE ikan_cost_payables (
   transaction_date      TEXT NOT NULL,
   created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX idx_ikan_cost_payables_store ON ikan_cost_payables(store_id);
+CREATE INDEX IF NOT EXISTS idx_ikan_cost_payables_store ON ikan_cost_payables(store_id);
 
-CREATE TABLE ikan_cost_payable_payments (
+CREATE TABLE IF NOT EXISTS ikan_cost_payable_payments (
   cost_payable_payment_id  TEXT PRIMARY KEY NOT NULL,
   cost_payable_id           TEXT NOT NULL REFERENCES ikan_cost_payables(cost_payable_id),
   amount                    INTEGER NOT NULL CHECK (amount > 0),
   paid_at                   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
-CREATE TABLE ikan_cash_ledger (
+CREATE TABLE IF NOT EXISTS ikan_cash_ledger (
   cash_ledger_id  TEXT PRIMARY KEY NOT NULL,
   store_id        TEXT NOT NULL REFERENCES stores(id),
   direction       TEXT NOT NULL CHECK (direction IN ('IN','OUT')),
@@ -143,4 +143,4 @@ CREATE TABLE ikan_cash_ledger (
   source_id       TEXT NOT NULL,
   occurred_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX idx_ikan_cash_ledger_store ON ikan_cash_ledger(store_id);
+CREATE INDEX IF NOT EXISTS idx_ikan_cash_ledger_store ON ikan_cash_ledger(store_id);

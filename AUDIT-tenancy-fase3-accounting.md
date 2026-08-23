@@ -1,8 +1,8 @@
 # Audit Tenancy Fase 3 — Accounting
 
-Task: `karen-TENANCY-AUDIT-ACCOUNTING`  
-Claim: `karen10-TENANCY-AUDIT-ACC-claim`  
-Audit basis: `HANDOFF-tenancy-implementation.md` Fase 3 + `adr/ADR-030-multi-entity-tenancy-and-accounting-consolidation.md`  
+Task: `karen-TENANCY-AUDIT-ACCOUNTING`
+Claim: `karen10-TENANCY-AUDIT-ACC-claim`
+Audit basis: `HANDOFF-tenancy-implementation.md` Fase 3 + `adr/ADR-030-multi-entity-tenancy-and-accounting-consolidation.md`
 Audited baseline: `main@bcb813029c03d77912dd000a21037cad9f4635d8`
 
 ## Scope and classification
@@ -224,7 +224,7 @@ Tidak ada query C.
 - `src/accounting-workspace.js:20-32` — request-selected store is resolved after management auth, but no authorized Entity-set enforcement exists at the Accounting call site.
 - `src/accounting-workspace.js:39-57` — bootstrap loads CoA, journals, and bridge summary by `store.id`.
 - `src/accounting-workspace.js:83-104` — account create/update + manual journal write operate against the selected store.
-- `src/accounting-workspace.js:107-159` — journal list/detail, General Ledger, Profit/Loss, and Balance Sheet all pass only `store.id` into books reads.
+- `src/accounting-workspace.js:107-159` — journal list/detail, General Ledger, Profit/Loss, dan Balance Sheet all pass only `store.id` into books reads.
 
 `store_id` may remain in returned journal/account provenance, but it cannot remain the sole tenant authorization/books filter when multi-tenant enforcement lands.
 

@@ -4,16 +4,28 @@ PRAGMA foreign_keys = ON;
 -- ADR-030 step 5: consolidation stays read-side. Entity books keep their local
 -- Chart of Accounts; this schema only supplies a temporal group CoA and mapping.
 
+CREATE TABLE IF NOT EXISTS consolidation_group_account_types (
+  code TEXT PRIMARY KEY
+);
+
+INSERT OR IGNORE INTO consolidation_group_account_types (code) VALUES
+  ('ASSET'),
+  ('LIABILITY'),
+  ('EQUITY'),
+  ('REVENUE'),
+  ('EXPENSE');
+
 CREATE TABLE IF NOT EXISTS consolidation_group_accounts (
   id TEXT PRIMARY KEY,
   consolidation_group_id TEXT NOT NULL,
   code TEXT NOT NULL,
   name TEXT NOT NULL,
-  account_type TEXT NOT NULL CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')),
+  account_type TEXT NOT NULL,
   effective_from TEXT NOT NULL,
   effective_to TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (consolidation_group_id) REFERENCES consolidation_groups(id) ON DELETE CASCADE,
+  FOREIGN KEY (account_type) REFERENCES consolidation_group_account_types(code) ON DELETE RESTRICT,
   CHECK (effective_to IS NULL OR effective_to > effective_from)
 );
 

@@ -56,7 +56,7 @@ function seedMapping(sqlite) {
   `).run(store.entity_id);
   sqlite.prepare(`
     INSERT INTO consolidation_group_accounts (
-      id, consolidation_group_id, code, name, type, effective_from
+      id, consolidation_group_id, code, name, account_type, effective_from
     ) VALUES ('CGA-CASH', 'CG-TEST', '1000', 'Kas Group', 'ASSET', '2026-01-01T00:00:00Z')
   `).run();
   sqlite.prepare(`
@@ -156,7 +156,7 @@ test('mapping history is closed and reopened instead of overwritten', async () =
     `).run();
     sqlite.prepare(`
       INSERT INTO consolidation_group_accounts (
-        id, consolidation_group_id, code, name, type, effective_from
+        id, consolidation_group_id, code, name, account_type, effective_from
       ) VALUES ('CGA-CASH-NEW', 'CG-TEST', '1001', 'Kas Group Baru', 'ASSET', '2026-06-01T00:00:00Z')
     `).run();
     sqlite.prepare(`

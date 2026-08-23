@@ -115,6 +115,32 @@ The `contract` field is the one that prevents ambiguity at query time. State whi
 to which, in words, e.g. *"`production_runs.recipe_id` must reference an immutable recipe
 revision; never join to `manufacturing_recipes` by product alone."*
 
+## Editing a task already on the board
+
+`trg_claim_path_conflict` only fires `BEFORE INSERT ON task_claims`. It says nothing about
+`UPDATE tasks` or `INSERT`/`DELETE` on `task_paths` — so nothing in the schema stops a session
+from rewriting a task's `title`, `brief`, or `task_paths` out from under a claim another
+session is actively holding. This was found in production, not designed against on paper: a
+Hana session with no memory of an in-progress claim edited `IKAN-FRONTEND-REWIRE-02` to add
+`src/index.js`, the exact file `karen-BS-DISPATCH-GATING` already had an open claim on — the
+edit landed clean because the trigger never saw it.
+
+**Before saving any edit to a task that is not brand-new** — paths added or changed, brief
+rewritten, title changed — run the same check the trigger would run if it could:
+
+```sql
+SELECT tp.task_id, tp.path_prefix FROM task_paths tp
+JOIN task_claims c ON c.task_id = tp.task_id AND c.released_at IS NULL
+WHERE tp.path_prefix LIKE '<NEW_OR_CHANGED_PATH>%' OR '<NEW_OR_CHANGED_PATH>' LIKE tp.path_prefix || '%';
+```
+
+Non-empty and the conflicting task isn't the one you're editing → the edit collides with a live
+claim. Either hold the edit until that claim releases, or narrow it to exclude the contested
+path and let the claimant add it back themselves once free (self-service rule in
+`agent-bus/CLAIM-PROMPT.md` covers exactly this). This applies to whoever is writing the edit —
+Hana, Bos Cyo typing SQL directly, or a future agent family with board write access — because
+the trigger cannot tell who is asking.
+
 ## Self-issued tasks — Bos Cyo speaks in a sentence, the agent writes the SQL
 
 Every task above assumes Hana (or Bos Cyo) already wrote a row in `tasks`. That is the right

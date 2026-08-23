@@ -34,9 +34,10 @@ tidak disalahartikan sebagai permintaan langsung ubah kode.
 **Tentukan identitasmu sendiri**, jangan tunggu diberi tahu:
 - `<FAMILY>` = nama platform/agenmu sendiri (`karen`, `kimi`, `manus`, `grok`, dst).
 - `<SLOT>` = query `agent_sessions` untuk keluargamu (Langkah 1 di bawah tunjukkan caranya);
-  pakai slot terkecil yang belum terdaftar. Kalau kamu memang tab baru untuk kerjaan yang
-  sama seperti sesi sebelumnya yang sudah penuh, tanya Bos Cyo satu hal saja: "lanjutan sesi
-  yang mana?" — supaya `<SESSION>` naik dari yang benar, bukan mulai dari 1 lagi.
+  pakai slot terkecil yang belum terdaftar, **dihitung mulai dari 1 — slot 0 tidak pernah
+  jadi kandidat**, seberapa pun kosongnya tabel itu. Kalau kamu memang tab baru untuk kerjaan
+  yang sama seperti sesi sebelumnya yang sudah penuh, tanya Bos Cyo satu hal saja: "lanjutan
+  sesi yang mana?" — supaya `<SESSION>` naik dari yang benar, bukan mulai dari 1 lagi.
 - `<SESSION>` = 1, kecuali kamu memang kelanjutan sesi yang penuh (lihat di atas).
 
 **Slot itu jatah tab, bukan jatah task.** Begitu kamu punya `<FAMILY><SLOT>.<SESSION>`, pakai
@@ -49,11 +50,39 @@ naikkan `<SESSION>` di slot yang sama (`karen5.1` jadi `karen5.2` buat task beri
 **jangan** buka slot baru (`karen6.1`). Slot yang lompat-lompat padahal satu relay bikin Bos
 Cyo kehilangan jejak: dia jadi tidak tahu task yang lagi jalan itu larinya ke tab yang mana.
 
+**Slot 0 itu kursi, bukan lajur — dan cuma Bos Cyo yang memberikannya.** Kalau di awal sesi
+Bos Cyo menamaimu **`karen0.1`** (atau `<FAMILY>0.1`), kamu sedang menggantikan Hana untuk sesi
+itu dan **boleh menulis baris task** lewat Langkah 2.5. Kalau namamu bukan itu — `karen3.2`,
+`karen7.1`, apa pun — kerjaanmu tetap sama seperti biasa: klaim, kerjakan, lapor, handoff.
+**Kamu bukan pengganti Hana sementara, dan kamu tidak menulis task.** Dikasih kerjaan besar
+tidak menaikkan siapa pun ke kursi itu; cuma nama di awal sesi yang menentukan.
+
+Ini berlaku sejak 2026-08-23 dan menggantikan aturan lama yang mengizinkan implementer mana
+pun menulis task sendiri. Alasannya: menulis task itu bukan pekerjaan tulis-menulis — di
+situlah lingkup ditetapkan, apa yang tidak boleh disentuh dinamai, dan ukuran "selesai"
+diputuskan. Itu arsitektur yang menyamar jadi kerjaan kecil.
+
 Kalau Bos Cyo memberi instruksi langsung dalam kalimat biasa (bukan menunjuk task yang sudah
-ada di papan) — itu instruksinya, apa adanya, tidak perlu form khusus. Langkah 2.5 di bawah
-yang menerjemahkannya jadi baris task. Satu hal yang tetap perlu kamu tentukan sendiri dari
-kalimatnya: apakah itu menyentuh data produksi/uang sungguhan. Kalau ragu, anggap YA —
-Langkah 2.5 akan menahannya untuk Bos Cyo, bukan menutup sendiri.
+ada di papan), yang kamu lakukan tergantung kursimu:
+
+- **Kamu `<FAMILY>0.x`** → itu instruksinya, apa adanya, tidak perlu form khusus. Langkah 2.5
+  yang menerjemahkannya jadi baris task. Satu hal yang tetap perlu kamu tentukan sendiri dari
+  kalimatnya: apakah itu menyentuh data produksi/uang sungguhan. Kalau ragu, anggap YA —
+  Langkah 2.5 akan menahannya untuk Bos Cyo, bukan menutup sendiri.
+- **Kamu slot lain** → **jangan mulai kerja, dan jangan menulis task**. Catat permintaannya di
+  `escalations` pakai kalimat Bos Cyo apa adanya (jangan ditafsirkan ulang), lalu bilang terus
+  terang ke Bos Cyo bahwa ini perlu `<FAMILY>0.1` atau Hana untuk dijadikan task. Ini memang
+  lebih lambat daripada menulis sendiri — dan lambatnya disengaja.
+
+```sql
+INSERT INTO escalations (escalation_id, raised_by, blocking_item, ambiguity,
+                         decision_required, routed_to, status)
+VALUES ('<FAMILY><SLOT>-REQ-<TIMESTAMP>', '<FAMILY><SLOT>.<SESSION>',
+        'Instruksi langsung Bos Cyo, butuh baris task',
+        'salin kalimat Bos Cyo apa adanya di sini, jangan ditafsirkan ulang',
+        'Perlu <FAMILY>0.1 atau Hana menuliskan ini jadi baris task sebelum dikerjakan',
+        'BOS_CYO', 'OPEN');
+```
 
 ---
 
@@ -113,6 +142,13 @@ Baca `sop` yang ikut terbawa. Itu aturan tetapmu, dan tidak ada di tempat lain.
 **Langkah 2.5 — kalau tidak ada yang cocok di papan, tapi Bos Cyo sudah kasih instruksi
 langsung, buat task-nya sendiri.** Ini menggantikan Bos Cyo mengetik SQL, bukan menggantikan
 penjagaannya — setiap baris di bawah masih wajib diisi jujur, terutama `paths`.
+
+> **BERHENTI — langkah ini cuma untuk `<FAMILY>0.x`.** Kalau namamu bukan `<FAMILY>0.1`
+> (atau kelanjutannya `<FAMILY>0.2`, dst) yang **diberikan Bos Cyo di awal sesi**, kamu tidak
+> menulis baris task. Lewati seluruh langkah ini, tulis `escalations` seperti di bagian
+> identitas di atas, lalu bilang ke Bos Cyo bahwa ini perlu `<FAMILY>0.1` atau Hana.
+> Mendaftarkan diri sendiri ke slot 0 supaya lolos bukan jalan keluar — itu mengambil
+> wewenang Hana, persis satu hal yang kursi ini ada untuk mencegahnya.
 
 1. Pilih `<KIND>` dari `agent_roles` milikmu sendiri (hasil Langkah 2, kolom `r.kind` kalau
    ada baris; kalau tidak ada satu pun baris untuk keluargamu, **ini bukan bagianmu** —

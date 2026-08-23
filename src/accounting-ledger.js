@@ -457,20 +457,20 @@ export async function postAccountingJournal(db, store, command) {
       INSERT INTO accounting_journal_headers (
         id, store_id, journal_number, business_date, occurred_at, currency_code,
         source_system, source_reference_id, correlation_id, idempotency_key,
-        description, journal_status, posted_at, reversal_of_journal_id
-      ) VALUES (?, ?, ?, ?, ?, 'IDR', ?, ?, ?, ?, ?, 'POSTED', ?, ?)
+        description, journal_status, posted_at, reversal_of_journal_id, entity_id
+      ) VALUES (?, ?, ?, ?, ?, 'IDR', ?, ?, ?, ?, ?, 'POSTED', ?, ?, (SELECT entity_id FROM stores WHERE id = ?))
     `).bind(
       journalId, store.id, journalNumber, businessDate, occurredAt,
       sourceSystem, sourceReferenceId, correlationId, idempotencyKey,
-      description, postedAt, reversalOfJournalId
+      description, postedAt, reversalOfJournalId, store.id
     )
   ];
   checked.lines.forEach((line, index) => {
     statements.push(db.prepare(`
       INSERT INTO accounting_journal_lines (
         id, store_id, journal_id, line_number, account_id, side,
-        amount_scaled, is_system_generated, description, choice_group_code, choice_option_code
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        amount_scaled, is_system_generated, description, choice_group_code, choice_option_code, entity_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT entity_id FROM stores WHERE id = ?))
     `).bind(
       `${journalId}:L${String(index + 1).padStart(3, '0')}`,
       store.id,
@@ -482,7 +482,8 @@ export async function postAccountingJournal(db, store, command) {
       line.isSystemGenerated ? 1 : 0,
       line.description,
       line.choiceGroupCode || '',
-      line.choiceOptionCode || ''
+      line.choiceOptionCode || '',
+      store.id
     ));
   });
   try {

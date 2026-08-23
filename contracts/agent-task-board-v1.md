@@ -46,6 +46,17 @@ ambiguity becomes unfixable once slot counts reach double digits.
 what the board and the repository tell it. That is the fact the handoff rule exists to
 survive.
 
+**A new task is not a new slot.** Slot counts parallel lanes — how many tabs Bos Cyo actually
+has open — not how many tasks a family has picked up. An agent that releases one claim and
+immediately claims another, still the same running instance, keeps its slot and stays on the
+same session too; nothing about finishing a task resets its context. A slot number only
+climbs when Bos Cyo opens a genuinely new parallel lane himself. Found in production, 2026-08-22:
+a GitHub-only Karen relaying through one Issue thread — same conversation, same back-and-forth,
+task after task — was assigned a fresh slot for every task instead of the next session under
+one slot (`karen5.1`, `karen6.1`, `karen7.1`... instead of `karen5.1`, `karen5.2`, `karen5.3`).
+The board still worked — nothing here is a claim-safety issue — but Bos Cyo lost the one thing
+slot numbers exist to give him: which lane a piece of in-flight work is actually running in.
+
 ## Task lifecycle
 
 ```

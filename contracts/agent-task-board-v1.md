@@ -46,37 +46,6 @@ ambiguity becomes unfixable once slot counts reach double digits.
 what the board and the repository tell it. That is the fact the handoff rule exists to
 survive.
 
-### Slot 0 — the delegated architect seat
-
-**Slot 0 is not a lane. It is an authority, and only Bos Cyo hands it out.**
-
-An agent named `karen0.1` at session start — named that way *by Bos Cyo himself*, in the
-opening instruction — is standing in for Hana for that session, and may write task rows. Any
-other name (`karen3.2`, `karen7.1`, whatever) is an ordinary implementer: it claims, works,
-reports, hands off, and adds its own missing `task_paths`, but it **does not author tasks**.
-Being handed a big piece of work does not promote anyone; only the name given at session start
-does.
-
-**No agent may ever assign itself slot 0.** The registration step picks the smallest free slot
-*starting from 1* — 0 is never a candidate, no matter how empty the table looks. A session that
-registers itself as slot 0 without Bos Cyo naming it that has granted itself Hana's authority,
-which is the one thing this seat exists to prevent.
-
-Session numbering works the same as everywhere else: `karen0.1` becomes `karen0.2` on a context
-reset, still the same seat.
-
-**Why the seat exists.** Writing a task is not clerical work — it fixes scope, names what must
-not be touched, and decides what counts as done. That is architecture wearing a small hat. When
-any implementer could write task rows, the most consequential decisions in a project ended up
-being made by whichever session happened to be handed the instruction, with no ADR behind them.
-That is the same mechanism that produced Ikan Galeh as a parallel copy instead of a module.
-
-**What a non-zero slot does when Bos Cyo hands it work directly.** It does not start without a
-task row, and it does not write one. It records the request as an `escalations` row in Bos Cyo's
-own words, then says plainly that this needs `karen0.1` or Hana to turn into a task. This is
-slower than self-issuing, and that cost is deliberate: Bos Cyo chose it 2026-08-23 over the
-alternative of scope decisions landing wherever they happened to land.
-
 **A new task is not a new slot.** Slot counts parallel lanes — how many tabs Bos Cyo actually
 has open — not how many tasks a family has picked up. An agent that releases one claim and
 immediately claims another, still the same running instance, keeps its slot and stays on the
@@ -192,11 +161,7 @@ possible — and making him type SQL to get a small thing done is exactly the fr
 pushes people to skip the board entirely, which is the failure mode this section exists to
 prevent.
 
-**Since 2026-08-23 this section applies to slot 0 only** — `karen0.1`, named that way by Bos Cyo
-at session start (see *Slot 0 — the delegated architect seat* above). Every other session reads
-this section to understand what a well-formed task looks like, not as permission to write one.
-
-**A slot-0 agent may write a task row** when Bos Cyo pastes a plain-language instruction
+**An implementer may write its own task row** when Bos Cyo pastes a plain-language instruction
 directly into its session, under all of the following:
 
 1. The agent registers itself and checks the board first, same as always. If an open task
@@ -224,14 +189,9 @@ agent follows it the same way it follows a claim — no separate protocol to lea
 ### Writing tasks when Hana is out of budget
 
 Hana's context is finite, and a session that runs out cannot write the next task. When that
-happens the board must keep producing work — so **Bos Cyo opens a slot-0 session** and that
-session writes tasks in Hana's place, under the six rules above plus four more that exist
-because nobody is reviewing the row before it is claimed.
-
-Before 2026-08-23 this fell to whichever implementer was around. It no longer does: the seat is
-named, or nobody sits in it. A board that stops producing tasks because Hana is out of budget
-and no slot-0 session is open is working correctly — that is a signal to Bos Cyo, not a gap for
-an implementer to quietly fill.
+happens the board must keep producing work, so **implementers write tasks for themselves and
+for each other** — under the six rules above, plus four more that exist because nobody is
+reviewing the row before it is claimed.
 
 7. **An architecture decision is not yours to make in a task row.** A task may *implement* a
    decision that an ADR or contract already made. It may not *invent* one. If writing the task

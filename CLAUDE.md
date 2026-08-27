@@ -92,7 +92,6 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |
 | Cara memberi/menerima task antar agen | `contracts/agent-task-board-v1.md` |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
-| Onboarding sesi `karen0.1` — kursi arsitek titipan, satu-satunya yang boleh menulis task saat Hana tidak ada | `agent-bus/SLOT0-PROMPT.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 
 ## Deploy

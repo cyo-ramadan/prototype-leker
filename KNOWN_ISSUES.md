@@ -286,6 +286,31 @@ Canonical login remains separated into Pelanggan and Karyawan, one staff account
 
 If browser-tab lease or takeover creates a new failure, record a new issue and do not restore tight periodic polling as a workaround.
 
+## Fixed: new-store provisioning was silently broken in production (2026-08-25)
+
+Found while provisioning three new Leker stores (Kantor/Pendem/Mandala, migration 0052):
+`INSERT INTO stores` for `edition='ACCOUNTING'` failed with `ITEM_CATEGORY_SCOPE_MISMATCH`,
+the exact bug migration 0048 documented and claimed to fix. Root cause, confirmed by
+reading `sqlite_schema` directly rather than trusting the `d1_migrations` ledger
+(CLAUDE.md invariant #7): the trigger 0048 was supposed to install
+(`trg_payment_methods_seed_raw_material_product_kind`) did not exist in production,
+while the broken trigger 0048 said to retire (`trg_stores_seed_raw_material_product_kind`)
+was still live — and that trigger does not appear in any migration file in git history
+(`git log --all -S` returns nothing), meaning it was created by hand directly against
+production and never recorded. Fixed additively in migration 0053 (drop the undocumented
+trigger, re-install 0048's trigger verbatim) and verified against a disposable test store
+before touching real data. This affected every new-store creation path (this migration,
+`src/admin-multistore.js`, `src/owner-auth.js`), not just this one.
+
+## Leker store roster (as of 2026-08-25)
+
+Six stores across two tenants, confirmed live: `store_001` (Leker Mall Dinoyo),
+`store_ab5c6dd4-...` (MAXI LEKER DINOYO), `store_002` (MAXI LEKER G002), `store_kantor`
+(Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all `TEN-PROTOTYPE`, one
+Entity per store, `edition='ACCOUNTING'`; plus `store_ikan01` (Galeh) under `TEN-GALEH`,
+`edition='LITE'`. Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to
+reach that count.
+
 ## DOC-IMPACT
 
 **REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations.

@@ -45,6 +45,16 @@ tidak disalahartikan sebagai permintaan langsung ubah kode.
   repo yang dimaksud tidak jelas dari instruksinya, tanya Bos Cyo — jangan menebak, salah
   pilih `<PROJECT>` bikin task kamu nyasar ke produk yang salah.
 
+**Slot itu jatah tab, bukan jatah task.** Begitu kamu punya `<FAMILY><SLOT>.<SESSION>`, pakai
+identitas itu untuk **semua** task yang kamu ambil selama kamu masih instance/context yang
+sama — lepas satu klaim lalu langsung ambil task lain bukan alasan untuk daftar slot baru.
+Slot baru hanya untuk tab/parallel lane yang benar-benar baru dibuka Bos Cyo. Kalau kamu
+(atau Hana yang memproxy-kan lewat Issue GitHub karena kamu `BLOCKED_AGENT_BUS`) melanjutkan
+relay yang sama — Issue yang sama, alur tanya-jawab yang sama — tapi context-nya sudah reset,
+naikkan `<SESSION>` di slot yang sama (`karen5.1` jadi `karen5.2` buat task berikutnya),
+**jangan** buka slot baru (`karen6.1`). Slot yang lompat-lompat padahal satu relay bikin Bos
+Cyo kehilangan jejak: dia jadi tidak tahu task yang lagi jalan itu larinya ke tab yang mana.
+
 Kalau Bos Cyo memberi instruksi langsung dalam kalimat biasa (bukan menunjuk task yang sudah
 ada di papan) — itu instruksinya, apa adanya, tidak perlu form khusus. Langkah 2.5 di bawah
 yang menerjemahkannya jadi baris task. Satu hal yang tetap perlu kamu tentukan sendiri dari
@@ -190,6 +200,35 @@ yang akan kamu pakai sampai kamu bilang. Kunci nomor migration yang akan kamu pa
 **sebelum** klaim (cek migration terakhir di `main`, tambah satu, tulis eksplisit
 `migrations/00XX` sebagai `path_prefix`, bukan `migrations/` polos) — supaya dua task migration
 paralel tidak saling mengunci padahal sebenarnya tidak akan tabrakan file.
+
+**Kalau task yang sudah kamu klaim minta tes regresi di `acceptance_criteria` tapi
+`task_paths`-nya lupa mencakup file test** (bukan ambiguitas kebijakan, murni celah
+penulisan task) — **kamu boleh menambah baris `task_paths` sendiri, tanpa menunggu Hana**,
+asal tiga syarat ini dipenuhi:
+
+1. Query dulu tidak ada klaim lain yang masih terbuka (`released_at IS NULL`) menyentuh
+   prefix yang sama atau overlap:
+   ```sql
+   SELECT tp.task_id, tp.path_prefix FROM task_paths tp
+   JOIN task_claims c ON c.task_id = tp.task_id AND c.released_at IS NULL
+   WHERE tp.path_prefix LIKE '<PREFIX_BARUMU>%' OR '<PREFIX_BARUMU>' LIKE tp.path_prefix || '%';
+   ```
+   Kosong → aman, lanjut insert. Ada isinya → itu genuinely blocked, jangan dipaksa, lapor
+   di `escalations` atau Issue GitHub seperti biasa.
+2. Prefix itu turunan langsung dari file yang memang sudah diizinkan di task ini (nama
+   test yang menguji file yang sama), bukan pintu ke direktori `test/` polos atau
+   direktori tak terkait.
+3. Tetap di bawah 50 karakter (aturan yang sama seperti di atas).
+
+```sql
+INSERT INTO task_paths (task_id, path_prefix) VALUES ('<TASK_ID>', '<PREFIX_BARUMU>');
+```
+
+Ini bukan izin untuk melebarkan scope kerjaanmu sendiri — cuma jalan pintas untuk satu
+celah spesifik (test path ketinggalan) yang sebelumnya memaksa buka Issue dan menunggu
+balasan Hana padahal triggernya (`trg_claim_path_conflict`) sudah otomatis mencegah
+tabrakan beneran begitu ada klaim lain yang overlap. Ambiguitas kebijakan akuntansi/
+persediaan/approval tetap wajib nunggu, tidak berubah oleh aturan ini.
 
 **Langkah 4 — kerjakan.**
 

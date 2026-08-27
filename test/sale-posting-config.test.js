@@ -66,7 +66,11 @@ test('without this migration no store in a fresh database can post a sale', () =
   // wire up purchase, operational, cash flow and every warehouse category, but
   // never once wire up `sale` — so a brand new deployment could not post a
   // single sale either, and nothing failed to say so.
-  assert.deepEqual(storesThatCannotPostSales(sqlite), ['store_001', 'store_002']);
+  // Every ACCOUNTING-edition store present at this replay point is affected —
+  // not a fixed pair. A later migration onboarding another store (e.g. a new
+  // gerai) must not change what this gap check observes.
+  const accountingStores = sqlite.prepare(`SELECT id FROM stores WHERE edition = 'ACCOUNTING' ORDER BY id`).all().map(row => row.id);
+  assert.deepEqual(storesThatCannotPostSales(sqlite), accountingStores);
   assert.ok(productsThatCannotResolveAccounts(sqlite) > 0, 'seeded products carry no Jenis Barang');
 });
 

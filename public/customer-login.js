@@ -179,52 +179,6 @@
     el('entryCustomerContinue').onclick = () => modal(false);
   }
 
-  async function login(event) {
-    event.preventDefault();
-    const username = el('entryUsername').value.trim();
-    const password = el('entryPassword').value;
-    el('entryLoginMessage').textContent = '';
-    el('entrySubmit').disabled = true;
-    try {
-      const response = await originalFetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Login gagal.');
-
-      if (payload.role === 'OWNER') {
-        sessionStorage.setItem('lekerOwnerToken', payload.token);
-        location.href = payload.redirect || '/admin';
-        return;
-      }
-      if (payload.role === 'ADMIN') {
-        sessionStorage.setItem('lekerAdminToken', payload.token);
-        sessionStorage.setItem('lekerAdminStoreCode', payload.admin?.store?.code || storeCode);
-        location.href = payload.redirect || `/s/${encodeURIComponent(payload.admin?.store?.code || storeCode)}/admin`;
-        return;
-      }
-      if (payload.role === 'CASHIER') {
-        sessionStorage.setItem('lekerCashierToken', payload.token);
-        location.href = payload.redirect || '/cashier';
-        return;
-      }
-      if (payload.role !== 'CUSTOMER' || !payload.customer) throw new Error('Role akun tidak dikenali.');
-
-      customerToken = payload.token;
-      customer = payload.customer;
-      sessionStorage.setItem(tokenKey, customerToken);
-      el('entryPassword').value = '';
-      await loadPoints();
-      renderCustomer();
-    } catch (error) {
-      el('entryLoginMessage').textContent = error.message;
-    } finally {
-      el('entrySubmit').disabled = false;
-    }
-  }
-
   async function register(event) {
     event.preventDefault();
     el('entryRegisterMessage').textContent = '';
@@ -339,7 +293,6 @@
   el('entryRegisterBack')?.addEventListener('click', backFromSpecialView);
   el('entryOrdersBack')?.addEventListener('click', backFromSpecialView);
   el('entryLoginModal')?.addEventListener('click', event => { if (event.target === el('entryLoginModal')) modal(false); });
-  el('entryLoginForm')?.addEventListener('submit', login);
   el('entryRegisterForm')?.addEventListener('submit', register);
   document.addEventListener('click', event => {
     if (event.target?.id === 'newOrderBtn' || event.target?.id === 'backToMenuBtn') setTimeout(syncCustomerName, 0);

@@ -125,18 +125,30 @@ di `test/stores-edition.test.js` menjadi changeset fase ini.
 
 ## Fase 3 — gating dispatch, bukan resolver
 
-**Paths:** `src/index.js`, `test/accounting-dispatch-gating.test.js`
+**Status: IMPLEMENTED** — caller-side gating di `src/index.js` dan regression matrix di
+`test/accounting-dispatch-gating.test.js` menjadi changeset fase ini. Keputusan edition
+tetap berada di boundary pemanggil; modul Accounting tidak diberi pengetahuan tentang
+edition.
 
-1. Di titik pemanggilan `attachAccountingBridgeToCommittedResponse` (tiga tempat,
-   `src/index.js:161,166-167`), tambahkan cek `store.edition === 'ACCOUNTING'` sebelum
-   memanggil.
-2. **Jangan** menyentuh `accounting-pos-bridge.js`, `accounting-pos-bridge-response.js`,
-   atau `accounting-cash-flow-bridge.js`. Kalau terasa perlu mengubah salah satunya,
-   itu tanda salah baca §2 di `ADR-034` — berhenti dan lapor.
+**Paths:** `src/index.js`, `test/accounting-dispatch-gating.test.js`,
+`HANDOFF-business-settings-implementation.md`
 
-**Acceptance:** gerai `LITE`/`FLEXIBLE` yang commit sale/purchase/expense
-menghasilkan **nol** baris baru di `accounting_bridge_deliveries`. Gerai `ACCOUNTING`
-tidak berubah perilaku.
+1. Setelah business fact SALE/PURCHASE/EXPENSE berhasil committed, caller mengambil ID
+   fakta dari response, membaca `store_id` fakta tersebut, lalu membaca
+   `stores.edition` server-side. Query-string/store token dari request tidak dipakai
+   sebagai sumber keputusan dispatch.
+2. Untuk `LITE`/`FLEXIBLE`, response business yang sudah committed dikembalikan tanpa
+   memanggil Accounting dispatcher. Untuk `ACCOUNTING`, caller tetap memanggil
+   `attachAccountingBridgeToCommittedResponse` seperti perilaku sebelumnya.
+3. Jika fact ID, store, atau edition tidak bisa di-resolve secara aman, jalur lama
+   tetap dipertahankan supaya kegagalan Accounting/reconciliation tidak hilang diam-diam.
+4. `accounting-pos-bridge.js`, `accounting-pos-bridge-response.js`, dan
+   `accounting-cash-flow-bridge.js` tidak diubah.
+
+**Acceptance:** regression membuktikan `LITE`/`FLEXIBLE` tidak memanggil dispatcher
+untuk SALE/PURCHASE/EXPENSE, `ACCOUNTING` tetap memanggil dispatcher untuk ketiga fakta,
+dan unresolved edition mempertahankan jalur fail-closed sebelumnya. Full repository
+check/test wajib tetap hijau sebelum fase ini mendarat.
 
 ## Yang paling mudah salah
 

@@ -13,6 +13,10 @@ PRAGMA foreign_keys = ON;
 -- percontohan lagi.
 --
 -- Additive murni. Tidak menyentuh akun gerai lain yang sudah ada.
+--
+-- Bergantung pada migration 0052 (gerai Kantor/Pendem/Mandala, edition
+-- ACCOUNTING) sudah applied duluan -- store_id di sini merujuk baris yang
+-- 0052 buat.
 
 -- Kantor: kasir_kantor / kasir_kantor123
 INSERT OR IGNORE INTO cashiers (

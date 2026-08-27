@@ -57,6 +57,73 @@ one slot (`karen5.1`, `karen6.1`, `karen7.1`... instead of `karen5.1`, `karen5.2
 The board still worked — nothing here is a claim-safety issue — but Bos Cyo lost the one thing
 slot numbers exist to give him: which lane a piece of in-flight work is actually running in.
 
+## Multi-project board — `project` sebagai sekat
+
+Status: ACTIVE sejak 2026-08-20, atas keputusan Bos Cyo. Ditulis dan diterapkan oleh `hana`
+(sesi Claude Code) langsung ke schema `maxi-agent-bus`.
+
+Board ini sekarang menaungi lebih dari satu produk: `leker` (`prototype-leker`, POS
+akuntansi+gudang penuh) dan `ikan` (`ikan-galeh`, olshop ikan dari petani — POS ringan, tanpa
+akuntansi/gudang penuh). Bos Cyo memilih tetap **satu papan**, bukan papan terpisah per
+produk — supaya semua agen tetap punya satu tempat untuk dicek — tapi wajib **disekat** biar
+tidak ketuker.
+
+Sekatnya bukan konvensi penamaan (nama `territory` gampang typo/ambigu antar produk — mis.
+`operasional` bisa berarti Operasional Leker atau Operasional Ikan). Sekatnya adalah kolom
+`tasks.project`, wajib diisi, divalidasi lewat trigger terhadap tabel referensi `projects`:
+
+```sql
+SELECT code, repo_full_name, description FROM projects;
+-- 'leker' → cyo-ramadan/prototype-leker
+-- 'ikan'  → cyo-ramadan/ikan-galeh
+```
+
+`tasks.project` default `'leker'` (semua task lama otomatis kebagian ini, tidak ada yang
+berubah perilakunya). Trigger `trg_tasks_project_registered` menolak INSERT/UPDATE dengan
+`project` yang belum terdaftar di tabel `projects` — pesan errornya `PROJECT_NOT_REGISTERED`.
+Produk baru di luar `leker`/`ikan` didaftarkan lewat satu `INSERT INTO projects`, bukan
+mengubah trigger.
+
+**Konsekuensi ke aturan self-issued task (§ di atas):** `trg_self_task_no_duplicate` sekarang
+dicocokkan **per-project** — `territory='operasional'` yang OPEN di project `leker` tidak lagi
+memblokir agen yang mau self-issue `territory='operasional'` di project `ikan`, dan
+sebaliknya. Sebelum 2026-08-20 trigger ini global lintas-project; itu sudah diperbaiki di
+migrasi yang sama dengan penambahan kolom `project`.
+
+**Wajib buat setiap agen:** tentukan `<PROJECT>` (`leker` atau `ikan`) dari repo yang Bos Cyo
+suruh kerjakan, sebelum menulis baris `tasks` apa pun — sama seperti `<FAMILY>` ditentukan di
+awal sesi. Jangan menebak dari isi instruksinya; tanya Bos Cyo kalau repo yang dimaksud tidak
+jelas. `agent-bus/CLAIM-PROMPT.md` sudah diperbarui dengan langkah ini.
+
+**Yang masih terbuka:** registry kepemilikan modul (`MODULE_OWNERSHIP.md`) hari ini isinya
+cuma modul-modul `leker`. `ikan` belum punya registry modulnya sendiri — itu ditulis begitu
+struktur modul `ikan` sudah diputuskan (repo `ikan-galeh` masih satu file, belum ada
+modul/`src/` untuk didaftarkan). Sampai saat itu, task `project='ikan'` boleh punya
+`territory` bebas asal konsisten, dan **belum** ditolak oleh registry modul manapun.
+
+## Task untuk Bos Cyo sendiri — `kind='HUMAN_ACTION'`
+
+Status: ACTIVE sejak 2026-08-20, atas permintaan Bos Cyo.
+
+Sebagian kerjaan bukan kerjaan agen sama sekali — bukan karena hak akses kurang, tapi karena
+memang tidak ada API-nya (mis. menyambungkan Cloudflare Git Integration ke repo baru itu
+klik OAuth di dashboard, bukan panggilan API). Sebelum 2026-08-20 hal begini cuma disebutkan
+di chat dan gampang hilang begitu sesi berakhir. Sekarang ditulis sebagai task juga, dengan
+bentuk:
+
+- `kind = 'HUMAN_ACTION'`, `role = 'BOS_CYO'`, `assigned_to = 'BOS_CYO'`.
+- `self_closing = 0`, `mutates_production = 1` — selalu, karena selalu menunggu Bos Cyo,
+  persis kategori yang sudah dijelaskan di § Authority di atas.
+- `brief` isinya **langkah klik demi klik** plus link langsung, bukan istilah teknis yang
+  butuh ditafsirkan — Bos Cyo yang baca, bukan agen.
+- `forbidden` selalu menyebut eksplisit: agen dilarang mengklaim atau mencari jalan pintas
+  (mis. minta token) sebagai pengganti langkah manual ini.
+
+Task jenis ini **tidak pernah diklaim lewat `task_claims`** oleh agen manapun — `kind`-nya
+sengaja tidak didaftarkan di `agent_roles` mana pun, jadi `trg_claim_matches_role` otomatis
+menolak siapa pun yang mencoba. Ditutup manual (UPDATE `status`) begitu Bos Cyo konfirmasi
+sudah dikerjakan, oleh Hana atau agen mana pun yang Bos Cyo minta cek buktinya.
+
 ## Task lifecycle
 
 ```
@@ -256,3 +323,8 @@ report would cost more than doing the work.
 
 **REQUIRED** — `MODULE_OWNERSHIP.md` names the owner of each module referenced by a task's
 `module` field. A task naming a module absent from that registry is rejected at write time.
+
+**REQUIRED (2026-08-20)** — `agent-bus/CLAIM-PROMPT.md` mencatat `<PROJECT>` sebagai variabel
+wajib di samping `<FAMILY>`/`<SLOT>`/`<SESSION>`, dan menyertakan `project` di query Langkah 2
+dan template INSERT Langkah 2.5. `MODULE_OWNERSHIP.md` tetap khusus project `leker`; registry
+setara untuk `ikan` ditulis terpisah begitu struktur modulnya ada.

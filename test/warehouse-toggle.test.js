@@ -136,8 +136,14 @@ test('warehouse_enabled defaults on for existing and new stores and only accepts
     assert.equal(String(column?.type).toUpperCase(), 'INTEGER');
     assert.equal(Number(column?.notnull), 1);
     assert.equal(String(column?.dflt_value), '1');
+    // Scoped to Leker's own original gerai, not "every row in the table": a
+    // tenant onboarded later (e.g. a LITE-edition store) may legitimately set
+    // warehouse_enabled=0 explicitly. That is a deliberate choice per store,
+    // not a broken default -- the default itself is proven below by inserting
+    // a store that omits the column entirely.
     assert.deepEqual(
-      sqlite.prepare(`SELECT DISTINCT warehouse_enabled FROM stores`).all().map(row => Number(row.warehouse_enabled)),
+      sqlite.prepare(`SELECT DISTINCT warehouse_enabled FROM stores WHERE code IN ('G001', 'G002', 'M002')`)
+        .all().map(row => Number(row.warehouse_enabled)),
       [1]
     );
 

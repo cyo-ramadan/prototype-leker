@@ -1,7 +1,13 @@
 (() => {
   const match = location.pathname.match(/^\/s\/([^/]+)/);
   const pathStore = match ? decodeURIComponent(match[1]).toUpperCase() : '';
-  const isAdmin = /\/(?:admin)\/?$/.test(location.pathname) || location.pathname === '/admin';
+  // Detecting "is this the admin page" from the URL shape is fragile -- it
+  // missed a real report of admins reaching /branch-admin directly (no /s/:code
+  // prefix, and not ending in "/admin" either, so the old regex silently
+  // treated it as a customer page and picked the wrong remembered-store key).
+  // Each HTML shell now says explicitly which page it is before loading this
+  // script, so this no longer depends on guessing from the path.
+  const isAdmin = window.LEKER_PAGE_CONTEXT === 'admin';
   const rememberedKey = isAdmin ? 'lekerAdminStoreCode' : 'lekerCustomerStoreCode';
   const selected = pathStore || localStorage.getItem(rememberedKey) || 'G001';
 

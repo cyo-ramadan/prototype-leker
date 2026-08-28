@@ -2,11 +2,17 @@
   const match = location.pathname.match(/^\/s\/([^/]+)/);
   const pathStore = match ? decodeURIComponent(match[1]).toUpperCase() : '';
   const isAdmin = /\/(?:admin)\/?$/.test(location.pathname) || location.pathname === '/admin';
-  const selected = isAdmin
-    ? (pathStore || localStorage.getItem('lekerAdminStoreCode') || 'G001')
-    : (pathStore || 'G001');
+  const rememberedKey = isAdmin ? 'lekerAdminStoreCode' : 'lekerCustomerStoreCode';
+  const selected = pathStore || localStorage.getItem(rememberedKey) || 'G001';
 
   window.LEKER_STORE_CODE = selected;
+  // A bare "/" or "/customer" load (no /s/:code prefix -- bookmark, home-screen
+  // shortcut, app reopen) has no path to read the store from. Remember the last
+  // /s/:code page the browser actually visited so those entry points land back
+  // on the same gerai instead of silently defaulting to G001.
+  if (pathStore) {
+    try { localStorage.setItem(rememberedKey, pathStore); } catch {}
+  }
   window.lekerStorePath = page => `/s/${encodeURIComponent(window.LEKER_STORE_CODE || 'G001')}/${page}`;
 
   const originalFetch = window.fetch.bind(window);

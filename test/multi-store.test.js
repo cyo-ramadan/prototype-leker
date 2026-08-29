@@ -48,6 +48,34 @@ test('browser route scopes API and active-order storage by store', async () => {
   assert.match(browser, /window\.lekerStorePath/);
 });
 
+test('an Admin entry point without /s/:code resolves the gerai from its own session, not the default', async () => {
+  // Production report 2026-08-29: an Admin Gerai reaching /branch-admin directly
+  // (bookmark/history, no /s/:code in the URL) landed on the default gerai and
+  // was bounced to that gerai's customer page. Nothing in the URL says which
+  // gerai the session belongs to; the login already recorded it, so the page
+  // must read it instead of falling through to the default.
+  const browser = await readFile(browserUrl, 'utf8');
+  const guard = await readFile(new URL('../public/staff-entry-guard.js', import.meta.url), 'utf8');
+  const branchAdmin = await readFile(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+
+  assert.match(browser, /sessionStorage\.getItem\('lekerAdminStoreCode'\)/);
+  assert.ok(
+    browser.includes("pathStore || adminSessionStore ||"),
+    'the session gerai must be consulted before any remembered/default fallback'
+  );
+
+  // Both scripts must key off the page's own declaration rather than guessing
+  // from the URL shape, and the declaration has to land before either runs.
+  assert.match(guard, /window\.LEKER_PAGE_CONTEXT === 'admin'/);
+  assert.match(browser, /window\.LEKER_PAGE_CONTEXT === 'admin'/);
+  const contextAt = branchAdmin.indexOf("window.LEKER_PAGE_CONTEXT = 'admin'");
+  const guardAt = branchAdmin.indexOf('staff-entry-guard.js');
+  const storeContextAt = branchAdmin.indexOf('store-context.js');
+  assert.ok(contextAt > -1 && guardAt > -1 && storeContextAt > -1);
+  assert.ok(contextAt < guardAt, 'page context must be declared before the entry guard runs');
+  assert.ok(contextAt < storeContextAt, 'page context must be declared before store-context runs');
+});
+
 test('order number carries store code', () => {
   assert.equal(buildOrderNo('MLG01', 7), 'MLG01-007');
 });

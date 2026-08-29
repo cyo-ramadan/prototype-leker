@@ -9,7 +9,15 @@
   // script, so this no longer depends on guessing from the path.
   const isAdmin = window.LEKER_PAGE_CONTEXT === 'admin';
   const rememberedKey = isAdmin ? 'lekerAdminStoreCode' : 'lekerCustomerStoreCode';
-  const selected = pathStore || localStorage.getItem(rememberedKey) || 'G001';
+  // An entry point without a /s/:code prefix (a bookmarked /branch-admin, a bare
+  // "/", a home-screen shortcut) carries no gerai in the URL. For an Admin the
+  // login already recorded which gerai this session belongs to, so trust that
+  // before any fallback: otherwise the page loads as G001 while the session
+  // belongs to another gerai, and every scoped request goes to the wrong gerai.
+  const adminSessionStore = isAdmin
+    ? String(sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase()
+    : '';
+  const selected = pathStore || adminSessionStore || localStorage.getItem(rememberedKey) || 'G001';
 
   window.LEKER_STORE_CODE = selected;
   // A bare "/" or "/customer" load (no /s/:code prefix -- bookmark, home-screen

@@ -1,69 +1,93 @@
-# Pendem E2E Transaction Cycle — Execution Result
+# Pendem E2E Transaction Cycle — Corrected Execution Result
 
 Task: `karen-LEKER-QA-PENDEM-TRANSACTION-CYCLE`  
 Executor lane: Karen takeover of `karen15` per direct Bos Cyo instruction  
 Branch: `karen15/pendem-transaction-cycle-qa`  
 PR: #170  
-Status: **BLOCKED — INVENTORY CONFIGURATION**
+Status: **BLOCKED — PENDEM PRODUCTION MASTER DATA / STOCK READINESS**
 
-## Required cycle
+## Correction to the first QA assumption
 
-Target production cycle was:
+The first QA runner used an incorrect business-flow assumption: it tried to link direct purchases of `Bubuk Rasa Mangga` / `Bubuk Rasa Apel` straight to finished-drink sales.
 
-1. two cashier purchases;
-2. two cashier operational expenses;
-3. two cashier sales;
-4. purchases and sales materially related through Pendem recipe components;
-5. all writes through the public application API, never direct D1.
+Bos Cyo corrected the intended operational flow. The correct flow is:
 
-The intended linked pair was:
+1. buy the actual raw materials required by the canonical semi-finished recipe, such as sugar/tea/water where the recipe requires them;
+2. run **Production** to turn those raw materials into semi-finished stock such as `Larutan Gula` and `Larutan Teh Poci Vanilla`;
+3. record the required operational expenses;
+4. only then sell finished drinks whose recipe consumes the prepared semi-finished materials and other components.
 
-- purchase `Bubuk Rasa Mangga` → sell `Es Teh Mangga Besar`;
-- purchase `Bubuk Rasa Apel` → sell `Es Teh Apel Besar`.
+The earlier `RECIPE_MATERIAL_NOT_PURCHASABLE: Bubuk Rasa Mangga` failure is therefore retained only as evidence of the invalid first QA attempt. It is **not** the authoritative root-cause diagnosis.
 
-Both finished products have active recipe links in migration `0056_pendem_es_teh_poci_catalog_and_recipes.sql`.
+## What the repository currently says
 
-## Production execution evidence
+Migration `0056_pendem_es_teh_poci_catalog_and_recipes.sql` explicitly classifies `Larutan Teh Poci Vanilla` and `Larutan Gula` as processed **Barang Setengah Jadi**, not raw materials to buy directly.
 
-GitHub Actions workflow run: `33360738845` / run #613  
-Quality job: `99391455512`
+The same migration also states that:
 
-- `npm run check`: **PASS**
-- `npm test`: **406 PASS / 1 FAIL**
-- failing test: `Pendem production transaction cycle: 2 purchases + 2 expenses + 2 linked sales`
-- exact live failure:
+- those two semi-finished items were absent from `DATA_BARANG.xlsx` and were added because they occur as components in the imported finished-drink recipes;
+- all newly imported Pendem products were created with `stock_tracking_enabled = 0` until opening stock is correctly initialized;
+- only three finished-drink recipes were imported from `RESEP_ES_TEH_POCI.xlsx`.
+
+In the current canonical repo migration, no production recipe is defined whose output is `Larutan Gula` or `Larutan Teh Poci Vanilla`, and the imported raw-material list does not include a standalone `Gula` product. Karen will not invent those missing master facts or recipe quantities.
+
+## Live production probe
+
+After Bos Cyo corrected the flow, Karen ran a read-only production probe against the live Pendem cashier API.
+
+GitHub Actions workflow run: `33364474403` / run #615  
+Quality job: `99402180998`
+
+Probe:
+
+- login: production Pendem cashier API succeeded;
+- `GET /api/cashier/production/options`: HTTP 200;
+- returned runnable production options: `[]`;
+- returned runnable Larutan recipes: `[]`.
+
+Exact log evidence:
 
 ```text
-RECIPE_MATERIAL_NOT_PURCHASABLE: Bubuk Rasa Mangga; warehouseEnabled=true; purchasable=Teh Vanilla
+PENDEM_PRODUCTION_OPTIONS=[]
+PENDEM_LARUTAN_RECIPES=[]
 ```
 
-The QA runner successfully reached the production Worker, authenticated as the Pendem pilot cashier, obtained an owned/open drawer context, and called the live purchase-options API. It failed closed before the purchase loop because the required recipe material was not eligible for cashier purchase.
+The run remained green:
 
-No purchase, expense, or sale from marker `QA-PENDEM-E2E-KAREN15` was committed by this run. The assertion occurs before all six transaction write loops.
+- `npm run check`: **PASS**;
+- `npm test`: **408 total / 407 PASS / 0 FAIL / 1 SKIP**;
+- the original one-shot transaction mutation test stayed skipped because this result file already exists.
 
-A drawer may already have existed or may have been opened by the QA prerequisite path; the first run did not emit enough evidence to distinguish those two cases, so this report does not invent that provenance.
+The read-only probe made no purchase, production, expense, or sale mutation.
 
-## Repository ↔ production consistency
+## Current blocker
 
-The live result matches the current repository rules:
+The corrected end-to-end cycle cannot yet be executed honestly on live Pendem because the cashier Production surface currently exposes **zero runnable production recipes**.
 
-1. Pendem is created with `warehouse_enabled = 1` in migration `0052_leker_new_stores_kantor_pendem_mandala.sql`.
-2. The imported Pendem Es Teh Poci products in migration `0056_pendem_es_teh_poci_catalog_and_recipes.sql` were intentionally created with `stock_tracking_enabled = 0` until opening stock is initialized.
-3. `src/cashier-purchase.js` exposes only `stock_tracking_enabled = 1` purchasable products while Warehouse is enabled.
-4. Production currently returned only `Teh Vanilla` as purchasable. Therefore both intended recipe-linked purchase materials, `Bubuk Rasa Mangga` and `Bubuk Rasa Apel`, are outside the cashier purchase surface.
+With Warehouse enabled, Production requires a runnable active recipe and stock-tracked participating products. The current Pendem import intentionally left its new products untracked until opening-stock initialization, and the repo does not contain the missing upstream Larutan production recipe/master facts required to turn raw materials into those semi-finished outputs.
 
-## Why Karen did not bypass it
+Therefore the next valid step is to make the Pendem manufacturing master complete and stock-ready using authoritative recipe data, then execute the QA sequence through public APIs:
 
-Changing `stock_tracking_enabled`, opening stock, Warehouse policy, or substituting an unrelated purchasable product would be an Inventory/Costing policy/configuration mutation outside this QA task's authorized report path (`qa-reports/pendem-e2e`). It would also change the meaning of the requested linked transaction cycle.
+`Purchase raw materials → Production Larutan → Operational Expense → Sale finished drink`.
 
-The QA runner therefore fails closed instead of fabricating a successful six-transaction cycle.
+Karen will not make up `Gula`, recipe quantities, opening stock, stock-tracking changes, or manufacturing recipes merely to force the QA test through.
+
+## Production mutation evidence
+
+From the original run #613:
+
+- the production Worker was reached and login succeeded;
+- execution stopped before the six target transaction write loops;
+- no purchase, expense, or sale carrying marker `QA-PENDEM-E2E-KAREN15` was committed.
+
+A drawer may already have existed or may have been opened by the prerequisite path. The original run did not capture enough evidence to distinguish those cases, so this report does not invent drawer provenance.
 
 ## Required resolution
 
-Inventory owner / Bos Cyo must decide and authorize the Pendem stock-initialization path for the recipe components that should participate in the QA cycle. The narrowest coherent route is to initialize/enable stock tracking for the actual recipe components, then rerun this cycle through the same public APIs.
+Provide/restore the authoritative Pendem semi-finished production master, specifically the canonical raw-material identities and quantities for the Larutan recipes, then initialize the participating stock-tracking/opening-stock state according to Warehouse policy.
 
-Disabling Warehouse merely to make the QA pass is **not recommended** because Pendem was explicitly provisioned with Warehouse enabled and would weaken the intended inventory behavior.
+Once those facts are present, rerun this QA cycle using the same public application boundaries. Do not bypass Production and do not disable Warehouse merely to make the test pass.
 
 ## DOC-IMPACT
 
-`DOC-IMPACT: NOT_REQUIRED` — this changes no product contract, runtime code, schema, or operating policy. It records production QA evidence only.
+`DOC-IMPACT: NOT_REQUIRED` — this branch changes QA evidence only. It does not change runtime code, schema, manufacturing policy, recipe master, Inventory policy, or Accounting behavior.

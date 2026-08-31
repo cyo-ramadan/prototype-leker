@@ -100,6 +100,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Prosedur operasional | `RUNBOOK.md` |
 | Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |
 | Cara memberi/menerima task antar agen | `contracts/agent-task-board-v1.md` |
+| **Mau menulis task baru buat agen lain** | Pakai skill `agent-task-brief` (`.claude/skills/`) — SOP + pagar wajib supaya agen yang ngoding tidak menebak sendiri |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 

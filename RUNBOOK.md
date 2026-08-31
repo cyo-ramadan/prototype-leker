@@ -140,6 +140,17 @@ Cloudflare non-production branch builds normally use `wrangler versions upload`.
 
 Therefore a branch preview that introduces a new migration is **code-preview only** until the required remote schema exists or a dedicated preview D1 environment is explicitly provisioned. Do not interpret a successful preview Worker build as proof that production D1 is ready.
 
+> **Koreksi 2026-08-31 — jangan andalkan paragraf di atas sebagai jaminan keamanan.** Pushing a
+> feature branch was observed running the **full canonical deploy** (`db:migrations:apply` →
+> `db:schema:verify` → `wrangler deploy`) against the **production** Worker and D1, not an
+> isolated preview: migration `0057`, present only on branch `claude/leker-prototype-usc6mf` and
+> not yet merged to `main`, appeared applied in production `d1_migrations` at
+> `2026-08-31 03:06:36`, and `prototype-leker-v2` `modified_on` changed 12 seconds later. There
+> is only one `d1_databases` binding in `wrangler.jsonc` (no `preview_database_id`), so no D1
+> isolation exists. Treat **every** push, on any branch, as a real production deployment: never
+> push an unreviewed or destructive migration anywhere. Full evidence and implications:
+> `KNOWN_PITFALLS.md` → "Preview Worker tidak membuktikan remote D1 siap".
+
 For schema-changing work:
 
 - UI/layout can be reviewed on preview;

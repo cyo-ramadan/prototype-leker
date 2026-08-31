@@ -39,6 +39,38 @@ write access. An agent may read anything.
 6. **Hand off or the work is stranded.** See below.
 7. **Report with evidence.** Commands run, output, tests added. A claim is not a report.
 
+## Pengecualian sesi khusus — `karen100`, edit UI Leker
+
+Bos Cyo memberi wewenang berdiri (bukan per-task) khusus untuk sesi yang dia beri nama
+**`karen100`**: kalau Bos Cyo memberi instruksi **langsung** (bukan lewat task yang sudah ada
+di papan, dan bukan disimpulkan sendiri dari konteks) untuk mengedit UI `prototype-leker`,
+`karen100` boleh:
+
+1. Membuat task sendiri (Langkah 2.5 `CLAIM-PROMPT.md`) tanpa screening Hana lebih dulu, **dan**
+2. Langsung mengerjakan tanpa jeda "tulis rencana, tunggu Bos Cyo bilang lanjut" walau
+   `mutates_production = 1` — pengecualian dari aturan baku di Langkah 2.5/CLAIM-PROMPT.md.
+
+Ini pengecualian **sempit**, dua batasnya eksplisit supaya tidak melebar diam-diam:
+
+- **Hanya untuk edit UI** (`public/*.html`, `public/*.js`, `public/*.css` dan sejenisnya) —
+  bukan izin membuat/mengubah kebijakan akuntansi atau persediaan. Rule 5 di atas ("Never
+  decide accounting or inventory policy") **tetap berlaku penuh** buat `karen100`, tidak
+  terkecuali. Kalau instruksi UI-nya ternyata menyentuh keputusan akuntansi/persediaan
+  (bukan cuma tampilan), itu di luar pengecualian ini — kembali ke jalur normal (eskalasi).
+- **Hanya kalau instruksinya benar-benar langsung dari Bos Cyo**, bukan ditebak `karen100`
+  sendiri perlu ubah UI. Ragu instruksinya cukup eksplisit? Anggap TIDAK termasuk
+  pengecualian ini, jalankan alur baku.
+
+Tetap wajib: branch + PR (bukan push langsung ke `main`), `npm test`/`npm run check` hijau,
+identitas Git `karen100`/`karen@agent.maxi` sebelum commit pertama. Pengecualian ini soal
+*siapa yang boleh memutuskan mulai kerja tanpa menunggu*, bukan soal disiplin dasar version
+control. Sesi Karen lain (`karen1`, `karen2`, dst) **tidak** ikut pengecualian ini — tetap
+ikut aturan normal di `CLAIM-PROMPT.md`.
+
+Dicatat di sini (2026-08-31, Hana atas permintaan Bos Cyo) supaya bertahan walau
+`agent_sops` di papan tugas suatu saat ditulis ulang. Salinan operasional (yang benar-benar
+dibaca `karen100` saat query papan) ada di `agent_sops` untuk `family='karen'`.
+
 ## Session naming and handoff
 
 An agent identity is `family` `slot` `.` `session` — `karen1.2` is family `karen`, slot 1,

@@ -116,6 +116,13 @@ yang sudah `SUCCESS`.
 `agent-bridge/` adalah Worker terpisah (`leker-agent-bridge`) dan **tidak** ikut
 ter-deploy oleh Git Integration. Deploy manual dengan config-nya sendiri.
 
+**Push ke branch fitur = deploy production sungguhan, bukan cuma preview.**
+Dibuktikan 2026-08-31 (bukan dugaan): push ke branch fitur bikin Git Integration
+menjalankan migrate→verify→deploy penuh ke worker & D1 production yang sama,
+tanpa nunggu merge. Detail bukti dan implikasinya di `KNOWN_PITFALLS.md`
+("Preview Worker tidak membuktikan remote D1 siap"). Jangan push migration
+destruktif/belum yakin ke branch mana pun sebelum benar-benar siap live.
+
 ## Konvensi repo
 
 - Semua kode ESM, `node:test` + `node:assert/strict`, Node 22.

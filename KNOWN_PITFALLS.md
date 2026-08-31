@@ -218,6 +218,34 @@ Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai m
 - branch preview dengan migration baru dianggap code-preview saja kecuali dedicated preview D1 dengan matching schema memang disediakan;
 - jangan membuat ad-hoc table production dari request handler atau rewrite migration history untuk menyelamatkan preview.
 
+**Koreksi 2026-08-31 -- asumsi di atas (bullet ke-5) terbukti salah, dicek langsung
+lewat evidence, bukan dugaan:** push ke branch fitur `claude/leker-prototype-usc6mf`
+(bukan `main`) memicu Cloudflare Git Integration menjalankan **canonical deploy
+penuh** (`db:migrations:apply` -> `db:schema:verify` -> `wrangler deploy`) langsung
+ke worker production `prototype-leker-v2` dan D1 production yang sama, BUKAN ke
+preview terisolasi. Buktinya: migration `0057` (baru ada di branch fitur, belum di
+`main`, belum di-merge) muncul applied di `d1_migrations` production pada
+`2026-08-31 03:06:36`, dan `workers_list` menunjukkan `prototype-leker-v2`
+`modified_on` berubah 12 detik sesudahnya (`03:06:48`) -- persis urutan
+migrate -> verify -> deploy, dipicu murni oleh `git push` ke branch fitur, tanpa
+merge, tanpa PR approve. `wrangler.jsonc` cuma punya satu `d1_databases` binding
+(tidak ada `preview_database_id` terpisah), jadi tidak ada isolasi preview sama
+sekali di level D1 -- dan berdasarkan bukti ini, kemungkinan juga tidak ada
+isolasi di level Worker.
+
+**Implikasi buat siapa pun yang kerja di repo ini:** anggap SETIAP `git push` ke
+branch mana pun -- bukan cuma merge ke `main` -- sebagai deploy production yang
+sesungguhnya. Migration yang belum direview jangan pernah di-push kalau isinya
+destruktif (DROP/ALTER/data yang tidak idempotent) sebelum benar-benar yakin,
+karena tidak ada gerbang review yang menahannya sebelum ke production. Migration
+additive+idempotent (pola `WHERE NOT EXISTS`) aman kalau ke-apply lebih awal dari
+rencana, tapi migration yang mengubah struktur harus dianggap live sejak commit
+pertama di-push, bukan sejak PR di-merge. Ini juga menjelaskan kenapa gejala
+"migration sudah di-merge tapi belum ke database" (migration 0056, 2 hari
+tertahan) dan "migration langsung ke database dari branch fitur" (migration
+0057, hitungan detik) bisa terjadi di repo yang sama -- pipeline-nya memang
+tidak konsisten/predictable, bukan cuma soal branch mana yang dipakai.
+
 Recovery dan deployment checklist lengkap ada di `RUNBOOK.md`.
 
 ## Accounting tetap owner posting jurnal
@@ -304,4 +332,4 @@ gagal-tertutup, dan yang hilang justru datanya.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion, dan **push ke branch fitur mana pun harus diperlakukan sebagai deploy production yang sesungguhnya** (tidak ada isolasi preview D1/Worker yang terbukti, lihat koreksi 2026-08-31 di "Preview Worker tidak membuktikan remote D1 siap").

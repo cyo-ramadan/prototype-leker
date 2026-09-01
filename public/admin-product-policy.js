@@ -43,8 +43,8 @@
     if (!input) return;
     input.readOnly = false;
     input.required = true;
-    input.step = '1';
-    input.title = 'Harga beli default dari Master Barang; tetap dapat diedit saat pembelian';
+    input.step = 'any';
+    input.title = 'Harga beli default dari Master Barang; boleh koma untuk barang yang dibeli curah (mis. per ml/gram); tetap dapat diedit saat pembelian';
     const label = input.closest('label');
     if (label?.firstChild) label.firstChild.textContent = 'Harga Beli';
     const priceGrid = label?.parentElement;

@@ -16,6 +16,25 @@ function money(value) {
   return Number.isFinite(number) && number >= 0 ? Math.round(number) : null;
 }
 
+const MAX_PURCHASE_PRICE_RUPIAH = 10_000_000;
+
+// Harga Beli (Master Barang) shares the exact-unit-cost scale used by
+// average_cost/last_purchase_price in this same table (1 rupiah = 1.000.000
+// unit, see migration 0019/0059) so sub-rupiah unit prices (mis. bahan curah
+// yang dibeli per ml/gram) survive without float/REAL as source of truth.
+export function scaledPurchasePriceFromInput(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > MAX_PURCHASE_PRICE_RUPIAH) return null;
+  const scaled = Math.round(number * COST_SCALE);
+  return Number.isSafeInteger(scaled) ? scaled : null;
+}
+
+function purchasePriceInput(body, current) {
+  if (owns(body, 'purchasePrice')) return scaledPurchasePriceFromInput(body.purchasePrice);
+  const existing = Number(current?.purchase_price);
+  return Number.isSafeInteger(existing) && existing >= 0 ? existing : null;
+}
+
 function nonNegativeInteger(value, max = 10_000_000) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number <= max ? number : null;
@@ -84,7 +103,7 @@ async function listEditorProducts(db, storeId) {
   return (rows.results ?? []).map(row => ({
     id: Number(row.id),
     name: row.name,
-    purchasePrice: Number(row.purchase_price || 0),
+    purchasePrice: costFromScaled(row.purchase_price),
     price: Number(row.price || 0),
     category: row.category,
     emoji: row.emoji,
@@ -144,7 +163,7 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
 
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
   const name = text(owns(body, 'name') ? body.name : current?.name, 100);
-  const purchasePrice = money(owns(body, 'purchasePrice') ? body.purchasePrice : current?.purchase_price);
+  const purchasePrice = purchasePriceInput(body, current);
   const price = money(owns(body, 'price') ? body.price : current?.price);
   const category = text(owns(body, 'category') ? body.category : current?.category, 60);
   const emoji = text(owns(body, 'emoji') ? body.emoji : current?.emoji, 8) || '🥞';

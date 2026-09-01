@@ -59,7 +59,7 @@
             <input id="productId" type="hidden" />
             <div class="form-title-row"><h2 id="productFormTitle">Tambah barang</h2><button id="productCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
             <label class="admin-field">Nama barang<input id="productName" maxlength="100" required /></label>
-            <div class="admin-grid two compact"><label class="admin-field">Harga beli<input id="productPurchasePrice" type="number" min="0" step="any" placeholder="boleh koma, mis. 0.5" required /></label><label class="admin-field">Harga jual<input id="productPrice" type="number" min="0" step="1" required /></label></div>
+            <div class="admin-grid two compact"><label class="admin-field">Harga beli<input id="productPurchasePrice" type="text" inputmode="decimal" placeholder="boleh koma, mis. 0,5" required /></label><label class="admin-field">Harga jual<input id="productPrice" type="number" min="0" step="1" required /></label></div>
             <label class="admin-field">Kategori<select id="productCategory" required></select></label>
             <label class="admin-field">Foto barang <span class="field-note">optional</span><input id="productImage" type="file" accept="image/*" /></label>
             <div class="image-preview-wrap"><img id="productImagePreview" class="product-preview" src="/default-product.svg" alt="Preview foto barang" /></div>

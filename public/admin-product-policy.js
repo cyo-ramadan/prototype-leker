@@ -43,7 +43,8 @@
     if (!input) return;
     input.readOnly = false;
     input.required = true;
-    input.step = 'any';
+    input.type = 'text';
+    input.inputMode = 'decimal';
     input.title = 'Harga beli default dari Master Barang; boleh koma untuk barang yang dibeli curah (mis. per ml/gram); tetap dapat diedit saat pembelian';
     const label = input.closest('label');
     if (label?.firstChild) label.firstChild.textContent = 'Harga Beli';
@@ -365,7 +366,7 @@
       const productId = Number(el('productId')?.value || 0);
       const payload = {
         name: el('productName').value,
-        purchasePrice: Number(el('productPurchasePrice').value),
+        purchasePrice: Number(String(el('productPurchasePrice').value).trim().replace(',', '.')),
         price: Number(el('productPrice').value),
         category: el('productCategory').value,
         emoji: '🥞',

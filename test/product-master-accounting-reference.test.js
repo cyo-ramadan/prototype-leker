@@ -97,7 +97,7 @@ test('Master purchase price stays editable while Average Cost and Last Purchase 
   assert.match(productUi, /Average Cost · HPP berjalan/);
   assert.match(productUi, /Harga Beli Terakhir/);
   assert.match(productUi, /readonly/);
-  assert.match(productUi, /purchasePrice: Number\(el\('productPurchasePrice'\)\.value\)/);
+  assert.match(productUi, /purchasePrice: Number\(String\(el\('productPurchasePrice'\)\.value\)\.trim\(\)\.replace\(',', '\.'\)\)/);
   assert.match(productUi, /Belum ada transaksi pembelian; sementara mengikuti Harga Beli master/);
   assert.match(masterPurchasePriceMigration, /WHERE purchase_price = 0/);
   assert.match(masterPurchasePriceMigration, /last_purchase_price > 0/);

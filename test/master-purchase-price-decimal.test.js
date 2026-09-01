@@ -25,15 +25,18 @@ test('products.purchase_price is migrated onto the same exact-unit-cost scale as
   assert.match(purchasePriceScaleMigration, /purchase_price\s*=\s*purchase_price\s*\*\s*1000000/);
 });
 
-test('Master Barang Harga Beli field no longer forces whole-rupiah step', () => {
-  assert.doesNotMatch(branchAdminHtml, /id="productPurchasePrice" type="number" min="0" step="1"/);
-  assert.match(branchAdminHtml, /id="productPurchasePrice" type="number" min="0" step="any"/);
-  assert.match(productPolicyUi, /input\.step = 'any'/);
-  assert.doesNotMatch(productPolicyUi, /input\.step = '1'/);
+test('Master Barang Harga Beli field no longer forces whole-rupiah step, and reads Indonesian comma decimals', () => {
+  assert.doesNotMatch(branchAdminHtml, /id="productPurchasePrice" type="number"/, 'type="number" silently drops a typed comma decimal on id-ID keyboards');
+  assert.match(branchAdminHtml, /id="productPurchasePrice" type="text" inputmode="decimal"/);
+  assert.match(productPolicyUi, /input\.type = 'text'/);
+  assert.match(productPolicyUi, /input\.inputMode = 'decimal'/);
+  assert.match(productPolicyUi, /purchasePrice: Number\(String\(el\('productPurchasePrice'\)\.value\)\.trim\(\)\.replace\(',', '\.'\)\)/, 'comma must be normalized to a period before parsing');
 });
 
-test('Pembelian (Beli Bahan) unit-price composer allows decimal amounts while Penjualan/Operasional stay whole-rupiah', () => {
+test('Pembelian (Beli Bahan) unit-price composer allows decimal amounts (incl. Indonesian comma) while Penjualan/Operasional stay whole-rupiah', () => {
   assert.match(pimasatuUi, /allowDecimalAmount/);
+  assert.match(pimasatuUi, /type="text" inputmode="decimal"/, 'decimal price field must not use type="number", which drops a typed comma');
+  assert.match(pimasatuUi, /replace\(',', '\.'\)/, 'typed comma decimal must be normalized before Number() parsing');
   assert.match(cashierPaymentMethods, /allowDecimalAmount:\s*true/);
   const purchaseBlockStart = cashierPaymentMethods.indexOf("host: byId('purchasePimasatu')");
   const operationalBlockStart = cashierPaymentMethods.indexOf("host: byId('operationalPimasatu')");
@@ -42,4 +45,70 @@ test('Pembelian (Beli Bahan) unit-price composer allows decimal amounts while Pe
   const operationalBlock = cashierPaymentMethods.slice(operationalBlockStart, operationalBlockStart + 600);
   assert.match(purchaseBlock, /allowDecimalAmount:\s*true/, 'Beli Bahan must allow decimal unit price');
   assert.doesNotMatch(operationalBlock, /allowDecimalAmount:\s*true/, 'Pengeluaran Operasional must stay whole-rupiah only');
+});
+
+test('pimasatu comma-decimal parsing produces the correct scaled amount end to end', async () => {
+  const vm = await import('node:vm');
+  const sandbox = {
+    document: {
+      querySelector: () => null,
+      createElement: () => ({ style: {}, classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, querySelectorAll: () => [] })
+    },
+    window: {},
+    console
+  };
+  // Build a minimal fake host/DOM sufficient for MAXIPimasatu.create() to mount
+  // and let us drive the real .pimasatu-add click handler, proving "0,7" survives
+  // as 0.7 (not 1) end to end -- not just that the regex for replace() exists.
+  const elements = new Map();
+  function makeEl(tag) {
+    const listeners = {};
+    const el = {
+      tagName: tag,
+      className: '',
+      innerHTML: '',
+      classList: { add() {}, remove() {}, toggle() {} },
+      addEventListener(type, handler) { listeners[type] = handler; },
+      set onclick(handler) { listeners.click = handler; },
+      set onfocus(handler) { listeners.focus = handler; },
+      set oninput(handler) { listeners.input = handler; },
+      set onchange(handler) { listeners.change = handler; },
+      fire(type, event) { listeners[type]?.(event); },
+      querySelector: selector => elements.get(selector) || null,
+      querySelectorAll: () => [],
+      value: ''
+    };
+    return el;
+  }
+  const host = makeEl('div');
+  const toggle = makeEl('button'), composer = makeEl('section'), search = makeEl('input'), results = makeEl('div'),
+    qty = makeEl('input'), price = makeEl('input'), hint = makeEl('div'), linesHost = makeEl('div'), add = makeEl('button'), detailHead = makeEl('div');
+  host.innerHTML = '';
+  host.querySelector = selector => ({
+    '.pimasatu-toggle': toggle, '.pimasatu-composer': composer, '.pimasatu-search': search, '.pimasatu-results': results,
+    '.pimasatu-qty': qty, '.pimasatu-price': price, '.pimasatu-hint': hint, '.pimasatu-lines': linesHost,
+    '.pimasatu-add': add, '.pimasatu-detail-head': detailHead
+  }[selector] || null);
+
+  const source = pimasatuUi.replace('window.MAXIPimasatu', 'globalThis.MAXIPimasatu');
+  const context = vm.createContext({ document: sandbox.document, window: sandbox.window, globalThis: {}, Intl, console });
+  vm.runInContext(source, context);
+
+  let addedLine = null;
+  context.globalThis.MAXIPimasatu.create({
+    host,
+    items: [{ id: 1, name: 'Air Mineral' }],
+    allowDecimalAmount: true,
+    onAdd: line => { addedLine = line; },
+    onError: message => { throw new Error(`unexpected onError: ${message}`); }
+  });
+
+  results.fire('click', { target: { closest: () => ({ dataset: { result: '1' } }) } });
+  qty.value = '12000';
+  price.value = '0,7';
+  add.fire('click');
+
+  assert.ok(addedLine, 'line must be added, not rejected');
+  assert.equal(addedLine.unitAmount, 0.7, '"0,7" must parse as 0.7, not 0 or 1');
+  assert.equal(Math.round(addedLine.quantity * addedLine.unitAmount), 8400, '12.000ml x Rp0,7 must total Rp8.400');
 });

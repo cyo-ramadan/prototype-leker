@@ -26,6 +26,32 @@ papan tugas: **jangan mulai dari sini.** Buka `agent-bus/CLAIM-PROMPT.md` — pr
 sengaja berdiri sendiri (termasuk pola panggilan lewat `curl` buat platform tanpa tool D1
 bawaan) supaya tidak ada langkah baca dokumen kedua sebelum kamu bisa mulai.
 
+### Jalan pintas push — GitHub API connector
+
+Jika commit lokal sudah selesai tetapi `git push` HTTPS gagal karena runtime tidak
+memiliki credential helper/token, gunakan GitHub connector resmi yang sudah terhubung.
+Ini jalur fallback untuk publikasi branch dan PR, bukan bypass review atau branch
+protection.
+
+1. Pastikan worktree bersih, test/check sudah hijau, remote target benar, dan akun
+   connector punya akses tulis ke repository.
+2. Ambil setiap file pada commit lokal sebagai blob (`create_blob`), lalu buat tree
+   di atas **tree parent** commit remote (`create_tree`). Jangan mengisi `base_tree`
+   dengan SHA commit; GitHub akan menolak dengan `base_tree is not a valid tree oid`.
+3. Verifikasi SHA tree hasil API sama dengan `git show -s --format='%T' <commit-lokal>`.
+   Kesamaan ini membuktikan snapshot file identik walaupun SHA commit baru dapat berbeda
+   karena metadata author/committer dan timestamp connector.
+4. Buat commit API dengan parent remote yang tepat, buat/update branch fitur tanpa
+   `force`, lalu buka PR. Untuk rangkaian task bertumpuk, pertahankan urutan parent dan
+   gunakan base PR sebelumnya agar diff review tetap sempit.
+5. Fetch ulang commit/branch/PR dari GitHub, cek changed files dan CI. Merge tetap lewat
+   review serta expected-head guard sesuai SOP.
+
+Jangan menyalin PAT, token connector, URL bercredential, atau secret ke remote/config
+repo. Jangan mengubah bridge `agent-bridge` menjadi write-capable; bridge tersebut
+sengaja read-only. Jika connector tidak memiliki write permission, hentikan publikasi
+dan minta koneksi GitHub diperbaiki.
+
 ## Data isolation
 
 Satu Cloudflare D1 digunakan dengan server-side `store_id` isolation. Barang, kategori, supplier, admin, kasir, order, penjualan, pembelian, pengeluaran, pendapatan lain, accounting configuration, posted journal, dan laci kas terpisah per gerai.

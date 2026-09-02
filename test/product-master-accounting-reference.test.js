@@ -90,13 +90,14 @@ test('Master purchase price stays editable while Average Cost and Last Purchase 
   assert.match(productionCostMigration, /unit_cost_snapshot_scaled INTEGER/);
   assert.match(productMaster, /COST_SCALE = 1_000_000/);
   assert.match(productMaster, /costFromScaled\(row\.average_cost\)/);
-  assert.match(productMaster, /purchasePrice: Number\(row\.purchase_price/);
-  assert.match(productMaster, /const purchasePrice = money\(owns\(body, 'purchasePrice'\)/);
+  assert.match(productMaster, /purchasePrice: costFromScaled\(row\.purchase_price\)/);
+  assert.match(productMaster, /const purchasePrice = purchasePriceInput\(body, current\)/);
+  assert.match(productMaster, /scaledPurchasePriceFromInput/);
   assert.match(productMaster, /purchase_price = \?, price = \?/);
   assert.match(productUi, /Average Cost · HPP berjalan/);
   assert.match(productUi, /Harga Beli Terakhir/);
   assert.match(productUi, /readonly/);
-  assert.match(productUi, /purchasePrice: Number\(el\('productPurchasePrice'\)\.value\)/);
+  assert.match(productUi, /purchasePrice: Number\(String\(el\('productPurchasePrice'\)\.value\)\.trim\(\)\.replace\(',', '\.'\)\)/);
   assert.match(productUi, /Belum ada transaksi pembelian; sementara mengikuti Harga Beli master/);
   assert.match(masterPurchasePriceMigration, /WHERE purchase_price = 0/);
   assert.match(masterPurchasePriceMigration, /last_purchase_price > 0/);

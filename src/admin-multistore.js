@@ -9,6 +9,14 @@ const money = value => {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? Math.round(number) : null;
 };
+const COST_SCALE = 1_000_000;
+const costFromScaled = value => Number(value || 0) / COST_SCALE;
+const scaledPurchasePrice = value => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 10_000_000) return null;
+  const scaled = Math.round(number * COST_SCALE);
+  return Number.isSafeInteger(scaled) ? scaled : null;
+};
 
 function imageData(value, maxLength) {
   const normalized = String(value ?? '').trim();
@@ -52,7 +60,7 @@ async function ensureCategory(db, storeId, categoryName) {
 const mapProduct = row => ({
   id: row.id,
   name: row.name,
-  purchasePrice: row.purchase_price,
+  purchasePrice: costFromScaled(row.purchase_price),
   price: row.price,
   category: row.category,
   emoji: row.emoji,
@@ -161,7 +169,7 @@ export async function handleAdminApi(request, env, pathname) {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const name = text(body.value?.name, 100);
-    const purchasePrice = money(body.value?.purchasePrice);
+    const purchasePrice = scaledPurchasePrice(body.value?.purchasePrice);
     const price = money(body.value?.price);
     const category = text(body.value?.category, 60);
     const emoji = text(body.value?.emoji, 8) || '🥞';
@@ -181,7 +189,7 @@ export async function handleAdminApi(request, env, pathname) {
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const id = Number(productMatch[1]);
     const name = text(body.value?.name, 100);
-    const purchasePrice = money(body.value?.purchasePrice);
+    const purchasePrice = scaledPurchasePrice(body.value?.purchasePrice);
     const price = money(body.value?.price);
     const category = text(body.value?.category, 60);
     const emoji = text(body.value?.emoji, 8) || '🥞';

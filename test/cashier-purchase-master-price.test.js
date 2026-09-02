@@ -61,6 +61,10 @@ test('purchase posting updates transaction cost history without overwriting Mast
   const purchaseItemInsert = statements.find(statement => /INSERT\s+INTO\s+purchase_items/i.test(statement.sql));
   assert.ok(purchaseItemInsert, 'purchase must persist an itemized transaction snapshot');
   assert.match(purchaseItemInsert.sql, /p\.id\s*=\s*\?\s+AND\s+p\.store_id\s*=\s*\?/i);
+  const historyInsert = statements.find(statement => /INSERT\s+INTO\s+product_average_cost_history/i.test(statement.sql));
+  assert.ok(historyInsert, 'purchase must append previous/new HPP with its purchase reference');
+  assert.match(historyInsert.sql, /average_cost_before, average_cost_after/);
+  assert.match(historyInsert.sql, /'PURCHASE', 'PURCHASE', purchase_id/);
 });
 
 test('purchase boundary keeps supplier and product eligibility store-scoped', async () => {

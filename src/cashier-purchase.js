@@ -136,6 +136,16 @@ export function purchaseItemStatements(db, {
           cost_updated_at = ?, last_purchase_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(itemId, purchaseId, storeId, itemId, purchaseId, storeId, now, now, item.productId, storeId),
+    db.prepare(`
+      INSERT INTO product_average_cost_history (
+        id, store_id, product_id, previous_average_cost_scaled, new_average_cost_scaled,
+        change_reason, reference_type, reference_id, created_at
+      )
+      SELECT ?, store_id, product_id, average_cost_before, average_cost_after,
+             'PURCHASE', 'PURCHASE', purchase_id, ?
+      FROM purchase_items
+      WHERE id = ? AND purchase_id = ? AND store_id = ?
+    `).bind(`product_cost_history_${crypto.randomUUID()}`, now, itemId, purchaseId, storeId),
   ];
   if (!warehouseEnabled) return statements;
   statements.push(

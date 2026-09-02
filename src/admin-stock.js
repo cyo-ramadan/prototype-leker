@@ -29,7 +29,7 @@ export async function handleAdminStockApi(request, env, pathname) {
     const rows = await env.DB.prepare(`
       SELECT p.id, p.name, p.is_active, p.stock_tracking_enabled, p.production_mode, p.recipe_link_enabled,
              t.name AS item_type_name, COALESCE(t.track_stock, 1) AS type_track_stock,
-             p.base_unit_id, u.symbol AS unit_symbol,
+             p.base_unit_id, u.symbol AS unit_symbol, p.average_cost,
              b.quantity, b.updated_at,
              r.id AS recipe_id, r.revision AS recipe_revision
       FROM products p
@@ -52,10 +52,57 @@ export async function handleAdminStockApi(request, env, pathname) {
         unitSymbol: row.unit_symbol || '',
         stockTrackingEnabled: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
         quantity: row.quantity == null ? null : Number(row.quantity),
+        averageCostScaled: Number(row.average_cost || 0),
         updatedAt: row.updated_at || null,
         productionMode: row.production_mode || 'STOCK',
         recipeLinkEnabled: Boolean(row.recipe_link_enabled),
         activeRecipe: row.recipe_id ? { id: row.recipe_id, revision: Number(row.recipe_revision || 0) } : null
+      }))
+    });
+  }
+
+  const costHistoryMatch = pathname.match(/^\/api\/admin\/stock\/(\d+)\/cost-history$/);
+  if (costHistoryMatch) {
+    const productId = Number(costHistoryMatch[1]);
+    const url = new URL(request.url);
+    const from = String(url.searchParams.get('from') || '').trim();
+    const to = String(url.searchParams.get('to') || '').trim();
+    if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) || (to && !/^\d{4}-\d{2}-\d{2}$/.test(to)) || (from && to && from > to)) {
+      return json({ error: 'Filter tanggal Histori HPP tidak valid.' }, 400);
+    }
+    const requestedLimit = Number(url.searchParams.get('limit') || 5);
+    const limit = Number.isInteger(requestedLimit) ? Math.min(50, Math.max(1, requestedLimit)) : 5;
+    const product = await env.DB.prepare(`
+      SELECT id, name, average_cost
+      FROM products
+      WHERE store_id = ? AND id = ?
+      LIMIT 1
+    `).bind(store.id, productId).first();
+    if (!product) return json({ error: 'Barang tidak ditemukan.' }, 404);
+    const rows = await env.DB.prepare(`
+      SELECT id, previous_average_cost_scaled, new_average_cost_scaled,
+             change_reason, reference_type, reference_id, created_at
+      FROM product_average_cost_history
+      WHERE store_id = ? AND product_id = ?
+        AND (? = '' OR substr(created_at, 1, 10) >= ?)
+        AND (? = '' OR substr(created_at, 1, 10) <= ?)
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `).bind(store.id, productId, from, from, to, to, limit).all();
+    return json({
+      product: {
+        productId: Number(product.id),
+        productName: product.name,
+        averageCostScaled: Number(product.average_cost || 0)
+      },
+      history: (rows.results || []).map(row => ({
+        id: row.id,
+        previousAverageCostScaled: Number(row.previous_average_cost_scaled),
+        newAverageCostScaled: Number(row.new_average_cost_scaled),
+        changeReason: row.change_reason,
+        referenceType: row.reference_type,
+        referenceId: row.reference_id,
+        createdAt: row.created_at
       }))
     });
   }
@@ -70,7 +117,7 @@ export async function handleAdminStockApi(request, env, pathname) {
   const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
 
   const product = await env.DB.prepare(`
-    SELECT p.id, p.name, p.stock_tracking_enabled, p.base_unit_id,
+    SELECT p.id, p.name, p.stock_tracking_enabled, p.base_unit_id, p.average_cost,
            u.symbol AS unit_symbol, b.quantity, b.updated_at
     FROM products p
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
@@ -119,6 +166,7 @@ export async function handleAdminStockApi(request, env, pathname) {
       unitSymbol: product.unit_symbol || '',
       stockTrackingEnabled: Boolean(product.stock_tracking_enabled),
       quantity: product.quantity == null ? null : Number(product.quantity),
+      averageCostScaled: Number(product.average_cost || 0),
       updatedAt: product.updated_at || null
     },
     movements: visible,

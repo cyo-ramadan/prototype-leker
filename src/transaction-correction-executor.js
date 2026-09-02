@@ -58,6 +58,32 @@ async function executeSaleCorrection(db, storeId, permit, actor, now) {
         VALUES (?, ?, 0, ?)
       `).bind(storeId, row.product_id, now),
       db.prepare(`
+        INSERT INTO product_average_cost_history (
+          id, store_id, product_id, previous_average_cost_scaled, new_average_cost_scaled,
+          change_reason, reference_type, reference_id, created_at
+        )
+        SELECT ?, p.store_id, p.id, p.average_cost,
+               CASE
+                 WHEN COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) <= 0
+                   THEN CAST((? + CAST(? / 2 AS INTEGER)) / ? AS INTEGER)
+                 ELSE CAST((
+                   COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) * p.average_cost
+                   + ?
+                   + CAST((COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) + ?) / 2 AS INTEGER)
+                 ) / (COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) + ?) AS INTEGER)
+               END,
+               'CORRECTION', 'SALE_VOID', ?, ?
+        FROM products p
+        WHERE p.id = ? AND p.store_id = ?
+      `).bind(
+        `product_cost_history_${crypto.randomUUID()}`,
+        storeId, row.product_id, lineCogs, quantity, quantity,
+        storeId, row.product_id, lineCogs,
+        storeId, row.product_id, quantity,
+        storeId, row.product_id, quantity,
+        permit.id, now, row.product_id, storeId
+      ),
+      db.prepare(`
         UPDATE products
         SET average_cost = CASE
               WHEN COALESCE((SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?), 0) <= 0
@@ -244,6 +270,20 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
         now,
         item.product_id,
         storeId
+      ),
+      db.prepare(`
+        INSERT INTO product_average_cost_history (
+          id, store_id, product_id, previous_average_cost_scaled, new_average_cost_scaled,
+          change_reason, reference_type, reference_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, 'CORRECTION', 'PURCHASE_VOID', ?, ?)
+      `).bind(
+        `product_cost_history_${crypto.randomUUID()}`,
+        storeId,
+        item.product_id,
+        item.average_cost_after,
+        item.average_cost_before,
+        permit.id,
+        now
       ),
       db.prepare(`
         INSERT INTO stock_movements (

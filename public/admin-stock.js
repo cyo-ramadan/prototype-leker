@@ -1,7 +1,8 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
-  const state = { stocks: [], selectedProductId: null, movements: [], nextCursor: null, hasMore: false };
+  const hpp = scaled => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 6 }).format(Number(scaled || 0) / 1_000_000);
+  const state = { stocks: [], selectedProductId: null, selectedProduct: null, movements: [], nextCursor: null, hasMore: false, costHistory: [], costFrom: '', costTo: '' };
 
   async function api(path) {
     const response = await fetch(path, { cache: 'no-store' });
@@ -90,7 +91,7 @@
           <div class="master-meta">${esc(item.itemTypeName || 'Tanpa tipe')} · ${esc(tracking)} · ${esc(production)}</div>
           <div class="master-prices"><span>Saldo</span><span><b>${qty}</b></span></div>
         </div>
-        <div class="master-actions"><button class="mini-btn" type="button" data-stock-detail="${item.productId}">Lihat Mutasi</button></div>
+        <div class="master-actions"><button class="mini-btn" type="button" data-stock-detail="${item.productId}">Lihat Mutasi & HPP</button></div>
       </article>`;
     }).join('') : '<div class="empty">Barang tidak ditemukan.</div>';
     target.querySelectorAll('[data-stock-detail]').forEach(button => button.addEventListener('click', () => loadMovements(Number(button.dataset.stockDetail), { reset: true })));
@@ -114,11 +115,24 @@
       state.movements = reset ? (payload.movements || []) : [...state.movements, ...(payload.movements || [])];
       state.nextCursor = payload.nextCursor || null;
       state.hasMore = Boolean(payload.hasMore);
+      state.selectedProduct = payload.product;
+      if (reset) await loadCostHistory(productId);
       renderDetail(payload.product);
     } catch (error) {
       if (reset) detail.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
       else toast(error.message);
     }
+  }
+
+  async function loadCostHistory(productId) {
+    const url = new URL(`/api/admin/stock/${productId}/cost-history`, location.origin);
+    url.searchParams.set('limit', '5');
+    const from = state.costFrom;
+    const to = state.costTo;
+    if (from) url.searchParams.set('from', from);
+    if (to) url.searchParams.set('to', to);
+    const payload = await api(`${url.pathname}${url.search}`);
+    state.costHistory = payload.history || [];
   }
 
   function sourceLabel(sourceType) {
@@ -135,6 +149,19 @@
     const qty = product.quantity == null ? 'Belum diinisialisasi' : `${product.quantity} ${esc(product.unitSymbol || '')}`;
     target.innerHTML = `
       <div class="list-head"><div><div class="admin-eyebrow">Stock Detail</div><h2>${esc(product.productName)}</h2><div class="muted">Saldo saat ini: <b>${qty}</b></div></div><button id="adminStockCloseDetail" class="mini-btn" type="button">Tutup</button></div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+        <div class="list-head"><div><div class="admin-eyebrow">Costing Read Model</div><h3>Histori HPP</h3><div class="muted">HPP saat ini: <b>${hpp(product.averageCostScaled)}</b> · 5 perubahan terkini, tanpa rekonstruksi data lama.</div></div></div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(140px,220px));gap:8px;margin-top:10px">
+          <label class="admin-field">Dari tanggal<input id="adminCostHistoryFrom" type="date" value="${esc(state.costFrom)}" /></label>
+          <label class="admin-field">Sampai tanggal<input id="adminCostHistoryTo" type="date" value="${esc(state.costTo)}" /></label>
+        </div>
+        <div class="master-list" style="margin-top:10px">${state.costHistory.length ? state.costHistory.map(row => `
+          <div class="master-row"><div class="master-main">
+            <strong>${hpp(row.previousAverageCostScaled)} → ${hpp(row.newAverageCostScaled)}</strong>
+            <div class="master-meta">${dateTime(row.createdAt)} · ${esc(row.changeReason)} · ${esc(row.referenceType)} ${esc(row.referenceId)}</div>
+          </div></div>`).join('') : '<div class="empty">Belum ada perubahan HPP tercatat pada filter ini.</div>'}</div>
+      </div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)"><div class="admin-eyebrow">Inventory Ledger</div><h3>Mutasi Stok</h3></div>
       <div class="master-list" style="margin-top:12px">${state.movements.length ? state.movements.map(row => `
         <div class="master-row">
           <div class="master-main">
@@ -146,6 +173,16 @@
       <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminStockMore" class="secondary-btn ${state.hasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
     document.getElementById('adminStockCloseDetail')?.addEventListener('click', () => target.classList.add('hidden'));
     document.getElementById('adminStockMore')?.addEventListener('click', () => loadMovements(product.productId, { reset: false }));
+    const refreshCostHistory = async () => {
+      try {
+        state.costFrom = String(document.getElementById('adminCostHistoryFrom')?.value || '');
+        state.costTo = String(document.getElementById('adminCostHistoryTo')?.value || '');
+        await loadCostHistory(product.productId);
+        renderDetail(state.selectedProduct || product);
+      } catch (error) { toast(error.message); }
+    };
+    document.getElementById('adminCostHistoryFrom')?.addEventListener('change', refreshCostHistory);
+    document.getElementById('adminCostHistoryTo')?.addEventListener('change', refreshCostHistory);
   }
 
   mount();

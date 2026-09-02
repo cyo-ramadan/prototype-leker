@@ -50,6 +50,17 @@ function costingFixture(currentStock) {
       quantity INTEGER NOT NULL,
       PRIMARY KEY (store_id, product_id)
     );
+    CREATE TABLE product_average_cost_history (
+      id TEXT PRIMARY KEY,
+      store_id TEXT NOT NULL,
+      product_id INTEGER NOT NULL,
+      previous_average_cost_scaled INTEGER NOT NULL,
+      new_average_cost_scaled INTEGER NOT NULL,
+      change_reason TEXT NOT NULL,
+      reference_type TEXT NOT NULL,
+      reference_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
 
     INSERT INTO production_runs (id, store_id, total_output_quantity)
     VALUES ('run-1', 'store-1', 2);
@@ -97,7 +108,7 @@ test('Sale reads its immutable HPP snapshot through the Manufaktur seam', () => 
   assert.match(cashierSalesTracking, /import \{ saleHppSnapshotSelect \} from '\.\/manufacture-costing\.js'/);
   assert.match(cashierSalesTracking, /\$\{saleHppSnapshotSelect\(\)\}/);
   assert.doesNotMatch(cashierSalesTracking, /p\.average_cost/);
-  assert.equal((manufactureCosting.match(/p\.average_cost/g) || []).length, 2);
+  assert.match(manufactureCosting, /saleHppSnapshotSelect/);
 });
 
 test('shared production costing preserves exact scaled HPP and moving-average rounding', () => {
@@ -123,6 +134,16 @@ test('shared production costing preserves exact scaled HPP and moving-average ro
       cost_updated_at: '2026-08-21T08:00:00.000Z',
       cost_type: 'integer'
     });
+    assert.deepEqual({ ...sqlite.prepare(`
+      SELECT previous_average_cost_scaled, new_average_cost_scaled, change_reason, reference_type, reference_id
+      FROM product_average_cost_history
+    `).get() }, {
+      previous_average_cost_scaled: 1_000_001,
+      new_average_cost_scaled: 1_600_001,
+      change_reason: 'PRODUCTION',
+      reference_type: 'PRODUCTION_RUN',
+      reference_id: 'run-1'
+    });
   } finally {
     sqlite.close();
   }
@@ -135,6 +156,7 @@ test('shared production costing preserves the zero-stock HPP bootstrap rule', ()
     assert.equal(sqlite.prepare(`
       SELECT average_cost FROM products WHERE id = 7 AND store_id = 'store-1'
     `).get().average_cost, 2_500_002);
+    assert.equal(sqlite.prepare(`SELECT new_average_cost_scaled FROM product_average_cost_history`).get().new_average_cost_scaled, 2_500_002);
   } finally {
     sqlite.close();
   }

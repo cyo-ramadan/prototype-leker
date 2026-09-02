@@ -218,7 +218,91 @@ Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai m
 - branch preview dengan migration baru dianggap code-preview saja kecuali dedicated preview D1 dengan matching schema memang disediakan;
 - jangan membuat ad-hoc table production dari request handler atau rewrite migration history untuk menyelamatkan preview.
 
+**Koreksi 2026-08-31 -- asumsi di atas (bullet ke-5) terbukti salah, dicek langsung
+lewat evidence, bukan dugaan:** push ke branch fitur `claude/leker-prototype-usc6mf`
+(bukan `main`) memicu Cloudflare Git Integration menjalankan **canonical deploy
+penuh** (`db:migrations:apply` -> `db:schema:verify` -> `wrangler deploy`) langsung
+ke worker production `prototype-leker-v2` dan D1 production yang sama, BUKAN ke
+preview terisolasi. Buktinya: migration `0057` (baru ada di branch fitur, belum di
+`main`, belum di-merge) muncul applied di `d1_migrations` production pada
+`2026-08-31 03:06:36`, dan `workers_list` menunjukkan `prototype-leker-v2`
+`modified_on` berubah 12 detik sesudahnya (`03:06:48`) -- persis urutan
+migrate -> verify -> deploy, dipicu murni oleh `git push` ke branch fitur, tanpa
+merge, tanpa PR approve. `wrangler.jsonc` cuma punya satu `d1_databases` binding
+(tidak ada `preview_database_id` terpisah), jadi tidak ada isolasi preview sama
+sekali di level D1 -- dan berdasarkan bukti ini, kemungkinan juga tidak ada
+isolasi di level Worker.
+
+**Implikasi buat siapa pun yang kerja di repo ini:** anggap SETIAP `git push` ke
+branch mana pun -- bukan cuma merge ke `main` -- sebagai deploy production yang
+sesungguhnya. Migration yang belum direview jangan pernah di-push kalau isinya
+destruktif (DROP/ALTER/data yang tidak idempotent) sebelum benar-benar yakin,
+karena tidak ada gerbang review yang menahannya sebelum ke production. Migration
+additive+idempotent (pola `WHERE NOT EXISTS`) aman kalau ke-apply lebih awal dari
+rencana, tapi migration yang mengubah struktur harus dianggap live sejak commit
+pertama di-push, bukan sejak PR di-merge. Ini juga menjelaskan kenapa gejala
+"migration sudah di-merge tapi belum ke database" (migration 0056, 2 hari
+tertahan) dan "migration langsung ke database dari branch fitur" (migration
+0057, hitungan detik) bisa terjadi di repo yang sama -- pipeline-nya memang
+tidak konsisten/predictable, bukan cuma soal branch mana yang dipakai.
+
 Recovery dan deployment checklist lengkap ada di `RUNBOOK.md`.
+
+## Login Admin Gerai yang "muter-muter" berulang -- riwayat lengkap, bukan tebak ulang tiap kali
+
+**Pitfall:** gejala "login admin_pendem berhasil tapi halamannya muter-muter/blank" muncul
+**empat kali terpisah** (27, 28 Agustus x2, dan 31 Agustus 2026). Tiga laporan pertama ditangani
+sebagai insiden baru masing-masing, dan jawaban di papan Workboard untuk laporan kedua
+(`isu_d6825a14`) berhenti di perbaikan **pertama** (PR #165) padahal perbaikan yang benar-benar
+menutup gejalanya baru datang lewat PR #167 sesudahnya -- jawabannya tidak pernah diperbarui.
+Akibatnya laporan ketiga (`isu_a85819b5`, dibuka beberapa jam sesudah laporan kedua "dijawab")
+pada dasarnya mengulang investigasi yang sama dari nol. Ini persis kegagalan yang dicegah
+`hana-cara-kerja` §5 (temuan wajib mendarat di dokumen) -- ditulis di sini sekarang karena
+sebelumnya tidak pernah benar-benar ditulis permanen.
+
+**Dua akar masalah yang sudah dikonfirmasi dan diperbaiki (kode ini masih berlaku, sudah dicek
+2026-08-31 -- tidak ter-revert):**
+
+1. **Handler login dobel** (PR #162) dan **halaman tidak mengingat gerai terakhir customer**
+   (PR #163) -- perbaikan awal, tidak cukup sendirian.
+2. **Deteksi "ini halaman admin" dari bentuk URL** (PR #165, `public/staff-entry-guard.js`) --
+   alamat `/branch-admin` (tanpa prefix `/s/:code`, tidak berakhiran `/admin`) tidak dikenali
+   sebagai halaman admin oleh regex lama, jadi (a) pengunjung tanpa sesi bisa lolos ke shell
+   Admin, dan (b) `store-context.js` jatuh ke gerai default `G001` alih-alih Pendem.
+3. **Fallback ke sesi Admin sendiri saat entry point tanpa `/s/:code`** (PR #167,
+   `public/store-context.js` + `public/staff-entry-guard.js` + `public/branch-admin.html`) --
+   kedua file kunci sekarang membaca deklarasi eksplisit `window.LEKER_PAGE_CONTEXT === 'admin'`
+   (ditulis di `<head>` sebelum guard/script lain jalan) alih-alih menebak dari URL, dan
+   `store-context.js` mengecek `sessionStorage.lekerAdminStoreCode` (gerai sesi Admin yang sedang
+   login) sebelum jatuh ke default. Ini yang akhirnya menutup laporan kedua dan ketiga
+   (`resolution_text: "sudah bisa login"`, 2026-08-29).
+
+**Jalur login yang benar sekarang** (`public/auth-entry-split.js` -> `POST
+/api/auth/staff-login` -> `src/unified-login.js`): sesudah login sukses, `lekerAdminStoreCode`
+di-set ke `sessionStorage` **sebelum** redirect ke `/s/<CODE>/admin` (bukan ke `/branch-admin`
+polos) -- jalur ini sudah dua lapis aman (prefix URL benar + fallback sesi). Yang **belum**
+tercakup lapisan ini: bookmark/shortcut lama yang tersimpan langsung ke `/branch-admin` polos
+dari sebelum PR #167, dipakai tanpa lewat halaman login depan.
+
+**Status 2026-08-31: gejala sama muncul LAGI, sesudah dua perbaikan di atas terbukti masih
+live di kode (dicek langsung, bukan diasumsikan) dan sesudah backend login terbukti berhasil
+(baris baru di `store_admin_sessions` untuk `admin_pendem`, valid, dibuat tepat saat gejala
+dilaporkan). Ini BELUM tuntas didiagnosis** -- dugaan kuat tapi belum terverifikasi: cache
+browser/PWA lama di perangkat kantor (HTML `branch-admin.html` sendiri tidak punya cache-bust
+seperti file JS-nya), atau bookmark lama ke `/branch-admin` polos.
+
+**Kalau gejala ini muncul lagi, sebelum menebak dari nol:**
+1. Baca bagian ini dulu -- jangan re-diagnose dari nol seperti tiga laporan sebelumnya.
+2. Verifikasi kode di atas masih live (`git show origin/main:public/staff-entry-guard.js` dkk),
+   bukan ter-revert.
+3. Verifikasi backend: `SELECT ... FROM store_admin_sessions JOIN store_admins ...` -- kalau ada
+   sesi valid baru dibuat, backend-nya sehat, masalahnya di klien (cache/bookmark), bukan server.
+4. Minta URL PERSIS yang dipakai (bare `/branch-admin` vs `/s/PENDEM/admin`) dan minta coba
+   tutup browser total (bukan cuma refresh) atau buang bookmark lama, ganti login dari halaman
+   depan.
+5. Kalau semua itu sudah dan gejalanya tetap ada -- itu baru benar-benar akar masalah baru,
+   bukan pengulangan yang tiga sebelumnya. Tulis temuannya di sini, bukan cuma di balasan
+   Workboard yang akan tertutup dan terlupakan lagi.
 
 ## Accounting tetap owner posting jurnal
 
@@ -304,4 +388,4 @@ gagal-tertutup, dan yang hilang justru datanya.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, dan schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion.
+**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion, dan **push ke branch fitur mana pun harus diperlakukan sebagai deploy production yang sesungguhnya** (tidak ada isolasi preview D1/Worker yang terbukti, lihat koreksi 2026-08-31 di "Preview Worker tidak membuktikan remote D1 siap"), dan **laporan "login Admin Gerai muter-muter" wajib dibaca dari riwayat lengkapnya dulu** sebelum re-diagnose dari nol (lihat "Login Admin Gerai yang 'muter-muter' berulang").

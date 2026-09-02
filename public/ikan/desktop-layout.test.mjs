@@ -15,3 +15,27 @@ test('Ikan UI remains isolated under its own public path', () => {
   assert.match(html, /<style id="ikan-desktop-layout">/);
   assert.match(html, /<div class="device"><div class="screen">/);
 });
+
+test('left drawer keeps every existing navigation destination and remains collapsible on desktop', () => {
+  assert.match(html, /id="menuToggle"[^>]+aria-controls="mainNavDrawer"[^>]+aria-expanded="false"/);
+  assert.match(html, /id="mainNavDrawer"[^>]+aria-hidden="true"[^>]+inert/);
+  for (const page of ['sales', 'invoice', 'purchase', 'master', 'costPayable', 'report']) {
+    assert.match(html, new RegExp(`data-page="${page}"`));
+  }
+  assert.doesNotMatch(html, /@media\s*\(min-width:421px\)[^}]*\.nav-drawer\s*\{[^}]*transform\s*:\s*none/s);
+});
+
+test('drawer close behavior covers toggle, overlay, Escape, mobile selection, and focus restoration', () => {
+  assert.match(html, /onclick="toggleNavDrawer\(\)"/);
+  assert.match(html, /id="drawerOverlay"[^>]+onclick="closeNavDrawer\(true\)"/);
+  assert.match(html, /event\.key==='Escape'&&navDrawerIsOpen\(\)/);
+  assert.match(html, /matchMedia\('\(max-width:420px\)'\)\.matches\)closeNavDrawer\(false\)/);
+  assert.match(html, /if\(restoreFocus\)toggle\.focus\(\)/);
+  assert.match(html, /event\.key!=='Tab'\|\|!navDrawerIsOpen\(\)/);
+});
+
+test('drawer preserves the established palette and only adds a transparent overlay', () => {
+  assert.match(html, /background:linear-gradient\(135deg,#111827,#374151\)/);
+  assert.match(html, /\.drawer-overlay\{[^}]*background:rgba\(17,24,39,\.52\)/);
+  assert.match(html, /\.nav-drawer\{[^}]*background:#111827/);
+});

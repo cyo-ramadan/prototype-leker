@@ -120,6 +120,9 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Prosedur operasional | `RUNBOOK.md` |
 | Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |
 | Cara memberi/menerima task antar agen | `contracts/agent-task-board-v1.md` |
+| **Mau menulis task baru buat agen lain** | Pakai skill `agent-task-brief` (`.claude/skills/`) — SOP + pagar wajib supaya agen yang ngoding tidak menebak sendiri |
+| **Mau menyimpulkan/melapor sesuatu sudah jalan, atau menyentuh data produksi** | Pakai skill `hana-cara-kerja` (`.claude/skills/`) — buktikan ke sumber primer dulu, jangan simpulkan dari dokumen/ingatan |
+| **Buntu cari jalur baca/tulis/deploy waktu ngoding atau nge-debug** | Pakai skill `jalur-akses-leker` (`.claude/skills/`) — peta endpoint per role, `/api/debug/*`, jebakan `?store=`, dan cara membuktikan sesuatu benar-benar live |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 
@@ -135,6 +138,13 @@ yang sudah `SUCCESS`.
 
 `agent-bridge/` adalah Worker terpisah (`leker-agent-bridge`) dan **tidak** ikut
 ter-deploy oleh Git Integration. Deploy manual dengan config-nya sendiri.
+
+**Push ke branch fitur = deploy production sungguhan, bukan cuma preview.**
+Dibuktikan 2026-08-31 (bukan dugaan): push ke branch fitur bikin Git Integration
+menjalankan migrate→verify→deploy penuh ke worker & D1 production yang sama,
+tanpa nunggu merge. Detail bukti dan implikasinya di `KNOWN_PITFALLS.md`
+("Preview Worker tidak membuktikan remote D1 siap"). Jangan push migration
+destruktif/belum yakin ke branch mana pun sebelum benar-benar siap live.
 
 ## Konvensi repo
 

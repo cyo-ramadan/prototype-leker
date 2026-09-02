@@ -12,8 +12,9 @@ mekanisme impor otomatis.
 **Arah akhirnya bukan begitu.** Keputusan Bos Cyo 2026-08-22: MAXI menuju satu
 platform, banyak tenant (`ADR-030` — Tenant/Entity/Gerai empat lapis, fondasi
 tabelnya sudah ada di `migrations/0039`; Langkah 4 sedang dikerjakan bertahap.
-Fase resolusi Store→Entity/Tenant ada di PR #139, sementara Fase ledger anchor
-ada di PR #141. Enforcement/filter lintas Entity belum dimulai). Program Ikan
+Fase resolusi Store→Entity/Tenant sudah landed lewat PR #139, sementara Fase
+ledger anchor sudah landed lewat PR #141. Enforcement/filter lintas Entity
+belum dimulai). Program Ikan
 akan diarahkan Bos Cyo langsung buat nyesuaiin ke mode itu dari sisi sesinya
 sendiri — bukan dikerjakan dari sesi Leker ini. Saklar per-gerai yang lagi
 dibangun di sini (`warehouse_enabled`, `edition`) tetap relevan buat arah itu:
@@ -35,7 +36,7 @@ cuma level scope-nya beda.
 refactor, bugfix di file miliknya) — turunkan ke IN_PROGRESS sampai diverifikasi
 ulang. Jangan percaya status lama begitu ada perubahan kode.
 
-## Status per modul (per 2026-08-22)
+## Status per modul (per 2026-08-23)
 
 | Modul | Status | Bukti | File utama |
 |---|---|---|---|
@@ -45,7 +46,7 @@ ulang. Jangan percaya status lama begitu ada perubahan kode.
 | Customer & Sharing | **VERIFIED_NO_WORK_NEEDED** | Tabel `customers`/`customer_share_groups` cuma dibuat sekali, nol trigger, nol referensi ke `chart_of_accounts`/`account_id`/`journal_rules`/`item_categories`. Isolasi `store_id` per invariant #5 benar | `src/customers.js`, `src/customer-sharing.js`, `src/customer-membership.js`, `src/customer-feedback.js` |
 | Business Settings | **IN_PROGRESS** | Route admin Cara Bayar sudah pindah (PR #136). Saklar `stores.edition` (LITE/FLEXIBLE/ACCOUNTING) masih dikerjakan (`karen-BS-STORES-EDITION`) | `src/business-settings.js`, `src/product-kinds.js` |
 | Accounting | **IN_PROGRESS** | Cara panggilnya sudah rapi dari dulu (satu titik, post-commit, tidak pernah block POS). Cara nyalain/matiinnya nunggu `stores.edition` + `karen-BS-DISPATCH-GATING` | `src/accounting-*.js` |
-| Tenancy / Entity foundation | **IN_PROGRESS** | ADR-030 foundation sudah ada di migration 0039. PR #139 menyiapkan Store→Entity/Tenant resolution; PR #141 menambahkan additive `entity_id` anchor pada lima financial/value ledgers tanpa mengubah filter runtime. Enforcement Entity belum dimulai | `src/stores.js`, `migrations/0039_tenancy_and_consolidation_foundation.sql`, `migrations/0046_tenancy_ledger_entity_column.sql` |
+| Tenancy / Entity foundation | **IN_PROGRESS** | ADR-030 foundation sudah ada di migration 0039. PR #139 sudah menambahkan Store→Entity/Tenant resolution; PR #141 sudah menambahkan additive `entity_id` anchor pada lima financial/value ledgers tanpa mengubah filter runtime. Enforcement Entity belum dimulai | `src/stores.js`, `migrations/0039_tenancy_and_consolidation_foundation.sql`, `migrations/0046_tenancy_ledger_entity_column.sql` |
 
 ## Temuan yang belum jadi task (dicatat, bukan dilupakan)
 

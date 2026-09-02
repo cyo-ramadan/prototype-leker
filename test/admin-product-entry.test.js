@@ -30,7 +30,7 @@ test('branch product form submits products to branch scoped protected endpoint',
   assert.match(ui, /'\/api\/admin\/products'/);
   assert.match(html, /id="productName"/);
   assert.match(html, /id="productPurchasePrice"/);
-  assert.match(html, /admin-product-policy\.js\?v=20260816-simple-product-v1/);
+  assert.match(html, /admin-product-policy\.js\?v=20260816-simple-product-v2-decimal-koma-fix/);
   assert.match(html, /admin-manufacturing\.js\?v=20260816-simple-product-v1/);
   assert.match(html, /admin-master-menu\.js\?v=20260816-simple-product-v1/);
   assert.match(html, /id="productPrice"/);

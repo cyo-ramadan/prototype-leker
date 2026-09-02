@@ -28,9 +28,6 @@ test('migration 0042 lands without error and journal_rules keeps its two indexes
 
 test('migration 0042 does not add, remove, or change any existing journal_rules row', () => {
   const before = migratedDb();
-  const beforeRows = JSON.stringify(
-    before.prepare(`SELECT id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, sort_order, is_default FROM journal_rules ORDER BY id`).all()
-  );
 
   // Build the historical snapshot exactly as it existed before 0042. Later
   // migrations may legitimately depend on schema introduced by 0042, so they
@@ -41,11 +38,22 @@ test('migration 0042 does not add, remove, or change any existing journal_rules 
     if (file >= '0042_') break;
     withoutChoiceGroups.exec(read(file));
   }
-  const beforeRowsPre0042 = JSON.stringify(
-    withoutChoiceGroups.prepare(`SELECT id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, sort_order, is_default FROM journal_rules ORDER BY id`).all()
+
+  // A later migration may legitimately onboard a brand new store (a new
+  // gerai, a new tenant) — that store's own journal_rules did not exist at
+  // 0042 and must not be compared here. Scope both sides to stores that were
+  // already present by 0042, so this check stays about what 0042 did to rows
+  // it could actually see.
+  const storesAtPre0042 = withoutChoiceGroups.prepare(`SELECT id FROM stores`).all().map(row => row.id);
+  const placeholders = storesAtPre0042.map(() => '?').join(', ');
+  const rowsFor = db => JSON.stringify(
+    db.prepare(`
+      SELECT id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, sort_order, is_default
+      FROM journal_rules WHERE store_id IN (${placeholders}) ORDER BY id
+    `).all(...storesAtPre0042)
   );
 
-  assert.equal(beforeRows, beforeRowsPre0042);
+  assert.equal(rowsFor(before), rowsFor(withoutChoiceGroups));
 });
 
 test('creating a new store still seeds journal_rules exactly as before (seed triggers survive the rebuild)', () => {

@@ -59,7 +59,14 @@
           <div class="cashier-lock-note"><b>Tambah barang dari Master Barang</b><br><span class="muted">Barang tidak menerima input nama bebas. Pilihan di bawah berasal dari database gerai aktif.</span></div>
           <div class="field"><label>Barang</label><select id="dialogPurchaseProduct" class="text-input">${selectableProducts}</select></div>
           <div class="field"><label>Qty <span id="dialogPurchaseUnit" class="muted"></span></label><input id="dialogPurchaseQty" class="text-input" type="number" min="1" step="1" value="1" required /></div>
-          <div class="field"><label>Total baris</label><input id="dialogPurchaseLineTotal" class="text-input" type="number" min="1" step="1" required /></div>
+          <div class="field"><label>Cara isi harga</label>
+            <select id="dialogPurchaseEntryMode" class="text-input">
+              <option value="TOTAL">Isi Total Belanja Baris Ini</option>
+              <option value="UNIT">Isi Harga per Satuan</option>
+            </select>
+          </div>
+          <div class="field" id="dialogPurchaseTotalField"><label>Total baris</label><input id="dialogPurchaseLineTotal" class="text-input" type="number" min="1" step="1" required /></div>
+          <div class="field hidden" id="dialogPurchaseUnitPriceField"><label>Harga per satuan <span class="muted">boleh koma, mis. 583.33</span></label><input id="dialogPurchaseUnitPrice" class="text-input" type="number" min="0.000001" step="any" /><span id="dialogPurchaseUnitPricePreview" class="muted"></span></div>
           <button id="dialogPurchaseAddLine" class="secondary-btn" type="button">＋ Tambah Baris Barang</button>
           <div id="dialogPurchaseLines" class="cashier-detail-list"></div>
           <div id="dialogPurchaseGrandTotal" class="cashier-lock-note">Total pembelian · Rp0</div>
@@ -108,15 +115,49 @@
         });
       };
 
+      const syncEntryMode = () => {
+        const mode = el('dialogPurchaseEntryMode')?.value || 'TOTAL';
+        el('dialogPurchaseTotalField')?.classList.toggle('hidden', mode !== 'TOTAL');
+        el('dialogPurchaseUnitPriceField')?.classList.toggle('hidden', mode !== 'UNIT');
+        renderUnitPricePreview();
+      };
+      const renderUnitPricePreview = () => {
+        const preview = el('dialogPurchaseUnitPricePreview');
+        if (!preview) return;
+        if ((el('dialogPurchaseEntryMode')?.value || 'TOTAL') !== 'UNIT') {
+          preview.textContent = '';
+          return;
+        }
+        const quantity = Number(el('dialogPurchaseQty').value);
+        const unitPrice = Number(el('dialogPurchaseUnitPrice').value);
+        preview.textContent = Number.isFinite(quantity) && quantity > 0 && Number.isFinite(unitPrice) && unitPrice > 0
+          ? `≈ Total ${rupiah(Math.round(quantity * unitPrice))}`
+          : '';
+      };
+
       el('dialogPurchaseProduct')?.addEventListener('change', renderUnit);
+      el('dialogPurchaseEntryMode')?.addEventListener('change', syncEntryMode);
+      el('dialogPurchaseQty')?.addEventListener('input', renderUnitPricePreview);
+      el('dialogPurchaseUnitPrice')?.addEventListener('input', renderUnitPricePreview);
       el('dialogPurchaseAddLine')?.addEventListener('click', () => {
         const productId = Number(el('dialogPurchaseProduct').value);
         const quantity = Number(el('dialogPurchaseQty').value);
-        const lineTotal = Number(el('dialogPurchaseLineTotal').value);
         const product = products.find(item => Number(item.productId) === productId);
         if (!product || !Number.isInteger(quantity) || quantity <= 0) {
           toast('Barang dan qty pembelian wajib valid.');
           return;
+        }
+        const mode = el('dialogPurchaseEntryMode')?.value || 'TOTAL';
+        let lineTotal;
+        if (mode === 'UNIT') {
+          const unitPrice = Number(el('dialogPurchaseUnitPrice').value);
+          if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+            toast('Harga per satuan pembelian wajib valid.');
+            return;
+          }
+          lineTotal = Math.round(quantity * unitPrice);
+        } else {
+          lineTotal = Number(el('dialogPurchaseLineTotal').value);
         }
         if (!Number.isSafeInteger(lineTotal) || lineTotal <= 0) {
           toast('Total baris pembelian wajib valid.');
@@ -135,9 +176,12 @@
         });
         el('dialogPurchaseQty').value = '1';
         el('dialogPurchaseLineTotal').value = '';
+        el('dialogPurchaseUnitPrice').value = '';
+        renderUnitPricePreview();
         renderLines();
       });
       renderUnit();
+      syncEntryMode();
       renderLines();
     } catch (error) {
       toast(error.message);

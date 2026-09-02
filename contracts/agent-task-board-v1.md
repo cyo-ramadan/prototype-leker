@@ -46,6 +46,17 @@ ambiguity becomes unfixable once slot counts reach double digits.
 what the board and the repository tell it. That is the fact the handoff rule exists to
 survive.
 
+**A new task is not a new slot.** Slot counts parallel lanes — how many tabs Bos Cyo actually
+has open — not how many tasks a family has picked up. An agent that releases one claim and
+immediately claims another, still the same running instance, keeps its slot and stays on the
+same session too; nothing about finishing a task resets its context. A slot number only
+climbs when Bos Cyo opens a genuinely new parallel lane himself. Found in production, 2026-08-22:
+a GitHub-only Karen relaying through one Issue thread — same conversation, same back-and-forth,
+task after task — was assigned a fresh slot for every task instead of the next session under
+one slot (`karen5.1`, `karen6.1`, `karen7.1`... instead of `karen5.1`, `karen5.2`, `karen5.3`).
+The board still worked — nothing here is a claim-safety issue — but Bos Cyo lost the one thing
+slot numbers exist to give him: which lane a piece of in-flight work is actually running in.
+
 ## Multi-project board — `project` sebagai sekat
 
 Status: ACTIVE sejak 2026-08-20, atas keputusan Bos Cyo. Ditulis dan diterapkan oleh `hana`
@@ -182,6 +193,32 @@ The `contract` field is the one that prevents ambiguity at query time. State whi
 to which, in words, e.g. *"`production_runs.recipe_id` must reference an immutable recipe
 revision; never join to `manufacturing_recipes` by product alone."*
 
+## Editing a task already on the board
+
+`trg_claim_path_conflict` only fires `BEFORE INSERT ON task_claims`. It says nothing about
+`UPDATE tasks` or `INSERT`/`DELETE` on `task_paths` — so nothing in the schema stops a session
+from rewriting a task's `title`, `brief`, or `task_paths` out from under a claim another
+session is actively holding. This was found in production, not designed against on paper: a
+Hana session with no memory of an in-progress claim edited `IKAN-FRONTEND-REWIRE-02` to add
+`src/index.js`, the exact file `karen-BS-DISPATCH-GATING` already had an open claim on — the
+edit landed clean because the trigger never saw it.
+
+**Before saving any edit to a task that is not brand-new** — paths added or changed, brief
+rewritten, title changed — run the same check the trigger would run if it could:
+
+```sql
+SELECT tp.task_id, tp.path_prefix FROM task_paths tp
+JOIN task_claims c ON c.task_id = tp.task_id AND c.released_at IS NULL
+WHERE tp.path_prefix LIKE '<NEW_OR_CHANGED_PATH>%' OR '<NEW_OR_CHANGED_PATH>' LIKE tp.path_prefix || '%';
+```
+
+Non-empty and the conflicting task isn't the one you're editing → the edit collides with a live
+claim. Either hold the edit until that claim releases, or narrow it to exclude the contested
+path and let the claimant add it back themselves once free (self-service rule in
+`agent-bus/CLAIM-PROMPT.md` covers exactly this). This applies to whoever is writing the edit —
+Hana, Bos Cyo typing SQL directly, or a future agent family with board write access — because
+the trigger cannot tell who is asking.
+
 ## Self-issued tasks — Bos Cyo speaks in a sentence, the agent writes the SQL
 
 Every task above assumes Hana (or Bos Cyo) already wrote a row in `tasks`. That is the right
@@ -215,6 +252,36 @@ directly into its session, under all of the following:
 
 The self-contained prompt in `agent-bus/CLAIM-PROMPT.md` carries the exact SQL for this, so an
 agent follows it the same way it follows a claim — no separate protocol to learn.
+
+### Writing tasks when Hana is out of budget
+
+Hana's context is finite, and a session that runs out cannot write the next task. When that
+happens the board must keep producing work, so **implementers write tasks for themselves and
+for each other** — under the six rules above, plus four more that exist because nobody is
+reviewing the row before it is claimed.
+
+7. **An architecture decision is not yours to make in a task row.** A task may *implement* a
+   decision that an ADR or contract already made. It may not *invent* one. If writing the task
+   requires choosing a boundary, a data shape, or an invariant that no document has settled,
+   that is an escalation to Bos Cyo, not a `brief` you compose. Splitting one decision across
+   several small task rows does not make it smaller — it makes it harder to find.
+8. **Verify the premise before you write the row, not after you claim it.** Every factual claim
+   in a `brief` — that a file exists, that a column is present, that a migration number is
+   free, that another task is finished — must come from reading the live code or the live
+   board in the same session. This rule was written after a task was authored against a
+   trigger design that the schema made impossible: the implementer caught it at preflight, but
+   only because they checked. Do not write "should be straightforward" into a brief you have
+   not verified.
+9. **`forbidden` is not optional, and it is not decoration.** Name what must not be touched and
+   why. A row whose `forbidden` is empty is a row that has not been thought through — the
+   author simply has not asked what the neighbouring work would lose. If nothing is genuinely
+   off-limits, write that sentence explicitly, so a reader knows it was considered.
+10. **Say who checks it.** The author of a task never verifies their own report on it —
+    that is the whole point of the split, and self-issuing does not dissolve it. Write the row
+    so a different session can tell PASS from FAIL by running something, not by trusting a
+    summary. If the only proof possible is "the author says so", the task is written wrong.
+
+A task written this way survives its author. That is the only test that matters.
 
 ## The handoff rule
 

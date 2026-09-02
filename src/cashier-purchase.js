@@ -70,7 +70,7 @@ export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) 
     productId: Number(row.id), productName: row.name, unitId: row.base_unit_id,
     unitSymbol: row.unit_symbol || '', productKindId: row.product_kind_id || null,
     productKindCode: row.product_kind_code || '', productKindName: row.product_kind_name || '',
-    purchasePrice: Number(row.purchase_price || 0),
+    purchasePrice: costFromScaled(row.purchase_price),
     averageCost: costFromScaled(row.average_cost), lastPurchasePrice: costFromScaled(row.last_purchase_price)
   }));
 }

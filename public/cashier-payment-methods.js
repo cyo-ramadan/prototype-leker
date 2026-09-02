@@ -220,6 +220,10 @@
             note: byId('dialogPurchaseNote').value,
             items: submittedItems
           });
+          if (result.pendingApproval) {
+            toast(result.message || 'Harga Beli di luar range · menunggu ACC Admin.');
+            return true;
+          }
           toast(`Pembelian tersimpan · ${submittedItems.length} barang · ${rupiah(result.totalAmount)} · ${accountingLabel(result)}`);
           return true;
         }

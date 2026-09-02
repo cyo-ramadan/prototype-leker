@@ -35,6 +35,19 @@ function purchasePriceInput(body, current) {
   return Number.isSafeInteger(existing) && existing >= 0 ? existing : null;
 }
 
+function optionalScaledCostInput(body, key, current, column) {
+  if (!owns(body, key)) {
+    const existing = current?.[column];
+    return existing == null ? null : Number(existing);
+  }
+  const value = body[key];
+  if (value == null || String(value).trim() === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return undefined;
+  const scaled = Math.round(number * COST_SCALE);
+  return Number.isSafeInteger(scaled) ? scaled : undefined;
+}
+
 function nonNegativeInteger(value, max = 10_000_000) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number <= max ? number : null;
@@ -88,6 +101,8 @@ async function listEditorProducts(db, storeId) {
            p.display_order, p.is_active, p.item_type_id, p.product_kind_id, p.base_unit_id,
            p.points_per_unit, p.recipe_link_enabled, p.linked_recipe_id, p.stock_tracking_enabled,
            p.average_cost, p.last_purchase_price, p.cost_updated_at, p.last_purchase_at,
+           p.min_purchase_price_scaled, p.max_purchase_price_scaled,
+           p.min_average_cost_scaled, p.max_average_cost_scaled,
            t.name AS item_type_name,
            k.code AS product_kind_code, k.name AS product_kind_name,
            u.name AS unit_name, u.symbol AS unit_symbol,
@@ -126,7 +141,11 @@ async function listEditorProducts(db, storeId) {
     averageCost: costFromScaled(row.average_cost),
     lastPurchasePrice: costFromScaled(row.last_purchase_price),
     costUpdatedAt: row.cost_updated_at || null,
-    lastPurchaseAt: row.last_purchase_at || null
+    lastPurchaseAt: row.last_purchase_at || null,
+    minPurchasePrice: row.min_purchase_price_scaled == null ? null : costFromScaled(row.min_purchase_price_scaled),
+    maxPurchasePrice: row.max_purchase_price_scaled == null ? null : costFromScaled(row.max_purchase_price_scaled),
+    minAverageCost: row.min_average_cost_scaled == null ? null : costFromScaled(row.min_average_cost_scaled),
+    maxAverageCost: row.max_average_cost_scaled == null ? null : costFromScaled(row.max_average_cost_scaled)
   }));
 }
 
@@ -134,12 +153,32 @@ async function editorPayload(db, store) {
   // Reference bootstrap may write missing defaults. Finish it before concurrent
   // reads so D1 never overlaps a bootstrap batch with the editor snapshot.
   const refs = await getManufacturingReferenceData(db, store.id);
-  const [productKinds, products, recipes] = await Promise.all([
+  const [productKinds, products, recipes, warning, alerts] = await Promise.all([
     listProductKinds(db, store.id),
     listEditorProducts(db, store.id),
-    listActiveRecipes(db, store.id)
+    listActiveRecipes(db, store.id),
+    db.prepare(`SELECT purchase_price_warning_enabled FROM stores WHERE id = ? LIMIT 1`).bind(store.id).first(),
+    db.prepare(`
+      SELECT a.id, a.product_id, p.name AS product_name, a.average_cost_scaled,
+             a.min_average_cost_scaled, a.max_average_cost_scaled, a.created_at
+      FROM product_average_cost_alerts a
+      JOIN products p ON p.id = a.product_id AND p.store_id = a.store_id
+      WHERE a.store_id = ?
+      ORDER BY a.created_at DESC, a.id DESC
+      LIMIT 50
+    `).bind(store.id).all()
   ]);
-  return { store, products, recipes, productKinds, ...refs };
+  return {
+    store, products, recipes, productKinds, ...refs,
+    priceWarningEnabled: warning?.purchase_price_warning_enabled === 1,
+    hppAlerts: (alerts.results || []).map(row => ({
+      id: Number(row.id), productId: Number(row.product_id), productName: row.product_name,
+      averageCost: costFromScaled(row.average_cost_scaled),
+      minAverageCost: row.min_average_cost_scaled == null ? null : costFromScaled(row.min_average_cost_scaled),
+      maxAverageCost: row.max_average_cost_scaled == null ? null : costFromScaled(row.max_average_cost_scaled),
+      createdAt: row.created_at
+    }))
+  };
 }
 
 async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId) {
@@ -172,11 +211,22 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
   const stockTrackingEnabled = owns(body, 'stockTrackingEnabled')
     ? body.stockTrackingEnabled !== false
     : current?.stock_tracking_enabled !== 0;
+  const minPurchasePrice = optionalScaledCostInput(body, 'minPurchasePrice', current, 'min_purchase_price_scaled');
+  const maxPurchasePrice = optionalScaledCostInput(body, 'maxPurchasePrice', current, 'max_purchase_price_scaled');
+  const minAverageCost = optionalScaledCostInput(body, 'minAverageCost', current, 'min_average_cost_scaled');
+  const maxAverageCost = optionalScaledCostInput(body, 'maxAverageCost', current, 'max_average_cost_scaled');
 
   if (!name || purchasePrice === null || price === null || !category || productImage === null) {
     return { ok: false, status: 400, error: 'Nama, kategori, harga beli, harga jual, atau foto barang tidak valid.' };
   }
   if (pointsPerUnit === null) return { ok: false, status: 400, error: 'Poin barang harus bilangan bulat nol atau positif.' };
+  if ([minPurchasePrice, maxPurchasePrice, minAverageCost, maxAverageCost].some(value => value === undefined)) {
+    return { ok: false, status: 400, error: 'Range harga tidak valid.' };
+  }
+  if ((minPurchasePrice != null && maxPurchasePrice != null && minPurchasePrice > maxPurchasePrice)
+    || (minAverageCost != null && maxAverageCost != null && minAverageCost > maxAverageCost)) {
+    return { ok: false, status: 400, error: 'Nilai minimum range harga tidak boleh lebih besar dari maksimum.' };
+  }
 
   const itemTypeId = owns(body, 'itemTypeId') ? body.itemTypeId : current?.item_type_id;
   const baseUnitId = owns(body, 'baseUnitId') ? body.baseUnitId : current?.base_unit_id;
@@ -221,7 +271,11 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     pointsPerUnit,
     linkedRecipeId: recipeLink.linkedRecipeId,
     recipeLinkEnabled: recipeLink.recipe ? 1 : 0,
-    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0
+    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0,
+    minPurchasePrice,
+    maxPurchasePrice,
+    minAverageCost,
+    maxAverageCost
   };
 }
 
@@ -234,6 +288,14 @@ export async function handleProductMasterApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/admin/master/products/editor') {
     return json(await editorPayload(env.DB, store));
+  }
+
+  if (request.method === 'PATCH' && pathname === '/api/admin/master/products/warning-settings') {
+    const body = await readJson(request);
+    if (!body.ok || typeof body.value?.enabled !== 'boolean') return json({ error: 'Mode Warning wajib boolean.' }, 400);
+    await env.DB.prepare(`UPDATE stores SET purchase_price_warning_enabled = ? WHERE id = ?`)
+      .bind(body.value.enabled ? 1 : 0, store.id).run();
+    return json({ ok: true, editor: await editorPayload(env.DB, store) });
   }
 
   if (request.method === 'POST' && pathname === '/api/admin/master/products/editor') {
@@ -251,14 +313,16 @@ export async function handleProductMasterApi(request, env, pathname) {
         INSERT INTO products (
           id, store_id, name, purchase_price, price, category, emoji, image_data,
           display_order, is_active, item_type_id, product_kind_id, base_unit_id,
-          points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled,
+          min_purchase_price_scaled, max_purchase_price_scaled, min_average_cost_scaled, max_average_cost_scaled
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
         normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
         normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
         normalized.pointsPerUnit, normalized.recipeLinkEnabled,
-        normalized.linkedRecipeId, normalized.stockTrackingEnabled
+        normalized.linkedRecipeId, normalized.stockTrackingEnabled,
+        normalized.minPurchasePrice, normalized.maxPurchasePrice, normalized.minAverageCost, normalized.maxAverageCost
       )
     ];
     if (normalized.stockTrackingEnabled) {
@@ -279,7 +343,8 @@ export async function handleProductMasterApi(request, env, pathname) {
   const current = await env.DB.prepare(`
     SELECT id, name, purchase_price, price, category, emoji, image_data, is_active,
            item_type_id, product_kind_id, base_unit_id, points_per_unit,
-           stock_tracking_enabled, linked_recipe_id
+           stock_tracking_enabled, linked_recipe_id,
+           min_purchase_price_scaled, max_purchase_price_scaled, min_average_cost_scaled, max_average_cost_scaled
     FROM products WHERE id = ? AND store_id = ?
   `).bind(productId, store.id).first();
   if (!current) return json({ error: 'Barang tidak ditemukan di gerai ini.' }, 404);
@@ -295,14 +360,18 @@ export async function handleProductMasterApi(request, env, pathname) {
       UPDATE products
       SET name = ?, purchase_price = ?, price = ?, category = ?, emoji = ?, image_data = ?,
           is_active = ?, item_type_id = ?, product_kind_id = ?, base_unit_id = ?, points_per_unit = ?,
-          recipe_link_enabled = ?, linked_recipe_id = ?, stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
+          recipe_link_enabled = ?, linked_recipe_id = ?, stock_tracking_enabled = ?,
+          min_purchase_price_scaled = ?, max_purchase_price_scaled = ?,
+          min_average_cost_scaled = ?, max_average_cost_scaled = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
       normalized.name, normalized.purchasePrice, normalized.price, normalized.category,
       normalized.emoji, normalized.productImage, normalized.isActive,
       normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId, normalized.pointsPerUnit,
       normalized.recipeLinkEnabled, normalized.linkedRecipeId,
-      normalized.stockTrackingEnabled, productId, store.id
+      normalized.stockTrackingEnabled,
+      normalized.minPurchasePrice, normalized.maxPurchasePrice, normalized.minAverageCost, normalized.maxAverageCost,
+      productId, store.id
     )
   ];
   if (normalized.stockTrackingEnabled) {

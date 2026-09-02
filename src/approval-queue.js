@@ -4,6 +4,7 @@ import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
 import { dispatchApprovedCashFlowToAccounting } from './accounting-cash-flow-bridge.js';
+import { buildPurchasePostingPlan } from './cashier-purchase.js';
 import {
   normalizeApprovalPayload,
   buildOperationalPostingStatements,
@@ -384,6 +385,39 @@ async function handleManagementApprovalQueue(request, env, pathname) {
 
     const stale = await rejectStaleStockAdjustment(env.DB, current, { approverRole, approverId, now });
     if (stale) return json({ ...stale, request: await getRequest(env.DB, requestId) }, stale.status);
+
+    if (current.requestType === 'GOODS_FLOW' && current.payload?.purpose === 'PURCHASE_PRICE_RANGE') {
+      const purchase = current.payload.purchase || {};
+      const plan = await buildPurchasePostingPlan(env.DB, {
+        id: purchase.id,
+        storeId: current.storeId,
+        drawerId: current.drawerSessionId,
+        cashierId: current.cashierId,
+        supplierId: purchase.supplierId || null,
+        description: purchase.description,
+        totalAmount: purchase.totalAmount,
+        note: purchase.note || '',
+        paymentMethod: purchase.paymentMethod,
+        items: purchase.items || [],
+        warehouseEnabled: purchase.warehouseEnabled !== false,
+        now
+      });
+      plan.statements.push(env.DB.prepare(`
+        UPDATE approval_requests
+        SET approval_status = 'approved', posting_status = 'posted', posting_block_reason = '',
+            decision_note = ?, updated_at = ?, approved_at = ?, posted_at = ?, approved_by_role = ?, approved_by_id = ?
+        WHERE id = ? AND approval_status = 'pending_approval' AND posting_status = 'unposted'
+      `).bind(note, now, now, now, approverRole, approverId, current.id));
+      await env.DB.batch(plan.statements);
+      return json({
+        ok: true,
+        request: await getRequest(env.DB, requestId),
+        posted: true,
+        accounting: null,
+        purchaseId: purchase.id,
+        message: 'ACC berhasil. Pembelian di luar range sudah diposting.'
+      });
+    }
 
     const statements = buildOperationalPostingStatements(env.DB, current, { approverRole, approverId, now, note });
     try {

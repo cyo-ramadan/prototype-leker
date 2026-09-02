@@ -43,8 +43,8 @@
     if (!input) return;
     input.readOnly = false;
     input.required = true;
-    input.step = '1';
-    input.title = 'Harga beli default dari Master Barang; tetap dapat diedit saat pembelian';
+    input.step = 'any';
+    input.title = 'Harga beli default dari Master Barang; boleh koma untuk barang yang dibeli curah (mis. per ml/gram); tetap dapat diedit saat pembelian';
     const label = input.closest('label');
     if (label?.firstChild) label.firstChild.textContent = 'Harga Beli';
     const priceGrid = label?.parentElement;
@@ -70,6 +70,10 @@
     mountPurchaseCostFields();
     category.insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
+        <div class="admin-card" style="padding:12px;margin:0 0 12px">
+          <div class="list-head"><div><div class="admin-eyebrow">Guardrail Gerai</div><h3>Mode Warning Harga & HPP</h3><div class="muted">Default OFF. Saat ON, Harga Beli di luar range masuk Approval Queue; HPP hasil hitung di luar range menjadi alert persisten.</div></div><label class="admin-check"><input id="productPriceWarningEnabled" type="checkbox" /> Aktif</label></div>
+          <div id="productHppAlerts" class="master-list" style="margin-top:10px"></div>
+        </div>
         <details id="productOperationalDetails" class="admin-card" style="padding:12px;margin:0 0 12px">
           <summary style="cursor:pointer;font-weight:900">Stok & pengaturan lanjutan</summary>
           <div class="muted" style="margin:8px 0 12px">Default barang baru: Barang Jadi + pcs. Buka bagian ini hanya saat barang punya kebutuhan stok, produksi, atau Accounting khusus.</div>
@@ -84,11 +88,19 @@
         <label class="admin-check"><input id="productStockTracking" type="checkbox" checked /> Track & enforce stok</label>
         <label class="admin-field">Recipe Linked<select id="productLinkedRecipe"><option value="">Tidak terhubung</option></select></label>
         <div id="productRecipeNote" class="muted" style="margin:-5px 0 12px"></div>
+        <div class="muted" style="margin:10px 0 8px">Range optional per barang. Kosong berarti tidak ada batas pada sisi itu.</div>
+        <div class="admin-grid two compact">
+          <label class="admin-field">Min Harga Beli<input id="productMinPurchasePrice" type="number" min="0" step="any" /></label>
+          <label class="admin-field">Max Harga Beli<input id="productMaxPurchasePrice" type="number" min="0" step="any" /></label>
+          <label class="admin-field">Min HPP<input id="productMinAverageCost" type="number" min="0" step="any" /></label>
+          <label class="admin-field">Max HPP<input id="productMaxAverageCost" type="number" min="0" step="any" /></label>
+        </div>
         </details>
       </div>`);
     el('productLinkedRecipe')?.addEventListener('change', renderRecipeNote);
     form.addEventListener('submit', saveProductMaster, true);
     el('productCancelEdit')?.addEventListener('click', () => setTimeout(resetExtendedForm, 0));
+    el('productPriceWarningEnabled')?.addEventListener('change', savePriceWarningMode);
   }
 
   function mountProductKindMaster() {
@@ -223,12 +235,39 @@
         : 'Belum ada transaksi pembelian; sementara mengikuti Harga Beli master';
     }
     if (el('productAverageCost')) el('productAverageCost').value = String(product?.averageCost || 0);
+    if (el('productMinPurchasePrice')) el('productMinPurchasePrice').value = product?.minPurchasePrice ?? '';
+    if (el('productMaxPurchasePrice')) el('productMaxPurchasePrice').value = product?.maxPurchasePrice ?? '';
+    if (el('productMinAverageCost')) el('productMinAverageCost').value = product?.minAverageCost ?? '';
+    if (el('productMaxAverageCost')) el('productMaxAverageCost').value = product?.maxAverageCost ?? '';
 
     const recipes = recipesForProduct(product?.id || 0);
     el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
     el('productLinkedRecipe').disabled = !product?.id;
     renderRecipeNote();
     renderProductKinds();
+  }
+
+  function renderPriceWarningPanel() {
+    if (!state.editor) return;
+    if (el('productPriceWarningEnabled')) el('productPriceWarningEnabled').checked = Boolean(state.editor.priceWarningEnabled);
+    const target = el('productHppAlerts');
+    if (!target) return;
+    const alerts = state.editor.hppAlerts || [];
+    target.innerHTML = alerts.length ? alerts.map(alert => `
+      <div class="master-row"><div class="master-main"><strong>${esc(alert.productName)} · HPP ${cost(alert.averageCost)}</strong>
+      <div class="master-meta">Di luar ${alert.minAverageCost == null ? '—' : cost(alert.minAverageCost)} s/d ${alert.maxAverageCost == null ? '—' : cost(alert.maxAverageCost)} · ${new Date(alert.createdAt).toLocaleString('id-ID')}</div></div></div>`).join('') : '<div class="empty">Tidak ada alert HPP di luar range.</div>';
+  }
+
+  async function savePriceWarningMode() {
+    try {
+      const response = await api('/api/admin/master/products/warning-settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: Boolean(el('productPriceWarningEnabled')?.checked) })
+      });
+      state.editor = response.editor;
+      renderPriceWarningPanel();
+      toast(state.editor.priceWarningEnabled ? 'Mode Warning gerai aktif' : 'Mode Warning gerai nonaktif');
+    } catch (error) { toast(error.message); }
   }
 
   function renderRecipeNote() {
@@ -346,6 +385,7 @@
         renderEditorFields(productById(productId) || null);
         enhanceProductRows();
         renderProductKinds();
+        renderPriceWarningPanel();
         return payload;
       })
       .finally(() => { state.loadingEditor = null; });
@@ -376,7 +416,11 @@
         baseUnitId: el('productBaseUnit').value,
         pointsPerUnit: Number(el('productPointsPerUnit').value),
         stockTrackingEnabled: el('productStockTracking').checked,
-        linkedRecipeId: el('productLinkedRecipe').value || null
+        linkedRecipeId: el('productLinkedRecipe').value || null,
+        minPurchasePrice: el('productMinPurchasePrice').value,
+        maxPurchasePrice: el('productMaxPurchasePrice').value,
+        minAverageCost: el('productMinAverageCost').value,
+        maxAverageCost: el('productMaxAverageCost').value
       };
       const response = await api(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
         method: productId ? 'PATCH' : 'POST',
@@ -388,6 +432,7 @@
       resetExtendedForm();
       enhanceProductRows();
       renderProductKinds();
+      renderPriceWarningPanel();
       toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.');
     } catch (error) {
       toast(error.message);

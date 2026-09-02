@@ -36,6 +36,7 @@ export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) 
   try {
     rows = await db.prepare(`
       SELECT p.id, p.name, p.base_unit_id, p.purchase_price, p.average_cost, p.last_purchase_price,
+             p.min_purchase_price_scaled, p.max_purchase_price_scaled,
              p.product_kind_id, p.stock_tracking_enabled,
              u.symbol AS unit_symbol,
              k.code AS product_kind_code, k.name AS product_kind_name,
@@ -54,6 +55,7 @@ export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) 
     console.error('canonical purchase option query failed; using Product Master compatibility read', { storeId, error });
     rows = await db.prepare(`
       SELECT p.id, p.name, p.base_unit_id, p.purchase_price, p.average_cost, p.last_purchase_price,
+             p.min_purchase_price_scaled, p.max_purchase_price_scaled,
              p.product_kind_id, 1 AS stock_tracking_enabled,
              u.symbol AS unit_symbol,
              COALESCE(k.code, '') AS product_kind_code,
@@ -70,8 +72,10 @@ export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) 
     productId: Number(row.id), productName: row.name, unitId: row.base_unit_id,
     unitSymbol: row.unit_symbol || '', productKindId: row.product_kind_id || null,
     productKindCode: row.product_kind_code || '', productKindName: row.product_kind_name || '',
-    purchasePrice: Number(row.purchase_price || 0),
-    averageCost: costFromScaled(row.average_cost), lastPurchasePrice: costFromScaled(row.last_purchase_price)
+    purchasePrice: costFromScaled(row.purchase_price),
+    averageCost: costFromScaled(row.average_cost), lastPurchasePrice: costFromScaled(row.last_purchase_price),
+    minPurchasePriceScaled: row.min_purchase_price_scaled == null ? null : Number(row.min_purchase_price_scaled),
+    maxPurchasePriceScaled: row.max_purchase_price_scaled == null ? null : Number(row.max_purchase_price_scaled)
   }));
 }
 
@@ -92,9 +96,16 @@ function normalizeItems(options, requested) {
     if (!Number.isSafeInteger(totalAmount + lineTotal)) return { ok: false, error: 'Total pembelian terlalu besar.' };
     seen.add(productId);
     totalAmount += lineTotal;
-    items.push({ ...option, quantity, lineTotal, unitCostScaled });
+    const outsidePriceRange = (option.minPurchasePriceScaled != null && unitCostScaled < option.minPurchasePriceScaled)
+      || (option.maxPurchasePriceScaled != null && unitCostScaled > option.maxPurchasePriceScaled);
+    items.push({ ...option, quantity, lineTotal, unitCostScaled, outsidePriceRange });
   }
   return { ok: true, items, totalAmount };
+}
+
+export function purchasePriceRangeViolations(items, warningEnabled) {
+  if (!warningEnabled) return [];
+  return (Array.isArray(items) ? items : []).filter(item => item?.outsidePriceRange === true);
 }
 
 export function purchaseItemStatements(db, {
@@ -161,6 +172,35 @@ export function purchaseItemStatements(db, {
   return statements;
 }
 
+export async function buildPurchasePostingPlan(db, {
+  id, storeId, drawerId, cashierId, supplierId, description, totalAmount,
+  note, paymentMethod, items, warehouseEnabled, now
+}) {
+  const accounting = await buildTransactionAccountingSnapshot(db, {
+    storeId,
+    sourceType: 'PURCHASE',
+    sourceId: id,
+    businessEvent: 'PURCHASE_MATERIAL',
+    paymentMethod,
+    now
+  });
+  const statements = [
+    db.prepare(`INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, storeId, drawerId, cashierId, supplierId, description, totalAmount, note, now, paymentMethod),
+    accounting.statement
+  ];
+  for (const item of items) statements.push(...purchaseItemStatements(db, {
+    purchaseId: id,
+    storeId,
+    drawerId,
+    cashierId,
+    item,
+    now,
+    warehouseEnabled
+  }));
+  return { statements, accounting };
+}
+
 export async function handleCashierPurchaseApi(request, env, pathname) {
   const operationalExpenseResponse = await handleCashierOperationalExpenseApi(request, env, pathname);
   if (operationalExpenseResponse) return operationalExpenseResponse;
@@ -173,6 +213,7 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
       const warehouseEnabled = await storeWarehouseEnabled(env.DB, cashier.store.id);
       return json({
         warehouseEnabled,
+        priceWarningEnabled: (await env.DB.prepare(`SELECT purchase_price_warning_enabled FROM stores WHERE id = ? LIMIT 1`).bind(cashier.store.id).first())?.purchase_price_warning_enabled === 1,
         products: await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled)
       });
     } catch (error) {
@@ -201,26 +242,71 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const id = `purchase_${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   const description = text(body.value?.description, 220) || `Pembelian ${normalized.items.map(item => item.productName).slice(0, 4).join(', ')}`;
-  const accounting = await buildTransactionAccountingSnapshot(env.DB, { storeId: cashier.store.id, sourceType: 'PURCHASE', sourceId: id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod, now });
-  const statements = [
-    env.DB.prepare(`INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, cashier.store.id, ownership.drawer.id, cashier.id, supplierId, description, normalized.totalAmount, note, now, paymentMethod),
-    accounting.statement
-  ];
-  for (const item of normalized.items) statements.push(...purchaseItemStatements(env.DB, {
-    purchaseId: id,
+  const warning = await env.DB.prepare(`SELECT purchase_price_warning_enabled FROM stores WHERE id = ? LIMIT 1`).bind(cashier.store.id).first();
+  const violations = purchasePriceRangeViolations(normalized.items, warning?.purchase_price_warning_enabled === 1);
+  if (violations.length) {
+    const approvalId = `approval_${crypto.randomUUID()}`;
+    const warningSummary = violations.map(item => `${item.productName}: ${costFromScaled(item.unitCostScaled)}`).join(', ');
+    const postingItems = normalized.items.map(item => ({
+      productId: item.productId,
+      productName: item.productName,
+      productKindId: item.productKindId,
+      productKindCode: item.productKindCode,
+      productKindName: item.productKindName,
+      unitId: item.unitId,
+      unitSymbol: item.unitSymbol,
+      quantity: item.quantity,
+      lineTotal: item.lineTotal,
+      unitCostScaled: item.unitCostScaled
+    }));
+    const payload = {
+      purpose: 'PURCHASE_PRICE_RANGE',
+      direction: 'IN',
+      productName: `Harga Beli di luar range · ${warningSummary}`,
+      quantity: normalized.items.reduce((sum, item) => sum + item.quantity, 0),
+      purchase: {
+        id, supplierId, description, totalAmount: normalized.totalAmount, note, paymentMethod,
+        warehouseEnabled, items: postingItems
+      },
+      note: `Butuh ACC Admin sebelum Pembelian diposting. ${warningSummary}`
+    };
+    await env.DB.prepare(`
+      INSERT INTO approval_requests (
+        id, store_id, drawer_session_id, cashier_id, request_type,
+        approval_status, posting_status, payload_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
+    `).bind(approvalId, cashier.store.id, ownership.drawer.id, cashier.id, JSON.stringify(payload), now, now).run();
+    return json({
+      ok: true,
+      pendingApproval: true,
+      approvalRequestId: approvalId,
+      totalAmount: normalized.totalAmount,
+      items: normalized.items,
+      createdAt: now,
+      message: 'Harga Beli di luar range. Pembelian masuk Approval Queue dan belum diposting.'
+    }, 202);
+  }
+  const plan = await buildPurchasePostingPlan(env.DB, {
+    id,
     storeId: cashier.store.id,
     drawerId: ownership.drawer.id,
     cashierId: cashier.id,
-    item,
-    now,
-    warehouseEnabled
-  }));
+    supplierId,
+    description,
+    totalAmount: normalized.totalAmount,
+    note,
+    paymentMethod,
+    items: normalized.items,
+    warehouseEnabled,
+    now
+  });
+  const statements = plan.statements;
   await env.DB.batch(statements);
   return json({
     ok: true, id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod, totalAmount: normalized.totalAmount,
     warehouseEnabled,
     items: normalized.items.map(item => ({ productId: item.productId, productName: item.productName, productKindId: item.productKindId, productKindCode: item.productKindCode, quantity: item.quantity, unitSymbol: item.unitSymbol, lineTotal: item.lineTotal, unitCost: costFromScaled(item.unitCostScaled), unitCostScaled: item.unitCostScaled })),
-    accounting: { contract: 'MAXI_ACCOUNTING_REFERENCE_V1', mappingStatus: accounting.status, mappingId: accounting.mappingId, debitAccountRefId: accounting.debitAccountRefId, creditAccountRefId: accounting.creditAccountRefId, journalReference: null },
+    accounting: { contract: 'MAXI_ACCOUNTING_REFERENCE_V1', mappingStatus: plan.accounting.status, mappingId: plan.accounting.mappingId, debitAccountRefId: plan.accounting.debitAccountRefId, creditAccountRefId: plan.accounting.creditAccountRefId, journalReference: null },
     createdAt: now
   }, 201);
 }

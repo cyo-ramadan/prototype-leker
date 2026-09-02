@@ -208,7 +208,7 @@
           const submittedItems = lines.map(line => ({
             productId: Number(line.id),
             quantity: Number(line.quantity),
-            lineTotal: Number(line.quantity) * Number(line.unitAmount)
+            lineTotal: Math.round(Number(line.quantity) * Number(line.unitAmount))
           }));
           if (!submittedItems.length) throw new Error('Masukkan minimal satu barang pembelian.');
           if (submittedItems.some(item => !Number.isInteger(item.quantity) || item.quantity <= 0)) throw new Error('Qty barang terpilih wajib bilangan bulat lebih dari 0.');
@@ -220,6 +220,10 @@
             note: byId('dialogPurchaseNote').value,
             items: submittedItems
           });
+          if (result.pendingApproval) {
+            toast(result.message || 'Harga Beli di luar range · menunggu ACC Admin.');
+            return true;
+          }
           toast(`Pembelian tersimpan · ${submittedItems.length} barang · ${rupiah(result.totalAmount)} · ${accountingLabel(result)}`);
           return true;
         }
@@ -236,9 +240,10 @@
         priceLabel: 'Harga beli / unit',
         detailTitle: 'Detail Pembelian',
         priceEditable: true,
+        allowDecimalAmount: true,
         onError: toast,
         onLinesChange: lines => {
-          const total = lines.reduce((sum, line) => sum + (Number(line.quantity) * Number(line.unitAmount)), 0);
+          const total = lines.reduce((sum, line) => sum + Math.round(Number(line.quantity) * Number(line.unitAmount)), 0);
           const host = byId('dialogPurchaseGrandTotal');
           if (host) host.textContent = `Total pembelian · ${rupiah(total)}`;
         }

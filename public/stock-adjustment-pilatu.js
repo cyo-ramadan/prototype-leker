@@ -28,6 +28,13 @@ export function selectStockAdjustmentProduct(rows, product) {
   }, ...currentRows];
 }
 
+export function selectStockAdjustmentForm(rows, products) {
+  return (Array.isArray(products) ? products : []).reduce(
+    (selected, product) => selectStockAdjustmentProduct(selected, product),
+    Array.isArray(rows) ? rows : []
+  );
+}
+
 export function updateStockAdjustmentActualQuantity(rows, productId, value) {
   const key = String(Number(productId));
   return (Array.isArray(rows) ? rows : []).map(row =>

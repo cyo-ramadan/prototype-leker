@@ -1,5 +1,140 @@
 (() => {
-  const MASTER_TABS = ['products', 'categories', 'suppliers', 'customers', 'cashiers', 'costmasters', 'manufacturing'];
+  const MASTER_TABS = ['products', 'categories', 'suppliers', 'customers', 'cashiers', 'costmasters', 'manufacturing', 'stock-adjustment-forms'];
+  const stockAdjustmentState = { forms: [], products: [], editingId: null };
+  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
+
+  async function stockAdjustmentApi(path, init = {}) {
+    const response = await fetch(path, {
+      cache: 'no-store',
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init.headers || {}) }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `Request gagal (${response.status})`);
+    return payload;
+  }
+
+  function stockAdjustmentToast(message) {
+    const node = document.getElementById('adminToast');
+    if (!node) return;
+    node.textContent = message;
+    node.classList.add('show');
+    clearTimeout(stockAdjustmentToast.timer);
+    stockAdjustmentToast.timer = setTimeout(() => node.classList.remove('show'), 2200);
+  }
+
+  function renderStockAdjustmentFormEditor() {
+    const target = document.getElementById('stockAdjustmentFormProducts');
+    if (!target) return;
+    const current = stockAdjustmentState.forms.find(form => form.id === stockAdjustmentState.editingId) || null;
+    const selected = new Set(current?.productIds || []);
+    const name = document.getElementById('stockAdjustmentFormName');
+    const active = document.getElementById('stockAdjustmentFormActive');
+    const title = document.getElementById('stockAdjustmentFormEditorTitle');
+    if (name) name.value = current?.name || '';
+    if (active) active.checked = current ? current.isActive : true;
+    if (title) title.textContent = current ? 'Edit Form Penyesuaian' : 'Buat Form Penyesuaian';
+    target.innerHTML = stockAdjustmentState.products.length ? stockAdjustmentState.products.map(product => `
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px">
+        <input type="checkbox" value="${Number(product.productId)}" data-stock-adjustment-form-product ${selected.has(Number(product.productId)) ? 'checked' : ''} />
+        <span><b>${esc(product.productName)}</b><small class="muted" style="display:block">${esc(product.unitSymbol || '')}</small></span>
+      </label>`).join('') : '<div class="empty">Belum ada barang aktif dengan stock tracking.</div>';
+    document.getElementById('stockAdjustmentFormCancel')?.classList.toggle('hidden', !current);
+  }
+
+  function renderStockAdjustmentForms() {
+    const target = document.getElementById('stockAdjustmentFormsList');
+    if (!target) return;
+    const productById = new Map(stockAdjustmentState.products.map(product => [Number(product.productId), product]));
+    target.innerHTML = stockAdjustmentState.forms.length ? stockAdjustmentState.forms.map(form => {
+      const names = (form.productIds || []).map(id => productById.get(Number(id))?.productName).filter(Boolean);
+      return `<article class="master-row">
+        <div class="master-main"><strong>${esc(form.name)}</strong><div class="master-meta">${form.isActive ? 'Aktif' : 'Nonaktif'} · ${names.length} barang</div><div class="master-meta">${esc(names.join(', ') || 'Belum ada barang')}</div></div>
+        <div class="master-actions"><button class="mini-btn" type="button" data-stock-adjustment-form-edit="${esc(form.id)}">Edit</button></div>
+      </article>`;
+    }).join('') : '<div class="empty">Belum ada Form Penyesuaian.</div>';
+    target.querySelectorAll('[data-stock-adjustment-form-edit]').forEach(button => button.addEventListener('click', () => {
+      stockAdjustmentState.editingId = button.dataset.stockAdjustmentFormEdit;
+      renderStockAdjustmentFormEditor();
+      document.getElementById('stockAdjustmentFormName')?.focus();
+    }));
+  }
+
+  async function loadStockAdjustmentForms() {
+    try {
+      const payload = await stockAdjustmentApi('/api/management/stock-adjustment-forms');
+      stockAdjustmentState.forms = payload.forms || [];
+      stockAdjustmentState.products = payload.products || [];
+      if (stockAdjustmentState.editingId && !stockAdjustmentState.forms.some(form => form.id === stockAdjustmentState.editingId)) stockAdjustmentState.editingId = null;
+      renderStockAdjustmentForms();
+      renderStockAdjustmentFormEditor();
+    } catch (error) { stockAdjustmentToast(error.message); }
+  }
+
+  async function saveStockAdjustmentForm(event) {
+    event.preventDefault();
+    const name = String(document.getElementById('stockAdjustmentFormName')?.value || '').trim();
+    const productIds = [...document.querySelectorAll('[data-stock-adjustment-form-product]:checked')].map(input => Number(input.value));
+    if (!name || !productIds.length) return stockAdjustmentToast('Nama dan minimal satu barang wajib dipilih.');
+    const editing = stockAdjustmentState.forms.find(form => form.id === stockAdjustmentState.editingId) || null;
+    try {
+      await stockAdjustmentApi(
+        editing ? `/api/management/stock-adjustment-forms/${encodeURIComponent(editing.id)}` : '/api/management/stock-adjustment-forms',
+        {
+          method: editing ? 'PATCH' : 'POST',
+          body: JSON.stringify({
+            name,
+            productIds,
+            isActive: document.getElementById('stockAdjustmentFormActive')?.checked !== false
+          })
+        }
+      );
+      stockAdjustmentState.editingId = null;
+      await loadStockAdjustmentForms();
+      stockAdjustmentToast(editing ? 'Form Penyesuaian diperbarui.' : 'Form Penyesuaian dibuat.');
+    } catch (error) { stockAdjustmentToast(error.message); }
+  }
+
+  function activateStockAdjustmentForms() {
+    document.querySelectorAll('.admin-tab').forEach(button => button.classList.toggle('active', button.dataset.tab === 'stock-adjustment-forms'));
+    document.getElementById('adminMasterMenuToggle')?.classList.add('active');
+    document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-stock-adjustment-forms'));
+    loadStockAdjustmentForms();
+  }
+
+  function mountStockAdjustmentForms(tabs) {
+    const toastNode = document.getElementById('adminToast');
+    if (!toastNode || document.getElementById('tab-stock-adjustment-forms')) return;
+    const hiddenTab = document.createElement('button');
+    hiddenTab.className = 'admin-tab';
+    hiddenTab.type = 'button';
+    hiddenTab.dataset.tab = 'stock-adjustment-forms';
+    hiddenTab.textContent = 'Form Penyesuaian';
+    hiddenTab.style.display = 'none';
+    tabs.appendChild(hiddenTab);
+    hiddenTab.addEventListener('click', activateStockAdjustmentForms);
+    toastNode.insertAdjacentHTML('beforebegin', `
+      <section id="tab-stock-adjustment-forms" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head"><div><div class="admin-eyebrow">Master Inventory</div><h2>Form Penyesuaian</h2><div class="muted">Checklist barang siap pakai untuk stock opname. Form hanya mengisi daftar; kasir tetap memasukkan Qty Sebenarnya dan mengikuti Approval Queue.</div></div><button id="stockAdjustmentFormsRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+          <div id="stockAdjustmentFormsList" class="master-list" style="margin-top:12px"></div>
+        </div>
+        <form id="stockAdjustmentFormEditor" class="admin-card" style="margin-top:14px">
+          <div class="list-head"><div><div class="admin-eyebrow">Checklist Gerai</div><h2 id="stockAdjustmentFormEditorTitle">Buat Form Penyesuaian</h2></div></div>
+          <label class="admin-field" style="margin-top:12px">Nama Form<input id="stockAdjustmentFormName" maxlength="120" placeholder="Contoh: SO Standard" required /></label>
+          <label style="display:flex;align-items:center;gap:8px;margin:12px 0"><input id="stockAdjustmentFormActive" type="checkbox" checked /> Form aktif dan terlihat oleh kasir</label>
+          <div class="muted" style="margin-bottom:8px">Pilih minimal satu barang stock-tracked.</div>
+          <div id="stockAdjustmentFormProducts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button id="stockAdjustmentFormCancel" class="secondary-btn hidden" type="button">Batal Edit</button><button class="primary-btn" type="submit">Simpan Form</button></div>
+        </form>
+      </section>`);
+    document.getElementById('stockAdjustmentFormsRefresh')?.addEventListener('click', loadStockAdjustmentForms);
+    document.getElementById('stockAdjustmentFormEditor')?.addEventListener('submit', saveStockAdjustmentForm);
+    document.getElementById('stockAdjustmentFormCancel')?.addEventListener('click', () => {
+      stockAdjustmentState.editingId = null;
+      renderStockAdjustmentFormEditor();
+    });
+  }
 
   function injectStyle() {
     if (document.getElementById('adminMasterMenuStyle')) return;
@@ -71,12 +206,14 @@
       <button type="button" role="menuitem" data-master-open="customers">Pelanggan</button>
       <button type="button" role="menuitem" data-master-open="cashiers">Kasir / Staf</button>
       <button type="button" role="menuitem" data-master-open="costmasters">Biaya</button>
+      <button type="button" role="menuitem" data-master-open="stock-adjustment-forms">Form Penyesuaian</button>
       <div class="admin-master-menu-separator"></div>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="itemTypeForm">Peran Barang</button>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="productKindMasterCard">Klasifikasi Accounting</button>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="unitForm">Satuan</button>
       <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="recipeForm">Resep / BOM</button>`;
     document.body.appendChild(panel);
+    mountStockAdjustmentForms(tabs);
 
     for (const tab of MASTER_TABS) {
       const button = tabs.querySelector(`[data-tab="${tab}"]`);
@@ -126,13 +263,20 @@
     }
 
     function openTab(tab, targetId = '') {
+      if (tab === 'stock-adjustment-forms') {
+        activateStockAdjustmentForms();
+        closeMenu();
+        const label = document.getElementById('adminMasterMenuLabel');
+        if (label) label.textContent = 'Master · Form Penyesuaian';
+        return;
+      }
       const button = tabs.querySelector(`[data-tab="${tab}"]`);
       if (!button) return;
       button.click();
       closeMenu();
       const label = document.getElementById('adminMasterMenuLabel');
       const names = {
-        products: 'Barang', categories: 'Kategori', suppliers: 'Supplier', customers: 'Pelanggan', cashiers: 'Kasir', costmasters: 'Biaya', manufacturing: 'Master Teknis'
+        products: 'Barang', categories: 'Kategori', suppliers: 'Supplier', customers: 'Pelanggan', cashiers: 'Kasir', costmasters: 'Biaya', manufacturing: 'Master Teknis', 'stock-adjustment-forms': 'Form Penyesuaian'
       };
       if (label) label.textContent = `Master · ${names[tab] || tab}`;
       if (targetId) setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);

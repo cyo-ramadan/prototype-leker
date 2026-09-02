@@ -71,6 +71,74 @@ async function listRequests(db, { storeId = null, drawerId = null, cashierId = n
   return (result.results || []).map(mapRequest);
 }
 
+export async function listStockAdjustmentForms(db, storeId, { activeOnly = true } = {}) {
+  if (activeOnly) {
+    const store = await db.prepare(`SELECT warehouse_enabled FROM stores WHERE id = ? LIMIT 1`).bind(storeId).first();
+    if (store?.warehouse_enabled === 0) return [];
+  }
+  const rows = await db.prepare(`
+    SELECT f.id, f.name, f.is_active, f.created_at, f.updated_at,
+           p.id AS product_id
+    FROM stock_adjustment_forms f
+    LEFT JOIN stock_adjustment_form_items i
+      ON i.form_id = f.id AND i.store_id = f.store_id
+    LEFT JOIN products p
+      ON p.id = i.product_id AND p.store_id = f.store_id
+     AND p.is_active = 1 AND p.stock_tracking_enabled = 1
+    WHERE f.store_id = ? AND (? = 0 OR f.is_active = 1)
+    ORDER BY f.name COLLATE NOCASE, f.id, i.display_order, i.product_id
+  `).bind(storeId, activeOnly ? 1 : 0).all();
+  const forms = new Map();
+  for (const row of rows.results || []) {
+    if (!forms.has(row.id)) {
+      forms.set(row.id, {
+        id: row.id,
+        name: row.name,
+        isActive: Boolean(row.is_active),
+        productIds: [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      });
+    }
+    if (row.product_id != null) forms.get(row.id).productIds.push(Number(row.product_id));
+  }
+  return [...forms.values()];
+}
+
+async function listStockAdjustmentFormProducts(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT p.id, p.name, u.symbol AS unit_symbol
+    FROM products p
+    JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+    WHERE p.store_id = ? AND p.is_active = 1 AND p.stock_tracking_enabled = 1
+    ORDER BY p.name COLLATE NOCASE, p.id
+  `).bind(storeId).all();
+  return (rows.results || []).map(row => ({
+    productId: Number(row.id),
+    productName: row.name,
+    unitSymbol: row.unit_symbol || ''
+  }));
+}
+
+function stockAdjustmentFormProductIds(value) {
+  if (!Array.isArray(value) || !value.length || value.length > 200) return null;
+  const ids = value.map(Number);
+  if (ids.some(id => !Number.isInteger(id)) || new Set(ids).size !== ids.length) return null;
+  return ids;
+}
+
+async function validStockAdjustmentFormProducts(db, storeId, productIds) {
+  if (!productIds.length) return true;
+  const placeholders = productIds.map(() => '?').join(',');
+  const row = await db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM products
+    WHERE store_id = ? AND is_active = 1 AND stock_tracking_enabled = 1
+      AND id IN (${placeholders})
+  `).bind(storeId, ...productIds).first();
+  return Number(row?.count || 0) === productIds.length;
+}
+
 async function handleCashierApprovalQueue(request, env, pathname) {
   const isApprovalRoute = pathname.startsWith('/api/cashier/approval-requests');
   const isStockAdjustmentOptions = pathname === '/api/cashier/stock-adjustment/options';
@@ -82,7 +150,11 @@ async function handleCashierApprovalQueue(request, env, pathname) {
   if (request.method === 'GET' && isStockAdjustmentOptions) {
     const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
-    return json({ products: await listStockAdjustmentOptions(env.DB, auth.cashier.store.id) });
+    const [products, forms] = await Promise.all([
+      listStockAdjustmentOptions(env.DB, auth.cashier.store.id),
+      listStockAdjustmentForms(env.DB, auth.cashier.store.id)
+    ]);
+    return json({ products, forms });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/approval-requests') {
@@ -178,10 +250,88 @@ async function cashFlowAccountingAfterCommit(env, current) {
   }
 }
 
+async function handleManagementStockAdjustmentForms(request, env, pathname, scope) {
+  if (!scope.storeId) return json({ error: 'Gerai Form Penyesuaian belum dipilih.' }, 400);
+  const root = '/api/management/stock-adjustment-forms';
+
+  if (request.method === 'GET' && pathname === root) {
+    const [forms, products] = await Promise.all([
+      listStockAdjustmentForms(env.DB, scope.storeId, { activeOnly: false }),
+      listStockAdjustmentFormProducts(env.DB, scope.storeId)
+    ]);
+    return json({ forms, products });
+  }
+
+  if (request.method === 'POST' && pathname === root) {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Form Penyesuaian tidak valid.' }, 400);
+    const name = text(body.value?.name, 120);
+    const productIds = stockAdjustmentFormProductIds(body.value?.productIds);
+    if (!name || !productIds) return json({ error: 'Nama dan daftar barang Form Penyesuaian wajib valid.' }, 400);
+    if (!await validStockAdjustmentFormProducts(env.DB, scope.storeId, productIds)) {
+      return json({ error: 'Form Penyesuaian hanya boleh memakai barang aktif dan stock-tracked dari gerai ini.' }, 400);
+    }
+    const id = `stock_adjustment_form_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    const statements = [env.DB.prepare(`
+      INSERT INTO stock_adjustment_forms (id, store_id, name, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, 1, ?, ?)
+    `).bind(id, scope.storeId, name, now, now)];
+    productIds.forEach((productId, displayOrder) => statements.push(env.DB.prepare(`
+      INSERT INTO stock_adjustment_form_items (form_id, store_id, product_id, display_order)
+      VALUES (?, ?, ?, ?)
+    `).bind(id, scope.storeId, productId, displayOrder)));
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      if (String(error?.message || '').toLowerCase().includes('unique')) return json({ error: 'Nama Form Penyesuaian sudah dipakai di gerai ini.' }, 409);
+      throw error;
+    }
+    return json({ ok: true, form: (await listStockAdjustmentForms(env.DB, scope.storeId, { activeOnly: false })).find(item => item.id === id) }, 201);
+  }
+
+  const match = pathname.match(/^\/api\/management\/stock-adjustment-forms\/([^/]+)$/);
+  if (request.method === 'PATCH' && match) {
+    const id = decodeURIComponent(match[1]);
+    const existing = await env.DB.prepare(`SELECT id FROM stock_adjustment_forms WHERE id = ? AND store_id = ? LIMIT 1`).bind(id, scope.storeId).first();
+    if (!existing) return json({ error: 'Form Penyesuaian tidak ditemukan di gerai ini.' }, 404);
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Form Penyesuaian tidak valid.' }, 400);
+    const name = text(body.value?.name, 120);
+    const productIds = stockAdjustmentFormProductIds(body.value?.productIds);
+    const isActive = body.value?.isActive === false ? 0 : 1;
+    if (!name || !productIds) return json({ error: 'Nama dan daftar barang Form Penyesuaian wajib valid.' }, 400);
+    if (!await validStockAdjustmentFormProducts(env.DB, scope.storeId, productIds)) {
+      return json({ error: 'Form Penyesuaian hanya boleh memakai barang aktif dan stock-tracked dari gerai ini.' }, 400);
+    }
+    const now = new Date().toISOString();
+    const statements = [
+      env.DB.prepare(`UPDATE stock_adjustment_forms SET name = ?, is_active = ?, updated_at = ? WHERE id = ? AND store_id = ?`).bind(name, isActive, now, id, scope.storeId),
+      env.DB.prepare(`DELETE FROM stock_adjustment_form_items WHERE form_id = ? AND store_id = ?`).bind(id, scope.storeId)
+    ];
+    productIds.forEach((productId, displayOrder) => statements.push(env.DB.prepare(`
+      INSERT INTO stock_adjustment_form_items (form_id, store_id, product_id, display_order)
+      VALUES (?, ?, ?, ?)
+    `).bind(id, scope.storeId, productId, displayOrder)));
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      if (String(error?.message || '').toLowerCase().includes('unique')) return json({ error: 'Nama Form Penyesuaian sudah dipakai di gerai ini.' }, 409);
+      throw error;
+    }
+    return json({ ok: true, form: (await listStockAdjustmentForms(env.DB, scope.storeId, { activeOnly: false })).find(item => item.id === id) });
+  }
+
+  return json({ error: 'Route Form Penyesuaian tidak ditemukan.' }, 404);
+}
+
 async function handleManagementApprovalQueue(request, env, pathname) {
-  if (!pathname.startsWith('/api/management/approval-requests')) return null;
+  const isApprovalRoute = pathname.startsWith('/api/management/approval-requests');
+  const isStockAdjustmentFormRoute = pathname.startsWith('/api/management/stock-adjustment-forms');
+  if (!isApprovalRoute && !isStockAdjustmentFormRoute) return null;
   const scope = await managementScope(request, env);
   if (!scope.ok) return scope.response;
+  if (isStockAdjustmentFormRoute) return handleManagementStockAdjustmentForms(request, env, pathname, scope);
 
   if (request.method === 'GET' && pathname === '/api/management/approval-requests') {
     const url = new URL(request.url);

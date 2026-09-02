@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import {
   prepareStockAdjustmentRows,
+  selectStockAdjustmentForm,
   selectStockAdjustmentProduct,
   stockAdjustmentDifference,
   updateStockAdjustmentActualQuantity
@@ -40,6 +41,20 @@ test('PILATU keeps Mineral when Margarin is selected next', () => {
   );
 });
 
+test('PILATU form selection adds exactly its products and preserves entered quantities', () => {
+  const mineral = { productId: 101, productName: 'Mineral', currentQuantity: 12, unitSymbol: 'PCS' };
+  const margarin = { productId: 102, productName: 'Margarin', currentQuantity: 7, unitSymbol: 'PCS' };
+  const gula = { productId: 103, productName: 'Gula', currentQuantity: 5, unitSymbol: 'KG' };
+
+  let rows = selectStockAdjustmentProduct([], mineral);
+  rows = updateStockAdjustmentActualQuantity(rows, mineral.productId, '10');
+  rows = selectStockAdjustmentForm(rows, [margarin, mineral]);
+
+  assert.deepEqual(new Set(rows.map(row => row.productId)), new Set([101, 102]));
+  assert.equal(rows.find(row => row.productId === 101).actualQuantity, '10');
+  assert.equal(rows.some(row => row.productId === gula.productId), false);
+});
+
 test('live Stock Adjustment override is valid classic-script syntax', () => {
   assert.doesNotThrow(() => new vm.Script(liveUiSource, { filename: 'cashier-stock-adjustment-pilatu.js' }));
 });
@@ -64,4 +79,7 @@ test('live Stock Adjustment exposes the five business columns and independent V1
   assert.match(liveUiSource, /purpose: 'STOCK_ADJUSTMENT'/);
   assert.match(liveUiSource, /targetQuantity: row\.targetQuantity/);
   assert.match(liveUiSource, /HPP<\/b><br \/>Read-only milik Accounting/);
+  assert.match(liveUiSource, /Pilih Form/);
+  assert.match(liveUiSource, /selectStockAdjustmentForm\(selectedRows, formProducts\)/);
+  assert.doesNotMatch(liveUiSource, /stockAdjustmentReason/);
 });

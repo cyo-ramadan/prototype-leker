@@ -56,6 +56,29 @@ async function listCosts(db, storeId, { activeOnly = false } = {}) {
   }));
 }
 
+function slugCode(value) {
+  return String(value ?? '')
+    .toUpperCase()
+    .normalize('NFKD')
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40);
+}
+
+// Cost Master / Jenis Biaya is a POS business master, not an Accounting
+// configuration proxy (ADR-029). It intentionally never selects, stores, or
+// exposes an Accounting rule reference -- that column stays untouched (NULL)
+// for every row created here.
+async function normalizeCostType(db, storeId, body, currentId = null) {
+  const name = text(body?.name, 100);
+  if (!name) return { ok: false, error: 'Nama Jenis Biaya wajib diisi.' };
+  const code = slugCode(body?.code) || slugCode(name);
+  if (!code) return { ok: false, error: 'Kode Jenis Biaya tidak valid.' };
+  const existing = await db.prepare('SELECT id FROM cost_types WHERE store_id = ? AND code = ?').bind(storeId, code).first();
+  if (existing && existing.id !== currentId) return { ok: false, error: `Kode Jenis Biaya "${code}" sudah dipakai.` };
+  return { ok: true, name, code, isActive: body?.isActive === false ? 0 : 1 };
+}
+
 async function normalizeCost(db, storeId, body) {
   const name = text(body?.name, 100);
   const contact = text(body?.contact, 120);
@@ -77,7 +100,7 @@ export async function handleCostMasterApi(request, env, pathname) {
     if (!auth.ok) return auth.response;
     return json({ transactionCategoryCode: 'operational', costs: await listCosts(env.DB, auth.cashier.store.id, { activeOnly: true }) });
   }
-  if (!pathname.startsWith('/api/admin/master/costs')) return null;
+  if (!pathname.startsWith('/api/admin/master/costs') && !pathname.startsWith('/api/admin/master/cost-types')) return null;
   const auth = await requireManagement(request, env.DB);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
@@ -85,6 +108,32 @@ export async function handleCostMasterApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/admin/master/costs') {
     return json({ store, transactionCategoryCode: 'operational', costTypes: await listCostTypes(env.DB, store.id), costs: await listCosts(env.DB, store.id) });
+  }
+  if (request.method === 'POST' && pathname === '/api/admin/master/cost-types') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
+    const normalized = await normalizeCostType(env.DB, store.id, body.value);
+    if (!normalized.ok) return json({ error: normalized.error }, 400);
+    const id = `cost_type_${crypto.randomUUID()}`;
+    await env.DB.prepare(`
+      INSERT INTO cost_types (id, store_id, code, name, is_active)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, store.id, normalized.code, normalized.name, normalized.isActive).run();
+    return json({ ok: true, id, costTypes: await listCostTypes(env.DB, store.id) }, 201);
+  }
+  const costTypeMatch = pathname.match(/^\/api\/admin\/master\/cost-types\/([^/]+)$/);
+  if (request.method === 'PATCH' && costTypeMatch) {
+    const costTypeId = decodeURIComponent(costTypeMatch[1]);
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
+    const normalized = await normalizeCostType(env.DB, store.id, body.value, costTypeId);
+    if (!normalized.ok) return json({ error: normalized.error }, 400);
+    const result = await env.DB.prepare(`
+      UPDATE cost_types SET code = ?, name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND store_id = ?
+    `).bind(normalized.code, normalized.name, normalized.isActive, costTypeId, store.id).run();
+    if (!result.meta?.changes) return json({ error: 'Jenis Biaya tidak ditemukan.' }, 404);
+    return json({ ok: true, costTypes: await listCostTypes(env.DB, store.id) });
   }
   if (request.method === 'POST' && pathname === '/api/admin/master/costs') {
     const body = await readJson(request);

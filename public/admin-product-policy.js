@@ -88,6 +88,7 @@
         </details>
       </div>`);
     el('productLinkedRecipe')?.addEventListener('change', renderRecipeNote);
+    if (typeof window.saveProduct === 'function') form.removeEventListener('submit', window.saveProduct);
     form.addEventListener('submit', saveProductMaster, true);
     el('productCancelEdit')?.addEventListener('click', () => setTimeout(resetExtendedForm, 0));
   }

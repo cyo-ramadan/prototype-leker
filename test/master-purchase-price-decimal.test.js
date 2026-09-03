@@ -47,6 +47,17 @@ test('Pembelian (Beli Bahan) unit-price composer allows decimal amounts (incl. I
   assert.doesNotMatch(operationalBlock, /allowDecimalAmount:\s*true/, 'Pengeluaran Operasional must stay whole-rupiah only');
 });
 
+test('Master Barang save handler removes the legacy admin.js submit listener before attaching its own', () => {
+  const mountIndex = productPolicyUi.indexOf('function mountProductFields');
+  assert.ok(mountIndex > -1);
+  const mountBody = productPolicyUi.slice(mountIndex, mountIndex + 2200);
+  const removeIndex = mountBody.indexOf("form.removeEventListener('submit', window.saveProduct)");
+  const addIndex = mountBody.indexOf("form.addEventListener('submit', saveProductMaster, true)");
+  assert.ok(removeIndex > -1, 'must drop the legacy public/admin.js saveProduct listener bound on the same #productForm');
+  assert.ok(addIndex > -1);
+  assert.ok(removeIndex < addIndex, 'the legacy listener must be removed before the new one is attached');
+});
+
 test('pimasatu comma-decimal parsing produces the correct scaled amount end to end', async () => {
   const vm = await import('node:vm');
   const sandbox = {

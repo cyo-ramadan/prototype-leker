@@ -57,6 +57,11 @@ export function buildProductionCostingStatements(db, {
       storeId, outputProductId, outputQuantity,
       storeId, outputProductId, outputQuantity,
       now, outputProductId, storeId
-    )
+    ),
+    db.prepare(`
+      INSERT INTO product_average_cost_snapshots (id, store_id, product_id, average_cost_scaled, source_type, source_id, created_at)
+      SELECT ?, store_id, id, average_cost, 'PRODUCTION', ?, ?
+      FROM products WHERE id = ? AND store_id = ?
+    `).bind(`hpp_snap_${crypto.randomUUID()}`, runId, now, outputProductId, storeId)
   ];
 }

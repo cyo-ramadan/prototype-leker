@@ -246,6 +246,11 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
         storeId
       ),
       db.prepare(`
+        INSERT INTO product_average_cost_snapshots (id, store_id, product_id, average_cost_scaled, source_type, source_id, created_at)
+        SELECT ?, store_id, id, average_cost, 'CORRECTION', ?, ?
+        FROM products WHERE id = ? AND store_id = ?
+      `).bind(`hpp_snap_${crypto.randomUUID()}`, permit.id, now, item.product_id, storeId),
+      db.prepare(`
         INSERT INTO stock_movements (
           id, source_key, store_id, product_id, product_name, unit_id, unit_symbol,
           direction, quantity, source_type, source_id, drawer_session_id, note,

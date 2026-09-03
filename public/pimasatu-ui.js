@@ -1,18 +1,26 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
-  function create({ host, items, getId = item => item.id, getLabel = item => item.name, getMeta = () => '', getDefaultAmount = () => 0, openLabel = 'Tambah Item', itemLabel = 'Item', priceLabel = 'Nominal / unit', detailTitle = 'Detail', priceEditable = true, renderDetails = true, initialExpanded = true, allowDecimalAmount = false, onAdd = null, onError = () => {}, onLinesChange = () => {} }) {
+  function create({ host, items, getId = item => item.id, getLabel = item => item.name, getMeta = () => '', getDefaultAmount = () => 0, openLabel = 'Tambah Item', itemLabel = 'Item', priceLabel = 'Nominal / unit', detailTitle = 'Detail', priceEditable = true, renderDetails = true, initialExpanded = true, allowDecimalAmount = false, amountMode = 'perUnit', onAdd = null, onError = () => {}, onLinesChange = () => {} }) {
     host = typeof host === 'string' ? document.querySelector(host) : host;
     if (!host) throw new Error('PIMASATU host tidak ditemukan.');
+    const isTotalMode = amountMode === 'total';
     const state = { selectedId: null, lines: [], expanded: false };
     const list = () => typeof items === 'function' ? items() : items;
     host.className = `${host.className} pimasatu`.trim();
-    const pricePlaceholder = allowDecimalAmount ? 'Terisi otomatis, boleh koma' : 'Terisi otomatis';
+    // Total mode: user types what they actually know (total dibayar, qty
+    // diterima) -- both plain whole numbers -- and per-unit cost is DERIVED,
+    // never typed. This sidesteps decimal/comma entry entirely for the common
+    // case (barang curah dibeli per ml/gram) instead of asking the user to
+    // type a fractional per-unit price themselves.
+    const pricePlaceholder = isTotalMode
+      ? 'Total yang dibayar'
+      : (allowDecimalAmount ? 'Terisi otomatis, boleh koma' : 'Terisi otomatis');
     // type="number" only understands a period as decimal separator; Indonesian
     // keyboards/locale type a comma, and the browser silently drops it (or the
     // whole keystroke) so the parsed value is wrong. When decimals are allowed,
     // use a plain text input (still numeric keyboard via inputmode) and
     // normalize comma -> period ourselves instead of trusting the number input.
-    const priceInputAttrs = allowDecimalAmount
+    const priceInputAttrs = (allowDecimalAmount && !isTotalMode)
       ? `type="text" inputmode="decimal"`
       : `type="number" min="0" step="1"`;
     host.innerHTML = `<button type="button" class="pimasatu-toggle">＋ ${esc(openLabel)}</button><section class="pimasatu-composer hidden"><div class="field pimasatu-search-wrap"><label>${esc(itemLabel)}</label><input class="text-input pimasatu-search" autocomplete="off" placeholder="Cari dan pilih"/><div class="pimasatu-results hidden"></div></div><div class="pimasatu-input-row"><div class="field"><label>Qty</label><input class="text-input pimasatu-qty" type="number" min="1" step="1" value="1"/></div><div class="field"><label>${esc(priceLabel)}</label><input class="text-input pimasatu-price" ${priceInputAttrs} placeholder="${esc(pricePlaceholder)}"/></div></div><div class="muted pimasatu-hint">Pilih item untuk mengisi nominal.</div><button type="button" class="secondary-btn pimasatu-add">＋ Masukkan</button></section><div class="pimasatu-detail-head"><strong>${esc(detailTitle)}</strong><span>Terbaru di atas</span></div><div class="pimasatu-lines"></div>`;
@@ -26,8 +34,44 @@
     function renderResults() { const key = search.value.trim().toLowerCase(); const found = list().filter(item => !key || `${getLabel(item)} ${getMeta(item)}`.toLowerCase().includes(key)).slice(0,8); results.innerHTML = found.length ? found.map(item => `<button type="button" data-result="${esc(getId(item))}"><strong>${esc(getLabel(item))}</strong><span>${esc(getMeta(item))}</span></button>`).join('') : '<div class="pimasatu-empty">Tidak ditemukan.</div>'; results.classList.remove('hidden'); }
     function renderLines() { if(!renderDetails){linesHost.classList.add('hidden');return;} linesHost.innerHTML = state.lines.length ? state.lines.map((line,index) => `<article class="pimasatu-line"><div><strong>${esc(line.label)}</strong><span>${esc(line.meta)}</span></div><label>Qty<input class="text-input" data-line-qty="${index}" type="number" min="1" step="1" value="${line.quantity}"/></label><div><strong>${money(line.quantity*line.unitAmount)}</strong><button type="button" class="text-btn" data-remove="${index}">Hapus</button></div></article>`).join('') : '<div class="muted pimasatu-empty">Belum ada item.</div>'; linesHost.querySelectorAll('[data-remove]').forEach(button => button.onclick = () => { state.lines.splice(Number(button.dataset.remove),1); renderLines(); onLinesChange(state.lines.slice()); }); linesHost.querySelectorAll('[data-line-qty]').forEach(input => input.onchange = () => { const value=Number(input.value); if(value>0){state.lines[Number(input.dataset.lineQty)].quantity=value; renderLines(); onLinesChange(state.lines.slice());} }); }
     toggle.onclick = () => setExpanded(true); search.onfocus = renderResults; search.oninput = () => { state.selectedId=null; price.value=''; renderResults(); };
-    results.onclick = event => { const button=event.target.closest('[data-result]'); if(!button)return; const item=list().find(candidate=>String(getId(candidate))===String(button.dataset.result)); state.selectedId=getId(item); search.value=getLabel(item); price.value=String(Number(getDefaultAmount(item))||''); hint.textContent=getMeta(item); results.classList.add('hidden'); };
-    host.querySelector('.pimasatu-add').onclick = () => { const item=list().find(candidate=>String(getId(candidate))===String(state.selectedId)); const quantity=Number(qty.value), unitAmount=parseAmount(price.value); if(!item)return onError('Pilih item dari hasil pencarian.'); if(!(quantity>0))return onError('Qty wajib lebih dari 0.'); const amountValid = allowDecimalAmount ? (Number.isFinite(unitAmount) && unitAmount >= 0) : (Number.isSafeInteger(unitAmount) && unitAmount >= 0); if(!amountValid)return onError('Nominal tidak valid.'); if(renderDetails&&state.lines.some(line=>String(line.id)===String(getId(item))))return onError('Item sudah ada di detail.'); const line={id:getId(item),item,label:getLabel(item),meta:getMeta(item),quantity,unitAmount}; if(renderDetails) state.lines.unshift(line); if(onAdd) onAdd(line); renderLines(); onLinesChange(state.lines.slice()); reset(); setExpanded(true); };
+    results.onclick = event => {
+      const button=event.target.closest('[data-result]'); if(!button)return;
+      const item=list().find(candidate=>String(getId(candidate))===String(button.dataset.result));
+      state.selectedId=getId(item); search.value=getLabel(item);
+      const reference = Number(getDefaultAmount(item)) || 0;
+      if (isTotalMode) {
+        // A per-unit reference price does not belong in a "total paid" field --
+        // show it as context instead of prefilling, so the user always types
+        // the real total themselves.
+        price.value = '';
+        hint.textContent = reference > 0 ? `${getMeta(item)} · referensi ${money(reference)}/unit` : getMeta(item);
+      } else {
+        price.value = String(reference || '');
+        hint.textContent = getMeta(item);
+      }
+      results.classList.add('hidden');
+    };
+    host.querySelector('.pimasatu-add').onclick = () => {
+      const item=list().find(candidate=>String(getId(candidate))===String(state.selectedId));
+      const quantity=Number(qty.value);
+      if(!item)return onError('Pilih item dari hasil pencarian.');
+      if(!(quantity>0))return onError('Qty wajib lebih dari 0.');
+      if(renderDetails&&state.lines.some(line=>String(line.id)===String(getId(item))))return onError('Item sudah ada di detail.');
+      let line;
+      if (isTotalMode) {
+        const enteredTotal = Number(price.value);
+        if(!Number.isSafeInteger(enteredTotal)||enteredTotal<=0)return onError('Total belanja wajib bilangan bulat lebih dari 0.');
+        line = { id:getId(item), item, label:getLabel(item), meta:getMeta(item), quantity, unitAmount: enteredTotal / quantity };
+      } else {
+        const unitAmount=parseAmount(price.value);
+        const amountValid = allowDecimalAmount ? (Number.isFinite(unitAmount) && unitAmount >= 0) : (Number.isSafeInteger(unitAmount) && unitAmount >= 0);
+        if(!amountValid)return onError('Nominal tidak valid.');
+        line = { id:getId(item), item, label:getLabel(item), meta:getMeta(item), quantity, unitAmount };
+      }
+      if(renderDetails) state.lines.unshift(line);
+      if(onAdd) onAdd(line);
+      renderLines(); onLinesChange(state.lines.slice()); reset(); setExpanded(true);
+    };
     renderLines(); setExpanded(initialExpanded);
     return { getLines:()=>state.lines.slice(), clear:()=>{state.lines=[];reset();renderLines();}, open:()=>setExpanded(true) };
   }

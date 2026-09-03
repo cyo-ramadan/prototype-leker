@@ -7,11 +7,9 @@
   ];
 
   const state = {
-    view: 'menu',
     picker: [],
     groups: [],
-    activeGroup: null,
-    result: null
+    activeGroup: null
   };
 
   function ensureDialog() {
@@ -29,7 +27,6 @@
 
   function openReports() {
     ensureDialog();
-    state.view = 'menu';
     renderMenu();
     el('cashierReportsDialog').showModal();
   }
@@ -46,7 +43,6 @@
   }
 
   function openStockBalanceMenu() {
-    state.view = 'stock-balance-menu';
     el('cashierReportsTitle').textContent = 'Laporan · Saldo Stok';
     el('cashierReportsBody').innerHTML = `
       <button id="cashierReportsBack" class="text-btn" type="button">← Laporan</button>
@@ -56,7 +52,7 @@
         <button class="secondary-btn" type="button" data-flow="group" style="width:100%;text-align:left;margin-bottom:8px">Group Barang</button>
         <button class="secondary-btn" type="button" data-flow="create-group" style="width:100%;text-align:left">Buat Group Barang</button>
       </div>`;
-    el('cashierReportsBack').addEventListener('click', () => { state.view = 'menu'; renderMenu(); });
+    el('cashierReportsBack').addEventListener('click', renderMenu);
     el('cashierReportsBody').querySelector('[data-flow="all"]').addEventListener('click', () => runStockBalance({ scope: 'ALL' }));
     el('cashierReportsBody').querySelector('[data-flow="selected"]').addEventListener('click', openSelectedFlow);
     el('cashierReportsBody').querySelector('[data-flow="group"]').addEventListener('click', openGroupFlow);
@@ -117,7 +113,6 @@
   }
 
   function openSelectedFlow() {
-    state.view = 'stock-balance-selected';
     el('cashierReportsTitle').textContent = 'Laporan · Saldo Stok · Pilih Barang';
     el('cashierReportsBody').innerHTML = `
       <button id="cashierReportsBack" class="text-btn" type="button">← Saldo Stok</button>
@@ -132,7 +127,6 @@
   }
 
   function openCreateGroupFlow() {
-    state.view = 'stock-balance-create-group';
     el('cashierReportsTitle').textContent = 'Laporan · Saldo Stok · Buat Group Barang';
     el('cashierReportsBody').innerHTML = `
       <button id="cashierReportsBack" class="text-btn" type="button">← Saldo Stok</button>
@@ -159,7 +153,6 @@
   }
 
   async function openGroupFlow() {
-    state.view = 'stock-balance-group';
     el('cashierReportsTitle').textContent = 'Laporan · Saldo Stok · Group Barang';
     el('cashierReportsBody').innerHTML = `<button id="cashierReportsBack" class="text-btn" type="button">← Saldo Stok</button><div id="cashierReportsGroupList" style="margin-top:10px" class="muted">Memuat group...</div>`;
     el('cashierReportsBack').addEventListener('click', openStockBalanceMenu);
@@ -201,7 +194,6 @@
   }
 
   async function runStockBalance({ scope, productIds, groupId }) {
-    state.view = 'stock-balance-result';
     el('cashierReportsTitle').textContent = 'Laporan · Saldo Stok';
     el('cashierReportsBody').innerHTML = `<button id="cashierReportsBack" class="text-btn" type="button">← Saldo Stok</button><div id="cashierReportsResult" style="margin-top:10px" class="muted">Memuat saldo stok...</div>`;
     el('cashierReportsBack').addEventListener('click', openStockBalanceMenu);

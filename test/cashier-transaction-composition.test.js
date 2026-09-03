@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260821-pos-payment-core-v3-toggle-total',
+    '/cashier-payment-methods.js?v=20260821-pos-payment-core-v4-grand-total-visible',
     '/cashier-enhancements.js?v=20260816-purchase-autofill-v6'
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
@@ -49,7 +49,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
 });
 
 test('purchase and operational transaction composition is item first counterpart second payment third', () => {
-  ordered(inputUi, 'id="purchasePimasatu"', 'id="dialogSupplier"', 'id="dialogPurchasePayment"');
+  ordered(inputUi, 'id="purchasePimasatu"', 'id="dialogPurchaseGrandTotal"', 'id="dialogSupplier"', 'id="dialogPurchasePayment"');
   ordered(inputUi, 'id="operationalPimasatu"', 'id="operationalContactSummary"', 'id="dialogOperationalPayment"');
   assert.match(inputUi, /window\.MAXIPimasatu\.create\(\{[\s\S]*host: byId\('purchasePimasatu'\)/);
   assert.match(inputUi, /window\.MAXIPimasatu\.create\(\{[\s\S]*host: byId\('operationalPimasatu'\)/);

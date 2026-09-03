@@ -144,7 +144,11 @@
     const list = el('cashierDataStockList');
     if (!list) return;
     const query = String(el('cashierDataStockSearch')?.value || '').trim().toLocaleLowerCase('id-ID');
-    const visible = state.stocks.filter(item => !query || (item.productName || '').toLocaleLowerCase('id-ID').includes(query));
+    if (!query) {
+      list.innerHTML = '<div class="muted">Ketik nama barang untuk mencari saldo stok.</div>';
+      return;
+    }
+    const visible = state.stocks.filter(item => (item.productName || '').toLocaleLowerCase('id-ID').includes(query));
     list.innerHTML = visible.length ? visible.map(item => {
       const qty = item.quantity == null ? 'Belum diinisialisasi' : `${item.quantity} ${escapeHtml(item.unitSymbol || '')}`;
       return `<article class="master-row" style="align-items:center">

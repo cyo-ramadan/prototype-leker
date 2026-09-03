@@ -6,6 +6,7 @@ import { handleCashierDataApi } from '../src/cashier-data-explorer.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
+const stockExplorerUi = readFileSync(new URL('../public/cashier-data-explorer.js', import.meta.url), 'utf8');
 
 class D1Statement {
   constructor(db, sql, params = []) {
@@ -136,4 +137,10 @@ test('Kasir Data endpoints require a cashier session and are read-only', async (
   } finally {
     db.close();
   }
+});
+
+test('Kasir Data Stok panel is search-first: no full catalog list until the kasir types a query', () => {
+  assert.doesNotMatch(stockExplorerUi, /!query \|\|/, 'an empty search must not fall through to matching every item');
+  assert.match(stockExplorerUi, /if \(!query\) \{/);
+  assert.match(stockExplorerUi, /Ketik nama barang untuk mencari saldo stok\./);
 });

@@ -50,6 +50,15 @@ function costingFixture(currentStock) {
       quantity INTEGER NOT NULL,
       PRIMARY KEY (store_id, product_id)
     );
+    CREATE TABLE product_average_cost_snapshots (
+      id TEXT PRIMARY KEY,
+      store_id TEXT NOT NULL,
+      product_id INTEGER NOT NULL,
+      average_cost_scaled INTEGER NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
 
     INSERT INTO production_runs (id, store_id, total_output_quantity)
     VALUES ('run-1', 'store-1', 2);
@@ -122,6 +131,15 @@ test('shared production costing preserves exact scaled HPP and moving-average ro
       average_cost: 1_600_001,
       cost_updated_at: '2026-08-21T08:00:00.000Z',
       cost_type: 'integer'
+    });
+    const snapshot = sqlite.prepare(`
+      SELECT average_cost_scaled, source_type, source_id
+      FROM product_average_cost_snapshots WHERE store_id = 'store-1' AND product_id = 7
+    `).get();
+    assert.deepEqual({ ...snapshot }, {
+      average_cost_scaled: 1_600_001,
+      source_type: 'PRODUCTION',
+      source_id: 'run-1'
     });
   } finally {
     sqlite.close();

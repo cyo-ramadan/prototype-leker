@@ -239,7 +239,7 @@ test('Warehouse off lets Purchase select untracked goods without changing its we
       now: '2026-08-21T03:00:00.000Z',
       warehouseEnabled: false
     });
-    assert.equal(statements.length, 2);
+    assert.equal(statements.length, 3);
     await db.batch(statements);
 
     const purchaseItem = sqlite.prepare(`
@@ -258,6 +258,15 @@ test('Warehouse off lets Purchase select untracked goods without changing its we
       7
     );
     assert.equal(Number(sqlite.prepare(`SELECT COUNT(*) AS count FROM stock_movements`).get().count), movementCountBefore);
+    const snapshot = sqlite.prepare(`
+      SELECT average_cost_scaled, source_type, source_id
+      FROM product_average_cost_snapshots WHERE store_id = ? AND product_id = ?
+    `).get(fixture.store_id, fixture.productId);
+    assert.deepEqual({ ...snapshot }, {
+      average_cost_scaled: 160000000,
+      source_type: 'PURCHASE',
+      source_id: 'purchase_warehouse_disabled'
+    });
   } finally {
     sqlite.close();
   }
@@ -286,7 +295,7 @@ test('Warehouse on keeps Purchase stock tracking and weighted-average behavior u
       now: '2026-08-21T03:01:00.000Z',
       warehouseEnabled: true
     });
-    assert.equal(statements.length, 5);
+    assert.equal(statements.length, 6);
     await db.batch(statements);
 
     assert.equal(sqlite.prepare(`SELECT average_cost FROM products WHERE id = ?`).get(fixture.productId).average_cost, 160000000);

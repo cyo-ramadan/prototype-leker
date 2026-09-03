@@ -17,7 +17,7 @@ function isOrderNumberConflict(error) {
   return message.includes('unique') || message.includes('constraint');
 }
 
-function validateDirectLines(products, requested) {
+export function validateDirectLines(products, requested) {
   if (!Array.isArray(requested) || !requested.length) return { ok: false, error: 'Draft penjualan masih kosong.' };
   const productMap = new Map(products.map(item => [Number(item.id), item]));
   const lines = [];
@@ -29,10 +29,15 @@ function validateDirectLines(products, requested) {
     if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
       return { ok: false, error: 'Item draft penjualan tidak valid atau bukan milik gerai kasir.' };
     }
-    const unitPrice = Number(product.price);
-    const lineTotal = unitPrice * quantity;
+    // products.price is the catalog reference price and may be sub-rupiah
+    // (migration 0060); the actual cash figure (lineTotal) is always rounded
+    // to whole rupiah, and the unit_price snapshot stored on the sale_item is
+    // derived back from that exact lineTotal (not the raw catalog price) so
+    // the stored snapshot always multiplies back to the recorded total.
+    const catalogPrice = Number(product.price);
+    const lineTotal = Math.round(catalogPrice * quantity);
     total += lineTotal;
-    lines.push({ productId, productName: product.name, unitPrice, quantity, lineTotal, note: '' });
+    lines.push({ productId, productName: product.name, unitPrice: Math.round(lineTotal / quantity), quantity, lineTotal, note: '' });
   }
   return { ok: true, lines, total };
 }
@@ -323,7 +328,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
           readyAt: now,
           completedAt: now,
           cancelledAt: null,
-          items: effects.lines.map(line => ({ menuId: line.productId, name: line.productName, price: line.unitPrice, qty: line.quantity, note: line.note }))
+          items: effects.lines.map(line => ({ menuId: line.productId, name: line.productName, price: line.unitPrice, lineTotal: line.lineTotal, qty: line.quantity, note: line.note }))
         }
       }, 201);
     } catch (error) {

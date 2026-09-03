@@ -5,10 +5,6 @@ import { requireManagement } from './owner-auth.js';
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const MAX_LOGO_IMAGE_LENGTH = 500_000;
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
-const money = value => {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? Math.round(number) : null;
-};
 const COST_SCALE = 1_000_000;
 const costFromScaled = value => Number(value || 0) / COST_SCALE;
 const scaledPurchasePrice = value => {
@@ -61,7 +57,7 @@ const mapProduct = row => ({
   id: row.id,
   name: row.name,
   purchasePrice: costFromScaled(row.purchase_price),
-  price: row.price,
+  price: costFromScaled(row.price),
   category: row.category,
   emoji: row.emoji,
   imageData: row.image_data,
@@ -170,7 +166,7 @@ export async function handleAdminApi(request, env, pathname) {
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const name = text(body.value?.name, 100);
     const purchasePrice = scaledPurchasePrice(body.value?.purchasePrice);
-    const price = money(body.value?.price);
+    const price = scaledPurchasePrice(body.value?.price);
     const category = text(body.value?.category, 60);
     const emoji = text(body.value?.emoji, 8) || '🥞';
     const productImage = imageData(body.value?.imageData, MAX_PRODUCT_IMAGE_LENGTH);
@@ -190,7 +186,7 @@ export async function handleAdminApi(request, env, pathname) {
     const id = Number(productMatch[1]);
     const name = text(body.value?.name, 100);
     const purchasePrice = scaledPurchasePrice(body.value?.purchasePrice);
-    const price = money(body.value?.price);
+    const price = scaledPurchasePrice(body.value?.price);
     const category = text(body.value?.category, 60);
     const emoji = text(body.value?.emoji, 8) || '🥞';
     const productImage = imageData(body.value?.imageData, MAX_PRODUCT_IMAGE_LENGTH);

@@ -11,11 +11,6 @@ const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const costFromScaled = value => Number(value || 0) / COST_SCALE;
 const owns = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
 
-function money(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? Math.round(number) : null;
-}
-
 const MAX_PURCHASE_PRICE_RUPIAH = 10_000_000;
 
 // Harga Beli (Master Barang) shares the exact-unit-cost scale used by
@@ -32,6 +27,18 @@ export function scaledPurchasePriceFromInput(value) {
 function purchasePriceInput(body, current) {
   if (owns(body, 'purchasePrice')) return scaledPurchasePriceFromInput(body.purchasePrice);
   const existing = Number(current?.purchase_price);
+  return Number.isSafeInteger(existing) && existing >= 0 ? existing : null;
+}
+
+// Harga Jual (products.price) shares the same exact-unit-cost scale as of
+// migration 0060, for the same reason Harga Beli did (0059): barang yang
+// dijual per satuan sangat kecil (mis. per gram) needs a sub-rupiah catalog
+// price. The actual Sale total stays whole-rupiah -- only this reference
+// price gains precision. Reuses scaledPurchasePriceFromInput since the
+// parsing/scaling/bounds logic is identical.
+function priceInput(body, current) {
+  if (owns(body, 'price')) return scaledPurchasePriceFromInput(body.price);
+  const existing = Number(current?.price);
   return Number.isSafeInteger(existing) && existing >= 0 ? existing : null;
 }
 
@@ -104,7 +111,7 @@ async function listEditorProducts(db, storeId) {
     id: Number(row.id),
     name: row.name,
     purchasePrice: costFromScaled(row.purchase_price),
-    price: Number(row.price || 0),
+    price: costFromScaled(row.price),
     category: row.category,
     emoji: row.emoji,
     imageData: row.image_data || '',
@@ -164,7 +171,7 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
   const name = text(owns(body, 'name') ? body.name : current?.name, 100);
   const purchasePrice = purchasePriceInput(body, current);
-  const price = money(owns(body, 'price') ? body.price : current?.price);
+  const price = priceInput(body, current);
   const category = text(owns(body, 'category') ? body.category : current?.category, 60);
   const emoji = text(owns(body, 'emoji') ? body.emoji : current?.emoji, 8) || '🥞';
   const productImage = imageData(owns(body, 'imageData') ? body.imageData : current?.image_data);

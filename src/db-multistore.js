@@ -2,6 +2,13 @@ function placeholders(count) {
   return Array.from({ length: count }, () => '?').join(', ');
 }
 
+// products.price is stored at the exact-unit-cost scale (1 rupiah = 1.000.000
+// unit, migration 0060) so a sub-rupiah catalog price survives without
+// float/REAL as source of truth. Convert back to rupiah at the read boundary;
+// order_items.unit_price/line_total stay plain whole-rupiah INTEGER as before.
+const COST_SCALE = 1_000_000;
+const costFromScaled = value => Number(value || 0) / COST_SCALE;
+
 function mapOrderRow(row) {
   return {
     id: row.id,
@@ -29,6 +36,7 @@ function mapOrderItemRow(row) {
     menuId: row.product_id,
     name: row.product_name,
     price: row.unit_price,
+    lineTotal: row.line_total,
     qty: row.quantity,
     note: row.note
   };
@@ -37,7 +45,7 @@ function mapOrderItemRow(row) {
 async function loadItemsForOrders(db, storeId, orderIds) {
   if (!orderIds.length) return new Map();
   const result = await db.prepare(`
-    SELECT order_id, product_id, product_name, unit_price, quantity, note
+    SELECT order_id, product_id, product_name, unit_price, line_total, quantity, note
     FROM order_items
     WHERE store_id = ? AND order_id IN (${placeholders(orderIds.length)})
     ORDER BY id ASC
@@ -60,7 +68,7 @@ export async function listProducts(db, storeId) {
   return (result.results ?? []).map(row => ({
     id: row.id,
     name: row.name,
-    price: row.price,
+    price: costFromScaled(row.price),
     category: row.category,
     emoji: row.emoji,
     imageData: row.image_data || ''
@@ -79,7 +87,7 @@ export async function getProductsByIds(db, storeId, productIds) {
       AND COALESCE(t.can_sell, 1) = 1
       AND p.id IN (${placeholders(uniqueIds.length)})
   `).bind(storeId, ...uniqueIds).all();
-  return result.results ?? [];
+  return (result.results ?? []).map(row => ({ ...row, price: costFromScaled(row.price) }));
 }
 
 export async function listOrders(db, storeId, limit = 100) {
@@ -141,7 +149,7 @@ export async function insertOrder(db, order, items) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       item.id, order.storeId, order.id, item.menuId, item.name, item.price,
-      item.qty, item.note, item.price * item.qty, order.createdAt
+      item.qty, item.note, item.lineTotal, order.createdAt
     )),
     db.prepare(`
       INSERT INTO order_status_history (store_id, order_id, from_status, to_status, changed_at)

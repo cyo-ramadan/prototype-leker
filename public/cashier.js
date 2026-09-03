@@ -239,6 +239,7 @@ function renderDrawer() {
       : 'Buka laci untuk mencatat pembelian bahan';
   ['expenseBtn','otherIncomeBtn'].forEach(id => { el(id).disabled = !state.canWrite; });
   el('drawerDetailsBtn').disabled = !drawer;
+  el('reportsBtn').disabled = !drawer;
   el('cashierWriteLockNote').textContent = state.canWrite
     ? `Write mode aktif atas nama ${state.cashier.employeeName}. Semua transaksi tercatat ke ${state.cashier.store.code}.`
     : drawer

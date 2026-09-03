@@ -17,26 +17,22 @@ async function selectedStore(db, request) {
   return resolveStore(db, token, { includeInactive: true });
 }
 
-// Shared by Admin's own Stok tab and the Kasir read-only mirror -- single
-// source of truth so the two views can never drift. storeId is always
-// resolved by the caller before this runs.
-export async function listStoreStockBalances(db, storeId) {
-  const rows = await db.prepare(`
-    SELECT p.id, p.name, p.is_active, p.stock_tracking_enabled, p.production_mode, p.recipe_link_enabled,
-           t.name AS item_type_name, COALESCE(t.track_stock, 1) AS type_track_stock,
-           p.base_unit_id, u.symbol AS unit_symbol,
-           b.quantity, b.updated_at,
-           r.id AS recipe_id, r.revision AS recipe_revision
-    FROM products p
-    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
-    LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
-    LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
-    LEFT JOIN manufacturing_recipes r
-      ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
-    WHERE p.store_id = ?
-    ORDER BY p.name COLLATE NOCASE, p.id
-  `).bind(storeId).all();
-  return (rows.results ?? []).map(row => ({
+const STOCK_BALANCE_SELECT = `
+  SELECT p.id, p.name, p.is_active, p.stock_tracking_enabled, p.production_mode, p.recipe_link_enabled,
+         t.name AS item_type_name, COALESCE(t.track_stock, 1) AS type_track_stock,
+         p.base_unit_id, u.symbol AS unit_symbol,
+         b.quantity, b.updated_at,
+         r.id AS recipe_id, r.revision AS recipe_revision
+  FROM products p
+  LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+  LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+  LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
+  LEFT JOIN manufacturing_recipes r
+    ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+`;
+
+function mapStockBalanceRow(row) {
+  return {
     productId: Number(row.id),
     productName: row.name,
     isActive: Boolean(row.is_active),
@@ -49,7 +45,29 @@ export async function listStoreStockBalances(db, storeId) {
     productionMode: row.production_mode || 'STOCK',
     recipeLinkEnabled: Boolean(row.recipe_link_enabled),
     activeRecipe: row.recipe_id ? { id: row.recipe_id, revision: Number(row.recipe_revision || 0) } : null
-  }));
+  };
+}
+
+// Shared by Admin's own Stok tab and the Kasir read-only mirror -- single
+// source of truth so the two views can never drift. storeId is always
+// resolved by the caller before this runs.
+export async function listStoreStockBalances(db, storeId) {
+  const rows = await db.prepare(`${STOCK_BALANCE_SELECT} WHERE p.store_id = ? ORDER BY p.name COLLATE NOCASE, p.id`)
+    .bind(storeId).all();
+  return (rows.results ?? []).map(mapStockBalanceRow);
+}
+
+// Same balance shape as listStoreStockBalances but scoped to a curated list of
+// product ids (tombol Laporan > Saldo Stok > Pilih Barang / Group Barang) --
+// filtering with p.id IN (...) instead of pulling every product in the store
+// keeps this fast regardless of catalog size.
+export async function listStoreStockBalancesForProducts(db, storeId, productIds) {
+  if (!Array.isArray(productIds) || !productIds.length) return [];
+  const placeholders = productIds.map(() => '?').join(',');
+  const rows = await db.prepare(`
+    ${STOCK_BALANCE_SELECT} WHERE p.store_id = ? AND p.id IN (${placeholders}) ORDER BY p.name COLLATE NOCASE, p.id
+  `).bind(storeId, ...productIds).all();
+  return (rows.results ?? []).map(mapStockBalanceRow);
 }
 
 export async function listProductStockMovements(db, storeId, productId, { before = null, limit = 50 } = {}) {

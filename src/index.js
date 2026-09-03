@@ -34,6 +34,7 @@ import { handleWarehouseSettingsApi } from './warehouse-settings.js';
 import { handleAccountingReferenceApi } from './accounting-reference.js';
 import { handleAdminStockApi } from './admin-stock.js';
 import { handleProductCostHistoryApi } from './product-cost-history.js';
+import { handleCashierDataApi } from './cashier-data-explorer.js';
 import { handleAdminTransactionsApi } from './admin-transactions.js';
 import { handleAdminPurchaseDetailApi } from './admin-purchase-detail.js';
 import { handleAdminTransactionDetailApi } from './admin-transaction-detail.js';
@@ -200,6 +201,8 @@ async function handleApi(request, env, url) {
   if (adminStockResponse) return adminStockResponse;
   const productCostHistoryResponse = await handleProductCostHistoryApi(request, env, pathname);
   if (productCostHistoryResponse) return productCostHistoryResponse;
+  const cashierDataResponse = await handleCashierDataApi(request, env, pathname);
+  if (cashierDataResponse) return cashierDataResponse;
   const adminProductionDetailResponse = await handleAdminProductionDetailApi(request, env, pathname);
   if (adminProductionDetailResponse) return adminProductionDetailResponse;
   const adminPurchaseDetailResponse = await handleAdminPurchaseDetailApi(request, env, pathname);

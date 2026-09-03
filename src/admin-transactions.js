@@ -58,25 +58,17 @@ async function loadPosDeliveryMap(db, storeId, rows) {
   return new Map((result.results ?? []).map(row => [`${row.fact_type}:${row.fact_id}`, row]));
 }
 
-export async function handleAdminTransactionsApi(request, env, pathname) {
-  if (request.method !== 'GET' || pathname !== '/api/admin/transactions') return null;
-  const auth = await requireManagement(request, env.DB); if (!auth.ok) return auth.response;
-  const url = new URL(request.url);
-  const store = await resolveStore(env.DB, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
-  const filter = String(url.searchParams.get('filter') || 'ALL').trim().toUpperCase();
-  if (!FILTERS.has(filter)) return json({ error: 'Filter transaksi tidak valid.' }, 400);
-  const from = parseIso(url.searchParams.get('from')); const to = parseIso(url.searchParams.get('to'));
-  const rawCursor = url.searchParams.get('before'); const before = parseCursor(rawCursor);
-  if (url.searchParams.get('from') && !from) return json({ error: 'Tanggal awal tidak valid.' }, 400);
-  if (url.searchParams.get('to') && !to) return json({ error: 'Tanggal akhir tidak valid.' }, 400);
-  if (rawCursor && !before) return json({ error: 'Cursor transaksi tidak valid.' }, 400);
-  const requestedLimit = Number(url.searchParams.get('limit') || 50);
-  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
+// Shared by Admin's own Transaksi explorer and the Kasir read-only mirror --
+// single source of truth for the query so the two views can never drift.
+// storeId is always resolved by the caller BEFORE this runs (query param for
+// Admin, the authenticated cashier's own store for Kasir); this function
+// itself trusts whatever storeId it is given.
+export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50 } = {}) {
+  if (!FILTERS.has(filter)) return { ok: false, error: 'Filter transaksi tidak valid.' };
   const kindSet = KIND_FILTER[filter] || null;
   const kindClause = kindSet ? `AND kind IN (${[...kindSet].map(() => '?').join(', ')})` : '';
   const kindValues = kindSet ? [...kindSet] : [];
-  const result = await env.DB.prepare(`
+  const result = await db.prepare(`
     WITH transaction_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,
              CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END AS description,
@@ -118,13 +110,34 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
       ${kindClause}
     ORDER BY occurred_at DESC, id DESC LIMIT ?
   `).bind(
-    store.id, store.id, store.id, store.id, store.id, store.id,
+    storeId, storeId, storeId, storeId, storeId, storeId,
     from, from, to, to,
     before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
     ...kindValues, limit + 1
   ).all();
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
-  const deliveryMap = await loadPosDeliveryMap(env.DB, store.id, visibleRows);
+  const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);
   const visible = visibleRows.map(row => normalizeRow(row, deliveryMap)); const last = visible.at(-1);
-  return json({ store, filter, transactions: visible, hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null });
+  return { ok: true, filter, transactions: visible, hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null };
+}
+
+export { parseIso, parseCursor };
+
+export async function handleAdminTransactionsApi(request, env, pathname) {
+  if (request.method !== 'GET' || pathname !== '/api/admin/transactions') return null;
+  const auth = await requireManagement(request, env.DB); if (!auth.ok) return auth.response;
+  const url = new URL(request.url);
+  const store = await resolveStore(env.DB, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  const filter = String(url.searchParams.get('filter') || 'ALL').trim().toUpperCase();
+  if (!FILTERS.has(filter)) return json({ error: 'Filter transaksi tidak valid.' }, 400);
+  const from = parseIso(url.searchParams.get('from')); const to = parseIso(url.searchParams.get('to'));
+  const rawCursor = url.searchParams.get('before'); const before = parseCursor(rawCursor);
+  if (url.searchParams.get('from') && !from) return json({ error: 'Tanggal awal tidak valid.' }, 400);
+  if (url.searchParams.get('to') && !to) return json({ error: 'Tanggal akhir tidak valid.' }, 400);
+  if (rawCursor && !before) return json({ error: 'Cursor transaksi tidak valid.' }, 400);
+  const requestedLimit = Number(url.searchParams.get('limit') || 50);
+  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
+  const listing = await listStoreTransactions(env.DB, store.id, { filter, from, to, before, limit });
+  return json({ store, filter: listing.filter, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
 }

@@ -61,7 +61,7 @@ test('cashier page has product menu, draft, and drawer controls', async () => {
   assert.match(html, /Beli Bahan/);
   assert.match(html, /Pengeluaran/);
   assert.match(html, /Pendapatan Lain/);
-  assert.match(html, /Rincian Aktif/);
+  assert.match(html, /📊 Data/);
   assert.match(enhancement, /Detail Laci/);
   assert.match(js, /\/api\/cashier\/menu/);
   assert.match(js, /\/api\/cashier\/drawer\/open/);

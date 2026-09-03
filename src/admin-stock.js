@@ -17,59 +17,43 @@ async function selectedStore(db, request) {
   return resolveStore(db, token, { includeInactive: true });
 }
 
-export async function handleAdminStockApi(request, env, pathname) {
-  if (!pathname.startsWith('/api/admin/stock')) return null;
-  if (request.method !== 'GET') return json({ error: 'Stock tracking saat ini read-only dari Admin.' }, 405);
-  const auth = await requireManagement(request, env.DB);
-  if (!auth.ok) return auth.response;
-  const store = await selectedStore(env.DB, request);
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+// Shared by Admin's own Stok tab and the Kasir read-only mirror -- single
+// source of truth so the two views can never drift. storeId is always
+// resolved by the caller before this runs.
+export async function listStoreStockBalances(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT p.id, p.name, p.is_active, p.stock_tracking_enabled, p.production_mode, p.recipe_link_enabled,
+           t.name AS item_type_name, COALESCE(t.track_stock, 1) AS type_track_stock,
+           p.base_unit_id, u.symbol AS unit_symbol,
+           b.quantity, b.updated_at,
+           r.id AS recipe_id, r.revision AS recipe_revision
+    FROM products p
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+    LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
+    LEFT JOIN manufacturing_recipes r
+      ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+    WHERE p.store_id = ?
+    ORDER BY p.name COLLATE NOCASE, p.id
+  `).bind(storeId).all();
+  return (rows.results ?? []).map(row => ({
+    productId: Number(row.id),
+    productName: row.name,
+    isActive: Boolean(row.is_active),
+    itemTypeName: row.item_type_name || '',
+    unitId: row.base_unit_id || null,
+    unitSymbol: row.unit_symbol || '',
+    stockTrackingEnabled: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
+    quantity: row.quantity == null ? null : Number(row.quantity),
+    updatedAt: row.updated_at || null,
+    productionMode: row.production_mode || 'STOCK',
+    recipeLinkEnabled: Boolean(row.recipe_link_enabled),
+    activeRecipe: row.recipe_id ? { id: row.recipe_id, revision: Number(row.recipe_revision || 0) } : null
+  }));
+}
 
-  if (pathname === '/api/admin/stock') {
-    const rows = await env.DB.prepare(`
-      SELECT p.id, p.name, p.is_active, p.stock_tracking_enabled, p.production_mode, p.recipe_link_enabled,
-             t.name AS item_type_name, COALESCE(t.track_stock, 1) AS type_track_stock,
-             p.base_unit_id, u.symbol AS unit_symbol,
-             b.quantity, b.updated_at,
-             r.id AS recipe_id, r.revision AS recipe_revision
-      FROM products p
-      LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
-      LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
-      LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
-      LEFT JOIN manufacturing_recipes r
-        ON r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
-      WHERE p.store_id = ?
-      ORDER BY p.name COLLATE NOCASE, p.id
-    `).bind(store.id).all();
-    return json({
-      store,
-      stocks: (rows.results ?? []).map(row => ({
-        productId: Number(row.id),
-        productName: row.name,
-        isActive: Boolean(row.is_active),
-        itemTypeName: row.item_type_name || '',
-        unitId: row.base_unit_id || null,
-        unitSymbol: row.unit_symbol || '',
-        stockTrackingEnabled: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
-        quantity: row.quantity == null ? null : Number(row.quantity),
-        updatedAt: row.updated_at || null,
-        productionMode: row.production_mode || 'STOCK',
-        recipeLinkEnabled: Boolean(row.recipe_link_enabled),
-        activeRecipe: row.recipe_id ? { id: row.recipe_id, revision: Number(row.recipe_revision || 0) } : null
-      }))
-    });
-  }
-
-  const match = pathname.match(/^\/api\/admin\/stock\/(\d+)\/movements$/);
-  if (!match) return json({ error: 'Route stock tidak ditemukan.' }, 404);
-  const productId = Number(match[1]);
-  const url = new URL(request.url);
-  const before = parseCursor(url.searchParams.get('before'));
-  if (url.searchParams.get('before') && !before) return json({ error: 'Cursor mutasi stok tidak valid.' }, 400);
-  const requestedLimit = Number(url.searchParams.get('limit') || 50);
-  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
-
-  const product = await env.DB.prepare(`
+export async function listProductStockMovements(db, storeId, productId, { before = null, limit = 50 } = {}) {
+  const product = await db.prepare(`
     SELECT p.id, p.name, p.stock_tracking_enabled, p.base_unit_id,
            u.symbol AS unit_symbol, b.quantity, b.updated_at
     FROM products p
@@ -77,10 +61,10 @@ export async function handleAdminStockApi(request, env, pathname) {
     LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
     WHERE p.store_id = ? AND p.id = ?
     LIMIT 1
-  `).bind(store.id, productId).first();
-  if (!product) return json({ error: 'Barang tidak ditemukan.' }, 404);
+  `).bind(storeId, productId).first();
+  if (!product) return { ok: false, error: 'Barang tidak ditemukan.' };
 
-  const rows = await env.DB.prepare(`
+  const rows = await db.prepare(`
     SELECT id, direction, quantity, source_type, source_id, drawer_session_id,
            note, actor_role, actor_id, occurred_at
     FROM stock_movements
@@ -91,7 +75,7 @@ export async function handleAdminStockApi(request, env, pathname) {
     ORDER BY occurred_at DESC, id DESC
     LIMIT ?
   `).bind(
-    store.id, productId,
+    storeId, productId,
     before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
     limit + 1
   ).all();
@@ -110,8 +94,8 @@ export async function handleAdminStockApi(request, env, pathname) {
     occurredAt: row.occurred_at
   }));
   const last = visible.at(-1);
-  return json({
-    store,
+  return {
+    ok: true,
     product: {
       productId: Number(product.id),
       productName: product.name,
@@ -124,5 +108,33 @@ export async function handleAdminStockApi(request, env, pathname) {
     movements: visible,
     hasMore,
     nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null
-  });
+  };
+}
+
+export { parseCursor };
+
+export async function handleAdminStockApi(request, env, pathname) {
+  if (!pathname.startsWith('/api/admin/stock')) return null;
+  if (request.method !== 'GET') return json({ error: 'Stock tracking saat ini read-only dari Admin.' }, 405);
+  const auth = await requireManagement(request, env.DB);
+  if (!auth.ok) return auth.response;
+  const store = await selectedStore(env.DB, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+
+  if (pathname === '/api/admin/stock') {
+    return json({ store, stocks: await listStoreStockBalances(env.DB, store.id) });
+  }
+
+  const match = pathname.match(/^\/api\/admin\/stock\/(\d+)\/movements$/);
+  if (!match) return json({ error: 'Route stock tidak ditemukan.' }, 404);
+  const productId = Number(match[1]);
+  const url = new URL(request.url);
+  const before = parseCursor(url.searchParams.get('before'));
+  if (url.searchParams.get('before') && !before) return json({ error: 'Cursor mutasi stok tidak valid.' }, 400);
+  const requestedLimit = Number(url.searchParams.get('limit') || 50);
+  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
+
+  const listing = await listProductStockMovements(env.DB, store.id, productId, { before, limit });
+  if (!listing.ok) return json({ error: listing.error }, 404);
+  return json({ store, product: listing.product, movements: listing.movements, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
 }

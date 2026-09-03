@@ -294,10 +294,4 @@
   const dialogBody = el('cashierDialogBody');
   if (dialogBody) new MutationObserver(enhanceDialog).observe(dialogBody, { childList: true, subtree: true });
   ensureHistoryUi();
-
-  el('drawerDetailsBtn')?.addEventListener('click', event => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    openDrawerHistory();
-  }, true);
 })();

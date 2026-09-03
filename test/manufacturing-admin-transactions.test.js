@@ -66,7 +66,7 @@ test('admin master UI groups master entities without replacing existing listener
 
 test('admin transaction explorer reads operational facts lazily and exposes accounting references only', () => {
   assert.match(branchAdmin, /admin-transactions-ui\.js/);
-  assert.match(transactionApi, /WITH transaction_facts AS/);
+  assert.match(transactionApi, /WITH pos_facts AS/);
   assert.match(transactionApi, /'SALE' AS kind/);
   assert.match(transactionApi, /'PURCHASE'/);
   assert.match(transactionApi, /'EXPENSE'/);

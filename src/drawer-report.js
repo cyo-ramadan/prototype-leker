@@ -50,7 +50,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -85,6 +85,14 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       FROM cash_ledger_entries
       WHERE store_id = ? AND drawer_session_id = ?
       ORDER BY posted_at
+    `).bind(storeId, drawerId).all(),
+    db.prepare(`
+      SELECT pr.output_product_name, pr.total_output_quantity, pr.output_unit_symbol,
+             c.component_product_name, c.total_quantity AS component_quantity, c.component_unit_symbol
+      FROM production_runs pr
+      JOIN production_run_components c ON c.production_run_id = pr.id AND c.store_id = pr.store_id
+      WHERE pr.store_id = ? AND pr.drawer_session_id = ? AND pr.status = 'POSTED'
+      ORDER BY pr.created_at, c.component_product_name COLLATE NOCASE
     `).bind(storeId, drawerId).all()
   ]);
 
@@ -149,8 +157,11 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const cashSalesItems = cashSales.reduce((total, row) => total + row.quantity, 0);
   const nonCashSalesItems = nonCashSales.reduce((total, row) => total + row.quantity, 0);
 
+  const cooking = (productionRows.results ?? []).map(row => ({
+    result: `${row.output_product_name} · ${number(row.total_output_quantity)} ${row.output_unit_symbol || ''}`.trim(),
+    material: `${row.component_product_name} · ${number(row.component_quantity)} ${row.component_unit_symbol || ''}`.trim()
+  }));
   const promotions = [];
-  const cooking = [];
   const stockRemaining = [];
   const stockAdjustments = [];
   const promotionTotal = 0;

@@ -2,7 +2,9 @@ const ownerState = {
   token: sessionStorage.getItem('lekerOwnerToken') || '',
   owner: null,
   stores: [],
-  sharingGroups: []
+  sharingGroups: [],
+  tenants: [],
+  entities: []
 };
 
 const ownerEl = id => document.getElementById(id);
@@ -54,6 +56,8 @@ function showOwnerApp() {
   ownerEl('ownerIdentity').textContent = ownerState.owner?.displayName || ownerState.owner?.username || 'Owner';
   renderOwnerStores();
   renderCustomerSharing();
+  renderOwnerTenants();
+  renderOwnerEntities();
 }
 
 function showOwnerLogin() {
@@ -63,13 +67,17 @@ function showOwnerLogin() {
 }
 
 async function loadOwnerData() {
-  const [storePayload, sharingPayload] = await Promise.all([
+  const [storePayload, sharingPayload, tenantPayload, entityPayload] = await Promise.all([
     ownerApi('/api/owner/stores'),
-    ownerApi('/api/owner/customer-sharing')
+    ownerApi('/api/owner/customer-sharing'),
+    ownerApi('/api/owner/tenants'),
+    ownerApi('/api/owner/entities')
   ]);
   ownerState.owner = storePayload.owner;
   ownerState.stores = storePayload.stores || [];
   ownerState.sharingGroups = sharingPayload.groups || [];
+  ownerState.tenants = tenantPayload.tenants || [];
+  ownerState.entities = entityPayload.entities || [];
 }
 
 function renderOwnerStores() {
@@ -79,12 +87,76 @@ function renderOwnerStores() {
       <div class="owner-store-code">${ownerEscape(store.code)}</div>
       <h3>${ownerEscape(store.storeName)}</h3>
       <p>${ownerEscape(store.address || 'Alamat belum diisi')}</p>
+      <p class="muted">${store.entityName ? `Entity: ${ownerEscape(store.entityName)}` : 'Entity belum ditentukan'}</p>
       <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
       <div class="owner-store-actions">
         <a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>
         <a class="secondary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/customer">Customer</a>
       </div>
     </article>`).join('') : '<div class="empty">Belum ada gerai.</div>';
+  renderOwnerStoreEntityOptions();
+}
+
+function renderOwnerStoreEntityOptions() {
+  const select = ownerEl('ownerStoreEntity');
+  if (!select) return;
+  const activeEntities = ownerState.entities.filter(entity => entity.status === 'ACTIVE');
+  select.innerHTML = `<option value="">Belum ditentukan</option>${activeEntities.map(entity =>
+    `<option value="${ownerEscape(entity.id)}">${ownerEscape(entity.name)}${entity.tenantName ? ` · ${ownerEscape(entity.tenantName)}` : ''}</option>`
+  ).join('')}`;
+}
+
+function renderOwnerTenants() {
+  ownerEl('ownerTenantCount').textContent = ownerState.tenants.length;
+  ownerEl('ownerTenantList').innerHTML = ownerState.tenants.length ? ownerState.tenants.map(tenant => `
+    <div class="master-row">
+      <div class="master-main"><strong>${ownerEscape(tenant.name)}</strong><div class="master-meta">${ownerEscape(tenant.status)}</div></div>
+    </div>`).join('') : '<div class="empty">Belum ada tenant.</div>';
+  renderOwnerEntityTenantOptions();
+}
+
+function renderOwnerEntityTenantOptions() {
+  const select = ownerEl('ownerEntityTenant');
+  if (!select) return;
+  const activeTenants = ownerState.tenants.filter(tenant => tenant.status === 'ACTIVE');
+  select.innerHTML = activeTenants.length
+    ? activeTenants.map(tenant => `<option value="${ownerEscape(tenant.id)}">${ownerEscape(tenant.name)}</option>`).join('')
+    : '<option value="">Buat tenant dulu</option>';
+}
+
+function renderOwnerEntities() {
+  ownerEl('ownerEntityCount').textContent = ownerState.entities.length;
+  ownerEl('ownerEntityList').innerHTML = ownerState.entities.length ? ownerState.entities.map(entity => `
+    <div class="master-row">
+      <div class="master-main"><strong>${ownerEscape(entity.name)}</strong><div class="master-meta">${entity.tenantName ? ownerEscape(entity.tenantName) : 'Belum tertaut tenant'} · ${ownerEscape(entity.status)}</div></div>
+    </div>`).join('') : '<div class="empty">Belum ada entity.</div>';
+  renderOwnerStoreEntityOptions();
+}
+
+async function createOwnerTenant(event) {
+  event.preventDefault();
+  try {
+    await ownerApi('/api/owner/tenants', { method: 'POST', body: JSON.stringify({ name: ownerEl('ownerTenantName').value }) });
+    ownerEl('tenantCreateForm').reset();
+    await loadOwnerData();
+    renderOwnerTenants();
+    renderOwnerEntities();
+    ownerToast('Tenant dibuat');
+  } catch (error) { ownerToast(error.message); }
+}
+
+async function createOwnerEntity(event) {
+  event.preventDefault();
+  try {
+    await ownerApi('/api/owner/entities', {
+      method: 'POST',
+      body: JSON.stringify({ name: ownerEl('ownerEntityName').value, tenantId: ownerEl('ownerEntityTenant').value })
+    });
+    ownerEl('entityCreateForm').reset();
+    await loadOwnerData();
+    renderOwnerEntities();
+    ownerToast('Entity dibuat');
+  } catch (error) { ownerToast(error.message); }
 }
 
 function renderSharingStoreOptions(selectedIds = []) {
@@ -169,7 +241,8 @@ async function createOwnerStore(event) {
       body: JSON.stringify({
         code: ownerEl('ownerStoreCode').value,
         storeName: ownerEl('ownerStoreName').value,
-        address: ownerEl('ownerStoreAddress').value
+        address: ownerEl('ownerStoreAddress').value,
+        entityId: ownerEl('ownerStoreEntity').value || null
       })
     });
     ownerEl('storeCreateForm').reset();
@@ -186,6 +259,8 @@ async function ownerLogout() {
   ownerState.owner = null;
   ownerState.stores = [];
   ownerState.sharingGroups = [];
+  ownerState.tenants = [];
+  ownerState.entities = [];
   sessionStorage.removeItem('lekerOwnerToken');
   showOwnerLogin();
 }
@@ -194,6 +269,8 @@ async function initOwner() {
   ownerEl('ownerLoginBtn').addEventListener('click', ownerLogin);
   ownerEl('ownerPassword').addEventListener('keydown', event => { if (event.key === 'Enter') ownerLogin(); });
   ownerEl('storeCreateForm').addEventListener('submit', createOwnerStore);
+  ownerEl('tenantCreateForm').addEventListener('submit', createOwnerTenant);
+  ownerEl('entityCreateForm').addEventListener('submit', createOwnerEntity);
   ownerEl('customerSharingForm').addEventListener('submit', saveCustomerSharing);
   ownerEl('customerSharingCancel').addEventListener('click', resetCustomerSharingForm);
   ownerEl('ownerLogoutBtn').addEventListener('click', ownerLogout);

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MAXI Leker · Entity Admin</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/owner.css" />
+  <script src="/staff-entry-guard.js"></script>
+  <script src="/staff-tab-lock.js"></script>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar admin-topbar">
+    <div class="brand"><div class="brand-mark">E</div><div>MAXI LEKER<small>Entity Admin</small></div></div>
+    <div class="admin-top-actions">
+      <button id="entityAdminLogoutBtn" class="secondary-btn hidden" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="owner-shell">
+    <section id="entityAdminLoginView" class="admin-auth-card">
+      <div class="admin-eyebrow">Structure level 0.5 · Entity</div>
+      <h1>Login Entity Admin</h1>
+      <p class="muted">Entity Admin login sekali, lalu pilih gerai mana pun di bawah Entity-nya -- tidak perlu ganti kredensial tiap pindah gerai seperti Admin Gerai biasa.</p>
+      <label class="admin-field">Username<input id="entityAdminUsername" autocomplete="username" maxlength="40" required /></label>
+      <label class="admin-field">Password<input id="entityAdminPassword" type="password" autocomplete="current-password" required /></label>
+      <button id="entityAdminLoginBtn" class="primary-btn" type="button">MASUK ENTITY ADMIN</button>
+      <div id="entityAdminLoginMessage" class="admin-message" aria-live="polite"></div>
+    </section>
+
+    <section id="entityAdminApp" class="hidden">
+      <div class="owner-heading">
+        <div><div class="admin-eyebrow">Gerai di bawah entity ini</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Pilih gerai untuk membuka workspace admin gerai tersebut -- akses baca dan tulis penuh, sama seperti Admin Gerai.</p></div>
+        <div id="entityAdminIdentity" class="owner-chip"></div>
+      </div>
+
+      <section class="admin-card">
+        <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
+        <div id="entityAdminStoreList" class="owner-store-grid"></div>
+      </section>
+    </section>
+  </main>
+  <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
+</div>
+<script src="/entity-admin.js"></script>
+</body>
+</html>

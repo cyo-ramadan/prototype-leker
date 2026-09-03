@@ -225,8 +225,8 @@ async function handleManagement(request, env, pathname) {
     if (!['ACC', 'REJECT'].includes(decision)) return json({ error: 'Decision wajib ACC atau REJECT.' }, 400);
 
     const now = new Date().toISOString();
-    const approverRole = scope.owner ? 'OWNER' : 'ADMIN';
-    const approverId = scope.owner?.id || scope.admin?.id || '';
+    const approverRole = scope.owner ? 'OWNER' : scope.entityAdmin ? 'ENTITY_ADMIN' : 'ADMIN';
+    const approverId = scope.owner?.id || scope.entityAdmin?.id || scope.admin?.id || '';
 
     if (decision === 'REJECT') {
       const result = await env.DB.prepare(`

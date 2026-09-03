@@ -45,7 +45,7 @@ import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleCustomerFeedbackApi } from './customer-feedback.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
-import { handleOwnerApi, handleStoreAdminApi } from './owner-auth.js';
+import { handleOwnerApi, handleStoreAdminApi, handleEntityAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
 import { handleCostMasterApi } from './cost-master.js';
@@ -163,6 +163,8 @@ async function handleApi(request, env, url) {
   if (ownerResponse) return ownerResponse;
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
   if (storeAdminResponse) return storeAdminResponse;
+  const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
+  if (entityAdminResponse) return entityAdminResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
   const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);
@@ -298,7 +300,7 @@ async function handleApi(request, env, url) {
 }
 
 function assetRoute(pathname) {
-  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html' };
+  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html', '/entity-admin': '/entity-admin.html' };
   if (direct[pathname]) return direct[pathname];
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {

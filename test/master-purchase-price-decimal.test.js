@@ -33,18 +33,20 @@ test('Master Barang Harga Beli field no longer forces whole-rupiah step, and rea
   assert.match(productPolicyUi, /purchasePrice: Number\(String\(el\('productPurchasePrice'\)\.value\)\.trim\(\)\.replace\(',', '\.'\)\)/, 'comma must be normalized to a period before parsing');
 });
 
-test('Pembelian (Beli Bahan) unit-price composer allows decimal amounts (incl. Indonesian comma) while Penjualan/Operasional stay whole-rupiah', () => {
-  assert.match(pimasatuUi, /allowDecimalAmount/);
-  assert.match(pimasatuUi, /type="text" inputmode="decimal"/, 'decimal price field must not use type="number", which drops a typed comma');
-  assert.match(pimasatuUi, /replace\(',', '\.'\)/, 'typed comma decimal must be normalized before Number() parsing');
-  assert.match(cashierPaymentMethods, /allowDecimalAmount:\s*true/);
+test('Pembelian (Beli Bahan) enters total dibayar + qty (whole rupiah only) and derives per-unit cost, instead of asking for a typed decimal unit price', () => {
+  assert.match(pimasatuUi, /amountMode/, 'pimasatu must support a total-entry mode');
+  assert.match(pimasatuUi, /isTotalMode/);
   const purchaseBlockStart = cashierPaymentMethods.indexOf("host: byId('purchasePimasatu')");
   const operationalBlockStart = cashierPaymentMethods.indexOf("host: byId('operationalPimasatu')");
   assert.ok(purchaseBlockStart > -1 && operationalBlockStart > -1);
   const purchaseBlock = cashierPaymentMethods.slice(purchaseBlockStart, purchaseBlockStart + 600);
   const operationalBlock = cashierPaymentMethods.slice(operationalBlockStart, operationalBlockStart + 600);
-  assert.match(purchaseBlock, /allowDecimalAmount:\s*true/, 'Beli Bahan must allow decimal unit price');
-  assert.doesNotMatch(operationalBlock, /allowDecimalAmount:\s*true/, 'Pengeluaran Operasional must stay whole-rupiah only');
+  assert.match(purchaseBlock, /amountMode:\s*'total'/, 'Beli Bahan must collect total dibayar + qty, not a typed per-unit price');
+  assert.doesNotMatch(operationalBlock, /amountMode:\s*'total'/, 'Pengeluaran Operasional keeps its existing per-unit entry');
+});
+
+test('Master Barang Harga Beli (reference field) still accepts Indonesian comma decimals for display/reference purposes', () => {
+  assert.match(pimasatuUi, /replace\(',', '\.'\)/, 'typed comma decimal must be normalized before Number() parsing where decimal entry is still used');
 });
 
 test('Master Barang save handler removes the legacy admin.js submit listener before attaching its own', () => {
@@ -122,4 +124,59 @@ test('pimasatu comma-decimal parsing produces the correct scaled amount end to e
   assert.ok(addedLine, 'line must be added, not rejected');
   assert.equal(addedLine.unitAmount, 0.7, '"0,7" must parse as 0.7, not 0 or 1');
   assert.equal(Math.round(addedLine.quantity * addedLine.unitAmount), 8400, '12.000ml x Rp0,7 must total Rp8.400');
+});
+
+test('pimasatu amountMode "total" derives per-unit cost from a whole-rupiah total + qty, no decimal typing required', async () => {
+  const vm = await import('node:vm');
+  function makeEl(tag) {
+    const listeners = {};
+    return {
+      tagName: tag, className: '', innerHTML: '',
+      classList: { add() {}, remove() {}, toggle() {} },
+      addEventListener(type, handler) { listeners[type] = handler; },
+      set onclick(handler) { listeners.click = handler; },
+      set onfocus(handler) { listeners.focus = handler; },
+      set oninput(handler) { listeners.input = handler; },
+      set onchange(handler) { listeners.change = handler; },
+      fire(type, event) { listeners[type]?.(event); },
+      querySelectorAll: () => [],
+      value: ''
+    };
+  }
+  const host = makeEl('div');
+  const toggle = makeEl('button'), composer = makeEl('section'), search = makeEl('input'), results = makeEl('div'),
+    qty = makeEl('input'), price = makeEl('input'), hint = makeEl('div'), linesHost = makeEl('div'), add = makeEl('button'), detailHead = makeEl('div');
+  host.querySelector = selector => ({
+    '.pimasatu-toggle': toggle, '.pimasatu-composer': composer, '.pimasatu-search': search, '.pimasatu-results': results,
+    '.pimasatu-qty': qty, '.pimasatu-price': price, '.pimasatu-hint': hint, '.pimasatu-lines': linesHost,
+    '.pimasatu-add': add, '.pimasatu-detail-head': detailHead
+  }[selector] || null);
+
+  const source = pimasatuUi.replace('window.MAXIPimasatu', 'globalThis.MAXIPimasatu');
+  const context = vm.createContext({
+    document: { querySelector: () => null, createElement: () => makeEl('div') },
+    window: {}, globalThis: {}, Intl, console
+  });
+  vm.runInContext(source, context);
+
+  let addedLine = null;
+  context.globalThis.MAXIPimasatu.create({
+    host,
+    items: [{ id: 1, name: 'Air Mineral', purchasePrice: 0.5 }],
+    getDefaultAmount: item => item.purchasePrice,
+    amountMode: 'total',
+    onAdd: line => { addedLine = line; },
+    onError: message => { throw new Error(`unexpected onError: ${message}`); }
+  });
+
+  results.fire('click', { target: { closest: () => ({ dataset: { result: '1' } }) } });
+  assert.equal(price.value, '', 'a per-unit reference price must never be prefilled into a total-paid field');
+
+  qty.value = '16000';
+  price.value = '8000';
+  add.fire('click');
+
+  assert.ok(addedLine, 'line must be added from a whole-rupiah total, no comma/decimal needed');
+  assert.equal(addedLine.unitAmount, 0.5, 'Rp8.000 for 16.000ml must derive Rp0,5/ml automatically');
+  assert.equal(Math.round(addedLine.quantity * addedLine.unitAmount), 8000, 'reconstructing qty x per-unit cost must land back on the exact entered total');
 });

@@ -12,6 +12,15 @@ import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
+// Fulfillment mode is picked per sale line by the kasir (Biasa/Dadakan), not
+// read from the item itself -- pass whatever the client sent through as-is;
+// prepareSaleStockProduction() in stock-production.js resolves the default
+// (Dadakan when the product has a recipe link) and validates it.
+function lineProductionMode(item) {
+  const raw = String(item?.productionMode || '').toUpperCase();
+  return raw === 'STOCK' || raw === 'DADAKAN' ? raw : null;
+}
+
 function isOrderNumberConflict(error) {
   const message = String(error?.message ?? error).toLowerCase();
   return message.includes('unique') || message.includes('constraint');
@@ -37,7 +46,10 @@ export function validateDirectLines(products, requested) {
     const catalogPrice = Number(product.price);
     const lineTotal = Math.round(catalogPrice * quantity);
     total += lineTotal;
-    lines.push({ productId, productName: product.name, unitPrice: Math.round(lineTotal / quantity), quantity, lineTotal, note: '' });
+    lines.push({
+      productId, productName: product.name, unitPrice: Math.round(lineTotal / quantity), quantity, lineTotal, note: '',
+      productionMode: lineProductionMode(item)
+    });
   }
   return { ok: true, lines, total };
 }
@@ -57,7 +69,10 @@ function validateOrderSnapshotLines(order, requested) {
     const unitPrice = Number(snapshot.price);
     const lineTotal = unitPrice * quantity;
     total += lineTotal;
-    lines.push({ productId, productName: snapshot.name, unitPrice, quantity, lineTotal, note: snapshot.note || '' });
+    lines.push({
+      productId, productName: snapshot.name, unitPrice, quantity, lineTotal, note: snapshot.note || '',
+      productionMode: lineProductionMode(item)
+    });
   }
   return { ok: true, lines, total };
 }

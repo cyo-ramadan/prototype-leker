@@ -146,7 +146,7 @@ test('legacy quantity columns remain integer until canonical quantity migration 
   assert.match(stockProduction, /Number\.isInteger\(batchCount\)/);
 });
 
-test('legacy dadakan execution still snapshots production then stock until sale-level fulfillment replaces it', () => {
+test('dadakan execution engine snapshots production then stock, now driven by per-sale-line fulfillment', () => {
   assert.match(stockProduction, /AUTO_DADAKAN/);
   assert.match(stockProduction, /Math\.ceil\(Number\(line\.quantity\) \/ recipe\.outputQuantity\)/);
   assert.match(stockProduction, /PRODUCTION_INPUT/);

@@ -14,7 +14,11 @@
       onAdd: line => {
         const id = Number(line.id), current = state.draft.get(id);
         state.draft.delete(id);
-        state.draft.set(id, { product: line.item, quantity: Math.min(50, (current?.quantity || 0) + line.quantity) });
+        state.draft.set(id, {
+          product: line.item,
+          quantity: Math.min(50, (current?.quantity || 0) + line.quantity),
+          productionMode: current?.productionMode ?? defaultProductionMode(line.item)
+        });
         renderDraft();
       }
     });

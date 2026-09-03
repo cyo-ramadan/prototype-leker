@@ -39,6 +39,12 @@
   }
 
   function mountPurchaseCostFields() {
+    const priceInput = el('productPrice');
+    if (priceInput) {
+      priceInput.type = 'text';
+      priceInput.inputMode = 'decimal';
+      priceInput.title = 'Boleh koma untuk barang yang dijual per satuan sangat kecil (mis. per gram/ml); qty tetap harus bulat';
+    }
     const input = el('productPurchasePrice');
     if (!input) return;
     input.readOnly = false;
@@ -368,7 +374,7 @@
       const payload = {
         name: el('productName').value,
         purchasePrice: Number(String(el('productPurchasePrice').value).trim().replace(',', '.')),
-        price: Number(el('productPrice').value),
+        price: Number(String(el('productPrice').value).trim().replace(',', '.')),
         category: el('productCategory').value,
         emoji: '🥞',
         imageData: productImagePayload(),

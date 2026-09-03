@@ -311,7 +311,7 @@ function renderOrderGroup(orders, status) {
 
     return `<article class="order-card ${status === 'READY' ? 'ready' : ''}">
       <div class="order-top"><div><h3>${escapeHtml(order.orderNo)}</h3><div class="customer-meta">${escapeHtml(order.customerName)} · ${escapeHtml(order.tableLabel)}</div></div><div class="time">${formatTime(order.createdAt)}</div></div>
-      <ul class="order-items">${order.items.map(item => `<li><b>${item.qty}×</b> ${escapeHtml(item.name)} <span style="float:right">${rupiah(item.price*item.qty)}</span>${item.note ? `<div class="item-note">↳ ${escapeHtml(item.note)}</div>` : ''}</li>`).join('')}</ul>
+      <ul class="order-items">${order.items.map(item => `<li><b>${item.qty}×</b> ${escapeHtml(item.name)} <span style="float:right">${rupiah(item.lineTotal ?? item.price*item.qty)}</span>${item.note ? `<div class="item-note">↳ ${escapeHtml(item.note)}</div>` : ''}</li>`).join('')}</ul>
       ${order.generalNote ? `<div class="general-note"><b>Catatan umum:</b> ${escapeHtml(order.generalNote)}</div>` : ''}
       <div class="order-total"><span>Total</span><span>${rupiah(order.total)}</span></div>
       <div class="actions">${actions}</div>

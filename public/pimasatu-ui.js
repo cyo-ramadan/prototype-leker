@@ -13,7 +13,7 @@
     // (toggle mode's default, and the classic behaviour kasir already knows)
     // uses a plain text input (still numeric keyboard via inputmode) and
     // normalizes comma -> period ourselves instead of trusting the number input.
-    const priceInputAttrs = isToggleMode ? `type="text" inputmode="decimal"` : `type="number" min="0" step="1"`;
+    const priceInputAttrs = isToggleMode ? `type="text" inputmode="decimal"` : `type="number" min="0" step="any"`;
     const pricePlaceholder = isToggleMode ? 'Terisi otomatis, boleh koma' : 'Terisi otomatis';
     // Toggle mode: harga per satuan (klasik, sudah biasa dipakai kasir) tetap
     // jadi default aktif. Kolom "Total belanja" ada di sampingnya, terkunci

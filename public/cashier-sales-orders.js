@@ -402,7 +402,7 @@
           : `<button class="action-btn action-done" ${disabled} data-id="${esc(order.id)}" data-status="COMPLETED">Sudah Jadi</button>`;
       return `<article class="order-card ${status === 'READY' ? 'ready' : ''}">
         <div class="order-top"><div><h3>${esc(order.orderNo)}</h3><div class="customer-meta">${esc(order.customerName)} · ${normalizeSource(order) === 'cashier' ? 'Kasir' : 'Customer'}</div></div><div class="time">${formatTime(order.createdAt)}</div></div>
-        <ul class="order-items">${(order.items || []).map(item => `<li><b>${item.qty}×</b> ${esc(item.name)} <span style="float:right">${money(item.price * item.qty)}</span>${item.note ? `<div class="item-note">↳ ${esc(item.note)}</div>` : ''}</li>`).join('')}</ul>
+        <ul class="order-items">${(order.items || []).map(item => `<li><b>${item.qty}×</b> ${esc(item.name)} <span style="float:right">${money(item.lineTotal ?? item.price * item.qty)}</span>${item.note ? `<div class="item-note">↳ ${esc(item.note)}</div>` : ''}</li>`).join('')}</ul>
         ${order.generalNote ? `<div class="general-note"><b>Catatan umum:</b> ${esc(order.generalNote)}</div>` : ''}
         <div class="order-total"><span>Total</span><span>${money(order.total)}</span></div>
         <div class="actions">${actions}</div>

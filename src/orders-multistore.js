@@ -32,11 +32,18 @@ export async function createOrder(db, store, payload) {
 
   const items = validation.items.map(item => {
     const product = productById.get(item.menuId);
+    // products.price is the catalog reference price and may be sub-rupiah
+    // (migration 0060); lineTotal is always rounded to whole rupiah, and the
+    // stored unit_price snapshot is derived back from that exact lineTotal
+    // (not the raw catalog price) so it always multiplies back to it.
+    const catalogPrice = Number(product.price);
+    const lineTotal = Math.round(catalogPrice * item.qty);
     return {
       id: `item_${crypto.randomUUID()}`,
       menuId: item.menuId,
       name: product.name,
-      price: Number(product.price),
+      price: Math.round(lineTotal / item.qty),
+      lineTotal,
       qty: item.qty,
       note: item.note
     };
@@ -52,7 +59,7 @@ export async function createOrder(db, store, payload) {
     customerName: sanitizeText(payload?.customerName, 60) || 'Customer',
     tableLabel: '',
     generalNote: sanitizeText(payload?.generalNote, 240),
-    total: items.reduce((sum, item) => sum + item.price * item.qty, 0),
+    total: items.reduce((sum, item) => sum + item.lineTotal, 0),
     status: ORDER_STATUS.NEW,
     source: 'customer',
     drawerSessionId: null,

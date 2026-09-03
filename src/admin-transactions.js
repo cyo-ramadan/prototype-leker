@@ -69,7 +69,7 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   const kindClause = kindSet ? `AND kind IN (${[...kindSet].map(() => '?').join(', ')})` : '';
   const kindValues = kindSet ? [...kindSet] : [];
   const result = await db.prepare(`
-    WITH transaction_facts AS (
+    WITH pos_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,
              CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END AS description,
              CASE WHEN s.voided_at IS NULL THEN 'posted' ELSE 'voided' END AS status,
@@ -88,9 +88,15 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
              e.payment_method, e.drawer_session_id, e.cashier_id, c.employee_name,
              'EXPENSE', e.id, NULL
       FROM expenses e LEFT JOIN cashiers c ON c.id = e.cashier_id WHERE e.store_id = ?
-      UNION ALL
-      SELECT i.id, 'OTHER_INCOME', i.created_at, i.amount, i.description, 'posted', 'CASH',
-             i.drawer_session_id, i.cashier_id, c.employee_name, 'OTHER_INCOME', i.id, NULL
+    ),
+    -- D1's compound-SELECT term cap is 5 (not SQLite's usual 500) -- a single
+    -- 6-way UNION ALL fails outright on production D1 even though it runs
+    -- fine against the node:sqlite harness the test suite uses locally.
+    -- Splitting into two <=5-term CTEs combined by one more UNION ALL below
+    -- keeps every individual compound-select node under that cap.
+    other_facts AS (
+      SELECT i.id, 'OTHER_INCOME' AS kind, i.created_at AS occurred_at, i.amount, i.description, 'posted' AS status, 'CASH' AS payment_method,
+             i.drawer_session_id, i.cashier_id, c.employee_name AS cashier_name, 'OTHER_INCOME' AS reference_type, i.id AS reference_id, NULL AS payload_json
       FROM other_income i LEFT JOIN cashiers c ON c.id = i.cashier_id WHERE i.store_id = ?
       UNION ALL
       SELECT a.id, a.request_type, a.created_at, NULL, a.request_type,
@@ -103,6 +109,11 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
              LOWER(pr.status), '', pr.drawer_session_id, pr.created_by_id, c.employee_name,
              'PRODUCTION_RUN', pr.id, NULL
       FROM production_runs pr LEFT JOIN cashiers c ON c.id = pr.created_by_id WHERE pr.store_id = ?
+    ),
+    transaction_facts AS (
+      SELECT * FROM pos_facts
+      UNION ALL
+      SELECT * FROM other_facts
     )
     SELECT * FROM transaction_facts
     WHERE (? IS NULL OR occurred_at >= ?) AND (? IS NULL OR occurred_at <= ?)

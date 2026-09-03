@@ -10,6 +10,58 @@ const productPolicyUi = readFileSync(new URL('../public/admin-product-policy.js'
 const pimasatuUi = readFileSync(new URL('../public/pimasatu-ui.js', import.meta.url), 'utf8');
 const cashierPaymentMethods = readFileSync(new URL('../public/cashier-payment-methods.js', import.meta.url), 'utf8');
 
+function makeEl(tag) {
+  const listeners = {};
+  return {
+    tagName: tag, className: '', innerHTML: '',
+    classList: { add() {}, remove() {}, toggle() {} },
+    addEventListener(type, handler) { listeners[type] = handler; },
+    set onclick(handler) { listeners.click = handler; },
+    set onfocus(handler) { listeners.focus = handler; },
+    set oninput(handler) { listeners.input = handler; },
+    set onchange(handler) { listeners.change = handler; },
+    fire(type, event) { listeners[type]?.(event); },
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    style: {},
+    value: ''
+  };
+}
+
+async function mountPimasatu(options) {
+  const vm = await import('node:vm');
+  const host = makeEl('div');
+  const toggle = makeEl('button'), composer = makeEl('section'), search = makeEl('input'), results = makeEl('div'),
+    qty = makeEl('input'), price = makeEl('input'), total = makeEl('input'), amountToggle = makeEl('button'),
+    hint = makeEl('div'), linesHost = makeEl('div'), add = makeEl('button'), detailHead = makeEl('div');
+  const elements = {
+    '.pimasatu-toggle': toggle, '.pimasatu-composer': composer, '.pimasatu-search': search, '.pimasatu-results': results,
+    '.pimasatu-qty': qty, '.pimasatu-price': price, '.pimasatu-total': total, '.pimasatu-amount-toggle': amountToggle,
+    '.pimasatu-hint': hint, '.pimasatu-lines': linesHost, '.pimasatu-add': add, '.pimasatu-detail-head': detailHead
+  };
+  host.querySelector = selector => elements[selector] || null;
+
+  const source = pimasatuUi.replace('window.MAXIPimasatu', 'globalThis.MAXIPimasatu');
+  const context = vm.createContext({
+    document: { querySelector: () => null, createElement: () => makeEl('div') },
+    window: {}, globalThis: {}, Intl, console
+  });
+  vm.runInContext(source, context);
+
+  let addedLine = null;
+  const errors = [];
+  context.globalThis.MAXIPimasatu.create({
+    host,
+    items: [{ id: 1, name: 'Air Mineral', purchasePrice: 0.5 }],
+    getDefaultAmount: item => item.purchasePrice,
+    onAdd: line => { addedLine = line; },
+    onError: message => errors.push(message),
+    ...options
+  });
+
+  return { host, qty, price, total, amountToggle, results, add, errors, getAddedLine: () => addedLine };
+}
+
 test('Master Barang purchase price accepts sub-rupiah decimals and stores them scaled, never as float', () => {
   assert.equal(scaledPurchasePriceFromInput(0.5), 500_000, 'Rp0,5/ml must survive as an exact scaled integer');
   assert.equal(scaledPurchasePriceFromInput(583.333333), 583_333_333, 'up to 6 decimals must round half-up at the 7th digit');
@@ -33,16 +85,17 @@ test('Master Barang Harga Beli field no longer forces whole-rupiah step, and rea
   assert.match(productPolicyUi, /purchasePrice: Number\(String\(el\('productPurchasePrice'\)\.value\)\.trim\(\)\.replace\(',', '\.'\)\)/, 'comma must be normalized to a period before parsing');
 });
 
-test('Pembelian (Beli Bahan) enters total dibayar + qty (whole rupiah only) and derives per-unit cost, instead of asking for a typed decimal unit price', () => {
-  assert.match(pimasatuUi, /amountMode/, 'pimasatu must support a total-entry mode');
-  assert.match(pimasatuUi, /isTotalMode/);
+test('Pembelian (Beli Bahan) defaults to the classic harga-per-satuan field with a toggle to a locked total field', () => {
+  assert.match(pimasatuUi, /amountMode/, 'pimasatu must support a toggle-entry mode');
+  assert.match(pimasatuUi, /isToggleMode/);
+  assert.match(pimasatuUi, /pimasatu-amount-toggle/, 'must render the toggle button next to the locked field');
   const purchaseBlockStart = cashierPaymentMethods.indexOf("host: byId('purchasePimasatu')");
   const operationalBlockStart = cashierPaymentMethods.indexOf("host: byId('operationalPimasatu')");
   assert.ok(purchaseBlockStart > -1 && operationalBlockStart > -1);
   const purchaseBlock = cashierPaymentMethods.slice(purchaseBlockStart, purchaseBlockStart + 600);
   const operationalBlock = cashierPaymentMethods.slice(operationalBlockStart, operationalBlockStart + 600);
-  assert.match(purchaseBlock, /amountMode:\s*'total'/, 'Beli Bahan must collect total dibayar + qty, not a typed per-unit price');
-  assert.doesNotMatch(operationalBlock, /amountMode:\s*'total'/, 'Pengeluaran Operasional keeps its existing per-unit entry');
+  assert.match(purchaseBlock, /amountMode:\s*'toggle'/, 'Beli Bahan must offer the harga-per-satuan/total toggle');
+  assert.doesNotMatch(operationalBlock, /amountMode:\s*'toggle'/, 'Pengeluaran Operasional keeps its existing single-field entry');
 });
 
 test('Master Barang Harga Beli (reference field) still accepts Indonesian comma decimals for display/reference purposes', () => {
@@ -60,123 +113,44 @@ test('Master Barang save handler removes the legacy admin.js submit listener bef
   assert.ok(removeIndex < addIndex, 'the legacy listener must be removed before the new one is attached');
 });
 
-test('pimasatu comma-decimal parsing produces the correct scaled amount end to end', async () => {
-  const vm = await import('node:vm');
-  const sandbox = {
-    document: {
-      querySelector: () => null,
-      createElement: () => ({ style: {}, classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, querySelectorAll: () => [] })
-    },
-    window: {},
-    console
-  };
-  // Build a minimal fake host/DOM sufficient for MAXIPimasatu.create() to mount
-  // and let us drive the real .pimasatu-add click handler, proving "0,7" survives
-  // as 0.7 (not 1) end to end -- not just that the regex for replace() exists.
-  const elements = new Map();
-  function makeEl(tag) {
-    const listeners = {};
-    const el = {
-      tagName: tag,
-      className: '',
-      innerHTML: '',
-      classList: { add() {}, remove() {}, toggle() {} },
-      addEventListener(type, handler) { listeners[type] = handler; },
-      set onclick(handler) { listeners.click = handler; },
-      set onfocus(handler) { listeners.focus = handler; },
-      set oninput(handler) { listeners.input = handler; },
-      set onchange(handler) { listeners.change = handler; },
-      fire(type, event) { listeners[type]?.(event); },
-      querySelector: selector => elements.get(selector) || null,
-      querySelectorAll: () => [],
-      value: ''
-    };
-    return el;
-  }
-  const host = makeEl('div');
-  const toggle = makeEl('button'), composer = makeEl('section'), search = makeEl('input'), results = makeEl('div'),
-    qty = makeEl('input'), price = makeEl('input'), hint = makeEl('div'), linesHost = makeEl('div'), add = makeEl('button'), detailHead = makeEl('div');
-  host.innerHTML = '';
-  host.querySelector = selector => ({
-    '.pimasatu-toggle': toggle, '.pimasatu-composer': composer, '.pimasatu-search': search, '.pimasatu-results': results,
-    '.pimasatu-qty': qty, '.pimasatu-price': price, '.pimasatu-hint': hint, '.pimasatu-lines': linesHost,
-    '.pimasatu-add': add, '.pimasatu-detail-head': detailHead
-  }[selector] || null);
-
-  const source = pimasatuUi.replace('window.MAXIPimasatu', 'globalThis.MAXIPimasatu');
-  const context = vm.createContext({ document: sandbox.document, window: sandbox.window, globalThis: {}, Intl, console });
-  vm.runInContext(source, context);
-
-  let addedLine = null;
-  context.globalThis.MAXIPimasatu.create({
-    host,
-    items: [{ id: 1, name: 'Air Mineral' }],
-    allowDecimalAmount: true,
-    onAdd: line => { addedLine = line; },
-    onError: message => { throw new Error(`unexpected onError: ${message}`); }
-  });
+test('pimasatu toggle mode defaults to harga-per-satuan (comma-decimal capable), total field locked until toggled', async () => {
+  const { qty, price, total, results, add, errors, getAddedLine } = await mountPimasatu({ amountMode: 'toggle' });
 
   results.fire('click', { target: { closest: () => ({ dataset: { result: '1' } }) } });
+  assert.equal(price.value, '0.5', 'per-unit field must prefill from the Master Barang reference price, matching the classic behaviour kasir already knows');
+  assert.equal(total.disabled, true, 'total field must start locked');
+  assert.equal(price.disabled, false, 'per-unit field must start active');
+
   qty.value = '12000';
   price.value = '0,7';
   add.fire('click');
 
-  assert.ok(addedLine, 'line must be added, not rejected');
-  assert.equal(addedLine.unitAmount, 0.7, '"0,7" must parse as 0.7, not 0 or 1');
-  assert.equal(Math.round(addedLine.quantity * addedLine.unitAmount), 8400, '12.000ml x Rp0,7 must total Rp8.400');
+  assert.deepEqual(errors, []);
+  const line = getAddedLine();
+  assert.ok(line, 'line must be added, not rejected');
+  assert.equal(line.unitAmount, 0.7, '"0,7" must parse as 0.7, not 0 or 1');
+  assert.equal(Math.round(line.quantity * line.unitAmount), 8400, '12.000ml x Rp0,7 must total Rp8.400');
 });
 
-test('pimasatu amountMode "total" derives per-unit cost from a whole-rupiah total + qty, no decimal typing required', async () => {
-  const vm = await import('node:vm');
-  function makeEl(tag) {
-    const listeners = {};
-    return {
-      tagName: tag, className: '', innerHTML: '',
-      classList: { add() {}, remove() {}, toggle() {} },
-      addEventListener(type, handler) { listeners[type] = handler; },
-      set onclick(handler) { listeners.click = handler; },
-      set onfocus(handler) { listeners.focus = handler; },
-      set oninput(handler) { listeners.input = handler; },
-      set onchange(handler) { listeners.change = handler; },
-      fire(type, event) { listeners[type]?.(event); },
-      querySelectorAll: () => [],
-      value: ''
-    };
-  }
-  const host = makeEl('div');
-  const toggle = makeEl('button'), composer = makeEl('section'), search = makeEl('input'), results = makeEl('div'),
-    qty = makeEl('input'), price = makeEl('input'), hint = makeEl('div'), linesHost = makeEl('div'), add = makeEl('button'), detailHead = makeEl('div');
-  host.querySelector = selector => ({
-    '.pimasatu-toggle': toggle, '.pimasatu-composer': composer, '.pimasatu-search': search, '.pimasatu-results': results,
-    '.pimasatu-qty': qty, '.pimasatu-price': price, '.pimasatu-hint': hint, '.pimasatu-lines': linesHost,
-    '.pimasatu-add': add, '.pimasatu-detail-head': detailHead
-  }[selector] || null);
-
-  const source = pimasatuUi.replace('window.MAXIPimasatu', 'globalThis.MAXIPimasatu');
-  const context = vm.createContext({
-    document: { querySelector: () => null, createElement: () => makeEl('div') },
-    window: {}, globalThis: {}, Intl, console
-  });
-  vm.runInContext(source, context);
-
-  let addedLine = null;
-  context.globalThis.MAXIPimasatu.create({
-    host,
-    items: [{ id: 1, name: 'Air Mineral', purchasePrice: 0.5 }],
-    getDefaultAmount: item => item.purchasePrice,
-    amountMode: 'total',
-    onAdd: line => { addedLine = line; },
-    onError: message => { throw new Error(`unexpected onError: ${message}`); }
-  });
+test('pimasatu toggle mode: clicking the green toggle activates the total field and locks harga per satuan', async () => {
+  const { qty, price, total, amountToggle, results, add, errors, getAddedLine } = await mountPimasatu({ amountMode: 'toggle' });
 
   results.fire('click', { target: { closest: () => ({ dataset: { result: '1' } }) } });
-  assert.equal(price.value, '', 'a per-unit reference price must never be prefilled into a total-paid field');
+  amountToggle.fire('click');
+  assert.equal(total.disabled, false, 'total field must become active after the toggle is clicked');
+  assert.equal(price.disabled, true, 'per-unit field must become locked after the toggle is clicked');
 
   qty.value = '16000';
-  price.value = '8000';
+  total.value = '8000';
   add.fire('click');
 
-  assert.ok(addedLine, 'line must be added from a whole-rupiah total, no comma/decimal needed');
-  assert.equal(addedLine.unitAmount, 0.5, 'Rp8.000 for 16.000ml must derive Rp0,5/ml automatically');
-  assert.equal(Math.round(addedLine.quantity * addedLine.unitAmount), 8000, 'reconstructing qty x per-unit cost must land back on the exact entered total');
+  assert.deepEqual(errors, []);
+  const line = getAddedLine();
+  assert.ok(line, 'line must be added from a whole-rupiah total, no comma/decimal needed');
+  assert.equal(line.unitAmount, 0.5, 'Rp8.000 for 16.000ml must derive Rp0,5/ml automatically');
+  assert.equal(Math.round(line.quantity * line.unitAmount), 8000, 'reconstructing qty x per-unit cost must land back on the exact entered total');
+
+  // Adding a line resets the toggle back to the default (harga per satuan active).
+  assert.equal(total.disabled, true, 'total field must lock again after the line is added');
+  assert.equal(price.disabled, false, 'per-unit field must re-activate after the line is added');
 });

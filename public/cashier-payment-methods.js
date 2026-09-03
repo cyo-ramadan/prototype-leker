@@ -233,10 +233,10 @@
         getMeta: item => [item.productKindName, item.unitSymbol].filter(Boolean).join(' · '),
         getDefaultAmount: item => item.purchasePrice,
         itemLabel: 'Barang / bahan',
-        priceLabel: 'Total belanja barang ini',
+        priceLabel: 'Harga beli / unit',
         detailTitle: 'Detail Pembelian',
         priceEditable: true,
-        amountMode: 'total',
+        amountMode: 'toggle',
         onError: toast,
         onLinesChange: lines => {
           const total = lines.reduce((sum, line) => sum + Math.round(Number(line.quantity) * Number(line.unitAmount)), 0);

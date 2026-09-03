@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260821-pos-payment-core-v2-decimal-koma-fix',
+    '/cashier-payment-methods.js?v=20260821-pos-payment-core-v3-toggle-total',
     '/cashier-enhancements.js?v=20260816-purchase-autofill-v6'
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);

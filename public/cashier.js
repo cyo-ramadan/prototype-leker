@@ -63,6 +63,7 @@ async function init() {
   el('cashierDialogCancel').addEventListener('click', closeDialog);
   el('cashierDialogClose').addEventListener('click', closeDialog);
   el('cashierDialogForm').addEventListener('submit', submitDialog);
+  el('cashierDialog').addEventListener('cancel', () => { state.dialogSubmit = null; });
 
   if (state.token) {
     try {
@@ -359,6 +360,12 @@ function openDialog({ eyebrow = 'Laci', title, body, submitText = 'Simpan', onSu
   el('cashierDialogBody').innerHTML = body;
   el('cashierDialogSubmit').textContent = submitText;
   el('cashierDialogSubmit').classList.toggle('hidden', readOnly);
+  // The dialog element and its submit button are a single shared instance reused
+  // by every dialog type. submitDialog() re-enables it in a finally block, but a
+  // dialog dismissed via the native ESC key / backdrop click (a `cancel` event,
+  // handled below) skips that path entirely -- reset explicitly on every open so
+  // a stuck disabled state from a previous dialog can never carry over here.
+  el('cashierDialogSubmit').disabled = false;
   el('cashierDialogCancel').textContent = readOnly ? 'Tutup' : 'Batal';
   state.dialogSubmit = onSubmit;
   el('cashierDialog').showModal();

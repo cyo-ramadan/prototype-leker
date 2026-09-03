@@ -60,7 +60,7 @@ function stockDeltaStatements(db, product, delta, context) {
 async function loadSaleProducts(db, storeId, productIds) {
   const rows = await db.prepare(`
     SELECT p.id, p.name, p.base_unit_id, p.points_per_unit,
-           p.production_mode, p.linked_recipe_id, p.stock_tracking_enabled,
+           p.linked_recipe_id, p.stock_tracking_enabled,
            u.symbol AS unit_symbol,
            COALESCE(t.track_stock, 1) AS type_track_stock,
            COALESCE(t.can_produce, 1) AS can_produce,
@@ -81,7 +81,6 @@ async function loadSaleProducts(db, storeId, productIds) {
     unitId: row.base_unit_id,
     unitSymbol: row.unit_symbol || '',
     pointsPerUnit: Number(row.points_per_unit || 0),
-    productionMode: row.production_mode || 'STOCK',
     recipeLinkEnabled: Boolean(row.linked_recipe_id),
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
     trackStock: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
@@ -200,6 +199,27 @@ function validateTrackedProduction(product, components) {
   return { ok: true };
 }
 
+// Fulfillment mode is a per-sale-line choice, not a fixed Master Barang
+// setting (products.production_mode is legacy-only -- see product-policy.js)
+// -- a kasir picks Biasa/Dadakan per line, and it defaults to Dadakan
+// whenever the product has an active recipe link, per Bos Cyo's direction.
+// A product with no recipe link has nothing to auto-produce from, so it can
+// only ever be sold Biasa (STOCK).
+function resolveLineFulfillmentMode(product, requestedMode) {
+  const hasRecipe = Boolean(product.recipeLinkEnabled && product.recipe && product.recipe.outputQuantity >= 1);
+  if (!hasRecipe) {
+    if (requestedMode === 'DADAKAN') {
+      return { ok: false, status: 409, error: `${product.name} belum terhubung ke resep aktif, tidak bisa dijual Dadakan.` };
+    }
+    return { ok: true, mode: 'STOCK' };
+  }
+  if (requestedMode === 'STOCK') return { ok: true, mode: 'STOCK' };
+  if (!product.trackStock) {
+    return { ok: false, status: 409, error: `${product.name} mode Dadakan wajib mengaktifkan Track & enforce stok.` };
+  }
+  return { ok: true, mode: 'DADAKAN' };
+}
+
 export async function prepareSaleStockProduction(db, {
   storeId, drawerId, cashierId, saleId, lines, now
 }) {
@@ -225,18 +245,14 @@ export async function prepareSaleStockProduction(db, {
     return { ok: true, lines: enrichedLines, totalPoints, statements: [] };
   }
 
+  const lineModes = new Map();
   const recipeIds = [];
   for (const line of lines) {
     const product = products.get(Number(line.productId));
-    if (product.productionMode === 'DADAKAN') {
-      if (!product.recipeLinkEnabled || !product.recipe || product.recipe.outputQuantity < 1) {
-        return { ok: false, status: 409, error: `${product.name} mode DADAKAN tetapi belum terhubung ke resep aktif.` };
-      }
-      if (!product.trackStock) {
-        return { ok: false, status: 409, error: `${product.name} mode DADAKAN wajib mengaktifkan Track & enforce stok.` };
-      }
-      recipeIds.push(product.recipe.id);
-    }
+    const resolved = resolveLineFulfillmentMode(product, String(line.productionMode || '').toUpperCase());
+    if (!resolved.ok) return resolved;
+    lineModes.set(line, resolved.mode);
+    if (resolved.mode === 'DADAKAN') recipeIds.push(product.recipe.id);
   }
   const componentsByRecipe = await loadRecipeComponents(db, storeId, [...new Set(recipeIds)]);
   const statements = [];
@@ -245,17 +261,19 @@ export async function prepareSaleStockProduction(db, {
 
   for (const line of lines) {
     const product = products.get(Number(line.productId));
+    const mode = lineModes.get(line);
     const linePoints = product.pointsPerUnit * Number(line.quantity);
     totalPoints += linePoints;
     const enriched = {
       ...line,
+      productionMode: mode,
       pointsPerUnit: product.pointsPerUnit,
       linePoints,
       recipeId: null,
       productionRunId: null
     };
 
-    if (product.productionMode === 'DADAKAN') {
+    if (mode === 'DADAKAN') {
       const recipe = product.recipe;
       const components = componentsByRecipe.get(recipe.id) || [];
       if (!components.length) return { ok: false, status: 409, error: `Resep ${product.name} tidak memiliki komponen.` };
@@ -278,7 +296,7 @@ export async function prepareSaleStockProduction(db, {
       sourceKey: `SALE:${saleId}:${product.id}`,
       sourceType: 'SALE', sourceId: saleId,
       storeId, drawerId, actorRole: 'CASHIER', actorId: cashierId, now,
-      note: product.productionMode === 'DADAKAN' ? 'Penjualan setelah auto-produksi dadakan' : 'Penjualan stok'
+      note: mode === 'DADAKAN' ? 'Penjualan setelah auto-produksi dadakan' : 'Penjualan stok'
     }));
     enrichedLines.push(enriched);
   }

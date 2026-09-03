@@ -166,13 +166,28 @@ function renderMenu() {
   document.querySelectorAll('[data-add-product]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.addProduct), 1));
 }
 
+// Fulfillment mode for a sale line: Dadakan (auto-produksi dari resep yang
+// di-link, baru terjual) atau Biasa/STOCK (jual dari stok barang jadi).
+// Defaultnya Dadakan begitu barangnya punya resep terhubung -- kasir bisa
+// menggantinya ke Biasa per baris lewat toggle di draft.
+function defaultProductionMode(product) {
+  return product?.recipeLinkEnabled ? 'DADAKAN' : undefined;
+}
+
 function changeDraft(productId, delta) {
   const product = state.products.find(item => Number(item.id) === Number(productId));
   if (!product) return;
-  const current = state.draft.get(Number(productId)) || { product, quantity: 0 };
+  const current = state.draft.get(Number(productId)) || { product, quantity: 0, productionMode: defaultProductionMode(product) };
   const quantity = Math.max(0, Math.min(50, current.quantity + delta));
   if (!quantity) state.draft.delete(Number(productId));
-  else state.draft.set(Number(productId), { product, quantity });
+  else state.draft.set(Number(productId), { ...current, product, quantity });
+  renderDraft();
+}
+
+function toggleDraftProductionMode(productId) {
+  const line = state.draft.get(Number(productId));
+  if (!line || !line.product.recipeLinkEnabled) return;
+  line.productionMode = line.productionMode === 'STOCK' ? 'DADAKAN' : 'STOCK';
   renderDraft();
 }
 
@@ -184,12 +199,19 @@ function renderDraft() {
   el('draftTotal').textContent = rupiah(total);
   el('cashierDraftList').innerHTML = lines.length ? lines.map(line => `
     <div class="cashier-draft-row">
-      <div><strong>${escapeHtml(line.product.name)}</strong><small>${rupiah(line.product.price)} · ${rupiah(Number(line.product.price) * line.quantity)}</small></div>
+      <div><strong>${escapeHtml(line.product.name)}</strong><small>${rupiah(line.product.price)} · ${rupiah(Number(line.product.price) * line.quantity)}</small>${draftModeToggleHtml(line)}</div>
       <div class="cashier-draft-controls"><button type="button" data-draft-minus="${line.product.id}">−</button><span>${line.quantity}</span><button type="button" data-draft-plus="${line.product.id}">＋</button></div>
     </div>`).join('') : '<div class="cashier-draft-empty">Belum ada menu dipilih.</div>';
   document.querySelectorAll('[data-draft-minus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.draftMinus), -1));
   document.querySelectorAll('[data-draft-plus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.draftPlus), 1));
+  document.querySelectorAll('[data-draft-mode]').forEach(button => button.onclick = () => toggleDraftProductionMode(Number(button.dataset.draftMode)));
   el('processSaleBtn').disabled = !state.canWrite || !lines.length;
+}
+
+function draftModeToggleHtml(line) {
+  if (!line.product.recipeLinkEnabled) return '';
+  const isBiasa = line.productionMode === 'STOCK';
+  return `<button type="button" class="mini-btn" data-draft-mode="${line.product.id}" title="Klik untuk ganti">${isBiasa ? 'Biasa (stok jadi)' : 'Dadakan (produksi dari resep)'}</button>`;
 }
 
 async function loadDrawer() {
@@ -340,7 +362,7 @@ async function processSale() {
       body: JSON.stringify({
         customerName: el('saleCustomerName').value,
         note: el('saleNote').value,
-        items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity }))
+        items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity, productionMode: line.productionMode }))
       })
     });
     state.draft.clear();

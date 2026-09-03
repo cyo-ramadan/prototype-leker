@@ -302,13 +302,15 @@
     clearSelectedCustomer();
     state.draft.clear();
     for (const item of order.items || []) {
+      const live = (state.products || []).find(candidate => Number(candidate.id) === Number(item.menuId));
       const product = {
         id: Number(item.menuId),
         name: item.name,
         price: Number(item.price),
-        category: ''
+        category: '',
+        recipeLinkEnabled: Boolean(live?.recipeLinkEnabled)
       };
-      state.draft.set(product.id, { product, quantity: Number(item.qty) });
+      state.draft.set(product.id, { product, quantity: Number(item.qty), productionMode: defaultProductionMode(product) });
     }
     if (byId('saleCustomerName')) byId('saleCustomerName').value = order.customerName || '';
     if (byId('saleNote')) byId('saleNote').value = order.generalNote || '';
@@ -338,9 +340,10 @@
     const modalList = byId('saleDialogDraftList');
     if (modalList) {
       const lines = [...state.draft.values()].reverse();
-      modalList.innerHTML = lines.length ? lines.map(line => `<div class="cashier-draft-row"><div><strong>${esc(line.product.name)}</strong><small>${money(line.product.price)} · ${money(Number(line.product.price) * line.quantity)}</small></div><div class="cashier-draft-controls"><button type="button" data-modal-draft-minus="${line.product.id}">−</button><span>${line.quantity}</span><button type="button" data-modal-draft-plus="${line.product.id}">＋</button></div></div>`).join('') : '<div class="cashier-draft-empty">Belum ada barang dipilih.</div>';
+      modalList.innerHTML = lines.length ? lines.map(line => `<div class="cashier-draft-row"><div><strong>${esc(line.product.name)}</strong><small>${money(line.product.price)} · ${money(Number(line.product.price) * line.quantity)}</small>${draftModeToggleHtml(line)}</div><div class="cashier-draft-controls"><button type="button" data-modal-draft-minus="${line.product.id}">−</button><span>${line.quantity}</span><button type="button" data-modal-draft-plus="${line.product.id}">＋</button></div></div>`).join('') : '<div class="cashier-draft-empty">Belum ada barang dipilih.</div>';
       modalList.querySelectorAll('[data-modal-draft-minus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.modalDraftMinus), -1));
       modalList.querySelectorAll('[data-modal-draft-plus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.modalDraftPlus), 1));
+      modalList.querySelectorAll('[data-draft-mode]').forEach(button => button.onclick = () => toggleDraftProductionMode(Number(button.dataset.draftMode)));
       if (byId('saleDialogTotal')) byId('saleDialogTotal').textContent = money(lines.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0));
       if (byId('cashierDialogSubmit')) byId('cashierDialogSubmit').disabled = !state.canWrite || !lines.length;
     }
@@ -370,7 +373,7 @@
           customerName: byId('saleDialogCustomerName')?.value ?? byId('saleCustomerName').value,
           note: byId('saleDialogNote')?.value ?? byId('saleNote').value,
           sourceOrderId: draftOriginOrderId,
-          items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity }))
+          items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity, productionMode: line.productionMode }))
         })
       });
       if (payload.order) state.orders.unshift(payload.order);

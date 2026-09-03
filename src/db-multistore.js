@@ -57,9 +57,12 @@ async function loadItemsForOrders(db, storeId, orderIds) {
 
 export async function listProducts(db, storeId) {
   const result = await db.prepare(`
-    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data
+    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data,
+           CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS has_recipe_link
     FROM products p
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    LEFT JOIN manufacturing_recipes r
+      ON r.id = p.linked_recipe_id AND r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
     WHERE p.store_id = ?
       AND p.is_active = 1
       AND COALESCE(t.can_sell, 1) = 1
@@ -71,7 +74,10 @@ export async function listProducts(db, storeId) {
     price: costFromScaled(row.price),
     category: row.category,
     emoji: row.emoji,
-    imageData: row.image_data || ''
+    imageData: row.image_data || '',
+    // Lets Kasir offer a Biasa/Dadakan fulfillment choice per sale line for
+    // this item -- see prepareSaleStockProduction() in stock-production.js.
+    recipeLinkEnabled: Boolean(row.has_recipe_link)
   }));
 }
 

@@ -103,6 +103,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | **Mau menulis task baru buat agen lain** | Pakai skill `agent-task-brief` (`.claude/skills/`) — SOP + pagar wajib supaya agen yang ngoding tidak menebak sendiri |
 | **Mau menyimpulkan/melapor sesuatu sudah jalan, atau menyentuh data produksi** | Pakai skill `hana-cara-kerja` (`.claude/skills/`) — buktikan ke sumber primer dulu, jangan simpulkan dari dokumen/ingatan |
 | **Buntu cari jalur baca/tulis/deploy waktu ngoding atau nge-debug** | Pakai skill `jalur-akses-leker` (`.claude/skills/`) — peta endpoint per role, `/api/debug/*`, jebakan `?store=`, dan cara membuktikan sesuatu benar-benar live |
+| **Mau cek ada yang perlu Hana jawab/kerjakan di Workboard (MAXI Workboard, D1 `maxi-workboard-prototype`)** | Pakai skill `akses-workboard-hana` (`.claude/skills/`) — dua tabel terpisah (`issues` dan `tasks`) yang dua-duanya wajib dicek, jangan cuma yang datang lewat @mention |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 

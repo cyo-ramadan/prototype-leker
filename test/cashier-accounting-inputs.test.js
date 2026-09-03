@@ -100,7 +100,7 @@ test('purchase composer is mobile-first with compact Qty and invoice-like detail
 
 test('cashier mobile purchase assets are versioned so deployed layout changes bypass stale browser cache', () => {
   assert.match(cashierHtml, /cashier-pos\.css\?v=20260816-purchase-autofill-v6/);
-  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-autofill-v6/);
+  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260816-purchase-autofill-v7-data-button/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

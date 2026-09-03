@@ -58,7 +58,6 @@ async function init() {
   el('purchaseBtn').addEventListener('click', purchaseDialog);
   el('expenseBtn').addEventListener('click', () => moneyMovementDialog('expense'));
   el('otherIncomeBtn').addEventListener('click', () => moneyMovementDialog('income'));
-  el('drawerDetailsBtn').addEventListener('click', showDrawerDetails);
   el('processSaleBtn').addEventListener('click', processSale);
   el('cashierDialogCancel').addEventListener('click', closeDialog);
   el('cashierDialogClose').addEventListener('click', closeDialog);
@@ -456,25 +455,6 @@ function moneyMovementDialog(type) {
       return true;
     }
   });
-}
-
-async function showDrawerDetails() {
-  try {
-    const data = await api('/api/cashier/drawer/details');
-    const totals = data.totals || {};
-    const rows = [
-      ...(data.sales || []).map(item => ({ label: `Penjualan${item.customer_name ? ` · ${item.customer_name}` : ''}`, amount: Number(item.total_amount), sign: '+' })),
-      ...(data.otherIncome || []).map(item => ({ label: `Pendapatan lain · ${item.description}`, amount: Number(item.amount), sign: '+' })),
-      ...(data.purchases || []).map(item => ({ label: `Beli bahan · ${item.description}`, amount: Number(item.total_amount), sign: '−' })),
-      ...(data.expenses || []).map(item => ({ label: `Pengeluaran · ${item.description}`, amount: Number(item.amount), sign: '−' }))
-    ];
-    openDialog({
-      eyebrow: `${state.cashier.store.code} · ${data.drawer.cashierName}`,
-      title: 'Rincian Laci Aktif',
-      readOnly: true,
-      body: `<div class="cashier-dialog-summary"><div><span class="muted">Saldo awal</span><strong>${rupiah(data.drawer.openingAmount)}</strong></div><div><span class="muted">Penjualan</span><strong>${rupiah(totals.sales)}</strong></div><div><span class="muted">Beli bahan</span><strong>${rupiah(totals.purchases)}</strong></div><div><span class="muted">Pengeluaran</span><strong>${rupiah(totals.expenses)}</strong></div><div><span class="muted">Pendapatan lain</span><strong>${rupiah(totals.otherIncome)}</strong></div><div><span class="muted">Kas ekspektasi</span><strong>${rupiah(totals.expectedCash)}</strong></div></div><div class="cashier-detail-list">${rows.length ? rows.map(row => `<div class="cashier-detail-row"><span>${escapeHtml(row.label)}</span><b>${row.sign}${rupiah(row.amount)}</b></div>`).join('') : '<div class="muted">Belum ada transaksi pada laci ini.</div>'}</div>`
-    });
-  } catch (error) { toast(error.message); }
 }
 
 function formatTime(iso) {

@@ -50,7 +50,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, stockAdjustmentRows] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -93,6 +93,12 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       JOIN production_run_components c ON c.production_run_id = pr.id AND c.store_id = pr.store_id
       WHERE pr.store_id = ? AND pr.drawer_session_id = ? AND pr.status = 'POSTED'
       ORDER BY pr.created_at, c.component_product_name COLLATE NOCASE
+    `).bind(storeId, drawerId).all(),
+    db.prepare(`
+      SELECT payload_json
+      FROM approval_requests
+      WHERE store_id = ? AND drawer_session_id = ? AND request_type = 'GOODS_FLOW' AND posting_status = 'posted'
+      ORDER BY posted_at
     `).bind(storeId, drawerId).all()
   ]);
 
@@ -161,9 +167,17 @@ export async function buildDrawerReport(db, storeId, drawerId) {
     result: `${row.output_product_name} · ${number(row.total_output_quantity)} ${row.output_unit_symbol || ''}`.trim(),
     material: `${row.component_product_name} · ${number(row.component_quantity)} ${row.component_unit_symbol || ''}`.trim()
   }));
+  const stockAdjustments = (stockAdjustmentRows.results ?? [])
+    .map(row => { try { return JSON.parse(row.payload_json || '{}'); } catch { return null; } })
+    .filter(payload => payload?.purpose === 'STOCK_ADJUSTMENT')
+    .map(payload => ({
+      productName: payload.productName,
+      recordedStock: number(payload.currentQuantitySnapshot),
+      actualStock: number(payload.targetQuantity),
+      difference: number(payload.targetQuantity) - number(payload.currentQuantitySnapshot)
+    }));
   const promotions = [];
   const stockRemaining = [];
-  const stockAdjustments = [];
   const promotionTotal = 0;
   const realCashRevenue = cashSalesTotal - promotionTotal;
   const expectedCash = drawer.openingAmount + realCashRevenue + cashInTotal + operationalCashInTotal

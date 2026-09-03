@@ -27,6 +27,41 @@ function mapOwner(row) {
   } : null;
 }
 
+function mapTenant(row) {
+  return row ? { id: row.id, name: row.name, status: row.status, createdAt: row.created_at } : null;
+}
+
+function mapEntity(row) {
+  return row ? {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    tenantId: row.tenant_id ?? null,
+    tenantName: row.tenant_name ?? null,
+    createdAt: row.created_at
+  } : null;
+}
+
+async function listTenants(db) {
+  const rows = await db.prepare(`SELECT id, name, status, created_at FROM tenants ORDER BY name COLLATE NOCASE`).all();
+  return (rows.results ?? []).map(mapTenant);
+}
+
+// Entity's current tenant comes from the open (effective_to IS NULL) row in
+// entity_tenancy, per ADR-030 -- entities never stores tenant_id directly,
+// since that link moves on a customer merge and would turn the merge into a
+// rewrite of ownership history.
+async function listEntities(db) {
+  const rows = await db.prepare(`
+    SELECT e.id, e.name, e.status, e.created_at, et.tenant_id, t.name AS tenant_name
+    FROM entities e
+    LEFT JOIN entity_tenancy et ON et.entity_id = e.id AND et.effective_to IS NULL
+    LEFT JOIN tenants t ON t.id = et.tenant_id
+    ORDER BY e.name COLLATE NOCASE
+  `).all();
+  return (rows.results ?? []).map(mapEntity);
+}
+
 function mapStoreAdmin(row) {
   return row ? {
     id: row.id,
@@ -230,6 +265,44 @@ export async function handleOwnerApi(request, env, pathname) {
   const auth = await requireOwner(request, db);
   if (!auth.ok) return auth.response;
 
+  if (request.method === 'GET' && pathname === '/api/owner/tenants') {
+    return json({ tenants: await listTenants(db) });
+  }
+
+  if (request.method === 'POST' && pathname === '/api/owner/tenants') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload tenant tidak valid.' }, 400);
+    const name = text(body.value?.name, 80);
+    if (!name) return json({ error: 'Nama tenant wajib diisi.' }, 400);
+    const id = `tenant_${crypto.randomUUID()}`;
+    await db.prepare(`INSERT INTO tenants (id, name, status, created_at) VALUES (?, ?, 'ACTIVE', CURRENT_TIMESTAMP)`).bind(id, name).run();
+    return json({ ok: true, tenants: await listTenants(db) }, 201);
+  }
+
+  if (request.method === 'GET' && pathname === '/api/owner/entities') {
+    return json({ entities: await listEntities(db), tenants: await listTenants(db) });
+  }
+
+  if (request.method === 'POST' && pathname === '/api/owner/entities') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload entity tidak valid.' }, 400);
+    const name = text(body.value?.name, 80);
+    const tenantId = text(body.value?.tenantId, 80);
+    if (!name || !tenantId) return json({ error: 'Nama entity dan tenant wajib diisi.' }, 400);
+    const tenant = await db.prepare(`SELECT id FROM tenants WHERE id = ? AND status = 'ACTIVE'`).bind(tenantId).first();
+    if (!tenant) return json({ error: 'Tenant tidak ditemukan atau tidak aktif.' }, 400);
+    const entityId = `entity_${crypto.randomUUID()}`;
+    const tenancyId = `tnc_${crypto.randomUUID()}`;
+    await db.batch([
+      db.prepare(`INSERT INTO entities (id, name, status, created_at) VALUES (?, ?, 'ACTIVE', CURRENT_TIMESTAMP)`).bind(entityId, name),
+      db.prepare(`
+        INSERT INTO entity_tenancy (id, entity_id, tenant_id, effective_from, reason)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'Dibuat lewat panel Owner')
+      `).bind(tenancyId, entityId, tenantId)
+    ]);
+    return json({ ok: true, entities: await listEntities(db) }, 201);
+  }
+
   if (request.method === 'GET' && pathname === '/api/owner/stores') {
     const stores = await listStores(db, { includeInactive: true });
     return json({ owner: auth.owner, stores });
@@ -244,11 +317,16 @@ export async function handleOwnerApi(request, env, pathname) {
     if (code.length < 2 || !storeName) return json({ error: 'Kode dan nama gerai wajib diisi.' }, 400);
     const duplicate = await db.prepare('SELECT id FROM stores WHERE code = ?').bind(code).first();
     if (duplicate) return json({ error: 'Kode gerai sudah dipakai.' }, 409);
+    const entityId = body.value?.entityId ? text(body.value.entityId, 80) : null;
+    if (entityId) {
+      const entity = await db.prepare('SELECT id FROM entities WHERE id = ?').bind(entityId).first();
+      if (!entity) return json({ error: 'Entity tidak ditemukan.' }, 400);
+    }
     const id = `store_${crypto.randomUUID()}`;
     await db.prepare(`
-      INSERT INTO stores (id, code, store_name, address, logo_data, is_active)
-      VALUES (?, ?, ?, ?, '', 1)
-    `).bind(id, code, storeName, address).run();
+      INSERT INTO stores (id, code, store_name, address, logo_data, is_active, entity_id)
+      VALUES (?, ?, ?, ?, '', 1, ?)
+    `).bind(id, code, storeName, address, entityId).run();
     return json({ ok: true, store: await resolveStore(db, id, { includeInactive: true }) }, 201);
   }
 
@@ -266,11 +344,16 @@ export async function handleOwnerApi(request, env, pathname) {
     if (code.length < 2 || !storeName) return json({ error: 'Data gerai tidak valid.' }, 400);
     const duplicate = await db.prepare('SELECT id FROM stores WHERE code = ? AND id <> ?').bind(code, id).first();
     if (duplicate) return json({ error: 'Kode gerai sudah dipakai.' }, 409);
+    const entityId = body.value?.entityId === undefined ? current.entityId : (body.value.entityId ? text(body.value.entityId, 80) : null);
+    if (entityId) {
+      const entity = await db.prepare('SELECT id FROM entities WHERE id = ?').bind(entityId).first();
+      if (!entity) return json({ error: 'Entity tidak ditemukan.' }, 400);
+    }
     await db.prepare(`
       UPDATE stores
-      SET code = ?, store_name = ?, address = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+      SET code = ?, store_name = ?, address = ?, is_active = ?, entity_id = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).bind(code, storeName, address, isActive, id).run();
+    `).bind(code, storeName, address, isActive, entityId, id).run();
     return json({ ok: true, store: await resolveStore(db, id, { includeInactive: true }) });
   }
 

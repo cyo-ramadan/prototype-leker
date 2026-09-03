@@ -38,12 +38,39 @@
         <div id="ownerIdentity" class="owner-chip"></div>
       </div>
 
+      <section class="admin-card" style="margin-bottom:18px">
+        <div class="list-head"><div><h2>Structure level 0 · Tenant &amp; Entity</h2><div class="muted">Tenant = pelanggan MAXI yang berlangganan. Entity (Badan Usaha) = pemilik buku &amp; stok sendiri, bisa lebih dari satu gerai. Gerai baru boleh dikaitkan ke sebuah Entity di bawah.</div></div></div>
+        <div class="admin-grid two" style="margin-top:14px">
+          <div class="admin-card" style="box-shadow:none">
+            <form id="tenantCreateForm">
+              <h3>Buat tenant</h3>
+              <label class="admin-field">Nama tenant<input id="ownerTenantName" maxlength="80" placeholder="Contoh: PT Maxi Leker" required /></label>
+              <button class="primary-btn" type="submit">＋ Buat Tenant</button>
+            </form>
+            <div class="list-head" style="margin-top:14px"><h3>Daftar tenant</h3><span id="ownerTenantCount" class="master-count">0</span></div>
+            <div id="ownerTenantList" class="master-list"></div>
+          </div>
+          <div class="admin-card" style="box-shadow:none">
+            <form id="entityCreateForm">
+              <h3>Buat entity</h3>
+              <label class="admin-field">Nama entity<input id="ownerEntityName" maxlength="80" placeholder="Contoh: CV Leker Malang Raya" required /></label>
+              <label class="admin-field">Tenant pemilik<select id="ownerEntityTenant" required></select></label>
+              <button class="primary-btn" type="submit">＋ Buat Entity</button>
+              <p class="field-note">Entity belum bisa dipindah tenant dari panel ini -- pemindahan (merge) tetap operasi tersendiri per ADR-030.</p>
+            </form>
+            <div class="list-head" style="margin-top:14px"><h3>Daftar entity</h3><span id="ownerEntityCount" class="master-count">0</span></div>
+            <div id="ownerEntityList" class="master-list"></div>
+          </div>
+        </div>
+      </section>
+
       <div class="owner-layout">
         <form id="storeCreateForm" class="admin-card owner-create-card">
           <h2>Create gerai</h2>
           <label class="admin-field">Kode gerai<input id="ownerStoreCode" maxlength="16" placeholder="Contoh: G003" required /></label>
           <label class="admin-field">Nama gerai<input id="ownerStoreName" maxlength="80" placeholder="MAXI Leker Gerai 3" required /></label>
           <label class="admin-field">Alamat<textarea id="ownerStoreAddress" rows="3" maxlength="180"></textarea></label>
+          <label class="admin-field">Entity (Badan Usaha) <span class="muted">optional</span><select id="ownerStoreEntity"><option value="">Belum ditentukan</option></select></label>
           <button class="primary-btn" type="submit">＋ CREATE GERAI</button>
           <p class="field-note">Gerai baru dimulai dengan master kosong. Barang gerai lain tidak otomatis disalin.</p>
         </form>

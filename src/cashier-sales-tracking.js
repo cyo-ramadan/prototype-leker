@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
-import { requireOpenDrawer } from './cashier-drawer.js';
+import { requireDrawerOwner } from './cashier-drawer.js';
 import { getNextOrderSequence, getOrder, listProducts } from './db-multistore.js';
 import { buildOrderNo } from './orders-multistore.js';
 import { getJakartaBusinessDate, isoNow } from './time.js';
@@ -162,7 +162,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   if (request.method !== 'POST' || pathname !== '/api/cashier/sales') return null;
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
-  const ownership = await requireOpenDrawer(env.DB, auth.cashier);
+  const ownership = await requireDrawerOwner(env.DB, auth.cashier);
   if (!ownership.ok) return ownership.response;
 
   const body = await readJson(request);

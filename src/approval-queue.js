@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
-import { requireOpenDrawer } from './cashier-drawer.js';
+import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
 import { dispatchApprovedCashFlowToAccounting } from './accounting-cash-flow-bridge.js';
@@ -80,13 +80,13 @@ async function handleCashierApprovalQueue(request, env, pathname) {
   if (!auth.ok) return auth.response;
 
   if (request.method === 'GET' && isStockAdjustmentOptions) {
-    const drawerAuth = await requireOpenDrawer(env.DB, auth.cashier);
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
     return json({ products: await listStockAdjustmentOptions(env.DB, auth.cashier.store.id) });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/approval-requests') {
-    const drawerAuth = await requireOpenDrawer(env.DB, auth.cashier);
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload pengajuan tidak valid.' }, 400);
@@ -127,7 +127,7 @@ async function handleCashierApprovalQueue(request, env, pathname) {
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/approval-requests') {
-    const drawerAuth = await requireOpenDrawer(env.DB, auth.cashier);
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
     return json({ requests: await listRequests(env.DB, { storeId: auth.cashier.store.id, drawerId: drawerAuth.drawer.id, cashierId: auth.cashier.id }) });
   }

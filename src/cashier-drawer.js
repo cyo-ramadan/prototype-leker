@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { listProducts } from './db-multistore.js';
-import { requireCashier } from './cashier-auth.js';
+import { requireCashier, latestAttendanceStatus } from './cashier-auth.js';
 import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 
@@ -42,23 +42,12 @@ export async function getOpenDrawer(db, storeId) {
   return mapDrawer(row);
 }
 
-// Dua (atau lebih) kasir boleh aktif bareng di satu gerai selama laci sudah
-// dibuka -- yang exclusive cuma laci itu sendiri (satu OPEN drawer per store,
-// lihat getOpenDrawer). Kasir yang bukan pemegang laci tetap "bantu2": semua
-// endpoint transaksi (sale/purchase/expense/production/approval/...) memakai
-// requireOpenDrawer supaya bisa menulis, dan tetap menyimpan cashier_id milik
-// akun yang benar-benar bertindak (bukan diam-diam dialihkan ke pemegang
-// laci) -- lihat pemanggil createSale dkk. requireDrawerOwner sendiri sekarang
-// khusus dipakai di jalur yang memang harus tetap milik pemegang laci saja:
-// menutup laci (rekonsiliasi kas fisik jadi tanggung jawab satu orang).
-export async function requireOpenDrawer(db, cashier) {
-  const drawer = await getOpenDrawer(db, cashier.store.id);
-  if (!drawer) {
-    return { ok: false, response: json({ error: 'Laci kas belum dibuka.', code: 'DRAWER_NOT_OPEN' }, 409) };
-  }
-  return { ok: true, drawer };
-}
-
+// 2026-09-04, koreksi Bos Cyo: entry/transaksi tetap eksklusif milik kasir
+// yang membuka laci -- kasir lain yang login boleh presensi dan melihat
+// dashboard (read-only), tapi TIDAK boleh menulis transaksi sampai dia
+// sendiri yang membuka laci. Jangan ganti ini jadi "siapa pun kasir aktif
+// boleh menulis" lagi tanpa persetujuan eksplisit -- itu sudah pernah dicoba
+// dan dikoreksi balik hari yang sama.
 export async function requireDrawerOwner(db, cashier) {
   const drawer = await getOpenDrawer(db, cashier.store.id);
   if (!drawer) {
@@ -68,7 +57,7 @@ export async function requireDrawerOwner(db, cashier) {
     return {
       ok: false,
       response: json({
-        error: `Laci sedang dipegang ${drawer.cashierName}. Hanya pemegang laci yang bisa menutup laci ini.`,
+        error: `Laci sedang dibuka oleh ${drawer.cashierName}. Akun ini hanya mode lihat.`,
         code: 'DRAWER_OWNED_BY_OTHER',
         drawer
       }, 403)
@@ -137,12 +126,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/cashier/drawer') {
     const drawer = await getOpenDrawer(db, cashier.store.id);
-    return json({
-      cashier,
-      drawer,
-      canWrite: Boolean(drawer),
-      isDrawerOwner: Boolean(drawer && drawer.cashierId === cashier.id)
-    });
+    return json({ cashier, drawer, canWrite: Boolean(drawer && drawer.cashierId === cashier.id) });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/open') {
@@ -150,6 +134,11 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (existing) {
       if (existing.cashierId === cashier.id) return json({ ok: true, drawer: existing, canWrite: true });
       return json({ error: `Laci sudah dibuka oleh ${existing.cashierName}.`, code: 'DRAWER_ALREADY_OPEN', drawer: existing }, 409);
+    }
+    // Bos Cyo 2026-09-04: cuma kasir yang sudah presensi masuk yang boleh
+    // buka laci dan jadi penanggung jawabnya.
+    if (await latestAttendanceStatus(db, cashier.id) !== 'in') {
+      return json({ error: 'Presensi masuk dulu sebelum buka laci.', code: 'PRESENSI_REQUIRED' }, 403);
     }
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload buka laci tidak valid.' }, 400);
@@ -244,7 +233,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
   ].includes(pathname);
   if (!writeRoute) return null;
 
-  const ownership = await requireOpenDrawer(db, cashier);
+  const ownership = await requireDrawerOwner(db, cashier);
   if (!ownership.ok) return ownership.response;
   const drawer = ownership.drawer;
 

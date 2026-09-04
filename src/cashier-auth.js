@@ -9,7 +9,7 @@ const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-
 // Presensi masuk/keluar dianggap toggle state, bukan penanda per-hari-kalender
 // (menghindari ambiguitas timezone gerai): status "in" berlaku sampai kasir
 // eksplisit presensi keluar lagi lewat Portal Staf.
-async function latestAttendanceStatus(db, cashierId) {
+export async function latestAttendanceStatus(db, cashierId) {
   const row = await db.prepare(`
     SELECT attendance_type FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT 1
   `).bind(cashierId).first();

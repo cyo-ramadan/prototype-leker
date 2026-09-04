@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
-import { requireOpenDrawer } from './cashier-drawer.js';
+import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
 import { handleCashierOperationalExpenseApi } from './cashier-operational-expense.js';
 import { resolvePosPaymentMethod } from './pos-payment-methods.js';
@@ -176,7 +176,7 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
     }
   }
   if (request.method !== 'POST' || pathname !== '/api/cashier/purchases') return null;
-  const ownership = await requireOpenDrawer(env.DB, cashier);
+  const ownership = await requireDrawerOwner(env.DB, cashier);
   if (!ownership.ok) return ownership.response;
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload pembelian tidak valid.' }, 400);

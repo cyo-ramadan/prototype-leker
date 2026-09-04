@@ -6,14 +6,16 @@ import { handleCashierDrawerApi } from '../src/cashier-drawer.js';
 import { handleCashierAuthApi } from '../src/cashier-auth.js';
 import { hashCredential } from '../src/owner-auth.js';
 
-// 2026-09-04, Bos Cyo: two cashiers of the same store may be logged in at
-// once. The drawer itself stays exclusive (one OPEN drawer per store), but a
-// second cashier who is NOT the drawer opener should still be able to help
-// with real transactions instead of being forced read-only -- only the
-// drawer opener (penanggung jawab) can close it. Workflow after login is
-// also now supposed to require presensi masuk first. These tests exercise
-// both changes against a real migrated in-memory DB, not just source-string
-// assertions, since this touches authorization and actor attribution.
+// 2026-09-04, Bos Cyo: two cashiers of the same store may log in and presensi
+// (attendance) at the same time -- that part was never blocked. What stays
+// exclusive is ENTRY: only the cashier who opened the drawer may write
+// transactions; a cashier who did not open it stays read-only (unchanged
+// design, first attempt this session wrongly loosened it and was corrected).
+// What's new is a three-state login workflow: (1) logged in only, (2) logged
+// in + presensi masuk, (3) logged in + presensi + opened the drawer -- and
+// opening the drawer now requires presensi to have happened first. These
+// tests exercise all of that against a real migrated in-memory DB, not just
+// source-string assertions, since this touches authorization.
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
@@ -58,6 +60,13 @@ async function seedCashier(db, storeId, username, employeeName) {
   return { id, token };
 }
 
+function markPresensiIn(db, cashierId, storeId, at = '2026-09-04T01:00:00.000Z') {
+  db.prepare(`
+    INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at)
+    VALUES (?, ?, ?, 'in', x'00', 'image/jpeg', ?)
+  `).run(`att_${cashierId}_${at}`, cashierId, storeId, at);
+}
+
 function request(pathname, { token, method = 'GET', body } = {}) {
   return new Request(`https://example.test${pathname}`, {
     method,
@@ -69,11 +78,37 @@ function request(pathname, { token, method = 'GET', body } = {}) {
   });
 }
 
-test('helper cashier can write while another cashier holds the drawer, attributed to their own account, but only the opener can close it', async () => {
+test('a cashier must presensi masuk before opening the drawer', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = await seedCashier(db, 'store_001', 'belumpresensi', 'Kasir Belum Presensi');
+    const env = { DB: new D1Database(db) };
+
+    const blockedRes = await handleCashierDrawerApi(
+      request('/api/cashier/drawer/open', { token: cashier.token, method: 'POST', body: { openingAmount: 100000 } }),
+      env, '/api/cashier/drawer/open'
+    );
+    assert.equal(blockedRes.status, 403);
+    assert.equal((await blockedRes.json()).code, 'PRESENSI_REQUIRED');
+
+    markPresensiIn(db, cashier.id, 'store_001');
+    const openRes = await handleCashierDrawerApi(
+      request('/api/cashier/drawer/open', { token: cashier.token, method: 'POST', body: { openingAmount: 100000 } }),
+      env, '/api/cashier/drawer/open'
+    );
+    assert.equal(openRes.status, 201, 'after presensi masuk, opening the drawer must succeed');
+  } finally {
+    db.close();
+  }
+});
+
+test('only the drawer opener can write transactions; a second logged-in and presensi-ed cashier stays read-only', async () => {
   const db = migratedDatabase();
   try {
     const owner = await seedCashier(db, 'store_001', 'penanggungjawab', 'Kasir Penanggung Jawab');
-    const helper = await seedCashier(db, 'store_001', 'bantu', 'Kasir Bantu');
+    const other = await seedCashier(db, 'store_001', 'kasirlain', 'Kasir Lain');
+    markPresensiIn(db, owner.id, 'store_001');
+    markPresensiIn(db, other.id, 'store_001');
     const env = { DB: new D1Database(db) };
 
     const openRes = await handleCashierDrawerApi(
@@ -82,43 +117,31 @@ test('helper cashier can write while another cashier holds the drawer, attribute
     );
     assert.equal(openRes.status, 201);
 
-    const helperDrawer = await (await handleCashierDrawerApi(request('/api/cashier/drawer', { token: helper.token }), env, '/api/cashier/drawer')).json();
-    assert.equal(helperDrawer.canWrite, true, 'helper must not be forced read-only anymore');
-    assert.equal(helperDrawer.isDrawerOwner, false, 'helper is not the responsible party');
+    // the other cashier logged in and presensi-ed fine, but is still read-only for entry
+    const otherDrawer = await (await handleCashierDrawerApi(request('/api/cashier/drawer', { token: other.token }), env, '/api/cashier/drawer')).json();
+    assert.equal(otherDrawer.canWrite, false, 'a cashier who did not open the drawer stays read-only');
 
-    const ownerDrawer = await (await handleCashierDrawerApi(request('/api/cashier/drawer', { token: owner.token }), env, '/api/cashier/drawer')).json();
-    assert.equal(ownerDrawer.canWrite, true);
-    assert.equal(ownerDrawer.isDrawerOwner, true);
-
-    const expenseRes = await handleCashierDrawerApi(
-      request('/api/cashier/expenses', { token: helper.token, method: 'POST', body: { description: 'Beli es batu', amount: 15000 } }),
+    const blockedExpenseRes = await handleCashierDrawerApi(
+      request('/api/cashier/expenses', { token: other.token, method: 'POST', body: { description: 'Beli es batu', amount: 15000 } }),
       env, '/api/cashier/expenses'
     );
-    assert.equal(expenseRes.status, 201);
-    const expenseBody = await expenseRes.json();
-    const expenseRow = db.prepare('SELECT cashier_id, drawer_session_id FROM expenses WHERE id = ?').get(expenseBody.id);
-    assert.equal(expenseRow.cashier_id, helper.id, 'transaction stays attributed to the acting cashier, not the drawer owner');
-    assert.equal(expenseRow.drawer_session_id, ownerDrawer.drawer.id, 'transaction still links to the one shared drawer session for reconciliation');
+    assert.equal(blockedExpenseRes.status, 403);
+    assert.equal((await blockedExpenseRes.json()).code, 'DRAWER_OWNED_BY_OTHER');
 
-    const helperCloseRes = await handleCashierDrawerApi(
-      request('/api/cashier/drawer/close', { token: helper.token, method: 'POST', body: { closingAmount: 100000 } }),
-      env, '/api/cashier/drawer/close'
+    // the owner can write normally
+    const ownerExpenseRes = await handleCashierDrawerApi(
+      request('/api/cashier/expenses', { token: owner.token, method: 'POST', body: { description: 'Beli es batu', amount: 15000 } }),
+      env, '/api/cashier/expenses'
     );
-    assert.equal(helperCloseRes.status, 403);
-    assert.equal((await helperCloseRes.json()).code, 'DRAWER_OWNED_BY_OTHER');
+    assert.equal(ownerExpenseRes.status, 201);
 
+    // and a second drawer for the store is still rejected outright
     const secondOpenRes = await handleCashierDrawerApi(
-      request('/api/cashier/drawer/open', { token: helper.token, method: 'POST', body: { openingAmount: 50000 } }),
+      request('/api/cashier/drawer/open', { token: other.token, method: 'POST', body: { openingAmount: 50000 } }),
       env, '/api/cashier/drawer/open'
     );
-    assert.equal(secondOpenRes.status, 409, 'the drawer itself stays exclusive -- only opening/closing it, not writing, becomes shared');
+    assert.equal(secondOpenRes.status, 409);
     assert.equal((await secondOpenRes.json()).code, 'DRAWER_ALREADY_OPEN');
-
-    const ownerCloseRes = await handleCashierDrawerApi(
-      request('/api/cashier/drawer/close', { token: owner.token, method: 'POST', body: { closingAmount: 115000 } }),
-      env, '/api/cashier/drawer/close'
-    );
-    assert.equal(ownerCloseRes.status, 200);
   } finally {
     db.close();
   }
@@ -133,10 +156,7 @@ test('cashier me/login report attendance status derived from the latest staff_at
     const beforeCheckin = await (await handleCashierAuthApi(request('/api/cashier/me', { token: cashier.token }), env, '/api/cashier/me')).json();
     assert.equal(beforeCheckin.attendanceStatus, 'out', 'no attendance recorded yet means not checked in');
 
-    db.prepare(`
-      INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at)
-      VALUES ('att_in', ?, 'store_001', 'in', x'00', 'image/jpeg', '2026-09-04T01:00:00.000Z')
-    `).run(cashier.id);
+    markPresensiIn(db, cashier.id, 'store_001');
     const afterCheckin = await (await handleCashierAuthApi(request('/api/cashier/me', { token: cashier.token }), env, '/api/cashier/me')).json();
     assert.equal(afterCheckin.attendanceStatus, 'in');
 
@@ -155,6 +175,15 @@ test('login response also carries attendanceStatus so the client can gate right 
   const authSource = readFileSync(new URL('../src/cashier-auth.js', import.meta.url), 'utf8');
   assert.match(authSource, /attendanceStatus: await latestAttendanceStatus\(db, row\.id\)/);
   assert.match(authSource, /attendanceStatus: await latestAttendanceStatus\(db, auth\.cashier\.id\)/);
+});
+
+test('opening the drawer is gated on presensi masuk, using the same attendance helper as login/me', () => {
+  const drawerSource = readFileSync(new URL('../src/cashier-drawer.js', import.meta.url), 'utf8');
+  assert.match(drawerSource, /latestAttendanceStatus\(db, cashier\.id\) !== 'in'/);
+  assert.match(drawerSource, /PRESENSI_REQUIRED/);
+  // entry stays exclusive to the drawer opener -- this must never come back
+  // without an explicit new instruction, see the comment above requireDrawerOwner.
+  assert.doesNotMatch(drawerSource, /requireOpenDrawer/);
 });
 
 test('cashier page gates the dashboard behind a mandatory presensi masuk step after login', () => {

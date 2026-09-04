@@ -26,7 +26,7 @@ test('transaction permit migration persists approval, execution, Accounting and 
 });
 
 test('cashier request snapshots the transaction and Admin ACC routes to deterministic domain executor', () => {
-  assert.match(apiSource, /requireOpenDrawer/);
+  assert.match(apiSource, /requireDrawerOwner/);
   assert.match(apiSource, /subject_snapshot_json/);
   assert.match(apiSource, /approval_status = 'pending_approval'/);
   assert.match(apiSource, /executeTransactionCorrection/);

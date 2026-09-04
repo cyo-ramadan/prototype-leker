@@ -308,50 +308,51 @@ The old helper remains only for operational fact kinds that have not yet migrate
 
 Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Setoran dan Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
 
-### Active: presensi masuk wajib sebelum dashboard kasir, dan drawer sharing (2026-09-04)
+### Active: presensi wajib sebelum buka laci, tiga state login kasir (2026-09-04)
 
-Dua akun kasir gerai yang sama boleh login bersamaan (tidak pernah diblok sejak awal — satu
-kredensial memang punya satu sesi server, tapi itu tidak mencegah akun BERBEDA login bareng).
-Yang exclusive tetap satu hal saja: satu OPEN `cash_drawer_sessions` per gerai
-(`idx_cash_drawer_one_open_per_store`). Sebelum perubahan ini, `requireDrawerOwner` memblok
-TOTAL semua penulisan (sale/purchase/expense/production/approval-request/ubah status order/dsb)
-untuk kasir mana pun yang bukan pemegang laci persis — read-only penuh. Dilaporkan lewat
-Workboard (`tsk_0e79e1a9`, `tsk_4868f56f`, CS Pendem baru login lalu diblok "laci dipegang kasir
-pendem" saat mau input Purchase/Sale) dan lewat instruksi eksplisit Bos Cyo: kasir kedua yang
-login seharusnya tetap bisa "bantu2" bertransaksi, bukan penanggung jawab laci.
+Dua akun kasir gerai yang sama boleh login DAN presensi bersamaan (tidak pernah diblok sejak
+awal — satu kredensial memang punya satu sesi server, tapi itu tidak mencegah akun BERBEDA
+login bareng). Yang tetap eksklusif -- **tidak berubah dan sengaja tidak diubah** -- adalah
+ENTRY: hanya kasir yang membuka laci yang boleh menulis transaksi (`requireDrawerOwner`,
+`DRAWER_OWNED_BY_OTHER` untuk yang bukan pemegang laci persis). Percobaan pertama sesi ini
+sempat melonggarkan ini jadi "siapa pun kasir aktif boleh menulis" berdasarkan salah tangkap
+laporan Workboard (`tsk_0e79e1a9`, `tsk_4868f56f`, CS Pendem diblok "laci dipegang kasir pendem"
+saat mau input Purchase/Sale) — **dikoreksi balik hari yang sama oleh Bos Cyo**: yang salah
+bukan aturan entry-nya, tapi kasir lain waktu itu belum pernah dapat jalur buat presensi dan
+tidak jelas boleh apa saja sebelum buka laci sendiri.
 
-Perbaikan: `src/cashier-drawer.js` sekarang punya dua fungsi terpisah —
-`requireOpenDrawer` (laci store harus OPEN, siapa pun kasir store itu boleh menulis) dipakai di
-semua endpoint transaksi kasir (sale/purchase/expense/other-income/production/approval-requests/
-transaction-void-permit/order status/reset), dan `requireDrawerOwner` (harus persis
-`cashier_id` pemegang laci) sekarang HANYA dipakai di `/api/cashier/drawer/close` — menutup laci
-(rekonsiliasi kas fisik) tetap tanggung jawab satu orang. Atribusi transaksi kasir bantu tetap
-`cashier_id` miliknya sendiri (bukan diam-diam dialihkan ke pemegang laci); `drawer_session_id`
-tetap merujuk laci yang sama sehingga laporan tutup laci (`buildDrawerReport`, dikelompokkan per
-`drawer_session_id`, bukan per `cashier_id`) sudah otomatis benar tanpa perubahan. `GET
-/api/cashier/drawer` dan `/api/cashier/workspace` sekarang membalas dua field: `canWrite`
-(true kalau ADA laci open, siapa pun pemegangnya) dan `isDrawerOwner` (true kalau akun ini persis
-pemegangnya) — UI kasir (`public/cashier.js`) pakai `isDrawerOwner` untuk badge "WRITE MODE" vs
-"MODE BANTU" dan untuk sembunyikan tombol Tutup Laci dari kasir yang bukan penanggung jawab.
+Model yang benar, tiga state akun kasir yang login:
+
+1. **Login saja** — belum presensi, dashboard kasir (`#cashierDashboard`) belum ditampilkan.
+2. **Login + presensi masuk** — dashboard sudah bisa dilihat; kalau laci gerai masih kosong,
+   kasir ini sekarang boleh membukanya (baru boleh setelah presensi -- itu yang berubah). Kalau
+   laci gerai sudah dipegang kasir lain, tetap read-only seperti sebelumnya.
+3. **Login + presensi + buka laci sendiri** — write mode penuh, sama seperti desain lama.
+
+Implementasi: `src/cashier-auth.js` expose `latestAttendanceStatus(db, cashierId)` (dipakai juga
+oleh `/api/cashier/me` dan `/login` buat field `attendanceStatus`, toggle `'in'`/`'out'`
+berdasarkan baris `staff_attendance` terakhir milik kasir itu, bukan penanda per-hari-kalender —
+sengaja, supaya tidak perlu menebak timezone gerai). `src/cashier-drawer.js`'s
+`POST /api/cashier/drawer/open` sekarang menolak (`403 PRESENSI_REQUIRED`) kalau
+`latestAttendanceStatus` belum `'in'`. Endpoint transaksi (sale/purchase/expense/production/
+approval-request/dll) semuanya tetap pakai `requireDrawerOwner` seperti sebelumnya — TIDAK ada
+`requireOpenDrawer` atau mode "bantu" di kode ini; kalau ada yang menemukan sisa referensi itu,
+itu bug regresi dari percobaan pertama yang sudah dikoreksi, bukan desain final.
 
 Workflow login juga berubah: setelah login, kasir sekarang wajib presensi masuk (foto lewat
 `CameraSnapshotModal`, endpoint `POST /api/staff/attendance` yang sudah ada sejak Portal Staf)
-sebelum dashboard kasir (`#cashierDashboard`) ditampilkan — sebelumnya presensi murni opsional
-lewat halaman Portal Staf terpisah (`/staff`), tidak pernah dipaksa. `public/cashier-presensi-gate.js`
-(dimuat setelah `cashier-workspace.js`) membungkus `openDashboard` yang sedang aktif: setiap kali
-dipanggil, dia cek ulang `GET /api/cashier/me` (sekarang membalas field `attendanceStatus`, dari
-baris `staff_attendance` terakhir milik kasir itu — `'in'` kalau presensi terakhirnya masuk,
-`'out'` kalau belum pernah atau presensi terakhirnya keluar), dan hanya lanjut ke dashboard asli
-kalau statusnya `'in'`; kalau belum, tampilkan `#cashierPresensiGate` dulu. Status presensi ini
-toggle in/out berdasarkan urutan baris terakhir, bukan penanda per-hari-kalender — sengaja,
-supaya tidak perlu menebak timezone gerai.
+sebelum dashboard kasir ditampilkan — sebelumnya presensi murni opsional lewat halaman Portal
+Staf terpisah (`/staff`), tidak pernah dipaksa. `public/cashier-presensi-gate.js` (dimuat
+setelah `cashier-workspace.js`) membungkus `openDashboard` yang sedang aktif: setiap kali
+dipanggil, dia cek ulang `GET /api/cashier/me`, dan hanya lanjut ke dashboard asli kalau
+`attendanceStatus === 'in'`; kalau belum, tampilkan `#cashierPresensiGate` dulu.
 
 Test runtime (bukan cuma cek string source) ada di
-`test/cashier-drawer-helper-and-presensi.test.js`: kasir bantu berhasil menulis expense dengan
-`cashier_id` miliknya sendiri sementara laci masih dipegang kasir lain, kasir bantu ditolak saat
-mencoba menutup laci (`403 DRAWER_OWNED_BY_OTHER`), laci kedua tetap ditolak dibuka
-(`409 DRAWER_ALREADY_OPEN`, exclusivity laci tidak berubah), dan `attendanceStatus` di
-`/api/cashier/me` mengikuti baris `staff_attendance` terakhir yang sebenarnya di-insert ke DB.
+`test/cashier-drawer-helper-and-presensi.test.js`: buka laci ditolak `403 PRESENSI_REQUIRED`
+sebelum presensi lalu berhasil sesudahnya, kasir kedua yang sudah login+presensi tetap ditolak
+`403 DRAWER_OWNED_BY_OTHER` saat mencoba menulis expense, laci kedua tetap ditolak dibuka
+(`409 DRAWER_ALREADY_OPEN`), dan `attendanceStatus` di `/api/cashier/me` mengikuti baris
+`staff_attendance` terakhir yang sebenarnya di-insert ke DB.
 
 ## Staff session dan duplicate tab
 
@@ -445,4 +446,4 @@ history snapshots `entity_id` at write time (migration 0046) and still points at
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the drawer-sharing model (`requireOpenDrawer` vs `requireDrawerOwner`) or the mandatory post-login presensi gate change shape.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape.

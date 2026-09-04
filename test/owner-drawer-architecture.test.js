@@ -35,28 +35,18 @@ test('drawer and transaction schema are isolated by store', async () => {
   assert.match(migration, /'owner'/);
 });
 
-test('drawer owner alone can close it, but any active cashier of the store may write while it stays open', async () => {
-  // 2026-09-04, Bos Cyo: two cashiers of the same store may be logged in at
-  // once; the drawer is still exclusive (one OPEN drawer per store), but a
-  // second cashier is now allowed to help with real transactions instead of
-  // being forced read-only -- only opening/closing the drawer stays tied to
-  // the original opener. requireOpenDrawer (no ownership check) now gates
-  // the write routes; requireDrawerOwner (DRAWER_OWNED_BY_OTHER, exact
-  // cashierId match) is kept but scoped to closing the drawer only.
+test('only drawer owner can perform cashier writes', async () => {
   const [drawerSource, indexSource] = await Promise.all([
     read('src/cashier-drawer.js'),
     read('src/index.js')
   ]);
-  assert.match(drawerSource, /export async function requireOpenDrawer/);
-  assert.match(drawerSource, /export async function requireDrawerOwner/);
   assert.match(drawerSource, /DRAWER_OWNED_BY_OTHER/);
   assert.match(drawerSource, /drawer\.cashierId !== cashier\.id/);
   assert.match(drawerSource, /\/api\/cashier\/sales/);
   assert.match(drawerSource, /\/api\/cashier\/purchases/);
   assert.match(drawerSource, /\/api\/cashier\/expenses/);
   assert.match(drawerSource, /\/api\/cashier\/other-income/);
-  assert.match(indexSource, /requireOpenDrawer\(env\.DB, auth\.cashier\)/);
-  assert.doesNotMatch(indexSource, /requireDrawerOwner\(env\.DB, auth\.cashier\)/);
+  assert.match(indexSource, /requireDrawerOwner\(env\.DB, auth\.cashier\)/);
 });
 
 test('cashier page has product menu, draft, and drawer controls', async () => {

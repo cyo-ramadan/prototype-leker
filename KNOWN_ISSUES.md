@@ -437,17 +437,17 @@ default kosong kalau tidak diisi (pola sama dengan `closing_note`), dan wiring U
 dialog Buka Laci, penomoran `Laci #N`, kedua label keterangan) diverifikasi lewat regex terhadap
 source file yang sebenarnya, bukan diasumsikan.
 
-### Active: saldo awal laci tetap entry manual, selisih auto-permit ke Approval Queue (2026-09-04)
+### Active: saldo awal laci tetap entry manual, selisih auto-permit ke Approval Queue, ACC langsung posting jurnal (2026-09-04)
 
 Bos Cyo sempat mempertimbangkan saldo awal laci jadi read-only (otomatis lanjut dari saldo akhir
 laci sebelumnya), tapi memutuskan tetap entry manual -- dan kalau nominalnya tidak sama dengan
 saldo akhir laci sebelumnya di gerai yang sama, otomatis dibuatkan pengajuan ke Approval Queue
 yang sudah ada untuk dicek Admin/Owner. **Laci tetap kebuka baik ada selisih atau tidak -- ini
-murni flag, tidak pernah memblokir buka laci.** Pembanding yang dipakai: `closing_amount` laci
-CLOSED terakhir di gerai itu (bukan saldo kas dari Akuntansi/ledger -- dua-duanya biasanya sama,
-tapi kalau nanti sengaja mau dibandingkan ke ledger Akuntansi juga, itu perubahan lain, bukan ini).
-Kalau belum pernah ada laci yang ditutup di gerai itu (laci pertama), tidak ada pembanding sama
-sekali, jadi tidak pernah bikin permit.
+tidak pernah memblokir buka laci.** Pembanding yang dipakai: `closing_amount` laci CLOSED terakhir
+di gerai itu (bukan saldo kas dari Akuntansi/ledger -- dua-duanya biasanya sama, tapi kalau nanti
+sengaja mau dibandingkan ke ledger Akuntansi juga, itu perubahan lain, bukan ini). Kalau belum
+pernah ada laci yang ditutup di gerai itu (laci pertama), tidak ada pembanding sama sekali, jadi
+tidak pernah bikin permit.
 
 **Kenapa lewat `CASH_FLOW` + `purpose`, bukan `request_type` baru:** `approval_requests.request_type`
 punya SQLite CHECK constraint yang cuma mengizinkan `'CASH_FLOW'`, `'GOODS_FLOW'`, `'ASSET'` --
@@ -458,15 +458,34 @@ sudah lama membedakan Penyesuaian Stok dari Arus Barang biasa lewat `payload.pur
 'STOCK_ADJUSTMENT'`, bukan lewat `request_type` terpisah. Permit selisih saldo awal ini mengikuti
 pola yang sama persis: `request_type = 'CASH_FLOW'`, `payload.purpose = 'DRAWER_OPENING_DISCREPANCY'`.
 
-**Kenapa ini TIDAK memposting apa pun ke jurnal:** ini murni catatan "ada yang perlu dicek",
-bukan transaksi kas sungguhan -- tidak ada uang yang benar-benar masuk/keluar gara-gara selisih
-pencatatan saldo awal. `buildOperationalPostingStatements` (`src/operational-posting.js`) di-skip
-untuk `purpose === 'DRAWER_OPENING_DISCREPANCY'` (tidak ada baris `cash_ledger_entries` yang
-dibuat), dan `cashFlowAccountingAfterCommit` (`src/approval-queue.js`) juga sengaja tidak
-dipanggil untuk purpose ini (tidak ada apa pun buat Accounting bridge ambil -- kalau tetap
-dipanggil, hasilnya cuma laporan gagal palsu "menunggu konfigurasi" padahal memang tidak ada
-yang perlu diposting). ACC pada permit ini cuma menandai `approval_status='approved'`,
-`posting_status='posted'` (dalam arti "sudah diproses", bukan "ada jurnal yang terbit").
+**ACC langsung memposting jurnal kas (bukan cuma flag) -- keputusan direvisi Bos Cyo di hari yang
+sama:** desain awal cuma menandai "perlu dicek" tanpa menyentuh jurnal. Bos Cyo minta diubah:
+begitu Admin/Owner ACC permit ini, sistem langsung memposting jurnal atas nominal selisihnya --
+supaya kas di pembukuan tetap mencerminkan kas fisik hari itu juga, dan koreksi ke akun yang
+benar (siapa yang menanggung selisih) jadi PR akuntan yang ditagih lewat jurnal manual biasa
+sebelum tutup bulan, bukan dibiarkan menggantung sebagai catatan pasif. Dua kategori Jenis
+Transaksi baru (migration 0070), gerbang `edition='ACCOUNTING'` -- gerai tanpa modul Akuntansi
+tetap cuma dapat flag, tidak ada percobaan posting sama sekali:
+- **Selisih kurang (`drawer_shortage`)**: Debit "Beban Uang Hilang", Credit Kas. Akun lawannya
+  BELUM dikonfigurasi bawaan -- `journal_rules` punya CHECK constraint yang melarang baris
+  `fixed_account` dengan akun kosong ("placeholder" tidak diperbolehkan), jadi Owner wajib bikin
+  akun "Beban Uang Hilang" dan rule-nya sendiri dulu lewat Setting Akuntansi sebelum kategori ini
+  bisa posting (sebelum itu, ACC tetap tercatat tapi jurnalnya `NEEDS_MAPPING`, menunggu
+  dikonfigurasi, retry otomatis lewat endpoint sinkronisasi Accounting yang sudah ada begitu
+  Owner selesai setup).
+- **Selisih lebih (`drawer_surplus`)**: Debit Kas, Credit "Pendapatan Lainnya" -- akun ini SUDAH
+  ada dari sebelumnya (dipakai juga sebagai default kategori arus kas masuk lain), jadi langsung
+  siap posting tanpa perlu setup tambahan dari Owner.
+
+Kedua arah TETAP jadi PR akuntan: akun default di atas cuma titik awal yang aman, bukan
+klasifikasi final -- siapa yang sebenarnya menanggung selisih itu tetap harus direklasifikasi
+akuntan ke akun yang tepat lewat jurnal manual (fitur yang sudah ada), sebelum tutup bulan.
+
+`buildOperationalPostingStatements` (`src/operational-posting.js`) tetap di-skip untuk
+`purpose === 'DRAWER_OPENING_DISCREPANCY'` (tidak ada baris `cash_ledger_entries` fiktif dari
+sesi laci itu sendiri yang dibuat) -- yang berubah cuma soal Accounting-nya: `cashFlowAccountingAfterCommit`
+(`src/approval-queue.js`) sekarang memanggil `dispatchApprovedDrawerDiscrepancyToAccounting`
+(`src/accounting-cash-flow-bridge.js`) untuk purpose ini, bukan lagi di-skip.
 
 Terpisah dari ini: kolom `opening_note` (section di atas) tetap ada dan independen -- kasir bisa
 isi keterangan buka laci apa pun nominalnya cocok atau tidak.
@@ -474,8 +493,12 @@ isi keterangan buka laci apa pun nominalnya cocok atau tidak.
 Test runtime + static ada di `test/drawer-opening-discrepancy.test.js`: nominal cocok = tidak ada
 permit dibuat, nominal beda = laci tetap kebuka (bukan diblokir) + permit `pending_approval`
 otomatis dengan `drawer_session_id` menunjuk ke laci yang baru dibuka, tidak ada laci sebelumnya
-= tidak ada perbandingan sama sekali, dan ACC pada permit ini benar-benar dibuktikan TIDAK
-membuat baris `cash_ledger_entries` maupun memanggil Accounting bridge.
+= tidak ada perbandingan sama sekali, ACC pada selisih lebih terbukti langsung memposting jurnal
+Debit Kas/Credit Pendapatan Lainnya (dicek sampai ke baris `accounting_journal_lines`), ACC pada
+selisih kurang terbukti `NEEDS_MAPPING` sampai Owner bikin akun+rule Beban Uang Hilang lalu retry
+lewat endpoint sinkronisasi berhasil posting Debit ke akun itu, dan migration 0070 sendiri dicek
+statis supaya tidak pernah nge-seed baris `fixed_account` tanpa akun (guard terhadap bug placeholder
+kosong yang sempat ketemu waktu development).
 
 ## Staff session dan duplicate tab
 

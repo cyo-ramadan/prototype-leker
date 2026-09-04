@@ -40,17 +40,20 @@ test('migration 0042 does not add, remove, or change any existing journal_rules 
   }
 
   // A later migration may legitimately onboard a brand new store (a new
-  // gerai, a new tenant) — that store's own journal_rules did not exist at
-  // 0042 and must not be compared here. Scope both sides to stores that were
-  // already present by 0042, so this check stays about what 0042 did to rows
-  // it could actually see.
-  const storesAtPre0042 = withoutChoiceGroups.prepare(`SELECT id FROM stores`).all().map(row => row.id);
-  const placeholders = storesAtPre0042.map(() => '?').join(', ');
+  // gerai, a new tenant) AND a later migration may legitimately register a
+  // brand new journal_rules row for a store that already existed (e.g.
+  // migration 0070's drawer_shortage/drawer_surplus scaffolding for every
+  // ACCOUNTING-edition store) — neither is something 0042 could have touched.
+  // Scope the comparison to the exact rule ids that already existed pre-0042,
+  // so this check stays about whether 0042 added, removed, or changed rows it
+  // could actually see — not about whether anything later ever adds new ones.
+  const preExistingIds = withoutChoiceGroups.prepare(`SELECT id FROM journal_rules ORDER BY id`).all().map(row => row.id);
+  const placeholders = preExistingIds.map(() => '?').join(', ');
   const rowsFor = db => JSON.stringify(
     db.prepare(`
       SELECT id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_active, sort_order, is_default
-      FROM journal_rules WHERE store_id IN (${placeholders}) ORDER BY id
-    `).all(...storesAtPre0042)
+      FROM journal_rules WHERE id IN (${placeholders}) ORDER BY id
+    `).all(...preExistingIds)
   );
 
   assert.equal(rowsFor(before), rowsFor(withoutChoiceGroups));
@@ -69,8 +72,22 @@ test('creating a new store still seeds journal_rules exactly as before (seed tri
     db.exec(`INSERT INTO stores (id, code, store_name) VALUES ('store_seed_test', 'SEEDTEST', 'Seed Test')`);
   }
 
+  // A later migration may legitimately teach the seed trigger to register a
+  // brand new category (e.g. migration 0070's drawer_shortage/drawer_surplus)
+  // that pre-0042 seeding never produced. Scope the comparison to the
+  // categories the pre-0042 trigger actually seeded, so this test stays about
+  // whether the 0042 rebuild preserved THOSE, not about whether anything
+  // later ever adds more.
+  const preExistingCategoryIds = withoutChoiceGroups.prepare(
+    `SELECT DISTINCT transaction_category_id FROM journal_rules WHERE store_id = 'store_seed_test'`
+  ).all().map(row => row.transaction_category_id);
+  const placeholders = preExistingCategoryIds.map(() => '?').join(', ');
   const rulesOf = db => JSON.stringify(
-    db.prepare(`SELECT source_type, side, label, sort_order FROM journal_rules WHERE store_id = 'store_seed_test' ORDER BY source_type, side, label`).all()
+    db.prepare(`
+      SELECT source_type, side, label, sort_order FROM journal_rules
+      WHERE store_id = 'store_seed_test' AND transaction_category_id IN (${placeholders})
+      ORDER BY source_type, side, label
+    `).all(...preExistingCategoryIds)
   );
 
   assert.equal(rulesOf(withChoiceGroups), rulesOf(withoutChoiceGroups));

@@ -177,12 +177,13 @@ test('no previous closed drawer for the store means no comparison and no permit'
   }
 });
 
-test('ACC on a discrepancy permit approves it without posting any cash_ledger_entries row or touching Accounting', async () => {
+test('ACC on a surplus discrepancy posts immediately: Debit Kas / Credit the pre-seeded Pendapatan Lainnya account', async () => {
   const sqlite = freshDatabase();
   try {
     const db = d1(sqlite);
     const env = { DB: db };
-    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001'`).get();
+    const store = sqlite.prepare(`SELECT id, edition FROM stores WHERE code = 'G001'`).get();
+    assert.equal(store.edition, 'ACCOUNTING', 'this test assumes G001 is the Accounting-edition example store');
     const cashier = await seedCashier(sqlite, store.id);
     seedClosedDrawer(sqlite, store.id, cashier.cashierId, 250000);
     const { token: owner } = await ownerToken(sqlite);
@@ -193,6 +194,7 @@ test('ACC on a discrepancy permit approves it without posting any cash_ledger_en
     );
     const openBody = await openRes.json();
     assert.ok(openBody.discrepancyPermit);
+    assert.equal(openBody.discrepancyPermit.difference, 50000, 'entered more than expected -- a surplus');
 
     const permitId = sqlite.prepare(`SELECT id FROM approval_requests LIMIT 1`).get().id;
     const accRes = await handleApprovalQueueApi(
@@ -204,10 +206,86 @@ test('ACC on a discrepancy permit approves it without posting any cash_ledger_en
     assert.equal(accBody.ok, true);
     assert.equal(accBody.request.approvalStatus, 'approved');
     assert.equal(accBody.request.postingStatus, 'posted');
-    assert.equal(accBody.accounting, null, 'DRAWER_OPENING_DISCREPANCY never goes to the Accounting bridge');
+    assert.equal(accBody.accounting.ok, true);
+    assert.equal(accBody.accounting.status, 'POSTED');
+    assert.ok(accBody.accounting.journalId);
 
     const ledgerCount = sqlite.prepare(`SELECT COUNT(*) AS n FROM cash_ledger_entries`).get();
-    assert.equal(ledgerCount.n, 0, 'no phantom cash movement is ever posted for this permit type');
+    assert.equal(ledgerCount.n, 0, 'the drawer\'s own cash_ledger_entries never gets a phantom row for this -- the fact is read straight from the permit');
+
+    const lines = sqlite.prepare(`
+      SELECT l.side, l.amount_scaled, a.code AS account_code
+      FROM accounting_journal_lines l
+      JOIN chart_of_accounts a ON a.id = l.account_id
+      WHERE l.journal_id = ?
+      ORDER BY l.side
+    `).all(accBody.accounting.journalId);
+    const credit = lines.find(line => line.side === 'CREDIT');
+    const debit = lines.find(line => line.side === 'DEBIT');
+    assert.equal(credit.account_code, '4202', 'surplus credits the existing Pendapatan Lainnya account');
+    assert.equal(debit.amount_scaled, credit.amount_scaled);
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('ACC on a shortage discrepancy needs Beban Uang Hilang configured first, then posts once Owner attaches an account', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001'`).get();
+    const cashier = await seedCashier(sqlite, store.id);
+    seedClosedDrawer(sqlite, store.id, cashier.cashierId, 250000);
+    const { token: owner } = await ownerToken(sqlite);
+
+    const openRes = await handleCashierDrawerApi(
+      request('/api/cashier/drawer/open', { token: cashier.token, method: 'POST', body: { openingAmount: 200000 } }),
+      env, '/api/cashier/drawer/open'
+    );
+    const openBody = await openRes.json();
+    assert.equal(openBody.discrepancyPermit.difference, -50000, 'entered less than expected -- a shortage');
+
+    const permitId = sqlite.prepare(`SELECT id FROM approval_requests LIMIT 1`).get().id;
+    const firstAcc = await handleApprovalQueueApi(
+      request(`/api/management/approval-requests/${permitId}`, { token: owner, method: 'PATCH', body: { decision: 'ACC' } }),
+      env, `/api/management/approval-requests/${permitId}`
+    );
+    const firstAccBody = await firstAcc.json();
+    assert.equal(firstAccBody.request.approvalStatus, 'approved', 'the permit itself is decided even while Accounting still needs configuration');
+    assert.equal(firstAccBody.accounting.ok, false);
+    assert.equal(firstAccBody.accounting.status, 'NEEDS_CONFIGURATION');
+    assert.equal(firstAccBody.accounting.code, 'NEEDS_MAPPING', 'only the Kas leg is pre-seeded -- journal_rules forbids a fixed_account row with no account, so the expense leg genuinely does not exist yet');
+
+    // Owner now creates the account and its journal_rule together -- this is
+    // exactly what Setting Akuntansi's existing account+rule editor already
+    // supports (src/accounting-settings.js), simulated directly here.
+    const categoryId = sqlite.prepare(`SELECT id FROM transaction_categories WHERE store_id = ? AND code = 'drawer_shortage'`).get(store.id).id;
+    sqlite.prepare(`INSERT INTO chart_of_accounts (id, store_id, code, name, type, subtype, is_active) VALUES (?, ?, '6105', 'Beban Uang Hilang', 'EXPENSE', 'OTHER_EXPENSE', 1)`)
+      .run(`coa_${store.id}_6105`, store.id);
+    sqlite.prepare(`
+      INSERT INTO journal_rules (id, store_id, transaction_category_id, label, side, source_type, fixed_account_id, is_default, sort_order)
+      VALUES (?, ?, ?, 'Beban Uang Hilang', 'DEBIT', 'fixed_account', ?, 1, 20)
+    `).run(`jrule_${store.id}_drawer_shortage_expense`, store.id, categoryId, `coa_${store.id}_6105`);
+
+    const retry = await handleApprovalQueueApi(
+      request(`/api/management/approval-requests/${permitId}/accounting-sync`, { token: owner, method: 'POST' }),
+      env, `/api/management/approval-requests/${permitId}/accounting-sync`
+    );
+    assert.equal(retry.status, 200);
+    const retryBody = await retry.json();
+    assert.equal(retryBody.accounting.ok, true);
+    assert.equal(retryBody.accounting.status, 'POSTED');
+
+    const lines = sqlite.prepare(`
+      SELECT l.side, a.code AS account_code
+      FROM accounting_journal_lines l
+      JOIN chart_of_accounts a ON a.id = l.account_id
+      WHERE l.journal_id = ?
+      ORDER BY l.side
+    `).all(retryBody.accounting.journalId);
+    const debit = lines.find(line => line.side === 'DEBIT');
+    assert.equal(debit.account_code, '6105', 'shortage debits whatever account the Owner attached to Beban Uang Hilang');
   } finally {
     sqlite.close();
   }
@@ -221,4 +299,18 @@ test('management approval queue UI labels and summarizes the discrepancy permit 
 test('cashier open-drawer dialog surfaces the discrepancy as a non-blocking toast', () => {
   assert.match(cashierUi, /result\.discrepancyPermit/);
   assert.match(cashierUi, /permit otomatis dikirim ke Admin\/Owner/);
+});
+
+test('migration 0070 registers drawer_shortage/drawer_surplus gated to ACCOUNTING edition, pre-seeds only what the journal_rules CHECK constraint allows', () => {
+  const migration = readFileSync(new URL('../migrations/0070_drawer_opening_discrepancy_accounting.sql', import.meta.url), 'utf8');
+  assert.match(migration, /'drawer_shortage'.*FROM stores WHERE edition = 'ACCOUNTING'/);
+  assert.match(migration, /'drawer_surplus'.*FROM stores WHERE edition = 'ACCOUNTING'/);
+  assert.match(migration, /WHEN NEW\.edition = 'ACCOUNTING'/);
+  assert.match(migration, /'_drawer_surplus_other_income'.*'coa_' \|\| id \|\| '_4202'/);
+  // The fixed_account leg for drawer_shortage must NOT be pre-seeded with a
+  // null account -- journal_rules' CHECK constraint forbids
+  // source_type='fixed_account' rows without a fixed_account_id, and
+  // INSERT OR IGNORE would silently drop such a row rather than error,
+  // which is exactly the bug this migration was rewritten to avoid.
+  assert.doesNotMatch(migration, /drawer_shortage_expense/);
 });

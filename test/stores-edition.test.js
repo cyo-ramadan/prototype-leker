@@ -134,13 +134,31 @@ test('migration preserves existing data and ACCOUNTING store scaffolding exactly
       withoutEdition.close();
     }
 
+    // The comparisons above prove 0045's OWN isolated effect (against a base
+    // with zero edition-dependent migrations at all). A later edition-gated
+    // migration (e.g. 0070's drawer_shortage/drawer_surplus scaffolding) is
+    // free to add its own scaffolding for ACCOUNTING stores -- that's not
+    // something 0045 itself could ever have produced. Catch beforeMigration
+    // up with every OTHER edition-dependent migration, in file order, so the
+    // final comparison below is against a database that has genuinely seen
+    // the same migrations as afterMigration, not one deliberately frozen at
+    // 0045.
+    for (const file of migrationFiles()) {
+      if (file !== EDITION_MIGRATION && dependsOnEdition(file)) beforeMigration.exec(readMigration(file));
+    }
+
+    const fullStoreId = 'store_edition_accounting_full';
     afterMigration.prepare(`
       INSERT INTO stores (id, code, store_name, edition)
-      VALUES (?, 'EDITIONACC', 'Edition Accounting', 'ACCOUNTING')
-    `).run(storeId);
+      VALUES (?, 'EDITIONACCFULL', 'Edition Accounting Full', 'ACCOUNTING')
+    `).run(fullStoreId);
+    beforeMigration.prepare(`
+      INSERT INTO stores (id, code, store_name, edition)
+      VALUES (?, 'EDITIONACCFULL', 'Edition Accounting Full', 'ACCOUNTING')
+    `).run(fullStoreId);
     assert.deepEqual(
-      stableStoreSnapshot(afterMigration, storeId),
-      stableStoreSnapshot(beforeMigration, storeId)
+      stableStoreSnapshot(afterMigration, fullStoreId),
+      stableStoreSnapshot(beforeMigration, fullStoreId)
     );
   } finally {
     beforeMigration.close();

@@ -11,22 +11,24 @@
     if (!response.ok) { const error = new Error(payload.error || `Request gagal (${response.status})`); error.status = response.status; error.code = payload.code; throw error; }
     return payload;
   }
-  function dateTime(value) { return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
-  function locationLine(row) {
-    if (row.latitude == null || row.longitude == null) return 'Lokasi tidak tersedia';
-    const accuracy = row.locationAccuracyMeters != null ? ` (±${Math.round(row.locationAccuracyMeters)}m)` : '';
-    return `${Number(row.latitude).toFixed(5)}, ${Number(row.longitude).toFixed(5)}${accuracy}`;
+  function dateTime(value) { return value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : ''; }
+  function locationLine(fact) {
+    if (!fact || fact.latitude == null || fact.longitude == null) return 'Lokasi tidak tersedia';
+    const accuracy = fact.accuracyMeters != null ? ` (±${Math.round(fact.accuracyMeters)}m)` : '';
+    return `${Number(fact.latitude).toFixed(5)}, ${Number(fact.longitude).toFixed(5)}${accuracy}`;
   }
+  // Satu baris = satu sesi kerja penuh (masuk + pulang), bukan dua baris
+  // event terpisah -- lihat migration 0068 dan src/staff-portal.js.
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div><strong>${row.type === 'out' ? 'Presensi Keluar' : 'Presensi Masuk'}</strong><div class="muted">${escapeHtml(dateTime(row.createdAt))} · ${escapeHtml(locationLine(row))}</div></div><span>${row.type === 'out' ? 'OUT' : 'IN'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Masuk: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }
   function renderKpi() {
     const target = el('staffKpiList'); if (!target) return;
     const kpi = portal?.kpi; if (!kpi?.facts) { target.innerHTML = '<div class="staff-empty">Belum ada data Raport.</div>'; return; }
     const facts = kpi.facts; const permits = facts.transactionVoidPermits || {};
-    target.innerHTML = `<div class="staff-card"><div class="muted">Raport / KPI Facts</div><h2>Skor belum dikonfigurasi</h2><p class="muted">${escapeHtml(kpi.scoreMessage || '')}</p><div class="staff-message">Nilai final menunggu bobot, target, periode, dan grade yang disetujui.</div></div><div class="staff-metric-grid">${metric('Penjualan', facts.sales?.count || 0, money(facts.sales?.amount || 0))}${metric('Pembelian', facts.purchases?.count || 0, money(facts.purchases?.amount || 0))}${metric('Operasional', facts.operationalExpenses?.count || 0, money(facts.operationalExpenses?.amount || 0))}${metric('Permit koreksi transaksi', permits.requested || 0, `${permits.pending || 0} pending · ${permits.approved || 0} ACC · ${permits.rejected || 0} reject`)}${metric('Presensi', facts.attendance?.total || 0, `${facts.attendance?.checkIn || 0} masuk · ${facts.attendance?.checkOut || 0} keluar`)}${metric('Laci', facts.drawers?.total || 0, `${facts.drawers?.closed || 0} ditutup`)}</div><div class="staff-card" style="margin-top:14px"><h3>Input Penilaian</h3><div class="attendance-list">${(kpi.assessmentInputs || []).map(item => `<div class="attendance-row"><div><strong>${escapeHtml(item.label)}</strong><div class="muted">Source: ${escapeHtml(item.source)}</div></div><span>${escapeHtml(item.scoring)}</span></div>`).join('')}</div></div>`;
+    target.innerHTML = `<div class="staff-card"><div class="muted">Raport / KPI Facts</div><h2>Skor belum dikonfigurasi</h2><p class="muted">${escapeHtml(kpi.scoreMessage || '')}</p><div class="staff-message">Nilai final menunggu bobot, target, periode, dan grade yang disetujui.</div></div><div class="staff-metric-grid">${metric('Penjualan', facts.sales?.count || 0, money(facts.sales?.amount || 0))}${metric('Pembelian', facts.purchases?.count || 0, money(facts.purchases?.amount || 0))}${metric('Operasional', facts.operationalExpenses?.count || 0, money(facts.operationalExpenses?.amount || 0))}${metric('Permit koreksi transaksi', permits.requested || 0, `${permits.pending || 0} pending · ${permits.approved || 0} ACC · ${permits.rejected || 0} reject`)}${metric('Presensi', facts.attendance?.total || 0, `${facts.attendance?.closed || 0} selesai · ${facts.attendance?.open || 0} masih bekerja`)}${metric('Laci', facts.drawers?.total || 0, `${facts.drawers?.closed || 0} ditutup`)}</div><div class="staff-card" style="margin-top:14px"><h3>Input Penilaian</h3><div class="attendance-list">${(kpi.assessmentInputs || []).map(item => `<div class="attendance-row"><div><strong>${escapeHtml(item.label)}</strong><div class="muted">Source: ${escapeHtml(item.source)}</div></div><span>${escapeHtml(item.scoring)}</span></div>`).join('')}</div></div>`;
   }
   function renderPortal() {
     if (!portal) return;

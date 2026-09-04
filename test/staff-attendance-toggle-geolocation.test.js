@@ -122,18 +122,24 @@ test('presensi stores GPS coordinates and accuracy, nullable when unavailable', 
     );
     assert.equal(withGeo.status, 201);
     const withGeoBody = await withGeo.json();
-    assert.equal(withGeoBody.attendance.latitude, -7.98281);
-    assert.equal(withGeoBody.attendance.longitude, 112.6296);
-    assert.equal(withGeoBody.attendance.locationAccuracyMeters, 12.5);
+    assert.equal(withGeoBody.attendance.status, 'OPEN');
+    assert.equal(withGeoBody.attendance.checkIn.latitude, -7.98281);
+    assert.equal(withGeoBody.attendance.checkIn.longitude, 112.6296);
+    assert.equal(withGeoBody.attendance.checkIn.accuracyMeters, 12.5);
 
     const row = db.prepare('SELECT latitude, longitude, location_accuracy_meters FROM staff_attendance WHERE id = ?').get(withGeoBody.attendance.id);
     assert.equal(row.latitude, -7.98281);
     assert.equal(row.longitude, 112.6296);
 
-    await handleStaffPortalApi(attendanceRequest({ token: cashier.token, type: 'out' }), env, '/api/staff/attendance');
+    const checkout = await handleStaffPortalApi(attendanceRequest({ token: cashier.token, type: 'out' }), env, '/api/staff/attendance');
+    const checkoutBody = await checkout.json();
+    assert.equal(checkoutBody.attendance.status, 'CLOSED');
+    assert.equal(checkoutBody.attendance.checkIn.latitude, -7.98281, 'check-in facts stay on the same row after checking out');
+    assert.equal(checkoutBody.attendance.checkOut.latitude, null, 'no GPS sent on checkout -- stays null');
+
     const withoutGeo = await handleStaffPortalApi(attendanceRequest({ token: cashier.token, type: 'in' }), env, '/api/staff/attendance');
     const withoutGeoBody = await withoutGeo.json();
-    assert.equal(withoutGeoBody.attendance.latitude, null, 'GPS denied/unavailable must not block presensi -- coordinates stay null');
+    assert.equal(withoutGeoBody.attendance.checkIn.latitude, null, 'GPS denied/unavailable must not block presensi -- coordinates stay null');
   } finally {
     db.close();
   }
@@ -151,8 +157,10 @@ test('staff portal reports attendanceStatus and location alongside the attendanc
     await handleStaffPortalApi(attendanceRequest({ token: cashier.token, type: 'in', latitude: 1.5, longitude: 2.5, accuracy: 8 }), env, '/api/staff/attendance');
     const afterCheckin = await (await handleStaffPortalApi(portalRequest(cashier.token), env, '/api/staff/portal')).json();
     assert.equal(afterCheckin.attendanceStatus, 'in');
-    assert.equal(afterCheckin.attendance[0].latitude, 1.5);
-    assert.equal(afterCheckin.attendance[0].longitude, 2.5);
+    assert.equal(afterCheckin.attendance[0].status, 'OPEN');
+    assert.equal(afterCheckin.attendance[0].checkIn.latitude, 1.5);
+    assert.equal(afterCheckin.attendance[0].checkIn.longitude, 2.5);
+    assert.equal(afterCheckin.attendance[0].checkOut, null, 'still one row, not yet closed');
   } finally {
     db.close();
   }
@@ -165,6 +173,46 @@ test('migration adds nullable GPS columns to staff_attendance', () => {
   assert.match(migration, /ALTER TABLE staff_attendance ADD COLUMN location_accuracy_meters REAL/);
 });
 
+test('migration 0068 reshapes staff_attendance into one row per shift and backfills pre-existing rows', () => {
+  const migration = readFileSync(new URL('../migrations/0068_staff_attendance_shift_row.sql', import.meta.url), 'utf8');
+  assert.match(migration, /ALTER TABLE staff_attendance ADD COLUMN status TEXT/);
+  assert.match(migration, /ALTER TABLE staff_attendance ADD COLUMN check_out_at TEXT/);
+  assert.match(migration, /ALTER TABLE staff_attendance ADD COLUMN check_out_photo_blob BLOB/);
+  assert.match(migration, /UPDATE staff_attendance/);
+  assert.match(migration, /WHERE status IS NULL/);
+
+  // Apply every migration except 0068, seed rows in the OLD event-log shape
+  // (one row per masuk/keluar action, no status column yet -- this is what
+  // production actually had before this migration), then apply 0068 alone
+  // and check the backfill turns each pre-existing row into a sensible
+  // status without losing it.
+  const db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON;');
+  const files = readdirSync(migrationDir).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort();
+  for (const file of files) {
+    if (file.startsWith('0068_')) continue;
+    db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
+  }
+  // cashier_wowo/store_001 are seeded by migration 0005 -- reused here just
+  // to satisfy the FK, not relevant to what this test actually checks.
+  db.prepare(`
+    INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at)
+    VALUES ('legacy_in', 'cashier_wowo', 'store_001', 'in', x'00', 'image/jpeg', '2026-08-01T01:00:00.000Z')
+  `).run();
+  db.prepare(`
+    INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at)
+    VALUES ('legacy_out', 'cashier_wowo', 'store_001', 'out', x'00', 'image/jpeg', '2026-08-01T02:00:00.000Z')
+  `).run();
+
+  db.exec(migration);
+
+  const legacyIn = db.prepare('SELECT status FROM staff_attendance WHERE id = ?').get('legacy_in');
+  const legacyOut = db.prepare('SELECT status FROM staff_attendance WHERE id = ?').get('legacy_out');
+  assert.equal(legacyIn.status, 'OPEN', 'a dangling legacy in-row keeps counting as an open shift after backfill');
+  assert.equal(legacyOut.status, 'CLOSED');
+  db.close();
+});
+
 test('camera modal captures geolocation and burns a timestamp+location watermark when requested', () => {
   const cameraSource = readFileSync(new URL('../public/camera-snapshot-modal.js', import.meta.url), 'utf8');
   assert.match(cameraSource, /navigator\.geolocation\.getCurrentPosition/);
@@ -173,7 +221,7 @@ test('camera modal captures geolocation and burns a timestamp+location watermark
   assert.match(cameraSource, /success\?\.\(blob, \{ latitude: geo\?\.latitude/);
 });
 
-test('staff portal UI passes watermark:true, forwards GPS fields, disables the wrong presensi button, and links out to the Workboard', () => {
+test('staff portal UI passes watermark:true, forwards GPS fields, disables the wrong presensi button, renders one row per shift, and links out to the Workboard', () => {
   const staffUi = readFileSync(new URL('../public/staff.js', import.meta.url), 'utf8');
   const staffHtml = readFileSync(new URL('../public/staff.html', import.meta.url), 'utf8');
   const gateUi = readFileSync(new URL('../public/cashier-presensi-gate.js', import.meta.url), 'utf8');
@@ -181,6 +229,10 @@ test('staff portal UI passes watermark:true, forwards GPS fields, disables the w
   assert.match(staffUi, /form\.set\('latitude', String\(geo\.latitude\)\)/);
   assert.match(staffUi, /el\('attendanceInBtn'\)\.disabled = checkedIn/);
   assert.match(staffUi, /el\('attendanceOutBtn'\)\.disabled = !checkedIn/);
+  assert.match(staffUi, /row\.checkIn/);
+  assert.match(staffUi, /row\.checkOut/);
+  assert.match(staffUi, /facts\.attendance\?\.closed/);
+  assert.match(staffUi, /facts\.attendance\?\.open/);
   assert.match(staffHtml, /program-task\.daily-napkin\.workers\.dev/);
   assert.match(staffHtml, /Maxi Store Workboard/);
   assert.match(gateUi, /watermark: true/);

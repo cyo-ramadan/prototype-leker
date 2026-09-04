@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleCashierDrawerApi } from '../src/cashier-drawer.js';
 import { handleCashierAuthApi } from '../src/cashier-auth.js';
+import { handleStaffPortalApi } from '../src/staff-portal.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 // 2026-09-04, Bos Cyo: two cashiers of the same store may log in and presensi
@@ -22,10 +23,15 @@ const migrationDir = new URL('../migrations/', import.meta.url);
 class D1Statement {
   constructor(db, sql, params = []) { this.db = db; this.sql = sql; this.params = params; }
   bind(...params) { return new D1Statement(this.db, this.sql, params); }
-  first() { return this.db.prepare(this.sql).get(...this.params) ?? null; }
-  all() { return { results: this.db.prepare(this.sql).all(...this.params) }; }
+  boundParams() {
+    // node:sqlite rejects a raw ArrayBuffer for a BLOB parameter (unlike the
+    // real D1 binding) -- readLivePhoto() returns photo.bytes as one.
+    return this.params.map(value => (value instanceof ArrayBuffer ? new Uint8Array(value) : value));
+  }
+  first() { return this.db.prepare(this.sql).get(...this.boundParams()) ?? null; }
+  all() { return { results: this.db.prepare(this.sql).all(...this.boundParams()) }; }
   run() {
-    const result = this.db.prepare(this.sql).run(...this.params);
+    const result = this.db.prepare(this.sql).run(...this.boundParams());
     return { success: true, meta: { changes: Number(result.changes || 0) } };
   }
 }
@@ -62,8 +68,8 @@ async function seedCashier(db, storeId, username, employeeName) {
 
 function markPresensiIn(db, cashierId, storeId, at = '2026-09-04T01:00:00.000Z') {
   db.prepare(`
-    INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at)
-    VALUES (?, ?, ?, 'in', x'00', 'image/jpeg', ?)
+    INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at, status)
+    VALUES (?, ?, ?, 'in', x'00', 'image/jpeg', ?, 'OPEN')
   `).run(`att_${cashierId}_${at}`, cashierId, storeId, at);
 }
 
@@ -160,10 +166,17 @@ test('cashier me/login report attendance status derived from the latest staff_at
     const afterCheckin = await (await handleCashierAuthApi(request('/api/cashier/me', { token: cashier.token }), env, '/api/cashier/me')).json();
     assert.equal(afterCheckin.attendanceStatus, 'in');
 
-    db.prepare(`
-      INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at)
-      VALUES ('att_out', ?, 'store_001', 'out', x'00', 'image/jpeg', '2026-09-04T09:00:00.000Z')
-    `).run(cashier.id);
+    // Closing out the same shift row (not a bare new row -- one row now
+    // covers a full masuk+pulang session, migration 0068) via the real
+    // staff-portal handler, same as production.
+    const checkoutForm = new FormData();
+    checkoutForm.set('type', 'out');
+    checkoutForm.set('photo', new Blob(['x'], { type: 'image/jpeg' }), 'out.jpg');
+    const checkoutRequest = new Request('https://example.test/api/staff/attendance', {
+      method: 'POST', headers: { Authorization: `Bearer ${cashier.token}` }, body: checkoutForm
+    });
+    const checkoutRes = await handleStaffPortalApi(checkoutRequest, env, '/api/staff/attendance');
+    assert.equal(checkoutRes.status, 201);
     const afterCheckout = await (await handleCashierAuthApi(request('/api/cashier/me', { token: cashier.token }), env, '/api/cashier/me')).json();
     assert.equal(afterCheckout.attendanceStatus, 'out', 'checking out again requires presensi masuk before working again');
   } finally {

@@ -386,12 +386,32 @@ Tiga hal terpisah yang Bos Cyo minta di putaran yang sama:
    sambung ke Workboard yang sudah ada" (opsi pertama direkomendasikan Hana: isolated dari
    produk lain, konsisten dengan keputusan "Workboard integration -- on hold" yang sudah ada di
    bagian lain dokumen ini; belum diputuskan Bos Cyo).
+4. **Satu baris `staff_attendance` sekarang menjelaskan satu sesi kerja penuh** (masuk + pulang),
+   bukan dua baris event terpisah seperti sebelumnya -- Bos Cyo minta ini supaya ada satu tempat
+   yang bisa ditambah detail lain nanti (jumlah task dikerjakan, jam kerja, gaji per jam, dst;
+   kolom-kolom itu sendiri **belum** dibuat, cuma bentuk barisnya yang disiapkan). Migration
+   `0068`: kolom lama (`created_at`/`photo_type`/`latitude`/`longitude`/`location_accuracy_meters`)
+   sekarang berarti fakta presensi MASUK; kolom `check_out_*` baru berarti fakta presensi PULANG
+   di baris yang sama; kolom `status` (`OPEN` = sudah masuk belum pulang, `CLOSED` = sudah pulang)
+   menggantikan `attendance_type` sebagai penentu status aktif (`latestAttendanceStatus` di
+   `src/cashier-auth.js` sekarang cek "ada baris `status='OPEN'`", bukan lagi "tipe baris
+   terakhir"). Presensi masuk = INSERT baris baru (`status='OPEN'`); presensi pulang = UPDATE
+   baris `OPEN` yang sama (`status='CLOSED'`) -- **foto tetap wajib dan tetap tersimpan di kedua
+   sisi** (masuk maupun pulang), cuma sekarang di satu baris, bukan cerita baru. 8 baris lama di
+   production (format event-log lama) di-backfill otomatis oleh migration (`status` diisi dari
+   `attendance_type` masing-masing baris secara independen -- data lama tidak punya pasangan
+   masuk/pulang yang jelas untuk dipasangkan ulang secara otomatis, jadi dibiarkan sebagai baris
+   historis apa adanya, tidak dihapus). `src/staff-raport.js`'s ringkasan presensi juga ikut
+   berubah bentuk dari `{total, checkIn, checkOut}` jadi `{total, closed, open}`.
 
 Test runtime ada di `test/staff-attendance-toggle-geolocation.test.js`: urutan toggle in→out→in
 (termasuk penolakan out-sebelum-in dan in-dobel), koordinat GPS tersimpan lewat jalur multipart
-form yang sama seperti production (`readLivePhoto`), dan koordinat null-safe kalau field GPS
-tidak dikirim sama sekali (ditemukan lewat test ini: `coord()` versi pertama salah mengubah
-`null` jadi `0` lewat `Number(null)` -- dikoreksi sebelum sempat dipakai, lihat riwayat commit).
+form yang sama seperti production (`readLivePhoto`), koordinat null-safe kalau field GPS tidak
+dikirim sama sekali (ditemukan lewat test ini: `coord()` versi pertama salah mengubah `null`
+jadi `0` lewat `Number(null)` -- dikoreksi sebelum sempat dipakai, lihat riwayat commit), dan
+migration `0068` benar-benar diuji dengan menerapkan migration itu sendirian di atas DB yang
+sudah berisi baris format lama (bukan cuma cek isi file migration) untuk membuktikan backfill-nya
+jalan.
 
 ## Staff session dan duplicate tab
 

@@ -8,12 +8,14 @@ const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-
 
 // Presensi masuk/keluar dianggap toggle state, bukan penanda per-hari-kalender
 // (menghindari ambiguitas timezone gerai): status "in" berlaku sampai kasir
-// eksplisit presensi keluar lagi lewat Portal Staf.
+// eksplisit presensi keluar lagi lewat Portal Staf. Satu baris staff_attendance
+// menjelaskan satu sesi kerja penuh (migration 0068) -- "in" berarti ada baris
+// dengan status='OPEN' (sudah presensi masuk, belum presensi pulang).
 export async function latestAttendanceStatus(db, cashierId) {
   const row = await db.prepare(`
-    SELECT attendance_type FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT 1
+    SELECT 1 FROM staff_attendance WHERE user_id = ? AND status = 'OPEN' LIMIT 1
   `).bind(cashierId).first();
-  return row?.attendance_type === 'in' ? 'in' : 'out';
+  return row ? 'in' : 'out';
 }
 
 function mapCashier(row) {

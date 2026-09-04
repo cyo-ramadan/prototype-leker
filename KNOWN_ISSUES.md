@@ -302,15 +302,74 @@ trigger, re-install 0048's trigger verbatim) and verified against a disposable t
 before touching real data. This affected every new-store creation path (this migration,
 `src/admin-multistore.js`, `src/owner-auth.js`), not just this one.
 
+## Workboard integration — on hold (2026-09-04)
+
+MAXI Workboard (D1 `maxi-workboard-prototype`, UI `program-task.daily-napkin.workers.dev`)
+is a **cross-product prototype/sample**, not Leker-owned and not yet a finished product.
+It is used by more than Leker's own agents/staff. This section records what was discussed
+and decided about integrating it with Leker, so the next round does not start from zero.
+
+Discussed and decided:
+
+- Bos Cyo wants Workboard's task/issue/finding data to eventually feed Leker's existing
+  Raport/KPI feature as employee performance assessment, and wants Leker staff to have
+  sidak (inspection)/finding-recording features with tracked results.
+- Bos Cyo's own proposed identity model (not yet built): a master employee-**name** table,
+  connected to multiple "**employed**" records — one person can have several employments,
+  one employment = one company's access grant. Raport is fundamentally scoped by employee
+  name, extendable to name+company. Confirmed **not** a prerequisite for the Entity Admin
+  panel (below), which shipped independently.
+- **Where sidak findings get stored** (Workboard vs Leker vs Leker-as-source/Workboard-as-
+  reader) is still **undecided** — explicitly deferred by Bos Cyo pending further
+  brainstorming.
+- Three-tier access hierarchy Bos Cyo described: Store Admin (single-store, existing) →
+  Entity Admin (new, multi-store within one Entity, entity-wide accounting/sidak reach) →
+  Tenant (Bos Cyo, all Entities). **Entity Admin panel is now built and live** (migration
+  0063, `src/owner-auth.js` `handleEntityAdminApi`/`requireManagement` `ENTITY_ADMIN`
+  branch, `public/entity-admin.html`/`.js`; percontohan accounts Rika/Alfina under grouped
+  Entity `ENT-KPM` — Kantor/Pendem/Mandala, migration 0064).
+  Workboard's task/issue/finding visibility was described as needing to mirror this same
+  three-tier structure (Store-scoped view inside Store panels, but the sidak/inspector
+  role's home workspace and broader reach lives at Entity level, Tenant level spans all
+  Entities) — **not yet implemented**, this is the shape a future Workboard-Leker bridge
+  should follow once the storage-location decision above is made.
+- Architecture question — should Workboard's codebase be merged into Leker's repo?
+  **No.** Recommendation given and not objected to: keep Workboard a separate product,
+  connect through a small read/write API bridge scoped by store (similar in shape to
+  `agent-bridge/`, a separate Worker), rather than merging codebases or forking a parallel
+  Portal Staf implementation inside Leker. Rationale: Workboard already has working
+  task/issue/announcement plumbing used across products; a native Leker rebuild would
+  duplicate that and fragment cross-product visibility into two boards that can drift.
+- Workboard's own `organization_entities`/`organization_stores` tables (which structurally
+  mirror Leker's Entity/Store shape) were checked and found **completely empty** — not
+  just for the newly grouped Kantor/Pendem/Mandala, but for every store including ones
+  already actively used (e.g. Pendem). Workboard's `users` and `employees` tables have
+  **no column** linking them to those org tables or to any store/entity id today, so
+  populating those tables right now would not connect to anything functional yet. This was
+  explored (not executed) while looking for what "siapkan perangkat Workboard untuk gerai
+  ini" should concretely mean.
+- **Explicit sequencing decision (2026-09-04):** this whole topic is **on hold**. Priority
+  is finishing Leker's own debugging/functional-check pass (`tsk_hana_admin_gerai_functional_check`
+  in Workboard, assigned to the accountant) until real CS/store staff can actually use the
+  product end to end. Workboard integration resumes after that — explicitly **not**
+  starting over, this section is the resume point.
+
 ## Leker store roster (as of 2026-08-25)
 
 Six stores across two tenants, confirmed live: `store_001` (Leker Mall Dinoyo),
 `store_ab5c6dd4-...` (MAXI LEKER DINOYO), `store_002` (MAXI LEKER G002), `store_kantor`
-(Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all `TEN-PROTOTYPE`, one
-Entity per store, `edition='ACCOUNTING'`; plus `store_ikan01` (Galeh) under `TEN-GALEH`,
-`edition='LITE'`. Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to
-reach that count.
+(Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all `TEN-PROTOTYPE`,
+`edition='ACCOUNTING'`; plus `store_ikan01` (Galeh) under `TEN-GALEH`, `edition='LITE'`.
+Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to reach that count.
+
+As of 2026-09-04, Kantor/Pendem/Mandala no longer each have their own Entity — migration
+0064 grouped them under one new Entity `ENT-KPM` (see the Entity Admin panel note above)
+so an Entity Admin can pick between them without re-logging in. Their original per-store
+entities (`ENT-KANTOR`/`ENT-PENDEM`/`ENT-MANDALA`) still exist but now own zero stores;
+they were deliberately not deleted because Pendem's pre-existing posted journal/stock
+history snapshots `entity_id` at write time (migration 0046) and still points at
+`ENT-PENDEM`.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made.

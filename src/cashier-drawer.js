@@ -22,6 +22,7 @@ function mapDrawer(row) {
     closingAmount: row.closing_amount == null ? null : Number(row.closing_amount),
     incentiveAmount: Number(row.incentive_amount || 0),
     shiftLabel: row.shift_label || '',
+    openingNote: row.opening_note || '',
     closingNote: row.closing_note || '',
     status: row.status,
     openedAt: row.opened_at,
@@ -32,7 +33,7 @@ function mapDrawer(row) {
 export async function getOpenDrawer(db, storeId) {
   const row = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
-           d.incentive_amount, d.shift_label, d.closing_note,
+           d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id
@@ -149,9 +150,9 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     await db.prepare(`
       INSERT INTO cash_drawer_sessions (
         id, store_id, cashier_id, opening_amount, closing_amount, status,
-        opened_at, closed_at, shift_label, closing_note, incentive_amount
-      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, '', 0)
-    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60)).run();
+        opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount
+      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0)
+    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500)).run();
     return json({ ok: true, drawer: await getOpenDrawer(db, cashier.store.id), canWrite: true }, 201);
   }
 

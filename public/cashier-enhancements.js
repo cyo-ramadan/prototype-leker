@@ -267,9 +267,13 @@
     try {
       const payload = await cashierRequest('/api/cashier/drawers');
       const drawers = payload.drawers || [];
-      list.innerHTML = drawers.length ? drawers.map(drawer => `
+      // Daftar dari server sudah ORDER BY opened_at DESC (baru dulu) --
+      // nomor urut "Laci #N" dihitung dari yang paling lama supaya laci
+      // pertama gerai selalu #1, bukan berubah-ubah ikut halaman/limit.
+      const total = drawers.length;
+      list.innerHTML = drawers.length ? drawers.map((drawer, index) => `
         <article class="drawer-history-row">
-          <div><strong>${esc(drawer.cashierName)} · ${esc(drawer.status)}</strong><small>ID ${esc(drawer.id)}${drawer.shiftLabel ? ` · Shift ${esc(drawer.shiftLabel)}` : ''}</small><small>Datang ${dateTime(drawer.openedAt)} · Pulang ${dateTime(drawer.closedAt)}</small><small>Modal ${money(drawer.openingAmount)} · @${esc(drawer.cashierUsername)}</small></div>
+          <div><strong>Laci #${total - index} · ${esc(drawer.cashierName)} · ${esc(drawer.status)}</strong><small>ID ${esc(drawer.id)}${drawer.shiftLabel ? ` · Shift ${esc(drawer.shiftLabel)}` : ''}</small><small>Datang ${dateTime(drawer.openedAt)} · Pulang ${dateTime(drawer.closedAt)}</small><small>Modal ${money(drawer.openingAmount)} · @${esc(drawer.cashierUsername)}</small>${drawer.openingNote ? `<small>Keterangan buka: ${esc(drawer.openingNote)}</small>` : ''}${drawer.closingNote ? `<small>Keterangan pulang: ${esc(drawer.closingNote)}</small>` : ''}</div>
           <div class="drawer-history-actions"><button class="mini-btn" type="button" data-cashier-drawer-detail="${esc(drawer.id)}">Lihat Detail</button></div>
         </article>`).join('') : '<div class="empty">Belum ada riwayat laci di gerai ini.</div>';
       document.querySelectorAll('[data-cashier-drawer-detail]').forEach(button => button.onclick = () => loadDrawerDetail(button.dataset.cashierDrawerDetail));

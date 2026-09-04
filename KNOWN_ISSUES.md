@@ -413,6 +413,30 @@ migration `0068` benar-benar diuji dengan menerapkan migration itu sendirian di 
 sudah berisi baris format lama (bukan cuma cek isi file migration) untuk membuktikan backfill-nya
 jalan.
 
+## Detail Laci
+
+### Active: keterangan buka laci + nomor urut Laci #N (2026-09-04)
+
+Bos Cyo minta pola yang sama dengan presensi diterapkan juga ke laci: satu baris `cash_drawer_sessions`
+sudah menjelaskan satu sesi laci penuh sejak awal (buka + tutup di baris yang sama, tidak perlu
+direstruktur seperti `staff_attendance`), tapi baru sisi TUTUP yang punya kolom keterangan
+(`closing_note`, sudah tampil sebagai "Keterangan Pulang" di render Detail Laci). Migration
+`0069` menambahkan `opening_note` (pola sama: `TEXT NOT NULL DEFAULT ''`) supaya kasir yang buka
+laci juga bisa isi catatan opsional (mis. kondisi modal awal shift), tampil sebagai "Keterangan
+Buka" di render yang sama (`public/drawer-report-ui.js`, dipakai bareng oleh Kasir dan Admin/Owner
+-- satu perubahan otomatis nongol di kedua tempat). Daftar riwayat laci di kasir
+(`public/cashier-enhancements.js`, dialog "📚 Detail Laci") sebelumnya cuma menampilkan ID laci
+mentah; sekarang dilabeli "Laci #N" berurutan dari yang paling lama (`#1`) ke yang paling baru,
+dihitung dari posisi di array `ORDER BY opened_at DESC` yang sudah dikembalikan server (`total -
+index`) -- bukan kolom baru, murni derivasi tampilan. Baris riwayat juga menampilkan preview
+kedua keterangan (buka & pulang) kalau diisi.
+
+Test runtime + static ada di `test/drawer-opening-note.test.js`: `POST /api/cashier/drawer/open`
+dengan `openingNote` benar-benar tersimpan dan kebaca balik lewat `GET /api/cashier/drawer`,
+default kosong kalau tidak diisi (pola sama dengan `closing_note`), dan wiring UI (textarea di
+dialog Buka Laci, penomoran `Laci #N`, kedua label keterangan) diverifikasi lewat regex terhadap
+source file yang sebenarnya, bukan diasumsikan.
+
 ## Staff session dan duplicate tab
 
 Canonical login remains separated into Pelanggan and Karyawan, one staff account has one active server session, and one browser has one active staff tab through the local browser lease. Customer sessions remain separate.
@@ -505,4 +529,4 @@ history snapshots `entity_id` at write time (migration 0046) and still points at
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape.

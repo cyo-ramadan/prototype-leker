@@ -182,7 +182,10 @@ async function rejectStaleStockAdjustment(db, current, { approverRole, approverI
 }
 
 async function cashFlowAccountingAfterCommit(env, current) {
-  if (current.requestType !== 'CASH_FLOW') return null;
+  // DRAWER_OPENING_DISCREPANCY never posts a cash_ledger_entries row (see
+  // buildOperationalPostingStatements), so there is nothing for Accounting
+  // to pick up -- dispatching would just report a confusing false failure.
+  if (current.requestType !== 'CASH_FLOW' || current.payload?.purpose === 'DRAWER_OPENING_DISCREPANCY') return null;
   try {
     return await dispatchApprovedCashFlowToAccounting(env.DB, current.storeId, current.id);
   } catch (error) {

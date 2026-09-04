@@ -437,6 +437,46 @@ default kosong kalau tidak diisi (pola sama dengan `closing_note`), dan wiring U
 dialog Buka Laci, penomoran `Laci #N`, kedua label keterangan) diverifikasi lewat regex terhadap
 source file yang sebenarnya, bukan diasumsikan.
 
+### Active: saldo awal laci tetap entry manual, selisih auto-permit ke Approval Queue (2026-09-04)
+
+Bos Cyo sempat mempertimbangkan saldo awal laci jadi read-only (otomatis lanjut dari saldo akhir
+laci sebelumnya), tapi memutuskan tetap entry manual -- dan kalau nominalnya tidak sama dengan
+saldo akhir laci sebelumnya di gerai yang sama, otomatis dibuatkan pengajuan ke Approval Queue
+yang sudah ada untuk dicek Admin/Owner. **Laci tetap kebuka baik ada selisih atau tidak -- ini
+murni flag, tidak pernah memblokir buka laci.** Pembanding yang dipakai: `closing_amount` laci
+CLOSED terakhir di gerai itu (bukan saldo kas dari Akuntansi/ledger -- dua-duanya biasanya sama,
+tapi kalau nanti sengaja mau dibandingkan ke ledger Akuntansi juga, itu perubahan lain, bukan ini).
+Kalau belum pernah ada laci yang ditutup di gerai itu (laci pertama), tidak ada pembanding sama
+sekali, jadi tidak pernah bikin permit.
+
+**Kenapa lewat `CASH_FLOW` + `purpose`, bukan `request_type` baru:** `approval_requests.request_type`
+punya SQLite CHECK constraint yang cuma mengizinkan `'CASH_FLOW'`, `'GOODS_FLOW'`, `'ASSET'` --
+menambah value baru butuh rebuild tabel (`CREATE TABLE baru` + copy + drop + rename), operasi
+berisiko di tabel yang sudah aktif dipakai production dan belum pernah ada presedennya di
+migration manapun di repo ini. Solusi yang dipakai justru sudah ada presedennya: `GOODS_FLOW`
+sudah lama membedakan Penyesuaian Stok dari Arus Barang biasa lewat `payload.purpose ===
+'STOCK_ADJUSTMENT'`, bukan lewat `request_type` terpisah. Permit selisih saldo awal ini mengikuti
+pola yang sama persis: `request_type = 'CASH_FLOW'`, `payload.purpose = 'DRAWER_OPENING_DISCREPANCY'`.
+
+**Kenapa ini TIDAK memposting apa pun ke jurnal:** ini murni catatan "ada yang perlu dicek",
+bukan transaksi kas sungguhan -- tidak ada uang yang benar-benar masuk/keluar gara-gara selisih
+pencatatan saldo awal. `buildOperationalPostingStatements` (`src/operational-posting.js`) di-skip
+untuk `purpose === 'DRAWER_OPENING_DISCREPANCY'` (tidak ada baris `cash_ledger_entries` yang
+dibuat), dan `cashFlowAccountingAfterCommit` (`src/approval-queue.js`) juga sengaja tidak
+dipanggil untuk purpose ini (tidak ada apa pun buat Accounting bridge ambil -- kalau tetap
+dipanggil, hasilnya cuma laporan gagal palsu "menunggu konfigurasi" padahal memang tidak ada
+yang perlu diposting). ACC pada permit ini cuma menandai `approval_status='approved'`,
+`posting_status='posted'` (dalam arti "sudah diproses", bukan "ada jurnal yang terbit").
+
+Terpisah dari ini: kolom `opening_note` (section di atas) tetap ada dan independen -- kasir bisa
+isi keterangan buka laci apa pun nominalnya cocok atau tidak.
+
+Test runtime + static ada di `test/drawer-opening-discrepancy.test.js`: nominal cocok = tidak ada
+permit dibuat, nominal beda = laci tetap kebuka (bukan diblokir) + permit `pending_approval`
+otomatis dengan `drawer_session_id` menunjuk ke laci yang baru dibuka, tidak ada laci sebelumnya
+= tidak ada perbandingan sama sekali, dan ACC pada permit ini benar-benar dibuktikan TIDAK
+membuat baris `cash_ledger_entries` maupun memanggil Accounting bridge.
+
 ## Staff session dan duplicate tab
 
 Canonical login remains separated into Pelanggan and Karyawan, one staff account has one active server session, and one browser has one active staff tab through the local browser lease. Customer sessions remain separate.
@@ -529,4 +569,4 @@ history snapshots `entity_id` at write time (migration 0046) and still points at
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; the drawer-opening-discrepancy permit is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or gains its own `request_type` instead of the `CASH_FLOW`+`purpose` encoding.

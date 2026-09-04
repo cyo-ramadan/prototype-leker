@@ -31,11 +31,15 @@
 
   function requestLabel(request) {
     if (request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT') return 'STOCK ADJUSTMENT';
+    if (request.requestType === 'CASH_FLOW' && request.payload?.purpose === 'DRAWER_OPENING_DISCREPANCY') return 'SELISIH SALDO AWAL LACI';
     return request.requestType;
   }
 
   function payloadSummary(request) {
     const payload = request.payload || {};
+    if (request.requestType === 'CASH_FLOW' && payload.purpose === 'DRAWER_OPENING_DISCREPANCY') {
+      return `Saldo awal dientry ${money(payload.enteredAmount)} · saldo akhir laci sebelumnya ${money(payload.expectedAmount)} · selisih ${money(payload.difference)}`;
+    }
     if (request.requestType === 'CASH_FLOW') {
       const counterpart = [payload.accountingCounterpartAccountCode, payload.accountingCounterpartAccountName].filter(Boolean).join(' ');
       return `${payload.direction === 'OUT' ? 'Kas Keluar' : 'Kas Masuk'} · ${money(payload.amount)} · ${esc(payload.description || '')}${counterpart ? ` · Lawan: ${esc(counterpart)}` : ''}`;

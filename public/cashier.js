@@ -420,9 +420,11 @@ function openDrawerDialog() {
     body: '<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" min="0" step="1" value="0" required /></div><div class="field"><label>Keterangan buka <span class="muted">optional</span></label><textarea id="dialogOpeningNote" rows="2" maxlength="500"></textarea></div><p class="muted">Kasir yang membuka laci menjadi pemegang write mode untuk gerai ini sampai laci ditutup. Wajib presensi masuk dulu sebelum bisa buka laci.</p>',
     submitText: 'BUKA LACI',
     onSubmit: async () => {
-      await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount: Number(el('dialogOpeningAmount').value), openingNote: el('dialogOpeningNote').value }) });
+      const result = await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount: Number(el('dialogOpeningAmount').value), openingNote: el('dialogOpeningNote').value }) });
       await loadDrawer();
-      toast('Laci dibuka');
+      toast(result.discrepancyPermit
+        ? `Laci dibuka. Saldo awal beda ${rupiah(Math.abs(result.discrepancyPermit.difference))} dari saldo akhir laci sebelumnya — permit otomatis dikirim ke Admin/Owner.`
+        : 'Laci dibuka');
       return true;
     }
   });

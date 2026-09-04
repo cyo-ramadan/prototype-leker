@@ -6,8 +6,9 @@
 
   function authSnapshot() {
     const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
+    const entityAdminToken = sessionStorage.getItem('lekerEntityAdminToken') || '';
     const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
-    return { ownerToken, adminToken, token: ownerToken || adminToken };
+    return { ownerToken, entityAdminToken, adminToken, token: ownerToken || entityAdminToken || adminToken };
   }
 
   function requestUrl(path) {

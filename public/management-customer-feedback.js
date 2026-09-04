@@ -32,8 +32,9 @@
 
   function managementToken() {
     const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
+    const entityAdminToken = sessionStorage.getItem('lekerEntityAdminToken') || '';
     const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
-    if (isBranch) return ownerToken || adminToken;
+    if (isBranch) return ownerToken || entityAdminToken || adminToken;
     return ownerToken;
   }
 

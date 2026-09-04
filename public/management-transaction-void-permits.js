@@ -5,7 +5,7 @@
   const labels = { SALE: 'Penjualan', PURCHASE: 'Pembelian', EXPENSE: 'Operasional' };
   const isBranchAdmin = Boolean(document.getElementById('adminApp'));
   const storeCode = String(window.LEKER_STORE_CODE || sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
-  function authToken() { return sessionStorage.getItem('lekerOwnerToken') || sessionStorage.getItem('lekerAdminToken') || ''; }
+  function authToken() { return sessionStorage.getItem('lekerOwnerToken') || sessionStorage.getItem('lekerEntityAdminToken') || sessionStorage.getItem('lekerAdminToken') || ''; }
   function scoped(path) {
     if (!isBranchAdmin || !storeCode) return path;
     const url = new URL(path, location.origin); url.searchParams.set('store', storeCode); return `${url.pathname}${url.search}`;

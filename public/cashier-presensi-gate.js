@@ -23,10 +23,13 @@
     gate.classList.add('hidden');
   }
 
-  async function submitPresensiIn(blob) {
+  async function submitPresensiIn(blob, geo) {
     const form = new FormData();
     form.set('type', 'in');
     form.set('photo', blob, 'attendance-in.jpg');
+    if (geo?.latitude != null) form.set('latitude', String(geo.latitude));
+    if (geo?.longitude != null) form.set('longitude', String(geo.longitude));
+    if (geo?.accuracy != null) form.set('accuracy', String(geo.accuracy));
     await api('/api/staff/attendance', { method: 'POST', body: form });
   }
 
@@ -35,9 +38,10 @@
     window.CameraSnapshotModal.open({
       facingMode: 'user',
       title: 'Presensi Masuk',
-      onCaptureSuccess: async blob => {
+      watermark: true,
+      onCaptureSuccess: async (blob, geo) => {
         try {
-          await submitPresensiIn(blob);
+          await submitPresensiIn(blob, geo);
           hideGate();
           await proceedToDashboard();
         } catch (error) {

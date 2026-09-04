@@ -354,6 +354,45 @@ sebelum presensi lalu berhasil sesudahnya, kasir kedua yang sudah login+presensi
 (`409 DRAWER_ALREADY_OPEN`), dan `attendanceStatus` di `/api/cashier/me` mengikuti baris
 `staff_attendance` terakhir yang sebenarnya di-insert ke DB.
 
+### Active: presensi jadi toggle in/out, plus GPS+timestamp, plus tombol Workboard (2026-09-04)
+
+Tiga hal terpisah yang Bos Cyo minta di putaran yang sama:
+
+1. **Presensi masuk/keluar sekarang toggle state yang ditegakkan server-side**, bukan cuma dua
+   tombol independen. `POST /api/staff/attendance` (`src/staff-portal.js`) menolak `type=in`
+   kalau `latestAttendanceStatus` sudah `'in'` (`409 ALREADY_CHECKED_IN`), dan menolak `type=out`
+   kalau belum pernah/tidak sedang `'in'` (`409 NOT_CHECKED_IN`). `public/staff.js` juga
+   men-disable tombol yang tidak valid berdasarkan `attendanceStatus` yang sekarang ikut dibalas
+   `GET /api/staff/portal`.
+2. **Foto presensi sekarang boleh menyertakan lokasi GPS + akurasi**, direkam sendiri (bukan
+   add-on/SaaS pihak ketiga) lewat `navigator.geolocation.getCurrentPosition` di
+   `public/camera-snapshot-modal.js` (opt-in lewat `CameraSnapshotModal.open({watermark:true})`,
+   timeout 6 detik, gagal-lunak ke `null` kalau ditolak/tidak tersedia -- presensi tetap boleh
+   jalan tanpa koordinat, foto tetap wajib). Ada dua bentuk bukti: (a) watermark visual dibakar
+   langsung ke pixel foto (bar semi-transparan di bawah, isi timestamp lokal + koordinat) supaya
+   kelihatan langsung saat foto dilihat manusia, dan (b) `latitude`/`longitude`/
+   `location_accuracy_meters` disimpan sebagai kolom terpisah di `staff_attendance` (migration
+   `0067`, nullable, `REAL` -- ini koordinat geografis bukan uang, tidak kena invariant scaled-integer)
+   supaya bisa diquery, bukan cuma terkubur di dalam gambar. Dipakai di kedua jalur presensi
+   masuk: `public/staff.js` (Portal Staf) dan `public/cashier-presensi-gate.js` (gerbang wajib
+   abis login) -- drawer-close (`cashier-live-photo.js`) sengaja TIDAK ikut diberi watermark,
+   di luar permintaan.
+3. **Tombol "🗂️ Maxi Store Workboard" ditambahkan di header Portal Staf** (`public/staff.html`),
+   link keluar biasa (`target="_blank"`) ke `program-task.daily-napkin.workers.dev` -- TIDAK ada
+   integrasi data/auth apa pun, cuma tombol. Fitur "abis presensi otomatis nongol daily task
+   milik sendiri dari Workboard, bisa dikasih task tambahan dari Admin, ada pembatasan role buat
+   CS (cuma boleh minta respon, tidak bisa bikin task)" -- itu semua **sengaja ditahan (hold)**
+   atas instruksi eksplisit Bos Cyo sampai ada keputusan lanjutan "bikin sendiri di Leker vs
+   sambung ke Workboard yang sudah ada" (opsi pertama direkomendasikan Hana: isolated dari
+   produk lain, konsisten dengan keputusan "Workboard integration -- on hold" yang sudah ada di
+   bagian lain dokumen ini; belum diputuskan Bos Cyo).
+
+Test runtime ada di `test/staff-attendance-toggle-geolocation.test.js`: urutan toggle in→out→in
+(termasuk penolakan out-sebelum-in dan in-dobel), koordinat GPS tersimpan lewat jalur multipart
+form yang sama seperti production (`readLivePhoto`), dan koordinat null-safe kalau field GPS
+tidak dikirim sama sekali (ditemukan lewat test ini: `coord()` versi pertama salah mengubah
+`null` jadi `0` lewat `Number(null)` -- dikoreksi sebelum sempat dipakai, lihat riwayat commit).
+
 ## Staff session dan duplicate tab
 
 Canonical login remains separated into Pelanggan and Karyawan, one staff account has one active server session, and one browser has one active staff tab through the local browser lease. Customer sessions remain separate.

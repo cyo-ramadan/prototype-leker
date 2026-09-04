@@ -22,6 +22,34 @@ Current behavior:
 
 V1 intentionally does not define lot/expiry or individual asset depreciation.
 
+### Active: Auto Permit toggle (2026-09-04)
+
+Governed by ADR-041 (amends ADR-009 point 8), migration `0066_store_approval_settings.sql`,
+`src/approval-queue.js`, `public/management-approval-queue.js`.
+
+Per-store toggle: when on, a cashier's new `approval_requests` submission is
+posted immediately through the same `applyAccDecision()` contract a human ACC
+uses (`rejectStaleStockAdjustment` → `buildOperationalPostingStatements` →
+`env.DB.batch` → `cashFlowAccountingAfterCommit`), instead of waiting as
+`pending_approval`. Scope is `approval_requests` only — `transaction_void_permits`
+(Hapus/correction permits) is explicitly not affected.
+
+- `approved_by_role = 'AUTO_PERMIT'`, `approved_by_id` = the account that
+  turned the toggle on (`store_approval_settings.enabled_by_id`), never the
+  submitting cashier — this is the accountability trail Bos Cyo asked for.
+- A stale `STOCK_ADJUSTMENT` snapshot is still rejected exactly as it is
+  today under manual ACC. Any other posting failure leaves the row
+  `pending_approval`/`unposted` (the batch rolls back atomically) rather than
+  being silently rejected — a human can still review it normally.
+- Toggle read/write (`GET`/`PATCH /api/management/approval-settings`) is
+  gated by the same store-scoped `managementScope()` every other approval
+  endpoint uses: Admin Gerai own store, Owner any store, Entity Admin stores
+  within its Entity.
+- UI lives only in the per-store Admin panel tab (`mountBranchAdmin()`), not
+  Owner's cross-store approval list, since the toggle has no meaning without
+  a single store in context. Turning it on requires an explicit confirmation
+  naming the consequence.
+
 ## Manufacturing, stock, production, and moving-average HPP
 
 Current behavior is governed by:
@@ -372,4 +400,4 @@ history snapshots `entity_id` at write time (migration 0046) and still points at
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity.

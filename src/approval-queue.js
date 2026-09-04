@@ -106,7 +106,24 @@ async function handleCashierApprovalQueue(request, env, pathname) {
         approval_status, posting_status, payload_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 'pending_approval', 'unposted', ?, ?, ?)
     `).bind(id, auth.cashier.store.id, drawerAuth.drawer.id, auth.cashier.id, requestType, payloadJson, now, now).run();
-    return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
+
+    const settings = await getApprovalSettings(env.DB, auth.cashier.store.id);
+    if (!settings.autoPermitEnabled) return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
+
+    const created = await getRequest(env.DB, id);
+    const outcome = await applyAccDecision(env, created, {
+      approverRole: 'AUTO_PERMIT',
+      approverId: settings.enabledById || '',
+      now,
+      note: 'Auto Permit'
+    });
+    return json({
+      ok: true,
+      request: outcome.request,
+      autoPermit: outcome.ok
+        ? { attempted: true, posted: true }
+        : { attempted: true, posted: false, code: outcome.code, reason: outcome.error }
+    }, 201);
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/approval-requests') {
@@ -178,8 +195,52 @@ async function cashFlowAccountingAfterCommit(env, current) {
   }
 }
 
+function mapApprovalSettings(storeId, row) {
+  return {
+    storeId,
+    autoPermitEnabled: Boolean(row?.auto_permit_enabled),
+    enabledByRole: row?.enabled_by_role || null,
+    enabledById: row?.enabled_by_id || null,
+    enabledAt: row?.enabled_at || null
+  };
+}
+
+async function getApprovalSettings(db, storeId) {
+  const row = await db.prepare(`
+    SELECT auto_permit_enabled, enabled_by_role, enabled_by_id, enabled_at
+    FROM store_approval_settings WHERE store_id = ?
+  `).bind(storeId).first();
+  return mapApprovalSettings(storeId, row);
+}
+
+// Shared by the management ACC decision (PATCH .../approval-requests/:id) and
+// the cashier Auto Permit path (POST .../approval-requests when the store's
+// toggle is on) so both go through the exact same posting contract instead of
+// two implementations that can drift. A stale STOCK_ADJUSTMENT snapshot marks
+// the row rejected here (existing rejectStaleStockAdjustment behavior,
+// unchanged); any other posting failure leaves the row pending_approval/
+// unposted because env.DB.batch() rolls the whole attempt back atomically --
+// Auto Permit never silently rejects a request a human could still review.
+async function applyAccDecision(env, current, { approverRole, approverId, now, note = '' }) {
+  const stale = await rejectStaleStockAdjustment(env.DB, current, { approverRole, approverId, now });
+  if (stale) return { ok: false, ...stale, request: await getRequest(env.DB, current.id) };
+
+  const statements = buildOperationalPostingStatements(env.DB, current, { approverRole, approverId, now, note });
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    const known = postingFailureResponse(current.requestType, error);
+    if (known) return { ok: false, status: known.status, error: known.error, code: 'POSTING_REJECTED', request: await getRequest(env.DB, current.id) };
+    throw error;
+  }
+
+  const postedRequest = await getRequest(env.DB, current.id);
+  const accounting = await cashFlowAccountingAfterCommit(env, postedRequest);
+  return { ok: true, request: postedRequest, accounting };
+}
+
 async function handleManagementApprovalQueue(request, env, pathname) {
-  if (!pathname.startsWith('/api/management/approval-requests')) return null;
+  if (!pathname.startsWith('/api/management/approval-requests') && pathname !== '/api/management/approval-settings') return null;
   const scope = await managementScope(request, env);
   if (!scope.ok) return scope.response;
 
@@ -189,6 +250,43 @@ async function handleManagementApprovalQueue(request, env, pathname) {
     const status = rawStatus === 'all' ? null : rawStatus;
     if (status && !APPROVAL_STATUSES.has(status)) return json({ error: 'Filter status approval tidak valid.' }, 400);
     return json({ requests: await listRequests(env.DB, { storeId: scope.storeId, status }) });
+  }
+
+  if (pathname === '/api/management/approval-settings') {
+    if (!scope.storeId) return json({ error: 'Auto Permit butuh konteks gerai (?store=).' }, 400);
+
+    if (request.method === 'GET') {
+      return json({ settings: await getApprovalSettings(env.DB, scope.storeId) });
+    }
+
+    if (request.method === 'PATCH') {
+      const body = await readJson(request);
+      if (!body.ok) return json({ error: 'Payload Auto Permit tidak valid.' }, 400);
+      const enabled = Boolean(body.value?.enabled);
+      const now = new Date().toISOString();
+      const approverRole = scope.owner ? 'OWNER' : scope.entityAdmin ? 'ENTITY_ADMIN' : 'ADMIN';
+      const approverId = scope.owner?.id || scope.entityAdmin?.id || scope.admin?.id || '';
+
+      if (enabled) {
+        await env.DB.prepare(`
+          INSERT INTO store_approval_settings (store_id, auto_permit_enabled, enabled_by_role, enabled_by_id, enabled_at, updated_at)
+          VALUES (?, 1, ?, ?, ?, ?)
+          ON CONFLICT(store_id) DO UPDATE SET
+            auto_permit_enabled = 1, enabled_by_role = excluded.enabled_by_role,
+            enabled_by_id = excluded.enabled_by_id, enabled_at = excluded.enabled_at, updated_at = excluded.updated_at
+        `).bind(scope.storeId, approverRole, approverId, now, now).run();
+      } else {
+        await env.DB.prepare(`
+          INSERT INTO store_approval_settings (store_id, auto_permit_enabled, updated_at)
+          VALUES (?, 0, ?)
+          ON CONFLICT(store_id) DO UPDATE SET auto_permit_enabled = 0, updated_at = excluded.updated_at
+        `).bind(scope.storeId, now).run();
+      }
+
+      return json({ ok: true, settings: await getApprovalSettings(env.DB, scope.storeId) });
+    }
+
+    return json({ error: 'Method Auto Permit tidak didukung.' }, 405);
   }
 
   const accountingSyncMatch = pathname.match(/^\/api\/management\/approval-requests\/([^/]+)\/accounting-sync$/);
@@ -232,26 +330,15 @@ async function handleManagementApprovalQueue(request, env, pathname) {
       return json({ ok: true, request: await getRequest(env.DB, requestId), posted: false });
     }
 
-    const stale = await rejectStaleStockAdjustment(env.DB, current, { approverRole, approverId, now });
-    if (stale) return json({ ...stale, request: await getRequest(env.DB, requestId) }, stale.status);
+    const outcome = await applyAccDecision(env, current, { approverRole, approverId, now, note });
+    if (!outcome.ok) return json(outcome, outcome.status);
 
-    const statements = buildOperationalPostingStatements(env.DB, current, { approverRole, approverId, now, note });
-    try {
-      await env.DB.batch(statements);
-    } catch (error) {
-      const known = postingFailureResponse(current.requestType, error);
-      if (known) return json({ error: known.error, code: 'POSTING_REJECTED' }, known.status);
-      throw error;
-    }
-
-    const postedRequest = await getRequest(env.DB, requestId);
-    const accounting = await cashFlowAccountingAfterCommit(env, postedRequest);
     return json({
       ok: true,
-      request: postedRequest,
+      request: outcome.request,
       posted: true,
-      accounting,
-      message: accounting && !accounting.ok
+      accounting: outcome.accounting,
+      message: outcome.accounting && !outcome.accounting.ok
         ? 'ACC dan posting operasional berhasil. Accounting menunggu konfigurasi / retry.'
         : 'ACC berhasil dan posting snapshot sudah diterapkan.'
     });

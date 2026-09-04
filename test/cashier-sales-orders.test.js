@@ -11,7 +11,7 @@ test('cashier exposes drawer-bound Penjualan, Buku Menu, and Pesanan modes', () 
   assert.match(cashierHtml, /cashier-sales-orders\.js/);
   assert.match(cashierFlow, /data-cashier-workspace-mode="sales"/);
   assert.match(cashierFlow, /🧾 Penjualan/);
-  assert.match(cashierFlow, /📖 Buku Menu/);
+  assert.match(cashierFlow, /📖 Menu/);
   assert.match(cashierFlow, /📥 Pesanan/);
   assert.match(cashierFlow, /openSaleDialog\(\)/);
   assert.match(cashierFlow, /id="salePimasatu"/);

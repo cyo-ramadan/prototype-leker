@@ -25,11 +25,12 @@
     style.textContent = `
       .drawer-command-card{flex-wrap:wrap;align-items:flex-start}
       .cashier-drawer-workspace{flex:1 0 100%;min-width:0;padding-top:16px;margin-top:2px;border-top:1px solid #eadfd4}
-      .cashier-workspace-nav{display:flex;gap:10px;margin:0 0 16px}
-      .cashier-workspace-nav button{border:1px solid #ddd0c3;background:#fffaf4;border-radius:16px;padding:12px 14px;font-weight:900;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
-      .cashier-workspace-nav button.active,.drawer-action-btn[data-cashier-workspace-mode].active{background:#281f18;color:#fff;border-color:#281f18;box-shadow:0 10px 26px rgba(40,31,24,.14)}
-      .cashier-workspace-count{min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:rgba(128,128,128,.16);font-size:11px}
-      .cashier-workspace-nav button.active .cashier-workspace-count,.drawer-action-btn[data-cashier-workspace-mode].active .cashier-workspace-count{background:rgba(255,255,255,.18)}
+      .cashier-workspace-nav{display:flex;gap:6px;margin:0 0 16px}
+      .cashier-workspace-nav button{flex:1 1 0;min-width:0;border:1px solid #ddd0c3;background:#fffaf4;border-radius:14px;padding:9px 2px;font-weight:900;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;line-height:1.15}
+      .cashier-workspace-nav button span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+      .cashier-workspace-nav button.active{background:#281f18;color:#fff;border-color:#281f18;box-shadow:0 10px 26px rgba(40,31,24,.14)}
+      .cashier-workspace-count{min-width:20px;height:20px;padding:0 5px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:rgba(128,128,128,.16);font-size:10px}
+      .cashier-workspace-nav button.active .cashier-workspace-count{background:rgba(255,255,255,.18)}
       .cashier-sales-only{grid-template-columns:minmax(0,1fr)!important}
       .cashier-sales-only .cashier-draft-panel{max-width:none}
       .cashier-product-search{border:1px solid #eadfd4;background:#fffaf5;border-radius:16px;padding:12px;margin-bottom:12px}
@@ -86,17 +87,17 @@
       workspace.appendChild(orderSection);
     }
 
-    if (!byId('cashierSalesActionBtn')) {
-      const purchaseButton = byId('purchaseBtn');
-      purchaseButton?.insertAdjacentHTML('beforebegin', `
-        <button id="cashierSalesActionBtn" class="drawer-action-btn" type="button" data-cashier-workspace-mode="sales"><span>🧾 Penjualan</span><span id="cashierSalesCount" class="cashier-workspace-count">0</span></button>
-        <button id="cashierOrdersActionBtn" class="drawer-action-btn" type="button" data-cashier-workspace-mode="orders"><span>📥 Pesanan</span><span id="cashierOrdersCount" class="cashier-workspace-count">0</span></button>`);
-    }
-
+    // The three workspace-mode switches (Buku Menu/Penjualan/Pesanan) live
+    // together in one nav, separate from the unrelated utility buttons
+    // (Beli Bahan, Pengeluaran, etc.) in .drawer-actions above -- mixing a
+    // navigation control into that action-button grid is what made the
+    // composition feel off on a phone screen (Bos Cyo, 2026-09-04).
     if (!byId('cashierWorkspaceNav')) {
       workspace.insertAdjacentHTML('afterbegin', `
         <nav id="cashierWorkspaceNav" class="cashier-workspace-nav" aria-label="Buku menu laci aktif">
-          <button type="button" data-cashier-workspace-mode="menu"><span>📖 Buku Menu</span><span id="cashierMenuDraftCount" class="cashier-workspace-count">0</span></button>
+          <button type="button" data-cashier-workspace-mode="menu"><span>📖 Menu</span><span id="cashierMenuDraftCount" class="cashier-workspace-count">0</span></button>
+          <button id="cashierSalesActionBtn" type="button" data-cashier-workspace-mode="sales"><span>🧾 Penjualan</span><span id="cashierSalesCount" class="cashier-workspace-count">0</span></button>
+          <button id="cashierOrdersActionBtn" type="button" data-cashier-workspace-mode="orders"><span>📥 Pesanan</span><span id="cashierOrdersCount" class="cashier-workspace-count">0</span></button>
         </nav>`);
     }
 

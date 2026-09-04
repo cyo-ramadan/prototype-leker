@@ -16,10 +16,18 @@ test('cashier header removes visible Buka Customer control', () => {
   assert.match(cashierHtml, /id="openKioskLink" hidden/);
 });
 
-test('sales and orders are aligned into drawer action bar without replacing existing action ids', () => {
-  assert.match(cashierModes, /purchaseButton\?\.insertAdjacentHTML\('beforebegin'/);
-  assert.match(cashierModes, /id="cashierSalesActionBtn" class="drawer-action-btn"/);
-  assert.match(cashierModes, /id="cashierOrdersActionBtn" class="drawer-action-btn"/);
+test('sales, orders, and menu are one workspace-mode nav, separate from the drawer action bar, without replacing existing action ids', () => {
+  // 2026-09-04: Penjualan/Pesanan used to be injected as .drawer-action-btn
+  // entries mixed into the same grid as unrelated utility buttons (Beli
+  // Bahan, Pengeluaran, ...), while only Buku Menu got its own nav -- that
+  // inconsistency was reported as the phone layout "not fitting". All three
+  // workspace-mode switches now live together in #cashierWorkspaceNav.
+  assert.doesNotMatch(cashierModes, /purchaseButton\?\.insertAdjacentHTML\('beforebegin'/);
+  assert.match(cashierModes, /<nav id="cashierWorkspaceNav" class="cashier-workspace-nav"/);
+  assert.match(cashierModes, /id="cashierSalesActionBtn" type="button" data-cashier-workspace-mode="sales"/);
+  assert.match(cashierModes, /id="cashierOrdersActionBtn" type="button" data-cashier-workspace-mode="orders"/);
+  assert.doesNotMatch(cashierModes, /id="cashierSalesActionBtn" class="drawer-action-btn"/);
+  assert.doesNotMatch(cashierModes, /id="cashierOrdersActionBtn" class="drawer-action-btn"/);
   assert.match(cashierHtml, /id="purchaseBtn"/);
   assert.match(cashierHtml, /id="expenseBtn"/);
   assert.match(cashierHtml, /id="otherIncomeBtn"/);

@@ -15,7 +15,17 @@ const readMigration = file => readFileSync(new URL(file, migrationDir), 'utf8');
 // new store's onboarding migration setting edition='LITE') cannot run without
 // it either -- skip those too, not just 0045 itself, or the includeEdition:false
 // branch crashes on "no such column" instead of showing 0045's isolated effect.
-const dependsOnEdition = file => file === EDITION_MIGRATION || /\bedition\b/.test(readMigration(file));
+//
+// Migration 0052 (Kantor/Pendem/Mandala) is itself caught by that rule, so it
+// gets skipped too -- which means those three gerai don't exist in this mode.
+// Any later migration referencing their store ids depends on 0052 transitively
+// even if it never mentions `edition` itself (e.g. seeding a cashier into
+// store_kantor), and needs to be skipped along with it or the FOREIGN KEY
+// reference fails on a gerai that was never created in this reconstruction.
+const KANTOR_PENDEM_MANDALA_STORE_IDS = /\bstore_kantor\b|\bstore_pendem\b|\bstore_mandala\b/;
+const dependsOnEdition = file => file === EDITION_MIGRATION
+  || /\bedition\b/.test(readMigration(file))
+  || KANTOR_PENDEM_MANDALA_STORE_IDS.test(readMigration(file));
 
 function migratedDb({ includeEdition = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');

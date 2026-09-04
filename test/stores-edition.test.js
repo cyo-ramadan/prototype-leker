@@ -23,9 +23,21 @@ const readMigration = file => readFileSync(new URL(file, migrationDir), 'utf8');
 // store_kantor), and needs to be skipped along with it or the FOREIGN KEY
 // reference fails on a gerai that was never created in this reconstruction.
 const KANTOR_PENDEM_MANDALA_STORE_IDS = /\bstore_kantor\b|\bstore_pendem\b|\bstore_mandala\b/;
+
+// 0071 reverts 0070's edition-gated drawer_shortage/drawer_surplus
+// scaffolding (2026-09-04, Bos Cyo revised the drawer-opening-balance design
+// again the same day 0070 shipped). It must be skipped together with 0070,
+// not just checked for its own edition/store-id mentions: if only 0070 were
+// skipped, 0071 would run here against a base where 0070 never applied --
+// its DELETE/DROP TRIGGER statements would find nothing and silently no-op
+// -- and 0070 would then be replayed afterward (see the catch-up loop
+// below) with nothing left to undo it, leaving a stray trigger that the
+// real, correctly-ordered migration chain does not have.
+const REVERTS_EDITION_DEPENDENT_MIGRATION = /\b0070_drawer_opening_discrepancy_accounting\b/;
 const dependsOnEdition = file => file === EDITION_MIGRATION
   || /\bedition\b/.test(readMigration(file))
-  || KANTOR_PENDEM_MANDALA_STORE_IDS.test(readMigration(file));
+  || KANTOR_PENDEM_MANDALA_STORE_IDS.test(readMigration(file))
+  || REVERTS_EDITION_DEPENDENT_MIGRATION.test(readMigration(file));
 
 function migratedDb({ includeEdition = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');

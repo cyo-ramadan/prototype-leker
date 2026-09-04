@@ -437,68 +437,50 @@ default kosong kalau tidak diisi (pola sama dengan `closing_note`), dan wiring U
 dialog Buka Laci, penomoran `Laci #N`, kedua label keterangan) diverifikasi lewat regex terhadap
 source file yang sebenarnya, bukan diasumsikan.
 
-### Active: saldo awal laci tetap entry manual, selisih auto-permit ke Approval Queue, ACC langsung posting jurnal (2026-09-04)
+### Fixed shape: saldo awal laci read-only, melanjutkan saldo akhir laci sebelumnya (2026-09-04)
 
-Bos Cyo sempat mempertimbangkan saldo awal laci jadi read-only (otomatis lanjut dari saldo akhir
-laci sebelumnya), tapi memutuskan tetap entry manual -- dan kalau nominalnya tidak sama dengan
-saldo akhir laci sebelumnya di gerai yang sama, otomatis dibuatkan pengajuan ke Approval Queue
-yang sudah ada untuk dicek Admin/Owner. **Laci tetap kebuka baik ada selisih atau tidak -- ini
-tidak pernah memblokir buka laci.** Pembanding yang dipakai: `closing_amount` laci CLOSED terakhir
-di gerai itu (bukan saldo kas dari Akuntansi/ledger -- dua-duanya biasanya sama, tapi kalau nanti
-sengaja mau dibandingkan ke ledger Akuntansi juga, itu perubahan lain, bukan ini). Kalau belum
-pernah ada laci yang ditutup di gerai itu (laci pertama), tidak ada pembanding sama sekali, jadi
-tidak pernah bikin permit.
+Bos Cyo mencoba dua desain lain di hari yang sama sebelum menetap di ini -- riwayatnya penting
+buat agen lain supaya tidak mengulang salah satu desain yang sudah ditolak:
+1. Entry manual + auto-permit ke Approval Queue kalau beda dari saldo akhir laci sebelumnya
+   (ditolak).
+2. Desain (1) plus ACC pada permit-nya langsung memposting jurnal kas (kategori Jenis Transaksi
+   `drawer_shortage`/`drawer_surplus`, migration 0070) -- juga ditolak, di hari yang sama juga.
 
-**Kenapa lewat `CASH_FLOW` + `purpose`, bukan `request_type` baru:** `approval_requests.request_type`
-punya SQLite CHECK constraint yang cuma mengizinkan `'CASH_FLOW'`, `'GOODS_FLOW'`, `'ASSET'` --
-menambah value baru butuh rebuild tabel (`CREATE TABLE baru` + copy + drop + rename), operasi
-berisiko di tabel yang sudah aktif dipakai production dan belum pernah ada presedennya di
-migration manapun di repo ini. Solusi yang dipakai justru sudah ada presedennya: `GOODS_FLOW`
-sudah lama membedakan Penyesuaian Stok dari Arus Barang biasa lewat `payload.purpose ===
-'STOCK_ADJUSTMENT'`, bukan lewat `request_type` terpisah. Permit selisih saldo awal ini mengikuti
-pola yang sama persis: `request_type = 'CASH_FLOW'`, `payload.purpose = 'DRAWER_OPENING_DISCREPANCY'`.
+**Bentuk final:** saldo awal laci **read-only**, otomatis melanjutkan `closing_amount` laci CLOSED
+terakhir di gerai yang sama -- server yang menentukan nilainya (`getLastClosedDrawer` di
+`src/cashier-drawer.js`), bukan sekadar field yang dikunci di UI: input `openingAmount` dari client
+DIABAIKAN kalau ada laci sebelumnya yang sudah CLOSED. Kalau kas fisik ternyata tidak cocok dengan
+angka itu, itu **dibahas kasir langsung dengan akuntan di luar sistem ini** -- akuntan yang bikin
+jurnalnya sendiri lewat jurnal manual (fitur yang sudah ada), atau lewat permit Arus Kas yang sudah
+ada dan memang perlu ACC akuntan. Tidak ada lagi permit otomatis, tidak ada lagi kategori Jenis
+Transaksi khusus, tidak ada posting jurnal otomatis dari sisi ini sama sekali.
 
-**ACC langsung memposting jurnal kas (bukan cuma flag) -- keputusan direvisi Bos Cyo di hari yang
-sama:** desain awal cuma menandai "perlu dicek" tanpa menyentuh jurnal. Bos Cyo minta diubah:
-begitu Admin/Owner ACC permit ini, sistem langsung memposting jurnal atas nominal selisihnya --
-supaya kas di pembukuan tetap mencerminkan kas fisik hari itu juga, dan koreksi ke akun yang
-benar (siapa yang menanggung selisih) jadi PR akuntan yang ditagih lewat jurnal manual biasa
-sebelum tutup bulan, bukan dibiarkan menggantung sebagai catatan pasif. Dua kategori Jenis
-Transaksi baru (migration 0070), gerbang `edition='ACCOUNTING'` -- gerai tanpa modul Akuntansi
-tetap cuma dapat flag, tidak ada percobaan posting sama sekali:
-- **Selisih kurang (`drawer_shortage`)**: Debit "Beban Uang Hilang", Credit Kas. Akun lawannya
-  BELUM dikonfigurasi bawaan -- `journal_rules` punya CHECK constraint yang melarang baris
-  `fixed_account` dengan akun kosong ("placeholder" tidak diperbolehkan), jadi Owner wajib bikin
-  akun "Beban Uang Hilang" dan rule-nya sendiri dulu lewat Setting Akuntansi sebelum kategori ini
-  bisa posting (sebelum itu, ACC tetap tercatat tapi jurnalnya `NEEDS_MAPPING`, menunggu
-  dikonfigurasi, retry otomatis lewat endpoint sinkronisasi Accounting yang sudah ada begitu
-  Owner selesai setup).
-- **Selisih lebih (`drawer_surplus`)**: Debit Kas, Credit "Pendapatan Lainnya" -- akun ini SUDAH
-  ada dari sebelumnya (dipakai juga sebagai default kategori arus kas masuk lain), jadi langsung
-  siap posting tanpa perlu setup tambahan dari Owner.
+Laci pertama di sebuah gerai (belum pernah ada laci CLOSED) tetap entry manual, karena tidak ada
+"kemarin" untuk dilanjutkan.
 
-Kedua arah TETAP jadi PR akuntan: akun default di atas cuma titik awal yang aman, bukan
-klasifikasi final -- siapa yang sebenarnya menanggung selisih itu tetap harus direklasifikasi
-akuntan ke akun yang tepat lewat jurnal manual (fitur yang sudah ada), sebelum tutup bulan.
-
-`buildOperationalPostingStatements` (`src/operational-posting.js`) tetap di-skip untuk
-`purpose === 'DRAWER_OPENING_DISCREPANCY'` (tidak ada baris `cash_ledger_entries` fiktif dari
-sesi laci itu sendiri yang dibuat) -- yang berubah cuma soal Accounting-nya: `cashFlowAccountingAfterCommit`
-(`src/approval-queue.js`) sekarang memanggil `dispatchApprovedDrawerDiscrepancyToAccounting`
-(`src/accounting-cash-flow-bridge.js`) untuk purpose ini, bukan lagi di-skip.
+**Migration 0071 membongkar scaffolding 0070:** migration 0070 (desain kedua di atas) sudah
+sempat `applied` di production sebelum ditolak -- CLAUDE.md invariant #7 melarang menulis ulang
+migration yang sudah applied, jadi 0071 adalah migration forward baru yang menghapus trigger dan
+baris `transaction_categories`/`journal_rules` yang 0070 buat (`drawer_shortage`, `drawer_surplus`),
+tanpa menyentuh `coa_<store>_4202` ("Pendapatan Lainnya") karena akun itu dipakai bersama sebagai
+default `cash_flow_in` sejak migration 0028, bukan milik 0070. Satu `approval_requests` row nyata
+dari sempat hidupnya desain kedua (purpose `DRAWER_OPENING_DISCREPANCY`, di salah satu gerai pilot,
+`pending_approval`) sengaja dibiarkan apa adanya -- itu data kejadian nyata, bukan sesuatu yang
+dihapus lewat migration. ACC pada baris itu sekarang gagal aman (constraint `cash_ledger_entries`
+menolak payload lama yang tidak punya `direction`/`amount`, karena `buildOperationalPostingStatements`
+sudah kembali ke bentuk normal); Admin/Owner tinggal Reject baris itu lewat Approval Queue.
 
 Terpisah dari ini: kolom `opening_note` (section di atas) tetap ada dan independen -- kasir bisa
 isi keterangan buka laci apa pun nominalnya cocok atau tidak.
 
-Test runtime + static ada di `test/drawer-opening-discrepancy.test.js`: nominal cocok = tidak ada
-permit dibuat, nominal beda = laci tetap kebuka (bukan diblokir) + permit `pending_approval`
-otomatis dengan `drawer_session_id` menunjuk ke laci yang baru dibuka, tidak ada laci sebelumnya
-= tidak ada perbandingan sama sekali, ACC pada selisih lebih terbukti langsung memposting jurnal
-Debit Kas/Credit Pendapatan Lainnya (dicek sampai ke baris `accounting_journal_lines`), ACC pada
-selisih kurang terbukti `NEEDS_MAPPING` sampai Owner bikin akun+rule Beban Uang Hilang lalu retry
-lewat endpoint sinkronisasi berhasil posting Debit ke akun itu, dan migration 0070 sendiri dicek
-statis supaya tidak pernah nge-seed baris `fixed_account` tanpa akun (guard terhadap bug placeholder
-kosong yang sempat ketemu waktu development).
+Test runtime + static ada di `test/drawer-opening-discrepancy.test.js`: `GET /api/cashier/drawer`
+mengembalikan `lastClosingAmount` (null kalau belum pernah ada laci CLOSED), `POST .../drawer/open`
+mengabaikan `openingAmount` dari client dan memakai `closing_amount` laci sebelumnya kalau ada,
+laci pertama di gerai tetap terima entry manual, tidak ada `approval_requests` yang pernah dibuat
+lagi untuk ini, dialog buka laci di kasir merender field read-only kalau ada saldo sebelumnya, dan
+migration 0071 dicek baik secara statis maupun lewat reproduksi in-memory penuh (gerai baru tidak
+lagi dapat `drawer_shortage`/`drawer_surplus`, gerai lama yang sempat ke-seed migration 0070
+bersih kembali, `cash_flow_in`/`cash_flow_out` dan akun bersama `coa_4202` tidak terganggu).
 
 ## Staff session dan duplicate tab
 
@@ -592,4 +574,4 @@ history snapshots `entity_id` at write time (migration 0046) and still points at
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; the drawer-opening-discrepancy permit is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or gains its own `request_type` instead of the `CASH_FLOW`+`purpose` encoding.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it.

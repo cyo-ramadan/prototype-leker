@@ -3,7 +3,7 @@ import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
-import { dispatchApprovedCashFlowToAccounting, dispatchApprovedDrawerDiscrepancyToAccounting } from './accounting-cash-flow-bridge.js';
+import { dispatchApprovedCashFlowToAccounting } from './accounting-cash-flow-bridge.js';
 import {
   normalizeApprovalPayload,
   buildOperationalPostingStatements,
@@ -183,15 +183,8 @@ async function rejectStaleStockAdjustment(db, current, { approverRole, approverI
 
 async function cashFlowAccountingAfterCommit(env, current) {
   if (current.requestType !== 'CASH_FLOW') return null;
-  // 2026-09-04, Bos Cyo: ACC pada permit selisih saldo awal laci sekarang
-  // langsung memposting jurnal juga (drawer_shortage/drawer_surplus), lewat
-  // fact source-nya sendiri -- bukan cash_ledger_entries seperti Arus Kas
-  // biasa (lihat dispatchApprovedDrawerDiscrepancyToAccounting).
-  const isDrawerDiscrepancy = current.payload?.purpose === 'DRAWER_OPENING_DISCREPANCY';
   try {
-    return isDrawerDiscrepancy
-      ? await dispatchApprovedDrawerDiscrepancyToAccounting(env.DB, current.storeId, current.id)
-      : await dispatchApprovedCashFlowToAccounting(env.DB, current.storeId, current.id);
+    return await dispatchApprovedCashFlowToAccounting(env.DB, current.storeId, current.id);
   } catch (error) {
     return {
       ok: false,

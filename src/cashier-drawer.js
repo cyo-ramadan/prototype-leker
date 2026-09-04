@@ -135,7 +135,13 @@ export async function handleCashierDrawerApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/cashier/drawer') {
     const drawer = await getOpenDrawer(db, cashier.store.id);
-    return json({ cashier, drawer, canWrite: Boolean(drawer && drawer.cashierId === cashier.id) });
+    const lastClosed = drawer ? null : await getLastClosedDrawer(db, cashier.store.id);
+    return json({
+      cashier,
+      drawer,
+      canWrite: Boolean(drawer && drawer.cashierId === cashier.id),
+      lastClosingAmount: lastClosed ? Number(lastClosed.closing_amount) : null
+    });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/open') {
@@ -151,54 +157,30 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     }
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload buka laci tidak valid.' }, 400);
-    const openingAmount = money(body.value?.openingAmount ?? 0);
+
+    // 2026-09-04, koreksi Bos Cyo (revisi dari desain entry-manual+auto-permit
+    // hari yang sama): saldo awal laci melanjutkan saldo akhir laci sebelumnya
+    // di gerai ini secara read-only -- server yang menentukan nilainya, input
+    // client untuk openingAmount diabaikan kalau ada laci sebelumnya yang
+    // sudah CLOSED (bukan sekadar disembunyikan di UI). Kalau kas fisik
+    // ternyata tidak cocok, itu dibahas kasir langsung dengan akuntan di luar
+    // sistem ini -- akuntan yang bikin jurnalnya sendiri (jurnal manual, atau
+    // lewat permit Arus Kas yang sudah ada dan memang perlu ACC akuntan).
+    // Laci pertama di gerai (belum pernah ada laci CLOSED) tetap manual,
+    // karena tidak ada "kemarin" untuk dilanjutkan.
+    const lastClosed = await getLastClosedDrawer(db, cashier.store.id);
+    const openingAmount = lastClosed ? Number(lastClosed.closing_amount) : money(body.value?.openingAmount ?? 0);
     if (openingAmount === null) return json({ error: 'Saldo awal laci tidak valid.' }, 400);
     const id = `drawer_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    const statements = [
-      db.prepare(`
-        INSERT INTO cash_drawer_sessions (
-          id, store_id, cashier_id, opening_amount, closing_amount, status,
-          opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount
-        ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0)
-      `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500))
-    ];
+    await db.prepare(`
+      INSERT INTO cash_drawer_sessions (
+        id, store_id, cashier_id, opening_amount, closing_amount, status,
+        opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount
+      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0)
+    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500)).run();
 
-    // 2026-09-04, Bos Cyo: saldo awal tetap boleh di-entry manual (bukan
-    // read-only), tapi kalau tidak sama dengan saldo akhir laci sebelumnya
-    // di gerai ini, langsung buat permit ke Approval Queue yang sudah ada
-    // (request_type CASH_FLOW, purpose DRAWER_OPENING_DISCREPANCY -- sengaja
-    // TIDAK memposting cash_ledger_entries atau Accounting apa pun, lihat
-    // buildOperationalPostingStatements dan cashFlowAccountingAfterCommit,
-    // ini murni flag buat Admin/Owner). Laci tetap kebuka baik ada selisih
-    // atau tidak -- tidak pernah memblokir.
-    let discrepancyPermit = null;
-    const lastClosed = await getLastClosedDrawer(db, cashier.store.id);
-    if (lastClosed) {
-      const expectedAmount = Number(lastClosed.closing_amount);
-      if (expectedAmount !== openingAmount) {
-        const difference = openingAmount - expectedAmount;
-        discrepancyPermit = { previousDrawerId: lastClosed.id, expectedAmount, enteredAmount: openingAmount, difference };
-        const approvalPayload = JSON.stringify({
-          purpose: 'DRAWER_OPENING_DISCREPANCY',
-          previousDrawerId: lastClosed.id,
-          expectedAmount,
-          enteredAmount: openingAmount,
-          difference,
-          description: 'Saldo awal laci baru tidak sama dengan saldo akhir laci sebelumnya',
-          note: ''
-        });
-        statements.push(db.prepare(`
-          INSERT INTO approval_requests (
-            id, store_id, drawer_session_id, cashier_id, request_type,
-            approval_status, posting_status, payload_json, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, 'CASH_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
-        `).bind(`approval_${crypto.randomUUID()}`, cashier.store.id, id, cashier.id, approvalPayload, now, now));
-      }
-    }
-
-    await db.batch(statements);
-    return json({ ok: true, drawer: await getOpenDrawer(db, cashier.store.id), canWrite: true, discrepancyPermit }, 201);
+    return json({ ok: true, drawer: await getOpenDrawer(db, cashier.store.id), canWrite: true }, 201);
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/close') {

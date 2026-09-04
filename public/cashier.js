@@ -219,6 +219,7 @@ async function loadDrawer() {
   state.cashier = payload.cashier || state.cashier;
   state.drawer = payload.drawer || null;
   state.canWrite = Boolean(payload.canWrite);
+  state.lastClosingAmount = payload.lastClosingAmount == null ? null : Number(payload.lastClosingAmount);
   renderDrawer();
   renderOrders();
   renderDraft();
@@ -413,18 +414,27 @@ async function submitDialog(event) {
   }
 }
 
+// 2026-09-04, koreksi Bos Cyo: saldo awal laci melanjutkan saldo akhir laci
+// sebelumnya secara read-only (server yang menentukan nilainya, lihat
+// src/cashier-drawer.js) -- kalau kas fisik ternyata tidak cocok, itu
+// dibahas kasir langsung dengan akuntan di luar sistem ini, bukan lewat
+// permit otomatis. Laci pertama di gerai (belum ada saldo akhir sebelumnya)
+// tetap manual, karena tidak ada "kemarin" untuk dilanjutkan.
 function openDrawerDialog() {
+  const hasPrevious = state.lastClosingAmount != null;
+  const openingField = hasPrevious
+    ? `<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" value="${state.lastClosingAmount}" readonly disabled /><p class="muted">Melanjutkan saldo akhir laci sebelumnya. Kalau kas fisik tidak cocok, bahas langsung dengan akuntan.</p></div>`
+    : '<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" min="0" step="1" value="0" required /><p class="muted">Laci pertama di gerai ini -- belum ada saldo akhir laci sebelumnya untuk dilanjutkan.</p></div>';
   openDialog({
     eyebrow: state.cashier?.store.code || 'Gerai',
     title: 'Buka Laci',
-    body: '<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" min="0" step="1" value="0" required /></div><div class="field"><label>Keterangan buka <span class="muted">optional</span></label><textarea id="dialogOpeningNote" rows="2" maxlength="500"></textarea></div><p class="muted">Kasir yang membuka laci menjadi pemegang write mode untuk gerai ini sampai laci ditutup. Wajib presensi masuk dulu sebelum bisa buka laci.</p>',
+    body: `${openingField}<div class="field"><label>Keterangan buka <span class="muted">optional</span></label><textarea id="dialogOpeningNote" rows="2" maxlength="500"></textarea></div><p class="muted">Kasir yang membuka laci menjadi pemegang write mode untuk gerai ini sampai laci ditutup. Wajib presensi masuk dulu sebelum bisa buka laci.</p>`,
     submitText: 'BUKA LACI',
     onSubmit: async () => {
-      const result = await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount: Number(el('dialogOpeningAmount').value), openingNote: el('dialogOpeningNote').value }) });
+      const openingAmount = hasPrevious ? state.lastClosingAmount : Number(el('dialogOpeningAmount').value);
+      await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount, openingNote: el('dialogOpeningNote').value }) });
       await loadDrawer();
-      toast(result.discrepancyPermit
-        ? `Laci dibuka. Saldo awal beda ${rupiah(Math.abs(result.discrepancyPermit.difference))} dari saldo akhir laci sebelumnya — permit otomatis dikirim ke Admin/Owner.`
-        : 'Laci dibuka');
+      toast('Laci dibuka');
       return true;
     }
   });

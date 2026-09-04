@@ -175,15 +175,10 @@ export function buildOperationalPostingStatements(db, request, { approverRole, a
   const statements = [];
 
   if (request.requestType === 'CASH_FLOW') {
-    // DRAWER_OPENING_DISCREPANCY (src/cashier-drawer.js) is a flag for
-    // Admin/Owner, not a real cash movement -- ACC just acknowledges it via
-    // the approvalUpdateStatement below, no cash_ledger_entries row.
-    if (payload.purpose !== 'DRAWER_OPENING_DISCREPANCY') {
-      statements.push(db.prepare(`
-        INSERT INTO cash_ledger_entries (id, store_id, drawer_session_id, approval_request_id, direction, amount, description, note, posted_at, approved_by_role, approved_by_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(`cash_ledger_${crypto.randomUUID()}`, request.storeId, request.drawerSessionId, request.id, payload.direction, payload.amount, payload.description, payload.note || '', now, approverRole, approverId));
-    }
+    statements.push(db.prepare(`
+      INSERT INTO cash_ledger_entries (id, store_id, drawer_session_id, approval_request_id, direction, amount, description, note, posted_at, approved_by_role, approved_by_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(`cash_ledger_${crypto.randomUUID()}`, request.storeId, request.drawerSessionId, request.id, payload.direction, payload.amount, payload.description, payload.note || '', now, approverRole, approverId));
   } else if (request.requestType === 'GOODS_FLOW') {
     const isStockAdjustment = payload.purpose === 'STOCK_ADJUSTMENT';
     const delta = payload.direction === 'OUT' ? -Number(payload.quantity) : Number(payload.quantity);

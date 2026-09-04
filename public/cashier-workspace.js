@@ -5,6 +5,7 @@
     state.orders = payload.orders || [];
     state.drawer = payload.drawer || null;
     state.canWrite = Boolean(payload.canWrite);
+    state.isDrawerOwner = Boolean(payload.isDrawerOwner);
     state.paymentMethods = payload.paymentMethods || [];
     state.cashFlowCounterparts = payload.cashFlowCounterparts || [];
     if (includeMenu) {

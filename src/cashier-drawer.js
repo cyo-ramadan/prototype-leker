@@ -42,6 +42,23 @@ export async function getOpenDrawer(db, storeId) {
   return mapDrawer(row);
 }
 
+// Dua (atau lebih) kasir boleh aktif bareng di satu gerai selama laci sudah
+// dibuka -- yang exclusive cuma laci itu sendiri (satu OPEN drawer per store,
+// lihat getOpenDrawer). Kasir yang bukan pemegang laci tetap "bantu2": semua
+// endpoint transaksi (sale/purchase/expense/production/approval/...) memakai
+// requireOpenDrawer supaya bisa menulis, dan tetap menyimpan cashier_id milik
+// akun yang benar-benar bertindak (bukan diam-diam dialihkan ke pemegang
+// laci) -- lihat pemanggil createSale dkk. requireDrawerOwner sendiri sekarang
+// khusus dipakai di jalur yang memang harus tetap milik pemegang laci saja:
+// menutup laci (rekonsiliasi kas fisik jadi tanggung jawab satu orang).
+export async function requireOpenDrawer(db, cashier) {
+  const drawer = await getOpenDrawer(db, cashier.store.id);
+  if (!drawer) {
+    return { ok: false, response: json({ error: 'Laci kas belum dibuka.', code: 'DRAWER_NOT_OPEN' }, 409) };
+  }
+  return { ok: true, drawer };
+}
+
 export async function requireDrawerOwner(db, cashier) {
   const drawer = await getOpenDrawer(db, cashier.store.id);
   if (!drawer) {
@@ -51,7 +68,7 @@ export async function requireDrawerOwner(db, cashier) {
     return {
       ok: false,
       response: json({
-        error: `Laci sedang dibuka oleh ${drawer.cashierName}. Akun ini hanya mode lihat.`,
+        error: `Laci sedang dipegang ${drawer.cashierName}. Hanya pemegang laci yang bisa menutup laci ini.`,
         code: 'DRAWER_OWNED_BY_OTHER',
         drawer
       }, 403)
@@ -120,7 +137,12 @@ export async function handleCashierDrawerApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/cashier/drawer') {
     const drawer = await getOpenDrawer(db, cashier.store.id);
-    return json({ cashier, drawer, canWrite: Boolean(drawer && drawer.cashierId === cashier.id) });
+    return json({
+      cashier,
+      drawer,
+      canWrite: Boolean(drawer),
+      isDrawerOwner: Boolean(drawer && drawer.cashierId === cashier.id)
+    });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/open') {
@@ -222,7 +244,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
   ].includes(pathname);
   if (!writeRoute) return null;
 
-  const ownership = await requireDrawerOwner(db, cashier);
+  const ownership = await requireOpenDrawer(db, cashier);
   if (!ownership.ok) return ownership.response;
   const drawer = ownership.drawer;
 

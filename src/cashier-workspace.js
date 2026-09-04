@@ -17,5 +17,9 @@ export async function handleCashierWorkspaceApi(request, env, pathname) {
     listPosPaymentMethods(env.DB, cashier.store.id),
     listCashFlowCounterpartOptions(env.DB, cashier.store.id)
   ]);
-  return json({ cashier, products, orders, drawer, paymentMethods, cashFlowCounterparts, canWrite: Boolean(drawer && drawer.cashierId === cashier.id) });
+  return json({
+    cashier, products, orders, drawer, paymentMethods, cashFlowCounterparts,
+    canWrite: Boolean(drawer),
+    isDrawerOwner: Boolean(drawer && drawer.cashierId === cashier.id)
+  });
 }

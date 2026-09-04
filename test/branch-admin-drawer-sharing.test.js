@@ -83,7 +83,10 @@ test('owner controls customer sharing groups without merging other branch data',
   assert.match(customers, /store\.id/);
 });
 
-test('cashier keeps one drawer writer while drawer history remains readable', async () => {
+test('cashier keeps one drawer owner (closer) while drawer history remains readable', async () => {
+  // requireDrawerOwner (exact cashierId match, DRAWER_OWNED_BY_OTHER) is now
+  // scoped to closing the drawer only -- other active cashiers of the same
+  // store can still write transactions via requireOpenDrawer while it's open.
   const [drawerApi, enhancement] = await Promise.all([
     read('src/cashier-drawer.js'),
     read('public/cashier-enhancements.js')

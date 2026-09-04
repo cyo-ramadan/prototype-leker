@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
-import { requireDrawerOwner } from './cashier-drawer.js';
+import { requireOpenDrawer } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
 import { executeTransactionCorrection } from './transaction-correction-executor.js';
@@ -140,7 +140,7 @@ async function handleCashier(request, env, pathname) {
   if (!pathname.startsWith('/api/cashier/transaction-void')) return null;
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
-  const drawer = await requireDrawerOwner(env.DB, auth.cashier);
+  const drawer = await requireOpenDrawer(env.DB, auth.cashier);
   if (!drawer.ok) return drawer.response;
 
   if (request.method === 'GET' && pathname === '/api/cashier/transaction-void/candidates') {

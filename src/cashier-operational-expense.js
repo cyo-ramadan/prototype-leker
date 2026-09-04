@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
-import { requireDrawerOwner } from './cashier-drawer.js';
+import { requireOpenDrawer } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
 import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 
@@ -34,7 +34,7 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
 
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
-  const ownership = await requireDrawerOwner(env.DB, auth.cashier);
+  const ownership = await requireOpenDrawer(env.DB, auth.cashier);
   if (!ownership.ok) return ownership.response;
 
   const body = await readJson(request);

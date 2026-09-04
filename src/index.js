@@ -8,7 +8,7 @@ import { listOrders, listProducts, getOrder } from './db-multistore.js';
 import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore.js';
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
-import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
+import { handleCashierDrawerApi, requireOpenDrawer } from './cashier-drawer.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -109,7 +109,7 @@ async function handleCashierOrders(request, env, pathname) {
 
   const statusMatch = pathname.match(/^\/api\/cashier\/orders\/([^/]+)\/status$/);
   if (request.method === 'PATCH' && statusMatch) {
-    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    const drawerAuth = await requireOpenDrawer(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
@@ -118,7 +118,7 @@ async function handleCashierOrders(request, env, pathname) {
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/reset') {
-    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    const drawerAuth = await requireOpenDrawer(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
     return json(await resetOrders(env.DB, storeId));
   }

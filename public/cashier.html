@@ -37,6 +37,16 @@
     </form>
   </main>
 
+  <main id="cashierPresensiGate" class="cashier-login-wrap hidden">
+    <div class="cashier-login-card">
+      <div class="muted">Sebelum mulai kerja</div>
+      <h1>Presensi Masuk</h1>
+      <p class="muted">Ambil foto presensi masuk dulu sebelum buka laci atau catat transaksi.</p>
+      <button id="cashierPresensiInBtn" class="primary-btn" type="button">📷 AMBIL FOTO PRESENSI MASUK</button>
+      <div id="cashierPresensiMessage" class="cashier-login-message" aria-live="polite"></div>
+    </div>
+  </main>
+
   <main id="cashierDashboard" class="cashier-wrap cashier-dashboard hidden">
     <section class="drawer-command-card">
       <div class="drawer-status-block">
@@ -115,6 +125,7 @@
 <script src="/camera-snapshot-modal.js"></script>
 <script src="/cashier-live-photo.js"></script>
 <script src="/cashier-workspace.js?v=20260816-production-runtime-v2"></script>
+<script src="/cashier-presensi-gate.js"></script>
 <script src="/cashier-payment-methods.js?v=20260821-pos-payment-core-v4-grand-total-visible" data-cashier-payment-methods="1"></script>
 <script src="/cashier-refresh.js?v=20260816-production-runtime-v2"></script>
 <script src="/cashier-order-cleanup.js"></script>

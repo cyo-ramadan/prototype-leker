@@ -13,13 +13,13 @@ test('cashier migration seeds two cashiers in different stores', async () => {
   assert.match(migration, /'G002'/);
 });
 
-test('cashier API derives store from authenticated session and drawer gates writes', async () => {
+test('cashier API derives store from authenticated session and an open drawer gates writes', async () => {
   const index = await read('src/index.js');
   const auth = await read('src/cashier-auth.js');
   assert.match(index, /requireCashier\(request, env\.DB\)/);
   assert.match(index, /auth\.cashier\.store\.id/);
   assert.match(index, /\/api\/cashier\/orders/);
-  assert.match(index, /requireDrawerOwner\(env\.DB, auth\.cashier\)/);
+  assert.match(index, /requireOpenDrawer\(env\.DB, auth\.cashier\)/);
   assert.match(auth, /JOIN cashiers c ON c\.id = cs\.cashier_id/);
   assert.match(auth, /JOIN stores s ON s\.id = c\.store_id/);
 });

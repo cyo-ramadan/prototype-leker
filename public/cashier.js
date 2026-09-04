@@ -7,6 +7,7 @@ const state = {
   cashier: null,
   drawer: null,
   canWrite: false,
+  isDrawerOwner: false,
   poller: null,
   visibilityBound: false,
   dialogSubmit: null
@@ -109,6 +110,7 @@ function clearSession() {
   state.draft.clear();
   state.drawer = null;
   state.canWrite = false;
+  state.isDrawerOwner = false;
   sessionStorage.removeItem('lekerCashierToken');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
@@ -219,6 +221,7 @@ async function loadDrawer() {
   state.cashier = payload.cashier || state.cashier;
   state.drawer = payload.drawer || null;
   state.canWrite = Boolean(payload.canWrite);
+  state.isDrawerOwner = Boolean(payload.isDrawerOwner);
   renderDrawer();
   renderOrders();
   renderDraft();
@@ -235,13 +238,23 @@ function renderDrawer() {
     el('openDrawerBtn').disabled = false;
     el('openDrawerBtn').classList.remove('hidden');
     el('closeDrawerBtn').classList.add('hidden');
-  } else if (state.canWrite) {
+  } else if (state.isDrawerOwner) {
     el('drawerTitle').textContent = `Laci aktif · ${drawer.cashierName}`;
     el('drawerStatusText').textContent = `Dibuka ${formatDateTime(drawer.openedAt)} · Saldo awal ${rupiah(drawer.openingAmount)}`;
     badge.textContent = 'WRITE MODE';
     badge.classList.add('write');
     el('openDrawerBtn').classList.add('hidden');
     el('closeDrawerBtn').classList.remove('hidden');
+  } else if (state.canWrite) {
+    // Laci sudah dipegang kasir lain (penanggung jawab), tapi akun ini tetap
+    // boleh bertransaksi sebagai bantuan -- bukan read-only lagi. Hanya
+    // pemegang laci yang bisa menutup laci (rekonsiliasi tetap satu orang).
+    el('drawerTitle').textContent = `Bantu laci · ${drawer.cashierName}`;
+    el('drawerStatusText').textContent = `Laci dipegang ${drawer.cashierName}. Transaksi ${state.cashier.employeeName} tetap tercatat atas nama sendiri.`;
+    badge.textContent = 'MODE BANTU';
+    badge.classList.add('write');
+    el('openDrawerBtn').classList.add('hidden');
+    el('closeDrawerBtn').classList.add('hidden');
   } else {
     el('drawerTitle').textContent = `Laci dipegang ${drawer.cashierName}`;
     el('drawerStatusText').textContent = `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order, tetapi perubahan data dikunci.`;
@@ -262,11 +275,13 @@ function renderDrawer() {
   ['expenseBtn','otherIncomeBtn'].forEach(id => { el(id).disabled = !state.canWrite; });
   el('drawerDetailsBtn').disabled = !drawer;
   el('reportsBtn').disabled = !drawer;
-  el('cashierWriteLockNote').textContent = state.canWrite
-    ? `Write mode aktif atas nama ${state.cashier.employeeName}. Semua transaksi tercatat ke ${state.cashier.store.code}.`
-    : drawer
-      ? `Read-only. Laci sedang dipegang ${drawer.cashierName}.`
-      : 'Buka laci untuk mengaktifkan write mode.';
+  el('cashierWriteLockNote').textContent = !drawer
+    ? 'Buka laci untuk mengaktifkan write mode.'
+    : state.isDrawerOwner
+      ? `Write mode aktif atas nama ${state.cashier.employeeName}. Semua transaksi tercatat ke ${state.cashier.store.code}.`
+      : state.canWrite
+        ? `Mode bantu aktif atas nama ${state.cashier.employeeName}. Laci tetap dipegang ${drawer.cashierName}; transaksi tetap tercatat ke ${state.cashier.store.code}.`
+        : `Read-only. Laci sedang dipegang ${drawer.cashierName}.`;
   el('cashierWriteLockNote').classList.toggle('write', state.canWrite);
 }
 
@@ -417,7 +432,7 @@ function openDrawerDialog() {
   openDialog({
     eyebrow: state.cashier?.store.code || 'Gerai',
     title: 'Buka Laci',
-    body: '<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" min="0" step="1" value="0" required /></div><p class="muted">Kasir yang membuka laci menjadi pemegang write mode untuk gerai ini sampai laci ditutup.</p>',
+    body: '<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" min="0" step="1" value="0" required /></div><p class="muted">Kasir yang membuka laci jadi penanggung jawab (satu-satunya yang bisa menutup laci). Kasir lain yang login tetap bisa bantu transaksi selama laci ini masih terbuka.</p>',
     submitText: 'BUKA LACI',
     onSubmit: async () => {
       await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount: Number(el('dialogOpeningAmount').value) }) });

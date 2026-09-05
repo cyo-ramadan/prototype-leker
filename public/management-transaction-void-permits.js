@@ -36,8 +36,8 @@
     const actions = pending ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary-btn" type="button" data-void-permit-acc="${esc(item.id)}">ACC PERMIT</button><button class="secondary-btn" type="button" data-void-permit-reject="${esc(item.id)}">Reject</button></div>` : '';
     return `<article class="admin-card" style="box-shadow:none;margin-bottom:10px">
       <div class="list-head"><div><strong>PERMIT HAPUS · ${esc(labels[item.subjectType] || item.subjectType)}</strong><div class="muted">${esc(item.cashierName || item.cashierId)} · ${dt(item.requestedAt)}</div></div><span class="master-count">${esc(statusText(item))}</span></div>
-      <p><b>${esc(subject.description || item.subjectId)}</b> · ${money(subject.amount)}</p>
-      <div class="muted">Ref ${esc(item.subjectId)} · ${esc(subject.paymentMethod || '')}</div>
+      <p><b>${esc(subject.description || labels[item.subjectType] || item.subjectType)}</b> · ${money(subject.amount)}</p>
+      ${subject.paymentMethod ? `<div class="muted">${esc(subject.paymentMethod)}</div>` : ''}
       <div class="admin-tip" style="margin-top:9px"><b>Alasan kasir:</b> ${esc(item.reason)}</div>
       <div class="muted" style="margin-top:8px">Soft-delete + correction auditable; history sumber tetap ada.</div>
       ${item.executionCode ? `<div class="muted"><b>Execution code:</b> ${esc(item.executionCode)}</div>` : ''}

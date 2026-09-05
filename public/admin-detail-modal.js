@@ -8,6 +8,7 @@
     style.id = STYLE_ID;
     style.textContent = `
       #${MODAL_ID} { border:none; border-radius:22px; padding:0; width:min(760px,92vw); max-height:86vh; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+      #${MODAL_ID}.wide { width:min(1080px,96vw); }
       #${MODAL_ID}::backdrop { background:rgba(20,16,10,.45); }
       #${MODAL_ID} .admin-detail-modal-head { position:sticky; top:0; background:white; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:18px 18px 12px; border-bottom:1px solid var(--line); border-radius:22px 22px 0 0; z-index:1; }
       #${MODAL_ID} .admin-detail-modal-body { padding:16px 18px 20px; overflow-y:auto; }
@@ -36,8 +37,9 @@
   // head/body are trusted HTML built by the caller from escaped fields (same
   // pattern already used by every admin panel here) -- this modal is just a
   // shared shell, it does not escape anything itself.
-  window.openAdminDetailModal = function openAdminDetailModal({ head = '', body = '' } = {}) {
+  window.openAdminDetailModal = function openAdminDetailModal({ head = '', body = '', wide = false } = {}) {
     const modal = ensureModal();
+    modal.classList.toggle('wide', Boolean(wide));
     modal.querySelector('#adminDetailModalHead').innerHTML = head;
     modal.querySelector('#adminDetailModalBody').innerHTML = body;
     if (!modal.open) modal.showModal();

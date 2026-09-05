@@ -4,6 +4,11 @@
   const decimalMoney = value => value == null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 4 }).format(Number(value) || 0);
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
   const state = { filter: 'ALL', transactions: [], nextCursor: null, hasMore: false };
+  const KIND_LABEL = {
+    SALE: 'Penjualan', PURCHASE: 'Pembelian', EXPENSE: 'Pengeluaran', OTHER_INCOME: 'Pendapatan Lain',
+    CASH_FLOW: 'Arus Kas', GOODS_FLOW: 'Arus Barang', ASSET: 'Aset', PRODUCTION: 'Produksi'
+  };
+  const kindLabel = kind => KIND_LABEL[kind] || kind;
 
   async function api(path) {
     const response = await fetch(path, { cache: 'no-store' });
@@ -156,13 +161,12 @@
   function renderTransactions() {
     const target = document.getElementById('adminTransactionsList');
     target.innerHTML = state.transactions.length ? state.transactions.map(transaction => `
-      <article class="master-row" style="align-items:flex-start">
+      <article class="master-row">
         <div class="master-main">
-          <div class="master-meta">${esc(transaction.kind)} · ${dateTime(transaction.occurredAt)} · ${esc(statusLabel(transaction))}</div>
-          <strong>${esc(transaction.description || transaction.kind)}</strong>
+          <strong>${esc(transaction.description || kindLabel(transaction.kind))}</strong>
+          <div class="master-meta">${esc(kindLabel(transaction.kind))} · ${dateTime(transaction.occurredAt)} · ${esc(statusLabel(transaction))}</div>
           <div class="master-prices"><span>${transaction.cashierName ? `PIC ${esc(transaction.cashierName)}` : 'System'}</span><span>${money(transaction.amount)}</span></div>
-          <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentMethod)}` : ''}</div>
-          <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>
+          <div class="master-meta">${esc(accountingLabel(transaction))}${transaction.paymentMethod ? ` · ${esc(transaction.paymentMethod)}` : ''}</div>
         </div>
         <div class="master-actions"><button class="mini-btn" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">Detail</button></div>
       </article>`).join('') : '<div class="empty">Belum ada transaksi pada filter ini.</div>';
@@ -188,7 +192,31 @@
 
   function accountingDetail(detail) {
     const ref = detail.accounting || {};
-    return ref.journalReference ? `Jurnal ${ref.journalReference}` : (ref.syncStatus || (ref.eligible ? 'Pending connector' : 'Belum eligible'));
+    if (ref.journalReference) return `Jurnal ${ref.journalReference}`;
+    if (!ref.eligible) return 'Belum eligible jurnal';
+    return ref.syncStatus === 'NOT_CONNECTED' ? 'Menunggu koneksi Accounting' : (ref.syncStatus || '-');
+  }
+
+  function approvalLabel(status) {
+    const raw = String(status || '');
+    if (raw === 'approved') return 'Disetujui';
+    if (raw === 'pending') return 'Menunggu persetujuan';
+    if (raw.startsWith('rejected')) return 'Ditolak';
+    return raw || '-';
+  }
+
+  function renderGenericDetail(detail) {
+    return `
+      <div class="admin-grid two compact">
+        <div class="admin-tip"><b>Deskripsi</b><div>${esc(detail.description || kindLabel(detail.kind))}</div></div>
+        <div class="admin-tip"><b>Jumlah</b><div>${money(detail.amount)}</div></div>
+      </div>
+      <div class="admin-grid two compact" style="margin-top:12px">
+        ${detail.supplierName ? `<div class="admin-tip"><b>Supplier</b><div>${esc(detail.supplierName)}</div></div>` : ''}
+        ${detail.paymentMethod ? `<div class="admin-tip"><b>Metode bayar</b><div>${esc(detail.paymentMethod)}</div></div>` : ''}
+        ${detail.approvalStatus ? `<div class="admin-tip"><b>Persetujuan</b><div>${esc(approvalLabel(detail.approvalStatus))}</div></div>` : ''}
+      </div>
+      ${detail.decisionNote ? `<div class="admin-tip" style="margin-top:12px"><b>Catatan</b><div>${esc(detail.decisionNote)}</div></div>` : ''}`;
   }
 
   function renderSaleDetail(detail) {
@@ -235,17 +263,9 @@
       ? renderSaleDetail(detail)
       : detail.kind === 'PRODUCTION'
         ? renderProductionDetail(detail)
-        : `<div class="admin-tip"><pre style="white-space:pre-wrap;margin:0;font-size:12px">${esc(JSON.stringify(detail.payload || {
-            description: detail.description,
-            amount: detail.amount,
-            supplierName: detail.supplierName,
-            paymentMethod: detail.paymentMethod,
-            approvalStatus: detail.approvalStatus,
-            postingStatus: detail.postingStatus,
-            decisionNote: detail.decisionNote
-          }, null, 2))}</pre></div>`;
+        : renderGenericDetail(detail);
     window.openAdminDetailModal({
-      head: `<div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div>`,
+      head: `<div><div class="admin-eyebrow">Detail Transaksi</div><h2>${esc(kindLabel(detail.kind))}</h2><div class="muted">${dateTime(detail.occurredAt)} · ${esc(accountingDetail(detail))}</div></div>`,
       body: content
     });
   }

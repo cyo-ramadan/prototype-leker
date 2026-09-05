@@ -172,7 +172,7 @@
         <div class="master-row">
           <div class="master-main">
             <strong>${esc(rupiah4(row.averageCost))}</strong>
-            <div class="master-meta">${dateTime(row.createdAt)} · ${esc(costSourceLabel(row.sourceType))} · Ref ${esc(row.sourceId)}</div>
+            <div class="master-meta">${dateTime(row.createdAt)} · ${esc(costSourceLabel(row.sourceType))}</div>
           </div>
         </div>`).join('') : '<div class="empty">Belum ada histori HPP tercatat untuk barang ini.</div>'}</div>
       <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminStockMore" class="secondary-btn ${state.hasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`
@@ -197,7 +197,7 @@
         <div class="master-row">
           <div class="master-main">
             <strong>${row.direction === 'IN' ? '＋' : '−'} ${row.quantity} ${esc(product.unitSymbol || '')} · ${esc(sourceLabel(row.sourceType))}</strong>
-            <div class="master-meta">${dateTime(row.occurredAt)} · Ref ${esc(row.sourceId)}</div>
+            <div class="master-meta">${dateTime(row.occurredAt)}</div>
             ${row.note ? `<div class="master-meta">${esc(row.note)}</div>` : ''}
           </div>
         </div>`).join('') : '<div class="empty">Belum ada mutasi stok tercatat.</div>'}</div>

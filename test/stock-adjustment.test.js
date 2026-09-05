@@ -117,6 +117,12 @@ test('Stock Adjustment stages target semantics and snapshots current stock on th
       note: 'Rak bahan'
     });
 
+    const withoutReason = await normalizeApprovalPayload(db, fixture.storeId, 'GOODS_FLOW', {
+      purpose: 'STOCK_ADJUSTMENT', productId: fixture.productId, targetQuantity: 8
+    });
+    assert.equal(withoutReason.ok, true);
+    assert.equal(withoutReason.payload.reason, '');
+
     const noOp = await normalizeApprovalPayload(db, fixture.storeId, 'GOODS_FLOW', {
       purpose: 'STOCK_ADJUSTMENT', productId: fixture.productId, targetQuantity: 10, reason: 'cek'
     });

@@ -6,6 +6,7 @@
         import('/stock-adjustment-pilatu.js')
       ]);
       const products = payload.products || [];
+      const forms = payload.forms || [];
       if (!products.length) {
         openDialog({
           eyebrow: 'Laci · Inventory',
@@ -58,6 +59,13 @@
               .stock-adjustment-source-note{grid-template-columns:1fr}
             }
           </style>
+          <div class="field">
+            <label>Pilih Form <span class="muted">optional</span></label>
+            <select id="stockAdjustmentForm" class="text-input">
+              <option value="">Pilih checklist barang...</option>
+              ${forms.map(form => `<option value="${escapeHtml(form.id)}">${escapeHtml(form.name)}</option>`).join('')}
+            </select>
+          </div>
           <div class="field stock-adjustment-search-wrap">
             <label>Cari barang</label>
             <input id="stockAdjustmentSearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama barang..." />
@@ -73,14 +81,10 @@
             <div><b>Qty Tercatat</b><br />Read-only dari pembacaan stok saat panel dibuka. Server mengambil snapshot resmi lagi saat pengajuan.</div>
             <div><b>HPP</b><br />Read-only milik Accounting. Selama read binding resminya belum tersedia, panel menampilkan — dan tidak mengarang nilai.</div>
           </div>
-          <div class="field"><label>Alasan penyesuaian</label><input id="stockAdjustmentReason" class="text-input" maxlength="220" placeholder="Contoh: hasil hitung fisik" required /></div>
           <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500"></textarea></div>
           <p class="muted">Setiap barang yang punya selisih menjadi pengajuan Penyesuaian Stok sendiri. Saat ACC, stale-snapshot guard tetap berjalan per barang.</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
-          const reason = el('stockAdjustmentReason').value.trim();
-          if (!reason) throw new Error('Alasan Penyesuaian Stok wajib diisi.');
-
           const prepared = pilatu.prepareStockAdjustmentRows(selectedRows);
           const changed = prepared.filter(row => row.difference !== 0);
           if (!changed.length) throw new Error('Tidak ada selisih stok yang perlu diajukan.');
@@ -97,7 +101,6 @@
                     purpose: 'STOCK_ADJUSTMENT',
                     productId: row.productId,
                     targetQuantity: row.targetQuantity,
-                    reason,
                     note
                   }
                 })
@@ -117,6 +120,7 @@
       });
 
       const searchInput = el('stockAdjustmentSearch');
+      const formInput = el('stockAdjustmentForm');
       const searchResults = el('stockAdjustmentSearchResults');
       const rowsNode = el('stockAdjustmentRows');
       const formatQty = value => Number(value).toLocaleString('id-ID');
@@ -171,6 +175,13 @@
       }
 
       searchInput?.addEventListener('input', renderSearchResults);
+      formInput?.addEventListener('change', () => {
+        const form = forms.find(candidate => String(candidate.id) === String(formInput.value));
+        if (!form) return;
+        const formProducts = (form.productIds || []).map(productId => productById.get(Number(productId))).filter(Boolean);
+        selectedRows = pilatu.selectStockAdjustmentForm(selectedRows, formProducts);
+        renderRows();
+      });
       searchInput?.addEventListener('keydown', event => {
         if (event.key !== 'Enter') return;
         const first = searchResults?.querySelector('[data-stock-adjustment-result]');

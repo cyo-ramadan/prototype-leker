@@ -84,8 +84,8 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
     if (String(payload.purpose || '').toUpperCase() === 'STOCK_ADJUSTMENT') {
       const targetQuantity = nonNegativeInteger(payload.targetQuantity);
       const reason = text(payload.reason, 220);
-      if (targetQuantity === null || !reason) {
-        return { ok: false, error: 'Penyesuaian Stok membutuhkan target qty non-negatif dan alasan.' };
+      if (targetQuantity === null) {
+        return { ok: false, error: 'Penyesuaian Stok membutuhkan target qty non-negatif.' };
       }
       const product = await stockProductSnapshot(db, storeId, productId, { trackedOnly: true, warehouseEnabled });
       if (!product || !product.base_unit_id) {
@@ -183,8 +183,9 @@ export function buildOperationalPostingStatements(db, request, { approverRole, a
     const isStockAdjustment = payload.purpose === 'STOCK_ADJUSTMENT';
     const delta = payload.direction === 'OUT' ? -Number(payload.quantity) : Number(payload.quantity);
     const movementSourceType = isStockAdjustment ? 'STOCK_ADJUSTMENT' : 'GOODS_FLOW';
+    const adjustmentNotes = [payload.reason, payload.note].map(value => text(value, 500)).filter(Boolean);
     const movementNote = isStockAdjustment
-      ? `Penyesuaian Stok ${payload.currentQuantitySnapshot} -> ${payload.targetQuantity} ${payload.unitSymbol || ''} · ${payload.reason}${payload.note ? ` · ${payload.note}` : ''}`.slice(0, 500)
+      ? `Penyesuaian Stok ${payload.currentQuantitySnapshot} -> ${payload.targetQuantity} ${payload.unitSymbol || ''}${adjustmentNotes.length ? ` · ${adjustmentNotes.join(' · ')}` : ''}`.slice(0, 500)
       : payload.note || '';
     if (payload.warehouseEnabled !== false) {
       statements.push(

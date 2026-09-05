@@ -20,6 +20,7 @@ import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
+import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
@@ -166,6 +167,8 @@ async function handleApi(request, env, url) {
   if (storeAdminResponse) return storeAdminResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
   if (entityAdminResponse) return entityAdminResponse;
+  const entityAccountingResponse = await handleEntityAccountingApi(request, env, pathname);
+  if (entityAccountingResponse) return entityAccountingResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
   const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);

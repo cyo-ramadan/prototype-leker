@@ -32,13 +32,64 @@
 
     <section id="entityAdminApp" class="hidden">
       <div class="owner-heading">
-        <div><div class="admin-eyebrow">Gerai di bawah entity ini</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Pilih gerai untuk membuka workspace admin gerai tersebut -- akses baca dan tulis penuh, sama seperti Admin Gerai.</p></div>
+        <div><div class="admin-eyebrow">Structure level 0.5 · Entity</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Gerai di bawah entity ini, dan buku Entity (rekening yang bukan milik satu gerai mana pun -- mis. rekening utama, hutang/piutang antar gerai, gaji karyawan tingkat Entity).</p></div>
         <div id="entityAdminIdentity" class="owner-chip"></div>
       </div>
 
-      <section class="admin-card">
-        <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
-        <div id="entityAdminStoreList" class="owner-store-grid"></div>
+      <nav class="admin-tabs" aria-label="Menu Entity Admin">
+        <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
+        <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
+      </nav>
+
+      <section id="entityTab-stores" class="admin-section active">
+        <div class="admin-card">
+          <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
+          <div id="entityAdminStoreList" class="owner-store-grid"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-ledger" class="admin-section">
+        <div class="admin-grid two">
+          <form id="entityAccountForm" class="admin-card">
+            <input id="entityAccountId" type="hidden" />
+            <div class="form-title-row"><h2 id="entityAccountFormTitle">Tambah akun Entity</h2><button id="entityAccountCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
+            <label class="admin-field">Nama akun<input id="entityAccountName" maxlength="100" required /></label>
+            <label class="admin-field">Tipe<select id="entityAccountType" required>
+              <option value="ASSET">Aset</option>
+              <option value="LIABILITY">Kewajiban</option>
+              <option value="EQUITY">Ekuitas</option>
+              <option value="REVENUE">Pendapatan</option>
+              <option value="EXPENSE">Beban</option>
+            </select></label>
+            <label class="admin-field">Subtype <span class="field-note">optional</span><input id="entityAccountSubtype" maxlength="60" /></label>
+            <label class="admin-check"><input id="entityAccountActive" type="checkbox" checked /> Aktif</label>
+            <button class="primary-btn" type="submit">Simpan akun</button>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head"><h2>Daftar akun Entity</h2><span id="entityAccountCount" class="master-count">0</span></div>
+            <div id="entityAccountList" class="master-list"></div>
+          </div>
+        </div>
+
+        <div class="admin-card" style="margin-top:16px">
+          <h2>Jurnal manual Entity</h2>
+          <p class="muted">Wajib balance pas -- tidak ada toleransi pembulatan di buku Entity.</p>
+          <form id="entityJournalForm">
+            <div class="admin-grid two compact">
+              <label class="admin-field">Tanggal<input id="entityJournalDate" type="date" required /></label>
+              <label class="admin-field">Deskripsi<input id="entityJournalDescription" maxlength="200" required /></label>
+            </div>
+            <div id="entityJournalLines"></div>
+            <button id="entityJournalAddLine" class="secondary-btn" type="button">+ Baris</button>
+            <div id="entityJournalBalanceHint" class="admin-tip" style="margin-top:10px"></div>
+            <button class="primary-btn" type="submit" style="margin-top:10px">Posting jurnal</button>
+          </form>
+        </div>
+
+        <div class="admin-card list-card" style="margin-top:16px">
+          <div class="list-head"><h2>Riwayat jurnal Entity</h2><span id="entityJournalCount" class="master-count">0</span></div>
+          <div id="entityJournalList" class="master-list"></div>
+        </div>
       </section>
     </section>
   </main>

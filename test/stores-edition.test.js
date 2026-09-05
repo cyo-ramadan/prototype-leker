@@ -15,7 +15,29 @@ const readMigration = file => readFileSync(new URL(file, migrationDir), 'utf8');
 // new store's onboarding migration setting edition='LITE') cannot run without
 // it either -- skip those too, not just 0045 itself, or the includeEdition:false
 // branch crashes on "no such column" instead of showing 0045's isolated effect.
-const dependsOnEdition = file => file === EDITION_MIGRATION || /\bedition\b/.test(readMigration(file));
+//
+// Migration 0052 (Kantor/Pendem/Mandala) is itself caught by that rule, so it
+// gets skipped too -- which means those three gerai don't exist in this mode.
+// Any later migration referencing their store ids depends on 0052 transitively
+// even if it never mentions `edition` itself (e.g. seeding a cashier into
+// store_kantor), and needs to be skipped along with it or the FOREIGN KEY
+// reference fails on a gerai that was never created in this reconstruction.
+const KANTOR_PENDEM_MANDALA_STORE_IDS = /\bstore_kantor\b|\bstore_pendem\b|\bstore_mandala\b/;
+
+// 0071 reverts 0070's edition-gated drawer_shortage/drawer_surplus
+// scaffolding (2026-09-04, Bos Cyo revised the drawer-opening-balance design
+// again the same day 0070 shipped). It must be skipped together with 0070,
+// not just checked for its own edition/store-id mentions: if only 0070 were
+// skipped, 0071 would run here against a base where 0070 never applied --
+// its DELETE/DROP TRIGGER statements would find nothing and silently no-op
+// -- and 0070 would then be replayed afterward (see the catch-up loop
+// below) with nothing left to undo it, leaving a stray trigger that the
+// real, correctly-ordered migration chain does not have.
+const REVERTS_EDITION_DEPENDENT_MIGRATION = /\b0070_drawer_opening_discrepancy_accounting\b/;
+const dependsOnEdition = file => file === EDITION_MIGRATION
+  || /\bedition\b/.test(readMigration(file))
+  || KANTOR_PENDEM_MANDALA_STORE_IDS.test(readMigration(file))
+  || REVERTS_EDITION_DEPENDENT_MIGRATION.test(readMigration(file));
 
 function migratedDb({ includeEdition = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');
@@ -124,13 +146,31 @@ test('migration preserves existing data and ACCOUNTING store scaffolding exactly
       withoutEdition.close();
     }
 
+    // The comparisons above prove 0045's OWN isolated effect (against a base
+    // with zero edition-dependent migrations at all). A later edition-gated
+    // migration (e.g. 0070's drawer_shortage/drawer_surplus scaffolding) is
+    // free to add its own scaffolding for ACCOUNTING stores -- that's not
+    // something 0045 itself could ever have produced. Catch beforeMigration
+    // up with every OTHER edition-dependent migration, in file order, so the
+    // final comparison below is against a database that has genuinely seen
+    // the same migrations as afterMigration, not one deliberately frozen at
+    // 0045.
+    for (const file of migrationFiles()) {
+      if (file !== EDITION_MIGRATION && dependsOnEdition(file)) beforeMigration.exec(readMigration(file));
+    }
+
+    const fullStoreId = 'store_edition_accounting_full';
     afterMigration.prepare(`
       INSERT INTO stores (id, code, store_name, edition)
-      VALUES (?, 'EDITIONACC', 'Edition Accounting', 'ACCOUNTING')
-    `).run(storeId);
+      VALUES (?, 'EDITIONACCFULL', 'Edition Accounting Full', 'ACCOUNTING')
+    `).run(fullStoreId);
+    beforeMigration.prepare(`
+      INSERT INTO stores (id, code, store_name, edition)
+      VALUES (?, 'EDITIONACCFULL', 'Edition Accounting Full', 'ACCOUNTING')
+    `).run(fullStoreId);
     assert.deepEqual(
-      stableStoreSnapshot(afterMigration, storeId),
-      stableStoreSnapshot(beforeMigration, storeId)
+      stableStoreSnapshot(afterMigration, fullStoreId),
+      stableStoreSnapshot(beforeMigration, fullStoreId)
     );
   } finally {
     beforeMigration.close();

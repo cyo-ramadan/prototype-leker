@@ -6,6 +6,18 @@ const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
 
+// Presensi masuk/keluar dianggap toggle state, bukan penanda per-hari-kalender
+// (menghindari ambiguitas timezone gerai): status "in" berlaku sampai kasir
+// eksplisit presensi keluar lagi lewat Portal Staf. Satu baris staff_attendance
+// menjelaskan satu sesi kerja penuh (migration 0068) -- "in" berarti ada baris
+// dengan status='OPEN' (sudah presensi masuk, belum presensi pulang).
+export async function latestAttendanceStatus(db, cashierId) {
+  const row = await db.prepare(`
+    SELECT 1 FROM staff_attendance WHERE user_id = ? AND status = 'OPEN' LIMIT 1
+  `).bind(cashierId).first();
+  return row ? 'in' : 'out';
+}
+
 function mapCashier(row) {
   return row ? {
     id: row.id,
@@ -72,12 +84,13 @@ export async function handleCashierAuthApi(request, env, pathname) {
         .bind(tokenHash, row.id, now.toISOString(), expiresAt)
     ]);
 
-    return json({ token, expiresAt, cashier: mapCashier(row) });
+    return json({ token, expiresAt, cashier: mapCashier(row), attendanceStatus: await latestAttendanceStatus(db, row.id) });
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/me') {
     const auth = await requireCashier(request, db);
-    return auth.ok ? json({ cashier: auth.cashier }) : auth.response;
+    if (!auth.ok) return auth.response;
+    return json({ cashier: auth.cashier, attendanceStatus: await latestAttendanceStatus(db, auth.cashier.id) });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/logout') {

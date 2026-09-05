@@ -6,8 +6,9 @@
 
   function authSnapshot() {
     const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
+    const entityAdminToken = sessionStorage.getItem('lekerEntityAdminToken') || '';
     const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
-    return { ownerToken, adminToken, token: ownerToken || adminToken };
+    return { ownerToken, entityAdminToken, adminToken, token: ownerToken || entityAdminToken || adminToken };
   }
 
   function requestUrl(path) {
@@ -30,11 +31,15 @@
 
   function requestLabel(request) {
     if (request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT') return 'STOCK ADJUSTMENT';
+    if (request.requestType === 'CASH_FLOW' && request.payload?.purpose === 'DRAWER_OPENING_DISCREPANCY') return 'SELISIH SALDO AWAL LACI';
     return request.requestType;
   }
 
   function payloadSummary(request) {
     const payload = request.payload || {};
+    if (request.requestType === 'CASH_FLOW' && payload.purpose === 'DRAWER_OPENING_DISCREPANCY') {
+      return `Saldo awal dientry ${money(payload.enteredAmount)} · saldo akhir laci sebelumnya ${money(payload.expectedAmount)} · selisih ${money(payload.difference)}`;
+    }
     if (request.requestType === 'CASH_FLOW') {
       const counterpart = [payload.accountingCounterpartAccountCode, payload.accountingCounterpartAccountName].filter(Boolean).join(' ');
       return `${payload.direction === 'OUT' ? 'Kas Keluar' : 'Kas Masuk'} · ${money(payload.amount)} · ${esc(payload.description || '')}${counterpart ? ` · Lawan: ${esc(counterpart)}` : ''}`;
@@ -111,6 +116,44 @@
     }
   }
 
+  // Assigned via textContent below, not innerHTML -- no esc() needed here.
+  function autoPermitStatusText(settings) {
+    const who = settings.enabledByRole ? `${settings.enabledByRole} (${settings.enabledById})` : null;
+    if (!settings.autoPermitEnabled) {
+      return who ? `Nonaktif. Terakhir dinyalakan oleh ${who} pada ${settings.enabledAt || '-'}.` : 'Nonaktif.';
+    }
+    return who
+      ? `AKTIF -- dinyalakan oleh ${who} pada ${settings.enabledAt || '-'}. Pengajuan baru gerai ini langsung ACC otomatis.`
+      : 'AKTIF. Pengajuan baru gerai ini langsung ACC otomatis.';
+  }
+
+  async function toggleAutoPermit(currentlyEnabled) {
+    if (!currentlyEnabled && !confirm('Auto Permit akan langsung meng-ACC semua pengajuan baru gerai ini tanpa direview manual. Kalau ada masalah, itu tanggung jawab akun yang mengaktifkan. Lanjutkan?')) return;
+    try {
+      await managementApi('/api/management/approval-settings', { method: 'PATCH', body: JSON.stringify({ enabled: !currentlyEnabled }) });
+      showMessage(!currentlyEnabled ? 'Auto Permit dinyalakan.' : 'Auto Permit dimatikan.');
+      await loadAutoPermit();
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  async function loadAutoPermit() {
+    const statusNode = document.getElementById('autoPermitStatus');
+    const toggleBtn = document.getElementById('autoPermitToggle');
+    if (!statusNode || !toggleBtn) return;
+    try {
+      const payload = await managementApi('/api/management/approval-settings');
+      const settings = payload.settings;
+      statusNode.textContent = autoPermitStatusText(settings);
+      toggleBtn.textContent = settings.autoPermitEnabled ? 'Matikan Auto Permit' : 'Nyalakan Auto Permit';
+      toggleBtn.disabled = false;
+      toggleBtn.onclick = () => toggleAutoPermit(settings.autoPermitEnabled);
+    } catch (error) {
+      statusNode.textContent = error.message;
+    }
+  }
+
   function mountBranchAdmin() {
     const tabs = document.querySelector('.admin-tabs');
     const app = document.getElementById('adminApp');
@@ -120,6 +163,11 @@
     toast.insertAdjacentHTML('beforebegin', `
       <section id="tab-approvals" class="admin-section">
         <div class="admin-card">
+          <div class="list-head"><div><h2>Auto Permit</h2><div class="muted">Kalau nyala, pengajuan baru gerai ini (Arus Kas, Arus Barang, Penyesuaian Stok, Aset) langsung di-ACC otomatis tanpa direview manual.</div></div></div>
+          <div id="autoPermitStatus" class="muted" style="margin-top:10px">Memuat status...</div>
+          <button id="autoPermitToggle" class="secondary-btn" type="button" style="margin-top:10px" disabled>Memuat...</button>
+        </div>
+        <div class="admin-card" style="margin-top:14px">
           <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Arus Kas, Arus Barang, Penyesuaian Stok, dan Aset dari kasir. ACC mengeksekusi posting snapshot secara atomic sesuai contract aktif.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
           <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
         </div>
@@ -129,6 +177,7 @@
       document.querySelectorAll('.admin-tab').forEach(item => item.classList.toggle('active', item === tabButton));
       document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-approvals'));
       loadQueue();
+      loadAutoPermit();
     });
     document.getElementById('managementApprovalRefresh')?.addEventListener('click', loadQueue);
   }

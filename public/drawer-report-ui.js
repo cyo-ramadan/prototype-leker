@@ -58,6 +58,7 @@
         <div><span>Insentif</span><b>${rupiah(drawer.incentiveAmount)}</b></div>
         <div><span>Status</span><b>${esc(drawer.status)}</b></div>
       </div>
+      ${drawer.openingNote ? `<div class="drawer-report-note"><b>Keterangan Buka:</b> ${esc(drawer.openingNote)}</div>` : ''}
       ${drawer.closingNote ? `<div class="drawer-report-note"><b>Keterangan Pulang:</b> ${esc(drawer.closingNote)}</div>` : ''}
 
       ${section('1. PENJUALAN BAYAR TUNAI', salesTable(sections.cashSales || [], totals.cashSales, totals.cashSalesItems))}

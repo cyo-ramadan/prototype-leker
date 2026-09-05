@@ -21,6 +21,7 @@ function positiveInteger(value, max = 1_000_000_000) {
 function actorFromAuth(auth) {
   if (auth.owner) return { role: 'OWNER', id: auth.owner.id };
   if (auth.admin) return { role: 'ADMIN', id: auth.admin.id };
+  if (auth.entityAdmin) return { role: 'ENTITY_ADMIN', id: auth.entityAdmin.id };
   return { role: auth.authType || 'MANAGEMENT', id: '' };
 }
 

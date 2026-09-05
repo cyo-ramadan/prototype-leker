@@ -1,6 +1,44 @@
 (() => {
   let stream = null;
   let callbacks = null;
+  let watermarkEnabled = false;
+  let geoPromise = null;
+
+  function requestGeo() {
+    if (!navigator.geolocation) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const timer = setTimeout(() => resolve(null), 6000);
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          clearTimeout(timer);
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          });
+        },
+        () => { clearTimeout(timer); resolve(null); },
+        { enableHighAccuracy: true, timeout: 5500, maximumAge: 30000 }
+      );
+    });
+  }
+
+  function drawWatermark(context, width, height, geo) {
+    const now = new Date();
+    const stamp = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }).format(now);
+    const locationLine = geo
+      ? `${geo.latitude.toFixed(5)}, ${geo.longitude.toFixed(5)} (±${Math.round(geo.accuracy)}m)`
+      : 'Lokasi tidak tersedia';
+    const barHeight = Math.max(38, Math.round(height * 0.11));
+    context.fillStyle = 'rgba(0,0,0,0.55)';
+    context.fillRect(0, height - barHeight, width, barHeight);
+    context.fillStyle = '#ffffff';
+    const fontSize = Math.max(10, Math.round(barHeight * 0.32));
+    context.font = `${fontSize}px sans-serif`;
+    context.textBaseline = 'middle';
+    context.fillText(stamp, 10, height - barHeight * 0.66);
+    context.fillText(locationLine, 10, height - barHeight * 0.26);
+  }
 
   function ensureUi() {
     if (document.getElementById('cameraSnapshotModal')) return;
@@ -53,10 +91,12 @@
     if (dialog?.open) dialog.close();
   }
 
-  async function open({ facingMode = 'user', title = 'Ambil Foto', onCaptureSuccess, onPermissionDenied } = {}) {
+  async function open({ facingMode = 'user', title = 'Ambil Foto', watermark = false, onCaptureSuccess, onPermissionDenied } = {}) {
     ensureUi();
     stopStream();
     callbacks = { onCaptureSuccess, onPermissionDenied };
+    watermarkEnabled = Boolean(watermark);
+    geoPromise = watermarkEnabled ? requestGeo() : null;
     const dialog = document.getElementById('cameraSnapshotModal');
     const video = document.getElementById('cameraSnapshotVideo');
     const message = document.getElementById('cameraSnapshotMessage');
@@ -89,7 +129,7 @@
     }
   }
 
-  function capture() {
+  async function capture() {
     const video = document.getElementById('cameraSnapshotVideo');
     if (!video || !stream || !video.videoWidth || !video.videoHeight) return;
     const maxWidth = 640;
@@ -102,6 +142,8 @@
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) return;
     context.drawImage(video, 0, 0, width, height);
+    const geo = watermarkEnabled ? await geoPromise : null;
+    if (watermarkEnabled) drawWatermark(context, width, height, geo);
     canvas.toBlob(blob => {
       if (!blob) return;
       const success = callbacks?.onCaptureSuccess;
@@ -109,7 +151,7 @@
       callbacks = null;
       const dialog = document.getElementById('cameraSnapshotModal');
       if (dialog?.open) dialog.close();
-      success?.(blob);
+      success?.(blob, { latitude: geo?.latitude ?? null, longitude: geo?.longitude ?? null, accuracy: geo?.accuracy ?? null });
     }, 'image/jpeg', 0.72);
   }
 

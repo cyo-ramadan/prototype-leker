@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { listProducts } from './db-multistore.js';
-import { requireCashier } from './cashier-auth.js';
+import { requireCashier, latestAttendanceStatus } from './cashier-auth.js';
 import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 
@@ -22,6 +22,7 @@ function mapDrawer(row) {
     closingAmount: row.closing_amount == null ? null : Number(row.closing_amount),
     incentiveAmount: Number(row.incentive_amount || 0),
     shiftLabel: row.shift_label || '',
+    openingNote: row.opening_note || '',
     closingNote: row.closing_note || '',
     status: row.status,
     openedAt: row.opened_at,
@@ -29,10 +30,18 @@ function mapDrawer(row) {
   } : null;
 }
 
+async function getLastClosedDrawer(db, storeId) {
+  return db.prepare(`
+    SELECT id, closing_amount FROM cash_drawer_sessions
+    WHERE store_id = ? AND status = 'CLOSED' AND closing_amount IS NOT NULL
+    ORDER BY closed_at DESC LIMIT 1
+  `).bind(storeId).first();
+}
+
 export async function getOpenDrawer(db, storeId) {
   const row = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
-           d.incentive_amount, d.shift_label, d.closing_note,
+           d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id
@@ -42,6 +51,12 @@ export async function getOpenDrawer(db, storeId) {
   return mapDrawer(row);
 }
 
+// 2026-09-04, koreksi Bos Cyo: entry/transaksi tetap eksklusif milik kasir
+// yang membuka laci -- kasir lain yang login boleh presensi dan melihat
+// dashboard (read-only), tapi TIDAK boleh menulis transaksi sampai dia
+// sendiri yang membuka laci. Jangan ganti ini jadi "siapa pun kasir aktif
+// boleh menulis" lagi tanpa persetujuan eksplisit -- itu sudah pernah dicoba
+// dan dikoreksi balik hari yang sama.
 export async function requireDrawerOwner(db, cashier) {
   const drawer = await getOpenDrawer(db, cashier.store.id);
   if (!drawer) {
@@ -120,7 +135,13 @@ export async function handleCashierDrawerApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/cashier/drawer') {
     const drawer = await getOpenDrawer(db, cashier.store.id);
-    return json({ cashier, drawer, canWrite: Boolean(drawer && drawer.cashierId === cashier.id) });
+    const lastClosed = drawer ? null : await getLastClosedDrawer(db, cashier.store.id);
+    return json({
+      cashier,
+      drawer,
+      canWrite: Boolean(drawer && drawer.cashierId === cashier.id),
+      lastClosingAmount: lastClosed ? Number(lastClosed.closing_amount) : null
+    });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/open') {
@@ -129,18 +150,36 @@ export async function handleCashierDrawerApi(request, env, pathname) {
       if (existing.cashierId === cashier.id) return json({ ok: true, drawer: existing, canWrite: true });
       return json({ error: `Laci sudah dibuka oleh ${existing.cashierName}.`, code: 'DRAWER_ALREADY_OPEN', drawer: existing }, 409);
     }
+    // Bos Cyo 2026-09-04: cuma kasir yang sudah presensi masuk yang boleh
+    // buka laci dan jadi penanggung jawabnya.
+    if (await latestAttendanceStatus(db, cashier.id) !== 'in') {
+      return json({ error: 'Presensi masuk dulu sebelum buka laci.', code: 'PRESENSI_REQUIRED' }, 403);
+    }
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload buka laci tidak valid.' }, 400);
-    const openingAmount = money(body.value?.openingAmount ?? 0);
+
+    // 2026-09-04, koreksi Bos Cyo (revisi dari desain entry-manual+auto-permit
+    // hari yang sama): saldo awal laci melanjutkan saldo akhir laci sebelumnya
+    // di gerai ini secara read-only -- server yang menentukan nilainya, input
+    // client untuk openingAmount diabaikan kalau ada laci sebelumnya yang
+    // sudah CLOSED (bukan sekadar disembunyikan di UI). Kalau kas fisik
+    // ternyata tidak cocok, itu dibahas kasir langsung dengan akuntan di luar
+    // sistem ini -- akuntan yang bikin jurnalnya sendiri (jurnal manual, atau
+    // lewat permit Arus Kas yang sudah ada dan memang perlu ACC akuntan).
+    // Laci pertama di gerai (belum pernah ada laci CLOSED) tetap manual,
+    // karena tidak ada "kemarin" untuk dilanjutkan.
+    const lastClosed = await getLastClosedDrawer(db, cashier.store.id);
+    const openingAmount = lastClosed ? Number(lastClosed.closing_amount) : money(body.value?.openingAmount ?? 0);
     if (openingAmount === null) return json({ error: 'Saldo awal laci tidak valid.' }, 400);
     const id = `drawer_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     await db.prepare(`
       INSERT INTO cash_drawer_sessions (
         id, store_id, cashier_id, opening_amount, closing_amount, status,
-        opened_at, closed_at, shift_label, closing_note, incentive_amount
-      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, '', 0)
-    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60)).run();
+        opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount
+      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0)
+    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500)).run();
+
     return json({ ok: true, drawer: await getOpenDrawer(db, cashier.store.id), canWrite: true }, 201);
   }
 

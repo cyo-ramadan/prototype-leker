@@ -22,6 +22,34 @@ Current behavior:
 
 V1 intentionally does not define lot/expiry or individual asset depreciation.
 
+### Active: Auto Permit toggle (2026-09-04)
+
+Governed by ADR-041 (amends ADR-009 point 8), migration `0066_store_approval_settings.sql`,
+`src/approval-queue.js`, `public/management-approval-queue.js`.
+
+Per-store toggle: when on, a cashier's new `approval_requests` submission is
+posted immediately through the same `applyAccDecision()` contract a human ACC
+uses (`rejectStaleStockAdjustment` → `buildOperationalPostingStatements` →
+`env.DB.batch` → `cashFlowAccountingAfterCommit`), instead of waiting as
+`pending_approval`. Scope is `approval_requests` only — `transaction_void_permits`
+(Hapus/correction permits) is explicitly not affected.
+
+- `approved_by_role = 'AUTO_PERMIT'`, `approved_by_id` = the account that
+  turned the toggle on (`store_approval_settings.enabled_by_id`), never the
+  submitting cashier — this is the accountability trail Bos Cyo asked for.
+- A stale `STOCK_ADJUSTMENT` snapshot is still rejected exactly as it is
+  today under manual ACC. Any other posting failure leaves the row
+  `pending_approval`/`unposted` (the batch rolls back atomically) rather than
+  being silently rejected — a human can still review it normally.
+- Toggle read/write (`GET`/`PATCH /api/management/approval-settings`) is
+  gated by the same store-scoped `managementScope()` every other approval
+  endpoint uses: Admin Gerai own store, Owner any store, Entity Admin stores
+  within its Entity.
+- UI lives only in the per-store Admin panel tab (`mountBranchAdmin()`), not
+  Owner's cross-store approval list, since the toggle has no meaning without
+  a single store in context. Turning it on requires an explicit confirmation
+  naming the consequence.
+
 ## Manufacturing, stock, production, and moving-average HPP
 
 Current behavior is governed by:
@@ -278,7 +306,234 @@ The old helper remains only for operational fact kinds that have not yet migrate
 
 ## Portal Staf
 
-Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Setoran and Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
+Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Setoran dan Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
+
+### Active: presensi wajib sebelum buka laci, tiga state login kasir (2026-09-04)
+
+Dua akun kasir gerai yang sama boleh login DAN presensi bersamaan (tidak pernah diblok sejak
+awal — satu kredensial memang punya satu sesi server, tapi itu tidak mencegah akun BERBEDA
+login bareng). Yang tetap eksklusif -- **tidak berubah dan sengaja tidak diubah** -- adalah
+ENTRY: hanya kasir yang membuka laci yang boleh menulis transaksi (`requireDrawerOwner`,
+`DRAWER_OWNED_BY_OTHER` untuk yang bukan pemegang laci persis). Percobaan pertama sesi ini
+sempat melonggarkan ini jadi "siapa pun kasir aktif boleh menulis" berdasarkan salah tangkap
+laporan Workboard (`tsk_0e79e1a9`, `tsk_4868f56f`, CS Pendem diblok "laci dipegang kasir pendem"
+saat mau input Purchase/Sale) — **dikoreksi balik hari yang sama oleh Bos Cyo**: yang salah
+bukan aturan entry-nya, tapi kasir lain waktu itu belum pernah dapat jalur buat presensi dan
+tidak jelas boleh apa saja sebelum buka laci sendiri.
+
+Model yang benar, tiga state akun kasir yang login:
+
+1. **Login saja** — belum presensi, dashboard kasir (`#cashierDashboard`) belum ditampilkan.
+2. **Login + presensi masuk** — dashboard sudah bisa dilihat; kalau laci gerai masih kosong,
+   kasir ini sekarang boleh membukanya (baru boleh setelah presensi -- itu yang berubah). Kalau
+   laci gerai sudah dipegang kasir lain, tetap read-only seperti sebelumnya.
+3. **Login + presensi + buka laci sendiri** — write mode penuh, sama seperti desain lama.
+
+Implementasi: `src/cashier-auth.js` expose `latestAttendanceStatus(db, cashierId)` (dipakai juga
+oleh `/api/cashier/me` dan `/login` buat field `attendanceStatus`, toggle `'in'`/`'out'`
+berdasarkan baris `staff_attendance` terakhir milik kasir itu, bukan penanda per-hari-kalender —
+sengaja, supaya tidak perlu menebak timezone gerai). `src/cashier-drawer.js`'s
+`POST /api/cashier/drawer/open` sekarang menolak (`403 PRESENSI_REQUIRED`) kalau
+`latestAttendanceStatus` belum `'in'`. Endpoint transaksi (sale/purchase/expense/production/
+approval-request/dll) semuanya tetap pakai `requireDrawerOwner` seperti sebelumnya — TIDAK ada
+`requireOpenDrawer` atau mode "bantu" di kode ini; kalau ada yang menemukan sisa referensi itu,
+itu bug regresi dari percobaan pertama yang sudah dikoreksi, bukan desain final.
+
+Workflow login juga berubah: setelah login, kasir sekarang wajib presensi masuk (foto lewat
+`CameraSnapshotModal`, endpoint `POST /api/staff/attendance` yang sudah ada sejak Portal Staf)
+sebelum dashboard kasir ditampilkan — sebelumnya presensi murni opsional lewat halaman Portal
+Staf terpisah (`/staff`), tidak pernah dipaksa. `public/cashier-presensi-gate.js` (dimuat
+setelah `cashier-workspace.js`) membungkus `openDashboard` yang sedang aktif: setiap kali
+dipanggil, dia cek ulang `GET /api/cashier/me`, dan hanya lanjut ke dashboard asli kalau
+`attendanceStatus === 'in'`; kalau belum, tampilkan `#cashierPresensiGate` dulu.
+
+Test runtime (bukan cuma cek string source) ada di
+`test/cashier-drawer-helper-and-presensi.test.js`: buka laci ditolak `403 PRESENSI_REQUIRED`
+sebelum presensi lalu berhasil sesudahnya, kasir kedua yang sudah login+presensi tetap ditolak
+`403 DRAWER_OWNED_BY_OTHER` saat mencoba menulis expense, laci kedua tetap ditolak dibuka
+(`409 DRAWER_ALREADY_OPEN`), dan `attendanceStatus` di `/api/cashier/me` mengikuti baris
+`staff_attendance` terakhir yang sebenarnya di-insert ke DB.
+
+### Active: presensi jadi toggle in/out, plus GPS+timestamp, plus tombol Workboard (2026-09-04)
+
+Tiga hal terpisah yang Bos Cyo minta di putaran yang sama:
+
+1. **Presensi masuk/keluar sekarang toggle state yang ditegakkan server-side**, bukan cuma dua
+   tombol independen. `POST /api/staff/attendance` (`src/staff-portal.js`) menolak `type=in`
+   kalau `latestAttendanceStatus` sudah `'in'` (`409 ALREADY_CHECKED_IN`), dan menolak `type=out`
+   kalau belum pernah/tidak sedang `'in'` (`409 NOT_CHECKED_IN`). `public/staff.js` juga
+   men-disable tombol yang tidak valid berdasarkan `attendanceStatus` yang sekarang ikut dibalas
+   `GET /api/staff/portal`.
+2. **Foto presensi sekarang boleh menyertakan lokasi GPS + akurasi**, direkam sendiri (bukan
+   add-on/SaaS pihak ketiga) lewat `navigator.geolocation.getCurrentPosition` di
+   `public/camera-snapshot-modal.js` (opt-in lewat `CameraSnapshotModal.open({watermark:true})`,
+   timeout 6 detik, gagal-lunak ke `null` kalau ditolak/tidak tersedia -- presensi tetap boleh
+   jalan tanpa koordinat, foto tetap wajib). Ada dua bentuk bukti: (a) watermark visual dibakar
+   langsung ke pixel foto (bar semi-transparan di bawah, isi timestamp lokal + koordinat) supaya
+   kelihatan langsung saat foto dilihat manusia, dan (b) `latitude`/`longitude`/
+   `location_accuracy_meters` disimpan sebagai kolom terpisah di `staff_attendance` (migration
+   `0067`, nullable, `REAL` -- ini koordinat geografis bukan uang, tidak kena invariant scaled-integer)
+   supaya bisa diquery, bukan cuma terkubur di dalam gambar. Dipakai di kedua jalur presensi
+   masuk: `public/staff.js` (Portal Staf) dan `public/cashier-presensi-gate.js` (gerbang wajib
+   abis login) -- drawer-close (`cashier-live-photo.js`) sengaja TIDAK ikut diberi watermark,
+   di luar permintaan.
+3. **Tombol "🗂️ Maxi Store Workboard" ditambahkan di header Portal Staf** (`public/staff.html`),
+   link keluar biasa (`target="_blank"`) ke `program-task.daily-napkin.workers.dev` -- TIDAK ada
+   integrasi data/auth apa pun, cuma tombol. Fitur "abis presensi otomatis nongol daily task
+   milik sendiri dari Workboard, bisa dikasih task tambahan dari Admin, ada pembatasan role buat
+   CS (cuma boleh minta respon, tidak bisa bikin task)" -- itu semua **sengaja ditahan (hold)**
+   atas instruksi eksplisit Bos Cyo sampai ada keputusan lanjutan "bikin sendiri di Leker vs
+   sambung ke Workboard yang sudah ada" (opsi pertama direkomendasikan Hana: isolated dari
+   produk lain, konsisten dengan keputusan "Workboard integration -- on hold" yang sudah ada di
+   bagian lain dokumen ini; belum diputuskan Bos Cyo).
+4. **Satu baris `staff_attendance` sekarang menjelaskan satu sesi kerja penuh** (masuk + pulang),
+   bukan dua baris event terpisah seperti sebelumnya -- Bos Cyo minta ini supaya ada satu tempat
+   yang bisa ditambah detail lain nanti (jumlah task dikerjakan, jam kerja, gaji per jam, dst;
+   kolom-kolom itu sendiri **belum** dibuat, cuma bentuk barisnya yang disiapkan). Migration
+   `0068`: kolom lama (`created_at`/`photo_type`/`latitude`/`longitude`/`location_accuracy_meters`)
+   sekarang berarti fakta presensi MASUK; kolom `check_out_*` baru berarti fakta presensi PULANG
+   di baris yang sama; kolom `status` (`OPEN` = sudah masuk belum pulang, `CLOSED` = sudah pulang)
+   menggantikan `attendance_type` sebagai penentu status aktif (`latestAttendanceStatus` di
+   `src/cashier-auth.js` sekarang cek "ada baris `status='OPEN'`", bukan lagi "tipe baris
+   terakhir"). Presensi masuk = INSERT baris baru (`status='OPEN'`); presensi pulang = UPDATE
+   baris `OPEN` yang sama (`status='CLOSED'`) -- **foto tetap wajib dan tetap tersimpan di kedua
+   sisi** (masuk maupun pulang), cuma sekarang di satu baris, bukan cerita baru. 8 baris lama di
+   production (format event-log lama) di-backfill otomatis oleh migration (`status` diisi dari
+   `attendance_type` masing-masing baris secara independen -- data lama tidak punya pasangan
+   masuk/pulang yang jelas untuk dipasangkan ulang secara otomatis, jadi dibiarkan sebagai baris
+   historis apa adanya, tidak dihapus). `src/staff-raport.js`'s ringkasan presensi juga ikut
+   berubah bentuk dari `{total, checkIn, checkOut}` jadi `{total, closed, open}`.
+
+Test runtime ada di `test/staff-attendance-toggle-geolocation.test.js`: urutan toggle in→out→in
+(termasuk penolakan out-sebelum-in dan in-dobel), koordinat GPS tersimpan lewat jalur multipart
+form yang sama seperti production (`readLivePhoto`), koordinat null-safe kalau field GPS tidak
+dikirim sama sekali (ditemukan lewat test ini: `coord()` versi pertama salah mengubah `null`
+jadi `0` lewat `Number(null)` -- dikoreksi sebelum sempat dipakai, lihat riwayat commit), dan
+migration `0068` benar-benar diuji dengan menerapkan migration itu sendirian di atas DB yang
+sudah berisi baris format lama (bukan cuma cek isi file migration) untuk membuktikan backfill-nya
+jalan.
+
+## Detail Laci
+
+### Active: keterangan buka laci + nomor urut Laci #N (2026-09-04)
+
+Bos Cyo minta pola yang sama dengan presensi diterapkan juga ke laci: satu baris `cash_drawer_sessions`
+sudah menjelaskan satu sesi laci penuh sejak awal (buka + tutup di baris yang sama, tidak perlu
+direstruktur seperti `staff_attendance`), tapi baru sisi TUTUP yang punya kolom keterangan
+(`closing_note`, sudah tampil sebagai "Keterangan Pulang" di render Detail Laci). Migration
+`0069` menambahkan `opening_note` (pola sama: `TEXT NOT NULL DEFAULT ''`) supaya kasir yang buka
+laci juga bisa isi catatan opsional (mis. kondisi modal awal shift), tampil sebagai "Keterangan
+Buka" di render yang sama (`public/drawer-report-ui.js`, dipakai bareng oleh Kasir dan Admin/Owner
+-- satu perubahan otomatis nongol di kedua tempat). Daftar riwayat laci di kasir
+(`public/cashier-enhancements.js`, dialog "📚 Detail Laci") sebelumnya cuma menampilkan ID laci
+mentah; sekarang dilabeli "Laci #N" berurutan dari yang paling lama (`#1`) ke yang paling baru,
+dihitung dari posisi di array `ORDER BY opened_at DESC` yang sudah dikembalikan server (`total -
+index`) -- bukan kolom baru, murni derivasi tampilan. Baris riwayat juga menampilkan preview
+kedua keterangan (buka & pulang) kalau diisi.
+
+Test runtime + static ada di `test/drawer-opening-note.test.js`: `POST /api/cashier/drawer/open`
+dengan `openingNote` benar-benar tersimpan dan kebaca balik lewat `GET /api/cashier/drawer`,
+default kosong kalau tidak diisi (pola sama dengan `closing_note`), dan wiring UI (textarea di
+dialog Buka Laci, penomoran `Laci #N`, kedua label keterangan) diverifikasi lewat regex terhadap
+source file yang sebenarnya, bukan diasumsikan.
+
+### Fixed shape: saldo awal laci read-only, melanjutkan saldo akhir laci sebelumnya (2026-09-04)
+
+Bos Cyo mencoba dua desain lain di hari yang sama sebelum menetap di ini -- riwayatnya penting
+buat agen lain supaya tidak mengulang salah satu desain yang sudah ditolak:
+1. Entry manual + auto-permit ke Approval Queue kalau beda dari saldo akhir laci sebelumnya
+   (ditolak).
+2. Desain (1) plus ACC pada permit-nya langsung memposting jurnal kas (kategori Jenis Transaksi
+   `drawer_shortage`/`drawer_surplus`, migration 0070) -- juga ditolak, di hari yang sama juga.
+
+**Bentuk final:** saldo awal laci **read-only**, otomatis melanjutkan `closing_amount` laci CLOSED
+terakhir di gerai yang sama -- server yang menentukan nilainya (`getLastClosedDrawer` di
+`src/cashier-drawer.js`), bukan sekadar field yang dikunci di UI: input `openingAmount` dari client
+DIABAIKAN kalau ada laci sebelumnya yang sudah CLOSED. Kalau kas fisik ternyata tidak cocok dengan
+angka itu, itu **dibahas kasir langsung dengan akuntan di luar sistem ini** -- akuntan yang bikin
+jurnalnya sendiri lewat jurnal manual (fitur yang sudah ada), atau lewat permit Arus Kas yang sudah
+ada dan memang perlu ACC akuntan. Tidak ada lagi permit otomatis, tidak ada lagi kategori Jenis
+Transaksi khusus, tidak ada posting jurnal otomatis dari sisi ini sama sekali.
+
+Laci pertama di sebuah gerai (belum pernah ada laci CLOSED) tetap entry manual, karena tidak ada
+"kemarin" untuk dilanjutkan.
+
+**Migration 0071 membongkar scaffolding 0070:** migration 0070 (desain kedua di atas) sudah
+sempat `applied` di production sebelum ditolak -- CLAUDE.md invariant #7 melarang menulis ulang
+migration yang sudah applied, jadi 0071 adalah migration forward baru yang menghapus trigger dan
+baris `transaction_categories`/`journal_rules` yang 0070 buat (`drawer_shortage`, `drawer_surplus`),
+tanpa menyentuh `coa_<store>_4202` ("Pendapatan Lainnya") karena akun itu dipakai bersama sebagai
+default `cash_flow_in` sejak migration 0028, bukan milik 0070. Satu `approval_requests` row nyata
+dari sempat hidupnya desain kedua (purpose `DRAWER_OPENING_DISCREPANCY`, di salah satu gerai pilot,
+`pending_approval`) sengaja dibiarkan apa adanya -- itu data kejadian nyata, bukan sesuatu yang
+dihapus lewat migration. ACC pada baris itu sekarang gagal aman (constraint `cash_ledger_entries`
+menolak payload lama yang tidak punya `direction`/`amount`, karena `buildOperationalPostingStatements`
+sudah kembali ke bentuk normal); Admin/Owner tinggal Reject baris itu lewat Approval Queue.
+
+Terpisah dari ini: kolom `opening_note` (section di atas) tetap ada dan independen -- kasir bisa
+isi keterangan buka laci apa pun nominalnya cocok atau tidak.
+
+Test runtime + static ada di `test/drawer-opening-discrepancy.test.js`: `GET /api/cashier/drawer`
+mengembalikan `lastClosingAmount` (null kalau belum pernah ada laci CLOSED), `POST .../drawer/open`
+mengabaikan `openingAmount` dari client dan memakai `closing_amount` laci sebelumnya kalau ada,
+laci pertama di gerai tetap terima entry manual, tidak ada `approval_requests` yang pernah dibuat
+lagi untuk ini, dialog buka laci di kasir merender field read-only kalau ada saldo sebelumnya, dan
+migration 0071 dicek baik secara statis maupun lewat reproduksi in-memory penuh (gerai baru tidak
+lagi dapat `drawer_shortage`/`drawer_surplus`, gerai lama yang sempat ke-seed migration 0070
+bersih kembali, `cash_flow_in`/`cash_flow_out` dan akun bersama `coa_4202` tidak terganggu).
+
+## Master Karyawan: orang dipisahkan dari akun login (2026-09-04)
+
+Sampai sebelum ini, identitas karyawan cuma kolom teks yang nempel di tiap tabel akun
+(`cashiers.employee_name`, `store_admins.display_name`). Akibatnya satu orang yang memegang dua
+username di dua gerai tercatat sebagai dua orang yang tidak berhubungan, dan begitu sebuah
+username dioper ke karyawan pengganti, jejak siapa yang dulu memegangnya hilang total.
+
+Migration 0072 memisahkan keduanya:
+
+- **`employees`** — satu baris per MANUSIA, dimiliki **Entity** (badan usaha), bukan gerai.
+  Perekrutnya boleh gerai (`home_store_id` terisi) atau Entity langsung (`home_store_id` NULL,
+  untuk karyawan yang tidak menempel gerai mana pun seperti OB kantor). Ini pelebaran
+  lintas-gerai yang disengaja dan disetujui Bos Cyo: majikan yang sebenarnya memang Entity.
+  Isolasi tetap dijaga server-side di lapisan API — gerai hanya melihat karyawan di bawah
+  entity-nya sendiri.
+- **`employee_account_links`** — siapa memegang akun apa, **dari kapan sampai kapan**.
+  Berjangka waktu, bukan kolom pointer yang ditimpa. Ini inti desainnya: riwayat keuangan yang
+  sudah terjadi (gaji, setoran, hutang) harus tetap menempel ke orang yang memegang username itu
+  SAAT kejadian, bukan ikut berpindah diam-diam ke pemegang berikutnya. Pola persis
+  `entity_tenancy` (migration 0039): tutup periode lama dengan `effective_to`, buka baris baru,
+  tidak pernah meng-UPDATE hubungan lama (dijaga trigger `trg_employee_link_history_immutable`).
+
+Aturan yang ditegakkan schema + API:
+- Satu orang boleh memegang beberapa username sekaligus di gerai berbeda (kasus nyata: CS yang
+  membackup gerai kosong) — tapi satu username hanya boleh punya SATU pemegang aktif, dijaga
+  unique index parsial `idx_employee_link_one_active_holder`.
+- Link tidak boleh menyeberang entity, dan akun yang ditunjuk harus benar-benar ada di
+  gerai/entity yang diklaim (`trg_employee_link_scope_insert`, pola sama dengan
+  `trg_journal_rule_scope_insert`).
+- Gerai boleh MELIHAT semua karyawan se-entity (supaya bisa menautkan CS backup), tapi hanya
+  boleh MENGUBAH/menonaktifkan karyawan yang gerainya sendiri yang merekrut. Karyawan tingkat
+  Entity hanya bisa dibuat Owner/Entity Admin.
+- Karyawan yang masih memegang username tidak bisa dinonaktifkan — lepas tautannya dulu.
+
+`effective_from`/`effective_to` memakai timestamp ISO milidetik dari aplikasi, **bukan**
+`CURRENT_TIMESTAMP` SQLite: resolusinya cuma detik dan formatnya beda (`'YYYY-MM-DD HH:MM:SS'`
+vs ISO), dan mencampur dua format di kolom yang diurutkan sebagai teks bikin urutan riwayat
+salah. CHECK-nya sengaja `>=` bukan `>` — salah tautkan lalu langsung dilepas di detik yang sama
+itu koreksi wajar, dan periode nol-detik tetap riwayat yang sah (ditemukan lewat test, bukan
+dugaan).
+
+Panelnya ada di **Workspace Admin Gerai** (tab Karyawan, `public/admin-employees.js`), bukan di
+layar kasir — kasir cuma jadi sumber fakta otomatis nantinya, dia tidak mengurus data karyawan.
+
+**Belum dikerjakan (menyusul di atas fondasi ini):** Panel Hutang-Piutang Karyawan (pemilik data,
+jurnal cuma turunan, pintu jurnal manual ke akun kontrolnya ditutup), akun/peran Sidak beserta
+jalur Penyesuaian Stok lintas gerai tanpa syarat laci kebuka, panel sisi Entity dan Tenant, serta
+lapisan penugasan "satu orang pegang sebagian gerai di bawah entity". Peran **Superadmin** masih
+menunggu keputusan Bos Cyo soal levelnya (di dalam satu Entity, atau lintas semua pelanggan di
+tingkat platform) — belum dibuat karena dua pilihan itu beda posisi di struktur.
+
+Test ada di `test/employee-master.test.js`.
 
 ## Staff session dan duplicate tab
 
@@ -302,15 +557,74 @@ trigger, re-install 0048's trigger verbatim) and verified against a disposable t
 before touching real data. This affected every new-store creation path (this migration,
 `src/admin-multistore.js`, `src/owner-auth.js`), not just this one.
 
+## Workboard integration — on hold (2026-09-04)
+
+MAXI Workboard (D1 `maxi-workboard-prototype`, UI `program-task.daily-napkin.workers.dev`)
+is a **cross-product prototype/sample**, not Leker-owned and not yet a finished product.
+It is used by more than Leker's own agents/staff. This section records what was discussed
+and decided about integrating it with Leker, so the next round does not start from zero.
+
+Discussed and decided:
+
+- Bos Cyo wants Workboard's task/issue/finding data to eventually feed Leker's existing
+  Raport/KPI feature as employee performance assessment, and wants Leker staff to have
+  sidak (inspection)/finding-recording features with tracked results.
+- Bos Cyo's own proposed identity model (not yet built): a master employee-**name** table,
+  connected to multiple "**employed**" records — one person can have several employments,
+  one employment = one company's access grant. Raport is fundamentally scoped by employee
+  name, extendable to name+company. Confirmed **not** a prerequisite for the Entity Admin
+  panel (below), which shipped independently.
+- **Where sidak findings get stored** (Workboard vs Leker vs Leker-as-source/Workboard-as-
+  reader) is still **undecided** — explicitly deferred by Bos Cyo pending further
+  brainstorming.
+- Three-tier access hierarchy Bos Cyo described: Store Admin (single-store, existing) →
+  Entity Admin (new, multi-store within one Entity, entity-wide accounting/sidak reach) →
+  Tenant (Bos Cyo, all Entities). **Entity Admin panel is now built and live** (migration
+  0063, `src/owner-auth.js` `handleEntityAdminApi`/`requireManagement` `ENTITY_ADMIN`
+  branch, `public/entity-admin.html`/`.js`; percontohan accounts Rika/Alfina under grouped
+  Entity `ENT-KPM` — Kantor/Pendem/Mandala, migration 0064).
+  Workboard's task/issue/finding visibility was described as needing to mirror this same
+  three-tier structure (Store-scoped view inside Store panels, but the sidak/inspector
+  role's home workspace and broader reach lives at Entity level, Tenant level spans all
+  Entities) — **not yet implemented**, this is the shape a future Workboard-Leker bridge
+  should follow once the storage-location decision above is made.
+- Architecture question — should Workboard's codebase be merged into Leker's repo?
+  **No.** Recommendation given and not objected to: keep Workboard a separate product,
+  connect through a small read/write API bridge scoped by store (similar in shape to
+  `agent-bridge/`, a separate Worker), rather than merging codebases or forking a parallel
+  Portal Staf implementation inside Leker. Rationale: Workboard already has working
+  task/issue/announcement plumbing used across products; a native Leker rebuild would
+  duplicate that and fragment cross-product visibility into two boards that can drift.
+- Workboard's own `organization_entities`/`organization_stores` tables (which structurally
+  mirror Leker's Entity/Store shape) were checked and found **completely empty** — not
+  just for the newly grouped Kantor/Pendem/Mandala, but for every store including ones
+  already actively used (e.g. Pendem). Workboard's `users` and `employees` tables have
+  **no column** linking them to those org tables or to any store/entity id today, so
+  populating those tables right now would not connect to anything functional yet. This was
+  explored (not executed) while looking for what "siapkan perangkat Workboard untuk gerai
+  ini" should concretely mean.
+- **Explicit sequencing decision (2026-09-04):** this whole topic is **on hold**. Priority
+  is finishing Leker's own debugging/functional-check pass (`tsk_hana_admin_gerai_functional_check`
+  in Workboard, assigned to the accountant) until real CS/store staff can actually use the
+  product end to end. Workboard integration resumes after that — explicitly **not**
+  starting over, this section is the resume point.
+
 ## Leker store roster (as of 2026-08-25)
 
 Six stores across two tenants, confirmed live: `store_001` (Leker Mall Dinoyo),
 `store_ab5c6dd4-...` (MAXI LEKER DINOYO), `store_002` (MAXI LEKER G002), `store_kantor`
-(Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all `TEN-PROTOTYPE`, one
-Entity per store, `edition='ACCOUNTING'`; plus `store_ikan01` (Galeh) under `TEN-GALEH`,
-`edition='LITE'`. Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to
-reach that count.
+(Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all `TEN-PROTOTYPE`,
+`edition='ACCOUNTING'`; plus `store_ikan01` (Galeh) under `TEN-GALEH`, `edition='LITE'`.
+Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to reach that count.
+
+As of 2026-09-04, Kantor/Pendem/Mandala no longer each have their own Entity — migration
+0064 grouped them under one new Entity `ENT-KPM` (see the Entity Admin panel note above)
+so an Entity Admin can pick between them without re-logging in. Their original per-store
+entities (`ENT-KANTOR`/`ENT-PENDEM`/`ENT-MANDALA`) still exist but now own zero stores;
+they were deliberately not deleted because Pendem's pre-existing posted journal/stock
+history snapshots `entity_id` at write time (migration 0046) and still points at
+`ENT-PENDEM`.
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

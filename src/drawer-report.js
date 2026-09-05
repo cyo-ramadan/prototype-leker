@@ -12,6 +12,7 @@ function mapDrawer(row) {
     closingAmount: row.closing_amount == null ? null : number(row.closing_amount),
     incentiveAmount: number(row.incentive_amount),
     shiftLabel: row.shift_label || '',
+    openingNote: row.opening_note || '',
     closingNote: row.closing_note || '',
     status: row.status,
     openedAt: row.opened_at,
@@ -22,7 +23,7 @@ function mapDrawer(row) {
 export async function listStoreDrawers(db, storeId, limit = 100) {
   const rows = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
-           d.incentive_amount, d.shift_label, d.closing_note,
+           d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id
@@ -36,7 +37,7 @@ export async function listStoreDrawers(db, storeId, limit = 100) {
 export async function getStoreDrawer(db, storeId, drawerId) {
   const row = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
-           d.incentive_amount, d.shift_label, d.closing_note,
+           d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id

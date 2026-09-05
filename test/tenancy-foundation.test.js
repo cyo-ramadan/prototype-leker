@@ -93,11 +93,18 @@ test('the migration chain applies cleanly and links every gerai to a books owner
   const unlinked = sqlite.prepare(`SELECT COUNT(*) AS n FROM stores WHERE entity_id IS NULL`).get().n;
   assert.equal(unlinked, 0, 'every store must have an entity after backfill');
 
-  const stores = sqlite.prepare(`SELECT COUNT(*) AS n FROM stores`).get().n;
-  const openTenancies = sqlite
-    .prepare(`SELECT COUNT(*) AS n FROM entity_tenancy WHERE effective_to IS NULL`)
+  // One entity can now own more than one store (Entity Admin's whole premise,
+  // migration 0064), so entity count no longer tracks store count 1:1 -- what
+  // must still hold is that every store's entity has a live tenancy link.
+  const storesWithoutOpenTenancy = sqlite
+    .prepare(`
+      SELECT COUNT(*) AS n FROM stores s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM entity_tenancy et WHERE et.entity_id = s.entity_id AND et.effective_to IS NULL
+      )
+    `)
     .get().n;
-  assert.equal(openTenancies, stores, 'each backfilled entity gets exactly one open tenancy');
+  assert.equal(storesWithoutOpenTenancy, 0, "every store's entity must have an open tenancy link");
 });
 
 test('entities does not store its tenant, because that link moves', () => {

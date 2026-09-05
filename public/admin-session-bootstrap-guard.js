@@ -1,6 +1,8 @@
 (() => {
   const hasModernManagementSession = Boolean(
-    sessionStorage.getItem('lekerAdminToken') || sessionStorage.getItem('lekerOwnerToken')
+    sessionStorage.getItem('lekerAdminToken')
+    || sessionStorage.getItem('lekerOwnerToken')
+    || sessionStorage.getItem('lekerEntityAdminToken')
   );
   if (!hasModernManagementSession) return;
 

@@ -76,6 +76,17 @@ function mapStoreAdmin(row) {
   } : null;
 }
 
+function mapEntityAdmin(row) {
+  return row ? {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    isActive: Boolean(row.is_active),
+    entityId: row.entity_id,
+    entityName: row.entity_name ?? null
+  } : null;
+}
+
 export async function ownerFromRequest(request, db) {
   const token = bearerToken(request);
   if (!token) return null;
@@ -107,6 +118,36 @@ export async function storeAdminFromRequest(request, db) {
     LIMIT 1
   `).bind(tokenHash, now).first();
   return row?.store_active ? mapStoreAdmin(row) : null;
+}
+
+export async function entityAdminFromRequest(request, db) {
+  const token = bearerToken(request);
+  if (!token) return null;
+  const tokenHash = await hashCredential(token);
+  const now = new Date().toISOString();
+  const row = await db.prepare(`
+    SELECT a.id, a.username, a.display_name, a.is_active, a.entity_id,
+           e.name AS entity_name, e.status AS entity_status
+    FROM entity_admin_sessions es
+    JOIN entity_admins a ON a.id = es.entity_admin_id
+    JOIN entities e ON e.id = a.entity_id
+    WHERE es.token_hash = ? AND es.expires_at > ? AND a.is_active = 1
+    LIMIT 1
+  `).bind(tokenHash, now).first();
+  return row?.entity_status === 'ACTIVE' ? mapEntityAdmin(row) : null;
+}
+
+export async function createEntityAdminSession(db, row) {
+  const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
+  const tokenHash = await hashCredential(token);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + STORE_ADMIN_SESSION_HOURS * 60 * 60 * 1000).toISOString();
+  await db.batch([
+    db.prepare('DELETE FROM entity_admin_sessions WHERE expires_at <= ?').bind(now.toISOString()),
+    db.prepare('INSERT INTO entity_admin_sessions (token_hash, entity_admin_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+      .bind(tokenHash, row.id, now.toISOString(), expiresAt)
+  ]);
+  return { role: 'ENTITY_ADMIN', token, expiresAt, entityAdmin: mapEntityAdmin(row) };
 }
 
 export async function createStoreAdminSession(db, row) {
@@ -143,6 +184,27 @@ function adminStoreMatchesRequest(request, admin) {
     || requestedStore === String(admin.store.id).toUpperCase();
 }
 
+// Entity Admin isn't pinned to one store like Store Admin is, so its scope
+// check has to actually resolve whichever store the request names and
+// compare entity_id -- unlike adminStoreMatchesRequest, which only ever
+// compares against the one store already loaded on the admin's own session.
+async function entityAdminStoreAuthorized(request, entityAdmin, db) {
+  const url = new URL(request.url);
+  const requestedStore = String(url.searchParams.get('store') || DEFAULT_STORE_CODE).trim();
+  const store = await resolveStore(db, requestedStore, { includeInactive: true });
+  if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
+  if (store.entityId !== entityAdmin.entityId) {
+    return {
+      ok: false,
+      response: json({
+        error: `Entity Admin ${entityAdmin.displayName} hanya berwenang pada gerai di bawah entity ${entityAdmin.entityName || entityAdmin.entityId}.`,
+        code: 'ENTITY_ADMIN_STORE_SCOPE_MISMATCH'
+      }, 403)
+    };
+  }
+  return { ok: true };
+}
+
 export async function requireManagement(request, db) {
   const owner = await ownerFromRequest(request, db);
   if (owner) return { ok: true, owner, admin: null, authType: 'OWNER' };
@@ -163,6 +225,17 @@ export async function requireManagement(request, db) {
       };
     }
     return { ok: true, owner: null, admin, authType: 'ADMIN' };
+  }
+
+  const entityAdmin = await entityAdminFromRequest(request, db);
+  if (entityAdmin) {
+    const pathname = new URL(request.url).pathname;
+    if (/^\/api\/admin\/stores(?:\/|$)/.test(pathname)) {
+      return { ok: false, response: json({ error: 'Create dan pengaturan gerai hanya boleh dilakukan Owner.', code: 'OWNER_ONLY' }, 403) };
+    }
+    const storeCheck = await entityAdminStoreAuthorized(request, entityAdmin, db);
+    if (!storeCheck.ok) return storeCheck;
+    return { ok: true, owner: null, admin: null, entityAdmin, authType: 'ENTITY_ADMIN' };
   }
 
   // Backward-compatible prototype fallback while the old PIN UI is being retired.
@@ -215,6 +288,55 @@ export async function handleStoreAdminApi(request, env, pathname) {
   }
 
   return json({ error: 'Route Admin Gerai tidak ditemukan.' }, 404);
+}
+
+export async function handleEntityAdminApi(request, env, pathname) {
+  if (!pathname.startsWith('/api/entity-admin/')) return null;
+  const db = env.DB;
+
+  if (request.method === 'POST' && pathname === '/api/entity-admin/login') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload login Entity Admin tidak valid.' }, 400);
+    const username = usernameText(body.value?.username);
+    const password = String(body.value?.password ?? '');
+    if (!username || !password) return json({ error: 'Username dan password wajib diisi.' }, 400);
+
+    const row = await db.prepare(`
+      SELECT a.id, a.username, a.password_hash, a.display_name, a.is_active, a.entity_id,
+             e.name AS entity_name, e.status AS entity_status
+      FROM entity_admins a
+      JOIN entities e ON e.id = a.entity_id
+      WHERE a.username = ? COLLATE NOCASE
+      LIMIT 1
+    `).bind(username).first();
+
+    if (!row || !row.is_active || row.entity_status !== 'ACTIVE' || await hashCredential(password) !== row.password_hash) {
+      return json({ error: 'Username atau password Entity Admin salah.' }, 401);
+    }
+    return json(await createEntityAdminSession(db, row));
+  }
+
+  if (request.method === 'GET' && pathname === '/api/entity-admin/me') {
+    const entityAdmin = await entityAdminFromRequest(request, db);
+    return entityAdmin
+      ? json({ entityAdmin })
+      : json({ error: 'Session Entity Admin tidak valid atau sudah habis.', code: 'ENTITY_ADMIN_SESSION_EXPIRED' }, 401);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/entity-admin/logout') {
+    const token = bearerToken(request);
+    if (token) await db.prepare('DELETE FROM entity_admin_sessions WHERE token_hash = ?').bind(await hashCredential(token)).run();
+    return json({ ok: true });
+  }
+
+  if (request.method === 'GET' && pathname === '/api/entity-admin/stores') {
+    const entityAdmin = await entityAdminFromRequest(request, db);
+    if (!entityAdmin) return json({ error: 'Session Entity Admin tidak valid atau sudah habis.', code: 'ENTITY_ADMIN_SESSION_EXPIRED' }, 401);
+    const stores = (await listStores(db)).filter(store => store.entityId === entityAdmin.entityId);
+    return json({ entityAdmin, stores });
+  }
+
+  return json({ error: 'Route Entity Admin tidak ditemukan.' }, 404);
 }
 
 export async function handleOwnerApi(request, env, pathname) {

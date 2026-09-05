@@ -279,7 +279,7 @@
   function renderJournals(host) {
     const p = period();
     host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Jurnal</h2><p>Semua posted journal ada di sini: jurnal manual dan jurnal hasil transaksi sistem melalui bridge.</p></div></div>
-      <div class="acct-card"><div class="acct-filters"><label class="acct-field"><span>Dari</span><input id="acctJournalFrom" class="acct-input" type="date" value="${esc(p.from)}" /></label><label class="acct-field"><span>Sampai</span><input id="acctJournalTo" class="acct-input" type="date" value="${esc(p.to)}" /></label><button id="acctLoadJournals" class="acct-btn primary" type="button">Tampilkan</button></div><div id="acctJournalList"></div><div id="acctJournalDetail"></div></div></div>`;
+      <div class="acct-card"><div class="acct-filters"><label class="acct-field"><span>Dari</span><input id="acctJournalFrom" class="acct-input" type="date" value="${esc(p.from)}" /></label><label class="acct-field"><span>Sampai</span><input id="acctJournalTo" class="acct-input" type="date" value="${esc(p.to)}" /></label><button id="acctLoadJournals" class="acct-btn primary" type="button">Tampilkan</button></div><div id="acctJournalList"></div></div></div>`;
     el('acctLoadJournals').addEventListener('click', loadJournals);
     renderJournalList(state.bootstrap.recentJournals || []);
   }
@@ -304,7 +304,10 @@
       const result = await api(`/api/admin/accounting/journals/${encodeURIComponent(journalId)}`);
       state.journalDetail = result.journal;
       const j = result.journal;
-      el('acctJournalDetail').innerHTML = `<div class="acct-card acct-detail"><div class="acct-detail-head"><div><b>${esc(j.journalNumber)}</b><div class="acct-code">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)}</div></div><span class="acct-chip">POSTED · immutable</span></div><div>${esc(j.description)} · ${esc(j.businessDate)}</div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}${line.isSystemGenerated ? ' <span class="acct-chip">System</span>' : ''}</td><td>${line.side === 'DEBIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div></div>`;
+      window.openAdminDetailModal({
+        head: `<div><div class="admin-eyebrow">Journal Detail</div><h2>${esc(j.journalNumber)}</h2><div class="muted">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)} · ${esc(j.businessDate)}</div></div>`,
+        body: `<div class="acct-detail"><div class="acct-detail-head"><div>${esc(j.description)}</div><span class="acct-chip">POSTED · immutable</span></div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}${line.isSystemGenerated ? ' <span class="acct-chip">System</span>' : ''}</td><td>${line.side === 'DEBIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div></div>`
+      });
     } catch (error) { toast(error.message); }
   }
 

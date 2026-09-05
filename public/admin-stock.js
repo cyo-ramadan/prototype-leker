@@ -50,7 +50,6 @@
           <label class="admin-field" style="margin-top:12px">Cari barang<input id="adminStockSearch" type="search" placeholder="Nama / tipe barang" /></label>
           <div id="adminStockList" class="master-list" style="margin-top:12px"></div>
         </div>
-        <div id="adminStockDetail" class="admin-card hidden" style="margin-top:14px"></div>
       </section>`);
 
     button.addEventListener('click', activate);
@@ -103,15 +102,15 @@
   }
 
   async function loadMovements(productId, { reset }) {
-    const detail = document.getElementById('adminStockDetail');
-    if (!detail) return;
     if (reset) {
       state.selectedProductId = productId;
       state.detailMode = 'movements';
       state.movements = [];
       state.nextCursor = null;
-      detail.classList.remove('hidden');
-      detail.innerHTML = '<div class="muted">Memuat mutasi stok...</div>';
+      window.openAdminDetailModal({
+        head: '<div class="admin-eyebrow">Stock Detail</div><h2>Memuat...</h2>',
+        body: '<div class="muted">Memuat mutasi stok...</div>'
+      });
     }
     try {
       const url = new URL(`/api/admin/stock/${productId}/movements`, location.origin);
@@ -123,7 +122,10 @@
       state.hasMore = Boolean(payload.hasMore);
       renderDetail(payload.product);
     } catch (error) {
-      if (reset) detail.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+      if (reset) window.openAdminDetailModal({
+        head: '<div class="admin-eyebrow">Stock Detail</div><h2>Gagal memuat</h2>',
+        body: `<div class="empty">${esc(error.message)}</div>`
+      });
       else toast(error.message);
     }
   }
@@ -134,15 +136,15 @@
   }
 
   async function loadCostHistory(productId, { reset }) {
-    const detail = document.getElementById('adminStockDetail');
-    if (!detail) return;
     if (reset) {
       state.selectedProductId = productId;
       state.detailMode = 'hpp';
       state.hppHistory = [];
       state.nextCursor = null;
-      detail.classList.remove('hidden');
-      detail.innerHTML = '<div class="muted">Memuat histori HPP...</div>';
+      window.openAdminDetailModal({
+        head: '<div class="admin-eyebrow">HPP History</div><h2>Memuat...</h2>',
+        body: '<div class="muted">Memuat histori HPP...</div>'
+      });
     }
     try {
       const url = new URL(`/api/admin/products/${productId}/cost-history`, location.origin);
@@ -154,25 +156,27 @@
       state.hasMore = Boolean(payload.nextCursor);
       renderCostHistoryDetail(payload.product);
     } catch (error) {
-      if (reset) detail.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+      if (reset) window.openAdminDetailModal({
+        head: '<div class="admin-eyebrow">HPP History</div><h2>Gagal memuat</h2>',
+        body: `<div class="empty">${esc(error.message)}</div>`
+      });
       else toast(error.message);
     }
   }
 
   function renderCostHistoryDetail(product) {
-    const target = document.getElementById('adminStockDetail');
-    if (!target) return;
-    target.innerHTML = `
-      <div class="list-head"><div><div class="admin-eyebrow">HPP History</div><h2>${esc(product.productName)}</h2><div class="muted">Perubahan Average Cost / HPP dari waktu ke waktu, terbaru di atas.</div></div><button id="adminStockCloseDetail" class="mini-btn" type="button">Tutup</button></div>
-      <div class="master-list" style="margin-top:12px">${state.hppHistory.length ? state.hppHistory.map(row => `
+    window.openAdminDetailModal({
+      head: `<div><div class="admin-eyebrow">HPP History</div><h2>${esc(product.productName)}</h2><div class="muted">Perubahan Average Cost / HPP dari waktu ke waktu, terbaru di atas.</div></div>`,
+      body: `
+      <div class="master-list">${state.hppHistory.length ? state.hppHistory.map(row => `
         <div class="master-row">
           <div class="master-main">
             <strong>${esc(rupiah4(row.averageCost))}</strong>
             <div class="master-meta">${dateTime(row.createdAt)} · ${esc(costSourceLabel(row.sourceType))} · Ref ${esc(row.sourceId)}</div>
           </div>
         </div>`).join('') : '<div class="empty">Belum ada histori HPP tercatat untuk barang ini.</div>'}</div>
-      <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminStockMore" class="secondary-btn ${state.hasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
-    document.getElementById('adminStockCloseDetail')?.addEventListener('click', () => target.classList.add('hidden'));
+      <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminStockMore" class="secondary-btn ${state.hasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`
+    });
     document.getElementById('adminStockMore')?.addEventListener('click', () => loadCostHistory(product.productId, { reset: false }));
   }
 
@@ -185,12 +189,11 @@
   }
 
   function renderDetail(product) {
-    const target = document.getElementById('adminStockDetail');
-    if (!target) return;
     const qty = product.quantity == null ? 'Belum diinisialisasi' : `${product.quantity} ${esc(product.unitSymbol || '')}`;
-    target.innerHTML = `
-      <div class="list-head"><div><div class="admin-eyebrow">Stock Detail</div><h2>${esc(product.productName)}</h2><div class="muted">Saldo saat ini: <b>${qty}</b></div></div><button id="adminStockCloseDetail" class="mini-btn" type="button">Tutup</button></div>
-      <div class="master-list" style="margin-top:12px">${state.movements.length ? state.movements.map(row => `
+    window.openAdminDetailModal({
+      head: `<div><div class="admin-eyebrow">Stock Detail</div><h2>${esc(product.productName)}</h2><div class="muted">Saldo saat ini: <b>${qty}</b></div></div>`,
+      body: `
+      <div class="master-list">${state.movements.length ? state.movements.map(row => `
         <div class="master-row">
           <div class="master-main">
             <strong>${row.direction === 'IN' ? '＋' : '−'} ${row.quantity} ${esc(product.unitSymbol || '')} · ${esc(sourceLabel(row.sourceType))}</strong>
@@ -198,8 +201,8 @@
             ${row.note ? `<div class="master-meta">${esc(row.note)}</div>` : ''}
           </div>
         </div>`).join('') : '<div class="empty">Belum ada mutasi stok tercatat.</div>'}</div>
-      <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminStockMore" class="secondary-btn ${state.hasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
-    document.getElementById('adminStockCloseDetail')?.addEventListener('click', () => target.classList.add('hidden'));
+      <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminStockMore" class="secondary-btn ${state.hasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`
+    });
     document.getElementById('adminStockMore')?.addEventListener('click', () => loadMovements(product.productId, { reset: false }));
   }
 

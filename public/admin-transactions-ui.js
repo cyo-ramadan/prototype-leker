@@ -64,7 +64,6 @@
           <div id="adminTransactionsList" class="master-list" style="margin-top:12px"></div>
           <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminTransactionsMore" class="secondary-btn hidden" type="button">Muat lagi</button></div>
         </div>
-        <div id="adminTransactionDetail" class="admin-card hidden" style="margin-top:14px"></div>
       </section>`);
 
     button.addEventListener('click', activate);
@@ -172,15 +171,18 @@
   }
 
   async function openDetail(kind, id) {
-    const panel = document.getElementById('adminTransactionDetail');
-    panel.classList.remove('hidden');
-    panel.innerHTML = '<div class="muted">Memuat detail transaksi...</div>';
+    window.openAdminDetailModal({
+      head: '<div class="admin-eyebrow">Transaction Detail</div><h2>Memuat...</h2>',
+      body: '<div class="muted">Memuat detail transaksi...</div>'
+    });
     try {
       const payload = await api(`/api/admin/transactions/detail/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
       renderDetail(payload.detail);
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
-      panel.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+      window.openAdminDetailModal({
+        head: '<div class="admin-eyebrow">Transaction Detail</div><h2>Gagal memuat</h2>',
+        body: `<div class="empty">${esc(error.message)}</div>`
+      });
     }
   }
 
@@ -229,7 +231,6 @@
   }
 
   function renderDetail(detail) {
-    const panel = document.getElementById('adminTransactionDetail');
     const content = detail.kind === 'SALE'
       ? renderSaleDetail(detail)
       : detail.kind === 'PRODUCTION'
@@ -243,10 +244,10 @@
             postingStatus: detail.postingStatus,
             decisionNote: detail.decisionNote
           }, null, 2))}</pre></div>`;
-    panel.innerHTML = `
-      <div class="list-head"><div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div><button id="adminTransactionDetailClose" class="mini-btn" type="button">Tutup</button></div>
-      <div style="margin-top:14px">${content}</div>`;
-    document.getElementById('adminTransactionDetailClose')?.addEventListener('click', () => panel.classList.add('hidden'));
+    window.openAdminDetailModal({
+      head: `<div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div>`,
+      body: content
+    });
   }
 
   mount();

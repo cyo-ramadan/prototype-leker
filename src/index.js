@@ -19,6 +19,7 @@ import { handleTransactionVoidPermitApi } from './transaction-void-permits.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
+import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
@@ -177,6 +178,8 @@ async function handleApi(request, env, url) {
   if (adminCashierResponse) return adminCashierResponse;
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+  const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
+  if (employeeMasterResponse) return employeeMasterResponse;
   const productKindResponse = await handleProductKindApi(request, env, pathname);
   if (productKindResponse) return productKindResponse;
   const productMasterResponse = await handleProductMasterApi(request, env, pathname);

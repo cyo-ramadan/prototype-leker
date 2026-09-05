@@ -482,6 +482,59 @@ migration 0071 dicek baik secara statis maupun lewat reproduksi in-memory penuh 
 lagi dapat `drawer_shortage`/`drawer_surplus`, gerai lama yang sempat ke-seed migration 0070
 bersih kembali, `cash_flow_in`/`cash_flow_out` dan akun bersama `coa_4202` tidak terganggu).
 
+## Master Karyawan: orang dipisahkan dari akun login (2026-09-04)
+
+Sampai sebelum ini, identitas karyawan cuma kolom teks yang nempel di tiap tabel akun
+(`cashiers.employee_name`, `store_admins.display_name`). Akibatnya satu orang yang memegang dua
+username di dua gerai tercatat sebagai dua orang yang tidak berhubungan, dan begitu sebuah
+username dioper ke karyawan pengganti, jejak siapa yang dulu memegangnya hilang total.
+
+Migration 0072 memisahkan keduanya:
+
+- **`employees`** — satu baris per MANUSIA, dimiliki **Entity** (badan usaha), bukan gerai.
+  Perekrutnya boleh gerai (`home_store_id` terisi) atau Entity langsung (`home_store_id` NULL,
+  untuk karyawan yang tidak menempel gerai mana pun seperti OB kantor). Ini pelebaran
+  lintas-gerai yang disengaja dan disetujui Bos Cyo: majikan yang sebenarnya memang Entity.
+  Isolasi tetap dijaga server-side di lapisan API — gerai hanya melihat karyawan di bawah
+  entity-nya sendiri.
+- **`employee_account_links`** — siapa memegang akun apa, **dari kapan sampai kapan**.
+  Berjangka waktu, bukan kolom pointer yang ditimpa. Ini inti desainnya: riwayat keuangan yang
+  sudah terjadi (gaji, setoran, hutang) harus tetap menempel ke orang yang memegang username itu
+  SAAT kejadian, bukan ikut berpindah diam-diam ke pemegang berikutnya. Pola persis
+  `entity_tenancy` (migration 0039): tutup periode lama dengan `effective_to`, buka baris baru,
+  tidak pernah meng-UPDATE hubungan lama (dijaga trigger `trg_employee_link_history_immutable`).
+
+Aturan yang ditegakkan schema + API:
+- Satu orang boleh memegang beberapa username sekaligus di gerai berbeda (kasus nyata: CS yang
+  membackup gerai kosong) — tapi satu username hanya boleh punya SATU pemegang aktif, dijaga
+  unique index parsial `idx_employee_link_one_active_holder`.
+- Link tidak boleh menyeberang entity, dan akun yang ditunjuk harus benar-benar ada di
+  gerai/entity yang diklaim (`trg_employee_link_scope_insert`, pola sama dengan
+  `trg_journal_rule_scope_insert`).
+- Gerai boleh MELIHAT semua karyawan se-entity (supaya bisa menautkan CS backup), tapi hanya
+  boleh MENGUBAH/menonaktifkan karyawan yang gerainya sendiri yang merekrut. Karyawan tingkat
+  Entity hanya bisa dibuat Owner/Entity Admin.
+- Karyawan yang masih memegang username tidak bisa dinonaktifkan — lepas tautannya dulu.
+
+`effective_from`/`effective_to` memakai timestamp ISO milidetik dari aplikasi, **bukan**
+`CURRENT_TIMESTAMP` SQLite: resolusinya cuma detik dan formatnya beda (`'YYYY-MM-DD HH:MM:SS'`
+vs ISO), dan mencampur dua format di kolom yang diurutkan sebagai teks bikin urutan riwayat
+salah. CHECK-nya sengaja `>=` bukan `>` — salah tautkan lalu langsung dilepas di detik yang sama
+itu koreksi wajar, dan periode nol-detik tetap riwayat yang sah (ditemukan lewat test, bukan
+dugaan).
+
+Panelnya ada di **Workspace Admin Gerai** (tab Karyawan, `public/admin-employees.js`), bukan di
+layar kasir — kasir cuma jadi sumber fakta otomatis nantinya, dia tidak mengurus data karyawan.
+
+**Belum dikerjakan (menyusul di atas fondasi ini):** Panel Hutang-Piutang Karyawan (pemilik data,
+jurnal cuma turunan, pintu jurnal manual ke akun kontrolnya ditutup), akun/peran Sidak beserta
+jalur Penyesuaian Stok lintas gerai tanpa syarat laci kebuka, panel sisi Entity dan Tenant, serta
+lapisan penugasan "satu orang pegang sebagian gerai di bawah entity". Peran **Superadmin** masih
+menunggu keputusan Bos Cyo soal levelnya (di dalam satu Entity, atau lintas semua pelanggan di
+tingkat platform) — belum dibuat karena dua pilihan itu beda posisi di struktur.
+
+Test ada di `test/employee-master.test.js`.
+
 ## Staff session dan duplicate tab
 
 Canonical login remains separated into Pelanggan and Karyawan, one staff account has one active server session, and one browser has one active staff tab through the local browser lease. Customer sessions remain separate.
@@ -574,4 +627,4 @@ history snapshots `entity_id` at write time (migration 0046) and still points at
 
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

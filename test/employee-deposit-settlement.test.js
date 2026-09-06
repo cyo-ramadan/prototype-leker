@@ -340,6 +340,26 @@ test('Finance reject setoran wajib alasan dan tidak mengubah saldo', async () =>
   }
 });
 
+test('dialog tutup laci di kasir mengirim depositAmount ke server', () => {
+  const cashierUi = readFileSync(new URL('../public/cashier.js', import.meta.url), 'utf8');
+  assert.match(cashierUi, /id="dialogDepositAmount"/);
+  assert.match(cashierUi, /depositAmount: Number\(el\('dialogDepositAmount'\)\.value \|\| 0\)/);
+});
+
+test('tab Riwayat Setoran Portal Staf memuat dan menampilkan data dari /api/cashier/employee-deposits', () => {
+  const staffUi = readFileSync(new URL('../public/staff.js', import.meta.url), 'utf8');
+  assert.match(staffUi, /staffApi\('\/api\/cashier\/employee-deposits'\)/);
+  assert.match(staffUi, /deposit-submit/);
+  assert.match(staffUi, /employee-deposits\/\$\{encodeURIComponent\(button\.dataset\.receivableId\)\}\/payments/);
+});
+
+test('panel Admin Karyawan menampilkan antrean setoran menunggu ACC dan bisa ACC/Tolak', () => {
+  const adminUi = readFileSync(new URL('../public/admin-employees.js', import.meta.url), 'utf8');
+  assert.match(adminUi, /\/api\/admin\/employee-deposits\/pending/);
+  assert.match(adminUi, /data-approve-payment/);
+  assert.match(adminUi, /data-reject-payment/);
+});
+
 test('migration 0075 cuma ADD COLUMN, additive, tidak menyentuh baris tabel gerai yang sudah ada', () => {
   const migration = readFileSync(new URL('../migrations/0075_drawer_deposit_split.sql', import.meta.url), 'utf8');
   assert.match(migration, /ALTER TABLE cash_drawer_sessions ADD COLUMN deposit_amount INTEGER NOT NULL DEFAULT 0/);

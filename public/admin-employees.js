@@ -30,6 +30,11 @@
             <div class="admin-tip" style="margin-bottom:10px">Semua karyawan di bawah badan usaha yang sama tampil di sini, termasuk rekrutan gerai lain — supaya bisa ditautkan ke username gerai ini saat backup.</div>
             <div id="employeeList" class="master-list"></div>
           </div>
+          <div class="admin-card list-card">
+            <div class="list-head"><h2>Setoran menunggu ACC</h2><span id="depositPendingCount" class="master-count">0</span></div>
+            <div class="admin-tip" style="margin-bottom:10px">Bukti setoran yang dikirim karyawan lewat Portal Staf. ACC mengurangi piutangnya, Tolak wajib alasan dan tidak mengubah saldo.</div>
+            <div id="depositPendingList" class="master-list"></div>
+          </div>
         </div>
       </section>`);
   }
@@ -128,6 +133,47 @@
         employee.canManage = data.canCreateEntityLevel || employee.ownedByThisStore;
       }
       render();
+    } catch (error) { toast(error.message); }
+    loadPendingDeposits();
+  }
+
+  function money(value) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0); }
+
+  function renderPendingDeposits(payments) {
+    el('depositPendingCount').textContent = payments.length;
+    el('depositPendingList').innerHTML = payments.length ? payments.map(payment => `
+      <div class="master-row contact-row">
+        <div class="master-main">
+          <strong>${escapeHtml(payment.employeeName)}</strong>
+          <div class="master-meta">${money(payment.amountRupiah)} · ${escapeHtml(payment.proofReference)}</div>
+          ${payment.note ? `<div class="master-meta">${escapeHtml(payment.note)}</div>` : ''}
+        </div>
+        <div class="master-actions">
+          <button class="mini-btn" type="button" data-approve-payment="${escapeHtml(payment.id)}">ACC</button>
+          <button class="mini-btn danger" type="button" data-reject-payment="${escapeHtml(payment.id)}">Tolak</button>
+        </div>
+      </div>`).join('') : '<div class="empty">Tidak ada setoran menunggu ACC.</div>';
+    document.querySelectorAll('[data-approve-payment]').forEach(button => button.onclick = () => reviewDeposit(button.dataset.approvePayment, 'APPROVE'));
+    document.querySelectorAll('[data-reject-payment]').forEach(button => button.onclick = () => reviewDeposit(button.dataset.rejectPayment, 'REJECT'));
+  }
+
+  async function loadPendingDeposits() {
+    try {
+      const payload = await request(`/api/admin/employee-deposits/pending${storeQuery()}`);
+      renderPendingDeposits(payload.payments || []);
+    } catch (error) { toast(error.message); }
+  }
+
+  async function reviewDeposit(paymentId, action) {
+    const rejectionReason = action === 'REJECT' ? (prompt('Alasan penolakan (wajib):', '') ?? '') : undefined;
+    if (action === 'REJECT' && !rejectionReason.trim()) return toast('Alasan penolakan wajib diisi.');
+    try {
+      await request(`/api/admin/employee-deposits/payments/${encodeURIComponent(paymentId)}${storeQuery()}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action, rejectionReason })
+      });
+      await loadPendingDeposits();
+      toast(action === 'APPROVE' ? 'Setoran di-ACC' : 'Setoran ditolak');
     } catch (error) { toast(error.message); }
   }
 

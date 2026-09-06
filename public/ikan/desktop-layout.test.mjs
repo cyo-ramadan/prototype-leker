@@ -39,3 +39,29 @@ test('drawer preserves the established palette and only adds a transparent overl
   assert.match(html, /\.drawer-overlay\{[^}]*background:rgba\(17,24,39,\.52\)/);
   assert.match(html, /\.nav-drawer\{[^}]*background:#111827/);
 });
+
+test('customer receivable UI consumes the server read-model without calculating balances locally', () => {
+  assert.match(html, /data-page="customers"/);
+  assert.match(html, /id="customersPage"/);
+  assert.match(html, /ikanFetch\(`\/customers\/receivables\?\$\{params\}`\)/);
+  assert.match(html, /ikanFetch\(`\/customers\/\$\{encodeURIComponent\(contactId\)\}\/receivables\?paymentLimit=20`\)/);
+  assert.doesNotMatch(html, /customerReceivableState[^;]+reduce\(/);
+});
+
+test('customer receivable UI exposes loading empty error retry search and bounded pagination states', () => {
+  assert.match(html, /Memuat rekap customer/);
+  assert.match(html, /Rekap customer belum bisa dimuat/);
+  assert.match(html, /Belum ada transaksi customer/);
+  assert.match(html, /onclick="loadCustomerReceivables\(\)">Coba lagi/);
+  assert.match(html, /new URLSearchParams\(\{limit:'20'\}\)/);
+  assert.match(html, /params\.set\('q',state\.query\.trim\(\)\)/);
+  assert.match(html, /params\.set\('cursor',cursor\)/);
+});
+
+test('customer detail links outstanding invoices and payment history to the existing invoice flow', () => {
+  assert.match(html, /onclick="setCustomerInvoiceFilter\('outstanding'\)"/);
+  assert.match(html, /onclick="toggleCustomerPaymentHistory\(\)"/);
+  assert.match(html, /function openReceivableInvoice\(encodedId\)/);
+  assert.match(html, /document\.querySelector\('\.tab\[data-page="invoice"\]'\)/);
+  assert.match(html, /class="receivable-card"[^>]*type="button"|class="card receivable-card" type="button"/);
+});

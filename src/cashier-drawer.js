@@ -3,6 +3,7 @@ import { listProducts } from './db-multistore.js';
 import { requireCashier, latestAttendanceStatus } from './cashier-auth.js';
 import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
+import { createEmployeeDepositReceivable } from './employee-deposit-settlement.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const money = value => {
@@ -20,6 +21,7 @@ function mapDrawer(row) {
     cashierUsername: row.username,
     openingAmount: Number(row.opening_amount || 0),
     closingAmount: row.closing_amount == null ? null : Number(row.closing_amount),
+    depositAmount: Number(row.deposit_amount || 0),
     incentiveAmount: Number(row.incentive_amount || 0),
     shiftLabel: row.shift_label || '',
     openingNote: row.opening_note || '',
@@ -32,7 +34,7 @@ function mapDrawer(row) {
 
 async function getLastClosedDrawer(db, storeId) {
   return db.prepare(`
-    SELECT id, closing_amount FROM cash_drawer_sessions
+    SELECT id, closing_amount, deposit_amount FROM cash_drawer_sessions
     WHERE store_id = ? AND status = 'CLOSED' AND closing_amount IS NOT NULL
     ORDER BY closed_at DESC LIMIT 1
   `).bind(storeId).first();
@@ -41,7 +43,7 @@ async function getLastClosedDrawer(db, storeId) {
 export async function getOpenDrawer(db, storeId) {
   const row = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
-           d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
+           d.deposit_amount, d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id
@@ -140,7 +142,9 @@ export async function handleCashierDrawerApi(request, env, pathname) {
       cashier,
       drawer,
       canWrite: Boolean(drawer && drawer.cashierId === cashier.id),
-      lastClosingAmount: lastClosed ? Number(lastClosed.closing_amount) : null
+      lastClosingAmount: lastClosed
+        ? Number(lastClosed.closing_amount) - Number(lastClosed.deposit_amount || 0)
+        : null
     });
   }
 
@@ -169,7 +173,9 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     // Laci pertama di gerai (belum pernah ada laci CLOSED) tetap manual,
     // karena tidak ada "kemarin" untuk dilanjutkan.
     const lastClosed = await getLastClosedDrawer(db, cashier.store.id);
-    const openingAmount = lastClosed ? Number(lastClosed.closing_amount) : money(body.value?.openingAmount ?? 0);
+    const openingAmount = lastClosed
+      ? Number(lastClosed.closing_amount) - Number(lastClosed.deposit_amount || 0)
+      : money(body.value?.openingAmount ?? 0);
     if (openingAmount === null) return json({ error: 'Saldo awal laci tidak valid.' }, 400);
     const id = `drawer_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -188,11 +194,13 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (!ownership.ok) return ownership.response;
 
     let closingAmount;
+    let depositAmount;
     let closingNote = '';
     let photo = null;
     if (isMultipartRequest(request)) {
       const form = await request.formData();
       closingAmount = money(form.get('closingAmount'));
+      depositAmount = money(form.get('depositAmount') ?? 0);
       closingNote = text(form.get('closingNote'), 500);
       photo = await readLivePhoto(form, 'photo');
       if (!photo.ok) return json({ error: photo.error }, photo.status);
@@ -200,27 +208,43 @@ export async function handleCashierDrawerApi(request, env, pathname) {
       const body = await readJson(request);
       if (!body.ok) return json({ error: 'Payload tutup laci tidak valid.' }, 400);
       closingAmount = money(body.value?.closingAmount);
+      depositAmount = money(body.value?.depositAmount ?? 0);
       closingNote = text(body.value?.closingNote, 500);
     }
     if (closingAmount === null) return json({ error: 'Saldo akhir laci wajib berupa angka valid.' }, 400);
+    if (depositAmount === null) return json({ error: 'Setoran wajib berupa angka valid.' }, 400);
+    if (depositAmount > closingAmount) {
+      return json({ error: 'Setoran tidak boleh lebih besar dari saldo akhir laci.' }, 400);
+    }
 
     const now = new Date().toISOString();
     const result = photo
       ? await db.prepare(`
           UPDATE cash_drawer_sessions
-          SET closing_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?,
+          SET closing_amount = ?, deposit_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?,
               closing_photo = ?, closing_photo_type = ?
           WHERE id = ? AND cashier_id = ? AND status = 'OPEN'
-        `).bind(closingAmount, now, closingNote, photo.bytes, photo.type, ownership.drawer.id, cashier.id).run()
+        `).bind(closingAmount, depositAmount, now, closingNote, photo.bytes, photo.type, ownership.drawer.id, cashier.id).run()
       : await db.prepare(`
           UPDATE cash_drawer_sessions
-          SET closing_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?
+          SET closing_amount = ?, deposit_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?
           WHERE id = ? AND cashier_id = ? AND status = 'OPEN'
-        `).bind(closingAmount, now, closingNote, ownership.drawer.id, cashier.id).run();
+        `).bind(closingAmount, depositAmount, now, closingNote, ownership.drawer.id, cashier.id).run();
     if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
       return json({ error: 'Laci sudah berubah status di request lain.' }, 409);
     }
-    return json({ ok: true, drawerId: ownership.drawer.id, closedAt: now, photoType: photo?.type || null });
+
+    let employeeDeposit = null;
+    if (depositAmount > 0) {
+      employeeDeposit = await createEmployeeDepositReceivable(db, {
+        storeId: cashier.store.id,
+        cashierId: cashier.id,
+        drawerSessionId: ownership.drawer.id,
+        amountRupiah: depositAmount,
+        transactionDate: now.slice(0, 10)
+      });
+    }
+    return json({ ok: true, drawerId: ownership.drawer.id, closedAt: now, photoType: photo?.type || null, employeeDeposit });
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/menu') {

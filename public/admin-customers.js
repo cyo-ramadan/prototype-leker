@@ -41,7 +41,7 @@
           </form>
           <div class="admin-card list-card">
             <div class="list-head"><h2>Request jadi pelanggan</h2><span id="customerRequestCount" class="master-count">0</span></div>
-            <div class="admin-tip" style="margin:10px 0">Request dari halaman customer belum menjadi pelanggan sampai Admin Gerai menekan <b>ACC</b>.</div>
+            <div class="admin-tip" style="margin:10px 0">Request dari halaman customer belum menjadi pelanggan sampai Admin Gerai atau CS/Kasir gerai menekan <b>ACC</b>.</div>
             <div id="customerRequestList" class="master-list" style="margin-bottom:18px"></div>
             <hr style="border:0;border-top:1px solid var(--line);margin:18px 0" />
             <div class="list-head"><h2>Master pelanggan</h2><span id="customerMasterCount" class="master-count">0</span></div>

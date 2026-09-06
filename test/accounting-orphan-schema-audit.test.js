@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   ACCOUNTING_ACCOUNT_TYPES,
   ALLOWED_ACCOUNT_REFERENCE_TABLES,
+  ALLOWED_SCOPED_ACCOUNT_REGISTRIES,
   FORBIDDEN_REMOTE_TABLES,
   accountingSchemaViolations
 } from '../scripts/verify-remote-schema.mjs';
@@ -195,8 +196,9 @@ test('fresh schema keeps chart_of_accounts as canonical while typed compatibilit
         return ACCOUNTING_ACCOUNT_TYPES.every(accountType => sql.includes(`'${accountType}'`));
       })
       .map(row => row.name);
-    assert.deepEqual(typedAccountTables, ['accounting_account_refs', 'chart_of_accounts']);
+    assert.deepEqual(typedAccountTables, ['accounting_account_refs', 'chart_of_accounts', 'entity_chart_of_accounts']);
     assert.deepEqual(ALLOWED_ACCOUNT_REFERENCE_TABLES, ['accounting_account_refs']);
+    assert.deepEqual(ALLOWED_SCOPED_ACCOUNT_REGISTRIES, ['entity_chart_of_accounts']);
 
     const journalLineForeignKeys = sqlite.prepare(`PRAGMA foreign_key_list(accounting_journal_lines)`).all();
     assert.equal(journalLineForeignKeys.some(row => row.table === 'chart_of_accounts'), true);
@@ -221,9 +223,11 @@ test('fresh schema keeps chart_of_accounts as canonical while typed compatibilit
 test('remote schema verifier allows registered compatibility refs and rejects orphan or parallel COA tables', () => {
   const canonicalSql = `CREATE TABLE chart_of_accounts (type TEXT CHECK (type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')))`;
   const referenceSql = `CREATE TABLE accounting_account_refs (account_type TEXT CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')), external_account_id TEXT)`;
+  const entityScopedSql = `CREATE TABLE entity_chart_of_accounts (entity_id TEXT NOT NULL, type TEXT NOT NULL CHECK (type IN ('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE')))`;
   assert.deepEqual(accountingSchemaViolations([{ results: [
     { name: 'chart_of_accounts', sql: canonicalSql },
-    { name: 'accounting_account_refs', sql: referenceSql }
+    { name: 'accounting_account_refs', sql: referenceSql },
+    { name: 'entity_chart_of_accounts', sql: entityScopedSql }
   ] }]), {
     forbiddenTables: [],
     parallelAccountTables: []

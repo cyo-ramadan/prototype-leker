@@ -38,6 +38,10 @@ export const FORBIDDEN_REMOTE_TABLES = Object.freeze([
   'pos_integration_settings'
 ]);
 export const ALLOWED_ACCOUNT_REFERENCE_TABLES = Object.freeze(['accounting_account_refs']);
+// entity_chart_of_accounts (migration 0073) is not a duplicate of chart_of_accounts: it is the
+// canonical account registry for the Entity accounting scope (entity_id-keyed, above stores),
+// same shape by design since it mirrors the store-level engine, but never store-scoped data.
+export const ALLOWED_SCOPED_ACCOUNT_REGISTRIES = Object.freeze(['entity_chart_of_accounts']);
 export const ACCOUNTING_ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);
 export const WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS = 120000;
 
@@ -78,7 +82,11 @@ export function missingRequiredColumns(payload, requiredColumns = PRODUCTION_REQ
 export function accountingSchemaViolations(payload) {
   const rows = extractWranglerD1Rows(payload);
   const forbiddenSet = new Set(FORBIDDEN_REMOTE_TABLES);
-  const allowedTypedTables = new Set(['chart_of_accounts', ...ALLOWED_ACCOUNT_REFERENCE_TABLES]);
+  const allowedTypedTables = new Set([
+    'chart_of_accounts',
+    ...ALLOWED_ACCOUNT_REFERENCE_TABLES,
+    ...ALLOWED_SCOPED_ACCOUNT_REGISTRIES
+  ]);
   const forbiddenTables = rows
     .map(row => String(row?.name || '').trim())
     .filter(name => forbiddenSet.has(name));
@@ -149,11 +157,11 @@ function verifyRemoteSchema() {
     if (violations.parallelAccountTables.length) {
       console.error(`Remote D1 contains a parallel Chart-of-Accounts definition: ${violations.parallelAccountTables.join(', ')}`);
     }
-    console.error('Stop deployment. chart_of_accounts must remain the sole canonical account registry; registered compatibility references are read/reference surfaces only.');
+    console.error('Stop deployment. chart_of_accounts must remain the sole canonical account registry for stores; registered compatibility references are read/reference surfaces only, and registered scoped registries (ALLOWED_SCOPED_ACCOUNT_REGISTRIES) must serve a different accounting scope, not duplicate store-level data.');
     process.exit(1);
   }
 
-  console.log('Remote D1 schema ready. Required tables and Production V2 columns present; canonical Accounting registry = chart_of_accounts.');
+  console.log('Remote D1 schema ready. Required tables and Production V2 columns present; canonical Accounting registry = chart_of_accounts (store scope), entity_chart_of_accounts (Entity scope).');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) verifyRemoteSchema();

@@ -1,0 +1,69 @@
+name: Bootstrap Accounting Cash Flow Choice Groups V2
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-accounting-cashflow-choice-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.event.pull_request.head.ref == 'feat/accounting-cashflow-choice-groups'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Baseline regression
+        run: npm test
+
+      - name: Apply implementation and repaired assertions
+        run: |
+          node scripts/apply-accounting-cashflow-choice-groups.mjs
+          node scripts/fix-accounting-cashflow-choicegroup-tests.mjs
+
+      - name: Focused Cash Flow and boundary tests
+        run: node --test test/accounting-cash-flow-bridge.test.js test/accounting-flow-presets.test.js test/operational-posting.test.js test/operational-accounting-boundary.test.js
+
+      - name: Full regression
+        run: npm test
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Commit validated implementation and remove bootstrap helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "maxi-bootstrap-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -- \
+            src/accounting-cash-flow-bridge.js \
+            src/operational-posting.js \
+            public/cashier-approval-actions.js \
+            public/admin-accounting-flow-presets.js \
+            test/accounting-cash-flow-bridge.test.js \
+            test/accounting-flow-presets.test.js \
+            test/operational-posting.test.js
+          git rm -- \
+            scripts/apply-accounting-cashflow-choice-groups.mjs \
+            scripts/fix-accounting-cashflow-choicegroup-tests.mjs \
+            .github/workflows/bootstrap-accounting-cashflow-choice-groups.yml \
+            .github/workflows/bootstrap-accounting-cashflow-choice-groups-v2.yml
+          git diff --cached --check
+          git commit -m "feat: move Cash Flow counterpart selection to Choice Groups"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"

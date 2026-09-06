@@ -71,6 +71,40 @@ Dicatat di sini (2026-08-31, Hana atas permintaan Bos Cyo) supaya bertahan walau
 `agent_sops` di papan tugas suatu saat ditulis ulang. Salinan operasional (yang benar-benar
 dibaca `karen100` saat query papan) ada di `agent_sops` untuk `family='karen'`.
 
+## Pengecualian project `leker` — Karen boleh self-issue tanpa instruksi per-task
+
+Bos Cyo memberi wewenang berdiri (2026-09-07) khusus project `leker` (bukan `ikan`, bukan
+`workboard`): untuk task kind `FEATURE`/`MIGRATION`/`DOCS`, Karen boleh menulis task
+self-issued sendiri (Langkah 2.5 `CLAIM-PROMPT.md`), claim, dan proses sampai PR+report —
+**tanpa menunggu instruksi langsung Bos Cyo lebih dulu**. Cukup kebutuhan nyata yang Karen
+temukan sendiri dalam scope kerja yang sedang berjalan (mis. sub-task turunan dari task yang
+sudah di-assign).
+
+Ini beda dari pengecualian `karen100` di atas: `karen100` soal *siapa* (satu sesi bernama
+khusus) boleh mulai kerja tanpa jeda persetujuan Bos Cyo untuk edit UI. Ini soal *task apa
+saja* di project `leker` boleh Karen ciptakan sendiri tanpa menunggu Bos Cyo/Hana menulisnya
+duluan — berlaku untuk semua sesi Karen, bukan satu sesi bernama khusus.
+
+Pagar yang **tidak** ikut dilonggarkan oleh pengecualian ini:
+
+- Fresh-query dulu, tidak menduplikasi task yang sudah ada atau tumpang tindih territory
+  task lain yang masih `OPEN`.
+- Brief self-issued tetap kutip invariant `CLAUDE.md` yang relevan dan `forbidden` yang
+  spesifik (nama file/fungsi/trigger persis) — standarnya sama seperti kalau Hana yang
+  menulis, bukan satu baris ringkas.
+- `mutates_production` dinilai jujur; kombinasinya dengan `self_closing` tetap tunduk CHECK
+  constraint papan (`mutates_production=1` mewajibkan `self_closing=0`) — **tidak bisa**
+  dilonggarkan oleh aturan ini.
+- Kebijakan akuntansi/persediaan/approval yang ambigu **tetap wajib** eskalasi ke
+  `escalations` dan berhenti. Pengecualian ini sama sekali tidak mencakup wewenang
+  memutuskan kebijakan itu sendiri.
+- `task_paths` tetap wajib sesempit kerjaan aslinya, dicek dulu tidak overlap klaim aktif
+  lain.
+
+Dicatat di sini (2026-09-07, Hana atas permintaan Bos Cyo) supaya bertahan walau
+`agent_sops` di papan tugas suatu saat ditulis ulang. Salinan operasional ada di
+`agent_sops` untuk `family='karen'`.
+
 ## Session naming and handoff
 
 An agent identity is `family` `slot` `.` `session` — `karen1.2` is family `karen`, slot 1,

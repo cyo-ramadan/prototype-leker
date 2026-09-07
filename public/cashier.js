@@ -8,6 +8,7 @@ const state = {
   drawer: null,
   canWrite: false,
   voucherCustomer: null,
+  rodaOfficialResult: null,
   poller: null,
   visibilityBound: false,
   dialogSubmit: null
@@ -112,6 +113,7 @@ function clearSession() {
   state.drawer = null;
   state.canWrite = false;
   state.voucherCustomer = null;
+  state.rodaOfficialResult = null;
   sessionStorage.removeItem('lekerCashierToken');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
@@ -264,7 +266,12 @@ function renderDrawer() {
       ? `Read-only: laci sedang dipegang ${drawer.cashierName}`
       : 'Buka laci untuk mencatat pembelian bahan';
   ['expenseBtn','otherIncomeBtn'].forEach(id => { el(id).disabled = !state.canWrite; });
-  if (el('voucherBtn')) el('voucherBtn').disabled = !state.canWrite;
+  if (el('voucherBtn')) {
+    el('voucherBtn').disabled = !state.cashier;
+    el('voucherBtn').title = state.canWrite
+      ? 'Bagikan, tukarkan Voucher, atau jalankan Roda Puter resmi'
+      : 'Roda Puter resmi tetap tersedia; aksi Voucher lain menunggu write mode';
+  }
   el('drawerDetailsBtn').disabled = !drawer;
   el('reportsBtn').disabled = !drawer;
   el('cashierWriteLockNote').textContent = state.canWrite
@@ -407,6 +414,14 @@ function mountVoucherAction() {
       .voucher-product-actions button{border:1px solid #8b6d50;background:#fffaf4;border-radius:999px;padding:7px 10px;font-weight:900;cursor:pointer}
       .voucher-product-actions button:disabled{opacity:.45;cursor:not-allowed}
       .voucher-status{display:inline-flex;border-radius:999px;background:#eee5dc;padding:4px 7px;font-size:10px;font-weight:900}
+      .roda-official-card{border:2px solid #d6841b;border-radius:16px;padding:13px;background:linear-gradient(135deg,#fff8e8,#fff1cc);margin:12px 0}
+      .roda-official-card.inactive{border-color:#d8cec4;background:#faf7f3}
+      .roda-official-card.winner{border-color:#23864d;background:linear-gradient(135deg,#effff5,#dcf9e7)}
+      .roda-official-label{display:inline-flex;border-radius:999px;background:#713f12;color:white;padding:4px 8px;font-size:10px;font-weight:950;letter-spacing:.05em}
+      .roda-official-card h3{margin:8px 0 4px}.roda-official-card p{margin:4px 0}
+      .roda-official-card button{margin-top:9px;border:0;border-radius:999px;background:#9a520c;color:white;padding:9px 13px;font-weight:950;cursor:pointer}
+      .roda-official-card button:disabled{opacity:.5;cursor:not-allowed}
+      .roda-winner-code{display:inline-block;margin-top:6px;border:1px dashed #23864d;border-radius:8px;padding:6px 8px;background:white;font-family:monospace;font-weight:900}
     `;
     document.head.appendChild(style);
   }
@@ -414,6 +429,7 @@ function mountVoucherAction() {
 
 function openVoucherDialog() {
   state.voucherCustomer = null;
+  state.rodaOfficialResult = null;
   openDialog({
     eyebrow: 'Kasir · Voucher',
     title: 'Bagikan / Tukarkan Voucher',
@@ -454,6 +470,7 @@ async function searchVoucherCustomers() {
       const customer = customers.find(item => item.id === button.dataset.voucherCustomer);
       if (!customer) return;
       state.voucherCustomer = customer;
+      state.rodaOfficialResult = null;
       input.value = '';
       target.innerHTML = '';
       target.classList.add('hidden');
@@ -479,11 +496,61 @@ async function loadCustomerVouchers() {
   const target = el('voucherWorkspace');
   if (!customer || !target) return;
   target.innerHTML = '<div class="empty">Memuat Voucher...</div>';
-  const payload = await api(`/api/cashier/vouchers?customerId=${encodeURIComponent(customer.id)}`);
-  renderVoucherWorkspace(payload);
+  const [payload, rodaEligibility] = await Promise.all([
+    api(`/api/cashier/vouchers?customerId=${encodeURIComponent(customer.id)}`),
+    loadOfficialRodaEligibility(customer.id)
+  ]);
+  if (state.voucherCustomer?.id !== customer.id) return;
+  renderVoucherWorkspace(payload, rodaEligibility);
 }
 
-function renderVoucherWorkspace(payload) {
+async function loadOfficialRodaEligibility(customerId) {
+  try {
+    return await api(`/api/cashier/roda-puter?customerId=${encodeURIComponent(customerId)}`);
+  } catch (error) {
+    return {
+      eligible: false,
+      code: error.code || 'RODA_PUTER_ELIGIBILITY_FAILED',
+      error: error.message,
+      existing: error.payload?.existing || null
+    };
+  }
+}
+
+function renderOfficialRodaCard(eligibility) {
+  const customer = state.voucherCustomer;
+  const won = state.rodaOfficialResult?.customerId === customer?.id
+    ? state.rodaOfficialResult
+    : null;
+  if (won) {
+    return `
+      <section class="roda-official-card winner">
+        <span class="roda-official-label">MODE RESMI · SELESAI</span>
+        <h3>🎉 ${escapeHtml(won.reward?.productName || 'Hadiah terpilih')}</h3>
+        <p>Voucher nyata sudah dibuat untuk ${escapeHtml(customer.customerName)}. Spin resmi tidak dapat diulang.</p>
+        <span class="roda-winner-code">${escapeHtml(won.voucher?.code || '')}</span>
+      </section>`;
+  }
+  if (eligibility?.eligible) {
+    const disabled = state.cashier ? '' : 'disabled';
+    return `
+      <section class="roda-official-card">
+        <span class="roda-official-label">MODE RESMI · 1× SAJA</span>
+        <h3>🎡 Roda Puter Member Baru</h3>
+        <p>${escapeHtml(customer.customerName)} baru di-ACC oleh CS ini dan berhak satu spin resmi.</p>
+        <p class="muted">Hasil membuat Voucher nyata · ${Number(eligibility.rewardCount || 0)} hadiah aktif.</p>
+        <button type="button" data-roda-official ${disabled}>PUTAR SEKARANG</button>
+      </section>`;
+  }
+  return `
+    <section class="roda-official-card inactive">
+      <span class="roda-official-label">MODE RESMI</span>
+      <h3>🎡 Roda Puter belum tersedia</h3>
+      <p class="muted">${escapeHtml(eligibility?.error || 'Customer ini tidak memiliki kesempatan spin resmi.')}</p>
+    </section>`;
+}
+
+function renderVoucherWorkspace(payload, rodaEligibility) {
   const target = el('voucherWorkspace');
   if (!target || !state.voucherCustomer) return;
   const masters = payload.masters || [];
@@ -502,16 +569,41 @@ function renderVoucherWorkspace(payload) {
       ${voucher.status === 'UNUSED' ? `<div class="voucher-product-actions">${(voucher.products || []).map(product => `<button type="button" data-voucher-redeem="${escapeHtml(voucher.id)}" data-voucher-product="${Number(product.id)}" data-voucher-product-name="${escapeHtml(product.name)}" ${writeDisabled}>Tukar ${escapeHtml(product.name)}</button>`).join('')}</div>` : ''}
     </article>`).join('');
   target.innerHTML = `
+    ${renderOfficialRodaCard(rodaEligibility)}
     <div class="pimasatu-detail-head"><strong>Bagikan Voucher</strong><span>${masters.length}</span></div>
     <div class="voucher-action-list">${masterCards || '<div class="empty">Tidak ada Master Voucher aktif yang bisa dibagikan.</div>'}</div>
     <div class="pimasatu-detail-head" style="margin-top:16px"><strong>Voucher Customer</strong><span>${vouchers.length}</span></div>
     <div class="voucher-action-list">${voucherCards || '<div class="empty">Customer ini belum memiliki Voucher.</div>'}</div>`;
+  target.querySelector('[data-roda-official]')?.addEventListener('click', spinOfficialRoda);
   target.querySelectorAll('[data-voucher-distribute]').forEach(button => button.addEventListener('click', () => distributeVoucher(button.dataset.voucherDistribute)));
   target.querySelectorAll('[data-voucher-redeem]').forEach(button => button.addEventListener('click', () => redeemVoucher(
     button.dataset.voucherRedeem,
     Number(button.dataset.voucherProduct),
     button.dataset.voucherProductName
   )));
+}
+
+async function spinOfficialRoda() {
+  const customer = state.voucherCustomer;
+  if (!state.cashier || !customer) return;
+  if (!confirm(`Putar Roda resmi satu kali untuk ${customer.customerName}? Hasilnya langsung menjadi Voucher nyata dan tidak dapat diulang.`)) return;
+  const button = el('voucherWorkspace')?.querySelector('[data-roda-official]');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'MEMUTAR…';
+  }
+  try {
+    const result = await api('/api/cashier/roda-puter/official', {
+      method: 'POST',
+      body: JSON.stringify({ customerId: customer.id })
+    });
+    state.rodaOfficialResult = { ...result, customerId: customer.id };
+    await loadCustomerVouchers();
+    toast(`Roda Puter · ${result.reward?.productName || 'Voucher hadiah dibuat'}`);
+  } catch (error) {
+    toast(error.message);
+    await loadCustomerVouchers().catch(() => {});
+  }
 }
 
 async function distributeVoucher(masterId) {

@@ -2,6 +2,7 @@
   const byId = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const voucherState = { products: [], vouchers: [], editingId: '' };
+  const rodaState = { options: [], rewards: [] };
 
   async function voucherApi(path, options = {}) {
     const headers = { ...(options.headers || {}) };
@@ -42,6 +43,14 @@
       .voucher-chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
       .voucher-chip{display:inline-flex;padding:5px 8px;border-radius:999px;background:#f1e7dc;font-size:11px;font-weight:800}
       .voucher-progress{font-variant-numeric:tabular-nums}
+      .roda-config-card{margin-top:18px}
+      .roda-reward-rows{display:grid;gap:9px;margin:12px 0}
+      .roda-reward-row{display:grid;grid-template-columns:minmax(0,1fr) 120px auto;gap:8px;align-items:end;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fffaf5}
+      .roda-reward-row label{display:grid;gap:5px;font-size:12px;font-weight:800}
+      .roda-reward-row select,.roda-reward-row input{width:100%}
+      .roda-weight-summary{display:flex;justify-content:space-between;gap:12px;padding:10px 0;font-weight:900;font-variant-numeric:tabular-nums}
+      .roda-weight-summary.invalid{color:#b42318}
+      @media(max-width:680px){.roda-reward-row{grid-template-columns:1fr 110px}.roda-reward-row button{grid-column:1/-1}}
     `;
     document.head.appendChild(style);
   }
@@ -78,16 +87,24 @@
           <button class="primary-btn" type="submit">Simpan Master Voucher</button>
         </form>
         <div class="admin-card list-card"><div class="list-head"><div><h2>Master Voucher</h2><div class="muted">Dibuat Admin, dibagikan CS ke satu customer.</div></div><span id="voucherMasterCount" class="master-count">0</span></div><div id="voucherMasterList" class="master-list"></div></div>
-      </div>`;
+      </div>
+      <form id="rodaPuterForm" class="admin-card roda-config-card">
+        <div class="list-head"><div><h2>Hadiah Roda Puter</h2><div class="muted">Pilih barang dari Master Voucher dan tentukan bobot custom. Total wajib tepat 100%.</div></div><button id="rodaAddReward" class="mini-btn" type="button">+ Hadiah</button></div>
+        <div id="rodaRewardRows" class="roda-reward-rows"></div>
+        <div id="rodaWeightSummary" class="roda-weight-summary"><span>Total bobot</span><span>0%</span></div>
+        <button class="primary-btn" type="submit">Simpan Konfigurasi Roda</button>
+      </form>`;
     app.insertBefore(section, byId('adminToast'));
 
     button.addEventListener('click', () => {
       document.querySelectorAll('.admin-tab').forEach(item => item.classList.toggle('active', item === button));
       document.querySelectorAll('.admin-section').forEach(item => item.classList.toggle('active', item === section));
-      loadVouchers().catch(error => notify(error.message));
+      Promise.all([loadVouchers(), loadRodaPuter()]).catch(error => notify(error.message));
     });
     byId('voucherMasterForm').addEventListener('submit', saveVoucher);
     byId('voucherMasterCancel').addEventListener('click', resetForm);
+    byId('rodaPuterForm').addEventListener('submit', saveRodaPuter);
+    byId('rodaAddReward').addEventListener('click', addRodaReward);
     resetForm();
   }
 
@@ -97,6 +114,121 @@
     voucherState.vouchers = payload.vouchers || [];
     renderProductPicker();
     renderVoucherList();
+  }
+
+  function basisPointsToPercent(value) {
+    const basisPoints = Number(value || 0);
+    const whole = Math.floor(basisPoints / 100);
+    const fraction = String(basisPoints % 100).padStart(2, '0').replace(/0+$/, '');
+    return `${whole}${fraction ? `.${fraction}` : ''}`;
+  }
+
+  function percentToBasisPoints(value) {
+    const match = /^(\d{1,3})(?:[.,](\d{1,2}))?$/.exec(String(value ?? '').trim());
+    if (!match) return null;
+    const basisPoints = Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0') || 0);
+    return Number.isSafeInteger(basisPoints) && basisPoints > 0 && basisPoints <= 10000 ? basisPoints : null;
+  }
+
+  async function loadRodaPuter() {
+    const payload = await voucherApi('/api/admin/roda-puter');
+    rodaState.options = payload.options || [];
+    rodaState.rewards = (payload.campaign?.rewards || []).map(reward => ({
+      voucherMasterId: reward.voucherMasterId,
+      productId: Number(reward.productId),
+      weightPercent: basisPointsToPercent(reward.weightBasisPoints)
+    }));
+    if (!rodaState.rewards.length && rodaState.options.length) {
+      const first = rodaState.options[0];
+      rodaState.rewards = [{ voucherMasterId: first.voucherMasterId, productId: Number(first.productId), weightPercent: '100' }];
+    }
+    renderRodaRewards();
+  }
+
+  function optionIndexFor(reward) {
+    return rodaState.options.findIndex(option =>
+      option.voucherMasterId === reward.voucherMasterId
+      && Number(option.productId) === Number(reward.productId)
+    );
+  }
+
+  function renderRodaRewards() {
+    const target = byId('rodaRewardRows');
+    if (!target) return;
+    if (!rodaState.options.length) {
+      target.innerHTML = '<div class="empty">Buat Master Voucher aktif beserta pilihan barang terlebih dahulu.</div>';
+      byId('rodaPuterForm').querySelector('button[type="submit"]').disabled = true;
+      updateRodaTotal();
+      return;
+    }
+    byId('rodaPuterForm').querySelector('button[type="submit"]').disabled = false;
+    target.innerHTML = rodaState.rewards.map((reward, rowIndex) => {
+      const selectedIndex = optionIndexFor(reward);
+      return `<div class="roda-reward-row" data-roda-row="${rowIndex}">
+        <label>Hadiah dari Master Voucher<select data-roda-option>${rodaState.options.map((option, optionIndex) => `<option value="${optionIndex}" ${optionIndex === selectedIndex ? 'selected' : ''}>${esc(option.voucherMasterName)} · ${esc(option.productName)}</option>`).join('')}</select></label>
+        <label>Bobot (%)<input data-roda-weight inputmode="decimal" value="${esc(reward.weightPercent)}" placeholder="contoh 25" /></label>
+        <button class="mini-btn danger" data-roda-remove="${rowIndex}" type="button">Hapus</button>
+      </div>`;
+    }).join('');
+    target.querySelectorAll('select,input').forEach(input => input.addEventListener('input', updateRodaTotal));
+    target.querySelectorAll('[data-roda-remove]').forEach(button => button.addEventListener('click', () => removeRodaReward(Number(button.dataset.rodaRemove))));
+    updateRodaTotal();
+  }
+
+  function syncRodaRows() {
+    rodaState.rewards = [...document.querySelectorAll('[data-roda-row]')].map(row => {
+      const option = rodaState.options[Number(row.querySelector('[data-roda-option]').value)] || rodaState.options[0];
+      return {
+        voucherMasterId: option.voucherMasterId,
+        productId: Number(option.productId),
+        weightPercent: row.querySelector('[data-roda-weight]').value
+      };
+    });
+  }
+
+  function updateRodaTotal() {
+    const summary = byId('rodaWeightSummary');
+    if (!summary) return;
+    const weights = [...document.querySelectorAll('[data-roda-weight]')].map(input => percentToBasisPoints(input.value));
+    const valid = weights.length > 0 && weights.every(value => value !== null);
+    const total = valid ? weights.reduce((sum, value) => sum + value, 0) : 0;
+    summary.lastElementChild.textContent = valid ? `${basisPointsToPercent(total)}%` : 'Cek input';
+    summary.classList.toggle('invalid', !valid || total !== 10000);
+  }
+
+  function addRodaReward() {
+    syncRodaRows();
+    const usedProducts = new Set(rodaState.rewards.map(reward => Number(reward.productId)));
+    const option = rodaState.options.find(item => !usedProducts.has(Number(item.productId)));
+    if (!option) return notify('Semua barang yang tersedia sudah masuk roda.');
+    rodaState.rewards.push({ voucherMasterId: option.voucherMasterId, productId: Number(option.productId), weightPercent: '1' });
+    renderRodaRewards();
+  }
+
+  function removeRodaReward(index) {
+    syncRodaRows();
+    rodaState.rewards.splice(index, 1);
+    renderRodaRewards();
+  }
+
+  async function saveRodaPuter(event) {
+    event.preventDefault();
+    syncRodaRows();
+    const rewards = rodaState.rewards.map(reward => ({
+      voucherMasterId: reward.voucherMasterId,
+      productId: reward.productId,
+      weightBasisPoints: percentToBasisPoints(reward.weightPercent)
+    }));
+    if (!rewards.length || rewards.some(reward => reward.weightBasisPoints === null)) {
+      return notify('Isi bobot setiap hadiah dengan angka lebih dari 0%.');
+    }
+    try {
+      await voucherApi('/api/admin/roda-puter', { method: 'PUT', body: JSON.stringify({ rewards }) });
+      await loadRodaPuter();
+      notify('Konfigurasi Roda Puter disimpan');
+    } catch (error) {
+      notify(error.message);
+    }
   }
 
   function renderProductPicker(selected = null) {
@@ -173,7 +305,7 @@
         })
       });
       resetForm();
-      await loadVouchers();
+      await Promise.all([loadVouchers(), loadRodaPuter()]);
       notify(id ? 'Master Voucher diperbarui' : 'Master Voucher dibuat');
     } catch (error) {
       notify(error.message);
@@ -184,7 +316,7 @@
     if (!confirm('Nonaktifkan Master Voucher ini? Voucher yang sudah dibagikan tetap menjadi riwayat.')) return;
     try {
       await voucherApi(`/api/admin/vouchers/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      await loadVouchers();
+      await Promise.all([loadVouchers(), loadRodaPuter()]);
       if (voucherState.editingId === id) resetForm();
       notify('Master Voucher dinonaktifkan');
     } catch (error) {

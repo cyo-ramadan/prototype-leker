@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   issued_by TEXT NOT NULL DEFAULT 'ZEE',
   role TEXT NOT NULL DEFAULT 'IMPLEMENTER',
   territory TEXT NOT NULL,
+  project TEXT NOT NULL DEFAULT 'leker',
   migration_range TEXT,
   protocol_version TEXT NOT NULL,
   title TEXT NOT NULL,
@@ -191,3 +192,24 @@ WHEN NEW.task_id LIKE '%-SELF-%'
      AND t.territory = NEW.territory
      AND t.assigned_to <> NEW.assigned_to)
 BEGIN SELECT RAISE(ABORT, 'TERRITORY_ALREADY_HAS_OPEN_TASK_FOR_ANOTHER_FAMILY'); END;
+
+-- The MCP Worker inserts and removes one intent row inside the same D1 batch as
+-- an OPEN task/path replacement. This trigger closes the pre-read race without
+-- removing CLAIM-PROMPT.md's narrowly-scoped self-service path INSERT rule.
+CREATE TABLE IF NOT EXISTS board_write_intents (
+  operation_id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_board_write_intent_open_unclaimed
+BEFORE INSERT ON board_write_intents
+WHEN NOT EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.task_id = NEW.task_id AND t.status = 'OPEN'
+  )
+  OR EXISTS (
+    SELECT 1 FROM task_claims c
+    WHERE c.task_id = NEW.task_id AND c.released_at IS NULL
+  )
+BEGIN SELECT RAISE(ABORT, 'OPEN_UNCLAIMED_TASK_REQUIRED'); END;

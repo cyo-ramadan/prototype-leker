@@ -219,6 +219,25 @@ path and let the claimant add it back themselves once free (self-service rule in
 Hana, Bos Cyo typing SQL directly, or a future agent family with board write access — because
 the trigger cannot tell who is asking.
 
+### MCP update surface
+
+The existing `maxi-agent-bus-bridge` Worker exposes `board_update_open_task` for the connector
+identity and project allowlist configured server-side. The caller may supply `taskId` plus any
+of `title`, `brief`, `acceptanceCriteria`, `forbidden`, `paths`, `mutatesProduction`, and
+`selfClosing`. Ownership and authority fields are not inputs.
+
+The operation requires an existing `OPEN` task with no active claim, matching project,
+matching `assigned_to`, and a `kind` registered for the connector family. When supplied,
+`paths` replaces the complete set atomically. The Worker normalizes separators, removes dot
+segments, rejects absolute/traversal paths, duplicate paths, broad top-level directory locks,
+and prefixes of 50 characters or more. Implementation-task paths cannot be empty. A fresh
+active-claim overlap check runs before the batch, then a short-lived D1 write intent repeats
+the OPEN/unclaimed check inside the same transaction as metadata and path replacement.
+
+`board_get_task` retains the original comma-separated `paths` field for compatibility and also
+returns `task_paths` as an ordered array. The write response is that same updated task shape.
+The MCP credential and database credentials are never tool output.
+
 ## Self-issued tasks — Bos Cyo speaks in a sentence, the agent writes the SQL
 
 Every task above assumes Hana (or Bos Cyo) already wrote a row in `tasks`. That is the right

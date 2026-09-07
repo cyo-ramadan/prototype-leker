@@ -61,6 +61,125 @@
 <script src="/customer-login.js"></script>
 <script src="/auth-entry-split.js?v=20260828-single-submit-handler-v1"></script>
 <script src="/customer.js"></script>
+<script>
+(() => {
+  const ICON_SPRITE = '/roda-puter-tea-icons.webp?v=20260908-v1';
+  const PRODUCT_ICON_INDEX = new Map([
+    ['es teh matcha besar', 0],
+    ['es teh milktea lemon honey besar', 1],
+    ['es teh poci jasmine', 2],
+    ['es milktea leci besar', 3],
+    ['es milktea apel besar', 4],
+    ['es milktea blackcurrant besar', 5],
+    ['es milktea orange besar', 6],
+    ['es milktea mangga besar', 7],
+    ['es teh milktea besar', 8],
+    ['es teh thaitea besar', 9],
+    ['es teh capucino besar', 10],
+    ['es teh coklat besar', 11],
+    ['es teh leci besar', 12],
+    ['es teh apel besar', 13],
+    ['es teh lemon honey besar', 14],
+    ['es teh black curent besar', 15],
+    ['es teh orange besar', 16],
+    ['es teh mangga besar', 17],
+    ['es teh poci original vanilla besar', 18]
+  ]);
+
+  const normalizeProductName = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  function installRodaProductArtStyle() {
+    if (document.getElementById('rodaPuterProductArtStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'rodaPuterProductArtStyle';
+    style.textContent = `
+      .roda-demo{border-color:#e8c767;background:linear-gradient(145deg,#fff9e7 0%,#fff 58%,#fff3cf 100%);box-shadow:0 18px 44px rgba(124,45,18,.13)}
+      .roda-stage{min-height:330px}
+      .roda-wheel{box-sizing:border-box;width:min(80vw,300px);overflow:hidden;isolation:isolate;border:8px solid #e7bf45;outline:4px solid #8b4513;box-shadow:0 0 0 3px #fff1a8,0 17px 34px rgba(91,33,8,.27),inset 0 0 24px rgba(92,45,5,.2)}
+      .roda-wheel::before{content:'';position:absolute;inset:4px;border-radius:50%;z-index:0;pointer-events:none;border:2px solid rgba(255,241,168,.88);box-shadow:inset 0 0 18px rgba(78,35,4,.2),inset 0 0 0 2px rgba(127,29,29,.24)}
+      .roda-reward-token{position:absolute;left:50%;top:50%;z-index:1;width:clamp(25px,8vw,31px);aspect-ratio:1;pointer-events:none;transform-origin:center}
+      .roda-reward-art{display:block;width:100%;height:100%;background-image:url('${ICON_SPRITE}');background-size:500% 400%;background-position:var(--sprite-x) var(--sprite-y);background-repeat:no-repeat;filter:drop-shadow(0 2px 2px rgba(67,20,7,.34))}
+      .roda-spin{width:88px;border:6px solid #f4d466;outline:2px solid #8b5b16;background:radial-gradient(circle at 34% 27%,#ef4444 0 10%,#c91f1f 42%,#8f1515 100%);color:#fff7d6;text-shadow:0 1px 0 #6b120f;box-shadow:0 5px 16px rgba(67,20,7,.4),inset 0 2px 4px rgba(255,255,255,.3)}
+      .roda-spin:hover{background:radial-gradient(circle at 34% 27%,#f45b5b 0 10%,#d52b2b 42%,#991b1b 100%)}
+      .roda-pointer{top:-9px;border-left-width:20px;border-right-width:20px;border-top-width:40px;border-top-color:#b91c1c;filter:drop-shadow(0 -2px 0 #f4d466) drop-shadow(0 4px 2px rgba(67,20,7,.35))}
+      .roda-prize{border-color:#ecd68f;background:#fffaf0;color:#7c2d12}
+      @media(max-width:760px){.roda-stage{min-height:310px}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function readRewardPills() {
+    return [...document.querySelectorAll('#rodaPuterPrizes .roda-prize')].map(pill => {
+      const text = pill.textContent.trim();
+      const splitAt = text.lastIndexOf(' · ');
+      const name = splitAt >= 0 ? text.slice(0, splitAt) : text;
+      const percentText = splitAt >= 0 ? text.slice(splitAt + 3) : '0';
+      return {
+        name,
+        weightPercent: Number(percentText.replace('%', '').replace(',', '.')) || 0
+      };
+    });
+  }
+
+  function wheelGradient(rewards) {
+    const colors = ['#b91c1c', '#fff1bf'];
+    const stops = [];
+    let cursor = 0;
+    rewards.forEach((reward, index) => {
+      const start = cursor;
+      const end = Math.min(100, start + reward.weightPercent);
+      const divider = Math.min(.22, Math.max(.08, reward.weightPercent * .06));
+      const bodyStart = Math.min(end, start + divider);
+      const bodyEnd = Math.max(bodyStart, end - divider);
+      stops.push(`#d3a423 ${start}% ${bodyStart}%`);
+      stops.push(`${colors[index % colors.length]} ${bodyStart}% ${bodyEnd}%`);
+      stops.push(`#d3a423 ${bodyEnd}% ${end}%`);
+      cursor = end;
+    });
+    if (cursor < 100) stops.push(`#fff1bf ${cursor}% 100%`);
+    return `conic-gradient(${stops.join(',')})`;
+  }
+
+  function decorateRodaPuter() {
+    const wheel = document.getElementById('rodaPuterWheel');
+    const rewards = readRewardPills();
+    if (!wheel || !rewards.length || wheel.dataset.productArtReady === '1') return false;
+
+    wheel.dataset.productArtReady = '1';
+    wheel.style.background = `radial-gradient(circle at 35% 28%,rgba(255,255,255,.32),transparent 35%),${wheelGradient(rewards)}`;
+
+    let cursor = 0;
+    rewards.forEach(reward => {
+      const midpointPercent = cursor + (reward.weightPercent / 2);
+      cursor += reward.weightPercent;
+      const iconIndex = PRODUCT_ICON_INDEX.get(normalizeProductName(reward.name));
+      if (iconIndex == null) return;
+
+      const column = iconIndex % 5;
+      const row = Math.floor(iconIndex / 5);
+      const x = column * 25;
+      const y = row * (100 / 3);
+      const angle = midpointPercent * 3.6;
+      const token = document.createElement('span');
+      token.className = 'roda-reward-token';
+      token.setAttribute('aria-hidden', 'true');
+      token.style.transform = `translate(-50%,-50%) rotate(${angle}deg) translateY(calc(-1 * min(26vw,108px))) rotate(${-angle}deg)`;
+      token.innerHTML = `<span class="roda-reward-art" style="--sprite-x:${x}%;--sprite-y:${y}%"></span>`;
+      wheel.appendChild(token);
+    });
+    return true;
+  }
+
+  installRodaProductArtStyle();
+  if (!decorateRodaPuter()) {
+    const observer = new MutationObserver(() => {
+      if (decorateRodaPuter()) observer.disconnect();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => observer.disconnect(), 12000);
+  }
+})();
+</script>
 <script src="/customer-repeat-order.js"></script>
 <script src="/customer-order-status.js"></script>
 <script src="/customer-feedback-session-ready.js"></script>

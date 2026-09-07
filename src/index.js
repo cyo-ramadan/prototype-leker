@@ -48,6 +48,7 @@ import { handleAdminProductionDetailApi } from './admin-production-detail.js';
 import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleCustomerFeedbackApi } from './customer-feedback.js';
+import { handleEntityCustomerPortalApi } from './entity-customer-portal.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleVoucherApi } from './voucher.js';
 import { handleRodaPuterApi } from './roda-puter.js';
@@ -166,6 +167,8 @@ async function handleApi(request, env, url) {
   if (membershipResponse) return membershipResponse;
   const feedbackResponse = await handleCustomerFeedbackApi(request, env, pathname);
   if (feedbackResponse) return feedbackResponse;
+  const entityCustomerPortalResponse = await handleEntityCustomerPortalApi(request, env, pathname);
+  if (entityCustomerPortalResponse) return entityCustomerPortalResponse;
   const sharingResponse = await handleOwnerCustomerSharingApi(request, env, pathname);
   if (sharingResponse) return sharingResponse;
   const voucherResponse = await handleVoucherApi(request, env, pathname);
@@ -318,14 +321,19 @@ async function handleApi(request, env, url) {
   return json({ error: 'Not found' }, 404);
 }
 
-function assetRoute(pathname) {
+export function assetRoute(pathname) {
   const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html', '/entity-admin': '/entity-admin.html' };
   if (direct[pathname]) return direct[pathname];
+  // Scoped URLs must ask Static Assets for its canonical extensionless path.
+  // Fetching *.html makes html_handling redirect the browser and drops the
+  // /s/:store or /e/:entity context from the visible URL.
+  const entityCustomer = pathname.match(/^\/e\/([^/]+)\/customer\/?$/);
+  if (entityCustomer) return '/entity-customer';
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
-    if (page === 'admin') return '/branch-admin.html';
-    return `/${page}.html`;
+    if (page === 'admin') return '/branch-admin';
+    return `/${page}`;
   }
   return pathname;
 }
@@ -336,7 +344,7 @@ async function handleAsset(request, env, pathname) {
   const response = await env.ASSETS.fetch(new Request(assetUrl, request));
   if (
     request.method === 'GET'
-    && assetUrl.pathname === '/branch-admin.html'
+    && (assetUrl.pathname === '/branch-admin' || assetUrl.pathname === '/branch-admin.html')
     && response.ok
     && (response.headers.get('content-type') || '').includes('text/html')
   ) {

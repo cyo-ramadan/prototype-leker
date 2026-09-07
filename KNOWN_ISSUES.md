@@ -609,13 +609,26 @@ Discussed and decided:
   product end to end. Workboard integration resumes after that — explicitly **not**
   starting over, this section is the resume point.
 
-## Leker store roster (as of 2026-08-25)
+## Leker store roster (as of 2026-09-07)
 
-Six stores across two tenants, confirmed live: `store_001` (Leker Mall Dinoyo),
-`store_ab5c6dd4-...` (MAXI LEKER DINOYO), `store_002` (MAXI LEKER G002), `store_kantor`
-(Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all `TEN-PROTOTYPE`,
-`edition='ACCOUNTING'`; plus `store_ikan01` (Galeh) under `TEN-GALEH`, `edition='LITE'`.
-Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to reach that count.
+Six Leker stores, now across **three** tenants (updated by migration 0079 — see below),
+confirmed live: `store_ab5c6dd4-...` (MAXI LEKER DINOYO), `store_002` (MAXI LEKER G002),
+`store_kantor` (Kantor), `store_pendem` (Pendem), `store_mandala` (Mandala) — all
+`TEN-PROTOTYPE`, `edition='ACCOUNTING'`; `store_001` (Leker Mall Dinoyo) now under
+`TEN-HARILIBUR` (see below); plus `store_ikan01` (Galeh) under `TEN-GALEH`,
+`edition='LITE'`. Bos Cyo asked for at least 10 Leker stores; 7 more names are needed to
+reach that count.
+
+**2026-09-07 — Mall Dinoyo split off as its own tenant (migration
+`0079_mall_dinoyo_harilibur_tenant_split.sql`):** Bos Cyo clarified `store_001` (Leker Mall
+Dinoyo) is actually owned by **PT Harilibur**, not MAXI — a different subscribing company
+from the rest of the Prototype Leker roster. Its Entity `ENT-G001` was NOT recreated (per
+ADR-030 SS2, the ledger/stock/journal anchor never changes across a tenancy change) — it was
+renamed to `leker.hari.malang` and its `entity_tenancy` membership was closed under
+`TEN-PROTOTYPE` and reopened under a new tenant `TEN-HARILIBUR` ("PT Harilibur"). No
+transaction, journal, stock, or `store_id` row was touched. `store_001` itself keeps its
+existing store name/code (`G001`, "Leker Mall Dinoyo") — only the entity's book-keeping name
+and its tenant changed.
 
 As of 2026-09-04, Kantor/Pendem/Mandala no longer each have their own Entity — migration
 0064 grouped them under one new Entity `ENT-KPM` (see the Entity Admin panel note above)

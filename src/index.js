@@ -50,6 +50,7 @@ import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleCustomerFeedbackApi } from './customer-feedback.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
 import { handleVoucherApi } from './voucher.js';
+import { handleRodaPuterApi } from './roda-puter.js';
 import { handleOwnerApi, handleStoreAdminApi, handleEntityAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
@@ -169,6 +170,8 @@ async function handleApi(request, env, url) {
   if (sharingResponse) return sharingResponse;
   const voucherResponse = await handleVoucherApi(request, env, pathname);
   if (voucherResponse) return voucherResponse;
+  const rodaPuterResponse = await handleRodaPuterApi(request, env, pathname);
+  if (rodaPuterResponse) return rodaPuterResponse;
   const ownerResponse = await handleOwnerApi(request, env, pathname);
   if (ownerResponse) return ownerResponse;
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);

@@ -105,6 +105,45 @@ Dicatat di sini (2026-09-07, Hana atas permintaan Bos Cyo) supaya bertahan walau
 `agent_sops` di papan tugas suatu saat ditulis ulang. Salinan operasional ada di
 `agent_sops` untuk `family='karen'`.
 
+## Pengecualian merge + deploy ke `main` — fallback saat kuota Hana habis
+
+Bos Cyo memberi wewenang berdiri (2026-09-07): **kalau Bos Cyo secara langsung dan eksplisit
+minta "merge dan deploy ke main"** untuk PR project `leker` yang sudah PASS report di Agent
+Bus, Karen (atau agen implementer lain yang diberi instruksi yang sama) boleh mengeksekusi
+merge PR ke `main` sendiri — termasuk saat itu berarti production deploy sungguhan (lihat
+"Push ke branch fitur = deploy production sungguhan" di `CLAUDE.md`) — **tanpa menunggu Hana
+tersedia**. Ini kondisi yang Bos Cyo butuhkan spesifik untuk saat kuota/ketersediaan Hana
+habis, supaya pekerjaan tidak macet menunggu sesi Hana berikutnya.
+
+Ini **bukan** wewenang berdiri untuk memutuskan sendiri kapan PR di-merge — pemicunya wajib
+permintaan langsung Bos Cyo untuk PR/merge itu, bukan disimpulkan sendiri dari "task sudah
+PASS jadi boleh merge". Disiplin verifikasi di bawah ini **tidak** ikut dilonggarkan:
+
+- **Cek dulu, jangan percaya klaim PASS begitu saja.** Wajib `mergeable_state: clean` dan
+  kedua check yang relevan (`Check & Test`, `Workers Builds: prototype-leker-v2`) berstatus
+  sukses pada commit yang benar-benar akan di-merge — bukan pada commit lama PR itu.
+  Merge PR yang merah/conflict/pending dilarang, tidak ada pengecualian.
+- **Konflik (mis. `package.json` shared check-chain saat beberapa PR stacked/paralel) wajib
+  diresolve dulu**: union entry kedua sisi, pastikan tidak ada sisa marker konflik, `npm run
+  check` dan `npm test` hijau penuh, baru commit resolusi dan push ulang — tunggu CI baru
+  sebelum merge.
+- **Dilarang tetap:** push langsung ke `main` tanpa PR, force-push, skip/disable CI atau
+  test untuk memaksa hijau, memutuskan kebijakan akuntansi/persediaan/approval sendiri (Rule
+  5 di atas tetap berlaku penuh).
+- **Retarget/dependency order PR stacked** (satu PR dibangun di atas branch PR lain) tetap
+  wajib dieksekusi sesuai urutan yang diminta Bos Cyo — base PR masuk `main` dulu, baru PR
+  turunannya di-retarget.
+- **Wajib lapor dengan bukti** setelah eksekusi: commit SHA hasil merge, hasil check run,
+  dan (kalau migration terlibat) bukti migration ter-apply — bukan sekadar "sudah di-merge".
+
+Berlaku untuk PR mana pun di project `leker` yang memenuhi kondisi di atas, tidak terbatas
+satu sesi bernama khusus (beda dari pengecualian `karen100`) — siapa pun agen yang menerima
+instruksi langsung Bos Cyo untuk merge+deploy PR tertentu boleh menjalankannya.
+
+Dicatat di sini (2026-09-07, Hana atas permintaan Bos Cyo) supaya bertahan walau
+`agent_sops` di papan tugas suatu saat ditulis ulang. Salinan operasional ada di
+`agent_sops` untuk `family='karen'`.
+
 ## Session naming and handoff
 
 An agent identity is `family` `slot` `.` `session` — `karen1.2` is family `karen`, slot 1,

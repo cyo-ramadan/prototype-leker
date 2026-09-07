@@ -71,3 +71,76 @@ Saat plugin/connector Workboard sudah tersedia dan verified:
 2. Pindahkan task scope, invariants, acceptance evidence, serta implementation report dari entry ini.
 3. Tautkan PR/commit final yang relevan dari branch `karen/cashier-customer-approval`.
 4. Setelah record Workboard berhasil diverifikasi, tandai entry ini `MIGRATED` atau hapus mirror sesuai aturan dokumentasi aktif saat itu.
+
+---
+
+## TEMP-BOS-CYO-LEKER-CUSTOMER-WA-DUPLICATE-GUARD-20260907
+
+**Source / issued by:** BOS_CYO  
+**Instruction:** disuruh Bos Cyo pada 2026-09-07  
+**Assignee:** Karen  
+**Project:** MAXI Leker (`cyo-ramadan/prototype-leker`)  
+**Kind:** FEATURE  
+**Territory:** Customer  
+**Workboard status:** PENDING_MIGRATION  
+
+### Task
+
+Tolak pendaftaran pelanggan apabila nomor WhatsApp yang dimasukkan sudah dimiliki customer yang ada di Master Customer. Pesan yang tampil ke customer harus `Customer sudah terdaftar.`
+
+### Preflight finding
+
+Master Customer sudah menyimpan nomor pada `customers.phone`, tetapi schema tidak mempunyai unique constraint untuk phone. Existing registration guard hanya mengecek username. Customer UI sudah menampilkan `payload.error` dari backend secara langsung, jadi pesan duplicate dapat disurface tanpa menambah UI error path baru.
+
+Customer identity dapat melebar lintas gerai hanya melalui Customer Sharing Group. Karena itu duplicate phone mengikuti `resolveCustomerScope()` yang sama dengan identity/username, bukan global lintas tenant/store secara liar.
+
+### Implementation scope
+
+- Normalisasi nomor untuk comparison server-side: buang karakter selain digit dan samakan format Indonesia local `0...` dengan `62...`; bentuk `+62 0...` juga dinormalisasi ke `62...`.
+- Saat `POST /api/customer/register`, cek nomor yang sudah ada pada Master Customer di authorized customer-sharing scope.
+- Jika match, return HTTP `409` dengan code `CUSTOMER_ALREADY_REGISTERED` dan pesan `Customer sudah terdaftar.`.
+- Ulangi check yang sama saat action `APPROVE` supaya request lama tidak bisa lolos bila nomor tersebut menjadi terdaftar setelah request dibuat.
+- Nomor kosong tetap optional dan tidak dianggap duplicate.
+- Tidak menambah migration, unique index, direct D1 write, polling, atau perubahan authority review.
+
+### Invariants / forbidden changes
+
+- Duplicate check wajib server-side; client-side check saja tidak cukup.
+- Normalisasi formatting tidak boleh mengubah nomor yang disimpan sebagai historical/user-entered contact; normalisasi dipakai sebagai comparison key.
+- Scope duplicate wajib mengikuti authorized Customer Sharing Group dari store request.
+- Existing username guard, own-store cashier authorization, dan registration lifecycle `PENDING → APPROVED/REJECTED` harus tetap berlaku.
+- Tidak boleh membuat duplicate customer row ketika approval-time recheck gagal.
+- Request yang gagal di-ACC karena duplicate phone harus tetap `PENDING` agar dapat direview/ditangani secara eksplisit.
+- Tidak boleh membuat phone menjadi required dalam task ini.
+
+### Acceptance evidence
+
+Required evidence untuk dianggap complete:
+
+1. `0812 3456 7890`, `0812-3456-7890`, `+62 812 3456 7890`, dan `6281234567890` dibandingkan sebagai nomor yang sama.
+2. Registration dengan equivalent phone yang sudah ada di Master Customer mendapat HTTP `409`, code `CUSTOMER_ALREADY_REGISTERED`, dan pesan `Customer sudah terdaftar.`.
+3. Duplicate guard dijalankan ulang saat `APPROVE`; jika match, request tetap `PENDING` dan customer baru tidak dibuat.
+4. Phone kosong tetap dapat mendaftar sesuai behavior existing.
+5. Existing customer/cashier authorization dan username regression tetap hijau.
+6. `npm run check` dan `npm test` hijau pada PR CI.
+
+### DOC-IMPACT
+
+**DOC-IMPACT: REQUIRED.** Rule identity customer berubah dan dicatat juga pada ADR-005. Entry ini adalah mirror task/report sementara sampai MAXI Workboard bisa ditulis dari sesi Karen.
+
+### Report
+
+Bos Cyo menetapkan nomor WhatsApp yang sudah masuk Master Customer sebagai duplicate-identity guard. Implementasi dipilih sebagai code-only server validation karena kolom phone existing cukup untuk kebutuhan prototype dan user-facing error sudah diteruskan oleh UI.
+
+Guard diletakkan pada dua boundary: submit registration dan approval. Double-check saat approval sengaja dipertahankan agar dua request yang sempat pending bersamaan tidak menghasilkan dua Master Customer setelah salah satunya lebih dulu di-ACC.
+
+Tidak ada schema change atau migration. Normalisasi hanya dipakai untuk comparison dan tidak menulis ulang phone lama di Master Customer.
+
+### Workboard migration instruction
+
+Saat plugin/connector Workboard sudah tersedia dan verified:
+
+1. Buat/pindahkan task ini ke MAXI Workboard dengan source/issued-by tetap `BOS_CYO` dan note `disuruh Bos Cyo`.
+2. Pindahkan task scope, invariants, acceptance evidence, serta implementation report dari entry ini.
+3. Tautkan PR/commit final dari branch `karen/customer-whatsapp-duplicate-guard`.
+4. Setelah record Workboard berhasil diverifikasi, tandai entry ini `MIGRATED` atau hapus mirror sesuai aturan dokumentasi aktif saat itu.

@@ -6,6 +6,8 @@ Status: ACCEPTED for Prototype Leker
 
 Customer-facing testing exposed four gaps: G002 still displayed the original copied G001 fixture menu, customer point balance was not visible, logged customers could edit the displayed order name, and self-registration had no approval workflow. The customer also needs a persistent way to inspect recent order status after returning to the menu.
 
+Bos Cyo subsequently set a duplicate-identity rule for self-registration: once a WhatsApp number already belongs to a Master Customer in the authorized customer-sharing scope, the same person must not create another customer identity merely by changing the phone-number formatting or username.
+
 ## Decision
 
 1. G002 demo fixtures are made visibly different from G001. Only untouched copied seed rows are retired; rows already changed manually are preserved.
@@ -18,11 +20,14 @@ Customer-facing testing exposed four gaps: G002 still displayed the original cop
 8. The customer page exposes a `Pesanan Saya` action. Logged customers read recent orders by authenticated Customer ID within the authorized customer-sharing scope. Guest devices may inspect recent locally remembered orders for the current gerai.
 9. Kiosk/device label is retired from customer and cashier UI. The legacy database column remains empty for new orders for backward compatibility; no destructive table rebuild is performed.
 10. Customer sharing continues to widen customer identity scope only. Product/menu data remains strictly branch-scoped.
+11. WhatsApp number is a duplicate-identity guard for customer registration within the authorized customer-sharing scope. The server compares a normalized digits-only value and treats Indonesian local `0...` and country-code `62...` forms as equivalent; formatting characters do not create a new identity. An empty phone remains optional and is not treated as a duplicate key. If a normalized WhatsApp number matches any existing Master Customer row in scope, both new registration and later `APPROVE` review fail with HTTP `409`, code `CUSTOMER_ALREADY_REGISTERED`, and message `Customer sudah terdaftar.` The approval-time recheck closes the race where the phone becomes registered after a request was first submitted.
 
 ## Recovery
 
 Migration `0010_customer_registration_points_order_ux.sql` is additive except for retiring untouched G002 clone fixtures. It detects unchanged copied rows before deactivation. If deployment fails, stop promotion and use the established D1 recovery process before retrying a corrected migration.
 
+The WhatsApp duplicate guard is code-only and adds no schema or data migration. Recovery for that rule is a normal code rollback; existing Master Customer and registration rows require no database rewrite.
+
 ## DOC-IMPACT
 
-REQUIRED — customer registration lifecycle, order identity authority, points visibility, customer order-status access, kiosk-label retirement, and branch demo menu behavior materially changed.
+REQUIRED — customer registration lifecycle, duplicate WhatsApp identity policy, order identity authority, points visibility, customer order-status access, kiosk-label retirement, and branch demo menu behavior materially changed.

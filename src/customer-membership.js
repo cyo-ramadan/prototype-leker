@@ -8,6 +8,13 @@ import { hashCredential, requireManagement } from './owner-auth.js';
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
+const normalizeWhatsAppNumber = value => {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('620')) return `62${digits.slice(3)}`;
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  return digits;
+};
 
 function storeTokenFrom(request) {
   return new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
@@ -53,6 +60,17 @@ async function usernameExistsInScope(db, scopeStoreIds, username) {
   return Boolean(row);
 }
 
+async function phoneExistsInScope(db, scopeStoreIds, phone) {
+  const phoneKey = normalizeWhatsAppNumber(phone);
+  if (!scopeStoreIds.length || !phoneKey) return false;
+  const rows = await db.prepare(`
+    SELECT phone FROM customers
+    WHERE store_id IN (${placeholders(scopeStoreIds.length)})
+      AND TRIM(phone) <> ''
+  `).bind(...scopeStoreIds).all();
+  return (rows.results ?? []).some(row => normalizeWhatsAppNumber(row.phone) === phoneKey);
+}
+
 async function pendingUsernameExistsInScope(db, scopeStoreIds, username, excludeRequestId = '') {
   if (!scopeStoreIds.length) return false;
   const params = [...scopeStoreIds, username];
@@ -86,6 +104,9 @@ async function handleRegistration(request, env) {
   }
 
   const scope = await resolveCustomerScope(env.DB, store.id);
+  if (await phoneExistsInScope(env.DB, scope.storeIds, phone)) {
+    return json({ error: 'Customer sudah terdaftar.', code: 'CUSTOMER_ALREADY_REGISTERED' }, 409);
+  }
   if (await usernameExistsInScope(env.DB, scope.storeIds, username)) {
     return json({ error: 'Username sudah dipakai pelanggan pada jaringan gerai ini.' }, 409);
   }
@@ -220,6 +241,9 @@ async function handleAdminRequests(request, env, pathname) {
   if (action !== 'APPROVE') return json({ error: 'Action harus APPROVE atau REJECT.' }, 400);
 
   const scope = await resolveCustomerScope(env.DB, store.id);
+  if (await phoneExistsInScope(env.DB, scope.storeIds, current.phone)) {
+    return json({ error: 'Customer sudah terdaftar.', code: 'CUSTOMER_ALREADY_REGISTERED' }, 409);
+  }
   if (await usernameExistsInScope(env.DB, scope.storeIds, current.username)) {
     return json({ error: 'Username sudah dipakai pelanggan pada jaringan gerai ini.' }, 409);
   }

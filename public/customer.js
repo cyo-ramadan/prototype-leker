@@ -82,15 +82,16 @@ function injectRodaPuterStyle() {
     .roda-demo.ready{display:grid;grid-template-columns:minmax(230px,340px) minmax(0,1fr);gap:24px;align-items:center}
     .roda-demo-kicker{display:inline-flex;padding:5px 9px;border-radius:999px;background:#ffedd5;color:#9a3412;font-size:11px;font-weight:900;letter-spacing:.06em}
     .roda-stage{position:relative;display:grid;place-items:center;min-height:300px}
-    .roda-pointer{position:absolute;z-index:2;top:-4px;width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:34px solid #431407;filter:drop-shadow(0 3px 2px rgba(0,0,0,.2))}
+    .roda-pointer{position:absolute;z-index:4;top:-4px;width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:34px solid #431407;filter:drop-shadow(0 3px 2px rgba(0,0,0,.2))}
     .roda-wheel{width:min(74vw,280px);aspect-ratio:1;border-radius:50%;border:9px solid #fff;outline:5px solid #7c2d12;box-shadow:0 16px 32px rgba(124,45,18,.24);transition:transform 2.4s cubic-bezier(.12,.74,.12,1);position:relative}
-    .roda-wheel:after{content:'MAXI';position:absolute;inset:37%;display:grid;place-items:center;border-radius:50%;background:#fff;color:#7c2d12;font-size:11px;font-weight:1000;box-shadow:0 3px 12px rgba(0,0,0,.18)}
     .roda-copy h2{margin:10px 0 6px;font-size:clamp(25px,4vw,38px)}
     .roda-copy p{margin:0 0 12px}
     .roda-prizes{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}
     .roda-prize{padding:6px 9px;border-radius:999px;background:#fff;border:1px solid #fed7aa;font-size:12px;font-weight:800}
     .roda-result{min-height:46px;margin:12px 0;padding:10px 12px;border-radius:12px;background:#fffbeb;font-weight:800;color:#7c2d12}
-    .roda-spin{border:0;border-radius:13px;padding:12px 16px;background:#7c2d12;color:#fff;font:inherit;font-weight:1000;cursor:pointer}
+    .roda-spin{position:absolute;z-index:3;left:50%;top:50%;transform:translate(-50%,-50%);width:84px;aspect-ratio:1;border:7px solid #fff;border-radius:50%;padding:8px;background:#7c2d12;color:#fff;box-shadow:0 4px 14px rgba(67,20,7,.34);font:inherit;font-size:12px;line-height:1.05;font-weight:1000;cursor:pointer}
+    .roda-spin:hover{background:#9a3412;transform:translate(-50%,-50%) scale(1.04)}
+    .roda-spin:focus-visible{outline:4px solid #fbbf24;outline-offset:3px}
     .roda-spin:disabled{opacity:.55;cursor:wait}
     @media(max-width:760px){.roda-demo.ready{grid-template-columns:1fr}.roda-stage{min-height:270px}.roda-copy{text-align:center}.roda-prizes{justify-content:center}}
   `;
@@ -106,14 +107,17 @@ async function mountRodaPuterDemo() {
   panel.id = 'rodaPuterDemo';
   panel.className = 'roda-demo';
   panel.innerHTML = `
-    <div class="roda-stage"><div class="roda-pointer" aria-hidden="true"></div><div id="rodaPuterWheel" class="roda-wheel" aria-label="Roda Puter mode coba-coba"></div></div>
+    <div class="roda-stage">
+      <div class="roda-pointer" aria-hidden="true"></div>
+      <div id="rodaPuterWheel" class="roda-wheel" aria-label="Roda Puter mode coba-coba"></div>
+      <button id="rodaPuterSpin" class="roda-spin" type="button">PUTAR<br>RODA</button>
+    </div>
     <div class="roda-copy">
       <span class="roda-demo-kicker">MODE COBA-COBA · NO VOUCHER</span>
       <h2>Spin buat seru-seruan</h2>
       <p class="muted">Boleh dimainkan berkali-kali. Hasil demo tidak membuat Voucher nyata. Spin resmi cuma sekali setelah member baru di-ACC di depan CS.</p>
       <div id="rodaPuterPrizes" class="roda-prizes"></div>
       <div id="rodaPuterResult" class="roda-result">Tap tombol kalau lagi butuh dopamine tipis-tipis ✨</div>
-      <button id="rodaPuterSpin" class="roda-spin" type="button">PUTAR MODE DEMO</button>
     </div>`;
   host.insertBefore(panel, categoryRow);
   try {

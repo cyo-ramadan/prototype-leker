@@ -323,6 +323,9 @@ test('Roda routing and UI keep demo/official paths visibly separate and reuse th
   assert.match(adminUi, /\/api\/admin\/roda-puter/);
   assert.match(customerUi, /MODE COBA-COBA · NO VOUCHER/);
   assert.match(customerUi, /\/api\/roda-puter\/demo/);
+  assert.match(customerUi, /class="roda-stage"[\s\S]*id="rodaPuterWheel"[\s\S]*id="rodaPuterSpin"[\s\S]*class="roda-copy"/);
+  assert.match(customerUi, /\.roda-spin\{position:absolute;[^}]*left:50%;top:50%;transform:translate\(-50%,-50%\)/);
+  assert.doesNotMatch(customerUi, /\.roda-wheel:after\{content:'MAXI'/);
   assert.match(cashierUi, /MODE RESMI · 1× SAJA/);
   assert.match(cashierUi, /\/api\/cashier\/roda-puter\/official/);
 });

@@ -48,6 +48,7 @@ import { handleCustomerApi, optionalCustomerFromRequest } from './customers.js';
 import { handleCustomerMembershipApi } from './customer-membership.js';
 import { handleCustomerFeedbackApi } from './customer-feedback.js';
 import { handleOwnerCustomerSharingApi } from './customer-sharing.js';
+import { handleVoucherApi } from './voucher.js';
 import { handleOwnerApi, handleStoreAdminApi, handleEntityAdminApi } from './owner-auth.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
@@ -165,6 +166,8 @@ async function handleApi(request, env, url) {
   if (feedbackResponse) return feedbackResponse;
   const sharingResponse = await handleOwnerCustomerSharingApi(request, env, pathname);
   if (sharingResponse) return sharingResponse;
+  const voucherResponse = await handleVoucherApi(request, env, pathname);
+  if (voucherResponse) return voucherResponse;
   const ownerResponse = await handleOwnerApi(request, env, pathname);
   if (ownerResponse) return ownerResponse;
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
@@ -324,7 +327,21 @@ function assetRoute(pathname) {
 async function handleAsset(request, env, pathname) {
   const assetUrl = new URL(request.url);
   assetUrl.pathname = assetRoute(pathname);
-  return env.ASSETS.fetch(new Request(assetUrl, request));
+  const response = await env.ASSETS.fetch(new Request(assetUrl, request));
+  if (
+    request.method === 'GET'
+    && assetUrl.pathname === '/branch-admin.html'
+    && response.ok
+    && (response.headers.get('content-type') || '').includes('text/html')
+  ) {
+    const source = await response.text();
+    const script = '<script src="/admin-voucher.js?v=20260906-voucher-v1"></script>';
+    const html = source.includes('/admin-voucher.js') ? source : source.replace('</body>', `${script}\n</body>`);
+    const headers = new Headers(response.headers);
+    headers.delete('content-length');
+    return new Response(html, { status: response.status, statusText: response.statusText, headers });
+  }
+  return response;
 }
 
 export default {

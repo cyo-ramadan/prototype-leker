@@ -144,3 +144,66 @@ Saat plugin/connector Workboard sudah tersedia dan verified:
 2. Pindahkan task scope, invariants, acceptance evidence, serta implementation report dari entry ini.
 3. Tautkan PR/commit final dari branch `karen/customer-whatsapp-duplicate-guard`.
 4. Setelah record Workboard berhasil diverifikasi, tandai entry ini `MIGRATED` atau hapus mirror sesuai aturan dokumentasi aktif saat itu.
+
+---
+
+## TEMP-BOS-CYO-LEKER-CUSTOMER-STORE-ROUTING-PENDEM-20260907
+
+**Source / issued by:** BOS_CYO  
+**Instruction:** disuruh Bos Cyo pada 2026-09-07  
+**Assignee:** Karen  
+**Project:** MAXI Leker (`cyo-ramadan/prototype-leker`)  
+**Kind:** BUG  
+**Territory:** Customer / Store Routing  
+**Workboard status:** PENDING_MIGRATION  
+
+### Task
+
+Perbaiki kasus customer memilih gerai `PENDEM` dari store picker tetapi kemudian tampil kembali pada gerai sebelumnya/default `G001` (Dinoyo).
+
+### Preflight finding
+
+Canonical route selector sudah mengarah ke `/s/<STORE>/customer`, dan `store-context.js` memang memberi prioritas kepada kode gerai dari path. Gap recovery berada pada timing penyimpanan remembered customer store: pilihan baru hanya menjadi remembered store setelah destination page berhasil menjalankan `store-context.js`. Bila navigation/path context tidak bertahan sampai tahap itu, fallback masih memakai remembered gerai lama dan dapat jatuh ke `G001`.
+
+### Implementation scope
+
+- Normalisasi kode gerai yang dipilih sebelum dipakai untuk routing.
+- Simpan `lekerCustomerStoreCode` ke `localStorage` sebelum memulai navigation.
+- Tetap gunakan canonical route `/s/<STORE>/customer` sehingga path store tetap authoritative.
+- Tambahkan cachebuster baru pada `customer-store-select.js` di customer shell agar browser mengambil routing fix terbaru.
+- Tambahkan regression test yang mengunci urutan persist-before-navigation, canonical scoped route, cachebuster, dan precedence path-store existing.
+- Tidak mengubah database, API authority, store identity, atau default store contract.
+
+### Invariants / forbidden changes
+
+- `pathStore` tetap authoritative ketika `/s/<STORE>/...` tersedia.
+- Remembered store hanya fallback untuk customer entry point yang kehilangan/tidak memiliki scoped path.
+- Pemilihan `PENDEM` tidak boleh berubah menjadi `G001` hanya karena fallback state lama.
+- Tidak boleh hardcode `PENDEM` sebagai special case; fix berlaku untuk semua kode gerai valid.
+- Tidak ada direct D1 write atau migration.
+
+### Acceptance evidence
+
+1. Store picker menyimpan kode pilihan ke `lekerCustomerStoreCode` sebelum navigation.
+2. Target navigation tetap `/s/<selected-store>/customer`.
+3. Customer shell memuat selector dengan cachebuster versi fix.
+4. Regression test memastikan persist terjadi sebelum navigation dan path store tetap lebih tinggi prioritasnya daripada remembered fallback.
+5. `npm run check` dan `npm test` hijau.
+6. Cloudflare Workers Build untuk commit final hijau dan functional test selection `PENDEM` tidak kembali ke Dinoyo/G001.
+
+### DOC-IMPACT
+
+**DOC-IMPACT: REQUIRED.** Ini bug user-facing store routing dan sekaligus task/report mirror sementara sampai MAXI Workboard dapat ditulis dari sesi Karen.
+
+### Report
+
+Bos Cyo melaporkan langsung bahwa customer memilih gerai Pendem tetapi kembali ke gerai Dinoyo. Patch dipilih sebagai persistence-before-navigation guard pada store picker, tanpa mengubah backend store resolution. Scope sengaja generik untuk semua gerai agar tidak menciptakan special-case Pendem.
+
+### Workboard migration instruction
+
+Saat plugin/connector Workboard sudah tersedia dan verified:
+
+1. Buat/pindahkan task ini ke MAXI Workboard dengan source/issued-by tetap `BOS_CYO` dan note `disuruh Bos Cyo`.
+2. Pindahkan scope, invariants, acceptance evidence, root-cause finding, dan implementation report dari entry ini.
+3. Tautkan PR/commit final dari branch `karen/customer-store-routing-pendem`.
+4. Setelah record Workboard berhasil diverifikasi, tandai entry ini `MIGRATED` atau hapus mirror sesuai aturan dokumentasi aktif saat itu.

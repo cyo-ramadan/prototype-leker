@@ -1,5 +1,6 @@
 (() => {
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
+  const normalizeStoreCode = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 16);
   const topbar = document.querySelector('.topbar');
   if (!topbar || document.getElementById('customerStoreSelect')) return;
 
@@ -24,11 +25,17 @@
       if (!response.ok) throw new Error('Gagal memuat gerai');
       const stores = await response.json();
       const select = document.getElementById('customerStoreSelect');
-      const current = String(window.LEKER_STORE_CODE || 'G001').toUpperCase();
+      const current = normalizeStoreCode(window.LEKER_STORE_CODE || 'G001') || 'G001';
       select.innerHTML = stores.map(store => `<option value="${escapeHtml(store.code)}" ${store.code === current ? 'selected' : ''}>${escapeHtml(store.code)} · ${escapeHtml(store.storeName)}</option>`).join('');
       select.addEventListener('change', () => {
-        const code = select.value;
-        if (code && code !== current) location.href = `/s/${encodeURIComponent(code)}/customer`;
+        const code = normalizeStoreCode(select.value);
+        if (!code || code === current) return;
+        // Persist the customer choice before navigation. If the destination is
+        // reopened through a bare /customer entry point or another layer drops
+        // the /s/:code path, store-context can still recover the intended gerai
+        // instead of silently falling back to G001.
+        try { localStorage.setItem('lekerCustomerStoreCode', code); } catch {}
+        location.href = `/s/${encodeURIComponent(code)}/customer`;
       });
     } catch {
       picker.title = 'Daftar gerai belum bisa dimuat';

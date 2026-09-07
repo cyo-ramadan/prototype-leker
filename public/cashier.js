@@ -702,10 +702,16 @@ function closeDrawerDialog() {
   openDialog({
     eyebrow: state.cashier?.store.code || 'Gerai',
     title: 'Tutup Laci',
-    body: '<div class="field"><label>Saldo kas fisik saat tutup</label><input id="dialogClosingAmount" class="text-input" type="number" min="0" step="1" required /></div><p class="muted">Setelah laci ditutup, kasir lain di gerai ini bisa membuka laci berikutnya.</p>',
+    body: '<div class="field"><label>Saldo kas fisik saat tutup</label><input id="dialogClosingAmount" class="text-input" type="number" min="0" step="1" required /></div><div class="field"><label>Setoran (opsional, sisanya lanjut jadi modal shift berikutnya)</label><input id="dialogDepositAmount" class="text-input" type="number" min="0" step="1" value="0" /></div><p class="muted">Setelah laci ditutup, kasir lain di gerai ini bisa membuka laci berikutnya.</p>',
     submitText: 'TUTUP LACI',
     onSubmit: async () => {
-      await api('/api/cashier/drawer/close', { method: 'POST', body: JSON.stringify({ closingAmount: Number(el('dialogClosingAmount').value) }) });
+      await api('/api/cashier/drawer/close', {
+        method: 'POST',
+        body: JSON.stringify({
+          closingAmount: Number(el('dialogClosingAmount').value),
+          depositAmount: Number(el('dialogDepositAmount').value || 0)
+        })
+      });
       await loadDrawer();
       toast('Laci ditutup');
       return true;

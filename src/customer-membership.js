@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { optionalCustomerFromRequest } from './customers.js';
+import { requireCashier } from './cashier-auth.js';
 import { hashCredential, requireManagement } from './owner-auth.js';
 
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
@@ -158,9 +159,20 @@ async function handleCustomerOrders(request, env) {
 
 async function handleAdminRequests(request, env, pathname) {
   const management = await requireManagement(request, env.DB);
-  if (!management.ok) return management.response;
+  let cashier = null;
+  if (!management.ok) {
+    const cashierAuth = await requireCashier(request, env.DB);
+    if (!cashierAuth.ok) return management.response;
+    cashier = cashierAuth.cashier;
+  }
   const store = await selectedStore(env.DB, request, true);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  if (cashier && cashier.store.id !== store.id) {
+    return json({
+      error: `Kasir ${cashier.employeeName} hanya berwenang mereview pendaftaran pelanggan di gerai ${cashier.store.code}.`,
+      code: 'CASHIER_STORE_SCOPE_MISMATCH'
+    }, 403);
+  }
 
   if (request.method === 'GET' && pathname === '/api/admin/customer-requests') {
     const rows = await env.DB.prepare(`
@@ -189,7 +201,11 @@ async function handleAdminRequests(request, env, pathname) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload review tidak valid.' }, 400);
   const action = String(body.value?.action || '').trim().toUpperCase();
-  const reviewer = management.admin?.displayName || management.owner?.displayName || management.authType || 'Management';
+  const reviewer = cashier?.id
+    || management.admin?.displayName
+    || management.owner?.displayName
+    || management.authType
+    || 'Management';
 
   if (action === 'REJECT') {
     const reason = text(body.value?.reason, 240);

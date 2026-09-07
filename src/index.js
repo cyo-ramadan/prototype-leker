@@ -21,6 +21,7 @@ import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
+import { handleEmployeeDepositApi } from './employee-deposit-settlement.js';
 import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
@@ -190,6 +191,8 @@ async function handleApi(request, env, url) {
   if (adminDrawerResponse) return adminDrawerResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
+  const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);
+  if (employeeDepositResponse) return employeeDepositResponse;
   const productKindResponse = await handleProductKindApi(request, env, pathname);
   if (productKindResponse) return productKindResponse;
   const productMasterResponse = await handleProductMasterApi(request, env, pathname);

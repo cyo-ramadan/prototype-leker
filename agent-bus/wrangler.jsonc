@@ -1,0 +1,23 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "maxi-agent-bus-bridge",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-07",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "AGENT_BUS",
+      "database_name": "maxi-agent-bus",
+      "database_id": "cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "MCP_CALLER_FAMILY": "karen",
+    "MCP_ALLOWED_PROJECTS": "leker"
+  }
+  // MCP_AUTH_TOKEN remains a Worker secret. Never commit or return it.
+}

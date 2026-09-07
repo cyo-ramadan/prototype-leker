@@ -7,6 +7,7 @@ const state = {
   cashier: null,
   drawer: null,
   canWrite: false,
+  voucherCustomer: null,
   poller: null,
   visibilityBound: false,
   dialogSubmit: null
@@ -51,6 +52,7 @@ function toast(message) {
 }
 
 async function init() {
+  mountVoucherAction();
   el('cashierLoginForm').addEventListener('submit', login);
   el('logoutBtn').addEventListener('click', logout);
   el('openDrawerBtn').addEventListener('click', openDrawerDialog);
@@ -109,6 +111,7 @@ function clearSession() {
   state.draft.clear();
   state.drawer = null;
   state.canWrite = false;
+  state.voucherCustomer = null;
   sessionStorage.removeItem('lekerCashierToken');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
@@ -261,6 +264,7 @@ function renderDrawer() {
       ? `Read-only: laci sedang dipegang ${drawer.cashierName}`
       : 'Buka laci untuk mencatat pembelian bahan';
   ['expenseBtn','otherIncomeBtn'].forEach(id => { el(id).disabled = !state.canWrite; });
+  if (el('voucherBtn')) el('voucherBtn').disabled = !state.canWrite;
   el('drawerDetailsBtn').disabled = !drawer;
   el('reportsBtn').disabled = !drawer;
   el('cashierWriteLockNote').textContent = state.canWrite
@@ -374,6 +378,168 @@ async function processSale() {
   } catch (error) {
     toast(error.message);
     await loadDrawer().catch(() => {});
+  }
+}
+
+function mountVoucherAction() {
+  const actions = document.querySelector('.drawer-actions');
+  if (!actions || el('voucherBtn')) return;
+  const button = document.createElement('button');
+  button.id = 'voucherBtn';
+  button.className = 'drawer-action-btn';
+  button.type = 'button';
+  button.disabled = true;
+  button.textContent = '🎟️ Voucher';
+  button.addEventListener('click', openVoucherDialog);
+  const stockButton = el('stockAdjustmentBtn');
+  actions.insertBefore(button, stockButton || null);
+
+  if (!el('voucherCashierStyle')) {
+    const style = document.createElement('style');
+    style.id = 'voucherCashierStyle';
+    style.textContent = `
+      .voucher-customer-card{padding:10px 12px;border:1px solid #eadfd4;border-radius:12px;background:#fffaf5;margin:10px 0}
+      .voucher-customer-card strong{display:block}.voucher-customer-card small{display:block;color:#7b6c60;margin-top:3px}
+      .voucher-action-list{display:grid;gap:9px;margin-top:12px}
+      .voucher-action-card{border:1px solid #eadfd4;border-radius:14px;padding:11px;background:white}
+      .voucher-action-card h3{margin:0 0 4px;font-size:14px}.voucher-action-card p{margin:3px 0}
+      .voucher-product-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+      .voucher-product-actions button{border:1px solid #8b6d50;background:#fffaf4;border-radius:999px;padding:7px 10px;font-weight:900;cursor:pointer}
+      .voucher-product-actions button:disabled{opacity:.45;cursor:not-allowed}
+      .voucher-status{display:inline-flex;border-radius:999px;background:#eee5dc;padding:4px 7px;font-size:10px;font-weight:900}
+    `;
+    document.head.appendChild(style);
+  }
+}
+
+function openVoucherDialog() {
+  state.voucherCustomer = null;
+  openDialog({
+    eyebrow: 'Kasir · Voucher',
+    title: 'Bagikan / Tukarkan Voucher',
+    body: `
+      <div class="field"><label>Customer terdaftar</label><input id="voucherCustomerSearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama, kode, HP, username..." /></div>
+      <div id="voucherCustomerResults" class="cashier-search-results hidden"></div>
+      <div id="voucherSelectedCustomer"></div>
+      <div id="voucherWorkspace"><div class="empty">Pilih satu customer untuk melihat Voucher miliknya.</div></div>`,
+    readOnly: true
+  });
+  let timer = null;
+  el('voucherCustomerSearch')?.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(searchVoucherCustomers, 180);
+  });
+}
+
+async function searchVoucherCustomers() {
+  const input = el('voucherCustomerSearch');
+  const target = el('voucherCustomerResults');
+  if (!input || !target) return;
+  const query = input.value.trim();
+  if (query.length < 2) {
+    target.innerHTML = '';
+    target.classList.add('hidden');
+    return;
+  }
+  try {
+    const payload = await api(`/api/cashier/customers/search?q=${encodeURIComponent(query)}`);
+    const customers = payload.customers || [];
+    target.innerHTML = customers.length ? customers.map(customer => `
+      <button class="cashier-search-result" type="button" data-voucher-customer="${escapeHtml(customer.id)}">
+        <span><strong>${escapeHtml(customer.customerName)}</strong><small>${escapeHtml(customer.customerCode)}${customer.store?.code ? ` · ${escapeHtml(customer.store.code)}` : ''}</small></span>
+        <span class="cashier-search-add">Pilih</span>
+      </button>`).join('') : '<div class="empty">Customer tidak ditemukan.</div>';
+    target.classList.remove('hidden');
+    target.querySelectorAll('[data-voucher-customer]').forEach(button => button.addEventListener('click', () => {
+      const customer = customers.find(item => item.id === button.dataset.voucherCustomer);
+      if (!customer) return;
+      state.voucherCustomer = customer;
+      input.value = '';
+      target.innerHTML = '';
+      target.classList.add('hidden');
+      renderVoucherCustomer();
+      loadCustomerVouchers().catch(error => toast(error.message));
+    }));
+  } catch (error) {
+    target.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    target.classList.remove('hidden');
+  }
+}
+
+function renderVoucherCustomer() {
+  const customer = state.voucherCustomer;
+  const target = el('voucherSelectedCustomer');
+  if (!target) return;
+  target.innerHTML = customer ? `
+    <div class="voucher-customer-card"><strong>${escapeHtml(customer.customerName)}</strong><small>${escapeHtml(customer.customerCode)}${customer.store?.code ? ` · asal ${escapeHtml(customer.store.code)}` : ''}</small></div>` : '';
+}
+
+async function loadCustomerVouchers() {
+  const customer = state.voucherCustomer;
+  const target = el('voucherWorkspace');
+  if (!customer || !target) return;
+  target.innerHTML = '<div class="empty">Memuat Voucher...</div>';
+  const payload = await api(`/api/cashier/vouchers?customerId=${encodeURIComponent(customer.id)}`);
+  renderVoucherWorkspace(payload);
+}
+
+function renderVoucherWorkspace(payload) {
+  const target = el('voucherWorkspace');
+  if (!target || !state.voucherCustomer) return;
+  const masters = payload.masters || [];
+  const vouchers = payload.vouchers || [];
+  const writeDisabled = state.canWrite ? '' : 'disabled';
+  const masterCards = masters.map(master => `
+    <article class="voucher-action-card">
+      <h3>${escapeHtml(master.name)}</h3>
+      <p class="muted">Aktif ${escapeHtml(master.activeFrom)} s.d. ${escapeHtml(master.activeUntil)} · kuota ${Number(master.redeemedCount)}/${Number(master.usageQuota)}</p>
+      <div class="voucher-product-actions"><button type="button" data-voucher-distribute="${escapeHtml(master.id)}" ${writeDisabled}>Bagikan ke customer ini</button></div>
+    </article>`).join('');
+  const voucherCards = vouchers.map(voucher => `
+    <article class="voucher-action-card">
+      <h3>${escapeHtml(voucher.masterName)} <span class="voucher-status">${escapeHtml(voucher.status)}</span></h3>
+      <p class="muted">Kode ${escapeHtml(voucher.code)} · dibagikan ${formatDateTime(voucher.distributedAt)}</p>
+      ${voucher.status === 'UNUSED' ? `<div class="voucher-product-actions">${(voucher.products || []).map(product => `<button type="button" data-voucher-redeem="${escapeHtml(voucher.id)}" data-voucher-product="${Number(product.id)}" data-voucher-product-name="${escapeHtml(product.name)}" ${writeDisabled}>Tukar ${escapeHtml(product.name)}</button>`).join('')}</div>` : ''}
+    </article>`).join('');
+  target.innerHTML = `
+    <div class="pimasatu-detail-head"><strong>Bagikan Voucher</strong><span>${masters.length}</span></div>
+    <div class="voucher-action-list">${masterCards || '<div class="empty">Tidak ada Master Voucher aktif yang bisa dibagikan.</div>'}</div>
+    <div class="pimasatu-detail-head" style="margin-top:16px"><strong>Voucher Customer</strong><span>${vouchers.length}</span></div>
+    <div class="voucher-action-list">${voucherCards || '<div class="empty">Customer ini belum memiliki Voucher.</div>'}</div>`;
+  target.querySelectorAll('[data-voucher-distribute]').forEach(button => button.addEventListener('click', () => distributeVoucher(button.dataset.voucherDistribute)));
+  target.querySelectorAll('[data-voucher-redeem]').forEach(button => button.addEventListener('click', () => redeemVoucher(
+    button.dataset.voucherRedeem,
+    Number(button.dataset.voucherProduct),
+    button.dataset.voucherProductName
+  )));
+}
+
+async function distributeVoucher(masterId) {
+  if (!state.canWrite || !state.voucherCustomer) return;
+  try {
+    await api('/api/cashier/vouchers/distribute', {
+      method: 'POST',
+      body: JSON.stringify({ masterId, customerId: state.voucherCustomer.id })
+    });
+    await loadCustomerVouchers();
+    toast('Voucher dibagikan ke customer');
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function redeemVoucher(voucherId, productId, productName) {
+  if (!state.canWrite || !state.voucherCustomer) return;
+  if (!confirm(`Tukarkan Voucher dengan ${productName}? Stok akan langsung berkurang.`)) return;
+  try {
+    await api('/api/cashier/vouchers/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ voucherId, customerId: state.voucherCustomer.id, productId })
+    });
+    await loadCustomerVouchers();
+    toast(`Voucher ditukar · ${productName}`);
+  } catch (error) {
+    toast(error.message);
   }
 }
 

@@ -16,24 +16,32 @@ const rewardNames = [
   'es milktea mangga besar',
   'es teh milktea besar',
   'es teh thaitea besar',
-  'es teh capucino besar',
+  'es teh cappuccino besar',
   'es teh coklat besar',
   'es teh leci besar',
   'es teh apel besar',
   'es teh lemon honey besar',
-  'es teh black curent besar',
+  'es teh blackcurrant besar',
   'es teh orange besar',
   'es teh mangga besar',
   'es teh poci original vanilla besar'
 ];
 
-test('Roda Puter customer wheel decorates reward wedges with the 19 tea product assets', () => {
-  assert.match(customerHtml, /roda-puter-tea-icons\.webp/);
+test('Roda Puter renders product art from the canonical tea sprite with robust fallback', () => {
+  assert.match(customerHtml, /roda-puter-tea-icons\.webp\?v=20260908-v2/);
   assert.match(customerHtml, /className = 'roda-reward-token'/);
+  assert.match(customerHtml, /class="roda-reward-sprite"/);
+  assert.match(customerHtml, /menuImageForProduct/);
+  assert.match(customerHtml, /roda-reward-fallback/);
+  assert.match(customerHtml, /state\.rodaRewards/);
+  assert.match(customerHtml, /token\.dataset\.productId/);
   assert.match(customerHtml, /conic-gradient/);
   assert.match(customerHtml, /MutationObserver/);
+  assert.doesNotMatch(customerHtml, /background-size:500% 400%/);
+
   for (const name of rewardNames) {
     assert.ok(customerHtml.includes(`['${name}',`), `missing roda icon mapping for ${name}`);
   }
+
   assert.ok(statSync(spriteUrl).size > 10000);
 });

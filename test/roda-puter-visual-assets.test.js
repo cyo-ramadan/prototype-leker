@@ -27,16 +27,22 @@ const rewardNames = [
   'es teh poci original vanilla besar'
 ];
 
-test('Roda Puter renders product art from the canonical tea sprite with robust fallback', () => {
-  assert.match(customerHtml, /roda-puter-tea-icons\.webp\?v=20260908-v2/);
+test('Roda Puter renders product art with mobile-safe radial positioning and fallback', () => {
+  assert.match(customerHtml, /roda-puter-tea-icons\.webp\?v=20260908-v3/);
   assert.match(customerHtml, /className = 'roda-reward-token'/);
   assert.match(customerHtml, /class="roda-reward-sprite"/);
   assert.match(customerHtml, /menuImageForProduct/);
   assert.match(customerHtml, /roda-reward-fallback/);
   assert.match(customerHtml, /state\.rodaRewards/);
   assert.match(customerHtml, /token\.dataset\.productId/);
+  assert.match(customerHtml, /token\.style\.height/);
+  assert.match(customerHtml, /wheel\.getBoundingClientRect\(\)\.width/);
+  assert.match(customerHtml, /translateY\(-\$\{radialOffset\}px\)/);
+  assert.match(customerHtml, /productArtCount/);
+  assert.match(customerHtml, /addEventListener\('error'/);
   assert.match(customerHtml, /conic-gradient/);
   assert.match(customerHtml, /MutationObserver/);
+  assert.doesNotMatch(customerHtml, /calc\(-1 \* min/);
   assert.doesNotMatch(customerHtml, /background-size:500% 400%/);
 
   for (const name of rewardNames) {

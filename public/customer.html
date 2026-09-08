@@ -63,7 +63,7 @@
 <script src="/customer.js"></script>
 <script>
 (() => {
-  const ICON_SPRITE = '/roda-puter-tea-icons.webp?v=20260908-v2';
+  const ICON_SPRITE = '/roda-puter-tea-icons.webp?v=20260908-v3';
   const PRODUCT_ICON_INDEX = new Map([
     ['es teh matcha besar', 0],
     ['es teh milktea lemon honey besar', 1],
@@ -105,10 +105,10 @@
       .roda-stage{min-height:330px}
       .roda-wheel{box-sizing:border-box;width:min(80vw,300px);overflow:hidden;isolation:isolate;border:8px solid #e7bf45;outline:4px solid #8b4513;box-shadow:0 0 0 3px #fff1a8,0 17px 34px rgba(91,33,8,.27),inset 0 0 24px rgba(92,45,5,.2)}
       .roda-wheel::before{content:'';position:absolute;inset:4px;border-radius:50%;z-index:0;pointer-events:none;border:2px solid rgba(255,241,168,.88);box-shadow:inset 0 0 18px rgba(78,35,4,.2),inset 0 0 0 2px rgba(127,29,29,.24)}
-      .roda-reward-token{position:absolute;left:50%;top:50%;z-index:2;aspect-ratio:1;pointer-events:none;transform-origin:center;border-radius:50%;overflow:hidden;filter:drop-shadow(0 3px 3px rgba(67,20,7,.34))}
+      .roda-reward-token{position:absolute;left:50%;top:50%;z-index:2;pointer-events:none;transform-origin:center;border-radius:50%;overflow:hidden;background:#fff8df;box-shadow:0 2px 7px rgba(67,20,7,.25);filter:drop-shadow(0 2px 2px rgba(67,20,7,.24))}
       .roda-reward-sprite{position:absolute;display:block;width:500%;height:400%;max-width:none;max-height:none}
       .roda-reward-direct{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;background:#fff4cf}
-      .roda-reward-fallback{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#fff1bf;border:2px solid #d3a423;font-size:18px}
+      .roda-reward-fallback{display:grid;place-items:center;width:100%;height:100%;box-sizing:border-box;border-radius:50%;background:#fff1bf;border:2px solid #d3a423;font-size:18px}
       .roda-spin{width:88px;border:6px solid #f4d466;outline:2px solid #8b5b16;background:radial-gradient(circle at 34% 27%,#ef4444 0 10%,#c91f1f 42%,#8f1515 100%);color:#fff7d6;text-shadow:0 1px 0 #6b120f;box-shadow:0 5px 16px rgba(67,20,7,.4),inset 0 2px 4px rgba(255,255,255,.3)}
       .roda-spin:hover{background:radial-gradient(circle at 34% 27%,#f45b5b 0 10%,#d52b2b 42%,#991b1b 100%)}
       .roda-pointer{top:-9px;border-left-width:20px;border-right-width:20px;border-top-width:40px;border-top-color:#b91c1c;filter:drop-shadow(0 -2px 0 #f4d466) drop-shadow(0 4px 2px rgba(67,20,7,.35))}
@@ -182,13 +182,16 @@
   function decorateRodaPuter() {
     const wheel = document.getElementById('rodaPuterWheel');
     const rewards = liveRewards();
-    if (!wheel || !rewards.length || wheel.dataset.productArtReady === '2') return false;
+    if (!wheel || !rewards.length || wheel.dataset.productArtReady === '3') return false;
 
     wheel.querySelectorAll('.roda-reward-token').forEach(token => token.remove());
-    wheel.dataset.productArtReady = '2';
+    wheel.dataset.productArtReady = '3';
+    wheel.dataset.productArtCount = String(rewards.length);
     wheel.style.background = `radial-gradient(circle at 35% 28%,rgba(255,255,255,.32),transparent 35%),${wheelGradient(rewards)}`;
 
-    const tokenSize = Math.max(28, Math.min(48, Math.round(88 / Math.sqrt(Math.max(1, rewards.length / 4)))));
+    const wheelSize = wheel.getBoundingClientRect().width || 280;
+    const radialOffset = Math.max(78, Math.min(110, Math.round(wheelSize * 0.36)));
+    const tokenSize = Math.max(24, Math.min(46, Math.round(110 / Math.sqrt(Math.max(1, rewards.length)))));
     let cursor = 0;
     rewards.forEach(reward => {
       const midpointPercent = cursor + (reward.weightPercent / 2);
@@ -199,8 +202,15 @@
       token.dataset.productId = String(reward.productId || '');
       token.setAttribute('aria-label', reward.name || 'Hadiah Roda Puter');
       token.style.width = `${tokenSize}px`;
-      token.style.transform = `translate(-50%,-50%) rotate(${angle}deg) translateY(calc(-1 * min(26vw,108px))) rotate(${-angle}deg)`;
+      token.style.height = `${tokenSize}px`;
+      token.style.transform = `translate(-50%,-50%) rotate(${angle}deg) translateY(-${radialOffset}px) rotate(${-angle}deg)`;
       token.innerHTML = productArtMarkup(reward);
+      const image = token.querySelector('img');
+      if (image) {
+        image.addEventListener('error', () => {
+          token.innerHTML = '<span class="roda-reward-fallback" aria-hidden="true">🧋</span>';
+        }, { once: true });
+      }
       wheel.appendChild(token);
     });
     return true;

@@ -26,7 +26,8 @@ function foreignKeyTables(sqlite, table) {
 test('GAME is defined in the platform registry without auto-enrolling any Tenant', () => {
   const sqlite = freshDatabase();
   const module = sqlite.prepare(`SELECT code, module_kind FROM platform_modules WHERE code = 'GAME'`).get();
-  assert.deepEqual(module, { code: 'GAME', module_kind: 'HORIZONTAL' });
+  assert.equal(module?.code, 'GAME');
+  assert.equal(module?.module_kind, 'HORIZONTAL');
 
   const installations = sqlite.prepare(`SELECT COUNT(*) AS n FROM tenant_module_installations WHERE module_code = 'GAME'`).get().n;
   assert.equal(installations, 0, 'schema migration must not provision GAME to a Tenant');

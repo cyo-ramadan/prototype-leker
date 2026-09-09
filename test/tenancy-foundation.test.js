@@ -128,7 +128,11 @@ test('tenant and group identity stay out of every other table', () => {
     if (columns.includes('tenant_id')) tenantHolders.push(table);
     if (columns.includes('group_id')) groupHolders.push(table);
   }
-  assert.deepEqual(tenantHolders.sort(), ['consolidation_groups', 'entity_tenancy']);
+  assert.deepEqual(
+    tenantHolders.sort(),
+    ['consolidation_groups', 'entity_tenancy', 'tenant_module_installations'],
+    'tenant_id may live in ownership membership or tenant-scoped configuration only'
+  );
 
   // group_id belongs to Customer Sharing Group (ADR-003) and means something
   // else entirely. Consolidation deliberately spells its column

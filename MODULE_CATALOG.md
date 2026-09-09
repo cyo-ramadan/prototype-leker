@@ -4,22 +4,17 @@ Ditulis oleh: Hana, atas permintaan Bos Cyo 2026-08-22. Dokumen ini jawaban buat
 pertanyaan "modul mana yang udah bersih, boleh dijadiin contoh/basis kalau mau
 bikin program baru?" — bukan status fitur, bukan roadmap.
 
-**Bukan plug-and-play — untuk sekarang.** Leker dan program lain (mis. Program
-Ikan) hari ini masih repo dan Worker terpisah, database terpisah. Status di sini
-nandain "sudah diverifikasi bersih, aman dijadikan referensi/basis" — bukan
-mekanisme impor otomatis.
+**Komposisi modul per Tenant sudah punya pondasi registry, tetapi migrasi modul
+existing belum selesai.** ADR-040 menetapkan satu platform dengan modul yang
+dipasang per Tenant. Migration `0080_game_module_foundation.sql` menambahkan
+`platform_modules` + histori `tenant_module_installations`; `GAME` menjadi modul
+opsional pertama yang memakai bentuk canonical tersebut. Migration tidak
+auto-enroll Tenant mana pun. Modul existing seperti Accounting/Warehouse masih
+punya compatibility gate lama sampai migrasinya sendiri selesai.
 
-**Arah akhirnya bukan begitu.** Keputusan Bos Cyo 2026-08-22: MAXI menuju satu
-platform, banyak tenant (`ADR-030` — Tenant/Entity/Gerai empat lapis, fondasi
-tabelnya sudah ada di `migrations/0039`; Langkah 4 sedang dikerjakan bertahap.
-Fase resolusi Store→Entity/Tenant sudah landed lewat PR #139, sementara Fase
-ledger anchor sudah landed lewat PR #141. Enforcement/filter lintas Entity
-belum dimulai). Program Ikan
-akan diarahkan Bos Cyo langsung buat nyesuaiin ke mode itu dari sisi sesinya
-sendiri — bukan dikerjakan dari sesi Leker ini. Saklar per-gerai yang lagi
-dibangun di sini (`warehouse_enabled`, `edition`) tetap relevan buat arah itu:
-mekanismenya sama persis dengan yang dibutuhkan buat saklar per-tenant nanti,
-cuma level scope-nya beda.
+Tenant/Entity/Gerai tetap mengikuti ADR-030. Entity menjadi anchor data yang
+tidak ditulis ulang ketika kepemilikan Tenant berubah, sedangkan entitlement
+module berada di Tenant dan punya histori efektif sendiri.
 
 ## Aturan status
 
@@ -36,17 +31,28 @@ cuma level scope-nya beda.
 refactor, bugfix di file miliknya) — turunkan ke IN_PROGRESS sampai diverifikasi
 ulang. Jangan percaya status lama begitu ada perubahan kode.
 
-## Status per modul (per 2026-08-23)
+## Status per modul
 
 | Modul | Status | Bukti | File utama |
 |---|---|---|---|
 | POS Core | READY (pondasi, selalu ada) | Baseline seluruh modul lain, tidak berdiri sendiri sebagai "modul opsional" | `src/index.js`, `src/cashier-*.js`, `src/pos-payment-methods.js` |
 | Manufaktur (HPP) | **READY** | PR #133/#134, diff dibaca langsung, 336/336 test. Satu modul untuk semua hitungan HPP, dipanggil dari Penjualan+Produksi | `src/manufacture-costing.js` |
 | Warehouse (stok) | **READY** | PR #135, diff dibaca langsung, 342/342 test. Saklar `stores.warehouse_enabled`, 4 titik gate terbukti nurut | `src/stock-production.js`, `src/warehouse-production.js`, `src/admin-stock.js`, gate di `cashier-purchase.js`/`operational-posting.js` |
-| Customer & Sharing | **VERIFIED_NO_WORK_NEEDED** | Tabel `customers`/`customer_share_groups` cuma dibuat sekali, nol trigger, nol referensi ke `chart_of_accounts`/`account_id`/`journal_rules`/`item_categories`. Isolasi `store_id` per invariant #5 benar | `src/customers.js`, `src/customer-sharing.js`, `src/customer-membership.js`, `src/customer-feedback.js` |
-| Business Settings | **IN_PROGRESS** | Route admin Cara Bayar sudah pindah (PR #136). Saklar `stores.edition` (LITE/FLEXIBLE/ACCOUNTING) masih dikerjakan (`karen-BS-STORES-EDITION`) | `src/business-settings.js`, `src/product-kinds.js` |
-| Accounting | **IN_PROGRESS** | Cara panggilnya sudah rapi dari dulu (satu titik, post-commit, tidak pernah block POS). Cara nyalain/matiinnya nunggu `stores.edition` + `karen-BS-DISPATCH-GATING` | `src/accounting-*.js` |
-| Tenancy / Entity foundation | **IN_PROGRESS** | ADR-030 foundation sudah ada di migration 0039. PR #139 sudah menambahkan Store→Entity/Tenant resolution; PR #141 sudah menambahkan additive `entity_id` anchor pada lima financial/value ledgers tanpa mengubah filter runtime. Enforcement Entity belum dimulai | `src/stores.js`, `migrations/0039_tenancy_and_consolidation_foundation.sql`, `migrations/0046_tenancy_ledger_entity_column.sql` |
+| Customer & Sharing | **VERIFIED_NO_WORK_NEEDED** | Tabel Customer terpisah dari Accounting; isolasi operational tetap store-scoped | `src/customers.js`, `src/customer-sharing.js`, `src/customer-membership.js`, `src/customer-feedback.js` |
+| Business Settings | **IN_PROGRESS** | Registry tenant mulai tersedia, tetapi compatibility switch existing belum seluruhnya dipindah | `src/business-settings.js`, `src/product-kinds.js`, `src/platform-module-registry.js` |
+| Accounting | **IN_PROGRESS** | Dispatch/capability masih punya compatibility path `stores.edition`; belum dimigrasikan penuh ke tenant module entitlement | `src/accounting-*.js` |
+| Tenancy / Entity foundation | **IN_PROGRESS** | ADR-030 foundation + Store→Entity/Tenant resolution aktif; registry module tenant ditambahkan secara additive pada 0080 | `src/stores.js`, `migrations/0039_tenancy_and_consolidation_foundation.sql`, `migrations/0080_game_module_foundation.sql` |
+| Game | **IN_PROGRESS** | ADR-042 + `MAXI_GAME_MODULE_V1`; schema `game_*` provider-neutral dan entitlement `GAME` per Tenant. Legacy Roda Puter belum dimigrasikan dan route Game belum dihubungkan ke router production | `src/game.js`, `src/platform-module-registry.js`, `migrations/0080_game_module_foundation.sql` |
+
+## Game — batas foundation saat ini
+
+Foundation Game sengaja belum memindahkan Roda Puter existing. `src/roda-puter.js`
+dan tabel `roda_puter_*` masih compatibility surface yang langsung terkait
+Voucher. Tahap berikutnya wajib memigrasikan setting, campaign, outcome, play
+history, fulfillment adapter, serta lazy-loaded customer UI secara eksplisit.
+
+`artwork_ref` di Game adalah opaque reference. Keputusan tempat menyimpan file
+asset tidak dikunci oleh module Game dan tidak memiliki dependency ke R2.
 
 ## Temuan yang belum jadi task (dicatat, bukan dilupakan)
 
@@ -56,11 +62,12 @@ ulang. Jangan percaya status lama begitu ada perubahan kode.
   dulu sebelum ini jadi task.
 - `trg_stores_seed_accounting_workspace_sequences` (0024) dan dua trigger di
   0026/0028 masih menulis beberapa baris `chart_of_accounts`/`accounting_sequences`
-  untuk gerai LITE/FLEXIBLE walau `karen-BS-STORES-EDITION` selesai. Baris
-  menganggur, tidak nge-block apa pun — cleanup terpisah kalau suatu saat mau
-  benar-benar nol residu, bukan syarat "POS bisa diambil sendiri".
+  untuk gerai LITE/FLEXIBLE. Cleanup terpisah kalau suatu saat dibutuhkan.
+- Owner final untuk module `game` belum ditetapkan. Sampai owner dicatat di
+  `MODULE_OWNERSHIP.md`, Game tetap **IN_PROGRESS** dan tidak boleh diberi status
+  READY.
 
 ## DOC-IMPACT
 
-**REQUIRED** — update tabel status setiap kali `karen-BS-STORES-EDITION`/
-`karen-BS-DISPATCH-GATING` mendarat, atau modul mana pun disentuh ulang.
+**REQUIRED** — update tabel status setiap kali module entitlement/migration
+existing berubah, atau modul mana pun disentuh ulang.

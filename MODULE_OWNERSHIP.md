@@ -11,7 +11,7 @@ write access. An agent may read anything.
 
 | Module | Owner | Source | Contract / rules |
 |---|---|---|---|
-| **architecture** | `hana` | `adr/`, `contracts/` | ADR-030, Constitution, Integration Contract Standard |
+| **architecture** | `hana` | `adr/`, `contracts/` | ADR-030, ADR-040, Constitution, Integration Contract Standard |
 | **accounting** | *unassigned* | `src/accounting-*.js` | ADR-017, ADR-019, ADR-029, `contracts/accounting-*.md` |
 | **accounting-settings** | *unassigned* | `src/accounting-settings.js`, `src/warehouse-settings.js` | ADR-017, `contracts/accounting-settings-v1.md` |
 | **operasional** | `karen` | `src/cashier-*.js`, `src/orders*.js`, `src/operational-posting.js` | ADR-029, `contracts/cashier-transaction-composition-v1.md` |
@@ -20,8 +20,13 @@ write access. An agent may read anything.
 | **approval** | *unassigned* | `src/approval-queue.js`, `src/transaction-void-permits.js` | ADR-009, ADR-022 |
 | **identity-tenancy** | `hana` | `src/stores.js`, `src/owner-auth.js`, `src/*-auth.js`, `migrations/0039_*` | ADR-030, ADR-001, ADR-006 |
 | **customer** | *unassigned* | `src/customers.js`, `src/customer-*.js` | ADR-002, ADR-005, ADR-026 |
-| **platform** | `hana` | `src/index.js`, `src/http.js`, `src/db*.js` | routing, one route one owner |
+| **game** | *unassigned* | `src/game.js`, `game_*` tables | ADR-042, `contracts/game-module-v1.md` |
+| **platform** | `hana` | `src/index.js`, `src/http.js`, `src/db*.js`, `src/platform-module-registry.js`, `platform_modules`, `tenant_module_installations` | ADR-040, `contracts/module-contract-v1.md`, routing |
 | **agent-tooling** | `hana` | `agent-bridge/`, `agent-bus/` | `contracts/agent-task-board-v1.md` |
+
+`game` sengaja dicatat **unassigned** pada foundation 2026-09-09 karena Bos Cyo belum
+menetapkan contract owner final. Implementasi boleh berada di status IN_PROGRESS, tetapi Game
+tidak boleh dinaikkan ke READY sampai owner ditetapkan secara eksplisit.
 
 ## Rules for every agent
 

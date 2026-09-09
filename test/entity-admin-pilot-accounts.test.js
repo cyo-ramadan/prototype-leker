@@ -55,10 +55,14 @@ test('migration 0064 groups Kantor/Pendem/Mandala under one entity and seeds Rik
   assert.match(pilotMigration, /WHERE code IN \('KANTOR', 'PENDEM', 'MANDALA'\)/);
 });
 
-test('Rika and Alfina can log in and both see all three grouped stores', async () => {
+test('Rika and Alfina can log in and see every store currently inside ENT-KPM', async () => {
   const db = migratedDatabase();
   try {
     const env = { DB: new D1Database(db) };
+    const expectedCodes = db
+      .prepare(`SELECT code FROM stores WHERE entity_id = 'ENT-KPM' ORDER BY code`)
+      .all()
+      .map(row => row.code);
 
     for (const { username, password, displayName } of [
       { username: 'entityadmin_rika', password: 'rika_entity123', displayName: 'Rika (Akuntan)' },
@@ -79,7 +83,7 @@ test('Rika and Alfina can log in and both see all three grouped stores', async (
       );
       const storesBody = await storesResponse.json();
       const codes = storesBody.stores.map(store => store.code).sort();
-      assert.deepEqual(codes, ['KANTOR', 'MANDALA', 'PENDEM']);
+      assert.deepEqual(codes, expectedCodes);
 
       for (const code of codes) {
         const auth = await requireManagement(request(`/api/admin/products?store=${code}`, { token: loginBody.token }), env.DB);

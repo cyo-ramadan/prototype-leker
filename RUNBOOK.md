@@ -220,6 +220,25 @@ The repository also contains a GitHub Actions deployment path. It may require `C
 
 A fallback credential failure does not by itself mean the canonical Cloudflare Git deployment failed. Production PASS is based on the canonical Worker build plus schema and live validation evidence.
 
+## Store onboarding from a live template
+
+Canonical detailed procedure: `STORE_ONBOARDING_RUNBOOK.md`.
+
+Use that procedure when a new Store must start from another Store's **current live master/config**, rather than from old seed migrations. Future agents should begin from its explicit clone allowlist/denylist and inspect only schema migrations newer than the runbook's reviewed state for newly added or changed store-scoped tables. Do not redo the full historical schema research by default.
+
+Hard rules for template onboarding:
+
+- Entity assignment is explicit and separate from store-scoped master ownership;
+- clone master/config, never business facts/history/balances;
+- remap local references by canonical code/natural key;
+- preserve provisioning-generated canonical Chart-of-Accounts ids for system accounts, then align their fields to the template by account code;
+- reset stock/HPP history and current valuation state as specified in the detailed runbook;
+- create fresh login identities rather than copying source sessions/users;
+- record a validated onboarding actor where the schema exposes provenance fields;
+- require a full migration-chain regression, `PRAGMA foreign_key_check = zero rows`, post-onboarding provisioning smoke, repository checks, canonical Cloudflare build, and live Store verification before PASS.
+
+For migration `0081_kpm_stores_from_pendem_template.sql`, the template is Pendem and Bos Cyo designated active Entity Admin Rika (`ENTITY_ADMIN`, `entity_admin_rika_pilot`) as onboarding actor. The seven target Stores are Sugiono, Genengan, Ngijo, Beji, Tlekung, Dermo, and Kaliurang. Migration ordinal `0080` is already occupied by the Game module foundation on current `main`.
+
 ## Deployment completion checklist
 
 A schema-changing deployment is PASS only when all applicable items are true:
@@ -238,4 +257,4 @@ If any required item is missing, report `BLOCKED` or `FAIL`, never `PASS`.
 
 ## DOC-IMPACT
 
-This runbook is the canonical operational recovery, bounded execution, deployment-order, Accounting schema-reconciliation, Operasional Accounting-boundary recovery, and Debugger activation reference for Prototype Leker.
+This runbook is the canonical operational recovery, bounded execution, deployment-order, Accounting schema-reconciliation, Operasional Accounting-boundary recovery, Debugger activation, and Store-template onboarding reference for Prototype Leker.

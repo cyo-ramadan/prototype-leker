@@ -1,5 +1,27 @@
 # Changelog — Prototype Leker
 
+## 2026-09-09 — Seven KPM stores from live Pendem template
+
+Change ID: `LEKER-KPM-SEVEN-STORES-20260909`
+
+- Add Sugiono, Genengan, Ngijo, Beji, Tlekung, Dermo, and Kaliurang as new Stores under the exact current Entity of Pendem at migration execution time.
+- Clone current Pendem store-scoped master/configuration while keeping transaction/history, stock balances, journals, production facts, customers, sessions, Voucher instances/redemptions, Roda Puter spin history, and Game play facts fresh/empty.
+- Preserve provisioning-generated canonical Chart-of-Accounts ids for system accounts, then align account configuration to Pendem by account code; template-only custom accounts receive target-local clone ids.
+- Fix the initial draft failure mode where recreating system COA rows under `clone0080_*` ids broke active CASH/Product-Kind provisioning references such as `coa_<store>_1201`, `1301`, `4101`, and `5101`.
+- Validate active Entity Admin Rika (`ENTITY_ADMIN`, `entity_admin_rika_pilot`) in Pendem's current Entity and use that identity for onboarding-created configuration rows that expose provenance fields.
+- Create one fresh Store Admin identity per new Store; only credential hashes are versioned.
+- Add regression coverage for the full migration chain, zero `PRAGMA foreign_key_check` rows, canonical CASH/Piutang mapping, post-onboarding Product Kind provisioning, Pendem-only custom COA cloning, Rika provenance, master/config parity, and fresh history/valuation state.
+- Rebase the onboarding work onto current `main`, where `0080_game_module_foundation.sql` already owns ordinal 0080; the Store onboarding migration therefore lands as `0081_kpm_stores_from_pendem_template.sql`.
+- Add the repeatable Store-template onboarding procedure to the canonical `RUNBOOK.md` and detailed allowlist/denylist in `STORE_ONBOARDING_RUNBOOK.md` so future Store additions start from the documented policy instead of re-researching the whole historical schema.
+
+### Recovery
+
+Migration `0081` is additive for seven new Stores but creates a broad master/config graph. If migration or live validation fails, use the canonical D1 Time Travel checkpoint captured before migration application. Do not manually delete a partial Store graph in production. Correct the migration or restore the checkpoint, then rerun the canonical migration → schema verify → Worker deploy road.
+
+### DOC-IMPACT
+
+**REQUIRED** — adds seven operational Stores and establishes the canonical repeatable live-template Store-onboarding procedure.
+
 ## 2026-08-19 — Stock Adjustment PILATU composer release
 
 Change ID: `LEKER-STOCK-ADJUSTMENT-PILATU-20260819`

@@ -32,12 +32,13 @@
 
     <section id="entityAdminApp" class="hidden">
       <div class="owner-heading">
-        <div><div class="admin-eyebrow">Structure level 0.5 · Entity</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Gerai di bawah entity ini, dan buku Entity (rekening yang bukan milik satu gerai mana pun -- mis. rekening utama, hutang/piutang antar gerai, gaji karyawan tingkat Entity).</p></div>
+        <div><div class="admin-eyebrow">Structure level 0.5 · Entity</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Gerai di bawah entity ini, buku Entity, dan pengaturan customer yang dipakai bersama sesuai scope Entity.</p></div>
         <div id="entityAdminIdentity" class="owner-chip"></div>
       </div>
 
       <nav class="admin-tabs" aria-label="Menu Entity Admin">
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
+        <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
       </nav>
 
@@ -45,6 +46,14 @@
         <div class="admin-card">
           <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
           <div id="entityAdminStoreList" class="owner-store-grid"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-customers" class="admin-section">
+        <div class="admin-card list-card">
+          <div class="list-head"><div><h2>WhatsApp pendaftaran member per gerai</h2><div class="muted">Setiap baris membaca dan mengubah setting Store yang sama dengan Panel Pelanggan milik Admin Gerai.</div></div><span id="entityCustomerWhatsAppCount" class="master-count">0</span></div>
+          <div class="admin-tip" style="margin:12px 0">Flow gratis: customer menyimpan request PENDING, lalu WhatsApp dibuka dengan pesan siap kirim. Sistem tidak bisa mengetahui apakah pesan benar-benar dikirim; member tetap aktif setelah Admin melakukan ACC.</div>
+          <div id="entityCustomerWhatsAppList" class="master-list"><div class="empty">Buka tab Pelanggan untuk memuat setting.</div></div>
         </div>
       </section>
 
@@ -96,5 +105,97 @@
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
 <script src="/entity-admin.js"></script>
+<script>
+(() => {
+  const el = id => document.getElementById(id);
+  const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
+  const section = el('entityTab-customers');
+  const list = el('entityCustomerWhatsAppList');
+  let loading = false;
+
+  async function api(path, options = {}) {
+    const token = sessionStorage.getItem('lekerEntityAdminToken') || '';
+    if (!token) throw new Error('Login Entity Admin diperlukan.');
+    const headers = { ...(options.headers || {}), Authorization: `Bearer ${token}` };
+    if (options.body) headers['Content-Type'] = 'application/json';
+    const response = await fetch(path, { ...options, headers });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `Request gagal (${response.status})`);
+    return payload;
+  }
+
+  function toast(message) {
+    const node = el('entityAdminToast');
+    if (!node) return;
+    node.textContent = message;
+    node.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => node.classList.remove('show'), 1900);
+  }
+
+  async function load() {
+    if (loading) return;
+    loading = true;
+    list.innerHTML = '<div class="empty">Memuat nomor WhatsApp tiap gerai…</div>';
+    try {
+      const storesPayload = await api('/api/entity-admin/stores');
+      const stores = storesPayload.stores || [];
+      const rows = await Promise.all(stores.map(async store => {
+        try {
+          const payload = await api(`/api/admin/customer-membership-settings?store=${encodeURIComponent(store.code)}`);
+          return { store, settings: payload.settings || {} };
+        } catch (error) {
+          return { store, error: error.message };
+        }
+      }));
+      el('entityCustomerWhatsAppCount').textContent = rows.length;
+      list.innerHTML = rows.length ? rows.map(({ store, settings, error }) => `
+        <div class="master-row contact-row" data-entity-wa-row="${escapeHtml(store.code)}">
+          <div class="master-main">
+            <strong>${escapeHtml(store.code)} · ${escapeHtml(store.storeName)}</strong>
+            <div class="master-meta">${error ? escapeHtml(error) : 'Nomor WhatsApp tujuan pendaftaran member'}</div>
+          </div>
+          <div class="master-actions" style="min-width:min(100%,360px);display:flex;gap:8px;align-items:center">
+            <input class="text-input" data-entity-wa-input inputmode="tel" maxlength="24" placeholder="081234567890" value="${escapeHtml(settings?.registrationWhatsAppNumber || '')}" ${error ? 'disabled' : ''} />
+            <button class="mini-btn" type="button" data-save-entity-wa="${escapeHtml(store.code)}" ${error ? 'disabled' : ''}>Simpan</button>
+          </div>
+        </div>`).join('') : '<div class="empty">Belum ada gerai pada Entity ini.</div>';
+    } catch (error) {
+      list.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    } finally {
+      loading = false;
+    }
+  }
+
+  list?.addEventListener('click', async event => {
+    const button = event.target.closest('[data-save-entity-wa]');
+    if (!button) return;
+    const row = button.closest('[data-entity-wa-row]');
+    const input = row?.querySelector('[data-entity-wa-input]');
+    if (!input) return;
+    button.disabled = true;
+    try {
+      const payload = await api(`/api/admin/customer-membership-settings?store=${encodeURIComponent(button.dataset.saveEntityWa)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ registrationWhatsAppNumber: input.value })
+      });
+      input.value = payload.settings?.registrationWhatsAppNumber || '';
+      toast(`Nomor WA ${button.dataset.saveEntityWa} disimpan`);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  document.querySelectorAll('[data-entity-tab]').forEach(button => {
+    button.addEventListener('click', () => {
+      const isCustomerTab = button.dataset.entityTab === 'customers';
+      section?.classList.toggle('active', isCustomerTab);
+      if (isCustomerTab) load();
+    });
+  });
+})();
+</script>
 </body>
 </html>

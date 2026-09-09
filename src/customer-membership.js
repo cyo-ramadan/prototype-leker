@@ -8,9 +8,11 @@ import { hashCredential, requireManagement } from './owner-auth.js';
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
+const whatsAppMessageText = (value, max = 160) => text(value, max).replace(/[\r\n]+/g, ' ');
 const normalizeWhatsAppNumber = value => {
-  const digits = String(value ?? '').replace(/\D/g, '');
+  let digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return '';
+  if (digits.startsWith('00')) digits = digits.slice(2);
   if (digits.startsWith('620')) return `62${digits.slice(3)}`;
   if (digits.startsWith('0')) return `62${digits.slice(1)}`;
   return digits;
@@ -47,6 +49,68 @@ function mapRequest(row) {
     reviewedAt: row.reviewed_at || null,
     reviewedBy: row.reviewed_by || ''
   };
+}
+
+async function membershipSettingsForStore(db, storeId) {
+  const row = await db.prepare(`
+    SELECT registration_whatsapp_number, updated_by_role, updated_by_id, updated_at
+    FROM customer_membership_settings
+    WHERE store_id = ?
+    LIMIT 1
+  `).bind(storeId).first();
+  return {
+    registrationWhatsAppNumber: row?.registration_whatsapp_number || '',
+    updatedByRole: row?.updated_by_role || '',
+    updatedById: row?.updated_by_id || '',
+    updatedAt: row?.updated_at || null
+  };
+}
+
+function managementActor(management) {
+  if (management?.entityAdmin) return { role: 'ENTITY_ADMIN', id: management.entityAdmin.id };
+  if (management?.admin) return { role: 'ADMIN', id: management.admin.id };
+  if (management?.owner) return { role: 'OWNER', id: management.owner.id };
+  return { role: management?.authType || 'MANAGEMENT', id: '' };
+}
+
+async function handleMembershipSettings(request, env) {
+  const management = await requireManagement(request, env.DB);
+  if (!management.ok) return management.response;
+  const store = await selectedStore(env.DB, request, true);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+
+  if (request.method === 'GET') {
+    return json({ store, settings: await membershipSettingsForStore(env.DB, store.id) });
+  }
+
+  if (request.method !== 'PATCH') {
+    return json({ error: 'Method pengaturan membership pelanggan tidak didukung.' }, 405);
+  }
+
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload pengaturan membership pelanggan tidak valid.' }, 400);
+  if (body.value?.registrationWhatsAppNumber === undefined) {
+    return json({ error: 'Nomor WhatsApp pendaftaran wajib dikirim.' }, 400);
+  }
+
+  const whatsappNumber = normalizeWhatsAppNumber(body.value.registrationWhatsAppNumber);
+  if (whatsappNumber && !/^\d{8,15}$/.test(whatsappNumber)) {
+    return json({ error: 'Nomor WhatsApp harus valid, contoh 081234567890 atau 6281234567890.' }, 400);
+  }
+
+  const actor = managementActor(management);
+  await env.DB.prepare(`
+    INSERT INTO customer_membership_settings (
+      store_id, registration_whatsapp_number, updated_by_role, updated_by_id, updated_at
+    ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(store_id) DO UPDATE SET
+      registration_whatsapp_number = excluded.registration_whatsapp_number,
+      updated_by_role = excluded.updated_by_role,
+      updated_by_id = excluded.updated_by_id,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(store.id, whatsappNumber, actor.role, actor.id).run();
+
+  return json({ ok: true, store, settings: await membershipSettingsForStore(env.DB, store.id) });
 }
 
 async function usernameExistsInScope(db, scopeStoreIds, username) {
@@ -88,6 +152,22 @@ async function pendingUsernameExistsInScope(db, scopeStoreIds, username, exclude
   return Boolean(await db.prepare(sql).bind(...params).first());
 }
 
+function registrationWhatsAppUrl(destination, { store, requestCode: code, customerName, phone, email, username }) {
+  if (!destination) return null;
+  const message = [
+    `Halo Admin ${whatsAppMessageText(store.storeName)}, saya ingin verifikasi pendaftaran member.`,
+    `Gerai: ${whatsAppMessageText(store.code)} · ${whatsAppMessageText(store.storeName)}`,
+    `Kode pendaftaran: ${whatsAppMessageText(code)}`,
+    `Nama: ${whatsAppMessageText(customerName)}`,
+    `No. WhatsApp: ${whatsAppMessageText(phone) || '-'}`,
+    `Email: ${whatsAppMessageText(email) || '-'}`,
+    `Username: ${whatsAppMessageText(username)}`,
+    '',
+    'Mohon cek request di panel Pelanggan dan ACC jika data sudah sesuai.'
+  ].join('\n');
+  return `https://wa.me/${destination}?text=${encodeURIComponent(message)}`;
+}
+
 async function handleRegistration(request, env) {
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan atau sedang nonaktif.' }, 404);
@@ -122,10 +202,29 @@ async function handleRegistration(request, env) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
   `).bind(id, code, store.id, username, await hashCredential(password), customerName, phone, email).run();
 
+  const settings = await membershipSettingsForStore(env.DB, store.id);
+  const whatsappUrl = registrationWhatsAppUrl(settings.registrationWhatsAppNumber, {
+    store,
+    requestCode: code,
+    customerName,
+    phone,
+    email,
+    username
+  });
+
   return json({
     ok: true,
     request: { requestCode: code, status: 'PENDING', store: { code: store.code, storeName: store.storeName } },
-    message: 'Pendaftaran dikirim. Akun baru bisa login setelah disetujui Admin Gerai.'
+    verification: {
+      channel: 'WHATSAPP_MANUAL',
+      whatsappNumber: settings.registrationWhatsAppNumber,
+      whatsappUrl,
+      requiresAdminApproval: true,
+      sendConfirmed: false
+    },
+    message: whatsappUrl
+      ? 'Request tersimpan. Kirim pesan WhatsApp yang sudah disiapkan, lalu tunggu Admin Gerai menyetujui akun.'
+      : 'Request tersimpan. Nomor WhatsApp pendaftaran gerai belum diatur; tunggu Admin Gerai menyetujui akun.'
   }, 202);
 }
 
@@ -273,6 +372,7 @@ export async function handleCustomerMembershipApi(request, env, pathname) {
   if (request.method === 'POST' && pathname === '/api/customer/register') return handleRegistration(request, env);
   if (request.method === 'GET' && pathname === '/api/customer/points') return handlePoints(request, env);
   if (request.method === 'GET' && pathname === '/api/customer/orders') return handleCustomerOrders(request, env);
+  if (pathname === '/api/admin/customer-membership-settings') return handleMembershipSettings(request, env);
   if (pathname === '/api/admin/customer-requests' || pathname.startsWith('/api/admin/customer-requests/')) {
     return handleAdminRequests(request, env, pathname);
   }

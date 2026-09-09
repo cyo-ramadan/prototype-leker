@@ -288,8 +288,10 @@ JOIN manufacturing_recipe_components c
   ON c.recipe_id = rm.source_recipe_id AND c.store_id = 'store_pendem'
 JOIN clone_product_map_0080 cpm
   ON cpm.target_store_id = rm.target_store_id AND cpm.source_product_id = c.component_product_id
-JOIN units su ON su.id = c.component_unit_id AND su.store_id = 'store_pendem'
-JOIN units tu ON tu.store_id = rm.target_store_id AND tu.code = su.code;
+JOIN products tp
+  ON tp.id = cpm.new_product_id AND tp.store_id = rm.target_store_id
+JOIN units tu
+  ON tu.id = tp.base_unit_id AND tu.store_id = rm.target_store_id;
 
 UPDATE products
 SET linked_recipe_id = (

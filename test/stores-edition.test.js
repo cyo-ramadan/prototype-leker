@@ -5,6 +5,9 @@ import { DatabaseSync } from 'node:sqlite';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 const EDITION_MIGRATION = '0045_stores_edition.sql';
+const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
+  '0081_kpm_stores_from_pendem_template.sql',
+]);
 
 const migrationFiles = () => readdirSync(migrationDir)
   .filter(name => /^\d{4}_.+\.sql$/.test(name))
@@ -155,8 +158,18 @@ test('migration preserves existing data and ACCOUNTING store scaffolding exactly
     // final comparison below is against a database that has genuinely seen
     // the same migrations as afterMigration, not one deliberately frozen at
     // 0045.
+    //
+    // Data-only store onboarding migrations are intentionally excluded from
+    // this synthetic replay. They add store/master rows but no global trigger
+    // or schema behavior, and their fail-closed actor/template guards assume
+    // the normal chronological chain rather than this deliberately reconstructed
+    // 0045-only comparison database.
     for (const file of migrationFiles()) {
-      if (file !== EDITION_MIGRATION && dependsOnEdition(file)) beforeMigration.exec(readMigration(file));
+      if (
+        file !== EDITION_MIGRATION
+        && dependsOnEdition(file)
+        && !DATA_ONLY_STORE_ONBOARDING_MIGRATIONS.has(file)
+      ) beforeMigration.exec(readMigration(file));
     }
 
     const fullStoreId = 'store_edition_accounting_full';

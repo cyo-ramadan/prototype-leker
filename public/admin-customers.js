@@ -5,6 +5,7 @@
   let registrationRequests = [];
   let sharing = null;
   let sharedStores = [];
+  let membershipSettings = { registrationWhatsAppNumber: '' };
 
   const legacyTab = document.querySelector('[data-tab="contacts"]');
   const legacySection = el('tab-contacts');
@@ -26,6 +27,14 @@
   if (legacySection && !el('tab-customers')) {
     legacySection.insertAdjacentHTML('afterend', `
       <section id="tab-customers" class="admin-section">
+        <div class="admin-card" style="margin-bottom:16px">
+          <div class="list-head"><div><h2>WhatsApp pendaftaran member</h2><div class="muted">Nomor tujuan ketika customer menyimpan pendaftaran lalu melanjutkan verifikasi manual lewat WhatsApp.</div></div><span class="master-count">WA</span></div>
+          <form id="customerMembershipSettingsForm" class="admin-grid two compact" style="align-items:end;margin-top:12px">
+            <label class="admin-field">Nomor WhatsApp Admin<input id="customerMembershipWhatsApp" inputmode="tel" maxlength="24" placeholder="Contoh: 081234567890" /></label>
+            <button class="primary-btn" type="submit">Simpan nomor WhatsApp</button>
+          </form>
+          <div id="customerMembershipSettingsNote" class="admin-tip" style="margin-top:10px">Setting ini satu sumber yang sama dengan panel Entity Admin. Customer tetap berstatus PENDING sampai Admin melakukan ACC.</div>
+        </div>
         <div class="admin-grid master-layout">
           <form id="customerMasterForm" class="admin-card sticky-form">
             <input id="customerMasterId" type="hidden" />
@@ -41,7 +50,7 @@
           </form>
           <div class="admin-card list-card">
             <div class="list-head"><h2>Request jadi pelanggan</h2><span id="customerRequestCount" class="master-count">0</span></div>
-            <div class="admin-tip" style="margin:10px 0">Request dari halaman customer belum menjadi pelanggan sampai Admin Gerai atau CS/Kasir gerai menekan <b>ACC</b>.</div>
+            <div class="admin-tip" style="margin:10px 0">Request dari halaman customer belum menjadi pelanggan sampai Admin Gerai atau CS/Kasir gerai menekan <b>ACC</b>. Pesan WhatsApp hanya membantu verifikasi manual dan tidak mengaktifkan member otomatis.</div>
             <div id="customerRequestList" class="master-list" style="margin-bottom:18px"></div>
             <hr style="border:0;border-top:1px solid var(--line);margin:18px 0" />
             <div class="list-head"><h2>Master pelanggan</h2><span id="customerMasterCount" class="master-count">0</span></div>
@@ -77,6 +86,16 @@
   function switchTab() {
     document.querySelectorAll('.admin-tab').forEach(button => button.classList.toggle('active', button.dataset.tab === 'customers'));
     document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-customers'));
+  }
+
+  function renderMembershipSettings() {
+    const input = el('customerMembershipWhatsApp');
+    if (input && document.activeElement !== input) input.value = membershipSettings.registrationWhatsAppNumber || '';
+    const note = el('customerMembershipSettingsNote');
+    if (!note) return;
+    note.innerHTML = membershipSettings.registrationWhatsAppNumber
+      ? `✅ Customer yang daftar akan diarahkan ke <b>${escapeHtml(membershipSettings.registrationWhatsAppNumber)}</b>. Setting yang sama dapat diubah Entity Admin.`
+      : '⚠️ Nomor WhatsApp belum diatur. Request member tetap bisa tersimpan sebagai PENDING, tetapi customer tidak akan diarahkan ke WhatsApp.';
   }
 
   function renderRequests() {
@@ -121,21 +140,37 @@
   }
 
   function render() {
+    renderMembershipSettings();
     renderRequests();
     renderCustomers();
   }
 
   async function load() {
     try {
-      const [customerPayload, requestPayload] = await Promise.all([
+      const [customerPayload, requestPayload, settingsPayload] = await Promise.all([
         request('/api/admin/customers'),
-        request('/api/admin/customer-requests')
+        request('/api/admin/customer-requests'),
+        request('/api/admin/customer-membership-settings')
       ]);
       customers = customerPayload.customers || [];
       sharing = customerPayload.sharing || null;
       sharedStores = customerPayload.sharedStores || [];
       registrationRequests = requestPayload.requests || [];
+      membershipSettings = settingsPayload.settings || { registrationWhatsAppNumber: '' };
       render();
+    } catch (error) { toast(error.message); }
+  }
+
+  async function saveMembershipSettings(event) {
+    event.preventDefault();
+    try {
+      const payload = await request('/api/admin/customer-membership-settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ registrationWhatsAppNumber: el('customerMembershipWhatsApp').value })
+      });
+      membershipSettings = payload.settings || { registrationWhatsAppNumber: '' };
+      renderMembershipSettings();
+      toast('Nomor WhatsApp pendaftaran disimpan');
     } catch (error) { toast(error.message); }
   }
 
@@ -212,6 +247,7 @@
   }
 
   document.querySelector('[data-tab="customers"]')?.addEventListener('click', switchTab);
+  el('customerMembershipSettingsForm')?.addEventListener('submit', saveMembershipSettings);
   el('customerMasterForm')?.addEventListener('submit', save);
   el('customerMasterCancel')?.addEventListener('click', resetForm);
 

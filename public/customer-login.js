@@ -95,13 +95,13 @@
 
         <div id="entryRegisterView" class="hidden">
           <form id="entryRegisterForm" class="entry-login-form">
-            <div class="entry-login-note"><b>Daftar pelanggan ${escapeHtml(storeCode)}</b><br>Setelah dikirim, akun berstatus menunggu dan baru aktif setelah disetujui Admin Gerai.</div>
+            <div class="entry-login-note"><b>Daftar pelanggan ${escapeHtml(storeCode)}</b><br>Data disimpan sebagai PENDING. Jika gerai sudah mengatur nomor WhatsApp, setelah Simpan WhatsApp akan dibuka dengan pesan verifikasi siap kirim. Member aktif setelah Admin melakukan ACC.</div>
             <div class="field"><label>Nama pelanggan</label><input id="entryRegisterName" class="text-input" maxlength="100" required /></div>
-            <div class="field"><label>No. HP</label><input id="entryRegisterPhone" class="text-input" maxlength="40" /></div>
+            <div class="field"><label>No. HP / WhatsApp</label><input id="entryRegisterPhone" class="text-input" inputmode="tel" maxlength="40" /></div>
             <div class="field"><label>Email</label><input id="entryRegisterEmail" class="text-input" type="email" maxlength="120" /></div>
             <div class="field"><label>Username</label><input id="entryRegisterUsername" class="text-input" minlength="3" maxlength="40" autocomplete="username" required /></div>
             <div class="field"><label>Password</label><input id="entryRegisterPassword" class="text-input" type="password" minlength="6" autocomplete="new-password" required /></div>
-            <button id="entryRegisterSubmit" class="primary-btn" type="submit">KIRIM PENDAFTARAN</button>
+            <button id="entryRegisterSubmit" class="primary-btn" type="submit">SIMPAN & VERIFIKASI VIA WHATSAPP</button>
             <div id="entryRegisterMessage" class="entry-login-message" aria-live="polite"></div>
           </form>
           <button id="entryRegisterBack" class="text-btn entry-back-btn" type="button">← Kembali ke login</button>
@@ -197,8 +197,15 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Pendaftaran gagal.');
+      const requestCode = payload.request?.requestCode || '';
+      const whatsappUrl = payload.verification?.whatsappUrl || '';
       el('entryRegisterForm').reset();
-      el('entryRegisterMessage').innerHTML = `✅ Request <b>${escapeHtml(payload.request?.requestCode || '')}</b> terkirim. Status: <b>PENDING</b>. Tunggu Admin Gerai menyetujui sebelum login.`;
+      if (whatsappUrl) {
+        el('entryRegisterMessage').innerHTML = `✅ Request <b>${escapeHtml(requestCode)}</b> tersimpan sebagai <b>PENDING</b>. Membuka WhatsApp… tekan <b>Kirim</b> ke Admin, lalu tunggu ACC untuk mengaktifkan member.`;
+        setTimeout(() => window.location.assign(whatsappUrl), 250);
+      } else {
+        el('entryRegisterMessage').innerHTML = `✅ Request <b>${escapeHtml(requestCode)}</b> tersimpan sebagai <b>PENDING</b>. Nomor WhatsApp pendaftaran gerai belum diatur, jadi request tidak dialihkan ke WhatsApp. Tunggu Admin Gerai melakukan ACC.`;
+      }
     } catch (error) {
       el('entryRegisterMessage').textContent = error.message;
     } finally {

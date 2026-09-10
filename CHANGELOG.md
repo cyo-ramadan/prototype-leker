@@ -1,5 +1,25 @@
 # Changelog — Prototype Leker
 
+## 2026-09-10 — Store-scoped WhatsApp member registration handoff
+
+Change ID: `LEKER-CUSTOMER-WHATSAPP-MEMBERSHIP-20260910`
+
+- Add additive Store-scoped `customer_membership_settings` for the WhatsApp destination used by customer self-registration.
+- Let Store Admin edit its own Store destination from the Pelanggan panel and let Entity Admin edit the same canonical Store value through one row per Store in its Entity.
+- Keep self-registration `PENDING` and manual approval authoritative. When a destination is configured, return a prefilled `wa.me` handoff after the request is stored; a free WhatsApp handoff never claims the customer actually pressed Send.
+- Keep rollout backward-compatible when a Store has no WhatsApp destination: registration still creates a `PENDING` request and remains reviewable, but no WhatsApp redirect is returned.
+- Keep plaintext passwords out of the WhatsApp message. The registration request continues storing only the password hash.
+- Preserve guest ordering, Customer Sharing behavior, points, customer order history, and existing Admin approval/rejection semantics.
+- Add regression coverage for shared Store/Admin + Entity Admin configuration, cross-Entity authorization rejection, WhatsApp-number normalization, PENDING registration, manual-verification metadata, and no password leakage into the handoff URL.
+
+### Recovery
+
+Migration `0082_customer_membership_whatsapp_settings.sql` is additive. If application rollback is required after migration application, the new settings table may remain unused safely; existing Customer masters and registration requests are unchanged. Do not rewrite an applied migration.
+
+### DOC-IMPACT
+
+**REQUIRED** — customer membership onboarding UX and Store/Entity Admin configuration authority changed; ADR-005 is updated in the same changeset.
+
 ## 2026-09-09 — Seven KPM stores from live Pendem template
 
 Change ID: `LEKER-KPM-SEVEN-STORES-20260909`

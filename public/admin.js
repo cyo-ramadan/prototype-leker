@@ -183,7 +183,7 @@ function renderCategoryOptions() {
 function renderProducts() {
   el('productCount').textContent = state.data.products.length;
   el('productList').innerHTML = state.data.products.length ? state.data.products.map(product => `
-    <div class="master-row ${product.isActive ? '' : 'inactive'}">
+    <div class="master-row with-thumb ${product.isActive ? '' : 'inactive'}">
       <img class="master-thumb" src="${escapeHtml(product.imageData || '/default-product.svg')}" alt="${escapeHtml(product.name)}" />
       <div class="master-main">
         <strong>${escapeHtml(product.name)}</strong>

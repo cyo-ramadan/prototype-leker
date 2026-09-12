@@ -14,6 +14,7 @@ test('shared admin detail modal is a real <dialog>, presentation-only, wired bef
   assert.match(modalScript, /showModal\(\)/);
   assert.match(modalScript, /window\.openAdminDetailModal/);
   assert.match(modalScript, /window\.closeAdminDetailModal/);
+  assert.match(modalScript, /\.wide/);
   assert.doesNotMatch(modalScript, /\bfetch\s*\(/);
 
   const modalTagIndex = adminHtml.indexOf('admin-detail-modal.js');

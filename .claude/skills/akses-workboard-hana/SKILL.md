@@ -89,6 +89,33 @@ WHERE id = '<tsk_...>';
 Set `follow_up_needed = 1` dan isi `follow_up_text` kalau ada yang masih menggantung dan
 perlu perhatian Bos Cyo lagi nanti.
 
+## Kalau merasa "tidak punya akses ke Workboard" — buktikan dulu
+
+Sudah berulang kali terjadi sesi Hana melapor tidak bisa membuka Workboard/database Cloudflare
+padahal bisa. Penyebabnya hampir selalu sama: tool MCP Cloudflare berstatus *deferred* — namanya
+tidak muncul di daftar tool awal, tapi tetap bisa dipakai setelah dimuat. **Daftar tool awal
+bukan bukti ketiadaan akses.**
+
+Urutan wajib sebelum boleh bilang "tidak bisa":
+
+1. `ToolSearch` dengan `select:mcp__Cloudflare_Developer_Platform__d1_database_query` (atau kata
+   kunci `cloudflare d1 query`). Kalau server MCP masih connecting, tunggu — jangan simpulkan
+   dari percobaan pertama.
+2. Query bukti yang murah ke Workboard:
+   `SELECT id, title, status FROM tasks ORDER BY created_at DESC LIMIT 5;`
+   dengan `database_id` `36e676b2-6f03-45cc-9acf-5a44127656b0` dan `account_id`
+   `25c5fe53877002648959e8dd35678188`. Kalau ada barisnya, aksesnya **ada**.
+3. Kalau errornya "requires authentication" atau server disconnected — itu connector-nya perlu
+   diotorisasi ulang oleh Bos Cyo lewat pengaturan connector di claude.ai, **bukan** berarti
+   Hana tidak punya jalur, dan **bukan** alasan meminta token plaintext.
+
+Error `no such column` justru **membuktikan** aksesnya jalan — itu SQL-nya yang salah, bukan
+aksesnya. Pakai `PRAGMA table_info(<tabel>)` sebelum menebak nama kolom.
+
+Terverifikasi jalan dari sesi Claude Code 2026-09-12: `issues`, `tasks`, `projects`, dan semua
+database D1 lain di akun Daily Napkin terbaca normal. Peta lengkapnya (semua database + tabel
+diagnosa error) ada di skill `jalur-akses-leker` §5.
+
 ## Tabel lain di database yang sama (belum ada dokumentasi terpisah, sekadar peta)
 
 `employees`, `announcements` + `announcement_reads`, `karen_threads` + `karen_messages`

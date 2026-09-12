@@ -126,7 +126,53 @@ bagian "Deployment completion checklist".
 Kegagalan job GitHub Actions karena secret Cloudflare tidak ada **tidak** membatalkan deployment
 Git Integration yang sudah `SUCCESS` — dua jalur berbeda, yang kedua cuma fallback.
 
-## 5. Kalau memang tidak punya akses sama sekali
+## 5. "Aku tidak punya akses D1" — buktikan dulu, jangan langsung percaya
+
+**Ini penyebab salah-lapor yang paling sering, dan sudah kejadian berulang kali:** sesi Hana/agen
+melihat daftar tool di awal percakapan, tidak menemukan tool Cloudflare/D1 di situ, lalu
+menyimpulkan "tidak punya akses" dan melapor `BLOCKED` — padahal tool-nya ada, cuma **belum
+dimuat**.
+
+Di lingkungan Claude Code, tool MCP sering berstatus *deferred*: namanya tidak muncul di daftar
+tool awal dan skemanya belum dimuat, tapi tetap bisa dipakai setelah dicari. Daftar tool awal
+**bukan** bukti ketiadaan akses.
+
+Tiga langkah wajib sebelum boleh bilang "tidak bisa":
+
+1. **Cari tool-nya dulu.** Jalankan `ToolSearch` dengan kata kunci (mis. `cloudflare d1 query`)
+   atau langsung pilih namanya:
+   `select:mcp__Cloudflare_Developer_Platform__d1_database_query,mcp__Cloudflare_Developer_Platform__d1_databases_list`
+   Kalau server MCP-nya masih "connecting", ToolSearch akan menunggu — jangan simpulkan kosong
+   dari percobaan pertama yang belum selesai.
+2. **Buktikan dengan query yang tidak berbahaya.** Yang paling murah:
+   `SELECT name FROM sqlite_schema WHERE type='table' LIMIT 5;` atau `d1_databases_list`.
+   Kalau balasannya berisi data, akses itu **ada** — berhenti menebak.
+3. **Baca pesan errornya, jangan digeneralisasi.** Error yang berbeda artinya beda jauh:
+
+| Yang terjadi | Artinya | Tindakan |
+|---|---|---|
+| Tool tidak ada di daftar awal | Kemungkinan besar cuma *deferred* | `ToolSearch` dulu — ini bukan "tidak punya akses" |
+| `ToolSearch` benar-benar nihil setelah server selesai connect | Server MCP tidak terpasang di sesi ini | Baru boleh lapor tidak punya jalur MCP |
+| Ada pesan "requires authentication" / server disconnected | Connector-nya perlu diotorisasi ulang | Minta Bos Cyo menyambungkan ulang connector Cloudflare dari pengaturan claude.ai — **bukan** minta token plaintext |
+| `403` + `code 10042` | Layanannya (mis. R2) belum diaktifkan di account itu | Masalah account/billing, bukan masalah akses agen |
+| `7500 SQLITE_ERROR: no such column` | Query-nya yang salah, akses justru **terbukti jalan** | Perbaiki SQL-nya, `PRAGMA table_info(<tabel>)` dulu |
+
+Query bukti yang sudah terverifikasi jalan dari sesi Claude Code (2026-09-12) — pakai
+`account_id` `25c5fe53877002648959e8dd35678188`:
+
+| Database | `database_id` | Bukti cepat |
+|---|---|---|
+| `prototype-leker-db` | `6977b54c-afce-4275-a0ad-d28e7d942e19` | `SELECT COUNT(*) FROM d1_migrations;` |
+| `maxi-agent-bus` | `cbba8e7a-6bbf-45b9-9796-1dbce5dfa6b6` | `SELECT code, repo_full_name FROM projects;` |
+| `maxi-workboard-prototype` | `36e676b2-6f03-45cc-9acf-5a44127656b0` | `SELECT id, title, status FROM tasks ORDER BY created_at DESC LIMIT 5;` |
+| `ikan-galeh-db` | `e97fd0ae-8b62-4fc0-8a02-8db9d20ed403` | `SELECT name FROM sqlite_schema WHERE type='table' LIMIT 5;` |
+
+Akun Cloudflare ada dua dan tool-nya butuh `account_id` eksplisit: **Daily Napkin**
+(`25c5fe53877002648959e8dd35678188`) rumah semua database di atas, dan **Dwicahya**
+(`dc53c638ed60a39d531d1cfc6ca3b300`) untuk resource production TemanNikah. Salah `account_id`
+bikin hasilnya kosong atau error — itu bukan berarti aksesnya tidak ada.
+
+## 6. Kalau sudah dibuktikan memang tidak punya akses
 
 Tiga kemampuan ini terpisah — jangan menyimpulkan satu dari yang lain: (a) baca/tulis papan tugas
 D1, (b) query D1 produksi, (c) memicu deploy lewat merge/push repo. Agen GitHub-only tetap bisa
@@ -137,7 +183,7 @@ Kalau tidak punya D1/MCP **dan** tidak punya jalur `curl`+token: laporkan status
 dari ingatan. Jalur relay yang sudah terbukti jalan: GitHub Issue #107 di repo ini — Hana yang
 punya akses akan mirror keadaan papan ke sana dan menuliskan laporanmu balik ke D1.
 
-## 6. Sebelum bilang "sudah beres"
+## 7. Sebelum bilang "sudah beres"
 
 - [ ] `npm test` dan `npm run check` hijau (dan file `src/`/`public/` baru sudah ditambahkan ke
       script `check` — itu wajib, gampang kelupaan)

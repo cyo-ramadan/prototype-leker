@@ -3,7 +3,8 @@ const state = {
   setupRequired: false,
   data: { store: null, products: [], categories: [], contacts: [] },
   productImageData: '',
-  storeLogoData: ''
+  storeLogoData: '',
+  productSearchTerm: ''
 };
 
 const el = id => document.getElementById(id);
@@ -81,6 +82,10 @@ function bindStaticEvents() {
   el('storeLogo').addEventListener('change', previewStoreLogo);
   el('productForm').addEventListener('submit', saveProduct);
   el('productImage').addEventListener('change', previewProductImage);
+  el('productSearch').addEventListener('input', () => {
+    state.productSearchTerm = el('productSearch').value;
+    renderProducts();
+  });
   el('productCancelEdit').addEventListener('click', resetProductForm);
   el('categoryForm').addEventListener('submit', saveCategory);
   el('categoryCancelEdit').addEventListener('click', resetCategoryForm);
@@ -180,9 +185,18 @@ function renderCategoryOptions() {
   if (active.some(item => item.name === selected)) el('productCategory').value = selected;
 }
 
+function filteredProducts() {
+  const term = state.productSearchTerm.trim().toLowerCase();
+  if (!term) return state.data.products;
+  return state.data.products.filter(product =>
+    product.name.toLowerCase().includes(term) || product.category.toLowerCase().includes(term)
+  );
+}
+
 function renderProducts() {
   el('productCount').textContent = state.data.products.length;
-  el('productList').innerHTML = state.data.products.length ? state.data.products.map(product => `
+  const products = filteredProducts();
+  el('productList').innerHTML = products.length ? products.map(product => `
     <div class="master-row ${product.isActive ? '' : 'inactive'}">
       <img class="master-thumb" src="${escapeHtml(product.imageData || '/default-product.svg')}" alt="${escapeHtml(product.name)}" />
       <div class="master-main">
@@ -194,7 +208,7 @@ function renderProducts() {
         <button class="mini-btn" data-edit-product="${product.id}" type="button">Edit</button>
         <button class="mini-btn danger" data-delete-product="${product.id}" type="button">Nonaktifkan</button>
       </div>
-    </div>`).join('') : '<div class="empty">Belum ada barang.</div>';
+    </div>`).join('') : `<div class="empty">${state.productSearchTerm.trim() ? 'Tidak ada barang yang cocok dengan pencarian.' : 'Belum ada barang.'}</div>`;
   document.querySelectorAll('[data-edit-product]').forEach(button => button.addEventListener('click', () => editProduct(Number(button.dataset.editProduct))));
   document.querySelectorAll('[data-delete-product]').forEach(button => button.addEventListener('click', () => deactivateProduct(Number(button.dataset.deleteProduct))));
 }

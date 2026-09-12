@@ -168,7 +168,7 @@ Skema tabel lengkap beserta trigger-nya: `agent-bus/schema.sql`.
 | `territory` | satu kata huruf kecil, konsisten dengan yang sudah dipakai |
 | `protocol_version` | selalu `MAXI_AGENT_TASK_BOARD_V1` |
 | `kind` | harus cocok `agent_roles` family itu (karen: `DOCS`/`FEATURE`/`MIGRATION`) |
-| `project` | `leker` \| `ikan` \| `workboard` — ambil dari konteks, jangan menebak |
+| `project` | `leker` \| `ikan` \| `workboard` \| `nikah` — ambil dari konteks, jangan menebak (cek `SELECT code FROM projects;` kalau ragu) |
 | `mutates_production`, `self_closing` | 0/1; CHECK constraint: `mutates_production=1` mewajibkan `self_closing=0` |
 | `forbidden` | wajib eksplisit dan spesifik |
 
@@ -211,7 +211,7 @@ Skema tabel lengkap beserta trigger-nya: `agent-bus/schema.sql`.
 
 - [ ] Sudah fresh-query; tidak me-recycle task yang ternyata sudah diklaim atau `DONE`
 - [ ] `kind` cocok dengan `agent_roles` family tujuan
-- [ ] `project` benar (`leker`/`ikan`/`workboard`), bukan tebakan
+- [ ] `project` benar (`leker`/`ikan`/`workboard`/`nikah`), bukan tebakan
 - [ ] `mutates_production` / `self_closing` konsisten dengan CHECK constraint dan dengan
       kenyataan (menyentuh data produksi = 1)
 - [ ] `forbidden` spesifik: nama file/fungsi/trigger, bukan peringatan umum

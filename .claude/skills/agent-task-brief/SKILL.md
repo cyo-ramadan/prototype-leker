@@ -101,6 +101,19 @@ bilang "lanjut" sebelum menyentuh data sungguhan. Database menolak kombinasi lai
 constraint. Jangan pernah menurunkan `mutates_production` jadi 0 supaya agent bisa jalan tanpa
 menunggu — itu menghapus satu-satunya gerbang review yang ada.
 
+**h2. Task yang menghasilkan aset hidup wajib memaksa pendaftaran aset itu.**
+Aset hidup = apa pun yang jadi bisa dilihat/dipakai orang luar: website yang online, akun
+layanan, profil bisnis, nomor kontak publik, halaman media sosial. Kalau task bisa berujung ke
+salah satunya, tulis di `acceptance_criteria`: "daftarkan aset ini beserta alamatnya di
+inventaris aset repo pada hari yang sama, jangan nanti". Dan tulis di `forbidden`: "dilarang
+membuat aset publik baru yang membawa nama bisnis Bos Cyo tanpa memberi tahu Bos Cyo dulu".
+
+Alasannya kejadian nyata 2026-09-12: sebuah website TemanNikah sudah online entah sejak kapan,
+dibuat agen, tidak tercatat di repo/papan/dokumen mana pun. Hana menyusun seluruh strategi
+konten seolah belum ada apa-apa, dan baru tahu saat Bos Cyo menyebutnya sambil lalu. Aset yang
+tidak terdaftar bukan cuma hilang dari catatan — dia bisa jadi konten kembar yang melemahkan
+situs utama, dan isinya tidak pernah diperiksa apakah mengandung harga atau testimoni karangan.
+
 **h. Ragu apakah task menyentuh data produksi/uang sungguhan? Anggap YA.**
 Kelebihan hati-hati harganya satu ronde tanya; kekurangan hati-hati harganya data keuangan.
 
@@ -220,5 +233,8 @@ Skema tabel lengkap beserta trigger-nya: `agent-bus/schema.sql`.
       gagal bila perubahan dicabut
 - [ ] `task_paths` minimal satu baris, tiap prefix < 50 karakter, sesempit kerjaan aslinya
 - [ ] Kalau butuh kredensial aplikasi — ditulis "minta ke Bos Cyo terpisah", bukan ditulis nilainya
+- [ ] Kalau task bisa menghasilkan aset hidup (website online, akun, profil publik):
+      `acceptance_criteria` memaksa pendaftaran ke inventaris aset, dan `forbidden` melarang
+      bikin aset publik bernama bisnis tanpa izin Bos Cyo
 - [ ] Kalau pengerjanya mungkin GitHub-only — sekalian di-mirror ke Issue relay
 - [ ] Baris yang ditulis sudah diverifikasi ulang lewat SELECT, bukan diasumsikan masuk

@@ -137,27 +137,21 @@ test('0085 creates proper Dermo Leker parent-child categories and remaps all 73 
       'legacy exact-price buckets must be inactive after regrouping',
     );
 
-    assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), []);
-  } finally {
-    sqlite.close();
-  }
-});
-
-test('category hierarchy rejects a parent from another store', () => {
-  const sqlite = freshDatabase();
-  try {
-    const dermoParent = sqlite.prepare(`
-      SELECT id FROM categories WHERE store_id = 'store_dermo' AND name = 'Leker'
-    `).get();
-    assert.ok(dermoParent);
-
-    assert.throws(
-      () => sqlite.prepare(`
-        INSERT INTO categories (store_id, name, parent_category_id)
-        VALUES ('store_001', 'Cross Store Child Test', ?)
-      `).run(dermoParent.id),
-      /category parent must belong to same store/i,
+    assert.equal(
+      sqlite.prepare(`
+        SELECT COUNT(*) AS total
+        FROM categories
+        WHERE parent_category_id IS NOT NULL
+          AND NOT (
+            store_id = 'store_dermo'
+            AND name IN ('2K', '3K', '4K', '5K', 'Special')
+          )
+      `).get().total,
+      0,
+      '0085 must not attach unrelated flat categories to a parent',
     );
+
+    assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     sqlite.close();
   }

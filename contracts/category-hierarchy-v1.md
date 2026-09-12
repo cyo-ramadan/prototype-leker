@@ -9,10 +9,9 @@ Category hierarchy is store-scoped master-data metadata used to organize product
 ## Data contract
 
 - `categories.parent_category_id` is nullable.
-- `NULL` means the category is a top-level category.
-- A non-null parent must reference a category belonging to the same `store_id`.
-- A category must not reference itself as parent.
-- Existing flat categories remain valid and require no migration to a parent.
+- `NULL` means the category is top-level.
+- Existing flat categories remain valid and require no parent.
+- V1 does not expose arbitrary parent-category CRUD. Hierarchy records are created by controlled migrations, which must keep parent and child in the same store and must not create self-parent relationships.
 - `products.category` remains the existing category-name field for backward compatibility. A product assigned to a child category stores the child category name there.
 
 ## Dermo Leker configuration
@@ -33,4 +32,4 @@ This classification applies only to the 73 Dermo Leker products provisioned by m
 
 Consumers that only understand flat categories may continue reading `products.category`. Consumers that understand hierarchy may resolve that category row and follow `parent_category_id` to its top-level category.
 
-DOC-IMPACT: REQUIRED — canonical contract for the new category parent-child capability introduced by migration 0085.
+DOC-IMPACT: REQUIRED — canonical contract for the category parent-child metadata introduced by migration 0085.

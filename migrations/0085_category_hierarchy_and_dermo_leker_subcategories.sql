@@ -1,84 +1,24 @@
 PRAGMA foreign_keys = ON;
 
--- BOS_CYO 2026-09-12: add one-level category hierarchy and regroup Dermo Leker
--- into customer-facing subcategories under parent category "Leker".
--- Mapping decision:
+-- BOS_CYO 2026-09-12: regroup the Dermo Leker catalog into a one-level
+-- customer-facing hierarchy under parent category "Leker".
+--
+-- Mapping:
 --   Rp1.500 + Rp2.000 -> 2K
 --   Rp3.000           -> 3K
 --   Rp4.000           -> 4K
 --   Rp5.000           -> 5K
 --   Above Rp5.000     -> Special
 --
--- Existing flat categories remain valid with parent_category_id = NULL.
--- The parent column stays nullable and unconstrained at ALTER time for D1-safe
--- additive migration; triggers below enforce same-store parent integrity and
--- prevent referenced parents from being deleted or moved.
--- No stock, costing, journal, sale, purchase, or recipe facts are changed.
--- DOC-IMPACT: REQUIRED — categories gain explicit parent-child hierarchy metadata.
+-- parent_category_id is nullable so every existing flat category remains valid.
+-- V1 hierarchy writes are migration-owned; no general parent-category CRUD is
+-- introduced here. No stock, costing, journal, sale, purchase, or recipe facts
+-- are changed.
+-- DOC-IMPACT: REQUIRED — categories gain parent-child hierarchy metadata.
 
-ALTER TABLE categories
-  ADD COLUMN parent_category_id INTEGER;
-
-CREATE INDEX IF NOT EXISTS idx_categories_store_parent_active_order
-  ON categories(store_id, parent_category_id, is_active, display_order, id);
-
-CREATE TRIGGER IF NOT EXISTS trg_categories_parent_scope_insert
-BEFORE INSERT ON categories
-WHEN NEW.parent_category_id IS NOT NULL
-BEGIN
-  SELECT CASE
-    WHEN NEW.id IS NOT NULL AND NEW.parent_category_id = NEW.id
-      THEN RAISE(ABORT, 'category cannot parent itself')
-    WHEN NOT EXISTS (
-      SELECT 1
-      FROM categories parent
-      WHERE parent.id = NEW.parent_category_id
-        AND parent.store_id = NEW.store_id
-    )
-      THEN RAISE(ABORT, 'category parent must belong to same store')
-  END;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_categories_parent_scope_update
-BEFORE UPDATE OF parent_category_id, store_id ON categories
-WHEN NEW.parent_category_id IS NOT NULL
-BEGIN
-  SELECT CASE
-    WHEN NEW.parent_category_id = NEW.id
-      THEN RAISE(ABORT, 'category cannot parent itself')
-    WHEN NOT EXISTS (
-      SELECT 1
-      FROM categories parent
-      WHERE parent.id = NEW.parent_category_id
-        AND parent.store_id = NEW.store_id
-    )
-      THEN RAISE(ABORT, 'category parent must belong to same store')
-  END;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_categories_parent_delete_guard
-BEFORE DELETE ON categories
-WHEN EXISTS (
-  SELECT 1
-  FROM categories child
-  WHERE child.parent_category_id = OLD.id
-)
-BEGIN
-  SELECT RAISE(ABORT, 'category parent still has children');
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_categories_parent_identity_guard
-BEFORE UPDATE OF id, store_id ON categories
-WHEN (NEW.id <> OLD.id OR NEW.store_id <> OLD.store_id)
-  AND EXISTS (
-    SELECT 1
-    FROM categories child
-    WHERE child.parent_category_id = OLD.id
-  )
-BEGIN
-  SELECT RAISE(ABORT, 'category parent with children cannot change identity or store');
-END;
-
+-- Fail closed if the Dermo catalog no longer matches the source set this
+-- migration was designed for. Stores without Dermo remain valid in synthetic
+-- reconstruction tests.
 CREATE TABLE dermo_leker_subcategory_guard_0085 (
   ok INTEGER NOT NULL CHECK (ok = 1)
 );
@@ -136,6 +76,12 @@ END;
 
 DROP TABLE dermo_leker_subcategory_guard_0085;
 
+ALTER TABLE categories ADD COLUMN parent_category_id INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_categories_store_parent_active_order
+  ON categories(store_id, parent_category_id, is_active, display_order, id);
+
+-- Parent category.
 INSERT OR IGNORE INTO categories (
   store_id, name, display_order, is_active, parent_category_id
 )
@@ -144,26 +90,41 @@ WHERE EXISTS (SELECT 1 FROM stores WHERE id = 'store_dermo');
 
 UPDATE categories
 SET parent_category_id = NULL,
+    display_order = 0,
     is_active = 1,
     updated_at = CURRENT_TIMESTAMP
 WHERE store_id = 'store_dermo'
   AND name = 'Leker';
 
-INSERT OR IGNORE INTO categories (
-  store_id, name, display_order, is_active, parent_category_id
-)
-SELECT 'store_dermo', child.name, child.display_order, 1, parent.id
-FROM categories parent
-JOIN (
-  SELECT '2K' AS name, 1 AS display_order
-  UNION ALL SELECT '3K', 2
-  UNION ALL SELECT '4K', 3
-  UNION ALL SELECT '5K', 4
-  UNION ALL SELECT 'Special', 5
-) child
-WHERE parent.store_id = 'store_dermo'
-  AND parent.name = 'Leker';
+-- Child categories. Individual INSERTs keep the D1 migration grammar simple
+-- and make the intended order explicit.
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '2K', 1, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
 
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '3K', 2, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '4K', 3, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '5K', 4, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', 'Special', 5, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+-- If one of the child names already existed as an empty category, normalize it
+-- to the requested hierarchy.
 UPDATE categories
 SET parent_category_id = (
       SELECT parent.id
@@ -184,6 +145,7 @@ SET parent_category_id = (
 WHERE store_id = 'store_dermo'
   AND name IN ('2K', '3K', '4K', '5K', 'Special');
 
+-- Remap only the 73 Leker products provisioned by 0083.
 UPDATE products
 SET category = CASE
       WHEN price IN (1500000000, 2000000000) THEN '2K'
@@ -203,6 +165,7 @@ WHERE store_id = 'store_dermo'
       AND r.created_by_id = 'migration_0083'
   );
 
+-- Retire exact-price buckets from 0084 after their products move away.
 UPDATE categories
 SET is_active = 0,
     updated_at = CURRENT_TIMESTAMP
@@ -219,6 +182,7 @@ WHERE store_id = 'store_dermo'
       AND p.category = categories.name
   );
 
+-- Verify exact hierarchy and classification before D1 records this migration.
 CREATE TABLE dermo_leker_subcategory_verify_0085 (
   ok INTEGER NOT NULL CHECK (ok = 1)
 );

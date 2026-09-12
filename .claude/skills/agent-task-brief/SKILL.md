@@ -101,6 +101,23 @@ bilang "lanjut" sebelum menyentuh data sungguhan. Database menolak kombinasi lai
 constraint. Jangan pernah menurunkan `mutates_production` jadi 0 supaya agent bisa jalan tanpa
 menunggu — itu menghapus satu-satunya gerbang review yang ada.
 
+**h3. Task yang menghasilkan gambar: Bos Cyo melihat dulu, baru masuk storage.**
+Aturan Bos Cyo 2026-09-12: kalau sebuah task menghasilkan foto/gambar (generate, kumpulkan,
+edit), hasilnya **dilarang langsung diunggah ke storage produksi**. Alurnya: agen menaruh
+hasilnya di tempat sementara yang gampang dilihat (mis. Canva, folder draft, atau tautan
+preview) → Bos Cyo melihat dan memilih → **baru yang dipilih** disimpan ke storage dengan
+nama sesuai konvensi repo-nya.
+
+Tulis dua hal ini di brief kalau task menyentuh gambar:
+- `acceptance_criteria`: "hasil disajikan sebagai tautan preview untuk dipilih Bos Cyo; tidak
+  ada satu pun berkas yang diunggah ke storage sebelum Bos Cyo memilih"
+- `forbidden`: "dilarang mengunggah hasil generate/percobaan langsung ke storage produksi"
+
+Alasannya bukan sekadar rapi: jatah storage gratis itu terbatas, dan begitu tercampur
+percobaan, tidak ada lagi cara membedakan mana gambar yang benar-benar dipakai website dan
+mana sampah percobaan. Membersihkannya belakangan jauh lebih mahal daripada menahannya di
+depan.
+
 **h2. Task yang menghasilkan aset hidup wajib memaksa pendaftaran aset itu.**
 Aset hidup = apa pun yang jadi bisa dilihat/dipakai orang luar: website yang online, akun
 layanan, profil bisnis, nomor kontak publik, halaman media sosial. Kalau task bisa berujung ke
@@ -177,7 +194,7 @@ Skema tabel lengkap beserta trigger-nya: `agent-bus/schema.sql`.
 |---|---|
 | `task_id` | PK, konvensi `<family>-<AREA>-<DESKRIPSI>` huruf besar (`<family><slot>-SELF-<timestamp>` untuk task yang agent buat sendiri) |
 | `assigned_to` | family agent tujuan |
-| `issued_by` | `HANA` kalau Hana yang menulis; `BOS_CYO` kalau baris self-issued oleh agent |
+| `issued_by` | **Identitas sesi penulisnya, bukan cuma nama keluarga.** Tulis `hana1.3`, `karen2.1`, dst — bukan `HANA`/`KAREN` polos. Bos Cyo memakai ini untuk melacak "task bermasalah ini dulu ditulis siapa, di sesi mana"; nama keluarga saja tidak cukup karena satu keluarga punya banyak sesi. `BOS_CYO` kalau baris self-issued atas instruksi langsung Bos Cyo. |
 | `territory` | satu kata huruf kecil, konsisten dengan yang sudah dipakai |
 | `protocol_version` | selalu `MAXI_AGENT_TASK_BOARD_V1` |
 | `kind` | harus cocok `agent_roles` family itu (karen: `DOCS`/`FEATURE`/`MIGRATION`) |
@@ -225,6 +242,9 @@ Skema tabel lengkap beserta trigger-nya: `agent-bus/schema.sql`.
 - [ ] Sudah fresh-query; tidak me-recycle task yang ternyata sudah diklaim atau `DONE`
 - [ ] `kind` cocok dengan `agent_roles` family tujuan
 - [ ] `project` benar (`leker`/`ikan`/`workboard`/`nikah`), bukan tebakan
+- [ ] `issued_by` berisi identitas sesi (`hana1.3`, `karen2.1`), bukan nama keluarga polos
+- [ ] Kalau task menghasilkan gambar: brief mewajibkan preview dulu dan melarang
+      unggah langsung ke storage produksi
 - [ ] `mutates_production` / `self_closing` konsisten dengan CHECK constraint dan dengan
       kenyataan (menyentuh data produksi = 1)
 - [ ] `forbidden` spesifik: nama file/fungsi/trigger, bukan peringatan umum

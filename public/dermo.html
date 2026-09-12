@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Menu Dermo | MAXI Leker</title>
+  <meta http-equiv="refresh" content="0;url=/s/DERMO/customer?storeLock=DERMO&amp;source=qr-dermo" />
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2b2118;background:#fff8ed}
+    body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;box-sizing:border-box}
+    main{max-width:420px;text-align:center}
+    h1{margin:0 0 8px;font-size:28px}
+    p{margin:0 0 18px;color:#6b5b4d}
+    a{display:inline-block;padding:12px 18px;border-radius:999px;background:#7c2d12;color:#fff;text-decoration:none;font-weight:800}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>MAXI Leker Dermo</h1>
+    <p>Membuka menu khusus Dermo…</p>
+    <a href="/s/DERMO/customer?storeLock=DERMO&amp;source=qr-dermo">Buka menu Dermo</a>
+  </main>
+  <script>
+    (() => {
+      const destination = '/s/DERMO/customer?storeLock=DERMO&source=qr-dermo';
+      try { localStorage.setItem('lekerCustomerStoreCode', 'DERMO'); } catch {}
+      location.replace(destination);
+    })();
+  </script>
+</body>
+</html>

@@ -85,7 +85,7 @@ function assertPriceCategories(sqlite) {
       SELECT name
       FROM categories
       WHERE store_id = 'store_dermo'
-        AND name LIKE 'leker%'
+        AND name GLOB 'leker[0-9]*'
         AND is_active = 1
       ORDER BY CAST(SUBSTR(name, 6) AS INTEGER)
     `).all().map(row => row.name),

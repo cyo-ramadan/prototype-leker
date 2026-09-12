@@ -46,7 +46,7 @@ function productWithBaseUnit(db, excludeId) {
   `).get(excludeId ?? null, excludeId ?? null);
 }
 
-function seedProductionFixture(db, { drawerId, status = 'POSTED' }) {
+function seedProductionFixture(db, { drawerId, status = 'POSTED', mode = 'MANUAL' }) {
   const cashier = db.prepare("SELECT id FROM cashiers WHERE store_id = 'store_001' AND is_active = 1 ORDER BY id LIMIT 1").get();
   const outputProduct = productWithBaseUnit(db, null);
   const componentProduct = productWithBaseUnit(db, outputProduct.id);
@@ -70,8 +70,8 @@ function seedProductionFixture(db, { drawerId, status = 'POSTED' }) {
       id, store_id, drawer_session_id, mode, output_product_id, output_product_name,
       output_unit_id, output_unit_symbol, recipe_id, recipe_revision, batches,
       output_quantity_per_batch, total_output_quantity, status, created_by_role, created_by_id, created_at
-    ) VALUES (?, 'store_001', ?, 'MANUAL', ?, ?, ?, ?, ?, 1, 1, 5, 5, ?, 'CASHIER', ?, '2026-09-03T06:00:00.000Z')
-  `).run(runId, drawerId, outputProduct.id, outputProduct.name, outputProduct.unit_id, outputProduct.unit_symbol, recipeId, status, cashier.id);
+    ) VALUES (?, 'store_001', ?, ?, ?, ?, ?, ?, ?, 1, 1, 5, 5, ?, 'CASHIER', ?, '2026-09-03T06:00:00.000Z')
+  `).run(runId, drawerId, mode, outputProduct.id, outputProduct.name, outputProduct.unit_id, outputProduct.unit_symbol, recipeId, status, cashier.id);
 
   db.prepare(`
     INSERT INTO production_run_components (
@@ -124,6 +124,28 @@ test('drawer report excludes production runs from other drawer sessions and canc
     const report = await buildDrawerReport(new D1Database(db), 'store_001', 'drawer_masak_target');
     assert.ok(report);
     assert.equal(report.sections.cooking.length, 0, 'neither a different drawer session nor a CANCELLED run should appear');
+  } finally {
+    db.close();
+  }
+});
+
+test('drawer report keeps AUTO_DADAKAN sale fulfillment out of the MASAK section (Workboard isu_88f27ccf)', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = db.prepare("SELECT id FROM cashiers WHERE store_id = 'store_001' AND is_active = 1 ORDER BY id LIMIT 1").get();
+    db.prepare(`
+      INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, opening_amount, status, opened_at)
+      VALUES ('drawer_masak_dadakan', 'store_001', ?, 100000, 'OPEN', '2026-09-08T00:00:00.000Z')
+    `).run(cashier.id);
+
+    // Selling a recipe-linked drink (e.g. es teh) defaults to Dadakan fulfillment
+    // (stock-production.js resolveLineFulfillmentMode) -- that auto production
+    // run must not be reported as if it were a separate MASAK/brewing batch.
+    seedProductionFixture(db, { drawerId: 'drawer_masak_dadakan', mode: 'AUTO_DADAKAN' });
+
+    const report = await buildDrawerReport(new D1Database(db), 'store_001', 'drawer_masak_dadakan');
+    assert.ok(report);
+    assert.equal(report.sections.cooking.length, 0, 'an AUTO_DADAKAN run (sale fulfilling itself) must not appear as MASAK');
   } finally {
     db.close();
   }

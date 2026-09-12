@@ -1,0 +1,36 @@
+name: TEMP D1 0085 Diagnostic
+
+on:
+  push:
+    branches: [feat/dermo-leker-subcategories]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Inspect remote migration and category state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== pending migrations ==='
+          npx --yes wrangler d1 migrations list DB --remote
+          echo '=== categories columns ==='
+          npx --yes wrangler d1 execute DB --remote --yes --command "PRAGMA table_info(categories);"
+          echo '=== latest migration ledger ==='
+          npx --yes wrangler d1 execute DB --remote --yes --command "SELECT id, name, applied_at FROM d1_migrations ORDER BY id DESC LIMIT 8;"
+          echo '=== dermo category distribution ==='
+          npx --yes wrangler d1 execute DB --remote --yes --command "SELECT category, COUNT(*) AS total FROM products WHERE store_id = 'store_dermo' GROUP BY category ORDER BY category;"

@@ -7,6 +7,7 @@ const migrationDir = new URL('../migrations/', import.meta.url);
 const EDITION_MIGRATION = '0045_stores_edition.sql';
 const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   '0081_kpm_stores_from_pendem_template.sql',
+  '0083_dermo_leker_catalog_and_recipes.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)
@@ -38,6 +39,7 @@ const KANTOR_PENDEM_MANDALA_STORE_IDS = /\bstore_kantor\b|\bstore_pendem\b|\bsto
 // real, correctly-ordered migration chain does not have.
 const REVERTS_EDITION_DEPENDENT_MIGRATION = /\b0070_drawer_opening_discrepancy_accounting\b/;
 const dependsOnEdition = file => file === EDITION_MIGRATION
+  || DATA_ONLY_STORE_ONBOARDING_MIGRATIONS.has(file)
   || /\bedition\b/.test(readMigration(file))
   || KANTOR_PENDEM_MANDALA_STORE_IDS.test(readMigration(file))
   || REVERTS_EDITION_DEPENDENT_MIGRATION.test(readMigration(file));

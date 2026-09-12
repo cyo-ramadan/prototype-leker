@@ -87,12 +87,16 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       WHERE store_id = ? AND drawer_session_id = ?
       ORDER BY posted_at
     `).bind(storeId, drawerId).all(),
+    // mode='MANUAL' only: AUTO_DADAKAN runs are a sale fulfilling itself
+    // on-the-fly (stock-production.js resolveLineFulfillmentMode), not the
+    // batch "MASAK" work this section reports on -- selling a recipe-linked
+    // drink must not make it look like it was brewed separately.
     db.prepare(`
       SELECT pr.output_product_name, pr.total_output_quantity, pr.output_unit_symbol,
              c.component_product_name, c.total_quantity AS component_quantity, c.component_unit_symbol
       FROM production_runs pr
       JOIN production_run_components c ON c.production_run_id = pr.id AND c.store_id = pr.store_id
-      WHERE pr.store_id = ? AND pr.drawer_session_id = ? AND pr.status = 'POSTED'
+      WHERE pr.store_id = ? AND pr.drawer_session_id = ? AND pr.status = 'POSTED' AND pr.mode = 'MANUAL'
       ORDER BY pr.created_at, c.component_product_name COLLATE NOCASE
     `).bind(storeId, drawerId).all(),
     db.prepare(`

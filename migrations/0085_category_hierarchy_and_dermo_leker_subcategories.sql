@@ -10,11 +10,14 @@ PRAGMA foreign_keys = ON;
 --   Above Rp5.000     -> Special
 --
 -- Existing flat categories remain valid with parent_category_id = NULL.
+-- The parent column stays nullable and unconstrained at ALTER time for D1-safe
+-- additive migration; triggers below enforce same-store parent integrity and
+-- prevent referenced parents from being deleted or moved.
 -- No stock, costing, journal, sale, purchase, or recipe facts are changed.
 -- DOC-IMPACT: REQUIRED — categories gain explicit parent-child hierarchy metadata.
 
 ALTER TABLE categories
-  ADD COLUMN parent_category_id INTEGER REFERENCES categories(id);
+  ADD COLUMN parent_category_id INTEGER;
 
 CREATE INDEX IF NOT EXISTS idx_categories_store_parent_active_order
   ON categories(store_id, parent_category_id, is_active, display_order, id);
@@ -51,6 +54,29 @@ BEGIN
     )
       THEN RAISE(ABORT, 'category parent must belong to same store')
   END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_categories_parent_delete_guard
+BEFORE DELETE ON categories
+WHEN EXISTS (
+  SELECT 1
+  FROM categories child
+  WHERE child.parent_category_id = OLD.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'category parent still has children');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_categories_parent_identity_guard
+BEFORE UPDATE OF id, store_id ON categories
+WHEN (NEW.id <> OLD.id OR NEW.store_id <> OLD.store_id)
+  AND EXISTS (
+    SELECT 1
+    FROM categories child
+    WHERE child.parent_category_id = OLD.id
+  )
+BEGIN
+  SELECT RAISE(ABORT, 'category parent with children cannot change identity or store');
 END;
 
 CREATE TABLE dermo_leker_subcategory_guard_0085 (

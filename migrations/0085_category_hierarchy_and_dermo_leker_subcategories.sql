@@ -1,0 +1,234 @@
+PRAGMA foreign_keys = ON;
+
+-- BOS_CYO 2026-09-12: regroup the Dermo Leker catalog into a one-level
+-- customer-facing hierarchy under parent category "Leker".
+--
+-- Mapping:
+--   Rp1.500 + Rp2.000 -> 2K
+--   Rp3.000           -> 3K
+--   Rp4.000           -> 4K
+--   Rp5.000           -> 5K
+--   Above Rp5.000     -> Special
+--
+-- parent_category_id is nullable so every existing flat category remains valid.
+-- V1 hierarchy writes are migration-owned; no general parent-category CRUD is
+-- introduced here. No stock, costing, journal, sale, purchase, or recipe facts
+-- are changed.
+-- DOC-IMPACT: REQUIRED — categories gain parent-child hierarchy metadata.
+
+-- Fail closed if the Dermo catalog no longer matches the source set this
+-- migration was designed for. Stores without Dermo remain valid in synthetic
+-- reconstruction tests.
+CREATE TABLE dermo_leker_subcategory_guard_0085 (
+  ok INTEGER NOT NULL CHECK (ok = 1)
+);
+
+INSERT INTO dermo_leker_subcategory_guard_0085 (ok)
+SELECT CASE
+  WHEN NOT EXISTS (SELECT 1 FROM stores WHERE id = 'store_dermo') THEN 1
+  WHEN (
+    SELECT COUNT(*)
+    FROM products p
+    WHERE p.store_id = 'store_dermo'
+      AND EXISTS (
+        SELECT 1
+        FROM manufacturing_recipes r
+        WHERE r.store_id = p.store_id
+          AND r.output_product_id = p.id
+          AND r.id LIKE 'dermo_leker_recipe_%'
+          AND r.created_by_id = 'migration_0083'
+      )
+  ) <> 73 THEN 0
+  WHEN EXISTS (
+    SELECT 1
+    FROM products p
+    WHERE p.store_id = 'store_dermo'
+      AND EXISTS (
+        SELECT 1
+        FROM manufacturing_recipes r
+        WHERE r.store_id = p.store_id
+          AND r.output_product_id = p.id
+          AND r.id LIKE 'dermo_leker_recipe_%'
+          AND r.created_by_id = 'migration_0083'
+      )
+      AND p.price NOT IN (
+        1500000000, 2000000000, 3000000000, 4000000000, 5000000000,
+        8000000000, 10000000000, 15000000000, 20000000000,
+        25000000000, 40000000000
+      )
+  ) THEN 0
+  WHEN EXISTS (
+    SELECT 1
+    FROM products p
+    WHERE p.store_id = 'store_dermo'
+      AND p.category IN ('2K', '3K', '4K', '5K', 'Special')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM manufacturing_recipes r
+        WHERE r.store_id = p.store_id
+          AND r.output_product_id = p.id
+          AND r.id LIKE 'dermo_leker_recipe_%'
+          AND r.created_by_id = 'migration_0083'
+      )
+  ) THEN 0
+  ELSE 1
+END;
+
+DROP TABLE dermo_leker_subcategory_guard_0085;
+
+ALTER TABLE categories ADD COLUMN parent_category_id INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_categories_store_parent_active_order
+  ON categories(store_id, parent_category_id, is_active, display_order, id);
+
+-- Parent category.
+INSERT OR IGNORE INTO categories (
+  store_id, name, display_order, is_active, parent_category_id
+)
+SELECT 'store_dermo', 'Leker', 0, 1, NULL
+WHERE EXISTS (SELECT 1 FROM stores WHERE id = 'store_dermo');
+
+UPDATE categories
+SET parent_category_id = NULL,
+    display_order = 0,
+    is_active = 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE store_id = 'store_dermo'
+  AND name = 'Leker';
+
+-- Child categories. Individual INSERTs keep the D1 migration grammar simple
+-- and make the intended order explicit.
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '2K', 1, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '3K', 2, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '4K', 3, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', '5K', 4, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+INSERT OR IGNORE INTO categories (store_id, name, display_order, is_active, parent_category_id)
+SELECT 'store_dermo', 'Special', 5, 1, id
+FROM categories
+WHERE store_id = 'store_dermo' AND name = 'Leker';
+
+-- If one of the child names already existed as an empty category, normalize it
+-- to the requested hierarchy.
+UPDATE categories
+SET parent_category_id = (
+      SELECT parent.id
+      FROM categories parent
+      WHERE parent.store_id = 'store_dermo'
+        AND parent.name = 'Leker'
+    ),
+    display_order = CASE name
+      WHEN '2K' THEN 1
+      WHEN '3K' THEN 2
+      WHEN '4K' THEN 3
+      WHEN '5K' THEN 4
+      WHEN 'Special' THEN 5
+      ELSE display_order
+    END,
+    is_active = 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE store_id = 'store_dermo'
+  AND name IN ('2K', '3K', '4K', '5K', 'Special');
+
+-- Remap only the 73 Leker products provisioned by 0083.
+UPDATE products
+SET category = CASE
+      WHEN price IN (1500000000, 2000000000) THEN '2K'
+      WHEN price = 3000000000 THEN '3K'
+      WHEN price = 4000000000 THEN '4K'
+      WHEN price = 5000000000 THEN '5K'
+      ELSE 'Special'
+    END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE store_id = 'store_dermo'
+  AND EXISTS (
+    SELECT 1
+    FROM manufacturing_recipes r
+    WHERE r.store_id = products.store_id
+      AND r.output_product_id = products.id
+      AND r.id LIKE 'dermo_leker_recipe_%'
+      AND r.created_by_id = 'migration_0083'
+  );
+
+-- Retire exact-price buckets from 0084 after their products move away.
+UPDATE categories
+SET is_active = 0,
+    updated_at = CURRENT_TIMESTAMP
+WHERE store_id = 'store_dermo'
+  AND name IN (
+    'leker1500', 'leker2000', 'leker3000', 'leker4000', 'leker5000',
+    'leker8000', 'leker10000', 'leker15000', 'leker20000',
+    'leker25000', 'leker40000'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM products p
+    WHERE p.store_id = categories.store_id
+      AND p.category = categories.name
+  );
+
+-- Verify exact hierarchy and classification before D1 records this migration.
+CREATE TABLE dermo_leker_subcategory_verify_0085 (
+  ok INTEGER NOT NULL CHECK (ok = 1)
+);
+
+INSERT INTO dermo_leker_subcategory_verify_0085 (ok)
+SELECT CASE
+  WHEN NOT EXISTS (SELECT 1 FROM stores WHERE id = 'store_dermo') THEN 1
+  WHEN NOT EXISTS (
+    SELECT 1
+    FROM categories parent
+    WHERE parent.store_id = 'store_dermo'
+      AND parent.name = 'Leker'
+      AND parent.parent_category_id IS NULL
+      AND parent.is_active = 1
+  ) THEN 0
+  WHEN (
+    SELECT COUNT(*)
+    FROM categories child
+    JOIN categories parent ON parent.id = child.parent_category_id
+    WHERE child.store_id = 'store_dermo'
+      AND parent.store_id = child.store_id
+      AND parent.name = 'Leker'
+      AND child.name IN ('2K', '3K', '4K', '5K', 'Special')
+      AND child.is_active = 1
+  ) <> 5 THEN 0
+  WHEN (
+    SELECT COUNT(*)
+    FROM products p
+    WHERE p.store_id = 'store_dermo'
+      AND EXISTS (
+        SELECT 1
+        FROM manufacturing_recipes r
+        WHERE r.store_id = p.store_id
+          AND r.output_product_id = p.id
+          AND r.id LIKE 'dermo_leker_recipe_%'
+          AND r.created_by_id = 'migration_0083'
+      )
+      AND (
+        (p.price IN (1500000000, 2000000000) AND p.category <> '2K')
+        OR (p.price = 3000000000 AND p.category <> '3K')
+        OR (p.price = 4000000000 AND p.category <> '4K')
+        OR (p.price = 5000000000 AND p.category <> '5K')
+        OR (p.price > 5000000000 AND p.category <> 'Special')
+      )
+  ) <> 0 THEN 0
+  ELSE 1
+END;
+
+DROP TABLE dermo_leker_subcategory_verify_0085;

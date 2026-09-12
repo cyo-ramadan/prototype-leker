@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://leker-pentol-wedding-malang.cyoramadan.chatgpt.site/sitemap.xml

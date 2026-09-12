@@ -4,10 +4,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
-const migration0084 = new URL('../migrations/0084_dermo_leker_price_categories.sql', import.meta.url);
+const migration0084Name = '0084_dermo_leker_price_categories.sql';
+const migration0084 = new URL(`../migrations/${migration0084Name}`, import.meta.url);
 
+// This test proves migration 0084's historical state. Later migrations may
+// intentionally evolve those categories, so replay only through 0084 here.
 const migrationFiles = readdirSync(migrationDir)
-  .filter(name => /^\d{4}_.+\.sql$/.test(name))
+  .filter(name => /^\d{4}_.+\.sql$/.test(name) && name <= migration0084Name)
   .sort();
 
 const expectedDistribution = [
@@ -57,7 +60,7 @@ function assertPriceCategories(sqlite) {
 
   for (const row of rows) {
     const rupiah = row.price / 1000000;
-    assert.equal(row.price, row.purchase_price, `${row.name} must preserve equal sale/purchase price`);
+    assert.equal(row.price, row.purchase_price, `${row.name} Harga Jual must equal Harga Beli`);
     assert.equal(row.category, `leker${rupiah}`, `${row.name} category must follow its selling price`);
   }
 
@@ -104,7 +107,7 @@ test('0084 categorizes Dermo Leker products by selling-price bucket', () => {
   }
 });
 
-test('0084 is idempotent when replayed after the full migration chain', () => {
+test('0084 is idempotent when replayed after the migration chain through 0084', () => {
   const sqlite = freshDatabase();
   try {
     sqlite.exec(readFileSync(migration0084, 'utf8'));

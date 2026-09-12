@@ -31,7 +31,10 @@ function databaseThrough(beforeFile = null) {
 }
 
 function freshDatabase() {
-  return databaseThrough();
+  // This suite verifies the 0081 KPM clone contract at its own migration
+  // boundary. Later store-specific onboarding (0083 Dermo Leker) is allowed
+  // to intentionally diverge one target's master data after the clone.
+  return databaseThrough('0083_dermo_leker_catalog_and_recipes.sql');
 }
 
 function count(sqlite, table, storeId) {

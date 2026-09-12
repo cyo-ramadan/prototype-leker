@@ -4,6 +4,13 @@
   const topbar = document.querySelector('.topbar');
   if (!topbar || document.getElementById('customerStoreSelect')) return;
 
+  const current = normalizeStoreCode(window.LEKER_STORE_CODE || 'G001') || 'G001';
+  const requestedLock = normalizeStoreCode(new URLSearchParams(location.search).get('storeLock'));
+  if (requestedLock && requestedLock === current) {
+    document.documentElement.dataset.customerStoreLocked = current;
+    return;
+  }
+
   const style = document.createElement('style');
   style.textContent = `
     .customer-store-picker{display:flex;align-items:center;gap:7px;margin-left:auto;margin-right:8px;padding:6px 8px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:11px;font-weight:900;color:var(--muted)}
@@ -25,7 +32,6 @@
       if (!response.ok) throw new Error('Gagal memuat gerai');
       const stores = await response.json();
       const select = document.getElementById('customerStoreSelect');
-      const current = normalizeStoreCode(window.LEKER_STORE_CODE || 'G001') || 'G001';
       select.innerHTML = stores.map(store => `<option value="${escapeHtml(store.code)}" ${store.code === current ? 'selected' : ''}>${escapeHtml(store.code)} · ${escapeHtml(store.storeName)}</option>`).join('');
       select.addEventListener('change', () => {
         const code = normalizeStoreCode(select.value);

@@ -1,29 +1,30 @@
 (() => {
+  const MASTER_VISUAL_PREFIX = 'LEKER_V1:';
   const baseB64 = typeof window !== 'undefined' ? window.LEKER_ASSET_BASE_B64 : '';
   const spriteB64 = typeof window !== 'undefined' ? window.LEKER_ASSET_SPRITE_B64 : '';
   const BASE_URL = baseB64 ? `data:image/webp;base64,${baseB64}` : '';
   const SPRITE_URL = spriteB64 ? `data:image/webp;base64,${spriteB64}` : '';
   const SPRITES = Object.freeze({
-    "chocolate": Object.freeze({ column: 0, row: 0 }),
-    "milk": Object.freeze({ column: 1, row: 0 }),
-    "cheese": Object.freeze({ column: 2, row: 0 }),
-    "blueberry": Object.freeze({ column: 3, row: 0 }),
-    "strawberry": Object.freeze({ column: 4, row: 0 }),
-    "oreo": Object.freeze({ column: 0, row: 1 }),
-    "chocchips": Object.freeze({ column: 1, row: 1 }),
-    "banana": Object.freeze({ column: 2, row: 1 }),
-    "peanut": Object.freeze({ column: 3, row: 1 }),
-    "sprinkles": Object.freeze({ column: 4, row: 1 }),
-    "marshmallow": Object.freeze({ column: 0, row: 2 }),
-    "cappuccino": Object.freeze({ column: 1, row: 2 }),
-    "matcha": Object.freeze({ column: 2, row: 2 }),
-    "palm_sugar": Object.freeze({ column: 3, row: 2 }),
-    "egg": Object.freeze({ column: 4, row: 2 }),
-    "corned_beef": Object.freeze({ column: 0, row: 3 }),
-    "corn": Object.freeze({ column: 1, row: 3 }),
-    "sausage": Object.freeze({ column: 2, row: 3 }),
-    "blue_band": Object.freeze({ column: 3, row: 3 }),
-    "tiramisu": Object.freeze({ column: 4, row: 3 })
+    chocolate: Object.freeze({ column: 0, row: 0 }),
+    milk: Object.freeze({ column: 1, row: 0 }),
+    cheese: Object.freeze({ column: 2, row: 0 }),
+    blueberry: Object.freeze({ column: 3, row: 0 }),
+    strawberry: Object.freeze({ column: 4, row: 0 }),
+    oreo: Object.freeze({ column: 0, row: 1 }),
+    chocchips: Object.freeze({ column: 1, row: 1 }),
+    banana: Object.freeze({ column: 2, row: 1 }),
+    peanut: Object.freeze({ column: 3, row: 1 }),
+    sprinkles: Object.freeze({ column: 4, row: 1 }),
+    marshmallow: Object.freeze({ column: 0, row: 2 }),
+    cappuccino: Object.freeze({ column: 1, row: 2 }),
+    matcha: Object.freeze({ column: 2, row: 2 }),
+    palm_sugar: Object.freeze({ column: 3, row: 2 }),
+    egg: Object.freeze({ column: 4, row: 2 }),
+    corned_beef: Object.freeze({ column: 0, row: 3 }),
+    corn: Object.freeze({ column: 1, row: 3 }),
+    sausage: Object.freeze({ column: 2, row: 3 }),
+    blue_band: Object.freeze({ column: 3, row: 3 }),
+    tiramisu: Object.freeze({ column: 4, row: 3 })
   });
 
   const normalizeName = value => String(value || '')
@@ -55,8 +56,6 @@
       return toppings;
     }
 
-    // Branded chocolate toppings occupy one visual slot so Dermo's three-part
-    // combinations can still show the other two named ingredients.
     if (/choco\s*crunch/.test(name)) add('chocchips');
     if (/choco\s*maltine|chocomaltine/.test(name)) add('chocolate');
     if (/ovomaltine/.test(name)) add('chocolate');
@@ -101,6 +100,11 @@
     return resolveToppings(name).length > 0;
   }
 
+  function visualNameFromKey(value) {
+    const key = String(value || '').trim();
+    return key.startsWith(MASTER_VISUAL_PREFIX) ? key.slice(MASTER_VISUAL_PREFIX.length).trim() : '';
+  }
+
   function toppingMarkup(key, index) {
     const sprite = SPRITES[key];
     if (!sprite) return '';
@@ -116,6 +120,11 @@
         ${toppings.map(toppingMarkup).join('')}
       </div>
     </div>`;
+  }
+
+  function artMarkupForVisualKey(value, fallbackName = '') {
+    const visualName = visualNameFromKey(value);
+    return artMarkup(visualName || fallbackName);
   }
 
   function installStyles() {
@@ -139,18 +148,46 @@
     document.head.appendChild(style);
   }
 
+  function productForName(value) {
+    if (typeof state === 'undefined' || !Array.isArray(state.menu)) return null;
+    const normalized = normalizeName(value);
+    return state.menu.find(item => normalizeName(item.name) === normalized) || null;
+  }
+
+  function hasExplicitImage(imageNode, product) {
+    if (product?.imageData) return true;
+    if (!imageNode || imageNode.tagName !== 'IMG') return false;
+    const source = String(imageNode.getAttribute('src') || '').trim();
+    return Boolean(source && !source.endsWith('/default-product.svg') && source !== '/default-product.svg');
+  }
+
   function decorateCard(card) {
     if (!card || card.dataset.lekerVisualReady === '1') return;
     const nameNode = card.querySelector('.menu-product-name, h3');
     const imageNode = card.querySelector('.menu-product-image');
-    const markup = artMarkup(nameNode?.textContent || '');
-    if (!markup || !imageNode) return;
+    const productName = nameNode?.textContent || '';
+    const product = productForName(productName);
+    if (!imageNode) return;
+
+    // Product Master image_data is authoritative. The generated visual is only
+    // the built-in fallback represented by image_visual_key.
+    if (hasExplicitImage(imageNode, product)) {
+      card.dataset.lekerVisualReady = '1';
+      card.dataset.lekerVisualSource = 'product-image';
+      return;
+    }
+
+    const markup = product?.imageVisualKey
+      ? artMarkupForVisualKey(product.imageVisualKey, productName)
+      : artMarkup(productName);
+    if (!markup) return;
     const holder = document.createElement('div');
     holder.innerHTML = markup.trim();
     const replacement = holder.firstElementChild;
     if (!replacement) return;
     imageNode.replaceWith(replacement);
     card.dataset.lekerVisualReady = '1';
+    card.dataset.lekerVisualSource = product?.imageVisualKey ? 'master-visual-key' : 'legacy-name-fallback';
   }
 
   function decorateMenu() {
@@ -167,8 +204,26 @@
     observer.observe(grid, { childList: true, subtree: true });
   }
 
-  const api = Object.freeze({ BASE_URL, SPRITE_URL, SPRITES, normalizeName, resolveToppings, recognizes, artMarkup, decorateMenu });
-  if (typeof window !== 'undefined') window.LekerMenuVisuals = api;
+  const api = Object.freeze({
+    MASTER_VISUAL_PREFIX,
+    BASE_URL,
+    SPRITE_URL,
+    SPRITES,
+    normalizeName,
+    resolveToppings,
+    recognizes,
+    visualNameFromKey,
+    artMarkup,
+    artMarkupForVisualKey,
+    decorateMenu
+  });
+
+  if (typeof window !== 'undefined') {
+    window.LekerMenuVisuals = api;
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('leker-menu-visuals-ready'));
+    }
+  }
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', decorateMenu, { once: true });
     else decorateMenu();

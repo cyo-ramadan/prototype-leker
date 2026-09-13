@@ -52,7 +52,20 @@ test('leker visual assets are embedded once and reused as a sprite', () => {
   assert.equal(Object.keys(api.SPRITES).length, 20);
 });
 
-test('customer card decorator reads the actual customer menu h3 title', () => {
+test('canonical Product Master visual key resolves to the same menu artwork recipe', () => {
+  const api = loadApi();
+  assert.equal(api.MASTER_VISUAL_PREFIX, 'LEKER_V1:');
+  assert.equal(api.visualNameFromKey('LEKER_V1:Leker Pisang + Keju'), 'Leker Pisang + Keju');
+  assert.equal(api.visualNameFromKey('OTHER:Leker Pisang'), '');
+  assert.match(api.artMarkupForVisualKey('LEKER_V1:Leker Pisang + Keju'), /leker-menu-generated/);
+  assert.deepEqual(Array.from(api.resolveToppings(api.visualNameFromKey('LEKER_V1:Leker Pisang + Keju'))), ['cheese', 'banana']);
+});
+
+test('customer card decorator keeps an explicit Master image ahead of generated artwork', () => {
   const visualSource = sources.at(-1);
   assert.match(visualSource, /card\.querySelector\('\.menu-product-name, h3'\)/);
+  assert.match(visualSource, /product\?\.imageData/);
+  assert.match(visualSource, /product\?\.imageVisualKey/);
+  assert.match(visualSource, /lekerVisualSource = 'product-image'/);
+  assert.match(visualSource, /lekerVisualSource = product\?\.imageVisualKey \? 'master-visual-key' : 'legacy-name-fallback'/);
 });

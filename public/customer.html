@@ -9,6 +9,15 @@
   <link rel="stylesheet" href="/customer-repeat-order.css" />
   <link rel="stylesheet" href="/customer-login.css" />
   <link rel="stylesheet" href="/auth-entry-split.css" />
+  <style>
+    .game-handle{position:fixed;z-index:65;right:0;top:calc(47% - 82px);transform:translateY(-50%);width:54px;height:60px;border:1px solid #d8c7b2;border-right:0;border-radius:18px 0 0 18px;background:rgba(255,255,255,.96);box-shadow:-8px 10px 24px rgba(64,45,25,.12);color:var(--brand-2);text-decoration:none;display:grid;place-items:center;align-content:center;gap:2px;transition:transform .2s ease,opacity .18s ease,background .18s ease}
+    .game-handle:hover{background:#fff4e8;transform:translate(-2px,-50%)}
+    .game-handle:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
+    .game-handle-icon{font-size:22px;line-height:1}
+    .game-handle-label{font-size:9px;font-weight:1000;letter-spacing:.08em}
+    body.cart-open .game-handle{opacity:0;pointer-events:none;transform:translate(12px,-50%)}
+    @media(max-width:620px){.game-handle{width:48px;height:56px;top:calc(47% - 74px)}}
+  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -28,6 +37,10 @@
     </section>
   </main>
 
+  <a id="gameHandle" class="game-handle" href="/game.html" aria-label="Buka game">
+    <span class="game-handle-icon" aria-hidden="true">🎮</span>
+    <span class="game-handle-label" aria-hidden="true">GAME</span>
+  </a>
   <button id="cartHandle" class="cart-handle" type="button" aria-controls="cartDrawer" aria-expanded="false" aria-label="Buka pesanan">
     <span class="cart-handle-icon" aria-hidden="true">🛒</span>
     <span id="cartHandleCount" class="cart-handle-count">0</span>
@@ -57,11 +70,16 @@
   </section>
 </div>
 <script src="/store-context.js?v=20260828-admin-context-fix-v1"></script>
-<script src="/customer-store-select.js?v=20260907-customer-store-routing-v1"></script>
+<script src="/customer-store-select.js?v=20260913-master-visual-v2"></script>
 <script src="/customer-login.js"></script>
 <script src="/auth-entry-split.js?v=20260828-single-submit-handler-v1"></script>
 <script src="/customer.js"></script>
-<script src="/roda-puter-product-art.js?v=20260913-dermo-symbols-v1"></script>
+<script>
+  // Customer menu stays focused on ordering. The legacy inline Roda renderer
+  // remains in customer.js for compatibility tests, but this entry point turns
+  // it off before init resumes from its first async menu request.
+  window.mountRodaPuterDemo = async () => {};
+</script>
 <script src="/customer-repeat-order.js"></script>
 <script src="/customer-order-status.js"></script>
 <script src="/customer-feedback-session-ready.js"></script>

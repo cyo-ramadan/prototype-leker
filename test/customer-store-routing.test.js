@@ -17,7 +17,7 @@ test('customer store selection persists the intended gerai before navigation', a
 
 test('customer shell cache-busts the store selector routing fix', async () => {
   const html = await read('public/customer.html');
-  assert.match(html, /customer-store-select\.js\?v=20260907-customer-store-routing-v1/);
+  assert.match(html, /customer-store-select\.js\?v=20260913-master-visual-v2/);
 });
 
 test('store context keeps path store authoritative and remembered store as fallback', async () => {

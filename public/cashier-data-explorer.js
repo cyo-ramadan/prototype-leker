@@ -28,7 +28,7 @@
   function ensureDialog() {
     if (el('cashierDataDialog')) return;
     document.body.insertAdjacentHTML('beforeend', `
-      <dialog id="cashierDataDialog" class="cashier-dialog" style="max-width:min(1080px,96vw);width:96vw">
+      <dialog id="cashierDataDialog" class="cashier-dialog cashier-dialog-plain" style="max-width:min(1080px,96vw);width:96vw">
         <div class="cashier-dialog-head">
           <div><div class="muted">Data gerai · read-only</div><h2>Data Transaksi &amp; Stok</h2></div>
           <button id="cashierDataClose" class="cart-close-btn" type="button">×</button>

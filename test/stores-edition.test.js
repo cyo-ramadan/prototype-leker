@@ -14,7 +14,6 @@ const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   // exist, which only holds in the real chronological chain (after 0083) --
   // not in this synthetic includeEdition:false replay where 0083 is skipped.
   '0088_dermo_leker_master_visuals.sql',
-  '0086_dermo_leker_product_photos_v2.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)

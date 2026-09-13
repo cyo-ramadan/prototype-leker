@@ -197,8 +197,8 @@ function renderMenu() {
           <img class="menu-product-image" src="${escapeHtml(imageSource)}" alt="${escapeHtml(menu.name)}" />
           ${cartItem ? `<span class="selected-badge">✓ ${cartItem.qty}</span>` : ''}
         </div>
-        <h3>${escapeHtml(menu.name)}</h3>
         <div class="category">${escapeHtml(menu.category)}</div>
+        <h3>${escapeHtml(menu.name)}</h3>
         <div class="bottom"><span class="price">${rupiah(menu.price)}</span><div class="menu-control-slot">${control}</div></div>
       </article>`;
   }).join('');

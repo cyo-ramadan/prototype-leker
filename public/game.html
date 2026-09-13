@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Game | MAXI Leker</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/customer-responsive.css" />
+  <link rel="stylesheet" href="/game.css?v=20260913-game-page-v1" />
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar game-topbar">
+    <div class="brand"><div id="brandMark" class="brand-mark">L</div><div><span id="storeBrandName">MAXI LEKER</span><small>Game · <span data-store-code>G001</span></small></div></div>
+    <a class="game-back-link" data-store-page="customer" href="/customer">← Kembali ke menu</a>
+  </header>
+
+  <main class="game-page-shell">
+    <section class="game-title">
+      <span class="game-kicker">GAME · <span data-store-code>G001</span></span>
+      <h1>Roda Puter</h1>
+      <p>Putar roda dan lihat berhentinya di mana.</p>
+    </section>
+
+    <section id="rodaPuterDemo" class="roda-demo" aria-label="Roda Puter">
+      <div class="roda-stage">
+        <div class="roda-pointer" aria-hidden="true"></div>
+        <div id="rodaPuterWheel" class="roda-wheel" aria-label="Roda Puter"></div>
+        <button id="rodaPuterSpin" class="roda-spin" type="button">PUTAR<br>RODA</button>
+      </div>
+      <div class="roda-copy">
+        <h2>Hadiah di roda</h2>
+        <p class="muted">Pilih tombol putar dan lihat roda berhenti di hadiah mana.</p>
+        <div id="rodaPuterPrizes" class="roda-prizes"></div>
+        <div id="rodaPuterResult" class="roda-result">Tap PUTAR RODA buat mulai.</div>
+      </div>
+    </section>
+
+    <section id="rodaPuterUnavailable" class="game-unavailable hidden">
+      <div class="game-unavailable-icon" aria-hidden="true">🎮</div>
+      <h2>Game belum tersedia</h2>
+      <p id="rodaPuterUnavailableMessage">Roda Puter untuk gerai ini belum punya hadiah aktif.</p>
+    </section>
+  </main>
+</div>
+
+<script src="/store-context.js?v=20260828-admin-context-fix-v1"></script>
+<script src="/leker-menu-asset-base.js?v=20260913-v1"></script>
+<script src="/leker-menu-asset-sprite-a.js?v=20260913-v1"></script>
+<script src="/leker-menu-asset-sprite-b.js?v=20260913-v1"></script>
+<script src="/leker-menu-visuals.js?v=20260913-master-visual-v1"></script>
+<script>
+const state = {
+  menu: [],
+  rodaRewards: [],
+  rodaRotation: 0,
+  rodaSpinning: false
+};
+const el = id => document.getElementById(id);
+
+function escapeHtml(str='') {
+  return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+}
+
+async function loadMenu() {
+  try {
+    const response = await fetch('/api/menu', { cache: 'no-store' });
+    if (response.ok) return await response.json();
+  } catch {}
+  return [];
+}
+
+async function loadStoreBrand() {
+  try {
+    const response = await fetch('/api/store', { cache: 'no-store' });
+    if (!response.ok) return;
+    const store = await response.json();
+    if (store.storeName) el('storeBrandName').textContent = store.storeName;
+    if (store.logoData) {
+      el('brandMark').innerHTML = `<img src="${escapeHtml(store.logoData)}" alt="Logo ${escapeHtml(store.storeName || 'toko')}" />`;
+    }
+  } catch {}
+}
+
+function rodaGradient(rewards) {
+  const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+  let cursor = 0;
+  return rewards.map((reward, index) => {
+    const start = cursor;
+    cursor += Number(reward.weightBasisPoints || 0) / 100;
+    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+  }).join(',');
+}
+
+function rewardMidpointBasisPoints(rewardId) {
+  let cursor = 0;
+  for (const reward of state.rodaRewards) {
+    const weight = Number(reward.weightBasisPoints || 0);
+    if (reward.id === rewardId) return cursor + Math.floor(weight / 2);
+    cursor += weight;
+  }
+  return 0;
+}
+
+async function spinRodaPuter() {
+  if (state.rodaSpinning) return;
+  state.rodaSpinning = true;
+  const button = el('rodaPuterSpin');
+  const result = el('rodaPuterResult');
+  button.disabled = true;
+  result.textContent = 'Roda lagi muter…';
+  try {
+    const response = await fetch('/api/roda-puter/demo', { method: 'POST' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Roda Puter belum bisa dimainkan.');
+    const midpoint = rewardMidpointBasisPoints(payload.reward.id);
+    const targetDegrees = 360 - (midpoint * 360 / 10000);
+    state.rodaRotation = (Math.floor(state.rodaRotation / 360) + 5) * 360 + targetDegrees;
+    el('rodaPuterWheel').style.transform = `rotate(${state.rodaRotation}deg)`;
+    await new Promise(resolve => setTimeout(resolve, 2450));
+    result.textContent = `Berhenti di ${payload.reward.productName}.`;
+  } catch (error) {
+    result.textContent = error.message;
+  } finally {
+    state.rodaSpinning = false;
+    button.disabled = false;
+  }
+}
+
+async function initGame() {
+  loadStoreBrand();
+  state.menu = await loadMenu();
+  try {
+    const response = await fetch('/api/roda-puter/rewards', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Roda Puter belum tersedia.');
+    const payload = await response.json();
+    state.rodaRewards = payload.campaign?.rewards || [];
+    if (!state.rodaRewards.length) throw new Error('Roda Puter belum punya hadiah aktif.');
+
+    el('rodaPuterWheel').style.background = `conic-gradient(${rodaGradient(state.rodaRewards)})`;
+    el('rodaPuterPrizes').innerHTML = state.rodaRewards.map(reward => `<span class="roda-prize">${escapeHtml(reward.productName)} · ${escapeHtml(reward.weightPercentExact)}%</span>`).join('');
+    el('rodaPuterSpin').addEventListener('click', spinRodaPuter);
+    el('rodaPuterDemo').classList.add('ready');
+  } catch (error) {
+    el('rodaPuterDemo').classList.remove('ready');
+    el('rodaPuterUnavailable').classList.remove('hidden');
+    el('rodaPuterUnavailableMessage').textContent = error.message;
+  }
+}
+
+initGame().catch(error => {
+  el('rodaPuterDemo').classList.remove('ready');
+  el('rodaPuterUnavailable').classList.remove('hidden');
+  el('rodaPuterUnavailableMessage').textContent = error.message || 'Game gagal dimuat.';
+});
+</script>
+<script src="/roda-puter-product-art.js?v=20260913-master-visual-v1"></script>
+</body>
+</html>

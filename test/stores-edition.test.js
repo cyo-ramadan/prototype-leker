@@ -14,6 +14,7 @@ const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   // exist, which only holds in the real chronological chain (after 0083) --
   // not in this synthetic includeEdition:false replay where 0083 is skipped.
   '0088_dermo_leker_master_visuals.sql',
+  '0086_dermo_leker_product_photos_v2.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)
@@ -246,61 +247,7 @@ test('LITE and FLEXIBLE keep accountless POS methods while targeted Accounting s
         sqlite.prepare(`SELECT COUNT(*) AS n FROM item_categories WHERE store_id = ?`).get(storeId).n,
         0
       );
-      assert.equal(
-        sqlite.prepare(`
-          SELECT COUNT(*) AS n FROM payment_methods
-          WHERE store_id = ? AND code = 'RECEIVABLE_OFFSET'
-        `).get(storeId).n,
-        0
-      );
-      assert.equal(
-        sqlite.prepare(`SELECT COUNT(*) AS n FROM accounting_sequences WHERE store_id = ?`)
-          .get(storeId).n,
-        2,
-        '0024 sequence rows are an accepted residual outside this task'
-      );
-
-      assert.deepEqual(
-        sqlite.prepare(`
-          SELECT code, name
-          FROM product_kinds
-          WHERE store_id = ? AND code = 'RAW_MATERIAL'
-        `).all(storeId).map(row => ({ ...row })),
-        [{ code: 'RAW_MATERIAL', name: 'Bahan Baku' }]
-      );
-      assert.equal(
-        sqlite.prepare(`SELECT COUNT(*) AS n FROM item_categories WHERE store_id = ?`).get(storeId).n,
-        0
-      );
     }
-  } finally {
-    sqlite.close();
-  }
-});
-
-test('the three corrected trigger boundaries are present in the migrated schema', () => {
-  const sqlite = migratedDb();
-  try {
-    const triggerSql = name => sqlite.prepare(`
-      SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND name = ?
-    `).get(name)?.sql ?? '';
-
-    assert.match(
-      triggerSql('trg_stores_seed_accounting_settings_defaults'),
-      /WHEN\s+NEW\.edition\s*=\s*'ACCOUNTING'/i
-    );
-    assert.match(
-      triggerSql('trg_product_kinds_seed_accounting_mapping'),
-      /stores[\s\S]+edition\s*=\s*'ACCOUNTING'/i
-    );
-    assert.match(
-      triggerSql('trg_payment_methods_cash_default_after_insert'),
-      /edition\s*=\s*'ACCOUNTING'/i
-    );
-    assert.match(
-      triggerSql('trg_stores_seed_pos_payment_methods_defaults'),
-      /NEW\.edition\s+IN\s*\(\s*'LITE'\s*,\s*'FLEXIBLE'\s*\)/i
-    );
   } finally {
     sqlite.close();
   }

@@ -89,6 +89,8 @@
       .roda-reward-direct{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;background:#fff4cf}
       .roda-reward-symbol{display:block;width:82%;height:82%}
       .roda-reward-symbol-leker{width:88%;height:88%}
+      .roda-reward-token .leker-menu-generated{width:100%;height:100%;aspect-ratio:1/1;border-radius:50%;overflow:hidden}
+      .roda-reward-token .leker-menu-generated .leker-generated-base{width:100%;height:100%;object-fit:cover}
       .roda-spin{width:88px;border:6px solid #f4d466;outline:2px solid #8b5b16;background:radial-gradient(circle at 34% 27%,#ef4444 0 10%,#c91f1f 42%,#8f1515 100%);color:#fff7d6;text-shadow:0 1px 0 #6b120f;box-shadow:0 5px 16px rgba(67,20,7,.4),inset 0 2px 4px rgba(255,255,255,.3)}
       .roda-spin:hover{background:radial-gradient(circle at 34% 27%,#f45b5b 0 10%,#d52b2b 42%,#991b1b 100%)}
       .roda-pointer{top:-9px;border-left-width:20px;border-right-width:20px;border-top-width:40px;border-top-color:#b91c1c;filter:drop-shadow(0 -2px 0 #f4d466) drop-shadow(0 4px 2px rgba(67,20,7,.35))}
@@ -156,36 +158,60 @@
     token.dataset.artSource = `symbol:${rewardIconKind(reward.name).toLowerCase()}`;
   }
 
-  function applyProductArt(token, reward) {
+  function setTeaSprite(token, reward) {
     const iconIndex = PRODUCT_ICON_INDEX.get(normalizeProductName(reward.name));
-    if (iconIndex != null) {
-      const column = iconIndex % 5;
-      const row = Math.floor(iconIndex / 5);
-      const image = document.createElement('img');
-      image.className = 'roda-reward-sprite';
-      image.src = ICON_SPRITE;
-      image.alt = '';
-      image.style.left = `-${column * 100}%`;
-      image.style.top = `-${row * 100}%`;
-      image.addEventListener('error', () => setSymbolFallback(token, reward), { once: true });
-      token.appendChild(image);
-      token.dataset.artSource = 'tea-sprite';
-      return;
-    }
+    if (iconIndex == null) return false;
+    const column = iconIndex % 5;
+    const row = Math.floor(iconIndex / 5);
+    const image = document.createElement('img');
+    image.className = 'roda-reward-sprite';
+    image.src = ICON_SPRITE;
+    image.alt = '';
+    image.style.left = `-${column * 100}%`;
+    image.style.top = `-${row * 100}%`;
+    image.addEventListener('error', () => setSymbolFallback(token, reward), { once: true });
+    token.replaceChildren(image);
+    token.dataset.artSource = 'tea-sprite';
+    return true;
+  }
 
+  function setMasterVisual(token, reward, product) {
+    if (!product?.imageVisualKey) return false;
+    const api = typeof window !== 'undefined' ? window.LekerMenuVisuals : null;
+    const markup = api?.artMarkupForVisualKey?.(product.imageVisualKey, product.name || reward.name) || '';
+    if (!markup) {
+      token.dataset.awaitingMasterVisual = '1';
+      return false;
+    }
+    token.innerHTML = markup;
+    token.dataset.artSource = 'master-visual-key';
+    delete token.dataset.awaitingMasterVisual;
+    return true;
+  }
+
+  function setNonImageFallback(token, reward, product) {
+    if (setMasterVisual(token, reward, product)) return;
+    if (setTeaSprite(token, reward)) return;
+    setSymbolFallback(token, reward);
+  }
+
+  function applyProductArt(token, reward) {
     const product = menuProductForReward(reward);
+
+    // Product Master is authoritative: a real image_data wins over every
+    // compatibility sprite or generated symbol.
     if (product?.imageData) {
       const image = document.createElement('img');
       image.className = 'roda-reward-direct';
       image.src = product.imageData;
       image.alt = '';
-      image.addEventListener('error', () => setSymbolFallback(token, reward), { once: true });
-      token.appendChild(image);
+      image.addEventListener('error', () => setNonImageFallback(token, reward, product), { once: true });
+      token.replaceChildren(image);
       token.dataset.artSource = 'product-image';
       return;
     }
 
-    setSymbolFallback(token, reward);
+    setNonImageFallback(token, reward, product);
   }
 
   function tokenSizeForRewardCount(count) {
@@ -195,13 +221,23 @@
     return 29;
   }
 
-  function decorateRodaPuter() {
+  function rewardArtSignature(rewards) {
+    return rewards.map(reward => {
+      const product = menuProductForReward(reward);
+      const masterSource = product?.imageData
+        ? `image:${String(product.imageData).length}`
+        : `key:${product?.imageVisualKey || ''}`;
+      return `${reward.productId}:${reward.name}:${reward.weightBasisPoints}:${masterSource}`;
+    }).join('|');
+  }
+
+  function decorateRodaPuter(force = false) {
     const wheel = document.getElementById('rodaPuterWheel');
     const rewards = liveRewards();
     if (!wheel || !rewards.length) return false;
 
-    const signature = rewards.map(reward => `${reward.productId}:${reward.name}:${reward.weightBasisPoints}`).join('|');
-    if (wheel.dataset.productArtSignature === signature && Number(wheel.dataset.productArtCount || 0) === rewards.length) return true;
+    const signature = rewardArtSignature(rewards);
+    if (!force && wheel.dataset.productArtSignature === signature && Number(wheel.dataset.productArtCount || 0) === rewards.length) return true;
 
     wheel.querySelectorAll('.roda-reward-token').forEach(token => token.remove());
     wheel.dataset.productArtSignature = signature;
@@ -237,16 +273,21 @@
   installRodaProductArtStyle();
 
   let observer = null;
-  const tryDecorate = () => {
-    if (!decorateRodaPuter()) return false;
+  const tryDecorate = force => {
+    if (!decorateRodaPuter(Boolean(force))) return false;
     if (observer) observer.disconnect();
     return true;
   };
 
-  if (!tryDecorate()) {
-    observer = new MutationObserver(tryDecorate);
+  if (!tryDecorate(false)) {
+    observer = new MutationObserver(() => tryDecorate(false));
     observer.observe(document.documentElement, { childList: true, subtree: true });
-    [50, 150, 400, 900, 1800, 3500, 7000].forEach(delay => setTimeout(tryDecorate, delay));
-    setTimeout(() => observer?.disconnect(), 12000);
+    [50, 150, 400, 900, 1600].forEach(delay => setTimeout(() => tryDecorate(false), delay));
   }
+
+  window.addEventListener('leker-menu-visuals-ready', () => tryDecorate(true));
+  window.addEventListener('resize', () => {
+    clearTimeout(decorateRodaPuter.resizeTimer);
+    decorateRodaPuter.resizeTimer = setTimeout(() => tryDecorate(true), 120);
+  });
 })();

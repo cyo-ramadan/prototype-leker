@@ -57,7 +57,7 @@ async function loadItemsForOrders(db, storeId, orderIds) {
 
 export async function listProducts(db, storeId) {
   const result = await db.prepare(`
-    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data,
+    SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data, p.image_visual_key,
            CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS has_recipe_link
     FROM products p
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
@@ -75,6 +75,7 @@ export async function listProducts(db, storeId) {
     category: row.category,
     emoji: row.emoji,
     imageData: row.image_data || '',
+    imageVisualKey: row.image_visual_key || '',
     // Lets Kasir offer a Biasa/Dadakan fulfillment choice per sale line for
     // this item -- see prepareSaleStockProduction() in stock-production.js.
     recipeLinkEnabled: Boolean(row.has_recipe_link)

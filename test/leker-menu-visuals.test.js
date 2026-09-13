@@ -37,12 +37,23 @@ test('Dermo catalog aliases and three-part variants keep their visible ingredien
   assert.deepEqual(Array.from(api.resolveToppings('Leker Chocomaltine + Kacang + Keju')), ['chocolate', 'cheese', 'peanut']);
 });
 
-test('leker visual mapping leaves unrelated products untouched', () => {
+test('generated menu art is scoped strictly to products named Leker', () => {
   const api = loadApi();
-  assert.equal(api.recognizes('Es Teh Jasmine'), false);
-  assert.equal(api.artMarkup('Es Teh Jasmine'), '');
+  for (const name of ['Es Teh Jasmine', 'Es Teh Cokelat', 'Es Teh Susu', 'Es Teh Original', 'Cappuccino']) {
+    assert.equal(api.recognizes(name), false, `${name} must keep its existing photo`);
+    assert.equal(api.artMarkup(name), '', `${name} must not receive generated Leker art`);
+  }
   assert.equal(api.recognizes('Leker Original'), true);
+  assert.equal(api.recognizes('Leker Susu Cokelat'), true);
   assert.match(api.artMarkup('Leker Original'), /leker-menu-generated/);
+});
+
+test('Leker toppings are rendered as filling inside the folded crepe, not as a corner badge', () => {
+  const api = loadApi();
+  assert.match(api.artMarkup('Leker Blueberry + Keju'), /data-leker-filling-placement="inside"/);
+  const visualSource = sources.at(-1);
+  assert.match(visualSource, /\.leker-generated-toppings\{position:absolute;left:18%;bottom:25%;width:58%;height:28%;overflow:hidden/);
+  assert.doesNotMatch(visualSource, /right:1\.5%;bottom:3\.5%;width:31\.25%;height:31\.25%/);
 });
 
 test('leker visual assets are embedded once and reused as a sprite', () => {

@@ -3,7 +3,7 @@
     '/leker-menu-asset-base.js?v=20260913-v1',
     '/leker-menu-asset-sprite-a.js?v=20260913-v1',
     '/leker-menu-asset-sprite-b.js?v=20260913-v1',
-    '/leker-menu-visuals.js?v=20260913-v1'
+    '/leker-menu-visuals.js?v=20260913-v3'
   ];
   let visualScriptIndex = 0;
   const loadNextVisualScript = () => {
@@ -53,10 +53,6 @@
       select.addEventListener('change', () => {
         const code = normalizeStoreCode(select.value);
         if (!code || code === current) return;
-        // Persist the customer choice before navigation. If the destination is
-        // reopened through a bare /customer entry point or another layer drops
-        // the /s/:code path, store-context can still recover the intended gerai
-        // instead of silently falling back to G001.
         try { localStorage.setItem('lekerCustomerStoreCode', code); } catch {}
         location.href = `/s/${encodeURIComponent(code)}/customer`;
       });

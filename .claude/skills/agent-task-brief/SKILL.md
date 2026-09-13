@@ -131,6 +131,33 @@ konten seolah belum ada apa-apa, dan baru tahu saat Bos Cyo menyebutnya sambil l
 tidak terdaftar bukan cuma hilang dari catatan — dia bisa jadi konten kembar yang melemahkan
 situs utama, dan isinya tidak pernah diperiksa apakah mengandung harga atau testimoni karangan.
 
+**h4. Link preview langsung WAJIB di laporan, untuk task yang menghasilkan sesuatu yang bisa dilihat.**
+Aturan Bos Cyo 2026-09-13: setiap kali agen menyelesaikan task yang hasilnya kelihatan
+(generate konten, upload media, publish halaman/landing page, dst), laporannya wajib
+menyertakan **link akses langsung yang bisa diklik**. Tujuannya supaya Bos Cyo tinggal buka
+laporan dan klik, tidak perlu masuk ke hosting/backend/repo untuk memeriksa sendiri.
+
+Tulis ini eksplisit di `acceptance_criteria` untuk task semacam itu: "laporan wajib menyertakan
+URL langsung yang bisa diklik ke hasilnya — bukan nama file/path, bukan instruksi cara
+membukanya."
+
+Bentuk link yang benar tergantung apa yang dihasilkan — jangan disamakan:
+
+| Hasil task | Link yang benar | Bukan ini |
+|---|---|---|
+| Halaman/situs yang sudah live | URL halaman itu sendiri | Alamat repo GitHub |
+| Draft/dokumen yang belum live (mis. draft artikel di repo) | URL blob GitHub ke file itu | "sudah ada di branch X" |
+| Media yang menunggu persetujuan (lihat h3) | Tautan preview (Canva/draft), BUKAN URL storage produksi | Link storage sebelum dipilih Bos Cyo |
+
+**Pagar sebelum menulis task yang mengklaim menghasilkan halaman/situs live:** buktikan dulu
+proyeknya memang punya alamat yang hidup (Worker/Pages sudah pernah deploy, cek lewat
+`workers_list` atau setara) sebelum menjanjikan "link preview" di acceptance_criteria. Kalau
+proyeknya belum pernah deploy sama sekali, task-nya akan gagal memenuhi aturan ini bukan
+karena agennya salah, tapi karena memang belum ada alamat untuk dituju — dalam kasus begitu,
+tulis dulu task `HUMAN_ACTION` untuk menyambungkan deploy-nya (lihat contoh di bagian
+"Task untuk Bos Cyo sendiri" di `contracts/agent-task-board-v1.md`), baru task lain yang
+menjanjikan link boleh ditulis.
+
 **h. Ragu apakah task menyentuh data produksi/uang sungguhan? Anggap YA.**
 Kelebihan hati-hati harganya satu ronde tanya; kekurangan hati-hati harganya data keuangan.
 
@@ -253,6 +280,8 @@ Skema tabel lengkap beserta trigger-nya: `agent-bus/schema.sql`.
       gagal bila perubahan dicabut
 - [ ] `task_paths` minimal satu baris, tiap prefix < 50 karakter, sesempit kerjaan aslinya
 - [ ] Kalau butuh kredensial aplikasi — ditulis "minta ke Bos Cyo terpisah", bukan ditulis nilainya
+- [ ] Kalau task menghasilkan sesuatu yang bisa dilihat: `acceptance_criteria` mewajibkan
+      link akses langsung yang bisa diklik di laporan, bentuknya sesuai tabel h4
 - [ ] Kalau task bisa menghasilkan aset hidup (website online, akun, profil publik):
       `acceptance_criteria` memaksa pendaftaran ke inventaris aset, dan `forbidden` melarang
       bikin aset publik bernama bisnis tanpa izin Bos Cyo

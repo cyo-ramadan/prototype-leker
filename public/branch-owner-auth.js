@@ -1,8 +1,8 @@
 (() => {
-  const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
-  const entityAdminToken = sessionStorage.getItem('lekerEntityAdminToken') || '';
-  const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
-  const adminStoreCode = String(sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
+  const ownerToken = localStorage.getItem('lekerOwnerToken') || '';
+  const entityAdminToken = localStorage.getItem('lekerEntityAdminToken') || '';
+  const adminToken = localStorage.getItem('lekerAdminToken') || '';
+  const adminStoreCode = String(localStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
   const currentStoreCode = String(window.LEKER_STORE_CODE || 'G001').toUpperCase();
   const isOwner = Boolean(ownerToken);
   const isEntityAdmin = !isOwner && Boolean(entityAdminToken);
@@ -23,7 +23,7 @@
 
   // Existing branch-master UI still expects a local admin marker. Actual
   // authorization is the bearer session added below, not this marker.
-  sessionStorage.setItem('lekerAdminPin', isOwner ? 'OWNER_SESSION' : isEntityAdmin ? 'ENTITY_ADMIN_SESSION' : 'STORE_ADMIN_SESSION');
+  localStorage.setItem('lekerAdminPin', isOwner ? 'OWNER_SESSION' : isEntityAdmin ? 'ENTITY_ADMIN_SESSION' : 'STORE_ADMIN_SESSION');
 
   const originalFetch = window.fetch.bind(window);
   window.fetch = async function managementScopedFetch(input, init = {}) {
@@ -40,9 +40,9 @@
       : await originalFetch(url.toString(), nextInit);
 
     if (response.status === 401) {
-      sessionStorage.removeItem(isOwner ? 'lekerOwnerToken' : isEntityAdmin ? 'lekerEntityAdminToken' : 'lekerAdminToken');
-      if (!isOwner && !isEntityAdmin) sessionStorage.removeItem('lekerAdminStoreCode');
-      sessionStorage.removeItem('lekerAdminPin');
+      localStorage.removeItem(isOwner ? 'lekerOwnerToken' : isEntityAdmin ? 'lekerEntityAdminToken' : 'lekerAdminToken');
+      if (!isOwner && !isEntityAdmin) localStorage.removeItem('lekerAdminStoreCode');
+      localStorage.removeItem('lekerAdminPin');
       location.replace(isOwner ? '/admin' : isEntityAdmin ? '/entity-admin' : `/s/${encodeURIComponent(currentStoreCode)}/customer`);
     }
     return response;
@@ -61,8 +61,8 @@
           headers: { Authorization: `Bearer ${entityAdminToken}` }
         });
       } catch {}
-      sessionStorage.removeItem('lekerEntityAdminToken');
-      sessionStorage.removeItem('lekerAdminPin');
+      localStorage.removeItem('lekerEntityAdminToken');
+      localStorage.removeItem('lekerAdminPin');
       location.href = '/entity-admin';
       return;
     }
@@ -73,9 +73,9 @@
         headers: { Authorization: `Bearer ${adminToken}` }
       });
     } catch {}
-    sessionStorage.removeItem('lekerAdminToken');
-    sessionStorage.removeItem('lekerAdminStoreCode');
-    sessionStorage.removeItem('lekerAdminPin');
+    localStorage.removeItem('lekerAdminToken');
+    localStorage.removeItem('lekerAdminStoreCode');
+    localStorage.removeItem('lekerAdminPin');
     location.href = `/s/${encodeURIComponent(currentStoreCode)}/customer`;
   }
 

@@ -13,9 +13,9 @@
   const allowed = (isCashier || isStaffPortal)
     ? Boolean(sessionStorage.getItem('lekerCashierToken'))
     : isOwner
-      ? Boolean(sessionStorage.getItem('lekerOwnerToken'))
+      ? Boolean(localStorage.getItem('lekerOwnerToken'))
       : isBranchAdmin
-        ? Boolean(sessionStorage.getItem('lekerOwnerToken') || sessionStorage.getItem('lekerAdminToken'))
+        ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken'))
         : true;
 
   if (!allowed) location.replace('/?login=staff');

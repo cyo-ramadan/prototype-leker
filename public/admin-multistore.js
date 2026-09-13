@@ -54,7 +54,7 @@
 
   async function request(path, options = {}) {
     const headers = { ...(options.headers || {}) };
-    const pin = sessionStorage.getItem('lekerAdminPin') || '';
+    const pin = localStorage.getItem('lekerAdminPin') || '';
     if (pin) headers['X-Admin-Pin'] = pin;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const response = await fetch(path, { ...options, headers });
@@ -89,7 +89,7 @@
   }
 
   async function syncStores() {
-    if (!sessionStorage.getItem('lekerAdminPin')) return;
+    if (!localStorage.getItem('lekerAdminPin')) return;
     try {
       const payload = await request('/api/admin/bootstrap');
       renderStores(payload.stores || [], payload.store?.code || window.LEKER_STORE_CODE || 'G001');

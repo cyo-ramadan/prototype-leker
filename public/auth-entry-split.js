@@ -107,8 +107,12 @@
       if (!['OWNER', 'ADMIN', 'CASHIER'].includes(payload.role)) throw new Error('Akun ini bukan akun karyawan.');
       const identity = staffIdentity(payload);
       if (!identity?.id) throw new Error('Identitas karyawan tidak lengkap.');
-      sessionStorage.setItem(staffTokenKey(payload.role), payload.token);
-      if (payload.role === 'ADMIN') sessionStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');
+      // OWNER/ADMIN go to localStorage so the session survives a discarded/
+      // reloaded tab (see branch-owner-auth.js); CASHIER stays sessionStorage,
+      // unchanged, tied to its own drawer-session lifecycle.
+      const tokenStore = payload.role === 'CASHIER' ? sessionStorage : localStorage;
+      tokenStore.setItem(staffTokenKey(payload.role), payload.token);
+      if (payload.role === 'ADMIN') localStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');
       sessionStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
         id: identity.id,
         role: payload.role,

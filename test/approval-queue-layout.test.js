@@ -64,7 +64,7 @@ test('admin and owner can decide queue and ACC invokes atomic operational postin
   assert.match(managementUi, /ACC \+ POSTING/);
   assert.match(managementUi, /data-approval-reject/);
   assert.match(managementUi, /STOCK ADJUSTMENT/);
-  assert.match(managementUi, /sessionStorage\.getItem\('lekerOwnerToken'\)/);
+  assert.match(managementUi, /localStorage\.getItem\('lekerOwnerToken'\)/);
   assert.match(approvalApi, /buildOperationalPostingStatements/);
   assert.match(approvalApi, /await env\.DB\.batch\(statements\)/);
   assert.match(approvalApi, /STOCK_ADJUSTMENT_STALE/);

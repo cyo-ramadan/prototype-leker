@@ -51,3 +51,8 @@ test('leker visual assets are embedded once and reused as a sprite', () => {
   assert.match(api.SPRITE_URL, /^data:image\/webp;base64,UklG/);
   assert.equal(Object.keys(api.SPRITES).length, 20);
 });
+
+test('customer card decorator reads the actual customer menu h3 title', () => {
+  const visualSource = sources.at(-1);
+  assert.match(visualSource, /card\.querySelector\('\.menu-product-name, h3'\)/);
+});

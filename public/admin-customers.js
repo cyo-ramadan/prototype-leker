@@ -6,6 +6,7 @@
   let sharing = null;
   let sharedStores = [];
   let membershipSettings = { registrationWhatsAppNumber: '' };
+  let coinAlerts = { birthdays: [], newMembers: [] };
 
   const legacyTab = document.querySelector('[data-tab="contacts"]');
   const legacySection = el('tab-contacts');
@@ -27,6 +28,10 @@
   if (legacySection && !el('tab-customers')) {
     legacySection.insertAdjacentHTML('afterend', `
       <section id="tab-customers" class="admin-section">
+        <div id="customerCoinAlertsCard" class="admin-card hidden" style="margin-bottom:16px">
+          <div class="list-head"><div><h2>🪙 Notifikasi Coin</h2><div class="muted">Ulang tahun hari ini dan member baru yang di-ACC minggu ini -- tekan "Kasih Coin" untuk kasih bonus, sekali per kejadian.</div></div><span id="customerCoinAlertsCount" class="master-count">0</span></div>
+          <div id="customerCoinAlertsList" class="master-list" style="margin-top:10px"></div>
+        </div>
         <div class="admin-card" style="margin-bottom:16px">
           <div class="list-head"><div><h2>WhatsApp pendaftaran member</h2><div class="muted">Nomor tujuan ketika customer menyimpan pendaftaran lalu melanjutkan verifikasi manual lewat WhatsApp.</div></div><span class="master-count">WA</span></div>
           <form id="customerMembershipSettingsForm" class="admin-grid two compact" style="align-items:end;margin-top:12px">
@@ -42,6 +47,7 @@
             <label class="admin-field">Nama pelanggan<input id="customerMasterName" maxlength="100" required /></label>
             <label class="admin-field">No. HP<input id="customerMasterPhone" maxlength="40" /></label>
             <label class="admin-field">Email<input id="customerMasterEmail" type="email" maxlength="120" /></label>
+            <label class="admin-field">Tanggal lahir <span class="field-note">optional, buat notifikasi ulang tahun</span><input id="customerMasterBirthDate" type="date" /></label>
             <label class="admin-field">Username login <span class="field-note">optional</span><input id="customerMasterUsername" maxlength="40" autocomplete="off" /></label>
             <label class="admin-field">Password <span id="customerPasswordNote" class="field-note">isi jika pelanggan perlu login</span><input id="customerMasterPassword" type="password" minlength="6" autocomplete="new-password" /></label>
             <label class="admin-field">Catatan<textarea id="customerMasterNotes" rows="3" maxlength="500"></textarea></label>
@@ -125,40 +131,113 @@
     el('customerMasterList').innerHTML = customers.length ? customers.map(customer => `
       <div class="master-row contact-row ${customer.isActive ? '' : 'inactive'}">
         <div class="master-main">
-          <strong>${escapeHtml(customer.customerName)}</strong>
+          <strong>${escapeHtml(customer.customerName)}${customer.isBirthdayToday ? ' 🎂' : ''}</strong>
           <div class="master-meta">ID ${escapeHtml(customer.customerCode)} · Asal ${escapeHtml(customer.store?.code || window.LEKER_STORE_CODE || '-')}</div>
           <div class="master-meta">${escapeHtml([customer.phone, customer.email].filter(Boolean).join(' · ') || 'Tanpa kontak')}</div>
           <div class="master-meta">${customer.hasLogin ? `Login @${escapeHtml(customer.username)}` : 'Belum punya akun login'} · ${customer.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
         <div class="master-actions">
+          <button class="mini-btn" type="button" data-grant-coin="${escapeHtml(customer.id)}">🪙 Beri Coin</button>
           <button class="mini-btn" type="button" data-edit-customer="${escapeHtml(customer.id)}">Edit</button>
           <button class="mini-btn danger" type="button" data-delete-customer="${escapeHtml(customer.id)}">Nonaktifkan</button>
         </div>
       </div>`).join('') : '<div class="empty">Belum ada pelanggan pada scope gerai ini.</div>';
     document.querySelectorAll('[data-edit-customer]').forEach(button => button.onclick = () => edit(button.dataset.editCustomer));
     document.querySelectorAll('[data-delete-customer]').forEach(button => button.onclick = () => deactivate(button.dataset.deleteCustomer));
+    document.querySelectorAll('[data-grant-coin]').forEach(button => button.onclick = () => grantCoinPrompt(button.dataset.grantCoin));
+  }
+
+  function coinAlertRow(item, label) {
+    return `
+      <div class="master-row contact-row">
+        <div class="master-main">
+          <strong>${escapeHtml(item.customerName)}</strong>
+          <div class="master-meta">${escapeHtml(item.customerCode)} · ${label}</div>
+        </div>
+        <div class="master-actions">
+          <button class="mini-btn" type="button" data-coin-alert-grant
+            data-customer-id="${escapeHtml(item.customerId)}"
+            data-occasion="${escapeHtml(item.occasion)}"
+            data-reference-id="${escapeHtml(item.referenceId)}"
+            ${item.alreadyGranted ? 'disabled' : ''}>
+            ${item.alreadyGranted ? '✅ Sudah dikasih' : '🪙 Kasih Coin'}
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function renderCoinAlerts() {
+    const card = el('customerCoinAlertsCard');
+    const total = coinAlerts.birthdays.length + coinAlerts.newMembers.length;
+    if (!card) return;
+    card.classList.toggle('hidden', total === 0);
+    el('customerCoinAlertsCount').textContent = total;
+    el('customerCoinAlertsList').innerHTML = [
+      ...coinAlerts.birthdays.map(item => coinAlertRow(item, '🎂 Ulang tahun hari ini')),
+      ...coinAlerts.newMembers.map(item => coinAlertRow(item, '🆕 Member baru di-ACC'))
+    ].join('') || '<div class="empty">Tidak ada notifikasi.</div>';
+    document.querySelectorAll('[data-coin-alert-grant]').forEach(button => button.onclick = () => grantCoinFromAlert(button));
   }
 
   function render() {
     renderMembershipSettings();
     renderRequests();
     renderCustomers();
+    renderCoinAlerts();
   }
 
   async function load() {
     try {
-      const [customerPayload, requestPayload, settingsPayload] = await Promise.all([
+      const [customerPayload, requestPayload, settingsPayload, coinAlertsPayload] = await Promise.all([
         request('/api/admin/customers'),
         request('/api/admin/customer-requests'),
-        request('/api/admin/customer-membership-settings')
+        request('/api/admin/customer-membership-settings'),
+        request('/api/admin/customers/coin-alerts')
       ]);
       customers = customerPayload.customers || [];
       sharing = customerPayload.sharing || null;
       sharedStores = customerPayload.sharedStores || [];
       registrationRequests = requestPayload.requests || [];
       membershipSettings = settingsPayload.settings || { registrationWhatsAppNumber: '' };
+      coinAlerts = { birthdays: coinAlertsPayload.birthdays || [], newMembers: coinAlertsPayload.newMembers || [] };
       render();
     } catch (error) { toast(error.message); }
+  }
+
+  async function grantCoin(customerId, amount, extra = {}) {
+    return request(`/api/admin/customers/${encodeURIComponent(customerId)}/coins`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, ...extra })
+    });
+  }
+
+  async function grantCoinPrompt(customerId) {
+    const customer = customers.find(item => item.id === customerId);
+    const input = prompt(`Berapa Coin untuk ${customer?.customerName || 'pelanggan ini'}?`, '1');
+    if (input === null) return;
+    const amount = Number(input);
+    if (!Number.isInteger(amount) || amount < 1) return toast('Jumlah Coin harus bilangan bulat minimal 1.');
+    try {
+      await grantCoin(customerId, amount);
+      toast(`🪙 ${amount} Coin diberikan ke ${customer?.customerName || 'pelanggan'}`);
+    } catch (error) { toast(error.message); }
+  }
+
+  async function grantCoinFromAlert(button) {
+    const { customerId, occasion, referenceId } = button.dataset;
+    const input = prompt('Berapa Coin bonus untuk kejadian ini?', '1');
+    if (input === null) return;
+    const amount = Number(input);
+    if (!Number.isInteger(amount) || amount < 1) return toast('Jumlah Coin harus bilangan bulat minimal 1.');
+    button.disabled = true;
+    try {
+      await grantCoin(customerId, amount, { occasion, referenceId });
+      button.textContent = '✅ Sudah dikasih';
+      toast(`🪙 ${amount} Coin bonus diberikan`);
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message);
+    }
   }
 
   async function saveMembershipSettings(event) {
@@ -203,6 +282,7 @@
     el('customerMasterName').value = customer.customerName;
     el('customerMasterPhone').value = customer.phone || '';
     el('customerMasterEmail').value = customer.email || '';
+    el('customerMasterBirthDate').value = customer.birthDate || '';
     el('customerMasterUsername').value = customer.username || '';
     el('customerMasterPassword').value = '';
     el('customerMasterNotes').value = customer.notes || '';
@@ -221,6 +301,7 @@
       customerName: el('customerMasterName').value,
       phone: el('customerMasterPhone').value,
       email: el('customerMasterEmail').value,
+      birthDate: el('customerMasterBirthDate').value,
       username: el('customerMasterUsername').value,
       password: el('customerMasterPassword').value,
       notes: el('customerMasterNotes').value,

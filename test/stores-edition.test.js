@@ -8,12 +8,13 @@ const EDITION_MIGRATION = '0045_stores_edition.sql';
 const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   '0081_kpm_stores_from_pendem_template.sql',
   '0083_dermo_leker_catalog_and_recipes.sql',
-  // 0088 only coincidentally matches the edition-dependent regex below (it
-  // references store_pendem purely to copy an image into store_dermo). Its
-  // own fail-closed CHECK requires all 73 canonical Dermo products to already
-  // exist, which only holds in the real chronological chain (after 0083) --
-  // not in this synthetic includeEdition:false replay where 0083 is skipped.
-  '0088_dermo_leker_master_visuals.sql',
+  // 0086_dermo_leker_master_visuals.sql only coincidentally matches the
+  // edition-dependent regex below (it references store_pendem purely to
+  // copy an image into store_dermo). Its own fail-closed CHECK requires all
+  // 73 canonical Dermo products to already exist, which only holds in the
+  // real chronological chain (after 0083) -- not in this synthetic
+  // includeEdition:false replay where 0083 is skipped.
+  '0086_dermo_leker_master_visuals.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)

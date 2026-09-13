@@ -1,4 +1,21 @@
 (() => {
+  const visualScripts = [
+    '/leker-menu-asset-base.js?v=20260913-v1',
+    '/leker-menu-asset-sprite-a.js?v=20260913-v1',
+    '/leker-menu-asset-sprite-b.js?v=20260913-v1',
+    '/leker-menu-visuals.js?v=20260913-v1'
+  ];
+  let visualScriptIndex = 0;
+  const loadNextVisualScript = () => {
+    if (visualScriptIndex >= visualScripts.length) return;
+    const script = document.createElement('script');
+    script.src = visualScripts[visualScriptIndex++];
+    script.onload = loadNextVisualScript;
+    script.onerror = loadNextVisualScript;
+    document.head.appendChild(script);
+  };
+  loadNextVisualScript();
+
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const normalizeStoreCode = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 16);
   const topbar = document.querySelector('.topbar');

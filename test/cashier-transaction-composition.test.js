@@ -42,7 +42,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
     cashierHtml,
     '/cashier-workspace.js',
     '/cashier-payment-methods.js?v=20260821-pos-payment-core-v4-grand-total-visible',
-    '/cashier-enhancements.js?v=20260913-dialog-padding-drawer-green-v1'
+    '/cashier-enhancements.js?v=20260914-drawer-detail-own-modal-v1'
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
   assert.doesNotMatch(cashierHtml, /<script src="\/cashier-procurement-ui\.js"><\/script>/);

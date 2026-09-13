@@ -48,6 +48,14 @@ test('generated menu art is scoped strictly to products named Leker', () => {
   assert.match(api.artMarkup('Leker Original'), /leker-menu-generated/);
 });
 
+test('Leker toppings are rendered as filling inside the folded crepe, not as a corner badge', () => {
+  const api = loadApi();
+  assert.match(api.artMarkup('Leker Blueberry + Keju'), /data-leker-filling-placement="inside"/);
+  const visualSource = sources.at(-1);
+  assert.match(visualSource, /\.leker-generated-toppings\{position:absolute;left:18%;bottom:25%;width:58%;height:28%;overflow:hidden/);
+  assert.doesNotMatch(visualSource, /right:1\.5%;bottom:3\.5%;width:31\.25%;height:31\.25%/);
+});
+
 test('leker visual assets are embedded once and reused as a sprite', () => {
   const api = loadApi();
   assert.match(api.BASE_URL, /^data:image\/webp;base64,UklG/);

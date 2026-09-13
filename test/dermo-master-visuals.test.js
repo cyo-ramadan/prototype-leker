@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const migration = await readFile(new URL('../migrations/0086_dermo_leker_master_visuals.sql', import.meta.url), 'utf8');
+const migration = await readFile(new URL('../migrations/0088_dermo_leker_master_visuals.sql', import.meta.url), 'utf8');
 const menuDb = await readFile(new URL('../src/db-multistore.js', import.meta.url), 'utf8');
 const contract = await readFile(new URL('../contracts/product-master-accounting-reference-v5.md', import.meta.url), 'utf8');
 

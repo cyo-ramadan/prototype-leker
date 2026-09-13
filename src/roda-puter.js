@@ -4,6 +4,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { prepareVoucherInstanceDistribution } from './voucher.js';
+import { optionalCustomerFromRequest } from './customers.js';
 
 export const RODA_PUTER_TOTAL_WEIGHT_BASIS_POINTS = 10_000;
 
@@ -303,6 +304,100 @@ async function handlePublicRodaPuterApi(request, env, pathname, random) {
   return json({ error: 'Route demo Roda Puter tidak ditemukan.' }, 404);
 }
 
+async function coinBalance(db, customerId) {
+  const row = await db.prepare(`
+    SELECT COALESCE(SUM(coins_delta), 0) AS balance FROM customer_coin_ledger WHERE customer_id = ?
+  `).bind(customerId).first();
+  return Number(row?.balance ?? 0);
+}
+
+// Beda dari spin resmi (1x seumur hidup, lihat officialCandidate di bawah):
+// customer bisa main berkali-kali selama masih punya Coin -- 1 Coin = 1 main,
+// hadiahnya tetap Voucher sungguhan lewat prepareVoucherInstanceDistribution()
+// yang sama, cuma dicatat di tabel audit terpisah (roda_puter_coin_spins)
+// yang tidak dibatasi UNIQUE per customer.
+async function handleCoinRodaPuterApi(request, env, pathname, random) {
+  if (pathname !== '/api/customer/roda-puter/coin-spin') return null;
+  if (request.method !== 'POST') return json({ error: 'Method coin-spin tidak didukung.' }, 405);
+
+  const store = await selectedStore(env.DB, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  const customer = await optionalCustomerFromRequest(request, env.DB, store.id);
+  if (!customer) {
+    return json({ error: 'Login pelanggan diperlukan untuk main pakai Coin.', code: 'CUSTOMER_LOGIN_REQUIRED' }, 401);
+  }
+
+  const balance = await coinBalance(env.DB, customer.id);
+  if (balance < 1) {
+    return json({ error: 'Coin kamu belum ada. Coin dikasih Admin gerai atau lewat promosi.', code: 'RODA_PUTER_COIN_INSUFFICIENT', coins: balance }, 409);
+  }
+
+  const campaign = await activeCampaign(env.DB, store.id);
+  if (!campaign || !campaign.rewards.length) {
+    return json({ error: 'Hadiah Roda Puter belum dikonfigurasi.', code: 'RODA_PUTER_NOT_CONFIGURED' }, 409);
+  }
+  const selected = selectWeightedReward(campaign.rewards, random());
+  if (!selected.ok) return json({ error: selected.error, code: selected.code }, 409);
+
+  // Coin-spin dipicu customer sendiri, tanpa kasir login. voucher_instances
+  // tetap mewajibkan distributed_by_cashier_id yang valid -- pakai kasir
+  // aktif gerai ini sebagai titik atribusi (bukan bikin baris kasir baru,
+  // itu sempat dicoba dan malah bikin fixture test lain salah pilih kasir).
+  const attributionCashier = await env.DB.prepare(`
+    SELECT id FROM cashiers WHERE store_id = ? AND is_active = 1 ORDER BY id LIMIT 1
+  `).bind(store.id).first();
+  if (!attributionCashier) {
+    return json({ error: 'Gerai ini belum punya kasir aktif untuk mencatat hadiah Roda Puter.', code: 'RODA_PUTER_NO_CASHIER_FOR_STORE' }, 409);
+  }
+
+  const now = new Date().toISOString();
+  const prepared = await prepareVoucherInstanceDistribution(env.DB, {
+    masterId: selected.reward.voucherMasterId,
+    masterStoreId: store.id,
+    customerId: customer.id,
+    distributedStoreId: store.id,
+    distributedStoreCode: store.code,
+    distributedByCashierId: attributionCashier.id,
+    businessDate: getJakartaBusinessDate(),
+    now
+  });
+  if (!prepared.ok) return json({ error: prepared.error, code: prepared.code }, prepared.status);
+
+  const spinId = `roda_puter_coin_spin_${crypto.randomUUID()}`;
+  try {
+    await env.DB.batch([
+      prepared.statement,
+      env.DB.prepare(`
+        INSERT INTO customer_coin_ledger (
+          id, customer_id, share_group_id, source_store_id, coins_delta,
+          activity_type, reference_type, reference_id, notes, created_at
+        ) VALUES (?, ?, NULL, ?, -1, 'SPEND', 'RODA_PUTER', ?, 'Main Roda Puter pakai Coin', ?)
+      `).bind(`coin_${crypto.randomUUID()}`, customer.id, store.id, spinId, now),
+      env.DB.prepare(`
+        INSERT INTO roda_puter_coin_spins (
+          id, store_id, customer_id, campaign_id, reward_id, voucher_instance_id,
+          coins_spent, random_basis_points, spun_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).bind(spinId, store.id, customer.id, campaign.id, selected.reward.id, prepared.voucher.id, selected.randomBasisPoints, now)
+    ]);
+  } catch (error) {
+    if (String(error?.message || '').toLowerCase().includes('coin_balance_negative')) {
+      return json({ error: 'Coin kamu belum cukup (kehabisan pas request ini diproses).', code: 'RODA_PUTER_COIN_INSUFFICIENT' }, 409);
+    }
+    throw error;
+  }
+
+  return json({
+    ok: true,
+    mode: 'COIN',
+    voucherCreated: true,
+    spinId,
+    reward: selected.reward,
+    voucher: prepared.voucher,
+    coins: await coinBalance(env.DB, customer.id)
+  }, 201);
+}
+
 async function officialCandidate(db, cashier, customerId) {
   const registration = await db.prepare(`
     SELECT request.id AS registration_request_id, request.store_id,
@@ -456,5 +551,7 @@ export async function handleRodaPuterApi(request, env, pathname, { random = secu
   if (adminResponse) return adminResponse;
   const officialResponse = await handleOfficialRodaPuterApi(request, env, pathname, random);
   if (officialResponse) return officialResponse;
+  const coinResponse = await handleCoinRodaPuterApi(request, env, pathname, random);
+  if (coinResponse) return coinResponse;
   return handlePublicRodaPuterApi(request, env, pathname, random);
 }

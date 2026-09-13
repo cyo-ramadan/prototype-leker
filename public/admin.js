@@ -1,5 +1,5 @@
 const state = {
-  pin: sessionStorage.getItem('lekerAdminPin') || '',
+  pin: localStorage.getItem('lekerAdminPin') || '',
   setupRequired: false,
   data: { store: null, products: [], categories: [], contacts: [] },
   productImageData: '',
@@ -69,7 +69,7 @@ async function init() {
   el('authBtn').textContent = state.setupRequired ? 'Aktifkan Admin' : 'Masuk';
   if (state.pin && !state.setupRequired) await unlock().catch(() => {
     state.pin = '';
-    sessionStorage.removeItem('lekerAdminPin');
+    localStorage.removeItem('lekerAdminPin');
   });
 }
 
@@ -106,11 +106,11 @@ async function authenticate() {
       state.setupRequired = false;
     }
     state.pin = pin;
-    sessionStorage.setItem('lekerAdminPin', pin);
+    localStorage.setItem('lekerAdminPin', pin);
     await unlock();
   } catch (error) {
     state.pin = '';
-    sessionStorage.removeItem('lekerAdminPin');
+    localStorage.removeItem('lekerAdminPin');
     el('authMessage').textContent = error.message;
   }
 }
@@ -126,7 +126,7 @@ async function unlock() {
 
 function lockAdmin() {
   state.pin = '';
-  sessionStorage.removeItem('lekerAdminPin');
+  localStorage.removeItem('lekerAdminPin');
   el('adminPin').value = '';
   el('adminApp').classList.add('hidden');
   el('logoutBtn').classList.add('hidden');

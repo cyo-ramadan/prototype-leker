@@ -18,6 +18,11 @@
     : meta.role === 'ADMIN'
       ? 'lekerAdminToken'
       : 'lekerCashierToken';
+  // OWNER/ADMIN tokens live in localStorage (survive a discarded/reloaded tab
+  // -- see branch-owner-auth.js); CASHIER stays sessionStorage. block() must
+  // strip the token from wherever it actually lives, or a "blocked" tab keeps
+  // a live token and can walk right back into the workspace.
+  const tokenStore = meta.role === 'CASHIER' ? sessionStorage : localStorage;
 
   function readLease() {
     try { return JSON.parse(localStorage.getItem(leaseKey) || 'null'); }
@@ -42,7 +47,7 @@
   function block() {
     if (blocked) return;
     blocked = true;
-    sessionStorage.removeItem(tokenKey);
+    tokenStore.removeItem(tokenKey);
     sessionStorage.removeItem('lekerStaffSessionMeta');
     sessionStorage.removeItem('lekerStaffHandoffId');
     location.replace('/?login=staff&staffBlocked=1');

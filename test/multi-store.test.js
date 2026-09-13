@@ -58,7 +58,7 @@ test('an Admin entry point without /s/:code resolves the gerai from its own sess
   const guard = await readFile(new URL('../public/staff-entry-guard.js', import.meta.url), 'utf8');
   const branchAdmin = await readFile(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
 
-  assert.match(browser, /sessionStorage\.getItem\('lekerAdminStoreCode'\)/);
+  assert.match(browser, /localStorage\.getItem\('lekerAdminStoreCode'\)/);
   assert.ok(
     browser.includes("pathStore || adminSessionStore ||"),
     'the session gerai must be consulted before any remembered/default fallback'

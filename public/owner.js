@@ -1,5 +1,5 @@
 const ownerState = {
-  token: sessionStorage.getItem('lekerOwnerToken') || '',
+  token: localStorage.getItem('lekerOwnerToken') || '',
   owner: null,
   stores: [],
   sharingGroups: [],
@@ -40,7 +40,7 @@ async function ownerLogin() {
     });
     ownerState.token = payload.token;
     ownerState.owner = payload.owner;
-    sessionStorage.setItem('lekerOwnerToken', payload.token);
+    localStorage.setItem('lekerOwnerToken', payload.token);
     ownerEl('ownerPassword').value = '';
     await loadOwnerData();
     showOwnerApp();
@@ -261,7 +261,7 @@ async function ownerLogout() {
   ownerState.sharingGroups = [];
   ownerState.tenants = [];
   ownerState.entities = [];
-  sessionStorage.removeItem('lekerOwnerToken');
+  localStorage.removeItem('lekerOwnerToken');
   showOwnerLogin();
 }
 
@@ -282,7 +282,7 @@ async function initOwner() {
     await loadOwnerData();
     showOwnerApp();
   } catch {
-    sessionStorage.removeItem('lekerOwnerToken');
+    localStorage.removeItem('lekerOwnerToken');
     ownerState.token = '';
     showOwnerLogin();
   }

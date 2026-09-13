@@ -31,9 +31,9 @@
   document.head.appendChild(style);
 
   function managementToken() {
-    const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
-    const entityAdminToken = sessionStorage.getItem('lekerEntityAdminToken') || '';
-    const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
+    const ownerToken = localStorage.getItem('lekerOwnerToken') || '';
+    const entityAdminToken = localStorage.getItem('lekerEntityAdminToken') || '';
+    const adminToken = localStorage.getItem('lekerAdminToken') || '';
     if (isBranch) return ownerToken || entityAdminToken || adminToken;
     return ownerToken;
   }
@@ -230,7 +230,7 @@
     let loaded = false;
     const maybeLoad = () => {
       const visible = !app.classList.contains('hidden');
-      const token = sessionStorage.getItem('lekerOwnerToken') || '';
+      const token = localStorage.getItem('lekerOwnerToken') || '';
       if (visible && token && !loaded) {
         loaded = true;
         load(section);

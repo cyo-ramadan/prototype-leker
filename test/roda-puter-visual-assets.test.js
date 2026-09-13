@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 
 const customerHtml = readFileSync(new URL('../public/customer.html', import.meta.url), 'utf8');
+const gameHtml = readFileSync(new URL('../public/game.html', import.meta.url), 'utf8');
 const productArt = readFileSync(new URL('../public/roda-puter-product-art.js', import.meta.url), 'utf8');
 const dermoCatalog = readFileSync(new URL('../migrations/0083_dermo_leker_catalog_and_recipes.sql', import.meta.url), 'utf8');
 const spriteUrl = new URL('../public/roda-puter-tea-icons.webp', import.meta.url);
@@ -29,9 +30,10 @@ const teaRewardNames = [
   'es teh poci original vanilla besar'
 ];
 
-test('Roda Puter loads the canonical Product Master visual renderer', () => {
-  assert.match(customerHtml, /roda-puter-product-art\.js\?v=20260913-master-visual-v1/);
-  assert.doesNotMatch(customerHtml, /function decorateRodaPuter\(/, 'renderer belongs in one external asset, not duplicated inline');
+test('Roda Puter visual renderer loads only on the dedicated Game page', () => {
+  assert.doesNotMatch(customerHtml, /src="\/roda-puter-product-art\.js/);
+  assert.match(gameHtml, /roda-puter-product-art\.js\?v=20260913-master-visual-v1/);
+  assert.doesNotMatch(gameHtml, /function decorateRodaPuter\(/, 'renderer belongs in one external asset, not duplicated inline');
 });
 
 test('Roda Puter product art prefers Product Master image then visual key before compatibility fallback', () => {

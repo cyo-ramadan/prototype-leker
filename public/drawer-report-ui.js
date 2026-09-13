@@ -16,7 +16,7 @@
   // rapat kanan -- tanpa garis sekat kolom, jadi tidak pernah kepotong
   // di lebar layar berapa pun.
   const moneyList = (items, emptyText = 'Belum ada data pada laci ini.') => items.length
-    ? `<div class="drawer-line-list">${items.map(([name, amount]) => `<div class="drawer-line-row"><span>${esc(name)}</span><b>${amount == null ? '-' : rupiah(amount)}</b></div>`).join('')}</div>`
+    ? `<div class="drawer-line-list">${items.map(([name, amount]) => `<div class="drawer-line-row"><span>${esc(name)}</span><span class="drawer-line-amount">${amount == null ? '-' : rupiah(amount)}</span></div>`).join('')}</div>`
     : `<div class="drawer-line-empty">${esc(emptyText)}</div>`;
   const lineName = (name, quantity) => (quantity != null && Number(quantity) !== 1) ? `${name} ×${number(quantity)}` : name;
 

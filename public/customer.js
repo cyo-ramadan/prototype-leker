@@ -80,7 +80,6 @@ function injectRodaPuterStyle() {
   style.textContent = `
     .roda-demo{display:none;margin:18px 0 26px;padding:18px;border:1px solid #fed7aa;border-radius:22px;background:linear-gradient(145deg,#fff7ed,#fff);box-shadow:0 14px 34px rgba(124,45,18,.08)}
     .roda-demo.ready{display:grid;grid-template-columns:minmax(230px,340px) minmax(0,1fr);gap:24px;align-items:center}
-    .roda-demo-kicker{display:inline-flex;padding:5px 9px;border-radius:999px;background:#ffedd5;color:#9a3412;font-size:11px;font-weight:900;letter-spacing:.06em}
     .roda-stage{position:relative;display:grid;place-items:center;min-height:300px}
     .roda-pointer{position:absolute;z-index:4;top:-4px;width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:34px solid #431407;filter:drop-shadow(0 3px 2px rgba(0,0,0,.2))}
     .roda-wheel{width:min(74vw,280px);aspect-ratio:1;border-radius:50%;border:9px solid #fff;outline:5px solid #7c2d12;box-shadow:0 16px 32px rgba(124,45,18,.24);transition:transform 2.4s cubic-bezier(.12,.74,.12,1);position:relative}
@@ -113,9 +112,8 @@ async function mountRodaPuterDemo() {
       <button id="rodaPuterSpin" class="roda-spin" type="button">PUTAR<br>RODA</button>
     </div>
     <div class="roda-copy">
-      <span class="roda-demo-kicker">MODE COBA-COBA · NO VOUCHER</span>
       <h2>Spin buat seru-seruan</h2>
-      <p class="muted">Boleh dimainkan berkali-kali. Hasil demo tidak membuat Voucher nyata. Spin resmi cuma sekali setelah member baru di-ACC di depan CS.</p>
+      <p class="muted">Boleh dimainkan berkali-kali buat seru-seruan. Voucher resmi didapat pelanggan baru saat di-ACC langsung di depan kasir.</p>
       <div id="rodaPuterPrizes" class="roda-prizes"></div>
       <div id="rodaPuterResult" class="roda-result">Tap tombol kalau lagi butuh dopamine tipis-tipis ✨</div>
     </div>`;
@@ -149,7 +147,7 @@ async function spinRodaPuterDemo() {
   const button = el('rodaPuterSpin');
   const result = el('rodaPuterResult');
   button.disabled = true;
-  result.textContent = 'Roda lagi muter… hasil ini tetap demo ya.';
+  result.textContent = 'Roda lagi muter…';
   try {
     const response = await fetch('/api/roda-puter/demo', { method: 'POST' });
     const payload = await response.json().catch(() => ({}));
@@ -159,7 +157,7 @@ async function spinRodaPuterDemo() {
     state.rodaRotation = (Math.floor(state.rodaRotation / 360) + 5) * 360 + targetDegrees;
     el('rodaPuterWheel').style.transform = `rotate(${state.rodaRotation}deg)`;
     await new Promise(resolve => setTimeout(resolve, 2450));
-    result.textContent = `Demo berhenti di ${payload.reward.productName}. No claim, no Voucher—pure fun 😌`;
+    result.textContent = `Berhenti di ${payload.reward.productName}. Seru-seruan aja ya 😌`;
   } catch (error) {
     result.textContent = error.message;
   } finally {

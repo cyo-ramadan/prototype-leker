@@ -190,11 +190,21 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
     if (!sourceOrder || sourceOrder.source !== 'customer') {
       return json({ error: 'Pesanan sumber draft tidak ditemukan.' }, 404);
     }
-    if (sourceOrder.status !== 'PREPARING') {
-      return json({ error: 'Pesanan sumber harus berstatus Diterima sebelum diproses sebagai penjualan.' }, 409);
+    // PREPARING: kasir menagih saat pesanan diterima/dibuat. COMPLETED: kasir
+    // menagih setelah barang jadi dan fisik sudah diambil pelanggan ("Teruskan
+    // ke Penjualan" di kartu pesanan Sudah Jadi) -- dua titik tagih yang sah,
+    // tergantung alur toko.
+    if (sourceOrder.status !== 'PREPARING' && sourceOrder.status !== 'COMPLETED') {
+      return json({ error: 'Pesanan sumber harus berstatus Diterima atau Sudah Jadi sebelum diproses sebagai penjualan.' }, 409);
     }
     if (sourceOrder.drawerSessionId !== ownership.drawer.id) {
       return json({ error: 'Pesanan sumber terikat ke laci aktif yang berbeda.' }, 409);
+    }
+    const existingSale = await env.DB.prepare(
+      'SELECT id FROM sales WHERE store_id = ? AND order_id = ? LIMIT 1'
+    ).bind(storeId, sourceOrder.id).first();
+    if (existingSale) {
+      return json({ error: 'Pesanan ini sudah diproses jadi penjualan sebelumnya.' }, 409);
     }
 
     const validated = validateOrderSnapshotLines(sourceOrder, body.value?.items);

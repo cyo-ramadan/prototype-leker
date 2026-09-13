@@ -55,24 +55,14 @@
       return toppings;
     }
 
-    if (/choco\s*crunch/.test(name)) {
-      add('chocolate');
-      add('chocchips');
-    }
-    if (/choco\s*maltine|chocomaltine/.test(name)) {
-      add('chocolate');
-      add('chocchips');
-    }
-    if (/ovomaltine/.test(name)) {
-      add('chocolate');
-      add('cappuccino');
-    }
-    if (/beng\s*beng/.test(name)) {
-      add('chocolate');
-      add('oreo');
-    }
+    // Branded chocolate toppings occupy one visual slot so Dermo's three-part
+    // combinations can still show the other two named ingredients.
+    if (/choco\s*crunch/.test(name)) add('chocchips');
+    if (/choco\s*maltine|chocomaltine/.test(name)) add('chocolate');
+    if (/ovomaltine/.test(name)) add('chocolate');
+    if (/beng\s*beng/.test(name)) add('chocolate');
     if (/tiramisu/.test(name)) add('tiramisu');
-    if (/\bnutella\b/.test(name)) add('chocolate');
+    if (/\bnutella\b|\bnuttela\b/.test(name)) add('chocolate');
     if (/\bmilo\b/.test(name)) {
       add('chocolate');
       add('milk');
@@ -88,13 +78,13 @@
     if (/\bblueberry\b/.test(name)) add('blueberry');
     if (/\bstrawberry\b/.test(name)) add('strawberry');
     if (/\bblue\s*band\b|\bmargarin/.test(name)) add('blue_band');
-    if (/\bgula\s*aren\b|\bpalm\s*sugar\b/.test(name)) add('palm_sugar');
+    if (/\bgula(?:\s*aren)?\b|\bpalm\s*sugar\b/.test(name)) add('palm_sugar');
     if (/\boreo\b/.test(name)) add('oreo');
     if (/\bchoco\s*chips?\b|\bchocochips?\b/.test(name)) add('chocchips');
     if (/\bgreen\s*tea\b|\bgreentea\b|\bmatcha\b/.test(name)) add('matcha');
     if (/\bcappu?c+ino\b|\bcoffee\b|\bkopi\b/.test(name)) add('cappuccino');
     if (/\bkacang\b|\bpeanut\b/.test(name)) add('peanut');
-    if (/\bmarshm+allow\b|\bmarshmallow\b/.test(name)) add('marshmallow');
+    if (/\bmarsmellow\b|\bmarshm+allow\b|\bmarshmallow\b/.test(name)) add('marshmallow');
     if (/\bpisang\b|\bbanana\b/.test(name)) add('banana');
     if (/\btel+or\b|\btelur\b|\begg\b/.test(name)) add('egg');
     if (/\bkornet\b|\bcorned\s*beef\b/.test(name)) add('corned_beef');

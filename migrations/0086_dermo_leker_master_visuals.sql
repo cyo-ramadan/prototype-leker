@@ -53,6 +53,7 @@ INSERT INTO dermo_leker_visual_source_0086 (product_name) VALUES
   ('Leker Nutella'),
   ('Leker Greentea + Keju'),
   ('Leker Mozarella'),
+  ('Leker Blueberry + Keju'),
   ('Leker Telor'),
   ('Leker Strawberry + Keju'),
   ('Leker Kornet Sapi'),

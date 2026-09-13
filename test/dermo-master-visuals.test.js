@@ -6,11 +6,19 @@ const migration = await readFile(new URL('../migrations/0086_dermo_leker_master_
 const menuDb = await readFile(new URL('../src/db-multistore.js', import.meta.url), 'utf8');
 const contract = await readFile(new URL('../contracts/product-master-accounting-reference-v5.md', import.meta.url), 'utf8');
 
-test('Dermo Leker visual migration adds a Product Master fallback without overwriting curated Dermo images', () => {
+test('Dermo Leker visual migration seeds the exact 73-item Product Master scope without overwriting curated Dermo images', () => {
   assert.match(migration, /ALTER TABLE products ADD COLUMN image_visual_key TEXT/);
   assert.match(migration, /CREATE TABLE dermo_leker_visual_source_0086/);
-  assert.match(migration, /'Leker Susu Coklat'/);
-  assert.match(migration, /'Leker Original'/);
+
+  const insertBlock = migration.match(/INSERT INTO dermo_leker_visual_source_0086 \(product_name\) VALUES([\s\S]*?);\n\n-- Dermo was cloned/);
+  assert.ok(insertBlock, 'canonical Dermo visual seed block must exist');
+  const seededNames = [...insertBlock[1].matchAll(/\('([^']+)'\)/g)].map(match => match[1]);
+  assert.equal(seededNames.length, 73, 'all 73 Dermo Leker products must receive a visual key');
+  assert.equal(new Set(seededNames).size, 73, 'Dermo visual seed names must be unique');
+  assert.ok(seededNames.includes('Leker Blueberry + Keju'));
+  assert.ok(seededNames.includes('Leker Susu Coklat'));
+  assert.ok(seededNames.includes('Leker Original'));
+
   assert.match(migration, /d\.store_id = 'store_dermo'/);
   assert.match(migration, /p\.store_id = 'store_pendem'/);
   assert.match(migration, /COALESCE\(TRIM\(d\.image_data\), ''\) = ''/);

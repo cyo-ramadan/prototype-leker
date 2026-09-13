@@ -55,8 +55,6 @@
       return toppings;
     }
 
-    // Branded chocolate toppings occupy one visual slot so Dermo's three-part
-    // combinations can still show the other two named ingredients.
     if (/choco\s*crunch/.test(name)) add('chocchips');
     if (/choco\s*maltine|chocomaltine/.test(name)) add('chocolate');
     if (/ovomaltine/.test(name)) add('chocolate');
@@ -111,7 +109,7 @@
     const toppings = resolveToppings(value);
     return `<div class="menu-product-image leker-menu-generated" data-leker-generated="1">
       <img class="leker-generated-base" src="${BASE_URL}" alt="" aria-hidden="true">
-      <div class="leker-generated-toppings leker-generated-count-${toppings.length}" aria-hidden="true">
+      <div class="leker-generated-toppings leker-generated-count-${toppings.length}" data-leker-filling-placement="inside" aria-hidden="true">
         ${toppings.map(toppingMarkup).join('')}
       </div>
     </div>`;
@@ -124,16 +122,16 @@
     style.textContent = `
       .leker-menu-generated{position:relative;display:block;width:100%;aspect-ratio:1/1;overflow:hidden;background:#f4dfbf}
       .leker-menu-generated .leker-generated-base{display:block;width:100%;height:100%;object-fit:cover}
-      .leker-generated-toppings{position:absolute;right:1.5%;bottom:3.5%;width:31.25%;height:31.25%;pointer-events:none}
-      .leker-generated-topping{position:absolute;bottom:0;left:50%;display:block;width:70%;aspect-ratio:1/1;background-image:url('${SPRITE_URL}');background-size:500% 400%;background-repeat:no-repeat;background-position:calc(var(--leker-sprite-x) * -100%) calc(var(--leker-sprite-y) * -100%);filter:drop-shadow(0 3px 3px rgba(67,38,18,.24));transform-origin:50% 100%}
-      .leker-generated-count-1 .leker-generated-topping{width:82%;transform:translateX(-50%)}
-      .leker-generated-count-2 .leker-generated-topping{width:68%}
-      .leker-generated-count-2 .leker-generated-topping-1{transform:translateX(-82%) rotate(-4deg)}
-      .leker-generated-count-2 .leker-generated-topping-2{transform:translateX(-18%) rotate(4deg)}
-      .leker-generated-count-3 .leker-generated-topping{width:56%}
-      .leker-generated-count-3 .leker-generated-topping-1{transform:translateX(-102%) rotate(-6deg)}
-      .leker-generated-count-3 .leker-generated-topping-2{transform:translateX(-50%) translateY(-7%)}
-      .leker-generated-count-3 .leker-generated-topping-3{transform:translateX(2%) rotate(6deg)}
+      .leker-generated-toppings{position:absolute;left:18%;bottom:25%;width:58%;height:28%;overflow:hidden;pointer-events:none;transform:rotate(-2deg);transform-origin:50% 100%;z-index:2}
+      .leker-generated-topping{position:absolute;left:50%;bottom:-23%;display:block;width:56%;aspect-ratio:1/1;background-image:url('${SPRITE_URL}');background-size:500% 400%;background-repeat:no-repeat;background-position:calc(var(--leker-sprite-x) * -100%) calc(var(--leker-sprite-y) * -100%);filter:drop-shadow(0 4px 4px rgba(67,38,18,.28));transform-origin:50% 100%}
+      .leker-generated-count-1 .leker-generated-topping{width:64%;bottom:-20%;transform:translateX(-50%)}
+      .leker-generated-count-2 .leker-generated-topping{width:52%;bottom:-22%}
+      .leker-generated-count-2 .leker-generated-topping-1{transform:translateX(-80%) rotate(-5deg)}
+      .leker-generated-count-2 .leker-generated-topping-2{transform:translateX(-20%) rotate(5deg)}
+      .leker-generated-count-3 .leker-generated-topping{width:43%;bottom:-22%}
+      .leker-generated-count-3 .leker-generated-topping-1{transform:translateX(-98%) rotate(-7deg)}
+      .leker-generated-count-3 .leker-generated-topping-2{transform:translateX(-50%) translateY(-6%)}
+      .leker-generated-count-3 .leker-generated-topping-3{transform:translateX(-2%) rotate(7deg)}
     `;
     document.head.appendChild(style);
   }

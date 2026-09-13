@@ -4,8 +4,8 @@
   const dt = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
   const labels = { SALE: 'Penjualan', PURCHASE: 'Pembelian', EXPENSE: 'Operasional' };
   const isBranchAdmin = Boolean(document.getElementById('adminApp'));
-  const storeCode = String(window.LEKER_STORE_CODE || sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
-  function authToken() { return sessionStorage.getItem('lekerOwnerToken') || sessionStorage.getItem('lekerEntityAdminToken') || sessionStorage.getItem('lekerAdminToken') || ''; }
+  const storeCode = String(window.LEKER_STORE_CODE || localStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
+  function authToken() { return localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken') || ''; }
   function scoped(path) {
     if (!isBranchAdmin || !storeCode) return path;
     const url = new URL(path, location.origin); url.searchParams.set('store', storeCode); return `${url.pathname}${url.search}`;

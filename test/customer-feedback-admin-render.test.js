@@ -6,8 +6,8 @@ import vm from 'node:vm';
 test('Admin Gerai feedback inbox authenticates its own management read and exposes load status', async () => {
   const script = await readFile(new URL('../public/management-customer-feedback.js', import.meta.url), 'utf8');
 
-  assert.match(script, /sessionStorage\.getItem\('lekerAdminToken'\)/);
-  assert.match(script, /sessionStorage\.getItem\('lekerOwnerToken'\)/);
+  assert.match(script, /localStorage\.getItem\('lekerAdminToken'\)/);
+  assert.match(script, /localStorage\.getItem\('lekerOwnerToken'\)/);
   assert.match(script, /Authorization: `Bearer \$\{token\}`/);
   assert.match(script, /Array\.isArray\(payload\.feedback\) \? payload\.feedback : \[\]/);
   assert.match(script, /laporan berhasil dibaca dari server/);

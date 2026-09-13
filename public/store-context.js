@@ -15,7 +15,7 @@
   // before any fallback: otherwise the page loads as G001 while the session
   // belongs to another gerai, and every scoped request goes to the wrong gerai.
   const adminSessionStore = isAdmin
-    ? String(sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase()
+    ? String(localStorage.getItem('lekerAdminStoreCode') || '').toUpperCase()
     : '';
   const selected = pathStore || adminSessionStore || localStorage.getItem(rememberedKey) || 'G001';
 

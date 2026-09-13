@@ -6,7 +6,7 @@
   ownerEl('ownerLogoutBtn')?.addEventListener('click', async event => {
     event.preventDefault();
     event.stopImmediatePropagation();
-    const token = sessionStorage.getItem('lekerOwnerToken') || '';
+    const token = localStorage.getItem('lekerOwnerToken') || '';
     try {
       if (token) {
         await fetch('/api/owner/logout', {
@@ -15,7 +15,7 @@
         });
       }
     } catch {}
-    sessionStorage.removeItem('lekerOwnerToken');
+    localStorage.removeItem('lekerOwnerToken');
     sessionStorage.removeItem('lekerStaffSessionMeta');
     location.href = '/?login=staff';
   }, true);

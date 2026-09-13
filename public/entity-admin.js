@@ -1,5 +1,5 @@
 const entityAdminState = {
-  token: sessionStorage.getItem('lekerEntityAdminToken') || '',
+  token: localStorage.getItem('lekerEntityAdminToken') || '',
   entityAdmin: null,
   stores: [],
   accounts: [],
@@ -39,7 +39,7 @@ async function entityAdminLogin() {
     });
     entityAdminState.token = payload.token;
     entityAdminState.entityAdmin = payload.entityAdmin;
-    sessionStorage.setItem('lekerEntityAdminToken', payload.token);
+    localStorage.setItem('lekerEntityAdminToken', payload.token);
     entityAdminEl('entityAdminPassword').value = '';
     await loadEntityAdminData();
     showEntityAdminApp();
@@ -255,7 +255,7 @@ async function entityAdminLogout() {
   entityAdminState.token = '';
   entityAdminState.entityAdmin = null;
   entityAdminState.stores = [];
-  sessionStorage.removeItem('lekerEntityAdminToken');
+  localStorage.removeItem('lekerEntityAdminToken');
   showEntityAdminLogin();
 }
 
@@ -276,7 +276,7 @@ async function initEntityAdmin() {
     await loadEntityAdminData();
     showEntityAdminApp();
   } catch {
-    sessionStorage.removeItem('lekerEntityAdminToken');
+    localStorage.removeItem('lekerEntityAdminToken');
     entityAdminState.token = '';
     showEntityAdminLogin();
   }

@@ -2,12 +2,12 @@
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
   const isBranchAdmin = Boolean(document.getElementById('adminApp'));
-  const storeCode = String(window.LEKER_STORE_CODE || sessionStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
+  const storeCode = String(window.LEKER_STORE_CODE || localStorage.getItem('lekerAdminStoreCode') || '').toUpperCase();
 
   function authSnapshot() {
-    const ownerToken = sessionStorage.getItem('lekerOwnerToken') || '';
-    const entityAdminToken = sessionStorage.getItem('lekerEntityAdminToken') || '';
-    const adminToken = sessionStorage.getItem('lekerAdminToken') || '';
+    const ownerToken = localStorage.getItem('lekerOwnerToken') || '';
+    const entityAdminToken = localStorage.getItem('lekerEntityAdminToken') || '';
+    const adminToken = localStorage.getItem('lekerAdminToken') || '';
     return { ownerToken, entityAdminToken, adminToken, token: ownerToken || entityAdminToken || adminToken };
   }
 

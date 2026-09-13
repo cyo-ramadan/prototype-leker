@@ -23,7 +23,18 @@ test('leker visual mapping composes modular toppings from menu names', () => {
   assert.deepEqual(Array.from(api.resolveToppings('Jagung Keju')), ['cheese', 'corn']);
   assert.deepEqual(Array.from(api.resolveToppings('Sosis Mayo')), ['sausage', 'milk']);
   assert.deepEqual(Array.from(api.resolveToppings('Leker Special Maxi')), ['chocolate', 'cheese', 'banana']);
-  assert.deepEqual(Array.from(api.resolveToppings('Choco Crunch + Pisang')), ['chocolate', 'chocchips', 'banana']);
+  assert.deepEqual(Array.from(api.resolveToppings('Choco Crunch + Pisang')), ['chocchips', 'banana']);
+});
+
+test('Dermo catalog aliases and three-part variants keep their visible ingredients', () => {
+  const api = loadApi();
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Blueberry + Gula')), ['blueberry', 'palm_sugar']);
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Strawberry + Gula')), ['strawberry', 'palm_sugar']);
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Marsmellow')), ['marshmallow']);
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Nuttela + Mozarella')), ['chocolate', 'cheese']);
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Choco Crunch + Pisang + Keju')), ['chocchips', 'cheese', 'banana']);
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Ovomaltine + Kacang + Keju')), ['chocolate', 'cheese', 'peanut']);
+  assert.deepEqual(Array.from(api.resolveToppings('Leker Chocomaltine + Kacang + Keju')), ['chocolate', 'cheese', 'peanut']);
 });
 
 test('leker visual mapping leaves unrelated products untouched', () => {

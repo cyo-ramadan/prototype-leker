@@ -37,11 +37,14 @@ test('Dermo catalog aliases and three-part variants keep their visible ingredien
   assert.deepEqual(Array.from(api.resolveToppings('Leker Chocomaltine + Kacang + Keju')), ['chocolate', 'cheese', 'peanut']);
 });
 
-test('leker visual mapping leaves unrelated products untouched', () => {
+test('generated menu art is scoped strictly to products named Leker', () => {
   const api = loadApi();
-  assert.equal(api.recognizes('Es Teh Jasmine'), false);
-  assert.equal(api.artMarkup('Es Teh Jasmine'), '');
+  for (const name of ['Es Teh Jasmine', 'Es Teh Cokelat', 'Es Teh Susu', 'Es Teh Original', 'Cappuccino']) {
+    assert.equal(api.recognizes(name), false, `${name} must keep its existing photo`);
+    assert.equal(api.artMarkup(name), '', `${name} must not receive generated Leker art`);
+  }
   assert.equal(api.recognizes('Leker Original'), true);
+  assert.equal(api.recognizes('Leker Susu Cokelat'), true);
   assert.match(api.artMarkup('Leker Original'), /leker-menu-generated/);
 });
 

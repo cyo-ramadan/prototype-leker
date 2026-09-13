@@ -22,3 +22,13 @@ test('rejected (CANCELLED) order rows do not get the continue-to-sale button', (
 test('clicking "Teruskan ke Penjualan" reuses snapshotOrderToDraft instead of a new submit path', () => {
   assert.match(ui, /data-teruskan-order\]'\)\.forEach\(button => \{\s*button\.onclick = \(\) => \{\s*const order = \(state\.orders \|\| \[\]\)\.find\(candidate => String\(candidate\.id\) === button\.dataset\.teruskanOrder\);\s*if \(order\) snapshotOrderToDraft\(order\);/);
 });
+
+test('finishing a sale that started from "Teruskan ke Penjualan" lands back on the Pesanan tab, not the empty Penjualan screen', () => {
+  const fnStart = ui.indexOf('async function processTrackedSale');
+  const fnEnd = ui.indexOf('\n  }', fnStart);
+  const fnBody = ui.slice(fnStart, fnEnd);
+  assert.match(fnBody, /const cameFromOrder = Boolean\(draftOriginOrderId\);/, 'must capture the order-origin flag before draftOriginOrderId is cleared');
+  assert.match(fnBody, /if \(cameFromOrder\) setMode\('orders'\);/, 'must switch back to the orders tab when the sale came from an order');
+  // the flag must be read BEFORE the reset, or it always evaluates to false
+  assert.ok(fnBody.indexOf('const cameFromOrder') < fnBody.indexOf('draftOriginOrderId = null'));
+});

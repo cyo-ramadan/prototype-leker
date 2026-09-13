@@ -368,6 +368,7 @@
 
   async function processTrackedSale() {
     if (!state.canWrite || !state.draft.size) return;
+    const cameFromOrder = Boolean(draftOriginOrderId);
     try {
       const payload = await api('/api/cashier/sales', {
         method: 'POST',
@@ -389,6 +390,10 @@
       renderOrders();
       const pointText = Number(payload.sale.points || 0) > 0 ? ` · +${Number(payload.sale.points)} poin` : '';
       toast(`Penjualan tersimpan · ${money(payload.sale.total)}${pointText}`);
+      // A sale started from "Teruskan ke Penjualan" began on the Pesanan tab --
+      // land back there instead of the now-empty Penjualan screen, so the
+      // cashier sees the flow actually finished, not stuck on a blank cart.
+      if (cameFromOrder) setMode('orders');
       return true;
     } catch (error) {
       toast(error.message);

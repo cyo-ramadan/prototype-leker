@@ -97,8 +97,7 @@
 
   function recognizes(value) {
     const name = normalizeName(value);
-    if (/\bleker\b|\boriginal\b|\bori\b/.test(name)) return true;
-    return resolveToppings(name).length > 0;
+    return /\bleker\b/.test(name);
   }
 
   function toppingMarkup(key, index) {

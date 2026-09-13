@@ -6,7 +6,7 @@
   <title>Game | MAXI Leker</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/customer-responsive.css" />
-  <link rel="stylesheet" href="/game.css?v=20260913-game-page-v1" />
+  <link rel="stylesheet" href="/game.css?v=20260913-insert-coin-v1" />
 </head>
 <body>
 <div class="app-shell">
@@ -26,13 +26,16 @@
       <div class="roda-stage">
         <div class="roda-pointer" aria-hidden="true"></div>
         <div id="rodaPuterWheel" class="roda-wheel" aria-label="Roda Puter"></div>
-        <button id="rodaPuterSpin" class="roda-spin" type="button">PUTAR<br>RODA</button>
       </div>
       <div class="roda-copy">
         <h2>Hadiah di roda</h2>
-        <p class="muted">Pilih tombol putar dan lihat roda berhenti di hadiah mana.</p>
+        <p class="muted">Main pakai Coin buat dapat hadiah beneran. Tanpa Coin, roda cuma muter buat hiasan.</p>
         <div id="rodaPuterPrizes" class="roda-prizes"></div>
-        <div id="rodaPuterResult" class="roda-result">Tap PUTAR RODA buat mulai.</div>
+        <div id="rodaPuterResult" class="roda-result">Masukkan Coin buat main dan dapetin hadiah.</div>
+        <div class="roda-coin-box">
+          <div id="rodaPuterCoinBalance" class="roda-coin-balance hidden"></div>
+          <button id="rodaPuterInsertCoin" class="roda-insert-coin" type="button">🪙 INSERT COIN</button>
+        </div>
       </div>
     </section>
 
@@ -54,9 +57,13 @@ const state = {
   menu: [],
   rodaRewards: [],
   rodaRotation: 0,
-  rodaSpinning: false
+  rodaSpinning: false,
+  coinConfirmArmed: false
 };
 const el = id => document.getElementById(id);
+const storeCode = String(window.LEKER_STORE_CODE || 'G001').toUpperCase();
+const customerTokenKey = `lekerCustomerToken:${storeCode}`;
+const customerToken = () => sessionStorage.getItem(customerTokenKey) || '';
 
 function escapeHtml(str='') {
   return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
@@ -102,29 +109,116 @@ function rewardMidpointBasisPoints(rewardId) {
   return 0;
 }
 
-async function spinRodaPuter() {
-  if (state.rodaSpinning) return;
-  state.rodaSpinning = true;
-  const button = el('rodaPuterSpin');
+function setIdleSpin(active) {
+  el('rodaPuterWheel').classList.toggle('roda-idle-spin', active);
+}
+
+function resetInsertCoinButton() {
+  const button = el('rodaPuterInsertCoin');
+  state.coinConfirmArmed = false;
+  button.textContent = '🪙 INSERT COIN';
+  button.classList.remove('armed');
+}
+
+async function refreshCoinBalance() {
+  const balanceEl = el('rodaPuterCoinBalance');
+  if (!customerToken()) {
+    balanceEl.classList.add('hidden');
+    return null;
+  }
+  try {
+    const response = await fetch('/api/customer/coins', {
+      headers: { Authorization: `Bearer ${customerToken()}` }
+    });
+    if (!response.ok) { balanceEl.classList.add('hidden'); return null; }
+    const payload = await response.json();
+    balanceEl.textContent = `🪙 Coin kamu: ${payload.coins}`;
+    balanceEl.classList.remove('hidden');
+    return payload.coins;
+  } catch {
+    balanceEl.classList.add('hidden');
+    return null;
+  }
+}
+
+async function playRealSpin() {
+  const button = el('rodaPuterInsertCoin');
   const result = el('rodaPuterResult');
+  state.rodaSpinning = true;
+  setIdleSpin(false);
   button.disabled = true;
   result.textContent = 'Roda lagi muter…';
   try {
-    const response = await fetch('/api/roda-puter/demo', { method: 'POST' });
+    const response = await fetch('/api/customer/roda-puter/coin-spin', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${customerToken()}` }
+    });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'Roda Puter belum bisa dimainkan.');
+    if (!response.ok) {
+      if (payload.code === 'RODA_PUTER_COIN_INSUFFICIENT') {
+        result.textContent = `Coin kamu belum cukup buat main (sekarang: ${payload.coins ?? 0}). Minta Coin ke kasir gerai ini dulu, ya.`;
+      } else if (payload.code === 'CUSTOMER_LOGIN_REQUIRED') {
+        result.innerHTML = 'Login dulu sebagai member buat main pakai Coin. <a href="/customer">Login / Daftar</a>';
+      } else {
+        result.textContent = payload.error || 'Roda Puter belum bisa dimainkan sekarang.';
+      }
+      setIdleSpin(true);
+      return;
+    }
     const midpoint = rewardMidpointBasisPoints(payload.reward.id);
     const targetDegrees = 360 - (midpoint * 360 / 10000);
     state.rodaRotation = (Math.floor(state.rodaRotation / 360) + 5) * 360 + targetDegrees;
     el('rodaPuterWheel').style.transform = `rotate(${state.rodaRotation}deg)`;
     await new Promise(resolve => setTimeout(resolve, 2450));
-    result.textContent = `Berhenti di ${payload.reward.productName}.`;
+    result.textContent = `Selamat! Berhenti di ${payload.reward.productName}. Vocer sudah masuk ke akun member kamu.`;
+    await refreshCoinBalance();
+    setIdleSpin(true);
   } catch (error) {
-    result.textContent = error.message;
+    result.textContent = 'Roda Puter gagal dimainkan, coba lagi ya.';
+    setIdleSpin(true);
   } finally {
     state.rodaSpinning = false;
     button.disabled = false;
   }
+}
+
+async function onInsertCoinClick() {
+  if (state.rodaSpinning) return;
+  const result = el('rodaPuterResult');
+
+  if (!customerToken()) {
+    result.innerHTML = 'Login dulu sebagai member buat main pakai Coin. <a href="/customer">Login / Daftar</a>';
+    return;
+  }
+
+  if (state.coinConfirmArmed) {
+    resetInsertCoinButton();
+    await playRealSpin();
+    return;
+  }
+
+  const coins = await refreshCoinBalance();
+  if (coins === null) {
+    result.innerHTML = 'Login dulu sebagai member buat main pakai Coin. <a href="/customer">Login / Daftar</a>';
+    return;
+  }
+  if (coins < 1) {
+    result.textContent = 'Coin kamu belum ada. Minta Coin ke kasir gerai ini dulu, ya.';
+    return;
+  }
+
+  state.coinConfirmArmed = true;
+  const button = el('rodaPuterInsertCoin');
+  button.textContent = '✅ Ya, Main (1 Coin)';
+  button.classList.add('armed');
+  result.textContent = `Kamu punya ${coins} Coin. Klik sekali lagi buat konfirmasi main.`;
+  clearTimeout(state.coinConfirmTimer);
+  state.coinConfirmTimer = setTimeout(() => {
+    if (!state.rodaSpinning) {
+      resetInsertCoinButton();
+      result.textContent = 'Masukkan Coin buat main dan dapetin hadiah.';
+    }
+  }, 8000);
 }
 
 async function initGame() {
@@ -139,8 +233,10 @@ async function initGame() {
 
     el('rodaPuterWheel').style.background = `conic-gradient(${rodaGradient(state.rodaRewards)})`;
     el('rodaPuterPrizes').innerHTML = state.rodaRewards.map(reward => `<span class="roda-prize">${escapeHtml(reward.productName)} · ${escapeHtml(reward.weightPercentExact)}%</span>`).join('');
-    el('rodaPuterSpin').addEventListener('click', spinRodaPuter);
+    el('rodaPuterInsertCoin').addEventListener('click', onInsertCoinClick);
     el('rodaPuterDemo').classList.add('ready');
+    setIdleSpin(true);
+    await refreshCoinBalance();
   } catch (error) {
     el('rodaPuterDemo').classList.remove('ready');
     el('rodaPuterUnavailable').classList.remove('hidden');

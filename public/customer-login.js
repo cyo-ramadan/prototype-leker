@@ -5,6 +5,8 @@
   let customerToken = sessionStorage.getItem(tokenKey) || '';
   let customer = null;
   let points = 0;
+  let coins = 0;
+  let vouchers = [];
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -150,6 +152,24 @@
     } catch { points = 0; }
   }
 
+  async function loadCoins() {
+    if (!customerToken || !customer) { coins = 0; return; }
+    try {
+      const response = await window.fetch('/api/customer/coins', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      coins = response.ok ? Number(payload.coins || 0) : 0;
+    } catch { coins = 0; }
+  }
+
+  async function loadVouchers() {
+    if (!customerToken || !customer) { vouchers = []; return; }
+    try {
+      const response = await window.fetch('/api/customer/vouchers', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      vouchers = response.ok ? (payload.vouchers || []).filter(voucher => voucher.status === 'UNUSED') : [];
+    } catch { vouchers = []; }
+  }
+
   function renderCustomer() {
     const button = el('entryLoginBtn');
     if (!button) return;
@@ -164,12 +184,20 @@
     button.textContent = `👤 ${customer.customerName}`;
     button.classList.add('customer-active');
     showView('entryAccountView');
+    const voucherListHtml = vouchers.length
+      ? `<ul class="entry-voucher-list">${vouchers.map(voucher => `<li>${escapeHtml(voucher.code)} · ${escapeHtml(voucher.masterName || 'Voucher')}${voucher.products?.length ? ` (${escapeHtml(voucher.products.map(product => product.name).join(', '))})` : ''}</li>`).join('')}</ul>`
+      : `<div class="entry-voucher-empty">Belum ada voucher aktif.</div>`;
     el('entryAccountView').innerHTML = `
       <div class="entry-account-card">
         <strong>${escapeHtml(customer.customerName)}</strong>
         <span>${escapeHtml(customer.store?.code || storeCode)} · Pelanggan login</span>
         <span class="entry-account-id">Customer ID: ${escapeHtml(customer.customerCode || customer.id)}</span>
         <span class="entry-points">⭐ Poin: <b>${Number(points || 0).toLocaleString('id-ID')}</b></span>
+        <span class="entry-coins">🪙 Coin: <b>${Number(coins || 0).toLocaleString('id-ID')}</b></span>
+        <div class="entry-vouchers">
+          <div class="entry-vouchers-title">🎟️ Voucher (${vouchers.length})</div>
+          ${voucherListHtml}
+        </div>
         <div class="entry-login-actions">
           <button id="entryCustomerLogout" class="secondary-btn" type="button">Logout pelanggan</button>
           <button id="entryCustomerContinue" class="primary-btn" type="button">Lanjut belanja</button>
@@ -218,6 +246,8 @@
     customerToken = '';
     customer = null;
     points = 0;
+    coins = 0;
+    vouchers = [];
     sessionStorage.removeItem(tokenKey);
     renderCustomer();
   }
@@ -229,11 +259,13 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error('expired');
       customer = payload.customer;
-      await loadPoints();
+      await Promise.all([loadPoints(), loadCoins(), loadVouchers()]);
     } catch {
       customerToken = '';
       customer = null;
       points = 0;
+      coins = 0;
+      vouchers = [];
       sessionStorage.removeItem(tokenKey);
     }
     renderCustomer();

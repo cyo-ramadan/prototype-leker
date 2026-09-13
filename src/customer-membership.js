@@ -4,6 +4,8 @@ import { resolveCustomerScope } from './customer-sharing.js';
 import { optionalCustomerFromRequest } from './customers.js';
 import { requireCashier } from './cashier-auth.js';
 import { hashCredential, requireManagement } from './owner-auth.js';
+import { listCustomerVouchers } from './voucher.js';
+import { getJakartaBusinessDate } from './time.js';
 
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
@@ -248,6 +250,28 @@ async function handlePoints(request, env) {
   return json({ customerId: auth.customer.id, points: Number(row?.points_balance ?? 0) });
 }
 
+async function handleCoins(request, env) {
+  const store = await selectedStore(env.DB, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  const auth = await requireLoggedCustomer(request, env, store);
+  if (!auth.ok) return auth.response;
+  const row = await env.DB.prepare(`
+    SELECT COALESCE(SUM(coins_delta), 0) AS coin_balance
+    FROM customer_coin_ledger
+    WHERE customer_id = ?
+  `).bind(auth.customer.id).first();
+  return json({ customerId: auth.customer.id, coins: Number(row?.coin_balance ?? 0) });
+}
+
+async function handleCustomerVouchers(request, env) {
+  const store = await selectedStore(env.DB, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  const auth = await requireLoggedCustomer(request, env, store);
+  if (!auth.ok) return auth.response;
+  const vouchers = await listCustomerVouchers(env.DB, store.id, auth.customer.id, getJakartaBusinessDate());
+  return json({ customerId: auth.customer.id, vouchers });
+}
+
 async function handleCustomerOrders(request, env) {
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
@@ -371,6 +395,8 @@ async function handleAdminRequests(request, env, pathname) {
 export async function handleCustomerMembershipApi(request, env, pathname) {
   if (request.method === 'POST' && pathname === '/api/customer/register') return handleRegistration(request, env);
   if (request.method === 'GET' && pathname === '/api/customer/points') return handlePoints(request, env);
+  if (request.method === 'GET' && pathname === '/api/customer/coins') return handleCoins(request, env);
+  if (request.method === 'GET' && pathname === '/api/customer/vouchers') return handleCustomerVouchers(request, env);
   if (request.method === 'GET' && pathname === '/api/customer/orders') return handleCustomerOrders(request, env);
   if (pathname === '/api/admin/customer-membership-settings') return handleMembershipSettings(request, env);
   if (pathname === '/api/admin/customer-requests' || pathname.startsWith('/api/admin/customer-requests/')) {

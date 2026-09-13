@@ -239,7 +239,7 @@
     }
     if (!el('cashierDrawerHistoryDialog')) {
       document.body.insertAdjacentHTML('beforeend', `
-        <dialog id="cashierDrawerHistoryDialog" class="cashier-dialog" style="max-width:min(1080px,96vw);width:96vw">
+        <dialog id="cashierDrawerHistoryDialog" class="cashier-dialog cashier-dialog-plain" style="max-width:min(1080px,96vw);width:96vw">
           <div class="cashier-dialog-head"><div><div class="muted">Gerai kasir</div><h2>Detail Laci</h2></div><button id="cashierDrawerHistoryClose" class="cart-close-btn" type="button">×</button></div>
           <div id="cashierDrawerHistoryList" class="drawer-history-grid"></div>
           <div id="cashierDrawerHistoryReport" class="drawer-report-panel hidden"></div>
@@ -272,7 +272,7 @@
       // pertama gerai selalu #1, bukan berubah-ubah ikut halaman/limit.
       const total = drawers.length;
       list.innerHTML = drawers.length ? drawers.map((drawer, index) => `
-        <article class="drawer-history-row">
+        <article class="drawer-history-row${drawer.status === 'OPEN' ? ' open' : ''}">
           <div><strong>Laci #${total - index} · ${esc(drawer.cashierName)} · ${esc(drawer.status)}</strong><small>ID ${esc(drawer.id)}${drawer.shiftLabel ? ` · Shift ${esc(drawer.shiftLabel)}` : ''}</small><small>Datang ${dateTime(drawer.openedAt)} · Pulang ${dateTime(drawer.closedAt)}</small><small>Modal ${money(drawer.openingAmount)} · @${esc(drawer.cashierUsername)}</small>${drawer.openingNote ? `<small>Keterangan buka: ${esc(drawer.openingNote)}</small>` : ''}${drawer.closingNote ? `<small>Keterangan pulang: ${esc(drawer.closingNote)}</small>` : ''}</div>
           <div class="drawer-history-actions"><button class="mini-btn" type="button" data-cashier-drawer-detail="${esc(drawer.id)}">Lihat Detail</button></div>
         </article>`).join('') : '<div class="empty">Belum ada riwayat laci di gerai ini.</div>';

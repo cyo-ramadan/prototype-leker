@@ -1,0 +1,39 @@
+/* 2026-09-13, Bos Cyo: "Data Transaksi & Stok", "Detail Laci", dan "Laporan ·
+   Saldo Stok" mepet banget dan nyiksa mata. Root cause: cashier.html tidak
+   memuat admin.css, padahal cashier-data-explorer.js / cashier-reports.js /
+   cashier.js / cashier-transaction-void-permits.js memakai kelas yang cuma
+   didefinisikan di admin.css (.master-*, .mini-btn, .text-btn, .list-head,
+   .admin-tip, .admin-field, .admin-check) -- jadi render tanpa style sama
+   sekali. Import admin.css langsung berisiko karena .field didefinisikan
+   beda di admin.css vs cashier-pos.css, jadi kelas yang dipakai di sisi
+   kasir didefinisikan ulang di sini saja (nilai disamakan dengan admin.css).
+   Ditambah: padding untuk dialog "cashier-dialog-plain" (dialog data/laci/
+   laporan yang tidak punya <form> pembungkus, sehingga tidak kebagian
+   aturan `.cashier-dialog form{padding:18px}` dari cashier-pos.css). */
+.cashier-dialog-plain { padding: 18px; }
+
+.list-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.text-btn { border: 0; background: transparent; color: var(--brand); font-weight: 900; padding: 6px; }
+.admin-tip { color: var(--muted); line-height: 1.55; }
+.admin-field { display: block; margin-bottom: 12px; font-size: 12px; font-weight: 900; }
+.admin-field input, .admin-field select, .admin-field textarea { width: 100%; margin-top: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; background: #fffcf8; color: var(--ink); outline: none; }
+.admin-check { display: flex; gap: 8px; align-items: center; margin: 8px 0 14px; font-size: 13px; font-weight: 800; }
+.admin-check input { width: 18px; height: 18px; }
+
+.master-list { display: grid; gap: 10px; margin-top: 14px; }
+.master-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+.master-row.inactive { opacity: .56; }
+.master-thumb { width: 58px; height: 58px; object-fit: cover; border-radius: 12px; background: #fff1df; border: 1px solid var(--line); }
+.master-main { min-width: 0; }
+.master-main strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.master-meta { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.master-prices { margin-top: 5px; font-size: 12px; display: flex; gap: 9px; flex-wrap: wrap; }
+.master-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.mini-btn { border: 1px solid var(--line); background: #fffaf4; color: var(--ink); border-radius: 10px; padding: 7px 9px; font-size: 11px; font-weight: 900; }
+.mini-btn.danger { color: #9b2d2d; background: #fff5f5; border-color: #f0c2c2; }
+
+@media (max-width: 620px) {
+  .master-row { grid-template-columns: 50px minmax(0,1fr); }
+  .master-thumb { width: 50px; height: 50px; }
+  .master-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}

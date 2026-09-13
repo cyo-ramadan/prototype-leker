@@ -3,7 +3,7 @@
     '/leker-menu-asset-base.js?v=20260913-v1',
     '/leker-menu-asset-sprite-a.js?v=20260913-v1',
     '/leker-menu-asset-sprite-b.js?v=20260913-v1',
-    '/leker-menu-visuals.js?v=20260913-v1'
+    '/leker-menu-visuals.js?v=20260913-v2'
   ];
   let visualScriptIndex = 0;
   const loadNextVisualScript = () => {

@@ -50,8 +50,9 @@
       .cashier-order-source-tabs button.active{background:#281f18;color:#fff;border-color:#281f18}
       .cashier-rejected-block{margin-top:16px;padding-top:14px;border-top:1px dashed #dfd0c2}
       .cashier-rejected-block h2{margin:0 0 10px}
-      .cashier-rejected-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eee3d8}
+      .cashier-rejected-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eee3d8}
       .cashier-order-status-label{font-weight:800}
+      .cashier-history-continue-btn{flex-basis:100%;border:0;border-radius:12px;padding:9px 12px;font-weight:900;cursor:pointer;background:#281f18;color:#fff}
       @media(max-width:720px){.cashier-workspace-nav{flex-wrap:wrap}.cashier-search-result{align-items:flex-start}}
     `;
     document.head.appendChild(style);
@@ -325,6 +326,7 @@
       <div class="cashier-rejected-row">
         <span><b>${esc(order.orderNo)}</b> · ${esc(order.customerName)} <span class="cashier-order-status-label">· ${order.status === 'COMPLETED' ? 'Sudah Jadi' : 'Ditolak'}</span></span>
         <span>${money(order.total)}</span>
+        ${order.status === 'COMPLETED' ? `<button type="button" class="cashier-history-continue-btn" data-teruskan-order="${esc(order.id)}">Teruskan ke Penjualan</button>` : ''}
       </div>`).join('');
   }
 
@@ -434,6 +436,12 @@
     if (byId('rejectedList')) byId('rejectedList').innerHTML = orderHistoryRows(groups.CANCELLED, 'Belum ada pesanan ditolak.');
     document.querySelectorAll('[data-status]').forEach(button => {
       button.onclick = () => updateStatus(button.dataset.id, button.dataset.status);
+    });
+    document.querySelectorAll('[data-teruskan-order]').forEach(button => {
+      button.onclick = () => {
+        const order = (state.orders || []).find(candidate => String(candidate.id) === button.dataset.teruskanOrder);
+        if (order) snapshotOrderToDraft(order);
+      };
     });
     updateNavigationCounts();
   };

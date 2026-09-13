@@ -190,7 +190,7 @@ async function customerInScope(db, storeId, customerId) {
   return { customer, scope };
 }
 
-async function listCustomerVouchers(db, storeId, customerId, businessDate) {
+export async function listCustomerVouchers(db, storeId, customerId, businessDate) {
   const rows = await db.prepare(`
     SELECT i.*, v.name AS master_name, v.active_from, v.active_until,
            v.usage_quota, v.redeemed_count, v.is_active

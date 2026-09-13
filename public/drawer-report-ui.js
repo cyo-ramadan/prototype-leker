@@ -7,19 +7,32 @@
   const emptyRow = (columns, text = 'Belum ada data pada laci ini.') => `<tr><td colspan="${columns}" class="drawer-report-empty">${esc(text)}</td></tr>`;
   const table = (headers, rows) => `<div class="drawer-report-table-wrap"><table class="drawer-report-table"><thead><tr>${headers.map(label => `<th>${esc(label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 
+  // Bos Cyo, 2026-09-14: baris "barang : biaya" (Penjualan, Promosi,
+  // Pembelian, Operasional, Perhitungan) di Detail Laci dulu dirender
+  // sebagai <table> dengan lebar minimum tetap -- di layar HP yang sempit
+  // itu selalu lebih lebar dari layar, jadi kolom nominal di kanan ketutup
+  // / harus digeser tanpa pemakai sadar. Diganti daftar 2 kolom fleksibel:
+  // nama melebar penuh (bisa turun baris kalau panjang), nominal selalu
+  // rapat kanan -- tanpa garis sekat kolom, jadi tidak pernah kepotong
+  // di lebar layar berapa pun.
+  const moneyList = (items, emptyText = 'Belum ada data pada laci ini.') => items.length
+    ? `<div class="drawer-line-list">${items.map(([name, amount]) => `<div class="drawer-line-row"><span>${esc(name)}</span><b>${amount == null ? '-' : rupiah(amount)}</b></div>`).join('')}</div>`
+    : `<div class="drawer-line-empty">${esc(emptyText)}</div>`;
+  const lineName = (name, quantity) => (quantity != null && Number(quantity) !== 1) ? `${name} ×${number(quantity)}` : name;
+
   function salesTable(rows, total, itemCount) {
-    const body = rows.length ? rows.map(row => `<tr><td>${esc(row.productName)}</td><td>${number(row.quantity)} × ${rupiah(row.unitPrice)} = ${rupiah(row.total)}</td></tr>`).join('') : emptyRow(2);
-    return `${table(['PRODUK', 'TERJUAL'], body)}<div class="drawer-report-total">Total (${number(itemCount)} item) <b>${rupiah(total)}</b></div>`;
+    const body = moneyList(rows.map(row => [lineName(row.productName, row.quantity), row.total]));
+    return `${body}<div class="drawer-report-total">Total (${number(itemCount)} item) <b>${rupiah(total)}</b></div>`;
   }
 
   function purchaseTable(rows, total) {
-    const body = rows.length ? rows.map(row => `<tr><td>${esc(row.description)}</td><td>${esc(row.supplierName || '-')}</td><td>${rupiah(row.totalAmount)}</td></tr>`).join('') : emptyRow(3);
-    return `${table(['PRODUK / KETERANGAN', 'SUPPLIER', 'TOTAL'], body)}<div class="drawer-report-total">Total <b>${rupiah(total)}</b></div>`;
+    const body = moneyList(rows.map(row => [String(row.description || '').replace(/^Pembelian\s+/i, ''), row.totalAmount]));
+    return `${body}<div class="drawer-report-total">Total <b>${rupiah(total)}</b></div>`;
   }
 
   function expenseTable(rows, total) {
-    const body = rows.length ? rows.map(row => `<tr><td>${esc(row.description)}</td><td>${rupiah(row.amount)}</td></tr>`).join('') : emptyRow(2);
-    return `${table(['Keterangan', 'Total'], body)}<div class="drawer-report-total">Total <b>${rupiah(total)}</b></div>`;
+    const body = moneyList(rows.map(row => [row.description, row.amount]));
+    return `${body}<div class="drawer-report-total">Total <b>${rupiah(total)}</b></div>`;
   }
 
   function section(title, content) {
@@ -31,9 +44,7 @@
     const drawer = report.drawer;
     const sections = report.sections || {};
     const totals = report.totals || {};
-    const promoRows = (sections.promotions || []).length
-      ? (sections.promotions || []).map(row => `<tr><td>${esc(row.name)}</td><td>${number(row.quantity)}</td><td>${rupiah(row.total)}</td></tr>`).join('')
-      : emptyRow(3);
+    const promoList = moneyList((sections.promotions || []).map(row => [lineName(row.name, row.quantity), row.total]));
     const cookingRows = (sections.cooking || []).length
       ? sections.cooking.map(row => `<tr><td>${esc(row.result || '')}</td><td>${esc(row.material || '')}</td></tr>`).join('')
       : emptyRow(2, 'Belum ada modul Masak pada prototype ini.');
@@ -62,24 +73,25 @@
       ${drawer.closingNote ? `<div class="drawer-report-note"><b>Keterangan Pulang:</b> ${esc(drawer.closingNote)}</div>` : ''}
 
       ${section('1. PENJUALAN BAYAR TUNAI', salesTable(sections.cashSales || [], totals.cashSales, totals.cashSalesItems))}
-      ${section('2. PROMOSI', `${table(['NAMA', 'JUMLAH', 'TOTAL'], promoRows)}<div class="drawer-report-total">Total <b>${rupiah(totals.promotions)}</b></div>`)}
+      ${section('2. PROMOSI', `${promoList}<div class="drawer-report-total">Total <b>${rupiah(totals.promotions)}</b></div>`)}
       ${section('3A. BELANJA BAHAN BAYAR TUNAI', purchaseTable(sections.cashPurchases || [], totals.cashPurchases))}
       ${section('4.1 OPERASIONAL KAS', expenseTable(sections.cashExpenses || [], totals.cashExpenses))}
       ${section('4.2 OPERASIONAL NON KAS', expenseTable(sections.nonCashExpenses || [], totals.nonCashExpenses))}
       ${section('5. MASAK', table(['HASIL', 'BAHAN BAKU'], cookingRows))}
       ${section('6. STOK SISA', table(['PRODUK', 'STOK AWAL', 'STOK AKHIR'], stockRows))}
 
-      ${section('PERHITUNGAN', table(['Keterangan', 'Total'], `
-        <tr><td>Penjualan Tunai (Plus)</td><td>${rupiah(totals.cashSales)}</td></tr>
-        <tr><td>Promosi (Minus)</td><td>${rupiah(totals.promotions)}</td></tr>
-        <tr><td>Pendapatan Riil Tunai</td><td>${rupiah(totals.realCashRevenue)}</td></tr>
-        <tr><td>Modal</td><td>${rupiah(drawer.openingAmount)}</td></tr>
-        <tr><td>Belanja Bahan Tunai (Minus)</td><td>${rupiah(totals.cashPurchases)}</td></tr>
-        <tr><td>Operasional Kas (Minus)</td><td>${rupiah(totals.cashExpenses)}</td></tr>
-        <tr><td>Kas Masuk (Plus)</td><td>${rupiah(totals.cashIn)}</td></tr>
-        <tr><td>Ekspektasi Di Laci</td><td><b>${rupiah(totals.expectedCash)}</b></td></tr>
-        <tr><td>Saldo Pulang</td><td>${drawer.closingAmount == null ? '-' : rupiah(drawer.closingAmount)}</td></tr>
-        <tr><td>Selisih Kas</td><td>${totals.cashDifference == null ? '-' : rupiah(totals.cashDifference)}</td></tr>`))}
+      ${section('PERHITUNGAN', moneyList([
+        ['Penjualan Tunai (Plus)', totals.cashSales],
+        ['Promosi (Minus)', totals.promotions],
+        ['Pendapatan Riil Tunai', totals.realCashRevenue],
+        ['Modal', drawer.openingAmount],
+        ['Belanja Bahan Tunai (Minus)', totals.cashPurchases],
+        ['Operasional Kas (Minus)', totals.cashExpenses],
+        ['Kas Masuk (Plus)', totals.cashIn],
+        ['Ekspektasi Di Laci', totals.expectedCash],
+        ['Saldo Pulang', drawer.closingAmount],
+        ['Selisih Kas', totals.cashDifference]
+      ]))}
 
       <div class="drawer-report-divider">CATATAN TAMBAHAN</div>
       ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems))}

@@ -141,7 +141,7 @@
 
   function decorateCard(card) {
     if (!card || card.dataset.lekerVisualReady === '1') return;
-    const nameNode = card.querySelector('.menu-product-name');
+    const nameNode = card.querySelector('.menu-product-name, h3');
     const imageNode = card.querySelector('.menu-product-image');
     const markup = artMarkup(nameNode?.textContent || '');
     if (!markup || !imageNode) return;

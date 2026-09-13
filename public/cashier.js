@@ -44,8 +44,16 @@ function toast(message) {
       position: 'fixed', left: '50%', bottom: '22px', transform: 'translateX(-50%)', zIndex: '120',
       background: '#281f18', color: 'white', borderRadius: '999px', padding: '10px 14px', fontWeight: '900', fontSize: '12px'
     });
-    document.body.appendChild(node);
   }
+  // A native <dialog> shown via showModal() (Proses Penjualan, Beli Bahan, dst)
+  // renders in the browser's top layer, which paints above every normal-flow
+  // element regardless of z-index. A toast appended to <body> while that
+  // dialog is open is invisible behind it -- the request still runs and the
+  // dialog correctly stays open on error, but the error message itself can
+  // never be seen. Reparent into the open dialog so it paints in the same
+  // top-layer subtree instead of silently disappearing.
+  const openDialog = document.querySelector('dialog[open]');
+  (openDialog || document.body).appendChild(node);
   node.textContent = message;
   node.hidden = false;
   clearTimeout(toast.timer);

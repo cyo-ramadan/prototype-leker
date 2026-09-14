@@ -76,6 +76,9 @@ jobs:
       - name: Deploy Worker
         run: npx --yes wrangler deploy
 
+      - name: Verify Dermo Leker production photos
+        run: node scripts/verify-dermo-leker-drive-hires-production.mjs
+
       - name: Verify Accounting deployment
         shell: bash
         run: |

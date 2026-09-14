@@ -128,6 +128,12 @@ test('Stock Adjustment stages target semantics and snapshots current stock on th
     });
     assert.equal(negative.ok, false);
 
+    const grouped = await normalizeApprovalPayload(db, fixture.storeId, 'GOODS_FLOW', {
+      purpose: 'STOCK_ADJUSTMENT', productId: fixture.productId, targetQuantity: 8, sessionId: 'session_batch_test'
+    });
+    assert.equal(grouped.ok, true);
+    assert.equal(grouped.payload.sessionId, 'session_batch_test', 'sessionId groups items from the same Stock Opname submission for the Data Transaksi list');
+
     sqlite.prepare(`UPDATE products SET average_cost = ? WHERE store_id = ? AND id = ?`)
       .run(Number.MAX_SAFE_INTEGER, fixture.storeId, fixture.productId);
     const costOverflow = await normalizeApprovalPayload(db, fixture.storeId, 'GOODS_FLOW', {

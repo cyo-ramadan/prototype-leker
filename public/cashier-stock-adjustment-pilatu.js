@@ -86,6 +86,7 @@
           if (!changed.length) throw new Error('Tidak ada selisih stok yang perlu diajukan.');
 
           const note = el('stockAdjustmentNote').value.trim();
+          const sessionId = crypto.randomUUID();
           const submittedProductIds = [];
           try {
             for (const row of changed) {
@@ -97,7 +98,8 @@
                     purpose: 'STOCK_ADJUSTMENT',
                     productId: row.productId,
                     targetQuantity: row.targetQuantity,
-                    note
+                    note,
+                    sessionId
                   }
                 })
               });

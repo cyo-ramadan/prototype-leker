@@ -61,6 +61,43 @@ function normalizeRow(row, deliveryMap) {
   };
   return { ...transaction, accounting: accountingForPosFact(transaction, deliveryMap) };
 }
+// A Stock Opname submission creates one approval_requests row per item
+// (each keeps its own stale-snapshot guard and its own ACC/Reject decision --
+// that authority model is untouched), but Bos Cyo wants the audit-facing
+// Data Transaksi list to read as one line per session, with the per-item
+// breakdown (and selisih) only on Detail. Grouping happens here, after
+// normalizeRow, purely for display -- it never touches approval_requests
+// rows or how Admin decides them.
+function groupStockAdjustmentSessions(transactions) {
+  const bySession = new Map();
+  const result = [];
+  for (const tx of transactions) {
+    const purpose = tx.kind === 'GOODS_FLOW' ? tx.operationalPayload?.purpose : null;
+    const sessionId = purpose === 'STOCK_ADJUSTMENT' ? tx.operationalPayload?.sessionId : null;
+    if (!sessionId) { result.push(tx); continue; }
+    const existing = bySession.get(sessionId);
+    if (!existing) {
+      const group = {
+        ...tx,
+        id: sessionId,
+        amount: null,
+        operationalPayload: { purpose: 'STOCK_ADJUSTMENT', sessionId, items: [tx.operationalPayload] },
+        sourceReference: { type: 'STOCK_ADJUSTMENT_SESSION', id: sessionId }
+      };
+      bySession.set(sessionId, group);
+      result.push(group);
+    } else {
+      existing.operationalPayload.items.push(tx.operationalPayload);
+      if (tx.occurredAt < existing.occurredAt) existing.occurredAt = tx.occurredAt;
+      if (tx.status !== existing.status) existing.status = 'campuran';
+    }
+  }
+  for (const tx of result) {
+    if (tx.operationalPayload?.items) tx.description = `Penyesuaian Stok · ${tx.operationalPayload.items.length} barang`;
+  }
+  return result;
+}
+
 async function loadPosDeliveryMap(db, storeId, rows) {
   const refs = rows.filter(row => POS_ACCOUNTING_FACT_KINDS.has(row.kind)).map(row => ({ factType: row.kind, factId: row.id }));
   if (!refs.length) return new Map();
@@ -146,7 +183,12 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   ).all();
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
   const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);
-  const visible = visibleRows.map(row => normalizeRow(row, deliveryMap)); const last = visible.at(-1);
+  const normalized = visibleRows.map(row => normalizeRow(row, deliveryMap));
+  // Cursor must key off the raw, ungrouped rows -- grouping only changes how
+  // many list entries this page renders as, never where the SQL keyset
+  // pagination actually left off.
+  const last = normalized.at(-1);
+  const visible = groupStockAdjustmentSessions(normalized);
   return { ok: true, filter, transactions: visible, hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null };
 }
 

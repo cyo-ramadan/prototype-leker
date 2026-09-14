@@ -256,7 +256,6 @@
       el('productionRecipe')?.addEventListener('change', applyRecipeTemplate);
       el('productionMultiplier')?.addEventListener('change', applyRecipeTemplate);
       el('productionAddComponent')?.addEventListener('click', addComponent);
-      setOutputProduct(products[0].productId);
     } catch (error) {
       toast(error.message);
     }

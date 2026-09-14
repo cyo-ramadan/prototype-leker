@@ -168,8 +168,9 @@
           <div class="pimasatu-detail-head"><strong>Detail Produksi</strong><span id="productionComponentCount" class="muted"></span></div>
           <div class="production-detail-body">
             <div class="production-detail-result">
-              <div class="production-detail-result-name"><strong id="productionOutputName">-</strong> <span class="muted" id="productionOutputUnit"></span></div>
+              <div class="field production-detail-result-name"><label>Hasil</label><div><strong id="productionOutputName">-</strong> <span class="muted" id="productionOutputUnit"></span></div></div>
               <div class="field production-detail-result-qty"><label>Qty hasil</label><input id="productionOutputQuantity" class="text-input" type="number" min="1" step="1" required /></div>
+              <div class="production-detail-result-spacer" aria-hidden="true"></div>
             </div>
             <div id="productionComponentRows"></div>
             <button id="productionAddComponent" class="secondary-btn production-add-component" type="button">＋ Tambah bahan</button>

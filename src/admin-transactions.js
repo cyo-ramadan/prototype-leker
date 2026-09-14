@@ -119,9 +119,12 @@ async function loadPosDeliveryMap(db, storeId, rows) {
 export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50, q = null } = {}) {
   if (!FILTERS.has(filter)) return { ok: false, error: 'Filter transaksi tidak valid.' };
   const { clause: kindClause, values: kindValues } = filterClause(filter);
+  // Deliberately "contains" across several columns, not an ID-only lookup --
+  // typing a date fragment, a cashier's name, or part of a description all
+  // work the same way.
   const search = q ? String(q).trim() : '';
-  const searchClause = search ? `AND (id LIKE ? OR description LIKE ?)` : '';
-  const searchValues = search ? [`%${search}%`, `%${search}%`] : [];
+  const searchClause = search ? `AND (id LIKE ? OR description LIKE ? OR occurred_at LIKE ? OR cashier_name LIKE ?)` : '';
+  const searchValues = search ? Array(4).fill(`%${search}%`) : [];
   const result = await db.prepare(`
     WITH pos_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,

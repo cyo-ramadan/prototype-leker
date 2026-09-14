@@ -43,10 +43,17 @@
     document.body.insertAdjacentHTML('beforeend', `
       <dialog id="cashierDataDialog" class="cashier-dialog cashier-dialog-plain" style="max-width:min(1080px,96vw);width:96vw">
         <style>
-          .cashier-tx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}
+          .cashier-tx-tabs{display:flex;gap:8px;margin:10px 0}
+          .cashier-tx-btn{border:0;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+          .cashier-tx-btn-primary{background:var(--brand);color:#fff}
+          .cashier-tx-btn-primary.active{box-shadow:inset 0 0 0 2px rgba(0,0,0,.22)}
+          .cashier-tx-btn-grey{background:#6b7280;color:#fff}
+          .cashier-tx-toolbar{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-bottom:12px}
+          .cashier-tx-toolbar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
           .cashier-tx-toolbar .field{margin:0}
-          .cashier-tx-search{display:flex;gap:6px}
-          .cashier-tx-search input{flex:1;min-width:0}
+          .cashier-tx-toolbar label{display:block;font-size:11px;font-weight:800;color:#4b5563;margin-bottom:3px}
+          .cashier-tx-search-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+          .cashier-tx-search-row input{flex:1;min-width:150px}
           .cashier-tx-table-wrap{overflow-x:auto;border:1px solid #e1e5eb;border-radius:12px}
           .cashier-tx-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
           .cashier-tx-table th{background:#111827;color:#fff;padding:8px 10px;text-align:left;cursor:pointer;user-select:none}
@@ -77,9 +84,9 @@
           <div><div class="muted">Data gerai · read-only</div><h2>Data Transaksi &amp; Stok</h2></div>
           <button id="cashierDataClose" class="cart-close-btn" type="button">×</button>
         </div>
-        <div class="cashier-data-tabs" style="display:flex;gap:8px;margin:10px 0">
-          <button id="cashierDataTabTransactions" class="mini-btn" type="button">Transaksi</button>
-          <button id="cashierDataTabStock" class="mini-btn" type="button">Stok</button>
+        <div class="cashier-tx-tabs">
+          <button id="cashierDataTabTransactions" class="cashier-tx-btn cashier-tx-btn-primary" type="button">Transaksi</button>
+          <button id="cashierDataTabStock" class="cashier-tx-btn cashier-tx-btn-primary" type="button">Stok</button>
         </div>
         <div id="cashierDataTransactions"></div>
         <div id="cashierDataStock" class="hidden"></div>
@@ -113,15 +120,18 @@
   function renderToolbar() {
     return `
       <div class="cashier-tx-toolbar">
-        <div class="field" style="min-width:170px"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
-        <div class="field" style="min-width:100px"><label>Tampilkan</label><select id="cashierDataLimit" class="text-input">${PAGE_SIZES.map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></div>
-        <div class="field" style="min-width:150px"><label>Urutkan</label><select id="cashierDataSort" class="text-input">${SORT_OPTIONS.map(([value, label]) => `<option value="${value}" ${value === `${state.sortKey}:${state.sortDir}` ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
-        <div class="field cashier-tx-search" style="flex:1;min-width:200px">
-          <label style="display:block;width:100%">Cari ID / deskripsi</label>
-          <div style="display:flex;gap:6px;width:100%">
-            <input id="cashierDataSearch" class="text-input" type="search" value="${escapeHtml(state.q)}" placeholder="ID transaksi, nama customer, dsb" />
-            <button id="cashierDataSearchBtn" class="mini-btn" type="button">Cari</button>
+        <div class="cashier-tx-toolbar-grid">
+          <div class="field"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
+          <div class="field"><label>Tampilkan</label><select id="cashierDataLimit" class="text-input">${PAGE_SIZES.map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></div>
+          <div class="field"><label>Urutkan</label><select id="cashierDataSort" class="text-input">${SORT_OPTIONS.map(([value, label]) => `<option value="${value}" ${value === `${state.sortKey}:${state.sortDir}` ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
+        </div>
+        <div class="cashier-tx-search-row">
+          <div class="field" style="flex:1;min-width:150px">
+            <label>Cari</label>
+            <input id="cashierDataSearch" class="text-input" type="search" value="${escapeHtml(state.q)}" placeholder="Tanggal, kasir, nama, deskripsi, dsb" />
           </div>
+          <button id="cashierDataSearchBtn" class="cashier-tx-btn cashier-tx-btn-primary" type="button" style="align-self:flex-end">Cari</button>
+          <button id="cashierDataSearchAdvancedBtn" class="mini-btn" type="button" style="align-self:flex-end">🔍 Cari Lanjutan</button>
         </div>
       </div>`;
   }
@@ -149,6 +159,9 @@
     el('cashierDataSearch').addEventListener('keydown', event => {
       if (event.key === 'Enter') { event.preventDefault(); runSearch(); }
     });
+    // Placeholder entry point only -- the actual per-field AND/OR search
+    // builder is a separate, not-yet-designed feature. Just the button for now.
+    el('cashierDataSearchAdvancedBtn').addEventListener('click', () => toast('Cari Lanjutan segera hadir.'));
   }
 
   function sortIndicator(key) {
@@ -171,12 +184,12 @@
     if (!VOID_SUBJECT_TYPES.has(row.kind) || row.status === 'voided') return '';
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
     if (permit?.approvalStatus === 'pending_approval') {
-      return `<button class="mini-btn" type="button" data-cashier-tx-cancel-permit="${escapeHtml(permit.id)}">Batal Hapus</button>`;
+      return `<button class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-tx-cancel-permit="${escapeHtml(permit.id)}">Batal Hapus</button>`;
     }
     if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') {
       return '';
     }
-    return `<button class="mini-btn" type="button" data-cashier-tx-void-kind="${escapeHtml(row.kind)}" data-cashier-tx-void-id="${escapeHtml(String(row.id))}">Hapus</button>`;
+    return `<button class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-tx-void-kind="${escapeHtml(row.kind)}" data-cashier-tx-void-id="${escapeHtml(String(row.id))}">Hapus</button>`;
   }
 
   function voidNoteHtml(row) {
@@ -199,7 +212,7 @@
         <td class="cashier-tx-id" data-label="ID">${escapeHtml(String(row.id))}</td>
         <td class="cashier-tx-id" data-label="ID Laci">${escapeHtml(row.drawerSessionId || '-')}</td>
         <td class="cashier-tx-actions">
-          <button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
+          <button class="cashier-tx-btn cashier-tx-btn-primary" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
           ${voidButtonHtml(row)}
         </td>
       </tr>`;

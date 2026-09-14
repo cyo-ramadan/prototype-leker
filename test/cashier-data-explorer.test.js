@@ -229,7 +229,7 @@ test('Kasir Data Transaksi groups a multi-item Stock Opname submission into one 
   }
 });
 
-test('Kasir Data Transaksi supports searching by ID or description, and a limit as small as 5', async () => {
+test('Kasir Data Transaksi supports searching by ID, description, date, or cashier -- a general "contains" search, not an ID-only lookup', async () => {
   const db = migratedDatabase();
   try {
     const { token, cashierId } = await cashierToken(db, 'store_001');
@@ -237,7 +237,7 @@ test('Kasir Data Transaksi supports searching by ID or description, and a limit 
     openDrawer(db, drawerId, 'store_001', cashierId);
     db.prepare(`
       INSERT INTO sales (id, store_id, drawer_session_id, cashier_id, customer_name, total_amount, created_at)
-      VALUES ('sale_search_needle_test', 'store_001', ?, ?, 'Sigma Boy', 25000, '2026-09-14T09:02:00.000Z')
+      VALUES ('sale_search_needle_test', 'store_001', ?, ?, 'Zeta Widodo', 25000, '2026-09-14T09:02:00.000Z')
     `).run(drawerId, cashierId);
     for (let i = 0; i < 5; i += 1) {
       db.prepare(`
@@ -254,10 +254,22 @@ test('Kasir Data Transaksi supports searching by ID or description, and a limit 
     assert.deepEqual(byIdBody.transactions.map(item => item.id), ['sale_search_needle_test']);
 
     const byDescription = await handleCashierDataApi(
-      request('/api/cashier/data/transactions', { token, params: '?q=Sigma%20Boy' }), env, '/api/cashier/data/transactions'
+      request('/api/cashier/data/transactions', { token, params: '?q=Zeta%20Widodo' }), env, '/api/cashier/data/transactions'
     );
     const byDescriptionBody = await byDescription.json();
     assert.deepEqual(byDescriptionBody.transactions.map(item => item.id), ['sale_search_needle_test']);
+
+    const byDate = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?q=09%3A02%3A00' }), env, '/api/cashier/data/transactions'
+    );
+    const byDateBody = await byDate.json();
+    assert.deepEqual(byDateBody.transactions.map(item => item.id), ['sale_search_needle_test'], 'a time-of-day fragment must match against occurred_at too');
+
+    const byCashierName = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?q=Sigma%20Boy' }), env, '/api/cashier/data/transactions'
+    );
+    const byCashierNameBody = await byCashierName.json();
+    assert.equal(byCashierNameBody.transactions.length, 6, 'the cashier name matches every sale they made, not just one');
 
     const tinyPage = await handleCashierDataApi(
       request('/api/cashier/data/transactions', { token, params: '?limit=5' }), env, '/api/cashier/data/transactions'
@@ -350,6 +362,16 @@ test('Kasir Data Transaksi reflows into stacked rows on a phone-width screen ins
   assert.match(stockExplorerUi, /data-label="Status"/);
   assert.match(stockExplorerUi, /cashierDataSort/);
   assert.match(stockExplorerUi, /SORT_OPTIONS/);
+});
+
+test('Transaksi/Stok tabs and Detail are orange-filled buttons, Hapus/Batal Hapus is grey, and Cari Lanjutan has an entry point', () => {
+  assert.match(stockExplorerUi, /id="cashierDataTabTransactions" class="cashier-tx-btn cashier-tx-btn-primary"/);
+  assert.match(stockExplorerUi, /id="cashierDataTabStock" class="cashier-tx-btn cashier-tx-btn-primary"/);
+  assert.match(stockExplorerUi, /class="cashier-tx-btn cashier-tx-btn-primary" type="button" data-cashier-tx-detail-kind/);
+  assert.match(stockExplorerUi, /class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-tx-void-kind/);
+  assert.match(stockExplorerUi, /class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-tx-cancel-permit/);
+  assert.match(stockExplorerUi, /cashierDataSearchAdvancedBtn/);
+  assert.doesNotMatch(stockExplorerUi, /Cari ID \/ deskripsi/);
 });
 
 test('Penyesuaian Stok Detail renders a table with Selisih per item, not the single-item key-value block', () => {

@@ -199,7 +199,6 @@
           <div id="dialogPurchaseGrandTotal" class="cashier-lock-note">Total pembelian · Rp0</div>
           <div class="field"><label>Supplier</label><select id="dialogSupplier" class="text-input">${supplierOptions}</select></div>
           <div class="field"><label>Cara bayar</label><select id="dialogPurchasePayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
-          <div class="field"><label>Deskripsi <span class="muted">optional</span></label><input id="dialogPurchaseDescription" class="text-input" maxlength="220" placeholder="Otomatis dari nama barang jika kosong" /></div>
           <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>
           <p class="muted">PIMASATU hanya mengatur pola input barang. Supplier dan cara bayar adalah data transaksi terpisah.</p>`,
         submitText: 'SIMPAN PEMBELIAN',
@@ -216,7 +215,6 @@
           const result = await canonicalFactPost('/api/cashier/purchases', {
             supplierId: byId('dialogSupplier').value,
             paymentMethod: byId('dialogPurchasePayment').value,
-            description: byId('dialogPurchaseDescription').value,
             note: byId('dialogPurchaseNote').value,
             items: submittedItems
           });

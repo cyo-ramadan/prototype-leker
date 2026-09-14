@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260821-pos-payment-core-v4-grand-total-visible',
+    '/cashier-payment-methods.js?v=20260914-drop-purchase-description-field',
     '/cashier-enhancements.js?v=20260914-drawer-detail-own-modal-v1'
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);

@@ -4,12 +4,28 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
 import { ACCOUNTING_POS_BRIDGE_CONTRACT } from './accounting-pos-bridge.js';
 
-const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'INVENTORY', 'ASSETS']);
+const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'STOCK_ADJUSTMENTS', 'INVENTORY', 'ASSETS']);
+// STOCK_ADJUSTMENTS and INVENTORY both key off kind = GOODS_FLOW at the SQL
+// level -- purpose = 'STOCK_ADJUSTMENT' lives inside payload_json, not its
+// own column, so the two filters need their own WHERE clause (see
+// filterClause below) rather than a plain `kind IN (...)` set like the rest.
 const KIND_FILTER = {
   SALES: new Set(['SALE']), PURCHASES: new Set(['PURCHASE']),
   OPERATIONS: new Set(['EXPENSE', 'OTHER_INCOME', 'CASH_FLOW']),
-  INVENTORY: new Set(['GOODS_FLOW', 'PRODUCTION']), ASSETS: new Set(['ASSET'])
+  ASSETS: new Set(['ASSET'])
 };
+function filterClause(filter) {
+  if (filter === 'STOCK_ADJUSTMENTS') return { clause: `AND kind = 'GOODS_FLOW' AND json_extract(payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'`, values: [] };
+  // `!= 'STOCK_ADJUSTMENT'` would silently drop every row where purpose is
+  // absent (PRODUCTION rows have no payload_json at all, plain GOODS_FLOW
+  // rows have no purpose key) -- json_extract returns NULL there, and NULL
+  // compared with anything is NULL, not true, in SQL's three-valued logic.
+  // `IS NOT` is the NULL-safe form: NULL IS NOT 'x' is true.
+  if (filter === 'INVENTORY') return { clause: `AND kind IN ('GOODS_FLOW', 'PRODUCTION') AND json_extract(payload_json, '$.purpose') IS NOT 'STOCK_ADJUSTMENT'`, values: [] };
+  const kindSet = KIND_FILTER[filter] || null;
+  if (!kindSet) return { clause: '', values: [] };
+  return { clause: `AND kind IN (${[...kindSet].map(() => '?').join(', ')})`, values: [...kindSet] };
+}
 const POS_ACCOUNTING_FACT_KINDS = new Set(['SALE', 'PURCHASE', 'EXPENSE']);
 function parseIso(value) { const raw = String(value || '').trim(); if (!raw) return null; const time = Date.parse(raw); return Number.isFinite(time) ? new Date(time).toISOString() : null; }
 function parseCursor(value) { const raw = String(value || '').trim(); if (!raw) return null; const separator = raw.lastIndexOf('|'); if (separator < 1) return null; const occurredAt = parseIso(raw.slice(0, separator)); const id = raw.slice(separator + 1).trim(); return occurredAt && id ? { occurredAt, id } : null; }
@@ -63,11 +79,12 @@ async function loadPosDeliveryMap(db, storeId, rows) {
 // storeId is always resolved by the caller BEFORE this runs (query param for
 // Admin, the authenticated cashier's own store for Kasir); this function
 // itself trusts whatever storeId it is given.
-export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50 } = {}) {
+export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50, q = null } = {}) {
   if (!FILTERS.has(filter)) return { ok: false, error: 'Filter transaksi tidak valid.' };
-  const kindSet = KIND_FILTER[filter] || null;
-  const kindClause = kindSet ? `AND kind IN (${[...kindSet].map(() => '?').join(', ')})` : '';
-  const kindValues = kindSet ? [...kindSet] : [];
+  const { clause: kindClause, values: kindValues } = filterClause(filter);
+  const search = q ? String(q).trim() : '';
+  const searchClause = search ? `AND (id LIKE ? OR description LIKE ?)` : '';
+  const searchValues = search ? [`%${search}%`, `%${search}%`] : [];
   const result = await db.prepare(`
     WITH pos_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,
@@ -119,12 +136,13 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
     WHERE (? IS NULL OR occurred_at >= ?) AND (? IS NULL OR occurred_at <= ?)
       AND (? IS NULL OR occurred_at < ? OR (occurred_at = ? AND id < ?))
       ${kindClause}
+      ${searchClause}
     ORDER BY occurred_at DESC, id DESC LIMIT ?
   `).bind(
     storeId, storeId, storeId, storeId, storeId, storeId,
     from, from, to, to,
     before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
-    ...kindValues, limit + 1
+    ...kindValues, ...searchValues, limit + 1
   ).all();
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
   const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);
@@ -148,7 +166,8 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
   if (url.searchParams.get('to') && !to) return json({ error: 'Tanggal akhir tidak valid.' }, 400);
   if (rawCursor && !before) return json({ error: 'Cursor transaksi tidak valid.' }, 400);
   const requestedLimit = Number(url.searchParams.get('limit') || 50);
-  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
-  const listing = await listStoreTransactions(env.DB, store.id, { filter, from, to, before, limit });
+  const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(5, requestedLimit)) : 50;
+  const q = url.searchParams.get('q') || null;
+  const listing = await listStoreTransactions(env.DB, store.id, { filter, from, to, before, limit, q });
   return json({ store, filter: listing.filter, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
 }

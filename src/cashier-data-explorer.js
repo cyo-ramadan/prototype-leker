@@ -26,8 +26,9 @@ export async function handleCashierDataApi(request, env, pathname) {
     const before = parseTransactionCursor(rawCursor);
     if (rawCursor && !before) return json({ error: 'Cursor transaksi tidak valid.' }, 400);
     const requestedLimit = Number(url.searchParams.get('limit') || 50);
-    const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(10, requestedLimit)) : 50;
-    const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit });
+    const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(5, requestedLimit)) : 50;
+    const q = url.searchParams.get('q') || null;
+    const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit, q });
     if (!listing.ok) return json({ error: listing.error }, 400);
     return json({ filter: listing.filter, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
   }

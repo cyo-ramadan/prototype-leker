@@ -139,6 +139,83 @@ test('Kasir Data endpoints require a cashier session and are read-only', async (
   }
 });
 
+test('Kasir Data Transaksi filter STOCK_ADJUSTMENTS isolates purpose=STOCK_ADJUSTMENT GOODS_FLOW rows from plain Arus Barang and Produksi', async () => {
+  const db = migratedDatabase();
+  try {
+    const { token, cashierId } = await cashierToken(db, 'store_001');
+    const drawerId = 'drawer_filter_test';
+    openDrawer(db, drawerId, 'store_001', cashierId);
+
+    db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at)
+      VALUES ('approval_stock_adj_filter_test', 'store_001', ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T09:00:00.000Z', '2026-09-14T09:00:00.000Z')
+    `).run(drawerId, cashierId, JSON.stringify({ purpose: 'STOCK_ADJUSTMENT', productName: 'Larutan Gula', direction: 'OUT', quantity: 5 }));
+    db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at)
+      VALUES ('approval_plain_goods_flow_filter_test', 'store_001', ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T09:01:00.000Z', '2026-09-14T09:01:00.000Z')
+    `).run(drawerId, cashierId, JSON.stringify({ productName: 'Gula', direction: 'IN', quantity: 10 }));
+
+    const env = { DB: new D1Database(db) };
+    const stockAdjResponse = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?filter=STOCK_ADJUSTMENTS' }), env, '/api/cashier/data/transactions'
+    );
+    const stockAdjBody = await stockAdjResponse.json();
+    assert.equal(stockAdjBody.transactions.length, 1);
+    assert.equal(stockAdjBody.transactions[0].id, 'approval_stock_adj_filter_test');
+
+    const inventoryResponse = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?filter=INVENTORY' }), env, '/api/cashier/data/transactions'
+    );
+    const inventoryBody = await inventoryResponse.json();
+    const inventoryIds = inventoryBody.transactions.map(item => item.id);
+    assert.ok(inventoryIds.includes('approval_plain_goods_flow_filter_test'));
+    assert.ok(!inventoryIds.includes('approval_stock_adj_filter_test'), 'INVENTORY must not also show STOCK_ADJUSTMENT rows now that they have their own filter');
+  } finally {
+    db.close();
+  }
+});
+
+test('Kasir Data Transaksi supports searching by ID or description, and a limit as small as 5', async () => {
+  const db = migratedDatabase();
+  try {
+    const { token, cashierId } = await cashierToken(db, 'store_001');
+    const drawerId = 'drawer_search_test';
+    openDrawer(db, drawerId, 'store_001', cashierId);
+    db.prepare(`
+      INSERT INTO sales (id, store_id, drawer_session_id, cashier_id, customer_name, total_amount, created_at)
+      VALUES ('sale_search_needle_test', 'store_001', ?, ?, 'Sigma Boy', 25000, '2026-09-14T09:02:00.000Z')
+    `).run(drawerId, cashierId);
+    for (let i = 0; i < 5; i += 1) {
+      db.prepare(`
+        INSERT INTO sales (id, store_id, drawer_session_id, cashier_id, customer_name, total_amount, created_at)
+        VALUES (?, 'store_001', ?, ?, 'Budi', 15000, ?)
+      `).run(`sale_other_test_${i}`, drawerId, cashierId, `2026-09-14T09:0${3 + i}:00.000Z`);
+    }
+
+    const env = { DB: new D1Database(db) };
+    const byId = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?q=sale_search_needle_test' }), env, '/api/cashier/data/transactions'
+    );
+    const byIdBody = await byId.json();
+    assert.deepEqual(byIdBody.transactions.map(item => item.id), ['sale_search_needle_test']);
+
+    const byDescription = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?q=Sigma%20Boy' }), env, '/api/cashier/data/transactions'
+    );
+    const byDescriptionBody = await byDescription.json();
+    assert.deepEqual(byDescriptionBody.transactions.map(item => item.id), ['sale_search_needle_test']);
+
+    const tinyPage = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?limit=5' }), env, '/api/cashier/data/transactions'
+    );
+    const tinyPageBody = await tinyPage.json();
+    assert.equal(tinyPageBody.transactions.length, 5, 'a limit of 5 must not be clamped up to the old floor of 10 (6 sales exist, so a floor of 10 would return all 6)');
+    assert.equal(tinyPageBody.hasMore, true);
+  } finally {
+    db.close();
+  }
+});
+
 test('Kasir Data Stok panel is search-first: no full catalog list until the kasir types a query', () => {
   assert.doesNotMatch(stockExplorerUi, /!query \|\|/, 'an empty search must not fall through to matching every item');
   assert.match(stockExplorerUi, /if \(!query\) \{/);
@@ -195,8 +272,18 @@ test('Kasir Data Transaksi detail reuses Admin transaction-detail logic, scoped 
 });
 
 test('Kasir Data Transaksi UI shows an ID, a Detail button per row, and labels stock-adjustment GOODS_FLOW rows distinctly', () => {
-  assert.match(stockExplorerUi, /ID \$\{escapeHtml\(String\(row\.id\)\)\}/);
+  assert.match(stockExplorerUi, /class="cashier-tx-id">\$\{escapeHtml\(String\(row\.id\)\)\}/);
+  assert.match(stockExplorerUi, /row\.drawerSessionId/);
   assert.match(stockExplorerUi, /data-cashier-tx-detail-id/);
   assert.match(stockExplorerUi, />Detail</);
   assert.match(stockExplorerUi, /purpose === 'STOCK_ADJUSTMENT'.*return 'Penyesuaian Stok'/);
+});
+
+test('Kasir Data Transaksi is table-based with sortable headers, a page-size selector, and a search box', () => {
+  assert.match(stockExplorerUi, /<table class="cashier-tx-table">/);
+  assert.match(stockExplorerUi, /data-sort-key="occurredAt"/);
+  assert.match(stockExplorerUi, /data-sort-key="cashierName"/);
+  assert.match(stockExplorerUi, /cashierDataLimit/);
+  assert.match(stockExplorerUi, /cashierDataSearch/);
+  assert.match(stockExplorerUi, /'Penyesuaian Stok'\]/);
 });

@@ -56,7 +56,7 @@ test('live Stock Adjustment loads PILATU after legacy approval actions and inter
 });
 
 test('live Stock Adjustment exposes the three business columns and independent V1 requests', () => {
-  assert.match(liveUiSource, /<span>Barang<\/span><span>Stok Tercatat<\/span><span>Stok Real<\/span>/);
+  assert.match(liveUiSource, /<span>Barang<\/span><span>Noted<\/span><span>Real<\/span>/);
   assert.doesNotMatch(liveUiSource, /<span>HPP<\/span>/);
   assert.doesNotMatch(liveUiSource, /<span>Selisih<\/span>/);
   assert.doesNotMatch(liveUiSource, /stock-adjustment-difference/);

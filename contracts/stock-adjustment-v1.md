@@ -28,8 +28,10 @@ Public/UI input:
 
 - `productId`;
 - `targetQuantity`;
-- `reason` — required human-readable reason;
+- `reason` — optional human-readable reason;
 - `note` — optional.
+
+Only `productId` and `targetQuantity` are required; `reason` and `note` may both be blank.
 
 The server resolves and snapshots:
 

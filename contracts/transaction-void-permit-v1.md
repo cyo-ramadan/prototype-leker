@@ -1,6 +1,6 @@
 # Transaction Correction Permit Contract v1
 
-Status: ACTIVE IN FEATURE BRANCH / NOT DEPLOYED
+Status: ACTIVE, DEPLOYED (migration `0027` applied to production 2026-08-13)
 Contract identifier: `MAXI_TRANSACTION_VOID_PERMIT_V1`
 Owner: Approval authorization + transaction-owner correction executor + Accounting reversal engine
 
@@ -27,6 +27,8 @@ Admin Gerai may decide only permits in its store. Owner may decide an explicitly
 `ACC` records authorization and invokes the transaction-owner correction executor. ACC never performs hard SQL deletion.
 
 Execution states are `NOT_ATTEMPTED`, `HOLD`, `EXECUTED`, and `FAILED`. HOLD is visible and must never be reported as successful removal.
+
+The ACC-then-execute flow is two sequential writes (approve, then execute-and-finalize), not one atomic batch. A client disconnect between them leaves a permit stuck at `approved`/`NOT_ATTEMPTED` with empty execution code/detail forever — observed in production on 6 permits requested 2026-09-01/04. Because the operational correction and the Accounting reversal are both self-idempotent (the `voided_at IS NULL` guard, the reversal's `idempotencyKey`), Admin/Owner may re-run only the execute-and-finalize half via `decision: 'RETRY_EXECUTION'` on any permit at `approved` + execution status other than `EXECUTED`, without re-deciding or double-applying anything.
 
 ## Source soft-delete state
 

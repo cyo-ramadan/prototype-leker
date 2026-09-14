@@ -33,7 +33,12 @@
   function permitCard(item) {
     const subject = item.subject || {};
     const pending = item.approvalStatus === 'pending_approval';
-    const actions = pending ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary-btn" type="button" data-void-permit-acc="${esc(item.id)}">ACC PERMIT</button><button class="secondary-btn" type="button" data-void-permit-reject="${esc(item.id)}">Reject</button></div>` : '';
+    const retriable = item.approvalStatus === 'approved' && item.executionStatus !== 'EXECUTED';
+    const actions = pending
+      ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary-btn" type="button" data-void-permit-acc="${esc(item.id)}">ACC PERMIT</button><button class="secondary-btn" type="button" data-void-permit-reject="${esc(item.id)}">Reject</button></div>`
+      : retriable
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="secondary-btn" type="button" data-void-permit-retry="${esc(item.id)}">🔁 Retry Eksekusi</button></div><p class="muted" style="margin-top:6px">Sudah di-ACC tetapi eksekusinya belum tuntas -- aman diulang, tidak akan diterapkan dobel.</p>`
+        : '';
     return `<article class="admin-card" style="box-shadow:none;margin-bottom:10px">
       <div class="list-head"><div><strong>PERMIT HAPUS · ${esc(labels[item.subjectType] || item.subjectType)}</strong><div class="muted">${esc(item.cashierName || item.cashierId)} · ${dt(item.requestedAt)}</div></div><span class="master-count">${esc(statusText(item))}</span></div>
       <p><b>${esc(subject.description || item.subjectId)}</b> · ${money(subject.amount)}</p>
@@ -52,6 +57,7 @@
     target.innerHTML = permits.length ? permits.map(permitCard).join('') : '<div class="empty">Belum ada permit hapus transaksi.</div>';
     target.querySelectorAll('[data-void-permit-acc]').forEach(button => button.addEventListener('click', () => decide(button.dataset.voidPermitAcc, 'ACC')));
     target.querySelectorAll('[data-void-permit-reject]').forEach(button => button.addEventListener('click', () => decide(button.dataset.voidPermitReject, 'REJECT')));
+    target.querySelectorAll('[data-void-permit-retry]').forEach(button => button.addEventListener('click', () => decide(button.dataset.voidPermitRetry, 'RETRY_EXECUTION')));
   }
   function badge(count) {
     const tab = document.querySelector('[data-tab="approvals"]'); if (!tab) return;
@@ -73,7 +79,9 @@
       const payload = await api(`/api/management/transaction-void-permits/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ decision }) });
       if (payload.executionHold) notify(`Permit ACC · execution HOLD · ${payload.permit?.executionCode || ''}`);
       else if (payload.accounting?.ok === false) notify('Correction operational selesai · jurnal pembalik perlu recovery.');
-      else notify(decision === 'REJECT' ? 'Permit ditolak.' : 'Permit ACC dan correction diproses.');
+      else if (decision === 'REJECT') notify('Permit ditolak.');
+      else if (decision === 'RETRY_EXECUTION') notify('Retry eksekusi selesai.');
+      else notify('Permit ACC dan correction diproses.');
       await load();
     } catch (error) { alert(error.message); }
   }

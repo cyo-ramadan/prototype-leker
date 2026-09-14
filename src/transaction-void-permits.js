@@ -186,6 +186,41 @@ async function managementScope(request, env) {
   return { ...auth, storeId: store.id, store };
 }
 
+async function runCorrectionAndFinalize(env, scope, approved, approverRole, approverId, now) {
+  const executed = await executeTransactionCorrection(env.DB, scope.store, approved, { role: approverRole, id: approverId }, now);
+
+  if (!executed.ok) {
+    await env.DB.prepare(`
+      UPDATE approval_permits
+      SET execution_status = ?, execution_code = ?, execution_detail = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(executed.status === 'HOLD' ? 'HOLD' : 'FAILED', executed.code || 'CORRECTION_EXECUTION_FAILED', executed.detail || 'Eksekusi correction gagal.', now, approved.id).run();
+    return { ok: true, permit: await getPermit(env.DB, approved.id), executed: false, executionHold: executed.status === 'HOLD', message: executed.detail };
+  }
+
+  const accounting = executed.accounting || { accountingStatus: 'NOT_REQUIRED' };
+  const executionCode = accounting.ok === false ? (accounting.code || 'ACCOUNTING_REVERSAL_FAILED') : '';
+  const executionDetail = accounting.ok === false ? (accounting.error || 'Operational correction selesai, tetapi jurnal pembalik belum berhasil.') : (accounting.detail || 'Correction selesai.');
+  await env.DB.prepare(`
+    UPDATE approval_permits
+    SET execution_status = 'EXECUTED', execution_code = ?, execution_detail = ?,
+        accounting_status = ?, original_journal_id = ?, reversal_journal_id = ?,
+        executed_at = ?, updated_at = ?
+    WHERE id = ?
+  `).bind(
+    executionCode,
+    executionDetail,
+    accounting.accountingStatus || 'NOT_REQUIRED',
+    accounting.originalJournalId || null,
+    accounting.reversalJournalId || null,
+    now,
+    now,
+    approved.id
+  ).run();
+
+  return { ok: true, permit: await getPermit(env.DB, approved.id), executed: true, accounting };
+}
+
 async function handleManagement(request, env, pathname) {
   if (!pathname.startsWith('/api/management/transaction-void-permits')) return null;
   const scope = await managementScope(request, env);
@@ -216,17 +251,31 @@ async function handleManagement(request, env, pathname) {
     if (!current) return json({ error: 'Permit tidak ditemukan.' }, 404);
     if (scope.storeId && current.storeId !== scope.storeId) return json({ error: 'Permit di luar scope gerai akun ini.' }, 403);
     if (!scope.store || current.storeId !== scope.store.id) return json({ error: 'Gerai permit belum dipilih.' }, 400);
-    if (current.approvalStatus !== 'pending_approval') return json({ error: 'Permit ini sudah memiliki keputusan.' }, 409);
 
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload keputusan permit tidak valid.' }, 400);
-    const decision = text(body.value?.decision, 12).toUpperCase();
+    const decision = text(body.value?.decision, 20).toUpperCase();
     const note = text(body.value?.note, 500);
-    if (!['ACC', 'REJECT'].includes(decision)) return json({ error: 'Decision wajib ACC atau REJECT.' }, 400);
+    if (!['ACC', 'REJECT', 'RETRY_EXECUTION'].includes(decision)) return json({ error: 'Decision wajib ACC, REJECT, atau RETRY_EXECUTION.' }, 400);
 
     const now = new Date().toISOString();
     const approverRole = scope.owner ? 'OWNER' : scope.entityAdmin ? 'ENTITY_ADMIN' : 'ADMIN';
     const approverId = scope.owner?.id || scope.entityAdmin?.id || scope.admin?.id || '';
+
+    // A client disconnect between the ACC write below and the finalize write
+    // in runCorrectionAndFinalize() can leave a permit stuck at
+    // approved/NOT_ATTEMPTED forever -- the operational correction and the
+    // Accounting reversal are both self-idempotent (voided_at guard,
+    // idempotency_key), so Admin can safely re-run the same execution step
+    // without re-deciding or double-applying anything.
+    if (decision === 'RETRY_EXECUTION') {
+      if (current.approvalStatus !== 'approved' || current.executionStatus === 'EXECUTED') {
+        return json({ error: 'Retry eksekusi hanya berlaku untuk permit yang sudah ACC tetapi eksekusinya belum selesai.' }, 409);
+      }
+      return json(await runCorrectionAndFinalize(env, scope, current, approverRole, approverId, now));
+    }
+
+    if (current.approvalStatus !== 'pending_approval') return json({ error: 'Permit ini sudah memiliki keputusan.' }, 409);
 
     if (decision === 'REJECT') {
       const result = await env.DB.prepare(`
@@ -246,38 +295,7 @@ async function handleManagement(request, env, pathname) {
     if (!claimed.success || Number(claimed.meta?.changes ?? 0) !== 1) return json({ error: 'Permit sudah diputuskan request lain.' }, 409);
 
     const approved = await getPermit(env.DB, current.id);
-    const executed = await executeTransactionCorrection(env.DB, scope.store, approved, { role: approverRole, id: approverId }, now);
-
-    if (!executed.ok) {
-      await env.DB.prepare(`
-        UPDATE approval_permits
-        SET execution_status = ?, execution_code = ?, execution_detail = ?, updated_at = ?
-        WHERE id = ?
-      `).bind(executed.status === 'HOLD' ? 'HOLD' : 'FAILED', executed.code || 'CORRECTION_EXECUTION_FAILED', executed.detail || 'Eksekusi correction gagal.', now, current.id).run();
-      return json({ ok: true, permit: await getPermit(env.DB, current.id), executed: false, executionHold: executed.status === 'HOLD', message: executed.detail });
-    }
-
-    const accounting = executed.accounting || { accountingStatus: 'NOT_REQUIRED' };
-    const executionCode = accounting.ok === false ? (accounting.code || 'ACCOUNTING_REVERSAL_FAILED') : '';
-    const executionDetail = accounting.ok === false ? (accounting.error || 'Operational correction selesai, tetapi jurnal pembalik belum berhasil.') : (accounting.detail || 'Correction selesai.');
-    await env.DB.prepare(`
-      UPDATE approval_permits
-      SET execution_status = 'EXECUTED', execution_code = ?, execution_detail = ?,
-          accounting_status = ?, original_journal_id = ?, reversal_journal_id = ?,
-          executed_at = ?, updated_at = ?
-      WHERE id = ?
-    `).bind(
-      executionCode,
-      executionDetail,
-      accounting.accountingStatus || 'NOT_REQUIRED',
-      accounting.originalJournalId || null,
-      accounting.reversalJournalId || null,
-      now,
-      now,
-      current.id
-    ).run();
-
-    return json({ ok: true, permit: await getPermit(env.DB, current.id), executed: true, accounting });
+    return json(await runCorrectionAndFinalize(env, scope, approved, approverRole, approverId, now));
   }
 
   return json({ error: 'Route permit management tidak ditemukan.' }, 404);

@@ -27,11 +27,25 @@
     return (optionState?.materials || []).find(material => Number(material.productId) === Number(productId)) || null;
   }
 
-  function materialOptions(selectedId, outputProductId) {
-    return (optionState?.materials || [])
-      .filter(material => Number(material.productId) !== Number(outputProductId))
-      .map(material => `<option value="${Number(material.productId)}"${Number(material.productId) === Number(selectedId) ? ' selected' : ''}>${escapeHtml(material.productName)} · ${escapeHtml(material.unitSymbol || '')}</option>`)
-      .join('');
+  // Nama barang di hasil pencarian tidak perlu diikuti satuan lagi -- satuannya
+  // sudah kelihatan di label "Qty <satuan>" persis di sampingnya.
+  function searchResultsHtml(items, keyword) {
+    const key = keyword.trim().toLowerCase();
+    const found = items.filter(item => !key || item.productName.toLowerCase().includes(key)).slice(0, 8);
+    return found.length
+      ? found.map(item => `<button type="button" data-result="${Number(item.productId)}">${escapeHtml(item.productName)}</button>`).join('')
+      : '<div class="pimasatu-empty">Tidak ditemukan.</div>';
+  }
+
+  function materialChoices(outputProductId) {
+    return (optionState?.materials || []).filter(material => Number(material.productId) !== Number(outputProductId));
+  }
+
+  function setOutputProduct(productId) {
+    el('productionOutputProduct').value = String(productId);
+    const product = productById(productId);
+    el('productionOutputSearch').value = product?.productName || '';
+    renderRecipeOptions({ resetTemplate: true });
   }
 
   function renderComponents() {
@@ -42,11 +56,10 @@
       const material = materialById(component.productId);
       return `
         <div class="production-component-row" data-production-component-index="${index}">
-          <div class="field production-component-product">
+          <div class="field production-component-product pimasatu-search-wrap">
             <label>${index === 0 ? 'Bahan baku' : 'Bahan'}</label>
-            <select class="text-input" data-production-material required>
-              ${materialOptions(component.productId, outputProductId)}
-            </select>
+            <input class="text-input" data-production-material-search autocomplete="off" placeholder="Cari bahan" value="${escapeHtml(material?.productName || '')}" required />
+            <div class="pimasatu-results hidden" data-production-material-results></div>
           </div>
           <div class="field production-component-qty">
             <label>Qty ${escapeHtml(material?.unitSymbol || '')}</label>
@@ -56,9 +69,21 @@
         </div>`;
     }).join('');
 
-    host.querySelectorAll('[data-production-material]').forEach((select, index) => {
-      select.addEventListener('change', () => {
-        componentDraft[index].productId = Number(select.value);
+    host.querySelectorAll('[data-production-component-index]').forEach((row, index) => {
+      const search = row.querySelector('[data-production-material-search]');
+      const results = row.querySelector('[data-production-material-results]');
+      const choices = materialChoices(outputProductId);
+      const renderResults = () => {
+        results.innerHTML = searchResultsHtml(choices, search.value);
+        results.classList.remove('hidden');
+      };
+      search.addEventListener('focus', renderResults);
+      search.addEventListener('input', renderResults);
+      search.addEventListener('blur', () => setTimeout(() => results.classList.add('hidden'), 150));
+      results.addEventListener('click', event => {
+        const button = event.target.closest('[data-result]');
+        if (!button) return;
+        componentDraft[index].productId = Number(button.dataset.result);
         renderComponents();
       });
     });
@@ -91,8 +116,8 @@
     if (outputQty) outputQty.value = String(Number(recipe.outputQuantity) * multiplier);
     const outputName = el('productionOutputName');
     if (outputName) outputName.textContent = outputProduct.productName;
-    const outputUnit = el('productionOutputUnit');
-    if (outputUnit) outputUnit.textContent = outputProduct.unitSymbol ? `· ${outputProduct.unitSymbol}` : '';
+    const outputQtyLabel = el('productionOutputQtyLabel');
+    if (outputQtyLabel) outputQtyLabel.textContent = `Qty ${outputProduct.unitSymbol || ''}`.trim();
     componentDraft = (recipe.components || []).map(component => ({
       productId: Number(component.productId),
       quantity: Number(component.quantity) * multiplier
@@ -147,10 +172,6 @@
         return;
       }
 
-      const outputOptions = products.map(product =>
-        `<option value="${Number(product.productId)}">${escapeHtml(product.productName)} · ${escapeHtml(product.unitSymbol || '')}</option>`
-      ).join('');
-
       openDialog({
         eyebrow: 'Laci · Warehouse Production',
         title: 'Produksi',
@@ -158,7 +179,12 @@
           <section class="production-output-panel">
             <div class="production-section-title"><strong>Plan Produksi</strong><span class="muted">barang jadi &amp; kelipatan</span></div>
             <div class="production-output-grid">
-              <div class="field"><label>Barang jadi</label><select id="productionOutputProduct" class="text-input" required>${outputOptions}</select></div>
+              <div class="field pimasatu-search-wrap">
+                <label>Barang jadi</label>
+                <input id="productionOutputSearch" class="text-input" autocomplete="off" placeholder="Cari barang jadi" required />
+                <input type="hidden" id="productionOutputProduct" />
+                <div id="productionOutputResults" class="pimasatu-results hidden"></div>
+              </div>
               <div class="field"><label>Kelipatan</label><input id="productionMultiplier" class="text-input" type="number" min="1" step="1" value="1" required /></div>
             </div>
             <div class="field"><label>Recipe / BOM acuan</label><select id="productionRecipe" class="text-input" required></select></div>
@@ -168,8 +194,8 @@
           <div class="pimasatu-detail-head"><strong>Detail Produksi</strong><span id="productionComponentCount" class="muted"></span></div>
           <div class="production-detail-body">
             <div class="production-detail-result">
-              <div class="field production-detail-result-name"><label>Hasil</label><div><strong id="productionOutputName">-</strong> <span class="muted" id="productionOutputUnit"></span></div></div>
-              <div class="field production-detail-result-qty"><label>Qty hasil</label><input id="productionOutputQuantity" class="text-input" type="number" min="1" step="1" required /></div>
+              <div class="field production-detail-result-name"><label>Hasil</label><div><strong id="productionOutputName">-</strong></div></div>
+              <div class="field production-detail-result-qty"><label id="productionOutputQtyLabel">Qty hasil</label><input id="productionOutputQuantity" class="text-input" type="number" min="1" step="1" required /></div>
               <div class="production-detail-result-spacer" aria-hidden="true"></div>
             </div>
             <div id="productionComponentRows"></div>
@@ -211,11 +237,26 @@
         }
       });
 
-      el('productionOutputProduct')?.addEventListener('change', () => renderRecipeOptions({ resetTemplate: true }));
+      const outputSearch = el('productionOutputSearch');
+      const outputResults = el('productionOutputResults');
+      const renderOutputResults = () => {
+        outputResults.innerHTML = searchResultsHtml(products, outputSearch.value);
+        outputResults.classList.remove('hidden');
+      };
+      outputSearch.addEventListener('focus', renderOutputResults);
+      outputSearch.addEventListener('input', renderOutputResults);
+      outputSearch.addEventListener('blur', () => setTimeout(() => outputResults.classList.add('hidden'), 150));
+      outputResults.addEventListener('click', event => {
+        const button = event.target.closest('[data-result]');
+        if (!button) return;
+        outputResults.classList.add('hidden');
+        setOutputProduct(Number(button.dataset.result));
+      });
+
       el('productionRecipe')?.addEventListener('change', applyRecipeTemplate);
       el('productionMultiplier')?.addEventListener('change', applyRecipeTemplate);
       el('productionAddComponent')?.addEventListener('click', addComponent);
-      renderRecipeOptions({ resetTemplate: true });
+      setOutputProduct(products[0].productId);
     } catch (error) {
       toast(error.message);
     }

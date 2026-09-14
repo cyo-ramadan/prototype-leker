@@ -291,15 +291,24 @@ test('posted production HPP and exact recipe revision stay immutable after mater
 test('cashier Production Panel V2 is editable and dynamically adds material rows', () => {
   assert.match(cashierHtml, /cashier-production-v2\.css/);
   assert.match(cashierHtml, /cashier-production-v2\.js/);
-  assert.match(productionUi, /Hasil produksi/);
+  assert.match(productionUi, /Plan Produksi/);
+  assert.match(productionUi, /Barang jadi/);
+  assert.match(productionUi, /Kelipatan/);
   assert.match(productionUi, /Qty hasil/);
   assert.match(productionUi, /Recipe \/ BOM acuan/);
-  assert.match(productionUi, /Bahan baku aktual/);
+  assert.match(productionUi, /Detail Produksi/);
   assert.match(productionUi, /Tambah bahan/);
   assert.match(productionUi, /componentDraft\.push/);
   assert.match(productionUi, /componentDraft\.splice/);
   assert.match(productionUi, /tidak mengubah Master Recipe/);
   assert.match(productionUi, /outputQuantity, recipeId, components/);
+});
+
+test('cashier Production Panel V2 scales output and component quantities by the kelipatan multiplier', () => {
+  assert.match(productionUi, /function currentMultiplier\(\)/);
+  assert.match(productionUi, /Number\(recipe\.outputQuantity\) \* multiplier/);
+  assert.match(productionUi, /Number\(component\.quantity\) \* multiplier/);
+  assert.match(productionUi, /el\('productionMultiplier'\)\?\.addEventListener\('change', applyRecipeTemplate\)/);
 });
 
 test('production commit dispatches Warehouse accounting bridge after stock batch', () => {

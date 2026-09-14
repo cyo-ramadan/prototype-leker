@@ -255,6 +255,50 @@ export async function prepareSaleStockProduction(db, {
     if (resolved.mode === 'DADAKAN') recipeIds.push(product.recipe.id);
   }
   const componentsByRecipe = await loadRecipeComponents(db, storeId, [...new Set(recipeIds)]);
+
+  // Pre-check net stock movement per barang before touching the DB. Without
+  // this, an insufficient-stock sale only fails at the CHECK constraint on
+  // inventory_stock_balances, which reports no product context -- kasir just
+  // sees "stok tidak cukup" with no idea which bahan is short. This mirrors
+  // what the batch will do (sum every decrement/increase per product across
+  // all lines) so the message can name the specific barang, while the DB
+  // CHECK stays the real backstop for races against concurrent sales.
+  const shortageInfo = new Map();
+  const netDelta = new Map();
+  const bumpDelta = (id, delta) => netDelta.set(id, (netDelta.get(id) || 0) + delta);
+  for (const line of lines) {
+    const product = products.get(Number(line.productId));
+    shortageInfo.set(product.id, { name: product.name, unitSymbol: product.unitSymbol });
+    const mode = lineModes.get(line);
+    if (mode === 'DADAKAN') {
+      const recipe = product.recipe;
+      const components = componentsByRecipe.get(recipe.id) || [];
+      const batches = Math.ceil(Number(line.quantity) / recipe.outputQuantity);
+      for (const component of components) {
+        shortageInfo.set(component.id, { name: component.name, unitSymbol: component.unitSymbol });
+        if (component.trackStock) bumpDelta(component.id, -(component.quantityPerBatch * batches));
+      }
+      if (product.trackStock) bumpDelta(product.id, batches * recipe.outputQuantity);
+    }
+    if (product.trackStock) bumpDelta(product.id, -Number(line.quantity));
+  }
+  const shortIds = [...netDelta.keys()].filter(id => netDelta.get(id) < 0);
+  if (shortIds.length) {
+    const balanceRows = await db.prepare(`
+      SELECT product_id, quantity FROM inventory_stock_balances
+      WHERE store_id = ? AND product_id IN (${placeholders(shortIds.length)})
+    `).bind(storeId, ...shortIds).all();
+    const balances = new Map((balanceRows.results ?? []).map(row => [Number(row.product_id), Number(row.quantity)]));
+    const shortages = shortIds
+      .map(id => ({ id, projected: (balances.get(id) || 0) + netDelta.get(id) }))
+      .filter(row => row.projected < 0)
+      .map(row => {
+        const info = shortageInfo.get(row.id);
+        return `${info?.name || `Barang #${row.id}`} kurang ${Math.abs(row.projected)} ${info?.unitSymbol || ''}`.trim();
+      });
+    if (shortages.length) return { ok: false, status: 409, error: `Stok tidak cukup: ${shortages.join('; ')}.` };
+  }
+
   const statements = [];
   const enrichedLines = [];
   let totalPoints = 0;

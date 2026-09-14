@@ -171,6 +171,32 @@ test('the same recipe-linked line sold Biasa (STOCK) skips auto-production and o
   }
 });
 
+test('a Dadakan sale that would run a recipe component negative names that specific barang, not a generic message', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const fixture = recipeLinkedFixture(sqlite);
+    const db = new D1Database(sqlite);
+    const componentName = sqlite.prepare(`SELECT name FROM products WHERE id = ? AND store_id = ?`)
+      .get(fixture.componentProductId, fixture.storeId).name;
+    // Component stock starts at 100 (2 units/batch). Selling 60 needs 60
+    // batches * 2 = 120 units of the component -- 20 short.
+    const lines = [{ productId: fixture.outputProductId, productName: 'Es Teh Poci Jasmine', unitPrice: 8000, quantity: 60, lineTotal: 480000, note: '' }];
+
+    const result = await prepareSaleStockProduction(db, {
+      storeId: fixture.storeId, drawerId: fixture.drawerId, cashierId: fixture.cashierId,
+      saleId: 'sale_component_short', lines, now: '2026-09-03T04:00:00.000Z'
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 409);
+    assert.match(result.error, new RegExp(`${componentName}.*kurang 20`));
+    // Caught before any statement is attempted -- no partial write, no reliance
+    // on the DB CHECK constraint to reject a doomed batch.
+    assert.equal(result.statements, undefined);
+  } finally {
+    sqlite.close();
+  }
+});
+
 test('requesting Dadakan for a product with no recipe link is rejected with a clear error', async () => {
   const sqlite = freshDatabase();
   try {

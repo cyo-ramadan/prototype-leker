@@ -32,7 +32,7 @@
             .stock-adjustment-search-result span,.stock-adjustment-search-result small{display:block}
             .stock-adjustment-search-result small{color:#6b7280;margin-top:2px}
             .stock-adjustment-table{border:1px solid #e1e5eb;border-radius:12px;overflow:hidden;margin-top:10px}
-            .stock-adjustment-grid{display:grid;grid-template-columns:minmax(130px,1.7fr) minmax(80px,.85fr) minmax(90px,.9fr);gap:8px;align-items:center}
+            .stock-adjustment-grid{display:grid;grid-template-columns:minmax(160px,2.4fr) minmax(70px,.7fr) minmax(80px,.8fr);gap:8px;align-items:center}
             .stock-adjustment-head{background:#111827;color:#fff;padding:9px 10px;font-size:11px;font-weight:800}
             .stock-adjustment-row{padding:9px 10px;border-top:1px solid #edf0f4;background:#fff}
             .stock-adjustment-item{position:relative;min-width:0;padding-right:30px}
@@ -49,7 +49,7 @@
             .stock-adjustment-source-note{background:#f6f7f9;border-radius:10px;padding:9px 10px;font-size:11px;color:#4b5563;line-height:1.45;margin-top:10px}
             @media(max-width:680px){
               .stock-adjustment-head{font-size:10px;padding:7px 8px}
-              .stock-adjustment-grid{grid-template-columns:minmax(0,1fr) 64px 72px;gap:6px}
+              .stock-adjustment-grid{grid-template-columns:minmax(0,1fr) 56px 64px;gap:6px}
               .stock-adjustment-row{padding:10px}
               .stock-adjustment-readonly small{font-size:9px}
             }
@@ -68,21 +68,17 @@
           <div class="pimasatu-panel-body">
             <div class="stock-adjustment-table">
               <div class="stock-adjustment-grid stock-adjustment-head">
-                <span>Barang</span><span>Stok Tercatat</span><span>Stok Real</span>
+                <span>Barang</span><span>Noted</span><span>Real</span>
               </div>
               <div id="stockAdjustmentRows"></div>
             </div>
             <div class="stock-adjustment-source-note"><b>Stok Tercatat</b> read-only dari pembacaan stok saat panel dibuka. Server mengambil snapshot resmi lagi saat pengajuan. Selisih baru ditampilkan nanti di data Stock Opname.</div>
-            <div class="field"><label>Alasan penyesuaian</label><input id="stockAdjustmentReason" class="text-input" maxlength="220" placeholder="Contoh: hasil hitung fisik" required /></div>
-            <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500"></textarea></div>
+            <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500" placeholder="Contoh: hasil hitung fisik"></textarea></div>
           </div>
 
           <p class="muted">Setiap barang yang punya selisih menjadi pengajuan Penyesuaian Stok sendiri. Saat ACC, stale-snapshot guard tetap berjalan per barang.</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
-          const reason = el('stockAdjustmentReason').value.trim();
-          if (!reason) throw new Error('Alasan Penyesuaian Stok wajib diisi.');
-
           const prepared = pilatu.prepareStockAdjustmentRows(selectedRows);
           const changed = prepared.filter(row => row.difference !== 0);
           if (!changed.length) throw new Error('Tidak ada selisih stok yang perlu diajukan.');
@@ -99,7 +95,6 @@
                     purpose: 'STOCK_ADJUSTMENT',
                     productId: row.productId,
                     targetQuantity: row.targetQuantity,
-                    reason,
                     note
                   }
                 })

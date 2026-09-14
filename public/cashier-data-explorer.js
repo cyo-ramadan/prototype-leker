@@ -25,6 +25,10 @@
     ['INVENTORY', 'Arus Barang & Produksi'], ['ASSETS', 'Aset']
   ];
   const PAGE_SIZES = [5, 20, 50, 100];
+  const SORT_OPTIONS = [
+    ['occurredAt:desc', 'Tanggal terbaru'], ['occurredAt:asc', 'Tanggal terlama'],
+    ['cashierName:asc', 'Kasir A-Z'], ['cashierName:desc', 'Kasir Z-A']
+  ];
   const KIND_LABEL = {
     SALE: 'Penjualan', PURCHASE: 'Pembelian', EXPENSE: 'Pengeluaran', OTHER_INCOME: 'Pendapatan Lain',
     CASH_FLOW: 'Arus Kas', GOODS_FLOW: 'Arus Barang', ASSET: 'Aset', PRODUCTION: 'Produksi'
@@ -53,6 +57,21 @@
           .cashier-tx-id{font-family:monospace;font-size:10px;color:#6b7280;word-break:break-all;white-space:normal;max-width:180px}
           .cashier-tx-actions{display:flex;gap:6px;flex-wrap:wrap;white-space:normal}
           .cashier-tx-readonly-note{display:block;margin-top:4px;font-size:10px;color:#b45309}
+          @media(max-width:640px){
+            /* Kasir/CS mostly hold a phone -- a 9-column table would force
+               horizontal scroll before even Nominal/Status are visible, not
+               just the "look up later" columns like ID Laci. Reflow into
+               stacked label:value rows instead of hiding any data. */
+            .cashier-tx-table-wrap{overflow-x:visible;border:0}
+            .cashier-tx-table{white-space:normal}
+            .cashier-tx-table thead{display:none}
+            .cashier-tx-table, .cashier-tx-table tbody, .cashier-tx-table tr, .cashier-tx-table td{display:block;width:100%}
+            .cashier-tx-table tr{border:1px solid #e1e5eb;border-radius:10px;margin-bottom:10px;padding:8px 10px}
+            .cashier-tx-table td{border-top:0;padding:4px 0}
+            .cashier-tx-table td.cashier-tx-id{max-width:none}
+            .cashier-tx-table td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase}
+            .cashier-tx-table td.cashier-tx-actions::before{content:none}
+          }
         </style>
         <div class="cashier-dialog-head">
           <div><div class="muted">Data gerai · read-only</div><h2>Data Transaksi &amp; Stok</h2></div>
@@ -96,6 +115,7 @@
       <div class="cashier-tx-toolbar">
         <div class="field" style="min-width:170px"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
         <div class="field" style="min-width:100px"><label>Tampilkan</label><select id="cashierDataLimit" class="text-input">${PAGE_SIZES.map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></div>
+        <div class="field" style="min-width:150px"><label>Urutkan</label><select id="cashierDataSort" class="text-input">${SORT_OPTIONS.map(([value, label]) => `<option value="${value}" ${value === `${state.sortKey}:${state.sortDir}` ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
         <div class="field cashier-tx-search" style="flex:1;min-width:200px">
           <label style="display:block;width:100%">Cari ID / deskripsi</label>
           <div style="display:flex;gap:6px;width:100%">
@@ -114,6 +134,12 @@
     el('cashierDataLimit').addEventListener('change', event => {
       state.limit = Number(event.target.value) || 50;
       loadTransactions({ reset: true });
+    });
+    el('cashierDataSort').addEventListener('change', event => {
+      const [key, dir] = event.target.value.split(':');
+      state.sortKey = key;
+      state.sortDir = dir;
+      renderTransactionsPanel();
     });
     const runSearch = () => {
       state.q = el('cashierDataSearch').value.trim();
@@ -164,14 +190,14 @@
   function renderTransactionRow(row) {
     return `
       <tr>
-        <td>${formatDateTime(row.occurredAt)}</td>
-        <td>${escapeHtml(transactionKindLabel(row))}</td>
-        <td>${escapeHtml(row.description || '')}${voidNoteHtml(row)}</td>
-        <td>${row.amount == null ? '-' : rupiah(row.amount)}</td>
-        <td>${escapeHtml(row.status || '')}</td>
-        <td>${escapeHtml(row.cashierName || '-')}</td>
-        <td class="cashier-tx-id">${escapeHtml(String(row.id))}</td>
-        <td class="cashier-tx-id">${escapeHtml(row.drawerSessionId || '-')}</td>
+        <td data-label="Tanggal">${formatDateTime(row.occurredAt)}</td>
+        <td data-label="Jenis">${escapeHtml(transactionKindLabel(row))}</td>
+        <td data-label="Deskripsi">${escapeHtml(row.description || '')}${voidNoteHtml(row)}</td>
+        <td data-label="Nominal">${row.amount == null ? '-' : rupiah(row.amount)}</td>
+        <td data-label="Status">${escapeHtml(row.status || '')}</td>
+        <td data-label="Kasir">${escapeHtml(row.cashierName || '-')}</td>
+        <td class="cashier-tx-id" data-label="ID">${escapeHtml(String(row.id))}</td>
+        <td class="cashier-tx-id" data-label="ID Laci">${escapeHtml(row.drawerSessionId || '-')}</td>
         <td class="cashier-tx-actions">
           <button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
           ${voidButtonHtml(row)}

@@ -272,7 +272,7 @@ test('Kasir Data Transaksi detail reuses Admin transaction-detail logic, scoped 
 });
 
 test('Kasir Data Transaksi UI shows an ID, a Detail button per row, and labels stock-adjustment GOODS_FLOW rows distinctly', () => {
-  assert.match(stockExplorerUi, /class="cashier-tx-id">\$\{escapeHtml\(String\(row\.id\)\)\}/);
+  assert.match(stockExplorerUi, /data-label="ID">\$\{escapeHtml\(String\(row\.id\)\)\}/);
   assert.match(stockExplorerUi, /row\.drawerSessionId/);
   assert.match(stockExplorerUi, /data-cashier-tx-detail-id/);
   assert.match(stockExplorerUi, />Detail</);
@@ -286,4 +286,14 @@ test('Kasir Data Transaksi is table-based with sortable headers, a page-size sel
   assert.match(stockExplorerUi, /cashierDataLimit/);
   assert.match(stockExplorerUi, /cashierDataSearch/);
   assert.match(stockExplorerUi, /'Penyesuaian Stok'\]/);
+});
+
+test('Kasir Data Transaksi reflows into stacked rows on a phone-width screen instead of forcing horizontal scroll, and sorting still works without visible table headers', () => {
+  assert.match(stockExplorerUi, /@media\(max-width:640px\)\{/);
+  assert.match(stockExplorerUi, /\.cashier-tx-table thead\{display:none\}/);
+  assert.match(stockExplorerUi, /content:attr\(data-label\)/);
+  assert.match(stockExplorerUi, /data-label="Nominal"/);
+  assert.match(stockExplorerUi, /data-label="Status"/);
+  assert.match(stockExplorerUi, /cashierDataSort/);
+  assert.match(stockExplorerUi, /SORT_OPTIONS/);
 });

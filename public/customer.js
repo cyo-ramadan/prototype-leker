@@ -45,6 +45,7 @@ async function init() {
   renderCart();
   bindInputs();
   bindCartDrawer();
+  bindProductPhotoModal();
   startOrderPolling();
   loadStoreBrand();
   mountRodaPuterDemo();
@@ -192,7 +193,9 @@ function renderMenu() {
     return `
       <article class="menu-card ${cartItem ? 'selected' : ''}">
         <div class="menu-card-top">
-          <img class="menu-product-image" src="${escapeHtml(imageSource)}" alt="${escapeHtml(menu.name)}" />
+          <button type="button" class="menu-photo-btn" data-photo-id="${menu.id}" aria-label="Lihat foto ${escapeHtml(menu.name)}">
+            <img class="menu-product-image" src="${escapeHtml(imageSource)}" alt="${escapeHtml(menu.name)}" />
+          </button>
           ${cartItem ? `<span class="selected-badge">✓ ${cartItem.qty}</span>` : ''}
         </div>
         <div class="category">${escapeHtml(menu.category)}</div>
@@ -206,6 +209,34 @@ function renderMenu() {
     if (btn.dataset.menuAction === 'add') addItem(menuId);
     if (btn.dataset.menuAction === 'plus') changeQty(menuId, 1, true);
     if (btn.dataset.menuAction === 'minus') changeQty(menuId, -1, true);
+  });
+  document.querySelectorAll('[data-photo-id]').forEach(btn => btn.onclick = () => openProductPhoto(Number(btn.dataset.photoId)));
+}
+
+function openProductPhoto(menuId) {
+  const menu = state.menu.find(item => item.id === menuId);
+  if (!menu) return;
+  el('productPhotoImg').src = menu.imageData || '/default-product.svg';
+  el('productPhotoImg').alt = menu.name;
+  el('productPhotoCategory').textContent = menu.category;
+  el('productPhotoName').textContent = menu.name;
+  el('productPhotoPrice').textContent = rupiah(menu.price);
+  el('productPhotoBackdrop').classList.remove('hidden');
+  el('productPhotoBackdrop').setAttribute('aria-hidden', 'false');
+}
+
+function closeProductPhoto() {
+  el('productPhotoBackdrop').classList.add('hidden');
+  el('productPhotoBackdrop').setAttribute('aria-hidden', 'true');
+}
+
+function bindProductPhotoModal() {
+  el('productPhotoClose').onclick = closeProductPhoto;
+  el('productPhotoBackdrop').onclick = event => {
+    if (event.target === el('productPhotoBackdrop')) closeProductPhoto();
+  };
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !el('productPhotoBackdrop').classList.contains('hidden')) closeProductPhoto();
   });
 }
 

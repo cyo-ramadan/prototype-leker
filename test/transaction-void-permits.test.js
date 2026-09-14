@@ -11,7 +11,7 @@ const reconciliationGuard = readFileSync(new URL('../src/accounting-reconciliati
 // reconciliation endpoint and the workspace summary so the voided_at filter
 // cannot be present in one and forgotten in the other.
 const posBridge = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
-const cashierUi = readFileSync(new URL('../public/cashier-transaction-void-permits.js', import.meta.url), 'utf8');
+const cashierUi = readFileSync(new URL('../public/cashier-data-explorer.js', import.meta.url), 'utf8');
 const managementUi = readFileSync(new URL('../public/management-transaction-void-permits.js', import.meta.url), 'utf8');
 const contract = readFileSync(new URL('../contracts/transaction-void-permit-v1.md', import.meta.url), 'utf8');
 
@@ -53,11 +53,16 @@ test('manual Accounting reconciliation excludes source facts already marked corr
 });
 
 test('cashier and management UI expose request and ACC-Reject lifecycle', () => {
-  assert.match(cashierUi, /Ajukan Hapus/);
-  assert.match(cashierUi, /reason/);
+  assert.match(cashierUi, /AJUKAN HAPUS/);
+  assert.match(cashierUi, /voidPermitReason/);
   assert.match(cashierUi, /pending approval/i);
+  assert.match(cashierUi, /data-cashier-tx-void-id/);
+  assert.match(cashierUi, /data-cashier-tx-cancel-permit/);
+  assert.match(cashierUi, /Batal Hapus/);
+  assert.match(cashierUi, /Read only \(request delete\)/);
   assert.match(managementUi, /ACC PERMIT/);
   assert.match(managementUi, /Reject/);
+  assert.match(managementUi, /RETRY_EXECUTION/);
 });
 
 test('contract documents authorization, soft-delete, reversal and explicit HOLD behavior', () => {

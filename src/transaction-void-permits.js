@@ -171,6 +171,18 @@ async function handleCashier(request, env, pathname) {
     `).bind(id, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, subjectId, JSON.stringify(subject), reason, now, now).run();
     return json({ ok: true, permit: await getPermit(env.DB, id) }, 201);
   }
+  const cancelMatch = pathname.match(/^\/api\/cashier\/transaction-void\/permits\/([^/]+)$/);
+  if (request.method === 'DELETE' && cancelMatch) {
+    const id = decodeURIComponent(cancelMatch[1]);
+    const now = new Date().toISOString();
+    const result = await env.DB.prepare(`
+      UPDATE approval_permits
+      SET approval_status = 'rejected', decision_note = 'Dibatalkan sendiri oleh kasir/CS', approved_by_role = 'CASHIER_SELF', approved_by_id = ?, decided_at = ?, updated_at = ?
+      WHERE id = ? AND store_id = ? AND cashier_id = ? AND approval_status = 'pending_approval'
+    `).bind(auth.cashier.id, now, now, id, auth.cashier.store.id, auth.cashier.id).run();
+    if (!result.success || Number(result.meta?.changes ?? 0) !== 1) return json({ error: 'Permit tidak ditemukan, bukan milik kasir ini, atau sudah diputuskan Admin.' }, 409);
+    return json({ ok: true, permit: await getPermit(env.DB, id) });
+  }
   return json({ error: 'Route permit transaksi kasir tidak ditemukan.' }, 404);
 }
 

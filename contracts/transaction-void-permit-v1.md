@@ -18,6 +18,10 @@ Cashier may request only an active transaction belonging to the authenticated ca
 
 Before ACC, the source transaction remains active and continues affecting drawer, inventory/HPP, and Accounting.
 
+The requesting cashier/CS may withdraw its own still-`pending_approval` request (`DELETE /api/cashier/transaction-void/permits/:id`). Withdrawal reuses the `rejected` state (`approved_by_role = 'CASHIER_SELF'`) rather than introducing a new status value, so the one-unresolved-permit-per-subject guard and the existing Admin lifecycle stay unchanged; the Admin panel and cashier UI distinguish it from an Admin rejection by that role.
+
+The cashier-facing entry point lives inline in the "Data Transaksi" row (kasir · Data · tab Transaksi), next to Detail, for SALE/PURCHASE/EXPENSE rows only -- not a separate standalone button. While a request is `pending_approval` the row shows a "Read only (request delete)" note and the action flips from Hapus to Batal Hapus.
+
 ## Management decision
 
 Admin Gerai may decide only permits in its store. Owner may decide an explicitly selected authorized store. Legacy PIN authorization is not accepted.

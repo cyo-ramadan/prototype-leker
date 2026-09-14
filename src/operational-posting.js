@@ -109,6 +109,14 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
       ) {
         return { ok: false, error: 'HPP barang tidak valid atau melampaui batas integer aman untuk Penyesuaian Stok.' };
       }
+      // sessionId groups every item the cashier submitted together in one
+      // Stock Opname form into a single audit-visible entry (Data Transaksi
+      // aggregates by it) while each item still gets its own approval_requests
+      // row, its own stale-snapshot guard, and its own ACC/Reject decision --
+      // grouping is a listing/display concern only, not an approval-authority
+      // change. Optional so older clients (and the one-request-at-a-time
+      // legacy V1 shape) keep working ungrouped.
+      const sessionId = text(payload.sessionId, 60) || null;
       return {
         ok: true,
         payload: {
@@ -124,6 +132,7 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
           unitCostSnapshotScaled,
           totalCostSnapshotScaled,
           ...(!warehouseEnabled ? { warehouseEnabled: false } : {}),
+          ...(sessionId ? { sessionId } : {}),
           reason,
           note: text(payload.note, 500)
         }

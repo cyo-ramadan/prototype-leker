@@ -202,6 +202,55 @@ async function simpleDetail(db, storeId, kind, id) {
   };
 }
 
+// A Stock Opname session groups several approval_requests rows (one per
+// item) under a shared payload.sessionId -- see groupStockAdjustmentSessions
+// in admin-transactions.js. When `id` doesn't match a single approval
+// request, this is the fallback: look it up as a session id instead and
+// return the item breakdown (with selisih) Data Transaksi's Detail shows.
+async function stockAdjustmentSessionDetail(db, storeId, sessionId) {
+  const rows = await db.prepare(`
+    SELECT a.id, a.payload_json, a.approval_status, a.posting_status, a.decision_note,
+           a.drawer_session_id, a.cashier_id, a.created_at, c.employee_name AS cashier_name
+    FROM approval_requests a
+    LEFT JOIN cashiers c ON c.id = a.cashier_id
+    WHERE a.store_id = ? AND a.request_type = 'GOODS_FLOW'
+      AND json_extract(a.payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'
+      AND json_extract(a.payload_json, '$.sessionId') = ?
+    ORDER BY a.created_at, a.id
+  `).bind(storeId, sessionId).all();
+  const results = rows.results ?? [];
+  if (!results.length) return null;
+  const items = results.map(row => {
+    const payload = safeJson(row.payload_json);
+    return {
+      approvalRequestId: row.id,
+      productName: payload.productName || '',
+      unitSymbol: payload.unitSymbol || '',
+      currentQuantitySnapshot: payload.currentQuantitySnapshot,
+      targetQuantity: payload.targetQuantity,
+      difference: Number(payload.targetQuantity) - Number(payload.currentQuantitySnapshot),
+      direction: payload.direction || '',
+      reason: payload.reason || '',
+      note: payload.note || '',
+      approvalStatus: row.approval_status,
+      postingStatus: row.posting_status,
+      decisionNote: row.decision_note || ''
+    };
+  });
+  const earliest = results.reduce((min, row) => row.created_at < min ? row.created_at : min, results[0].created_at);
+  return {
+    kind: 'GOODS_FLOW',
+    id: sessionId,
+    sessionId,
+    items,
+    drawerSessionId: results[0].drawer_session_id || null,
+    cashierId: results[0].cashier_id || null,
+    cashierName: results[0].cashier_name || '',
+    occurredAt: earliest,
+    accounting: { accountingStatus: 'NOT_REQUIRED', eligible: false }
+  };
+}
+
 async function approvalDetail(db, storeId, kind, id) {
   if (!['CASH_FLOW', 'GOODS_FLOW', 'ASSET'].includes(kind)) return null;
   const row = await db.prepare(`
@@ -214,7 +263,7 @@ async function approvalDetail(db, storeId, kind, id) {
     WHERE a.store_id = ? AND a.id = ? AND a.request_type = ?
     LIMIT 1
   `).bind(storeId, id, kind).first();
-  if (!row) return null;
+  if (!row) return kind === 'GOODS_FLOW' ? stockAdjustmentSessionDetail(db, storeId, id) : null;
   const transaction = {
     id: row.id,
     kind,

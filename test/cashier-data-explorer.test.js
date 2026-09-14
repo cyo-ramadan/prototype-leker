@@ -175,6 +175,60 @@ test('Kasir Data Transaksi filter STOCK_ADJUSTMENTS isolates purpose=STOCK_ADJUS
   }
 });
 
+test('Kasir Data Transaksi groups a multi-item Stock Opname submission into one session row, with per-item selisih on Detail', async () => {
+  const db = migratedDatabase();
+  try {
+    const { token, cashierId } = await cashierToken(db, 'store_001');
+    const drawerId = 'drawer_session_group_test';
+    openDrawer(db, drawerId, 'store_001', cashierId);
+
+    db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at)
+      VALUES ('approval_session_item_a', 'store_001', ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T10:00:00.000Z', '2026-09-14T10:00:00.000Z')
+    `).run(drawerId, cashierId, JSON.stringify({
+      purpose: 'STOCK_ADJUSTMENT', productName: 'Larutan Gula', unitSymbol: 'ml',
+      currentQuantitySnapshot: 100, targetQuantity: 80, direction: 'OUT', quantity: 20, sessionId: 'session_group_test'
+    }));
+    db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at)
+      VALUES ('approval_session_item_b', 'store_001', ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T10:00:01.000Z', '2026-09-14T10:00:01.000Z')
+    `).run(drawerId, cashierId, JSON.stringify({
+      purpose: 'STOCK_ADJUSTMENT', productName: 'Bubuk Rasa Apel', unitSymbol: 'gr',
+      currentQuantitySnapshot: 50, targetQuantity: 65, direction: 'IN', quantity: 15, sessionId: 'session_group_test'
+    }));
+    // A separate single-item submission (different sessionId) must stay its own row.
+    db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at)
+      VALUES ('approval_session_other', 'store_001', ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T10:01:00.000Z', '2026-09-14T10:01:00.000Z')
+    `).run(drawerId, cashierId, JSON.stringify({
+      purpose: 'STOCK_ADJUSTMENT', productName: 'Gula Pasir', currentQuantitySnapshot: 10, targetQuantity: 10, sessionId: 'session_group_other_test'
+    }));
+
+    const env = { DB: new D1Database(db) };
+    const listResponse = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?filter=STOCK_ADJUSTMENTS' }), env, '/api/cashier/data/transactions'
+    );
+    const listBody = await listResponse.json();
+    assert.equal(listBody.transactions.length, 2, 'the two grouped items collapse into one row, the other session stays separate');
+    const grouped = listBody.transactions.find(item => item.id === 'session_group_test');
+    assert.ok(grouped, 'the grouped session must be addressable by its sessionId');
+    assert.equal(grouped.description, 'Penyesuaian Stok · 2 barang');
+
+    const detailResponse = await handleCashierDataApi(
+      request('/api/cashier/data/transactions/detail/GOODS_FLOW/session_group_test', { token }),
+      env, '/api/cashier/data/transactions/detail/GOODS_FLOW/session_group_test'
+    );
+    const detailBody = await detailResponse.json();
+    assert.equal(detailBody.detail.items.length, 2);
+    const itemA = detailBody.detail.items.find(item => item.productName === 'Larutan Gula');
+    assert.equal(itemA.difference, -20, 'selisih = targetQuantity - currentQuantitySnapshot');
+    const itemB = detailBody.detail.items.find(item => item.productName === 'Bubuk Rasa Apel');
+    assert.equal(itemB.difference, 15);
+  } finally {
+    db.close();
+  }
+});
+
 test('Kasir Data Transaksi supports searching by ID or description, and a limit as small as 5', async () => {
   const db = migratedDatabase();
   try {
@@ -296,4 +350,10 @@ test('Kasir Data Transaksi reflows into stacked rows on a phone-width screen ins
   assert.match(stockExplorerUi, /data-label="Status"/);
   assert.match(stockExplorerUi, /cashierDataSort/);
   assert.match(stockExplorerUi, /SORT_OPTIONS/);
+});
+
+test('Penyesuaian Stok Detail renders a table with Selisih per item, not the single-item key-value block', () => {
+  assert.match(stockExplorerUi, /renderStockAdjustmentSessionBody/);
+  assert.match(stockExplorerUi, /<th>Selisih<\/th>/);
+  assert.match(stockExplorerUi, /detail\.items/);
 });

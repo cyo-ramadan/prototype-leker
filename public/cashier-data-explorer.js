@@ -362,9 +362,29 @@
       <div class="admin-tip"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>`;
   }
 
+  function renderStockAdjustmentSessionBody(detail) {
+    const items = detail.items || [];
+    return `
+      <div class="cashier-tx-table-wrap">
+        <table class="cashier-tx-table" style="white-space:normal">
+          <thead><tr><th>Barang</th><th>Noted</th><th>Real</th><th>Selisih</th><th>Status</th></tr></thead>
+          <tbody>${items.map(item => `
+            <tr>
+              <td data-label="Barang">${escapeHtml(item.productName || '-')}${item.unitSymbol ? ` (${escapeHtml(item.unitSymbol)})` : ''}</td>
+              <td data-label="Noted">${item.currentQuantitySnapshot}</td>
+              <td data-label="Real">${item.targetQuantity}</td>
+              <td data-label="Selisih">${item.difference > 0 ? `+${item.difference}` : item.difference}</td>
+              <td data-label="Status">${escapeHtml(approvalStatusLabel(item))}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div class="admin-tip" style="margin-top:10px"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>`;
+  }
+
   function renderDetailBody(kind, detail) {
     if (kind === 'SALE') return renderSaleDetailBody(detail);
     if (['PURCHASE', 'EXPENSE', 'OTHER_INCOME'].includes(kind)) return renderSimpleDetailBody(detail);
+    if (kind === 'GOODS_FLOW' && detail.items) return renderStockAdjustmentSessionBody(detail);
     if (['CASH_FLOW', 'GOODS_FLOW', 'ASSET'].includes(kind)) return renderApprovalDetailBody(kind, detail);
     return '<div class="empty">Detail tidak tersedia untuk jenis transaksi ini.</div>';
   }
@@ -380,7 +400,7 @@
     try {
       const payload = await api(`/api/cashier/data/transactions/detail/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
       const detail = payload.detail;
-      const row = { kind, operationalPayload: detail.payload };
+      const row = { kind, operationalPayload: detail.items ? { purpose: 'STOCK_ADJUSTMENT' } : detail.payload };
       el('cashierDialogTitle').textContent = `${transactionKindLabel(row)} · ID ${detail.id}`;
       el('cashierDialogBody').innerHTML = `
         <div class="muted" style="margin-bottom:10px">${formatDateTime(detail.occurredAt)}</div>

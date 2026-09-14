@@ -29,9 +29,12 @@ Public/UI input:
 - `productId`;
 - `targetQuantity`;
 - `reason` — optional human-readable reason;
-- `note` — optional.
+- `note` — optional;
+- `sessionId` — optional, opaque, client-generated. When the cashier's Stock Opname panel submits several items at once, every item's request carries the same `sessionId`, generated once per submission.
 
 Only `productId` and `targetQuantity` are required; `reason` and `note` may both be blank.
+
+`sessionId` is a display grouping key only. Each item keeps its own `approval_requests` row, its own stale-snapshot guard, and its own independent ACC/Reject decision by Admin/Owner — `sessionId` never changes who decides what or when. The Approval Queue (the surface Admin actually acts on) still lists and decides one item at a time. Only the audit-facing Data Transaksi list collapses same-`sessionId` items into one line (`"Penyesuaian Stok · N barang"`), with the per-item breakdown — including `selisih` (`targetQuantity - currentQuantitySnapshot`) — surfaced on that line's Detail.
 
 The server resolves and snapshots:
 

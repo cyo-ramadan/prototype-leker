@@ -2,6 +2,10 @@
   const state = {
     tab: 'transactions',
     filter: 'ALL',
+    limit: 50,
+    q: '',
+    sortKey: 'occurredAt',
+    sortDir: 'desc',
     transactions: [],
     txCursor: null,
     txHasMore: false,
@@ -17,8 +21,10 @@
 
   const FILTERS = [
     ['ALL', 'Semua'], ['SALES', 'Penjualan'], ['PURCHASES', 'Pembelian'],
-    ['OPERATIONS', 'Operasional'], ['INVENTORY', 'Mutasi Barang'], ['ASSETS', 'Aset']
+    ['OPERATIONS', 'Operasional'], ['STOCK_ADJUSTMENTS', 'Penyesuaian Stok'],
+    ['INVENTORY', 'Arus Barang & Produksi'], ['ASSETS', 'Aset']
   ];
+  const PAGE_SIZES = [5, 20, 50, 100];
   const KIND_LABEL = {
     SALE: 'Penjualan', PURCHASE: 'Pembelian', EXPENSE: 'Pengeluaran', OTHER_INCOME: 'Pendapatan Lain',
     CASH_FLOW: 'Arus Kas', GOODS_FLOW: 'Arus Barang', ASSET: 'Aset', PRODUCTION: 'Produksi'
@@ -32,6 +38,22 @@
     if (el('cashierDataDialog')) return;
     document.body.insertAdjacentHTML('beforeend', `
       <dialog id="cashierDataDialog" class="cashier-dialog cashier-dialog-plain" style="max-width:min(1080px,96vw);width:96vw">
+        <style>
+          .cashier-tx-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}
+          .cashier-tx-toolbar .field{margin:0}
+          .cashier-tx-search{display:flex;gap:6px}
+          .cashier-tx-search input{flex:1;min-width:0}
+          .cashier-tx-table-wrap{overflow-x:auto;border:1px solid #e1e5eb;border-radius:12px}
+          .cashier-tx-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+          .cashier-tx-table th{background:#111827;color:#fff;padding:8px 10px;text-align:left;cursor:pointer;user-select:none}
+          .cashier-tx-table th:not([data-sort-key]){cursor:default}
+          .cashier-tx-table th[data-sort-key]:hover{background:#1f2937}
+          .cashier-tx-table td{padding:8px 10px;border-top:1px solid #edf0f4;white-space:normal;vertical-align:top}
+          .cashier-tx-table tbody tr:hover{background:#f9fafb}
+          .cashier-tx-id{font-family:monospace;font-size:10px;color:#6b7280;word-break:break-all;white-space:normal;max-width:180px}
+          .cashier-tx-actions{display:flex;gap:6px;flex-wrap:wrap;white-space:normal}
+          .cashier-tx-readonly-note{display:block;margin-top:4px;font-size:10px;color:#b45309}
+        </style>
         <div class="cashier-dialog-head">
           <div><div class="muted">Data gerai · read-only</div><h2>Data Transaksi &amp; Stok</h2></div>
           <button id="cashierDataClose" class="cart-close-btn" type="button">×</button>
@@ -69,8 +91,54 @@
     return KIND_LABEL[row.kind] || row.kind;
   }
 
-  function renderFilters() {
-    return `<div class="field" style="margin-bottom:10px"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>`;
+  function renderToolbar() {
+    return `
+      <div class="cashier-tx-toolbar">
+        <div class="field" style="min-width:170px"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
+        <div class="field" style="min-width:100px"><label>Tampilkan</label><select id="cashierDataLimit" class="text-input">${PAGE_SIZES.map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></div>
+        <div class="field cashier-tx-search" style="flex:1;min-width:200px">
+          <label style="display:block;width:100%">Cari ID / deskripsi</label>
+          <div style="display:flex;gap:6px;width:100%">
+            <input id="cashierDataSearch" class="text-input" type="search" value="${escapeHtml(state.q)}" placeholder="ID transaksi, nama customer, dsb" />
+            <button id="cashierDataSearchBtn" class="mini-btn" type="button">Cari</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function wireToolbar() {
+    el('cashierDataFilter').addEventListener('change', event => {
+      state.filter = event.target.value;
+      loadTransactions({ reset: true });
+    });
+    el('cashierDataLimit').addEventListener('change', event => {
+      state.limit = Number(event.target.value) || 50;
+      loadTransactions({ reset: true });
+    });
+    const runSearch = () => {
+      state.q = el('cashierDataSearch').value.trim();
+      loadTransactions({ reset: true });
+    };
+    el('cashierDataSearchBtn').addEventListener('click', runSearch);
+    el('cashierDataSearch').addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); runSearch(); }
+    });
+  }
+
+  function sortIndicator(key) {
+    if (state.sortKey !== key) return '';
+    return state.sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
+
+  function sortedTransactions() {
+    const rows = [...state.transactions];
+    const dir = state.sortDir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      const left = state.sortKey === 'cashierName' ? String(a.cashierName || '') : String(a.occurredAt || '');
+      const right = state.sortKey === 'cashierName' ? String(b.cashierName || '') : String(b.occurredAt || '');
+      return dir * left.localeCompare(right);
+    });
+    return rows;
   }
 
   function voidButtonHtml(row) {
@@ -88,27 +156,48 @@
   function voidNoteHtml(row) {
     if (!VOID_SUBJECT_TYPES.has(row.kind)) return '';
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
-    if (permit?.approvalStatus === 'pending_approval') return '<div class="master-meta"><b>Read only (request delete)</b> · menunggu Admin</div>';
-    if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') return '<div class="master-meta"><b>Read only</b> · sudah di-ACC Admin, sedang diproses</div>';
+    if (permit?.approvalStatus === 'pending_approval') return '<span class="cashier-tx-readonly-note"><b>Read only (request delete)</b> · menunggu Admin</span>';
+    if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · sudah di-ACC Admin, sedang diproses</span>';
     return '';
+  }
+
+  function renderTransactionRow(row) {
+    return `
+      <tr>
+        <td>${formatDateTime(row.occurredAt)}</td>
+        <td>${escapeHtml(transactionKindLabel(row))}</td>
+        <td>${escapeHtml(row.description || '')}${voidNoteHtml(row)}</td>
+        <td>${row.amount == null ? '-' : rupiah(row.amount)}</td>
+        <td>${escapeHtml(row.status || '')}</td>
+        <td>${escapeHtml(row.cashierName || '-')}</td>
+        <td class="cashier-tx-id">${escapeHtml(String(row.id))}</td>
+        <td class="cashier-tx-id">${escapeHtml(row.drawerSessionId || '-')}</td>
+        <td class="cashier-tx-actions">
+          <button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
+          ${voidButtonHtml(row)}
+        </td>
+      </tr>`;
   }
 
   function renderTransactionRows() {
     if (!state.transactions.length) return '<div class="empty">Belum ada transaksi.</div>';
-    return state.transactions.map(row => `
-      <div class="master-row" style="align-items:flex-start">
-        <div class="master-main">
-          <strong>${escapeHtml(transactionKindLabel(row))} · ${row.amount == null ? '-' : rupiah(row.amount)}</strong>
-          <div class="master-meta">${escapeHtml(row.description || '')}</div>
-          <div class="master-meta">ID ${escapeHtml(String(row.id))}</div>
-          <small>${formatDateTime(row.occurredAt)} · ${escapeHtml(row.status || '')}${row.cashierName ? ` · ${escapeHtml(row.cashierName)}` : ''}</small>
-          ${voidNoteHtml(row)}
-        </div>
-        <div class="master-actions">
-          <button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
-          ${voidButtonHtml(row)}
-        </div>
-      </div>`).join('');
+    return `
+      <div class="cashier-tx-table-wrap">
+        <table class="cashier-tx-table">
+          <thead><tr>
+            <th data-sort-key="occurredAt">Tanggal${sortIndicator('occurredAt')}</th>
+            <th>Jenis</th>
+            <th>Deskripsi</th>
+            <th>Nominal</th>
+            <th>Status</th>
+            <th data-sort-key="cashierName">Kasir${sortIndicator('cashierName')}</th>
+            <th>ID</th>
+            <th>ID Laci</th>
+            <th>Aksi</th>
+          </tr></thead>
+          <tbody>${sortedTransactions().map(renderTransactionRow).join('')}</tbody>
+        </table>
+      </div>`;
   }
 
   async function loadTransactions({ reset }) {
@@ -116,17 +205,14 @@
     if (reset) {
       state.transactions = [];
       state.txCursor = null;
-      host.innerHTML = `${renderFilters()}<div class="muted">Memuat transaksi...</div>`;
-      el('cashierDataFilter').value = state.filter;
-      el('cashierDataFilter').addEventListener('change', event => {
-        state.filter = event.target.value;
-        loadTransactions({ reset: true });
-      });
+      host.innerHTML = `${renderToolbar()}<div class="muted">Memuat transaksi...</div>`;
+      wireToolbar();
     }
     try {
       const url = new URL('/api/cashier/data/transactions', location.origin);
       url.searchParams.set('filter', state.filter);
-      url.searchParams.set('limit', '50');
+      url.searchParams.set('limit', String(state.limit));
+      if (state.q) url.searchParams.set('q', state.q);
       if (!reset && state.txCursor) url.searchParams.set('before', state.txCursor);
       const [payload, permitsPayload] = await Promise.all([
         api(`${url.pathname}${url.search}`),
@@ -142,20 +228,22 @@
       }
       renderTransactionsPanel();
     } catch (error) {
-      if (reset) host.innerHTML = `${renderFilters()}<div class="empty">${escapeHtml(error.message)}</div>`;
+      if (reset) { host.innerHTML = `${renderToolbar()}<div class="empty">${escapeHtml(error.message)}</div>`; wireToolbar(); }
       else toast(error.message);
     }
   }
 
   function renderTransactionsPanel() {
     const host = el('cashierDataTransactions');
-    host.innerHTML = `${renderFilters()}<div class="master-list">${renderTransactionRows()}</div><div style="display:flex;justify-content:center;margin-top:10px"><button id="cashierDataTxMore" class="secondary-btn ${state.txHasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
-    el('cashierDataFilter').value = state.filter;
-    el('cashierDataFilter').addEventListener('change', event => {
-      state.filter = event.target.value;
-      loadTransactions({ reset: true });
-    });
+    host.innerHTML = `${renderToolbar()}${renderTransactionRows()}<div style="display:flex;justify-content:center;margin-top:10px"><button id="cashierDataTxMore" class="secondary-btn ${state.txHasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
+    wireToolbar();
     el('cashierDataTxMore')?.addEventListener('click', () => loadTransactions({ reset: false }));
+    host.querySelectorAll('[data-sort-key]').forEach(th => th.addEventListener('click', () => {
+      const key = th.dataset.sortKey;
+      if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+      else { state.sortKey = key; state.sortDir = 'asc'; }
+      renderTransactionsPanel();
+    }));
     host.querySelectorAll('[data-cashier-tx-detail-id]').forEach(button => button.addEventListener('click', () =>
       openTransactionDetail(button.dataset.cashierTxDetailKind, button.dataset.cashierTxDetailId)));
     host.querySelectorAll('[data-cashier-tx-void-id]').forEach(button => button.addEventListener('click', () =>

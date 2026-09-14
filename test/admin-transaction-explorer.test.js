@@ -21,7 +21,7 @@ test('admin explorer aggregates operational facts without taking source ownershi
 });
 
 test('transaction explorer is bounded and cursor-paginated', () => {
-  assert.match(explorer, /Math\.min\(100, Math\.max\(10, requestedLimit\)\)/);
+  assert.match(explorer, /Math\.min\(100, Math\.max\(5, requestedLimit\)\)/);
   assert.match(explorer, /occurred_at DESC, id DESC/);
   assert.match(explorer, /nextCursor/);
   assert.match(ui, /Muat lagi/);

@@ -161,7 +161,7 @@ test('warehouse_enabled defaults on for existing and new stores and only accepts
   }
 });
 
-test('Warehouse off lets Sale succeed at zero untracked stock; Warehouse on keeps the insufficient-stock guard', async () => {
+test('Warehouse off lets Sale succeed at zero untracked stock; Warehouse on reports the specific barang that is short', async () => {
   const sqlite = freshDatabase();
   try {
     const fixture = activeProductFixture(sqlite, 'sale');
@@ -204,12 +204,15 @@ test('Warehouse off lets Sale succeed at zero untracked stock; Warehouse on keep
       lines,
       now: '2026-08-21T02:01:00.000Z'
     });
-    assert.equal(enabled.ok, true);
-    assert.equal(enabled.statements.length, 3);
-    await assert.rejects(() => db.batch(enabled.statements), /CHECK constraint failed/i);
+    // Pre-check now catches this before any statement is built, and names the
+    // specific barang that's short instead of letting a bare CHECK-constraint
+    // failure surface with no product context.
+    assert.equal(enabled.ok, false);
+    assert.equal(enabled.status, 409);
+    assert.match(enabled.error, new RegExp(`${fixture.name}.*kurang 3`));
     assert.equal(
       sqlite.prepare(`SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`)
-        .get(fixture.store_id, fixture.productId).quantity,
+        .get(fixture.store_id, fixture.productId)?.quantity ?? 0,
       0
     );
   } finally {

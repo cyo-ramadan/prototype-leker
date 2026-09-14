@@ -5,12 +5,15 @@
     transactions: [],
     txCursor: null,
     txHasMore: false,
+    voidPermits: new Map(),
     stocks: [],
     selectedProductId: null,
     movements: [],
     stockCursor: null,
     stockHasMore: false
   };
+
+  const VOID_SUBJECT_TYPES = new Set(['SALE', 'PURCHASE', 'EXPENSE']);
 
   const FILTERS = [
     ['ALL', 'Semua'], ['SALES', 'Penjualan'], ['PURCHASES', 'Pembelian'],
@@ -70,6 +73,26 @@
     return `<div class="field" style="margin-bottom:10px"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>`;
   }
 
+  function voidButtonHtml(row) {
+    if (!VOID_SUBJECT_TYPES.has(row.kind) || row.status === 'voided') return '';
+    const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
+    if (permit?.approvalStatus === 'pending_approval') {
+      return `<button class="mini-btn" type="button" data-cashier-tx-cancel-permit="${escapeHtml(permit.id)}">Batal Hapus</button>`;
+    }
+    if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') {
+      return '';
+    }
+    return `<button class="mini-btn" type="button" data-cashier-tx-void-kind="${escapeHtml(row.kind)}" data-cashier-tx-void-id="${escapeHtml(String(row.id))}">Hapus</button>`;
+  }
+
+  function voidNoteHtml(row) {
+    if (!VOID_SUBJECT_TYPES.has(row.kind)) return '';
+    const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
+    if (permit?.approvalStatus === 'pending_approval') return '<div class="master-meta"><b>Read only (request delete)</b> · menunggu Admin</div>';
+    if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') return '<div class="master-meta"><b>Read only</b> · sudah di-ACC Admin, sedang diproses</div>';
+    return '';
+  }
+
   function renderTransactionRows() {
     if (!state.transactions.length) return '<div class="empty">Belum ada transaksi.</div>';
     return state.transactions.map(row => `
@@ -79,8 +102,12 @@
           <div class="master-meta">${escapeHtml(row.description || '')}</div>
           <div class="master-meta">ID ${escapeHtml(String(row.id))}</div>
           <small>${formatDateTime(row.occurredAt)} · ${escapeHtml(row.status || '')}${row.cashierName ? ` · ${escapeHtml(row.cashierName)}` : ''}</small>
+          ${voidNoteHtml(row)}
         </div>
-        <div class="master-actions"><button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button></div>
+        <div class="master-actions">
+          <button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
+          ${voidButtonHtml(row)}
+        </div>
       </div>`).join('');
   }
 
@@ -101,10 +128,18 @@
       url.searchParams.set('filter', state.filter);
       url.searchParams.set('limit', '50');
       if (!reset && state.txCursor) url.searchParams.set('before', state.txCursor);
-      const payload = await api(`${url.pathname}${url.search}`);
+      const [payload, permitsPayload] = await Promise.all([
+        api(`${url.pathname}${url.search}`),
+        api('/api/cashier/transaction-void/permits').catch(() => ({ permits: [] }))
+      ]);
       state.transactions = reset ? (payload.transactions || []) : [...state.transactions, ...(payload.transactions || [])];
       state.txCursor = payload.nextCursor || null;
       state.txHasMore = Boolean(payload.nextCursor);
+      state.voidPermits = new Map();
+      for (const permit of permitsPayload.permits || []) {
+        const key = `${permit.subjectType}:${permit.subjectId}`;
+        if (!state.voidPermits.has(key)) state.voidPermits.set(key, permit);
+      }
       renderTransactionsPanel();
     } catch (error) {
       if (reset) host.innerHTML = `${renderFilters()}<div class="empty">${escapeHtml(error.message)}</div>`;
@@ -123,6 +158,36 @@
     el('cashierDataTxMore')?.addEventListener('click', () => loadTransactions({ reset: false }));
     host.querySelectorAll('[data-cashier-tx-detail-id]').forEach(button => button.addEventListener('click', () =>
       openTransactionDetail(button.dataset.cashierTxDetailKind, button.dataset.cashierTxDetailId)));
+    host.querySelectorAll('[data-cashier-tx-void-id]').forEach(button => button.addEventListener('click', () =>
+      requestVoidPermit(button.dataset.cashierTxVoidKind, button.dataset.cashierTxVoidId)));
+    host.querySelectorAll('[data-cashier-tx-cancel-permit]').forEach(button => button.addEventListener('click', () =>
+      cancelVoidPermit(button.dataset.cashierTxCancelPermit)));
+  }
+
+  async function requestVoidPermit(kind, id) {
+    if (el('cashierDialog')?.open) el('cashierDialog').close();
+    openDialog({
+      eyebrow: 'Laci · Permit Admin',
+      title: `Minta Izin Admin Hapus ${KIND_LABEL[kind] || kind}`,
+      body: `<div class="field"><label>Alasan hapus / koreksi</label><textarea id="voidPermitReason" rows="4" maxlength="500" required placeholder="Jelaskan kenapa transaksi ini perlu dihapus"></textarea></div><p class="muted">Request ini tidak langsung menghapus transaksi. Admin harus ACC/Reject dulu. History transaksi tetap ada untuk audit; kalau di-ACC, prosesnya lewat pembalik/koreksi, bukan hapus paksa.</p>`,
+      submitText: 'AJUKAN HAPUS',
+      onSubmit: async () => {
+        const reason = el('voidPermitReason').value.trim();
+        if (!reason) throw new Error('Alasan hapus wajib diisi.');
+        await api('/api/cashier/transaction-void/permits', { method: 'POST', body: JSON.stringify({ subjectType: kind, subjectId: id, reason }) });
+        toast('Permintaan hapus masuk ke Admin · pending approval');
+        await loadTransactions({ reset: true });
+        return true;
+      }
+    });
+  }
+
+  async function cancelVoidPermit(permitId) {
+    try {
+      await api(`/api/cashier/transaction-void/permits/${encodeURIComponent(permitId)}`, { method: 'DELETE' });
+      toast('Permintaan hapus dibatalkan.');
+      await loadTransactions({ reset: true });
+    } catch (error) { toast(error.message); }
   }
 
   function approvalStatusLabel(detail) {

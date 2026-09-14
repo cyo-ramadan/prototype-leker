@@ -55,13 +55,22 @@ test('live Stock Adjustment loads PILATU after legacy approval actions and inter
   assert.match(liveUiSource, /import\('\/stock-adjustment-pilatu\.js'\)/);
 });
 
-test('live Stock Adjustment exposes the five business columns and independent V1 requests', () => {
-  assert.match(liveUiSource, /<span>Barang<\/span><span>Qty Tercatat<\/span><span>Qty Sebenarnya<\/span><span>HPP<\/span><span>Selisih<\/span>/);
+test('live Stock Adjustment exposes the four business columns and independent V1 requests', () => {
+  assert.match(liveUiSource, /<span>Barang<\/span><span>Stok Tercatat<\/span><span>Selisih<\/span><span>Stok Real<\/span>/);
+  assert.doesNotMatch(liveUiSource, /<span>HPP<\/span>/);
   assert.match(liveUiSource, /data-stock-adjustment-actual/);
   assert.match(liveUiSource, /selectStockAdjustmentProduct\(selectedRows, product\)/);
   assert.match(liveUiSource, /for \(const row of changed\)/);
   assert.match(liveUiSource, /requestType: 'GOODS_FLOW'/);
   assert.match(liveUiSource, /purpose: 'STOCK_ADJUSTMENT'/);
   assert.match(liveUiSource, /targetQuantity: row\.targetQuantity/);
-  assert.match(liveUiSource, /HPP<\/b><br \/>Read-only milik Accounting/);
+});
+
+test('live Stock Adjustment separates "Pilih Barang" from "Detail Penyesuaian Stok" with a filled header each, and stubs the future stock opname template picker', () => {
+  const pilihIndex = liveUiSource.indexOf('Pilih Barang');
+  const detailIndex = liveUiSource.indexOf('Detail Penyesuaian Stok');
+  assert.ok(pilihIndex >= 0 && detailIndex > pilihIndex);
+  assert.match(liveUiSource, /pimasatu-detail-head[\s\S]*Pilih Barang/);
+  assert.match(liveUiSource, /pimasatu-detail-head[\s\S]*Detail Penyesuaian Stok/);
+  assert.match(liveUiSource, /id="stockAdjustmentTemplate"[^>]*disabled/);
 });

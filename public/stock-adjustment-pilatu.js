@@ -23,8 +23,7 @@ export function selectStockAdjustmentProduct(rows, product) {
     productName: String(product?.productName ?? ''),
     currentQuantity,
     unitSymbol: String(product?.unitSymbol ?? ''),
-    actualQuantity: '',
-    accountingHppDisplay: product?.accountingHppDisplay == null ? '—' : String(product.accountingHppDisplay)
+    actualQuantity: ''
   }, ...currentRows];
 }
 

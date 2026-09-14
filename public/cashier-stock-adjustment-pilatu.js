@@ -32,14 +32,14 @@
             .stock-adjustment-search-result span,.stock-adjustment-search-result small{display:block}
             .stock-adjustment-search-result small{color:#6b7280;margin-top:2px}
             .stock-adjustment-table{border:1px solid #e1e5eb;border-radius:12px;overflow:hidden;margin-top:10px}
-            .stock-adjustment-grid{display:grid;grid-template-columns:minmax(130px,1.7fr) minmax(76px,.8fr) minmax(66px,.7fr) minmax(90px,.85fr);gap:8px;align-items:center}
+            .stock-adjustment-grid{display:grid;grid-template-columns:minmax(130px,1.7fr) minmax(80px,.85fr) minmax(90px,.9fr);gap:8px;align-items:center}
             .stock-adjustment-head{background:#111827;color:#fff;padding:9px 10px;font-size:11px;font-weight:800}
             .stock-adjustment-row{padding:9px 10px;border-top:1px solid #edf0f4;background:#fff}
             .stock-adjustment-item{position:relative;min-width:0;padding-right:30px}
-            .stock-adjustment-item strong,.stock-adjustment-item small,.stock-adjustment-readonly strong,.stock-adjustment-readonly small,.stock-adjustment-difference strong,.stock-adjustment-difference small{display:block}
+            .stock-adjustment-item strong,.stock-adjustment-item small,.stock-adjustment-readonly strong,.stock-adjustment-readonly small{display:block}
             .stock-adjustment-item strong{white-space:normal;overflow-wrap:anywhere}
-            .stock-adjustment-item small,.stock-adjustment-readonly small,.stock-adjustment-difference small{color:#6b7280;margin-top:2px;font-size:10px}
-            .stock-adjustment-readonly,.stock-adjustment-difference{text-align:right;min-width:0}
+            .stock-adjustment-item small,.stock-adjustment-readonly small{color:#6b7280;margin-top:2px;font-size:10px}
+            .stock-adjustment-readonly{text-align:right;min-width:0}
             .stock-adjustment-actual{margin:0;min-width:0}
             .stock-adjustment-actual span{display:none}
             .stock-adjustment-actual input{width:100%;min-width:0;margin:0;text-align:right;font-weight:800}
@@ -49,9 +49,9 @@
             .stock-adjustment-source-note{background:#f6f7f9;border-radius:10px;padding:9px 10px;font-size:11px;color:#4b5563;line-height:1.45;margin-top:10px}
             @media(max-width:680px){
               .stock-adjustment-head{font-size:10px;padding:7px 8px}
-              .stock-adjustment-grid{grid-template-columns:minmax(0,1fr) 56px 48px 64px;gap:6px}
+              .stock-adjustment-grid{grid-template-columns:minmax(0,1fr) 64px 72px;gap:6px}
               .stock-adjustment-row{padding:10px}
-              .stock-adjustment-readonly small,.stock-adjustment-difference small{font-size:9px}
+              .stock-adjustment-readonly small{font-size:9px}
             }
           </style>
           <div class="pimasatu-detail-head"><strong>Pilih Barang</strong><span class="muted">cari &amp; pilih dari daftar</span></div>
@@ -68,11 +68,11 @@
           <div class="pimasatu-panel-body">
             <div class="stock-adjustment-table">
               <div class="stock-adjustment-grid stock-adjustment-head">
-                <span>Barang</span><span>Stok Tercatat</span><span>Selisih</span><span>Stok Real</span>
+                <span>Barang</span><span>Stok Tercatat</span><span>Stok Real</span>
               </div>
               <div id="stockAdjustmentRows"></div>
             </div>
-            <div class="stock-adjustment-source-note"><b>Stok Tercatat</b> dan <b>Selisih</b> read-only dari pembacaan stok saat panel dibuka. Server mengambil snapshot resmi lagi saat pengajuan.</div>
+            <div class="stock-adjustment-source-note"><b>Stok Tercatat</b> read-only dari pembacaan stok saat panel dibuka. Server mengambil snapshot resmi lagi saat pengajuan. Selisih baru ditampilkan nanti di data Stock Opname.</div>
             <div class="field"><label>Alasan penyesuaian</label><input id="stockAdjustmentReason" class="text-input" maxlength="220" placeholder="Contoh: hasil hitung fisik" required /></div>
             <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500"></textarea></div>
           </div>
@@ -124,15 +124,6 @@
       const countNode = el('stockAdjustmentCount');
       const formatQty = value => Number(value).toLocaleString('id-ID');
 
-      function differenceView(row) {
-        const difference = pilatu.stockAdjustmentDifference(row);
-        if (difference === null) return { value: '—', label: 'Isi fisik' };
-        return {
-          value: `${difference > 0 ? '+' : ''}${formatQty(difference)}`,
-          label: difference > 0 ? 'PLUS / IN' : difference < 0 ? 'MINUS / OUT' : 'SAMA'
-        };
-      }
-
       function renderRows() {
         if (!rowsNode) return;
         if (countNode) countNode.textContent = `${selectedRows.length} barang`;
@@ -140,9 +131,7 @@
           rowsNode.innerHTML = '<div class="stock-adjustment-empty">Belum ada barang. Search lalu klik barang; pilihan berikutnya akan masuk di atas tanpa menghapus row sebelumnya.</div>';
           return;
         }
-        rowsNode.innerHTML = selectedRows.map(row => {
-          const difference = differenceView(row);
-          return `
+        rowsNode.innerHTML = selectedRows.map(row => `
             <div class="stock-adjustment-grid stock-adjustment-row" data-stock-adjustment-row="${Number(row.productId)}">
               <div class="stock-adjustment-item">
                 <strong>${escapeHtml(row.productName)}</strong>
@@ -150,10 +139,8 @@
                 <button class="stock-adjustment-remove" type="button" data-stock-adjustment-remove="${Number(row.productId)}" aria-label="Hapus ${escapeHtml(row.productName)}">×</button>
               </div>
               <div class="stock-adjustment-readonly"><strong>${formatQty(row.currentQuantity)}</strong></div>
-              <div class="stock-adjustment-difference" data-stock-adjustment-difference="${Number(row.productId)}"><strong>${difference.value}</strong><small>${difference.label}</small></div>
               <label class="stock-adjustment-actual"><span>Stok Real</span><input class="text-input" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(row.actualQuantity)}" data-stock-adjustment-actual="${Number(row.productId)}" aria-label="Stok Real ${escapeHtml(row.productName)}" /></label>
-            </div>`;
-        }).join('');
+            </div>`).join('');
       }
 
       function renderSearchResults() {
@@ -200,12 +187,6 @@
         if (!input) return;
         const productId = Number(input.dataset.stockAdjustmentActual);
         selectedRows = pilatu.updateStockAdjustmentActualQuantity(selectedRows, productId, input.value);
-        const row = selectedRows.find(candidate => Number(candidate.productId) === productId);
-        const differenceNode = rowsNode.querySelector(`[data-stock-adjustment-difference="${productId}"]`);
-        if (!row || !differenceNode) return;
-        const difference = differenceView(row);
-        differenceNode.querySelector('strong').textContent = difference.value;
-        differenceNode.querySelector('small').textContent = difference.label;
       });
 
       rowsNode?.addEventListener('click', event => {

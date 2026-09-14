@@ -2,6 +2,7 @@ import { json } from './http.js';
 import { requireCashier } from './cashier-auth.js';
 import { listStoreTransactions, parseIso, parseCursor as parseTransactionCursor } from './admin-transactions.js';
 import { listStoreStockBalances, listProductStockMovements, parseCursor as parseStockCursor } from './admin-stock.js';
+import { transactionDetailByKindId } from './admin-transaction-detail.js';
 
 // Read-only mirror of Admin's Transaksi + Stok tabs for Kasir/CS. Same query
 // logic (imported, not duplicated), but the store always comes from the
@@ -29,6 +30,14 @@ export async function handleCashierDataApi(request, env, pathname) {
     const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit });
     if (!listing.ok) return json({ error: listing.error }, 400);
     return json({ filter: listing.filter, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
+  }
+
+  const detailMatch = pathname.match(/^\/api\/cashier\/data\/transactions\/detail\/([^/]+)\/([^/]+)$/);
+  if (detailMatch) {
+    const kind = decodeURIComponent(detailMatch[1]).toUpperCase();
+    const id = decodeURIComponent(detailMatch[2]);
+    const detail = await transactionDetailByKindId(env.DB, storeId, kind, id);
+    return detail ? json({ detail }) : json({ error: 'Detail transaksi tidak ditemukan.' }, 404);
   }
 
   if (pathname === '/api/cashier/data/stock') {

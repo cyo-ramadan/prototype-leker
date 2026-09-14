@@ -61,7 +61,10 @@
     activateTab(state.tab);
   }
 
-  function transactionKindLabel(kind) { return KIND_LABEL[kind] || kind; }
+  function transactionKindLabel(row) {
+    if (row.kind === 'GOODS_FLOW' && row.operationalPayload?.purpose === 'STOCK_ADJUSTMENT') return 'Penyesuaian Stok';
+    return KIND_LABEL[row.kind] || row.kind;
+  }
 
   function renderFilters() {
     return `<div class="field" style="margin-bottom:10px"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>`;
@@ -70,12 +73,14 @@
   function renderTransactionRows() {
     if (!state.transactions.length) return '<div class="empty">Belum ada transaksi.</div>';
     return state.transactions.map(row => `
-      <div class="master-row">
+      <div class="master-row" style="align-items:flex-start">
         <div class="master-main">
-          <strong>${escapeHtml(transactionKindLabel(row.kind))} · ${row.amount == null ? '-' : rupiah(row.amount)}</strong>
+          <strong>${escapeHtml(transactionKindLabel(row))} · ${row.amount == null ? '-' : rupiah(row.amount)}</strong>
           <div class="master-meta">${escapeHtml(row.description || '')}</div>
+          <div class="master-meta">ID ${escapeHtml(String(row.id))}</div>
           <small>${formatDateTime(row.occurredAt)} · ${escapeHtml(row.status || '')}${row.cashierName ? ` · ${escapeHtml(row.cashierName)}` : ''}</small>
         </div>
+        <div class="master-actions"><button class="mini-btn" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button></div>
       </div>`).join('');
   }
 
@@ -109,13 +114,104 @@
 
   function renderTransactionsPanel() {
     const host = el('cashierDataTransactions');
-    host.innerHTML = `${renderFilters()}<div class="master-list">${renderTransactionRows()}</div><div style="display:flex;justify-content:center;margin-top:10px"><button id="cashierDataTxMore" class="secondary-btn ${state.txHasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
+    host.innerHTML = `${renderFilters()}<div class="master-list">${renderTransactionRows()}</div><div style="display:flex;justify-content:center;margin-top:10px"><button id="cashierDataTxMore" class="secondary-btn ${state.txHasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div><div id="cashierDataTxDetail" class="hidden" style="margin-top:14px"></div>`;
     el('cashierDataFilter').value = state.filter;
     el('cashierDataFilter').addEventListener('change', event => {
       state.filter = event.target.value;
       loadTransactions({ reset: true });
     });
     el('cashierDataTxMore')?.addEventListener('click', () => loadTransactions({ reset: false }));
+    host.querySelectorAll('[data-cashier-tx-detail-id]').forEach(button => button.addEventListener('click', () =>
+      openTransactionDetail(button.dataset.cashierTxDetailKind, button.dataset.cashierTxDetailId)));
+  }
+
+  function approvalStatusLabel(detail) {
+    if (detail.approvalStatus === 'rejected') return `Ditolak${detail.decisionNote ? ` · ${detail.decisionNote}` : ''}`;
+    if (detail.approvalStatus === 'approved' && detail.postingStatus === 'posted') return 'Disetujui & diposting';
+    if (detail.approvalStatus === 'pending_approval') return 'Menunggu persetujuan';
+    return `${detail.approvalStatus || '-'} / ${detail.postingStatus || '-'}`;
+  }
+
+  function renderSaleDetailBody(detail) {
+    const items = detail.items || [];
+    return `
+      <div class="admin-tip"><b>Customer</b><div>${escapeHtml(detail.customerName || 'Walk-in')}</div></div>
+      <div class="master-list" style="margin-top:10px">${items.length ? items.map(item => `
+        <div class="master-row"><div class="master-main">
+          <strong>${item.quantity}× ${escapeHtml(item.productName)} · ${rupiah(item.lineTotal)}</strong>
+          <div class="master-meta">Harga satuan ${rupiah(item.unitPrice)}</div>
+        </div></div>`).join('') : '<div class="empty">Tidak ada item.</div>'}</div>
+      <div class="admin-tip" style="margin-top:10px"><b>Total</b><div>${rupiah(detail.total)}</div></div>
+      <div class="admin-tip"><b>Metode Bayar</b><div>${escapeHtml(detail.paymentMethod || '-')}</div></div>
+      ${detail.note ? `<div class="admin-tip"><b>Catatan</b><div>${escapeHtml(detail.note)}</div></div>` : ''}
+      <div class="admin-tip"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>`;
+  }
+
+  function renderSimpleDetailBody(detail) {
+    return `
+      <div class="admin-tip"><b>Deskripsi</b><div>${escapeHtml(detail.description || '-')}</div></div>
+      <div class="admin-tip"><b>Nominal</b><div>${rupiah(detail.amount)}</div></div>
+      ${detail.supplierName ? `<div class="admin-tip"><b>Supplier</b><div>${escapeHtml(detail.supplierName)}</div></div>` : ''}
+      ${detail.quantity ? `<div class="admin-tip"><b>Qty</b><div>${escapeHtml(detail.quantity)}</div></div>` : ''}
+      <div class="admin-tip"><b>Metode Bayar</b><div>${escapeHtml(detail.paymentMethod || '-')}</div></div>
+      ${detail.note ? `<div class="admin-tip"><b>Catatan</b><div>${escapeHtml(detail.note)}</div></div>` : ''}
+      <div class="admin-tip"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>`;
+  }
+
+  function renderApprovalDetailBody(kind, detail) {
+    const payload = detail.payload || {};
+    let fields;
+    if (kind === 'GOODS_FLOW' && payload.purpose === 'STOCK_ADJUSTMENT') {
+      fields = `
+        <div class="admin-tip"><b>Barang</b><div>${escapeHtml(payload.productName || '-')}</div></div>
+        <div class="admin-tip"><b>Noted &rarr; Real</b><div>${payload.currentQuantitySnapshot} &rarr; ${payload.targetQuantity} ${escapeHtml(payload.unitSymbol || '')}</div></div>
+        <div class="admin-tip"><b>Perubahan</b><div>${payload.direction === 'IN' ? 'Tambah' : 'Kurang'} ${payload.quantity} ${escapeHtml(payload.unitSymbol || '')}</div></div>
+        ${payload.reason ? `<div class="admin-tip"><b>Alasan</b><div>${escapeHtml(payload.reason)}</div></div>` : ''}`;
+    } else if (kind === 'GOODS_FLOW') {
+      fields = `
+        <div class="admin-tip"><b>Barang</b><div>${escapeHtml(payload.productName || '-')}</div></div>
+        <div class="admin-tip"><b>Arah</b><div>${payload.direction === 'IN' ? 'Masuk' : 'Keluar'} ${payload.quantity} ${escapeHtml(payload.unitSymbol || '')}</div></div>`;
+    } else {
+      fields = `
+        <div class="admin-tip"><b>Deskripsi</b><div>${escapeHtml(payload.description || '-')}</div></div>
+        <div class="admin-tip"><b>Nominal</b><div>${rupiah(payload.amount)}</div></div>`;
+    }
+    return `
+      ${fields}
+      ${payload.note ? `<div class="admin-tip"><b>Catatan</b><div>${escapeHtml(payload.note)}</div></div>` : ''}
+      <div class="admin-tip"><b>Status</b><div>${escapeHtml(approvalStatusLabel(detail))}</div></div>
+      <div class="admin-tip"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>`;
+  }
+
+  function renderDetailBody(kind, detail) {
+    if (kind === 'SALE') return renderSaleDetailBody(detail);
+    if (['PURCHASE', 'EXPENSE', 'OTHER_INCOME'].includes(kind)) return renderSimpleDetailBody(detail);
+    if (['CASH_FLOW', 'GOODS_FLOW', 'ASSET'].includes(kind)) return renderApprovalDetailBody(kind, detail);
+    return '<div class="empty">Detail tidak tersedia untuk jenis transaksi ini.</div>';
+  }
+
+  function renderTransactionDetail(kind, detail) {
+    const box = el('cashierDataTxDetail');
+    if (!box) return;
+    const row = { kind, operationalPayload: detail.payload };
+    box.innerHTML = `
+      <div class="list-head"><div><h3>${escapeHtml(transactionKindLabel(row))}</h3><div class="muted">ID ${escapeHtml(String(detail.id))} · ${formatDateTime(detail.occurredAt)}</div></div><button id="cashierDataTxDetailClose" class="mini-btn" type="button">Tutup</button></div>
+      <div style="margin-top:10px">${renderDetailBody(kind, detail)}</div>`;
+    el('cashierDataTxDetailClose')?.addEventListener('click', () => box.classList.add('hidden'));
+  }
+
+  async function openTransactionDetail(kind, id) {
+    const box = el('cashierDataTxDetail');
+    if (!box) return;
+    box.classList.remove('hidden');
+    box.innerHTML = '<div class="muted">Memuat detail transaksi...</div>';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      const payload = await api(`/api/cashier/data/transactions/detail/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
+      renderTransactionDetail(kind, payload.detail);
+    } catch (error) {
+      box.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    }
   }
 
   async function loadStocks() {

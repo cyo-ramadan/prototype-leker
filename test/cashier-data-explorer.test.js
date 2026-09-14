@@ -144,3 +144,59 @@ test('Kasir Data Stok panel is search-first: no full catalog list until the kasi
   assert.match(stockExplorerUi, /if \(!query\) \{/);
   assert.match(stockExplorerUi, /Ketik nama barang untuk mencari saldo stok\./);
 });
+
+test('Kasir Data Transaksi detail reuses Admin transaction-detail logic, scoped to its own store', async () => {
+  const db = migratedDatabase();
+  try {
+    const { token, cashierId } = await cashierToken(db, 'store_001');
+    const { cashierId: cashierIdG002 } = await cashierToken(db, 'store_002');
+    openDrawer(db, 'drawer_g001_detail_test', 'store_001', cashierId);
+    openDrawer(db, 'drawer_g002_detail_test', 'store_002', cashierIdG002);
+
+    const payload = {
+      purpose: 'STOCK_ADJUSTMENT', productId: 1, productName: 'Larutan Gula',
+      unitId: 1, unitSymbol: 'ml', currentQuantitySnapshot: 100, targetQuantity: 80,
+      direction: 'OUT', quantity: 20, note: 'Tumpah saat produksi'
+    };
+    db.prepare(`
+      INSERT INTO approval_requests (
+        id, store_id, drawer_session_id, cashier_id, request_type,
+        approval_status, posting_status, payload_json, created_at, updated_at
+      ) VALUES ('approval_g001_detail_test', 'store_001', 'drawer_g001_detail_test', ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T08:52:00.000Z', '2026-09-14T08:52:00.000Z')
+    `).run(cashierId, JSON.stringify(payload));
+    db.prepare(`
+      INSERT INTO approval_requests (
+        id, store_id, drawer_session_id, cashier_id, request_type,
+        approval_status, posting_status, payload_json, created_at, updated_at
+      ) VALUES ('approval_g002_detail_test', 'store_002', 'drawer_g002_detail_test', ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-14T08:52:00.000Z', '2026-09-14T08:52:00.000Z')
+    `).run(cashierIdG002, JSON.stringify(payload));
+
+    const env = { DB: new D1Database(db) };
+    const own = await handleCashierDataApi(
+      request('/api/cashier/data/transactions/detail/GOODS_FLOW/approval_g001_detail_test', { token }),
+      env,
+      '/api/cashier/data/transactions/detail/GOODS_FLOW/approval_g001_detail_test'
+    );
+    assert.equal(own.status, 200);
+    const ownBody = await own.json();
+    assert.equal(ownBody.detail.payload.purpose, 'STOCK_ADJUSTMENT');
+    assert.equal(ownBody.detail.payload.productName, 'Larutan Gula');
+    assert.equal(ownBody.detail.approvalStatus, 'pending_approval');
+
+    const other = await handleCashierDataApi(
+      request('/api/cashier/data/transactions/detail/GOODS_FLOW/approval_g002_detail_test', { token }),
+      env,
+      '/api/cashier/data/transactions/detail/GOODS_FLOW/approval_g002_detail_test'
+    );
+    assert.equal(other.status, 404, 'a kasir must never fetch another store transaction detail');
+  } finally {
+    db.close();
+  }
+});
+
+test('Kasir Data Transaksi UI shows an ID, a Detail button per row, and labels stock-adjustment GOODS_FLOW rows distinctly', () => {
+  assert.match(stockExplorerUi, /ID \$\{escapeHtml\(String\(row\.id\)\)\}/);
+  assert.match(stockExplorerUi, /data-cashier-tx-detail-id/);
+  assert.match(stockExplorerUi, />Detail</);
+  assert.match(stockExplorerUi, /purpose === 'STOCK_ADJUSTMENT'.*return 'Penyesuaian Stok'/);
+});

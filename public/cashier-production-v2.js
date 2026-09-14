@@ -77,19 +77,29 @@
     if (count) count.textContent = `${componentDraft.length} bahan`;
   }
 
+  function currentMultiplier() {
+    const raw = Math.floor(Number(el('productionMultiplier')?.value || 1));
+    return Number.isFinite(raw) && raw > 0 ? raw : 1;
+  }
+
   function applyRecipeTemplate() {
     const outputProduct = productById(el('productionOutputProduct')?.value);
     const recipe = recipeById(outputProduct, el('productionRecipe')?.value);
     if (!outputProduct || !recipe) return;
+    const multiplier = currentMultiplier();
     const outputQty = el('productionOutputQuantity');
-    if (outputQty) outputQty.value = String(recipe.outputQuantity);
+    if (outputQty) outputQty.value = String(Number(recipe.outputQuantity) * multiplier);
+    const outputName = el('productionOutputName');
+    if (outputName) outputName.textContent = outputProduct.productName;
+    const outputUnit = el('productionOutputUnit');
+    if (outputUnit) outputUnit.textContent = outputProduct.unitSymbol ? `· ${outputProduct.unitSymbol}` : '';
     componentDraft = (recipe.components || []).map(component => ({
       productId: Number(component.productId),
-      quantity: Number(component.quantity)
+      quantity: Number(component.quantity) * multiplier
     }));
     renderComponents();
     const templateInfo = el('productionRecipeInfo');
-    if (templateInfo) templateInfo.textContent = `Recipe v${recipe.recipeRevision} dimuat sebagai acuan. Edit qty, tambah, atau hapus bahan di bawah tidak mengubah Master Recipe.`;
+    if (templateInfo) templateInfo.textContent = `Recipe v${recipe.recipeRevision} dimuat sebagai acuan · qty × kelipatan ${multiplier}. Edit qty, tambah, atau hapus bahan di bawah tidak mengubah Master Recipe.`;
   }
 
   function renderRecipeOptions({ resetTemplate = true } = {}) {
@@ -146,20 +156,24 @@
         title: 'Produksi',
         body: `
           <section class="production-output-panel">
-            <div class="production-section-title"><strong>Hasil produksi</strong><span class="muted">actual output</span></div>
+            <div class="production-section-title"><strong>Plan Produksi</strong><span class="muted">barang jadi &amp; kelipatan</span></div>
             <div class="production-output-grid">
-              <div class="field"><label>Barang hasil</label><select id="productionOutputProduct" class="text-input" required>${outputOptions}</select></div>
-              <div class="field"><label>Qty hasil</label><input id="productionOutputQuantity" class="text-input" type="number" min="1" step="1" required /></div>
+              <div class="field"><label>Barang jadi</label><select id="productionOutputProduct" class="text-input" required>${outputOptions}</select></div>
+              <div class="field"><label>Kelipatan</label><input id="productionMultiplier" class="text-input" type="number" min="1" step="1" value="1" required /></div>
             </div>
             <div class="field"><label>Recipe / BOM acuan</label><select id="productionRecipe" class="text-input" required></select></div>
             <div id="productionRecipeInfo" class="cashier-lock-note"></div>
           </section>
 
-          <section class="production-material-panel">
-            <div class="production-section-title"><strong>Bahan baku aktual</strong><span id="productionComponentCount" class="muted"></span></div>
+          <div class="pimasatu-detail-head"><strong>Detail Produksi</strong><span id="productionComponentCount" class="muted"></span></div>
+          <div class="production-detail-body">
+            <div class="production-detail-result">
+              <div class="production-detail-result-name"><strong id="productionOutputName">-</strong> <span class="muted" id="productionOutputUnit"></span></div>
+              <div class="field production-detail-result-qty"><label>Qty hasil</label><input id="productionOutputQuantity" class="text-input" type="number" min="1" step="1" required /></div>
+            </div>
             <div id="productionComponentRows"></div>
             <button id="productionAddComponent" class="secondary-btn production-add-component" type="button">＋ Tambah bahan</button>
-          </section>
+          </div>
 
           <p class="muted production-footnote">Warehouse menghitung mutasi stok dan HPP dari qty aktual di form ini. Accounting menerima business fact setelah stock commit. Recipe Master hanya menjadi template dan tidak ikut berubah.</p>`,
         submitText: 'PRODUKSI SEKARANG',
@@ -198,6 +212,7 @@
 
       el('productionOutputProduct')?.addEventListener('change', () => renderRecipeOptions({ resetTemplate: true }));
       el('productionRecipe')?.addEventListener('change', applyRecipeTemplate);
+      el('productionMultiplier')?.addEventListener('change', applyRecipeTemplate);
       el('productionAddComponent')?.addEventListener('click', addComponent);
       renderRecipeOptions({ resetTemplate: true });
     } catch (error) {

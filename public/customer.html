@@ -47,6 +47,18 @@
   </button>
   <div id="cartBackdrop" class="cart-backdrop" aria-hidden="true"></div>
 
+  <div id="productPhotoBackdrop" class="photo-modal-backdrop hidden" aria-hidden="true">
+    <div class="photo-modal-card" role="dialog" aria-modal="true" aria-labelledby="productPhotoName">
+      <button id="productPhotoClose" class="cart-close-btn photo-modal-close" type="button" aria-label="Tutup">×</button>
+      <img id="productPhotoImg" class="photo-modal-img" alt="" />
+      <div class="photo-modal-info">
+        <div id="productPhotoCategory" class="category"></div>
+        <h3 id="productPhotoName"></h3>
+        <div id="productPhotoPrice" class="price"></div>
+      </div>
+    </div>
+  </div>
+
   <aside id="cartDrawer" class="cart-panel cart-drawer" aria-hidden="true" aria-label="Pesanan kamu">
     <div class="cart-drawer-head"><div><div class="cart-kicker">Review order</div><h2>Pesanan kamu</h2></div><button id="cartCloseBtn" class="cart-close-btn" type="button" aria-label="Tutup pesanan">×</button></div>
     <div class="muted">Edit jumlah atau note di sini. Menu di belakang tetap di posisi terakhir.</div>
@@ -73,7 +85,7 @@
 <script src="/customer-store-select.js?v=20260913-master-visual-v2"></script>
 <script src="/customer-login.js"></script>
 <script src="/auth-entry-split.js?v=20260828-single-submit-handler-v1"></script>
-<script src="/customer.js"></script>
+<script src="/customer.js?v=20260914-product-photo-modal-v1"></script>
 <script>
   // Customer menu stays focused on ordering. The legacy inline Roda renderer
   // remains in customer.js for compatibility tests, but this entry point turns

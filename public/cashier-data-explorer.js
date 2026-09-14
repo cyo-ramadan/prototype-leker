@@ -149,7 +149,7 @@
 
   function renderTransactionsPanel() {
     const host = el('cashierDataTransactions');
-    host.innerHTML = `${renderFilters()}<div class="master-list">${renderTransactionRows()}</div><div style="display:flex;justify-content:center;margin-top:10px"><button id="cashierDataTxMore" class="secondary-btn ${state.txHasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div><div id="cashierDataTxDetail" class="hidden" style="margin-top:14px"></div>`;
+    host.innerHTML = `${renderFilters()}<div class="master-list">${renderTransactionRows()}</div><div style="display:flex;justify-content:center;margin-top:10px"><button id="cashierDataTxMore" class="secondary-btn ${state.txHasMore ? '' : 'hidden'}" type="button">Muat lagi</button></div>`;
     el('cashierDataFilter').value = state.filter;
     el('cashierDataFilter').addEventListener('change', event => {
       state.filter = event.target.value;
@@ -255,27 +255,24 @@
     return '<div class="empty">Detail tidak tersedia untuk jenis transaksi ini.</div>';
   }
 
-  function renderTransactionDetail(kind, detail) {
-    const box = el('cashierDataTxDetail');
-    if (!box) return;
-    const row = { kind, operationalPayload: detail.payload };
-    box.innerHTML = `
-      <div class="list-head"><div><h3>${escapeHtml(transactionKindLabel(row))}</h3><div class="muted">ID ${escapeHtml(String(detail.id))} · ${formatDateTime(detail.occurredAt)}</div></div><button id="cashierDataTxDetailClose" class="mini-btn" type="button">Tutup</button></div>
-      <div style="margin-top:10px">${renderDetailBody(kind, detail)}</div>`;
-    el('cashierDataTxDetailClose')?.addEventListener('click', () => box.classList.add('hidden'));
-  }
-
   async function openTransactionDetail(kind, id) {
-    const box = el('cashierDataTxDetail');
-    if (!box) return;
-    box.classList.remove('hidden');
-    box.innerHTML = '<div class="muted">Memuat detail transaksi...</div>';
-    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (el('cashierDialog')?.open) el('cashierDialog').close();
+    openDialog({
+      eyebrow: 'Data gerai · read-only',
+      title: `${KIND_LABEL[kind] || kind} · ID ${id}`,
+      readOnly: true,
+      body: '<div class="muted">Memuat detail transaksi...</div>'
+    });
     try {
       const payload = await api(`/api/cashier/data/transactions/detail/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
-      renderTransactionDetail(kind, payload.detail);
+      const detail = payload.detail;
+      const row = { kind, operationalPayload: detail.payload };
+      el('cashierDialogTitle').textContent = `${transactionKindLabel(row)} · ID ${detail.id}`;
+      el('cashierDialogBody').innerHTML = `
+        <div class="muted" style="margin-bottom:10px">${formatDateTime(detail.occurredAt)}</div>
+        ${renderDetailBody(kind, detail)}`;
     } catch (error) {
-      box.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+      el('cashierDialogBody').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
     }
   }
 

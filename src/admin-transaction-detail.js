@@ -244,6 +244,15 @@ async function approvalDetail(db, storeId, kind, id) {
   };
 }
 
+// Shared by Admin's own detail endpoint and the Kasir read-only mirror --
+// same dispatch-by-kind logic so the two views can never drift (mirrors the
+// listStoreTransactions pattern in admin-transactions.js).
+export async function transactionDetailByKindId(db, storeId, kind, id) {
+  return kind === 'SALE'
+    ? await saleDetail(db, storeId, id)
+    : await simpleDetail(db, storeId, kind, id) || await approvalDetail(db, storeId, kind, id);
+}
+
 export async function handleAdminTransactionDetailApi(request, env, pathname) {
   const match = pathname.match(/^\/api\/admin\/transactions\/detail\/([^/]+)\/([^/]+)$/);
   if (!match) return null;
@@ -254,8 +263,6 @@ export async function handleAdminTransactionDetailApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
   const kind = decodeURIComponent(match[1]).toUpperCase();
   const id = decodeURIComponent(match[2]);
-  const detail = kind === 'SALE'
-    ? await saleDetail(env.DB, store.id, id)
-    : await simpleDetail(env.DB, store.id, kind, id) || await approvalDetail(env.DB, store.id, kind, id);
+  const detail = await transactionDetailByKindId(env.DB, store.id, kind, id);
   return detail ? json({ store, detail }) : json({ error: 'Detail transaksi tidak ditemukan.' }, 404);
 }

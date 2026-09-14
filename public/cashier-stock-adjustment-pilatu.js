@@ -49,7 +49,9 @@
             .stock-adjustment-source-note{background:#f6f7f9;border-radius:10px;padding:9px 10px;font-size:11px;color:#4b5563;line-height:1.45;margin-top:10px}
             @media(max-width:680px){
               .stock-adjustment-head{font-size:10px;padding:7px 8px}
-              .stock-adjustment-grid{grid-template-columns:minmax(0,1fr) 56px 64px;gap:6px}
+              .stock-adjustment-grid{grid-template-columns:minmax(0,1fr) 34px 50px;gap:4px}
+              .stock-adjustment-item{padding-right:24px}
+              .stock-adjustment-remove{width:22px;height:22px}
               .stock-adjustment-row{padding:10px}
               .stock-adjustment-readonly small{font-size:9px}
             }

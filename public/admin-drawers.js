@@ -8,10 +8,16 @@
   const productTab = document.querySelector('[data-tab="products"]');
   if (productTab) productTab.textContent = 'Data Barang';
 
+  // Bos Cyo, 2026-09-15: "koneksi akuntansi itu ga butuh sepertinya, kalo
+  // aman hapus aja" -- tab placeholder "Akuntansi" (data-tab="accounting")
+  // dihapus. Aman: id section-nya (tab-accounting) beda dari Accounting
+  // Workspace beneran (tab-accounting-workspace, admin-accounting-workspace.js),
+  // jadi tidak ada yang tabrakan. admin-transactions-ui.js sebelumnya
+  // menumpangi tab ini buat kartu status "Koneksi Akuntansi/NOT_CONNECTED" --
+  // itu juga sudah dilepas di sana.
   const tabs = document.querySelector('.admin-tabs');
   if (tabs) {
     const additions = [
-      ['accounting', '📒 Akuntansi'],
       ['reports', '📈 Laporan'],
       ['drawers', '📚 Detail Laci']
     ];
@@ -27,12 +33,9 @@
   }
 
   const app = el('adminApp');
-  if (app && !el('tab-accounting')) {
+  if (app && !el('tab-drawers')) {
     const toast = el('adminToast');
     const sections = `
-      <section id="tab-accounting" class="admin-section">
-        <div class="admin-card admin-placeholder"><div class="admin-placeholder-inner"><div class="admin-eyebrow">Coming next</div><h2>Akuntansi</h2><p class="muted">Menu disiapkan dulu. Belum ada jurnal atau mapping akun yang dibuat otomatis di prototype.</p></div></div>
-      </section>
       <section id="tab-reports" class="admin-section">
         <div class="admin-card admin-placeholder"><div class="admin-placeholder-inner"><div class="admin-eyebrow">Coming next</div><h2>Laporan</h2><p class="muted">Menu laporan disiapkan kosong dulu. Detail operasional shift tersedia lewat Detail Laci.</p></div></div>
       </section>
@@ -115,7 +118,7 @@
     }
   }
 
-  ['accounting','reports','drawers'].forEach(tab => {
+  ['reports','drawers'].forEach(tab => {
     document.querySelector(`[data-tab="${tab}"]`)?.addEventListener('click', () => switchTab(tab));
   });
 

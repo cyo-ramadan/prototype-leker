@@ -27,11 +27,29 @@ test('branch admin menu contains cashier data accounting report and drawer detai
   assert.match(html, /Data Barang/);
   assert.match(cashierUi, /Tambah kasir/);
   assert.match(cashierUi, /Master kasir gerai/);
-  assert.match(adminDrawerUi, /Akuntansi/);
   assert.match(adminDrawerUi, /Laporan/);
   assert.match(adminDrawerUi, /Detail Laci/);
   assert.match(adminDrawerUi, /\/api\/admin\/drawers/);
   assert.match(adminDrawerUi, /Coming next/);
+});
+
+// 2026-09-15, Bos Cyo: "koneksi akuntansi itu ga butuh sepertinya, kalo
+// aman hapus aja" -- placeholder tab "Akuntansi"/"Koneksi Akuntansi" yang
+// numpang di admin-drawers.js dan direnamai admin-transactions-ui.js
+// dicabut. Accounting Workspace beneran (admin-accounting-workspace.js,
+// tab-accounting-workspace) sama sekali tidak tersentuh oleh ini.
+test('the placeholder "Koneksi Akuntansi" tab is gone from both files that used to build it, and the real Accounting Workspace is untouched', async () => {
+  const [adminDrawerUi, transactionsUi, workspaceUi] = await Promise.all([
+    read('public/admin-drawers.js'),
+    read('public/admin-transactions-ui.js'),
+    read('public/admin-accounting-workspace.js')
+  ]);
+  assert.doesNotMatch(adminDrawerUi, /\['accounting',/);
+  assert.doesNotMatch(adminDrawerUi, /id="tab-accounting"/);
+  assert.doesNotMatch(transactionsUi, /Koneksi Akuntansi/);
+  assert.doesNotMatch(transactionsUi, /tabs\.querySelector\('\[data-tab="accounting"\]'\)/);
+  assert.match(workspaceUi, /tab-accounting-workspace/);
+  assert.match(workspaceUi, /accountingWorkspaceTab/);
 });
 
 test('drawer report is readable by admin and cashier only inside their store scope', async () => {

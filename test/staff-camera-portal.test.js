@@ -40,10 +40,11 @@ test('staff attendance is bound to authenticated user and independent from drawe
 });
 
 test('portal exposes attendance, KPI, deposits and payroll sections', () => {
-  assert.match(staffHtml, /Presensi Masuk/);
+  assert.match(staffHtml, /Presensi Datang/);
   // Satu tombol toggle (id="attendanceToggleBtn"), label "Presensi Pulang"
-  // muncul dinamis dari staff.js saat sudah presensi masuk -- bukan literal
-  // statis di HTML lagi.
+  // muncul dinamis dari staff.js saat sudah presensi datang -- bukan literal
+  // statis di HTML lagi. Nama pasangannya "Datang"/"Pulang", bukan
+  // "Masuk"/"Keluar" (koreksi eksplisit Bos Cyo 2026-09-15).
   assert.match(staffUi, /Presensi Pulang/);
   assert.match(staffHtml, /KPI/);
   assert.match(staffHtml, /Riwayat Setoran/);

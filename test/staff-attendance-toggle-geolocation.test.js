@@ -272,7 +272,7 @@ test('staff portal UI passes watermark:true, forwards GPS fields, toggles one pr
   assert.match(staffUi, /form\.set\('latitude', String\(geo\.latitude\)\)/);
   // Satu tombol toggle, bukan dua tombol yang saling disable -- lihat
   // renderPortal(): label & data-attendance-type berubah sesuai status.
-  assert.match(staffUi, /toggleBtn\.textContent = checkedIn \? '📸 Presensi Pulang' : '📸 Presensi Masuk'/);
+  assert.match(staffUi, /toggleBtn\.textContent = checkedIn \? '📸 Presensi Pulang' : '📸 Presensi Datang'/);
   assert.match(staffUi, /toggleBtn\.dataset\.attendanceType = checkedIn \? 'out' : 'in'/);
   assert.doesNotMatch(staffHtml, /attendanceInBtn|attendanceOutBtn/);
   assert.match(staffHtml, /id="attendanceToggleBtn"/);

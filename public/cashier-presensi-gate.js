@@ -37,7 +37,7 @@
     message.textContent = '';
     window.CameraSnapshotModal.open({
       facingMode: 'user',
-      title: 'Presensi Masuk',
+      title: 'Presensi Datang',
       watermark: true,
       onCaptureSuccess: async (blob, geo) => {
         try {

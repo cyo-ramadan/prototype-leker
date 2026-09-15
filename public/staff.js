@@ -23,11 +23,11 @@
   function attendancePhotoThumb(row, which) {
     const fact = which === 'in' ? row.checkIn : row.checkOut;
     if (!fact) return '';
-    return `<img class="attendance-thumb" src="/api/staff/attendance/${encodeURIComponent(row.id)}/photo?which=${which}" alt="Foto presensi ${which === 'in' ? 'masuk' : 'pulang'}" loading="lazy" />`;
+    return `<img class="attendance-thumb" src="/api/staff/attendance/${encodeURIComponent(row.id)}/photo?which=${which}" alt="Foto presensi ${which === 'in' ? 'datang' : 'pulang'}" loading="lazy" />`;
   }
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Masuk: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }
   function renderKpi() {
@@ -41,7 +41,7 @@
     el('staffIdentity').textContent = `${portal.staff.employeeName} · ${portal.staff.store.code}`;
     const checkedIn = portal.attendanceStatus === 'in';
     const toggleBtn = el('attendanceToggleBtn');
-    toggleBtn.textContent = checkedIn ? '📸 Presensi Pulang' : '📸 Presensi Masuk';
+    toggleBtn.textContent = checkedIn ? '📸 Presensi Pulang' : '📸 Presensi Datang';
     toggleBtn.className = checkedIn ? 'secondary-btn' : 'primary-btn';
     toggleBtn.dataset.attendanceType = checkedIn ? 'out' : 'in';
     renderAttendance();
@@ -102,7 +102,7 @@
     clearCameraMessage();
     window.CameraSnapshotModal.open({
       facingMode: 'user',
-      title: type === 'out' ? 'Presensi Keluar' : 'Presensi Masuk',
+      title: type === 'out' ? 'Presensi Pulang' : 'Presensi Datang',
       watermark: true,
       onCaptureSuccess: async (blob, geo) => { try { await submitAttendance(type, blob, geo); } catch (error) { showCameraMessage(error.message); } },
       onPermissionDenied: error => { const detail = error?.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak tersedia.'; showCameraMessage(`${detail} Buka permission kamera di browser lalu coba lagi.`); }

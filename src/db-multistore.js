@@ -66,7 +66,7 @@ export async function listProducts(db, storeId) {
     LEFT JOIN manufacturing_recipes r
       ON r.id = p.linked_recipe_id AND r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
     LEFT JOIN categories c ON c.store_id = p.store_id AND c.name = p.category
-    LEFT JOIN category_groups g ON g.id = c.category_group_id
+    LEFT JOIN categories g ON g.id = c.parent_category_id
     WHERE p.store_id = ?
       AND p.is_active = 1
       AND COALESCE(t.can_sell, 1) = 1
@@ -77,10 +77,11 @@ export async function listProducts(db, storeId) {
     name: row.name,
     price: costFromScaled(row.price),
     category: row.category,
-    // Kategori Utama (opsional) di atas kategori yang sudah ada -- null
-    // kalau Admin belum mengelompokkan kategori ini (Bos Cyo, 2026-09-15).
-    // Kasir & Customer sama-sama baca field ini dari sumber yang sama
-    // supaya filter dua-tingkatnya tidak perlu dikerjakan dua kali.
+    // Kategori Utama (opsional) di atas kategori yang sudah ada, lewat
+    // categories.parent_category_id (migration 0085/0094) -- null kalau
+    // Admin belum mengelompokkan kategori ini (Bos Cyo, 2026-09-15). Kasir
+    // & Customer sama-sama baca field ini dari sumber yang sama supaya
+    // filter dua-tingkatnya tidak perlu dikerjakan dua kali.
     categoryGroup: row.category_group_name || null,
     categoryGroupOrder: row.category_group_order,
     categoryOrder: row.category_order,

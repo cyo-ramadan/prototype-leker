@@ -1,6 +1,6 @@
 # Category Hierarchy V1
 
-Status: ACTIVE
+Status: SUPERSEDED by `contracts/category-hierarchy-v2.md`
 
 ## Scope
 

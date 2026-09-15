@@ -174,6 +174,7 @@ function renderAll() {
   renderCategoryOptions();
   renderProducts();
   renderCategories();
+  renderCategoryParentSelect(Number(el('categoryId').value || 0) || null);
   renderContacts();
   el('adminSummary').innerHTML = `
     <span>${state.data.products.filter(item => item.isActive).length} barang aktif</span>
@@ -327,15 +328,36 @@ function resetProductForm() {
   renderCategoryOptions();
 }
 
+function parentCategoryName(parentCategoryId) {
+  if (!parentCategoryId) return 'Kategori utama';
+  return `Sub dari: ${state.data.categories.find(item => item.id === parentCategoryId)?.name || 'kategori induk'}`;
+}
+
+// Kategori induk = kategori lain yang belum punya induknya sendiri
+// (parentCategoryId null) -- hierarki dibatasi satu tingkat, jadi tidak ada
+// kategori "induk dari induk". Server sudah menolak pelanggaran ini juga;
+// pilihan di sini cuma supaya usernya tidak perlu coba-coba dulu.
+function eligibleParentCategories(excludeId) {
+  return state.data.categories.filter(item => item.isActive && !item.parentCategoryId && item.id !== excludeId);
+}
+
 function renderCategories() {
   el('categoryCount').textContent = state.data.categories.length;
   el('categoryList').innerHTML = state.data.categories.length ? state.data.categories.map(category => `
     <div class="master-row contact-row ${category.isActive ? '' : 'inactive'}">
-      <div class="master-main"><strong>${escapeHtml(category.name)}</strong><div class="master-meta">${category.isActive ? 'Aktif' : 'Nonaktif'}</div></div>
+      <div class="master-main"><strong>${escapeHtml(category.name)}</strong><div class="master-meta">${escapeHtml(parentCategoryName(category.parentCategoryId))} · ${category.isActive ? 'Aktif' : 'Nonaktif'}</div></div>
       <div class="master-actions"><button class="mini-btn" data-edit-category="${category.id}" type="button">Edit</button><button class="mini-btn danger" data-delete-category="${category.id}" type="button">Nonaktifkan</button></div>
     </div>`).join('') : '<div class="empty">Belum ada kategori.</div>';
   document.querySelectorAll('[data-edit-category]').forEach(button => button.addEventListener('click', () => editCategory(Number(button.dataset.editCategory))));
   document.querySelectorAll('[data-delete-category]').forEach(button => button.addEventListener('click', () => deactivateCategory(Number(button.dataset.deleteCategory))));
+}
+
+function renderCategoryParentSelect(excludeId) {
+  const select = el('categoryParentSelect');
+  const selected = select.value;
+  const options = eligibleParentCategories(excludeId);
+  select.innerHTML = `<option value="">Jadi kategori utama</option>${options.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+  if (options.some(item => String(item.id) === selected)) select.value = selected;
 }
 
 function editCategory(id) {
@@ -343,6 +365,8 @@ function editCategory(id) {
   if (!category) return;
   el('categoryId').value = category.id;
   el('categoryName').value = category.name;
+  renderCategoryParentSelect(category.id);
+  el('categoryParentSelect').value = category.parentCategoryId || '';
   el('categoryActive').checked = category.isActive;
   el('categoryFormTitle').textContent = 'Edit kategori';
   el('categoryCancelEdit').classList.remove('hidden');
@@ -354,7 +378,11 @@ async function saveCategory(event) {
   try {
     await api(id ? `/api/admin/categories/${id}` : '/api/admin/categories', {
       method: id ? 'PATCH' : 'POST',
-      body: JSON.stringify({ name: el('categoryName').value, isActive: el('categoryActive').checked })
+      body: JSON.stringify({
+        name: el('categoryName').value,
+        isActive: el('categoryActive').checked,
+        parentCategoryId: el('categoryParentSelect').value ? Number(el('categoryParentSelect').value) : null
+      })
     });
     await refreshData();
     resetCategoryForm();
@@ -374,6 +402,8 @@ async function deactivateCategory(id) {
 function resetCategoryForm() {
   el('categoryForm').reset();
   el('categoryId').value = '';
+  renderCategoryParentSelect(null);
+  el('categoryParentSelect').value = '';
   el('categoryActive').checked = true;
   el('categoryFormTitle').textContent = 'Tambah kategori';
   el('categoryCancelEdit').classList.add('hidden');

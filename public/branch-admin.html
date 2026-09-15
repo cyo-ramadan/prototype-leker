@@ -75,7 +75,9 @@
         <div class="admin-grid master-layout">
           <form id="categoryForm" class="admin-card sticky-form">
             <input id="categoryId" type="hidden" /><div class="form-title-row"><h2 id="categoryFormTitle">Tambah kategori</h2><button id="categoryCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
-            <label class="admin-field">Nama kategori<input id="categoryName" maxlength="60" required /></label><label class="admin-check"><input id="categoryActive" type="checkbox" checked /> Aktif</label><button class="primary-btn" type="submit">Simpan kategori</button>
+            <label class="admin-field">Nama kategori<input id="categoryName" maxlength="60" required /></label>
+            <label class="admin-field">Kategori induk <span class="field-note">optional -- kosongkan supaya kategori ini jadi kategori utama</span><select id="categoryParentSelect"><option value="">Jadi kategori utama</option></select></label>
+            <label class="admin-check"><input id="categoryActive" type="checkbox" checked /> Aktif</label><button class="primary-btn" type="submit">Simpan kategori</button>
           </form>
           <div class="admin-card list-card"><div class="list-head"><h2>Master kategori</h2><span id="categoryCount" class="master-count">0</span></div><div id="categoryList" class="master-list"></div></div>
         </div>
@@ -134,7 +136,7 @@
 
   <script src="/store-context.js?v=20260829-admin-session-store-v1"></script>
   <script src="/branch-owner-auth.js?v=20260828-cache-bust-v1"></script>
-  <script src="/admin.js?v=20260915-lazy-product-photo-v1"></script>
+  <script src="/admin.js?v=20260915-kategori-utama-v2"></script>
   <script src="/admin-detail-modal.js"></script>
   <script src="/admin-session-bootstrap-guard.js?v=20260816-admin-session-v1"></script>
   <script src="/admin-suppliers.js"></script>

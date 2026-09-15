@@ -43,6 +43,28 @@ async function selectedStore(db, request, includeInactive = true) {
   return resolveStore(db, storeTokenFrom(request), { includeInactive });
 }
 
+// Kategori induk = kategori lain di tabel yang sama (categories.parent_category_id,
+// migration 0085) -- bukan tabel terpisah. null = tidak diisi (jadi kategori
+// utama / tidak dikelompokkan), undefined dipakai sebagai penanda gagal
+// validasi supaya berbeda dari null yang sah. `currentId` adalah id kategori
+// yang sedang di-edit (null kalau sedang membuat kategori baru), dipakai
+// untuk menolak kategori jadi induk dirinya sendiri dan menjaga hierarki
+// cuma satu tingkat (lihat contracts/category-hierarchy-v1.md).
+async function resolveParentCategoryId(db, storeId, currentId, rawParentCategoryId) {
+  if (rawParentCategoryId === null || rawParentCategoryId === undefined || rawParentCategoryId === '') return null;
+  const parentId = Number(rawParentCategoryId);
+  if (!Number.isInteger(parentId)) return undefined;
+  if (currentId != null && parentId === currentId) return undefined;
+  const parent = await db.prepare('SELECT id, parent_category_id FROM categories WHERE id = ? AND store_id = ?').bind(parentId, storeId).first();
+  if (!parent) return undefined;
+  if (parent.parent_category_id != null) return undefined; // induk yang dipilih harus kategori utama, bukan sub-kategori lagi
+  if (currentId != null) {
+    const hasChildren = await db.prepare('SELECT 1 FROM categories WHERE parent_category_id = ? AND store_id = ? LIMIT 1').bind(currentId, storeId).first();
+    if (hasChildren) return undefined; // kategori ini sudah jadi induk, tidak boleh sekaligus jadi sub-kategori
+  }
+  return parentId;
+}
+
 async function ensureCategory(db, storeId, categoryName) {
   const existing = await db.prepare('SELECT id FROM categories WHERE store_id = ? AND name = ?').bind(storeId, categoryName).first();
   if (existing) return;
@@ -80,20 +102,23 @@ function decodeProductImage(dataUrl) {
     return null;
   }
 }
-const mapCategory = row => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: Boolean(row.is_active) });
+const mapCategory = row => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: Boolean(row.is_active), parentCategoryId: row.parent_category_id || null });
 const mapContact = row => ({ id: row.id, name: row.name, phone: row.phone, email: row.email, notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at });
 
 async function adminBootstrap(db, store) {
   const [stores, products, categories, contacts] = await Promise.all([
     listStores(db, { includeInactive: true }),
     db.prepare(`SELECT id, name, purchase_price, price, category, emoji, display_order, is_active, (image_data IS NOT NULL AND image_data != '') AS has_image FROM products WHERE store_id = ? ORDER BY display_order, id`).bind(store.id).all(),
-    db.prepare(`SELECT id, name, display_order, is_active FROM categories WHERE store_id = ? ORDER BY display_order, id`).bind(store.id).all(),
+    db.prepare(`SELECT id, name, display_order, is_active, parent_category_id FROM categories WHERE store_id = ? ORDER BY display_order, id`).bind(store.id).all(),
     db.prepare(`SELECT id, name, phone, email, notes, created_at, updated_at FROM contacts WHERE store_id = ? ORDER BY name COLLATE NOCASE`).bind(store.id).all()
   ]);
   return {
     store,
     stores,
     products: (products.results ?? []).map(mapProduct),
+    // categoryGroups (kategori utama) tidak perlu daftar terpisah -- cukup
+    // kategori yang parentCategoryId-nya null, frontend menurunkannya sendiri
+    // dari array `categories` yang sama.
     categories: (categories.results ?? []).map(mapCategory),
     contacts: (contacts.results ?? []).map(mapContact)
   };
@@ -230,10 +255,12 @@ export async function handleAdminApi(request, env, pathname) {
     if (!body.ok) return json({ error: 'Payload JSON tidak valid.' }, 400);
     const name = text(body.value?.name, 60);
     if (!name) return json({ error: 'Nama kategori wajib diisi.' }, 400);
+    const parentCategoryId = await resolveParentCategoryId(db, store.id, null, body.value?.parentCategoryId);
+    if (parentCategoryId === undefined) return json({ error: 'Kategori utama tidak ditemukan atau tidak valid di gerai ini.' }, 400);
     const existing = await db.prepare('SELECT id FROM categories WHERE store_id = ? AND name = ?').bind(store.id, name).first();
     if (existing) return json({ error: 'Kategori sudah ada di gerai ini.' }, 409);
     const next = await db.prepare('SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM categories WHERE store_id = ?').bind(store.id).first();
-    const result = await db.prepare('INSERT INTO categories (store_id, name, display_order, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)').bind(store.id, name, Number(next?.next_order ?? 1)).run();
+    const result = await db.prepare('INSERT INTO categories (store_id, name, display_order, is_active, parent_category_id, created_at, updated_at) VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)').bind(store.id, name, Number(next?.next_order ?? 1), parentCategoryId).run();
     return json({ ok: true, id: result.meta?.last_row_id }, 201);
   }
 
@@ -246,8 +273,10 @@ export async function handleAdminApi(request, env, pathname) {
     const isActive = body.value?.isActive === false ? 0 : 1;
     const current = await db.prepare('SELECT name FROM categories WHERE id = ? AND store_id = ?').bind(id, store.id).first();
     if (!current || !name) return json({ error: 'Kategori tidak ditemukan atau nama invalid.' }, 404);
+    const parentCategoryId = await resolveParentCategoryId(db, store.id, id, body.value?.parentCategoryId);
+    if (parentCategoryId === undefined) return json({ error: 'Kategori utama tidak ditemukan atau tidak valid di gerai ini.' }, 400);
     await db.batch([
-      db.prepare('UPDATE categories SET name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?').bind(name, isActive, id, store.id),
+      db.prepare('UPDATE categories SET name = ?, is_active = ?, parent_category_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?').bind(name, isActive, parentCategoryId, id, store.id),
       db.prepare('UPDATE products SET category = ?, updated_at = CURRENT_TIMESTAMP WHERE category = ? AND store_id = ?').bind(name, current.name, store.id)
     ]);
     return json({ ok: true });

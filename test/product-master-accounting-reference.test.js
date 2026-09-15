@@ -115,7 +115,7 @@ test('Master Barang keeps scalable references behind a simple advanced surface',
   assert.match(productUi, /Poin per 1 barang/);
   assert.match(productUi, /Recipe Linked<select id="productLinkedRecipe"/);
   assert.doesNotMatch(productUi, /id="productProductionMode"/);
-  assert.match(masterMenu, /data-master-target="productKindMasterCard">Klasifikasi Accounting/);
+  assert.match(masterMenu, /data-master-target="productKindMasterCard">.*Klasifikasi Accounting/);
   assert.match(productUi, /item\.code === 'FINISHED_GOOD'/);
   assert.match(productUi, /item\.code === 'PCS'/);
   assert.match(productUi, /loadEditor\(true\)/);

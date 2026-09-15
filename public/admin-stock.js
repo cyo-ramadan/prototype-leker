@@ -35,7 +35,7 @@
     button.className = 'admin-tab';
     button.dataset.tab = 'stock';
     button.type = 'button';
-    button.textContent = 'Stok';
+    button.textContent = '📦 Stok';
     const transactionTab = tabs.querySelector('[data-tab="transactions"]');
     if (transactionTab) tabs.insertBefore(button, transactionTab);
     else tabs.appendChild(button);

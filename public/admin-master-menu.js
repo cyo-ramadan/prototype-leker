@@ -56,7 +56,7 @@
     wrapper.id = 'adminMasterMenu';
     wrapper.className = 'admin-master-menu';
     wrapper.innerHTML = `
-      <button id="adminMasterMenuToggle" class="admin-tab admin-master-menu-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="adminMasterMenuPanel"><span id="adminMasterMenuLabel">Master</span> ▾</button>`;
+      <button id="adminMasterMenuToggle" class="admin-tab admin-master-menu-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="adminMasterMenuPanel">🗂️ <span id="adminMasterMenuLabel">Master</span> ▾</button>`;
     if (storeTab?.nextSibling) tabs.insertBefore(wrapper, storeTab.nextSibling);
     else tabs.appendChild(wrapper);
 
@@ -65,17 +65,17 @@
     panel.className = 'admin-master-menu-panel';
     panel.setAttribute('role', 'menu');
     panel.innerHTML = `
-      <button type="button" role="menuitem" data-master-open="products">Master Barang</button>
-      <button type="button" role="menuitem" data-master-open="categories">Kategori</button>
-      <button type="button" role="menuitem" data-master-open="suppliers">Supplier</button>
-      <button type="button" role="menuitem" data-master-open="customers">Pelanggan</button>
-      <button type="button" role="menuitem" data-master-open="cashiers">Kasir / Staf</button>
-      <button type="button" role="menuitem" data-master-open="costmasters">Biaya</button>
+      <button type="button" role="menuitem" data-master-open="products">🥞 Master Barang</button>
+      <button type="button" role="menuitem" data-master-open="categories">🏷️ Kategori</button>
+      <button type="button" role="menuitem" data-master-open="suppliers">🧺 Supplier</button>
+      <button type="button" role="menuitem" data-master-open="customers">👤 Pelanggan</button>
+      <button type="button" role="menuitem" data-master-open="cashiers">🧑‍💼 Kasir / Staf</button>
+      <button type="button" role="menuitem" data-master-open="costmasters">💸 Biaya</button>
       <div class="admin-master-menu-separator"></div>
-      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="itemTypeForm">Peran Barang</button>
-      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="productKindMasterCard">Klasifikasi Accounting</button>
-      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="unitForm">Satuan</button>
-      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="recipeForm">Resep / BOM</button>`;
+      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="itemTypeForm">🏭 Peran Barang</button>
+      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="productKindMasterCard">🏭 Klasifikasi Accounting</button>
+      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="unitForm">🏭 Satuan</button>
+      <button type="button" role="menuitem" data-master-open="manufacturing" data-master-target="recipeForm">🏭 Resep / BOM</button>`;
     document.body.appendChild(panel);
 
     for (const tab of MASTER_TABS) {

@@ -159,7 +159,7 @@
     const app = document.getElementById('adminApp');
     const toast = document.getElementById('adminToast');
     if (!tabs || !app || !toast || document.getElementById('tab-approvals')) return;
-    tabs.insertAdjacentHTML('beforeend', '<button class="admin-tab" data-tab="approvals" type="button">Approval Queue</button>');
+    tabs.insertAdjacentHTML('beforeend', '<button class="admin-tab" data-tab="approvals" type="button">✅ Approval Queue</button>');
     toast.insertAdjacentHTML('beforebegin', `
       <section id="tab-approvals" class="admin-section">
         <div class="admin-card">

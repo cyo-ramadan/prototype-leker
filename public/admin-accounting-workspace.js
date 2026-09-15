@@ -375,7 +375,7 @@
     button.id = 'accountingWorkspaceTab';
     button.className = 'admin-tab';
     button.type = 'button';
-    button.textContent = 'Akuntansi';
+    button.textContent = '💰 Akuntansi';
     const settingsButton = el('accountingSettingsTab');
     if (settingsButton) tabs.insertBefore(button, settingsButton);
     else tabs.appendChild(button);

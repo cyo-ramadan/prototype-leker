@@ -37,7 +37,7 @@
     button.className = 'admin-tab';
     button.dataset.tab = 'transactions';
     button.type = 'button';
-    button.textContent = 'Transaksi';
+    button.textContent = '📊 Transaksi';
     const accountingButton = tabs.querySelector('[data-tab="accounting"]');
     if (accountingButton) tabs.insertBefore(button, accountingButton);
     else tabs.appendChild(button);

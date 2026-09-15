@@ -20,7 +20,7 @@
     button.className = 'admin-tab';
     button.dataset.tab = 'customers';
     button.type = 'button';
-    button.textContent = 'Pelanggan';
+    button.textContent = '👤 Pelanggan';
     supplierTab?.insertAdjacentElement('afterend', button);
     if (!supplierTab) tabs.appendChild(button);
   }

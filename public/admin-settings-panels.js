@@ -69,14 +69,14 @@
     accountingButton.id = 'accountingSettingsTab';
     accountingButton.className = 'admin-tab';
     accountingButton.type = 'button';
-    accountingButton.textContent = 'Accounting Settings';
+    accountingButton.textContent = '🧾 Accounting Settings';
     tabs.appendChild(accountingButton);
 
     const warehouseButton = document.createElement('button');
     warehouseButton.id = 'warehouseSettingsTab';
     warehouseButton.className = 'admin-tab';
     warehouseButton.type = 'button';
-    warehouseButton.textContent = 'Warehouse Settings';
+    warehouseButton.textContent = '🏬 Warehouse Settings';
     tabs.appendChild(warehouseButton);
 
     toastNode.insertAdjacentHTML('beforebegin', accountingPanelHtml() + warehousePanelHtml());

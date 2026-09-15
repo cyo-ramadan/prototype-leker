@@ -11,9 +11,9 @@
   const tabs = document.querySelector('.admin-tabs');
   if (tabs) {
     const additions = [
-      ['accounting', 'Akuntansi'],
-      ['reports', 'Laporan'],
-      ['drawers', 'Detail Laci']
+      ['accounting', '📒 Akuntansi'],
+      ['reports', '📈 Laporan'],
+      ['drawers', '📚 Detail Laci']
     ];
     for (const [key, label] of additions) {
       if (document.querySelector(`[data-tab="${key}"]`)) continue;

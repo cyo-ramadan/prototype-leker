@@ -65,7 +65,7 @@
     button.className = 'admin-tab';
     button.dataset.tab = 'vouchers';
     button.type = 'button';
-    button.textContent = 'Voucher';
+    button.textContent = '🎟️ Voucher';
     tabs.appendChild(button);
 
     const section = document.createElement('section');

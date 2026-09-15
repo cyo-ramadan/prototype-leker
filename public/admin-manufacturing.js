@@ -37,7 +37,7 @@
     button.className = 'admin-tab';
     button.dataset.tab = 'manufacturing';
     button.type = 'button';
-    button.textContent = 'Manufaktur';
+    button.textContent = '🏭 Manufaktur';
     const categoryButton = tabs.querySelector('[data-tab="categories"]');
     if (categoryButton) tabs.insertBefore(button, categoryButton);
     else tabs.appendChild(button);

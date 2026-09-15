@@ -8,8 +8,8 @@ const voucherAdminSource = readFileSync(new URL('../public/admin-voucher.js', im
 test('Workspace Gerai loads the Voucher admin surface', () => {
   assert.match(
     branchAdminSource,
-    /<script src="\/admin-voucher\.js\?v=20260907-admin-voucher-tab-v1"><\/script>/
+    /<script src="\/admin-voucher\.js\?v=20260915-tab-icon-theme-v1"><\/script>/
   );
-  assert.match(voucherAdminSource, /button\.textContent = 'Voucher'/);
+  assert.match(voucherAdminSource, /button\.textContent = '🎟️ Voucher'/);
   assert.match(voucherAdminSource, /section\.id = 'tab-vouchers'/);
 });

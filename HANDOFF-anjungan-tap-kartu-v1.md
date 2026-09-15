@@ -5,8 +5,8 @@ Asal: sesi Hana (Claude Code web/cloud) bersama Bos Cyo
 Status: **belum ada kode, belum ada hardware.** Dokumen ini murni hasil keputusan
 desain + status persiapan, supaya sesi berikutnya tidak mengulang pembahasan.
 
-Pembaruan sesi kedua: hasil smoke test PlatformIO sudah masuk (separuh terbukti,
-kekhawatiran Python 3.14 gugur — lihat bagian status setup). Desain sisi server
+Pembaruan sesi kedua: smoke test PlatformIO **LULUS** dan kekhawatiran Python 3.14
+gugur — komputer Bos Cyo siap, tinggal menunggu papan datang. Desain sisi server
 sudah dikunci dan dipindahkan ke
 `adr/ADR-043-anjungan-tap-boundary.md` (alasannya) dan
 `contracts/anjungan-tap-kartu-v1.md` (bentuk tabel + endpoint). Belum ada task
@@ -62,18 +62,36 @@ tidak pernah perlu bongkar alat.
 
 ## Daftar belanja — STATUS: BELUM DIBELI
 
-| Barang | Kata kunci | Jml | Kisaran |
-|---|---|---|---|
-| Papan otak | `ESP32-S3 DevKitC-1 N16R8` | 2 | 100–130rb/pcs |
-| Pembaca kartu | `RFID RC522 module` | 1 | 20–30rb |
-| Kartu | `kartu RFID Mifare 13.56MHz isi 10` | 1 pak | 25–35rb |
-| Penguat suara | `MAX98357A I2S amplifier` | 1 | 30–40rb |
-| Speaker | `speaker 3W 4 ohm mini` | 1 | 15–25rb |
-| Papan rakit + kabel | `breadboard 830 + kabel jumper dupont set` | 1 | 35–50rb |
-| Kabel USB-C **DATA** | `kabel USB-C data sync` | 1 | 20–30rb |
-| Adaptor | `adaptor 5V 2A USB-C` | 1 | 25rb |
+| Barang | Kata kunci | Spesifikasi yang harus cocok | Jml | Kisaran |
+|---|---|---|---|---|
+| Papan otak | `ESP32-S3 DevKitC-1 N16R8` | **N16R8**: flash 16MB + PSRAM 8MB, USB-C | 2 | 100–130rb/pcs |
+| Pembaca kartu | `RFID RC522 module` | 13.56MHz, SPI, 3.3V | 1 | 20–30rb |
+| Kartu | `kartu RFID Mifare 13.56MHz isi 10` | **13.56MHz** (Mifare Classic/S50) | 1 pak | 25–35rb |
+| Penguat suara | `MAX98357A I2S amplifier` | I2S digital in, ±3W, speaker 4–8 ohm | 1 | 30–40rb |
+| Speaker | `speaker 3W 4 ohm mini` | 3W, 4 ohm | 1 | 15–25rb |
+| Papan rakit + kabel | `breadboard 830 + kabel jumper dupont set` | 830 titik; jumper male-male **dan** male-female | 1 | 35–50rb |
+| Kabel USB-C **DATA** | `kabel USB-C data sync` | data sync, bukan charge-only | 1 | 20–30rb |
+| Adaptor | `adaptor 5V 2A USB-C` | 5V 2A | 1 | 25rb |
 
 Total ± Rp 370–490rb. Harga kisaran, belum diverifikasi ke toko.
+
+### Jebakan saat beli — empat ini yang paling sering bikin mentok
+
+1. **Varian papan salah.** Penjual sering mengirim `N8` atau `N8R2` walau judulnya
+   menyebut ESP32-S3. Yang dibutuhkan **N16R8**. Ini bukan rewel: PlatformIO
+   terbukti (2026-09-15) menganggap papan ini varian *tanpa PSRAM* secara bawaan,
+   dan PSRAM itu justru alasan papan ini dipilih — penahan suara supaya tidak
+   patah-patah. Salah varian = suaranya bermasalah dan penyebabnya susah dilacak.
+2. **Frekuensi kartu salah.** RC522 hanya membaca **13.56MHz**. Kartu RFID murah
+   yang banyak beredar itu **125kHz** dan sama sekali tidak akan terbaca — alatnya
+   normal, kartunya normal, tapi tidak pernah ketemu.
+3. **Pin belum tersolder.** RC522 dan MAX98357A sering dikirim dengan pin
+   header-nya masih lepas di dalam plastik. Kalau begitu, rencana "prototipe tanpa
+   solder" batal sebelum mulai. Tanyakan ke penjual: minta yang pin-nya **sudah
+   terpasang**, atau minta dipasangkan.
+4. **Kabel USB charge-only.** Alat menyala, lampunya hidup, tapi komputer tidak
+   mendeteksi apa pun. Ini jebakan paling banyak memakan waktu karena orang
+   mencarinya di tempat yang salah.
 
 **Alasan pemilihan (jangan diganti tanpa alasan kuat):**
 
@@ -111,7 +129,15 @@ pio     PlatformIO Core 6.2.0
 padahal justru itu inti pekerjaannya. Kalau menemukan panduan yang menyarankan
 WSL, abaikan untuk kasus ini.
 
-### Smoke test PlatformIO — SEPARUH terbukti (2026-09-15)
+### Smoke test PlatformIO — LULUS (2026-09-15)
+
+**Status akhir: `SUCCESS`.** Dijalankan dua tahap. Tahap pertama gagal karena
+folder `src` masih kosong; setelah diisi `main.cpp` minimal, `pio run` berhasil
+(dilaporkan Bos Cyo langsung dari layarnya: banner `SUCCESS` hijau). Artinya
+rantai penuh — unduh toolchain sampai compile — sudah terbukti jalan di Windows
+Bos Cyo, tanpa hardware. Riwayat di bawah ini disimpan supaya sebabnya tidak
+ditebak ulang kalau nanti muncul lagi.
+
 
 Perintah yang dijalankan Bos Cyo di PowerShell:
 
@@ -136,13 +162,13 @@ dependensinya ke `...\Python\Python313\python.exe` — PlatformIO memakai Python
 3.13 miliknya sendiri, bukan Python 3.14 yang terpasang di PATH. Jadi rencana
 "turunkan ke Python 3.12" **tidak perlu dijalankan**. Jangan diturunkan.
 
-**Yang BELUM terbukti:** `pio run` berhenti di
+**Kenapa tahap pertama gagal:** `pio run` berhenti di
 `Error: Nothing to build. Please put your source code files to the 'src' folder`
 lalu `[FAILED]`. Itu bukan kegagalan toolchain — foldernya memang masih kosong,
-jadi compiler-nya belum pernah sekali pun dipanggil. Artinya "bisa mengunduh"
-sudah terbukti, "bisa meng-compile" belum.
+jadi compiler-nya belum pernah sekali pun dipanggil. Kalau pesan ini muncul lagi
+suatu saat, artinya sama: folder sumbernya kosong, bukan alat/setup-nya rusak.
 
-Penutupnya satu langkah lagi, masih tanpa hardware:
+Perintah yang menutupnya:
 
 ```
 cd C:\Users\Asus\tes-pio
@@ -150,8 +176,8 @@ Set-Content -Path src\main.cpp -Value "#include <Arduino.h>", "void setup() { Se
 pio run
 ```
 
-Berhasil = baris terakhir `SUCCESS`. Kalau yang ini gagal, barulah kegagalannya
-bermakna dan perlu dibaca isinya.
+Hasilnya `SUCCESS`. Komputer Bos Cyo sudah siap; langkah setup berikutnya tinggal
+menunggu papan datang.
 
 ### Jebakan yang ketahuan dari output ini
 
@@ -180,9 +206,7 @@ Jatah sesi cloud (sisi server) urutannya terpisah:
 - **C3. Setelah tabel jadi:** daftarkan alat pertama (provisioning token) dan
   daftarkan kartu pertama ke karyawan.
 
-1. Tutup smoke test `pio run`: isi `src\main.cpp` seperti di atas, jalankan ulang,
-   pastikan baris terakhirnya `SUCCESS`. (Separuhnya sudah terbukti 2026-09-15 —
-   toolchain terpasang bersih; yang belum cuma pembuktian bisa meng-compile.)
+1. ~~Konfirmasi smoke test `pio run` → `SUCCESS`.~~ **SELESAI 2026-09-15.**
 2. Beli hardware sesuai daftar.
 3. Saat barang datang: colok papan, cek Windows mengenalinya (kemungkinan besar
    tanpa install driver karena USB-nya native; driver CH343/CP2102 hanya perlu

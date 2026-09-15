@@ -1,0 +1,18 @@
+/* Tema tombol Transaksi & Stok gerai di Admin, disamakan dengan tema tombol
+   Kasir (warna brand + grey, simbol/emoji) -- Bos Cyo, 2026-09-15: "ui/ux di
+   portal admin yang harusnya menyamakan dengan portal kasir". Admin yang
+   adjust mengikuti Kasir, bukan sebaliknya. */
+.admin-tx-btn{border:0;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.admin-tx-btn-primary{background:var(--brand);color:#fff}
+.admin-tx-btn-primary.active{box-shadow:inset 0 0 0 2px rgba(0,0,0,.22)}
+.admin-tx-btn-grey{background:#6b7280;color:#fff}
+.admin-tx-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+/* Bos Cyo: "tampilan untuk device nya juga disamain aja kaya kasir, pake
+   tombol2 kebawah gitu" -- di layar hp, tombol filter/aksi ditumpuk vertikal
+   penuh selebar layar, bukan dipaksa muat sebaris lalu overflow. Desktop
+   bebas tetap memanjang horizontal. */
+@media(max-width:640px){
+  .admin-tx-toolbar{flex-direction:column}
+  .admin-tx-toolbar .admin-tx-btn{width:100%;justify-content:center}
+}

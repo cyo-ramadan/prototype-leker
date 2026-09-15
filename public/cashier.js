@@ -3,6 +3,7 @@ const state = {
   products: [],
   draft: new Map(),
   selectedCategory: 'Semua',
+  menuSearch: '',
   token: sessionStorage.getItem('lekerCashierToken') || '',
   cashier: null,
   drawer: null,
@@ -52,12 +53,26 @@ function toast(message) {
   // dialog correctly stays open on error, but the error message itself can
   // never be seen. Reparent into the open dialog so it paints in the same
   // top-layer subtree instead of silently disappearing.
+  const isSaleSuccess = String(message).startsWith('Penjualan tersimpan');
   const openDialog = document.querySelector('dialog[open]');
-  (openDialog || document.body).appendChild(node);
+  if (isSaleSuccess) document.body.appendChild(node);
+  else (openDialog || document.body).appendChild(node);
   node.textContent = message;
   node.hidden = false;
+  node.classList.remove('cashier-toast-sale-success');
+  node.removeAttribute('title');
+  node.onclick = null;
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => { node.hidden = true; }, 1900);
+  const hideToast = () => {
+    node.hidden = true;
+    node.onclick = null;
+  };
+  if (isSaleSuccess) {
+    node.classList.add('cashier-toast-sale-success');
+    node.title = 'Ketuk untuk menutup';
+    node.onclick = hideToast;
+  }
+  toast.timer = setTimeout(hideToast, isSaleSuccess ? 6500 : 1900);
 }
 
 async function init() {
@@ -70,6 +85,20 @@ async function init() {
   el('expenseBtn').addEventListener('click', () => moneyMovementDialog('expense'));
   el('otherIncomeBtn').addEventListener('click', () => moneyMovementDialog('income'));
   el('processSaleBtn').addEventListener('click', processSale);
+  el('cashierMenuSearch').addEventListener('input', event => {
+    state.menuSearch = event.target.value;
+    renderMenu();
+  });
+  el('cashierMobileCartToggle').addEventListener('click', () => setMobileDraftOpen(true));
+  el('cashierMobileCartClose').addEventListener('click', () => setMobileDraftOpen(false));
+  el('cashierMobileCartBackdrop').addEventListener('click', () => setMobileDraftOpen(false));
+  el('mobileProcessSaleBtn').addEventListener('click', () => el('processSaleBtn').click());
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') setMobileDraftOpen(false);
+  });
+  document.addEventListener('click', event => {
+    if (event.target.closest('[data-cashier-workspace-mode]')) setMobileDraftOpen(false);
+  });
   el('cashierDialogCancel').addEventListener('click', closeDialog);
   el('cashierDialogClose').addEventListener('click', closeDialog);
   el('cashierDialogForm').addEventListener('submit', submitDialog);
@@ -122,6 +151,9 @@ function clearSession() {
   state.canWrite = false;
   state.voucherCustomer = null;
   state.rodaOfficialResult = null;
+  state.menuSearch = '';
+  if (el('cashierMenuSearch')) el('cashierMenuSearch').value = '';
+  setMobileDraftOpen(false);
   sessionStorage.removeItem('lekerCashierToken');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
@@ -164,18 +196,27 @@ function renderMenu() {
     renderMenu();
   });
 
-  const filtered = state.selectedCategory === 'Semua' ? state.products : state.products.filter(product => product.category === state.selectedCategory);
-  el('cashierMenuCount').textContent = state.products.length;
-  el('cashierMenuGrid').innerHTML = filtered.length ? filtered.map(product => `
-    <article class="cashier-menu-card">
+  const normalizedSearch = state.menuSearch.trim().toLocaleLowerCase('id-ID');
+  const filtered = state.products.filter(product => {
+    const categoryMatches = state.selectedCategory === 'Semua' || product.category === state.selectedCategory;
+    const nameMatches = !normalizedSearch || String(product.name || '').toLocaleLowerCase('id-ID').includes(normalizedSearch);
+    return categoryMatches && nameMatches;
+  });
+  el('cashierMenuCount').textContent = filtered.length;
+  el('cashierMenuGrid').innerHTML = filtered.length ? filtered.map(product => {
+    const selectedQuantity = state.draft.get(Number(product.id))?.quantity || 0;
+    return `
+    <article class="cashier-menu-card ${selectedQuantity ? 'selected' : ''}">
+      ${selectedQuantity ? `<span class="cashier-menu-qty-badge" aria-label="${selectedQuantity} dipilih">${selectedQuantity}&times;</span>` : ''}
       <img class="cashier-menu-image" src="${escapeHtml(product.imageData || '/default-product.svg')}" alt="${escapeHtml(product.name)}" />
       <div class="cashier-menu-body">
         <div class="cashier-menu-name">${escapeHtml(product.name)}</div>
         <div class="cashier-menu-meta">${escapeHtml(product.category || '')}</div>
         <div class="cashier-menu-price">${rupiah(product.price)}</div>
-        <button class="cashier-add-btn" data-add-product="${product.id}" type="button">＋ Tambah</button>
+        <button class="cashier-add-btn" data-add-product="${product.id}" type="button">${selectedQuantity ? `＋ Tambah lagi · ${selectedQuantity} di draft` : '＋ Tambah'}</button>
       </div>
-    </article>`).join('') : '<div class="empty">Belum ada barang aktif di gerai ini.</div>';
+    </article>`;
+  }).join('') : `<div class="empty">${normalizedSearch ? 'Barang tidak ditemukan.' : 'Belum ada barang aktif di gerai ini.'}</div>`;
   document.querySelectorAll('[data-add-product]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.addProduct), 1));
 }
 
@@ -197,6 +238,32 @@ function changeDraft(productId, delta) {
   renderDraft();
 }
 
+function commitDraftQuantity(productId, rawQuantity) {
+  const line = state.draft.get(Number(productId));
+  if (!line) return;
+  const parsedQuantity = Number.parseInt(String(rawQuantity), 10);
+  if (!Number.isFinite(parsedQuantity)) {
+    renderDraft();
+    return;
+  }
+  const quantity = Math.max(0, Math.min(50, parsedQuantity));
+  if (!quantity) state.draft.delete(Number(productId));
+  else state.draft.set(Number(productId), { ...line, quantity });
+  renderDraft();
+}
+
+function setMobileDraftOpen(open) {
+  const panel = el('cashierDraftPanel');
+  const toggle = el('cashierMobileCartToggle');
+  const backdrop = el('cashierMobileCartBackdrop');
+  if (!panel || !toggle || !backdrop) return;
+  const shouldOpen = Boolean(open);
+  panel.classList.toggle('mobile-open', shouldOpen);
+  toggle.setAttribute('aria-expanded', String(shouldOpen));
+  backdrop.hidden = !shouldOpen;
+  document.body.classList.toggle('cashier-mobile-cart-open', shouldOpen);
+}
+
 function toggleDraftProductionMode(productId) {
   const line = state.draft.get(Number(productId));
   if (!line || !line.product.recipeLinkEnabled) return;
@@ -210,15 +277,29 @@ function renderDraft() {
   const total = lines.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0);
   el('draftCount').textContent = totalQty;
   el('draftTotal').textContent = rupiah(total);
+  el('mobileDraftCount').textContent = `${totalQty} item`;
+  el('mobileDraftTotal').textContent = rupiah(total);
   el('cashierDraftList').innerHTML = lines.length ? lines.map(line => `
     <div class="cashier-draft-row">
       <div><strong>${escapeHtml(line.product.name)}</strong><small>${rupiah(line.product.price)} · ${rupiah(Number(line.product.price) * line.quantity)}</small>${draftModeToggleHtml(line)}</div>
-      <div class="cashier-draft-controls"><button type="button" data-draft-minus="${line.product.id}">−</button><span>${line.quantity}</span><button type="button" data-draft-plus="${line.product.id}">＋</button></div>
+      <div class="cashier-draft-controls"><button type="button" data-draft-minus="${line.product.id}" aria-label="Kurangi ${escapeHtml(line.product.name)}">−</button><input class="cashier-draft-quantity-input" data-draft-quantity="${line.product.id}" type="number" inputmode="numeric" min="0" max="50" step="1" value="${line.quantity}" aria-label="Jumlah ${escapeHtml(line.product.name)}" /><button type="button" data-draft-plus="${line.product.id}" aria-label="Tambah ${escapeHtml(line.product.name)}">＋</button></div>
     </div>`).join('') : '<div class="cashier-draft-empty">Belum ada menu dipilih.</div>';
   document.querySelectorAll('[data-draft-minus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.draftMinus), -1));
   document.querySelectorAll('[data-draft-plus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.draftPlus), 1));
+  document.querySelectorAll('[data-draft-quantity]').forEach(input => {
+    input.onblur = () => commitDraftQuantity(Number(input.dataset.draftQuantity), input.value);
+    input.onkeydown = event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      input.blur();
+    };
+  });
   document.querySelectorAll('[data-draft-mode]').forEach(button => button.onclick = () => toggleDraftProductionMode(Number(button.dataset.draftMode)));
-  el('processSaleBtn').disabled = !state.canWrite || !lines.length;
+  const saleDisabled = !state.canWrite || !lines.length;
+  el('processSaleBtn').disabled = saleDisabled;
+  el('mobileProcessSaleBtn').disabled = saleDisabled;
+  if (!lines.length) setMobileDraftOpen(false);
+  renderMenu();
 }
 
 function draftModeToggleHtml(line) {
@@ -389,6 +470,7 @@ async function processSale() {
     el('saleCustomerName').value = '';
     el('saleNote').value = '';
     renderDraft();
+    setMobileDraftOpen(false);
     toast(`Penjualan tersimpan · ${rupiah(payload.sale.total)}`);
   } catch (error) {
     toast(error.message);

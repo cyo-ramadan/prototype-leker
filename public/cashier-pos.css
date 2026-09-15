@@ -4,3 +4,36 @@
 .purchase-editor{margin-top:14px}.purchase-composer{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;padding:14px;border:1px solid var(--line);border-radius:18px;background:#fffcf8}.purchase-composer .field{min-width:0;margin:0}.purchase-composer .text-input,.purchase-detail-row .text-input{box-sizing:border-box;min-width:0;width:100%}.purchase-composer-product{position:relative;z-index:3;grid-column:1/-1}.purchase-composer-qty{grid-column:1}.purchase-composer-price{grid-column:2}.purchase-composer-hint{grid-column:1/-1;min-height:16px}.purchase-composer-add{grid-column:1/-1;width:100%;min-height:44px}.purchase-composer-empty{grid-column:1/-1}.purchase-search-results{position:absolute;top:calc(100% + 5px);left:0;right:0;max-height:230px;overflow:auto;padding:5px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 14px 30px rgba(64,45,25,.16)}.purchase-search-results button{display:flex;width:100%;flex-direction:column;gap:2px;padding:11px;border:0;border-bottom:1px solid #f0e7dc;background:#fff;text-align:left}.purchase-search-results button:last-child{border-bottom:0}.purchase-search-results button:active{background:#fff5e8}.purchase-search-results button strong{font-size:13px}.purchase-search-results button span,.purchase-search-empty{color:var(--muted);font-size:11px}.purchase-search-empty{padding:12px}
 .purchase-detail-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin:20px 2px 8px}.purchase-detail-head strong{font-size:16px}.purchase-detail-head span{font-size:11px;color:var(--muted)}.purchase-detail-list{display:grid;gap:0;border:1px solid var(--line);border-radius:18px;background:#fff;overflow:hidden}.purchase-detail-row{display:grid;grid-template-columns:minmax(0,1fr) 62px minmax(82px,auto);gap:10px;align-items:center;padding:14px;border-bottom:1px dashed var(--line)}.purchase-detail-row:last-child{border-bottom:0}.purchase-detail-product{min-width:0}.purchase-detail-product strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.purchase-detail-product span{display:block;margin-top:3px;color:var(--muted);font-size:11px}.purchase-detail-quantity{min-width:0;margin:0}.purchase-detail-quantity label{font-size:10px}.purchase-detail-quantity .text-input{height:40px;padding:8px;text-align:center}.purchase-detail-total{text-align:right}.purchase-detail-total strong{display:block;white-space:nowrap;font-size:14px}.purchase-detail-remove{margin-top:4px;color:#c83c32}.purchase-detail-subtotal{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:13px 14px;border-radius:14px;background:#2b2118;color:#fff}.purchase-detail-subtotal strong{font-size:18px}
 @media(min-width:700px){.purchase-composer{grid-template-columns:minmax(0,1fr) 80px 150px auto;align-items:end}.purchase-composer-product,.purchase-composer-qty,.purchase-composer-price,.purchase-composer-add{grid-column:auto}.purchase-composer-hint,.purchase-composer-empty{grid-column:1/-1}.purchase-composer-add{width:auto;min-width:130px}.purchase-detail-row{grid-template-columns:minmax(0,1fr) 72px 130px}}
+
+/* Cashier sales UX: searchable menu, draft quantity state, and mobile cart drawer. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.cashier-menu-search{margin-bottom:10px}
+.cashier-menu-card{position:relative;transition:border-color .16s ease,box-shadow .16s ease}
+.cashier-menu-card.selected{border-color:#936f45;box-shadow:0 0 0 2px rgba(147,111,69,.14)}
+.cashier-menu-qty-badge{position:absolute;z-index:1;top:8px;right:8px;display:grid;min-width:27px;height:27px;padding:0 6px;place-items:center;border-radius:999px;background:#281f18;color:#fff;font-size:11px;font-weight:1000;box-shadow:0 4px 12px rgba(40,31,24,.22)}
+.cashier-draft-head-actions{display:flex;align-items:center;gap:8px}
+.cashier-draft-quantity-input{box-sizing:border-box;width:48px;height:30px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:center;font:inherit;font-weight:950;appearance:textfield}
+.cashier-draft-quantity-input::-webkit-inner-spin-button,.cashier-draft-quantity-input::-webkit-outer-spin-button{margin:0;appearance:none}
+.cashier-mobile-cart-bar,.cashier-mobile-cart-close,.cashier-mobile-cart-backdrop{display:none}
+.cashier-toast-sale-success{outline:3px solid rgba(73,184,111,.35);cursor:pointer}
+
+@media(max-width:900px){
+  body.cashier-mobile-cart-open{overflow:hidden}
+  .cashier-dashboard{padding-bottom:92px}
+  .cashier-mobile-cart-bar{position:fixed;z-index:115;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:8px;border:1px solid #594737;border-radius:17px;background:#281f18;box-shadow:0 16px 36px rgba(20,14,9,.32);transition:transform .2s ease}
+  .cashier-mobile-cart-toggle{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:10px;border:0;background:transparent;color:#fff;text-align:left}
+  .cashier-mobile-cart-toggle span:first-child{display:grid;min-width:0;gap:2px}
+  .cashier-mobile-cart-toggle b,.cashier-mobile-cart-toggle small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cashier-mobile-cart-toggle small{color:#eadfd4;font-size:11px}
+  .cashier-mobile-cart-toggle span:last-child{white-space:nowrap;color:#eadfd4;font-size:11px;font-weight:900}
+  .cashier-mobile-process-btn{min-width:88px;border:0;border-radius:11px;background:#f3a742;color:#281f18;font-weight:1000}
+  .cashier-mobile-process-btn:disabled{opacity:.42}
+  .cashier-mobile-cart-backdrop{position:fixed;z-index:116;inset:0;display:block;border:0;background:rgba(25,18,10,.46)}
+  .cashier-mobile-cart-backdrop[hidden]{display:none}
+  .cashier-draft-panel{position:fixed!important;z-index:117;top:auto;left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));max-height:min(78vh,680px);overflow-y:auto;transform:translateY(calc(100% + 28px));opacity:0;pointer-events:none;transition:transform .22s ease,opacity .18s ease}
+  .cashier-draft-panel.mobile-open{transform:translateY(0);opacity:1;pointer-events:auto}
+  .cashier-mobile-cart-close{display:grid;width:32px;height:32px;place-items:center;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:21px;line-height:1}
+  .cashier-draft-list{max-height:35vh}
+  .cashier-mobile-cart-open .cashier-mobile-cart-bar{transform:translateY(calc(100% + 28px))}
+  .cashier-toast-sale-success{bottom:92px!important}
+}

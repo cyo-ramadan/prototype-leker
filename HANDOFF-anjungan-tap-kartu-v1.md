@@ -176,8 +176,27 @@ Set-Content -Path src\main.cpp -Value "#include <Arduino.h>", "void setup() { Se
 pio run
 ```
 
-Hasilnya `SUCCESS`. Komputer Bos Cyo sudah siap; langkah setup berikutnya tinggal
-menunggu papan datang.
+Hasilnya `SUCCESS`. Rantai unduh-sampai-compile terbukti jalan.
+
+### Repo BELUM ada di laptop Bos Cyo (dicek 2026-09-15)
+
+`dir *leker*` di `C:\Users\Asus` tidak mengembalikan apa pun. Artinya salinan repo
+ini belum pernah diturunkan ke laptop.
+
+Ini langkah yang kelewat dari daftar awal, dan kalau tidak dikerjakan lebih dulu,
+sesi lokal tidak punya apa-apa untuk dikerjakan — instruksi "buka Claude Code di
+folder repo" di bagian paling bawah dokumen ini mengandaikan foldernya sudah ada.
+
+```
+cd C:\Users\Asus
+git clone https://github.com/cyo-ramadan/prototype-leker.git
+```
+
+Git for Windows akan memunculkan jendela login GitHub di browser saat pertama
+kali. Itu jalur yang benar — **jangan** meminta Bos Cyo menempelkan token
+plaintext (invariant #9 `CLAUDE.md`). Sekali login, tidak ditanya lagi.
+
+Tidak butuh hardware, jadi bisa dikerjakan kapan saja sebelum papan datang.
 
 ### Jebakan yang ketahuan dari output ini
 
@@ -207,6 +226,9 @@ Jatah sesi cloud (sisi server) urutannya terpisah:
   daftarkan kartu pertama ke karyawan.
 
 1. ~~Konfirmasi smoke test `pio run` → `SUCCESS`.~~ **SELESAI 2026-09-15.**
+1b. **Turunkan salinan repo ke laptop** (`git clone`, lihat bagian di atas).
+   BELUM dikerjakan, tidak butuh hardware, dan menghalangi semua langkah lokal
+   berikutnya kalau dilewati.
 2. Beli hardware sesuai daftar.
 3. Saat barang datang: colok papan, cek Windows mengenalinya (kemungkinan besar
    tanpa install driver karena USB-nya native; driver CH343/CP2102 hanya perlu

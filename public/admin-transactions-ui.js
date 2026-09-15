@@ -38,9 +38,7 @@
     button.dataset.tab = 'transactions';
     button.type = 'button';
     button.textContent = '📊 Transaksi';
-    const accountingButton = tabs.querySelector('[data-tab="accounting"]');
-    if (accountingButton) tabs.insertBefore(button, accountingButton);
-    else tabs.appendChild(button);
+    tabs.appendChild(button);
 
     toastNode.insertAdjacentHTML('beforebegin', `
       <section id="tab-transactions" class="admin-section">
@@ -76,19 +74,6 @@
       renderFilterState();
       loadTransactions({ reset: true });
     }));
-
-    const accountingTab = tabs.querySelector('[data-tab="accounting"]');
-    if (accountingTab) accountingTab.textContent = 'Koneksi Akuntansi';
-    const accountingSection = document.getElementById('tab-accounting');
-    if (accountingSection) accountingSection.innerHTML = `
-      <div class="admin-card admin-placeholder">
-        <div class="admin-placeholder-inner">
-          <div class="admin-eyebrow">Accounting Bridge</div>
-          <h2>Accounting module tetap terpisah</h2>
-          <p class="muted">Prototype Leker mengirim business facts dan source reference. Journal entry, COA, buku besar, neraca, laba rugi, closing, dan interpretasi debit-kredit tetap dimiliki program Accounting.</p>
-          <div class="master-meta">Contract seam: MAXI_ACCOUNTING_BUSINESS_FACT_V1 · Status: NOT_CONNECTED</div>
-        </div>
-      </div>`;
 
     renderFilterState();
   }

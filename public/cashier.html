@@ -6,7 +6,7 @@
   <title>Prototype Leker · Kasir</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/cashier-auth.css" />
-  <link rel="stylesheet" href="/cashier-pos.css?v=20260816-purchase-autofill-v6" />
+  <link rel="stylesheet" href="/cashier-pos.css?v=20260915-subkategori-v1" />
   <link rel="stylesheet" href="/cashier-production-v2.css?v=20260914-result-row-match-component" />
   <link rel="stylesheet" href="/pimasatu-ui.css?v=1.7.0-panel-body-shared" />
   <link rel="stylesheet" href="/drawer-report.css?v=20260914-no-bold-line-amount-v1" />
@@ -75,6 +75,7 @@
     <section class="cashier-pos-layout">
       <div class="cashier-menu-panel">
         <div class="cashier-panel-head"><div><div class="muted">Walk-in / input kasir</div><h2>Pilih Menu</h2></div><span id="cashierMenuCount" class="badge">0</span></div>
+        <div id="cashierCategoryGroupRow" class="cashier-category-row cashier-category-group-row" hidden></div>
         <div id="cashierCategoryRow" class="cashier-category-row"></div>
         <div id="cashierMenuGrid" class="cashier-menu-grid"></div>
       </div>
@@ -122,7 +123,8 @@
 
 <script src="/drawer-report-ui.js?v=20260915-arus-kas-pendapatan-lain-v1"></script>
 <script src="/pimasatu-ui.js?v=1.7.0-add-button-primary-color"></script>
-<script src="/cashier.js?v=20260915-portal-staf-handoff-v1"></script>
+<script src="/menu-category-filter.js?v=20260915-subkategori-v1"></script>
+<script src="/cashier.js?v=20260915-subkategori-v1"></script>
 <script src="/cashier-pimasatu-adapters.js?v=1"></script>
 <script src="/camera-snapshot-modal.js"></script>
 <script src="/cashier-live-photo.js"></script>

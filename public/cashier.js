@@ -2,7 +2,6 @@ const state = {
   orders: [],
   products: [],
   draft: new Map(),
-  selectedCategory: 'Semua',
   token: sessionStorage.getItem('lekerCashierToken') || '',
   cashier: null,
   drawer: null,
@@ -18,6 +17,14 @@ const el = id => document.getElementById(id);
 const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
 const escapeHtml = (value='') => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
 const ORDER_POLL_INTERVAL_MS = 5000;
+const categoryFilter = window.MAXICategoryFilter.create({
+  groupRowEl: el('cashierCategoryGroupRow'),
+  categoryRowEl: el('cashierCategoryRow'),
+  groupBtnClass: 'cashier-category-btn cashier-category-group-btn',
+  categoryBtnClass: 'cashier-category-btn',
+  escapeHtml
+});
+categoryFilter.onSelect(() => renderMenu());
 
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
@@ -157,15 +164,8 @@ async function loadMenu() {
 }
 
 function renderMenu() {
-  const categories = ['Semua', ...new Set(state.products.map(product => product.category).filter(Boolean))];
-  if (!categories.includes(state.selectedCategory)) state.selectedCategory = 'Semua';
-  el('cashierCategoryRow').innerHTML = categories.map(category => `<button class="cashier-category-btn ${category === state.selectedCategory ? 'active' : ''}" data-cashier-category="${escapeHtml(category)}" type="button">${escapeHtml(category)}</button>`).join('');
-  document.querySelectorAll('[data-cashier-category]').forEach(button => button.onclick = () => {
-    state.selectedCategory = button.dataset.cashierCategory;
-    renderMenu();
-  });
-
-  const filtered = state.selectedCategory === 'Semua' ? state.products : state.products.filter(product => product.category === state.selectedCategory);
+  categoryFilter.render(state.products);
+  const filtered = categoryFilter.filtered(state.products);
   el('cashierMenuCount').textContent = state.products.length;
   el('cashierMenuGrid').innerHTML = filtered.length ? filtered.map(product => `
     <article class="cashier-menu-card">

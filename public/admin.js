@@ -1,7 +1,7 @@
 const state = {
   pin: localStorage.getItem('lekerAdminPin') || '',
   setupRequired: false,
-  data: { store: null, products: [], categories: [], contacts: [] },
+  data: { store: null, products: [], categories: [], categoryGroups: [], contacts: [] },
   productImageData: '',
   storeLogoData: '',
   productSearchTerm: ''
@@ -118,6 +118,8 @@ function bindStaticEvents() {
     renderProducts();
   });
   el('productCancelEdit').addEventListener('click', resetProductForm);
+  el('categoryGroupForm').addEventListener('submit', saveCategoryGroup);
+  el('categoryGroupCancelEdit').addEventListener('click', resetCategoryGroupForm);
   el('categoryForm').addEventListener('submit', saveCategory);
   el('categoryCancelEdit').addEventListener('click', resetCategoryForm);
   el('contactForm').addEventListener('submit', saveContact);
@@ -172,6 +174,8 @@ function switchTab(tab) {
 function renderAll() {
   renderStore();
   renderCategoryOptions();
+  renderCategoryGroups();
+  renderCategoryGroupSelect();
   renderProducts();
   renderCategories();
   renderContacts();
@@ -327,11 +331,16 @@ function resetProductForm() {
   renderCategoryOptions();
 }
 
+function categoryGroupName(categoryGroupId) {
+  if (!categoryGroupId) return 'Belum dikelompokkan';
+  return state.data.categoryGroups.find(group => group.id === categoryGroupId)?.name || 'Belum dikelompokkan';
+}
+
 function renderCategories() {
   el('categoryCount').textContent = state.data.categories.length;
   el('categoryList').innerHTML = state.data.categories.length ? state.data.categories.map(category => `
     <div class="master-row contact-row ${category.isActive ? '' : 'inactive'}">
-      <div class="master-main"><strong>${escapeHtml(category.name)}</strong><div class="master-meta">${category.isActive ? 'Aktif' : 'Nonaktif'}</div></div>
+      <div class="master-main"><strong>${escapeHtml(category.name)}</strong><div class="master-meta">${escapeHtml(categoryGroupName(category.categoryGroupId))} · ${category.isActive ? 'Aktif' : 'Nonaktif'}</div></div>
       <div class="master-actions"><button class="mini-btn" data-edit-category="${category.id}" type="button">Edit</button><button class="mini-btn danger" data-delete-category="${category.id}" type="button">Nonaktifkan</button></div>
     </div>`).join('') : '<div class="empty">Belum ada kategori.</div>';
   document.querySelectorAll('[data-edit-category]').forEach(button => button.addEventListener('click', () => editCategory(Number(button.dataset.editCategory))));
@@ -343,6 +352,7 @@ function editCategory(id) {
   if (!category) return;
   el('categoryId').value = category.id;
   el('categoryName').value = category.name;
+  el('categoryGroupSelect').value = category.categoryGroupId || '';
   el('categoryActive').checked = category.isActive;
   el('categoryFormTitle').textContent = 'Edit kategori';
   el('categoryCancelEdit').classList.remove('hidden');
@@ -354,7 +364,11 @@ async function saveCategory(event) {
   try {
     await api(id ? `/api/admin/categories/${id}` : '/api/admin/categories', {
       method: id ? 'PATCH' : 'POST',
-      body: JSON.stringify({ name: el('categoryName').value, isActive: el('categoryActive').checked })
+      body: JSON.stringify({
+        name: el('categoryName').value,
+        isActive: el('categoryActive').checked,
+        categoryGroupId: el('categoryGroupSelect').value ? Number(el('categoryGroupSelect').value) : null
+      })
     });
     await refreshData();
     resetCategoryForm();
@@ -374,9 +388,69 @@ async function deactivateCategory(id) {
 function resetCategoryForm() {
   el('categoryForm').reset();
   el('categoryId').value = '';
+  el('categoryGroupSelect').value = '';
   el('categoryActive').checked = true;
   el('categoryFormTitle').textContent = 'Tambah kategori';
   el('categoryCancelEdit').classList.add('hidden');
+}
+
+function renderCategoryGroupSelect() {
+  const selected = el('categoryGroupSelect').value;
+  const active = state.data.categoryGroups.filter(item => item.isActive);
+  el('categoryGroupSelect').innerHTML = `<option value="">Belum dikelompokkan</option>${active.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+  if (active.some(item => String(item.id) === selected)) el('categoryGroupSelect').value = selected;
+}
+
+function renderCategoryGroups() {
+  el('categoryGroupCount').textContent = state.data.categoryGroups.length;
+  el('categoryGroupList').innerHTML = state.data.categoryGroups.length ? state.data.categoryGroups.map(group => `
+    <div class="master-row contact-row ${group.isActive ? '' : 'inactive'}">
+      <div class="master-main"><strong>${escapeHtml(group.name)}</strong><div class="master-meta">${state.data.categories.filter(category => category.categoryGroupId === group.id).length} sub-kategori · ${group.isActive ? 'Aktif' : 'Nonaktif'}</div></div>
+      <div class="master-actions"><button class="mini-btn" data-edit-category-group="${group.id}" type="button">Edit</button><button class="mini-btn danger" data-delete-category-group="${group.id}" type="button">Nonaktifkan</button></div>
+    </div>`).join('') : '<div class="empty">Belum ada kategori utama. Kategori yang sudah ada tetap jalan tanpa ini.</div>';
+  document.querySelectorAll('[data-edit-category-group]').forEach(button => button.addEventListener('click', () => editCategoryGroup(Number(button.dataset.editCategoryGroup))));
+  document.querySelectorAll('[data-delete-category-group]').forEach(button => button.addEventListener('click', () => deactivateCategoryGroup(Number(button.dataset.deleteCategoryGroup))));
+}
+
+function editCategoryGroup(id) {
+  const group = state.data.categoryGroups.find(item => item.id === id);
+  if (!group) return;
+  el('categoryGroupId').value = group.id;
+  el('categoryGroupName').value = group.name;
+  el('categoryGroupActive').checked = group.isActive;
+  el('categoryGroupFormTitle').textContent = 'Edit kategori utama';
+  el('categoryGroupCancelEdit').classList.remove('hidden');
+}
+
+async function saveCategoryGroup(event) {
+  event.preventDefault();
+  const id = Number(el('categoryGroupId').value || 0);
+  try {
+    await api(id ? `/api/admin/category-groups/${id}` : '/api/admin/category-groups', {
+      method: id ? 'PATCH' : 'POST',
+      body: JSON.stringify({ name: el('categoryGroupName').value, isActive: el('categoryGroupActive').checked })
+    });
+    await refreshData();
+    resetCategoryGroupForm();
+    toast(id ? 'Kategori utama diperbarui' : 'Kategori utama ditambahkan');
+  } catch (error) { toast(error.message); }
+}
+
+async function deactivateCategoryGroup(id) {
+  if (!confirm('Nonaktifkan kategori utama ini? Sub-kategori di dalamnya tetap tersimpan, cuma pengelompokannya tidak tampil lagi.')) return;
+  try {
+    await api(`/api/admin/category-groups/${id}`, { method: 'DELETE' });
+    await refreshData();
+    toast('Kategori utama dinonaktifkan');
+  } catch (error) { toast(error.message); }
+}
+
+function resetCategoryGroupForm() {
+  el('categoryGroupForm').reset();
+  el('categoryGroupId').value = '';
+  el('categoryGroupActive').checked = true;
+  el('categoryGroupFormTitle').textContent = 'Tambah kategori utama';
+  el('categoryGroupCancelEdit').classList.add('hidden');
 }
 
 function renderContacts() {

@@ -2,7 +2,6 @@ const rupiah = n => new Intl.NumberFormat('id-ID', { style: 'currency', currency
 const state = {
   menu: [],
   cart: [],
-  category: 'Semua',
   activeOrder: null,
   cartOpen: false,
   rodaRewards: [],
@@ -14,6 +13,14 @@ const CART_SWIPE_THRESHOLD_PX = 48;
 const CART_EDGE_GESTURE_PX = 36;
 
 const el = id => document.getElementById(id);
+const categoryFilter = window.MAXICategoryFilter.create({
+  groupRowEl: el('categoryGroupRow'),
+  categoryRowEl: el('categoryRow'),
+  groupBtnClass: 'category-btn category-group-btn',
+  categoryBtnClass: 'category-btn',
+  escapeHtml
+});
+categoryFilter.onSelect(() => renderMenu());
 
 async function loadMenu() {
   try {
@@ -100,7 +107,7 @@ function injectRodaPuterStyle() {
 
 async function mountRodaPuterDemo() {
   const host = document.querySelector('#shopView > section');
-  const categoryRow = el('categoryRow');
+  const categoryRow = el('categoryGroupRow') || el('categoryRow');
   if (!host || !categoryRow || el('rodaPuterDemo')) return;
   injectRodaPuterStyle();
   const panel = document.createElement('section');
@@ -168,17 +175,11 @@ async function spinRodaPuterDemo() {
 }
 
 function renderCategories() {
-  const categories = ['Semua', ...new Set(state.menu.map(m => m.category))];
-  el('categoryRow').innerHTML = categories.map(c => `<button class="category-btn ${c === state.category ? 'active' : ''}" data-cat="${c}">${escapeHtml(c)}</button>`).join('');
-  document.querySelectorAll('.category-btn').forEach(btn => btn.onclick = () => {
-    state.category = btn.dataset.cat;
-    renderCategories();
-    renderMenu();
-  });
+  categoryFilter.render(state.menu);
 }
 
 function renderMenu() {
-  const filtered = state.category === 'Semua' ? state.menu : state.menu.filter(m => m.category === state.category);
+  const filtered = categoryFilter.filtered(state.menu);
   el('menuGrid').innerHTML = filtered.map(menu => {
     const cartItem = state.cart.find(item => item.menuId === menu.id);
     const control = cartItem

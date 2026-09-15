@@ -58,11 +58,15 @@ async function loadItemsForOrders(db, storeId, orderIds) {
 export async function listProducts(db, storeId) {
   const result = await db.prepare(`
     SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data, p.image_visual_key,
-           CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS has_recipe_link
+           CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS has_recipe_link,
+           g.name AS category_group_name, COALESCE(g.display_order, 0) AS category_group_order,
+           COALESCE(c.display_order, 0) AS category_order
     FROM products p
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     LEFT JOIN manufacturing_recipes r
       ON r.id = p.linked_recipe_id AND r.store_id = p.store_id AND r.output_product_id = p.id AND r.status = 'ACTIVE'
+    LEFT JOIN categories c ON c.store_id = p.store_id AND c.name = p.category
+    LEFT JOIN category_groups g ON g.id = c.category_group_id
     WHERE p.store_id = ?
       AND p.is_active = 1
       AND COALESCE(t.can_sell, 1) = 1
@@ -73,6 +77,13 @@ export async function listProducts(db, storeId) {
     name: row.name,
     price: costFromScaled(row.price),
     category: row.category,
+    // Kategori Utama (opsional) di atas kategori yang sudah ada -- null
+    // kalau Admin belum mengelompokkan kategori ini (Bos Cyo, 2026-09-15).
+    // Kasir & Customer sama-sama baca field ini dari sumber yang sama
+    // supaya filter dua-tingkatnya tidak perlu dikerjakan dua kali.
+    categoryGroup: row.category_group_name || null,
+    categoryGroupOrder: row.category_group_order,
+    categoryOrder: row.category_order,
     emoji: row.emoji,
     imageData: row.image_data || '',
     imageVisualKey: row.image_visual_key || '',

@@ -1,9 +1,14 @@
 # Handoff — Anjungan Tap Kartu V1 (modul hardware)
 
-Tanggal: 2026-09-15
+Tanggal: 2026-09-15 (diperbarui 2026-09-15 sesi cloud kedua)
 Asal: sesi Hana (Claude Code web/cloud) bersama Bos Cyo
 Status: **belum ada kode, belum ada hardware.** Dokumen ini murni hasil keputusan
 desain + status persiapan, supaya sesi berikutnya tidak mengulang pembahasan.
+
+Pembaruan sesi kedua: desain sisi server sudah dikunci dan dipindahkan ke
+`adr/ADR-043-anjungan-tap-boundary.md` (alasannya) dan
+`contracts/anjungan-tap-kartu-v1.md` (bentuk tabel + endpoint). Belum ada task
+yang dilempar ke agen implementer — ditahan sampai Bos Cyo bilang lanjut.
 
 Dokumen ini sengaja dipisah dari sesi kerja Leker biasa karena eksekusinya
 memang pindah tempat: flashing hardware butuh Claude Code yang jalan **lokal di
@@ -126,6 +131,18 @@ Python 3.12. Jangan diulang-ulang berharap beda hasil.
 
 ## Urutan langkah berikutnya
 
+Langkah 1–6 di bawah ini semuanya **jatah sesi lokal di komputer Windows**, bukan
+sesi cloud. Hasil smoke test `pio run` dilaporkan ke sesi hardware itu, jangan ke
+sesi cloud — sesi cloud tidak bisa berbuat apa-apa dengan hasilnya.
+
+Jatah sesi cloud (sisi server) urutannya terpisah:
+
+- **C1. Kunci desain server.** SELESAI 2026-09-15 → ADR-043 + contract.
+- **C2. Lempar implementasi ke agen tukang.** BELUM — ditahan atas permintaan
+  Bos Cyo. Briefnya tinggal disusun dari contract; jangan disusun dari ingatan.
+- **C3. Setelah tabel jadi:** daftarkan alat pertama (provisioning token) dan
+  daftarkan kartu pertama ke karyawan.
+
 1. Konfirmasi smoke test `pio run` di atas → `SUCCESS`.
 2. Beli hardware sesuai daftar.
 3. Saat barang datang: colok papan, cek Windows mengenalinya (kemungkinan besar
@@ -159,17 +176,31 @@ Python 3.12. Jangan diulang-ulang berharap beda hasil.
    cloud menulis firmware & push, lokal pull → flash → baca serial → perbaiki →
    push balik. **Belum dikonfirmasi Bos Cyo.**
 
-## Skema data yang perlu dibuat (belum ada satu pun)
+## Skema data yang perlu dibuat (dirancang, belum dibuat)
 
-- **Kartu → karyawan**: UID kartu, milik siapa, gerai mana.
+Tiga kebutuhan di bawah ini sekarang sudah punya bentuk konkretnya di
+`contracts/anjungan-tap-kartu-v1.md` — kolom, aturan keras, dan bentuk endpoint.
+Yang belum: tabelnya sendiri belum ada di database, endpoint-nya belum ada.
+
+- **Kartu → karyawan**: UID kartu, milik siapa, gerai mana. → `tap_cards`.
+  Kartu hilang di-revoke, tidak dihapus, supaya tap lama tetap bisa ditelusuri.
 - **Identitas alat**: tiap anjungan punya token sendiri. **Gerai ditentukan
   server dari token alat, JANGAN diterima dari kiriman alat** — ini turunan
   langsung invariant #5 CLAUDE.md (isolasi `store_id` server-side). Tanpa ini
-  siapa pun bisa mengirim absen palsu dari luar.
+  siapa pun bisa mengirim absen palsu dari luar. → `tap_devices`, token disimpan
+  sebagai hash mengikuti pola `hashCredential()`.
 - **Buffer tap offline**: kalau wifi putus, tap disimpan di memori alat lalu
   dikirim susulan. Ini data absen — nyangkut ke gaji orang, tidak boleh hilang.
   Konsekuensi: waktu tap harus ikut dikirim dari alat, bukan dicap waktu tiba di
-  server, karena tap susulan bisa datang jauh belakangan.
+  server, karena tap susulan bisa datang jauh belakangan. → `tap_events` dengan
+  `tapped_at` (jam alat) dan `received_at` (jam server) terpisah, plus
+  `UNIQUE (device_id, client_event_id)` supaya kiriman ulang tidak menggandakan.
+
+Keputusan tambahan yang diambil sesi kedua (alasan lengkap di ADR-043): tap
+disimpan sebagai **fakta**, bukan sebagai kehadiran. Modul anjungan tidak menulis
+`staff_attendance`, tidak menghitung telat, dan tidak memposting jurnal apa pun.
+Modul Presensi yang membaca fakta itu dan menafsirkannya — bentuk yang sama
+dengan ADR-029 (Operasional mengirim fakta, Accounting yang menafsirkan).
 
 ## Invariant repo yang relevan
 
@@ -199,6 +230,10 @@ sama, tapi kerjanya di bagian "Skema data yang perlu dibuat".
 
 ## DOC-IMPACT
 
-**NONE** — belum ada perubahan perilaku sistem. Dokumen ini murni catatan
-keputusan + status persiapan. Saat firmware/endpoint/skema pertama dibuat,
-dokumen ini wajib diperbarui dan kemungkinan digantikan ADR + contract.
+**NONE** — masih belum ada perubahan perilaku sistem: tidak ada tabel baru, tidak
+ada endpoint baru, tidak ada firmware. Yang bertambah 2026-09-15 hanya dokumen
+keputusan: `adr/ADR-043-anjungan-tap-boundary.md` dan
+`contracts/anjungan-tap-kartu-v1.md`.
+
+Saat tabel/endpoint pertama benar-benar dibuat, contract naik dari status DESIGN
+dan dokumen ini wajib diperbarui lagi.

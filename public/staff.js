@@ -20,9 +20,14 @@
   }
   // Satu baris = satu sesi kerja penuh (masuk + pulang), bukan dua baris
   // event terpisah -- lihat migration 0068 dan src/staff-portal.js.
+  function attendancePhotoThumb(row, which) {
+    const fact = which === 'in' ? row.checkIn : row.checkOut;
+    if (!fact) return '';
+    return `<img class="attendance-thumb" src="/api/staff/attendance/${encodeURIComponent(row.id)}/photo?which=${which}" alt="Foto presensi ${which === 'in' ? 'masuk' : 'pulang'}" loading="lazy" />`;
+  }
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Masuk: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Masuk: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }
   function renderKpi() {
@@ -35,8 +40,10 @@
     if (!portal) return;
     el('staffIdentity').textContent = `${portal.staff.employeeName} · ${portal.staff.store.code}`;
     const checkedIn = portal.attendanceStatus === 'in';
-    el('attendanceInBtn').disabled = checkedIn;
-    el('attendanceOutBtn').disabled = !checkedIn;
+    const toggleBtn = el('attendanceToggleBtn');
+    toggleBtn.textContent = checkedIn ? '📸 Presensi Pulang' : '📸 Presensi Masuk';
+    toggleBtn.className = checkedIn ? 'secondary-btn' : 'primary-btn';
+    toggleBtn.dataset.attendanceType = checkedIn ? 'out' : 'in';
     renderAttendance();
     renderKpi();
   }
@@ -102,9 +109,8 @@
     });
   }
   function bindTabs() { document.querySelectorAll('[data-staff-tab]').forEach(button => { button.addEventListener('click', () => { const tab = button.dataset.staffTab; document.querySelectorAll('[data-staff-tab]').forEach(item => item.classList.toggle('active', item === button)); document.querySelectorAll('.staff-panel').forEach(panel => panel.classList.toggle('active', panel.id === `staffPanel${tab[0].toUpperCase()}${tab.slice(1)}`)); }); }); }
-  el('attendanceInBtn').addEventListener('click', () => startAttendance('in'));
-  el('attendanceOutBtn').addEventListener('click', () => startAttendance('out'));
-  el('backCashierBtn').addEventListener('click', () => location.assign('/cashier'));
+  el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
+  el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
   el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} sessionStorage.removeItem('lekerCashierToken'); sessionStorage.removeItem('lekerStaffSessionMeta'); location.replace('/?login=staff'); });
   bindTabs(); loadPortal(); loadDeposits();
 })();

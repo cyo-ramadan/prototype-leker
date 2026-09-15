@@ -166,6 +166,49 @@ test('staff portal reports attendanceStatus and location alongside the attendanc
   }
 });
 
+function photoRequest(token, attendanceId, which) {
+  return new Request(`https://example.test/api/staff/attendance/${attendanceId}/photo?which=${which}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}
+
+test('presensi photo endpoint serves the exact stored blob for in/out, scoped strictly to the requesting cashier', async () => {
+  const db = migratedDatabase();
+  try {
+    const owner = await seedCashier(db, 'store_001', 'photoowner', 'Kasir Photo Owner');
+    const intruder = await seedCashier(db, 'store_001', 'photointruder', 'Kasir Photo Intruder');
+    const env = { DB: new D1Database(db) };
+
+    const checkIn = await (await handleStaffPortalApi(attendanceRequest({ token: owner.token, type: 'in' }), env, '/api/staff/attendance')).json();
+    const attendanceId = checkIn.attendance.id;
+    const checkOutForm = new FormData();
+    checkOutForm.set('type', 'out');
+    checkOutForm.set('photo', new Blob(['out-jpeg-bytes'], { type: 'image/jpeg' }), 'out.jpg');
+    await handleStaffPortalApi(new Request('https://example.test/api/staff/attendance', {
+      method: 'POST', headers: { Authorization: `Bearer ${owner.token}` }, body: checkOutForm
+    }), env, '/api/staff/attendance');
+
+    const inPhoto = await handleStaffPortalApi(photoRequest(owner.token, attendanceId, 'in'), env, `/api/staff/attendance/${attendanceId}/photo`);
+    assert.equal(inPhoto.status, 200);
+    assert.equal(inPhoto.headers.get('Content-Type'), 'image/jpeg');
+    assert.equal(Buffer.from(await inPhoto.arrayBuffer()).toString(), 'fake-jpeg-bytes', 'check-in photo bytes must match what attendanceRequest() uploaded, not the checkout photo');
+
+    const outPhoto = await handleStaffPortalApi(photoRequest(owner.token, attendanceId, 'out'), env, `/api/staff/attendance/${attendanceId}/photo`);
+    assert.equal(outPhoto.status, 200);
+    assert.equal(Buffer.from(await outPhoto.arrayBuffer()).toString(), 'out-jpeg-bytes');
+
+    // Security boundary: another cashier guessing/knowing the attendance id
+    // must never be able to pull someone else's presensi photo.
+    const stolen = await handleStaffPortalApi(photoRequest(intruder.token, attendanceId, 'in'), env, `/api/staff/attendance/${attendanceId}/photo`);
+    assert.equal(stolen.status, 404, 'a different cashier must not be able to fetch another staff member\'s attendance photo by id');
+
+    const missing = await handleStaffPortalApi(photoRequest(owner.token, 'attendance_does_not_exist', 'in'), env, '/api/staff/attendance/attendance_does_not_exist/photo');
+    assert.equal(missing.status, 404);
+  } finally {
+    db.close();
+  }
+});
+
 test('migration adds nullable GPS columns to staff_attendance', () => {
   const migration = readFileSync(new URL('../migrations/0067_staff_attendance_geolocation.sql', import.meta.url), 'utf8');
   assert.match(migration, /ALTER TABLE staff_attendance ADD COLUMN latitude REAL/);
@@ -221,14 +264,22 @@ test('camera modal captures geolocation and burns a timestamp+location watermark
   assert.match(cameraSource, /success\?\.\(blob, \{ latitude: geo\?\.latitude/);
 });
 
-test('staff portal UI passes watermark:true, forwards GPS fields, disables the wrong presensi button, renders one row per shift, and links out to the Workboard', () => {
+test('staff portal UI passes watermark:true, forwards GPS fields, toggles one presensi button between Masuk/Pulang, renders one row per shift with photo thumbnails, and links out to the Workboard', () => {
   const staffUi = readFileSync(new URL('../public/staff.js', import.meta.url), 'utf8');
   const staffHtml = readFileSync(new URL('../public/staff.html', import.meta.url), 'utf8');
   const gateUi = readFileSync(new URL('../public/cashier-presensi-gate.js', import.meta.url), 'utf8');
   assert.match(staffUi, /watermark: true/);
   assert.match(staffUi, /form\.set\('latitude', String\(geo\.latitude\)\)/);
-  assert.match(staffUi, /el\('attendanceInBtn'\)\.disabled = checkedIn/);
-  assert.match(staffUi, /el\('attendanceOutBtn'\)\.disabled = !checkedIn/);
+  // Satu tombol toggle, bukan dua tombol yang saling disable -- lihat
+  // renderPortal(): label & data-attendance-type berubah sesuai status.
+  assert.match(staffUi, /toggleBtn\.textContent = checkedIn \? '📸 Presensi Pulang' : '📸 Presensi Masuk'/);
+  assert.match(staffUi, /toggleBtn\.dataset\.attendanceType = checkedIn \? 'out' : 'in'/);
+  assert.doesNotMatch(staffHtml, /attendanceInBtn|attendanceOutBtn/);
+  assert.match(staffHtml, /id="attendanceToggleBtn"/);
+  // Thumbnail foto presensi di riwayat -- foto sudah ada watermark jam+GPS
+  // terbakar sejak diambil, endpoint ini cuma menyalurkan blob yang sudah ada.
+  assert.match(staffUi, /\/api\/staff\/attendance\/\$\{encodeURIComponent\(row\.id\)\}\/photo\?which=\$\{which\}/);
+  assert.match(staffUi, /class="attendance-thumb"/);
   assert.match(staffUi, /row\.checkIn/);
   assert.match(staffUi, /row\.checkOut/);
   assert.match(staffUi, /facts\.attendance\?\.closed/);

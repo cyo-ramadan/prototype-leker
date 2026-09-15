@@ -64,6 +64,22 @@
   writeLease();
   sessionStorage.removeItem('lekerStaffHandoffId');
 
+  // 2026-09-15, bug Bos Cyo: kasir Laili klik "Portal Staf" dari Kasir dan
+  // langsung ter-logout. Root cause: navigasi Kasir<->Portal Staf itu
+  // in-app-navigation biasa (bukan handoff dari halaman login), dan di HP
+  // beforeunload/bfcache tidak selalu sempat membersihkan lease halaman lama
+  // sebelum halaman baru mengecek -- lease lama masih kelihatan "aktif" dalam
+  // window ttlMs, jadi halaman baru mengiranya tab lain dan blok dirinya
+  // sendiri. Bukan disebabkan sesi kasir lain (Zahra) -- session per kasir
+  // sudah terisolasi di server, dikonfirmasi dari cashier_sessions produksi.
+  // Fix: expose fungsi yang link/tombol navigasi Kasir<->Portal Staf panggil
+  // SEBELUM pindah halaman, supaya halaman tujuan mengenali page ini sebagai
+  // handoff sah dari diri sendiri, sama seperti pola login (lihat
+  // auth-entry-split.js) -- bukan dianggap tab kompetitor.
+  window.lekerPrepareStaffHandoff = () => {
+    sessionStorage.setItem('lekerStaffHandoffId', pageId);
+  };
+
   const heartbeat = setInterval(() => {
     if (blocked) return;
     const lease = readLease();

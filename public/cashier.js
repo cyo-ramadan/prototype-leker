@@ -70,6 +70,7 @@ async function init() {
   el('expenseBtn').addEventListener('click', () => moneyMovementDialog('expense'));
   el('otherIncomeBtn').addEventListener('click', () => moneyMovementDialog('income'));
   el('processSaleBtn').addEventListener('click', processSale);
+  el('portalStafLink')?.addEventListener('click', () => window.lekerPrepareStaffHandoff?.());
   el('cashierDialogCancel').addEventListener('click', closeDialog);
   el('cashierDialogClose').addEventListener('click', closeDialog);
   el('cashierDialogForm').addEventListener('submit', submitDialog);

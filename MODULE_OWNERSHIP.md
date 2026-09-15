@@ -23,6 +23,7 @@ write access. An agent may read anything.
 | **game** | *unassigned* | `src/game.js`, `game_*` tables | ADR-042, `contracts/game-module-v1.md` |
 | **platform** | `hana` | `src/index.js`, `src/http.js`, `src/db*.js`, `src/platform-module-registry.js`, `platform_modules`, `tenant_module_installations` | ADR-040, `contracts/module-contract-v1.md`, routing |
 | **agent-tooling** | `hana` | `agent-bridge/`, `agent-bus/` | `contracts/agent-task-board-v1.md` |
+| **anjungan** | `hana` | `src/anjungan-tap.js`, `tap_*` tables | ADR-043, `contracts/anjungan-tap-kartu-v1.md` |
 
 `game` sengaja dicatat **unassigned** pada foundation 2026-09-09 karena Bos Cyo belum
 menetapkan contract owner final. Implementasi boleh berada di status IN_PROGRESS, tetapi Game

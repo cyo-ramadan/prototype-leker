@@ -34,12 +34,12 @@ Ini bentuk yang sama dengan ADR-029 (Operasional mengirim business fact,
 Accounting yang menafsirkan). Alasannya pun sama: kalau pencatat fakta ikut
 memutuskan arti, arti itu jadi tidak bisa dikoreksi tanpa merusak faktanya.
 
-### 3. Gerai ditentukan server dari token alat
+### 3. Pemilik alat ditentukan server dari token alat
 
-`store_id` dan `entity_id` diambil dari baris alat yang cocok dengan token,
-**tidak pernah** dari kiriman alat. Turunan langsung invariant #5 `CLAUDE.md`.
-Tanpa ini siapa pun yang tahu bentuk request bisa mengirim absen palsu atas nama
-gerai mana pun.
+Siapa pemilik sebuah tap — tenant-nya, dan gerainya kalau memang ada — diambil
+dari baris alat yang cocok dengan token, **tidak pernah** dari kiriman alat.
+Turunan langsung invariant #5 `CLAUDE.md`. Tanpa ini siapa pun yang tahu bentuk
+request bisa mengirim absen palsu atas nama gerai atau sekolah mana pun.
 
 ### 4. Waktu tap milik alat, waktu terima milik server
 
@@ -59,6 +59,50 @@ alat berarti tiap perubahan harus bongkar alat di tiap gerai.
 ### 6. Alat mendorong, server tidak ditanyai berkala
 
 Alat mengirim saat ada tap. Selaras invariant #6 — jangan diubah jadi polling.
+
+### 7. Pemilik alat adalah Tenant, bukan Gerai (revisi 2026-09-15)
+
+Rancangan pertama mengikat tiap alat ke `stores(id)` dengan `NOT NULL`. Itu
+salah arah dan ketahuan begitu Bos Cyo menyebut calon pemakainya: modul ini mau
+dijual juga ke pelanggan yang **tidak memakai POS Leker sama sekali** — misalnya
+sekolah yang sudah punya program absensinya sendiri dan cuma mau memakai sisi
+kartunya.
+
+Pelanggan seperti itu tidak punya baris di `stores`. Mengikat alat ke gerai
+membuat mereka mustahil diwakili tanpa memalsukan gerai bohongan — persis utang
+migrasi yang diperingatkan invariant #5 `CLAUDE.md`.
+
+Maka:
+
+- alat dimiliki **`tenants(id)`** (wajib) — fondasinya sudah ada sejak ADR-030;
+- `store_id` jadi **opsional**, diisi hanya kalau tenant itu kebetulan juga
+  memakai POS Leker;
+- modul didaftarkan sebagai `ANJUNGAN_TAP` di `platform_modules` dan dipasang
+  per tenant lewat `tenant_module_installations`, mengikuti pola ADR-040/ADR-042.
+  Artinya modul ini bisa dijual berdiri sendiri, tanpa Akuntansi, tanpa POS.
+
+### 8. Pemegang kartu tidak harus karyawan Leker (revisi 2026-09-15)
+
+Konsekuensi yang sama mengenai kartu. Rancangan pertama mengikat pemegang kartu
+ke `cashiers(id)`; murid sekolah bukan kasir. Pemegang kartu disimpan sebagai
+pasangan **jenis + acuan**, dan acuan itu hanya dimengerti oleh sistem yang
+menafsirkan. Untuk pemakaian internal Leker acuannya kasir; untuk sistem luar
+acuannya nomor induk siswa atau apa pun yang dipakai sistem itu — dan tidak ada
+foreign key ke sana, karena datanya memang tidak tinggal di sini.
+
+### 9. Penerima fakta boleh sistem luar — tapi belum dibangun sekarang
+
+Karena arti tap memang sudah bukan milik alat (keputusan 1 dan 2), menyerahkan
+fakta itu ke sistem milik pelanggan bukan perubahan arsitektur, cuma penerima
+yang berbeda. Tiap alat punya penanda penerima: `INTERNAL` (ditafsirkan modul
+Presensi Leker) atau `WEBHOOK` (didorong ke sistem pelanggan).
+
+**`WEBHOOK` sengaja belum dibangun.** Pengiriman keluar yang benar butuh
+penandatanganan, percobaan ulang, dan penyimpanan rahasia pelanggan — tiga hal
+yang belum punya preseden di repo ini dan tidak boleh dikarang buru-buru.
+Yang dikerjakan sekarang hanya memastikan pilihan itu **tidak tertutup**: satu
+kolom penerima, dan tidak ada satu pun foreign key dari fakta tap ke tabel
+internal Leker.
 
 ## Konsekuensi
 

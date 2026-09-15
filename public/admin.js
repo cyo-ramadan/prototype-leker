@@ -30,6 +30,37 @@ function toast(message) {
   toast.timer = setTimeout(() => node.classList.remove('show'), 1800);
 }
 
+// 2026-09-15: fetch() ke endpoint foto ikut dapat auth (X-Admin-Pin dari api()
+// di bawah, atau Bearer token yang disuntik branch-owner-auth.js buat sesi
+// multi-store) -- tapi <img src="..."> polos TIDAK PERNAH mengirim header
+// custom apa pun (sama persis bug yang baru dibenerin di thumbnail foto
+// presensi). Jadi src wajib diisi lewat fetch()+blob, bukan URL endpoint
+// langsung.
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Gagal membaca foto.'));
+    reader.readAsDataURL(blob);
+  });
+}
+let productThumbUrls = [];
+async function loadProductThumbs(products) {
+  productThumbUrls.forEach(url => URL.revokeObjectURL(url));
+  productThumbUrls = [];
+  await Promise.all(products.filter(product => product.hasImage).map(async product => {
+    const img = document.querySelector(`[data-product-thumb="${product.id}"]`);
+    if (!img) return;
+    try {
+      const response = await fetch(`/api/admin/products/${product.id}/image`, { headers: state.pin ? { 'X-Admin-Pin': state.pin } : {} });
+      if (!response.ok) return;
+      const url = URL.createObjectURL(await response.blob());
+      productThumbUrls.push(url);
+      img.src = url;
+    } catch {}
+  }));
+}
+
 async function imageFileToDataUrl(file, maxSide, quality = .78) {
   if (!file) return '';
   if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar.');
@@ -198,7 +229,7 @@ function renderProducts() {
   const products = filteredProducts();
   el('productList').innerHTML = products.length ? products.map(product => `
     <div class="master-row ${product.isActive ? '' : 'inactive'}">
-      <img class="master-thumb" src="${escapeHtml(product.imageData || '/default-product.svg')}" alt="${escapeHtml(product.name)}" />
+      <img class="master-thumb" data-product-thumb="${product.id}" src="/default-product.svg" alt="${escapeHtml(product.name)}" loading="lazy" />
       <div class="master-main">
         <strong>${escapeHtml(product.name)}</strong>
         <div class="master-meta">${escapeHtml(product.category)} · ${product.isActive ? 'Aktif' : 'Nonaktif'}</div>
@@ -211,9 +242,10 @@ function renderProducts() {
     </div>`).join('') : `<div class="empty">${state.productSearchTerm.trim() ? 'Tidak ada barang yang cocok dengan pencarian.' : 'Belum ada barang.'}</div>`;
   document.querySelectorAll('[data-edit-product]').forEach(button => button.addEventListener('click', () => editProduct(Number(button.dataset.editProduct))));
   document.querySelectorAll('[data-delete-product]').forEach(button => button.addEventListener('click', () => deactivateProduct(Number(button.dataset.deleteProduct))));
+  loadProductThumbs(products);
 }
 
-function editProduct(id) {
+async function editProduct(id) {
   const product = state.data.products.find(item => item.id === id);
   if (!product) return;
   el('productId').value = product.id;
@@ -225,12 +257,25 @@ function editProduct(id) {
   }
   el('productCategory').value = product.category;
   el('productActive').checked = product.isActive;
-  state.productImageData = product.imageData || '';
-  el('productImagePreview').src = state.productImageData || '/default-product.svg';
   el('productFormTitle').textContent = 'Edit barang';
   el('productCancelEdit').classList.remove('hidden');
   switchTab('products');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Foto lama TIDAK ikut di listing lagi (itu yang bikin bootstrap berat),
+  // jadi diambil di sini pas edit dibuka -- kalau ini dilewatkan,
+  // state.productImageData tetap kosong dan menyimpan tanpa ganti foto akan
+  // MENGHAPUS foto barang yang sudah ada.
+  state.productImageData = '';
+  el('productImagePreview').src = '/default-product.svg';
+  if (product.hasImage) {
+    try {
+      const response = await fetch(`/api/admin/products/${product.id}/image`, { headers: state.pin ? { 'X-Admin-Pin': state.pin } : {} });
+      if (response.ok) {
+        state.productImageData = await blobToDataUrl(await response.blob());
+        el('productImagePreview').src = state.productImageData;
+      }
+    } catch {}
+  }
 }
 
 async function previewProductImage() {

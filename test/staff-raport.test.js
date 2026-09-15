@@ -30,3 +30,16 @@ test('staff and branch admin both render Raport surfaces', () => {
   assert.match(adminUi, /Raport Kasir/);
   assert.match(adminHtml, /admin-cashier-raport\.js/);
 });
+
+// 2026-09-15, bug ketemu Bos Cyo (tanya "dimana lihat riwayat presensi"):
+// admin-cashier-raport.js membaca f.attendance?.checkIn / ?.checkOut,
+// padahal getCashierRaportFacts() di src/staff-raport.js cuma pernah
+// mengembalikan attendance:{total,closed,open} -- checkIn/checkOut tidak
+// pernah ada di objek itu, jadi kartu Presensi di Admin selalu menampilkan
+// "0 masuk · 0 keluar" berapa pun banyaknya presensi sungguhan.
+test('admin cashier raport card reads the real attendance field shape (total/closed/open), not nonexistent checkIn/checkOut', () => {
+  assert.doesNotMatch(raport, /attendance:\s*\{[^}]*checkIn/);
+  assert.doesNotMatch(adminUi, /attendance\?\.checkIn|attendance\?\.checkOut/);
+  assert.match(adminUi, /f\.attendance\?\.closed/);
+  assert.match(adminUi, /f\.attendance\?\.open/);
+});

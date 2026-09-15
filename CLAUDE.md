@@ -25,6 +25,13 @@ file, mekanisme internal, atau istilah API/tooling — kecuali dia nanya lebih d
   Zee tidak bisa menulis.
 - **Karen** — punya GitHub write access. Jalur default untuk implementasi.
 - **Claude Code** (sesi ini) — akses filesystem + GitHub read/write.
+- **Bima** — sesi Claude Code yang jalan **lokal di laptop Windows Bos Cyo**,
+  khusus kerjaan hardware Anjungan Tap Kartu. Dia satu-satunya yang kabelnya
+  nyolok ke alat, jadi dia yang flash firmware dan baca serial monitor. Sesi
+  cloud tidak akan pernah bisa. **Kalau sesi ini jalan di laptop Bos Cyo dan
+  kerjaannya menyentuh alat, sebut diri "Bima", bukan "Hana"** — supaya Bos Cyo
+  bisa membedakan mana yang ngomong dari cloud dan mana yang ngomong dari
+  depan alatnya.
 
 **"Eksekusi" dari Bos Cyo defaultnya berarti: analisis, pecah jadi task, lempar
 ke Karen/agen tukang** — bukan Hana turun ngoding sendiri. Kecualinya: kalau
@@ -96,6 +103,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Status fitur yang belum kelar | `KNOWN_ISSUES.md` |
 | Alasan sebuah keputusan arsitektur | `adr/` (29 ADR) |
 | Arah Bos Cyo soal POS berdiri sendiri dari Setting Akuntansi/Accounting/Warehouse | `POS_MODULE_INDEPENDENCE.md` |
+| **Anjungan Tap Kartu** — alat tempel kartu. Modul ini **bukan cuma buat Leker**: dijual juga ke pelanggan yang tidak memakai POS Leker sama sekali (mis. sekolah dengan program absensi sendiri), jadi jangan pernah mengikatnya ke `stores`/`cashiers` | `adr/ADR-043`, `contracts/anjungan-tap-kartu-v1.md`, `HANDOFF-anjungan-tap-kartu-v1.md` |
 | Kontrak antar-modul | `contracts/` |
 | Prosedur operasional | `RUNBOOK.md` |
 | Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |

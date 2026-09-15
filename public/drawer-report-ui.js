@@ -57,6 +57,14 @@
     const cashInRows = (sections.cashIn || []).length
       ? sections.cashIn.map(row => `<tr><td>${dateTime(row.createdAt)}</td><td>${rupiah(row.amount)}</td><td>${esc(row.description)}</td><td>${esc(row.cashAccount || '-')}</td><td>${esc(row.incomeAccount || '-')}</td></tr>`).join('')
       : emptyRow(5);
+    // Bos Cyo, 2026-09-15: Arus Kas (cash_ledger_entries, direction IN/OUT)
+    // sudah lama ikut dihitung server (masuk ke Ekspektasi Di Laci), tapi
+    // baris-barisnya tidak pernah dirender di sini sama sekali -- laporan
+    // menampilkan hasil akhirnya tanpa menunjukkan input yang membentuknya.
+    // Murni bolong di tampilan, bukan di hitungan.
+    const cashFlowLabel = row => row.description || row.note || 'Arus Kas';
+    const cashFlowIn = moneyList((sections.operationalCash || []).filter(row => row.direction === 'IN').map(row => [cashFlowLabel(row), row.amount]));
+    const cashFlowOut = moneyList((sections.operationalCash || []).filter(row => row.direction === 'OUT').map(row => [cashFlowLabel(row), row.amount]));
 
     return `<div class="drawer-report">
       <div class="drawer-report-header">
@@ -87,7 +95,9 @@
         ['Modal', drawer.openingAmount],
         ['Belanja Bahan Tunai (Minus)', totals.cashPurchases],
         ['Operasional Kas (Minus)', totals.cashExpenses],
-        ['Kas Masuk (Plus)', totals.cashIn],
+        ['Pendapatan Lain (Plus)', totals.cashIn],
+        ['Arus Kas Masuk (Plus)', totals.operationalCashIn],
+        ['Arus Kas Keluar (Minus)', totals.operationalCashOut],
         ['Ekspektasi Di Laci', totals.expectedCash],
         ['Saldo Pulang', drawer.closingAmount],
         ['Selisih Kas', totals.cashDifference]
@@ -97,7 +107,9 @@
       ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems))}
       ${section('3B. BELANJA BAHAN BAYAR NON TUNAI', purchaseTable(sections.nonCashPurchases || [], totals.nonCashPurchases))}
       ${section('PENYESUAIAN STOK', table(['PRODUK', 'Stok Tercatat', 'Stok Riil', 'Selisih'], adjustmentRows))}
-      ${section('KAS MASUK', table(['Tanggal', 'Jumlah', 'Keterangan', 'Akun Kas', 'Akun Pendapatan'], cashInRows))}
+      ${section('PENDAPATAN LAIN', table(['Tanggal', 'Jumlah', 'Keterangan', 'Akun Kas', 'Akun Pendapatan'], cashInRows))}
+      ${section('ARUS KAS MASUK', `${cashFlowIn}<div class="drawer-report-total">Total <b>${rupiah(totals.operationalCashIn)}</b></div>`)}
+      ${section('ARUS KAS KELUAR', `${cashFlowOut}<div class="drawer-report-total">Total <b>${rupiah(totals.operationalCashOut)}</b></div>`)}
     </div>`;
   }
 

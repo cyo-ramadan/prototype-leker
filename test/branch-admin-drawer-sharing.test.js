@@ -63,8 +63,30 @@ test('drawer detail renderer exposes requested operational sections and responsi
     '1B. PENJUALAN BAYAR NON TUNAI',
     '3B. BELANJA BAHAN BAYAR NON TUNAI',
     'PENYESUAIAN STOK',
-    'KAS MASUK'
+    'PENDAPATAN LAIN',
+    'ARUS KAS MASUK',
+    'ARUS KAS KELUAR'
   ]) assert.match(renderer, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+// 2026-09-15, bug ketemu Bos Cyo: server sudah lama menghitung Arus Kas
+// (cash_ledger_entries, direction IN/OUT -- lihat operationalCashInTotal/
+// operationalCashOutTotal di src/drawer-report.js) masuk ke Ekspektasi Di
+// Laci, tapi baris-barisnya tidak pernah dirender di Detail Laci sama
+// sekali. Pendapatan Lain juga ada datanya tapi judul barisnya keliru
+// tertulis "KAS MASUK", ketuker sama istilah Arus Kas Masuk. Test di atas
+// cuma membuktikan judulnya ada; test ini membuktikan renderer sungguhan
+// membaca sections.operationalCash (dipisah per direction) dan
+// totals.operationalCashIn/operationalCashOut -- bukan cuma judul kosong.
+test('drawer detail renderer actually binds operationalCash rows (split by direction) and their totals, not just section titles', async () => {
+  const renderer = await read('public/drawer-report-ui.js');
+  assert.match(renderer, /sections\.operationalCash \|\| \[\]\)\.filter\(row => row\.direction === 'IN'\)/);
+  assert.match(renderer, /sections\.operationalCash \|\| \[\]\)\.filter\(row => row\.direction === 'OUT'\)/);
+  assert.match(renderer, /totals\.operationalCashIn/);
+  assert.match(renderer, /totals\.operationalCashOut/);
+  assert.match(renderer, /Pendapatan Lain \(Plus\)/);
+  assert.match(renderer, /Arus Kas Masuk \(Plus\)/);
+  assert.match(renderer, /Arus Kas Keluar \(Minus\)/);
 });
 
 test('owner controls customer sharing groups without merging other branch data', async () => {

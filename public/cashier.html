@@ -75,12 +75,14 @@
     <section class="cashier-pos-layout">
       <div class="cashier-menu-panel">
         <div class="cashier-panel-head"><div><div class="muted">Walk-in / input kasir</div><h2>Pilih Menu</h2></div><span id="cashierMenuCount" class="badge">0</span></div>
+        <div class="cashier-menu-search"><label class="sr-only" for="cashierMenuSearch">Cari nama barang</label><input id="cashierMenuSearch" class="text-input" type="search" autocomplete="off" placeholder="Cari nama barang..." /></div>
         <div id="cashierCategoryRow" class="cashier-category-row"></div>
         <div id="cashierMenuGrid" class="cashier-menu-grid"></div>
       </div>
 
-      <aside class="cashier-draft-panel">
-        <div class="cashier-panel-head"><div><div class="muted">Belum tersimpan</div><h2>Draft Menu</h2></div><span id="draftCount" class="badge">0</span></div>
+      <button id="cashierMobileCartBackdrop" class="cashier-mobile-cart-backdrop" type="button" aria-label="Tutup draft menu" hidden></button>
+      <aside id="cashierDraftPanel" class="cashier-draft-panel" aria-label="Draft menu kasir">
+        <div class="cashier-panel-head"><div><div class="muted">Belum tersimpan</div><h2>Draft Menu</h2></div><div class="cashier-draft-head-actions"><span id="draftCount" class="badge">0</span><button id="cashierMobileCartClose" class="cashier-mobile-cart-close" type="button" aria-label="Tutup draft menu">×</button></div></div>
         <div id="cashierDraftList" class="cashier-draft-list"></div>
         <div class="field"><label>Nama customer <span class="muted">optional</span></label><input id="saleCustomerName" class="text-input" maxlength="100" placeholder="Walk-in" /></div>
         <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="saleNote" rows="2" maxlength="500"></textarea></div>
@@ -88,6 +90,13 @@
         <button id="processSaleBtn" class="primary-btn" type="button" disabled>PROSES PENJUALAN</button>
         <div id="cashierWriteLockNote" class="cashier-lock-note">Buka laci untuk mengaktifkan write mode.</div>
       </aside>
+
+      <div id="cashierMobileCartBar" class="cashier-mobile-cart-bar">
+        <button id="cashierMobileCartToggle" class="cashier-mobile-cart-toggle" type="button" aria-controls="cashierDraftPanel" aria-expanded="false">
+          <span><b id="mobileDraftCount">0 item</b><small id="mobileDraftTotal">Rp0</small></span><span>Lihat draft ↑</span>
+        </button>
+        <button id="mobileProcessSaleBtn" class="cashier-mobile-process-btn" type="button" disabled>PROSES</button>
+      </div>
     </section>
 
     <section class="cashier-order-section">

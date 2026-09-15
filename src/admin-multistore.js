@@ -60,17 +60,33 @@ const mapProduct = row => ({
   price: costFromScaled(row.price),
   category: row.category,
   emoji: row.emoji,
-  imageData: row.image_data,
+  hasImage: Boolean(row.has_image),
   displayOrder: row.display_order,
   isActive: Boolean(row.is_active)
 });
+
+// 2026-09-15, Bos Cyo: Admin Dermo "berat banget, malah ga bisa masuk".
+// Dermo punya 118 barang berfoto, ~3.1MB base64 digabung -- bootstrap lama
+// mengirim semuanya sekaligus dalam satu respons JSON tiap kali dashboard
+// dibuka, jadi loginnya sendiri nunggu 3.1MB itu selesai. Diganti: listing
+// cuma bawa flag hasImage, fotonya sendiri diambil satu-satu lewat endpoint
+// terpisah (lihat productImageMatch di bawah) begitu barisnya dirender.
+function decodeProductImage(dataUrl) {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(String(dataUrl || ''));
+  if (!match) return null;
+  try {
+    return { contentType: match[1], bytes: Uint8Array.from(atob(match[2]), char => char.charCodeAt(0)) };
+  } catch {
+    return null;
+  }
+}
 const mapCategory = row => ({ id: row.id, name: row.name, displayOrder: row.display_order, isActive: Boolean(row.is_active) });
 const mapContact = row => ({ id: row.id, name: row.name, phone: row.phone, email: row.email, notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at });
 
 async function adminBootstrap(db, store) {
   const [stores, products, categories, contacts] = await Promise.all([
     listStores(db, { includeInactive: true }),
-    db.prepare(`SELECT id, name, purchase_price, price, category, emoji, image_data, display_order, is_active FROM products WHERE store_id = ? ORDER BY display_order, id`).bind(store.id).all(),
+    db.prepare(`SELECT id, name, purchase_price, price, category, emoji, display_order, is_active, (image_data IS NOT NULL AND image_data != '') AS has_image FROM products WHERE store_id = ? ORDER BY display_order, id`).bind(store.id).all(),
     db.prepare(`SELECT id, name, display_order, is_active FROM categories WHERE store_id = ? ORDER BY display_order, id`).bind(store.id).all(),
     db.prepare(`SELECT id, name, phone, email, notes, created_at, updated_at FROM contacts WHERE store_id = ? ORDER BY name COLLATE NOCASE`).bind(store.id).all()
   ]);
@@ -177,6 +193,14 @@ export async function handleAdminApi(request, env, pathname) {
     const id = Number(next?.next_id ?? 1);
     await db.prepare(`INSERT INTO products (id, store_id, name, purchase_price, price, category, emoji, image_data, display_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`).bind(id, store.id, name, purchasePrice, price, category, emoji, productImage, Number(order?.next_order ?? 1)).run();
     return json({ ok: true, id }, 201);
+  }
+
+  const productImageMatch = pathname.match(/^\/api\/admin\/products\/(\d+)\/image$/);
+  if (productImageMatch && request.method === 'GET') {
+    const row = await db.prepare('SELECT image_data FROM products WHERE id = ? AND store_id = ?').bind(Number(productImageMatch[1]), store.id).first();
+    const decoded = decodeProductImage(row?.image_data);
+    if (!decoded) return json({ error: 'Foto barang tidak ditemukan.' }, 404);
+    return new Response(decoded.bytes, { headers: { 'Content-Type': decoded.contentType, 'Cache-Control': 'private, max-age=86400' } });
   }
 
   const productMatch = pathname.match(/^\/api\/admin\/products\/(\d+)$/);

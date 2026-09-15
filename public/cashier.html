@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/drawer-report.css?v=20260914-no-bold-line-amount-v1" />
   <link rel="stylesheet" href="/cashier-master-panels.css?v=20260914-fix-thumbless-grid-v1" />
   <script src="/staff-entry-guard.js"></script>
-  <script src="/staff-tab-lock.js"></script>
+  <script src="/staff-tab-lock.js?v=20260915-staff-handoff-v1"></script>
   <script src="/staff-auth-fetch.js"></script>
 </head>
 <body>
@@ -21,7 +21,7 @@
     <div class="brand"><div class="brand-mark">K</div><div>MAXI LEKER<small id="cashierBrandSub">Cashier Login</small></div></div>
     <div id="cashierTopActions" class="cashier-user-chip hidden">
       <span id="cashierIdentity">Kasir</span>
-      <a class="secondary-btn" href="/staff" style="text-decoration:none;color:inherit">Portal Staf</a>
+      <a id="portalStafLink" class="secondary-btn" href="/staff" style="text-decoration:none;color:inherit">Portal Staf</a>
       <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
     </div>
   </header>
@@ -122,7 +122,7 @@
 
 <script src="/drawer-report-ui.js?v=20260914-no-bold-line-amount-v1"></script>
 <script src="/pimasatu-ui.js?v=1.7.0-add-button-primary-color"></script>
-<script src="/cashier.js?v=20260913-toast-above-dialog-v1"></script>
+<script src="/cashier.js?v=20260915-portal-staf-handoff-v1"></script>
 <script src="/cashier-pimasatu-adapters.js?v=1"></script>
 <script src="/camera-snapshot-modal.js"></script>
 <script src="/cashier-live-photo.js"></script>

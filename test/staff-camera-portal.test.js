@@ -41,7 +41,10 @@ test('staff attendance is bound to authenticated user and independent from drawe
 
 test('portal exposes attendance, KPI, deposits and payroll sections', () => {
   assert.match(staffHtml, /Presensi Masuk/);
-  assert.match(staffHtml, /Presensi Keluar/);
+  // Satu tombol toggle (id="attendanceToggleBtn"), label "Presensi Pulang"
+  // muncul dinamis dari staff.js saat sudah presensi masuk -- bukan literal
+  // statis di HTML lagi.
+  assert.match(staffUi, /Presensi Pulang/);
   assert.match(staffHtml, /KPI/);
   assert.match(staffHtml, /Riwayat Setoran/);
   assert.match(staffHtml, /Riwayat Gaji/);
@@ -60,5 +63,13 @@ test('migration stores photos without adding blobs to attendance list payloads',
   assert.match(migration, /closing_photo BLOB/);
   assert.match(migration, /photo_blob BLOB NOT NULL/);
   assert.match(staffApi, /SELECT id, user_id, store_id, attendance_type, photo_type, created_at/);
-  assert.doesNotMatch(staffApi, /SELECT[^;]*photo_blob/);
+  // listAttendance()/mapAttendance() (Riwayat Presensi list + portal payload)
+  // must never inline a blob into JSON. The dedicated single-row photo
+  // endpoint below is the sole, narrow exception -- it selects exactly one
+  // blob column scoped to one attendance id owned by the requesting cashier,
+  // and streams it back as a binary Response, never as JSON.
+  const listQueryBlock = staffApi.slice(staffApi.indexOf('async function listAttendance'), staffApi.indexOf('export async function handleStaffPortalApi'));
+  assert.doesNotMatch(listQueryBlock, /photo_blob/);
+  assert.match(staffApi, /SELECT \$\{blobColumn\} AS photo_blob/, 'the photo-serving endpoint is expected to select exactly one blob, scoped by id AND user_id');
+  assert.match(staffApi, /WHERE id = \? AND user_id = \?/);
 });

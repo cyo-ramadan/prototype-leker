@@ -64,6 +64,27 @@ export async function handleStaffPortalApi(request, env, pathname) {
     });
   }
 
+  // Riwayat Presensi menampilkan thumbnail foto -- foto sudah ada watermark
+  // jam+GPS terbakar di pixel-nya sejak diambil (lihat drawWatermark() di
+  // camera-snapshot-modal.js), jadi endpoint ini cuma menyalurkan blob yang
+  // sudah tersimpan, tidak menambah watermark apa pun. Discoped ketat ke milik
+  // kasir yang login sendiri (user_id = auth.cashier.id) -- kasir tidak boleh
+  // bisa intip foto presensi staf lain lewat tebak-tebak id.
+  const photoMatch = pathname.match(/^\/api\/staff\/attendance\/([^/]+)\/photo$/);
+  if (request.method === 'GET' && photoMatch) {
+    const which = new URL(request.url).searchParams.get('which') === 'out' ? 'out' : 'in';
+    const blobColumn = which === 'out' ? 'check_out_photo_blob' : 'photo_blob';
+    const typeColumn = which === 'out' ? 'check_out_photo_type' : 'photo_type';
+    const row = await env.DB.prepare(`
+      SELECT ${blobColumn} AS photo_blob, ${typeColumn} AS photo_type
+      FROM staff_attendance WHERE id = ? AND user_id = ?
+    `).bind(decodeURIComponent(photoMatch[1]), auth.cashier.id).first();
+    if (!row || !row.photo_blob) return json({ error: 'Foto presensi tidak ditemukan.' }, 404);
+    return new Response(row.photo_blob, {
+      headers: { 'Content-Type': row.photo_type || 'image/jpeg', 'Cache-Control': 'private, max-age=86400' }
+    });
+  }
+
   if (request.method === 'POST' && pathname === '/api/staff/attendance') {
     if (!isMultipartRequest(request)) return json({ error: 'Presensi wajib dikirim sebagai multipart/form-data.' }, 415);
     const form = await request.formData();

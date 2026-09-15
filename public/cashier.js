@@ -20,8 +20,11 @@ const ORDER_POLL_INTERVAL_MS = 5000;
 const categoryFilter = window.MAXICategoryFilter.create({
   groupRowEl: el('cashierCategoryGroupRow'),
   categoryRowEl: el('cashierCategoryRow'),
-  groupBtnClass: 'cashier-category-btn cashier-category-group-btn',
-  categoryBtnClass: 'cashier-category-btn',
+  // Bos Cyo, 2026-09-15: "untuk ui/ux nya ngikut menu yang customer" --
+  // filter kategori Kasir pakai class yang sama persis dengan Customer
+  // (category-btn/category-row di styles.css), bukan gaya cashier sendiri.
+  groupBtnClass: 'category-btn category-group-btn',
+  categoryBtnClass: 'category-btn',
   escapeHtml
 });
 categoryFilter.onSelect(() => renderMenu());

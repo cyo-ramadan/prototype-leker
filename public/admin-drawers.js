@@ -41,7 +41,6 @@
           <div class="list-head"><div><h2>Detail Laci Gerai</h2><div class="muted">Semua laci di gerai ini, termasuk penanggung jawab pembuka laci.</div></div><span id="adminDrawerCount" class="master-count">0</span></div>
           <div id="adminDrawerList" class="drawer-history-grid" style="margin-top:14px"></div>
         </div>
-        <div id="adminDrawerReportPanel" class="admin-card drawer-report-panel hidden"></div>
       </section>`;
     if (toast) toast.insertAdjacentHTML('beforebegin', sections);
     else app.insertAdjacentHTML('beforeend', sections);
@@ -79,7 +78,7 @@
           <small>Datang ${dateTime(drawer.openedAt)} · Pulang ${dateTime(drawer.closedAt)}</small>
           <small>Modal ${money(drawer.openingAmount)} · Penanggung jawab @${esc(drawer.cashierUsername)}</small>
         </div>
-        <div class="drawer-history-actions"><button class="mini-btn" type="button" data-admin-drawer="${esc(drawer.id)}">Lihat Detail</button></div>
+        <div class="drawer-history-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-admin-drawer="${esc(drawer.id)}">🔍 Lihat Detail</button></div>
       </article>`).join('') : '<div class="empty">Belum ada riwayat laci di gerai ini.</div>';
     document.querySelectorAll('[data-admin-drawer]').forEach(button => button.onclick = () => openReport(button.dataset.adminDrawer));
   }
@@ -92,15 +91,28 @@
     } catch (error) { toast(error.message); }
   }
 
+  // Bos Cyo, 2026-09-15: Detail Laci Admin sebelumnya buka panel inline di
+  // bawah daftar (toggle + scrollIntoView), sementara Kasir buka modal
+  // beneran (dialog) -- ga kerasa "satu tombol di-share". Sekarang sama-sama
+  // lewat window.openAdminDetailModal(), modal shell yang sudah dipakai
+  // Transaksi & Stok.
   async function openReport(id) {
+    window.openAdminDetailModal({
+      head: '<div class="admin-eyebrow">Rincian Laci</div><h2>Memuat...</h2>',
+      body: '<div class="muted">Memuat rincian laci...</div>'
+    });
     try {
       const payload = await request(`/api/admin/drawers/${encodeURIComponent(id)}`);
-      const panel = el('adminDrawerReportPanel');
-      panel.innerHTML = `<div class="list-head"><div><h2>Rincian Laci</h2><div class="muted">Gerai ${esc(payload.store?.code || window.LEKER_STORE_CODE || '')}</div></div><button id="closeAdminDrawerReport" class="mini-btn" type="button">Tutup Detail</button></div><div style="margin-top:14px">${window.MAXIDrawerReport?.render(payload.report) || '<div class="empty">Renderer detail belum tersedia.</div>'}</div>`;
-      panel.classList.remove('hidden');
-      el('closeAdminDrawerReport').onclick = () => panel.classList.add('hidden');
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (error) { toast(error.message); }
+      window.openAdminDetailModal({
+        head: `<div class="admin-eyebrow">Rincian Laci</div><h2>Gerai ${esc(payload.store?.code || window.LEKER_STORE_CODE || '')}</h2>`,
+        body: window.MAXIDrawerReport?.render(payload.report) || '<div class="empty">Renderer detail belum tersedia.</div>'
+      });
+    } catch (error) {
+      window.openAdminDetailModal({
+        head: '<div class="admin-eyebrow">Rincian Laci</div><h2>Gagal memuat</h2>',
+        body: `<div class="empty">${esc(error.message)}</div>`
+      });
+    }
   }
 
   ['accounting','reports','drawers'].forEach(tab => {

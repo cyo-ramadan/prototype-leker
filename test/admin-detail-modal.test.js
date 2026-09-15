@@ -7,6 +7,7 @@ const adminHtml = readFileSync(new URL('../public/branch-admin.html', import.met
 const transactionsUi = readFileSync(new URL('../public/admin-transactions-ui.js', import.meta.url), 'utf8');
 const stockUi = readFileSync(new URL('../public/admin-stock.js', import.meta.url), 'utf8');
 const journalWorkspace = readFileSync(new URL('../public/admin-accounting-workspace.js', import.meta.url), 'utf8');
+const drawersUi = readFileSync(new URL('../public/admin-drawers.js', import.meta.url), 'utf8');
 
 test('shared admin detail modal is a real <dialog>, presentation-only, wired before its consumers', () => {
   assert.doesNotThrow(() => new Function(modalScript));
@@ -18,7 +19,7 @@ test('shared admin detail modal is a real <dialog>, presentation-only, wired bef
 
   const modalTagIndex = adminHtml.indexOf('admin-detail-modal.js');
   assert.ok(modalTagIndex >= 0, 'admin-detail-modal.js must be included in branch-admin.html');
-  for (const consumer of ['admin-transactions-ui.js', 'admin-stock.js', 'admin-accounting-workspace.js']) {
+  for (const consumer of ['admin-transactions-ui.js', 'admin-stock.js', 'admin-accounting-workspace.js', 'admin-drawers.js']) {
     const consumerIndex = adminHtml.indexOf(consumer);
     assert.ok(consumerIndex > modalTagIndex, `${consumer} must load after admin-detail-modal.js`);
   }
@@ -32,4 +33,10 @@ test('Transaction detail, stock mutation/HPP history, and journal detail all ope
   assert.doesNotMatch(stockUi, /adminStockDetail/);
 
   assert.match(journalWorkspace, /window\.openAdminDetailModal\(/);
+
+  // 2026-09-15, Bos Cyo: Detail Laci di Admin sebelumnya toggle panel
+  // inline (hidden + scrollIntoView) sementara Kasir buka dialog beneran --
+  // ga kerasa "satu tombol di-share". Sekarang sama-sama lewat modal.
+  assert.match(drawersUi, /window\.openAdminDetailModal\(/);
+  assert.doesNotMatch(drawersUi, /adminDrawerReportPanel/);
 });

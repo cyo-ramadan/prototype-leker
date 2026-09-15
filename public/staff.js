@@ -23,11 +23,34 @@
   function attendancePhotoThumb(row, which) {
     const fact = which === 'in' ? row.checkIn : row.checkOut;
     if (!fact) return '';
-    return `<img class="attendance-thumb" src="/api/staff/attendance/${encodeURIComponent(row.id)}/photo?which=${which}" alt="Foto presensi ${which === 'in' ? 'datang' : 'pulang'}" loading="lazy" />`;
+    // 2026-09-15, bug ketemu sendiri: endpoint foto presensi butuh Authorization
+    // Bearer header (requireCashier), tapi <img src="..."> browser TIDAK PERNAH
+    // mengirim header custom -- itu jalur fetch() JS punya (lihat
+    // staff-auth-fetch.js yang nyuntik token ke window.fetch, bukan ke
+    // permintaan gambar bawaan browser). Kalau src langsung diisi URL endpoint,
+    // hasilnya 401 dan foto ga pernah kelihatan. Diperbaiki: src dikosongkan
+    // dulu, diisi belakangan lewat fetch() + blob URL di loadAttendancePhotoThumbs().
+    return `<img class="attendance-thumb" data-photo-attendance="${escapeHtml(row.id)}" data-photo-which="${which}" alt="Foto presensi ${which === 'in' ? 'datang' : 'pulang'}" loading="lazy" />`;
+  }
+  let attendancePhotoUrls = [];
+  async function loadAttendancePhotoThumbs() {
+    attendancePhotoUrls.forEach(url => URL.revokeObjectURL(url));
+    attendancePhotoUrls = [];
+    const nodes = [...document.querySelectorAll('[data-photo-attendance]')];
+    await Promise.all(nodes.map(async img => {
+      try {
+        const response = await fetch(`/api/staff/attendance/${encodeURIComponent(img.dataset.photoAttendance)}/photo?which=${img.dataset.photoWhich}`);
+        if (!response.ok) return;
+        const url = URL.createObjectURL(await response.blob());
+        attendancePhotoUrls.push(url);
+        img.src = url;
+      } catch {}
+    }));
   }
   function renderAttendance() {
     const rows = portal?.attendance || [];
     el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    loadAttendancePhotoThumbs();
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }
   function renderKpi() {

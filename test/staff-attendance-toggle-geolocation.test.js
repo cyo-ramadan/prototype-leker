@@ -204,6 +204,18 @@ test('presensi photo endpoint serves the exact stored blob for in/out, scoped st
 
     const missing = await handleStaffPortalApi(photoRequest(owner.token, 'attendance_does_not_exist', 'in'), env, '/api/staff/attendance/attendance_does_not_exist/photo');
     assert.equal(missing.status, 404);
+
+    // The exact request shape a plain <img src="..."> would produce -- no
+    // Authorization header at all, since browsers never attach custom headers
+    // to image loads. This must be rejected, which is exactly why staff.js
+    // cannot put the endpoint URL straight into an <img src> and must fetch()
+    // the blob instead (fetch() gets the header auto-injected by
+    // staff-auth-fetch.js; a bare <img> tag never does).
+    const noAuth = await handleStaffPortalApi(
+      new Request(`https://example.test/api/staff/attendance/${attendanceId}/photo?which=in`),
+      env, `/api/staff/attendance/${attendanceId}/photo`
+    );
+    assert.equal(noAuth.status, 401, 'a request with no Authorization header (what a bare <img src> sends) must be rejected');
   } finally {
     db.close();
   }
@@ -278,8 +290,15 @@ test('staff portal UI passes watermark:true, forwards GPS fields, toggles one pr
   assert.match(staffHtml, /id="attendanceToggleBtn"/);
   // Thumbnail foto presensi di riwayat -- foto sudah ada watermark jam+GPS
   // terbakar sejak diambil, endpoint ini cuma menyalurkan blob yang sudah ada.
-  assert.match(staffUi, /\/api\/staff\/attendance\/\$\{encodeURIComponent\(row\.id\)\}\/photo\?which=\$\{which\}/);
+  // Endpoint-nya butuh Authorization Bearer header (requireCashier), dan
+  // <img src="..."> browser TIDAK PERNAH mengirim header custom -- jadi src
+  // wajib diisi lewat fetch() (yang dapat token otomatis dari
+  // staff-auth-fetch.js) + blob URL, bukan URL endpoint langsung.
+  assert.doesNotMatch(staffUi, /<img class="attendance-thumb" data-photo-attendance="\$\{escapeHtml\(row\.id\)\}" data-photo-which="\$\{which\}"[^>]*\ssrc=/, 'the thumbnail <img> must not carry the endpoint URL directly in src -- that request never sends the auth header');
   assert.match(staffUi, /class="attendance-thumb"/);
+  assert.match(staffUi, /fetch\(`\/api\/staff\/attendance\/\$\{encodeURIComponent\(img\.dataset\.photoAttendance\)\}\/photo\?which=\$\{img\.dataset\.photoWhich\}`\)/);
+  assert.match(staffUi, /URL\.createObjectURL\(await response\.blob\(\)\)/);
+  assert.match(staffUi, /function loadAttendancePhotoThumbs/);
   assert.match(staffUi, /row\.checkIn/);
   assert.match(staffUi, /row\.checkOut/);
   assert.match(staffUi, /facts\.attendance\?\.closed/);

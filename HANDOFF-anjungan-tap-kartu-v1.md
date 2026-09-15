@@ -5,7 +5,9 @@ Asal: sesi Hana (Claude Code web/cloud) bersama Bos Cyo
 Status: **belum ada kode, belum ada hardware.** Dokumen ini murni hasil keputusan
 desain + status persiapan, supaya sesi berikutnya tidak mengulang pembahasan.
 
-Pembaruan sesi kedua: desain sisi server sudah dikunci dan dipindahkan ke
+Pembaruan sesi kedua: hasil smoke test PlatformIO sudah masuk (separuh terbukti,
+kekhawatiran Python 3.14 gugur — lihat bagian status setup). Desain sisi server
+sudah dikunci dan dipindahkan ke
 `adr/ADR-043-anjungan-tap-boundary.md` (alasannya) dan
 `contracts/anjungan-tap-kartu-v1.md` (bentuk tabel + endpoint). Belum ada task
 yang dilempar ke agen implementer — ditahan sampai Bos Cyo bilang lanjut.
@@ -109,11 +111,9 @@ pio     PlatformIO Core 6.2.0
 padahal justru itu inti pekerjaannya. Kalau menemukan panduan yang menyarankan
 WSL, abaikan untuk kasus ini.
 
-### BELUM diverifikasi — ini langkah berikutnya
+### Smoke test PlatformIO — SEPARUH terbukti (2026-09-15)
 
-Python 3.14 tergolong sangat baru dan PlatformIO kadang belum mengejarnya.
-`pio --version` jalan, tapi itu baru bukti "hidup", belum bukti "bisa kerja".
-Smoke test berikut **sudah diperintahkan tapi hasilnya belum dilaporkan**:
+Perintah yang dijalankan Bos Cyo di PowerShell:
 
 ```
 cd C:\Users\Asus
@@ -123,11 +123,48 @@ pio project init --board esp32-s3-devkitc-1
 pio run
 ```
 
-Berhasil = baris terakhir `SUCCESS`. Tes ini tidak butuh hardware, dan sekalian
-mengunduh toolchain ESP32-S3 yang nanti tetap terpakai.
+**Yang TERBUKTI jalan** (dari output langsung, bukan dugaan):
 
-**Kalau gagal:** kemungkinan besar Python 3.14 belum didukung → turunkan ke
-Python 3.12. Jangan diulang-ulang berharap beda hasil.
+- `Project has been successfully initialized!`
+- Seluruh toolchain terunduh dan terpasang bersih: `espressif32@7.1.3`,
+  `toolchain-xtensa-esp32s3@8.4.0`, `toolchain-riscv32-esp@8.4.0`,
+  `framework-arduinoespressif32@4.20017`, `tool-esptoolpy@2.41100`,
+  `tool-scons@4.41101`.
+
+**Kekhawatiran Python 3.14 GUGUR.** Output `pip` menunjukkan PlatformIO memasang
+dependensinya ke `...\Python\Python313\python.exe` — PlatformIO memakai Python
+3.13 miliknya sendiri, bukan Python 3.14 yang terpasang di PATH. Jadi rencana
+"turunkan ke Python 3.12" **tidak perlu dijalankan**. Jangan diturunkan.
+
+**Yang BELUM terbukti:** `pio run` berhenti di
+`Error: Nothing to build. Please put your source code files to the 'src' folder`
+lalu `[FAILED]`. Itu bukan kegagalan toolchain — foldernya memang masih kosong,
+jadi compiler-nya belum pernah sekali pun dipanggil. Artinya "bisa mengunduh"
+sudah terbukti, "bisa meng-compile" belum.
+
+Penutupnya satu langkah lagi, masih tanpa hardware:
+
+```
+cd C:\Users\Asus\tes-pio
+Set-Content -Path src\main.cpp -Value "#include <Arduino.h>", "void setup() { Serial.begin(115200); }", "void loop() {}"
+pio run
+```
+
+Berhasil = baris terakhir `SUCCESS`. Kalau yang ini gagal, barulah kegagalannya
+bermakna dan perlu dibaca isinya.
+
+### Jebakan yang ketahuan dari output ini
+
+Board profile bawaan `esp32-s3-devkitc-1` terbaca sebagai
+**`ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)`** — sedangkan papan di daftar
+belanja adalah **N16R8** (flash 16MB, PSRAM 8MB). Padahal PSRAM justru salah satu
+alasan papan ini dipilih (buffer audio streaming supaya suara tidak patah-patah).
+
+Konsekuensinya: saat papan aslinya datang, `platformio.ini` **wajib** disetel
+eksplisit untuk flash 16MB + PSRAM aktif. Kalau dibiarkan bawaan, PSRAM-nya tidak
+akan terpakai dan gejalanya muncul belakangan sebagai suara patah-patah — jauh
+dari penyebabnya. Flag persisnya dicocokkan ke dokumentasi PlatformIO saat itu,
+jangan ditulis dari ingatan.
 
 ## Urutan langkah berikutnya
 
@@ -143,7 +180,9 @@ Jatah sesi cloud (sisi server) urutannya terpisah:
 - **C3. Setelah tabel jadi:** daftarkan alat pertama (provisioning token) dan
   daftarkan kartu pertama ke karyawan.
 
-1. Konfirmasi smoke test `pio run` di atas → `SUCCESS`.
+1. Tutup smoke test `pio run`: isi `src\main.cpp` seperti di atas, jalankan ulang,
+   pastikan baris terakhirnya `SUCCESS`. (Separuhnya sudah terbukti 2026-09-15 —
+   toolchain terpasang bersih; yang belum cuma pembuktian bisa meng-compile.)
 2. Beli hardware sesuai daftar.
 3. Saat barang datang: colok papan, cek Windows mengenalinya (kemungkinan besar
    tanpa install driver karena USB-nya native; driver CH343/CP2102 hanya perlu

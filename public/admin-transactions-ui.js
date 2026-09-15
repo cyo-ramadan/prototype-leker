@@ -47,15 +47,15 @@
         <div class="admin-card">
           <div class="list-head">
             <div><div class="admin-eyebrow">Operational Data Explorer</div><h2>Tracking Transaksi Gerai</h2><div class="muted">Klik Detail untuk mengambil snapshot transaksi, item penjualan, poin, dan jejak produksi hanya saat diperlukan. Jurnal tetap domain Accounting.</div></div>
-            <button id="adminTransactionsRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+            <button id="adminTransactionsRefresh" class="admin-tx-btn admin-tx-btn-grey" type="button">↻ Refresh</button>
           </div>
-          <div id="adminTransactionFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-            <button class="mini-btn" data-transaction-filter="ALL" type="button">Semua</button>
-            <button class="mini-btn" data-transaction-filter="SALES" type="button">Penjualan</button>
-            <button class="mini-btn" data-transaction-filter="PURCHASES" type="button">Pembelian</button>
-            <button class="mini-btn" data-transaction-filter="OPERATIONS" type="button">Operasional</button>
-            <button class="mini-btn" data-transaction-filter="INVENTORY" type="button">Stok & Produksi</button>
-            <button class="mini-btn" data-transaction-filter="ASSETS" type="button">Aset</button>
+          <div id="adminTransactionFilters" class="admin-tx-toolbar">
+            <button class="admin-tx-btn" data-transaction-filter="ALL" type="button">📋 Semua</button>
+            <button class="admin-tx-btn" data-transaction-filter="SALES" type="button">🛒 Penjualan</button>
+            <button class="admin-tx-btn" data-transaction-filter="PURCHASES" type="button">🧺 Pembelian</button>
+            <button class="admin-tx-btn" data-transaction-filter="OPERATIONS" type="button">💸 Operasional</button>
+            <button class="admin-tx-btn" data-transaction-filter="INVENTORY" type="button">📦 Stok & Produksi</button>
+            <button class="admin-tx-btn" data-transaction-filter="ASSETS" type="button">🏷️ Aset</button>
           </div>
           <div class="admin-grid two compact" style="margin-top:12px">
             <label class="admin-field">Dari<input id="adminTransactionsFrom" type="datetime-local" /></label>
@@ -132,8 +132,9 @@
   function renderFilterState() {
     document.querySelectorAll('[data-transaction-filter]').forEach(button => {
       const active = button.dataset.transactionFilter === state.filter;
-      button.classList.toggle('primary-btn', active);
-      button.classList.toggle('mini-btn', !active);
+      button.classList.toggle('admin-tx-btn-primary', active);
+      button.classList.toggle('active', active);
+      button.classList.toggle('admin-tx-btn-grey', !active);
     });
   }
 
@@ -164,7 +165,7 @@
           <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentMethod)}` : ''}</div>
           <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>
         </div>
-        <div class="master-actions"><button class="mini-btn" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">Detail</button></div>
+        <div class="master-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">🔍 Detail</button></div>
       </article>`).join('') : '<div class="empty">Belum ada transaksi pada filter ini.</div>';
     target.querySelectorAll('[data-transaction-detail-id]').forEach(button => button.addEventListener('click', () => openDetail(button.dataset.transactionDetailKind, button.dataset.transactionDetailId)));
     document.getElementById('adminTransactionsMore')?.classList.toggle('hidden', !state.hasMore);

@@ -45,7 +45,7 @@
         <div class="admin-card">
           <div class="list-head">
             <div><div class="admin-eyebrow">Inventory Read Model</div><h2>Tracking Stok Barang</h2><div class="muted">Saldo stok dan histori mutasi dari arus barang, produksi, dan penjualan. Qty fisik selalu integer pada satuan dasar barang.</div></div>
-            <button id="adminStockRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+            <button id="adminStockRefresh" class="admin-tx-btn admin-tx-btn-grey" type="button">↻ Refresh</button>
           </div>
           <label class="admin-field" style="margin-top:12px">Cari barang<input id="adminStockSearch" type="search" placeholder="Nama / tipe barang" /></label>
           <div id="adminStockList" class="master-list" style="margin-top:12px"></div>
@@ -92,8 +92,8 @@
           <div class="master-prices"><span>Saldo</span><span><b>${qty}</b></span></div>
         </div>
         <div class="master-actions">
-          <button class="mini-btn" type="button" data-stock-detail="${item.productId}">Lihat Mutasi</button>
-          <button class="mini-btn" type="button" data-hpp-history="${item.productId}">Histori HPP</button>
+          <button class="admin-tx-btn admin-tx-btn-primary" type="button" data-stock-detail="${item.productId}">📦 Lihat Mutasi</button>
+          <button class="admin-tx-btn admin-tx-btn-grey" type="button" data-hpp-history="${item.productId}">📈 Histori HPP</button>
         </div>
       </article>`;
     }).join('') : '<div class="empty">Barang tidak ditemukan.</div>';

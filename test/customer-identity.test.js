@@ -22,7 +22,7 @@ test('customer login and customer master use explicit owner sharing scope', asyn
   ]);
   assert.match(customers, /resolveCustomerScope\(db, store\.id\)/);
   assert.match(customers, /c\.store_id IN \(\$\{placeholders\(scopedIds\.length\)\}\)/);
-  assert.match(customers, /requireManagement\(request, db\)/);
+  assert.match(customers, /requireManagement\(request, db, env\)/);
   assert.match(customers, /customerCode/);
   assert.match(customers, /customer_sessions/);
   assert.match(sharing, /customer_share_group_stores/);

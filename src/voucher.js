@@ -327,7 +327,7 @@ function constraintResponse(error) {
 
 async function handleAdminVoucherApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/vouchers')) return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedAdminStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

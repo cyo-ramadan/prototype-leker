@@ -101,7 +101,7 @@ export async function handleCostMasterApi(request, env, pathname) {
     return json({ transactionCategoryCode: 'operational', costs: await listCosts(env.DB, auth.cashier.store.id, { activeOnly: true }) });
   }
   if (!pathname.startsWith('/api/admin/master/costs') && !pathname.startsWith('/api/admin/master/cost-types')) return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

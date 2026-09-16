@@ -1,5 +1,29 @@
 import { json, readJson } from './http.js';
 import { listStores, normalizeStoreCode, resolveStore } from './stores.js';
+import { secureTokenEqual } from './debugger-control-plane.js';
+
+// Identitas mesin buat agen (Hana/Claude Code, dst) yang menulis lewat
+// /api/admin/* -- Bos Cyo, 2026-09-16, setelah menolak pendekatan awal
+// (akun Entity Admin `entityadmin_hana`, migration 0095): "yang aku
+// inginkan jalur kusus untuk agent edit ya, bukan jalur manusia". Ini
+// meniru persis pola requireDebugger di debugger-control-plane.js --
+// secret di env Worker (AGENT_ADMIN_TOKEN), dibandingkan constant-time ke
+// Bearer token permintaan, TANPA baris login/session/tabel apa pun.
+// Bedanya dari Debugger: token ini boleh MENULIS (lewat requireManagement),
+// Debugger sengaja dikunci read-only.
+export const AGENT_ADMIN_IDENTITY = Object.freeze({
+  id: 'agent-admin',
+  role: 'AGENT_ADMIN',
+  authType: 'AGENT_TOKEN'
+});
+
+async function agentAdminFromRequest(request, env) {
+  const configuredToken = String(env?.AGENT_ADMIN_TOKEN || '').trim();
+  if (configuredToken.length < 32) return null;
+  const supplied = bearerToken(request);
+  if (!supplied || !await secureTokenEqual(supplied, configuredToken)) return null;
+  return AGENT_ADMIN_IDENTITY;
+}
 
 const OWNER_SESSION_HOURS = 12;
 const STORE_ADMIN_SESSION_HOURS = 12;
@@ -205,7 +229,19 @@ async function entityAdminStoreAuthorized(request, entityAdmin, db) {
   return { ok: true };
 }
 
-export async function requireManagement(request, db) {
+// `env` is optional and only present when the caller has it in scope (see
+// admin-multistore.js) -- callers that still pass only `db` keep behaving
+// exactly as before; the agent-token path simply never activates for them.
+export async function requireManagement(request, db, env) {
+  const agent = await agentAdminFromRequest(request, env);
+  if (agent) {
+    const pathname = new URL(request.url).pathname;
+    if (/^\/api\/admin\/stores(?:\/|$)/.test(pathname)) {
+      return { ok: false, response: json({ error: 'Create dan pengaturan gerai hanya boleh dilakukan Owner.', code: 'OWNER_ONLY' }, 403) };
+    }
+    return { ok: true, owner: null, admin: null, entityAdmin: null, agent, authType: 'AGENT_TOKEN' };
+  }
+
   const owner = await ownerFromRequest(request, db);
   if (owner) return { ok: true, owner, admin: null, authType: 'OWNER' };
 

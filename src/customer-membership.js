@@ -76,7 +76,7 @@ function managementActor(management) {
 }
 
 async function handleMembershipSettings(request, env) {
-  const management = await requireManagement(request, env.DB);
+  const management = await requireManagement(request, env.DB, env);
   if (!management.ok) return management.response;
   const store = await selectedStore(env.DB, request, true);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
@@ -302,7 +302,7 @@ async function handleCustomerOrders(request, env) {
 }
 
 async function handleAdminRequests(request, env, pathname) {
-  const management = await requireManagement(request, env.DB);
+  const management = await requireManagement(request, env.DB, env);
   let cashier = null;
   if (!management.ok) {
     const cashierAuth = await requireCashier(request, env.DB);

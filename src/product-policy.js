@@ -82,7 +82,7 @@ async function getProductPolicy(db, storeId, productId) {
 
 export async function handleProductPolicyApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/master/products')) return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

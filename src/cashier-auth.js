@@ -110,7 +110,7 @@ async function selectedAdminStore(db, request) {
 export async function handleAdminCashierApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/cashiers')) return null;
   const db = env.DB;
-  const auth = await requireManagement(request, db);
+  const auth = await requireManagement(request, db, env);
   if (!auth.ok) return auth.response;
   const store = await selectedAdminStore(db, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

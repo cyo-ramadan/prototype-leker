@@ -174,3 +174,42 @@ test('Dermo\'s existing Leker hierarchy from migration 0085 is untouched and sti
     sqlite.close();
   }
 });
+
+// 2026-09-16, Bos Cyo (Dermo screenshot): kategori utama seperti "Pentol"
+// tetap harus muncul sebagai kelompoknya sendiri walau dia sendiri
+// kategori teratas (tidak punya induk) -- selama dia sendiri punya anak.
+// Kategori datar yang tidak pernah dijadikan induk siapa pun (gerai yang
+// belum pakai sub-kategori sama sekali) harus tetap null/"Lainnya", supaya
+// tidak ada baris kategori utama yang isinya duplikat sama baris
+// sub-kategori di bawahnya.
+test('a top-level category with children self-groups under its own name; a flat top-level category with no children stays ungrouped', async () => {
+  const sqlite = migratedDatabase();
+  try {
+    const db = new D1Database(sqlite);
+    const storeA = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001' LIMIT 1`).get();
+
+    // "Pentol" is top-level (no parent) but gains a real child -- it must
+    // now resolve as its own group for any product still filed directly
+    // under "Pentol" itself.
+    sqlite.prepare(`INSERT INTO categories (store_id, name, display_order, is_active) VALUES (?, 'Pentol', 1, 1)`).run(storeA.id);
+    const pentol = sqlite.prepare(`SELECT id FROM categories WHERE store_id = ? AND name = 'Pentol'`).get(storeA.id);
+    sqlite.prepare(`INSERT INTO categories (store_id, name, display_order, is_active, parent_category_id) VALUES (?, 'Pentol Korea', 1, 1, ?)`).run(storeA.id, pentol.id);
+    sqlite.prepare(`
+      INSERT INTO products (id, store_id, name, price, purchase_price, category, emoji, is_active)
+      VALUES (9201, ?, 'Pentol Legacy', 5000, 2000, 'Pentol', '🍡', 1)
+    `).run(storeA.id);
+
+    // "Minuman" is a genuinely flat category -- never anyone's parent.
+    sqlite.prepare(`INSERT INTO categories (store_id, name, display_order, is_active) VALUES (?, 'Minuman', 2, 1)`).run(storeA.id);
+    sqlite.prepare(`
+      INSERT INTO products (id, store_id, name, price, purchase_price, category, emoji, is_active)
+      VALUES (9202, ?, 'Es Teh', 5000, 2000, 'Minuman', '🧊', 1)
+    `).run(storeA.id);
+
+    const products = await listProducts(db, storeA.id);
+    assert.equal(products.find(p => p.id === 9201).categoryGroup, 'Pentol', 'top-level category with a child self-groups');
+    assert.equal(products.find(p => p.id === 9202).categoryGroup, null, 'flat top-level category with no children stays ungrouped (Lainnya)');
+  } finally {
+    sqlite.close();
+  }
+});

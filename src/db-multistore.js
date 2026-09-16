@@ -59,7 +59,21 @@ export async function listProducts(db, storeId) {
   const result = await db.prepare(`
     SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data, p.image_visual_key,
            CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS has_recipe_link,
-           g.name AS category_group_name, COALESCE(g.display_order, 0) AS category_group_order,
+           -- Kategori Utama yang dipakai buat filter dua-tingkat: kalau
+           -- kategori barang ini punya induk, pakai nama induknya; kalau dia
+           -- sendiri kategori teratas TAPI punya anak (berarti dia sendiri
+           -- yang jadi kategori utama, mis. "Pentol" tanpa induk tapi punya
+           -- sub-kategori di bawahnya), pakai namanya sendiri. Kategori
+           -- datar yang tidak pernah dijadikan induk siapa pun tetap null
+           -- (Lainnya) -- supaya gerai yang belum pakai sub-kategori sama
+           -- sekali tidak berubah tampilannya (Bos Cyo, 2026-09-15/16).
+           CASE
+             WHEN c.id IS NULL THEN NULL
+             WHEN c.parent_category_id IS NOT NULL THEN g.name
+             WHEN EXISTS (SELECT 1 FROM categories child WHERE child.parent_category_id = c.id) THEN c.name
+             ELSE NULL
+           END AS category_group_name,
+           COALESCE(g.display_order, c.display_order, 0) AS category_group_order,
            COALESCE(c.display_order, 0) AS category_order
     FROM products p
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id

@@ -33,13 +33,14 @@ function validateBusinessDate(value) {
 // Beban -- sudah otomatis kepisah karena tercatat di tabel purchases,
 // bukan expenses).
 //
-// BEBAN_SOURCES: satu-satunya sumber Beban yang dibaca laporan ini hari
-// ini adalah `expenses` (Pengeluaran Operasional). Kalau nanti ada
+// BEBAN_SOURCES: sumber Beban yang dibaca laporan ini -- `expenses`
+// (Pengeluaran Kasir) dan `admin_operational_expenses` (Bea Operasional
+// dari panel Admin Gerai, migration 0100). Kalau nanti ada
 // fitur/tombol baru yang debit-nya dianalisis sebagai Beban (aturan Bos
 // Cyo: namanya wajib dimulai "Beban"/"Bea" supaya kelihatan dari kode),
 // WAJIB didaftarkan eksplisit di sini juga -- penamaan itu penanda buat
 // manusia, pendaftaran di sini yang benar-benar dibaca laporan.
-const BEBAN_SOURCES = ['expenses'];
+const BEBAN_SOURCES = ['expenses', 'admin_operational_expenses'];
 
 const COST_SCALE = 1_000_000;
 // Sum di ruang scaled dulu (line_cogs), baru dibagi skala SEKALI di akhir --
@@ -73,7 +74,7 @@ function enumerateDates(from, to) {
 async function loadCachedRows(db, storeIds, dates) {
   if (!storeIds.length || !dates.length) return [];
   const rows = await db.prepare(`
-    SELECT store_id, business_date, net_profit
+    SELECT store_id, business_date, revenue, other_income, hpp, expense, stock_adjustment_net, net_profit
     FROM store_daily_profit_snapshot
     WHERE store_id IN (${placeholders(storeIds)}) AND business_date IN (${placeholders(dates)})
   `).bind(...storeIds, ...dates).all();
@@ -96,7 +97,7 @@ async function computeFactsForDates(db, storeIds, dates) {
   const storePh = placeholders(storeIds);
   const datePh = placeholders(dates);
 
-  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows] = await Promise.all([
+  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows] = await Promise.all([
     sumByStoreDate(db, `
       SELECT store_id, ${JAKARTA_BUSINESS_DATE_SQL} AS business_date, COALESCE(SUM(total_amount), 0) AS value
       FROM sales
@@ -142,6 +143,17 @@ async function computeFactsForDates(db, storeIds, dates) {
         AND json_extract(payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'
         AND store_id IN (${storePh}) AND ${JAKARTA_BUSINESS_DATE_SQL.replace('created_at', 'posted_at')} IN (${datePh})
       GROUP BY store_id, business_date
+    `, [...storeIds, ...dates]),
+    // Bea Operasional yang dicatat dari panel Admin (Bea Gaji/Lapak/Lainnya,
+    // migration 0100). Sumber Beban KEDUA di laporan ini. Beda dari tiga query
+    // di atas: tabel ini sudah punya kolom business_date sendiri (diisi Admin,
+    // boleh mundur -- bayar gaji tanggal 5 untuk periode bulan lalu), jadi
+    // TIDAK diturunkan dari created_at.
+    sumByStoreDate(db, `
+      SELECT store_id, business_date, COALESCE(SUM(amount), 0) AS value
+      FROM admin_operational_expenses
+      WHERE voided_at IS NULL AND store_id IN (${storePh}) AND business_date IN (${datePh})
+      GROUP BY store_id, business_date
     `, [...storeIds, ...dates])
   ]);
 
@@ -149,7 +161,7 @@ async function computeFactsForDates(db, storeIds, dates) {
   const facts = new Map();
   for (const storeId of storeIds) {
     for (const businessDate of dates) {
-      facts.set(key(storeId, businessDate), { revenue: 0, otherIncome: 0, expense: 0, hppScaled: 0, stockAdjustmentNetScaled: 0 });
+      facts.set(key(storeId, businessDate), { revenue: 0, otherIncome: 0, expense: 0, adminExpense: 0, hppScaled: 0, stockAdjustmentNetScaled: 0 });
     }
   }
   for (const row of revenueRows) facts.get(key(row.store_id, row.business_date)).revenue = Number(row.value || 0);
@@ -157,15 +169,31 @@ async function computeFactsForDates(db, storeIds, dates) {
   for (const row of expenseRows) facts.get(key(row.store_id, row.business_date)).expense = Number(row.value || 0);
   for (const row of hppRows) facts.get(key(row.store_id, row.business_date)).hppScaled = Number(row.value || 0);
   for (const row of stockAdjustmentRows) facts.get(key(row.store_id, row.business_date)).stockAdjustmentNetScaled = Number(row.value || 0);
+  for (const row of adminExpenseRows) facts.get(key(row.store_id, row.business_date)).adminExpense = Number(row.value || 0);
   return facts;
 }
 
 function netProfitFromFacts(facts) {
   const hpp = rupiahFromScaledSum(facts.hppScaled);
   const stockAdjustmentNet = rupiahFromScaledSum(facts.stockAdjustmentNetScaled);
+  // Beban = Pengeluaran Kasir + Bea Operasional Admin. Dijumlah jadi satu di
+  // sini karena kolom `expense` di cache (store_daily_profit_snapshot,
+  // migration 0099) memang berarti "total Beban Operasional" -- bukan khusus
+  // pengeluaran kasir. Kalau nanti butuh rinciannya per sumber, itu kolom baru
+  // di cache, bukan mengubah arti kolom ini.
+  const totalExpense = facts.expense + facts.adminExpense;
   const grossProfit = facts.otherIncome + facts.revenue - hpp;
-  const netProfit = grossProfit - facts.expense + stockAdjustmentNet;
-  return { revenue: facts.revenue, otherIncome: facts.otherIncome, hpp, expense: facts.expense, stockAdjustmentNet, netProfit };
+  const netProfit = grossProfit - totalExpense + stockAdjustmentNet;
+  return { revenue: facts.revenue, otherIncome: facts.otherIncome, hpp, expense: totalExpense, stockAdjustmentNet, netProfit };
+}
+
+// Dipanggil setiap kali ada Bea Operasional dicatat/dibatalkan untuk sebuah
+// (gerai, tanggal). Tanpa ini, bea yang dicatat MUNDUR ke hari yang sudah
+// ditutup-buku tidak akan pernah kelihatan -- laporan tetap menyajikan angka
+// lama dari cache, dan tidak ada error apa pun yang memberi tahu.
+export async function invalidateDailyProfitSnapshot(db, storeId, businessDate) {
+  await db.prepare('DELETE FROM store_daily_profit_snapshot WHERE store_id = ? AND business_date = ?')
+    .bind(storeId, businessDate).run();
 }
 
 export async function getNetProfitReport(db, { storeIds, from, to, today = getJakartaBusinessDate() }) {
@@ -183,13 +211,31 @@ export async function getNetProfitReport(db, { storeIds, from, to, today = getJa
   const computed = datesToCompute.length ? await computeFactsForDates(db, storeIds, datesToCompute) : new Map();
 
   const netProfitByKey = new Map();
-  for (const row of cached) netProfitByKey.set(`${row.store_id}::${row.business_date}`, Number(row.net_profit));
+  // Rincian per hari ikut dibawa (Penjualan/HPP/Beban/Penyesuaian Stok) supaya
+  // panel Admin Gerai bisa menunjukkan KENAPA untung/ruginya segitu, bukan cuma
+  // angka akhirnya -- target penggunanya justru yang tidak paham akuntansi.
+  // Kolomnya sudah ada di cache sejak migration 0099, jadi ini tidak menambah
+  // satu query pun.
+  const breakdownByKey = new Map();
+  for (const row of cached) {
+    const key = `${row.store_id}::${row.business_date}`;
+    netProfitByKey.set(key, Number(row.net_profit));
+    breakdownByKey.set(key, {
+      revenue: Number(row.revenue || 0),
+      otherIncome: Number(row.other_income || 0),
+      hpp: Number(row.hpp || 0),
+      expense: Number(row.expense || 0),
+      stockAdjustmentNet: Number(row.stock_adjustment_net || 0),
+      netProfit: Number(row.net_profit || 0)
+    });
+  }
 
   const toCache = [];
   for (const [key, facts] of computed) {
     const [storeId, businessDate] = key.split('::');
     const result = netProfitFromFacts(facts);
     netProfitByKey.set(key, result.netProfit);
+    breakdownByKey.set(key, result);
     if (businessDate !== today) {
       toCache.push({ storeId, businessDate, ...result });
     }
@@ -206,7 +252,7 @@ export async function getNetProfitReport(db, { storeIds, from, to, today = getJa
     `).bind(row.storeId, row.businessDate, row.revenue, row.otherIncome, row.hpp, row.expense, row.stockAdjustmentNet, row.netProfit)));
   }
 
-  return { dates, netProfitByKey };
+  return { dates, netProfitByKey, breakdownByKey };
 }
 
 async function selectedStore(db, request) {
@@ -235,23 +281,42 @@ export async function handleNetProfitReportApi(request, env, pathname) {
   }
 
   const entityStores = (await listStores(db, { includeInactive: true })).filter(store => store.entityId === callerStore.entityId);
+
+  // Siapa yang boleh melihat SELURUH gerai satu entity, dan siapa yang cuma
+  // gerainya sendiri. Ini bukan detail kosmetik: Admin Gerai terikat ke satu
+  // gerai lewat `?store=` (adminStoreMatchesRequest), tapi parameter `stores=`
+  // di bawah ini jalur terpisah yang tidak ikut kecek di sana -- tanpa pagar
+  // ini, Admin gerai A bisa minta laporan untung-rugi gerai B cukup dengan
+  // menukar satu parameter. Invariant CLAUDE.md #5 (isolasi store_id
+  // server-side).
+  const entityWide = Boolean(auth.owner || auth.entityAdmin);
+  const allowedStores = entityWide ? entityStores : entityStores.filter(store => store.id === callerStore.id);
+
   const requestedCodesRaw = (url.searchParams.get('stores') || '').split(',').map(code => code.trim()).filter(Boolean);
-  const requestedCodes = requestedCodesRaw.length ? requestedCodesRaw : entityStores.map(store => store.code);
+  const requestedCodes = requestedCodesRaw.length ? requestedCodesRaw : allowedStores.map(store => store.code);
 
   const selected = [];
   for (const code of requestedCodes) {
-    const store = entityStores.find(item => item.code === code);
-    if (!store) return json({ error: `Gerai ${code} bukan bagian dari entity ini.`, code: 'STORE_OUT_OF_ENTITY_SCOPE' }, 403);
+    const store = allowedStores.find(item => item.code === code);
+    if (!store) {
+      return entityStores.some(item => item.code === code)
+        ? json({ error: `Laporan gerai ${code} hanya bisa dibuka Owner atau Admin Entity.`, code: 'STORE_OUT_OF_CALLER_SCOPE' }, 403)
+        : json({ error: `Gerai ${code} bukan bagian dari entity ini.`, code: 'STORE_OUT_OF_ENTITY_SCOPE' }, 403);
+    }
     selected.push(store);
   }
   if (!selected.length) return json({ from, to, stores: [], rows: [] });
 
-  const { dates, netProfitByKey } = await getNetProfitReport(db, {
+  const { dates, netProfitByKey, breakdownByKey } = await getNetProfitReport(db, {
     storeIds: selected.map(store => store.id),
     from,
     to
   });
 
+  // Rincian per hari cuma ikut dikirim kalau yang dipilih PERSIS satu gerai --
+  // itu bentuk panel Admin Gerai. Kalau 10 gerai x 366 hari, rinciannya jadi
+  // payload besar yang tabel entity pun tidak memakainya.
+  const withBreakdown = selected.length === 1;
   const rows = dates.map(businessDate => {
     const byStore = {};
     let total = 0;
@@ -260,7 +325,12 @@ export async function handleNetProfitReportApi(request, env, pathname) {
       byStore[store.code] = value;
       total += value;
     }
-    return { businessDate, byStore, total };
+    const row = { businessDate, byStore, total };
+    if (withBreakdown) {
+      row.breakdown = breakdownByKey.get(`${selected[0].id}::${businessDate}`)
+        || { revenue: 0, otherIncome: 0, hpp: 0, expense: 0, stockAdjustmentNet: 0, netProfit: 0 };
+    }
+    return row;
   });
 
   const totals = { byStore: {}, total: 0 };
@@ -270,10 +340,22 @@ export async function handleNetProfitReportApi(request, env, pathname) {
     totals.total += row.total;
   }
 
-  return json({
+  const response = {
     from, to,
+    scope: entityWide ? 'ENTITY' : 'STORE',
     stores: selected.map(store => ({ code: store.code, storeName: store.storeName })),
     rows,
     totals
-  });
+  };
+  if (withBreakdown) {
+    response.breakdownTotals = rows.reduce((acc, row) => ({
+      revenue: acc.revenue + row.breakdown.revenue,
+      otherIncome: acc.otherIncome + row.breakdown.otherIncome,
+      hpp: acc.hpp + row.breakdown.hpp,
+      expense: acc.expense + row.breakdown.expense,
+      stockAdjustmentNet: acc.stockAdjustmentNet + row.breakdown.stockAdjustmentNet,
+      netProfit: acc.netProfit + row.breakdown.netProfit
+    }), { revenue: 0, otherIncome: 0, hpp: 0, expense: 0, stockAdjustmentNet: 0, netProfit: 0 });
+  }
+  return json(response);
 }

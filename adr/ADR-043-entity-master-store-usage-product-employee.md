@@ -1,8 +1,8 @@
 # ADR-043 — Entity owns master data, Store owns usage (Master Barang & Master Employee)
 
-Status: PROPOSED — audit + mapping, menunggu keputusan Bos Cyo sebelum ada migration ditulis
+Status: ACCEPTED — keputusan final Bos Cyo 2026-09-17, task ditulis ke agent-bus untuk Karen
 Tanggal: 2026-09-17
-Diminta oleh: Bos Cyo
+Diputuskan oleh: Bos Cyo
 Ditulis oleh: Hana
 
 ## Konteks
@@ -142,32 +142,57 @@ dst — puluhan foreign key yang ada hari ini tidak tersentuh. Fungsionalitas
 yang sudah jalan (Kasir, Admin, Customer, Accounting) tidak berubah perilaku
 sampai fitur "katalog Entity + Gunakan/Aktifkan" benar-benar dipakai.
 
-## Open decisions milik Bos Cyo (bukan keputusan teknis)
+## Keputusan final Bos Cyo (2026-09-17) — fork-on-edit, bukan live-sync, bukan snapshot
 
-1. **Kalau nama/foto/resep diedit di satu Store, apakah harus otomatis berubah
-   di semua Store lain yang pakai barang yang sama?** Desain di atas mendukung
-   ini (baca dari `product_masters` sebagai sumber tunggal), tapi itu berarti
-   Admin Gerai manapun bisa mengubah tampilan barang milik Store lain secara
-   tidak langsung. Alternatifnya: snapshot sekali saat "Gunakan" (lebih aman,
-   tapi bukan single-source-of-truth murni). Ini keputusan bisnis, bukan
-   arsitektur.
-2. **Siapa yang boleh membuat/mengedit isi Master Barang Entity** — Admin Gerai
-   pembuat saja, atau juga Entity Admin/Owner? (Pola yang sama sudah ada untuk
-   Employee: Admin Gerai boleh lihat semua, tapi cuma boleh ubah yang gerainya
-   sendiri rekrut — kemungkinan pola yang sama cocok di sini.)
-3. **Resep/BOM dan klasifikasi (item_type/product_kind/unit)** — apakah target
-   akhirnya juga jadi Entity-owned (barang "identik" antar-Store benar-benar
-   satu resep), atau cukup dicocokkan per-Store seperti sekarang? Fase 1 di
-   atas sengaja menunda ini; kalau jawabannya "ya, harus Entity-owned juga",
-   itu ADR terpisah karena menyentuh Accounting/Costing.
+Setelah didiskusikan, Bos Cyo memutuskan pola **copy-on-write / fork-on-edit**,
+jalan tengah dari dua opsi yang tadinya diajukan sebagai open decision:
 
-## Yang sengaja tidak dikerjakan di sini
+- Selama sebuah barang di satu Store **belum pernah diedit** pada field
+  identitas (nama/foto/resep), Store itu tetap "nyambung" membaca langsung
+  dari `product_masters` yang sama dengan Store lain yang juga memakainya.
+  Tidak perlu fotokopi dari awal.
+- Begitu **satu Store mengedit nama, foto, atau resep**, sistem otomatis
+  membuat baris `product_masters` **baru** (fork — salinan dari yang lama plus
+  perubahan itu), dan `products.product_master_id` milik Store itu dialihkan
+  ke baris baru. Store lain yang masih pakai baris lama **tidak terpengaruh
+  sama sekali** — ini yang menjawab kekhawatiran "satu Store bisa mengubah
+  tampilan barang Store lain".
+- Baris hasil fork itu juga otomatis ikut muncul di katalog Master Entity,
+  ditandai jelas milik/varian Store mana, supaya Store lain bisa memilihnya
+  juga kalau mau.
+- **Harga jual, harga beli, status aktif, promo, average cost/HPP TIDAK
+  PERNAH memicu fork** — field itu murni operasional Store, diedit sebebas
+  dan sesering apa pun tanpa menyentuh Master Entity sama sekali. Hanya nama,
+  foto, dan resep yang termasuk "identitas" yang memicu fork.
+- **Resep/BOM saat aktivasi bersifat best-effort, tidak boleh memblokir**:
+  kalau Store penerima tidak punya bahan baku lokal yang dipakai resep
+  tersebut, barang tetap bisa diaktifkan tanpa resep dulu (`recipe_link_
+  enabled=0`), dengan 3 jalan lanjutan: pakai tanpa resep, petakan manual ke
+  bahan lokal yang sudah ada, atau bikin bahan baru lokal lalu link. Ini
+  menjawab open decision #3 sekaligus — resep ikut masuk skema fork dari awal
+  (tidak perlu ditunda ke fase 2), karena mekanisme fork sendiri yang membuat
+  penyesuaian resep per-Store aman dilakukan.
+- Siapa boleh mengedit (memicu fork): sama seperti pola Master Employee yang
+  sudah ada — siapa pun dengan akses management di Store itu boleh
+  edit/fork barangnya sendiri. Tidak perlu restriksi ekstra karena fork by
+  design tidak pernah merusak data Store lain.
 
-Tidak ada migration yang ditulis, tidak ada endpoint yang diubah. Sesuai
-instruksi eksplisit Bos Cyo: audit dan mapping dulu. Setelah tiga open decision
-di atas dijawab, langkah berikutnya adalah menulis task brief untuk Karen
-(pola `agent-task-brief`) yang memecah proposal di atas jadi migration +
-endpoint + test terpisah.
+`item_types`/`units`/`product_kinds`/`manufacturing_recipes` tetap store-scoped
+seperti sekarang di fase ini — resep yang di-fork tetap merujuk ke bahan lokal
+Store yang bersangkutan, dicocokkan manual, bukan dipaksa share lintas Store.
+
+## Task implementasi
+
+Ditulis ke papan agent-bus (D1 `maxi-agent-bus`) untuk Karen, 4 task berurutan:
+
+1. `karen-PRODUCT-MASTER-ENTITY-SCHEMA` — migration: tabel `product_masters` +
+   kolom `products.product_master_id` (additive, pola ADR-030).
+2. `karen-PRODUCT-MASTER-ENTITY-BACKEND` — endpoint katalog Entity, aktivasi
+   (Gunakan/Aktifkan), logic fork-on-edit, fallback resep 3-opsi.
+3. `karen-PRODUCT-MASTER-ENTITY-ADMIN-UI` — UI Admin: katalog + tombol
+   Gunakan/Aktifkan + alur lengkapi resep.
+4. `karen-PRODUCT-MASTER-ENTITY-E2E-VERIFY` — verifikasi end-to-end + regresi
+   penuh sebelum dianggap selesai.
 
 ## DOC-IMPACT
 

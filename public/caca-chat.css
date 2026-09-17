@@ -1,0 +1,83 @@
+.caca-ringkas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.caca-ringkas div {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.caca-ringkas span {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+.caca-konfirmasi {
+  border-left: 3px solid #e0a33a;
+  background: rgba(224, 163, 58, 0.08);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.caca-konfirmasi.ok {
+  border-left-color: #4caf7d;
+  background: rgba(76, 175, 125, 0.08);
+}
+
+.caca-konfirmasi ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.caca-konfirmasi li {
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+
+.caca-tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-right: 6px;
+}
+
+.caca-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+}
+
+.caca-table th,
+.caca-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.caca-table th {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
+
+.caca-warn {
+  color: #e0a33a;
+}
+
+.caca-catatan {
+  font-style: italic;
+}

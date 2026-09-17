@@ -40,6 +40,7 @@
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
+        <button class="admin-tab" data-entity-tab="caca" type="button">Caca</button>
       </nav>
 
       <section id="entityTab-stores" class="admin-section active">
@@ -100,10 +101,25 @@
           <div id="entityJournalList" class="master-list"></div>
         </div>
       </section>
+      <section id="entityTab-caca" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head"><div><h2>Caca — baca lembar rekap</h2><div class="muted" id="cacaStatus">Memuat…</div></div></div>
+          <div class="admin-tip" style="margin:12px 0">Tahap uji coba: Caca hanya membaca dan memastikan. Belum ada yang tersimpan jadi transaksi.</div>
+          <div class="admin-grid two compact">
+            <label class="admin-field">Gerai<select id="cacaStore"></select></label>
+            <label class="admin-field">Foto lembar rekap<input id="cacaGambar" type="file" accept="image/*" /></label>
+          </div>
+          <button id="cacaKirim" class="primary-btn" type="button" disabled>Minta Caca baca</button>
+          <div id="cacaPesan" class="muted" style="margin-top:10px" aria-live="polite"></div>
+          <div id="cacaHasil" style="margin-top:14px"></div>
+        </div>
+      </section>
     </section>
   </main>
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
+<link rel="stylesheet" href="/caca-chat.css" />
+<script src="/caca-chat.js"></script>
 <script src="/entity-admin.js"></script>
 <script>
 (() => {

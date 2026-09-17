@@ -64,6 +64,8 @@ function switchEntityTab(name) {
   document.querySelectorAll('[data-entity-tab]').forEach(button => button.classList.toggle('active', button.dataset.entityTab === name));
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
+  entityAdminEl('entityTab-caca')?.classList.toggle('active', name === 'caca');
+  if (name === 'caca') window.cacaMuatPanel?.();
 }
 
 async function loadEntityLedger() {

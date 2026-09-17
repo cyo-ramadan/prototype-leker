@@ -19,6 +19,7 @@ import { handleApprovalQueueApi } from './approval-queue.js';
 import { handleTransactionVoidPermitApi } from './transaction-void-permits.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
+import { handleCacaApi } from './caca-chat.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleEmployeeDepositApi } from './employee-deposit-settlement.js';
@@ -240,6 +241,8 @@ async function handleApi(request, env, url) {
   if (adminTransactionsResponse) return adminTransactionsResponse;
   const adminRaportResponse = await handleAdminCashierRaportApi(request, env, pathname);
   if (adminRaportResponse) return adminRaportResponse;
+  const cacaResponse = await handleCacaApi(request, env, pathname);
+  if (cacaResponse) return cacaResponse;
   if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
   const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);
   if (cashierAuthResponse) return cashierAuthResponse;

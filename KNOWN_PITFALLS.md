@@ -248,6 +248,48 @@ tidak konsisten/predictable, bukan cuma soal branch mana yang dipakai.
 
 Recovery dan deployment checklist lengkap ada di `RUNBOOK.md`.
 
+**Koreksi kedua, 2026-09-17 -- separuh kesimpulan koreksi di atas ternyata salah,
+dan baru ketahuan karena sehari penuh kerjaan numpuk tanpa pernah sampai user.**
+22 commit (migration 0095 s/d 0100, plus semua kode Kode Barang/Master Entity,
+Laporan Net Profit, Bea Operasional) di-push ke branch fitur
+`subkategori-dermo-dan-edit-modal` selama ~2 hari. Dicek langsung ke dua sumber
+primer: `d1_migrations` di D1 production menunjukkan seluruhnya SUDAH applied
+(migration 0100 jam 15:06), tapi `workers_get_worker_code` (kode Worker
+`prototype-leker-v2` yang SUNGGUHAN melayani request, dibaca langsung dari
+Cloudflare API, bukan dari dashboard/preview) masih persis versi PR #294 --
+merge terakhir ke `main`, 2026-09-16 -- tidak ada satu pun dari 22 commit itu
+yang ikut. Bos Cyo yang menyadari duluan lewat gejala ("kok karyawan jadi ga
+ada"), bukan dari monitoring apa pun.
+
+Jadi klaim koreksi 2026-08-31 di atas cuma benar untuk **migration D1**
+(`db:migrations:apply` -- memang tidak branch-aware, tetap applied ke D1
+production dari branch mana pun, ini bagian yang TIDAK berubah dan tetap
+berbahaya persis seperti sebelumnya). Yang salah adalah menyamaratakannya dengan
+**kode Worker** (`wrangler deploy`): itu baru benar-benar melayani request
+sesudah masuk `main` lewat merge, bukan pada saat push ke branch fitur. `workers_list`
+`modified_on` yang berubah beberapa detik sesudah migration applied (bukti asli
+koreksi 2026-08-31) ternyata BUKAN bukti kode baru ter-deploy -- kemungkinan
+besar itu Cloudflare membuat *build/preview* untuk branch itu (mengubah metadata
+worker) tanpa mempromosikannya jadi versi yang dilayani `workers.dev`. Tidak ada
+tool di sini yang bisa melihat langsung dashboard "Workers Builds" atau
+deployment/version history-nya untuk memastikan mekanismenya persis apa --
+kesimpulan ini murni dari membandingkan isi kode yang benar-benar dilayani
+terhadap riwayat commit, dua kali (2026-08-31 dan 2026-09-17), bukan dari
+membaca dokumentasi Cloudflare.
+
+**Implikasi yang benar sekarang:** migration destruktif/belum yakin tetap tidak
+boleh di-push ke branch mana pun (masih applied ke D1 production yang sama,
+sama seperti sebelumnya) -- itu bagian dari koreksi 2026-08-31 yang tetap
+berlaku. Tapi kode aplikasi (apa pun yang membaca tabel migration itu) **tidak
+hidup untuk user sampai branch-nya masuk `main`** -- jangan pernah
+menyimpulkan/melaporkan "sudah bisa dicoba" hanya dari push berhasil + migration
+applied. Bukti "sudah live" tetap tiga langkah di `RUNBOOK.md`/`jalur-akses-leker`
+(migration applied + `modified_on` berubah + cek fungsional) TAPI langkah
+ketiganya (cek fungsional, atau baca `workers_get_worker_code` langsung) yang
+paling menentukan -- dua langkah pertama sudah terbukti bisa lolos padahal
+kodenya belum live. Kerjaan yang selesai dan lulus test wajib digabung ke `main`
+sebelum dilaporkan siap dicoba, bukan cukup di-push ke branch fitur.
+
 ## Login Admin Gerai yang "muter-muter" berulang -- riwayat lengkap, bukan tebak ulang tiap kali
 
 **Pitfall:** gejala "login admin_pendem berhasil tapi halamannya muter-muter/blank" muncul
@@ -434,4 +476,4 @@ Kalau membangun fitur pencatatan Beban baru apa pun (dari Admin maupun Kasir), c
 
 ## DOC-IMPACT
 
-**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion, **push ke branch fitur mana pun harus diperlakukan sebagai deploy production yang sesungguhnya** (tidak ada isolasi preview D1/Worker yang terbukti, lihat koreksi 2026-08-31 di "Preview Worker tidak membuktikan remote D1 siap"), **laporan "login Admin Gerai muter-muter" wajib dibaca dari riwayat lengkapnya dulu** sebelum re-diagnose dari nol (lihat "Login Admin Gerai yang 'muter-muter' berulang"), dan **compound SELECT di D1 dibatasi 5 term** -- test lokal `node:sqlite` tidak menegakkan limit ini sama sekali, jadi query gabungan >5 cabang bisa hijau di `npm test` tapi gagal total di production (lihat "D1 membatasi compound SELECT ke 5 term"), **alur "keputusan lalu eksekusi" yang ditulis sebagai dua write terpisah harus retry-safe** karena disconnect di tengah bisa bikin state nyangkut permanen tanpa error yang jelas (lihat "ACC lalu eksekusi dua statement terpisah"), dan **setiap navigasi in-app baru antar halaman staf wajib memanggil `lekerPrepareStaffHandoff()`** sebelum pindah halaman, atau guard satu-tab bisa memblokir diri sendiri dan terlihat seperti logout misterius (lihat "Navigasi in-app antar halaman staf dianggap 'tab kompetitor'"), dan **fitur Beban baru (dari Admin maupun Kasir) wajib didaftarkan manual ke `BEBAN_SOURCES`/`computeFactsForDates()` di `src/net-profit-report.js`** atau Laporan Net Profit akan diam-diam kelihatan lebih untung dari aslinya tanpa error apa pun (lihat "Laporan Net Profit tidak otomatis ikut fitur Beban baru"), dan **setiap parameter query yang menyebut gerai wajib divalidasi terhadap kewenangan pemanggil, bukan cuma `?store=`** -- gate `requireManagement()` hanya mengunci `?store=`, sehingga parameter daftar gerai seperti `stores=` bisa jadi jalur baca lintas gerai yang lolos tanpa error (lihat "`?store=` mengunci pemanggil, tapi parameter daftar gerai di query string tidak ikut terkunci").
+**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion, **push ke branch fitur mana pun harus diperlakukan sebagai deploy production yang sesungguhnya** (tidak ada isolasi preview D1/Worker yang terbukti, lihat koreksi 2026-08-31 di "Preview Worker tidak membuktikan remote D1 siap"), **laporan "login Admin Gerai muter-muter" wajib dibaca dari riwayat lengkapnya dulu** sebelum re-diagnose dari nol (lihat "Login Admin Gerai yang 'muter-muter' berulang"), dan **compound SELECT di D1 dibatasi 5 term** -- test lokal `node:sqlite` tidak menegakkan limit ini sama sekali, jadi query gabungan >5 cabang bisa hijau di `npm test` tapi gagal total di production (lihat "D1 membatasi compound SELECT ke 5 term"), **alur "keputusan lalu eksekusi" yang ditulis sebagai dua write terpisah harus retry-safe** karena disconnect di tengah bisa bikin state nyangkut permanen tanpa error yang jelas (lihat "ACC lalu eksekusi dua statement terpisah"), dan **setiap navigasi in-app baru antar halaman staf wajib memanggil `lekerPrepareStaffHandoff()`** sebelum pindah halaman, atau guard satu-tab bisa memblokir diri sendiri dan terlihat seperti logout misterius (lihat "Navigasi in-app antar halaman staf dianggap 'tab kompetitor'"), dan **fitur Beban baru (dari Admin maupun Kasir) wajib didaftarkan manual ke `BEBAN_SOURCES`/`computeFactsForDates()` di `src/net-profit-report.js`** atau Laporan Net Profit akan diam-diam kelihatan lebih untung dari aslinya tanpa error apa pun (lihat "Laporan Net Profit tidak otomatis ikut fitur Beban baru"), dan **setiap parameter query yang menyebut gerai wajib divalidasi terhadap kewenangan pemanggil, bukan cuma `?store=`** -- gate `requireManagement()` hanya mengunci `?store=`, sehingga parameter daftar gerai seperti `stores=` bisa jadi jalur baca lintas gerai yang lolos tanpa error (lihat "`?store=` mengunci pemanggil, tapi parameter daftar gerai di query string tidak ikut terkunci"). dan **migration D1 dan kode Worker punya "kapan live"-nya beda** -- migration applied ke D1 production dari push ke branch mana pun (tidak branch-aware, tetap berbahaya), tapi kode Worker baru benar-benar melayani user sesudah branch-nya masuk `main`, jadi "push berhasil + migration applied" TIDAK boleh disimpulkan sebagai "sudah bisa dicoba user" (lihat koreksi 2026-09-17 di "Preview Worker tidak membuktikan remote D1 siap").

@@ -107,6 +107,43 @@ Pagar tambahan yang tidak bisa dites otomatis, tapi tetap berlaku:
   yang masih rancangan `ADR-037`) **tidak** ditulis sebagai fitur. Kalau mau menambah
   baris fitur, baca dulu kodenya, jangan menyalin dari dokumen rencana.
 
+## Promo + hitung mundur — dipasang, dengan satu syarat
+
+Diminta Bos Cyo 2026-09-17: *"jangan lupa diskon hari ini nya, dikasih waktu berjalan
+berapa menit lagi, dan itu berulang terus kalo waktunya habis."*
+
+Sudah dipasang: bar promo di atas halaman plus pengulangannya di kotak harga, dengan
+hitung mundur yang jalan tiap detik dan otomatis lanjut ke hari berikutnya begitu
+waktunya habis.
+
+**Cara pasangnya sengaja dipilih yang jujur, dan ini bukan soal selera.** Pola yang
+lazim dipakai orang adalah menyimpan waktu mulai per pengunjung lalu me-reset diam-diam
+tiap ada yang datang — sehingga "deadline"-nya tidak pernah benar-benar ada. Itu tidak
+dipakai di sini karena:
+
+- Calon pembeli cukup memuat ulang halaman untuk membuktikannya bohong, dan yang dijual
+  di halaman ini justru program pencatatan yang seluruh nilainya bertumpu pada kepercayaan.
+- Pembelinya pemilik usaha, bukan pembeli impulsif. Ketahuan sekali, hilang selamanya.
+- Iklan yang menyesatkan soal promo bukan cuma soal etika di Indonesia.
+
+Yang dipakai: **batas harian sungguhan**. Hitung mundurnya mengarah ke satu jam tutup
+WIB yang sama untuk semua pengunjung; lewat jam itu, ia lanjut sendiri ke batas hari
+berikutnya. Berulang terus persis seperti yang diminta Bos Cyo — bedanya, deadline-nya
+memang ada. Dijaga tes `test/program-landing-page.test.js` yang melarang halaman ini
+menyimpan waktu mulai apa pun di sisi pengunjung.
+
+**Syaratnya satu, dan ini di tangan Bos Cyo:** orang yang chat sebelum jam tutup harus
+benar-benar dapat promonya. Kalau tidak dijalankan, pagar teknis di atas tidak ada
+gunanya.
+
+Dua hal diatur di satu tempat saja di `public/program.html` (blok `var PROMO`):
+
+| Setelan | Isi sekarang | Artinya |
+|---|---|---|
+| `nilai` | *kosong* | Bar promo cuma bilang "tanya di chat". Begitu Bos Cyo isi (mis. `'30%'`), angkanya tampil. Dikosongkan supaya tidak ada agen yang mengarang angka diskon |
+| `batasJam` | `21` | Promo hari ini tutup jam 9 malam WIB |
+| `aktif` | `true` | Setel `false` untuk mematikan seluruh bar promo tanpa menghapus apa pun |
+
 ## Isi yang masih nunggu Bos Cyo
 
 | Yang kurang | Akibatnya kalau tidak diisi |
@@ -114,6 +151,7 @@ Pagar tambahan yang tidak bisa dites otomatis, tapi tetap berlaku:
 | Nama final produk (sekarang "MAXI POS") | Nama kerja terus dipakai; ganti belakangan berarti revisi materi jualan |
 | Harga per tingkat | Tiap calon pembeli harus ditanya balik satu per satu lewat chat |
 | Nomor WhatsApp khusus jualan program | Sekarang memakai nomor yang sama dengan situs wedding (`0821 3238 4762`). Chat program dan chat nikahan bakal campur di satu inbox |
+| Angka diskonnya berapa | Bar promo jalan tapi tanpa angka — cuma mengarahkan ke chat. Potensi konversinya belum kepakai penuh |
 | Foto tampilan program | Halaman sekarang murni teks. Foto/tangkapan layar asli akan menaikkan kepercayaan jauh lebih besar daripada tambahan kalimat |
 | Domain sendiri | Selama masih di alamat `workers.dev` yang ada kata "prototype", halaman ini layak buat dinilai Bos Cyo tapi belum layak disebarkan ke calon pembeli |
 

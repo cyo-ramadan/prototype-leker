@@ -36,7 +36,33 @@ test('halaman jualan tidak memuat harga karangan', async () => {
     null,
     `halaman jualan tidak boleh memuat angka harga: ${JSON.stringify(angkaRupiah)}`
   );
-  assert.match(html, /belum dipublikasikan/i, 'harga harus dinyatakan belum ditetapkan, bukan dihilangkan diam-diam');
+  assert.match(
+    html,
+    /Minta hitungan harga/i,
+    'harga harus diarahkan ke chat secara terbuka, bukan dihilangkan diam-diam'
+  );
+});
+
+test('hitung mundur promo memakai batas harian sungguhan, bukan timer palsu per pengunjung', async () => {
+  // Bos Cyo minta hitung mundur yang berulang tiap kali waktunya habis. Cara jahat
+  // yang lazim dipakai: simpan waktu mulai per pengunjung, lalu reset diam-diam
+  // setiap orang datang -- deadline-nya tidak pernah ada. Calon pembeli tinggal
+  // muat ulang halaman untuk membuktikannya bohong, dan yang dijual di sini justru
+  // program pencatatan yang intinya kepercayaan.
+  // Jadi pagar ini mengunci: hitung mundurnya ke jam tutup WIB yang sama untuk semua
+  // orang, dan tidak boleh menyimpan waktu mulai apa pun di sisi pengunjung.
+  const html = await read('public/program.html');
+
+  assert.match(html, /batasJam/, 'promo harus punya jam tutup harian yang eksplisit');
+  assert.match(html, /setHours\(PROMO\.batasJam, 0, 0, 0\)/, 'hitung mundur harus mengarah ke jam tutup itu');
+  assert.match(html, /7 \* 3600000/, 'jam tutup harus dikunci ke WIB, bukan waktu lokal pengunjung');
+  assert.match(html, /batas\.setDate\(batas\.getDate\(\) \+ 1\)/, 'lewat jamnya harus lanjut ke hari berikutnya sendiri');
+
+  assert.doesNotMatch(
+    html,
+    /localStorage|sessionStorage|document\.cookie/,
+    'dilarang menyimpan waktu mulai di sisi pengunjung -- itu pola timer palsu yang di-reset diam-diam'
+  );
 });
 
 test('halaman jualan tidak boleh terindeks selama masih di hostname prototype', async () => {

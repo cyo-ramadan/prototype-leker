@@ -176,10 +176,16 @@ async function handleApi(request, env, url) {
   if (ownerResponse) return ownerResponse;
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
   if (storeAdminResponse) return storeAdminResponse;
-  const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
-  if (entityAdminResponse) return entityAdminResponse;
+  // entity-accounting checked FIRST: its guard only claims /accounts and
+  // /journals sub-paths and returns null for everything else, so it is safe
+  // to check ahead of handleEntityAdminApi. The reverse order silently
+  // starved these routes -- handleEntityAdminApi's own guard claims every
+  // /api/entity-admin/* path (never returns null), so its internal 404
+  // fallback always won the dispatch before entity-accounting ever ran.
   const entityAccountingResponse = await handleEntityAccountingApi(request, env, pathname);
   if (entityAccountingResponse) return entityAccountingResponse;
+  const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
+  if (entityAdminResponse) return entityAdminResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
   const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);

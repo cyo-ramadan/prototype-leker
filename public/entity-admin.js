@@ -3,7 +3,9 @@ const entityAdminState = {
   entityAdmin: null,
   stores: [],
   accounts: [],
-  journals: []
+  journals: [],
+  productMasters: [],
+  employees: []
 };
 
 const entityAdminEl = id => document.getElementById(id);
@@ -64,6 +66,103 @@ function switchEntityTab(name) {
   document.querySelectorAll('[data-entity-tab]').forEach(button => button.classList.toggle('active', button.dataset.entityTab === name));
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
+  entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
+  entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
+  if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
+  if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
+}
+
+// Master Barang & Karyawan (ADR-043) sudah entity-scoped di backend
+// (src/product-master.js, src/employee-master.js), tapi endpoint-nya masih
+// butuh ?store= untuk resolve entity_id (pola requireManagement yang sama
+// dipakai Admin Gerai). Panel Entity Admin tidak punya konsep "gerai yang
+// sedang dibuka" seperti Admin Gerai, jadi dipakai gerai PERTAMA milik
+// entity ini murni sebagai kendaraan resolusi -- hasilnya tetap data
+// seluruh entity, bukan data gerai itu saja (listEmployees/loadCatalog
+// keduanya sudah filter by entity_id, bukan store_id).
+function anyEntityStoreCode() {
+  return entityAdminState.stores[0]?.code || '';
+}
+
+// --- Master Barang Entity -------------------------------------------------
+
+async function loadEntityProductMasters() {
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) {
+    entityAdminEl('entityProductMasterList').innerHTML = '<div class="empty">Belum ada gerai di entity ini.</div>';
+    return;
+  }
+  const payload = await entityAdminApi(`/api/admin/product-masters?store=${encodeURIComponent(storeCode)}`);
+  entityAdminState.productMasters = payload.catalog || [];
+  renderEntityProductMasters();
+}
+
+function renderEntityProductMasterRecipeList(entry) {
+  if (!entry.recipeReference.length) return '<span class="muted">Belum ada resep acuan.</span>';
+  return entry.recipeReference.map(component =>
+    `${entityAdminEscape(component.ingredientLabel)}${component.quantityLabel ? ` · ${entityAdminEscape(component.quantityLabel)}` : ''}`
+  ).join(', ');
+}
+
+function renderEntityProductMasters() {
+  const list = entityAdminEl('entityProductMasterList');
+  const catalog = entityAdminState.productMasters || [];
+  list.innerHTML = catalog.length ? catalog.map(entry => `
+    <div class="master-row contact-row" data-entity-pm-row="${entityAdminEscape(entry.id)}">
+      ${entry.imageData ? `<img class="master-thumb" src="${entityAdminEscape(entry.imageData)}" alt="${entityAdminEscape(entry.name || entry.code)}" />` : ''}
+      <div class="master-main">
+        <strong>${entityAdminEscape(entry.code)}${entry.name ? ` · ${entityAdminEscape(entry.name)}` : ''}</strong>
+        <div class="master-meta">Dipakai ${entry.usedByStores.length} gerai${entry.usedByStores.length ? `: ${entry.usedByStores.map(u => entityAdminEscape(u.storeCode)).join(', ')}` : ''}</div>
+        <div class="master-meta">Resep acuan: ${renderEntityProductMasterRecipeList(entry)}</div>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
+}
+
+// --- Karyawan level Entity -------------------------------------------------
+
+async function loadEntityEmployees() {
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) {
+    entityAdminEl('entityEmployeeList').innerHTML = '<div class="empty">Belum ada gerai di entity ini.</div>';
+    return;
+  }
+  const payload = await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`);
+  entityAdminState.employees = payload.employees || [];
+  renderEntityEmployees();
+}
+
+function renderEntityEmployees() {
+  const employees = entityAdminState.employees || [];
+  entityAdminEl('entityEmployeeCount').textContent = employees.length;
+  entityAdminEl('entityEmployeeList').innerHTML = employees.length ? employees.map(employee => `
+    <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
+      <div class="master-main">
+        <strong>${entityAdminEscape(employee.fullName)}</strong>
+        <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `Direkrut ${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</div>
+        <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
+}
+
+async function saveEntityEmployee(event) {
+  event.preventDefault();
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) { entityAdminToast('Belum ada gerai di entity ini.'); return; }
+  try {
+    await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        scope: 'ENTITY',
+        fullName: entityAdminEl('entityEmployeeName').value,
+        phone: entityAdminEl('entityEmployeePhone').value,
+        address: entityAdminEl('entityEmployeeAddress').value,
+        note: entityAdminEl('entityEmployeeNote').value
+      })
+    });
+    entityAdminEl('entityEmployeeForm').reset();
+    await loadEntityEmployees();
+    entityAdminToast('Karyawan level Entity ditambahkan');
+  } catch (error) { entityAdminToast(error.message); }
 }
 
 async function loadEntityLedger() {
@@ -270,6 +369,8 @@ async function initEntityAdmin() {
   entityAdminEl('entityJournalForm').addEventListener('submit', submitEntityJournal);
   addEntityJournalLine();
   addEntityJournalLine();
+  entityAdminEl('entityProductMasterRefresh')?.addEventListener('click', () => loadEntityProductMasters().catch(error => entityAdminToast(error.message)));
+  entityAdminEl('entityEmployeeForm')?.addEventListener('submit', saveEntityEmployee);
 
   if (!entityAdminState.token) return showEntityAdminLogin();
   try {

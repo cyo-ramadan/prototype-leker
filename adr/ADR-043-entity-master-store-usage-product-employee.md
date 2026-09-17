@@ -142,57 +142,77 @@ dst — puluhan foreign key yang ada hari ini tidak tersentuh. Fungsionalitas
 yang sudah jalan (Kasir, Admin, Customer, Accounting) tidak berubah perilaku
 sampai fitur "katalog Entity + Gunakan/Aktifkan" benar-benar dipakai.
 
-## Keputusan final Bos Cyo (2026-09-17) — fork-on-edit, bukan live-sync, bukan snapshot
+## Keputusan final Bos Cyo (2026-09-17) — Kode Barang sebagai anchor, bukan fork-on-edit
 
-Setelah didiskusikan, Bos Cyo memutuskan pola **copy-on-write / fork-on-edit**,
-jalan tengah dari dua opsi yang tadinya diajukan sebagai open decision:
+Rancangan fork-on-edit (nama+foto+resep sekaligus, "edit = bikin barang baru")
+sempat diusulkan tapi **digantikan** rancangan yang lebih sederhana setelah
+diskusi lanjutan dengan Bos Cyo:
 
-- Selama sebuah barang di satu Store **belum pernah diedit** pada field
-  identitas (nama/foto/resep), Store itu tetap "nyambung" membaca langsung
-  dari `product_masters` yang sama dengan Store lain yang juga memakainya.
-  Tidak perlu fotokopi dari awal.
-- Begitu **satu Store mengedit nama, foto, atau resep**, sistem otomatis
-  membuat baris `product_masters` **baru** (fork — salinan dari yang lama plus
-  perubahan itu), dan `products.product_master_id` milik Store itu dialihkan
-  ke baris baru. Store lain yang masih pakai baris lama **tidak terpengaruh
-  sama sekali** — ini yang menjawab kekhawatiran "satu Store bisa mengubah
-  tampilan barang Store lain".
-- Baris hasil fork itu juga otomatis ikut muncul di katalog Master Entity,
-  ditandai jelas milik/varian Store mana, supaya Store lain bisa memilihnya
-  juga kalau mau.
-- **Harga jual, harga beli, status aktif, promo, average cost/HPP TIDAK
-  PERNAH memicu fork** — field itu murni operasional Store, diedit sebebas
-  dan sesering apa pun tanpa menyentuh Master Entity sama sekali. Hanya nama,
-  foto, dan resep yang termasuk "identitas" yang memicu fork.
+- **Yang benar-benar milik Entity cuma tiga: Kode Barang, Foto, dan label
+  nama internal.** Kode Barang adalah anchor/jangkarnya — satu Kode Barang
+  bisa dipakai banyak Store sekaligus. Label nama internal murni buat
+  identifikasi manusia/agen (mis. Bos Cyo generate banyak foto lalu minta
+  agen meng-upload-kan ke barang Entity yang tepat berdasarkan nama ini) --
+  **bukan** nama yang tampil ke pelanggan/kasir.
+- **Nama tampil (`products.name`) 100% milik Store**, bebas beda-beda per
+  gerai, sama sekali tidak nempel ke Kode Barang.
+- **Resep di level Entity murni ACUAN/REFERENSI** (daftar bahan+takaran
+  bebas teks, tidak di-FK ke item lokal Store mana pun) — bukan struktur yang
+  dieksekusi. Resep yang benar-benar motong stok tetap
+  `manufacturing_recipes` + `products.linked_recipe_id` milik masing-masing
+  Store seperti sekarang, tidak berubah.
+- **Karena acuan resep dan foto murni referensi/tampilan (bukan pengikat
+  produksi/keuangan), keduanya AMAN diedit in-place** — tidak ada mekanisme
+  fork/versi sama sekali. Foto yang diedit di satu Store otomatis ikut
+  berubah di SEMUA Store yang memakai Kode Barang yang sama (memang itu
+  yang diinginkan, foto Entity satu sumber). Nama dan harga tidak pernah
+  ikut berubah di Store lain karena keduanya memang tidak pernah disimpan
+  di level Entity sama sekali.
 - **Resep/BOM saat aktivasi bersifat best-effort, tidak boleh memblokir**:
   kalau Store penerima tidak punya bahan baku lokal yang dipakai resep
-  tersebut, barang tetap bisa diaktifkan tanpa resep dulu (`recipe_link_
-  enabled=0`), dengan 3 jalan lanjutan: pakai tanpa resep, petakan manual ke
-  bahan lokal yang sudah ada, atau bikin bahan baru lokal lalu link. Ini
-  menjawab open decision #3 sekaligus — resep ikut masuk skema fork dari awal
-  (tidak perlu ditunda ke fase 2), karena mekanisme fork sendiri yang membuat
-  penyesuaian resep per-Store aman dilakukan.
-- Siapa boleh mengedit (memicu fork): sama seperti pola Master Employee yang
-  sudah ada — siapa pun dengan akses management di Store itu boleh
-  edit/fork barangnya sendiri. Tidak perlu restriksi ekstra karena fork by
-  design tidak pernah merusak data Store lain.
+  acuan, barang tetap bisa diaktifkan tanpa resep dulu (`recipe_link_
+  enabled=0`, `linkedRecipeId=null`). Store melengkapi resep eksekusinya
+  sendiri belakangan, resep acuan cuma referensi tampilan.
+- Siapa boleh mendaftarkan Kode Barang baru / mengedit foto & resep acuan:
+  siapa pun dengan akses management di Store yang bersangkutan (owner/admin
+  gerai/entity admin) — sama seperti pola Master Employee yang sudah ada,
+  tidak ada restriksi ekstra.
 
 `item_types`/`units`/`product_kinds`/`manufacturing_recipes` tetap store-scoped
-seperti sekarang di fase ini — resep yang di-fork tetap merujuk ke bahan lokal
-Store yang bersangkutan, dicocokkan manual, bukan dipaksa share lintas Store.
+seperti sekarang — resep eksekusi Store tetap merujuk bahan lokal Store yang
+bersangkutan, dicocokkan manual terhadap resep acuan, bukan dipaksa share.
 
-## Task implementasi
+## Implementasi
 
-Ditulis ke papan agent-bus (D1 `maxi-agent-bus`) untuk Karen, 4 task berurutan:
+Dikerjakan langsung oleh Hana (bukan dilempar ke Karen — instruksi eksplisit
+Bos Cyo "ini semua kamu kerjakan sendiri hana"), branch
+`subkategori-dermo-dan-edit-modal`:
 
-1. `karen-PRODUCT-MASTER-ENTITY-SCHEMA` — migration: tabel `product_masters` +
-   kolom `products.product_master_id` (additive, pola ADR-030).
-2. `karen-PRODUCT-MASTER-ENTITY-BACKEND` — endpoint katalog Entity, aktivasi
-   (Gunakan/Aktifkan), logic fork-on-edit, fallback resep 3-opsi.
-3. `karen-PRODUCT-MASTER-ENTITY-ADMIN-UI` — UI Admin: katalog + tombol
-   Gunakan/Aktifkan + alur lengkapi resep.
-4. `karen-PRODUCT-MASTER-ENTITY-E2E-VERIFY` — verifikasi end-to-end + regresi
-   penuh sebelum dianggap selesai.
+1. `migrations/0098_product_master_entity_code.sql` — tabel `product_masters`
+   (id, entity_id, code, name [label internal], image_data) +
+   `product_master_recipe_components` (resep acuan) + kolom nullable
+   `products.product_master_id`. Additive murni, tidak ada backfill (Kode
+   Barang baru dibuat sesuai kebutuhan lewat aplikasi, bukan migration).
+2. `src/product-master.js` — `productCode`/`productMasterName` opsional saat
+   create/edit barang (mendaftarkan Kode Barang baru, sekali daftar tidak
+   bisa diganti dari sini); edit foto pada barang yang sudah punya Kode
+   Barang otomatis sinkron ke `product_masters` dan ke SEMUA Store lain yang
+   pakai kode yang sama. Endpoint baru: `GET /api/admin/product-masters`
+   (katalog), `POST /api/admin/product-masters/:id/activate`
+   (Gunakan/Aktifkan, bikin `products` row baru milik Store pemanggil
+   sendiri), `PUT /api/admin/product-masters/:id/recipe-components` (resep
+   acuan, full-replace).
+3. `public/admin-product-policy.js` — field Kode Barang + label internal di
+   form Master Barang (dikunci begitu terisi), panel "Katalog Kode Barang
+   Entity" dengan tombol Gunakan/Aktifkan dan editor resep acuan.
+4. Test: `test/product-master-entity-kode-barang.test.js` (backend, 8 test)
+   + `test/product-master-entity-admin-ui.test.js` (UI source-level, 4 test).
+   `npm test` 736/736 pass, `npm run check` bersih.
+
+Task board Karen yang sempat ditulis untuk rancangan fork-on-edit
+(`karen-PRODUCT-MASTER-ENTITY-*`, 4 baris) sudah **CANCELLED** di D1
+`maxi-agent-bus` begitu rancangan berubah dan Bos Cyo minta Hana kerjakan
+langsung.
 
 ## DOC-IMPACT
 

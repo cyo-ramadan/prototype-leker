@@ -44,6 +44,11 @@ yang kebetulan — alasan dan pagarnya di ADR-044 bagian "Model mana untuk apa".
 Jangan menaikkannya ke model mahal tanpa angka meleset yang menunjukkan perlu,
 dan jangan pula menganggap yang murah sudah terbukti cukup sebelum diukur.
 
+**Kalau kuncinya dari jalur gratis Gemini:** itu sah untuk menguji lembar milik
+Bos Cyo sendiri, tapi **wajib pindah ke jalur berbayar sebelum data tenant lain
+lewat sini** — di jalur gratis isinya boleh dipakai Google mengembangkan
+produknya. Pindahnya tidak mengubah kode sama sekali. Rincian di ADR-044.
+
 ---
 
 ## Apa yang sedang dibangun

@@ -413,6 +413,28 @@ akurasi bacanya wajib diukur sebelum ada satu pun jalur simpan dinyalakan. Kalau
 model murah sering meleset, yang naik adalah modelnya — bukan toleransi kita
 terhadap angka yang salah.
 
+### Jalur gratis boleh untuk menguji, TIDAK boleh begitu ada pelanggan
+
+Gemini punya jalur gratis (~1.500 permintaan/hari, tanpa kartu kredit) yang lebih
+dari cukup untuk mengukur akurasi. Tapi di jalur gratis **data yang dikirim
+dipakai Google untuk mengembangkan produknya**; jaminan "data tidak dipakai
+melatih model" baru berlaku di jalur berbayar.
+
+Yang dikirim Caca adalah lembar keuangan toko. Jadi pagarnya:
+
+- **Boleh gratis** selama yang diuji lembar milik Bos Cyo sendiri. Itu datanya
+  sendiri, risikonya ditanggung sendiri, dan keputusannya ada padanya.
+- **Wajib berbayar sebelum satu pun tenant lain datanya lewat sini.** Data
+  keuangan pelanggan dipercayakan ke kita; mengirimkannya lewat jalur yang
+  isinya boleh dipakai pihak lain itu melanggar janji ke pelanggan, bukan
+  sekadar pilihan teknis. Ini juga alasan yang sama kenapa ADR ini menolak
+  menumpang produk chatbot jadi.
+
+Hematnya kecil dan tidak sebanding: menguji 20 lembar di jalur berbayar sekitar
+Rp1.400. Pindah gratis → berbayar **tidak mengubah kode sama sekali** (kunci dan
+endpoint sama, yang berubah status penagihan di akun Google), jadi tidak ada
+alasan teknis untuk menunda-nunda pindah.
+
 **Dukungan WhatsApp bukan kriteria memilih model.** Sempat jadi kekhawatiran
 Bos Cyo ("yang suport dikonekin di wa juga"), tapi yang menyambung ke WhatsApp
 adalah Worker kita sendiri lewat Meta Cloud API. Model AI hanya menerima teks

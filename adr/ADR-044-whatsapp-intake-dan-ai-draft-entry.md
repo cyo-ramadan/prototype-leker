@@ -309,28 +309,81 @@ Transaksi) langsung ikut benar tanpa disentuh sama sekali. Alternatifnya
 berarti tiap laporan harus diajari membaca dua sumber — itu utang yang
 menyebar ke mana-mana.
 
+## Mesin AI-nya: pakai apa
+
+Tiga jalur yang dipertimbangkan (diskusi Bos Cyo 2026-09-17):
+
+| Jalur | Putusan | Alasan |
+|---|---|---|
+| Bikin model sendiri dari nol | **Tidak** | Butuh tim khusus, mesin mahal, data raksasa, berbulan-bulan — dan hasilnya hampir pasti masih kalah dari model yang tinggal pakai |
+| Numpang produk chatbot jadi (Cekat dsb) | **Tidak** | Kuat di balas-balas otomatis ke pembeli + oper ke CS manusia; bukan di "baca database keuangan toko tertentu lalu catat transaksi dengan pagar konfirmasi" |
+| **API model + otak dirakit sendiri** | **Ya** | Bayar per pemakaian (nol pelanggan = nol biaya), dan bagian yang bikin Caca berharga tetap milik sendiri |
+
+Alasan tambahan menolak produk jadi, dan ini yang menentukan jangka panjang:
+membangun di atas SaaS orang lain artinya jadi **penjual ulang** — langganan
+mereka memotong langganan pelanggan kita, margin ketipis dua kali, dan kalau
+suatu hari mereka menaikkan harga atau meluncurkan fitur yang sama, tidak ada
+yang bisa dipegang. Data keuangan pelanggan juga lewat pihak ketiga yang tidak
+kita kendalikan.
+
+### Perkiraan biaya (kasar — wajib diukur ulang sebelum dipakai menetapkan harga)
+
+| | Perkiraan per satuan |
+|---|---|
+| Satu pertanyaan ("untung berapa hari ini?") | sekitar Rp 50–150 |
+| Satu foto rekap harian dibaca | sekitar Rp 400–1.000 |
+
+Satu pelanggan yang sehari kirim 1 foto + tanya 5 kali ≈ **Rp 15.000–35.000
+sebulan**. Angka ini yang harus dipegang waktu menetapkan harga langganan:
+masih sehat di kisaran ratusan ribu per bulan, tapi tipis kalau dijual sangat
+murah tanpa membatasi pemakaian foto. (Angka di atas ikut kurs dan ikut harga
+model yang berubah dari waktu ke waktu — perlakukan sebagai ancang-ancang,
+bukan patokan.)
+
+### Model mana untuk apa
+
+- **Tanya-jawab harian dan pemilihan alat** → model kecil/murah. Pekerjaannya
+  ringan: pahami maksud, panggil satu alat baca, susun kalimat.
+- **Baca foto** → model yang lebih kuat. **Di bagian ini jangan pelit.** Salah
+  baca angka uang itu persis kegagalan yang menghabiskan kepercayaan pelanggan;
+  hemat beberapa ratus rupiah di situ tidak sebanding. Cara amannya: mulai satu
+  model, uji dengan lembar rekap asli, hitung berapa sering meleset, baru
+  putuskan naik atau turun.
+
+Penghemat terbesar yang gratis: bagian instruksi Caca yang selalu sama di tiap
+chat bisa di-*cache* sehingga tidak dihitung penuh berulang-ulang — potongannya
+bisa sampai ~90% untuk bagian itu. Ini yang membuat biaya tanya-jawab bisa
+ditekan ke angka kecil di tabel atas.
+
 ## Urutan pengerjaan yang Hana sarankan
 
 Jangan dibangun sekaligus. Tiap tahap sudah bisa dipakai sendiri:
 
-1. **Tahap 0 — kanal dulu, tanpa AI.** Sambungkan Meta Cloud API, pendaftaran
-   nomor dari web, dan satu-dua perintah teks berformat tetap (`jual 3 es teh
-   15rb`) dengan parser aturan biasa. Belum ada AI, belum ada biaya per pesan.
-   Tujuannya membuktikan kanal + alur draft→konfirmasi→posting benar-benar
-   jalan. Kalau tahap ini saja gagal, tahap berikutnya percuma.
-2. **Tahap 1 — Caca bisa DITANYA.** Pasang otak AI-nya dengan **alat baca
-   saja** dulu: untung hari ini, penjualan kemarin, sisa stok. Ini tahap yang
-   paling sedikit risikonya (tidak ada yang bisa rusak — cuma membaca) tapi
-   paling terasa buat user, dan sudah cukup jadi bahan jualan. Bos Cyo juga
-   bisa memakainya sendiri dulu di gerai sendiri sebelum dijual ke orang lain.
-3. **Tahap 2 — foto rekap harian.** Alat tulis + baca gambar. Ini bagian yang
+*Direvisi 2026-09-17 setelah diskusi lanjut: WhatsApp turun dari langkah
+pertama ke Tahap 2. Alasannya di bawah.*
+
+1. **Tahap 1 — Caca bisa DITANYA, lewat kotak chat di WEB.** Bukan WhatsApp
+   dulu. Pasang otak AI-nya dengan **alat baca saja**: untung hari ini,
+   penjualan kemarin, sisa stok — sebagai tombol chat di panel yang sudah jalan.
+
+   Kenapa web dulu, bukan WA: tidak perlu verifikasi Meta, tidak perlu nunggu
+   berhari-hari, tidak ada biaya per pesan untuk uji coba, dan bisa dicoba hari
+   itu juga. Yang dibuktikan di sini justru hal yang paling belum pasti —
+   **apakah jawaban Caca benar-benar berguna**, atau cuma kelihatan keren di
+   angan-angan. Kalau meleset, yang hilang cuma waktu; kalau bagus, WhatsApp
+   tinggal ditambah sebagai pintu masuk karena otaknya sudah jadi.
+
+   WhatsApp itu *kanal*; yang mahal dan menentukan itu *otaknya*.
+2. **Tahap 2 — sambungkan ke WhatsApp.** Meta Cloud API, pendaftaran nomor dari
+   web, kemampuan yang sama persis dengan Tahap 1 (baca saja) tapi lewat WA.
+   Di sini baru urusan verifikasi WABA harus beres.
+3. **Tahap 3 — foto rekap harian.** Alat tulis + baca gambar. Ini bagian yang
    paling mahal dan paling berisiko, jadi sengaja ditaruh setelah alur
-   konfirmasi terbukti dipakai orang sungguhan di Tahap 0–1.
-4. **Tahap 3 — pesan suara.** Di pasar Indonesia, user yang gaptek sering lebih
+   konfirmasi terbukti dipakai orang sungguhan.
+4. **Tahap 4 — pesan suara.** Di pasar Indonesia, user yang gaptek sering lebih
    lancar mengirim voice note daripada mengetik. Suara → teks → masuk pipeline
-   yang sama persis, jadi ini tambahan kecil dengan dampak besar. Sengaja
-   ditaruh setelah pipeline teks matang.
-5. **Tahap 4 — Caca kirim duluan** (mis. rekap otomatis jam tutup). Baru di
+   yang sama persis, jadi ini tambahan kecil dengan dampak besar.
+5. **Tahap 5 — Caca kirim duluan** (mis. rekap otomatis jam tutup). Baru di
    sini urusan *message template* berbayar Meta perlu diselesaikan, jadi
    ditunda sampai nilainya terbukti.
 
@@ -364,12 +417,9 @@ Jangan dibangun sekaligus. Tiap tahap sudah bisa dipakai sendiri:
    nomor bersama = murah, tapi semua pelanggan bergantung pada satu nomor.
    Nomor sendiri per pelanggan = lebih mahal dan lebih ribet dipasang, tapi
    masalah satu pelanggan tidak menular. Ini keputusan bisnis.
-3. **Mulai dari Tahap 1 (Caca bisa ditanya) — setuju?** Hana sarankan begitu:
-   risikonya paling kecil, hasilnya paling cepat kelihatan, dan bisa dipakai
-   Bos Cyo sendiri dulu di gerai sendiri sebagai uji coba sebelum dijual.
-   Kalau Bos Cyo lebih mau langsung ke foto rekap, itu bisa — tapi berarti
-   bagian paling mahal dan paling berisiko dikerjakan sebelum alur
-   konfirmasinya teruji orang sungguhan.
+3. ~~Mulai dari Tahap 1 (Caca bisa ditanya)?~~ **SUDAH DIJAWAB 2026-09-17:**
+   ya, dan lebih jauh lagi — mulai dari kotak chat di **web**, WhatsApp
+   menyusul. ("ok berarti kita kasih tombol chat untuk owner ya")
 4. **Sesi laci buatan untuk rekap harian** — setuju dengan pendekatan itu, atau
    Bos Cyo punya gambaran lain soal bagaimana rekap sehari penuh harus masuk?
 5. **Angka paket** — berapa foto/hari dan berapa tanya-jawab/hari untuk tiap

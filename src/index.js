@@ -27,6 +27,7 @@ import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
 import { handleProductMasterApi, handleProductMasterCatalogApi } from './product-master.js';
+import { handleNetProfitReportApi } from './net-profit-report.js';
 import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
@@ -208,6 +209,8 @@ async function handleApi(request, env, url) {
   if (productMasterResponse) return productMasterResponse;
   const productMasterCatalogResponse = await handleProductMasterCatalogApi(request, env, pathname);
   if (productMasterCatalogResponse) return productMasterCatalogResponse;
+  const netProfitReportResponse = await handleNetProfitReportApi(request, env, pathname);
+  if (netProfitReportResponse) return netProfitReportResponse;
   const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
   if (classificationResponse) return classificationResponse;
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);

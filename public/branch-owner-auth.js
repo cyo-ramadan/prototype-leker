@@ -69,15 +69,15 @@
       return;
     }
 
+    // Bos Cyo, 2026-09-17: "ini kalo kembali ke hal entity harus relogin
+    // lagi ya?" -- ternyata YA, dan itu bug: tombol ini berlabel "Kembali
+    // ke Entity Admin" (murni navigasi, sama seperti tombol Owner di atas)
+    // tapi kodenya diam-diam logout beneran (mencabut sesi di server +
+    // menghapus token) sebelum pindah halaman. Entity Admin, seperti
+    // Owner, cuma "singgah" di satu gerai lalu balik ke panelnya sendiri --
+    // bukan mengakhiri sesi. Disamakan dengan pola Owner: pindah halaman
+    // saja, sesi entity admin tetap hidup.
     if (isEntityAdmin) {
-      try {
-        await originalFetch('/api/entity-admin/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${entityAdminToken}` }
-        });
-      } catch {}
-      localStorage.removeItem('lekerEntityAdminToken');
-      localStorage.removeItem('lekerAdminPin');
       location.href = '/entity-admin';
       return;
     }

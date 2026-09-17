@@ -138,6 +138,18 @@ test('Entity Admin landing on branch-admin without an explicit /s/:code/ prefix 
   assert.match(branchOwnerAuth, /location\.replace\('\/entity-admin'\)/);
 });
 
+// Bos Cyo, 2026-09-17: "ini kalo kembali ke hal entity harus relogin lagi
+// ya?" -- yes, it was a bug. The button labeled "Kembali ke Entity Admin"
+// (pure navigation, same intent as the Owner button right above it in the
+// same function) was secretly performing a full logout first (server-side
+// session revoke + token removal) before navigating, forcing a fresh login
+// every single time an Entity Admin left a store workspace.
+test('leaving a store workspace as Entity Admin just navigates back, like Owner does -- it does not log out or clear the token', () => {
+  assert.doesNotMatch(branchOwnerAuth, /entity-admin\/logout/, 'leaveWorkspace must not call the entity-admin logout endpoint anymore');
+  assert.doesNotMatch(branchOwnerAuth, /isEntityAdmin\)\s*\{\s*\n\s*localStorage\.removeItem\('lekerEntityAdminToken'\)/, 'must not remove the entity admin token when merely navigating back');
+  assert.match(branchOwnerAuth, /if \(isEntityAdmin\) \{\s*\n\s*location\.href = '\/entity-admin';\s*\n\s*return;\s*\n\s*\}/, 'entity admin branch must mirror the Owner branch: navigate only, no logout');
+});
+
 // The eyebrow/button on the shared #authGate card in branch-admin.html
 // always said "Owner session" / "Kembali ke Owner" regardless of which role
 // (Owner, Entity Admin, or Admin Gerai) actually hit the failure -- pure

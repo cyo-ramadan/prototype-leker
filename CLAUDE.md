@@ -138,6 +138,10 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
 
 - Semua kode ESM, `node:test` + `node:assert/strict`, Node 22.
 - File `src/` atau `public/` baru **wajib** ditambahkan ke script `check`.
+- File `public/*.js` **lama** yang diedit **wajib** bump query `?v=` di setiap HTML yang
+  me-referensikannya (server live tidak berarti browser lama ikut ambil versi baru — lihat
+  `KNOWN_PITFALLS.md` "File JS lama yang diubah tapi query `?v=` tidak dibump"). File baru aman
+  tanpa ini karena browser belum pernah menyimpan apa pun di URL-nya.
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
 - Kerjakan di branch fitur, jangan commit langsung ke `main`.
 - Sebelum commit pertama tiap sesi, set `git config user.name "Hana"` dan

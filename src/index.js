@@ -343,7 +343,7 @@ async function handleApi(request, env, url) {
 export function assetRoute(pathname) {
   const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
-  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|cashier-preview))?\/?$/);
+  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
     if (page === 'admin') return '/branch-admin';

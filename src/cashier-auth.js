@@ -51,6 +51,45 @@ export async function requireCashier(request, db) {
   return { ok: true, cashier: mapCashier(row), tokenHash };
 }
 
+// Bos Cyo, 2026-09-17: "harusnya liat persis banget halaman kasir, tapi
+// dia ga bisa write, bukan bikin ui sendiri" -- Owner/Admin Gerai/Entity
+// Admin membuka halaman Kasir ASLI ini (public/cashier.html) tanpa akun
+// kasir sungguhan, murni untuk BACA (menu + status laci). Dipakai HANYA
+// oleh /api/cashier/me dan /api/cashier/workspace (dua endpoint baca) --
+// TIDAK PERNAH dipakai endpoint tulis (sales/purchases/expenses/drawer/
+// production), yang tetap wajib requireCashier eksklusif seperti
+// sebelumnya. requireCashier dicoba dulu supaya kasir sungguhan yang
+// kebetulan juga punya token Owner/Admin di browser yang sama tetap
+// diprioritaskan sebagai dirinya sendiri, bukan dianggap "cuma lihat".
+export async function requireCashierOrReadOnlyManagement(request, env) {
+  const db = env.DB;
+  const cashierAuth = await requireCashier(request, db);
+  if (cashierAuth.ok) return { ok: true, cashier: cashierAuth.cashier, readOnly: false };
+
+  const management = await requireManagement(request, db, env);
+  // A specific management failure (mis. Entity Admin di luar entity-nya)
+  // lebih informatif daripada "login kasir diperlukan" generik dari
+  // requireCashier di atas -- tunjukkan alasan yang sebenarnya.
+  if (!management.ok) return { ok: false, response: management.response };
+
+  const url = new URL(request.url);
+  const store = await resolveStore(db, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
+  if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
+
+  const viewerName = management.owner?.displayName || management.entityAdmin?.displayName || management.admin?.displayName || 'Manajemen';
+  return {
+    ok: true,
+    readOnly: true,
+    cashier: {
+      id: `readonly:${management.authType}`,
+      username: '',
+      employeeName: `${viewerName} (Mode Lihat)`,
+      isActive: true,
+      store: { id: store.id, code: store.code, storeName: store.storeName }
+    }
+  };
+}
+
 export async function handleCashierAuthApi(request, env, pathname) {
   const db = env.DB;
 
@@ -88,9 +127,13 @@ export async function handleCashierAuthApi(request, env, pathname) {
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/me') {
-    const auth = await requireCashier(request, db);
+    const auth = await requireCashierOrReadOnlyManagement(request, env);
     if (!auth.ok) return auth.response;
-    return json({ cashier: auth.cashier, attendanceStatus: await latestAttendanceStatus(db, auth.cashier.id) });
+    // Presensi tidak berlaku untuk pengunjung read-only -- 'in' di sini
+    // cuma sinyal buat cashier-presensi-gate.js supaya tidak menahan
+    // mereka di gerbang foto datang, bukan klaim presensi sungguhan.
+    const attendanceStatus = auth.readOnly ? 'in' : await latestAttendanceStatus(db, auth.cashier.id);
+    return json({ cashier: auth.cashier, attendanceStatus, readOnly: Boolean(auth.readOnly) });
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/logout') {

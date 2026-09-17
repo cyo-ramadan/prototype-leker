@@ -1,11 +1,23 @@
+// Bos Cyo, 2026-09-17: "harusnya liat persis banget halaman kasir, tapi
+// dia ga bisa write" -- Owner/Admin Gerai/Entity Admin membuka halaman ini
+// lewat ?readonly=1 secara eksplisit, tanpa akun kasir. Fallback token
+// dari localStorage cuma dipakai untuk memutuskan apakah init() langsung
+// coba buka dashboard alih-alih menampilkan form login kasir -- header
+// Authorization sungguhan yang benar-benar dikirim tetap diatur oleh
+// staff-auth-fetch.js (juga cuma jalan untuk ?readonly=1). Tanpa param
+// itu, state.token PERSIS seperti sebelumnya (cuma lekerCashierToken).
+const readOnlyPreviewIntent = new URLSearchParams(location.search).get('readonly') === '1';
 const state = {
   orders: [],
   products: [],
   draft: new Map(),
-  token: sessionStorage.getItem('lekerCashierToken') || '',
+  token: sessionStorage.getItem('lekerCashierToken')
+    || (readOnlyPreviewIntent && (localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken')))
+    || '',
   cashier: null,
   drawer: null,
   canWrite: false,
+  readOnly: false,
   voucherCustomer: null,
   rodaOfficialResult: null,
   poller: null,
@@ -131,6 +143,7 @@ function clearSession() {
   state.draft.clear();
   state.drawer = null;
   state.canWrite = false;
+  state.readOnly = false;
   state.voucherCustomer = null;
   state.rodaOfficialResult = null;
   sessionStorage.removeItem('lekerCashierToken');
@@ -248,9 +261,18 @@ function renderDrawer() {
   badge.classList.remove('write', 'occupied');
   if (!drawer) {
     el('drawerTitle').textContent = 'Laci belum dibuka';
-    el('drawerStatusText').textContent = 'Buka laci untuk mulai mencatat transaksi gerai.';
+    el('drawerStatusText').textContent = state.readOnly
+      ? 'Mode lihat -- tidak bisa membuka laci dari sini.'
+      : 'Buka laci untuk mulai mencatat transaksi gerai.';
     badge.textContent = 'READ ONLY';
-    el('openDrawerBtn').disabled = false;
+    // Bos Cyo, 2026-09-17: cabang ini tadinya selalu enabled -- masuk akal
+    // untuk kasir sungguhan yang belum buka laci (wajar boleh buka), jadi
+    // sengaja dicek state.readOnly di sini, BUKAN state.canWrite -- kasir
+    // sungguhan yang belum buka laci juga canWrite=false di titik ini, tapi
+    // dia tetap harus boleh klik. readOnly cuma true untuk pengunjung
+    // Owner/Admin Gerai/Entity Admin yang memang tidak pernah boleh menulis
+    // apa pun status lacinya (lihat requireCashierOrReadOnlyManagement).
+    el('openDrawerBtn').disabled = Boolean(state.readOnly);
     el('openDrawerBtn').classList.remove('hidden');
     el('closeDrawerBtn').classList.add('hidden');
   } else if (state.canWrite) {

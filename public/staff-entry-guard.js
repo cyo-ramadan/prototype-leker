@@ -9,17 +9,22 @@
   // ending in "/admin" -- so this guard let an unauthenticated visitor straight
   // through onto the Admin shell instead of sending them to login.
   const isBranchAdmin = !isOwner && (window.LEKER_PAGE_CONTEXT === 'admin' || /\/admin\/?$/.test(pathname));
-  // Read-only Kasir preview (public/cashier-preview.js) for Owner/Admin
-  // Gerai/Entity Admin -- declares its own context the same defensive way
-  // isBranchAdmin does, so a bookmark/shortcut without the /s/:code/ prefix
-  // still gates correctly instead of silently falling through.
-  const isCashierPreview = window.LEKER_PAGE_CONTEXT === 'cashier-preview';
+  // Bos Cyo, 2026-09-17: "harusnya liat persis banget halaman kasir, tapi
+  // dia ga bisa write" -- Owner/Admin Gerai/Entity Admin sekarang boleh
+  // buka halaman Kasir ASLI (bukan halaman baru) lewat ?readonly=1 secara
+  // eksplisit (lihat "Lihat Kasir (Read-only)" di branch-admin.html) tanpa
+  // token kasir. Sengaja disyaratkan ?readonly=1 -- tanpa itu, perilaku
+  // "Kasir Login" biasa (bare /cashier) tetap PERSIS seperti sebelumnya,
+  // tidak ikut melonggar cuma karena kebetulan ada token Owner/Entity
+  // Admin/Admin Gerai nganggur di localStorage.
+  const isReadOnlyPreview = isCashier && new URLSearchParams(location.search).get('readonly') === '1';
 
   const allowed = (isCashier || isStaffPortal)
     ? Boolean(sessionStorage.getItem('lekerCashierToken'))
+      || (isReadOnlyPreview && Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken')))
     : isOwner
       ? Boolean(localStorage.getItem('lekerOwnerToken'))
-      : (isBranchAdmin || isCashierPreview)
+      : isBranchAdmin
         ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken'))
         : true;
 

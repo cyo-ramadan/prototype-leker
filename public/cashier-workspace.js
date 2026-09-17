@@ -5,6 +5,12 @@
     state.orders = payload.orders || [];
     state.drawer = payload.drawer || null;
     state.canWrite = Boolean(payload.canWrite);
+    // Distinct from canWrite: a real cashier with no drawer open yet is
+    // also canWrite=false (they just haven't opened one), and must still
+    // see "Buka Laci" enabled -- readOnly is the actual "never able to
+    // write, no matter what" signal for an Owner/Admin Gerai/Entity Admin
+    // viewer (see src/cashier-auth.js requireCashierOrReadOnlyManagement).
+    state.readOnly = Boolean(payload.readOnly);
     state.paymentMethods = payload.paymentMethods || [];
     state.cashFlowCounterparts = payload.cashFlowCounterparts || [];
     if (includeMenu) {

@@ -187,7 +187,10 @@ test('cashier me/login report attendance status derived from the latest staff_at
 test('login response also carries attendanceStatus so the client can gate right after login', () => {
   const authSource = readFileSync(new URL('../src/cashier-auth.js', import.meta.url), 'utf8');
   assert.match(authSource, /attendanceStatus: await latestAttendanceStatus\(db, row\.id\)/);
-  assert.match(authSource, /attendanceStatus: await latestAttendanceStatus\(db, auth\.cashier\.id\)/);
+  // /api/cashier/me juga membaca lewat latestAttendanceStatus(db, auth.cashier.id)
+  // untuk auth non-read-only -- sekarang lewat ternary karena read-only viewer
+  // (Owner/Admin Gerai/Entity Admin) di-bypass ke 'in', lihat requireCashierOrReadOnlyManagement.
+  assert.match(authSource, /: await latestAttendanceStatus\(db, auth\.cashier\.id\)/);
 });
 
 test('opening the drawer is gated on presensi masuk, using the same attendance helper as login/me', () => {

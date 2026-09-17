@@ -109,5 +109,14 @@
         leaveWorkspace();
       }, true);
     }
+
+    // Bos Cyo, 2026-09-17: "Lihat Kasir (Read-only)" navigates to the SAME
+    // page (public/cashier.html) a real cashier login already opens.
+    // staff-tab-lock.js on that page treats an already-logged-in staff
+    // identity (Owner/Admin/Entity Admin -- lekerStaffSessionMeta already
+    // set at unified login) landing there as a possible competing tab. Mark
+    // this as a deliberate same-identity handoff first, exactly like the
+    // existing Kasir<->Portal Staf link does, so it isn't mistaken for one.
+    document.getElementById('cashierReadOnlyLink')?.addEventListener('click', () => window.lekerPrepareStaffHandoff?.());
   });
 })();

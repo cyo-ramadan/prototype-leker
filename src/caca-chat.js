@@ -9,7 +9,7 @@ import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { aiConfigured, callStructured, CACA_VISION_MODEL } from './caca-ai-client.js';
-import { REKAP_TOOL, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
+import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_LENGTH = 1_500_000;
@@ -67,10 +67,10 @@ async function bacaRekap(request, env) {
   const hasil = await callStructured(env, {
     system: promptPembaca(daftarBarang),
     content: [
-      { type: 'image', source: { type: 'base64', media_type: body.value.gambar.media_type, data: body.value.gambar.data } },
-      { type: 'text', text: 'Salin isi lembar rekap ini apa adanya lewat alat catat_isi_lembar.' }
+      { type: 'image', mediaType: body.value.gambar.media_type, data: body.value.gambar.data },
+      { type: 'text', text: 'Salin isi lembar rekap ini apa adanya.' }
     ],
-    tool: REKAP_TOOL
+    schema: REKAP_SCHEMA
   });
 
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);

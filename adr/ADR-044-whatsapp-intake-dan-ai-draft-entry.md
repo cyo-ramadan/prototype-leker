@@ -371,10 +371,19 @@ kita kendalikan.
 
 ### Perkiraan biaya (kasar — wajib diukur ulang sebelum dipakai menetapkan harga)
 
+Dengan `gemini-3.1-flash-lite` yang terpasang sekarang:
+
 | | Perkiraan per satuan |
 |---|---|
-| Satu pertanyaan ("untung berapa hari ini?") | sekitar Rp 50–150 |
-| Satu foto rekap harian dibaca | sekitar Rp 400–1.000 |
+| Satu pertanyaan ("untung berapa hari ini?") | sekitar Rp 10–30 |
+| Satu foto rekap harian dibaca | sekitar Rp 70 |
+
+Kalau nanti pindah ke model kelas atas (mis. Claude Opus), angkanya naik sekitar
+15 kali lipat: ~Rp1.000–2.000 per foto. Perbedaan sebesar itu yang membuat
+pengukuran akurasi jadi penting — kalau yang murah ternyata sama telitinya untuk
+lembar spreadsheet yang rapi, tidak ada alasan membayar lima belas kali lipat.
+Angka lama di ADR ini (Rp400–1.000) berasal dari asumsi model kelas menengah dan
+sudah tidak dipakai.
 
 Satu pelanggan yang sehari kirim 1 foto + tanya 5 kali ≈ **Rp 15.000–35.000
 sebulan**. Angka ini yang harus dipegang waktu menetapkan harga langganan:
@@ -385,13 +394,39 @@ bukan patokan.)
 
 ### Model mana untuk apa
 
+**Terpasang sekarang: `gemini-3.1-flash-lite`** ($0.25 / $1.50 per juta token,
+sekitar Rp70 per foto). Keputusan Bos Cyo 2026-09-17, dan alasannya menang atas
+saran awal Hana yang memilih model termahal duluan:
+
+> "cari yang lebih murah dulu, itu nanti yang kita uji, mumpung masih nguji,
+> justru kalo pelanggan uda banyak uda ga bisa nguji maka pilihannya cloude yang
+> terbaik."
+
+Logikanya benar dan layak dicatat sebagai prinsip: **jendela untuk bereksperimen
+itu sekarang, selagi belum ada pelanggan yang dirugikan kalau hasilnya jelek.**
+Begitu sudah dipakai orang banyak, mengganti-ganti mesin jadi mahal risikonya,
+dan saat itulah pilihan jatuh ke yang paling bisa diandalkan. Jadi murah dulu
+bukan berarti murah selamanya — ini urutan, bukan target akhir.
+
+Pagar yang menyertainya, supaya "murah" tidak diam-diam berubah jadi "salah":
+akurasi bacanya wajib diukur sebelum ada satu pun jalur simpan dinyalakan. Kalau
+model murah sering meleset, yang naik adalah modelnya — bukan toleransi kita
+terhadap angka yang salah.
+
+**Dukungan WhatsApp bukan kriteria memilih model.** Sempat jadi kekhawatiran
+Bos Cyo ("yang suport dikonekin di wa juga"), tapi yang menyambung ke WhatsApp
+adalah Worker kita sendiri lewat Meta Cloud API. Model AI hanya menerima teks
+atau gambar dari Worker dan mengirim balik jawabannya; dia tidak pernah tahu
+pesan itu datang dari WA, web, atau kanal lain. Semua model bisa dipakai, jadi
+pemilihan murni soal akurasi dan biaya.
+
+Pembagian kerja model yang tetap berlaku:
 - **Tanya-jawab harian dan pemilihan alat** → model kecil/murah. Pekerjaannya
   ringan: pahami maksud, panggil satu alat baca, susun kalimat.
-- **Baca foto** → model yang lebih kuat. **Di bagian ini jangan pelit.** Salah
-  baca angka uang itu persis kegagalan yang menghabiskan kepercayaan pelanggan;
-  hemat beberapa ratus rupiah di situ tidak sebanding. Cara amannya: mulai satu
-  model, uji dengan lembar rekap asli, hitung berapa sering meleset, baru
-  putuskan naik atau turun.
+- **Baca foto** → di sini yang paling rawan, karena salah baca angka uang itu
+  persis kegagalan yang menghabiskan kepercayaan pelanggan. Sementara ini
+  dijalankan di model murah **karena sedang diukur**, bukan karena sudah
+  terbukti cukup. Naikkan begitu angka melesetnya menunjukkan perlu.
 
 Penghemat terbesar yang gratis: bagian instruksi Caca yang selalu sama di tiap
 chat bisa di-*cache* sehingga tidak dihitung penuh berulang-ulang — potongannya

@@ -34,9 +34,15 @@ belum dilakukan. Yang sudah terbukti cuma logika penguraian angka dan
 penghitungan ulangnya (diuji dengan angka asli lembar 06-Sep-26); kemampuan
 model membaca fotonya **belum diukur sama sekali**.
 
-Prasyaratnya: `ANTHROPIC_API_KEY` terpasang sebagai secret Cloudflare. Tanpa itu
+Prasyaratnya: `GEMINI_API_KEY` terpasang sebagai secret Cloudflare. Tanpa itu
 panelnya hidup tapi menjawab "belum tersambung". Jangan pernah meminta kuncinya
 dalam bentuk teks ke Bos Cyo (invariant #9).
+
+Mesin yang terpasang **`gemini-3.1-flash-lite`**, dipilih karena murah selagi
+masih tahap uji (~Rp70 per foto). Itu keputusan sadar Bos Cyo, bukan default
+yang kebetulan — alasan dan pagarnya di ADR-044 bagian "Model mana untuk apa".
+Jangan menaikkannya ke model mahal tanpa angka meleset yang menunjukkan perlu,
+dan jangan pula menganggap yang murah sudah terbukti cukup sebelum diukur.
 
 ---
 
@@ -104,9 +110,9 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    sebelum jalur WhatsApp bisa dimulai sama sekali.
 3. Angka paket: berapa foto/hari dan tanya-jawab/hari per tingkat langganan.
    Perlu diukur biayanya dulu, jangan ditebak.
-4. Model persisnya untuk baca foto — sekarang dipasang `claude-opus-5` sebagai
-   titik awal, belum diukur. Ganti hanya setelah ada angka meleset dari
-   pengujian lembar sungguhan, bukan dipilih di atas kertas.
+4. Apakah model murah sudah cukup teliti untuk baca foto — sekarang dipasang
+   `gemini-3.1-flash-lite`, belum diukur. Naikkan hanya setelah ada angka
+   meleset dari pengujian lembar sungguhan, bukan ditebak di atas kertas.
 5. Rekap sehari penuh masuk lewat "sesi laci buatan" (usul Hana di ADR) atau
    cara lain — belum dikonfirmasi Bos Cyo. Baru relevan di Tahap 3.
 6. Apakah bentuk lembar rekap sama di semua cabang/tenant, atau tiap tempat

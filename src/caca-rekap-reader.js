@@ -8,72 +8,68 @@
 // Modul ini tidak menulis apa pun. Hasilnya usulan yang masih harus
 // dikonfirmasi manusia — belum transaksi.
 
-export const REKAP_TOOL = Object.freeze({
-  name: 'catat_isi_lembar',
-  description:
-    'Menyalin isi lembar rekap harian persis seperti yang tertulis. Jangan menghitung, ' +
-    'jangan membetulkan, jangan mengisi yang kosong.',
-  input_schema: {
-    type: 'object',
-    additionalProperties: false,
-    required: ['tanggal_tertulis', 'cabang_tertulis', 'penjualan', 'pengeluaran', 'pengurang_setoran', 'ringkasan_tertulis'],
-    properties: {
-      tanggal_tertulis: { type: 'string', description: 'Tanggal persis seperti tertulis, mis. "06-Sep-26". Kosongkan jika tidak ada.' },
-      cabang_tertulis: { type: 'string', description: 'Nama cabang seperti tertulis. Hanya catatan; tidak menentukan gerai mana pun.' },
-      shift_tertulis: { type: 'string' },
-      penjualan: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['nama_tertulis', 'jumlah_terjual', 'harga_satuan', 'jumlah'],
-          properties: {
-            nama_tertulis: { type: 'string' },
-            stok_awal: { type: 'string' },
-            stok_sisa: { type: 'string' },
-            jumlah_terjual: { type: 'string' },
-            harga_satuan: { type: 'string' },
-            jumlah: { type: 'string' }
-          }
-        }
-      },
-      pengeluaran: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['nama_tertulis', 'jumlah'],
-          properties: {
-            nama_tertulis: { type: 'string' },
-            banyaknya: { type: 'string' },
-            jumlah: { type: 'string' }
-          }
-        }
-      },
-      pengurang_setoran: {
-        type: 'array',
-        description: 'Kolom yang mengurangi setoran tapi bukan belanja, mis. Qris, Gofood.',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['nama_tertulis', 'jumlah'],
-          properties: {
-            nama_tertulis: { type: 'string' },
-            jumlah: { type: 'string' }
-          }
-        }
-      },
-      ringkasan_tertulis: {
+// Skema netral — bukan bentuk milik penyedia mana pun. Penerjemahan ke bentuk
+// yang dimengerti penyedia dilakukan di caca-ai-client.js.
+export const REKAP_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['tanggal_tertulis', 'cabang_tertulis', 'penjualan', 'pengeluaran', 'pengurang_setoran', 'ringkasan_tertulis'],
+  properties: {
+    tanggal_tertulis: { type: 'string', description: 'Tanggal persis seperti tertulis, mis. "06-Sep-26". Kosongkan jika tidak ada.' },
+    cabang_tertulis: { type: 'string', description: 'Nama cabang seperti tertulis. Hanya catatan; tidak menentukan gerai mana pun.' },
+    shift_tertulis: { type: 'string' },
+    penjualan: {
+      type: 'array',
+      items: {
         type: 'object',
         additionalProperties: false,
-        required: ['total_penjualan', 'total_pengeluaran', 'setoran'],
+        required: ['nama_tertulis', 'jumlah_terjual', 'harga_satuan', 'jumlah'],
         properties: {
-          total_penjualan: { type: 'string' },
-          total_pengeluaran: { type: 'string' },
-          total_pengurang_setoran: { type: 'string' },
-          setoran: { type: 'string' },
-          total_item_terjual: { type: 'string' }
+          nama_tertulis: { type: 'string' },
+          stok_awal: { type: 'string' },
+          stok_sisa: { type: 'string' },
+          jumlah_terjual: { type: 'string' },
+          harga_satuan: { type: 'string' },
+          jumlah: { type: 'string' }
         }
+      }
+    },
+    pengeluaran: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['nama_tertulis', 'jumlah'],
+        properties: {
+          nama_tertulis: { type: 'string' },
+          banyaknya: { type: 'string' },
+          jumlah: { type: 'string' }
+        }
+      }
+    },
+    pengurang_setoran: {
+      type: 'array',
+      description: 'Kolom yang mengurangi setoran tapi bukan belanja, mis. Qris, Gofood.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['nama_tertulis', 'jumlah'],
+        properties: {
+          nama_tertulis: { type: 'string' },
+          jumlah: { type: 'string' }
+        }
+      }
+    },
+    ringkasan_tertulis: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['total_penjualan', 'total_pengeluaran', 'setoran'],
+      properties: {
+        total_penjualan: { type: 'string' },
+        total_pengeluaran: { type: 'string' },
+        total_pengurang_setoran: { type: 'string' },
+        setoran: { type: 'string' },
+        total_item_terjual: { type: 'string' }
       }
     }
   }
@@ -91,8 +87,7 @@ export const REKAP_SYSTEM_PROMPT = [
   '- Bahan atau kemasan yang bukan barang jualan (mis. cup, gula, susu curah) masuk ke pengeluaran',
   '  hanya kalau memang ada di kolom pengeluaran; jangan dipindah sendiri.',
   '',
-  'Kalau ada yang janggal, tetap salin apa adanya. Yang menilai kejanggalan bukan kamu.',
-  'Selalu jawab dengan memanggil alat catat_isi_lembar.'
+  'Kalau ada yang janggal, tetap salin apa adanya. Yang menilai kejanggalan bukan kamu.'
 ].join('\n');
 
 const HANYA_ANGKA = /^-?\d+$/;

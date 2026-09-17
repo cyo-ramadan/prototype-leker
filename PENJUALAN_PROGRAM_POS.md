@@ -34,10 +34,19 @@ Bos Cyo bertanya apakah ini disambungkan ke SEO TemanNikah. **Tidak.** Alasannya
 - Pembelinya juga beda jalur. Pembeli program tidak datang dari artikel resep atau
   ide dekorasi; dia datang dari pencarian aplikasi kasir, grup pedagang, atau rujukan.
 
-**Sambungannya tetap ada, tapi satu arah dan sifatnya bukti, bukan SEO:** Leker dan Pentol
-adalah usaha yang benar-benar memakai program ini setiap hari. Itu dipakai sebagai
-kredibilitas di halaman jualan ("dipakai harian di usaha sendiri, bukan cuma demo"),
-bukan sebagai backlink atau kata kunci bersama.
+**Dan sambungannya ke Leker juga tidak ada** — dikoreksi langsung Bos Cyo 2026-09-17:
+*"untuk jualan pos nya ga ada hubungan dengan leker lo ya. kebetulan aja leker adalah
+penggunanya. pasarnya tetap orang2 yang cari aplikasi."*
+
+Artinya Leker **bukan** asal-usul, bukan identitas, dan bukan bahan cerita produk ini.
+Leker kebetulan salah satu pemakainya, titik. Halaman jualan karena itu **dilarang**
+memuat cerita "program ini lahir dari jualan leker/pentol" atau sejenisnya. Kredibilitas
+yang boleh dipakai cuma yang netral: programnya sudah dipakai harian di usaha yang
+beneran jalan — tanpa menyeret nama lini bisnis mana pun.
+
+Pasarnya adalah orang yang sedang **mencari aplikasi kasir**. Jalur masuknya pencarian
+aplikasi, grup pedagang, dan rujukan — bukan lewat konten pernikahan dan bukan lewat
+nama Leker.
 
 ## Keputusan 2 — ditumpangkan dulu ke Worker yang sudah hidup
 
@@ -46,7 +55,7 @@ Halaman jualan ditaruh di **repo ini**, sebagai halaman statis di `/program`:
 | | |
 |---|---|
 | Berkas | `public/program.html` |
-| Route | `/program` (ditambahkan ke `assetRoute` di `src/index.js`) |
+| Route | `/program` — dilayani otomatis oleh lapisan aset, **tanpa** baris tambahan di `src/index.js` |
 | Alamat hidup | `https://prototype-leker-v2.daily-napkin.workers.dev/program` |
 | Biaya tambahan | Rp0 — tidak ada Worker baru, domain baru, atau layanan baru |
 
@@ -56,9 +65,11 @@ Kenapa begini, bukan bikin situs/domain sendiri sekarang:
    ada link yang bisa diklik" cuma bisa dipenuhi kalau ada tempat deploy yang sudah
    hidup. Repo `temannikah-platform` belum punya deployment sama sekali, dan domain
    sendiri belum dibeli — dua-duanya jalan buntu untuk hari ini.
-2. **Perubahannya kecil dan gampang dicabut.** Cuma satu berkas statis baru dan satu baris
-   di peta route. Tidak menyentuh API, autentikasi, database, maupun route yang dipakai
-   pelanggan/kasir.
+2. **Perubahannya kecil dan gampang dicabut.** Cuma satu berkas statis baru — nol baris
+   di kode aplikasi. Versi pertama sempat menitip satu baris di peta route; itu dicabut
+   begitu ketahuan lapisan aset sudah melayaninya sendiri, karena baris itu menambah
+   risiko tanpa menambah kemampuan. Tidak menyentuh API, autentikasi, database, maupun
+   route yang dipakai pelanggan/kasir.
 3. **Pindah nanti murah.** Begitu ada domain sendiri, `program.html` tinggal disalin ke
    situs baru dan `/program` di sini diarahkan (redirect) ke alamat barunya.
 
@@ -67,10 +78,11 @@ Kenapa begini, bukan bikin situs/domain sendiri sekarang:
 Empat pagar ini dijaga tes `test/program-landing-page.test.js` — masing-masing sudah
 dibuktikan merah kalau pagarnya dicabut.
 
-1. **`/` tidak boleh tergeser.** Halaman jualan numpang di Worker yang dipakai gerai
-   sungguhan. Kalau `/` sampai mengarah ke brosur, pelanggan yang mau pesan mendarat di
-   halaman jualan — itu kerusakan produksi, bukan sekadar tes merah. Tesnya mengunci
-   seluruh peta route lama, bukan cuma baris yang baru.
+1. **Peta route aplikasi tidak boleh disentuh sama sekali.** Halaman jualan numpang di
+   Worker yang dipakai gerai sungguhan. Kalau `/` sampai mengarah ke brosur, pelanggan
+   yang mau pesan mendarat di halaman jualan — itu kerusakan produksi, bukan sekadar tes
+   merah. Tesnya mengunci seluruh peta route lama **dan** melarang halaman jualan
+   menitipkan barisnya sendiri di situ.
 2. **Dilarang ada angka harga.** Bos Cyo belum pernah menetapkan harga. Halaman publik
    adalah tempat paling mahal untuk mengarang angka — sekali terbaca calon pembeli, itu
    jadi janji. Halaman menyatakan terbuka bahwa harganya dibicarakan lewat WhatsApp,
@@ -88,6 +100,8 @@ Pagar tambahan yang tidak bisa dites otomatis, tapi tetap berlaku:
 
 - **Dilarang menulis testimoni, jumlah pelanggan, atau angka pencapaian.** Belum ada satu
   pun yang bisa dibuktikan. Halaman versi sekarang sengaja tidak memuatnya.
+- **Dilarang menyebut Leker/Pentol atau lini bisnis Bos Cyo mana pun sebagai identitas
+  produk.** Lihat Keputusan 1 — itu koreksi langsung dari Bos Cyo, bukan preferensi gaya.
 - **Fitur yang ditulis harus yang sudah jalan hari ini.** Yang masih rancangan atau
   separuh jalan (mis. rumus poin pelanggan yang formulanya belum aktif, mode HPP resep
   yang masih rancangan `ADR-037`) **tidak** ditulis sebagai fitur. Kalau mau menambah

@@ -4,16 +4,19 @@ import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('halaman jualan program dipasang di /program dan tidak menggeser entry route yang sudah ada', async () => {
-  // Halaman ini numpang di Worker POS yang sudah dipakai gerai sungguhan.
-  // Kalau '/' sampai tergeser ke halaman jualan, pelanggan yang mau pesan
-  // malah mendarat di brosur -- itu kerusakan produksi, bukan sekadar tes merah.
+test('halaman jualan tidak menyentuh peta route aplikasi sama sekali', async () => {
+  // Halaman ini numpang di Worker yang dipakai gerai sungguhan. Awalnya Hana
+  // menambah baris route khusus '/program' -> '/program.html'; itu dicabut karena
+  // lapisan aset sudah otomatis melayani program.html di alamat /program, jadi
+  // menambah baris itu cuma menambah risiko tanpa menambah kemampuan.
+  // Kalau '/' sampai tergeser, pelanggan yang mau pesan mendarat di brosur --
+  // itu kerusakan produksi, bukan sekadar tes merah.
   const source = await read('src/index.js');
   const match = source.match(/const direct = \{[^}]*\};/);
   assert.ok(match, 'peta route langsung harus tetap ada di assetRoute');
   const direct = match[0];
 
-  assert.match(direct, /'\/program': '\/program\.html'/);
+  assert.doesNotMatch(direct, /program/, 'halaman jualan tidak boleh menitip baris di peta route aplikasi');
   assert.match(direct, /'\/': '\/customer\.html'/);
   assert.match(direct, /'\/customer': '\/customer\.html'/);
   assert.match(direct, /'\/cashier': '\/cashier\.html'/);

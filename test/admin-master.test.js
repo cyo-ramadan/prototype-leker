@@ -26,8 +26,8 @@ test('owner console sits above branch master workspace', async () => {
     readFile(ownerHtmlUrl, 'utf8'),
     readFile(branchHtmlUrl, 'utf8')
   ]);
-  assert.match(index, /'\/admin': '\/owner\.html'/);
-  assert.match(index, /page === 'admin'.*branch-admin\.html/s);
+  assert.match(index, /'\/admin': '\/owner'/);
+  assert.match(index, /page === 'admin'.*'\/branch-admin'/s);
   assert.match(adminApi, /requireManagement/);
   assert.match(adminApi, /\/api\/admin\/products/);
   assert.match(adminApi, /\/api\/admin\/categories/);

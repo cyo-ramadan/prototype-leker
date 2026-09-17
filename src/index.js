@@ -324,14 +324,30 @@ async function handleApi(request, env, url) {
   return json({ error: 'Not found' }, 404);
 }
 
-function assetRoute(pathname) {
-  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html', '/entity-admin': '/entity-admin.html' };
+// 2026-09-17, Bos Cyo: klik "Buka Workspace" gerai dari panel Entity Admin
+// membuat URL sekilas berpindah ke /branch-admin (kehilangan /s/:code/-nya)
+// sebelum akhirnya dilempar balik ke panel Entity oleh guard di
+// branch-owner-auth.js. Root cause SEBENARNYA ada di sini, bukan di
+// branch-owner-auth.js (itu cuma menangani gejalanya) -- wrangler.jsonc
+// mengeset html_handling: "auto-trailing-slash", yang membuat Cloudflare
+// Assets me-redirect (307/308) permintaan eksplisit ke path berakhiran
+// ".html" menuju bentuk kanonik tanpa ekstensi. Kode di bawah dulu secara
+// eksplisit fetch "/branch-admin.html" (dst) dari ASSETS -- binding itu
+// balas dengan redirect ke "/branch-admin" (dibangun dari path asset
+// internal yang diminta, BUKAN dari /s/PENDEM/admin yang diketik user), dan
+// handleAsset() dulu meneruskan redirect itu apa adanya ke browser, jadi
+// browser benar-benar pindah alamat dan store code di URL hilang.
+// Fix: minta bentuk kanonik (tanpa ".html") langsung dari ASSETS, supaya
+// tidak pernah memicu redirect itu sama sekali -- alamat asli
+// (/s/:code/admin) di address bar browser tidak pernah berubah.
+export function assetRoute(pathname) {
+  const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
-    if (page === 'admin') return '/branch-admin.html';
-    return `/${page}.html`;
+    if (page === 'admin') return '/branch-admin';
+    return `/${page}`;
   }
   return pathname;
 }
@@ -342,7 +358,7 @@ async function handleAsset(request, env, pathname) {
   const response = await env.ASSETS.fetch(new Request(assetUrl, request));
   if (
     request.method === 'GET'
-    && assetUrl.pathname === '/branch-admin.html'
+    && assetUrl.pathname === '/branch-admin'
     && response.ok
     && (response.headers.get('content-type') || '').includes('text/html')
   ) {

@@ -96,7 +96,7 @@ test('server-side session lifetime for Owner/Store Admin stays 12 hours -- this 
 // sudah lama berwenang buka workspace gerai manapun di entity-nya sendiri
 // (requireManagement -> entityAdminStoreAuthorized, src/owner-auth.js).
 test('staff-entry-guard.js lets an Entity Admin session (not just Owner/Admin) reach /s/:code/admin', () => {
-  assert.match(staffEntryGuard, /isBranchAdmin\s*\?\s*Boolean\(localStorage\.getItem\('lekerOwnerToken'\)\s*\|\|\s*localStorage\.getItem\('lekerAdminToken'\)\s*\|\|\s*localStorage\.getItem\('lekerEntityAdminToken'\)\)/);
+  assert.match(staffEntryGuard, /\(isBranchAdmin \|\| isCashierPreview\)\s*\?\s*Boolean\(localStorage\.getItem\('lekerOwnerToken'\)\s*\|\|\s*localStorage\.getItem\('lekerAdminToken'\)\s*\|\|\s*localStorage\.getItem\('lekerEntityAdminToken'\)\)/);
 });
 
 // Bug bersaudara di file yang sama-sama menjaga sesi staf: kalau tab-lock

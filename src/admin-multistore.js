@@ -1,6 +1,8 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, listStores, normalizeStoreCode, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
+import { listProducts } from './db-multistore.js';
+import { getOpenDrawer } from './cashier-drawer.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const MAX_LOGO_IMAGE_LENGTH = 500_000;
@@ -190,6 +192,21 @@ export async function handleAdminApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
 
   if (request.method === 'GET' && pathname === '/api/admin/bootstrap') return json(await adminBootstrap(db, store));
+
+  // Bos Cyo, 2026-09-17: "kalo mau liat kasir harus login kasir dulu ya...
+  // ini ditambahin juga ya biar bisa liat halaman kasir (read only) aja" --
+  // dipakai public/cashier-preview.js. Sengaja tidak lewat gerbang login
+  // kasir sungguhan (src/cashier-auth.js) sama sekali -- ini murni BACAAN
+  // lewat wewenang Owner/Admin Gerai/Entity Admin yang sudah lolos
+  // requireAdmin di atas untuk gerai ini (`store` di baris atas), tidak
+  // pernah membuat sesi login kasir atau menyentuh endpoint tulis apa pun.
+  if (request.method === 'GET' && pathname === '/api/admin/cashier-preview') {
+    const [products, drawer] = await Promise.all([
+      listProducts(db, store.id),
+      getOpenDrawer(db, store.id)
+    ]);
+    return json({ store, products, drawer });
+  }
 
   if (request.method === 'PUT' && pathname === '/api/admin/store') {
     const body = await readJson(request);

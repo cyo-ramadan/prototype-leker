@@ -96,6 +96,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Status fitur yang belum kelar | `KNOWN_ISSUES.md` |
 | Alasan sebuah keputusan arsitektur | `adr/` (29 ADR) |
 | Arah Bos Cyo soal POS berdiri sendiri dari Setting Akuntansi/Accounting/Warehouse | `POS_MODULE_INDEPENDENCE.md` |
+| Halaman jualan program POS (`/program`) — penempatan + pagar isi | `PENJUALAN_PROGRAM_POS.md` |
 | Kontrak antar-modul | `contracts/` |
 | Prosedur operasional | `RUNBOOK.md` |
 | Siapa pemilik modul + aturan tiap agen | `MODULE_OWNERSHIP.md` |

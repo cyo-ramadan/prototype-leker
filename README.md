@@ -43,6 +43,7 @@ Routes utama:
 - `/cashier` — workspace Kasir setelah login Karyawan.
 - `/admin` — Owner Console setelah login Karyawan.
 - `/s/<KODE>/admin` — workspace Admin Gerai setelah login Karyawan.
+- `/program` — halaman jualan program POS. Statis, di luar aplikasi, tidak menyentuh API/session. Pagar isinya di `PENJUALAN_PROGRAM_POS.md`.
 
 Entry login mempunyai dua tab saja:
 

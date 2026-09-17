@@ -319,7 +319,7 @@ async function handleApi(request, env, url) {
 }
 
 function assetRoute(pathname) {
-  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html', '/entity-admin': '/entity-admin.html' };
+  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html', '/entity-admin': '/entity-admin.html', '/program': '/program.html' };
   if (direct[pathname]) return direct[pathname];
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {

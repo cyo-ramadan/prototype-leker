@@ -124,3 +124,28 @@ test('/?login=staff auto-redirects an already-authenticated staff session to its
   // exact moment and must still fall through to the login form.
   assert.match(authEntrySplit, /staffBlocked.*=== '1'/);
 });
+
+// Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry
+// point (screenshot: address bar showed "/branch-admin", no /s/:code/
+// prefix, header showed "WORKSPACE GERAI - G001") and got a confusing
+// "Entity Admin ... hanya berwenang pada gerai di bawah entity ..." failure.
+// Root cause: without a store code in the URL, store-context.js has no
+// Entity-Admin-aware fallback (only Store Admin's fixed lekerAdminStoreCode
+// is remembered) and silently defaults to G001 -- almost never under the
+// Entity Admin's own entity, so the workspace bootstrap always fails.
+test('Entity Admin landing on branch-admin without an explicit /s/:code/ prefix is sent back to its own picker, not left to guess a wrong store', () => {
+  assert.match(branchOwnerAuth, /isEntityAdmin && !\/\^\\\/s\\\/\/\.test\(location\.pathname\)/);
+  assert.match(branchOwnerAuth, /location\.replace\('\/entity-admin'\)/);
+});
+
+// The eyebrow/button on the shared #authGate card in branch-admin.html
+// always said "Owner session" / "Kembali ke Owner" regardless of which role
+// (Owner, Entity Admin, or Admin Gerai) actually hit the failure -- pure
+// static markup, never overwritten by any script. Misleading during
+// diagnosis (looked like the server thought Bos Cyo was Owner) and just
+// wrong for the other two roles.
+test('the shared authGate card in branch-admin.html no longer hardcodes an Owner-only label', () => {
+  const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /Owner session/);
+  assert.doesNotMatch(html, />Kembali ke Owner</);
+});

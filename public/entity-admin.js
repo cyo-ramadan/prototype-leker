@@ -210,8 +210,16 @@ async function runEntityReport() {
   if (!from || !to) { status.textContent = 'Isi dari/sampai tanggal dulu.'; return; }
   if (!codes.length) { status.textContent = 'Pilih minimal satu gerai.'; return; }
   status.textContent = 'Menghitung… (pertama kali untuk periode baru bisa agak lama, sesudahnya instan)';
+  // ?store= WAJIB ada -- server memakainya untuk tahu entity mana yang
+  // memanggil (selectedStore() di src/net-profit-report.js). Tanpa ini,
+  // request jatuh ke gerai default (G001) yang bisa saja bukan bagian dari
+  // entity Bos Cyo sama sekali, jadi seluruh gerai yang diminta ditolak
+  // sebagai "di luar entity" -- laporan kelihatan kosong tanpa pesan yang
+  // jelas kenapa (dibuktikan langsung, 2026-09-17).
+  const callerStoreCode = anyEntityStoreCode();
+  if (!callerStoreCode) { status.textContent = 'Belum ada gerai di entity ini.'; return; }
   try {
-    const payload = await entityAdminApi(`/api/admin/reports/net-profit?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
+    const payload = await entityAdminApi(`/api/admin/reports/net-profit?store=${encodeURIComponent(callerStoreCode)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
     renderEntityReportTable(payload);
     status.textContent = '';
   } catch (error) {

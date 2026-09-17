@@ -175,14 +175,79 @@ test('satu gerai dapat rincian per hari yang penjumlahannya konsisten dengan unt
     const body = await res.json();
     const row = body.rows[0];
 
-    assert.equal(row.breakdown.revenue, 50000);
-    assert.equal(row.breakdown.otherIncome, 5000);
-    assert.equal(row.breakdown.hpp, 20000);
-    assert.equal(row.breakdown.expense, 17000, 'Beban = Pengeluaran Kasir 10.000 + Bea Lapak 7.000');
-    // Gross = 5000 + 50000 - 20000 = 35000; Net = 35000 - 17000 = 18000
+    assert.equal(row.breakdown.revenue, 50000, 'Omset');
+    assert.equal(row.breakdown.otherIncome, 5000, 'Pendapatan Lain');
+    assert.equal(row.breakdown.hpp, 20000, 'HPP');
+    assert.equal(row.breakdown.grossProfit, 35000, 'Untung Kotor = 5000 + 50000 - 20000');
+    assert.equal(row.breakdown.expenseKasir, 10000, 'Beban Kasir dirinci terpisah dari Bea Admin');
+    assert.equal(row.breakdown.beaGaji, 0);
+    assert.equal(row.breakdown.beaLapak, 7000);
+    assert.equal(row.breakdown.beaLainnya, 0);
+    assert.equal(row.breakdown.totalBeban, 17000, 'total Beban = Beban Kasir 10.000 + Bea Lapak 7.000');
+    assert.equal(row.breakdown.stockAdjustmentGain, 0);
+    assert.equal(row.breakdown.stockAdjustmentLoss, 0);
+    // Untung Kotor 35000; Net = 35000 - 17000 = 18000
     assert.equal(row.breakdown.netProfit, 18000);
     assert.equal(row.breakdown.netProfit, row.total, 'rincian dan angka utama tidak boleh beda sumber');
     assert.equal(body.breakdownTotals.netProfit, 18000);
+  } finally {
+    db.close();
+  }
+});
+
+test('Penyesuaian Stok tampil sebagai DUA kolom terpisah (+ dan -), bukan satu angka net', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedStoreAdminToken(db, 'KANTOR');
+    const ctx = seedSale(db, 'KANTOR', { createdAt: '2026-06-01T05:00:00.000Z', totalAmount: 10000, lineCogsRupiah: 0 });
+    // Stok TEMUAN LEBIH (gain) dan HILANG (loss) di hari yang sama --
+    // kalau digabung jadi satu angka net (8000 - 3000 = 5000), dua-duanya
+    // hilang dari pandangan Admin. Bos Cyo minta dua-duanya kelihatan.
+    const payloadGain = JSON.stringify({ purpose: 'STOCK_ADJUSTMENT', direction: 'IN', totalCostSnapshotScaled: 8000 * 1_000_000 });
+    const payloadLoss = JSON.stringify({ purpose: 'STOCK_ADJUSTMENT', direction: 'OUT', totalCostSnapshotScaled: 3000 * 1_000_000 });
+    db.prepare(`INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at, approved_at, posted_at)
+      VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'approved', 'posted', ?, ?, ?, ?, ?)`)
+      .run('appr_gain', ctx.storeId, ctx.drawerId, ctx.cashierId, payloadGain, '2026-06-01T05:00:00.000Z', '2026-06-01T05:00:00.000Z', '2026-06-01T05:00:00.000Z', '2026-06-01T05:00:00.000Z');
+    db.prepare(`INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at, approved_at, posted_at)
+      VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'approved', 'posted', ?, ?, ?, ?, ?)`)
+      .run('appr_loss', ctx.storeId, ctx.drawerId, ctx.cashierId, payloadLoss, '2026-06-01T05:00:00.000Z', '2026-06-01T05:00:00.000Z', '2026-06-01T05:00:00.000Z', '2026-06-01T05:00:00.000Z');
+    const env = { DB: new D1Database(db) };
+
+    const res = await worker.fetch(reportRequest({ token, store: 'KANTOR', from: '2026-06-01', to: '2026-06-01', stores: 'KANTOR' }), env);
+    const row = (await res.json()).rows[0];
+
+    assert.equal(row.breakdown.stockAdjustmentGain, 8000, 'temuan lebih harus kelihatan sendiri, tidak dilebur ke angka net');
+    assert.equal(row.breakdown.stockAdjustmentLoss, 3000, 'kehilangan harus kelihatan sendiri, tidak dilebur ke angka net');
+    // Net Profit tetap benar meski ditampilkan dua kolom: Untung Kotor 10000,
+    // Net = 10000 + 8000 - 3000 = 15000
+    assert.equal(row.breakdown.netProfit, 15000);
+  } finally {
+    db.close();
+  }
+});
+
+test('Beban/Bea dirinci per kategori -- Bea Gaji, Bea Lapak, Bea Lainnya masing-masing kelihatan sendiri', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedStoreAdminToken(db, 'KANTOR');
+
+    for (const [category, amount] of [['BEA_GAJI', 500000], ['BEA_LAPAK', 200000], ['BEA_LAINNYA', 100000]]) {
+      await worker.fetch(new Request(`https://example.test/api/admin/operational-expenses?store=KANTOR`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, description: category, amount, businessDate: '2026-06-01' })
+      }), { DB: new D1Database(db) });
+    }
+
+    const env = { DB: new D1Database(db) };
+    const res = await worker.fetch(reportRequest({ token, store: 'KANTOR', from: '2026-06-01', to: '2026-06-01', stores: 'KANTOR' }), env);
+    const row = (await res.json()).rows[0];
+
+    assert.equal(row.breakdown.beaGaji, 500000);
+    assert.equal(row.breakdown.beaLapak, 200000);
+    assert.equal(row.breakdown.beaLainnya, 100000);
+    assert.equal(row.breakdown.expenseKasir, 0, 'tidak ada Pengeluaran Kasir di test ini -- harus 0, bukan ikut kena angka Bea');
+    assert.equal(row.breakdown.totalBeban, 800000);
   } finally {
     db.close();
   }
@@ -246,14 +311,23 @@ test('panel Admin Gerai memuat tab Bea Operasional dan Laporan Untung Rugi', () 
   assert.match(laba, /window\.LEKER_STORE_CODE/);
 });
 
-test('istilah di layar Laporan Untung Rugi pakai bahasa warung, bukan istilah akuntansi', () => {
+test('ringkasan Laporan Untung Rugi memecah tiap variabel yang diminta Bos Cyo sendiri, bukan dilebur', () => {
   const laba = readFileSync(new URL('../public/admin-net-profit-report.js', import.meta.url), 'utf8');
-  // Bos Cyo: POS ini untuk "user yang ga paham akunting". Label di layar tidak
-  // boleh memakai singkatan akuntansi -- di dalam kode boleh (nama field API).
-  const body = laba.slice(laba.indexOf('function renderSummary'), laba.indexOf('function summaryRow'));
-  const labels = [...body.matchAll(/summaryRow\(([\s\S]*?), -?[a-z]/g)].flatMap(match => match[1].match(/'[^']*'/g) || []);
-  assert.ok(labels.length >= 7, `ringkasan wajib memecah angkanya jadi beberapa baris, bukan satu angka saja (ketemu ${labels.length})`);
-  for (const label of labels) {
-    assert.doesNotMatch(label, /HPP|COGS|Net Profit|Gross Profit|Beban Pokok/i, `label ${label} masih istilah akuntansi`);
+  // Koreksi 2026-09-17 (sesi berikutnya): draft pertama sengaja menghindari
+  // istilah akuntansi ("Modal barang yang terjual") -- Bos Cyo bilang itu
+  // justru "ga jelas" dan minta persis istilah yang dia sebut sendiri:
+  // Omset, Pendapatan Lain, HPP -> Untung Kotor, lalu Penyesuaian Stok
+  // sebagai DUA baris terpisah (+/-) dan Beban/Bea per kategori -- bukan
+  // dilebur jadi satu angka "Biaya & bea yang dikeluarkan" seperti draft
+  // pertama.
+  const body = laba.slice(laba.indexOf('function renderSummary'), laba.indexOf('function renderDaily'));
+  const labels = [...body.matchAll(/summaryRow\('([^']*)'/g)].map(match => match[1]);
+  const expected = ['Omset', 'Pendapatan Lain', 'HPP', 'Untung Kotor', 'Bea Gaji', 'Bea Lapak', 'Bea Lainnya', 'Untung Bersih'];
+  for (const label of expected) {
+    assert.ok(labels.includes(label), `ringkasan wajib punya baris "${label}" persis seperti istilah Bos Cyo`);
   }
+  // Penyesuaian Stok wajib DUA baris terpisah (Lebih/+ dan Hilang/-), tidak
+  // boleh dilebur jadi satu angka net seperti draft pertama.
+  assert.ok(labels.some(label => /Lebih/i.test(label) && /\+/.test(label)), 'wajib ada baris Stok Lebih (+) terpisah');
+  assert.ok(labels.some(label => /Hilang/i.test(label) && /−|-/.test(label)), 'wajib ada baris Stok Hilang (-) terpisah');
 });

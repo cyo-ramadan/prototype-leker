@@ -27,19 +27,22 @@ function validateBusinessDate(value) {
 //
 // Formula, disepakati eksplisit dengan Bos Cyo -- JANGAN diubah tanpa
 // persetujuan, ini kebijakan bisnis:
-//   Gross Profit = Pendapatan Lain + Penjualan - HPP
-//   Net Profit   = Gross Profit - Beban Operasional
+//   Omset + Pendapatan Lain - HPP           = Untung Kotor (Gross Profit)
+//   Untung Kotor + Stok Lebih(+) - Stok Hilang(-) - Beban/Bea = Untung Bersih (Net Profit)
 // Pembelian Bahan TIDAK PERNAH masuk formula ini (Persediaan/aset, bukan
 // Beban -- sudah otomatis kepisah karena tercatat di tabel purchases,
 // bukan expenses).
 //
-// BEBAN_SOURCES: sumber Beban yang dibaca laporan ini -- `expenses`
-// (Pengeluaran Kasir) dan `admin_operational_expenses` (Bea Operasional
-// dari panel Admin Gerai, migration 0100). Kalau nanti ada
-// fitur/tombol baru yang debit-nya dianalisis sebagai Beban (aturan Bos
-// Cyo: namanya wajib dimulai "Beban"/"Bea" supaya kelihatan dari kode),
-// WAJIB didaftarkan eksplisit di sini juga -- penamaan itu penanda buat
-// manusia, pendaftaran di sini yang benar-benar dibaca laporan.
+// Beban/Bea dirinci empat sumber (Bos Cyo, 2026-09-17: laporan lama
+// dianggap "ga jelas" karena melebur semuanya jadi satu angka) --
+// Beban Kasir (`expenses`) dan tiga kategori Bea Admin (`admin_operational_
+// expenses`, migration 0100: Bea Gaji/Lapak/Lainnya) masing-masing kolom
+// sendiri, dijumlah baru jadi total Beban di netProfitFromFacts(). Kalau
+// nanti ada fitur/tombol baru yang debit-nya dianalisis sebagai Beban
+// (aturan Bos Cyo: nama tombolnya wajib dimulai "Beban"/"Bea"), WAJIB
+// ditambahkan eksplisit di computeFactsForDates() + netProfitFromFacts()
+// di sini juga -- penamaan itu penanda buat manusia, kode di sini yang
+// benar-benar dibaca laporan.
 const BEBAN_SOURCES = ['expenses', 'admin_operational_expenses'];
 
 const COST_SCALE = 1_000_000;
@@ -55,6 +58,16 @@ const JAKARTA_BUSINESS_DATE_SQL = "date(created_at, '+7 hours')";
 function placeholders(list) {
   return list.map(() => '?').join(',');
 }
+
+// Bentuk breakdown kosong -- dipakai sebagai default kalau sebuah tanggal
+// tidak punya baris breakdown sama sekali, dan sebagai nilai awal reduce
+// breakdownTotals. Satu tempat supaya field-nya tidak bisa beda ketinggalan
+// antara dua pemakaian.
+const EMPTY_BREAKDOWN = Object.freeze({
+  revenue: 0, otherIncome: 0, hpp: 0, grossProfit: 0,
+  expenseKasir: 0, beaGaji: 0, beaLapak: 0, beaLainnya: 0, totalBeban: 0,
+  stockAdjustmentGain: 0, stockAdjustmentLoss: 0, netProfit: 0
+});
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -74,7 +87,9 @@ function enumerateDates(from, to) {
 async function loadCachedRows(db, storeIds, dates) {
   if (!storeIds.length || !dates.length) return [];
   const rows = await db.prepare(`
-    SELECT store_id, business_date, revenue, other_income, hpp, expense, stock_adjustment_net, net_profit
+    SELECT store_id, business_date, revenue, other_income, hpp, expense,
+           bea_gaji, bea_lapak, bea_lainnya,
+           stock_adjustment_gain, stock_adjustment_loss, net_profit
     FROM store_daily_profit_snapshot
     WHERE store_id IN (${placeholders(storeIds)}) AND business_date IN (${placeholders(dates)})
   `).bind(...storeIds, ...dates).all();
@@ -126,18 +141,20 @@ async function computeFactsForDates(db, storeIds, dates) {
     `, [...storeIds, ...dates]),
     // Penyesuaian Stok yang sudah di-ACC (Bos Cyo, 2026-09-17: "dari
     // penyesuaian stok kan juga jadi beban kehilangan kalo minus, dan
-    // kalo tambah jadi pendapatan lain"). Nilainya sudah disnapshot di
-    // payload_json saat pengajuan dibuat (unitCostSnapshotScaled x qty,
+    // kalo tambah jadi pendapatan lain"), sekarang DUA kolom terpisah
+    // (Bos Cyo, sesi berikutnya: laporan lama melebur ini jadi satu angka
+    // net, dia minta dipisah "+ dan -") -- direction IN = stok lebih
+    // (gain), OUT = stok kurang (loss). Nilainya sudah disnapshot di
+    // payload_json saat pengajuan dibuat (totalCostSnapshotScaled,
     // src/operational-posting.js) -- BUKAN dihitung ulang di sini, cukup
-    // dibaca. direction IN = stok lebih (gain), OUT = stok kurang (loss).
+    // dibaca. Tetap satu query (dua ekspresi SUM(CASE) dalam satu SELECT),
+    // bukan dua query terpisah.
     sumByStoreDate(db, `
       SELECT store_id, ${JAKARTA_BUSINESS_DATE_SQL.replace('created_at', 'posted_at')} AS business_date,
-             COALESCE(SUM(
-               CASE WHEN json_extract(payload_json, '$.direction') = 'IN'
-                    THEN json_extract(payload_json, '$.totalCostSnapshotScaled')
-                    ELSE -json_extract(payload_json, '$.totalCostSnapshotScaled')
-               END
-             ), 0) AS value
+             COALESCE(SUM(CASE WHEN json_extract(payload_json, '$.direction') = 'IN'
+                                THEN json_extract(payload_json, '$.totalCostSnapshotScaled') ELSE 0 END), 0) AS gain_value,
+             COALESCE(SUM(CASE WHEN json_extract(payload_json, '$.direction') = 'OUT'
+                                THEN json_extract(payload_json, '$.totalCostSnapshotScaled') ELSE 0 END), 0) AS loss_value
       FROM approval_requests
       WHERE request_type = 'GOODS_FLOW' AND posting_status = 'posted'
         AND json_extract(payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'
@@ -145,15 +162,18 @@ async function computeFactsForDates(db, storeIds, dates) {
       GROUP BY store_id, business_date
     `, [...storeIds, ...dates]),
     // Bea Operasional yang dicatat dari panel Admin (Bea Gaji/Lapak/Lainnya,
-    // migration 0100). Sumber Beban KEDUA di laporan ini. Beda dari tiga query
-    // di atas: tabel ini sudah punya kolom business_date sendiri (diisi Admin,
-    // boleh mundur -- bayar gaji tanggal 5 untuk periode bulan lalu), jadi
-    // TIDAK diturunkan dari created_at.
+    // migration 0100), DIRINCI PER KATEGORI (Bos Cyo: laporan lama melebur
+    // ini jadi satu angka "Biaya & bea yang dikeluarkan", diminta dipecah
+    // per nama bea). GROUP BY ikut category -> tiap (gerai, tanggal) bisa
+    // punya sampai 3 baris (satu per kategori yang benar-benar dipakai),
+    // bukan satu baris gabungan -- tetap satu query, bukan tiga. Tabel ini
+    // sudah punya kolom business_date sendiri (diisi Admin, boleh mundur),
+    // jadi TIDAK diturunkan dari created_at seperti tiga query pertama.
     sumByStoreDate(db, `
-      SELECT store_id, business_date, COALESCE(SUM(amount), 0) AS value
+      SELECT store_id, business_date, category, COALESCE(SUM(amount), 0) AS value
       FROM admin_operational_expenses
       WHERE voided_at IS NULL AND store_id IN (${storePh}) AND business_date IN (${datePh})
-      GROUP BY store_id, business_date
+      GROUP BY store_id, business_date, category
     `, [...storeIds, ...dates])
   ]);
 
@@ -161,30 +181,55 @@ async function computeFactsForDates(db, storeIds, dates) {
   const facts = new Map();
   for (const storeId of storeIds) {
     for (const businessDate of dates) {
-      facts.set(key(storeId, businessDate), { revenue: 0, otherIncome: 0, expense: 0, adminExpense: 0, hppScaled: 0, stockAdjustmentNetScaled: 0 });
+      facts.set(key(storeId, businessDate), {
+        revenue: 0, otherIncome: 0, expenseKasir: 0, beaGaji: 0, beaLapak: 0, beaLainnya: 0,
+        hppScaled: 0, stockAdjustmentGainScaled: 0, stockAdjustmentLossScaled: 0
+      });
     }
   }
   for (const row of revenueRows) facts.get(key(row.store_id, row.business_date)).revenue = Number(row.value || 0);
   for (const row of otherIncomeRows) facts.get(key(row.store_id, row.business_date)).otherIncome = Number(row.value || 0);
-  for (const row of expenseRows) facts.get(key(row.store_id, row.business_date)).expense = Number(row.value || 0);
+  for (const row of expenseRows) facts.get(key(row.store_id, row.business_date)).expenseKasir = Number(row.value || 0);
   for (const row of hppRows) facts.get(key(row.store_id, row.business_date)).hppScaled = Number(row.value || 0);
-  for (const row of stockAdjustmentRows) facts.get(key(row.store_id, row.business_date)).stockAdjustmentNetScaled = Number(row.value || 0);
-  for (const row of adminExpenseRows) facts.get(key(row.store_id, row.business_date)).adminExpense = Number(row.value || 0);
+  for (const row of stockAdjustmentRows) {
+    const fact = facts.get(key(row.store_id, row.business_date));
+    fact.stockAdjustmentGainScaled = Number(row.gain_value || 0);
+    fact.stockAdjustmentLossScaled = Number(row.loss_value || 0);
+  }
+  for (const row of adminExpenseRows) {
+    const fact = facts.get(key(row.store_id, row.business_date));
+    const amount = Number(row.value || 0);
+    if (row.category === 'BEA_GAJI') fact.beaGaji = amount;
+    else if (row.category === 'BEA_LAPAK') fact.beaLapak = amount;
+    else fact.beaLainnya += amount; // BEA_LAINNYA, dan kategori tak dikenal (jaga-jaga) ikut sini
+  }
   return facts;
 }
 
 function netProfitFromFacts(facts) {
   const hpp = rupiahFromScaledSum(facts.hppScaled);
-  const stockAdjustmentNet = rupiahFromScaledSum(facts.stockAdjustmentNetScaled);
-  // Beban = Pengeluaran Kasir + Bea Operasional Admin. Dijumlah jadi satu di
-  // sini karena kolom `expense` di cache (store_daily_profit_snapshot,
-  // migration 0099) memang berarti "total Beban Operasional" -- bukan khusus
-  // pengeluaran kasir. Kalau nanti butuh rinciannya per sumber, itu kolom baru
-  // di cache, bukan mengubah arti kolom ini.
-  const totalExpense = facts.expense + facts.adminExpense;
+  const stockAdjustmentGain = rupiahFromScaledSum(facts.stockAdjustmentGainScaled);
+  const stockAdjustmentLoss = rupiahFromScaledSum(facts.stockAdjustmentLossScaled);
+  // Beban = Beban Kasir + tiga kategori Bea Admin, masing-masing kolom
+  // sendiri di cache (migration 0101) -- dijumlah di sini baru jadi total
+  // yang mengurangi Untung Kotor, bukan disimpan sebagai satu angka gabungan.
+  const totalBeban = facts.expenseKasir + facts.beaGaji + facts.beaLapak + facts.beaLainnya;
   const grossProfit = facts.otherIncome + facts.revenue - hpp;
-  const netProfit = grossProfit - totalExpense + stockAdjustmentNet;
-  return { revenue: facts.revenue, otherIncome: facts.otherIncome, hpp, expense: totalExpense, stockAdjustmentNet, netProfit };
+  const netProfit = grossProfit - totalBeban + stockAdjustmentGain - stockAdjustmentLoss;
+  return {
+    revenue: facts.revenue,
+    otherIncome: facts.otherIncome,
+    hpp,
+    grossProfit,
+    expenseKasir: facts.expenseKasir,
+    beaGaji: facts.beaGaji,
+    beaLapak: facts.beaLapak,
+    beaLainnya: facts.beaLainnya,
+    totalBeban,
+    stockAdjustmentGain,
+    stockAdjustmentLoss,
+    netProfit
+  };
 }
 
 // Dipanggil setiap kali ada Bea Operasional dicatat/dibatalkan untuk sebuah
@@ -211,21 +256,34 @@ export async function getNetProfitReport(db, { storeIds, from, to, today = getJa
   const computed = datesToCompute.length ? await computeFactsForDates(db, storeIds, datesToCompute) : new Map();
 
   const netProfitByKey = new Map();
-  // Rincian per hari ikut dibawa (Penjualan/HPP/Beban/Penyesuaian Stok) supaya
-  // panel Admin Gerai bisa menunjukkan KENAPA untung/ruginya segitu, bukan cuma
-  // angka akhirnya -- target penggunanya justru yang tidak paham akuntansi.
-  // Kolomnya sudah ada di cache sejak migration 0099, jadi ini tidak menambah
-  // satu query pun.
+  // Rincian per hari ikut dibawa (Omset/Pendapatan Lain/HPP/Beban per
+  // kategori/Penyesuaian Stok +/-) supaya panel Admin Gerai bisa menunjukkan
+  // KENAPA untung/ruginya segitu, bukan cuma angka akhirnya -- target
+  // penggunanya justru yang tidak paham akuntansi. Kolomnya sudah ada di
+  // cache sejak migration 0099/0101, jadi ini tidak menambah satu query pun.
   const breakdownByKey = new Map();
   for (const row of cached) {
     const key = `${row.store_id}::${row.business_date}`;
     netProfitByKey.set(key, Number(row.net_profit));
+    const expenseKasir = Number(row.expense || 0);
+    const beaGaji = Number(row.bea_gaji || 0);
+    const beaLapak = Number(row.bea_lapak || 0);
+    const beaLainnya = Number(row.bea_lainnya || 0);
+    const revenue = Number(row.revenue || 0);
+    const otherIncome = Number(row.other_income || 0);
+    const hpp = Number(row.hpp || 0);
     breakdownByKey.set(key, {
-      revenue: Number(row.revenue || 0),
-      otherIncome: Number(row.other_income || 0),
-      hpp: Number(row.hpp || 0),
-      expense: Number(row.expense || 0),
-      stockAdjustmentNet: Number(row.stock_adjustment_net || 0),
+      revenue,
+      otherIncome,
+      hpp,
+      grossProfit: otherIncome + revenue - hpp,
+      expenseKasir,
+      beaGaji,
+      beaLapak,
+      beaLainnya,
+      totalBeban: expenseKasir + beaGaji + beaLapak + beaLainnya,
+      stockAdjustmentGain: Number(row.stock_adjustment_gain || 0),
+      stockAdjustmentLoss: Number(row.stock_adjustment_loss || 0),
       netProfit: Number(row.net_profit || 0)
     });
   }
@@ -243,13 +301,23 @@ export async function getNetProfitReport(db, { storeIds, from, to, today = getJa
 
   if (toCache.length) {
     await db.batch(toCache.map(row => db.prepare(`
-      INSERT INTO store_daily_profit_snapshot (store_id, business_date, revenue, other_income, hpp, expense, stock_adjustment_net, net_profit, computed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT INTO store_daily_profit_snapshot (
+        store_id, business_date, revenue, other_income, hpp, expense,
+        bea_gaji, bea_lapak, bea_lainnya,
+        stock_adjustment_gain, stock_adjustment_loss, net_profit, computed_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT (store_id, business_date) DO UPDATE SET
         revenue = excluded.revenue, other_income = excluded.other_income, hpp = excluded.hpp,
-        expense = excluded.expense, stock_adjustment_net = excluded.stock_adjustment_net,
+        expense = excluded.expense, bea_gaji = excluded.bea_gaji, bea_lapak = excluded.bea_lapak,
+        bea_lainnya = excluded.bea_lainnya, stock_adjustment_gain = excluded.stock_adjustment_gain,
+        stock_adjustment_loss = excluded.stock_adjustment_loss,
         net_profit = excluded.net_profit, computed_at = CURRENT_TIMESTAMP
-    `).bind(row.storeId, row.businessDate, row.revenue, row.otherIncome, row.hpp, row.expense, row.stockAdjustmentNet, row.netProfit)));
+    `).bind(
+      row.storeId, row.businessDate, row.revenue, row.otherIncome, row.hpp, row.expenseKasir,
+      row.beaGaji, row.beaLapak, row.beaLainnya,
+      row.stockAdjustmentGain, row.stockAdjustmentLoss, row.netProfit
+    )));
   }
 
   return { dates, netProfitByKey, breakdownByKey };
@@ -327,8 +395,7 @@ export async function handleNetProfitReportApi(request, env, pathname) {
     }
     const row = { businessDate, byStore, total };
     if (withBreakdown) {
-      row.breakdown = breakdownByKey.get(`${selected[0].id}::${businessDate}`)
-        || { revenue: 0, otherIncome: 0, hpp: 0, expense: 0, stockAdjustmentNet: 0, netProfit: 0 };
+      row.breakdown = breakdownByKey.get(`${selected[0].id}::${businessDate}`) || EMPTY_BREAKDOWN;
     }
     return row;
   });
@@ -352,10 +419,16 @@ export async function handleNetProfitReportApi(request, env, pathname) {
       revenue: acc.revenue + row.breakdown.revenue,
       otherIncome: acc.otherIncome + row.breakdown.otherIncome,
       hpp: acc.hpp + row.breakdown.hpp,
-      expense: acc.expense + row.breakdown.expense,
-      stockAdjustmentNet: acc.stockAdjustmentNet + row.breakdown.stockAdjustmentNet,
+      grossProfit: acc.grossProfit + row.breakdown.grossProfit,
+      expenseKasir: acc.expenseKasir + row.breakdown.expenseKasir,
+      beaGaji: acc.beaGaji + row.breakdown.beaGaji,
+      beaLapak: acc.beaLapak + row.breakdown.beaLapak,
+      beaLainnya: acc.beaLainnya + row.breakdown.beaLainnya,
+      totalBeban: acc.totalBeban + row.breakdown.totalBeban,
+      stockAdjustmentGain: acc.stockAdjustmentGain + row.breakdown.stockAdjustmentGain,
+      stockAdjustmentLoss: acc.stockAdjustmentLoss + row.breakdown.stockAdjustmentLoss,
       netProfit: acc.netProfit + row.breakdown.netProfit
-    }), { revenue: 0, otherIncome: 0, hpp: 0, expense: 0, stockAdjustmentNet: 0, netProfit: 0 });
+    }), { ...EMPTY_BREAKDOWN });
   }
   return json(response);
 }

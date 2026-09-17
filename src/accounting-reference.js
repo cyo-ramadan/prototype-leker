@@ -158,7 +158,7 @@ async function compatibilityPortal(db, store) {
 
 export async function handleAccountingReferenceApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/accounting/reference')) return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

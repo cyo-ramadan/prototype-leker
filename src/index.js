@@ -26,7 +26,9 @@ import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
 import { handleProductPolicyApi } from './product-policy.js';
-import { handleProductMasterApi } from './product-master.js';
+import { handleProductMasterApi, handleProductMasterCatalogApi } from './product-master.js';
+import { handleNetProfitReportApi } from './net-profit-report.js';
+import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
@@ -176,10 +178,16 @@ async function handleApi(request, env, url) {
   if (ownerResponse) return ownerResponse;
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);
   if (storeAdminResponse) return storeAdminResponse;
-  const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
-  if (entityAdminResponse) return entityAdminResponse;
+  // entity-accounting checked FIRST: its guard only claims /accounts and
+  // /journals sub-paths and returns null for everything else, so it is safe
+  // to check ahead of handleEntityAdminApi. The reverse order silently
+  // starved these routes -- handleEntityAdminApi's own guard claims every
+  // /api/entity-admin/* path (never returns null), so its internal 404
+  // fallback always won the dispatch before entity-accounting ever ran.
   const entityAccountingResponse = await handleEntityAccountingApi(request, env, pathname);
   if (entityAccountingResponse) return entityAccountingResponse;
+  const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
+  if (entityAdminResponse) return entityAdminResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
   const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);
@@ -200,6 +208,12 @@ async function handleApi(request, env, url) {
   if (productKindResponse) return productKindResponse;
   const productMasterResponse = await handleProductMasterApi(request, env, pathname);
   if (productMasterResponse) return productMasterResponse;
+  const productMasterCatalogResponse = await handleProductMasterCatalogApi(request, env, pathname);
+  if (productMasterCatalogResponse) return productMasterCatalogResponse;
+  const netProfitReportResponse = await handleNetProfitReportApi(request, env, pathname);
+  if (netProfitReportResponse) return netProfitReportResponse;
+  const adminOperationalExpenseResponse = await handleAdminOperationalExpenseApi(request, env, pathname);
+  if (adminOperationalExpenseResponse) return adminOperationalExpenseResponse;
   const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
   if (classificationResponse) return classificationResponse;
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
@@ -318,14 +332,30 @@ async function handleApi(request, env, url) {
   return json({ error: 'Not found' }, 404);
 }
 
-function assetRoute(pathname) {
-  const direct = { '/': '/customer.html', '/customer': '/customer.html', '/cashier': '/cashier.html', '/staff': '/staff.html', '/admin': '/owner.html', '/owner': '/owner.html', '/entity-admin': '/entity-admin.html' };
+// 2026-09-17, Bos Cyo: klik "Buka Workspace" gerai dari panel Entity Admin
+// membuat URL sekilas berpindah ke /branch-admin (kehilangan /s/:code/-nya)
+// sebelum akhirnya dilempar balik ke panel Entity oleh guard di
+// branch-owner-auth.js. Root cause SEBENARNYA ada di sini, bukan di
+// branch-owner-auth.js (itu cuma menangani gejalanya) -- wrangler.jsonc
+// mengeset html_handling: "auto-trailing-slash", yang membuat Cloudflare
+// Assets me-redirect (307/308) permintaan eksplisit ke path berakhiran
+// ".html" menuju bentuk kanonik tanpa ekstensi. Kode di bawah dulu secara
+// eksplisit fetch "/branch-admin.html" (dst) dari ASSETS -- binding itu
+// balas dengan redirect ke "/branch-admin" (dibangun dari path asset
+// internal yang diminta, BUKAN dari /s/PENDEM/admin yang diketik user), dan
+// handleAsset() dulu meneruskan redirect itu apa adanya ke browser, jadi
+// browser benar-benar pindah alamat dan store code di URL hilang.
+// Fix: minta bentuk kanonik (tanpa ".html") langsung dari ASSETS, supaya
+// tidak pernah memicu redirect itu sama sekali -- alamat asli
+// (/s/:code/admin) di address bar browser tidak pernah berubah.
+export function assetRoute(pathname) {
+  const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
-    if (page === 'admin') return '/branch-admin.html';
-    return `/${page}.html`;
+    if (page === 'admin') return '/branch-admin';
+    return `/${page}`;
   }
   return pathname;
 }
@@ -336,7 +366,7 @@ async function handleAsset(request, env, pathname) {
   const response = await env.ASSETS.fetch(new Request(assetUrl, request));
   if (
     request.method === 'GET'
-    && assetUrl.pathname === '/branch-admin.html'
+    && assetUrl.pathname === '/branch-admin'
     && response.ok
     && (response.headers.get('content-type') || '').includes('text/html')
   ) {

@@ -268,7 +268,7 @@ export async function handleCustomerApi(request, env, pathname) {
     return json({ error: 'Route pelanggan tidak ditemukan.' }, 404);
   }
 
-  const management = await requireManagement(request, db);
+  const management = await requireManagement(request, db, env);
   if (!management.ok) return management.response;
 
   if (request.method === 'GET' && pathname === '/api/admin/customers') {

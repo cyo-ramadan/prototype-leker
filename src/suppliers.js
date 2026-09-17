@@ -25,7 +25,7 @@ async function selectedStore(db, request) {
 export async function handleSupplierApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/suppliers')) return null;
   const db = env.DB;
-  const auth = await requireManagement(request, db);
+  const auth = await requireManagement(request, db, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(db, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

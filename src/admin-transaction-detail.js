@@ -306,7 +306,7 @@ export async function handleAdminTransactionDetailApi(request, env, pathname) {
   const match = pathname.match(/^\/api\/admin\/transactions\/detail\/([^/]+)\/([^/]+)$/);
   if (!match) return null;
   if (request.method !== 'GET') return json({ error: 'Detail transaksi hanya mendukung GET.' }, 405);
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

@@ -31,8 +31,8 @@ async function getAdminSettings(db) {
   return db.prepare('SELECT admin_pin_hash FROM store_settings WHERE id = 1').first();
 }
 
-async function requireAdmin(request, db) {
-  return requireManagement(request, db);
+async function requireAdmin(request, env) {
+  return requireManagement(request, env.DB, env);
 }
 
 function storeTokenFrom(request) {
@@ -148,7 +148,7 @@ export async function handleAdminApi(request, env, pathname) {
     return json({ ok: true });
   }
 
-  const auth = await requireAdmin(request, db);
+  const auth = await requireAdmin(request, env);
   if (!auth.ok) return auth.response;
 
   if (request.method === 'POST' && pathname === '/api/admin/stores') {

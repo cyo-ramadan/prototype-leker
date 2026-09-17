@@ -11,8 +11,8 @@ test('owner sits above branches and branch workspace owns masters', async () => 
     read('public/branch-admin.html'),
     read('src/owner-auth.js')
   ]);
-  assert.match(indexSource, /'\/admin': '\/owner\.html'/);
-  assert.match(indexSource, /page === 'admin'.*branch-admin\.html/s);
+  assert.match(indexSource, /'\/admin': '\/owner'/);
+  assert.match(indexSource, /page === 'admin'.*'\/branch-admin'/s);
   assert.match(ownerHtml, /Login Owner/);
   assert.match(ownerHtml, /CREATE GERAI/);
   assert.match(ownerHtml, /Gerai berada di atas seluruh master dan transaksi/);

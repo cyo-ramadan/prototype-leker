@@ -3,7 +3,9 @@ const entityAdminState = {
   entityAdmin: null,
   stores: [],
   accounts: [],
-  journals: []
+  journals: [],
+  productMasters: [],
+  employees: []
 };
 
 const entityAdminEl = id => document.getElementById(id);
@@ -64,6 +66,178 @@ function switchEntityTab(name) {
   document.querySelectorAll('[data-entity-tab]').forEach(button => button.classList.toggle('active', button.dataset.entityTab === name));
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
+  entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
+  entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
+  entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
+  if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
+  if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
+  if (name === 'reports') renderEntityReportStoreChecklist();
+}
+
+// Master Barang & Karyawan (ADR-043) sudah entity-scoped di backend
+// (src/product-master.js, src/employee-master.js), tapi endpoint-nya masih
+// butuh ?store= untuk resolve entity_id (pola requireManagement yang sama
+// dipakai Admin Gerai). Panel Entity Admin tidak punya konsep "gerai yang
+// sedang dibuka" seperti Admin Gerai, jadi dipakai gerai PERTAMA milik
+// entity ini murni sebagai kendaraan resolusi -- hasilnya tetap data
+// seluruh entity, bukan data gerai itu saja (listEmployees/loadCatalog
+// keduanya sudah filter by entity_id, bukan store_id).
+function anyEntityStoreCode() {
+  return entityAdminState.stores[0]?.code || '';
+}
+
+// --- Master Barang Entity -------------------------------------------------
+
+async function loadEntityProductMasters() {
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) {
+    entityAdminEl('entityProductMasterList').innerHTML = '<div class="empty">Belum ada gerai di entity ini.</div>';
+    return;
+  }
+  const payload = await entityAdminApi(`/api/admin/product-masters?store=${encodeURIComponent(storeCode)}`);
+  entityAdminState.productMasters = payload.catalog || [];
+  renderEntityProductMasters();
+}
+
+function renderEntityProductMasterRecipeList(entry) {
+  if (!entry.recipeReference.length) return '<span class="muted">Belum ada resep acuan.</span>';
+  return entry.recipeReference.map(component =>
+    `${entityAdminEscape(component.ingredientLabel)}${component.quantityLabel ? ` · ${entityAdminEscape(component.quantityLabel)}` : ''}`
+  ).join(', ');
+}
+
+function renderEntityProductMasters() {
+  const list = entityAdminEl('entityProductMasterList');
+  const catalog = entityAdminState.productMasters || [];
+  list.innerHTML = catalog.length ? catalog.map(entry => `
+    <div class="master-row contact-row" data-entity-pm-row="${entityAdminEscape(entry.id)}">
+      ${entry.imageData ? `<img class="master-thumb" src="${entityAdminEscape(entry.imageData)}" alt="${entityAdminEscape(entry.name || entry.code)}" />` : ''}
+      <div class="master-main">
+        <strong>${entityAdminEscape(entry.code)}${entry.name ? ` · ${entityAdminEscape(entry.name)}` : ''}</strong>
+        <div class="master-meta">Dipakai ${entry.usedByStores.length} gerai${entry.usedByStores.length ? `: ${entry.usedByStores.map(u => entityAdminEscape(u.storeCode)).join(', ')}` : ''}</div>
+        <div class="master-meta">Resep acuan: ${renderEntityProductMasterRecipeList(entry)}</div>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
+}
+
+// --- Karyawan level Entity -------------------------------------------------
+
+async function loadEntityEmployees() {
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) {
+    entityAdminEl('entityEmployeeList').innerHTML = '<div class="empty">Belum ada gerai di entity ini.</div>';
+    return;
+  }
+  const payload = await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`);
+  entityAdminState.employees = payload.employees || [];
+  renderEntityEmployees();
+}
+
+function renderEntityEmployees() {
+  const employees = entityAdminState.employees || [];
+  entityAdminEl('entityEmployeeCount').textContent = employees.length;
+  entityAdminEl('entityEmployeeList').innerHTML = employees.length ? employees.map(employee => `
+    <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
+      <div class="master-main">
+        <strong>${entityAdminEscape(employee.fullName)}</strong>
+        <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `Direkrut ${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</div>
+        <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
+}
+
+// --- Laporan Net Profit Harian ---------------------------------------------
+
+function todayJakartaDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function renderEntityReportStoreChecklist() {
+  const box = entityAdminEl('entityReportStoreChecklist');
+  // Mount sekali saja begitu daftar gerai sudah ada -- checklist tidak
+  // boleh reset centangan pengguna tiap gonta-ganti tab bolak-balik.
+  if (!box || box.dataset.mounted === '1' || !entityAdminState.stores.length) return;
+  box.dataset.mounted = '1';
+  box.innerHTML = entityAdminState.stores.map(store => `
+    <label class="admin-check" style="font-weight:600">
+      <input type="checkbox" value="${entityAdminEscape(store.code)}" checked /> ${entityAdminEscape(store.code)}
+    </label>`).join('');
+  if (!entityAdminEl('entityReportFrom').value) {
+    const today = todayJakartaDate();
+    entityAdminEl('entityReportFrom').value = today;
+    entityAdminEl('entityReportTo').value = today;
+  }
+}
+
+function selectedReportStoreCodes() {
+  return [...document.querySelectorAll('#entityReportStoreChecklist input[type="checkbox"]:checked')].map(input => input.value);
+}
+
+const entityReportRupiah = value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(value) || 0);
+
+function renderEntityReportTable(payload) {
+  const wrap = entityAdminEl('entityReportTableWrap');
+  if (!payload.rows.length || !payload.stores.length) {
+    wrap.innerHTML = '<div class="empty">Tidak ada data untuk periode/gerai ini.</div>';
+    return;
+  }
+  const cell = value => `<td style="padding:6px 10px;text-align:right;white-space:nowrap${value < 0 ? ';color:#b91c1c;font-weight:700' : ''}">${entityReportRupiah(value)}</td>`;
+  const header = `<tr>
+    <th style="padding:6px 10px;text-align:left">Tanggal</th>
+    ${payload.stores.map(store => `<th style="padding:6px 10px;text-align:right">${entityAdminEscape(store.code)}</th>`).join('')}
+    <th style="padding:6px 10px;text-align:right">Total</th>
+  </tr>`;
+  const body = payload.rows.map(row => `<tr>
+    <td style="padding:6px 10px;white-space:nowrap">${entityAdminEscape(row.businessDate)}</td>
+    ${payload.stores.map(store => cell(row.byStore[store.code] || 0)).join('')}
+    ${cell(row.total)}
+  </tr>`).join('');
+  const footer = `<tr style="font-weight:800;border-top:2px solid var(--line)">
+    <td style="padding:6px 10px">Total</td>
+    ${payload.stores.map(store => cell(payload.totals.byStore[store.code] || 0)).join('')}
+    ${cell(payload.totals.total)}
+  </tr>`;
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:14px">${header}${body}${footer}</table>`;
+}
+
+async function runEntityReport() {
+  const from = entityAdminEl('entityReportFrom').value;
+  const to = entityAdminEl('entityReportTo').value;
+  const codes = selectedReportStoreCodes();
+  const status = entityAdminEl('entityReportStatus');
+  if (!from || !to) { status.textContent = 'Isi dari/sampai tanggal dulu.'; return; }
+  if (!codes.length) { status.textContent = 'Pilih minimal satu gerai.'; return; }
+  status.textContent = 'Menghitung… (pertama kali untuk periode baru bisa agak lama, sesudahnya instan)';
+  try {
+    const payload = await entityAdminApi(`/api/admin/reports/net-profit?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
+    renderEntityReportTable(payload);
+    status.textContent = '';
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+
+async function saveEntityEmployee(event) {
+  event.preventDefault();
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) { entityAdminToast('Belum ada gerai di entity ini.'); return; }
+  try {
+    await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        scope: 'ENTITY',
+        fullName: entityAdminEl('entityEmployeeName').value,
+        phone: entityAdminEl('entityEmployeePhone').value,
+        address: entityAdminEl('entityEmployeeAddress').value,
+        note: entityAdminEl('entityEmployeeNote').value
+      })
+    });
+    entityAdminEl('entityEmployeeForm').reset();
+    await loadEntityEmployees();
+    entityAdminToast('Karyawan level Entity ditambahkan');
+  } catch (error) { entityAdminToast(error.message); }
 }
 
 async function loadEntityLedger() {
@@ -270,6 +444,9 @@ async function initEntityAdmin() {
   entityAdminEl('entityJournalForm').addEventListener('submit', submitEntityJournal);
   addEntityJournalLine();
   addEntityJournalLine();
+  entityAdminEl('entityProductMasterRefresh')?.addEventListener('click', () => loadEntityProductMasters().catch(error => entityAdminToast(error.message)));
+  entityAdminEl('entityEmployeeForm')?.addEventListener('submit', saveEntityEmployee);
+  entityAdminEl('entityReportRun')?.addEventListener('click', () => runEntityReport());
 
   if (!entityAdminState.token) return showEntityAdminLogin();
   try {

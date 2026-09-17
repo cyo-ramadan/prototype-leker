@@ -19,7 +19,7 @@ async function factState(db, storeId, factType, factId) {
 
 export async function handleAccountingReconciliationGuardApi(request, env, pathname) {
   if (request.method !== 'POST' || pathname !== '/api/admin/accounting/bridge/sync') return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

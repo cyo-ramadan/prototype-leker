@@ -38,7 +38,7 @@ async function selectedStore(db, request) {
 }
 
 async function context(request, env) {
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth;
   const store = await selectedStore(env.DB, request);
   if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };

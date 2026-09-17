@@ -87,3 +87,77 @@ test('server-side session lifetime for Owner/Store Admin stays 12 hours -- this 
   assert.match(ownerAuthSrc, /OWNER_SESSION_HOURS = 12/);
   assert.match(ownerAuthSrc, /STORE_ADMIN_SESSION_HOURS = 12/);
 });
+
+// 2026-09-17, bug Bos Cyo: klik "Buka Workspace" gerai dari panel Entity
+// Admin (entity-admin.js -> /s/<code>/admin) malah dilempar ke halaman
+// customer dengan menu login, walau sesi Entity Admin-nya masih valid.
+// Root cause: staff-entry-guard.js sudah lebih dulu mengenali OWNER/ADMIN
+// buat masuk /s/:code/admin, tapi lupa ENTITY_ADMIN -- padahal Entity Admin
+// sudah lama berwenang buka workspace gerai manapun di entity-nya sendiri
+// (requireManagement -> entityAdminStoreAuthorized, src/owner-auth.js).
+test('staff-entry-guard.js lets an Entity Admin session (not just Owner/Admin) reach /s/:code/admin', () => {
+  assert.match(staffEntryGuard, /isBranchAdmin\s*\?\s*Boolean\(localStorage\.getItem\('lekerOwnerToken'\)\s*\|\|\s*localStorage\.getItem\('lekerAdminToken'\)\s*\|\|\s*localStorage\.getItem\('lekerEntityAdminToken'\)\)/);
+});
+
+// Bug bersaudara di file yang sama-sama menjaga sesi staf: kalau tab-lock
+// (single-active-session) ini pernah men-block sesi Entity Admin, ia salah
+// hapus 'lekerCashierToken' (token yang bahkan tidak dipakai Entity Admin)
+// alih-alih 'lekerEntityAdminToken' -- token asli tidak pernah tercabut,
+// tapi user tetap dilempar ke halaman login seolah tidak logout beneran.
+test('staff-tab-lock.js resolves ENTITY_ADMIN to its own token key, not the CASHIER fallback', () => {
+  assert.match(staffTabLock, /meta\.role === 'ENTITY_ADMIN'\s*\n?\s*\?\s*'lekerEntityAdminToken'/);
+});
+
+// Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
+// sengaja ke back back malah ada menu loginnya lagi". Sebelum ini, kembali
+// ke halaman /?login=staff (mis. tombol Back browser setelah redirect
+// submitLogin()) SELALU menampilkan form login lagi, tidak pernah dicek
+// dulu apakah token yang valid masih ada di localStorage/sessionStorage.
+test('/?login=staff auto-redirects an already-authenticated staff session to its workspace instead of re-showing the login form', () => {
+  assert.match(authEntrySplit, /function existingStaffWorkspaceRedirect\(\)/);
+  assert.match(authEntrySplit, /localStorage\.getItem\('lekerOwnerToken'\)\) return '\/admin'/);
+  assert.match(authEntrySplit, /localStorage\.getItem\('lekerEntityAdminToken'\)\) return '\/entity-admin'/);
+  assert.match(authEntrySplit, /sessionStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
+  assert.match(authEntrySplit, /location\.replace\(existingRedirect\)/);
+  // staffBlocked=1 means the tab-lock deliberately just cleared this
+  // session's token -- the redirect must not fire off a stale read in that
+  // exact moment and must still fall through to the login form.
+  assert.match(authEntrySplit, /staffBlocked.*=== '1'/);
+});
+
+// Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry
+// point (screenshot: address bar showed "/branch-admin", no /s/:code/
+// prefix, header showed "WORKSPACE GERAI - G001") and got a confusing
+// "Entity Admin ... hanya berwenang pada gerai di bawah entity ..." failure.
+// Root cause: without a store code in the URL, store-context.js has no
+// Entity-Admin-aware fallback (only Store Admin's fixed lekerAdminStoreCode
+// is remembered) and silently defaults to G001 -- almost never under the
+// Entity Admin's own entity, so the workspace bootstrap always fails.
+test('Entity Admin landing on branch-admin without an explicit /s/:code/ prefix is sent back to its own picker, not left to guess a wrong store', () => {
+  assert.match(branchOwnerAuth, /isEntityAdmin && !\/\^\\\/s\\\/\/\.test\(location\.pathname\)/);
+  assert.match(branchOwnerAuth, /location\.replace\('\/entity-admin'\)/);
+});
+
+// Bos Cyo, 2026-09-17: "ini kalo kembali ke hal entity harus relogin lagi
+// ya?" -- yes, it was a bug. The button labeled "Kembali ke Entity Admin"
+// (pure navigation, same intent as the Owner button right above it in the
+// same function) was secretly performing a full logout first (server-side
+// session revoke + token removal) before navigating, forcing a fresh login
+// every single time an Entity Admin left a store workspace.
+test('leaving a store workspace as Entity Admin just navigates back, like Owner does -- it does not log out or clear the token', () => {
+  assert.doesNotMatch(branchOwnerAuth, /entity-admin\/logout/, 'leaveWorkspace must not call the entity-admin logout endpoint anymore');
+  assert.doesNotMatch(branchOwnerAuth, /isEntityAdmin\)\s*\{\s*\n\s*localStorage\.removeItem\('lekerEntityAdminToken'\)/, 'must not remove the entity admin token when merely navigating back');
+  assert.match(branchOwnerAuth, /if \(isEntityAdmin\) \{\s*\n\s*location\.href = '\/entity-admin';\s*\n\s*return;\s*\n\s*\}/, 'entity admin branch must mirror the Owner branch: navigate only, no logout');
+});
+
+// The eyebrow/button on the shared #authGate card in branch-admin.html
+// always said "Owner session" / "Kembali ke Owner" regardless of which role
+// (Owner, Entity Admin, or Admin Gerai) actually hit the failure -- pure
+// static markup, never overwritten by any script. Misleading during
+// diagnosis (looked like the server thought Bos Cyo was Owner) and just
+// wrong for the other two roles.
+test('the shared authGate card in branch-admin.html no longer hardcodes an Owner-only label', () => {
+  const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /Owner session/);
+  assert.doesNotMatch(html, />Kembali ke Owner</);
+});

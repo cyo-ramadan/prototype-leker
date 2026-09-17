@@ -40,6 +40,9 @@
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
+        <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
+        <button class="admin-tab" data-entity-tab="employees" type="button">Karyawan</button>
+        <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
       </nav>
 
       <section id="entityTab-stores" class="admin-section active">
@@ -98,6 +101,56 @@
         <div class="admin-card list-card" style="margin-top:16px">
           <div class="list-head"><h2>Riwayat jurnal Entity</h2><span id="entityJournalCount" class="master-count">0</span></div>
           <div id="entityJournalList" class="master-list"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-productmasters" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head">
+            <div><h2>Master Barang Entity</h2><div class="muted">Barang yang punya Kode Barang bisa dipakai gerai mana pun di entity ini lewat "Gunakan/Aktifkan" dari Admin Gerai masing-masing. Aktivasi per gerai tetap dilakukan dari Admin Gerai (butuh konteks harga/kategori gerai itu sendiri) -- di sini murni untuk melihat semua Kode Barang entity ini dan gerai mana saja yang sudah pakai.</div></div>
+            <button id="entityProductMasterRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+          </div>
+          <div id="entityProductMasterList" class="master-list" style="margin-top:12px"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-employees" class="admin-section">
+        <div class="admin-grid two" style="align-items:start">
+          <form id="entityEmployeeForm" class="admin-card">
+            <h2>Tambah karyawan level Entity</h2>
+            <div class="muted" style="margin-bottom:10px">Karyawan tanpa gerai perekrut tetap (mis. OB kantor). Karyawan yang direkrut satu gerai spesifik ditambahkan dari Admin Gerai gerai itu, bukan di sini.</div>
+            <label class="admin-field">Nama lengkap<input id="entityEmployeeName" maxlength="100" required /></label>
+            <label class="admin-field">Telepon<input id="entityEmployeePhone" maxlength="40" /></label>
+            <label class="admin-field">Alamat<input id="entityEmployeeAddress" maxlength="200" /></label>
+            <label class="admin-field">Catatan<input id="entityEmployeeNote" maxlength="500" /></label>
+            <button class="primary-btn" type="submit">Tambah karyawan</button>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head"><h2>Karyawan di entity ini</h2><span id="entityEmployeeCount" class="master-count">0</span></div>
+            <div id="entityEmployeeList" class="master-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="entityTab-reports" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head">
+            <div><h2>Laporan Net Profit Harian</h2><div class="muted">Dihitung langsung dari transaksi kasir (Penjualan, HPP, Pengeluaran, Pendapatan Lain, Penyesuaian Stok) -- tidak butuh Accounting aktif. Hari yang sudah lewat disimpan otomatis supaya dibuka lagi jadi instan; hari ini selalu dihitung ulang.</div></div>
+          </div>
+          <form id="entityReportForm" class="admin-grid two compact" style="margin-top:12px;align-items:end">
+            <label class="admin-field">Dari tanggal<input id="entityReportFrom" type="date" required /></label>
+            <label class="admin-field">Sampai tanggal<input id="entityReportTo" type="date" required /></label>
+          </form>
+          <div class="admin-field" style="margin-top:10px">
+            <div style="margin-bottom:6px">Gerai yang ditampilkan</div>
+            <div id="entityReportStoreChecklist" class="admin-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px"></div>
+          </div>
+          <button id="entityReportRun" class="primary-btn" type="button" style="margin-top:12px">Tampilkan Laporan</button>
+          <div id="entityReportStatus" class="admin-tip" style="margin-top:10px"></div>
+        </div>
+        <div class="admin-card list-card" style="margin-top:14px">
+          <div class="list-head"><h2>Net Profit per Hari</h2></div>
+          <div id="entityReportTableWrap" style="overflow-x:auto;margin-top:10px"></div>
         </div>
       </section>
     </section>

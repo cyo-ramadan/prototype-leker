@@ -52,6 +52,17 @@ function mapCashier(row) {
   };
 }
 
+function mapEntityAdmin(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    isActive: Boolean(row.is_active),
+    entityId: row.entity_id,
+    entityName: row.entity_name ?? null
+  };
+}
+
 function mapCustomer(row) {
   return {
     id: row.id,
@@ -101,7 +112,7 @@ async function customerMatches(db, selectedStore, username, passwordHash) {
 }
 
 async function staffMatches(db, username, passwordHash) {
-  const [owner, admin, cashier] = await Promise.all([
+  const [owner, admin, cashier, entityAdmin] = await Promise.all([
     db.prepare(`
       SELECT id, username, password_hash, display_name, is_active
       FROM owner_accounts
@@ -123,6 +134,14 @@ async function staffMatches(db, username, passwordHash) {
       JOIN stores s ON s.id = c.store_id
       WHERE c.username = ? COLLATE NOCASE AND c.is_active = 1 AND s.is_active = 1
       LIMIT 1
+    `).bind(username).first(),
+    db.prepare(`
+      SELECT a.id, a.username, a.password_hash, a.display_name, a.is_active, a.entity_id,
+             e.name AS entity_name, e.status AS entity_status
+      FROM entity_admins a
+      JOIN entities e ON e.id = a.entity_id
+      WHERE a.username = ? COLLATE NOCASE AND a.is_active = 1 AND e.status = 'ACTIVE'
+      LIMIT 1
     `).bind(username).first()
   ]);
 
@@ -130,6 +149,7 @@ async function staffMatches(db, username, passwordHash) {
   if (owner?.password_hash === passwordHash) matches.push({ role: 'OWNER', row: owner });
   if (admin?.password_hash === passwordHash) matches.push({ role: 'ADMIN', row: admin });
   if (cashier?.password_hash === passwordHash) matches.push({ role: 'CASHIER', row: cashier });
+  if (entityAdmin?.password_hash === passwordHash) matches.push({ role: 'ENTITY_ADMIN', row: entityAdmin });
   return matches;
 }
 
@@ -142,6 +162,12 @@ function staffSessionSpec(match) {
     return {
       table: 'store_admin_sessions', idColumn: 'admin_id', mapped: admin,
       redirect: `/s/${encodeURIComponent(admin.store.code)}/admin`, payloadKey: 'admin'
+    };
+  }
+  if (match.role === 'ENTITY_ADMIN') {
+    return {
+      table: 'entity_admin_sessions', idColumn: 'entity_admin_id', mapped: mapEntityAdmin(match.row),
+      redirect: '/entity-admin', payloadKey: 'entityAdmin'
     };
   }
   const cashier = mapCashier(match.row);

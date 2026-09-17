@@ -58,7 +58,7 @@ test('drawer report is readable by admin and cashier only inside their store sco
     read('src/cashier-drawer.js'),
     read('src/drawer-report.js')
   ]);
-  assert.match(adminApi, /requireManagement\(request, env\.DB\)/);
+  assert.match(adminApi, /requireManagement\(request, env\.DB, env\)/);
   assert.match(adminApi, /buildDrawerReport\(env\.DB, store\.id/);
   assert.match(cashierApi, /listStoreDrawers\(db, cashier\.store\.id\)/);
   assert.match(cashierApi, /buildDrawerReport\(db, cashier\.store\.id/);

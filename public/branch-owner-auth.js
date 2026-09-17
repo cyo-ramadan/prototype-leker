@@ -16,6 +16,21 @@
     return;
   }
 
+  // Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry
+  // point (bookmark/shortcut/browser-suggested URL, no /s/:code/ prefix) and
+  // got a confusing "hanya berwenang pada gerai di bawah entity ..." failure.
+  // Root cause: without a store code in the URL, store-context.js has no
+  // Entity-Admin-aware fallback (only Store Admin's fixed adminStoreCode is
+  // remembered) and silently defaults to G001 -- a store that is essentially
+  // never under the Entity Admin's own entity, so the workspace bootstrap
+  // always fails. Unlike Store Admin (pinned to one store, safe to redirect
+  // to), Entity Admin has no single "right" store to guess here -- send them
+  // back to their own picker (/entity-admin) instead of guessing wrong.
+  if (isEntityAdmin && !/^\/s\//.test(location.pathname)) {
+    location.replace('/entity-admin');
+    return;
+  }
+
   if (!isOwner && !isEntityAdmin && adminStoreCode && adminStoreCode !== currentStoreCode) {
     location.replace(`/s/${encodeURIComponent(adminStoreCode)}/admin`);
     return;
@@ -54,15 +69,15 @@
       return;
     }
 
+    // Bos Cyo, 2026-09-17: "ini kalo kembali ke hal entity harus relogin
+    // lagi ya?" -- ternyata YA, dan itu bug: tombol ini berlabel "Kembali
+    // ke Entity Admin" (murni navigasi, sama seperti tombol Owner di atas)
+    // tapi kodenya diam-diam logout beneran (mencabut sesi di server +
+    // menghapus token) sebelum pindah halaman. Entity Admin, seperti
+    // Owner, cuma "singgah" di satu gerai lalu balik ke panelnya sendiri --
+    // bukan mengakhiri sesi. Disamakan dengan pola Owner: pindah halaman
+    // saja, sesi entity admin tetap hidup.
     if (isEntityAdmin) {
-      try {
-        await originalFetch('/api/entity-admin/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${entityAdminToken}` }
-        });
-      } catch {}
-      localStorage.removeItem('lekerEntityAdminToken');
-      localStorage.removeItem('lekerAdminPin');
       location.href = '/entity-admin';
       return;
     }
@@ -94,5 +109,14 @@
         leaveWorkspace();
       }, true);
     }
+
+    // Bos Cyo, 2026-09-17: "Lihat Kasir (Read-only)" navigates to the SAME
+    // page (public/cashier.html) a real cashier login already opens.
+    // staff-tab-lock.js on that page treats an already-logged-in staff
+    // identity (Owner/Admin/Entity Admin -- lekerStaffSessionMeta already
+    // set at unified login) landing there as a possible competing tab. Mark
+    // this as a deliberate same-identity handoff first, exactly like the
+    // existing Kasir<->Portal Staf link does, so it isn't mistaken for one.
+    document.getElementById('cashierReadOnlyLink')?.addEventListener('click', () => window.lekerPrepareStaffHandoff?.());
   });
 })();

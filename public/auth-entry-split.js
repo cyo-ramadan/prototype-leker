@@ -37,7 +37,7 @@
     if (note) {
       note.textContent = mode === 'CUSTOMER'
         ? 'Login pelanggan berlaku pada gerai yang dipilih. Belanja tetap bisa tanpa login.'
-        : 'Login karyawan otomatis menentukan pangkat Owner, Admin Gerai, atau Kasir.';
+        : 'Login karyawan otomatis menentukan pangkat Owner, Entity Admin, Admin Gerai, atau Kasir.';
     }
     if (el('entryRegisterOpen')) el('entryRegisterOpen').hidden = mode === 'STAFF';
     if (el('continueGuestBtn')) el('continueGuestBtn').textContent = mode === 'STAFF' ? 'Kembali ke halaman customer' : 'Lanjut beli tanpa login';
@@ -48,6 +48,7 @@
   function staffIdentity(payload) {
     if (payload.role === 'OWNER') return payload.owner;
     if (payload.role === 'ADMIN') return payload.admin;
+    if (payload.role === 'ENTITY_ADMIN') return payload.entityAdmin;
     if (payload.role === 'CASHIER') return payload.cashier;
     return null;
   }
@@ -55,6 +56,7 @@
   function staffTokenKey(role) {
     if (role === 'OWNER') return 'lekerOwnerToken';
     if (role === 'ADMIN') return 'lekerAdminToken';
+    if (role === 'ENTITY_ADMIN') return 'lekerEntityAdminToken';
     return 'lekerCashierToken';
   }
 
@@ -104,12 +106,12 @@
         return;
       }
 
-      if (!['OWNER', 'ADMIN', 'CASHIER'].includes(payload.role)) throw new Error('Akun ini bukan akun karyawan.');
+      if (!['OWNER', 'ADMIN', 'ENTITY_ADMIN', 'CASHIER'].includes(payload.role)) throw new Error('Akun ini bukan akun karyawan.');
       const identity = staffIdentity(payload);
       if (!identity?.id) throw new Error('Identitas karyawan tidak lengkap.');
-      // OWNER/ADMIN go to localStorage so the session survives a discarded/
-      // reloaded tab (see branch-owner-auth.js); CASHIER stays sessionStorage,
-      // unchanged, tied to its own drawer-session lifecycle.
+      // OWNER/ADMIN/ENTITY_ADMIN go to localStorage so the session survives a
+      // discarded/reloaded tab (see branch-owner-auth.js); CASHIER stays
+      // sessionStorage, unchanged, tied to its own drawer-session lifecycle.
       const tokenStore = payload.role === 'CASHIER' ? sessionStorage : localStorage;
       tokenStore.setItem(staffTokenKey(payload.role), payload.token);
       if (payload.role === 'ADMIN') localStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');

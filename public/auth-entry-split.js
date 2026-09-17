@@ -142,7 +142,33 @@
   el('entryStaffTab')?.addEventListener('click', () => applyMode('STAFF'));
   applyMode(mode);
 
+  // Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
+  // sengaja ke back back malah ada menu loginnya lagi". Sebelumnya, kembali
+  // ke halaman ini (mis. tombol Back setelah location.href redirect di
+  // submitLogin()) SELALU menampilkan form login lagi, walau token yang
+  // valid masih ada -- tidak pernah dicek dulu. Kalau token masih ada,
+  // lempar langsung ke workspace-nya alih-alih menampilkan form. Kalau
+  // token itu ternyata sudah kedaluwarsa/dicabut server, halaman tujuan
+  // sendiri yang akan mendeteksi dan menampilkan login-nya (pola yang sama
+  // seperti admin-session-bootstrap-guard.js) -- redirect ini tidak
+  // menggantikan pengecekan server, cuma menghindari form login yang
+  // sebenarnya tidak perlu dilihat.
+  function existingStaffWorkspaceRedirect() {
+    if (localStorage.getItem('lekerOwnerToken')) return '/admin';
+    if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
+    const adminStoreCode = localStorage.getItem('lekerAdminStoreCode');
+    if (localStorage.getItem('lekerAdminToken') && adminStoreCode) return `/s/${encodeURIComponent(adminStoreCode)}/admin`;
+    if (sessionStorage.getItem('lekerCashierToken')) return '/cashier';
+    return null;
+  }
+
   if (new URL(location.href).searchParams.get('login') === 'staff') {
+    const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
+    const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
+    if (existingRedirect) {
+      location.replace(existingRedirect);
+      return;
+    }
     el('entryLoginBtn')?.click();
     const clean = new URL(location.href);
     clean.searchParams.delete('login');

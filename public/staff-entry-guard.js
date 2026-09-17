@@ -15,7 +15,7 @@
     : isOwner
       ? Boolean(localStorage.getItem('lekerOwnerToken'))
       : isBranchAdmin
-        ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken'))
+        ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken'))
         : true;
 
   if (!allowed) location.replace('/?login=staff');

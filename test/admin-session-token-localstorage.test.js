@@ -87,3 +87,40 @@ test('server-side session lifetime for Owner/Store Admin stays 12 hours -- this 
   assert.match(ownerAuthSrc, /OWNER_SESSION_HOURS = 12/);
   assert.match(ownerAuthSrc, /STORE_ADMIN_SESSION_HOURS = 12/);
 });
+
+// 2026-09-17, bug Bos Cyo: klik "Buka Workspace" gerai dari panel Entity
+// Admin (entity-admin.js -> /s/<code>/admin) malah dilempar ke halaman
+// customer dengan menu login, walau sesi Entity Admin-nya masih valid.
+// Root cause: staff-entry-guard.js sudah lebih dulu mengenali OWNER/ADMIN
+// buat masuk /s/:code/admin, tapi lupa ENTITY_ADMIN -- padahal Entity Admin
+// sudah lama berwenang buka workspace gerai manapun di entity-nya sendiri
+// (requireManagement -> entityAdminStoreAuthorized, src/owner-auth.js).
+test('staff-entry-guard.js lets an Entity Admin session (not just Owner/Admin) reach /s/:code/admin', () => {
+  assert.match(staffEntryGuard, /isBranchAdmin\s*\?\s*Boolean\(localStorage\.getItem\('lekerOwnerToken'\)\s*\|\|\s*localStorage\.getItem\('lekerAdminToken'\)\s*\|\|\s*localStorage\.getItem\('lekerEntityAdminToken'\)\)/);
+});
+
+// Bug bersaudara di file yang sama-sama menjaga sesi staf: kalau tab-lock
+// (single-active-session) ini pernah men-block sesi Entity Admin, ia salah
+// hapus 'lekerCashierToken' (token yang bahkan tidak dipakai Entity Admin)
+// alih-alih 'lekerEntityAdminToken' -- token asli tidak pernah tercabut,
+// tapi user tetap dilempar ke halaman login seolah tidak logout beneran.
+test('staff-tab-lock.js resolves ENTITY_ADMIN to its own token key, not the CASHIER fallback', () => {
+  assert.match(staffTabLock, /meta\.role === 'ENTITY_ADMIN'\s*\n?\s*\?\s*'lekerEntityAdminToken'/);
+});
+
+// Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
+// sengaja ke back back malah ada menu loginnya lagi". Sebelum ini, kembali
+// ke halaman /?login=staff (mis. tombol Back browser setelah redirect
+// submitLogin()) SELALU menampilkan form login lagi, tidak pernah dicek
+// dulu apakah token yang valid masih ada di localStorage/sessionStorage.
+test('/?login=staff auto-redirects an already-authenticated staff session to its workspace instead of re-showing the login form', () => {
+  assert.match(authEntrySplit, /function existingStaffWorkspaceRedirect\(\)/);
+  assert.match(authEntrySplit, /localStorage\.getItem\('lekerOwnerToken'\)\) return '\/admin'/);
+  assert.match(authEntrySplit, /localStorage\.getItem\('lekerEntityAdminToken'\)\) return '\/entity-admin'/);
+  assert.match(authEntrySplit, /sessionStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
+  assert.match(authEntrySplit, /location\.replace\(existingRedirect\)/);
+  // staffBlocked=1 means the tab-lock deliberately just cleared this
+  // session's token -- the redirect must not fire off a stale read in that
+  // exact moment and must still fall through to the login form.
+  assert.match(authEntrySplit, /staffBlocked.*=== '1'/);
+});

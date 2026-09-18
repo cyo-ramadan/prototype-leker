@@ -19,6 +19,50 @@ import { requireManagement } from './owner-auth.js';
 
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 
+// Skala uang authoritative sama seperti seluruh sistem (CLAUDE.md invariant
+// #1) -- gaji per jam dipakai menghitung nominal gaji sungguhan nantinya.
+const WAGE_SCALE = 1_000_000;
+const MAX_HOURLY_WAGE_RUPIAH = 1_000_000; // pagar salah ketik, bukan aturan bisnis
+const owns = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
+
+// undefined = format tidak valid, DITOLAK. Kosong ('' / 0) itu sah -- berarti
+// detail sengaja belum diisi, bukan kesalahan.
+function hourlyWageInput(value) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number) || number < 0 || number > MAX_HOURLY_WAGE_RUPIAH) return undefined;
+  return Math.round(number * WAGE_SCALE);
+}
+
+function shiftTimeInput(value) {
+  const trimmed = text(value, 5);
+  if (trimmed === '') return '';
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed) ? trimmed : undefined;
+}
+
+function jobTypeInput(value) {
+  return text(value, 100);
+}
+
+// Merangkai detail shift dari body request -- dipakai POST (buat tautan baru,
+// detail opsional) dan PATCH (ubah detail, tiap field opsional, field yang
+// tidak dikirim tidak disentuh). `current` adalah baris link yang sudah ada
+// (null saat POST) supaya PATCH sebagian bisa mewarisi nilai lama.
+function shiftDetailInput(body, current) {
+  const hourlyWageRaw = owns(body, 'hourlyWage') ? body.hourlyWage : (current ? current.hourly_wage_scaled / WAGE_SCALE : 0);
+  const shiftStartRaw = owns(body, 'shiftStart') ? body.shiftStart : (current?.shift_start ?? '');
+  const shiftEndRaw = owns(body, 'shiftEnd') ? body.shiftEnd : (current?.shift_end ?? '');
+  const jobTypeRaw = owns(body, 'jobType') ? body.jobType : (current?.job_type ?? '');
+
+  const hourlyWageScaled = hourlyWageInput(hourlyWageRaw);
+  if (hourlyWageScaled === undefined) return { ok: false, error: 'Gaji per jam harus angka rupiah yang wajar.' };
+  const shiftStart = shiftTimeInput(shiftStartRaw);
+  if (shiftStart === undefined) return { ok: false, error: 'Jam mulai kerja harus format HH:MM, mis. 08:00.' };
+  const shiftEnd = shiftTimeInput(shiftEndRaw);
+  if (shiftEnd === undefined) return { ok: false, error: 'Jam selesai kerja harus format HH:MM, mis. 16:00.' };
+
+  return { ok: true, value: { hourlyWageScaled, shiftStart, shiftEnd, jobType: jobTypeInput(jobTypeRaw) } };
+}
+
 const ACCOUNT_SOURCES = {
   CASHIER: { table: 'cashiers', nameColumn: 'employee_name', scope: 'STORE' },
   STORE_ADMIN: { table: 'store_admins', nameColumn: 'display_name', scope: 'STORE' },
@@ -59,7 +103,13 @@ function mapLink(row) {
     storeCode: row.store_code || '',
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to || null,
-    endedReason: row.ended_reason || ''
+    endedReason: row.ended_reason || '',
+    // Detail shift (migration 0103) -- per TAUTAN, bukan per karyawan, supaya
+    // satu orang dengan beberapa akun/shift bisa punya jam & gaji beda-beda.
+    hourlyWage: Number(row.hourly_wage_scaled || 0) / WAGE_SCALE,
+    shiftStart: row.shift_start || '',
+    shiftEnd: row.shift_end || '',
+    jobType: row.job_type || ''
   };
 }
 
@@ -72,6 +122,7 @@ async function loadLinks(db, entityId, { activeOnly = true } = {}) {
   const rows = await db.prepare(`
     SELECT l.id, l.employee_id, l.account_type, l.account_id, l.store_id,
            l.effective_from, l.effective_to, l.ended_reason,
+           l.hourly_wage_scaled, l.shift_start, l.shift_end, l.job_type,
            s.code AS store_code,
            COALESCE(c.username, a.username, ea.username) AS username,
            COALESCE(c.employee_name, a.display_name, ea.display_name) AS account_name
@@ -234,18 +285,52 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
       }, 409);
     }
 
+    // Detail shift (migration 0103) boleh diisi langsung saat menautkan, atau
+    // dikosongkan dulu dan diisi belakangan lewat PATCH -- keduanya sah, Ani
+    // shift 3 bisa saja dulu ditautkan tanpa detail dan baru diisi sesudahnya.
+    const detail = shiftDetailInput(body.value ?? {}, null);
+    if (!detail.ok) return json({ error: detail.error }, 400);
+
     const id = `emplink_${crypto.randomUUID()}`;
     await db.prepare(`
       INSERT INTO employee_account_links (
         id, employee_id, entity_id, account_type, account_id, store_id,
-        effective_from, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        effective_from, created_at, hourly_wage_scaled, shift_start, shift_end, job_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, employeeId, store.entityId, accountType, accountId,
       source.scope === 'ENTITY' ? null : store.id,
-      new Date().toISOString(), new Date().toISOString()
+      new Date().toISOString(), new Date().toISOString(),
+      detail.value.hourlyWageScaled, detail.value.shiftStart, detail.value.shiftEnd, detail.value.jobType
     ).run();
     return json({ ok: true, id }, 201);
+  }
+
+  // Edit detail shift pada tautan yang MASIH AKTIF -- terpisah dari DELETE
+  // (melepas tautan) di bawah. Tidak menyentuh employee_id/account_id/dst,
+  // jadi tidak kena trigger trg_employee_link_history_immutable (migration
+  // 0072) -- lihat komentar migration 0103.
+  const linkDetailMatch = pathname.match(/^\/api\/admin\/employee-links\/([^/]+)$/);
+  if (request.method === 'PATCH' && linkDetailMatch) {
+    const linkId = decodeURIComponent(linkDetailMatch[1]);
+    const current = await db.prepare('SELECT * FROM employee_account_links WHERE id = ? AND entity_id = ?').bind(linkId, store.entityId).first();
+    if (!current) return json({ error: 'Tautan tidak ditemukan di entity gerai ini.' }, 404);
+    if (current.effective_to) return json({ error: 'Tautan ini sudah dilepas, detailnya tidak bisa diubah lagi.', code: 'LINK_ALREADY_CLOSED' }, 409);
+    if (current.store_id && current.store_id !== store.id && !actor.entityWide) {
+      return json({ error: 'Detail tautan username gerai lain hanya bisa diubah dari gerai itu sendiri.', code: 'LINK_OUT_OF_SCOPE' }, 403);
+    }
+
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload detail tautan tidak valid.' }, 400);
+    const detail = shiftDetailInput(body.value ?? {}, current);
+    if (!detail.ok) return json({ error: detail.error }, 400);
+
+    await db.prepare(`
+      UPDATE employee_account_links
+      SET hourly_wage_scaled = ?, shift_start = ?, shift_end = ?, job_type = ?
+      WHERE id = ? AND entity_id = ? AND effective_to IS NULL
+    `).bind(detail.value.hourlyWageScaled, detail.value.shiftStart, detail.value.shiftEnd, detail.value.jobType, linkId, store.entityId).run();
+    return json({ ok: true });
   }
 
   const linkCloseMatch = pathname.match(/^\/api\/admin\/employee-links\/([^/]+)$/);

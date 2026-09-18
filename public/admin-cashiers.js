@@ -19,7 +19,7 @@
             <div class="admin-tip" style="margin-bottom:12px">Kasir otomatis terikat ke gerai workspace ini: <b id="cashierStoreLabel">-</b></div>
             <label class="admin-field">Username<input id="cashierUsername" maxlength="40" autocomplete="off" required /></label>
             <label class="admin-field">Password <span id="cashierPasswordNote" class="field-note">min. 6 karakter</span><input id="cashierPassword" type="password" minlength="6" autocomplete="new-password" required /></label>
-            <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /></label>
+            <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /><span class="field-note">Cuma label tampilan akun ini -- bukan tautan resmi. Data orang, gaji, dan jam kerja tetap dikelola dari tab Karyawan.</span></label>
             <label class="admin-check"><input id="cashierActive" type="checkbox" checked /> Aktif</label>
             <button class="primary-btn" type="submit">Simpan kasir</button>
           </form>

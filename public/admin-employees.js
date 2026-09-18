@@ -2,10 +2,6 @@
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   let data = { employees: [], linkableAccounts: [], store: null, canCreateEntityLevel: false };
-  // editingLinkId: tautan mana yang sedang dibuka form edit detail shift-nya
-  // (satu saja per waktu -- cukup untuk kebutuhan Admin Gerai, dan menghindari
-  // form berantakan kalau semua tautan kebuka form-nya sekaligus).
-  const state = { editingLinkId: '' };
 
   const tabs = document.querySelector('.admin-tabs');
   if (tabs && !document.querySelector('[data-tab="employees"]')) {
@@ -76,41 +72,12 @@
     return `Rekrutan ${escapeHtml(employee.homeStoreCode || employee.homeStoreName || 'gerai lain')}`;
   }
 
-  // Detail shift (migration 0103) nempel di TAUTAN, bukan di karyawan --
-  // sengaja begitu, supaya satu orang dengan beberapa akun (Ani shift 1 dan
-  // shift 3) bisa punya jam kerja dan gaji per jam yang beda per akun.
-  function shiftDetailLabel(link) {
-    const parts = [];
-    if (link.jobType) parts.push(escapeHtml(link.jobType));
-    if (link.shiftStart || link.shiftEnd) parts.push(`Jam ${escapeHtml(link.shiftStart || '?')}–${escapeHtml(link.shiftEnd || '?')}`);
-    if (link.hourlyWage > 0) parts.push(`${rupiah(link.hourlyWage)}/jam`);
-    return parts.length ? parts.join(' · ') : 'Detail shift belum diisi';
-  }
-
-  function shiftDetailForm(link) {
-    return `
-      <div class="admin-grid two compact" style="margin-top:6px">
-        <label class="admin-field">Jenis pekerjaan<input data-detail-job="${escapeHtml(link.id)}" value="${escapeHtml(link.jobType)}" maxlength="100" placeholder="mis. Kasir Shift Pagi" /></label>
-        <label class="admin-field">Gaji per jam (Rp)<input data-detail-wage="${escapeHtml(link.id)}" type="number" min="0" step="1" value="${link.hourlyWage || ''}" /></label>
-        <label class="admin-field">Jam mulai<input data-detail-start="${escapeHtml(link.id)}" type="time" value="${escapeHtml(link.shiftStart)}" /></label>
-        <label class="admin-field">Jam selesai<input data-detail-end="${escapeHtml(link.id)}" type="time" value="${escapeHtml(link.shiftEnd)}" /></label>
-      </div>
-      <button class="mini-btn" type="button" data-detail-save="${escapeHtml(link.id)}">Simpan detail</button>
-      <button class="text-btn" type="button" data-detail-cancel="${escapeHtml(link.id)}">Batal</button>`;
-  }
-
   function linkRow(link) {
-    const editing = state.editingLinkId === link.id;
     return `
       <div class="master-meta">
         @${escapeHtml(link.username)} · ${escapeHtml(link.accountType === 'CASHIER' ? 'Kasir' : link.accountType === 'STORE_ADMIN' ? 'Admin Gerai' : 'Entity Admin')}${link.storeCode ? ` · ${escapeHtml(link.storeCode)}` : ''}
         <button class="mini-btn danger" type="button" data-unlink="${escapeHtml(link.id)}">Lepas</button>
-      </div>
-      <div class="master-meta">
-        ${shiftDetailLabel(link)}
-        ${editing ? '' : `<button class="text-btn" type="button" data-detail-edit="${escapeHtml(link.id)}">Ubah</button>`}
-      </div>
-      ${editing ? shiftDetailForm(link) : ''}`;
+      </div>`;
   }
 
   function linkPicker(employee) {
@@ -125,14 +92,8 @@
         <select data-link-select="${escapeHtml(employee.id)}" class="text-input" style="max-width:220px">
           <option value="">Tautkan ke username…</option>${options}
         </select>
-      </div>
-      <div class="admin-grid two compact">
-        <label class="admin-field">Jenis pekerjaan <span class="field-note">opsional</span><input data-new-link-job="${escapeHtml(employee.id)}" maxlength="100" placeholder="mis. Kasir Shift Pagi" /></label>
-        <label class="admin-field">Gaji per jam (Rp) <span class="field-note">opsional</span><input data-new-link-wage="${escapeHtml(employee.id)}" type="number" min="0" step="1" /></label>
-        <label class="admin-field">Jam mulai <span class="field-note">opsional</span><input data-new-link-start="${escapeHtml(employee.id)}" type="time" /></label>
-        <label class="admin-field">Jam selesai <span class="field-note">opsional</span><input data-new-link-end="${escapeHtml(employee.id)}" type="time" /></label>
-      </div>
-      <button class="mini-btn" type="button" data-link-apply="${escapeHtml(employee.id)}">Tautkan</button>`;
+        <button class="mini-btn" type="button" data-link-apply="${escapeHtml(employee.id)}">Tautkan</button>
+      </div>`;
   }
 
   function render() {
@@ -159,9 +120,6 @@
     document.querySelectorAll('[data-deactivate-employee]').forEach(button => button.onclick = () => deactivateEmployee(button.dataset.deactivateEmployee));
     document.querySelectorAll('[data-unlink]').forEach(button => button.onclick = () => unlinkAccount(button.dataset.unlink));
     document.querySelectorAll('[data-link-apply]').forEach(button => button.onclick = () => linkAccount(button.dataset.linkApply));
-    document.querySelectorAll('[data-detail-edit]').forEach(button => button.onclick = () => { state.editingLinkId = button.dataset.detailEdit; render(); });
-    document.querySelectorAll('[data-detail-cancel]').forEach(button => button.onclick = () => { state.editingLinkId = ''; render(); });
-    document.querySelectorAll('[data-detail-save]').forEach(button => button.onclick = () => saveLinkDetail(button.dataset.detailSave));
   }
 
   async function load() {
@@ -281,35 +239,13 @@
     const value = select?.value || '';
     if (!value) return toast('Pilih username dulu.');
     const [accountType, accountId] = value.split('|');
-    // Detail shift opsional -- boleh dikosongkan dan diisi belakangan lewat
-    // "Ubah" di baris tautannya.
-    const jobType = document.querySelector(`[data-new-link-job="${employeeId}"]`)?.value || '';
-    const hourlyWage = document.querySelector(`[data-new-link-wage="${employeeId}"]`)?.value || 0;
-    const shiftStart = document.querySelector(`[data-new-link-start="${employeeId}"]`)?.value || '';
-    const shiftEnd = document.querySelector(`[data-new-link-end="${employeeId}"]`)?.value || '';
     try {
       await request(`/api/admin/employees/${encodeURIComponent(employeeId)}/links${storeQuery()}`, {
         method: 'POST',
-        body: JSON.stringify({ accountType, accountId, jobType, hourlyWage, shiftStart, shiftEnd })
+        body: JSON.stringify({ accountType, accountId })
       });
       await load();
       toast('Username ditautkan');
-    } catch (error) { toast(error.message); }
-  }
-
-  async function saveLinkDetail(linkId) {
-    const jobType = document.querySelector(`[data-detail-job="${linkId}"]`)?.value || '';
-    const hourlyWage = document.querySelector(`[data-detail-wage="${linkId}"]`)?.value || 0;
-    const shiftStart = document.querySelector(`[data-detail-start="${linkId}"]`)?.value || '';
-    const shiftEnd = document.querySelector(`[data-detail-end="${linkId}"]`)?.value || '';
-    try {
-      await request(`/api/admin/employee-links/${encodeURIComponent(linkId)}${storeQuery()}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ jobType, hourlyWage, shiftStart, shiftEnd })
-      });
-      state.editingLinkId = '';
-      await load();
-      toast('Detail shift disimpan');
     } catch (error) { toast(error.message); }
   }
 

@@ -6,6 +6,75 @@ const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
 
+// Detail shift (gaji per jam, jam kerja, jenis pekerjaan) menempel ke AKUN
+// kasir, bukan ke orang yang memegangnya -- koreksi Bos Cyo, 2026-09-18:
+// "harus nya detil itu tadi kamu taruh di user kasir/staf. bukan malah di
+// nama orangnya ... tombol karyawan itu yang aku maksudkan nama orang,
+// sedangkan yang ada di master kasir itu adalah employed atau pekerjaannya."
+// Sengaja BERTAHAN walau akun dioper ke karyawan lain (sifat jabatan, bukan
+// sifat orang) -- lihat migration 0104.
+const WAGE_SCALE = 1_000_000;
+const MAX_HOURLY_WAGE_RUPIAH = 1_000_000; // pagar salah ketik, bukan aturan bisnis
+const owns = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
+
+// undefined = format tidak valid, DITOLAK. Kosong ('' / 0) itu sah -- berarti
+// detail sengaja belum diisi, bukan kesalahan.
+function hourlyWageInput(value) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number) || number < 0 || number > MAX_HOURLY_WAGE_RUPIAH) return undefined;
+  return Math.round(number * WAGE_SCALE);
+}
+
+function shiftTimeInput(value) {
+  const trimmed = text(value, 5);
+  if (trimmed === '') return '';
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed) ? trimmed : undefined;
+}
+
+function jobTypeInput(value) {
+  return text(value, 100);
+}
+
+// Merangkai detail jabatan dari body request -- dipakai POST (bikin akun
+// baru, detail opsional) dan PATCH (ubah detail, tiap field opsional, field
+// yang tidak dikirim tidak disentuh). `current` adalah baris account_job_details
+// yang sudah ada (null saat POST) supaya PATCH sebagian bisa mewarisi nilai lama.
+function jobDetailInput(body, current) {
+  const hourlyWageRaw = owns(body, 'hourlyWage') ? body.hourlyWage : (current ? current.hourly_wage_scaled / WAGE_SCALE : 0);
+  const shiftStartRaw = owns(body, 'shiftStart') ? body.shiftStart : (current?.shift_start ?? '');
+  const shiftEndRaw = owns(body, 'shiftEnd') ? body.shiftEnd : (current?.shift_end ?? '');
+  const jobTypeRaw = owns(body, 'jobType') ? body.jobType : (current?.job_type ?? '');
+
+  const hourlyWageScaled = hourlyWageInput(hourlyWageRaw);
+  if (hourlyWageScaled === undefined) return { ok: false, error: 'Gaji per jam harus angka rupiah yang wajar.' };
+  const shiftStart = shiftTimeInput(shiftStartRaw);
+  if (shiftStart === undefined) return { ok: false, error: 'Jam mulai kerja harus format HH:MM, mis. 08:00.' };
+  const shiftEnd = shiftTimeInput(shiftEndRaw);
+  if (shiftEnd === undefined) return { ok: false, error: 'Jam selesai kerja harus format HH:MM, mis. 16:00.' };
+
+  return { ok: true, value: { hourlyWageScaled, shiftStart, shiftEnd, jobType: jobTypeInput(jobTypeRaw) } };
+}
+
+async function loadJobDetail(db, accountId) {
+  return db.prepare(`
+    SELECT hourly_wage_scaled, shift_start, shift_end, job_type
+    FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?
+  `).bind(accountId).first();
+}
+
+async function upsertJobDetail(db, accountId, detail) {
+  await db.prepare(`
+    INSERT INTO account_job_details (account_type, account_id, hourly_wage_scaled, shift_start, shift_end, job_type, updated_at)
+    VALUES ('CASHIER', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT (account_type, account_id) DO UPDATE SET
+      hourly_wage_scaled = excluded.hourly_wage_scaled,
+      shift_start = excluded.shift_start,
+      shift_end = excluded.shift_end,
+      job_type = excluded.job_type,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(accountId, detail.hourlyWageScaled, detail.shiftStart, detail.shiftEnd, detail.jobType).run();
+}
+
 // Presensi masuk/keluar dianggap toggle state, bukan penanda per-hari-kalender
 // (menghindari ambiguitas timezone gerai): status "in" berlaku sampai kasir
 // eksplisit presensi keluar lagi lewat Portal Staf. Satu baris staff_attendance
@@ -28,7 +97,11 @@ function mapCashier(row) {
       id: row.store_id,
       code: row.store_code,
       storeName: row.store_name
-    }
+    },
+    hourlyWage: Number(row.hourly_wage_scaled || 0) / WAGE_SCALE,
+    shiftStart: row.shift_start || '',
+    shiftEnd: row.shift_end || '',
+    jobType: row.job_type || ''
   } : null;
 }
 
@@ -161,9 +234,11 @@ export async function handleAdminCashierApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/admin/cashiers') {
     const rows = await db.prepare(`
       SELECT c.id, c.username, c.employee_name, c.is_active,
-             s.id AS store_id, s.code AS store_code, s.store_name
+             s.id AS store_id, s.code AS store_code, s.store_name,
+             j.hourly_wage_scaled, j.shift_start, j.shift_end, j.job_type
       FROM cashiers c
       JOIN stores s ON s.id = c.store_id
+      LEFT JOIN account_job_details j ON j.account_type = 'CASHIER' AND j.account_id = c.id
       WHERE c.store_id = ?
       ORDER BY c.employee_name COLLATE NOCASE
     `).bind(store.id).all();
@@ -179,6 +254,8 @@ export async function handleAdminCashierApi(request, env, pathname) {
     if (username.length < 3 || password.length < 6 || !employeeName) {
       return json({ error: 'Username min. 3 karakter, password min. 6 karakter, dan nama karyawan wajib diisi.' }, 400);
     }
+    const detail = jobDetailInput(body.value ?? {}, null);
+    if (!detail.ok) return json({ error: detail.error }, 400);
     const duplicate = await db.prepare('SELECT id FROM cashiers WHERE username = ? COLLATE NOCASE').bind(username).first();
     if (duplicate) return json({ error: 'Username kasir sudah dipakai.' }, 409);
     const id = `cashier_${crypto.randomUUID()}`;
@@ -186,6 +263,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
       INSERT INTO cashiers (id, username, password_hash, employee_name, store_id, is_active, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).bind(id, username, await hashCredential(password), employeeName, store.id).run();
+    await upsertJobDetail(db, id, detail.value);
     return json({ ok: true, id }, 201);
   }
 
@@ -205,6 +283,9 @@ export async function handleAdminCashierApi(request, env, pathname) {
     if (username.length < 3 || !employeeName || (password && password.length < 6)) {
       return json({ error: 'Data kasir tidak valid.' }, 400);
     }
+    const currentDetail = await loadJobDetail(db, id);
+    const detail = jobDetailInput(body.value ?? {}, currentDetail);
+    if (!detail.ok) return json({ error: detail.error }, 400);
     const duplicate = await db.prepare('SELECT id FROM cashiers WHERE username = ? COLLATE NOCASE AND id <> ?').bind(username, id).first();
     if (duplicate) return json({ error: 'Username kasir sudah dipakai.' }, 409);
 
@@ -215,6 +296,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
       await db.prepare(`UPDATE cashiers SET username = ?, employee_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
         .bind(username, employeeName, isActive, id, store.id).run();
     }
+    await upsertJobDetail(db, id, detail.value);
     await db.prepare('DELETE FROM cashier_sessions WHERE cashier_id = ?').bind(id).run();
     return json({ ok: true });
   }

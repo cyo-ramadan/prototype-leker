@@ -19,7 +19,12 @@
             <div class="admin-tip" style="margin-bottom:12px">Kasir otomatis terikat ke gerai workspace ini: <b id="cashierStoreLabel">-</b></div>
             <label class="admin-field">Username<input id="cashierUsername" maxlength="40" autocomplete="off" required /></label>
             <label class="admin-field">Password <span id="cashierPasswordNote" class="field-note">min. 6 karakter</span><input id="cashierPassword" type="password" minlength="6" autocomplete="new-password" required /></label>
-            <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /><span class="field-note">Cuma label tampilan akun ini -- bukan tautan resmi. Data orang, gaji, dan jam kerja tetap dikelola dari tab Karyawan.</span></label>
+            <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /><span class="field-note">Cuma label tampilan akun ini -- bukan tautan resmi. Menautkan ke orang sungguhan tetap dari tab Karyawan.</span></label>
+            <div class="admin-tip" style="margin-bottom:12px">Detail di bawah menempel ke AKUN ini (jabatannya), bukan ke orang yang memegangnya -- tetap berlaku walau akun ini dioper ke karyawan lain.</div>
+            <label class="admin-field">Jenis pekerjaan <span class="field-note">opsional</span><input id="cashierJobType" maxlength="100" placeholder="mis. Kasir Shift Pagi" /></label>
+            <label class="admin-field">Gaji per jam (Rp) <span class="field-note">opsional</span><input id="cashierHourlyWage" type="number" min="0" step="1" /></label>
+            <label class="admin-field">Jam mulai <span class="field-note">opsional</span><input id="cashierShiftStart" type="time" /></label>
+            <label class="admin-field">Jam selesai <span class="field-note">opsional</span><input id="cashierShiftEnd" type="time" /></label>
             <label class="admin-check"><input id="cashierActive" type="checkbox" checked /> Aktif</label>
             <button class="primary-btn" type="submit">Simpan kasir</button>
           </form>
@@ -53,6 +58,14 @@
     document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-cashiers'));
   }
 
+  function jobDetailLabel(cashier) {
+    const parts = [];
+    if (cashier.jobType) parts.push(escapeHtml(cashier.jobType));
+    if (cashier.shiftStart || cashier.shiftEnd) parts.push(`Jam ${escapeHtml(cashier.shiftStart || '?')}–${escapeHtml(cashier.shiftEnd || '?')}`);
+    if (cashier.hourlyWage > 0) parts.push(`${rupiah(cashier.hourlyWage)}/jam`);
+    return parts.length ? parts.join(' · ') : 'Detail jabatan belum diisi';
+  }
+
   function render() {
     if (el('cashierStoreLabel')) el('cashierStoreLabel').textContent = data.store ? `${data.store.code} · ${data.store.storeName}` : (window.LEKER_STORE_CODE || 'G001');
     el('cashierCount').textContent = data.cashiers.length;
@@ -61,6 +74,7 @@
         <div class="master-main">
           <strong>${escapeHtml(cashier.employeeName)}</strong>
           <div class="master-meta">@${escapeHtml(cashier.username)} · ${escapeHtml(cashier.store.code)}</div>
+          <div class="master-meta">${jobDetailLabel(cashier)}</div>
           <div class="master-meta">${cashier.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
         <div class="master-actions">
@@ -99,6 +113,10 @@
     el('cashierPassword').required = false;
     el('cashierPasswordNote').textContent = 'kosongkan jika tidak diubah';
     el('cashierEmployeeName').value = cashier.employeeName;
+    el('cashierJobType').value = cashier.jobType || '';
+    el('cashierHourlyWage').value = cashier.hourlyWage || '';
+    el('cashierShiftStart').value = cashier.shiftStart || '';
+    el('cashierShiftEnd').value = cashier.shiftEnd || '';
     el('cashierActive').checked = cashier.isActive;
     el('cashierFormTitle').textContent = 'Edit kasir';
     el('cashierCancelEdit').classList.remove('hidden');
@@ -113,6 +131,10 @@
       username: el('cashierUsername').value,
       password: el('cashierPassword').value,
       employeeName: el('cashierEmployeeName').value,
+      jobType: el('cashierJobType').value,
+      hourlyWage: el('cashierHourlyWage').value || 0,
+      shiftStart: el('cashierShiftStart').value,
+      shiftEnd: el('cashierShiftEnd').value,
       isActive: el('cashierActive').checked
     };
     try {

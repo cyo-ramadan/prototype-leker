@@ -1,7 +1,8 @@
 import { json } from './http.js';
-import { requireCashier, latestAttendanceStatus } from './cashier-auth.js';
+import { requireCashier, latestAttendanceStatus, loadJobDetail, WAGE_SCALE } from './cashier-auth.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { getCashierRaportFacts } from './staff-raport.js';
+import { getJakartaBusinessDate, getJakartaTimeOfDay, timeOfDayToMinutes } from './time.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -9,13 +10,29 @@ const coord = value => {
   return Number.isFinite(number) ? number : null;
 };
 
+// Bos Cyo, 2026-09-19: "itu uda ada setting masuk dan pulang jm brp kn. nah
+// brarti ud bs tahu keterlambatannya." -- shift_start (account_job_details,
+// migration 0104) dibandingkan ke jam presensi MASUK, keduanya jam dinding
+// Jakarta (bukan UTC). null = shift_start belum diisi Admin, tidak bisa
+// dinilai telat/tidak. 0 atau negatif = tepat waktu/lebih awal. Cuma
+// dibandingkan jam-menit di hari yang sama -- shift lintas tengah malam
+// (mis. shift 3 mulai 23:00) sengaja tidak dihitung cross-day, kasus langka
+// dan tidak diminta Bos Cyo.
+function computeLateMinutes(checkInAt, shiftStart) {
+  if (!checkInAt || !shiftStart) return null;
+  const shiftMinutes = timeOfDayToMinutes(shiftStart);
+  if (shiftMinutes === null) return null;
+  const checkInMinutes = timeOfDayToMinutes(getJakartaTimeOfDay(new Date(checkInAt)));
+  return Math.max(0, checkInMinutes - shiftMinutes);
+}
+
 // Satu baris staff_attendance sekarang menjelaskan satu sesi kerja penuh
 // (migration 0068): kolom lama (created_at/photo_type/latitude/longitude/
 // location_accuracy_meters) adalah fakta presensi MASUK; check_out_* adalah
 // fakta presensi PULANG pada baris yang sama. Baris lama dari sebelum
 // migration ini (attendance_type='out' tanpa presensi masuk yang tercatat di
 // baris yang sama) ditampilkan sebagai checkOut saja, checkIn null.
-function mapAttendance(row) {
+function mapAttendance(row, shiftStart) {
   const singlePhotoFact = {
     at: row.created_at,
     photoType: row.photo_type,
@@ -24,12 +41,13 @@ function mapAttendance(row) {
     accuracyMeters: row.location_accuracy_meters
   };
   const hasCheckOut = row.check_out_at != null;
+  const checkIn = hasCheckOut || row.attendance_type !== 'out' ? singlePhotoFact : null;
   return {
     id: row.id,
     userId: row.user_id,
     storeId: row.store_id,
     status: row.status,
-    checkIn: hasCheckOut || row.attendance_type !== 'out' ? singlePhotoFact : null,
+    checkIn: checkIn ? { ...checkIn, lateMinutes: computeLateMinutes(checkIn.at, shiftStart) } : null,
     checkOut: hasCheckOut ? {
       at: row.check_out_at,
       photoType: row.check_out_photo_type,
@@ -40,13 +58,52 @@ function mapAttendance(row) {
   };
 }
 
-async function listAttendance(db, userId, limit = 60) {
+async function listAttendance(db, userId, shiftStart, limit = 60) {
   const rows = await db.prepare(`
     SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
            status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
     FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
   `).bind(userId, limit).all();
-  return (rows.results || []).map(mapAttendance);
+  return (rows.results || []).map(row => mapAttendance(row, shiftStart));
+}
+
+// Bos Cyo, 2026-09-19: "pendapatan gaji perharinya harusnya juga masukin ke
+// riwayat gaji ... untuk gaji kan uda diisi berapa per jam nya jadi uda bisa
+// langsung diisi ya." Satu entry per sesi presensi SELESAI (CLOSED) --
+// dihitung ulang tiap request dari fakta presensi + tarif akun saat ini,
+// bukan snapshot beku (mengikuti pola Laporan Net Profit yang lain di repo
+// ini). Sesi yang masih OPEN belum punya earning final ('sedang berjalan').
+//
+// Invariant CLAUDE.md #1 -- uang scaled integer, half-up: hourlyWageScaled
+// sudah scaled (1 rupiah = 1_000_000 unit). Math.round() di sini membulatkan
+// ke integer scaled terdekat, half-up untuk nilai non-negatif (yang selalu
+// terjadi di sini karena gaji tidak pernah negatif) -- konsisten dengan
+// invariant, tanpa perlu helper pembulatan terpisah.
+function computeEarningScaled(paymentType, hourlyWageScaled, checkInAt, checkOutAt) {
+  if (paymentType === 'SESI') return hourlyWageScaled;
+  const minutes = Math.round((new Date(checkOutAt).getTime() - new Date(checkInAt).getTime()) / 60000);
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0;
+  return Math.round((minutes * hourlyWageScaled) / 60);
+}
+
+function buildPayroll(attendanceRows, jobDetail) {
+  if (!jobDetail) return [];
+  const hourlyWageScaled = Number(jobDetail.hourly_wage_scaled || 0);
+  const paymentType = jobDetail.payment_type || 'JAM';
+  return attendanceRows
+    .filter(row => row.status === 'CLOSED' && row.checkIn && row.checkOut)
+    .map(row => {
+      const earningScaled = computeEarningScaled(paymentType, hourlyWageScaled, row.checkIn.at, row.checkOut.at);
+      return {
+        attendanceId: row.id,
+        date: getJakartaBusinessDate(new Date(row.checkIn.at)),
+        paymentType,
+        hoursWorked: paymentType === 'JAM'
+          ? Math.round(((new Date(row.checkOut.at).getTime() - new Date(row.checkIn.at).getTime()) / 3600000) * 100) / 100
+          : null,
+        earningRupiah: earningScaled / WAGE_SCALE
+      };
+    });
 }
 
 export async function handleStaffPortalApi(request, env, pathname) {
@@ -55,12 +112,14 @@ export async function handleStaffPortalApi(request, env, pathname) {
   if (!auth.ok) return auth.response;
 
   if (request.method === 'GET' && pathname === '/api/staff/portal') {
+    const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
+    const attendance = await listAttendance(env.DB, auth.cashier.id, jobDetail?.shift_start || '');
     return json({
       staff: { userId: auth.cashier.id, username: auth.cashier.username, employeeName: auth.cashier.employeeName, store: auth.cashier.store },
-      attendance: await listAttendance(env.DB, auth.cashier.id),
+      attendance,
       attendanceStatus: await latestAttendanceStatus(env.DB, auth.cashier.id),
       kpi: await getCashierRaportFacts(env.DB, auth.cashier.store.id, auth.cashier.id),
-      deposits: [], payroll: []
+      deposits: [], payroll: buildPayroll(attendance, jobDetail)
     });
   }
 

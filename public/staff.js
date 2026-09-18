@@ -47,9 +47,29 @@
       } catch {}
     }));
   }
+  // Bos Cyo, 2026-09-19: "kalo telat kasih background merah muda kita, telat
+  // 5 menit semakin merah warnanya, telat 10 menit ke atas lebih merah
+  // banget ... ga telat ada tulisan di bold hijau, trrus kalo telat
+  // berartintulisannya merah". lateMinutes null = shift_start belum diisi
+  // Admin di Master Kasir -- tidak ditampilkan sama sekali, karena tidak ada
+  // dasar untuk menilai telat/tidak.
+  function latenessRowStyle(checkIn) {
+    const lateMinutes = checkIn?.lateMinutes;
+    if (lateMinutes == null || lateMinutes === 0) return '';
+    if (lateMinutes < 5) return 'background:#ffe4ec';
+    if (lateMinutes < 10) return 'background:#ffb3c6';
+    return 'background:#ff8fa3';
+  }
+  function latenessBadge(checkIn) {
+    const lateMinutes = checkIn?.lateMinutes;
+    if (lateMinutes == null) return '';
+    if (lateMinutes === 0) return ' · <span style="font-weight:800;color:#2f9e44">Tepat waktu</span>';
+    const color = lateMinutes < 5 ? '#d6336c' : lateMinutes < 10 ? '#c2255c' : '#a4133c';
+    return ` · <span style="font-weight:800;color:${color}">Telat ${lateMinutes} menit</span>`;
+  }
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row" style="${latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong><div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
     loadAttendancePhotoThumbs();
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }
@@ -69,6 +89,24 @@
     toggleBtn.dataset.attendanceType = checkedIn ? 'out' : 'in';
     renderAttendance();
     renderKpi();
+    renderPayroll();
+  }
+  // Bos Cyo, 2026-09-19: "pendapatan gaji perharinya harusnya juga masukin ke
+  // riwayat gaji". Satu baris per sesi presensi SELESAI -- dihitung ulang
+  // server tiap load (src/staff-portal.js), bukan snapshot. Sesi yang masih
+  // berjalan (OPEN) belum masuk daftar ini karena belum ada durasi final.
+  function renderPayroll() {
+    const target = el('staffPayrollList'); if (!target) return;
+    const rows = portal?.payroll || [];
+    if (!rows.length) { target.innerHTML = '<div class="staff-empty">Belum ada sesi presensi yang selesai untuk dihitung gajinya.</div>'; return; }
+    const total = rows.reduce((sum, row) => sum + (Number(row.earningRupiah) || 0), 0);
+    target.innerHTML = `
+      <div class="staff-card" style="margin-bottom:12px"><div class="muted">Total (${rows.length} sesi)</div><h2 style="margin:5px 0">${money(total)}</h2></div>
+      <div class="attendance-list">${rows.map(row => `
+        <div class="attendance-row">
+          <div><strong>${escapeHtml(row.date)}</strong><div class="muted">${row.paymentType === 'SESI' ? 'Per sesi' : `Per jam${row.hoursWorked != null ? ` · ${row.hoursWorked} jam` : ''}`}</div></div>
+          <span>${money(row.earningRupiah)}</span>
+        </div>`).join('')}</div>`;
   }
   const approvalLabel = { pending_approval: 'Menunggu ACC', approved: 'Sudah disetor', rejected: 'Ditolak' };
   function renderDeposits() {

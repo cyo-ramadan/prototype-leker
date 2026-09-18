@@ -23,7 +23,7 @@
     if (!isStaffApi(url)) return originalFetch(input, init);
 
     const headers = new Headers(request ? request.headers : init.headers || {});
-    const token = sessionStorage.getItem('lekerCashierToken')
+    const token = localStorage.getItem('lekerCashierToken')
       || (isReadOnlyPreview && (localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken')))
       || '';
     if (token) headers.set('Authorization', `Bearer ${token}`);

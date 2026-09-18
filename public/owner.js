@@ -261,6 +261,7 @@ async function ownerLogout() {
   ownerState.sharingGroups = [];
   ownerState.tenants = [];
   ownerState.entities = [];
+  window.lekerClearStaffSession?.();
   localStorage.removeItem('lekerOwnerToken');
   showOwnerLogin();
 }

@@ -437,6 +437,7 @@ async function entityAdminLogout() {
   entityAdminState.token = '';
   entityAdminState.entityAdmin = null;
   entityAdminState.stores = [];
+  window.lekerClearStaffSession?.();
   localStorage.removeItem('lekerEntityAdminToken');
   showEntityAdminLogin();
 }

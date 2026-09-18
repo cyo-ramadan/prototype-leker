@@ -160,7 +160,9 @@ test('staff-entry-guard.js only widens the /cashier gate for the explicit ?reado
   const guard = await read('public/staff-entry-guard.js');
   assert.match(guard, /isReadOnlyPreview/);
   assert.match(guard, /readonly.*=== '1'/);
-  assert.match(guard, /Boolean\(sessionStorage\.getItem\('lekerCashierToken'\)\)\s*\n\s*\|\|\s*\(isReadOnlyPreview/);
+  // 2026-09-18: penyimpanannya pindah ke localStorage (sesi kasir tidak lagi
+  // hilang saat tab ditutup); gerbangnya sendiri tidak dilonggarkan sedikit pun.
+  assert.match(guard, /Boolean\(localStorage\.getItem\('lekerCashierToken'\)\)\s*\n\s*\|\|\s*\(isReadOnlyPreview/);
 });
 
 test('staff-auth-fetch.js and public/cashier.js only fall back to a management token when ?readonly=1 is present', async () => {

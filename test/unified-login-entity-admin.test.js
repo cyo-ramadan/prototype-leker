@@ -102,7 +102,21 @@ test('wrong password for an Entity Admin username via the unified staff login is
   }
 });
 
-test('unified Entity Admin login still enforces single-active-session-with-takeover, same discipline as Owner/Admin/Cashier', async () => {
+// KOREKSI 2026-09-18 (Bos Cyo: "mau login juga kadang risih ada permintaan,
+// mau pakai sesi ini, padahal terakhir masih login. user udah mulai risih").
+// Test ini DULU menuntut kebalikannya: login kedua wajib ditolak 409
+// STAFF_SESSION_ACTIVE sampai user menekan "Ambil alih sesi". Aturan itu
+// dicabut, bukan dilonggarkan diam-diam -- prompt-nya paling sering mengenai
+// ORANG YANG SAMA di BROWSER YANG SAMA (token browser hilang, sesi server
+// masih hidup 12 jam), dan tidak menambah keamanan apa pun karena tombol
+// takeover bebas ditekan siapa pun yang sudah lolos password.
+//
+// Aman karena tiap sesi berdiri sendiri: validasi dan logout dua-duanya per
+// `token_hash` (src/owner-auth.js), bukan per akun -- logout di satu tempat
+// tidak mematikan sesi di tempat lain. Yang menjaga "jangan pindah user di
+// satu browser" sekarang guard sisi klien (public/staff-tab-lock.js), bukan
+// penolakan login di server.
+test('satu akun boleh punya beberapa sesi aktif sekaligus -- login kedua tidak lagi ditolak atau minta "ambil alih"', async () => {
   const db = migratedDatabase();
   try {
     const seed = await seedEntityAdmin(db);
@@ -118,19 +132,16 @@ test('unified Entity Admin login still enforces single-active-session-with-takeo
       request('/api/auth/staff-login', { body: { username: seed.username, password: seed.password } }),
       env, '/api/auth/staff-login'
     );
-    assert.equal(second.status, 409);
+    assert.equal(second.status, 200, 'login kedua untuk akun yang sama harus langsung sukses, tanpa 409');
     const secondBody = await second.json();
-    assert.equal(secondBody.code, 'STAFF_SESSION_ACTIVE');
     assert.equal(secondBody.role, 'ENTITY_ADMIN');
+    assert.ok(secondBody.token, 'sesi kedua dapat token sendiri');
 
-    const takeover = await handleUnifiedLoginApi(
-      request('/api/auth/staff-login', { body: { username: seed.username, password: seed.password, takeover: true } }),
-      env, '/api/auth/staff-login'
-    );
-    assert.equal(takeover.status, 200);
+    const firstBody = await first.json();
+    assert.notEqual(secondBody.token, firstBody.token, 'tiap sesi punya token sendiri, bukan berbagi satu token');
 
     const sessionCount = db.prepare('SELECT COUNT(*) AS n FROM entity_admin_sessions WHERE entity_admin_id = ?').get(seed.id);
-    assert.equal(sessionCount.n, 1, 'takeover must replace the old session, not stack a second one');
+    assert.equal(sessionCount.n, 2, 'dua sesi hidup berdampingan -- sesi lama TIDAK dicabut diam-diam oleh login baru');
   } finally {
     db.close();
   }

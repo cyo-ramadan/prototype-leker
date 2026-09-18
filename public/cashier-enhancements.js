@@ -256,7 +256,7 @@
   }
 
   async function cashierRequest(path) {
-    const token = sessionStorage.getItem('lekerCashierToken') || '';
+    const token = localStorage.getItem('lekerCashierToken') || '';
     const response = await originalFetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `Request gagal (${response.status})`);

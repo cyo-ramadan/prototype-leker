@@ -1,35 +1,63 @@
 (() => {
-  const metaRaw = sessionStorage.getItem('lekerStaffSessionMeta');
+  // Guard sesi karyawan antar tab.
+  //
+  // PERUBAHAN BESAR 2026-09-18 (Bos Cyo): dulu ini guard "SATU TAB" -- tab
+  // kedua selalu diblokir walau isinya orang yang sama. Bos Cyo: "harusnya
+  // meskipun dia buka program pos ini 2 tab ga masalah, yang penting di 2 tab
+  // itu ga pindah user." Sekarang guardnya "SATU USER": beberapa tab dengan
+  // karyawan YANG SAMA dibiarkan jalan berdampingan, yang diblokir cuma tab
+  // yang usernya BERBEDA dari yang sedang memegang browser ini.
+  //
+  // Kenapa pindah user tetap harus diblokir: token karyawan disimpan satu key
+  // per pangkat di localStorage (lekerCashierToken dst) dan localStorage itu
+  // dibagi seluruh tab. Kalau user B login sementara tab user A masih terbuka,
+  // token A tertimpa token B -- tab A lalu mengirim transaksi memakai token
+  // orang lain tanpa ada yang sadar. Itu bahaya data, bukan sekadar repot.
+  const leaseKey = 'lekerStaffBrowserLease';
+
+  // Satu tempat untuk membersihkan SELURUH jejak sesi karyawan di browser --
+  // token, identitas, dan lease. Dipanggil semua tombol logout (Kasir, Portal
+  // Staf, Owner, Admin Gerai, Entity Admin). Dulu tiap logout cuma menghapus
+  // tokennya sendiri: lease-nya tertinggal, jadi karyawan BERIKUTNYA yang mau
+  // login di perangkat yang sama masih dianggap "user lain sedang aktif"
+  // sampai lease-nya kedaluwarsa sendiri. File ini dimuat di semua halaman
+  // staf, jadi helper-nya sengaja diekspos SEBELUM guard di bawah -- supaya
+  // tetap tersedia walau halaman ini dibuka tanpa sesi sama sekali.
+  window.lekerClearStaffSession = () => {
+    for (const key of ['lekerCashierToken', 'lekerOwnerToken', 'lekerAdminToken', 'lekerEntityAdminToken', 'lekerStaffSessionMeta', leaseKey]) {
+      try { localStorage.removeItem(key); } catch {}
+    }
+    try { sessionStorage.removeItem('lekerStaffHandoffId'); } catch {}
+  };
+
+  const metaRaw = localStorage.getItem('lekerStaffSessionMeta');
   if (!metaRaw) return;
 
   let meta;
   try { meta = JSON.parse(metaRaw); } catch { return; }
   if (!meta?.id || !meta?.role) return;
 
-  const leaseKey = 'lekerStaffBrowserLease';
   const ttlMs = 15000;
   const heartbeatMs = 5000;
   const pageId = crypto.randomUUID();
-  const handoffId = sessionStorage.getItem('lekerStaffHandoffId') || '';
   let blocked = false;
-
-  const tokenKey = meta.role === 'OWNER'
-    ? 'lekerOwnerToken'
-    : meta.role === 'ADMIN'
-      ? 'lekerAdminToken'
-      : meta.role === 'ENTITY_ADMIN'
-        ? 'lekerEntityAdminToken'
-        : 'lekerCashierToken';
-  // OWNER/ADMIN/ENTITY_ADMIN tokens live in localStorage (survive a
-  // discarded/reloaded tab -- see branch-owner-auth.js); CASHIER stays
-  // sessionStorage. block() must strip the token from wherever it actually
-  // lives, or a "blocked" tab keeps a live token and can walk right back
-  // into the workspace.
-  const tokenStore = meta.role === 'CASHIER' ? sessionStorage : localStorage;
 
   function readLease() {
     try { return JSON.parse(localStorage.getItem(leaseKey) || 'null'); }
     catch { return null; }
+  }
+
+  function leaseIsFresh(lease) {
+    return Boolean(lease?.owner) && Date.now() - Number(lease.updatedAt || 0) <= ttlMs;
+  }
+
+  // Inti aturan barunya. Lease lama yang belum sempat membawa staffId (ditulis
+  // versi sebelum perubahan ini, masih nyangkut di browser user) dianggap
+  // "user sama" -- lebih baik meloloskan satu lease basi daripada menendang
+  // keluar orang yang sebenarnya berhak.
+  function leaseIsOtherUser(lease) {
+    if (!lease?.staffId) return false;
+    return lease.staffId !== meta.id || lease.role !== meta.role;
   }
 
   function writeLease() {
@@ -38,6 +66,7 @@
       stage: 'active',
       staffId: meta.id,
       role: meta.role,
+      name: meta.name || '',
       updatedAt: Date.now()
     }));
   }
@@ -47,19 +76,21 @@
     if (lease?.owner === pageId) localStorage.removeItem(leaseKey);
   }
 
+  // SENGAJA tidak menghapus token di sini. Di guard versi lama itu benar (yang
+  // diblokir adalah tab kedua milik user yang sama, tokennya memang tokennya
+  // sendiri). Sekarang tab yang diblokir justru tab yang usernya SUDAH BUKAN
+  // pemegang browser ini -- token di localStorage sudah milik user yang baru,
+  // jadi menghapusnya berarti menendang keluar orang yang justru sedang sah
+  // memakai aplikasi.
   function block() {
     if (blocked) return;
     blocked = true;
-    tokenStore.removeItem(tokenKey);
-    sessionStorage.removeItem('lekerStaffSessionMeta');
     sessionStorage.removeItem('lekerStaffHandoffId');
     location.replace('/?login=staff&staffBlocked=1');
   }
 
   const existing = readLease();
-  const existingActive = existing?.owner && Date.now() - Number(existing.updatedAt || 0) <= ttlMs;
-  const isHandoff = handoffId && existing?.owner === handoffId;
-  if (existingActive && !isHandoff) {
+  if (leaseIsFresh(existing) && leaseIsOtherUser(existing)) {
     block();
     return;
   }
@@ -67,18 +98,12 @@
   writeLease();
   sessionStorage.removeItem('lekerStaffHandoffId');
 
-  // 2026-09-15, bug Bos Cyo: kasir Laili klik "Portal Staf" dari Kasir dan
-  // langsung ter-logout. Root cause: navigasi Kasir<->Portal Staf itu
-  // in-app-navigation biasa (bukan handoff dari halaman login), dan di HP
-  // beforeunload/bfcache tidak selalu sempat membersihkan lease halaman lama
-  // sebelum halaman baru mengecek -- lease lama masih kelihatan "aktif" dalam
-  // window ttlMs, jadi halaman baru mengiranya tab lain dan blok dirinya
-  // sendiri. Bukan disebabkan sesi kasir lain (Zahra) -- session per kasir
-  // sudah terisolasi di server, dikonfirmasi dari cashier_sessions produksi.
-  // Fix: expose fungsi yang link/tombol navigasi Kasir<->Portal Staf panggil
-  // SEBELUM pindah halaman, supaya halaman tujuan mengenali page ini sebagai
-  // handoff sah dari diri sendiri, sama seperti pola login (lihat
-  // auth-entry-split.js) -- bukan dianggap tab kompetitor.
+  // Dipertahankan dari perbaikan 2026-09-15 (navigasi Kasir <-> Portal Staf
+  // sempat dikira "tab kompetitor" oleh guard lama, lihat KNOWN_PITFALLS).
+  // Dengan guard berbasis user, navigasi in-app sebenarnya sudah aman dengan
+  // sendirinya -- usernya kan sama. Fungsinya tetap disediakan supaya pemanggil
+  // yang sudah ada tidak error, dan supaya kebiasaan memanggilnya tidak hilang
+  // kalau nanti aturannya diperketat lagi.
   window.lekerPrepareStaffHandoff = () => {
     sessionStorage.setItem('lekerStaffHandoffId', pageId);
   };
@@ -86,18 +111,21 @@
   const heartbeat = setInterval(() => {
     if (blocked) return;
     const lease = readLease();
-    if (lease?.owner && lease.owner !== pageId && Date.now() - Number(lease.updatedAt || 0) <= ttlMs) {
+    if (leaseIsFresh(lease) && leaseIsOtherUser(lease)) {
       clearInterval(heartbeat);
       block();
       return;
     }
+    // Lease diperbarui terus walau pemiliknya tab lain dengan user yang sama --
+    // dua tab yang sama-sama sah memang saling menimpa di sini, dan itu tidak
+    // apa-apa: yang dibandingkan staffId, bukan siapa pemilik lease terakhir.
     writeLease();
   }, heartbeatMs);
 
   window.addEventListener('storage', event => {
     if (event.key !== leaseKey || blocked) return;
     const lease = readLease();
-    if (lease?.owner && lease.owner !== pageId && Date.now() - Number(lease.updatedAt || 0) <= ttlMs) {
+    if (leaseIsFresh(lease) && leaseIsOtherUser(lease)) {
       clearInterval(heartbeat);
       block();
     }

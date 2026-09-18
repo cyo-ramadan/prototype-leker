@@ -11,7 +11,7 @@ const state = {
   orders: [],
   products: [],
   draft: new Map(),
-  token: sessionStorage.getItem('lekerCashierToken')
+  token: localStorage.getItem('lekerCashierToken')
     || (readOnlyPreviewIntent && (localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken')))
     || '',
   cashier: null,
@@ -121,7 +121,7 @@ async function login(event) {
     });
     state.token = payload.token;
     state.cashier = payload.cashier;
-    sessionStorage.setItem('lekerCashierToken', state.token);
+    localStorage.setItem('lekerCashierToken', state.token);
     el('cashierPassword').value = '';
     await openDashboard();
   } catch (error) {
@@ -146,7 +146,9 @@ function clearSession() {
   state.readOnly = false;
   state.voucherCustomer = null;
   state.rodaOfficialResult = null;
-  sessionStorage.removeItem('lekerCashierToken');
+  window.lekerClearStaffSession?.();
+  localStorage.removeItem('lekerCashierToken');
+  localStorage.removeItem('lekerStaffSessionMeta');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
 }

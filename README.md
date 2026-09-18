@@ -89,6 +89,28 @@ user"). Aturan lama "satu sesi aktif per akun + Ambil alih sesi" sudah dicabut.
 - Browser lease tidak melakukan network polling. Heartbeat hanya menyentuh
   `localStorage` (invariant "tanpa polling periodik" tetap utuh).
 
+**Aturan tambahan, server-side, entity-wide** (Bos Cyo, 2026-09-18: "kalo ada
+1 nama coba login 2 akun ... maka ini harus di tolak"): satu **karyawan**
+(bukan satu akun) tidak boleh punya sesi aktif di lebih dari satu akun
+bersamaan, lintas gerai dalam entity yang sama. Ini beda sumbu dari poin di
+atas, bukan bertentangan:
+
+- Poin di atas: akun yang **sama** boleh multi-sesi (dua tab, HP + laptop).
+- Aturan ini: karyawan yang sama tidak boleh merangkap aktif di akun
+  **berbeda** yang sama-sama tertaut ke dirinya di Master Karyawan
+  (`employee_account_links`, migration 0072/0103) — cek dilakukan
+  `findEmployeeSessionConflict()` (`src/employee-master.js`), dipanggil dari
+  `createStaffSession()` (`src/unified-login.js`) **sebelum** sesi baru
+  dibuat. Ditolak dengan `409 EMPLOYEE_ACTIVE_ELSEWHERE`, menyebut gerai mana
+  yang sedang aktif.
+- Yang ditolak **selalu** percobaan login baru. Sesi yang sudah berjalan
+  tidak pernah dicabut oleh pagar ini — sengaja begitu, karena sesi yang
+  sedang aktif bisa saja sedang memegang laci terbuka.
+- Cuma berlaku untuk akun yang benar-benar tertaut ke Master Karyawan. Akun
+  yang masih pakai field "Nama karyawan" bebas (belum ditautkan) tidak kena
+  pagar ini — sistem tidak punya cara yang bisa dipercaya untuk tahu itu
+  orang yang sama atau cuma kebetulan nama sama.
+
 ## Customer registration approval
 
 Customer dapat memilih **Daftar jadi pelanggan** dari halaman customer. Pendaftaran tidak langsung membuat Customer ID aktif.

@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { hashCredential } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
+import { findEmployeeSessionConflict } from './employee-master.js';
 
 const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -193,9 +194,41 @@ function staffSessionSpec(match) {
 // dan sesi lama tidak lagi dicabut diam-diam cuma karena ada login baru.
 // Field `takeover` di body request sengaja tidak lagi dibaca sama sekali --
 // klien versi lama yang masih mengirimnya tidak error, cuma diabaikan.
+// Nama role di sini ('ADMIN') beda dari account_type di employee_account_links
+// ('STORE_ADMIN', migration 0072) -- dua kosakata yang tumbuh independen di
+// dua modul beda. Peta kecil ini yang menjembatani, bukan menyamakan
+// istilahnya di salah satu sisi (keduanya sudah dipakai luas di tempat lain).
+const ROLE_TO_EMPLOYEE_ACCOUNT_TYPE = { CASHIER: 'CASHIER', ADMIN: 'STORE_ADMIN', ENTITY_ADMIN: 'ENTITY_ADMIN' };
+
 async function createStaffSession(db, match) {
-  const spec = staffSessionSpec(match);
   const session = createSessionWindow();
+
+  // Bos Cyo, 2026-09-18: "kalo ada 1 nama coba login 2 akun ... maka ini
+  // harus di tolak" -- satu KARYAWAN tidak boleh aktif di akun lain yang
+  // juga tertaut ke dirinya, lintas gerai dalam entity yang sama. Dicek
+  // SEBELUM sesi baru dibuat, dan TIDAK PERNAH mencabut sesi yang sudah
+  // berjalan (Bos Cyo eksplisit: sesi yang lacinya sedang terbuka paling
+  // wajib dipertahankan) -- lihat komentar lengkap di
+  // findEmployeeSessionConflict, src/employee-master.js.
+  const employeeAccountType = ROLE_TO_EMPLOYEE_ACCOUNT_TYPE[match.role];
+  if (employeeAccountType) {
+    const conflict = await findEmployeeSessionConflict(db, employeeAccountType, match.row.id, session.now);
+    if (conflict) {
+      const conflictRoleLabel = conflict.conflict_account_type === 'CASHIER' ? 'Kasir'
+        : conflict.conflict_account_type === 'STORE_ADMIN' ? 'Admin Gerai' : 'Entity Admin';
+      return {
+        ok: false,
+        response: json({
+          error: `${conflict.employee_name} masih aktif sebagai ${conflictRoleLabel}${conflict.conflict_store_code ? ` di gerai ${conflict.conflict_store_code}` : ''}. Logout dari sana dulu sebelum login di akun ini.`,
+          code: 'EMPLOYEE_ACTIVE_ELSEWHERE',
+          conflictAccountType: conflict.conflict_account_type,
+          conflictStoreCode: conflict.conflict_store_code || null
+        }, 409)
+      };
+    }
+  }
+
+  const spec = staffSessionSpec(match);
   await db.prepare(`DELETE FROM ${spec.table} WHERE expires_at <= ?`).bind(session.now).run();
   const tokenHash = await hashCredential(session.token);
   await db.prepare(`INSERT INTO ${spec.table} (token_hash, ${spec.idColumn}, created_at, expires_at) VALUES (?, ?, ?, ?)`)

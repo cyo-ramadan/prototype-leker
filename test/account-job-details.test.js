@@ -252,3 +252,63 @@ test('form Tambah Kasir tidak jadi jalur tautkan kedua -- cuma label tampilan, m
   assert.doesNotMatch(cashierAdminUi, /employee-links|employee_account_links|Tautkan/i, 'Tambah Kasir tidak boleh punya mekanisme tautkan sendiri');
   assert.match(cashierAdminUi, /Cuma label tampilan akun ini/);
 });
+
+// Bos Cyo, 2026-09-19: "settingan gaji itu ditambahin juga ya jenis
+// pembayarannya bisa per sesi bisa per jam jadi nanti dibuat model dropdown".
+// Migration 0105.
+test('jenis pembayaran (payment_type) default JAM, bisa diisi SESI saat bikin kasir baru', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const env = { DB: d1(sqlite) };
+    const token = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const jam = await (await cashierCall(env, '/api/admin/cashiers', {
+      token, store: 'PENDEM', method: 'POST',
+      body: { username: 'kasir_jam', password: 'rahasia1', employeeName: 'Kasir Jam' }
+    })).json();
+    const rowJam = sqlite.prepare(`SELECT payment_type FROM account_job_details WHERE account_id = ?`).get(jam.id);
+    assert.equal(rowJam.payment_type, 'JAM', 'default tanpa dikirim sama sekali harus JAM');
+
+    const sesi = await (await cashierCall(env, '/api/admin/cashiers', {
+      token, store: 'PENDEM', method: 'POST',
+      body: { username: 'kasir_sesi', password: 'rahasia1', employeeName: 'Kasir Sesi', paymentType: 'SESI', hourlyWage: 75000 }
+    })).json();
+    const rowSesi = sqlite.prepare(`SELECT payment_type, hourly_wage_scaled FROM account_job_details WHERE account_id = ?`).get(sesi.id);
+    assert.equal(rowSesi.payment_type, 'SESI');
+    assert.equal(rowSesi.hourly_wage_scaled, 75000 * 1_000_000);
+
+    const list = await (await cashierCall(env, '/api/admin/cashiers', { token, store: 'PENDEM' })).json();
+    assert.equal(list.cashiers.find(c => c.id === sesi.id).paymentType, 'SESI');
+  } finally { sqlite.close(); }
+});
+
+test('jenis pembayaran ditolak kalau bukan JAM atau SESI, dan PATCH sebagian tidak mereset jenis pembayaran yang sudah diisi', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const env = { DB: d1(sqlite) };
+    const token = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const badType = await cashierCall(env, '/api/admin/cashiers', {
+      token, store: 'PENDEM', method: 'POST',
+      body: { username: 'kasir_x', password: 'rahasia1', employeeName: 'X', paymentType: 'BULANAN' }
+    });
+    assert.equal(badType.status, 400);
+
+    const created = await (await cashierCall(env, '/api/admin/cashiers', {
+      token, store: 'PENDEM', method: 'POST',
+      body: { username: 'kasir_y', password: 'rahasia1', employeeName: 'Y', paymentType: 'SESI', hourlyWage: 50000 }
+    })).json();
+
+    // PATCH cuma ganti gaji -- paymentType tidak dikirim sama sekali.
+    await cashierCall(env, `/api/admin/cashiers/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { hourlyWage: 60000 } });
+    const row = sqlite.prepare(`SELECT payment_type, hourly_wage_scaled FROM account_job_details WHERE account_id = ?`).get(created.id);
+    assert.equal(row.payment_type, 'SESI', 'PATCH tanpa paymentType tidak boleh mereset ke JAM');
+    assert.equal(row.hourly_wage_scaled, 60000 * 1_000_000);
+  } finally { sqlite.close(); }
+});
+
+test('UI Master Kasir menyediakan dropdown jenis pembayaran', () => {
+  assert.match(cashierAdminUi, /cashierPaymentType/);
+  assert.match(cashierAdminUi, /Per Jam/);
+  assert.match(cashierAdminUi, /Per Sesi/);
+});

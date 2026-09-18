@@ -22,7 +22,8 @@
             <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /><span class="field-note">Cuma label tampilan akun ini -- bukan tautan resmi. Menautkan ke orang sungguhan tetap dari tab Karyawan.</span></label>
             <div class="admin-tip" style="margin-bottom:12px">Detail di bawah menempel ke AKUN ini (jabatannya), bukan ke orang yang memegangnya -- tetap berlaku walau akun ini dioper ke karyawan lain.</div>
             <label class="admin-field">Jenis pekerjaan <span class="field-note">opsional</span><input id="cashierJobType" maxlength="100" placeholder="mis. Kasir Shift Pagi" /></label>
-            <label class="admin-field">Gaji per jam (Rp) <span class="field-note">opsional</span><input id="cashierHourlyWage" type="number" min="0" step="1" /></label>
+            <label class="admin-field">Jenis pembayaran<select id="cashierPaymentType"><option value="JAM">Per Jam</option><option value="SESI">Per Sesi</option></select></label>
+            <label class="admin-field" id="cashierWageLabel">Gaji per jam (Rp) <span class="field-note">opsional</span><input id="cashierHourlyWage" type="number" min="0" step="1" /></label>
             <label class="admin-field">Jam mulai <span class="field-note">opsional</span><input id="cashierShiftStart" type="time" /></label>
             <label class="admin-field">Jam selesai <span class="field-note">opsional</span><input id="cashierShiftEnd" type="time" /></label>
             <label class="admin-check"><input id="cashierActive" type="checkbox" checked /> Aktif</label>
@@ -62,8 +63,13 @@
     const parts = [];
     if (cashier.jobType) parts.push(escapeHtml(cashier.jobType));
     if (cashier.shiftStart || cashier.shiftEnd) parts.push(`Jam ${escapeHtml(cashier.shiftStart || '?')}–${escapeHtml(cashier.shiftEnd || '?')}`);
-    if (cashier.hourlyWage > 0) parts.push(`${rupiah(cashier.hourlyWage)}/jam`);
+    if (cashier.hourlyWage > 0) parts.push(`${rupiah(cashier.hourlyWage)}/${cashier.paymentType === 'SESI' ? 'sesi' : 'jam'}`);
     return parts.length ? parts.join(' · ') : 'Detail jabatan belum diisi';
+  }
+
+  function syncWageLabel() {
+    const isSesi = el('cashierPaymentType').value === 'SESI';
+    el('cashierWageLabel').firstChild.textContent = isSesi ? 'Gaji per sesi (Rp) ' : 'Gaji per jam (Rp) ';
   }
 
   function render() {
@@ -102,6 +108,8 @@
     el('cashierCancelEdit').classList.add('hidden');
     el('cashierPassword').required = true;
     el('cashierPasswordNote').textContent = 'min. 6 karakter';
+    el('cashierPaymentType').value = 'JAM';
+    syncWageLabel();
   }
 
   function editCashier(id) {
@@ -114,6 +122,8 @@
     el('cashierPasswordNote').textContent = 'kosongkan jika tidak diubah';
     el('cashierEmployeeName').value = cashier.employeeName;
     el('cashierJobType').value = cashier.jobType || '';
+    el('cashierPaymentType').value = cashier.paymentType || 'JAM';
+    syncWageLabel();
     el('cashierHourlyWage').value = cashier.hourlyWage || '';
     el('cashierShiftStart').value = cashier.shiftStart || '';
     el('cashierShiftEnd').value = cashier.shiftEnd || '';
@@ -132,6 +142,7 @@
       password: el('cashierPassword').value,
       employeeName: el('cashierEmployeeName').value,
       jobType: el('cashierJobType').value,
+      paymentType: el('cashierPaymentType').value,
       hourlyWage: el('cashierHourlyWage').value || 0,
       shiftStart: el('cashierShiftStart').value,
       shiftEnd: el('cashierShiftEnd').value,
@@ -160,6 +171,8 @@
   document.querySelector('[data-tab="cashiers"]')?.addEventListener('click', switchTab);
   el('cashierForm')?.addEventListener('submit', save);
   el('cashierCancelEdit')?.addEventListener('click', resetForm);
+  el('cashierPaymentType')?.addEventListener('change', syncWageLabel);
+  syncWageLabel();
 
   const gate = el('authGate');
   if (gate) new MutationObserver(() => { if (gate.classList.contains('hidden')) load(); }).observe(gate, { attributes: true, attributeFilter: ['class'] });

@@ -63,24 +63,59 @@ test('Owner/Admin/Entity Admin bearer token and store-code marker live in localS
   assert.match(entityAdmin, /localStorage\.setItem\('lekerEntityAdminToken', payload\.token\)/);
 });
 
-test('the actual login write site (auth-entry-split.js) puts OWNER/ADMIN in localStorage and leaves CASHIER on sessionStorage', () => {
-  assert.match(authEntrySplit, /const tokenStore = payload\.role === 'CASHIER' \? sessionStorage : localStorage;/);
-  assert.match(authEntrySplit, /tokenStore\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
+// KOREKSI 2026-09-18: pengecualian CASHIER dicabut. Alasan lamanya ("terikat
+// lifecycle laci") dicek langsung dan terbukti tidak berdasar -- tidak ada satu
+// pun kode yang menutup laci saat tab ditutup, jadi sessionStorage tidak
+// menjaga apa pun soal laci; lacinya tetap terbuka di server sementara
+// kasirnya dipaksa login ulang. Bos Cyo: "tab ketutup, terus buka lagi harus
+// login lagi ... user udah mulai risih."
+test('the actual login write site (auth-entry-split.js) puts EVERY staff role -- cashier included -- in localStorage', () => {
+  assert.match(authEntrySplit, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
+  assert.doesNotMatch(authEntrySplit, /payload\.role === 'CASHIER' \? sessionStorage/, 'kasir tidak boleh dikecualikan ke sessionStorage lagi');
   assert.match(authEntrySplit, /if \(payload\.role === 'ADMIN'\) localStorage\.setItem\('lekerAdminStoreCode'/);
 });
 
-test('single-active-tab lock strips the token from wherever it actually lives, not just sessionStorage', () => {
-  assert.match(staffTabLock, /const tokenStore = meta\.role === 'CASHIER' \? sessionStorage : localStorage;/);
-  assert.match(staffTabLock, /tokenStore\.removeItem\(tokenKey\)/);
-  assert.doesNotMatch(staffTabLock, /sessionStorage\.removeItem\(tokenKey\)/);
+// KOREKSI 2026-09-18: guard ini berubah dari "satu TAB" jadi "satu USER"
+// (Bos Cyo: "meskipun dia buka program pos ini 2 tab ga masalah, yang penting
+// di 2 tab itu ga pindah user"). Konsekuensinya menghapus token saat memblokir
+// jadi SALAH: tab yang diblokir sekarang justru tab yang usernya sudah bukan
+// pemegang browser ini, jadi token di localStorage sudah milik user yang baru
+// -- menghapusnya berarti menendang keluar orang yang sedang sah memakai
+// aplikasi.
+test('the per-user guard blocks by redirecting only -- it must never strip a token that now belongs to the incoming user', () => {
+  assert.doesNotMatch(staffTabLock, /removeItem\(tokenKey\)/, 'block() tidak boleh menghapus token siapa pun');
+  assert.match(staffTabLock, /function block\(\)[\s\S]*?location\.replace\('\/\?login=staff&staffBlocked=1'\)/);
+  assert.match(staffTabLock, /function leaseIsOtherUser\(lease\)/, 'keputusan blokir wajib berdasar identitas user, bukan kepemilikan tab');
+  assert.match(staffTabLock, /lease\.staffId !== meta\.id \|\| lease\.role !== meta\.role/);
 });
 
-test('cashier and staff-meta keys are untouched -- scope did not creep', () => {
+// Dua tab dengan karyawan yang SAMA harus hidup berdampingan -- itu inti
+// permintaan Bos Cyo. Lease yang belum membawa staffId (sisa versi lama yang
+// masih nyangkut di browser user) sengaja diperlakukan sebagai "user sama",
+// supaya perubahan ini tidak menendang keluar orang yang sedang login saat
+// versi baru pertama kali dimuat.
+test('a second tab with the SAME staff member is allowed through, and a legacy lease without staffId never blocks', () => {
+  assert.match(staffTabLock, /if \(!lease\?\.staffId\) return false;/);
+});
+
+// KOREKSI 2026-09-18: scope-nya sekarang MEMANG diperluas, dengan sengaja.
+// Yang tetap di sessionStorage cuma dua, dan dua-duanya ada alasannya:
+// - token CUSTOMER: sesi belanja per tab, bukan sesi karyawan.
+// - lekerStaffHandoffId: penanda "halaman berikutnya adalah diri saya
+//   sendiri", yang memang harus per-tab -- kalau dibagi antar tab, artinya
+//   justru hilang.
+test('only the customer token and the per-tab handoff marker stay in sessionStorage -- staff token and identity do not', () => {
   assert.match(authEntrySplit, /sessionStorage\.setItem\(`lekerCustomerToken:\$\{storeCode\}`, payload\.token\)/);
-  assert.match(authEntrySplit, /sessionStorage\.setItem\('lekerStaffSessionMeta'/);
   assert.match(authEntrySplit, /sessionStorage\.setItem\('lekerStaffHandoffId', handoffId\)/);
-  assert.match(staffEntryGuard, /sessionStorage\.getItem\('lekerCashierToken'\)/);
-  assert.match(staffTabLock, /sessionStorage\.getItem\('lekerStaffSessionMeta'\)/);
+  assert.match(authEntrySplit, /localStorage\.setItem\('lekerStaffSessionMeta'/);
+  assert.match(staffEntryGuard, /localStorage\.getItem\('lekerCashierToken'\)/);
+  assert.match(staffTabLock, /localStorage\.getItem\('lekerStaffSessionMeta'\)/);
+  for (const [source, name] of [[authEntrySplit, 'auth-entry-split.js'], [staffEntryGuard, 'staff-entry-guard.js'], [staffTabLock, 'staff-tab-lock.js']]) {
+    for (const key of ['lekerCashierToken', 'lekerStaffSessionMeta']) {
+      const re = new RegExp(`sessionStorage\\.(get|set|remove)Item\\(['"]${key}['"]`);
+      assert.doesNotMatch(source, re, `${name} must not touch ${key} via sessionStorage anymore`);
+    }
+  }
 });
 
 test('server-side session lifetime for Owner/Store Admin stays 12 hours -- this fix only stops the client from discarding it early', () => {
@@ -104,8 +139,36 @@ test('staff-entry-guard.js lets an Entity Admin session (not just Owner/Admin) r
 // hapus 'lekerCashierToken' (token yang bahkan tidak dipakai Entity Admin)
 // alih-alih 'lekerEntityAdminToken' -- token asli tidak pernah tercabut,
 // tapi user tetap dilempar ke halaman login seolah tidak logout beneran.
-test('staff-tab-lock.js resolves ENTITY_ADMIN to its own token key, not the CASHIER fallback', () => {
-  assert.match(staffTabLock, /meta\.role === 'ENTITY_ADMIN'\s*\n?\s*\?\s*'lekerEntityAdminToken'/);
+// Bug aslinya (guard menghapus token kasir padahal yang login Entity Admin)
+// sekarang mustahil terulang dengan cara yang jauh lebih kuat daripada
+// memetakan role ke nama key: guard sudah tidak menghapus token APA PUN.
+test('staff-tab-lock.js no longer maps roles to token keys at all -- the whole class of "cleared the wrong token" bugs is gone', () => {
+  assert.doesNotMatch(staffTabLock, /tokenKey/, 'tidak boleh ada lagi pemetaan role -> nama key token');
+  assert.doesNotMatch(staffTabLock, /meta\.role === 'ENTITY_ADMIN'/, 'tidak ada lagi cabang per-role untuk memilih token yang dihapus');
+  // Helper logout di file yang sama MEMANG menyebut semua nama key -- itu beda
+  // urusan (membersihkan seluruh jejak saat user menekan Logout), bukan guard
+  // yang menebak-nebak token siapa yang harus dicabut saat memblokir.
+  assert.match(staffTabLock, /window\.lekerClearStaffSession/);
+});
+
+// Logout harus membersihkan SELURUH jejak sesi, termasuk lease -- kalau
+// lease-nya tertinggal, karyawan BERIKUTNYA yang login di perangkat yang sama
+// ditolak sebagai "user lain masih aktif" sampai lease-nya kedaluwarsa sendiri.
+// Helper-nya diekspos sebelum guard supaya tetap ada walau halaman dibuka
+// tanpa sesi.
+test('a single helper clears every staff session trace (token, identity, lease) and every logout button uses it', () => {
+  assert.match(staffTabLock, /window\.lekerClearStaffSession = \(\) =>/);
+  assert.match(staffTabLock, /lekerStaffSessionMeta['"], leaseKey\]/);
+  for (const [source, name] of [
+    [read('cashier.js'), 'cashier.js'],
+    [read('staff.js'), 'staff.js'],
+    [read('owner.js'), 'owner.js'],
+    [read('owner-central-entry.js'), 'owner-central-entry.js'],
+    [read('entity-admin.js'), 'entity-admin.js'],
+    [read('branch-owner-auth.js'), 'branch-owner-auth.js']
+  ]) {
+    assert.match(source, /window\.lekerClearStaffSession\?\.\(\)/, `${name} must clear the whole staff session on logout, not just its own token`);
+  }
 });
 
 // Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
@@ -117,7 +180,7 @@ test('/?login=staff auto-redirects an already-authenticated staff session to its
   assert.match(authEntrySplit, /function existingStaffWorkspaceRedirect\(\)/);
   assert.match(authEntrySplit, /localStorage\.getItem\('lekerOwnerToken'\)\) return '\/admin'/);
   assert.match(authEntrySplit, /localStorage\.getItem\('lekerEntityAdminToken'\)\) return '\/entity-admin'/);
-  assert.match(authEntrySplit, /sessionStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
+  assert.match(authEntrySplit, /localStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
   assert.match(authEntrySplit, /location\.replace\(existingRedirect\)/);
   // staffBlocked=1 means the tab-lock deliberately just cleared this
   // session's token -- the redirect must not fire off a stale read in that

@@ -55,16 +55,39 @@ Login internal langsung melalui `/cashier`, `/admin`, atau workspace gerai tidak
 
 Legacy `POST /api/auth/login` dipertahankan sementara untuk backward compatibility, tetapi UI baru menggunakan endpoint terpisah supaya akun pelanggan tidak bercampur dengan akun internal.
 
-## Staff single-session dan single-tab policy
+## Staff session policy (banyak sesi boleh, pindah user tidak)
 
-Staff mencakup Owner, Admin Gerai, dan Kasir.
+Staff mencakup Owner, Entity Admin, Admin Gerai, dan Kasir.
 
-- Satu akun staff hanya boleh mempunyai satu server session aktif.
-- Login staff kedua mengembalikan `STAFF_SESSION_ACTIVE` dan UI menawarkan **Ambil alih sesi** secara eksplisit.
-- Migration `0011_staff_single_session.sql` memasang trigger D1 pada session Owner/Admin/Kasir agar invariant satu session tetap berlaku juga pada legacy/direct login path.
-- Customer sessions sengaja tidak memakai rule single-session tersebut.
-- Dalam satu browser profile hanya satu tab staff aktif pada satu waktu. Local browser lease mencegah dua tab Karyawan aktif bersamaan, termasuk jika tab diduplicate setelah login.
-- Browser lease tidak melakukan network polling. Heartbeat hanya menyentuh `localStorage` untuk mendeteksi duplicate tab.
+Kebijakan ini **diubah 2026-09-18** atas permintaan Bos Cyo ("user yang uda login
+gampang ke refresh ini bikin user jadi malas pakai pos ini ... harusnya meskipun
+dia buka program pos ini 2 tab ga masalah, yang penting di 2 tab itu ga pindah
+user"). Aturan lama "satu sesi aktif per akun + Ambil alih sesi" sudah dicabut.
+
+- Satu akun staff boleh punya **beberapa sesi aktif sekaligus** — dua tab, atau HP
+  dan laptop bersamaan. Login kedua langsung sukses, tidak ada lagi
+  `STAFF_SESSION_ACTIVE` maupun tombol "Ambil alih sesi".
+- Aman karena tiap sesi berdiri sendiri: validasi dan logout dua-duanya per
+  `token_hash`, bukan per akun — logout di satu tempat tidak mematikan sesi di
+  tempat lain. Sesi tetap kedaluwarsa sendiri 12 jam.
+- Migration `0102_staff_multi_session.sql` mencabut trigger D1 dari
+  `0011_staff_single_session.sql`. Trigger itu menghapus sesi lama setiap ada
+  sesi baru **di level database** — penyebab paling dalam dari gejala "buka tab
+  kedua, tab pertama langsung ter-logout", dan satu-satunya yang tidak kelihatan
+  dari kode aplikasi.
+- Token dan identitas karyawan (termasuk **Kasir**, sejak 2026-09-18) disimpan di
+  `localStorage`, jadi sesi tidak ikut hilang saat tab ditutup atau saat OS
+  membuang browsing context di HP. Yang tetap di `sessionStorage` cuma token
+  pelanggan dan penanda handoff antar halaman yang memang harus per-tab.
+- Yang **masih** ditegakkan: dalam satu browser profile tidak boleh **pindah
+  user**. Dijaga `public/staff-tab-lock.js` dengan membandingkan identitas
+  (`staffId` + `role`) di browser lease — bukan dengan membatasi jumlah tab, dan
+  bukan dengan mencabut sesi di server. Alasannya konkret: token disimpan satu
+  key per pangkat di `localStorage`, jadi kalau user lain menimpanya, tab lama
+  akan mengirim transaksi memakai token orang lain.
+- Customer sessions memang tidak pernah ikut aturan single-session ini.
+- Browser lease tidak melakukan network polling. Heartbeat hanya menyentuh
+  `localStorage` (invariant "tanpa polling periodik" tetap utuh).
 
 ## Customer registration approval
 
@@ -215,7 +238,8 @@ Promotion, Masak, dan beberapa policy/flow inventory lanjutan tetap berkembang m
 - `0008_branch_admin_drawer_customer_sharing.sql` — drawer report, customer sharing, point ledger foundation.
 - `0009_branch_admin_and_demo_accounts.sql` — Admin Gerai + demo credentials.
 - `0010_customer_registration_points_order_ux.sql` — pending registration requests + distinct G002 demo menu.
-- `0011_staff_single_session.sql` — single active staff session invariant; customer session tetap multi-session.
+- `0011_staff_single_session.sql` — single active staff session invariant; customer session tetap multi-session. **Dicabut oleh `0102`** (lihat di bawah).
+- `0102_staff_multi_session.sql` — mencabut trigger satu-sesi `0011`; satu akun staff boleh punya beberapa sesi aktif (2 tab / HP + laptop).
 - `0012_drawer_bound_sales_orders.sql` — drawer-bound order source + sale lineage.
 - `0013_approval_queue.sql` — isolated approval staging.
 - `0014_operational_posting_ledgers.sql` — operational cash/inventory/asset posting V1.
@@ -364,4 +388,4 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 
 ## DOC-IMPACT
 
-**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting.
+**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting, serta **kebijakan sesi karyawan yang berubah 2026-09-18**: banyak sesi per akun sekarang diizinkan (trigger satu-sesi dicabut migration `0102`), dan yang masih ditegakkan cuma "jangan pindah user dalam satu browser" lewat guard sisi klien.

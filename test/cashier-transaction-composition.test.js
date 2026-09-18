@@ -42,7 +42,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
     cashierHtml,
     '/cashier-workspace.js',
     '/cashier-payment-methods.js?v=20260914-drop-purchase-description-field',
-    '/cashier-enhancements.js?v=20260914-drawer-detail-own-modal-v1'
+    '/cashier-enhancements.js?v='
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
   assert.doesNotMatch(cashierHtml, /<script src="\/cashier-procurement-ui\.js"><\/script>/);

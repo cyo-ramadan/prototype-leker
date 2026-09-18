@@ -60,7 +60,7 @@
     return 'lekerCashierToken';
   }
 
-  async function submitLogin({ takeover = false } = {}) {
+  async function submitLogin() {
     const username = el('entryUsername')?.value.trim() || '';
     const password = el('entryPassword')?.value || '';
     const message = el('entryLoginMessage');
@@ -70,11 +70,13 @@
       return;
     }
 
-    if (mode === 'STAFF' && !takeover && activeStaffLease()) {
-      if (message) message.textContent = 'Sudah ada tab karyawan aktif di browser ini. Gunakan tab tersebut atau tutup dulu sebelum login karyawan lain.';
-      return;
-    }
-
+    // Pengecekan lease SENGAJA tidak lagi dilakukan di sini (sebelum submit).
+    // Dulu: ada lease aktif apa pun -> login langsung ditolak, walau yang mau
+    // login ORANG YANG SAMA. Itu salah satu sumber "risih" yang dilaporkan Bos
+    // Cyo 2026-09-18. Sekarang lease baru diperiksa SESUDAH server memberi tahu
+    // siapa yang login (lihat di bawah), karena sebelum submit kita memang
+    // belum tahu identitasnya -- dan yang perlu dicegah cuma PINDAH USER,
+    // bukan login ulang orang yang sama.
     if (message) message.textContent = '';
     if (submit) submit.disabled = true;
     try {
@@ -84,20 +86,13 @@
       const response = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, takeover })
+        body: JSON.stringify({ username, password })
       });
       const payload = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        if (mode === 'STAFF' && payload.code === 'STAFF_SESSION_ACTIVE' && payload.canTakeover) {
-          if (message) {
-            message.innerHTML = 'Akun karyawan masih aktif di tab/perangkat lain. <button id="entryTakeoverStaff" class="text-btn" type="button">Ambil alih sesi</button>';
-            el('entryTakeoverStaff')?.addEventListener('click', () => submitLogin({ takeover: true }), { once: true });
-          }
-          return;
-        }
-        throw new Error(payload.error || 'Login gagal.');
-      }
+      // Penanganan 409 STAFF_SESSION_ACTIVE ("Ambil alih sesi") sudah dicabut
+      // -- server tidak pernah mengirimkannya lagi (src/unified-login.js).
+      if (!response.ok) throw new Error(payload.error || 'Login gagal.');
 
       if (mode === 'CUSTOMER') {
         if (payload.role !== 'CUSTOMER' || !payload.customer) throw new Error('Akun ini bukan akun pelanggan.');
@@ -109,22 +104,57 @@
       if (!['OWNER', 'ADMIN', 'ENTITY_ADMIN', 'CASHIER'].includes(payload.role)) throw new Error('Akun ini bukan akun karyawan.');
       const identity = staffIdentity(payload);
       if (!identity?.id) throw new Error('Identitas karyawan tidak lengkap.');
-      // OWNER/ADMIN/ENTITY_ADMIN go to localStorage so the session survives a
-      // discarded/reloaded tab (see branch-owner-auth.js); CASHIER stays
-      // sessionStorage, unchanged, tied to its own drawer-session lifecycle.
-      const tokenStore = payload.role === 'CASHIER' ? sessionStorage : localStorage;
-      tokenStore.setItem(staffTokenKey(payload.role), payload.token);
+
+      // Baru DI SINI lease diperiksa -- sesudah tahu siapa yang login. Yang
+      // dicegah cuma PINDAH USER di browser yang sama (Bos Cyo: "yang penting
+      // di 2 tab itu ga pindah user"); login ulang orang yang sama lewat mulus.
+      // Satu browser memang cuma muat satu sesi karyawan, karena tokennya satu
+      // key per pangkat di localStorage -- kalau user lain menimpanya, tab lama
+      // akan memakai token orang lain tanpa sadar, dan itu jauh lebih berbahaya
+      // daripada sekadar merepotkan.
+      const lease = mode === 'STAFF' ? activeStaffLease() : null;
+      if (lease?.staffId && (lease.staffId !== identity.id || lease.role !== payload.role)) {
+        if (message) {
+          message.textContent = `Masih ada sesi karyawan lain (${lease.name || lease.role}) yang aktif di browser ini. Logout dari tab itu dulu, atau tutup tabnya, baru login di sini.`;
+        }
+        return;
+      }
+
+      // Semua pangkat -- TERMASUK KASIR -- sekarang di localStorage. Dulu kasir
+      // sengaja ditaruh di sessionStorage dengan alasan "terikat lifecycle laci",
+      // tapi itu tidak pernah benar: tidak ada satu pun kode yang menutup laci
+      // saat tab ditutup (dicek langsung, 2026-09-18) -- lacinya tetap terbuka
+      // di server, cuma kasirnya yang dipaksa login ulang. sessionStorage juga
+      // ikut hilang saat OS/Chrome membuang browsing context di HP walau tabnya
+      // tidak pernah ditutup -- persis bug yang sudah diperbaiki untuk
+      // Owner/Admin pada 2026-09-13, cuma waktu itu kasir tidak ikut disentuh.
+      localStorage.setItem(staffTokenKey(payload.role), payload.token);
       if (payload.role === 'ADMIN') localStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');
-      sessionStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
+      // Meta ikut ke localStorage: guard antar-tab harus bisa membandingkan
+      // SIAPA yang sedang aktif, dan itu mustahil kalau identitasnya ikut hilang
+      // bersama tab.
+      localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
         id: identity.id,
         role: payload.role,
         name: identity.displayName || identity.employeeName || identity.username || '',
         storeCode: identity.store?.code || ''
       }));
+      // handoffId tetap di sessionStorage -- ini memang harus per-tab (penanda
+      // "halaman berikutnya adalah diri saya sendiri"), bukan dibagi antar tab.
       const handoffId = crypto.randomUUID();
       sessionStorage.setItem('lekerStaffHandoffId', handoffId);
-      localStorage.setItem(leaseKey, JSON.stringify({ owner: handoffId, stage: 'handoff', updatedAt: Date.now() }));
-      location.href = payload.redirect || '/';
+      localStorage.setItem(leaseKey, JSON.stringify({
+        owner: handoffId,
+        stage: 'handoff',
+        staffId: identity.id,
+        role: payload.role,
+        name: identity.displayName || identity.employeeName || identity.username || '',
+        updatedAt: Date.now()
+      }));
+      // replace(), bukan href: halaman login tidak boleh tertinggal di history.
+      // Bos Cyo: "ke back ada pilihan login lagi" -- itu karena entry login
+      // masih ada di riwayat, jadi tombol Back selalu bisa balik ke form.
+      location.replace(payload.redirect || '/');
     } catch (error) {
       if (message) message.textContent = error.message;
     } finally {
@@ -158,7 +188,7 @@
     if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
     const adminStoreCode = localStorage.getItem('lekerAdminStoreCode');
     if (localStorage.getItem('lekerAdminToken') && adminStoreCode) return `/s/${encodeURIComponent(adminStoreCode)}/admin`;
-    if (sessionStorage.getItem('lekerCashierToken')) return '/cashier';
+    if (localStorage.getItem('lekerCashierToken')) return '/cashier';
     return null;
   }
 

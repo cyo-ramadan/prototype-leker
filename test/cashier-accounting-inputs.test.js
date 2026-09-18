@@ -99,8 +99,12 @@ test('purchase composer is mobile-first with compact Qty and invoice-like detail
 });
 
 test('cashier mobile purchase assets are versioned so deployed layout changes bypass stale browser cache', () => {
-  assert.match(cashierHtml, /cashier-pos\.css\?v=20260915-subkategori-v2/);
-  assert.match(cashierHtml, /cashier-enhancements\.js\?v=20260914-drawer-detail-own-modal-v1/);
+  // Yang dijaga: aset-nya PUNYA penanda versi -- bukan nilai versinya persis.
+  // Memaku nilainya bikin test ini pecah setiap kali file-nya di-bump, padahal
+  // mem-bump versi justru aturan yang wajib diikuti kalau file lama diedit
+  // (KNOWN_PITFALLS "File JS lama yang diubah tapi query ?v= tidak dibump").
+  assert.match(cashierHtml, /cashier-pos\.css\?v=[\w.-]+/);
+  assert.match(cashierHtml, /cashier-enhancements\.js\?v=[\w.-]+/);
 });
 
 test('purchase Accounting defaults are canonical and remain editable by admin', () => {

@@ -20,7 +20,7 @@
   const isReadOnlyPreview = isCashier && new URLSearchParams(location.search).get('readonly') === '1';
 
   const allowed = (isCashier || isStaffPortal)
-    ? Boolean(sessionStorage.getItem('lekerCashierToken'))
+    ? Boolean(localStorage.getItem('lekerCashierToken'))
       || (isReadOnlyPreview && Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken')))
     : isOwner
       ? Boolean(localStorage.getItem('lekerOwnerToken'))

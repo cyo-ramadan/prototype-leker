@@ -19,21 +19,40 @@ test('customer and staff use separate login endpoints and staff resolves interna
   assert.doesNotMatch(ui, /Owner, Admin Gerai, Kasir, atau Pelanggan/);
 });
 
-test('staff session policy is single active session with explicit takeover', async () => {
-  const [api, migration, lock] = await Promise.all([
+// KOREKSI KEBIJAKAN 2026-09-18 (Bos Cyo: "user udah mulai risih"). Aturan
+// lama "satu sesi aktif per akun + takeover eksplisit" DICABUT, bukan
+// dilonggarkan diam-diam:
+//   - 409 STAFF_SESSION_ACTIVE + tombol "Ambil alih sesi" dihapus dari server
+//     (src/unified-login.js) -- prompt-nya paling sering mengenai orang yang
+//     sama di browser yang sama, dan tidak menambah keamanan karena tombolnya
+//     bebas ditekan siapa pun yang sudah lolos password.
+//   - trigger satu-sesi di level database dicabut (migration 0102) -- itu yang
+//     bikin buka tab kedua langsung mematikan tab pertama.
+// Yang MASIH ditegakkan: dalam satu browser tidak boleh PINDAH USER. Itu
+// sekarang dijaga guard sisi klien dengan membandingkan identitas, bukan
+// dengan mencabut sesi orang lain di server.
+test('staff session policy: banyak sesi per akun boleh, pindah user dalam satu browser tetap dicegat', async () => {
+  const [api, dropMigration, lock] = await Promise.all([
     read('src/unified-login.js'),
-    read('migrations/0011_staff_single_session.sql'),
+    read('migrations/0102_staff_multi_session.sql'),
     read('public/staff-tab-lock.js')
   ]);
-  assert.match(api, /STAFF_SESSION_ACTIVE/);
-  assert.match(api, /takeover/);
-  assert.match(migration, /trg_owner_single_session/);
-  assert.match(migration, /trg_store_admin_single_session/);
-  assert.match(migration, /trg_cashier_single_session/);
-  assert.doesNotMatch(migration, /customer_sessions/);
+  // Dicek pada KODE-nya, bukan prosanya -- komentar di file itu memang masih
+  // menjelaskan aturan lama supaya sesi berikutnya tahu kenapa dicabut.
+  const apiCode = api.split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
+  assert.doesNotMatch(apiCode, /code: 'STAFF_SESSION_ACTIVE'/, 'server tidak boleh menolak login akun yang sama lagi');
+  assert.doesNotMatch(apiCode, /canTakeover/);
+  assert.doesNotMatch(apiCode, /takeover/, 'jalur takeover harus benar-benar dicabut, bukan disisakan mati');
+  assert.match(dropMigration, /DROP TRIGGER IF EXISTS trg_owner_single_session/);
+  assert.match(dropMigration, /DROP TRIGGER IF EXISTS trg_store_admin_single_session/);
+  assert.match(dropMigration, /DROP TRIGGER IF EXISTS trg_cashier_single_session/);
+  assert.doesNotMatch(dropMigration, /customer_sessions/, 'sesi pelanggan tidak pernah ikut aturan ini, jangan ikut disentuh');
+  // Guard antar tab tetap ada -- yang berubah dasarnya: identitas user, bukan
+  // jumlah tab. Dan tetap tanpa network polling (invariant CLAUDE.md #6).
   assert.match(lock, /lekerStaffBrowserLease/);
   assert.match(lock, /staffBlocked=1/);
   assert.match(lock, /setInterval/);
+  assert.match(lock, /leaseIsOtherUser/);
   assert.doesNotMatch(lock, /fetch\s*\(/);
 });
 

@@ -113,6 +113,49 @@ function mapLink(row) {
   };
 }
 
+// Bos Cyo, 2026-09-18: "kalo ada 1 nama coba login 2 akun, ini berlaku di
+// entity ya. misal ninda cs dermo usa login, kok ada lagi akun ca pendem
+// dengan nama ninda login, maka ini harus di tolak." Satu KARYAWAN (bukan
+// satu akun) tidak boleh aktif di lebih dari satu akun bersamaan, lintas
+// gerai dalam entity yang sama -- entity-wide otomatis di sini karena
+// employee_id sudah menjangkarkan seluruh tautan seorang karyawan ke SATU
+// entity (dijaga trg_employee_link_scope_insert, migration 0072), bukan
+// dibatasi ke satu gerai.
+//
+// Dipanggil dari src/unified-login.js SEBELUM sesi baru dibuat -- bukan
+// dengan mencabut sesi yang sudah aktif. Bos Cyo eksplisit: "yang paling
+// dipertahankan untuk tidak logout adalah akun yang lagi buka laci" --
+// jadi sesi yang sudah berjalan (mungkin lacinya sedang terbuka) TIDAK
+// PERNAH disentuh sama sekali; yang ditolak selalu percobaan login BARU.
+//
+// Cuma berlaku untuk akun yang benar-benar tertaut ke Master Karyawan
+// (employee_account_links) -- akun yang masih pakai "Nama karyawan" bebas
+// (belum ditautkan) tidak kena pagar ini, karena sistem tidak punya cara
+// yang bisa dipercaya untuk tahu itu orang yang sama atau cuma kebetulan
+// nama sama.
+export async function findEmployeeSessionConflict(db, accountType, accountId, nowIso) {
+  if (!ACCOUNT_SOURCES[accountType]) return null;
+  const row = await db.prepare(`
+    SELECT e.full_name AS employee_name,
+           l2.account_type AS conflict_account_type,
+           l2.account_id AS conflict_account_id,
+           s.code AS conflict_store_code,
+           s.store_name AS conflict_store_name
+    FROM employee_account_links l1
+    JOIN employees e ON e.id = l1.employee_id
+    JOIN employee_account_links l2 ON l2.employee_id = l1.employee_id AND l2.id <> l1.id AND l2.effective_to IS NULL
+    LEFT JOIN stores s ON s.id = l2.store_id
+    WHERE l1.account_type = ? AND l1.account_id = ? AND l1.effective_to IS NULL
+      AND (
+        (l2.account_type = 'CASHIER' AND EXISTS (SELECT 1 FROM cashier_sessions x WHERE x.cashier_id = l2.account_id AND x.expires_at > ?))
+        OR (l2.account_type = 'STORE_ADMIN' AND EXISTS (SELECT 1 FROM store_admin_sessions x WHERE x.admin_id = l2.account_id AND x.expires_at > ?))
+        OR (l2.account_type = 'ENTITY_ADMIN' AND EXISTS (SELECT 1 FROM entity_admin_sessions x WHERE x.entity_admin_id = l2.account_id AND x.expires_at > ?))
+      )
+    LIMIT 1
+  `).bind(accountType, accountId, nowIso, nowIso, nowIso).first();
+  return row || null;
+}
+
 async function selectedAdminStore(db, request) {
   const token = new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
   return resolveStore(db, token, { includeInactive: true });

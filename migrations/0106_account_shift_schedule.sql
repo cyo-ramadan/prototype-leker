@@ -32,11 +32,26 @@ CREATE TABLE IF NOT EXISTS account_shift_schedule (
 -- persis seperti perilaku lama (berlaku semua hari, tidak ada yang libur) --
 -- itu satu-satunya asumsi aman tanpa tahu hari kerja sungguhan yang
 -- dimaksud Admin waktu itu.
+--
+-- Ditulis sebagai 7 statement INSERT...SELECT terpisah (bukan CROSS JOIN ke
+-- satu subquery 7-term UNION ALL) -- versi UNION ALL sempat dicoba dan gagal
+-- di D1 remote sungguhan (lolos di tes lokal node:sqlite, TIDAK lolos di API
+-- D1 remote): "too many terms in compound SELECT: SQLITE_ERROR". Migration
+-- ini belum pernah applied di lingkungan manapun saat kegagalan itu terjadi
+-- (dicek ulang: tabel account_shift_schedule belum ada sama sekali di
+-- produksi), jadi memperbaiki file ini langsung bukan pelanggaran invariant
+-- "jangan menulis ulang migration yang sudah applied".
 INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
-SELECT j.account_type, j.account_id, d.day_of_week, 0, j.shift_start, j.shift_end
-FROM account_job_details j
-CROSS JOIN (
-  SELECT 0 AS day_of_week UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
-  UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6
-) d
-WHERE j.shift_start != '' OR j.shift_end != '';
+SELECT account_type, account_id, 0, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';
+INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+SELECT account_type, account_id, 1, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';
+INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+SELECT account_type, account_id, 2, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';
+INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+SELECT account_type, account_id, 3, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';
+INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+SELECT account_type, account_id, 4, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';
+INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+SELECT account_type, account_id, 5, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';
+INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+SELECT account_type, account_id, 6, 0, shift_start, shift_end FROM account_job_details WHERE shift_start != '' OR shift_end != '';

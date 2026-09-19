@@ -112,6 +112,9 @@
             <label class="admin-field">Kode Barang<input id="entityProductMasterCode" maxlength="40" required /></label>
             <label class="admin-field">Nama <span class="field-note">label internal, bukan nama tampil ke pelanggan</span><input id="entityProductMasterName" maxlength="100" /></label>
             <label class="admin-field">Foto <span class="field-note">optional</span><input id="entityProductMasterPhoto" type="file" accept="image/*" /></label>
+            <label class="admin-field">Resep acuan <span class="field-note">optional, murni referensi -- tidak pernah memblokir aktivasi gerai</span>
+              <textarea id="entityProductMasterRecipe" rows="3" placeholder="Satu bahan per baris, format: nama bahan | takaran (takaran opsional)"></textarea>
+            </label>
             <button class="primary-btn" type="submit">Upload Kode Barang</button>
           </form>
           <div class="admin-card list-card">
@@ -167,7 +170,7 @@
   </main>
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<script src="/entity-admin.js?v=20260919-upload-master-barang-entity-v1"></script>
+<script src="/entity-admin.js?v=20260919-upload-master-barang-entity-v2"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

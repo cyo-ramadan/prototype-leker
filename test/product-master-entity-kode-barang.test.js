@@ -409,6 +409,45 @@ test('edit nama/foto Kode Barang yang diupload langsung -- entity-wide only, fot
   }
 });
 
+// Bos Cyo, 2026-09-19: "jangan cuma 3 variable itu, tambahkan yang lain
+// seperti resep dsb" -- upload langsung dari Admin Entity boleh sekalian
+// isi resep acuan, tapi tetap murni referensi (ADR-043): tidak pernah
+// dipasang otomatis ke resep produksi gerai mana pun saat aktivasi, gerai
+// tanpa bahan lokal yang sama tetap harus bisa aktivasi.
+test('upload Kode Barang lewat Admin Entity boleh sekalian isi resep acuan -- tetap referensi murni, tidak memblokir aktivasi gerai tanpa bahan yang sama', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedOwnerToken(db);
+    const env = { DB: new D1Database(db) };
+
+    const uploadRes = await worker.fetch(request('/api/admin/product-masters', {
+      token, store: 'MANDALA', method: 'POST',
+      body: {
+        code: 'KODE-UPLOAD-RESEP',
+        name: 'Es Teh Poci',
+        recipeComponents: [
+          { ingredientLabel: 'Teh celup', quantityLabel: '1 kantong' },
+          { ingredientLabel: 'Gula', quantityLabel: '20 gram' }
+        ]
+      }
+    }), env);
+    assert.equal(uploadRes.status, 201);
+    const uploaded = await uploadRes.json();
+    const entry = uploaded.catalog.find(item => item.id === uploaded.id);
+    assert.deepEqual(entry.recipeReference.map(c => c.ingredientLabel), ['Teh celup', 'Gula']);
+
+    const activateRes = await worker.fetch(request(`/api/admin/product-masters/${uploaded.id}/activate`, {
+      token, store: 'MANDALA', method: 'POST', body: newProductBody()
+    }), env);
+    assert.equal(activateRes.status, 201, 'resep acuan yang diisi saat upload tidak boleh memblokir aktivasi');
+    const activated = await activateRes.json();
+    const activatedProduct = activated.editor.products.find(p => p.id === activated.id);
+    assert.equal(activatedProduct.linkedRecipeId, null, 'resep acuan tidak pernah otomatis dipasang jadi resep produksi gerai');
+  } finally {
+    db.close();
+  }
+});
+
 test('a product created without productCode behaves exactly as before this feature -- no Kode Barang, purely local', async () => {
   const db = migratedDatabase();
   try {

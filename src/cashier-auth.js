@@ -35,6 +35,66 @@ function jobTypeInput(value) {
   return text(value, 100);
 }
 
+// Bos Cyo, 2026-09-19: "untuk ganti konsep ga jadi deh, bener yang udah
+// jalan sekarang, tapi akunnya dibikin lebih detil aja misal jam kerja dan
+// hari kerja. jadi misal hari senin jam 9-18 sampai hari jumat sama, terus
+// sabtu libur, minggu jam 9-22." -- account_job_details.shift_start/shift_end
+// (migration 0104, satu jam untuk semua hari) digantikan account_shift_schedule
+// (migration 0106, 7 baris per akun). Kolom lama SENGAJA dibiarkan menganggur,
+// tidak dibaca/ditulis lagi mulai dari sini.
+function mapScheduleRow(row) {
+  return { dayOfWeek: row.day_of_week, isDayOff: Boolean(row.is_day_off), shiftStart: row.shift_start || '', shiftEnd: row.shift_end || '' };
+}
+
+// raw = satu entry body.schedule (bisa undefined kalau hari itu tidak
+// dikirim sama sekali). undefined/hari hilang = "belum diatur" (bukan
+// libur, bukan error) -- sengaja beda dari isDayOff supaya lateness tidak
+// diam-diam menganggap hari yang lupa diisi sebagai hari libur.
+function scheduleDayInput(raw) {
+  if (raw?.isDayOff) return { ok: true, value: { isDayOff: true, shiftStart: '', shiftEnd: '' } };
+  const shiftStart = shiftTimeInput(raw?.shiftStart ?? '');
+  if (shiftStart === undefined) return { ok: false, error: 'jam mulai kerja harus format HH:MM, mis. 08:00' };
+  const shiftEnd = shiftTimeInput(raw?.shiftEnd ?? '');
+  if (shiftEnd === undefined) return { ok: false, error: 'jam selesai kerja harus format HH:MM, mis. 16:00' };
+  return { ok: true, value: { isDayOff: false, shiftStart, shiftEnd } };
+}
+
+// body.schedule tidak dikirim sama sekali (mis. PATCH yang cuma ganti
+// password) -- jadwal lama (currentRows) dipertahankan utuh. body.schedule
+// DIKIRIM -- ganti ke-7 hari SEKALIGUS (bukan per-hari, beda dari field
+// lain di jobDetailInput yang bisa parsial), supaya tidak ada hari yang
+// nyangkut kombinasi lama+baru yang tidak pernah dimaksud Admin.
+function scheduleInput(body, currentRows) {
+  if (!owns(body, 'schedule')) return { ok: true, value: (currentRows ?? []).map(mapScheduleRow) };
+  const raw = Array.isArray(body.schedule) ? body.schedule : [];
+  const byDay = new Map(raw.map(item => [Number(item?.dayOfWeek), item]));
+  const value = [];
+  for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
+    const dayResult = scheduleDayInput(byDay.get(dayOfWeek));
+    if (!dayResult.ok) return { ok: false, error: `Jadwal hari ke-${dayOfWeek}: ${dayResult.error}` };
+    value.push({ dayOfWeek, ...dayResult.value });
+  }
+  return { ok: true, value };
+}
+
+export async function loadSchedule(db, accountId, accountType = 'CASHIER') {
+  const rows = await db.prepare(`
+    SELECT day_of_week, is_day_off, shift_start, shift_end
+    FROM account_shift_schedule WHERE account_type = ? AND account_id = ?
+    ORDER BY day_of_week
+  `).bind(accountType, accountId).all();
+  return rows.results ?? [];
+}
+
+async function upsertSchedule(db, accountId, days) {
+  await db.batch(days.map(day => db.prepare(`
+    INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+    VALUES ('CASHIER', ?, ?, ?, ?, ?)
+    ON CONFLICT (account_type, account_id, day_of_week) DO UPDATE SET
+      is_day_off = excluded.is_day_off, shift_start = excluded.shift_start, shift_end = excluded.shift_end
+  `).bind(accountId, day.dayOfWeek, day.isDayOff ? 1 : 0, day.shiftStart, day.shiftEnd)));
+}
+
 // Bos Cyo, 2026-09-19: "settingan gaji itu ditambahin juga ya jenis
 // pembayarannya bisa per sesi bisa per jam jadi nanti dibuat model
 // dropdown" -- lihat migration 0105. 'JAM' = hourlyWage tarif per jam
@@ -50,44 +110,41 @@ function paymentTypeInput(value) {
 // baru, detail opsional) dan PATCH (ubah detail, tiap field opsional, field
 // yang tidak dikirim tidak disentuh). `current` adalah baris account_job_details
 // yang sudah ada (null saat POST) supaya PATCH sebagian bisa mewarisi nilai lama.
+// shiftStart/shiftEnd TIDAK lagi di sini sejak migration 0106 -- jam kerja
+// pindah ke account_shift_schedule (7 hari, lihat scheduleInput di atas).
 function jobDetailInput(body, current) {
   const hourlyWageRaw = owns(body, 'hourlyWage') ? body.hourlyWage : (current ? current.hourly_wage_scaled / WAGE_SCALE : 0);
-  const shiftStartRaw = owns(body, 'shiftStart') ? body.shiftStart : (current?.shift_start ?? '');
-  const shiftEndRaw = owns(body, 'shiftEnd') ? body.shiftEnd : (current?.shift_end ?? '');
   const jobTypeRaw = owns(body, 'jobType') ? body.jobType : (current?.job_type ?? '');
   const paymentTypeRaw = owns(body, 'paymentType') ? body.paymentType : (current?.payment_type ?? 'JAM');
 
   const hourlyWageScaled = hourlyWageInput(hourlyWageRaw);
   if (hourlyWageScaled === undefined) return { ok: false, error: 'Gaji harus angka rupiah yang wajar.' };
-  const shiftStart = shiftTimeInput(shiftStartRaw);
-  if (shiftStart === undefined) return { ok: false, error: 'Jam mulai kerja harus format HH:MM, mis. 08:00.' };
-  const shiftEnd = shiftTimeInput(shiftEndRaw);
-  if (shiftEnd === undefined) return { ok: false, error: 'Jam selesai kerja harus format HH:MM, mis. 16:00.' };
   const paymentType = paymentTypeInput(paymentTypeRaw);
   if (paymentType === undefined) return { ok: false, error: 'Jenis pembayaran harus JAM atau SESI.' };
 
-  return { ok: true, value: { hourlyWageScaled, shiftStart, shiftEnd, jobType: jobTypeInput(jobTypeRaw), paymentType } };
+  return { ok: true, value: { hourlyWageScaled, jobType: jobTypeInput(jobTypeRaw), paymentType } };
 }
 
 export async function loadJobDetail(db, accountId, accountType = 'CASHIER') {
   return db.prepare(`
-    SELECT hourly_wage_scaled, shift_start, shift_end, job_type, payment_type
+    SELECT hourly_wage_scaled, job_type, payment_type
     FROM account_job_details WHERE account_type = ? AND account_id = ?
   `).bind(accountType, accountId).first();
 }
 
+// shift_start/shift_end TIDAK disentuh sama sekali di sini -- dibiarkan
+// menganggur di nilai lama (atau default '' kolom untuk baris baru),
+// menang tidak dibaca lagi mulai migration 0106.
 async function upsertJobDetail(db, accountId, detail) {
   await db.prepare(`
-    INSERT INTO account_job_details (account_type, account_id, hourly_wage_scaled, shift_start, shift_end, job_type, payment_type, updated_at)
-    VALUES ('CASHIER', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO account_job_details (account_type, account_id, hourly_wage_scaled, job_type, payment_type, updated_at)
+    VALUES ('CASHIER', ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT (account_type, account_id) DO UPDATE SET
       hourly_wage_scaled = excluded.hourly_wage_scaled,
-      shift_start = excluded.shift_start,
-      shift_end = excluded.shift_end,
       job_type = excluded.job_type,
       payment_type = excluded.payment_type,
       updated_at = CURRENT_TIMESTAMP
-  `).bind(accountId, detail.hourlyWageScaled, detail.shiftStart, detail.shiftEnd, detail.jobType, detail.paymentType).run();
+  `).bind(accountId, detail.hourlyWageScaled, detail.jobType, detail.paymentType).run();
 }
 
 // Presensi masuk/keluar dianggap toggle state, bukan penanda per-hari-kalender
@@ -102,7 +159,7 @@ export async function latestAttendanceStatus(db, cashierId) {
   return row ? 'in' : 'out';
 }
 
-function mapCashier(row) {
+function mapCashier(row, schedule = []) {
   return row ? {
     id: row.id,
     username: row.username,
@@ -114,10 +171,9 @@ function mapCashier(row) {
       storeName: row.store_name
     },
     hourlyWage: Number(row.hourly_wage_scaled || 0) / WAGE_SCALE,
-    shiftStart: row.shift_start || '',
-    shiftEnd: row.shift_end || '',
     jobType: row.job_type || '',
-    paymentType: row.payment_type || 'JAM'
+    paymentType: row.payment_type || 'JAM',
+    schedule
   } : null;
 }
 
@@ -251,14 +307,27 @@ export async function handleAdminCashierApi(request, env, pathname) {
     const rows = await db.prepare(`
       SELECT c.id, c.username, c.employee_name, c.is_active,
              s.id AS store_id, s.code AS store_code, s.store_name,
-             j.hourly_wage_scaled, j.shift_start, j.shift_end, j.job_type, j.payment_type
+             j.hourly_wage_scaled, j.job_type, j.payment_type
       FROM cashiers c
       JOIN stores s ON s.id = c.store_id
       LEFT JOIN account_job_details j ON j.account_type = 'CASHIER' AND j.account_id = c.id
       WHERE c.store_id = ?
       ORDER BY c.employee_name COLLATE NOCASE
     `).bind(store.id).all();
-    return json({ cashiers: (rows.results ?? []).map(mapCashier), store });
+    const cashiers = rows.results ?? [];
+    const scheduleByAccount = new Map();
+    if (cashiers.length) {
+      const scheduleRows = await db.prepare(`
+        SELECT account_id, day_of_week, is_day_off, shift_start, shift_end
+        FROM account_shift_schedule
+        WHERE account_type = 'CASHIER' AND account_id IN (${cashiers.map(() => '?').join(',')})
+      `).bind(...cashiers.map(cashier => cashier.id)).all();
+      for (const row of scheduleRows.results ?? []) {
+        if (!scheduleByAccount.has(row.account_id)) scheduleByAccount.set(row.account_id, []);
+        scheduleByAccount.get(row.account_id).push(mapScheduleRow(row));
+      }
+    }
+    return json({ cashiers: cashiers.map(row => mapCashier(row, scheduleByAccount.get(row.id) ?? [])), store });
   }
 
   if (request.method === 'POST' && pathname === '/api/admin/cashiers') {
@@ -272,6 +341,8 @@ export async function handleAdminCashierApi(request, env, pathname) {
     }
     const detail = jobDetailInput(body.value ?? {}, null);
     if (!detail.ok) return json({ error: detail.error }, 400);
+    const schedule = scheduleInput(body.value ?? {}, null);
+    if (!schedule.ok) return json({ error: schedule.error }, 400);
     const duplicate = await db.prepare('SELECT id FROM cashiers WHERE username = ? COLLATE NOCASE').bind(username).first();
     if (duplicate) return json({ error: 'Username kasir sudah dipakai.' }, 409);
     const id = `cashier_${crypto.randomUUID()}`;
@@ -280,6 +351,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).bind(id, username, await hashCredential(password), employeeName, store.id).run();
     await upsertJobDetail(db, id, detail.value);
+    await upsertSchedule(db, id, schedule.value);
     return json({ ok: true, id }, 201);
   }
 
@@ -302,6 +374,9 @@ export async function handleAdminCashierApi(request, env, pathname) {
     const currentDetail = await loadJobDetail(db, id);
     const detail = jobDetailInput(body.value ?? {}, currentDetail);
     if (!detail.ok) return json({ error: detail.error }, 400);
+    const currentSchedule = await loadSchedule(db, id);
+    const schedule = scheduleInput(body.value ?? {}, currentSchedule);
+    if (!schedule.ok) return json({ error: schedule.error }, 400);
     const duplicate = await db.prepare('SELECT id FROM cashiers WHERE username = ? COLLATE NOCASE AND id <> ?').bind(username, id).first();
     if (duplicate) return json({ error: 'Username kasir sudah dipakai.' }, 409);
 
@@ -313,6 +388,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
         .bind(username, employeeName, isActive, id, store.id).run();
     }
     await upsertJobDetail(db, id, detail.value);
+    await upsertSchedule(db, id, schedule.value);
     await db.prepare('DELETE FROM cashier_sessions WHERE cashier_id = ?').bind(id).run();
     return json({ ok: true });
   }

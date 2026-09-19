@@ -1,8 +1,8 @@
 import { json } from './http.js';
-import { requireCashier, latestAttendanceStatus, loadJobDetail, WAGE_SCALE } from './cashier-auth.js';
+import { requireCashier, latestAttendanceStatus, loadJobDetail, loadSchedule, WAGE_SCALE } from './cashier-auth.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { getCashierRaportFacts } from './staff-raport.js';
-import { getJakartaBusinessDate, getJakartaTimeOfDay, timeOfDayToMinutes } from './time.js';
+import { getJakartaBusinessDate, getJakartaTimeOfDay, getJakartaDayOfWeek, timeOfDayToMinutes } from './time.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -10,17 +10,26 @@ const coord = value => {
   return Number.isFinite(number) ? number : null;
 };
 
+function scheduleMap(scheduleRows) {
+  return new Map((scheduleRows || []).map(row => [row.day_of_week, row]));
+}
+
 // Bos Cyo, 2026-09-19: "itu uda ada setting masuk dan pulang jm brp kn. nah
-// brarti ud bs tahu keterlambatannya." -- shift_start (account_job_details,
-// migration 0104) dibandingkan ke jam presensi MASUK, keduanya jam dinding
-// Jakarta (bukan UTC). null = shift_start belum diisi Admin, tidak bisa
-// dinilai telat/tidak. 0 atau negatif = tepat waktu/lebih awal. Cuma
-// dibandingkan jam-menit di hari yang sama -- shift lintas tengah malam
-// (mis. shift 3 mulai 23:00) sengaja tidak dihitung cross-day, kasus langka
-// dan tidak diminta Bos Cyo.
-function computeLateMinutes(checkInAt, shiftStart) {
-  if (!checkInAt || !shiftStart) return null;
-  const shiftMinutes = timeOfDayToMinutes(shiftStart);
+// brarti ud bs tahu keterlambatannya" -- lalu diperluas: "akunnya dibikin
+// lebih detil aja misal jam kerja dan hari kerja ... senin jam 9-18 sampai
+// jumat sama, sabtu libur, minggu jam 9-22." Jadwal per hari (account_shift_
+// schedule, migration 0106) dicocokkan ke HARI presensi MASUK (jam dinding
+// Jakarta, bukan UTC hari kalender UTC yang bisa beda dekat tengah malam).
+// null = hari itu libur ATAU belum diatur Admin sama sekali -- tidak bisa
+// dinilai telat/tidak, BUKAN otomatis dianggap tepat waktu. 0/negatif =
+// tepat waktu/lebih awal. Cuma dibandingkan jam-menit di hari yang sama --
+// shift lintas tengah malam (mis. shift 3 mulai 23:00) sengaja tidak
+// dihitung cross-day, kasus langka dan tidak diminta Bos Cyo.
+function computeLateMinutes(checkInAt, scheduleByDay) {
+  if (!checkInAt) return null;
+  const day = scheduleByDay.get(getJakartaDayOfWeek(new Date(checkInAt)));
+  if (!day || day.is_day_off || !day.shift_start) return null;
+  const shiftMinutes = timeOfDayToMinutes(day.shift_start);
   if (shiftMinutes === null) return null;
   const checkInMinutes = timeOfDayToMinutes(getJakartaTimeOfDay(new Date(checkInAt)));
   return Math.max(0, checkInMinutes - shiftMinutes);
@@ -32,7 +41,7 @@ function computeLateMinutes(checkInAt, shiftStart) {
 // fakta presensi PULANG pada baris yang sama. Baris lama dari sebelum
 // migration ini (attendance_type='out' tanpa presensi masuk yang tercatat di
 // baris yang sama) ditampilkan sebagai checkOut saja, checkIn null.
-function mapAttendance(row, shiftStart) {
+function mapAttendance(row, scheduleByDay = new Map()) {
   const singlePhotoFact = {
     at: row.created_at,
     photoType: row.photo_type,
@@ -47,7 +56,7 @@ function mapAttendance(row, shiftStart) {
     userId: row.user_id,
     storeId: row.store_id,
     status: row.status,
-    checkIn: checkIn ? { ...checkIn, lateMinutes: computeLateMinutes(checkIn.at, shiftStart) } : null,
+    checkIn: checkIn ? { ...checkIn, lateMinutes: computeLateMinutes(checkIn.at, scheduleByDay) } : null,
     checkOut: hasCheckOut ? {
       at: row.check_out_at,
       photoType: row.check_out_photo_type,
@@ -58,13 +67,13 @@ function mapAttendance(row, shiftStart) {
   };
 }
 
-async function listAttendance(db, userId, shiftStart, limit = 60) {
+async function listAttendance(db, userId, scheduleByDay, limit = 60) {
   const rows = await db.prepare(`
     SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
            status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
     FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
   `).bind(userId, limit).all();
-  return (rows.results || []).map(row => mapAttendance(row, shiftStart));
+  return (rows.results || []).map(row => mapAttendance(row, scheduleByDay));
 }
 
 // Bos Cyo, 2026-09-19: "pendapatan gaji perharinya harusnya juga masukin ke
@@ -113,7 +122,8 @@ export async function handleStaffPortalApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/staff/portal') {
     const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
-    const attendance = await listAttendance(env.DB, auth.cashier.id, jobDetail?.shift_start || '');
+    const scheduleByDay = scheduleMap(await loadSchedule(env.DB, auth.cashier.id));
+    const attendance = await listAttendance(env.DB, auth.cashier.id, scheduleByDay);
     return json({
       staff: { userId: auth.cashier.id, username: auth.cashier.username, employeeName: auth.cashier.employeeName, store: auth.cashier.store },
       attendance,

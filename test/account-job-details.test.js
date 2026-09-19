@@ -91,22 +91,19 @@ test('detail jabatan (gaji/jam/jenis pekerjaan) tersimpan saat membuat kasir bar
 
     const created = await (await cashierCall(env, '/api/admin/cashiers', {
       token, store: 'PENDEM', method: 'POST',
-      body: { username: 'kasir_shift1', password: 'rahasia1', employeeName: 'Slot Shift 1', jobType: 'Kasir Shift Pagi', hourlyWage: 15000, shiftStart: '08:00', shiftEnd: '16:00' }
+      body: { username: 'kasir_shift1', password: 'rahasia1', employeeName: 'Slot Shift 1', jobType: 'Kasir Shift Pagi', hourlyWage: 15000 }
     })).json();
     assert.ok(created.id);
 
     // Tersimpan sebagai scaled integer (CLAUDE.md invariant #1), bukan float.
-    const row = sqlite.prepare(`SELECT hourly_wage_scaled, shift_start, shift_end, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
+    const row = sqlite.prepare(`SELECT hourly_wage_scaled, shift_start, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
     assert.equal(row.hourly_wage_scaled, 15000 * 1_000_000);
-    assert.equal(row.shift_start, '08:00');
-    assert.equal(row.shift_end, '16:00');
+    assert.equal(row.shift_start, '', 'kolom shift_start lama (migration 0104) dibiarkan menganggur -- jam kerja sekarang di account_shift_schedule');
     assert.equal(row.job_type, 'Kasir Shift Pagi');
 
     const list = await (await cashierCall(env, '/api/admin/cashiers', { token, store: 'PENDEM' })).json();
     const cashier = list.cashiers.find(c => c.id === created.id);
     assert.equal(cashier.hourlyWage, 15000, 'kembali ke rupiah biasa di response, bukan angka scaled mentah');
-    assert.equal(cashier.shiftStart, '08:00');
-    assert.equal(cashier.shiftEnd, '16:00');
     assert.equal(cashier.jobType, 'Kasir Shift Pagi');
   } finally { sqlite.close(); }
 });
@@ -122,9 +119,8 @@ test('kasir baru tanpa detail jabatan sah -- default kosong/nol', async () => {
       body: { username: 'kasir_polos', password: 'rahasia1', employeeName: 'Kasir Polos' }
     })).json();
 
-    const row = sqlite.prepare(`SELECT hourly_wage_scaled, shift_start, shift_end, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
+    const row = sqlite.prepare(`SELECT hourly_wage_scaled, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
     assert.equal(row.hourly_wage_scaled, 0);
-    assert.equal(row.shift_start, '');
     assert.equal(row.job_type, '');
   } finally { sqlite.close(); }
 });
@@ -141,13 +137,12 @@ test('detail jabatan bisa diedit lewat PATCH tanpa mengubah identitas akun', asy
 
     const patched = await cashierCall(env, `/api/admin/cashiers/${created.id}`, {
       token, store: 'PENDEM', method: 'PATCH',
-      body: { jobType: 'Kasir Shift Sore', hourlyWage: 17500, shiftStart: '14:00', shiftEnd: '22:00' }
+      body: { jobType: 'Kasir Shift Sore', hourlyWage: 17500 }
     });
     assert.equal(patched.status, 200);
 
-    const row = sqlite.prepare(`SELECT hourly_wage_scaled, shift_start, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
+    const row = sqlite.prepare(`SELECT hourly_wage_scaled, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
     assert.equal(row.hourly_wage_scaled, 17500 * 1_000_000);
-    assert.equal(row.shift_start, '14:00');
     assert.equal(row.job_type, 'Kasir Shift Sore');
 
     const account = sqlite.prepare('SELECT username, employee_name FROM cashiers WHERE id = ?').get(created.id);
@@ -163,31 +158,23 @@ test('PATCH detail sebagian -- field yang tidak dikirim tidak ikut berubah', asy
     const token = await storeAdminToken(sqlite, 'admin_pendem_pilot');
     const created = await (await cashierCall(env, '/api/admin/cashiers', {
       token, store: 'PENDEM', method: 'POST',
-      body: { username: 'kasir_shift1', password: 'rahasia1', employeeName: 'Slot Shift 1', jobType: 'Kasir', hourlyWage: 15000, shiftStart: '08:00', shiftEnd: '16:00' }
+      body: { username: 'kasir_shift1', password: 'rahasia1', employeeName: 'Slot Shift 1', jobType: 'Kasir', hourlyWage: 15000 }
     })).json();
 
-    // Cuma ganti gaji -- jam dan jenis pekerjaan tidak dikirim sama sekali.
+    // Cuma ganti gaji -- jenis pekerjaan tidak dikirim sama sekali.
     await cashierCall(env, `/api/admin/cashiers/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { hourlyWage: 20000 } });
 
-    const row = sqlite.prepare(`SELECT hourly_wage_scaled, shift_start, shift_end, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
+    const row = sqlite.prepare(`SELECT hourly_wage_scaled, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
     assert.equal(row.hourly_wage_scaled, 20000 * 1_000_000);
-    assert.equal(row.shift_start, '08:00', 'jam mulai yang tidak dikirim harus tetap seperti sebelumnya');
-    assert.equal(row.shift_end, '16:00');
-    assert.equal(row.job_type, 'Kasir');
+    assert.equal(row.job_type, 'Kasir', 'jenis pekerjaan yang tidak dikirim harus tetap seperti sebelumnya');
   } finally { sqlite.close(); }
 });
 
-test('detail jabatan ditolak kalau format jam salah atau gaji negatif/kelewat besar', async () => {
+test('detail jabatan ditolak kalau gaji negatif/kelewat besar', async () => {
   const sqlite = freshDatabase();
   try {
     const env = { DB: d1(sqlite) };
     const token = await storeAdminToken(sqlite, 'admin_pendem_pilot');
-
-    const badTime = await cashierCall(env, '/api/admin/cashiers', {
-      token, store: 'PENDEM', method: 'POST',
-      body: { username: 'kasir_a', password: 'rahasia1', employeeName: 'A', shiftStart: '25:99' }
-    });
-    assert.equal(badTime.status, 400);
 
     const badWage = await cashierCall(env, '/api/admin/cashiers', {
       token, store: 'PENDEM', method: 'POST',
@@ -201,8 +188,8 @@ test('detail jabatan ditolak kalau format jam salah atau gaji negatif/kelewat be
     });
     assert.equal(tooBig.status, 400);
 
-    // Ketiganya ditolak -- pastikan tidak ada akun kasir nyangkut setengah jalan.
-    const count = sqlite.prepare(`SELECT COUNT(*) AS n FROM cashiers WHERE username IN ('kasir_a','kasir_b','kasir_c')`).get();
+    // Dua-duanya ditolak -- pastikan tidak ada akun kasir nyangkut setengah jalan.
+    const count = sqlite.prepare(`SELECT COUNT(*) AS n FROM cashiers WHERE username IN ('kasir_b','kasir_c')`).get();
     assert.equal(count.n, 0);
   } finally { sqlite.close(); }
 });
@@ -215,7 +202,7 @@ test('detail jabatan menempel ke AKUN, bertahan walau akun dioper ke karyawan la
 
     const created = await (await cashierCall(env, '/api/admin/cashiers', {
       token, store: 'PENDEM', method: 'POST',
-      body: { username: 'kasir_shift1', password: 'rahasia1', employeeName: 'Slot Shift 1', jobType: 'Kasir Shift Pagi', hourlyWage: 15000, shiftStart: '08:00', shiftEnd: '16:00' }
+      body: { username: 'kasir_shift1', password: 'rahasia1', employeeName: 'Slot Shift 1', jobType: 'Kasir Shift Pagi', hourlyWage: 15000, schedule: [{ dayOfWeek: 1, shiftStart: '08:00', shiftEnd: '16:00' }] }
     })).json();
 
     const ani = await (await employeeCall(env, '/api/admin/employees', { token, store: 'PENDEM', method: 'POST', body: { fullName: 'Ani' } })).json();
@@ -228,18 +215,18 @@ test('detail jabatan menempel ke AKUN, bertahan walau akun dioper ke karyawan la
     const budi = await (await employeeCall(env, '/api/admin/employees', { token, store: 'PENDEM', method: 'POST', body: { fullName: 'Budi' } })).json();
     await employeeCall(env, `/api/admin/employees/${budi.id}/links`, { token, store: 'PENDEM', method: 'POST', body: { accountType: 'CASHIER', accountId: created.id } });
 
-    const row = sqlite.prepare(`SELECT hourly_wage_scaled, shift_start, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
+    const row = sqlite.prepare(`SELECT hourly_wage_scaled, job_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?`).get(created.id);
     assert.equal(row.hourly_wage_scaled, 15000 * 1_000_000, 'gaji jabatan tidak ikut ter-reset waktu pemegangnya berganti');
-    assert.equal(row.shift_start, '08:00');
     assert.equal(row.job_type, 'Kasir Shift Pagi');
+    const scheduleRow = sqlite.prepare(`SELECT shift_start, shift_end FROM account_shift_schedule WHERE account_id = ? AND day_of_week = 1`).get(created.id);
+    assert.equal(scheduleRow.shift_start, '08:00', 'jadwal jabatan juga tidak ikut ter-reset waktu pemegangnya berganti');
   } finally { sqlite.close(); }
 });
 
 test('UI Master Kasir menyediakan input detail jabatan, dan tab Karyawan tidak lagi punya input detail shift', () => {
   assert.match(cashierAdminUi, /cashierJobType/);
   assert.match(cashierAdminUi, /cashierHourlyWage/);
-  assert.match(cashierAdminUi, /cashierShiftStart/);
-  assert.match(cashierAdminUi, /cashierShiftEnd/);
+  assert.match(cashierAdminUi, /cashierScheduleRows/);
 
   assert.doesNotMatch(employeeAdminUi, /data-new-link-job|data-new-link-wage|data-detail-edit|data-detail-save|hourlyWage|shiftStart|shiftEnd|jobType/, 'tab Karyawan murni identitas orang, tidak boleh lagi punya input detail jabatan');
 });

@@ -105,12 +105,22 @@
       </section>
 
       <section id="entityTab-productmasters" class="admin-section">
-        <div class="admin-card">
-          <div class="list-head">
-            <div><h2>Master Barang Entity</h2><div class="muted">Barang yang punya Kode Barang bisa dipakai gerai mana pun di entity ini lewat "Gunakan/Aktifkan" dari Admin Gerai masing-masing. Aktivasi per gerai tetap dilakukan dari Admin Gerai (butuh konteks harga/kategori gerai itu sendiri) -- di sini murni untuk melihat semua Kode Barang entity ini dan gerai mana saja yang sudah pakai.</div></div>
-            <button id="entityProductMasterRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+        <div class="admin-grid two" style="align-items:start">
+          <form id="entityProductMasterForm" class="admin-card">
+            <h2>Upload Kode Barang baru</h2>
+            <div class="muted" style="margin-bottom:10px">Didaftarkan langsung dari sini, gerai mana pun di entity ini (termasuk gerai yang belum punya barang sama sekali) bisa langsung "Gunakan/Aktifkan" dari Admin Gerai masing-masing -- tidak perlu ada barang lokal dulu.</div>
+            <label class="admin-field">Kode Barang<input id="entityProductMasterCode" maxlength="40" required /></label>
+            <label class="admin-field">Nama <span class="field-note">label internal, bukan nama tampil ke pelanggan</span><input id="entityProductMasterName" maxlength="100" /></label>
+            <label class="admin-field">Foto <span class="field-note">optional</span><input id="entityProductMasterPhoto" type="file" accept="image/*" /></label>
+            <button class="primary-btn" type="submit">Upload Kode Barang</button>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head">
+              <div><h2>Master Barang Entity</h2><div class="muted">Aktivasi per gerai tetap dilakukan dari Admin Gerai (butuh konteks harga/kategori gerai itu sendiri) -- di sini murni untuk upload/koreksi Kode Barang dan melihat gerai mana saja yang sudah pakai.</div></div>
+              <button id="entityProductMasterRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+            </div>
+            <div id="entityProductMasterList" class="master-list" style="margin-top:12px"></div>
           </div>
-          <div id="entityProductMasterList" class="master-list" style="margin-top:12px"></div>
         </div>
       </section>
 
@@ -157,7 +167,7 @@
   </main>
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<script src="/entity-admin.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
+<script src="/entity-admin.js?v=20260919-upload-master-barang-entity-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

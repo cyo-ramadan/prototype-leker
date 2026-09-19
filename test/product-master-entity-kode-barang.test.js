@@ -51,6 +51,16 @@ async function seedOwnerToken(db) {
   return token;
 }
 
+// admin_mandala_pilot didaftarkan migration 0054 -- Admin Gerai biasa
+// (bukan entity-wide), dipakai buat membuktikan upload langsung ditolak
+// dari peran ini.
+async function seedStoreAdminToken(db, adminId) {
+  const token = `admin-${adminId}`;
+  const tokenHash = await hashCredential(token);
+  db.prepare(`INSERT INTO store_admin_sessions (token_hash, admin_id, created_at, expires_at) VALUES (?, ?, '2026-09-19T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`).run(tokenHash, adminId);
+  return token;
+}
+
 function request(pathname, { token, store, method = 'GET', body } = {}) {
   const url = new URL(`https://example.test${pathname}`);
   if (store) url.searchParams.set('store', store);
@@ -275,6 +285,125 @@ test('resep acuan (recipe reference) can be set on a Kode Barang and never block
     const pendemProduct = activated.editor.products.find(p => p.id === activated.id);
     assert.equal(pendemProduct.linkedRecipeId, null);
     assert.equal(pendemProduct.recipeLinkEnabled, false);
+  } finally {
+    db.close();
+  }
+});
+
+// Bos Cyo, 2026-09-19: "mandala itu mau liat barang entity aja ga bisa, jadi
+// maunya kan nanti aktifin dari entity ... bikin sistem upload barang lewat
+// admin entity dan uploadnya juga di master barang entity ya" -- sebelum ini
+// satu-satunya jalan bikin Kode Barang adalah nebeng field "Kode Barang" saat
+// SATU gerai bikin barangnya sendiri. MANDALA di data sungguhan tidak punya
+// barang sama sekali, jadi tidak pernah bisa jadi gerai pertama yang
+// mendaftarkan Kode Barang -- makanya perlu jalur top-down ini.
+test('Entity Admin/Owner upload Kode Barang langsung dari Admin Entity, tanpa perlu barang lokal lebih dulu -- gerai kosong sama sekali (kasus Mandala) tetap bisa langsung aktifkan', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedOwnerToken(db);
+    const env = { DB: new D1Database(db) };
+
+    const zeroProductsBefore = db.prepare('SELECT COUNT(*) AS n FROM products WHERE store_id = ?').get('store_mandala');
+    assert.equal(zeroProductsBefore.n, 0, 'prasyarat kasus ini: gerai belum punya barang lokal sama sekali');
+
+    const uploadRes = await worker.fetch(request('/api/admin/product-masters', {
+      token, store: 'MANDALA', method: 'POST',
+      body: { code: 'KODE-UPLOAD-ENTITY', name: 'Es Teh Poci (upload entity)' }
+    }), env);
+    assert.equal(uploadRes.status, 201);
+    const uploaded = await uploadRes.json();
+    assert.ok(uploaded.id);
+
+    const master = db.prepare('SELECT entity_id, code, name FROM product_masters WHERE id = ?').get(uploaded.id);
+    assert.equal(master.code, 'KODE-UPLOAD-ENTITY');
+    const store = db.prepare('SELECT entity_id FROM stores WHERE code = ?').get('MANDALA');
+    assert.equal(master.entity_id, store.entity_id);
+
+    const catalogRes = await worker.fetch(request('/api/admin/product-masters', { token, store: 'MANDALA' }), env);
+    const catalog = (await catalogRes.json()).catalog;
+    assert.ok(catalog.find(entry => entry.id === uploaded.id), 'gerai yang sama harus langsung melihat Kode Barang yang baru diupload');
+
+    const activateRes = await worker.fetch(request(`/api/admin/product-masters/${uploaded.id}/activate`, {
+      token, store: 'MANDALA', method: 'POST', body: newProductBody({ name: 'Es Teh Poci Mandala' })
+    }), env);
+    assert.equal(activateRes.status, 201, 'gerai yang tadinya nol barang harus tetap bisa aktivasi dari katalog entity');
+    const activated = await activateRes.json();
+    assert.equal(activated.editor.products.find(p => p.id === activated.id).name, 'Es Teh Poci Mandala');
+  } finally {
+    db.close();
+  }
+});
+
+test('upload Kode Barang lewat Admin Entity ditolak untuk Admin Gerai biasa (bukan entity-wide)', async () => {
+  const db = migratedDatabase();
+  try {
+    const adminToken = await seedStoreAdminToken(db, 'admin_mandala_pilot');
+    const env = { DB: new D1Database(db) };
+
+    const res = await worker.fetch(request('/api/admin/product-masters', {
+      token: adminToken, store: 'MANDALA', method: 'POST', body: { code: 'KODE-DITOLAK', name: 'Coba dari Admin Gerai' }
+    }), env);
+    assert.equal(res.status, 403);
+    assert.equal((await res.json()).code, 'ENTITY_LEVEL_ONLY');
+  } finally {
+    db.close();
+  }
+});
+
+test('upload Kode Barang lewat Admin Entity ditolak kalau kodenya sudah dipakai di entity itu', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedOwnerToken(db);
+    const env = { DB: new D1Database(db) };
+
+    await worker.fetch(request('/api/admin/product-masters', {
+      token, store: 'KANTOR', method: 'POST', body: { code: 'KODE-UPLOAD-DUPE' }
+    }), env);
+    const dupeRes = await worker.fetch(request('/api/admin/product-masters', {
+      token, store: 'PENDEM', method: 'POST', body: { code: 'KODE-UPLOAD-DUPE' }
+    }), env);
+    assert.equal(dupeRes.status, 409);
+    assert.equal((await dupeRes.json()).code, 'PRODUCT_CODE_ALREADY_EXISTS');
+  } finally {
+    db.close();
+  }
+});
+
+test('edit nama/foto Kode Barang yang diupload langsung -- entity-wide only, foto ikut tersebar ke gerai yang sudah aktivasi', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedOwnerToken(db);
+    const adminToken = await seedStoreAdminToken(db, 'admin_mandala_pilot');
+    const env = { DB: new D1Database(db) };
+    const image = 'data:image/png;base64,BBBB';
+
+    const uploadRes = await worker.fetch(request('/api/admin/product-masters', {
+      token, store: 'MANDALA', method: 'POST', body: { code: 'KODE-EDIT-ENTITY', name: 'Nama awal' }
+    }), env);
+    const uploaded = await uploadRes.json();
+
+    const forbidden = await worker.fetch(request(`/api/admin/product-masters/${uploaded.id}`, {
+      token: adminToken, store: 'MANDALA', method: 'PATCH', body: { name: 'Coba dari Admin Gerai' }
+    }), env);
+    assert.equal(forbidden.status, 403);
+    assert.equal((await forbidden.json()).code, 'ENTITY_LEVEL_ONLY');
+
+    const activateRes = await worker.fetch(request(`/api/admin/product-masters/${uploaded.id}/activate`, {
+      token, store: 'MANDALA', method: 'POST', body: newProductBody()
+    }), env);
+    const activated = await activateRes.json();
+
+    const editRes = await worker.fetch(request(`/api/admin/product-masters/${uploaded.id}`, {
+      token, store: 'MANDALA', method: 'PATCH', body: { name: 'Nama diperbaiki', imageData: image }
+    }), env);
+    assert.equal(editRes.status, 200);
+
+    const master = db.prepare('SELECT name, image_data FROM product_masters WHERE id = ?').get(uploaded.id);
+    assert.equal(master.name, 'Nama diperbaiki');
+    assert.equal(master.image_data, image);
+
+    const activatedProduct = db.prepare('SELECT image_data FROM products WHERE id = ?').get(activated.id);
+    assert.equal(activatedProduct.image_data, image, 'foto Kode Barang menyebar ke barang yang sudah aktivasi di gerai mana pun');
   } finally {
     db.close();
   }

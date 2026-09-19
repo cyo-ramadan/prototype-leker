@@ -88,6 +88,75 @@ function anyEntityStoreCode() {
 
 // --- Master Barang Entity -------------------------------------------------
 
+// Kompresi foto sebelum dikirim -- sama persis pola imageFileToDataUrl di
+// admin.js (maxSide 800, quality .76 dipakai buat foto barang di sana),
+// diduplikasi kecil di sini karena entity-admin.html tidak memuat admin.js.
+async function entityProductMasterImageToDataUrl(file) {
+  if (!file) return '';
+  if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar.');
+  const source = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Gagal membaca gambar.'));
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Gambar tidak bisa dibuka.'));
+    img.src = source;
+  });
+  const maxSide = 800;
+  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', 0.76);
+}
+
+async function submitEntityProductMasterForm(event) {
+  event.preventDefault();
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) return entityAdminToast('Belum ada gerai di entity ini.');
+  try {
+    const photoFile = entityAdminEl('entityProductMasterPhoto').files[0];
+    const imageDataUrl = photoFile ? await entityProductMasterImageToDataUrl(photoFile) : '';
+    await entityAdminApi(`/api/admin/product-masters?store=${encodeURIComponent(storeCode)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: entityAdminEl('entityProductMasterCode').value,
+        name: entityAdminEl('entityProductMasterName').value,
+        imageData: imageDataUrl
+      })
+    });
+    entityAdminEl('entityProductMasterForm').reset();
+    await loadEntityProductMasters();
+    entityAdminToast('Kode Barang diupload');
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function editEntityProductMaster(masterId) {
+  const entry = (entityAdminState.productMasters || []).find(item => item.id === masterId);
+  if (!entry) return;
+  const name = prompt('Nama (label internal):', entry.name || '');
+  if (name === null) return;
+  const storeCode = anyEntityStoreCode();
+  try {
+    await entityAdminApi(`/api/admin/product-masters/${encodeURIComponent(masterId)}?store=${encodeURIComponent(storeCode)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
+    });
+    await loadEntityProductMasters();
+    entityAdminToast('Kode Barang diperbarui');
+  } catch (error) { entityAdminToast(error.message); }
+}
+
 async function loadEntityProductMasters() {
   const storeCode = anyEntityStoreCode();
   if (!storeCode) {
@@ -117,7 +186,11 @@ function renderEntityProductMasters() {
         <div class="master-meta">Dipakai ${entry.usedByStores.length} gerai${entry.usedByStores.length ? `: ${entry.usedByStores.map(u => entityAdminEscape(u.storeCode)).join(', ')}` : ''}</div>
         <div class="master-meta">Resep acuan: ${renderEntityProductMasterRecipeList(entry)}</div>
       </div>
-    </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-edit-entity-pm="${entityAdminEscape(entry.id)}">Edit</button>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Upload lewat form di sebelah, atau daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
+  list.querySelectorAll('[data-edit-entity-pm]').forEach(button => button.onclick = () => editEntityProductMaster(button.dataset.editEntityPm));
 }
 
 // --- Karyawan level Entity -------------------------------------------------
@@ -454,6 +527,7 @@ async function initEntityAdmin() {
   addEntityJournalLine();
   addEntityJournalLine();
   entityAdminEl('entityProductMasterRefresh')?.addEventListener('click', () => loadEntityProductMasters().catch(error => entityAdminToast(error.message)));
+  entityAdminEl('entityProductMasterForm')?.addEventListener('submit', submitEntityProductMasterForm);
   entityAdminEl('entityEmployeeForm')?.addEventListener('submit', saveEntityEmployee);
   entityAdminEl('entityReportRun')?.addEventListener('click', () => runEntityReport());
 

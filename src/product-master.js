@@ -539,6 +539,33 @@ export async function handleProductMasterCatalogApi(request, env, pathname) {
     return json({ store, catalog: await loadProductMasterCatalog(db, store.entityId) });
   }
 
+  // Upload Master Barang lewat Admin Entity (Bos Cyo, 2026-09-19: "bikin
+  // sistem upload barang lewat admin entity dan uploadnya juga di master
+  // barang entity ya") -- sebelumnya satu-satunya jalan bikin Kode Barang
+  // adalah nebeng field "Kode Barang" saat gerai bikin/edit barangnya
+  // sendiri (lihat handleProductMasterApi di atas). Ini jalur top-down:
+  // Entity Admin/Owner mendaftarkan Kode Barang duluan, gerai mana pun
+  // (termasuk gerai yang belum punya barang sama sekali) tinggal
+  // "Gunakan/Aktifkan" dari katalog di bawah -- tidak perlu ada products
+  // row lebih dulu di gerai mana pun.
+  if (request.method === 'POST' && pathname === '/api/admin/product-masters') {
+    if (!(auth.owner || auth.entityAdmin)) {
+      return json({ error: 'Upload Master Barang Entity hanya bisa dilakukan Entity Admin atau Owner.', code: 'ENTITY_LEVEL_ONLY' }, 403);
+    }
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Master Barang Entity tidak valid.' }, 400);
+    const code = productCodeText(body.value?.code);
+    if (!code) return json({ error: 'Kode Barang wajib diisi.' }, 400);
+    const existingCode = await db.prepare('SELECT id FROM product_masters WHERE entity_id = ? AND code = ?').bind(store.entityId, code).first();
+    if (existingCode) {
+      return json({ error: 'Kode Barang ini sudah dipakai di entity ini.', code: 'PRODUCT_CODE_ALREADY_EXISTS' }, 409);
+    }
+    const image = imageData(body.value?.imageData);
+    if (image === null) return json({ error: 'Foto barang tidak valid.' }, 400);
+    const masterId = await createProductMaster(db, store.entityId, code, text(body.value?.name, 100), image, actorFrom(auth));
+    return json({ ok: true, id: masterId, catalog: await loadProductMasterCatalog(db, store.entityId) }, 201);
+  }
+
   const activateMatch = pathname.match(/^\/api\/admin\/product-masters\/([^/]+)\/activate$/);
   if (request.method === 'POST' && activateMatch) {
     const masterId = decodeURIComponent(activateMatch[1]);
@@ -566,6 +593,33 @@ export async function handleProductMasterCatalogApi(request, env, pathname) {
       }))
       .filter(component => component.ingredientLabel);
     await replaceRecipeComponents(db, masterId, components);
+    return json({ ok: true, catalog: await loadProductMasterCatalog(db, store.entityId) });
+  }
+
+  const patchMatch = pathname.match(/^\/api\/admin\/product-masters\/([^/]+)$/);
+  if (request.method === 'PATCH' && patchMatch) {
+    if (!(auth.owner || auth.entityAdmin)) {
+      return json({ error: 'Mengubah Master Barang Entity hanya bisa dilakukan Entity Admin atau Owner.', code: 'ENTITY_LEVEL_ONLY' }, 403);
+    }
+    const masterId = decodeURIComponent(patchMatch[1]);
+    const master = await db.prepare('SELECT id, entity_id, name, image_data FROM product_masters WHERE id = ?').bind(masterId).first();
+    if (!master) return json({ error: 'Kode Barang tidak ditemukan.' }, 404);
+    if (master.entity_id !== store.entityId) {
+      return json({ error: 'Kode Barang ini bukan milik entity gerai ini.', code: 'PRODUCT_MASTER_ENTITY_MISMATCH' }, 403);
+    }
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Master Barang Entity tidak valid.' }, 400);
+    const name = owns(body.value, 'name') ? text(body.value.name, 100) : master.name;
+    const image = owns(body.value, 'imageData') ? imageData(body.value.imageData) : master.image_data;
+    if (image === null) return json({ error: 'Foto barang tidak valid.' }, 400);
+    // Foto Kode Barang milik Entity (ADR-043) -- ganti di sini ikut
+    // memperbarui setiap products row (gerai mana pun) yang sudah pakai
+    // Kode Barang ini, sama seperti saat foto diganti lewat edit barang
+    // biasa di satu gerai (lihat handleProductMasterApi PATCH di atas).
+    await db.batch([
+      db.prepare('UPDATE product_masters SET name = ?, image_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(name, image, masterId),
+      db.prepare('UPDATE products SET image_data = ? WHERE product_master_id = ?').bind(image, masterId)
+    ]);
     return json({ ok: true, catalog: await loadProductMasterCatalog(db, store.entityId) });
   }
 

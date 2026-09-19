@@ -34,15 +34,31 @@
     return accounting.bridgeStatus ? `Accounting ${accounting.bridgeStatus}` : 'Accounting belum memberi status';
   }
 
+  // Bos Cyo, 2026-09-19: "katanya semua gerai ga bisa entry penjualan" --
+  // di iPhone/iPad (Safari) muncul error browser "ReadableStream uploading
+  // is not supported". Akar masalahnya bukan bug baru di server: fungsi ini
+  // dulu bikin objek Request sendiri lalu fetch(request) -- begitu melewati
+  // dua fetch wrapper global yang sudah ada (staff-auth-fetch.js lalu
+  // store-context.js, keduanya menyuntik Authorization/?store= dengan
+  // membungkus ulang jadi `new Request(existingRequest, ...)`), body-nya
+  // ke-reconstruct dua kali berturut-turut. WebKit/Safari punya batasan
+  // lama: request yang bodinya sudah pernah melewati reconstruction Request
+  // ganda begini dianggap streaming body, dan Safari tidak mendukung upload
+  // streaming lewat fetch() -- makanya gagal total di semua gerai yang
+  // pakai perangkat iOS, sementara Chrome/Android tidak kena.
+  // Perbaikannya: jangan pernah bikin objek Request sendiri di sini --
+  // panggil fetch(path, init) dengan path berupa string biasa, PERSIS pola
+  // yang sudah dipakai fungsi api() di cashier.js dan terbukti aman di
+  // kedua wrapper itu (keduanya cuma reconstruct Request kalau input yang
+  // masuk memang sudah berupa instance Request).
   async function canonicalFactPost(path, payload) {
     const headers = { 'Content-Type': 'application/json' };
     if (state.token) headers.Authorization = `Bearer ${state.token}`;
-    const request = new Request(new URL(path, location.origin), {
+    const response = await fetch(path, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload)
     });
-    const response = await fetch(request);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(data.error || `Request gagal (${response.status})`);

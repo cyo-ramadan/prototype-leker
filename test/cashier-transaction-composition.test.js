@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260914-drop-purchase-description-field',
+    '/cashier-payment-methods.js?v=20260919-fix-safari-readablestream-v1',
     '/cashier-enhancements.js?v='
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
@@ -66,10 +66,28 @@ test('sale transaction keeps item composer above customer and places configured 
 
 test('committed transaction writes use one canonical fact transport instead of legacy body mutation', () => {
   assert.match(inputUi, /async function canonicalFactPost/);
-  assert.match(inputUi, /new Request\(new URL\(path, location\.origin\)/);
   assert.match(inputUi, /canonicalFactPost\('\/api\/cashier\/purchases'/);
   assert.match(inputUi, /canonicalFactPost\('\/api\/cashier\/expenses'/);
   assert.match(inputUi, /path === '\/api\/cashier\/sales'[\s\S]*return canonicalFactPost\(path, payload\)/);
+});
+
+// Bos Cyo, 2026-09-19: "katanya semua gerai ga bisa entry penjualan" --
+// di Safari/iOS, sales/purchase/expense (semuanya lewat canonicalFactPost)
+// gagal total dengan error browser "ReadableStream uploading is not
+// supported". canonicalFactPost sebelumnya bikin objek Request sendiri
+// (`new Request(new URL(path, location.origin), {...})`) lalu fetch(request)
+// -- begitu melewati dua fetch wrapper global yang sudah ada
+// (staff-auth-fetch.js lalu store-context.js, keduanya menyuntik
+// Authorization/?store= dengan `new Request(existingRequest, ...)`), body-nya
+// ke-reconstruct dua kali berturut-turut, dan WebKit/Safari menolak kirim
+// request yang bodinya sudah lewat reconstruction Request ganda begitu.
+// Perbaikannya: canonicalFactPost wajib fetch(path, init) dengan path string
+// biasa -- PERSIS pola api() di cashier.js yang sudah terbukti aman di kedua
+// wrapper itu -- bukan bikin objek Request sendiri.
+test('canonicalFactPost never constructs its own Request object -- Safari/WebKit rejects a body that has been reconstructed through two Request wrappers as an unsupported streaming upload', () => {
+  const fnBody = inputUi.slice(inputUi.indexOf('async function canonicalFactPost'), inputUi.indexOf('async function refreshAccountingSettings'));
+  assert.doesNotMatch(fnBody, /new Request\(/, 'canonicalFactPost must call fetch(path, init) with a plain string path, not build a Request itself');
+  assert.match(fnBody, /await fetch\(path, \{/);
 });
 
 test('SALE PURCHASE and EXPENSE remain connected to Accounting bridge after operational commit', () => {

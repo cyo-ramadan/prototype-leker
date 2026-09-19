@@ -88,7 +88,6 @@ async function init() {
   el('logoutBtn').addEventListener('click', logout);
   el('openDrawerBtn').addEventListener('click', openDrawerDialog);
   el('closeDrawerBtn').addEventListener('click', closeDrawerDialog);
-  el('requestClosePermitBtn').addEventListener('click', requestClosePermitDialog);
   el('purchaseBtn').addEventListener('click', purchaseDialog);
   el('expenseBtn').addEventListener('click', () => moneyMovementDialog('expense'));
   el('otherIncomeBtn').addEventListener('click', () => moneyMovementDialog('income'));
@@ -283,9 +282,9 @@ function renderDrawer() {
     // Owner/Admin Gerai/Entity Admin yang memang tidak pernah boleh menulis
     // apa pun status lacinya (lihat requireCashierOrReadOnlyManagement).
     el('openDrawerBtn').disabled = Boolean(state.readOnly);
+    el('openDrawerBtn').textContent = '🔓 Buka Laci';
     el('openDrawerBtn').classList.remove('hidden');
     el('closeDrawerBtn').classList.add('hidden');
-    el('requestClosePermitBtn').classList.add('hidden');
   } else if (state.canWrite) {
     el('drawerTitle').textContent = `Laci aktif · ${drawer.cashierName}`;
     el('drawerStatusText').textContent = `Dibuka ${formatDateTime(drawer.openedAt)} · Saldo awal ${rupiah(drawer.openingAmount)}`;
@@ -293,31 +292,28 @@ function renderDrawer() {
     badge.classList.add('write');
     el('openDrawerBtn').classList.add('hidden');
     el('closeDrawerBtn').classList.remove('hidden');
-    el('requestClosePermitBtn').classList.add('hidden');
   } else {
     el('drawerTitle').textContent = `Laci dipegang ${drawer.cashierName}`;
     el('drawerStatusText').textContent = state.closePermitPending
       ? `Pengajuan tutup laci ${drawer.cashierName} sedang menunggu ACC Admin.`
-      : `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order, tetapi perubahan data dikunci.`;
+      : `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order. Klik Buka Laci untuk mengajukan tutup laci ini kalau memang sudah waktumu jaga.`;
     badge.textContent = 'READ ONLY';
     badge.classList.add('occupied');
-    el('openDrawerBtn').classList.remove('hidden');
-    el('openDrawerBtn').disabled = true;
     el('closeDrawerBtn').classList.add('hidden');
-    // Bos Cyo, 2026-09-19: kasir gantian jaga yang menemukan laci kasir
-    // sebelumnya masih terbuka bisa mengajukan tutup paksa -- bukan Admin
-    // yang menutup langsung, harus lewat pengajuan supaya ada jejak siapa
-    // yang gagal tutup laci sendiri (dipakai penilaian kasir ke depan).
-    // Read-only management visitor (Owner/Admin/Entity Admin) tidak pernah
+    el('openDrawerBtn').classList.remove('hidden');
+    // Bos Cyo, 2026-09-19 (koreksi UX): tombol pengajuan tutup laci TIDAK
+    // lagi tombol terpisah -- klik "Buka Laci" yang sama, saat lacinya
+    // dipegang orang lain, yang memicu alur konfirmasi -> pengajuan. Read-
+    // only management visitor (Owner/Admin/Entity Admin) tidak pernah
     // relevan mengajukan ini -- mereka bukan yang akan mulai shift.
     if (state.readOnly) {
-      el('requestClosePermitBtn').classList.add('hidden');
+      el('openDrawerBtn').disabled = true;
+      el('openDrawerBtn').textContent = '🔓 Buka Laci';
     } else {
-      el('requestClosePermitBtn').classList.remove('hidden');
-      el('requestClosePermitBtn').disabled = state.closePermitPending;
-      el('requestClosePermitBtn').textContent = state.closePermitPending
+      el('openDrawerBtn').disabled = state.closePermitPending;
+      el('openDrawerBtn').textContent = state.closePermitPending
         ? '📨 Menunggu ACC Admin...'
-        : '📨 Ajukan Tutup Laci Sebelumnya';
+        : '🔓 Buka Laci';
     }
   }
 
@@ -741,7 +737,16 @@ async function submitDialog(event) {
 // dibahas kasir langsung dengan akuntan di luar sistem ini, bukan lewat
 // permit otomatis. Laci pertama di gerai (belum ada saldo akhir sebelumnya)
 // tetap manual, karena tidak ada "kemarin" untuk dilanjutkan.
+// Bos Cyo, 2026-09-19 (koreksi UX): tombol pengajuan tutup laci sebelumnya
+// tidak lagi tombol terpisah -- "Buka Laci" yang sama dipakai untuk dua
+// hal: benar-benar membuka laci kosong, ATAU (kalau lacinya masih dipegang
+// kasir lain) memicu alur konfirmasi -> pengajuan tutup paksa ke Admin.
 function openDrawerDialog() {
+  const drawer = state.drawer;
+  if (drawer && !state.canWrite) {
+    if (state.readOnly) return;
+    return requestOpenOccupiedDrawer(drawer);
+  }
   const hasPrevious = state.lastClosingAmount != null;
   const openingField = hasPrevious
     ? `<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" value="${state.lastClosingAmount}" readonly disabled /><p class="muted">Melanjutkan saldo akhir laci sebelumnya. Kalau kas fisik tidak cocok, bahas langsung dengan akuntan.</p></div>`
@@ -782,21 +787,38 @@ function closeDrawerDialog() {
   });
 }
 
-// Bos Cyo, 2026-09-19: "kasih tombol kasir bisa permit tutup laci kasir
-// sebelumnya karna sudah waktu dia untuk jaga. nanti admin acc kan akhirnya
-// di force close." Nominal di sini adalah hasil hitung fisik kasir yang
-// mengajukan (laci sudah ada di tangannya, pemegang lama sudah tidak di
-// tempat) -- begitu Admin ACC, angka ini yang menutup laci lama, setoran
-// (kalau ada) tetap atas nama pemegang lama, bukan yang mengajukan.
-function requestClosePermitDialog() {
-  const previousHolder = state.drawer?.cashierName || 'kasir sebelumnya';
+// Bos Cyo, 2026-09-19: "kalo ada cs emang jam kerjanya sebagai kasir harus
+// buka laci itu maka dia itu klik buka lacinya request, lalu ada pertanyaan,
+// laci sedang dibuka oleh cs ... apakah kamu yakin mau buka laci? kalo dia
+// yes, ada pertanyaan lagi, apakah kamu sudah didepan laci, masukkan uang
+// laci saat ini." Dua konfirmasi berjenjang: native confirm() dulu (yakin
+// mau ajukan), baru dialog isi saldo kas fisik (formalitas -- begitu
+// disubmit langsung terkirim jadi pengajuan ke Admin, tidak ada langkah
+// ketiga). Sudah ada pengajuan pending untuk laci ini -- tidak buka apa pun
+// lagi, cukup kasih tahu statusnya, supaya tidak ajuin berkali-kali.
+function requestOpenOccupiedDrawer(drawer) {
+  if (state.closePermitPending) {
+    toast(`Pengajuan tutup laci ${drawer.cashierName} masih menunggu ACC Admin.`);
+    return;
+  }
+  if (!confirm(`Laci sedang dibuka oleh ${drawer.cashierName}. Apakah kamu yakin mau mengajukan buka laci ini?`)) return;
+  requestClosePermitDialog(drawer);
+}
+
+// Nominal di sini adalah hasil hitung fisik kasir yang mengajukan (laci
+// sudah ada di tangannya, pemegang lama sudah tidak di tempat) -- begitu
+// Admin ACC (atau Auto Permit gerai ini sedang aktif, langsung tanpa
+// menunggu Admin), angka ini yang menutup laci lama, setoran (kalau ada)
+// tetap atas nama pemegang lama, bukan yang mengajukan.
+function requestClosePermitDialog(drawer) {
+  const previousHolder = drawer.cashierName;
   openDialog({
     eyebrow: state.cashier?.store.code || 'Gerai',
-    title: `Ajukan Tutup Laci ${previousHolder}`,
-    body: `<p class="muted">Laci ${previousHolder} masih tercatat terbuka. Hitung kas fisik yang ada sekarang, lalu ajukan tutup paksa -- laci baru bisa dibuka setelah Admin meng-ACC pengajuan ini.</p><div class="field"><label>Saldo kas fisik yang ditemukan</label><input id="dialogPermitClosingAmount" class="text-input" type="number" min="0" step="1" required /></div><div class="field"><label>Setoran (opsional, atas nama ${previousHolder})</label><input id="dialogPermitDepositAmount" class="text-input" type="number" min="0" step="1" value="0" /></div><div class="field"><label>Alasan / keterangan <span class="muted">optional</span></label><textarea id="dialogPermitReason" rows="2" maxlength="500" placeholder="Contoh: sudah waktu shift saya, ${previousHolder} sudah pulang"></textarea></div>`,
+    title: `Konfirmasi Buka Laci ${previousHolder}`,
+    body: `<p class="muted">Pastikan kamu sudah di depan laci sekarang. Masukkan saldo kas fisik laci saat ini -- laci ${previousHolder} baru benar-benar tertutup setelah Admin meng-ACC pengajuan ini (atau langsung, kalau gerai ini sudah mengaktifkan Auto Permit).</p><div class="field"><label>Saldo kas fisik laci saat ini</label><input id="dialogPermitClosingAmount" class="text-input" type="number" min="0" step="1" required /></div><div class="field"><label>Setoran (opsional, atas nama ${previousHolder})</label><input id="dialogPermitDepositAmount" class="text-input" type="number" min="0" step="1" value="0" /></div><div class="field"><label>Alasan / keterangan <span class="muted">optional</span></label><textarea id="dialogPermitReason" rows="2" maxlength="500" placeholder="Contoh: sudah waktu shift saya, ${previousHolder} sudah pulang"></textarea></div>`,
     submitText: 'AJUKAN KE ADMIN',
     onSubmit: async () => {
-      await api('/api/cashier/drawer/close-permits', {
+      const result = await api('/api/cashier/drawer/close-permits', {
         method: 'POST',
         body: JSON.stringify({
           closingAmount: Number(el('dialogPermitClosingAmount').value),
@@ -805,7 +827,7 @@ function requestClosePermitDialog() {
         })
       });
       await loadDrawer();
-      toast('Pengajuan terkirim, menunggu ACC Admin');
+      toast(result.autoPermit ? 'Laci langsung ditutup (Auto Permit aktif)' : 'Pengajuan terkirim, menunggu ACC Admin');
       return true;
     }
   });

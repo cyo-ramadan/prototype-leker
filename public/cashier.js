@@ -88,6 +88,7 @@ async function init() {
   el('logoutBtn').addEventListener('click', logout);
   el('openDrawerBtn').addEventListener('click', openDrawerDialog);
   el('closeDrawerBtn').addEventListener('click', closeDrawerDialog);
+  el('requestClosePermitBtn').addEventListener('click', requestClosePermitDialog);
   el('purchaseBtn').addEventListener('click', purchaseDialog);
   el('expenseBtn').addEventListener('click', () => moneyMovementDialog('expense'));
   el('otherIncomeBtn').addEventListener('click', () => moneyMovementDialog('income'));
@@ -252,6 +253,13 @@ async function loadDrawer() {
   state.drawer = payload.drawer || null;
   state.canWrite = Boolean(payload.canWrite);
   state.lastClosingAmount = payload.lastClosingAmount == null ? null : Number(payload.lastClosingAmount);
+  state.closePermitPending = false;
+  if (state.drawer && !state.canWrite && !state.readOnly) {
+    try {
+      const permits = (await api('/api/cashier/drawer/close-permits')).permits || [];
+      state.closePermitPending = permits.some(permit => permit.drawerSessionId === state.drawer.id && permit.status === 'PENDING');
+    } catch {}
+  }
   renderDrawer();
   renderOrders();
   renderDraft();
@@ -277,6 +285,7 @@ function renderDrawer() {
     el('openDrawerBtn').disabled = Boolean(state.readOnly);
     el('openDrawerBtn').classList.remove('hidden');
     el('closeDrawerBtn').classList.add('hidden');
+    el('requestClosePermitBtn').classList.add('hidden');
   } else if (state.canWrite) {
     el('drawerTitle').textContent = `Laci aktif · ${drawer.cashierName}`;
     el('drawerStatusText').textContent = `Dibuka ${formatDateTime(drawer.openedAt)} · Saldo awal ${rupiah(drawer.openingAmount)}`;
@@ -284,14 +293,32 @@ function renderDrawer() {
     badge.classList.add('write');
     el('openDrawerBtn').classList.add('hidden');
     el('closeDrawerBtn').classList.remove('hidden');
+    el('requestClosePermitBtn').classList.add('hidden');
   } else {
     el('drawerTitle').textContent = `Laci dipegang ${drawer.cashierName}`;
-    el('drawerStatusText').textContent = `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order, tetapi perubahan data dikunci.`;
+    el('drawerStatusText').textContent = state.closePermitPending
+      ? `Pengajuan tutup laci ${drawer.cashierName} sedang menunggu ACC Admin.`
+      : `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order, tetapi perubahan data dikunci.`;
     badge.textContent = 'READ ONLY';
     badge.classList.add('occupied');
     el('openDrawerBtn').classList.remove('hidden');
     el('openDrawerBtn').disabled = true;
     el('closeDrawerBtn').classList.add('hidden');
+    // Bos Cyo, 2026-09-19: kasir gantian jaga yang menemukan laci kasir
+    // sebelumnya masih terbuka bisa mengajukan tutup paksa -- bukan Admin
+    // yang menutup langsung, harus lewat pengajuan supaya ada jejak siapa
+    // yang gagal tutup laci sendiri (dipakai penilaian kasir ke depan).
+    // Read-only management visitor (Owner/Admin/Entity Admin) tidak pernah
+    // relevan mengajukan ini -- mereka bukan yang akan mulai shift.
+    if (state.readOnly) {
+      el('requestClosePermitBtn').classList.add('hidden');
+    } else {
+      el('requestClosePermitBtn').classList.remove('hidden');
+      el('requestClosePermitBtn').disabled = state.closePermitPending;
+      el('requestClosePermitBtn').textContent = state.closePermitPending
+        ? '📨 Menunggu ACC Admin...'
+        : '📨 Ajukan Tutup Laci Sebelumnya';
+    }
   }
 
   const purchaseButton = el('purchaseBtn');
@@ -750,6 +777,35 @@ function closeDrawerDialog() {
       });
       await loadDrawer();
       toast('Laci ditutup');
+      return true;
+    }
+  });
+}
+
+// Bos Cyo, 2026-09-19: "kasih tombol kasir bisa permit tutup laci kasir
+// sebelumnya karna sudah waktu dia untuk jaga. nanti admin acc kan akhirnya
+// di force close." Nominal di sini adalah hasil hitung fisik kasir yang
+// mengajukan (laci sudah ada di tangannya, pemegang lama sudah tidak di
+// tempat) -- begitu Admin ACC, angka ini yang menutup laci lama, setoran
+// (kalau ada) tetap atas nama pemegang lama, bukan yang mengajukan.
+function requestClosePermitDialog() {
+  const previousHolder = state.drawer?.cashierName || 'kasir sebelumnya';
+  openDialog({
+    eyebrow: state.cashier?.store.code || 'Gerai',
+    title: `Ajukan Tutup Laci ${previousHolder}`,
+    body: `<p class="muted">Laci ${previousHolder} masih tercatat terbuka. Hitung kas fisik yang ada sekarang, lalu ajukan tutup paksa -- laci baru bisa dibuka setelah Admin meng-ACC pengajuan ini.</p><div class="field"><label>Saldo kas fisik yang ditemukan</label><input id="dialogPermitClosingAmount" class="text-input" type="number" min="0" step="1" required /></div><div class="field"><label>Setoran (opsional, atas nama ${previousHolder})</label><input id="dialogPermitDepositAmount" class="text-input" type="number" min="0" step="1" value="0" /></div><div class="field"><label>Alasan / keterangan <span class="muted">optional</span></label><textarea id="dialogPermitReason" rows="2" maxlength="500" placeholder="Contoh: sudah waktu shift saya, ${previousHolder} sudah pulang"></textarea></div>`,
+    submitText: 'AJUKAN KE ADMIN',
+    onSubmit: async () => {
+      await api('/api/cashier/drawer/close-permits', {
+        method: 'POST',
+        body: JSON.stringify({
+          closingAmount: Number(el('dialogPermitClosingAmount').value),
+          depositAmount: Number(el('dialogPermitDepositAmount').value || 0),
+          reason: el('dialogPermitReason').value
+        })
+      });
+      await loadDrawer();
+      toast('Pengajuan terkirim, menunggu ACC Admin');
       return true;
     }
   });

@@ -10,6 +10,7 @@ import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
+import { handleDrawerClosePermitApi } from './cashier-drawer-close-permit.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -203,6 +204,8 @@ async function handleApi(request, env, url) {
   if (adminCashierResponse) return adminCashierResponse;
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
+  const drawerClosePermitResponse = await handleDrawerClosePermitApi(request, env, pathname);
+  if (drawerClosePermitResponse) return drawerClosePermitResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

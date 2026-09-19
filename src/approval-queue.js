@@ -85,6 +85,79 @@ async function handleCashierApprovalQueue(request, env, pathname) {
     return json({ products: await listStockAdjustmentOptions(env.DB, auth.cashier.store.id) });
   }
 
+  // Bos Cyo, 2026-09-19: "kalo sampe skema 1 barang 1 permit diganti aja,
+  // yang diajukan ya yg satu transaksi" -- satu form Stock Opname (banyak
+  // barang berselisih) sekarang satu submission atomic: semua item divalidasi
+  // dulu (normalizeApprovalPayload tetap dipakai per item, tidak diubah),
+  // baru semuanya di-INSERT dalam satu env.DB.batch() -- gagal satu, gagal
+  // semua, tidak ada partial-submit yang bikin cashier harus retry manual
+  // sisanya. Tiap row approval_requests masih baris sendiri (skema/constraint
+  // approval_request_id UNIQUE di inventory_ledger_entries tidak diutak-atik)
+  // -- yang berubah cuma orkestrasi submit + decide-nya, dikelompokkan lewat
+  // payload.sessionId yang sudah ada sejak sebelumnya (dulu cuma dekorasi
+  // tampilan, sekarang jadi kunci grouping submit/decide beneran).
+  if (request.method === 'POST' && pathname === '/api/cashier/approval-requests/stock-adjustment-batch') {
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    if (!drawerAuth.ok) return drawerAuth.response;
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload pengajuan tidak valid.' }, 400);
+    const items = Array.isArray(body.value?.items) ? body.value.items : [];
+    if (!items.length) return json({ error: 'Batch Penyesuaian Stok membutuhkan minimal satu barang.' }, 400);
+    if (items.length > 50) return json({ error: 'Batch Penyesuaian Stok maksimal 50 barang sekaligus.' }, 400);
+
+    const sessionId = `stockopname_${crypto.randomUUID()}`;
+    const seenProductIds = new Set();
+    const normalizedPayloads = [];
+    for (const item of items) {
+      const productId = Number(item?.productId);
+      if (seenProductIds.has(productId)) {
+        return json({ error: `Barang #${productId} muncul lebih dari sekali dalam satu pengajuan.` }, 400);
+      }
+      seenProductIds.add(productId);
+      const normalized = await normalizeApprovalPayload(env.DB, auth.cashier.store.id, 'GOODS_FLOW', {
+        purpose: 'STOCK_ADJUSTMENT',
+        productId: item?.productId,
+        targetQuantity: item?.targetQuantity,
+        reason: item?.reason,
+        note: item?.note,
+        sessionId
+      });
+      if (!normalized.ok) return json({ error: normalized.error }, 400);
+      if (JSON.stringify(normalized.payload).length > 8000) return json({ error: 'Detail pengajuan maksimal 8 KB per barang.' }, 400);
+      normalizedPayloads.push(normalized.payload);
+    }
+
+    const now = new Date().toISOString();
+    const rows = normalizedPayloads.map(payload => ({ id: `approval_${crypto.randomUUID()}`, payload }));
+    await env.DB.batch(rows.map(row => env.DB.prepare(`
+      INSERT INTO approval_requests (
+        id, store_id, drawer_session_id, cashier_id, request_type,
+        approval_status, posting_status, payload_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
+    `).bind(row.id, auth.cashier.store.id, drawerAuth.drawer.id, auth.cashier.id, JSON.stringify(row.payload), now, now)));
+
+    const settings = await getApprovalSettings(env.DB, auth.cashier.store.id);
+    if (!settings.autoPermitEnabled) {
+      return json({ ok: true, sessionId, requests: await Promise.all(rows.map(row => getRequest(env.DB, row.id))) }, 201);
+    }
+
+    const currents = await Promise.all(rows.map(row => getRequest(env.DB, row.id)));
+    const outcome = await applyGroupAccDecision(env, currents, {
+      approverRole: 'AUTO_PERMIT',
+      approverId: settings.enabledById || '',
+      now,
+      note: 'Auto Permit'
+    });
+    return json({
+      ok: true,
+      sessionId,
+      requests: outcome.requests || currents,
+      autoPermit: outcome.ok
+        ? { attempted: true, posted: true }
+        : { attempted: true, posted: false, code: outcome.code, reason: outcome.error }
+    }, 201);
+  }
+
   if (request.method === 'POST' && pathname === '/api/cashier/approval-requests') {
     const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
     if (!drawerAuth.ok) return drawerAuth.response;
@@ -149,7 +222,12 @@ async function managementScope(request, env) {
   return { ...auth, storeId: store.id };
 }
 
-async function rejectStaleStockAdjustment(db, current, { approverRole, approverId, now }) {
+// Read-only staleness check, shared by the single-request path below and the
+// group/session decide path (applyGroupAccDecision) -- the group path must
+// know about staleness in EVERY item before writing anything, since finding
+// one stale item after already rejecting/positng others would leave the
+// "satu transaksi" guarantee broken.
+async function checkStockAdjustmentStale(db, current) {
   if (current.requestType !== 'GOODS_FLOW' || current.payload?.purpose !== 'STOCK_ADJUSTMENT') return null;
   const row = await db.prepare(`
     SELECT COALESCE(quantity, 0) AS quantity
@@ -159,7 +237,14 @@ async function rejectStaleStockAdjustment(db, current, { approverRole, approverI
   `).bind(current.storeId, current.payload.productId).first();
   const actualQuantity = Number(row?.quantity || 0);
   const snapshotQuantity = Number(current.payload.currentQuantitySnapshot);
-  if (actualQuantity === snapshotQuantity) return null;
+  if (actualQuantity === snapshotQuantity) return { stale: false };
+  return { stale: true, actualQuantity, snapshotQuantity };
+}
+
+async function rejectStaleStockAdjustment(db, current, { approverRole, approverId, now }) {
+  const check = await checkStockAdjustmentStale(db, current);
+  if (!check || !check.stale) return null;
+  const { actualQuantity, snapshotQuantity } = check;
 
   const reason = `STOCK_ADJUSTMENT_STALE: stok berubah dari snapshot ${snapshotQuantity} menjadi ${actualQuantity}; ajukan ulang Penyesuaian Stok.`;
   const result = await db.prepare(`
@@ -239,6 +324,60 @@ async function applyAccDecision(env, current, { approverRole, approverId, now, n
   return { ok: true, request: postedRequest, accounting };
 }
 
+// Sibling of applyAccDecision for a whole Stock Opname session (multiple
+// approval_requests rows sharing one payload.sessionId, one submission one
+// decision). Staleness is checked for EVERY item first, without writing
+// anything -- if even one item drifted, the WHOLE session is rejected
+// together with one combined reason instead of quietly posting the rest,
+// so the group either fully commits or fully bounces back to the cashier.
+// Posting itself concatenates every row's buildOperationalPostingStatements
+// output into a single env.DB.batch() call, same atomic-or-nothing shape
+// applyAccDecision already relies on for a single row.
+async function applyGroupAccDecision(env, currents, { approverRole, approverId, now, note = '' }) {
+  const staleChecks = await Promise.all(currents.map(current => checkStockAdjustmentStale(env.DB, current)));
+  const staleEntries = currents
+    .map((current, index) => ({ current, check: staleChecks[index] }))
+    .filter(entry => entry.check?.stale);
+
+  if (staleEntries.length) {
+    const ids = currents.map(current => current.id);
+    const detail = staleEntries
+      .map(({ current, check }) => `${current.payload?.productName || `#${current.payload?.productId}`}: snapshot ${check.snapshotQuantity} -> aktual ${check.actualQuantity}`)
+      .join('; ');
+    const reason = `STOCK_ADJUSTMENT_STALE (satu sesi): ${detail}. Ajukan ulang Penyesuaian Stok dari saldo terbaru.`;
+    const placeholders = ids.map(() => '?').join(',');
+    const result = await env.DB.prepare(`
+      UPDATE approval_requests
+      SET approval_status = 'rejected', posting_status = 'unposted',
+          posting_block_reason = ?, decision_note = ?, updated_at = ?, rejected_at = ?,
+          approved_by_role = ?, approved_by_id = ?
+      WHERE id IN (${placeholders}) AND approval_status = 'pending_approval' AND posting_status = 'unposted'
+    `).bind(reason, reason, now, now, approverRole, approverId, ...ids).run();
+    if (!result.success || Number(result.meta?.changes ?? 0) !== ids.length) {
+      return { ok: false, status: 409, code: 'APPROVAL_ALREADY_DECIDED', error: 'Sebagian pengajuan dalam sesi ini sudah diputuskan oleh request lain.' };
+    }
+    return {
+      ok: false,
+      status: 409,
+      code: 'STOCK_ADJUSTMENT_STALE',
+      error: `Penyesuaian Stok tidak diposting karena sebagian barang berubah stoknya: ${detail}. Ajukan ulang berdasarkan stok terbaru.`,
+      requests: await Promise.all(ids.map(id => getRequest(env.DB, id)))
+    };
+  }
+
+  const statements = currents.flatMap(current => buildOperationalPostingStatements(env.DB, current, { approverRole, approverId, now, note }));
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    const known = postingFailureResponse('GOODS_FLOW', error);
+    if (known) return { ok: false, status: known.status, error: known.error, code: 'POSTING_REJECTED' };
+    throw error;
+  }
+
+  const postedRequests = await Promise.all(currents.map(current => getRequest(env.DB, current.id)));
+  return { ok: true, requests: postedRequests };
+}
+
 async function handleManagementApprovalQueue(request, env, pathname) {
   if (!pathname.startsWith('/api/management/approval-requests') && pathname !== '/api/management/approval-settings') return null;
   const scope = await managementScope(request, env);
@@ -301,6 +440,60 @@ async function handleManagementApprovalQueue(request, env, pathname) {
     }
     const accounting = await cashFlowAccountingAfterCommit(env, current);
     return json({ ok: Boolean(accounting?.ok), request: current, accounting }, accounting?.ok ? 200 : 409);
+  }
+
+  // Group decide untuk satu sesi Stock Opname (banyak approval_requests
+  // dengan payload.sessionId yang sama, diajukan lewat batch endpoint kasir
+  // di atas). Satu keputusan (ACC/Reject) berlaku untuk semua row sekaligus
+  // -- lihat applyGroupAccDecision untuk kenapa staleness dicek dulu untuk
+  // semua item sebelum menulis apa pun.
+  const groupDecisionMatch = pathname.match(/^\/api\/management\/approval-requests\/session\/([^/]+)$/);
+  if (request.method === 'PATCH' && groupDecisionMatch) {
+    const sessionId = decodeURIComponent(groupDecisionMatch[1]);
+    const conditions = [`json_extract(r.payload_json, '$.sessionId') = ?`, `r.approval_status = 'pending_approval'`, `r.posting_status = 'unposted'`];
+    const values = [sessionId];
+    if (scope.storeId) { conditions.push('r.store_id = ?'); values.push(scope.storeId); }
+    const rowsResult = await env.DB.prepare(`
+      SELECT r.*, c.employee_name AS cashier_name
+      FROM approval_requests r
+      JOIN cashiers c ON c.id = r.cashier_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY r.created_at ASC
+    `).bind(...values).all();
+    const currents = (rowsResult.results || []).map(mapRequest);
+    if (!currents.length) return json({ error: 'Sesi pengajuan tidak ditemukan atau sudah diputuskan.' }, 404);
+
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload keputusan approval tidak valid.' }, 400);
+    const decision = String(body.value?.decision || '').trim().toUpperCase();
+    if (!['ACC', 'REJECT'].includes(decision)) return json({ error: 'Decision wajib ACC atau REJECT.' }, 400);
+    const note = text(body.value?.note, 500);
+    const now = new Date().toISOString();
+    const approverRole = scope.owner ? 'OWNER' : scope.entityAdmin ? 'ENTITY_ADMIN' : 'ADMIN';
+    const approverId = scope.owner?.id || scope.entityAdmin?.id || scope.admin?.id || '';
+    const ids = currents.map(current => current.id);
+
+    if (decision === 'REJECT') {
+      const placeholders = ids.map(() => '?').join(',');
+      const result = await env.DB.prepare(`
+        UPDATE approval_requests
+        SET approval_status = 'rejected', decision_note = ?, updated_at = ?, rejected_at = ?, approved_by_role = ?, approved_by_id = ?
+        WHERE id IN (${placeholders}) AND approval_status = 'pending_approval' AND posting_status = 'unposted'
+      `).bind(note, now, now, approverRole, approverId, ...ids).run();
+      if (!result.success || Number(result.meta?.changes ?? 0) !== ids.length) return json({ error: 'Sebagian pengajuan dalam sesi ini sudah diputuskan oleh request lain.' }, 409);
+      return json({ ok: true, sessionId, requests: await Promise.all(ids.map(id => getRequest(env.DB, id))), posted: false });
+    }
+
+    const outcome = await applyGroupAccDecision(env, currents, { approverRole, approverId, now, note });
+    if (!outcome.ok) return json({ ...outcome, sessionId }, outcome.status);
+
+    return json({
+      ok: true,
+      sessionId,
+      requests: outcome.requests,
+      posted: true,
+      message: `ACC berhasil, ${outcome.requests.length} barang ter-posting sekaligus.`
+    });
   }
 
   const decisionMatch = pathname.match(/^\/api\/management\/approval-requests\/([^/]+)$/);

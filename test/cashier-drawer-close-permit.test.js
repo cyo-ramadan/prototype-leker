@@ -208,6 +208,88 @@ test('Admin bisa Tolak -- laci tidak berubah, permit jadi REJECTED', async () =>
   }
 });
 
+// Bos Cyo, 2026-09-19: "ada cs yang ga bisa buka laci gara2 laci cs
+// sebelumnya lupa ditutup ... kamu adjust ya harusnya bagaimana mekanisme
+// ini" -- Admin yang SUDAH TAHU ada laci nyangkut bisa langsung menutupnya,
+// tanpa nunggu kasir pengganti sempat mengajukan permit dulu.
+test('Admin tutup laci langsung (tanpa pengajuan kasir lain) -- laci tertutup, permit tercatat APPROVED atas nama pemegang laci sendiri', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const cashierA = await seedCashier(sqlite, store.id, { id: 'cashier_a_direct' });
+    const drawerA = await openDrawerAs({ DB: db }, cashierA.token);
+    const adminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const res = await adminCall(env, '/api/admin/drawer/close-permits/direct', {
+      token: adminToken, store: 'PENDEM', method: 'POST',
+      body: { drawerId: drawerA.id, closingAmount: 175000, note: 'Laci nyangkut dari kemarin' }
+    });
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.equal(body.permit.status, 'APPROVED');
+    assert.equal(body.permit.targetCashierId, cashierA.cashierId);
+    assert.equal(body.permit.requestedByCashierId, cashierA.cashierId, 'tanpa kasir lain yang mengajukan, requested_by self-referential ke target');
+    assert.equal(body.permit.reason, 'DITUTUP_LANGSUNG_ADMIN');
+
+    const closedDrawer = sqlite.prepare(`SELECT status, closing_amount FROM cash_drawer_sessions WHERE id = ?`).get(drawerA.id);
+    assert.equal(closedDrawer.status, 'CLOSED');
+    assert.equal(closedDrawer.closing_amount, 175000);
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('Admin tutup laci langsung ditolak kalau sudah ada pengajuan kasir yang masih PENDING buat laci itu', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const cashierA = await seedCashier(sqlite, store.id, { id: 'cashier_a_direct_conflict' });
+    const cashierB = await seedCashier(sqlite, store.id, { id: 'cashier_b_direct_conflict' });
+    const drawerA = await openDrawerAs({ DB: db }, cashierA.token);
+    const adminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    await cashierCall(env, '/api/cashier/drawer/close-permits', { token: cashierB.token, method: 'POST', body: { closingAmount: 50000 } });
+
+    const res = await adminCall(env, '/api/admin/drawer/close-permits/direct', {
+      token: adminToken, store: 'PENDEM', method: 'POST',
+      body: { drawerId: drawerA.id, closingAmount: 999 }
+    });
+    assert.equal(res.status, 409);
+    assert.equal((await res.json()).code, 'PERMIT_ALREADY_PENDING');
+
+    const drawer = sqlite.prepare(`SELECT status FROM cash_drawer_sessions WHERE id = ?`).get(drawerA.id);
+    assert.equal(drawer.status, 'OPEN', 'ditolak sebelum sempat mengubah apa pun');
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('Admin tutup laci langsung ditolak untuk laci gerai lain / yang sudah tidak OPEN', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const storePendem = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const storeMandala = sqlite.prepare(`SELECT id FROM stores WHERE code = 'MANDALA'`).get();
+    const cashierMandala = await seedCashier(sqlite, storeMandala.id, { id: 'cashier_mandala_direct' });
+    const drawerMandala = await openDrawerAs({ DB: db }, cashierMandala.token);
+    const pendemAdminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const wrongStore = await adminCall(env, '/api/admin/drawer/close-permits/direct', {
+      token: pendemAdminToken, store: 'PENDEM', method: 'POST',
+      body: { drawerId: drawerMandala.id, closingAmount: 1000 }
+    });
+    assert.equal(wrongStore.status, 404);
+    assert.equal((await wrongStore.json()).code, 'DRAWER_NOT_OPEN');
+  } finally {
+    sqlite.close();
+  }
+});
+
 test('pengajuan ditolak: tidak ada laci OPEN, laci milik sendiri, belum presensi, dan sudah ada pending duplikat', async () => {
   const sqlite = freshDatabase();
   try {

@@ -34,3 +34,15 @@ test('admin-drawers.js gains a pending close-permit list with ACC/Reject actions
   assert.match(source, /async function decideClosePermit/);
   assert.match(source, /Promise\.all\(\[loadClosePermits\(\), loadDrawers\(\)\]\)/);
 });
+
+// Bos Cyo, 2026-09-19: "ada cs yang ga bisa buka laci gara2 laci cs
+// sebelumnya lupa ditutup ... kamu adjust ya harusnya bagaimana mekanisme
+// ini" -- Admin bisa langsung tutup paksa laci OPEN yang nyangkut dari
+// Detail Laci, tanpa nunggu kasir pengganti sempat mengajukan dulu.
+test('admin-drawers.js gains a direct force-close action on OPEN drawer rows', async () => {
+  const source = await read('public/admin-drawers.js');
+  assert.match(source, /data-force-close-drawer/);
+  assert.match(source, /async function forceCloseDrawer/);
+  assert.match(source, /\/api\/admin\/drawer\/close-permits\/direct/);
+  assert.match(source, /drawer\.status === 'OPEN'/);
+});

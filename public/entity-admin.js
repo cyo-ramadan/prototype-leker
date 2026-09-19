@@ -120,6 +120,15 @@ async function entityProductMasterImageToDataUrl(file) {
   return canvas.toDataURL('image/jpeg', 0.76);
 }
 
+// Format sama persis admin-product-policy.js (Katalog Kode Barang Entity di
+// Admin Gerai): satu bahan per baris, "nama bahan | takaran (opsional)".
+function parseEntityRecipeEditorText(value) {
+  return String(value || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    const [ingredientLabel, quantityLabel = ''] = line.split('|').map(part => part.trim());
+    return { ingredientLabel, quantityLabel };
+  }).filter(component => component.ingredientLabel);
+}
+
 async function submitEntityProductMasterForm(event) {
   event.preventDefault();
   const storeCode = anyEntityStoreCode();
@@ -127,17 +136,32 @@ async function submitEntityProductMasterForm(event) {
   try {
     const photoFile = entityAdminEl('entityProductMasterPhoto').files[0];
     const imageDataUrl = photoFile ? await entityProductMasterImageToDataUrl(photoFile) : '';
+    const recipeComponents = parseEntityRecipeEditorText(entityAdminEl('entityProductMasterRecipe').value);
     await entityAdminApi(`/api/admin/product-masters?store=${encodeURIComponent(storeCode)}`, {
       method: 'POST',
       body: JSON.stringify({
         code: entityAdminEl('entityProductMasterCode').value,
         name: entityAdminEl('entityProductMasterName').value,
-        imageData: imageDataUrl
+        imageData: imageDataUrl,
+        recipeComponents
       })
     });
     entityAdminEl('entityProductMasterForm').reset();
     await loadEntityProductMasters();
     entityAdminToast('Kode Barang diupload');
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function saveEntityProductMasterRecipe(masterId) {
+  const textarea = document.querySelector(`[data-entity-recipe-editor-input="${masterId}"]`);
+  const components = parseEntityRecipeEditorText(textarea?.value);
+  try {
+    await entityAdminApi(`/api/admin/product-masters/${encodeURIComponent(masterId)}/recipe-components?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'PUT',
+      body: JSON.stringify({ components })
+    });
+    await loadEntityProductMasters();
+    entityAdminToast('Resep acuan disimpan');
   } catch (error) { entityAdminToast(error.message); }
 }
 
@@ -185,12 +209,21 @@ function renderEntityProductMasters() {
         <strong>${entityAdminEscape(entry.code)}${entry.name ? ` · ${entityAdminEscape(entry.name)}` : ''}</strong>
         <div class="master-meta">Dipakai ${entry.usedByStores.length} gerai${entry.usedByStores.length ? `: ${entry.usedByStores.map(u => entityAdminEscape(u.storeCode)).join(', ')}` : ''}</div>
         <div class="master-meta">Resep acuan: ${renderEntityProductMasterRecipeList(entry)}</div>
+        <div class="master-meta"><button class="mini-btn" type="button" data-toggle-entity-recipe="${entityAdminEscape(entry.id)}">✎ Edit resep acuan</button></div>
+        <div data-entity-recipe-editor="${entityAdminEscape(entry.id)}" class="hidden" style="margin-top:8px">
+          <textarea data-entity-recipe-editor-input="${entityAdminEscape(entry.id)}" rows="3" style="width:100%" placeholder="Satu bahan per baris, format: nama bahan | takaran (takaran opsional)">${entry.recipeReference.map(c => `${c.ingredientLabel}${c.quantityLabel ? ` | ${c.quantityLabel}` : ''}`).join('\n')}</textarea>
+          <button class="mini-btn" type="button" data-save-entity-recipe="${entityAdminEscape(entry.id)}">Simpan resep acuan</button>
+        </div>
       </div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-edit-entity-pm="${entityAdminEscape(entry.id)}">Edit</button>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Upload lewat form di sebelah, atau daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
   list.querySelectorAll('[data-edit-entity-pm]').forEach(button => button.onclick = () => editEntityProductMaster(button.dataset.editEntityPm));
+  list.querySelectorAll('[data-toggle-entity-recipe]').forEach(button => button.addEventListener('click', () => {
+    document.querySelector(`[data-entity-recipe-editor="${button.dataset.toggleEntityRecipe}"]`)?.classList.toggle('hidden');
+  }));
+  list.querySelectorAll('[data-save-entity-recipe]').forEach(button => button.addEventListener('click', () => saveEntityProductMasterRecipe(button.dataset.saveEntityRecipe)));
 }
 
 // --- Karyawan level Entity -------------------------------------------------

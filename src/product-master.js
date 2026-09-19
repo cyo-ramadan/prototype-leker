@@ -563,6 +563,18 @@ export async function handleProductMasterCatalogApi(request, env, pathname) {
     const image = imageData(body.value?.imageData);
     if (image === null) return json({ error: 'Foto barang tidak valid.' }, 400);
     const masterId = await createProductMaster(db, store.entityId, code, text(body.value?.name, 100), image, actorFrom(auth));
+    // Resep acuan opsional sekalian saat upload -- tetap murni referensi
+    // (ADR-043, keputusan Bos Cyo 2026-09-17): tidak pernah memblokir atau
+    // otomatis dipasang ke resep produksi gerai mana pun saat aktivasi.
+    if (Array.isArray(body.value?.recipeComponents) && body.value.recipeComponents.length) {
+      const components = body.value.recipeComponents
+        .map(component => ({
+          ingredientLabel: text(component?.ingredientLabel, 100),
+          quantityLabel: text(component?.quantityLabel, 40)
+        }))
+        .filter(component => component.ingredientLabel);
+      await replaceRecipeComponents(db, masterId, components);
+    }
     return json({ ok: true, id: masterId, catalog: await loadProductMasterCatalog(db, store.entityId) }, 201);
   }
 

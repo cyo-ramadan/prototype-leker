@@ -39,3 +39,20 @@ test('upload form compresses the photo client-side before sending it as imageDat
   assert.match(source, /maxSide = 800/);
   assert.match(source, /toDataURL\('image\/jpeg', 0\.76\)/);
 });
+
+// Bos Cyo, 2026-09-19: "jangan cuma 3 variable itu, tambahkan yang lain
+// seperti resep dsb" -- form upload dan tiap baris katalog di panel Entity
+// Admin sekarang juga punya editor resep acuan, format sama persis
+// admin-product-policy.js (satu bahan per baris, "nama | takaran").
+test('upload form and each catalog row gain a resep acuan editor, same one-line-per-ingredient format as admin-product-policy.js', async () => {
+  const html = await read('public/entity-admin.html');
+  assert.match(html, /id="entityProductMasterRecipe"/);
+
+  const source = await read('public/entity-admin.js');
+  assert.match(source, /function parseEntityRecipeEditorText/);
+  assert.match(source, /recipeComponents/);
+  assert.match(source, /data-toggle-entity-recipe/);
+  assert.match(source, /data-save-entity-recipe/);
+  assert.match(source, /async function saveEntityProductMasterRecipe/);
+  assert.match(source, /\/recipe-components\?store=/);
+});

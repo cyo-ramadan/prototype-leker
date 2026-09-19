@@ -62,9 +62,13 @@ test('live Stock Adjustment exposes the three business columns and independent V
   assert.doesNotMatch(liveUiSource, /stock-adjustment-difference/);
   assert.match(liveUiSource, /data-stock-adjustment-actual/);
   assert.match(liveUiSource, /selectStockAdjustmentProduct\(selectedRows, product\)/);
-  assert.match(liveUiSource, /for \(const row of changed\)/);
-  assert.match(liveUiSource, /requestType: 'GOODS_FLOW'/);
-  assert.match(liveUiSource, /purpose: 'STOCK_ADJUSTMENT'/);
+  // 2026-09-19: "diganti aja, yang diajukan ya yg satu transaksi" -- changed
+  // rows now go out in ONE atomic batch call instead of a for-loop of
+  // independent per-item POSTs (that older shape left a fragile
+  // partial-failure path where some items could submit and others not).
+  assert.doesNotMatch(liveUiSource, /for \(const row of changed\)/);
+  assert.match(liveUiSource, /\/api\/cashier\/approval-requests\/stock-adjustment-batch/);
+  assert.match(liveUiSource, /items: changed\.map\(row => \(\{/);
   assert.match(liveUiSource, /targetQuantity: row\.targetQuantity/);
 });
 

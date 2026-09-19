@@ -78,7 +78,7 @@
             <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500" placeholder="Contoh: hasil hitung fisik"></textarea></div>
           </div>
 
-          <p class="muted">Setiap barang yang punya selisih menjadi pengajuan Penyesuaian Stok sendiri. Saat ACC, stale-snapshot guard tetap berjalan per barang.</p>`,
+          <p class="muted">Semua barang yang punya selisih diajukan sekaligus sebagai satu pengajuan -- ACC/Reject Admin berlaku untuk semuanya bersamaan. Stale-snapshot guard tetap re-check tiap barang; kalau ada satu yang stoknya berubah, seluruh pengajuan ini ditolak otomatis supaya diajukan ulang dari saldo terbaru.</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
           const prepared = pilatu.prepareStockAdjustmentRows(selectedRows);
@@ -86,33 +86,19 @@
           if (!changed.length) throw new Error('Tidak ada selisih stok yang perlu diajukan.');
 
           const note = el('stockAdjustmentNote').value.trim();
-          const sessionId = crypto.randomUUID();
-          const submittedProductIds = [];
-          try {
-            for (const row of changed) {
-              await api('/api/cashier/approval-requests', {
-                method: 'POST',
-                body: JSON.stringify({
-                  requestType: 'GOODS_FLOW',
-                  payload: {
-                    purpose: 'STOCK_ADJUSTMENT',
-                    productId: row.productId,
-                    targetQuantity: row.targetQuantity,
-                    note,
-                    sessionId
-                  }
-                })
-              });
-              submittedProductIds.push(row.productId);
-            }
-          } catch (error) {
-            selectedRows = selectedRows.filter(row => !submittedProductIds.includes(Number(row.productId)));
-            renderRows();
-            throw new Error(`${submittedProductIds.length} barang sudah berhasil diajukan. Sisanya belum diajukan: ${error.message}`);
-          }
+          await api('/api/cashier/approval-requests/stock-adjustment-batch', {
+            method: 'POST',
+            body: JSON.stringify({
+              items: changed.map(row => ({
+                productId: row.productId,
+                targetQuantity: row.targetQuantity,
+                note
+              }))
+            })
+          });
 
           const skipped = prepared.length - changed.length;
-          toast(`${changed.length} Penyesuaian Stok masuk Approval Queue${skipped ? ` · ${skipped} tanpa selisih dilewati` : ''}.`);
+          toast(`${changed.length} Penyesuaian Stok masuk Approval Queue sebagai satu pengajuan${skipped ? ` · ${skipped} tanpa selisih dilewati` : ''}.`);
           return true;
         }
       });

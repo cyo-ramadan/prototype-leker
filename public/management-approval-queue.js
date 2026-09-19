@@ -66,12 +66,28 @@
     setTimeout(() => node.classList.remove('show'), 2200);
   }
 
-  function renderQueue(target, requests) {
-    if (!requests.length) {
-      target.innerHTML = '<div class="empty">Tidak ada pengajuan pending.</div>';
-      return;
+  // Bos Cyo, 2026-09-19: Stock Opname sekarang satu pengajuan per sesi
+  // (lihat cashier-stock-adjustment-pilatu.js + approval-queue.js batch/group
+  // endpoint), tapi tiap barang di dalamnya tetap satu baris approval_requests
+  // sendiri -- payload.sessionId yang sama menandai "satu transaksi". Baris
+  // TANPA sessionId (termasuk 3 legacy pending row produksi dari sebelum
+  // fitur ini ada) dikelompokkan sebagai grup isi-satu, jadi tampil dan
+  // berperilaku persis seperti sebelumnya, tidak ada yang perlu migrasi data.
+  function groupRequestsBySession(requests) {
+    const groups = [];
+    const bySessionId = new Map();
+    for (const request of requests) {
+      const sessionId = request.payload?.sessionId;
+      if (!sessionId) { groups.push({ sessionId: null, items: [request] }); continue; }
+      let group = bySessionId.get(sessionId);
+      if (!group) { group = { sessionId, items: [] }; bySessionId.set(sessionId, group); groups.push(group); }
+      group.items.push(request);
     }
-    target.innerHTML = requests.map(request => `
+    return groups;
+  }
+
+  function renderSingleCard(request) {
+    return `
       <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
         <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="master-count">pending</span></div>
         <p>${payloadSummary(request)}</p>
@@ -81,9 +97,46 @@
           <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC + POSTING</button>
           <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">Reject</button>
         </div>
-      </article>`).join('');
+      </article>`;
+  }
+
+  function renderGroupCard(group) {
+    const first = group.items[0];
+    const detailId = `approvalGroupDetail-${esc(group.sessionId)}`;
+    return `
+      <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
+        <div class="list-head"><div><strong>STOCK ADJUSTMENT · ${group.items.length} barang</strong><div class="muted">${esc(first.cashierName || first.cashierId)} · ${esc(first.storeId)}</div></div><span class="master-count">pending</span></div>
+        <p>${group.items.length} barang diajukan sebagai satu Stock Opname. ACC/Reject di bawah berlaku untuk semuanya sekaligus.</p>
+        <button class="secondary-btn" type="button" data-approval-group-toggle="${esc(group.sessionId)}">Detail</button>
+        <div id="${detailId}" class="muted" style="margin-top:10px;display:none">
+          ${group.items.map(item => `<div style="padding:6px 0;border-top:1px solid #edf0f4">${payloadSummary(item)}${item.payload?.note ? `<div class="muted">${esc(item.payload.note)}</div>` : ''}</div>`).join('')}
+        </div>
+        <div class="muted" style="margin-top:8px">ACC akan re-check stok aktual semua barang terhadap snapshot. Kalau ada satu saja yang berubah, seluruh sesi ini ditolak otomatis sebagai stale -- tidak ada yang diposting sebagian.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button class="primary-btn" type="button" data-approval-session-acc="${esc(group.sessionId)}">ACC + POSTING SEMUA</button>
+          <button class="secondary-btn" type="button" data-approval-session-reject="${esc(group.sessionId)}">Reject Semua</button>
+        </div>
+      </article>`;
+  }
+
+  function renderQueue(target, requests) {
+    if (!requests.length) {
+      target.innerHTML = '<div class="empty">Tidak ada pengajuan pending.</div>';
+      return;
+    }
+    const groups = groupRequestsBySession(requests);
+    target.innerHTML = groups.map(group => group.items.length > 1 ? renderGroupCard(group) : renderSingleCard(group.items[0])).join('');
     target.querySelectorAll('[data-approval-acc]').forEach(button => button.addEventListener('click', () => decide(button.dataset.approvalAcc, 'ACC')));
     target.querySelectorAll('[data-approval-reject]').forEach(button => button.addEventListener('click', () => decide(button.dataset.approvalReject, 'REJECT')));
+    target.querySelectorAll('[data-approval-session-acc]').forEach(button => button.addEventListener('click', () => decideSession(button.dataset.approvalSessionAcc, 'ACC')));
+    target.querySelectorAll('[data-approval-session-reject]').forEach(button => button.addEventListener('click', () => decideSession(button.dataset.approvalSessionReject, 'REJECT')));
+    target.querySelectorAll('[data-approval-group-toggle]').forEach(button => button.addEventListener('click', () => {
+      const detail = document.getElementById(`approvalGroupDetail-${button.dataset.approvalGroupToggle}`);
+      if (!detail) return;
+      const willShow = detail.style.display === 'none';
+      detail.style.display = willShow ? 'block' : 'none';
+      button.textContent = willShow ? 'Sembunyikan' : 'Detail';
+    }));
   }
 
   async function loadQueue() {
@@ -109,6 +162,24 @@
     } catch (error) {
       if (error.payload?.code === 'STOCK_ADJUSTMENT_STALE') {
         alert(`${error.message}\n\nRequest sudah ditolak otomatis. Buat Penyesuaian Stok baru dari saldo terbaru.`);
+        await loadQueue();
+        return;
+      }
+      alert(error.message);
+    }
+  }
+
+  async function decideSession(sessionId, decision) {
+    try {
+      const payload = await managementApi(`/api/management/approval-requests/session/${encodeURIComponent(sessionId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ decision })
+      });
+      showMessage(payload.posted ? `ACC berhasil · ${payload.requests?.length || 0} barang ter-posting sekaligus.` : 'Sesi pengajuan ditolak tanpa posting.');
+      await loadQueue();
+    } catch (error) {
+      if (error.payload?.code === 'STOCK_ADJUSTMENT_STALE') {
+        alert(`${error.message}\n\nSeluruh sesi ini sudah ditolak otomatis. Buat Penyesuaian Stok baru dari saldo terbaru.`);
         await loadQueue();
         return;
       }

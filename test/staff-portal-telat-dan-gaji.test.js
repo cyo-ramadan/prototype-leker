@@ -10,10 +10,14 @@ import { hashCredential } from '../src/owner-auth.js';
 // brarti ud bs tahu keterlambatannya ... untuk gaji kan uda diisi berapa per
 // jam nya jadi uda bisa langsung diisi ya."
 //
-// lateMinutes dihitung dari shift_start (account_job_details, migration
-// 0104/0105) dibandingkan jam presensi MASUK, keduanya jam dinding Jakarta.
+// lateMinutes dihitung dari jadwal HARI itu (account_shift_schedule, migration
+// 0106 -- lihat test/account-shift-schedule.test.js untuk variasi per hari)
+// dibandingkan jam presensi MASUK, keduanya jam dinding Jakarta. 2026-09-19
+// yang dipakai di test-test di bawah adalah hari Sabtu (day_of_week 6).
 // Riwayat Gaji dihitung dari staff_attendance CLOSED x tarif akun saat ini --
-// JAM: durasi kerja x tarif per jam. SESI: flat per sesi selesai.
+// JAM: durasi kerja x tarif per jam. SESI: flat per sesi selesai. Riwayat Gaji
+// TIDAK bergantung jadwal harian -- cuma durasi presensi asli, jadi test di
+// sini boleh tidak mengisi schedule sama sekali.
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 const staffJs = readFileSync(new URL('../public/staff.js', import.meta.url), 'utf8');
@@ -103,13 +107,14 @@ async function loadPortal(env, token) {
   return response.json();
 }
 
-test('lateMinutes: tepat waktu, telat beberapa ambang, dan lebih awal tetap 0 -- dibandingkan ke shift_start akun', async () => {
+test('lateMinutes: tepat waktu, telat beberapa ambang, dan lebih awal tetap 0 -- dibandingkan ke jadwal hari itu (Sabtu, day_of_week 6)', async () => {
   const sqlite = freshDatabase();
   try {
     const env = { DB: new D1Database(sqlite) };
     const adminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
     const cashier = await createCashier(env, adminToken, 'PENDEM', {
-      username: 'kasir_telat', password: 'rahasia1', employeeName: 'Kasir Telat', shiftStart: '08:00', shiftEnd: '16:00'
+      username: 'kasir_telat', password: 'rahasia1', employeeName: 'Kasir Telat',
+      schedule: [{ dayOfWeek: 6, shiftStart: '08:00', shiftEnd: '16:00' }]
     });
     const token = await cashierToken(sqlite, cashier.id);
 
@@ -129,7 +134,7 @@ test('lateMinutes: tepat waktu, telat beberapa ambang, dan lebih awal tetap 0 --
   } finally { sqlite.close(); }
 });
 
-test('lateMinutes null kalau shift_start belum diisi Admin -- tidak boleh dianggap telat/tepat waktu diam-diam', async () => {
+test('lateMinutes null kalau jadwal hari itu belum diatur Admin -- tidak boleh dianggap telat/tepat waktu diam-diam', async () => {
   const sqlite = freshDatabase();
   try {
     const env = { DB: new D1Database(sqlite) };

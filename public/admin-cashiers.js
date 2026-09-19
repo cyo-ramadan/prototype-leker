@@ -3,6 +3,23 @@
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   let data = { cashiers: [], store: null };
 
+  // Bos Cyo, 2026-09-19: "akunnya dibikin lebih detil aja misal jam kerja
+  // dan hari kerja. jadi misal hari senin jam 9-18 sampai hari jumat sama,
+  // terus sabtu libur, minggu jam 9-22." Urutan tampilan mulai Senin (bukan
+  // Minggu) supaya cocok cara Bos Cyo menjelaskan jadwalnya sendiri.
+  const DAY_LABELS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+  function scheduleRowsHtml() {
+    return DAY_ORDER.map(day => `
+      <div class="admin-grid" style="grid-template-columns:64px auto 1fr 1fr;gap:6px;align-items:center;margin-bottom:4px">
+        <span>${DAY_LABELS[day]}</span>
+        <label style="display:flex;align-items:center;gap:4px;font-weight:400;white-space:nowrap"><input type="checkbox" data-sched-off="${day}" /> Libur</label>
+        <input type="time" data-sched-start="${day}" />
+        <input type="time" data-sched-end="${day}" />
+      </div>`).join('');
+  }
+
   const tabs = document.querySelector('.admin-tabs');
   if (tabs && !document.querySelector('[data-tab="cashiers"]')) {
     tabs.insertAdjacentHTML('beforeend', '<button class="admin-tab" data-tab="cashiers" type="button">🧑‍💼 Create Kasir</button>');
@@ -24,8 +41,7 @@
             <label class="admin-field">Jenis pekerjaan <span class="field-note">opsional</span><input id="cashierJobType" maxlength="100" placeholder="mis. Kasir Shift Pagi" /></label>
             <label class="admin-field">Jenis pembayaran<select id="cashierPaymentType"><option value="JAM">Per Jam</option><option value="SESI">Per Sesi</option></select></label>
             <label class="admin-field" id="cashierWageLabel">Gaji per jam (Rp) <span class="field-note">opsional</span><input id="cashierHourlyWage" type="number" min="0" step="1" /></label>
-            <label class="admin-field">Jam mulai <span class="field-note">opsional</span><input id="cashierShiftStart" type="time" /></label>
-            <label class="admin-field">Jam selesai <span class="field-note">opsional</span><input id="cashierShiftEnd" type="time" /></label>
+            <div class="admin-field"><span>Jam &amp; hari kerja <span class="field-note">opsional per hari</span></span><div id="cashierScheduleRows" style="margin-top:6px">${scheduleRowsHtml()}</div></div>
             <label class="admin-check"><input id="cashierActive" type="checkbox" checked /> Aktif</label>
             <button class="primary-btn" type="submit">Simpan kasir</button>
           </form>
@@ -62,9 +78,34 @@
   function jobDetailLabel(cashier) {
     const parts = [];
     if (cashier.jobType) parts.push(escapeHtml(cashier.jobType));
-    if (cashier.shiftStart || cashier.shiftEnd) parts.push(`Jam ${escapeHtml(cashier.shiftStart || '?')}–${escapeHtml(cashier.shiftEnd || '?')}`);
     if (cashier.hourlyWage > 0) parts.push(`${rupiah(cashier.hourlyWage)}/${cashier.paymentType === 'SESI' ? 'sesi' : 'jam'}`);
     return parts.length ? parts.join(' · ') : 'Detail jabatan belum diisi';
+  }
+
+  // Mengelompokkan hari berurutan yang jadwalnya identik, persis cara Bos
+  // Cyo menjelaskan sendiri: "senin jam 9-18 sampai jumat sama, sabtu
+  // libur, minggu jam 9-22" -- bukan daftar 7 baris terpisah.
+  function scheduleSummary(schedule) {
+    if (!schedule || !schedule.length) return 'Jadwal belum diatur';
+    const byDay = new Map(schedule.map(day => [day.dayOfWeek, day]));
+    const ordered = DAY_ORDER.map(day => byDay.get(day) || { dayOfWeek: day, isDayOff: false, shiftStart: '', shiftEnd: '' });
+    const groups = [];
+    for (const day of ordered) {
+      const key = day.isDayOff ? 'OFF' : (day.shiftStart || day.shiftEnd) ? `${day.shiftStart}|${day.shiftEnd}` : 'UNSET';
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.days.push(day.dayOfWeek);
+      else groups.push({ key, days: [day.dayOfWeek] });
+    }
+    const labels = groups.map(group => {
+      if (group.key === 'UNSET') return null;
+      const dayLabel = group.days.length > 1
+        ? `${DAY_LABELS[group.days[0]]}–${DAY_LABELS[group.days[group.days.length - 1]]}`
+        : DAY_LABELS[group.days[0]];
+      if (group.key === 'OFF') return `${dayLabel} Libur`;
+      const [start, end] = group.key.split('|');
+      return `${dayLabel} ${escapeHtml(start || '?')}–${escapeHtml(end || '?')}`;
+    }).filter(Boolean);
+    return labels.length ? labels.join(' · ') : 'Jadwal belum diatur';
   }
 
   function syncWageLabel() {
@@ -81,6 +122,7 @@
           <strong>${escapeHtml(cashier.employeeName)}</strong>
           <div class="master-meta">@${escapeHtml(cashier.username)} · ${escapeHtml(cashier.store.code)}</div>
           <div class="master-meta">${jobDetailLabel(cashier)}</div>
+          <div class="master-meta">${scheduleSummary(cashier.schedule)}</div>
           <div class="master-meta">${cashier.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
         <div class="master-actions">
@@ -100,6 +142,27 @@
     } catch (error) { toast(error.message); }
   }
 
+  function fillScheduleForm(schedule) {
+    const byDay = new Map((schedule || []).map(day => [day.dayOfWeek, day]));
+    DAY_ORDER.forEach(day => {
+      const value = byDay.get(day) || { isDayOff: false, shiftStart: '', shiftEnd: '' };
+      document.querySelector(`[data-sched-off="${day}"]`).checked = value.isDayOff;
+      document.querySelector(`[data-sched-start="${day}"]`).value = value.shiftStart || '';
+      document.querySelector(`[data-sched-end="${day}"]`).value = value.shiftEnd || '';
+      document.querySelector(`[data-sched-start="${day}"]`).disabled = value.isDayOff;
+      document.querySelector(`[data-sched-end="${day}"]`).disabled = value.isDayOff;
+    });
+  }
+
+  function readScheduleFromForm() {
+    return DAY_ORDER.map(day => ({
+      dayOfWeek: day,
+      isDayOff: document.querySelector(`[data-sched-off="${day}"]`).checked,
+      shiftStart: document.querySelector(`[data-sched-start="${day}"]`).value,
+      shiftEnd: document.querySelector(`[data-sched-end="${day}"]`).value
+    }));
+  }
+
   function resetForm() {
     el('cashierForm').reset();
     el('cashierId').value = '';
@@ -110,6 +173,7 @@
     el('cashierPasswordNote').textContent = 'min. 6 karakter';
     el('cashierPaymentType').value = 'JAM';
     syncWageLabel();
+    fillScheduleForm([]);
   }
 
   function editCashier(id) {
@@ -125,8 +189,7 @@
     el('cashierPaymentType').value = cashier.paymentType || 'JAM';
     syncWageLabel();
     el('cashierHourlyWage').value = cashier.hourlyWage || '';
-    el('cashierShiftStart').value = cashier.shiftStart || '';
-    el('cashierShiftEnd').value = cashier.shiftEnd || '';
+    fillScheduleForm(cashier.schedule);
     el('cashierActive').checked = cashier.isActive;
     el('cashierFormTitle').textContent = 'Edit kasir';
     el('cashierCancelEdit').classList.remove('hidden');
@@ -144,8 +207,7 @@
       jobType: el('cashierJobType').value,
       paymentType: el('cashierPaymentType').value,
       hourlyWage: el('cashierHourlyWage').value || 0,
-      shiftStart: el('cashierShiftStart').value,
-      shiftEnd: el('cashierShiftEnd').value,
+      schedule: readScheduleFromForm(),
       isActive: el('cashierActive').checked
     };
     try {
@@ -173,6 +235,14 @@
   el('cashierCancelEdit')?.addEventListener('click', resetForm);
   el('cashierPaymentType')?.addEventListener('change', syncWageLabel);
   syncWageLabel();
+  // Klik "Libur" mematikan (bukan menghapus nilainya) input jam hari itu --
+  // kalau di-uncheck lagi, jamnya masih ada seperti sebelumnya.
+  el('cashierScheduleRows')?.addEventListener('change', event => {
+    const day = event.target.dataset.schedOff;
+    if (day === undefined) return;
+    document.querySelector(`[data-sched-start="${day}"]`).disabled = event.target.checked;
+    document.querySelector(`[data-sched-end="${day}"]`).disabled = event.target.checked;
+  });
 
   const gate = el('authGate');
   if (gate) new MutationObserver(() => { if (gate.classList.contains('hidden')) load(); }).observe(gate, { attributes: true, attributeFilter: ['class'] });

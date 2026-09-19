@@ -38,3 +38,14 @@ export function timeOfDayToMinutes(hhmm) {
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
 }
+
+// 0=Minggu .. 6=Sabtu, hari kalender Jakarta (bukan UTC) -- dipakai
+// account_shift_schedule (migration 0106) supaya jam kerja bisa beda per
+// hari (mis. Senin-Jumat 09:00-18:00, Sabtu libur, Minggu 09:00-22:00).
+// Dihitung dari tanggal Jakarta (Y-M-D) yang dikonstruksi ulang jadi UTC
+// tengah hari, supaya aman dari isu DST/timezone -- cuma kalender yang
+// dipakai, bukan jam.
+export function getJakartaDayOfWeek(date = new Date()) {
+  const [year, month, day] = getJakartaBusinessDate(date).split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}

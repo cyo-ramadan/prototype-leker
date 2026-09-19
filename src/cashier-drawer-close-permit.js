@@ -142,6 +142,95 @@ async function handleManagementClosePermit(request, env, pathname) {
     return json({ store, permits: await listPermits(db, { storeId: store.id, status }) });
   }
 
+  // Bos Cyo, 2026-09-19: "jadi posisinya sekarang ada cs yang ga bisa buka
+  // laci gara2 laci cs sebelumnya lupa ditutup ... kamu adjust ya harusnya
+  // bagaimana mekanisme ini." Jalur di atas (kasir ajukan -> Admin ACC) tetap
+  // dipertahankan (bagus buat jejak siapa yang gagal tutup lacinya sendiri),
+  // tapi kasusnya bisa juga Admin/Bos Cyo SUDAH TAHU ada laci nyangkut dan
+  // mau langsung beresin di tempat -- tanpa nunggu kasir pengganti tahu/pakai
+  // tombol pengajuan itu dulu. Route ini exact-path, dicek SEBELUM
+  // decisionMatch supaya path literal "direct" tidak ketangkep sebagai id.
+  if (request.method === 'POST' && pathname === '/api/admin/drawer/close-permits/direct') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload tutup paksa tidak valid.' }, 400);
+    const drawerId = text(body.value?.drawerId, 80);
+    if (!drawerId) return json({ error: 'drawerId wajib diisi.' }, 400);
+    const drawer = await db.prepare(`
+      SELECT id, cashier_id FROM cash_drawer_sessions WHERE id = ? AND store_id = ? AND status = 'OPEN'
+    `).bind(drawerId, store.id).first();
+    if (!drawer) return json({ error: 'Laci tidak ditemukan atau sudah tidak OPEN di gerai ini.', code: 'DRAWER_NOT_OPEN' }, 404);
+    const pendingExisting = await db.prepare(`SELECT id FROM drawer_close_permits WHERE drawer_session_id = ? AND status = 'PENDING'`).bind(drawerId).first();
+    if (pendingExisting) {
+      return json({
+        error: 'Sudah ada pengajuan dari kasir yang menunggu untuk laci ini -- putuskan pengajuan itu (ACC/Tolak), jangan tutup langsung.',
+        code: 'PERMIT_ALREADY_PENDING',
+        permitId: pendingExisting.id
+      }, 409);
+    }
+
+    const closingAmount = money(body.value?.closingAmount);
+    const depositAmount = money(body.value?.depositAmount ?? 0);
+    if (closingAmount === null) return json({ error: 'Saldo akhir laci wajib berupa angka valid.' }, 400);
+    if (depositAmount === null) return json({ error: 'Setoran wajib berupa angka valid.' }, 400);
+    if (depositAmount > closingAmount) return json({ error: 'Setoran tidak boleh lebih besar dari saldo akhir laci.' }, 400);
+    if (depositAmount > 0 && !Number.isSafeInteger(depositAmount * 1_000_000)) {
+      return json({ error: 'Nominal setoran terlalu besar untuk precision Accounting.' }, 400);
+    }
+
+    const now = new Date().toISOString();
+    const closingNote = text(body.value?.closingNote, 500);
+    const note = text(body.value?.note, 500) || 'Ditutup langsung oleh Admin, tanpa pengajuan kasir lain.';
+
+    const closeResult = await db.prepare(`
+      UPDATE cash_drawer_sessions
+      SET closing_amount = ?, deposit_amount = ?, status = 'CLOSED', closed_at = ?, closing_note = ?
+      WHERE id = ? AND status = 'OPEN'
+    `).bind(closingAmount, depositAmount, now, closingNote, drawerId).run();
+    if (!closeResult.success || Number(closeResult.meta?.changes ?? 0) !== 1) {
+      return json({ error: 'Laci sudah berubah status di request lain.' }, 409);
+    }
+
+    // requested_by_cashier_id = target_cashier_id (self-referential) --
+    // sengaja dipakai sebagai penanda "tidak ada kasir lain yang mengajukan,
+    // Admin bertindak langsung" (bedanya dengan jalur normal selalu
+    // requested_by != target). target_cashier_id tetap A, itu yang penting
+    // buat jejak penilaian ke depan -- siapa yang menutupnya tidak mengubah
+    // fakta bahwa A tidak menutup lacinya sendiri.
+    const permitId = `drawerpermit_${crypto.randomUUID()}`;
+    await db.prepare(`
+      INSERT INTO drawer_close_permits (
+        id, store_id, drawer_session_id, target_cashier_id, requested_by_cashier_id,
+        closing_amount, deposit_amount, closing_note, reason, status,
+        decision_note, decided_by_role, decided_by_id, decided_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'DITUTUP_LANGSUNG_ADMIN', 'APPROVED', ?, ?, ?, ?)
+    `).bind(
+      permitId, store.id, drawerId, drawer.cashier_id, drawer.cashier_id,
+      closingAmount, depositAmount, closingNote, note, approverRole, approverId, now
+    ).run();
+
+    let employeeDeposit = null;
+    if (depositAmount > 0) {
+      employeeDeposit = await createEmployeeDepositReceivable(db, {
+        storeId: store.id,
+        cashierId: drawer.cashier_id,
+        drawerSessionId: drawerId,
+        amountRupiah: depositAmount,
+        transactionDate: now.slice(0, 10)
+      });
+      if (employeeDeposit?.accounting && !employeeDeposit.accounting.ok) {
+        return json({
+          error: employeeDeposit.accounting.error,
+          code: employeeDeposit.accounting.code || 'EMPLOYEE_DEPOSIT_RECOGNITION_POST_FAILED',
+          drawerCommitted: true,
+          permit: await getPermit(db, permitId),
+          employeeDeposit
+        }, employeeDeposit.accounting.status || 503);
+      }
+    }
+
+    return json({ ok: true, permit: await getPermit(db, permitId), employeeDeposit }, 201);
+  }
+
   const decisionMatch = pathname.match(/^\/api\/admin\/drawer\/close-permits\/([^/]+)$/);
   if (request.method === 'PATCH' && decisionMatch) {
     const permitId = decodeURIComponent(decisionMatch[1]);

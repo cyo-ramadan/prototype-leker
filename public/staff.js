@@ -108,6 +108,79 @@
           <span>${money(row.earningRupiah)}</span>
         </div>`).join('')}</div>`;
   }
+  // Bos Cyo, 2026-09-19: "portal staf kasih tombol daily task ya ... isi2nya
+  // aku mau kasih seperti pakai appron, bersih2, tes rasa2 ... pengaturan
+  // task juga di set up oleh admin dari panel nya." Isinya diatur Admin
+  // (src/staff-daily-task.js) -- daftar di sini murni menampilkan +
+  // menandai selesai, tidak ada isi yang di-hardcode. Video bukti (max 8
+  // detik, auto-hapus) BELUM ada, menunggu R2 diaktifkan Bos Cyo.
+  let dailyTasks = null;
+  function renderDailyTasks() {
+    const target = el('staffDailyTaskList'); if (!target) return;
+    const tasks = dailyTasks?.tasks || [];
+    if (dailyTasks?.businessDate) el('dailyTaskDate').textContent = `Tanggal: ${escapeHtml(dailyTasks.businessDate)}`;
+    if (!tasks.length) { target.innerHTML = '<div class="staff-empty">Admin belum mengatur tugas harian untuk gerai ini.</div>'; return; }
+    target.innerHTML = tasks.map(task => `
+      <div class="staff-card" style="margin-bottom:10px">
+        <strong>${escapeHtml(task.title)}</strong>
+        ${task.description ? `<div class="muted">${escapeHtml(task.description)}</div>` : ''}
+        ${task.completed ? `<div class="muted" style="font-weight:800;color:#2f9e44;margin-top:6px">✓ Selesai${task.completedAt ? ` · ${escapeHtml(dateTime(task.completedAt))}` : ''}</div>` : ''}
+        <div class="field" style="margin-top:8px"><label>Catatan <span class="field-note">opsional</span></label><input class="text-input daily-task-note" type="text" maxlength="500" value="${escapeHtml(task.note)}" /></div>
+        <button type="button" class="${task.completed ? 'secondary-btn' : 'primary-btn'}" data-daily-task-complete="${escapeHtml(task.id)}" style="margin-top:8px">${task.completed ? 'Ubah catatan' : 'Tandai Selesai'}</button>
+      </div>`).join('');
+    target.querySelectorAll('[data-daily-task-complete]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const card = button.closest('.staff-card');
+        const note = card.querySelector('.daily-task-note').value;
+        try {
+          await staffApi('/api/staff/daily-tasks/complete', { method: 'POST', body: JSON.stringify({ templateId: button.dataset.dailyTaskComplete, note }) });
+          await loadDailyTasks();
+          toastStaff('Tugas ditandai selesai.');
+        } catch (error) { toastStaff(error.message); }
+      });
+    });
+  }
+  async function loadDailyTasks() {
+    try { dailyTasks = await staffApi('/api/staff/daily-tasks'); renderDailyTasks(); }
+    catch (error) { const target = el('staffDailyTaskList'); if (target) target.innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; }
+  }
+
+  // Bos Cyo, 2026-09-19: "tambahkan juga di portal staff tombol manual
+  // book" -- halaman baru diisi Admin, dua lapis: Entity (semua gerai) +
+  // Store (tambahan khusus gerai ini), keduanya read-only untuk kasir.
+  function manualBookBlock(content) {
+    return content
+      ? `<div style="white-space:pre-wrap">${escapeHtml(content)}</div>`
+      : '<div class="staff-empty">Belum diisi Admin.</div>';
+  }
+  async function loadManualBook() {
+    try {
+      const payload = await staffApi('/api/staff/manual-book');
+      el('staffManualBookEntity').innerHTML = manualBookBlock(payload.entityContent);
+      el('staffManualBookStore').innerHTML = manualBookBlock(payload.storeContent);
+    } catch (error) {
+      el('staffManualBookEntity').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  // Bos Cyo, 2026-09-19: "tambahkan juga tombol anoncement" -- papan
+  // searah, staf cuma baca. Gabungan pengumuman entity-wide + khusus gerai
+  // ini, urut terbaru dulu (src/staff-announcement.js).
+  function renderAnnouncements(items) {
+    const target = el('staffAnnouncementList'); if (!target) return;
+    if (!items.length) { target.innerHTML = '<div class="staff-empty">Belum ada pengumuman.</div>'; return; }
+    target.innerHTML = items.map(item => `
+      <div class="staff-card" style="margin-bottom:10px">
+        <div class="muted">${item.scope === 'ENTITY' ? 'Semua gerai' : 'Gerai ini'} · ${escapeHtml(dateTime(item.createdAt))} · ${escapeHtml(item.createdBy)}</div>
+        <strong>${escapeHtml(item.title)}</strong>
+        ${item.body ? `<div style="white-space:pre-wrap;margin-top:4px">${escapeHtml(item.body)}</div>` : ''}
+      </div>`).join('');
+  }
+  async function loadAnnouncements() {
+    try { const payload = await staffApi('/api/staff/announcements'); renderAnnouncements(payload.announcements || []); }
+    catch (error) { const target = el('staffAnnouncementList'); if (target) target.innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; }
+  }
+
   const approvalLabel = { pending_approval: 'Menunggu ACC', approved: 'Sudah disetor', rejected: 'Ditolak' };
   function renderDeposits() {
     const target = el('staffDepositList'); if (!target) return;
@@ -187,5 +260,5 @@
   el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
   el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
   el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/?login=staff'); });
-  bindTabs(); loadPortal(); loadDeposits();
+  bindTabs(); loadPortal(); loadDeposits(); loadDailyTasks(); loadManualBook(); loadAnnouncements();
 })();

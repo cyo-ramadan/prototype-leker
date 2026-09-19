@@ -435,3 +435,118 @@ test('Admin GET hanya melihat permit gerainya sendiri, default filter PENDING', 
     sqlite.close();
   }
 });
+
+// Bos Cyo, 2026-09-19: "itu data permit acc admin kok ga ada tanggal dan
+// jam pengajuannya, jadi biar ga kadarluasa untuk acc nya. dibikin aja
+// kalo engga di acc 24 jam, dan ga aktifin auto permit maka jadi
+// kenreject." Pengajuan yang dibiarkan menggantung lebih dari 24 jam
+// otomatis jadi REJECTED begitu tabel ini disentuh lagi (GET/POST/PATCH) --
+// bukan cron, lazy-check di titik akses.
+function backdatePermitCreatedAt(sqlite, permitId, hoursAgo) {
+  sqlite.prepare(`UPDATE drawer_close_permits SET created_at = datetime('now', ?) WHERE id = ?`).run(`-${hoursAgo} hours`, permitId);
+}
+
+test('pengajuan PENDING lebih dari 24 jam otomatis REJECTED saat Admin GET daftar', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const cashierA = await seedCashier(sqlite, store.id, { id: 'cashier_a_expiry_get' });
+    const cashierB = await seedCashier(sqlite, store.id, { id: 'cashier_b_expiry_get' });
+    await openDrawerAs({ DB: db }, cashierA.token);
+    const adminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const submitted = await (await cashierCall(env, '/api/cashier/drawer/close-permits', {
+      token: cashierB.token, method: 'POST', body: { closingAmount: 10000 }
+    })).json();
+    backdatePermitCreatedAt(sqlite, submitted.permit.id, 25);
+
+    const listRes = await adminCall(env, '/api/admin/drawer/close-permits', { token: adminToken, store: 'PENDEM' });
+    const permits = (await listRes.json()).permits;
+    assert.equal(permits.length, 0, 'sudah kadaluarsa, tidak boleh muncul lagi di filter default PENDING');
+
+    const row = sqlite.prepare(`SELECT status, decided_by_role, decision_note FROM drawer_close_permits WHERE id = ?`).get(submitted.permit.id);
+    assert.equal(row.status, 'REJECTED');
+    assert.equal(row.decided_by_role, 'SYSTEM');
+    assert.match(row.decision_note, /24 jam/);
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('PATCH ke pengajuan yang sudah kadaluarsa mengembalikan kode PERMIT_EXPIRED, bukan pesan generik', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const cashierA = await seedCashier(sqlite, store.id, { id: 'cashier_a_expiry_patch' });
+    const cashierB = await seedCashier(sqlite, store.id, { id: 'cashier_b_expiry_patch' });
+    await openDrawerAs({ DB: db }, cashierA.token);
+    const adminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const submitted = await (await cashierCall(env, '/api/cashier/drawer/close-permits', {
+      token: cashierB.token, method: 'POST', body: { closingAmount: 10000 }
+    })).json();
+    backdatePermitCreatedAt(sqlite, submitted.permit.id, 30);
+
+    const accRes = await adminCall(env, `/api/admin/drawer/close-permits/${submitted.permit.id}`, {
+      token: adminToken, store: 'PENDEM', method: 'PATCH', body: { decision: 'ACC' }
+    });
+    assert.equal(accRes.status, 409);
+    assert.equal((await accRes.json()).code, 'PERMIT_EXPIRED');
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('kasir bisa ajukan lagi setelah pengajuan lama untuk laci yang sama kadaluarsa (tidak nyangkut PERMIT_ALREADY_PENDING selamanya)', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const cashierA = await seedCashier(sqlite, store.id, { id: 'cashier_a_expiry_reopen' });
+    const cashierB = await seedCashier(sqlite, store.id, { id: 'cashier_b_expiry_reopen' });
+    await openDrawerAs({ DB: db }, cashierA.token);
+
+    const first = await (await cashierCall(env, '/api/cashier/drawer/close-permits', {
+      token: cashierB.token, method: 'POST', body: { closingAmount: 10000 }
+    })).json();
+    backdatePermitCreatedAt(sqlite, first.permit.id, 48);
+
+    const second = await cashierCall(env, '/api/cashier/drawer/close-permits', {
+      token: cashierB.token, method: 'POST', body: { closingAmount: 12000 }
+    });
+    assert.equal(second.status, 201, 'pengajuan lama sudah kadaluarsa, tidak boleh lagi menghalangi pengajuan baru');
+    assert.equal((await second.json()).permit.status, 'PENDING');
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('pengajuan PENDING yang belum genap 24 jam tidak ikut kadaluarsa', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const cashierA = await seedCashier(sqlite, store.id, { id: 'cashier_a_expiry_fresh' });
+    const cashierB = await seedCashier(sqlite, store.id, { id: 'cashier_b_expiry_fresh' });
+    await openDrawerAs({ DB: db }, cashierA.token);
+    const adminToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+
+    const submitted = await (await cashierCall(env, '/api/cashier/drawer/close-permits', {
+      token: cashierB.token, method: 'POST', body: { closingAmount: 10000 }
+    })).json();
+    backdatePermitCreatedAt(sqlite, submitted.permit.id, 23);
+
+    const listRes = await adminCall(env, '/api/admin/drawer/close-permits', { token: adminToken, store: 'PENDEM' });
+    const permits = (await listRes.json()).permits;
+    assert.equal(permits.length, 1, 'baru 23 jam, belum boleh kadaluarsa');
+    assert.equal(permits[0].status, 'PENDING');
+  } finally {
+    sqlite.close();
+  }
+});

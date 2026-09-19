@@ -62,6 +62,33 @@ async function getPermit(db, id) {
   return mapPermit(row);
 }
 
+// Bos Cyo, 2026-09-19: "itu data permit acc admin kok ga ada tanggal dan
+// jam pengajuannya, jadi biar ga kadarluasa untuk acc nya. dibikin aja
+// kalo engga di acc 24 jam, dan ga aktifin auto permit maka jadi
+// kenreject." Tanggal/jam pengajuan sudah tersimpan (created_at) dan sudah
+// ditampilkan (admin-drawers.js), tapi belum ada batas waktu -- pengajuan
+// pending bisa nggantung tanpa batas kalau Admin lupa. Auto Permit tidak
+// relevan di sini (permit dari gerai yang mengaktifkannya sudah APPROVED
+// sedetik itu juga, tidak pernah sempat nyangkut PENDING), jadi expiry ini
+// cukup berlaku ke SEMUA pengajuan PENDING yang lebih tua dari 24 jam.
+//
+// Lazy-expiry (dicek ulang setiap GET/POST/PATCH menyentuh tabel ini),
+// BUKAN cron/polling periodik -- invariant #6 CLAUDE.md.
+const EXPIRED_NOTE = 'Kadaluarsa otomatis -- tidak ada keputusan Admin dalam 24 jam.';
+
+async function expireStalePermits(db, storeId) {
+  // Threshold dihitung pakai datetime('now', ...) SQLite sendiri (bukan
+  // new Date().toISOString() dari JS) supaya dibandingkan dalam format yang
+  // sama persis dengan created_at (default CURRENT_TIMESTAMP, migration
+  // 0110) -- keduanya 'YYYY-MM-DD HH:MM:SS' UTC, tidak ada risiko mismatch
+  // format 'T'/'Z' yang bisa menggeser hasil perbandingan string.
+  await db.prepare(`
+    UPDATE drawer_close_permits
+    SET status = 'REJECTED', decision_note = ?, decided_by_role = 'SYSTEM', decided_by_id = '', decided_at = ?
+    WHERE store_id = ? AND status = 'PENDING' AND created_at <= datetime('now', '-24 hours')
+  `).bind(EXPIRED_NOTE, new Date().toISOString(), storeId).run();
+}
+
 async function listPermits(db, { storeId, status = null, cashierId = null } = {}) {
   const conditions = ['p.store_id = ?'];
   const values = [storeId];
@@ -172,6 +199,7 @@ async function handleCashierClosePermit(request, env, pathname) {
   const cashier = auth.cashier;
 
   if (request.method === 'GET' && pathname === '/api/cashier/drawer/close-permits') {
+    await expireStalePermits(db, cashier.store.id);
     return json({ permits: await listPermits(db, { storeId: cashier.store.id, cashierId: cashier.id }) });
   }
 
@@ -186,6 +214,10 @@ async function handleCashierClosePermit(request, env, pathname) {
     if (await latestAttendanceStatus(db, cashier.id) !== 'in') {
       return json({ error: 'Presensi masuk dulu sebelum mengajukan tutup laci sebelumnya.', code: 'PRESENSI_REQUIRED' }, 403);
     }
+    // Pengajuan lama yang sudah lebih dari 24 jam kadaluarsa dulu di sini --
+    // supaya pengajuan pending yang sebenarnya sudah basi tidak menghalangi
+    // pengajuan baru selamanya (PERMIT_ALREADY_PENDING).
+    await expireStalePermits(db, cashier.store.id);
     const pending = await db.prepare(`SELECT id FROM drawer_close_permits WHERE drawer_session_id = ? AND status = 'PENDING'`).bind(drawer.id).first();
     if (pending) return json({ error: 'Sudah ada pengajuan tutup laci ini yang masih menunggu ACC Admin.', code: 'PERMIT_ALREADY_PENDING' }, 409);
 
@@ -246,6 +278,7 @@ async function handleManagementClosePermit(request, env, pathname) {
   const approverId = auth.owner?.id || auth.entityAdmin?.id || auth.admin?.id || '';
 
   if (request.method === 'GET' && pathname === '/api/admin/drawer/close-permits') {
+    await expireStalePermits(db, store.id);
     const rawStatus = text(new URL(request.url).searchParams.get('status'), 20) || 'PENDING';
     const status = rawStatus.toUpperCase() === 'ALL' ? null : rawStatus.toUpperCase();
     return json({ store, permits: await listPermits(db, { storeId: store.id, status }) });
@@ -254,10 +287,19 @@ async function handleManagementClosePermit(request, env, pathname) {
   const decisionMatch = pathname.match(/^\/api\/admin\/drawer\/close-permits\/([^/]+)$/);
   if (request.method === 'PATCH' && decisionMatch) {
     const permitId = decodeURIComponent(decisionMatch[1]);
+    await expireStalePermits(db, store.id);
     const current = await getPermit(db, permitId);
     if (!current) return json({ error: 'Pengajuan tidak ditemukan.' }, 404);
     if (current.storeId !== store.id) return json({ error: 'Pengajuan berada di gerai lain.', code: 'PERMIT_STORE_SCOPE_MISMATCH' }, 403);
-    if (current.status !== 'PENDING') return json({ error: 'Pengajuan ini sudah diputuskan sebelumnya.' }, 409);
+    if (current.status !== 'PENDING') {
+      return json({
+        error: current.decidedByRole === 'SYSTEM'
+          ? 'Pengajuan ini sudah kadaluarsa otomatis (lebih dari 24 jam tidak diputuskan Admin).'
+          : 'Pengajuan ini sudah diputuskan sebelumnya.',
+        code: current.decidedByRole === 'SYSTEM' ? 'PERMIT_EXPIRED' : undefined,
+        permit: current
+      }, 409);
+    }
 
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload keputusan tidak valid.' }, 400);

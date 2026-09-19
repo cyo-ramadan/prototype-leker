@@ -42,7 +42,7 @@
       </section>
       <section id="tab-drawers" class="admin-section">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Pengajuan Tutup Laci Sebelumnya</h2><div class="muted">Kasir gantian jaga mengajukan tutup paksa laci kasir sebelumnya yang masih terbuka -- ACC di sini yang benar-benar menutup lacinya.</div></div><span id="adminClosePermitCount" class="master-count">0</span></div>
+          <div class="list-head"><div><h2>Pengajuan Tutup Laci Sebelumnya</h2><div class="muted">Kasir gantian jaga mengajukan tutup paksa laci kasir sebelumnya yang masih terbuka -- ACC di sini yang benar-benar menutup lacinya. Tidak diputuskan dalam 24 jam sejak diajukan akan otomatis Tolak.</div></div><span id="adminClosePermitCount" class="master-count">0</span></div>
           <div id="adminClosePermitList" class="master-list" style="margin-top:14px"></div>
         </div>
         <div class="admin-card" style="margin-top:16px">

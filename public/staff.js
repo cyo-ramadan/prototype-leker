@@ -169,7 +169,21 @@
       onPermissionDenied: error => { const detail = error?.name === 'NotAllowedError' ? 'Akses kamera ditolak.' : 'Kamera tidak tersedia.'; showCameraMessage(`${detail} Buka permission kamera di browser lalu coba lagi.`); }
     });
   }
-  function bindTabs() { document.querySelectorAll('[data-staff-tab]').forEach(button => { button.addEventListener('click', () => { const tab = button.dataset.staffTab; document.querySelectorAll('[data-staff-tab]').forEach(item => item.classList.toggle('active', item === button)); document.querySelectorAll('.staff-panel').forEach(panel => panel.classList.toggle('active', panel.id === `staffPanel${tab[0].toUpperCase()}${tab.slice(1)}`)); }); }); }
+  // Bos Cyo, 2026-09-19: "presensi itu kalo di klik langsung jadi modal buat
+  // presensi aja, engga perlu habis klik itu trus klik tombol lagi" -- klik
+  // tab Presensi langsung membuka kamera, tombol Presensi Datang/Pulang di
+  // bawahnya tetap ada cuma untuk retry kalau modal sebelumnya dibatalkan
+  // (izin kamera ditolak, dsb), bukan langkah wajib lagi.
+  function bindTabs() {
+    document.querySelectorAll('[data-staff-tab]').forEach(button => {
+      button.addEventListener('click', () => {
+        const tab = button.dataset.staffTab;
+        document.querySelectorAll('[data-staff-tab]').forEach(item => item.classList.toggle('active', item === button));
+        document.querySelectorAll('.staff-panel').forEach(panel => panel.classList.toggle('active', panel.id === `staffPanel${tab[0].toUpperCase()}${tab.slice(1)}`));
+        if (tab === 'attendance') startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in');
+      });
+    });
+  }
   el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
   el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
   el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/?login=staff'); });

@@ -194,3 +194,13 @@ test('UI Portal Staf punya indikator telat dan render Riwayat Gaji, bukan lagi p
   assert.match(staffJs, /renderPayroll/);
   assert.match(staffJs, /staffPayrollList/);
 });
+
+// Bos Cyo, 2026-09-19: "presensi itu kalo di klik langsung jadi modal buat
+// presensi aja, engga perlu habis klik itu trus klik tombol lagi" -- klik
+// tab Presensi harus langsung memicu startAttendance(), bukan cuma pindah
+// panel lalu menunggu klik tombol terpisah.
+test('klik tab Presensi langsung memicu startAttendance(), bukan cuma pindah panel', () => {
+  const bindTabsBlock = staffJs.slice(staffJs.indexOf('function bindTabs'), staffJs.indexOf('el(\'attendanceToggleBtn\').addEventListener'));
+  assert.match(bindTabsBlock, /tab === 'attendance'/);
+  assert.match(bindTabsBlock, /startAttendance\(/);
+});

@@ -90,35 +90,9 @@
         </div>
         <div class="drawer-history-actions">
           <button class="admin-tx-btn admin-tx-btn-primary" type="button" data-admin-drawer="${esc(drawer.id)}">🔍 Lihat Detail</button>
-          ${drawer.status === 'OPEN' ? `<button class="admin-tx-btn" type="button" data-force-close-drawer="${esc(drawer.id)}">🔒 Tutup Paksa</button>` : ''}
         </div>
       </article>`).join('') : '<div class="empty">Belum ada riwayat laci di gerai ini.</div>';
     document.querySelectorAll('[data-admin-drawer]').forEach(button => button.onclick = () => openReport(button.dataset.adminDrawer));
-    document.querySelectorAll('[data-force-close-drawer]').forEach(button => button.onclick = () => forceCloseDrawer(button.dataset.forceCloseDrawer));
-  }
-
-  // Bos Cyo, 2026-09-19: "ada cs yang ga bisa buka laci gara2 laci cs
-  // sebelumnya lupa ditutup ... kamu adjust ya harusnya bagaimana
-  // mekanisme ini" -- selain jalur kasir mengajukan lalu Admin ACC (di atas),
-  // Admin yang SUDAH TAHU ada laci nyangkut bisa langsung menutupnya dari
-  // sini juga, tanpa nunggu kasir pengganti sempat pakai tombol pengajuan.
-  async function forceCloseDrawer(drawerId) {
-    const drawer = drawers.find(item => item.id === drawerId);
-    if (!drawer) return;
-    if (!confirm(`Tutup paksa laci ${drawer.cashierName}? Pastikan sudah hitung kas fisiknya dulu.`)) return;
-    const closingAmount = Number(prompt('Saldo kas fisik saat ini:', '0'));
-    if (!Number.isFinite(closingAmount) || closingAmount < 0) return toast('Saldo akhir laci tidak valid.');
-    const depositAmount = Number(prompt('Setoran (opsional, atas nama pemegang laci):', '0') || 0);
-    if (!Number.isFinite(depositAmount) || depositAmount < 0) return toast('Setoran tidak valid.');
-    const note = prompt('Catatan (opsional):', 'Ditutup langsung oleh Admin -- laci nyangkut dari shift sebelumnya') ?? '';
-    try {
-      await request('/api/admin/drawer/close-permits/direct', {
-        method: 'POST',
-        body: JSON.stringify({ drawerId, closingAmount, depositAmount, note })
-      });
-      await Promise.all([loadDrawers(), loadClosePermits()]);
-      toast('Laci ditutup paksa');
-    } catch (error) { toast(error.message); }
   }
 
   async function loadDrawers() {

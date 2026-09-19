@@ -9,19 +9,41 @@ const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 // di force close." Source-level checks (pola sama seperti
 // test/product-master-entity-admin-ui.test.js) memastikan tombol/wiring
 // tetap ada, bukan menguji rendering DOM sungguhan.
+//
+// Koreksi UX Bos Cyo, 2026-09-19 (sesudah live): "ini ux nya ada masalah
+// untuk force close laci ... gini aja deh kalo ada cs emang jam kerjanya
+// sebagai kasir harus buka laci itu maka dia itu klik buka lacinya
+// request, lalu ada pertanyaan, laci sedang dibuka oleh cs ... apakah kamu
+// yakin mau buka laci? kalo dia yes, ada pertanyaan lagi, apakah kamu
+// sudah didepan laci, masukkan uang laci saat ini." Tombol pengajuan
+// terpisah (requestClosePermitBtn) DIHAPUS -- "Buka Laci" yang sama
+// sekarang memicu alur konfirmasi -> pengajuan kalau lacinya masih
+// dipegang orang lain. Dan: "tombol admint untuk force close, jadi
+// langsung itu di del aja. jadi admin hanya bisa close kalo ada request."
 
-test('cashier.html gains a button to request closing the previous cashier\'s drawer', async () => {
+test('tombol pengajuan tutup laci terpisah sudah dihapus dari cashier.html -- "Buka Laci" jadi satu-satunya pintu masuk', async () => {
   const html = await read('public/cashier.html');
-  assert.match(html, /id="requestClosePermitBtn"/);
+  assert.doesNotMatch(html, /id="requestClosePermitBtn"/);
+  assert.match(html, /id="openDrawerBtn"/);
 });
 
-test('cashier.js wires the button to a dialog that posts to /api/cashier/drawer/close-permits, only shown when the drawer is held by someone else and not for read-only management visitors', async () => {
+test('klik Buka Laci saat laci dipegang orang lain memicu konfirmasi berjenjang lalu POST ke /api/cashier/drawer/close-permits', async () => {
   const source = await read('public/cashier.js');
-  assert.match(source, /requestClosePermitBtn'\)\.addEventListener\('click', requestClosePermitDialog\)/);
-  assert.match(source, /function requestClosePermitDialog/);
-  assert.match(source, /\/api\/cashier\/drawer\/close-permits/);
-  assert.match(source, /state\.closePermitPending/);
-  assert.match(source, /if \(state\.readOnly\) \{\s*el\('requestClosePermitBtn'\)\.classList\.add\('hidden'\)/);
+  assert.doesNotMatch(source, /requestClosePermitBtn/, 'referensi ke tombol terpisah yang sudah dihapus tidak boleh tersisa');
+
+  const openFn = source.slice(source.indexOf('function openDrawerDialog'), source.indexOf('function closeDrawerDialog'));
+  assert.match(openFn, /if \(drawer && !state\.canWrite\)/);
+  assert.match(openFn, /requestOpenOccupiedDrawer\(drawer\)/);
+
+  const guardFn = source.slice(source.indexOf('function requestOpenOccupiedDrawer'), source.indexOf('function requestClosePermitDialog'));
+  assert.match(guardFn, /state\.closePermitPending/, 'sudah ada pengajuan pending tidak boleh membuka alur konfirmasi lagi');
+  assert.match(guardFn, /confirm\(/, 'konfirmasi pertama: yakin mau mengajukan buka laci');
+  assert.match(guardFn, /requestClosePermitDialog\(drawer\)/);
+
+  const dialogFn = source.slice(source.indexOf('function requestClosePermitDialog'));
+  assert.match(dialogFn, /dialogPermitClosingAmount/, 'konfirmasi kedua: masukkan uang laci saat ini');
+  assert.match(dialogFn, /\/api\/cashier\/drawer\/close-permits/);
+  assert.match(dialogFn, /result\.autoPermit/, 'pesan sukses harus beda kalau Auto Permit langsung menutup laci');
 });
 
 test('admin-drawers.js gains a pending close-permit list with ACC/Reject actions that refresh the drawer list afterward', async () => {
@@ -35,14 +57,11 @@ test('admin-drawers.js gains a pending close-permit list with ACC/Reject actions
   assert.match(source, /Promise\.all\(\[loadClosePermits\(\), loadDrawers\(\)\]\)/);
 });
 
-// Bos Cyo, 2026-09-19: "ada cs yang ga bisa buka laci gara2 laci cs
-// sebelumnya lupa ditutup ... kamu adjust ya harusnya bagaimana mekanisme
-// ini" -- Admin bisa langsung tutup paksa laci OPEN yang nyangkut dari
-// Detail Laci, tanpa nunggu kasir pengganti sempat mengajukan dulu.
-test('admin-drawers.js gains a direct force-close action on OPEN drawer rows', async () => {
+// Bos Cyo, 2026-09-19 (koreksi UX): "tombol admint untuk force close, jadi
+// langsung itu di del aja. jadi admin hanya bisa close kalo ada request."
+test('tombol Tutup Paksa langsung Admin sudah dihapus -- Admin cuma bisa ACC/Tolak pengajuan yang sudah ada', async () => {
   const source = await read('public/admin-drawers.js');
-  assert.match(source, /data-force-close-drawer/);
-  assert.match(source, /async function forceCloseDrawer/);
-  assert.match(source, /\/api\/admin\/drawer\/close-permits\/direct/);
-  assert.match(source, /drawer\.status === 'OPEN'/);
+  assert.doesNotMatch(source, /data-force-close-drawer/);
+  assert.doesNotMatch(source, /forceCloseDrawer/);
+  assert.doesNotMatch(source, /close-permits\/direct/);
 });

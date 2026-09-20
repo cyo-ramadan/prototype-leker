@@ -17,6 +17,7 @@ import { handleCashierPurchaseApi } from './cashier-purchase.js';
 import { handleCashierProductionApi } from './cashier-production.js';
 import { handleCashierCustomerSearchApi } from './cashier-customers.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
+import { handleEntitySharedAccountApi, postSharedAccountLedgerForPaymentMethod } from './entity-shared-accounts.js';
 import { handleTransactionVoidPermitApi } from './transaction-void-permits.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleStaffManualBookApi } from './staff-manual-book.js';
@@ -109,6 +110,51 @@ export async function attachAccountingBridgeIfEnabled(response, env, factType, d
   return shouldDispatch ? dispatch(response, env, factType) : response;
 }
 
+// Rekening Bersama, 2026-09-20: hook POS Core -> src/entity-shared-accounts.js,
+// SENGAJA terpisah dari attachAccountingBridgeIfEnabled di atas (bukan
+// dipanggil dari dalamnya) -- Bos Cyo eksplisit "masalah harus diluar
+// akuntansi", jadi ini sibling call, bukan bagian dari Accounting bridge.
+// Best-effort dan tidak pernah melempar: kalau ini gagal, transaksi
+// operasional yang sudah commit tidak boleh ikut gagal/berubah responsnya.
+async function attachSharedAccountLedgerIfApplicable(response, env, factType) {
+  try {
+    if (!response || response.status < 200 || response.status >= 300) return response;
+    const type = String(factType || '').toUpperCase();
+    const table = ACCOUNTING_DISPATCH_FACT_TABLE[type];
+    if (!table) return response;
+
+    let payload;
+    try { payload = await response.clone().json(); } catch { return response; }
+    const factIds = committedFactIds(type, payload);
+    if (!factIds.length) return response;
+
+    const amountColumn = type === 'EXPENSE' ? 'amount' : 'total_amount';
+    const direction = type === 'SALE' ? 'IN' : 'OUT';
+    for (const factId of factIds) {
+      const fact = await env.DB.prepare(`SELECT store_id, payment_method, ${amountColumn} AS amount FROM ${table} WHERE id = ? LIMIT 1`).bind(factId).first();
+      if (!fact?.store_id) continue;
+      await postSharedAccountLedgerForPaymentMethod(env.DB, {
+        storeId: fact.store_id,
+        paymentMethodCode: fact.payment_method,
+        direction,
+        amount: fact.amount,
+        sourceType: type,
+        sourceId: factId,
+        actorRole: 'SYSTEM',
+        actorId: ''
+      });
+    }
+  } catch (error) {
+    console.error('shared account ledger hook failed', { factType, error });
+  }
+  return response;
+}
+
+async function finalizeCommittedResponse(response, env, factType, dispatch) {
+  const withAccounting = await attachAccountingBridgeIfEnabled(response, env, factType, dispatch);
+  return attachSharedAccountLedgerIfApplicable(withAccounting, env, factType);
+}
+
 async function handleCashierOrders(request, env, pathname) {
   if (!pathname.startsWith('/api/cashier/')) return null;
   const auth = await requireCashier(request, env.DB);
@@ -194,6 +240,8 @@ async function handleApi(request, env, url) {
   if (entityAdminResponse) return entityAdminResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
+  const sharedAccountResponse = await handleEntitySharedAccountApi(request, env, pathname);
+  if (sharedAccountResponse) return sharedAccountResponse;
   const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);
   if (permitResponse) return permitResponse;
   const customerResponse = await handleCustomerApi(request, env, pathname);
@@ -280,7 +328,7 @@ async function handleApi(request, env, url) {
   const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
   if (trackedSaleResponse) {
     return request.method === 'POST' && pathname === '/api/cashier/sales'
-      ? attachAccountingBridgeIfEnabled(
+      ? finalizeCommittedResponse(
           trackedSaleResponse,
           env,
           'SALE',
@@ -291,7 +339,7 @@ async function handleApi(request, env, url) {
   const purchaseResponse = await handleCashierPurchaseApi(request, env, pathname);
   if (purchaseResponse) {
     if (request.method === 'POST' && pathname === '/api/cashier/purchases') {
-      return attachAccountingBridgeIfEnabled(
+      return finalizeCommittedResponse(
         purchaseResponse,
         env,
         'PURCHASE',
@@ -299,7 +347,7 @@ async function handleApi(request, env, url) {
       );
     }
     if (request.method === 'POST' && pathname === '/api/cashier/expenses') {
-      return attachAccountingBridgeIfEnabled(
+      return finalizeCommittedResponse(
         purchaseResponse,
         env,
         'EXPENSE',

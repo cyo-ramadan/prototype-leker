@@ -4,6 +4,7 @@ const entityAdminState = {
   stores: [],
   accounts: [],
   journals: [],
+  sharedAccounts: [],
   productMasters: [],
   employees: []
 };
@@ -66,9 +67,11 @@ function switchEntityTab(name) {
   document.querySelectorAll('[data-entity-tab]').forEach(button => button.classList.toggle('active', button.dataset.entityTab === name));
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
+  entityAdminEl('entityTab-sharedaccounts')?.classList.toggle('active', name === 'sharedaccounts');
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
+  if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
@@ -85,6 +88,93 @@ function switchEntityTab(name) {
 function anyEntityStoreCode() {
   return entityAdminState.stores[0]?.code || '';
 }
+
+// --- Rekening Bersama -------------------------------------------------------
+// Bos Cyo, 2026-09-20: satu Entity boleh punya lebih dari satu Rekening
+// Bersama (mis. "Rekening Maxi Malang", "Rekening Bos Cyo", "Hutang Bos
+// Cyo"), dipakai lintas semua gerai di entity ini. Panel ini murni
+// create/rename + lihat rincian (total + breakdown per gerai + transfer yang
+// masih in-transit); transfer antar gerai sendiri dikerjakan dari Admin
+// Gerai (src/entity-shared-accounts.js, admin-shared-accounts.js) karena itu
+// aksi operasional milik gerai pengirim/penerima, bukan konfigurasi entity.
+
+async function loadEntitySharedAccounts() {
+  const payload = await entityAdminApi(`/api/entity/shared-accounts?store=${encodeURIComponent(anyEntityStoreCode())}`);
+  entityAdminState.sharedAccounts = payload.accounts || [];
+  renderEntitySharedAccounts();
+}
+
+function renderEntitySharedAccounts() {
+  const rows = entityAdminState.sharedAccounts || [];
+  entityAdminEl('entitySharedAccountCount').textContent = rows.length;
+  entityAdminEl('entitySharedAccountList').innerHTML = rows.length ? rows.map(account => `
+    <div class="master-row contact-row ${account.isActive ? '' : 'inactive'}">
+      <div class="master-main">
+        <strong>${entityAdminEscape(account.name)}</strong>
+        <div class="master-meta">${account.isActive ? 'Aktif' : 'Nonaktif'}</div>
+      </div>
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-view-shared-account="${entityAdminEscape(account.id)}">Rincian</button>
+        <button class="mini-btn" type="button" data-toggle-shared-account="${entityAdminEscape(account.id)}">${account.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada Rekening Bersama di entity ini.</div>';
+
+  document.querySelectorAll('[data-view-shared-account]').forEach(button => button.onclick = () => viewEntitySharedAccount(button.dataset.viewSharedAccount));
+  document.querySelectorAll('[data-toggle-shared-account]').forEach(button => button.onclick = () => toggleEntitySharedAccount(button.dataset.toggleSharedAccount));
+}
+
+async function toggleEntitySharedAccount(id) {
+  const account = (entityAdminState.sharedAccounts || []).find(item => item.id === id);
+  if (!account) return;
+  try {
+    await entityAdminApi(`/api/entity/shared-accounts/${encodeURIComponent(id)}?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive: !account.isActive })
+    });
+    await loadEntitySharedAccounts();
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function viewEntitySharedAccount(id) {
+  const card = entityAdminEl('entitySharedAccountViewCard');
+  try {
+    const view = await entityAdminApi(`/api/entity/shared-accounts/${encodeURIComponent(id)}/view?store=${encodeURIComponent(anyEntityStoreCode())}`);
+    entityAdminEl('entitySharedAccountViewTitle').textContent = `Rincian -- ${view.account.name}`;
+    const breakdownRows = view.storeBreakdown.map(row => `
+      <div class="master-row contact-row">
+        <div class="master-main"><strong>${entityAdminEscape(row.storeCode)} · ${entityAdminEscape(row.storeName)}</strong></div>
+        <div class="master-meta">Rp${entityReportRupiah(row.balance)}</div>
+      </div>`).join('') || '<div class="empty">Belum ada gerai dengan saldo di rekening ini.</div>';
+    const inTransitRows = view.inTransit.transfers.map(transfer => `
+      <div class="master-row contact-row">
+        <div class="master-main"><strong>${entityAdminEscape(transfer.fromStoreCode)} &rarr; ${entityAdminEscape(transfer.toStoreCode)}</strong><div class="master-meta">${entityAdminEscape(transfer.reason || '-')}</div></div>
+        <div class="master-meta">Rp${entityReportRupiah(transfer.amount)}</div>
+      </div>`).join('') || '<div class="empty">Tidak ada transfer yang masih menunggu diterima.</div>';
+    entityAdminEl('entitySharedAccountViewBody').innerHTML = `
+      <div class="admin-tip" style="margin-bottom:12px"><strong>Total rekening: Rp${entityReportRupiah(view.total)}</strong> (di luar Akuntansi -- murni tracking operasional)</div>
+      <h3>Komposisi per gerai</h3>
+      <div style="margin-bottom:14px">${breakdownRows}</div>
+      <h3>Sedang transfer (in transit) -- total Rp${entityReportRupiah(view.inTransit.total)}</h3>
+      <div>${inTransitRows}</div>`;
+    card.style.display = '';
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+entityAdminEl('entitySharedAccountForm')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await entityAdminApi(`/api/entity/shared-accounts?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'POST',
+      body: JSON.stringify({ name: entityAdminEl('entitySharedAccountName').value })
+    });
+    entityAdminEl('entitySharedAccountForm').reset();
+    await loadEntitySharedAccounts();
+  } catch (error) { entityAdminToast(error.message); }
+});
+
+entityAdminEl('entitySharedAccountViewClose')?.addEventListener('click', () => {
+  entityAdminEl('entitySharedAccountViewCard').style.display = 'none';
+});
 
 // --- Master Barang Entity -------------------------------------------------
 

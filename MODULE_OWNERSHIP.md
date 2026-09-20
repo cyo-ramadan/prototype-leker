@@ -18,6 +18,7 @@ write access. An agent may read anything.
 | **produksi** | `elle` | `src/cashier-production.js`, `src/stock-production.js`, `src/manufacturing-master.js` | ADR-012, ADR-013 |
 | **inventory-costing** | *unassigned* | `src/admin-stock.js`, `src/product-*.js` | ADR-015, ADR-020 |
 | **approval** | *unassigned* | `src/approval-queue.js`, `src/transaction-void-permits.js` | ADR-009, ADR-022 |
+| **rekening-bersama** | *unassigned* | `src/entity-shared-accounts.js`, `migrations/0111_*` | ADR-045 |
 | **identity-tenancy** | `hana` | `src/stores.js`, `src/owner-auth.js`, `src/*-auth.js`, `migrations/0039_*` | ADR-030, ADR-001, ADR-006 |
 | **customer** | *unassigned* | `src/customers.js`, `src/customer-*.js` | ADR-002, ADR-005, ADR-026 |
 | **game** | *unassigned* | `src/game.js`, `game_*` tables | ADR-042, `contracts/game-module-v1.md` |

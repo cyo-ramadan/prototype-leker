@@ -3,6 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { listProductKinds } from './product-kinds.js';
 import { savePaymentMethod } from './business-settings.js';
+import { listActiveSharedAccountsForStore } from './entity-shared-accounts.js';
 
 export const ACCOUNT_TYPES = Object.freeze(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE']);
 export const JOURNAL_SIDES = Object.freeze(['DEBIT', 'CREDIT']);
@@ -79,10 +80,12 @@ async function listPaymentMethods(db, storeId) {
   const hasConfiguredDefault = await paymentMethodDefaultsAvailable(db);
   const defaultSelect = hasConfiguredDefault ? 'p.is_default' : `CASE WHEN p.code = 'CASH' THEN 1 ELSE 0 END AS is_default`;
   const rows = await db.prepare(`
-    SELECT p.id, p.code, p.name, p.account_id, p.is_active, ${defaultSelect},
-           a.code AS account_code, a.name AS account_name, a.type AS account_type
+    SELECT p.id, p.code, p.name, p.account_id, p.shared_account_id, p.is_active, ${defaultSelect},
+           a.code AS account_code, a.name AS account_name, a.type AS account_type,
+           sa.name AS shared_account_name
     FROM payment_methods p
     LEFT JOIN chart_of_accounts a ON a.id = p.account_id AND a.store_id = p.store_id
+    LEFT JOIN entity_shared_accounts sa ON sa.id = p.shared_account_id
     WHERE p.store_id = ?
     ORDER BY p.name COLLATE NOCASE, p.code
   `).bind(storeId).all();
@@ -92,6 +95,8 @@ async function listPaymentMethods(db, storeId) {
     name: row.name,
     accountId: row.account_id || null,
     account: row.account_id ? { id: row.account_id, code: row.account_code || '', name: row.account_name || '', type: row.account_type || '' } : null,
+    sharedAccountId: row.shared_account_id || null,
+    sharedAccountName: row.shared_account_name || null,
     isActive: Boolean(row.is_active),
     isDefault: Boolean(row.is_default)
   }));
@@ -421,13 +426,14 @@ async function listTransactionCategories(db, storeId) {
 }
 
 export async function getAccountingSettingsBootstrap(db, store) {
-  const [accounts, paymentMethods, itemCategories, transactionCategories, productKinds, choiceGroups] = await Promise.all([
+  const [accounts, paymentMethods, itemCategories, transactionCategories, productKinds, choiceGroups, sharedAccounts] = await Promise.all([
     listAccounts(db, store.id),
     listPaymentMethods(db, store.id),
     listItemCategories(db, store.id),
     listTransactionCategories(db, store.id),
     listProductKinds(db, store.id),
-    listChoiceGroups(db, store.id)
+    listChoiceGroups(db, store.id),
+    listActiveSharedAccountsForStore(db, store.id)
   ]);
   return {
     contract: 'MAXI_ACCOUNTING_SETTINGS_V1',
@@ -442,7 +448,8 @@ export async function getAccountingSettingsBootstrap(db, store) {
     itemCategories,
     productKinds,
     choiceGroups,
-    transactionCategories
+    transactionCategories,
+    sharedAccounts
   };
 }
 

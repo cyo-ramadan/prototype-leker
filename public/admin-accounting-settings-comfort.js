@@ -127,10 +127,18 @@
     bindPaymentRows(host);
   }
 
+  function sharedAccountOptions(selectedId) {
+    const accounts = state.accounting.sharedAccounts || [];
+    const options = ['<option value="">-- Bukan Rekening Bersama --</option>']
+      .concat(accounts.map(account => `<option value="${esc(account.id)}" ${account.id === selectedId ? 'selected' : ''}>${esc(account.name)}</option>`));
+    return options.join('');
+  }
+
   function paymentRow(item, draft = false) {
     return `<div class="acc-form-row" data-payment-row="${esc(item.id)}" data-draft="${draft ? '1' : '0'}">
       <input class="acc-input" data-payment-name value="${esc(item.name || '')}" placeholder="Nama metode" />
       <select class="acc-select" data-payment-account>${accountOptions('', item.accountId || '', true)}</select>
+      <select class="acc-select" data-payment-shared-account title="Tandai kalau cara bayar ini sebenarnya Rekening Bersama (dipakai lintas gerai di entity ini)">${sharedAccountOptions(item.sharedAccountId || '')}</select>
       <label class="acc-muted"><input type="checkbox" data-payment-active ${item.isActive !== false ? 'checked' : ''}/> Aktif</label>
       <label class="acc-muted"><input type="checkbox" data-payment-default ${item.isDefault ? 'checked' : ''}/> Default</label>
       <button class="acc-mini primary" data-save-payment type="button">Simpan</button>
@@ -145,7 +153,13 @@
       try {
         await api(draft ? '/api/admin/settings/accounting/payment-methods' : `/api/admin/settings/accounting/payment-methods/${encodeURIComponent(id)}`, {
           method: draft ? 'POST' : 'PATCH',
-          body: JSON.stringify({ name: row.querySelector('[data-payment-name]').value, accountId: row.querySelector('[data-payment-account]').value || null, isActive: row.querySelector('[data-payment-active]').checked, isDefault: row.querySelector('[data-payment-default]').checked })
+          body: JSON.stringify({
+            name: row.querySelector('[data-payment-name]').value,
+            accountId: row.querySelector('[data-payment-account]').value || null,
+            sharedAccountId: row.querySelector('[data-payment-shared-account]').value || null,
+            isActive: row.querySelector('[data-payment-active]').checked,
+            isDefault: row.querySelector('[data-payment-default]').checked
+          })
         });
         await load(true); toast('Metode pembayaran tersimpan');
       } catch (error) { toast(error.message); }

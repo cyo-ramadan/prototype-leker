@@ -40,6 +40,7 @@
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
+        <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
         <button class="admin-tab" data-entity-tab="employees" type="button">Karyawan</button>
         <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
@@ -101,6 +102,25 @@
         <div class="admin-card list-card" style="margin-top:16px">
           <div class="list-head"><h2>Riwayat jurnal Entity</h2><span id="entityJournalCount" class="master-count">0</span></div>
           <div id="entityJournalList" class="master-list"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-sharedaccounts" class="admin-section">
+        <div class="admin-grid two" style="align-items:start">
+          <form id="entitySharedAccountForm" class="admin-card">
+            <h2>Tambah Rekening Bersama</h2>
+            <div class="muted" style="margin-bottom:10px">Dipakai lintas semua gerai di entity ini -- mis. "Rekening Maxi Malang", atau akun informal seperti "Rekening Bos Cyo"/"Hutang Bos Cyo". Ini murni tracking operasional, di luar Akuntansi.</div>
+            <label class="admin-field">Nama Rekening<input id="entitySharedAccountName" maxlength="120" required /></label>
+            <button class="primary-btn" type="submit">Simpan Rekening</button>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head"><h2>Daftar Rekening Bersama</h2><span id="entitySharedAccountCount" class="master-count">0</span></div>
+            <div id="entitySharedAccountList" class="master-list"></div>
+          </div>
+        </div>
+        <div class="admin-card" id="entitySharedAccountViewCard" style="margin-top:16px; display:none">
+          <div class="list-head"><h2 id="entitySharedAccountViewTitle">Rincian Rekening</h2><button id="entitySharedAccountViewClose" class="text-btn" type="button">Tutup</button></div>
+          <div id="entitySharedAccountViewBody"></div>
         </div>
       </section>
 
@@ -170,7 +190,7 @@
   </main>
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<script src="/entity-admin.js?v=20260919-upload-master-barang-entity-v2"></script>
+<script src="/entity-admin.js?v=20260920-rekening-bersama-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

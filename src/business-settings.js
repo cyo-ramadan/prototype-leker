@@ -30,30 +30,41 @@ async function activeAccount(db, storeId, accountId) {
     .bind(accountId, storeId).first();
 }
 
+// Rekening Bersama (entity_shared_accounts) SENGAJA hanya divalidasi lewat
+// entity_id -- bukan lewat modul Akuntansi -- supaya mapping ini tetap
+// sibling dari account_id, bukan bagian dari boundary Akuntansi.
+async function activeSharedAccount(db, entityId, sharedAccountId) {
+  if (!entityId) return null;
+  return db.prepare(`SELECT id FROM entity_shared_accounts WHERE id = ? AND entity_id = ? AND is_active = 1`)
+    .bind(sharedAccountId, entityId).first();
+}
+
 export async function savePaymentMethod(db, store, body, id = null) {
   const current = id ? await db.prepare(`SELECT * FROM payment_methods WHERE id = ? AND store_id = ?`).bind(id, store.id).first() : null;
   if (id && !current) return json({ error: 'Metode pembayaran tidak ditemukan.' }, 404);
   const code = current?.code || codeText(body?.code || body?.name, 32).toUpperCase();
   const name = text(body?.name ?? current?.name, 80);
   const accountId = body?.accountId === undefined ? (current?.account_id || null) : (text(body.accountId, 180) || null);
+  const sharedAccountId = body?.sharedAccountId === undefined ? (current?.shared_account_id || null) : (text(body.sharedAccountId, 80) || null);
   const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
   const isDefault = body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault);
   if (!code || !name) return json({ error: 'Kode dan nama metode pembayaran wajib valid.' }, 400);
   if (accountId && !await activeAccount(db, store.id, accountId)) return json({ error: 'Akun metode pembayaran harus akun aktif di gerai ini.' }, 400);
+  if (sharedAccountId && !await activeSharedAccount(db, store.entityId, sharedAccountId)) return json({ error: 'Rekening Bersama harus aktif dan berada di entity gerai ini.' }, 400);
   if (isDefault && !isActive) return json({ error: 'Cara bayar default harus aktif.' }, 400);
   if (current?.is_default && !isDefault) return json({ error: 'Pilih cara bayar lain sebagai default sebelum melepas default ini.' }, 400);
   if (isDefault) {
     await db.prepare(`UPDATE payment_methods SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND id <> ?`).bind(store.id, id || '').run();
   }
   if (current) {
-    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, is_active = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
-      .bind(name, accountId, isActive, isDefault, id, store.id).run();
+    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, shared_account_id = ?, is_active = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
+      .bind(name, accountId, sharedAccountId, isActive, isDefault, id, store.id).run();
     return json({ ok: true });
   }
   const nextId = `payment_${store.id}_${crypto.randomUUID()}`;
   try {
-    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, is_active, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(nextId, store.id, code, name, accountId, isActive, isDefault).run();
+    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, shared_account_id, is_active, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(nextId, store.id, code, name, accountId, sharedAccountId, isActive, isDefault).run();
   } catch (error) {
     if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode/nama metode pembayaran sudah dipakai.' }, 409);
     throw error;

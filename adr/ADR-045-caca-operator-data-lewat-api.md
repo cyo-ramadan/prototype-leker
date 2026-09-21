@@ -1,6 +1,7 @@
 # ADR-045 — Caca sebagai operator data lewat API: wewenang, batas, dan urutan kemampuan
 
-Status: PROPOSED — rencana, menunggu persetujuan Bos Cyo
+Status: ACCEPTED untuk arah dan pagarnya (K1–K6 disetujui Bos Cyo 2026-09-21);
+belum ada kode. Satu pertanyaan kecil masih terbuka, tidak memblokir Tahap A.
 Tanggal: 2026-09-21
 Diminta oleh: Bos Cyo
 Ditulis oleh: Hana
@@ -95,7 +96,48 @@ perintah hapus baru yang menembus jalur itu.
 Ini bukan Caca dibikin lebih terbatas dari manusia. Justru sebaliknya: Caca
 dapat persis pintu yang sama dengan yang dipakai orang, termasuk approval-nya.
 
-### K4 — Alat, bukan akses bebas
+### K4 — Tidak ada API khusus AI. Caca mengetuk pintu yang sama dengan panel.
+
+Rumusan Bos Cyo sendiri, 2026-09-21, dan ini jadi kalimat kunci ADR ini:
+
+> "intinya dia dikasih akses yang biasa dikerjakan lewat front end, tapi jalur
+> dia tetap backend."
+
+Tepat. Panel web cuma permukaan; seluruh aturan — guard stok, pembentukan HPP,
+posting jurnal, approval — hidup di endpoint yang dipanggil panel itu. Jadi
+Caca memanggil **endpoint yang sama persis**, bukan endpoint baru yang dibuat
+untuknya.
+
+Kalau dibuatkan API khusus AI, setiap aturan tadi harus ditulis ulang di sana,
+dan yang terlewat baru ketahuan setelah data rusak. Pintu samping yang dibangun
+buru-buru dan lupa dipasangi kunci yang sama adalah asal-usul paling umum dari
+lubang di sistem seperti ini. Dengan K4 pintu samping itu tidak dibuat sama
+sekali.
+
+Efek sampingnya bagus: kalau aturan bisnis berubah, panel dan Caca ikut berubah
+bersamaan. Tidak ada jalur yang tertinggal versi.
+
+Satu-satunya endpoint baru adalah **pintu percakapannya** (`/api/caca/*`):
+tempat pesan masuk dan jawaban keluar. Itu bukan jalur data — data tetap lewat
+endpoint lama.
+
+Konsekuensi yang menyenangkan dan layak dicatat: K4 **otomatis menjawab soal
+alat hapus** di K3. Panel tidak punya tombol hapus transaksi — yang ada
+pengajuan pembatalan. Diperiksa ke kode 2026-09-21: satu-satunya `DELETE` di
+jalur transaksi ada di `src/transaction-void-permits.js` dan itu membatalkan
+*pengajuan izinnya*, bukan transaksinya. Jadi batas itu bukan pilihan Hana,
+melainkan bentuk sistem yang sudah ada.
+
+### K5 — Yang boleh mengajak Caca ngobrol: Owner dan Entity Admin dulu
+
+Keputusan Bos Cyo 2026-09-21. Kasir belum diikutkan di tahap ini.
+
+Alasannya bukan soal percaya-tidak percaya, tapi urutan: menambah Kasir berarti
+jatah pemakaian per orang dan jejak audit per penyuruh harus dirancang lebih
+dulu, dan dua hal itu belum perlu selama yang memakai baru pemilik. Tambahkan
+Kasir setelah Tahap A terbukti — bukan sebelumnya.
+
+### K6 — Alat, bukan akses bebas
 
 Caca tidak "punya akses ke API". Dia punya **daftar alat** yang ditulis satu per
 satu, masing-masing memanggil satu endpoint dengan bentuk yang sudah ditentukan.
@@ -171,7 +213,10 @@ dilacak.
 
 - **Jangan** beri Caca akun atau token berkewenangan luas (melanggar K1).
 - **Jangan** biarkan Caca menyusun query atau request bebas ke API. Alat ditulis
-  satu-satu (K4); model yang boleh mengarang request akan mengarang yang salah.
+  satu-satu (K6); model yang boleh mengarang request akan mengarang yang salah.
+- **Jangan** bikin endpoint khusus AI karena "lebih gampang dipanggil Caca"
+  (melanggar K4). Kemudahan itu dibayar dengan aturan yang harus ditulis ulang
+  dan pasti ada yang terlewat.
 - **Jangan** bikin alat hapus untuk data keuangan (K3, invariant #2).
 - **Jangan** tentukan gerai dari isi pesan (K2, invariant #5).
 - **Jangan** lewati approval dengan alasan "kan Caca yang mengajukan, sudah
@@ -181,14 +226,15 @@ dilacak.
 
 ## Keputusan yang Hana minta dari Bos Cyo
 
-1. **Setuju tidak ada alat hapus**, dan yang ada alat pembatalan/koreksi lewat
-   approval? Ini konsekuensi invariant #2, tapi Bos Cyo perlu tahu bahwa "AI
-   bisa delete data" jadi tidak persis seperti yang disebut.
-2. **Siapa saja yang boleh mengajak Caca ngobrol?** Owner dan Entity Admin saja
-   dulu, atau Kasir juga? Kasir ikut berarti kuota dan jejak audit per orang
-   jadi perlu dipikirkan lebih awal.
+1. ~~Setuju tidak ada alat hapus?~~ **TERJAWAB 2026-09-21 lewat K4.** Begitu
+   batasnya dirumuskan sebagai "akses setara front end", alat hapus gugur
+   dengan sendirinya — panel memang tidak punya tombol itu. Tidak perlu
+   keputusan terpisah.
+2. ~~Siapa yang boleh mengajak Caca ngobrol?~~ **TERJAWAB 2026-09-21: Owner dan
+   Entity Admin dulu** (K5).
 3. **Kalau Owner punya banyak gerai dan bertanya tanpa menyebut gerai** — Caca
-   menjawab gabungan semua gerai, atau balik bertanya dulu?
+   menjawab gabungan semua gerai, atau balik bertanya dulu? Masih terbuka.
+   Pertanyaan ini baru menggigit di Tahap A, jadi belum memblokir apa pun.
 
 ## Related
 

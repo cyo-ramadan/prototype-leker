@@ -188,6 +188,26 @@ test('/?login=staff auto-redirects an already-authenticated staff session to its
   assert.match(authEntrySplit, /staffBlocked.*=== '1'/);
 });
 
+// Bos Cyo, 2026-09-21: "kalo dia uda login jadi karyawan disuatu tab, ketika
+// dia klik login lagi di tab yang lain, harusnya dia langsung landing di
+// portal staf aja... intinya cegah di suatu tab masukin username lagi ketika
+// dia belum logout." The redirect above only fired for the exact URL
+// /?login=staff (the Back-button scenario); manually clicking the always-
+// visible "Karyawan" tab in a freshly opened tab (no such URL) still showed
+// an empty login form and asked to re-type credentials even with a valid
+// session already in this browser. The check now lives inside applyMode()
+// itself, which every path into STAFF mode goes through.
+test('clicking the "Karyawan" tab manually also redirects an already-authenticated session, not just the /?login=staff URL', () => {
+  const applyModeBody = authEntrySplit.slice(
+    authEntrySplit.indexOf('function applyMode(nextMode) {'),
+    authEntrySplit.indexOf('function staffIdentity(payload)')
+  );
+  assert.match(applyModeBody, /existingStaffWorkspaceRedirect\(\)/, 'the redirect check must run from inside applyMode, not only from the URL-gated block at the bottom');
+  assert.match(applyModeBody, /location\.replace\(existingRedirect\)/);
+  assert.match(applyModeBody, /return;/, 'must bail out before touching the login form UI once redirected');
+  assert.match(authEntrySplit, /el\('entryStaffTab'\)\?\.addEventListener\('click', \(\) => applyMode\('STAFF'\)\)/, 'the manual tab click still funnels through applyMode, which now carries the redirect check');
+});
+
 // Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry
 // point (screenshot: address bar showed "/branch-admin", no /s/:code/
 // prefix, header showed "WORKSPACE GERAI - G001") and got a confusing

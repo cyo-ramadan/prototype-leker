@@ -30,7 +30,41 @@
     }
   }
 
+  // Bos Cyo, 2026-09-21: "kalo dia uda login jadi karyawan disuatu tab,
+  // ketika dia klik login lagi di tab yang lain, harusnya dia langsung
+  // landing di portal staf aja... intinya cegah di suatu tab masukin
+  // username lagi ketika dia belum logout." Sebelum ini, redirect-kalau-
+  // sudah-login cuma jalan kalau URL-nya persis /?login=staff (skenario
+  // tombol Back browser, 2026-09-17) -- klik tab "Karyawan" secara manual
+  // di tab lain (tanpa lewat URL itu) tetap menampilkan form kosong dan
+  // minta login ulang walau sesinya di browser itu masih valid. Sekarang
+  // pengecekannya pindah ke sini, jalan kapan pun mode STAFF mau
+  // ditampilkan -- lewat URL ?login=staff MAUPUN klik tab manual -- supaya
+  // dua-duanya langsung lompat ke workspace tanpa sempat menampilkan form.
+  function existingStaffWorkspaceRedirect() {
+    if (localStorage.getItem('lekerOwnerToken')) return '/admin';
+    if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
+    const adminStoreCode = localStorage.getItem('lekerAdminStoreCode');
+    if (localStorage.getItem('lekerAdminToken') && adminStoreCode) return `/s/${encodeURIComponent(adminStoreCode)}/admin`;
+    if (localStorage.getItem('lekerCashierToken')) return '/cashier';
+    return null;
+  }
+
+  let redirectedToExistingWorkspace = false;
+
   function applyMode(nextMode) {
+    if (nextMode === 'STAFF') {
+      // staffBlocked=1 means the tab-lock deliberately just cleared this
+      // session's token -- the redirect must not fire off a stale read in
+      // that exact moment and must still fall through to the login form.
+      const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
+      const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
+      if (existingRedirect) {
+        redirectedToExistingWorkspace = true;
+        location.replace(existingRedirect);
+        return;
+      }
+    }
     mode = nextMode;
     el('entryCustomerTab')?.classList.toggle('active', mode === 'CUSTOMER');
     el('entryStaffTab')?.classList.toggle('active', mode === 'STAFF');
@@ -173,32 +207,16 @@
   applyMode(mode);
 
   // Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
-  // sengaja ke back back malah ada menu loginnya lagi". Sebelumnya, kembali
-  // ke halaman ini (mis. tombol Back setelah location.href redirect di
-  // submitLogin()) SELALU menampilkan form login lagi, walau token yang
-  // valid masih ada -- tidak pernah dicek dulu. Kalau token masih ada,
-  // lempar langsung ke workspace-nya alih-alih menampilkan form. Kalau
+  // sengaja ke back back malah ada menu loginnya lagi". Kalau token masih
+  // ada, lempar langsung ke workspace-nya alih-alih menampilkan form. Kalau
   // token itu ternyata sudah kedaluwarsa/dicabut server, halaman tujuan
   // sendiri yang akan mendeteksi dan menampilkan login-nya (pola yang sama
   // seperti admin-session-bootstrap-guard.js) -- redirect ini tidak
   // menggantikan pengecekan server, cuma menghindari form login yang
-  // sebenarnya tidak perlu dilihat.
-  function existingStaffWorkspaceRedirect() {
-    if (localStorage.getItem('lekerOwnerToken')) return '/admin';
-    if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
-    const adminStoreCode = localStorage.getItem('lekerAdminStoreCode');
-    if (localStorage.getItem('lekerAdminToken') && adminStoreCode) return `/s/${encodeURIComponent(adminStoreCode)}/admin`;
-    if (localStorage.getItem('lekerCashierToken')) return '/cashier';
-    return null;
-  }
-
-  if (new URL(location.href).searchParams.get('login') === 'staff') {
-    const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
-    const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
-    if (existingRedirect) {
-      location.replace(existingRedirect);
-      return;
-    }
+  // sebenarnya tidak perlu dilihat. Pengecekannya sendiri sudah dipindah ke
+  // dalam applyMode('STAFF') di atas (2026-09-21) supaya klik tab
+  // "Karyawan" manual di tab lain ikut kena juga, bukan cuma lewat URL ini.
+  if (new URL(location.href).searchParams.get('login') === 'staff' && !redirectedToExistingWorkspace) {
     el('entryLoginBtn')?.click();
     const clean = new URL(location.href);
     clean.searchParams.delete('login');

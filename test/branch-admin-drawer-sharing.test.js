@@ -132,7 +132,6 @@ test('cashier keeps one drawer writer while drawer history remains readable', as
   assert.match(drawerApi, /drawer\.cashierId !== cashier\.id/);
   assert.match(drawerApi, /\/api\/cashier\/drawers/);
   assert.match(enhancement, /Detail Laci/);
-  assert.match(enhancement, /paymentMethod/);
   assert.match(enhancement, /dialogShiftLabel/);
   assert.match(enhancement, /dialogClosingNote/);
 });

@@ -199,6 +199,14 @@
 
   function goodsFlowDialog() {
     const options = (state.products || []).map(product => `<option value="${Number(product.id)}">${escapeHtml(product.name)}</option>`).join('');
+    const sharedAccounts = state.sharedAccounts || [];
+    const sharedAccountField = sharedAccounts.length ? `
+        <div class="field"><label>Rekening Bersama <span class="muted">optional</span></label>
+          <select id="approvalGoodsSharedAccount" class="text-input">
+            <option value="">Tidak dikaitkan</option>
+            ${sharedAccounts.map(account => `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}</option>`).join('')}
+          </select>
+        </div>` : '';
     openDialog({
       eyebrow: 'Laci · Approval Queue',
       title: 'Arus Barang',
@@ -206,18 +214,21 @@
         <div class="field"><label>Barang</label><select id="approvalGoodsProduct" class="text-input" required>${options}</select></div>
         <div class="field"><label>Arah arus</label><select id="approvalGoodsDirection" class="text-input"><option value="IN">Barang Masuk</option><option value="OUT">Barang Keluar</option></select></div>
         <div class="field"><label>Qty</label><input id="approvalGoodsQuantity" class="text-input" type="number" min="1" step="1" required /></div>
+        ${sharedAccountField}
         <div class="field"><label>Catatan</label><textarea id="approvalGoodsNote" rows="2" maxlength="500"></textarea></div>
-        <p class="muted">Entry kasir tidak mengubah stok. Setelah ACC, stock balance dan inventory ledger berubah dalam batch yang sama.</p>`,
+        <p class="muted">Entry kasir tidak mengubah stok. Setelah ACC, stock balance dan inventory ledger berubah dalam batch yang sama.${sharedAccounts.length ? ' Kalau dikaitkan ke Rekening Bersama, saldo gerai di rekening itu ikut bergerak senilai HPP barangnya.' : ''}</p>`,
       submitText: 'AJUKAN ARUS BARANG',
       onSubmit: async () => {
         const quantity = Number(el('approvalGoodsQuantity').value);
         if (!Number.isInteger(quantity) || quantity <= 0) throw new Error('Qty arus barang wajib bilangan bulat lebih dari 0.');
         const productId = Number(el('approvalGoodsProduct').value);
         if (!Number.isInteger(productId)) throw new Error('Barang tidak valid.');
+        const sharedAccountId = el('approvalGoodsSharedAccount')?.value || '';
         await submitApprovalRequest('GOODS_FLOW', {
           productId,
           direction: el('approvalGoodsDirection').value,
           quantity,
+          ...(sharedAccountId ? { sharedAccountId } : {}),
           note: el('approvalGoodsNote').value.trim()
         });
         return true;

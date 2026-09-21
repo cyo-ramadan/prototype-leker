@@ -101,6 +101,56 @@ forward, without migrating any existing data.
    pass an explicit `?store=` or the request resolves against the wrong
    default store" trap documented across this repo's tests.
 
+## Addendum, 2026-09-21 -- Arus Barang (GOODS_FLOW) linkage
+
+Bos Cyo asked (verbatim, translated) whether Arus Barang -- the existing
+store-level quantity-only IN/OUT posting from the Approval Queue (ADR-009),
+whose Accounting valuation stays intentionally HOLD per ADR-021 -- should
+move Rekening Bersama when goods cross stores. Confirmed mechanism (verbatim,
+translated): "if a store sends goods out (picks arus keluar), the debit is
+goods and the effect is a credit specific to that store into the shared
+account. Conversely, if it's arus barang masuk, the credit is the shared
+account [i.e. that store is debited]." Confirmed explicitly this stays
+**outside Accounting** just like the rest of this ADR -- ADR-021's HOLD on
+real Accounting journal posting for GOODS_FLOW is untouched.
+
+- Plain Arus Barang (not Penyesuaian Stok) gets one new **optional** field,
+  `sharedAccountId`, picked by the cashier per entry from that store's active
+  shared accounts (no "one default account per entity" -- Bos Cyo confirmed
+  the cashier picks per transaction, since an entity can have several named
+  accounts for different purposes). Untagged entries behave exactly as
+  before -- fully backward compatible.
+- When tagged, valuation is `average_cost * quantity` (the same HPP source
+  already used for Penyesuaian Stok), rounded half-up to plain rupiah
+  (`Math.round`, matching the existing repo convention in `staff-portal.js`
+  for non-negative scaled-to-plain conversions -- CLAUDE.md invariant #1's
+  half-up rule is about Accounting-authoritative fields, this ledger is
+  operational per the table's own design above, but the rounding discipline
+  is reused anyway for consistency and to avoid a fresh silent-truncation bug).
+  A zero/invalid HPP is a hard validation error at submit time, not a silent
+  no-op -- unlike the payment-method hook (`postSharedAccountLedgerForPaymentMethod`,
+  best-effort by design), a cashier who explicitly picked a shared account has
+  opted in, so failing to honor that silently would be worse than rejecting
+  the submission with a clear reason.
+- **Polarity is intentionally inverted from the manual Transfer flow above.**
+  A manual Transfer moves value the way a wire transfer does: the sending
+  store's balance drops, the receiving store's balance rises. Arus Barang
+  does the opposite: the store that *ships goods out* is **credited**
+  (its balance rises, as if reimbursed for the value it gave up), and the
+  store that *receives goods* is **debited** (its balance falls, as if it
+  paid for what it received) -- these represent two different real-world
+  events (a discretionary balance reallocation vs. goods physically moving),
+  not one mechanism described two ways.
+- New ledger `source_type`, `'GOODS_FLOW'` (`entity_shared_account_ledger`'s
+  `source_type` CHECK constraint had to be widened via a table rebuild,
+  `migrations/0112_goods_flow_shared_account_source_type.sql`, since
+  `migrations/0111` is already applied -- CLAUDE.md invariant #7 forbids
+  rewriting it).
+- The ledger row is written inside the exact same `env.DB.batch()` as the
+  stock-quantity effect (`buildOperationalPostingStatements` in
+  `src/operational-posting.js`) -- one ACC either moves both the physical
+  stock and the shared-account balance, or moves neither.
+
 ## Consequences
 
 - No existing table's meaning changes. No existing store's default composition
@@ -116,9 +166,19 @@ forward, without migrating any existing data.
   path once created), is intentionally left open here rather than pre-built,
   per Bos Cyo's stated scope.
 
-Schema: `migrations/0111_entity_shared_accounts.sql`. Implementation:
+Schema: `migrations/0111_entity_shared_accounts.sql`,
+`migrations/0112_goods_flow_shared_account_source_type.sql`. Implementation:
 `src/entity-shared-accounts.js`, `src/index.js` (`attachSharedAccountLedgerIfApplicable`),
 `src/business-settings.js`/`src/accounting-settings.js` (`payment_methods.shared_account_id`
-wiring), `public/entity-admin.js`, `public/admin-shared-accounts.js`,
-`public/admin-accounting-settings-comfort.js`. Tests:
-`test/entity-shared-accounts.test.js`.
+wiring), `src/operational-posting.js` (Arus Barang linkage), `src/cashier-workspace.js`
+(`sharedAccounts` bootstrap), `public/entity-admin.js`, `public/admin-shared-accounts.js`,
+`public/admin-accounting-settings-comfort.js`, `public/cashier-approval-actions.js`,
+`public/cashier-workspace.js`. Tests: `test/entity-shared-accounts.test.js`,
+`test/goods-flow-shared-account.test.js`.
+
+## DOC-IMPACT
+
+REQUIRED -- any change to shared-account polarity (either the manual Transfer
+flow or the Arus Barang linkage), which events auto-post to it, valuation
+source, or the outside-Accounting boundary requires matching tests here and
+in `test/entity-shared-accounts.test.js`/`test/goods-flow-shared-account.test.js`.

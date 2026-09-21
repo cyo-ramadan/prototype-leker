@@ -1,6 +1,22 @@
 import { resolveCashFlowCounterpartOption } from './accounting-cash-flow-bridge.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
+const COST_SCALE = 1_000_000;
+
+// Bos Cyo, 2026-09-21: Arus Barang (bukan Penyesuaian Stok) boleh opsional
+// ditandai ke satu Rekening Bersama milik entity gerai ini -- lihat
+// src/entity-shared-accounts.js untuk kenapa mekanisme itu SENGAJA di luar
+// Akuntansi. Validasi scope-nya sama seperti activeSharedAccount di
+// src/business-settings.js (payment method), tapi dikerjakan lokal di sini
+// karena caller cuma punya storeId, bukan store.entityId.
+async function activeSharedAccountForStore(db, storeId, sharedAccountId) {
+  return db.prepare(`
+    SELECT sa.id, sa.entity_id
+    FROM entity_shared_accounts sa
+    JOIN stores s ON s.entity_id = sa.entity_id
+    WHERE sa.id = ? AND s.id = ? AND sa.is_active = 1
+  `).bind(sharedAccountId, storeId).first();
+}
 
 export async function storeWarehouseEnabled(db, storeId) {
   const row = await db.prepare(`SELECT warehouse_enabled FROM stores WHERE id = ? LIMIT 1`).bind(storeId).first();
@@ -144,6 +160,37 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
     if (!['IN', 'OUT'].includes(direction) || !quantity) return { ok: false, error: 'Arus Barang membutuhkan barang, arah, dan qty bulat positif.' };
     const product = await stockProductSnapshot(db, storeId, productId);
     if (!product || !product.base_unit_id) return { ok: false, error: 'Barang pengajuan atau satuan dasarnya tidak ditemukan di gerai ini.' };
+
+    // Rekening Bersama itu opsional per-entry (kasir pilih sendiri di form,
+    // bukan otomatis dari satu rekening "utama") -- lihat konfirmasi Bos Cyo
+    // 2026-09-21. Kalau dipilih, kasir sudah menyatakan mau efeknya kejadi,
+    // jadi kalau valuasinya tidak bisa dihitung ini WAJIB gagal jelas, bukan
+    // diam-diam di-skip (beda dari postSharedAccountLedgerForPaymentMethod
+    // yang best-effort karena payment method-nya cuma tag tersirat).
+    const sharedAccountId = text(payload.sharedAccountId, 80) || null;
+    let sharedAccountFields = {};
+    if (sharedAccountId) {
+      if (!warehouseEnabled) return { ok: false, error: 'Arus Barang butuh stock tracking gerai aktif untuk bisa dikaitkan ke Rekening Bersama.' };
+      const account = await activeSharedAccountForStore(db, storeId, sharedAccountId);
+      if (!account) return { ok: false, error: 'Rekening Bersama tidak ditemukan, nonaktif, atau bukan milik entity gerai ini.' };
+      const unitCostSnapshotScaled = Number(product.average_cost);
+      const totalCostSnapshotScaled = unitCostSnapshotScaled * quantity;
+      if (!Number.isSafeInteger(unitCostSnapshotScaled) || unitCostSnapshotScaled < 0 || !Number.isSafeInteger(totalCostSnapshotScaled)) {
+        return { ok: false, error: 'HPP barang tidak valid untuk dikaitkan ke Rekening Bersama.' };
+      }
+      const sharedAccountAmount = Math.round(totalCostSnapshotScaled / COST_SCALE);
+      if (sharedAccountAmount <= 0) {
+        return { ok: false, error: 'HPP barang ini masih kosong, belum bisa dikaitkan ke Rekening Bersama.' };
+      }
+      sharedAccountFields = {
+        sharedAccountId: account.id,
+        sharedAccountEntityId: account.entity_id,
+        unitCostSnapshotScaled,
+        totalCostSnapshotScaled,
+        sharedAccountAmount
+      };
+    }
+
     return {
       ok: true,
       payload: {
@@ -154,6 +201,7 @@ export async function normalizeApprovalPayload(db, storeId, requestType, payload
         direction,
         quantity,
         ...(!warehouseEnabled ? { warehouseEnabled: false } : {}),
+        ...sharedAccountFields,
         note: text(payload.note, 500)
       }
     };
@@ -216,6 +264,29 @@ export function buildOperationalPostingStatements(db, request, { approverRole, a
           approverRole, approverId, now
         )
       );
+      if (!isStockAdjustment && payload.sharedAccountId) {
+        // Polaritas SENGAJA kebalik dari transfer manual di Branch Admin
+        // (yang sana: pengirim turun, penerima naik, kayak transfer uang
+        // biasa). Di sini gerai yang MELEPAS barang (arus keluar) justru
+        // di-KREDIT -- dia "dibayar" oleh Rekening Bersama senilai HPP yang
+        // dilepas -- dan gerai yang MENERIMA barang (arus masuk) di-DEBIT --
+        // dia "membayar" dari Rekening Bersama untuk barang yang diterima.
+        // Konfirmasi eksplisit Bos Cyo 2026-09-21: "kalo ada yang gerai
+        // kirim barang... arus keluar, maka debetnya barang dan efeknya ada
+        // kredit khusus gerai itu ke rekening bersama... arus barang masuk
+        // yang credit adalah rekening bersamanya". Dua kejadian yang beda
+        // makna, jadi wajar polaritasnya kebalik, bukan bug.
+        const sharedLedgerDirection = payload.direction === 'OUT' ? 'IN' : 'OUT';
+        statements.push(db.prepare(`
+          INSERT INTO entity_shared_account_ledger (id, shared_account_id, entity_id, store_id, direction, amount, source_type, source_id, note, created_by_role, created_by_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'GOODS_FLOW', ?, ?, ?, ?, ?)
+        `).bind(
+          `shared_ledger_${crypto.randomUUID()}`, payload.sharedAccountId, payload.sharedAccountEntityId, request.storeId,
+          sharedLedgerDirection, payload.sharedAccountAmount, request.id,
+          `Arus Barang ${payload.direction} · ${payload.productName} · ${payload.quantity} ${payload.unitSymbol || ''}`.trim(),
+          approverRole, approverId, now
+        ));
+      }
     }
   } else if (request.requestType === 'ASSET') {
     const delta = payload.direction === 'DECREASE' ? -Number(payload.amount) : Number(payload.amount);

@@ -64,31 +64,45 @@ test('cashier UI consumes the configured registry for sale purchase and operatio
   assert.doesNotMatch(inputUi, /cara bayar aktif di Setting Akuntansi|Berasal dari Setting Akuntansi/);
 });
 
-test('purchase dialog keeps one Accounting payment selector and uses an add-to-detail composer', () => {
+test('purchase dialog keeps one Accounting payment selector, and PIMASATU owns pricing from Master Barang', () => {
   assert.match(inputUi, /<select id="dialogPurchasePayment"/);
-  assert.match(enhancedInputUi, /!el\('dialogPurchasePayment'\) && !el\('dialogPaymentMethod'\)/);
-  assert.match(enhancedInputUi, /id="purchaseProductSearch"/);
-  assert.match(enhancedInputUi, /id="purchaseProductResults"/);
-  assert.match(enhancedInputUi, /renderPurchaseSearchResults/);
-  assert.match(enhancedInputUi, /selectPurchaseProduct/);
-  assert.match(enhancedInputUi, /id="purchaseComposerQty"[^>]*value="1"/);
-  assert.match(enhancedInputUi, /id="purchaseComposerUnitPrice"/);
-  assert.match(enhancedInputUi, />\+ Tambah Barang<\/button>/);
-  assert.match(enhancedInputUi, /resetPurchaseComposer\(\)/);
-  assert.match(enhancedInputUi, /insertAdjacentHTML\('afterbegin'/);
-  assert.match(enhancedInputUi, /masih bisa diedit/);
-  assert.match(enhancedInputUi, /product\.purchasePrice/);
   assert.match(purchases, /p\.purchase_price/);
   assert.match(purchases, /purchasePrice: costFromScaled\(row\.purchase_price\)/);
   assert.doesNotMatch(purchases, /purchase_price = CAST/);
-  assert.doesNotMatch(enhancedInputUi, /resetPurchaseComposer[\s\S]*?purchaseProductSearch'\)\?\.focus\(\)/);
-  assert.match(enhancedInputUi, /purchaseItemsPayload\(\)\.filter\(item => item\.productId > 0\)/);
 });
 
-test('purchase composer is mobile-first with compact Qty and invoice-like detail rows', () => {
-  assert.match(enhancedInputUi, /class="purchase-detail-row"/);
-  assert.match(enhancedInputUi, /purchase-detail-product/);
-  assert.doesNotMatch(enhancedInputUi, /grid-template-columns:minmax\(0,1fr\) 90px 150px auto/);
+// Bos Cyo, 2026-09-21: Beli Bahan gagal total ("wajib 1-50 baris barang")
+// di Pendem dan Beji karena editor Beli Bahan LAMA di file ini (query
+// [data-purchase-row], sudah tidak pernah dibuat sejak Beli Bahan pindah ke
+// PIMASATU -- title dialognya berubah dari "Beli Bahan" jadi "Beli Bahan ·
+// Transaksi") masih punya window.fetch wrapper yang menimpa body.items
+// dengan array kosong hasil query itu SETELAH PIMASATU sudah membangun
+// payload yang benar. Wrapper ini kebetulan tidak aktif sebelum perbaikan
+// Safari 2026-09-19 (canonicalFactPost dulu fetch(new Request(...)), yang
+// membuat wrapper ini bail lewat cek `request` truthy) -- begitu
+// canonicalFactPost pindah ke fetch(path, init) string biasa, wrapper ini
+// ikut jalan dan mengambil alih body Beli Bahan tanpa sepengetahuan siapa
+// pun. Editor lama dan cabang sales/purchases/expenses di wrapper ini
+// sudah dihapus total -- cashier-payment-methods.js (PIMASATU) sekarang
+// satu-satunya pemilik ketiga path itu. Test ini menjaga supaya pola
+// berbahaya itu (fetch wrapper lain yang menimpa body sales/purchases/
+// expenses) tidak diam-diam masuk lagi.
+test('legacy pre-PIMASATU purchase composer is gone, and the shared fetch wrapper here only ever touches drawer open/close', () => {
+  for (const marker of [
+    'purchaseItemsPayload', 'renderPurchaseSearchResults', 'selectPurchaseProduct',
+    'resetPurchaseComposer', 'addPurchaseRow', 'preparePurchaseItemsEditor',
+    'purchaseState', "title === 'Beli Bahan'", "title === 'Pengeluaran'",
+    'purchase-detail-row', 'purchaseComposerQty', 'purchaseProductSearch'
+  ]) {
+    assert.doesNotMatch(enhancedInputUi, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `legacy purchase composer marker must not exist: ${marker}`);
+  }
+  const wrapperBody = enhancedInputUi.slice(enhancedInputUi.indexOf('window.fetch = async function cashierEnhancedFetch'));
+  assert.doesNotMatch(wrapperBody, /\/api\/cashier\/sales|\/api\/cashier\/purchases|\/api\/cashier\/expenses/, 'this shared fetch wrapper must never touch sales/purchases/expenses again -- cashier-payment-methods.js owns those paths');
+  assert.match(wrapperBody, /\/api\/cashier\/drawer\/open/);
+  assert.match(wrapperBody, /\/api\/cashier\/drawer\/close/);
+});
+
+test('cashier-pos.css retains the legacy purchase composer grid rules', () => {
   assert.match(cashierPosCss, /\.purchase-composer\{[^}]*grid-template-columns:76px minmax\(0,1fr\)/);
   assert.match(cashierPosCss, /\.purchase-composer-product\{[^}]*grid-column:1\/-1\}\.purchase-composer-qty\{grid-column:1\}\.purchase-composer-price\{grid-column:2\}/);
   assert.match(cashierPosCss, /\.purchase-detail-row\{[^}]*grid-template-columns:minmax\(0,1fr\) 62px minmax\(82px,auto\)/);

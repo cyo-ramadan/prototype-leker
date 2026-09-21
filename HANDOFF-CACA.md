@@ -11,11 +11,21 @@ Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
 ## Status singkat
 
-**Tahap 1 sudah ada kodenya dan sudah live.** Caca bisa dikirimi foto lembar
-rekap lewat tab "Caca" di panel Entity Admin, membacanya, lalu menampilkan
-hasil beserta daftar hal yang perlu dipastikan. **Belum ada alat tulis sama
-sekali** — tidak ada satu pun jalur yang menyimpan hasil bacaan jadi transaksi.
-Itu disengaja, jangan "dilengkapi" tanpa membaca D1 di ADR dulu.
+**Tahap 1 sudah ada kodenya, lulus test, tapi BELUM live.** Kodenya masih di
+branch `claude/wonderful-fermat-bn4szi` dan belum digabung ke `main` — sesuai
+koreksi di `CLAUDE.md` 2026-09-17, kode Worker yang melayani user baru berubah
+setelah branch digabung ke `main`, bukan setelah di-push. Klaim "sudah live"
+pada versi handoff sebelumnya salah dan dikoreksi di sini.
+
+Isinya: Caca bisa dikirimi foto lembar rekap lewat tab "Caca" di panel Entity
+Admin, membacanya, lalu menampilkan hasil beserta daftar hal yang perlu
+dipastikan. **Belum ada alat tulis sama sekali** — tidak ada satu pun jalur yang
+menyimpan hasil bacaan jadi transaksi. Itu disengaja, jangan "dilengkapi" tanpa
+membaca D1 di ADR-044 dulu.
+
+Rencana kemampuan selanjutnya (baca data tenant, catat penjualan/pembelian,
+ajukan pembatalan) ada di **`adr/ADR-045`** — arah dan pagarnya sudah disetujui
+Bos Cyo, belum ada kodenya.
 
 - Desain lengkap: **`adr/ADR-044-whatsapp-intake-dan-ai-draft-entry.md`**
   (status ACCEPTED untuk Tahap 1). **Baca itu dulu, utuh, sebelum apa pun** —

@@ -88,6 +88,15 @@ user"). Aturan lama "satu sesi aktif per akun + Ambil alih sesi" sudah dicabut.
 - Customer sessions memang tidak pernah ikut aturan single-session ini.
 - Browser lease tidak melakukan network polling. Heartbeat hanya menyentuh
   `localStorage` (invariant "tanpa polling periodik" tetap utuh).
+- **Tidak perlu login ulang di tab lain** (Bos Cyo, 2026-09-21: "ketika dia
+  klik login lagi di tab yang lain, harusnya dia langsung landing di portal
+  staf aja... cegah di suatu tab masukin username lagi ketika dia belum
+  logout"). `public/auth-entry-split.js` mengecek token staff yang masih
+  valid di `localStorage` SEBELUM menampilkan form login sama sekali --
+  pengecekannya jalan dari dalam `applyMode('STAFF')`, jadi kena baik lewat
+  URL `/?login=staff` maupun klik manual tab "Karyawan". Kalau sesinya masih
+  valid, langsung `location.replace` ke `/cashier`, `/admin`, `/entity-admin`,
+  atau `/s/:code/admin` sesuai pangkat -- tidak pernah menampilkan form.
 
 **Aturan tambahan, server-side, entity-wide** (Bos Cyo, 2026-09-18: "kalo ada
 1 nama coba login 2 akun ... maka ini harus di tolak"): satu **karyawan**

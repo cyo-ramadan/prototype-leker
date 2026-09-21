@@ -215,8 +215,7 @@
           <div id="dialogPurchaseGrandTotal" class="cashier-lock-note">Total pembelian · Rp0</div>
           <div class="field"><label>Supplier</label><select id="dialogSupplier" class="text-input">${supplierOptions}</select></div>
           <div class="field"><label>Cara bayar</label><select id="dialogPurchasePayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
-          <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>
-          <p class="muted">PIMASATU hanya mengatur pola input barang. Supplier dan cara bayar adalah data transaksi terpisah.</p>`,
+          <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>`,
         submitText: 'SIMPAN PEMBELIAN',
         onSubmit: async () => {
           const lines = editor.getLines();
@@ -285,8 +284,7 @@
         <div id="operationalPimasatu"></div>
         <div class="field"><label>Kontak terkait</label><div id="operationalContactSummary" class="cashier-lock-note">Mengikuti kontak pada Master Biaya yang dipilih.</div></div>
         <div class="field"><label>Cara bayar</label><select id="dialogOperationalPayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
-        <div id="dialogOperationalTotal" class="cashier-lock-note">Total operasional · Rp0</div>
-        <p class="muted">PIMASATU hanya mengatur pola input biaya. Kontak dan cara bayar tetap berada di layer transaksi.</p>`,
+        <div id="dialogOperationalTotal" class="cashier-lock-note">Total operasional · Rp0</div>`,
       submitText: 'SIMPAN OPERASIONAL',
       onSubmit: async () => {
         const items = editor.getLines().map(line => ({

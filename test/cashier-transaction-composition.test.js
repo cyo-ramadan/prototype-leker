@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260919-fix-safari-readablestream-v1',
+    '/cashier-payment-methods.js?v=20260921-hapus-teks-pimasatu-v1',
     '/cashier-enhancements.js?v='
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
@@ -100,4 +100,24 @@ test('SALE PURCHASE and EXPENSE remain connected to Accounting bridge after oper
   assert.match(bridgeSource, /FROM payment_methods p/);
   assert.match(bridgeSource, /FROM journal_rules r/);
   assert.match(bridgeSource, /FROM item_categories/);
+});
+
+// Bos Cyo, 2026-09-21: dilaporkan dari Pendem dan Beji -- kasir sudah
+// memasukkan barang (kelihatan di Detail Pembelian), tetapi Simpan tetap
+// menolak dengan "Pembelian wajib memiliki 1-50 baris barang" dan D1
+// membuktikan transaksinya benar-benar TIDAK tersimpan. Akarnya: input
+// search/Qty/Harga/Total PIMASATU ada di dalam <form> dialog yang sama
+// dengan tombol Simpan -- keyboard HP submit form itu secara implisit saat
+// Enter/"Go" ditekan di salah satu field itu, sebelum barang sempat diklik
+// "+ Masukkan" ke Detail. Form ke-submit dengan 0 baris; toast errornya
+// masih menempel di layar sesudah kasir lanjut menambah barangnya.
+test('PIMASATU composer inputs never implicitly submit the enclosing dialog form on Enter', () => {
+  assert.match(pimasatuUi, /composer\.addEventListener\('keydown', event => \{/);
+  const handlerBody = pimasatuUi.slice(pimasatuUi.indexOf("composer.addEventListener('keydown'"));
+  assert.match(handlerBody, /event\.key !== 'Enter'/);
+  assert.match(handlerBody, /event\.preventDefault\(\)/);
+});
+
+test('PIMASATU-branded helper text is not shown to cashiers in Beli Bahan / Operasional dialogs', () => {
+  assert.doesNotMatch(inputUi, /PIMASATU hanya mengatur pola input/);
 });

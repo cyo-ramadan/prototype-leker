@@ -106,7 +106,19 @@
       </section>
       <section id="entityTab-caca" class="admin-section">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Caca — baca lembar rekap</h2><div class="muted" id="cacaStatus">Memuat…</div></div></div>
+          <div class="list-head"><div><h2>Tanya Caca</h2><div class="muted" id="cacaStatus">Memuat…</div></div></div>
+          <div class="admin-tip" style="margin:12px 0">Caca baru bisa <strong>menjawab pertanyaan</strong> — belum bisa mencatat atau mengubah apa pun. Dia cuma melihat yang boleh Bos lihat.</div>
+          <label class="admin-field">Gerai<select id="cacaTanyaStore"></select></label>
+          <div id="cacaPercakapan" class="caca-percakapan" aria-live="polite"></div>
+          <form id="cacaTanyaForm" class="caca-tanya-baris">
+            <input id="cacaPertanyaan" maxlength="500" placeholder="untung hari ini berapa?" autocomplete="off" />
+            <button id="cacaTanyaKirim" class="primary-btn" type="submit" disabled>Tanya</button>
+          </form>
+          <div class="caca-contoh muted">Coba: "untung hari ini berapa?" · "penjualan kemarin" · "stok tinggal berapa?"</div>
+        </div>
+
+        <div class="admin-card" style="margin-top:16px">
+          <div class="list-head"><div><h2>Caca — baca lembar rekap</h2></div></div>
           <div class="admin-tip" style="margin:12px 0">Tahap uji coba: Caca hanya membaca dan memastikan. Belum ada yang tersimpan jadi transaksi.</div>
           <div class="admin-grid two compact">
             <label class="admin-field">Gerai<select id="cacaStore"></select></label>

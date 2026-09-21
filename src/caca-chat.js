@@ -10,6 +10,8 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { aiConfigured, callStructured, CACA_VISION_MODEL } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
+import { jawabPertanyaan } from './caca-agen.js';
+import { getJakartaBusinessDate } from './time.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_LENGTH = 1_500_000;
@@ -83,6 +85,52 @@ async function bacaRekap(request, env) {
   });
 }
 
+// K5 ADR-045: Owner dan Entity Admin dulu. Admin Gerai dan jalur PIN lama belum
+// diikutkan — menambahkannya berarti merancang jatah per orang dan jejak audit
+// per penyuruh lebih dulu, dan itu belum perlu selama yang memakai baru pemilik.
+const PERAN_BOLEH_TANYA = Object.freeze({ OWNER: 'Owner', ENTITY_ADMIN: 'Entity Admin' });
+
+function konteksPenyuruh(auth, store) {
+  const peran = PERAN_BOLEH_TANYA[auth.authType];
+  if (!peran) return null;
+  return {
+    nama: auth.owner?.displayName || auth.entityAdmin?.displayName || peran,
+    peran,
+    storeCode: store.code,
+    storeName: store.storeName,
+    hariIni: getJakartaBusinessDate()
+  };
+}
+
+async function tanya(request, env) {
+  const auth = await requireManagement(request, env.DB);
+  if (!auth.ok) return auth.response;
+
+  const store = await selectedStore(env.DB, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+
+  const konteks = konteksPenyuruh(auth, store);
+  if (!konteks) {
+    return json({ error: 'Caca baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403);
+  }
+
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+
+  const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, 500);
+  if (!pertanyaan) return json({ error: 'Pertanyaannya kosong.' }, 400);
+
+  const hasil = await jawabPertanyaan(pertanyaan, konteks, { request, env });
+  if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
+
+  return json({
+    jawaban: hasil.jawaban,
+    alat: hasil.alat,
+    periode: hasil.periode ?? null,
+    store: { code: store.code, storeName: store.storeName }
+  });
+}
+
 export async function handleCacaApi(request, env, pathname) {
   if (!pathname.startsWith('/api/caca/')) return null;
 
@@ -94,6 +142,10 @@ export async function handleCacaApi(request, env, pathname) {
 
   if (request.method === 'POST' && pathname === '/api/caca/baca-rekap') {
     return bacaRekap(request, env);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/caca/tanya') {
+    return tanya(request, env);
   }
 
   return json({ error: 'Route Caca tidak ditemukan.' }, 404);

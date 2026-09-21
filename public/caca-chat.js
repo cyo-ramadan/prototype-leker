@@ -3,7 +3,8 @@
 
 const cacaState = {
   storeCode: '',
-  sedangBaca: false
+  sedangBaca: false,
+  sedangTanya: false
 };
 
 const cacaEl = id => document.getElementById(id);
@@ -36,14 +37,66 @@ function cacaBacaBerkas(file) {
 }
 
 async function cacaMuatGerai() {
-  const select = cacaEl('cacaStore');
-  if (!select) return;
   const payload = await cacaApi('/api/entity-admin/stores');
   const stores = payload.stores || [];
-  select.innerHTML = stores.length
+  const pilihan = stores.length
     ? stores.map(store => `<option value="${cacaEscape(store.code)}">${cacaEscape(store.code)} · ${cacaEscape(store.storeName)}</option>`).join('')
     : '<option value="">Belum ada gerai</option>';
-  cacaState.storeCode = select.value;
+
+  for (const id of ['cacaStore', 'cacaTanyaStore']) {
+    const select = cacaEl(id);
+    if (select) select.innerHTML = pilihan;
+  }
+  cacaState.storeCode = cacaEl('cacaStore')?.value || '';
+}
+
+function cacaTambahGelembung(dari, teks, catatan = '') {
+  const wadah = cacaEl('cacaPercakapan');
+  if (!wadah) return null;
+  const gelembung = document.createElement('div');
+  gelembung.className = `caca-gelembung ${dari}`;
+  gelembung.innerHTML = `<p>${cacaEscape(teks)}</p>${catatan ? `<span class="caca-jejak">${cacaEscape(catatan)}</span>` : ''}`;
+  wadah.appendChild(gelembung);
+  wadah.scrollTop = wadah.scrollHeight;
+  return gelembung;
+}
+
+function cacaJejakAlat(payload) {
+  if (!payload.alat) return '';
+  const periode = payload.periode ? ` · ${payload.periode.dari}${payload.periode.sampai !== payload.periode.dari ? ` s/d ${payload.periode.sampai}` : ''}` : '';
+  return `dari ${payload.alat}${periode}`;
+}
+
+async function cacaTanya(event) {
+  event.preventDefault();
+  const input = cacaEl('cacaPertanyaan');
+  const pertanyaan = input.value.trim();
+  if (!pertanyaan || cacaState.sedangTanya) return;
+
+  cacaState.sedangTanya = true;
+  cacaEl('cacaTanyaKirim').disabled = true;
+  input.value = '';
+  cacaTambahGelembung('saya', pertanyaan);
+  const menunggu = cacaTambahGelembung('caca', 'Sebentar ya…');
+
+  try {
+    const store = cacaEl('cacaTanyaStore').value;
+    const payload = await cacaApi(`/api/caca/tanya?store=${encodeURIComponent(store)}`, {
+      method: 'POST',
+      body: JSON.stringify({ pertanyaan })
+    });
+    menunggu.remove();
+    // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
+    // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
+    cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+  } catch (error) {
+    menunggu.remove();
+    cacaTambahGelembung('caca', error.message);
+  } finally {
+    cacaState.sedangTanya = false;
+    cacaEl('cacaTanyaKirim').disabled = false;
+    input.focus();
+  }
 }
 
 function cacaRenderBaris(judul, baris, kolom) {
@@ -133,6 +186,7 @@ async function cacaMuatPanel() {
       ? 'Caca siap membaca lembar rekap.'
       : 'Caca belum tersambung ke mesin AI — kunci API belum dipasang.';
     cacaEl('cacaKirim').disabled = !status.siap;
+    cacaEl('cacaTanyaKirim').disabled = !status.siap;
     await cacaMuatGerai();
   } catch (error) {
     cacaEl('cacaStatus').textContent = error.message;
@@ -141,6 +195,7 @@ async function cacaMuatPanel() {
 
 function initCacaPanel() {
   cacaEl('cacaKirim')?.addEventListener('click', cacaKirimGambar);
+  cacaEl('cacaTanyaForm')?.addEventListener('submit', cacaTanya);
   cacaEl('cacaStore')?.addEventListener('change', event => { cacaState.storeCode = event.target.value; });
 }
 

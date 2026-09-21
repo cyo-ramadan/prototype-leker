@@ -13,6 +13,7 @@
     state.readOnly = Boolean(payload.readOnly);
     state.paymentMethods = payload.paymentMethods || [];
     state.cashFlowCounterparts = payload.cashFlowCounterparts || [];
+    state.sharedAccounts = payload.sharedAccounts || [];
     if (includeMenu) {
       state.products = payload.products || [];
       renderMenu();

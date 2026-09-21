@@ -38,11 +38,24 @@ Komponen item/variabel boleh memakai PIMASATU, tetapi counterpart dan metode pem
 
 ### Pengeluaran Operasional
 
-- item/variabel Biaya;
+- item/variabel Biaya (Kategori Biaya, dipilih lewat search dari Master Biaya);
+- Keterangan Biaya per baris (teks bebas, default = nama Kategori yang dipilih, boleh ditimpa kasir; di luar komponen PIMASATU -- lihat "Kategori Biaya vs Keterangan Biaya" di bawah);
 - contact context bila tersedia dari Master Biaya;
 - metode pembayaran;
 - total;
 - simpan Operasional.
+
+### Kategori Biaya vs Keterangan Biaya (Pengeluaran Operasional)
+
+Bos Cyo, 2026-09-21: Kategori Biaya tetap wajib dipilih lewat search dari
+Master Biaya (unchanged) dan menentukan `costMasterId` yang dikirim server --
+itu yang dipakai laporan/traceability. Keterangan Biaya adalah field terpisah
+yang PIMASATU sendiri tidak tahu apa-apa soal dia (PIMASATU tetap generic,
+lihat `contracts/pimasatu-ui-v1.md`); begitu Keterangan diketik beda dari
+nama Kategori yang lagi kepilih, `costMasterId` efektif yang dikirim otomatis
+dipindah ke "Biaya Lainnya" -- Kategori catch-all yang wajib selalu ada per
+gerai (auto-seed, `migrations/0113_operational_expense_editable_description.sql`).
+Sistem tidak pernah menebak-nebak Kategori lain dari teks bebas yang diketik.
 
 ## Accounting Boundary
 

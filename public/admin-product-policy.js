@@ -5,10 +5,12 @@
   const state = {
     editor: null,
     accounting: null,
+    catalog: [],
     activeProductId: 0,
     editingProductKindId: '',
     loadingEditor: null,
-    loadingAccounting: null
+    loadingAccounting: null,
+    loadingCatalog: null
   };
 
   async function api(path, options = {}) {
@@ -70,11 +72,46 @@
     }
   }
 
+  // Kode Barang (ADR-043): field ini muncul di form Master Barang yang sama
+  // (bukan form terpisah) supaya alur "bikin barang baru, sekalian daftarkan
+  // ke Entity" tetap satu langkah. Begitu productMasterId sudah ada, input
+  // kode dikunci -- retrofit/reassign kode di luar scope fitur ini.
+  function mountProductCodeFields() {
+    const category = el('productCategory')?.closest('label');
+    if (!category || el('productCodeFields')) return;
+    category.insertAdjacentHTML('afterend', `
+      <div id="productCodeFields" class="admin-grid two compact" style="margin-bottom:12px">
+        <label class="admin-field">Kode Barang (opsional)<input id="productCode" maxlength="40" placeholder="Kosongkan kalau barang lokal saja" /><span class="field-note" id="productCodeNote">Isi supaya gerai lain bisa "Gunakan/Aktifkan" barang ini tanpa mengetik ulang.</span></label>
+        <label class="admin-field">Label internal Kode Barang<input id="productMasterName" maxlength="100" placeholder="Buat identifikasi saja, mis. untuk agen upload foto" /><span class="field-note">Bukan nama yang tampil ke pelanggan -- itu tetap field Nama di atas.</span></label>
+      </div>`);
+  }
+
+  function renderProductCodeFields(product) {
+    const codeInput = el('productCode');
+    const nameInput = el('productMasterName');
+    const note = el('productCodeNote');
+    if (!codeInput || !nameInput) return;
+    if (product?.productMasterId) {
+      codeInput.value = product.productMasterCode || '';
+      codeInput.readOnly = true;
+      nameInput.value = product.productMasterName || '';
+      nameInput.readOnly = true;
+      if (note) note.textContent = `Sudah terdaftar sebagai Kode Barang Entity (dipakai gerai lain lewat Katalog). Foto barang ini ikut Entity -- lihat Katalog Kode Barang untuk daftar gerai pemakai.`;
+    } else {
+      codeInput.value = '';
+      codeInput.readOnly = false;
+      nameInput.value = '';
+      nameInput.readOnly = false;
+      if (note) note.textContent = 'Isi supaya gerai lain bisa "Gunakan/Aktifkan" barang ini tanpa mengetik ulang.';
+    }
+  }
+
   function mountProductFields() {
     const form = el('productForm');
     const category = el('productCategory')?.closest('label');
     if (!form || !category || el('productMasterFields')) return;
     mountPurchaseCostFields();
+    mountProductCodeFields();
     category.insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
         <details id="productOperationalDetails" class="admin-card" style="padding:12px;margin:0 0 12px">
@@ -237,6 +274,7 @@
     el('productLinkedRecipe').disabled = !product?.id;
     renderRecipeNote();
     renderProductKinds();
+    renderProductCodeFields(product);
   }
 
   function renderRecipeNote() {
@@ -386,6 +424,13 @@
         stockTrackingEnabled: el('productStockTracking').checked,
         linkedRecipeId: el('productLinkedRecipe').value || null
       };
+      // productCode cuma dikirim kalau field-nya masih bisa diedit (barang
+      // belum punya Kode Barang) -- begitu sudah terdaftar, input dikunci
+      // read-only dan tidak boleh mengganti/mendaftarkan ulang dari sini.
+      if (!el('productCode')?.readOnly && el('productCode')?.value.trim()) {
+        payload.productCode = el('productCode').value.trim();
+        payload.productMasterName = el('productMasterName')?.value.trim() || '';
+      }
       const response = await api(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
         method: productId ? 'PATCH' : 'POST',
         body: JSON.stringify(payload)
@@ -396,6 +441,7 @@
       resetExtendedForm();
       enhanceProductRows();
       renderProductKinds();
+      if (typeof loadCatalog === 'function') loadCatalog(true).catch(() => {});
       toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.');
     } catch (error) {
       toast(error.message);
@@ -554,21 +600,175 @@
     } catch (error) { toast(error.message); }
   }
 
+  // Katalog Kode Barang Entity (ADR-043) -- panel terpisah dari form Master
+  // Barang, ditempel setelah daftar produk gerai ini. Menampilkan Kode
+  // Barang milik entity gerai ini, gerai mana saja yang sudah pakai, resep
+  // acuan (read-only), dan tombol Gunakan/Aktifkan untuk kode yang belum
+  // dipakai gerai ini. Ini murni UI -- semua logic fork/aktivasi/resep ada
+  // di backend (src/product-master.js), panel ini cuma memanggil dan
+  // menampilkan hasilnya.
+  function mountCatalogPanel() {
+    const list = el('productList');
+    const card = list?.closest('.admin-card');
+    if (!card || el('productMasterCatalogCard')) return;
+    card.insertAdjacentHTML('afterend', `
+      <div id="productMasterCatalogCard" class="admin-card" style="margin-top:14px">
+        <div class="list-head">
+          <div>
+            <div class="admin-eyebrow">Master Entity</div>
+            <h2>Katalog Kode Barang Entity</h2>
+            <div class="muted">Barang yang punya Kode Barang bisa dipakai gerai lain lewat "Gunakan/Aktifkan" tanpa mengetik ulang. Foto ikut Entity; nama, harga, status tetap milik gerai masing-masing.</div>
+          </div>
+          <button id="productMasterCatalogRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+        </div>
+        <div id="productMasterCatalogList" class="master-list" style="margin-top:12px"></div>
+      </div>`);
+    el('productMasterCatalogRefresh')?.addEventListener('click', () => loadCatalog(true).catch(error => toast(error.message)));
+  }
+
+  function catalogEntryById(id) {
+    return (state.catalog || []).find(entry => entry.id === id);
+  }
+
+  function renderCatalogRecipeList(entry) {
+    if (!entry.recipeReference.length) return '<div class="muted">Belum ada resep acuan.</div>';
+    return `<ul style="margin:4px 0 0;padding-left:18px">${entry.recipeReference.map(component =>
+      `<li>${esc(component.ingredientLabel)}${component.quantityLabel ? ` · ${esc(component.quantityLabel)}` : ''}</li>`
+    ).join('')}</ul>`;
+  }
+
+  function renderCatalog() {
+    const list = el('productMasterCatalogList');
+    if (!list) return;
+    const catalog = state.catalog || [];
+    const storeCode = state.editor?.store?.code || '';
+    list.innerHTML = catalog.length ? catalog.map(entry => {
+      const usedHere = entry.usedByStores.some(usage => usage.storeCode === storeCode);
+      const otherStores = entry.usedByStores.filter(usage => usage.storeCode !== storeCode);
+      return `
+      <div class="master-row contact-row" data-catalog-entry="${esc(entry.id)}">
+        ${entry.imageData ? `<img class="master-thumb" src="${esc(entry.imageData)}" alt="${esc(entry.name || entry.code)}" />` : ''}
+        <div class="master-main">
+          <strong>${esc(entry.code)}${entry.name ? ` · ${esc(entry.name)}` : ''}</strong>
+          <div class="master-meta">${usedHere ? 'Sudah dipakai gerai ini' : 'Belum dipakai gerai ini'} · dipakai ${entry.usedByStores.length} gerai${otherStores.length ? ` (${otherStores.map(u => esc(u.storeCode)).join(', ')})` : ''}</div>
+          <div class="master-meta">Resep acuan: ${renderCatalogRecipeList(entry)}</div>
+          <div class="master-meta"><button class="mini-btn" type="button" data-toggle-recipe-editor="${esc(entry.id)}">✎ Edit resep acuan</button></div>
+          <div data-recipe-editor="${esc(entry.id)}" class="hidden" style="margin-top:8px">
+            <textarea data-recipe-editor-input="${esc(entry.id)}" rows="3" style="width:100%" placeholder="Satu bahan per baris, format: nama bahan | takaran (takaran opsional)">${entry.recipeReference.map(c => `${c.ingredientLabel}${c.quantityLabel ? ` | ${c.quantityLabel}` : ''}`).join('\n')}</textarea>
+            <button class="mini-btn" type="button" data-save-recipe-editor="${esc(entry.id)}">Simpan resep acuan</button>
+          </div>
+          ${!usedHere ? `
+          <div data-activate-form="${esc(entry.id)}" class="hidden" style="margin-top:8px">
+            <div class="admin-grid two compact">
+              <label class="admin-field">Nama di gerai ini<input data-activate-name="${esc(entry.id)}" placeholder="${esc(entry.name || entry.code)}" /></label>
+              <label class="admin-field">Kategori<input data-activate-category="${esc(entry.id)}" placeholder="Minuman" /></label>
+              <label class="admin-field">Harga beli<input data-activate-purchase-price="${esc(entry.id)}" type="number" min="0" step="any" value="0" /></label>
+              <label class="admin-field">Harga jual<input data-activate-price="${esc(entry.id)}" type="number" min="0" step="any" value="0" /></label>
+            </div>
+            <button class="primary-btn" type="button" data-confirm-activate="${esc(entry.id)}">Simpan & Aktifkan</button>
+          </div>` : ''}
+        </div>
+        <div class="master-actions">
+          ${usedHere ? '' : `<button class="mini-btn" type="button" data-open-activate="${esc(entry.id)}">Gunakan/Aktifkan Barang Ini</button>`}
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Isi "Kode Barang" saat menambah/edit barang untuk mendaftarkannya.</div>';
+
+    list.querySelectorAll('[data-open-activate]').forEach(button => button.addEventListener('click', () => {
+      document.querySelector(`[data-activate-form="${button.dataset.openActivate}"]`)?.classList.remove('hidden');
+    }));
+    list.querySelectorAll('[data-confirm-activate]').forEach(button => button.addEventListener('click', () => activateCatalogEntry(button.dataset.confirmActivate)));
+    list.querySelectorAll('[data-toggle-recipe-editor]').forEach(button => button.addEventListener('click', () => {
+      document.querySelector(`[data-recipe-editor="${button.dataset.toggleRecipeEditor}"]`)?.classList.toggle('hidden');
+    }));
+    list.querySelectorAll('[data-save-recipe-editor]').forEach(button => button.addEventListener('click', () => saveCatalogRecipe(button.dataset.saveRecipeEditor)));
+  }
+
+  async function loadCatalog(force = false) {
+    if (state.loadingCatalog && !force) return state.loadingCatalog;
+    state.loadingCatalog = api('/api/admin/product-masters')
+      .then(payload => {
+        state.catalog = payload.catalog || [];
+        renderCatalog();
+        return payload;
+      })
+      .catch(error => {
+        // Gerai tanpa entity (STORE_WITHOUT_ENTITY) bukan error yang perlu
+        // mengganggu -- panel katalog cukup kosong, fitur ini memang belum
+        // relevan buat gerai itu.
+        state.catalog = [];
+        renderCatalog();
+        throw error;
+      })
+      .finally(() => { state.loadingCatalog = null; });
+    return state.loadingCatalog;
+  }
+
+  async function activateCatalogEntry(masterId) {
+    const name = document.querySelector(`[data-activate-name="${masterId}"]`)?.value.trim();
+    const category = document.querySelector(`[data-activate-category="${masterId}"]`)?.value.trim();
+    const entry = catalogEntryById(masterId);
+    const finalName = name || entry?.name || entry?.code || '';
+    if (!finalName || !category) { toast('Nama dan kategori wajib diisi untuk mengaktifkan barang.'); return; }
+    const purchasePrice = Number(document.querySelector(`[data-activate-purchase-price="${masterId}"]`)?.value || 0);
+    const price = Number(document.querySelector(`[data-activate-price="${masterId}"]`)?.value || 0);
+    try {
+      await api(`/api/admin/product-masters/${encodeURIComponent(masterId)}/activate`, {
+        method: 'POST',
+        body: JSON.stringify({ name: finalName, category, purchasePrice, price, emoji: '🥞' })
+      });
+      if (typeof window.refreshData === 'function') await window.refreshData();
+      await loadEditor(true);
+      await loadCatalog(true);
+      toast('Barang diaktifkan di gerai ini.');
+    } catch (error) { toast(error.message); }
+  }
+
+  function parseRecipeEditorText(value) {
+    return String(value || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+      const [ingredientLabel, quantityLabel = ''] = line.split('|').map(part => part.trim());
+      return { ingredientLabel, quantityLabel };
+    }).filter(component => component.ingredientLabel);
+  }
+
+  async function saveCatalogRecipe(masterId) {
+    const textarea = document.querySelector(`[data-recipe-editor-input="${masterId}"]`);
+    const components = parseRecipeEditorText(textarea?.value);
+    try {
+      await api(`/api/admin/product-masters/${encodeURIComponent(masterId)}/recipe-components`, {
+        method: 'PUT',
+        body: JSON.stringify({ components })
+      });
+      await loadCatalog(true);
+      toast('Resep acuan tersimpan.');
+    } catch (error) { toast(error.message); }
+  }
+
   function mount() {
     mountProductFields();
     mountProductKindMaster();
     mountAccountingPortal();
+    mountCatalogPanel();
     removeDuplicateClassificationPanel();
     const productTab = document.querySelector('[data-tab="products"]');
-    productTab?.addEventListener('click', () => setTimeout(() => loadEditor(true).catch(error => toast(error.message)), 0));
+    productTab?.addEventListener('click', () => setTimeout(() => {
+      loadEditor(true).catch(error => toast(error.message));
+      loadCatalog(true).catch(() => {});
+    }, 0));
     window.addEventListener('product-master-reference-updated', () => loadEditor(true).catch(error => toast(error.message)));
     const list = el('productList');
     if (list) new MutationObserver(() => enhanceProductRows()).observe(list, { childList: true });
     const gate = el('authGate');
     if (gate) new MutationObserver(() => {
-      if (gate.classList.contains('hidden')) loadEditor(true).catch(error => toast(error.message));
+      if (gate.classList.contains('hidden')) {
+        loadEditor(true).catch(error => toast(error.message));
+        loadCatalog(true).catch(() => {});
+      }
     }).observe(gate, { attributes: true, attributeFilter: ['class'] });
-    if (gate?.classList.contains('hidden')) loadEditor().catch(error => toast(error.message));
+    if (gate?.classList.contains('hidden')) {
+      loadEditor().catch(error => toast(error.message));
+      loadCatalog().catch(() => {});
+    }
   }
 
   mount();

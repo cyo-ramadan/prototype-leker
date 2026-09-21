@@ -120,12 +120,19 @@ yang sudah `SUCCESS`.
 `agent-bridge/` adalah Worker terpisah (`leker-agent-bridge`) dan **tidak** ikut
 ter-deploy oleh Git Integration. Deploy manual dengan config-nya sendiri.
 
-**Push ke branch fitur = deploy production sungguhan, bukan cuma preview.**
-Dibuktikan 2026-08-31 (bukan dugaan): push ke branch fitur bikin Git Integration
-menjalankan migrate→verify→deploy penuh ke worker & D1 production yang sama,
-tanpa nunggu merge. Detail bukti dan implikasinya di `KNOWN_PITFALLS.md`
-("Preview Worker tidak membuktikan remote D1 siap"). Jangan push migration
-destruktif/belum yakin ke branch mana pun sebelum benar-benar siap live.
+**Push ke branch fitur = migration jalan ke D1 production sungguhan, tapi kode
+Worker-nya BELUM live.** Dibuktikan dua kali dengan bukti langsung, bukan
+dugaan (2026-08-31 dan dikoreksi 2026-09-17): `db:migrations:apply` tidak
+branch-aware, jadi migration dari branch fitur mana pun tetap applied ke D1
+production yang sama -- itu tetap berbahaya, jangan push migration
+destruktif/belum yakin ke branch mana pun sebelum benar-benar siap live. TAPI
+kode Worker yang sungguhan melayani user baru berubah sesudah branch-nya
+digabung ke `main` (2026-09-17: 22 commit numpuk ~2 hari di branch fitur,
+migration-nya applied semua, tapi `workers_get_worker_code` membuktikan kode
+yang jalan masih versi merge terakhir ke `main`). Jadi **kerjaan yang sudah
+lulus test wajib digabung ke `main` sebelum dilaporkan "sudah bisa dicoba"** --
+push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
+`KNOWN_PITFALLS.md` ("Preview Worker tidak membuktikan remote D1 siap").
 
 ## Konvensi repo
 

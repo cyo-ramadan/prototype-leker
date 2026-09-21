@@ -17,11 +17,14 @@
     ? 'lekerOwnerToken'
     : meta.role === 'ADMIN'
       ? 'lekerAdminToken'
-      : 'lekerCashierToken';
-  // OWNER/ADMIN tokens live in localStorage (survive a discarded/reloaded tab
-  // -- see branch-owner-auth.js); CASHIER stays sessionStorage. block() must
-  // strip the token from wherever it actually lives, or a "blocked" tab keeps
-  // a live token and can walk right back into the workspace.
+      : meta.role === 'ENTITY_ADMIN'
+        ? 'lekerEntityAdminToken'
+        : 'lekerCashierToken';
+  // OWNER/ADMIN/ENTITY_ADMIN tokens live in localStorage (survive a
+  // discarded/reloaded tab -- see branch-owner-auth.js); CASHIER stays
+  // sessionStorage. block() must strip the token from wherever it actually
+  // lives, or a "blocked" tab keeps a live token and can walk right back
+  // into the workspace.
   const tokenStore = meta.role === 'CASHIER' ? sessionStorage : localStorage;
 
   function readLease() {

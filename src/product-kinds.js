@@ -43,7 +43,7 @@ export async function resolveProductKind(db, storeId, productKindId, { allowInac
 
 export async function handleProductKindApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/master/product-kinds')) return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

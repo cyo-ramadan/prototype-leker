@@ -191,7 +191,7 @@ function normalizeRewards(rawRewards, options) {
 
 async function handleAdminRodaPuterApi(request, env, pathname) {
   if (pathname !== '/api/admin/roda-puter') return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request, true);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

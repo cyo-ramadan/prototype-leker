@@ -37,7 +37,7 @@
     if (note) {
       note.textContent = mode === 'CUSTOMER'
         ? 'Login pelanggan berlaku pada gerai yang dipilih. Belanja tetap bisa tanpa login.'
-        : 'Login karyawan otomatis menentukan pangkat Owner, Admin Gerai, atau Kasir.';
+        : 'Login karyawan otomatis menentukan pangkat Owner, Entity Admin, Admin Gerai, atau Kasir.';
     }
     if (el('entryRegisterOpen')) el('entryRegisterOpen').hidden = mode === 'STAFF';
     if (el('continueGuestBtn')) el('continueGuestBtn').textContent = mode === 'STAFF' ? 'Kembali ke halaman customer' : 'Lanjut beli tanpa login';
@@ -48,6 +48,7 @@
   function staffIdentity(payload) {
     if (payload.role === 'OWNER') return payload.owner;
     if (payload.role === 'ADMIN') return payload.admin;
+    if (payload.role === 'ENTITY_ADMIN') return payload.entityAdmin;
     if (payload.role === 'CASHIER') return payload.cashier;
     return null;
   }
@@ -55,6 +56,7 @@
   function staffTokenKey(role) {
     if (role === 'OWNER') return 'lekerOwnerToken';
     if (role === 'ADMIN') return 'lekerAdminToken';
+    if (role === 'ENTITY_ADMIN') return 'lekerEntityAdminToken';
     return 'lekerCashierToken';
   }
 
@@ -104,12 +106,12 @@
         return;
       }
 
-      if (!['OWNER', 'ADMIN', 'CASHIER'].includes(payload.role)) throw new Error('Akun ini bukan akun karyawan.');
+      if (!['OWNER', 'ADMIN', 'ENTITY_ADMIN', 'CASHIER'].includes(payload.role)) throw new Error('Akun ini bukan akun karyawan.');
       const identity = staffIdentity(payload);
       if (!identity?.id) throw new Error('Identitas karyawan tidak lengkap.');
-      // OWNER/ADMIN go to localStorage so the session survives a discarded/
-      // reloaded tab (see branch-owner-auth.js); CASHIER stays sessionStorage,
-      // unchanged, tied to its own drawer-session lifecycle.
+      // OWNER/ADMIN/ENTITY_ADMIN go to localStorage so the session survives a
+      // discarded/reloaded tab (see branch-owner-auth.js); CASHIER stays
+      // sessionStorage, unchanged, tied to its own drawer-session lifecycle.
       const tokenStore = payload.role === 'CASHIER' ? sessionStorage : localStorage;
       tokenStore.setItem(staffTokenKey(payload.role), payload.token);
       if (payload.role === 'ADMIN') localStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');
@@ -140,7 +142,33 @@
   el('entryStaffTab')?.addEventListener('click', () => applyMode('STAFF'));
   applyMode(mode);
 
+  // Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
+  // sengaja ke back back malah ada menu loginnya lagi". Sebelumnya, kembali
+  // ke halaman ini (mis. tombol Back setelah location.href redirect di
+  // submitLogin()) SELALU menampilkan form login lagi, walau token yang
+  // valid masih ada -- tidak pernah dicek dulu. Kalau token masih ada,
+  // lempar langsung ke workspace-nya alih-alih menampilkan form. Kalau
+  // token itu ternyata sudah kedaluwarsa/dicabut server, halaman tujuan
+  // sendiri yang akan mendeteksi dan menampilkan login-nya (pola yang sama
+  // seperti admin-session-bootstrap-guard.js) -- redirect ini tidak
+  // menggantikan pengecekan server, cuma menghindari form login yang
+  // sebenarnya tidak perlu dilihat.
+  function existingStaffWorkspaceRedirect() {
+    if (localStorage.getItem('lekerOwnerToken')) return '/admin';
+    if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
+    const adminStoreCode = localStorage.getItem('lekerAdminStoreCode');
+    if (localStorage.getItem('lekerAdminToken') && adminStoreCode) return `/s/${encodeURIComponent(adminStoreCode)}/admin`;
+    if (sessionStorage.getItem('lekerCashierToken')) return '/cashier';
+    return null;
+  }
+
   if (new URL(location.href).searchParams.get('login') === 'staff') {
+    const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
+    const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
+    if (existingRedirect) {
+      location.replace(existingRedirect);
+      return;
+    }
     el('entryLoginBtn')?.click();
     const clean = new URL(location.href);
     clean.searchParams.delete('login');

@@ -199,7 +199,7 @@ export { parseIso, parseCursor };
 
 export async function handleAdminTransactionsApi(request, env, pathname) {
   if (request.method !== 'GET' || pathname !== '/api/admin/transactions') return null;
-  const auth = await requireManagement(request, env.DB); if (!auth.ok) return auth.response;
+  const auth = await requireManagement(request, env.DB, env); if (!auth.ok) return auth.response;
   const url = new URL(request.url);
   const store = await resolveStore(env.DB, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

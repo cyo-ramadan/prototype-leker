@@ -70,7 +70,7 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
 }
 
 async function managementScope(request, env) {
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth;
   if (auth.authType === 'LEGACY_PIN') return { ok: false, response: json({ error: 'Raport membutuhkan akun Admin Gerai atau Owner.' }, 403) };
   if (auth.admin) return { ...auth, storeId: auth.admin.store.id };

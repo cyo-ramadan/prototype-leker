@@ -187,7 +187,7 @@ async function handleCashier(request, env, pathname) {
 }
 
 async function managementScope(request, env) {
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth;
   if (auth.authType === 'LEGACY_PIN') return { ok: false, response: json({ error: 'Permit transaksi membutuhkan akun Admin Gerai atau Owner.', code: 'ACCOUNT_APPROVAL_REQUIRED' }, 403) };
   if (auth.admin) return { ...auth, storeId: auth.admin.store.id, store: auth.admin.store };

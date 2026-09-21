@@ -348,7 +348,7 @@ async function submitCustomerFeedback(request, env) {
 }
 
 async function handleManagementFeedback(request, env) {
-  const management = await requireManagement(request, env.DB);
+  const management = await requireManagement(request, env.DB, env);
   if (!management.ok) return management.response;
 
   const url = new URL(request.url);

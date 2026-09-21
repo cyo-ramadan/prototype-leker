@@ -59,6 +59,31 @@ async function selectedStore(db, request) {
   return resolveStore(db, token, { includeInactive: true });
 }
 
+const productCodeText = value => String(value ?? '').trim().slice(0, 40);
+
+function actorFrom(auth) {
+  if (auth.owner) return { role: 'OWNER', id: auth.owner.id };
+  if (auth.entityAdmin) return { role: 'ENTITY_ADMIN', id: auth.entityAdmin.id };
+  if (auth.admin) return { role: 'ADMIN', id: auth.admin.id };
+  return { role: 'LEGACY_PIN', id: '' };
+}
+
+// Kode Barang (product_masters, migration 0098) -- ADR-043: Entity cuma
+// punya kode + foto + label nama internal (identifikasi saja, mis. buat
+// agen yang upload banyak foto sekaligus -- BUKAN nama tampil ke pelanggan,
+// itu selalu products.name milik gerai masing-masing). Resep di sini murni
+// acuan/referensi (lihat komentar migration). Dipanggil dari create/PATCH
+// Master Barang biasa (declare kode baru) dan dari
+// handleProductMasterCatalogApi (Gunakan/Aktifkan lintas gerai).
+async function createProductMaster(db, entityId, code, referenceName, image, actor) {
+  const id = `pm_${crypto.randomUUID()}`;
+  await db.prepare(`
+    INSERT INTO product_masters (id, entity_id, code, name, image_data, created_by_role, created_by_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `).bind(id, entityId, code, referenceName || '', image || '', actor.role, actor.id).run();
+  return id;
+}
+
 async function ensureCategory(db, storeId, categoryName) {
   const existing = await db.prepare('SELECT id FROM categories WHERE store_id = ? AND name = ?').bind(storeId, categoryName).first();
   if (existing) return;
@@ -95,6 +120,7 @@ async function listEditorProducts(db, storeId) {
            p.display_order, p.is_active, p.item_type_id, p.product_kind_id, p.base_unit_id,
            p.points_per_unit, p.recipe_link_enabled, p.linked_recipe_id, p.stock_tracking_enabled,
            p.average_cost, p.last_purchase_price, p.cost_updated_at, p.last_purchase_at,
+           p.product_master_id, pm.code AS product_master_code, pm.name AS product_master_name,
            t.name AS item_type_name,
            k.code AS product_kind_code, k.name AS product_kind_name,
            u.name AS unit_name, u.symbol AS unit_symbol,
@@ -104,6 +130,7 @@ async function listEditorProducts(db, storeId) {
     LEFT JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
     LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
+    LEFT JOIN product_masters pm ON pm.id = p.product_master_id
     WHERE p.store_id = ?
     ORDER BY p.display_order, p.id
   `).bind(storeId).all();
@@ -133,7 +160,10 @@ async function listEditorProducts(db, storeId) {
     averageCost: costFromScaled(row.average_cost),
     lastPurchasePrice: costFromScaled(row.last_purchase_price),
     costUpdatedAt: row.cost_updated_at || null,
-    lastPurchaseAt: row.last_purchase_at || null
+    lastPurchaseAt: row.last_purchase_at || null,
+    productMasterId: row.product_master_id || null,
+    productMasterCode: row.product_master_code || '',
+    productMasterName: row.product_master_name || ''
   }));
 }
 
@@ -234,7 +264,7 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
 
 export async function handleProductMasterApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/master/products/editor')) return null;
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
@@ -250,6 +280,23 @@ export async function handleProductMasterApi(request, env, pathname) {
     if (!normalized.ok) return json({ error: normalized.error }, normalized.status);
     await ensureCategory(env.DB, store.id, normalized.category);
 
+    // Kode Barang opsional: gerai boleh sekalian mendaftarkan barang baru ini
+    // ke Master Entity (ADR-043) supaya gerai lain bisa "Gunakan/Aktifkan"
+    // tanpa mengetik ulang. Field productCode kosong = perilaku lama persis,
+    // barang murni lokal gerai ini seperti sebelum fitur ini ada.
+    let productMasterId = null;
+    const requestedCode = productCodeText(body.value?.productCode);
+    if (requestedCode) {
+      if (!store.entityId) return json({ error: 'Gerai ini belum terhubung ke Entity mana pun, tidak bisa membuat Kode Barang.', code: 'STORE_WITHOUT_ENTITY' }, 409);
+      const existingCode = await env.DB.prepare('SELECT id FROM product_masters WHERE entity_id = ? AND code = ?').bind(store.entityId, requestedCode).first();
+      if (existingCode) {
+        return json({ error: 'Kode Barang ini sudah dipakai di entity ini. Pakai Katalog "Gunakan/Aktifkan" untuk memakai kode yang sudah ada, jangan bikin baru.', code: 'PRODUCT_CODE_ALREADY_EXISTS' }, 409);
+      }
+      productMasterId = await createProductMaster(
+        env.DB, store.entityId, requestedCode, text(body.value?.productMasterName, 100), normalized.productImage, actorFrom(auth)
+      );
+    }
+
     const next = await env.DB.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM products').first();
     const order = await env.DB.prepare('SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM products WHERE store_id = ?').bind(store.id).first();
     const id = Number(next?.next_id ?? 1);
@@ -258,14 +305,15 @@ export async function handleProductMasterApi(request, env, pathname) {
         INSERT INTO products (
           id, store_id, name, purchase_price, price, category, emoji, image_data,
           display_order, is_active, item_type_id, product_kind_id, base_unit_id,
-          points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled,
+          product_master_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
         normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
         normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
         normalized.pointsPerUnit, normalized.recipeLinkEnabled,
-        normalized.linkedRecipeId, normalized.stockTrackingEnabled
+        normalized.linkedRecipeId, normalized.stockTrackingEnabled, productMasterId
       )
     ];
     if (normalized.stockTrackingEnabled) {
@@ -286,7 +334,7 @@ export async function handleProductMasterApi(request, env, pathname) {
   const current = await env.DB.prepare(`
     SELECT id, name, purchase_price, price, category, emoji, image_data, is_active,
            item_type_id, product_kind_id, base_unit_id, points_per_unit,
-           stock_tracking_enabled, linked_recipe_id
+           stock_tracking_enabled, linked_recipe_id, product_master_id
     FROM products WHERE id = ? AND store_id = ?
   `).bind(productId, store.id).first();
   if (!current) return json({ error: 'Barang tidak ditemukan di gerai ini.' }, 404);
@@ -297,19 +345,37 @@ export async function handleProductMasterApi(request, env, pathname) {
   if (!normalized.ok) return json({ error: normalized.error }, normalized.status);
   await ensureCategory(env.DB, store.id, normalized.category);
 
+  // Retrofit Kode Barang: barang lama yang belum pernah didaftarkan ke
+  // Master Entity boleh didaftarkan belakangan lewat productCode. Barang
+  // yang SUDAH punya Kode Barang tidak bisa diganti/dilepas dari sini --
+  // di luar scope fitur ini, silakan tulis eskalasi kalau memang dibutuhkan.
+  let productMasterId = current.product_master_id || null;
+  const requestedCode = productCodeText(body.value?.productCode);
+  if (!productMasterId && requestedCode) {
+    if (!store.entityId) return json({ error: 'Gerai ini belum terhubung ke Entity mana pun, tidak bisa membuat Kode Barang.', code: 'STORE_WITHOUT_ENTITY' }, 409);
+    const existingCode = await env.DB.prepare('SELECT id FROM product_masters WHERE entity_id = ? AND code = ?').bind(store.entityId, requestedCode).first();
+    if (existingCode) {
+      return json({ error: 'Kode Barang ini sudah dipakai di entity ini. Pakai Katalog "Gunakan/Aktifkan" untuk memakai kode yang sudah ada, jangan bikin baru.', code: 'PRODUCT_CODE_ALREADY_EXISTS' }, 409);
+    }
+    productMasterId = await createProductMaster(
+      env.DB, store.entityId, requestedCode, text(body.value?.productMasterName, 100), normalized.productImage, actorFrom(auth)
+    );
+  }
+
   const statements = [
     env.DB.prepare(`
       UPDATE products
       SET name = ?, purchase_price = ?, price = ?, category = ?, emoji = ?, image_data = ?,
           is_active = ?, item_type_id = ?, product_kind_id = ?, base_unit_id = ?, points_per_unit = ?,
-          recipe_link_enabled = ?, linked_recipe_id = ?, stock_tracking_enabled = ?, updated_at = CURRENT_TIMESTAMP
+          recipe_link_enabled = ?, linked_recipe_id = ?, stock_tracking_enabled = ?, product_master_id = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND store_id = ?
     `).bind(
       normalized.name, normalized.purchasePrice, normalized.price, normalized.category,
       normalized.emoji, normalized.productImage, normalized.isActive,
       normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId, normalized.pointsPerUnit,
       normalized.recipeLinkEnabled, normalized.linkedRecipeId,
-      normalized.stockTrackingEnabled, productId, store.id
+      normalized.stockTrackingEnabled, productMasterId, productId, store.id
     )
   ];
   if (normalized.stockTrackingEnabled) {
@@ -318,6 +384,190 @@ export async function handleProductMasterApi(request, env, pathname) {
       VALUES (?, ?, 0, CURRENT_TIMESTAMP)
     `).bind(store.id, productId));
   }
+  if (current.product_master_id) {
+    // Barang ini sudah punya Kode Barang SEBELUM edit ini -- foto adalah
+    // milik Entity (ADR-043), jadi perubahan foto di sini ikut memperbarui
+    // product_masters DAN setiap products row lain (gerai mana pun) yang
+    // memakai Kode Barang yang sama. Nama/harga/status di UPDATE di atas
+    // TIDAK ikut serta -- itu tetap murni milik products row gerai ini saja.
+    statements.push(
+      env.DB.prepare('UPDATE product_masters SET image_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .bind(normalized.productImage, current.product_master_id),
+      env.DB.prepare('UPDATE products SET image_data = ? WHERE product_master_id = ?')
+        .bind(normalized.productImage, current.product_master_id)
+    );
+  }
   await env.DB.batch(statements);
   return json({ ok: true, id: productId, editor: await editorPayload(env.DB, store) });
+}
+
+// Katalog Kode Barang Entity + Gunakan/Aktifkan + resep acuan (ADR-043).
+// Endpoint terpisah dari handleProductMasterApi di atas (route prefix beda)
+// tapi satu file karena berbagi normalizeEditorInput/ensureCategory/
+// createProductMaster/actorFrom -- pemisahan modul yang dipaksakan di sini
+// cuma menambah boilerplate tanpa manfaat isolasi nyata.
+
+function mapCatalogEntry(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name || '',
+    imageData: row.image_data || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    usedByStores: [],
+    recipeReference: []
+  };
+}
+
+async function loadProductMasterCatalog(db, entityId) {
+  const masters = await db.prepare(`
+    SELECT id, code, name, image_data, created_at, updated_at
+    FROM product_masters WHERE entity_id = ? ORDER BY code COLLATE NOCASE
+  `).bind(entityId).all();
+  const entries = (masters.results ?? []).map(mapCatalogEntry);
+  if (!entries.length) return entries;
+
+  const byId = new Map(entries.map(entry => [entry.id, entry]));
+  const placeholders = entries.map(() => '?').join(',');
+  const ids = entries.map(entry => entry.id);
+
+  const usage = await db.prepare(`
+    SELECT p.product_master_id, p.id AS product_id, p.name, s.code AS store_code, s.store_name
+    FROM products p
+    JOIN stores s ON s.id = p.store_id
+    WHERE p.product_master_id IN (${placeholders})
+    ORDER BY s.code
+  `).bind(...ids).all();
+  for (const row of usage.results ?? []) {
+    const entry = byId.get(row.product_master_id);
+    if (entry) entry.usedByStores.push({
+      productId: Number(row.product_id), name: row.name, storeCode: row.store_code, storeName: row.store_name
+    });
+  }
+
+  const components = await db.prepare(`
+    SELECT product_master_id, id, ingredient_label, quantity_label, sort_order
+    FROM product_master_recipe_components
+    WHERE product_master_id IN (${placeholders})
+    ORDER BY sort_order, id
+  `).bind(...ids).all();
+  for (const row of components.results ?? []) {
+    const entry = byId.get(row.product_master_id);
+    if (entry) entry.recipeReference.push({
+      id: row.id, ingredientLabel: row.ingredient_label, quantityLabel: row.quantity_label || ''
+    });
+  }
+
+  return entries;
+}
+
+// "Gunakan/Aktifkan Barang" -- gerai lain memilih satu Kode Barang dari
+// katalog entity-nya, sistem bikin SATU products row baru MILIK GERAI ITU
+// SENDIRI (bukan copy gerai lain): nama/harga/kategori/dll diisi gerai
+// pemanggil sendiri lewat body (sama seperti create barang biasa), cuma
+// foto yang dipaksa ikut foto Kode Barang (Entity-owned). Resep acuan
+// (kalau ada) murni ditampilkan sebagai referensi ke UI -- TIDAK pernah
+// otomatis di-link (linkedRecipeId tetap NULL kalau body tidak memintanya),
+// jadi aktivasi tidak pernah gagal/diblokir gara-gara bahan baku belum ada.
+async function activateProductMaster(db, store, masterId, body) {
+  const master = await db.prepare('SELECT id, entity_id, code, image_data FROM product_masters WHERE id = ?').bind(masterId).first();
+  if (!master) return { ok: false, status: 404, error: 'Kode Barang tidak ditemukan.' };
+  if (master.entity_id !== store.entityId) {
+    return { ok: false, status: 403, error: 'Kode Barang ini bukan milik entity gerai ini.', code: 'PRODUCT_MASTER_ENTITY_MISMATCH' };
+  }
+
+  const already = await db.prepare('SELECT id FROM products WHERE store_id = ? AND product_master_id = ? LIMIT 1').bind(store.id, masterId).first();
+  if (already) {
+    return { ok: false, status: 409, error: 'Barang ini sudah diaktifkan di gerai ini.', code: 'PRODUCT_MASTER_ALREADY_ACTIVE', productId: Number(already.id) };
+  }
+
+  const normalized = await normalizeEditorInput(db, store.id, null, { ...body, imageData: master.image_data }, null);
+  if (!normalized.ok) return { ok: false, status: normalized.status, error: normalized.error };
+  await ensureCategory(db, store.id, normalized.category);
+
+  const next = await db.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM products').first();
+  const order = await db.prepare('SELECT COALESCE(MAX(display_order), 0) + 1 AS next_order FROM products WHERE store_id = ?').bind(store.id).first();
+  const id = Number(next?.next_id ?? 1);
+  const statements = [
+    db.prepare(`
+      INSERT INTO products (
+        id, store_id, name, purchase_price, price, category, emoji, image_data,
+        display_order, is_active, item_type_id, product_kind_id, base_unit_id,
+        points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled,
+        product_master_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
+      normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
+      normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
+      normalized.pointsPerUnit, normalized.recipeLinkEnabled,
+      normalized.linkedRecipeId, normalized.stockTrackingEnabled, masterId
+    )
+  ];
+  if (normalized.stockTrackingEnabled) {
+    statements.push(db.prepare(`
+      INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at)
+      VALUES (?, ?, 0, CURRENT_TIMESTAMP)
+    `).bind(store.id, id));
+  }
+  await db.batch(statements);
+  return { ok: true, id };
+}
+
+async function replaceRecipeComponents(db, masterId, components) {
+  const statements = [db.prepare('DELETE FROM product_master_recipe_components WHERE product_master_id = ?').bind(masterId)];
+  components.forEach((component, index) => {
+    statements.push(db.prepare(`
+      INSERT INTO product_master_recipe_components (id, product_master_id, ingredient_label, quantity_label, sort_order)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(`pmrc_${crypto.randomUUID()}`, masterId, component.ingredientLabel, component.quantityLabel, index));
+  });
+  await db.batch(statements);
+}
+
+export async function handleProductMasterCatalogApi(request, env, pathname) {
+  if (!pathname.startsWith('/api/admin/product-masters')) return null;
+  const db = env.DB;
+  const auth = await requireManagement(request, db, env);
+  if (!auth.ok) return auth.response;
+  const store = await selectedStore(db, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  if (!store.entityId) return json({ error: 'Gerai ini belum terhubung ke Entity mana pun.', code: 'STORE_WITHOUT_ENTITY' }, 409);
+
+  if (request.method === 'GET' && pathname === '/api/admin/product-masters') {
+    return json({ store, catalog: await loadProductMasterCatalog(db, store.entityId) });
+  }
+
+  const activateMatch = pathname.match(/^\/api\/admin\/product-masters\/([^/]+)\/activate$/);
+  if (request.method === 'POST' && activateMatch) {
+    const masterId = decodeURIComponent(activateMatch[1]);
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload aktivasi tidak valid.' }, 400);
+    const result = await activateProductMaster(db, store, masterId, body.value);
+    if (!result.ok) return json({ error: result.error, code: result.code, productId: result.productId }, result.status);
+    return json({ ok: true, id: result.id, editor: await editorPayload(db, store) }, 201);
+  }
+
+  const recipeMatch = pathname.match(/^\/api\/admin\/product-masters\/([^/]+)\/recipe-components$/);
+  if (request.method === 'PUT' && recipeMatch) {
+    const masterId = decodeURIComponent(recipeMatch[1]);
+    const master = await db.prepare('SELECT id, entity_id FROM product_masters WHERE id = ?').bind(masterId).first();
+    if (!master) return json({ error: 'Kode Barang tidak ditemukan.' }, 404);
+    if (master.entity_id !== store.entityId) {
+      return json({ error: 'Kode Barang ini bukan milik entity gerai ini.', code: 'PRODUCT_MASTER_ENTITY_MISMATCH' }, 403);
+    }
+    const body = await readJson(request);
+    if (!body.ok || !Array.isArray(body.value?.components)) return json({ error: 'Payload resep acuan tidak valid.' }, 400);
+    const components = body.value.components
+      .map(component => ({
+        ingredientLabel: text(component?.ingredientLabel, 100),
+        quantityLabel: text(component?.quantityLabel, 40)
+      }))
+      .filter(component => component.ingredientLabel);
+    await replaceRecipeComponents(db, masterId, components);
+    return json({ ok: true, catalog: await loadProductMasterCatalog(db, store.entityId) });
+  }
+
+  return json({ error: 'Route Kode Barang Entity tidak ditemukan.' }, 404);
 }

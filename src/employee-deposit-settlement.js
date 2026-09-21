@@ -274,7 +274,7 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
   }
 
   if (pathname === '/api/admin/employee-deposits/pending' || pathname.startsWith('/api/admin/employee-deposits/payments/')) {
-    const auth = await requireManagement(request, db);
+    const auth = await requireManagement(request, db, env);
     if (!auth.ok) return auth.response;
     const store = await selectedStore(db, request);
     if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

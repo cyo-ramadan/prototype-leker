@@ -57,7 +57,13 @@ test('staff API authorization is refreshed from sessionStorage per fetch', () =>
   assert.match(transport, /headers\.set\('Authorization'/);
   assert.match(transport, /body instanceof FormData/);
   assert.match(transport, /headers\.delete\('Content-Type'\)/);
-  assert.doesNotMatch(transport, /localStorage\.getItem\([^)]*Token/);
+  // lekerCashierToken tetap dicoba lebih dulu di setiap fetch (tidak
+  // di-cache); satu-satunya fallback ke localStorage yang diizinkan adalah
+  // token manajemen (Owner/Admin Gerai/Entity Admin) untuk viewer read-only
+  // "Lihat Kasir", dan itu wajib digerbang eksplisit lewat ?readonly=1 --
+  // bukan bocor bebas untuk "Kasir Login" biasa (Bos Cyo, 2026-09-17).
+  assert.match(transport, /sessionStorage\.getItem\('lekerCashierToken'\)\s*\n\s*\|\|\s*\(isReadOnlyPreview/);
+  assert.doesNotMatch(transport, /localStorage\.getItem\([^)]*Token[^)]*\)\s*\|\|\s*sessionStorage/, 'localStorage must never be tried before sessionStorage');
 });
 
 test('migration stores photos without adding blobs to attendance list payloads', () => {

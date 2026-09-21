@@ -7,7 +7,7 @@ export async function handleAdminProductClassificationApi(request, env, pathname
   const match = pathname.match(/^\/api\/admin\/manufacturing\/products\/(\d+)$/);
   if (!match || request.method !== 'PATCH') return null;
 
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const url = new URL(request.url);
   const storeToken = url.searchParams.get('store') || DEFAULT_STORE_CODE;

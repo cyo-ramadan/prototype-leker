@@ -156,11 +156,10 @@ Jangan bangun ulang yang sudah ada:
 | Pendaftaran modul per tenant (untuk paket langganan) | `platform_modules` + `tenant_module_installations` (migration 0080), `src/platform-module-registry.js` | Modul Caca direncanakan bernama `CACA_WA`; belum dipasang, Tahap 1 belum berkuota |
 | Panel tempat menaruh tombol chat | `public/entity-admin.html` | Tab "Caca" sudah ada di sini |
 
-**Hati-hati soal alat baca "untung hari ini".** Versi handoff sebelumnya
-menunjuk `src/net-profit-report.js` seolah tinggal dipakai. File itu **tidak ada
-di `main`** — adanya di branch `subkategori-dermo-dan-edit-modal` yang sampai
-sekarang belum digabung. Cek keberadaannya sendiri sebelum merancang Tahap 2 di
-atasnya; kalau belum ada, jangan berasumsi ada.
+**Alat baca "untung hari ini" sudah tersedia di `main`** —
+`src/net-profit-report.js` plus panel `public/admin-net-profit-report.js`, masuk
+lewat PR #295/#296. Jadi Tahap 2 tinggal membungkusnya jadi alat, bukan
+membangun dari nol.
 
 ---
 

@@ -134,7 +134,7 @@ export { parseCursor };
 export async function handleAdminStockApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/stock')) return null;
   if (request.method !== 'GET') return json({ error: 'Stock tracking saat ini read-only dari Admin.' }, 405);
-  const auth = await requireManagement(request, env.DB);
+  const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth.response;
   const store = await selectedStore(env.DB, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);

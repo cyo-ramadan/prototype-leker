@@ -262,6 +262,17 @@
     }
   }
 
+  // Bos Cyo, 2026-09-21: "harusnya kan itu milih dari master biaya ya dengan
+  // cara search, tapi bikin itu editable untuk nama... kalo yang dipilih
+  // kemudian di edit misalkan jadi biaya tarikan sampah, maka defaultnya
+  // [kategori]nya jadi biaya lainnya." Dua kolom terpisah per baris:
+  // "Kategori Biaya" (PIMASATU, tetap wajib dari Master Biaya lewat search --
+  // tidak berubah) dan "Keterangan Biaya" (baru, teks bebas di luar PIMASATU
+  // supaya PIMASATU tetap generic/tidak tahu soal Master Biaya -- lihat
+  // contracts/pimasatu-ui-v1.md). Begitu Keterangan diketik beda dari nama
+  // Kategori yang lagi kepilih, submit otomatis memindahkan Kategori
+  // efektifnya ke "Biaya Lainnya" (auto-seed per gerai, migration 0113) --
+  // bukan sistem menebak-nebak Kategori lain dari teks bebas.
   async function operationalDialog() {
     await refreshAccountingSettings();
     if (!methods().length) return toast('Belum ada cara bayar POS yang aktif.');
@@ -275,23 +286,46 @@
 
     const costs = payload.costs || [];
     if (!costs.length) return toast('Belum ada Master Biaya aktif.');
+    const fallbackCost = costs.find(cost => String(cost.name).trim().toLowerCase() === 'biaya lainnya') || null;
+    // costMasterId (Kategori yang dipilih di PIMASATU) -> Keterangan Biaya
+    // yang diketik ulang kasir. Tidak ada entry di sini berarti Keterangan
+    // masih default = nama Kategori.
+    const descriptionOverrides = new Map();
     let editor;
+
+    function renderDescriptionEditor(lines) {
+      const host = byId('operationalDescriptionEditor');
+      if (!host) return;
+      host.innerHTML = lines.map(line => {
+        const value = descriptionOverrides.has(line.id) ? descriptionOverrides.get(line.id) : line.label;
+        return `<div class="field"><label>Keterangan Biaya · ${escapeHtml(line.label)}</label><input class="text-input" data-operational-description="${escapeHtml(line.id)}" maxlength="220" value="${escapeHtml(value)}" /></div>`;
+      }).join('');
+      host.querySelectorAll('[data-operational-description]').forEach(input => {
+        input.addEventListener('input', () => descriptionOverrides.set(input.dataset.operationalDescription, input.value));
+      });
+    }
 
     openDialog({
       eyebrow: 'Laci · Operasional',
       title: 'Pengeluaran Operasional',
       body: `
         <div id="operationalPimasatu"></div>
-        <div class="field"><label>Kontak terkait</label><div id="operationalContactSummary" class="cashier-lock-note">Mengikuti kontak pada Master Biaya yang dipilih.</div></div>
+        <div id="operationalDescriptionEditor"></div>
+        <div class="field"><label>Kontak terkait</label><div id="operationalContactSummary" class="cashier-lock-note">Mengikuti kontak pada Kategori Biaya yang dipilih.</div></div>
         <div class="field"><label>Cara bayar</label><select id="dialogOperationalPayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
         <div id="dialogOperationalTotal" class="cashier-lock-note">Total operasional · Rp0</div>`,
       submitText: 'SIMPAN OPERASIONAL',
       onSubmit: async () => {
-        const items = editor.getLines().map(line => ({
-          costMasterId: line.id,
-          quantity: line.quantity,
-          unitAmount: line.unitAmount
-        }));
+        const items = editor.getLines().map(line => {
+          const custom = (descriptionOverrides.get(line.id) || '').trim();
+          const overridden = Boolean(custom) && custom.toLowerCase() !== line.label.trim().toLowerCase();
+          return {
+            costMasterId: overridden && fallbackCost ? fallbackCost.id : line.id,
+            quantity: line.quantity,
+            unitAmount: line.unitAmount,
+            description: overridden ? custom : line.label
+          };
+        });
         if (!items.length) throw new Error('Masukkan minimal satu biaya operasional.');
         const result = await canonicalFactPost('/api/cashier/expenses', {
           items,
@@ -309,7 +343,7 @@
       getLabel: item => item.name,
       getMeta: item => [item.costTypeName, item.costGroup, item.contact].filter(Boolean).join(' · '),
       getDefaultAmount: item => item.outgoingAmount,
-      itemLabel: 'Biaya / variabel',
+      itemLabel: 'Kategori Biaya',
       priceLabel: 'Biaya keluar / unit',
       detailTitle: 'Detail Operasional',
       onError: toast,
@@ -320,6 +354,7 @@
         const total = lines.reduce((sum, line) => sum + (Number(line.quantity) * Number(line.unitAmount)), 0);
         const totalHost = byId('dialogOperationalTotal');
         if (totalHost) totalHost.textContent = `Total operasional · ${rupiah(total)}`;
+        renderDescriptionEditor(lines);
       }
     });
   }

@@ -29,7 +29,7 @@ test('purchase UI does not allow free-text product identity', () => {
 
 test('operational expense persists quantity as canonical text through Master Biaya items', () => {
   assert.match(transactionUi, /host: byId\('operationalPimasatu'\)/);
-  assert.match(transactionUi, /costMasterId: line\.id/);
+  assert.match(transactionUi, /costMasterId: overridden && fallbackCost \? fallbackCost\.id : line\.id/);
   assert.match(transactionUi, /quantity: line\.quantity/);
   assert.match(expenseApi, /String\(item\.quantity\)/);
   assert.match(expenseApi, /description, amount, quantity, created_at, payment_method/);

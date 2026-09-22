@@ -191,21 +191,30 @@ test('/?login=staff auto-redirects an already-authenticated staff session to its
 // Bos Cyo, 2026-09-21: "kalo dia uda login jadi karyawan disuatu tab, ketika
 // dia klik login lagi di tab yang lain, harusnya dia langsung landing di
 // portal staf aja... intinya cegah di suatu tab masukin username lagi ketika
-// dia belum logout." The redirect above only fired for the exact URL
-// /?login=staff (the Back-button scenario); manually clicking the always-
-// visible "Karyawan" tab in a freshly opened tab (no such URL) still showed
-// an empty login form and asked to re-type credentials even with a valid
-// session already in this browser. The check now lives inside applyMode()
-// itself, which every path into STAFF mode goes through.
-test('clicking the "Karyawan" tab manually also redirects an already-authenticated session, not just the /?login=staff URL', () => {
+// dia belum logout." Tried moving the redirect check inside applyMode() so
+// EVERY path into STAFF mode (URL and manual tab click) would auto-redirect.
+//
+// REVERTED 2026-09-22: that broadening is unsafe on a device shared between
+// cashiers on different shifts. Cashier B clicking the "Karyawan" tab to log
+// in as themselves would see cashier A's still-valid token in localStorage
+// and get silently bounced into A's session -- never shown a login form to
+// type their own username at all. Pendem's cashier (adependemk2s2) hit this
+// for ~5 hours: 13 successful server-side logins (cashier_sessions proves
+// the credentials were right every time) but never actually landing in a
+// stable dashboard -- the signature of a redirect loop, not a real auth
+// failure. The redirect must only fire for the exact /?login=staff URL (the
+// Back-button scenario, 2026-09-17) -- that path's device is provably the
+// same one that just logged in, never a different person walking up.
+test('the auto-redirect only fires for the exact /?login=staff URL, never from a manual "Karyawan" tab click -- a shared device must always show the login form so a different cashier can type their own username', () => {
   const applyModeBody = authEntrySplit.slice(
     authEntrySplit.indexOf('function applyMode(nextMode) {'),
     authEntrySplit.indexOf('function staffIdentity(payload)')
   );
-  assert.match(applyModeBody, /existingStaffWorkspaceRedirect\(\)/, 'the redirect check must run from inside applyMode, not only from the URL-gated block at the bottom');
-  assert.match(applyModeBody, /location\.replace\(existingRedirect\)/);
-  assert.match(applyModeBody, /return;/, 'must bail out before touching the login form UI once redirected');
-  assert.match(authEntrySplit, /el\('entryStaffTab'\)\?\.addEventListener\('click', \(\) => applyMode\('STAFF'\)\)/, 'the manual tab click still funnels through applyMode, which now carries the redirect check');
+  assert.doesNotMatch(applyModeBody, /existingStaffWorkspaceRedirect\(\)/, 'applyMode must never auto-redirect on its own -- that is what silently swapped a different cashier into someone else\'s session');
+  const urlGatedBlock = authEntrySplit.slice(authEntrySplit.lastIndexOf("searchParams.get('login') === 'staff') {"));
+  assert.match(urlGatedBlock, /existingStaffWorkspaceRedirect\(\)/);
+  assert.match(urlGatedBlock, /location\.replace\(existingRedirect\)/);
+  assert.match(authEntrySplit, /el\('entryStaffTab'\)\?\.addEventListener\('click', \(\) => applyMode\('STAFF'\)\)/, 'manual tab click must still just show the form via plain applyMode, no redirect check attached');
 });
 
 // Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry

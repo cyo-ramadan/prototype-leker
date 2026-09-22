@@ -5,7 +5,6 @@
   const el = id => document.getElementById(id);
   const storeCode = String(window.LEKER_STORE_CODE || 'G001').toUpperCase();
   const leaseKey = 'lekerStaffBrowserLease';
-  const leaseTtlMs = 15000;
   let mode = new URL(location.href).searchParams.get('login') === 'staff' ? 'STAFF' : 'CUSTOMER';
 
   const note = form.querySelector('.entry-login-note');
@@ -16,41 +15,26 @@
     <button id="entryStaffTab" class="entry-login-role-tab" type="button">Karyawan</button>`;
   form.insertBefore(tabs, note);
 
-  function activeStaffLease() {
-    try {
-      const lease = JSON.parse(localStorage.getItem(leaseKey) || 'null');
-      if (!lease || !lease.updatedAt || Date.now() - Number(lease.updatedAt) > leaseTtlMs) {
-        localStorage.removeItem(leaseKey);
-        return null;
-      }
-      return lease;
-    } catch {
-      localStorage.removeItem(leaseKey);
-      return null;
-    }
-  }
-
-  // Bos Cyo, 2026-09-22: REVERT PARSIAL. 2026-09-21 perbaikan ini diperluas
-  // supaya klik tab "Karyawan" manual (bukan cuma URL /?login=staff) juga
-  // auto-redirect kalau sesi masih valid -- niatnya benar ("kalo dia uda
-  // login jadi karyawan disuatu tab, ketika klik login lagi di tab yang
-  // lain, harusnya langsung landing"), tapi ternyata berbahaya di device
-  // yang dipakai BERGANTIAN oleh beberapa kasir (mis. satu HP/laptop kasir
-  // gantian shift): begitu kasir B klik tab "Karyawan" untuk login sebagai
-  // DIRINYA SENDIRI, kode ini melihat masih ada token kasir A yang valid di
-  // localStorage dan langsung melempar B ke sesi A tanpa sempat menampilkan
-  // form sama sekali -- B tidak pernah dapat kesempatan mengetik username
-  // sendiri. Kasir Pendem (adependemk2s2) mengalami 13x percobaan login
-  // berhasil di server (cashier_sessions) tapi tidak pernah benar-benar
-  // masuk selama ~5 jam sejak fix ini live -- polanya cocok dengan loop
-  // redirect ini, bukan gagal login sungguhan. Dikembalikan ke perilaku
-  // semula yang sudah terbukti aman: auto-redirect CUMA untuk URL
-  // /?login=staff persis (skenario tombol Back, 2026-09-17) -- itu jalur
-  // yang device-nya bisa dipastikan masih sama, bukan potensi ganti orang.
-  // Klik tab "Karyawan" manual sekarang selalu menampilkan form lagi,
-  // seperti sebelum 2026-09-21 -- iya, itu berarti kasir yang SAMA klik
-  // ulang harus mengetik lagi, tapi itu jauh lebih aman daripada diam-diam
-  // masuk ke sesi orang lain.
+  // Bos Cyo, 2026-09-22: "maunya ya sekali login baik di tab manapun ya
+  // tetap dia yang login sebelum logout. kalo hp dibuat gantian, ya harus
+  // di logout in dulu... coba cek di facebook, tiktok dsb apa juga bisa
+  // seperti itu." Final design, matching mainstream apps: a valid session
+  // in this browser ALWAYS wins -- any entry into STAFF mode (URL or manual
+  // "Karyawan" tab click) redirects straight to that identity's workspace,
+  // no login form shown at all. To become a DIFFERENT person, you must
+  // explicitly Logout first (always visible in the topbar); only then does
+  // the form appear, and whoever submits it next simply becomes the new
+  // session -- no "someone else is still active" refusal (removed below).
+  // This is intentionally the OPPOSITE of the 2026-09-22 same-day hotfix
+  // that scoped the redirect back to the /?login=staff URL only: that
+  // hotfix assumed showing someone else's session first was unsafe, but
+  // Bos Cyo confirmed it is the expected, standard behavior -- the actual
+  // bug it was chasing (kasir Pendem stuck relogging in) was a SEPARATE
+  // defect: public/cashier.js's own dedicated login form never wrote
+  // lekerStaffSessionMeta/lease at all, so staff-tab-lock.js was comparing
+  // against a stale identity from whoever last left this browser without
+  // logging out. Fixed at the source in cashier.js; this redirect returns
+  // to the broader, Facebook-like behavior Bos Cyo actually asked for.
   function existingStaffWorkspaceRedirect() {
     if (localStorage.getItem('lekerOwnerToken')) return '/admin';
     if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
@@ -61,6 +45,17 @@
   }
 
   function applyMode(nextMode) {
+    if (nextMode === 'STAFF') {
+      // staffBlocked=1 means the tab-lock deliberately just cleared this
+      // session's token -- the redirect must not fire off a stale read in
+      // that exact moment and must still fall through to the login form.
+      const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
+      const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
+      if (existingRedirect) {
+        location.replace(existingRedirect);
+        return;
+      }
+    }
     mode = nextMode;
     el('entryCustomerTab')?.classList.toggle('active', mode === 'CUSTOMER');
     el('entryStaffTab')?.classList.toggle('active', mode === 'STAFF');
@@ -100,13 +95,6 @@
       return;
     }
 
-    // Pengecekan lease SENGAJA tidak lagi dilakukan di sini (sebelum submit).
-    // Dulu: ada lease aktif apa pun -> login langsung ditolak, walau yang mau
-    // login ORANG YANG SAMA. Itu salah satu sumber "risih" yang dilaporkan Bos
-    // Cyo 2026-09-18. Sekarang lease baru diperiksa SESUDAH server memberi tahu
-    // siapa yang login (lihat di bawah), karena sebelum submit kita memang
-    // belum tahu identitasnya -- dan yang perlu dicegah cuma PINDAH USER,
-    // bukan login ulang orang yang sama.
     if (message) message.textContent = '';
     if (submit) submit.disabled = true;
     try {
@@ -135,21 +123,16 @@
       const identity = staffIdentity(payload);
       if (!identity?.id) throw new Error('Identitas karyawan tidak lengkap.');
 
-      // Baru DI SINI lease diperiksa -- sesudah tahu siapa yang login. Yang
-      // dicegah cuma PINDAH USER di browser yang sama (Bos Cyo: "yang penting
-      // di 2 tab itu ga pindah user"); login ulang orang yang sama lewat mulus.
-      // Satu browser memang cuma muat satu sesi karyawan, karena tokennya satu
-      // key per pangkat di localStorage -- kalau user lain menimpanya, tab lama
-      // akan memakai token orang lain tanpa sadar, dan itu jauh lebih berbahaya
-      // daripada sekadar merepotkan.
-      const lease = mode === 'STAFF' ? activeStaffLease() : null;
-      if (lease?.staffId && (lease.staffId !== identity.id || lease.role !== payload.role)) {
-        if (message) {
-          message.textContent = `Masih ada sesi karyawan lain (${lease.name || lease.role}) yang aktif di browser ini. Logout dari tab itu dulu, atau tutup tabnya, baru login di sini.`;
-        }
-        return;
-      }
-
+      // Bos Cyo, 2026-09-22: login yang berhasil SELALU menang dan menjadi
+      // sesi aktif browser ini -- tidak ada lagi penolakan "masih ada sesi
+      // karyawan lain". Kalau device ini sebelumnya dipegang orang lain,
+      // menimpa token/identitasnya di sini memang tujuannya (dia harus
+      // logout dulu baru form ini bisa dicapai lewat redirect di atas --
+      // begitu form ini benar-benar terlihat dan disubmit, siapa pun yang
+      // login berhak jadi sesi baru). staff-tab-lock.js di tab LAIN yang
+      // masih terbuka dengan identitas lama tetap akan mendeteksi dan
+      // menendang dirinya sendiri sendiri lewat heartbeat/storage event --
+      // itu perlindungan yang tetap jalan, cuma bukan lagi di titik submit.
       // Semua pangkat -- TERMASUK KASIR -- sekarang di localStorage. Dulu kasir
       // sengaja ditaruh di sessionStorage dengan alasan "terikat lifecycle laci",
       // tapi itu tidak pernah benar: tidak ada satu pun kode yang menutup laci
@@ -203,22 +186,13 @@
   applyMode(mode);
 
   // Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
-  // sengaja ke back back malah ada menu loginnya lagi". Kalau token masih
-  // ada, lempar langsung ke workspace-nya alih-alih menampilkan form. Kalau
-  // token itu ternyata sudah kedaluwarsa/dicabut server, halaman tujuan
-  // sendiri yang akan mendeteksi dan menampilkan login-nya (pola yang sama
-  // seperti admin-session-bootstrap-guard.js) -- redirect ini tidak
-  // menggantikan pengecekan server, cuma menghindari form login yang
-  // sebenarnya tidak perlu dilihat. CUMA untuk URL /?login=staff persis --
-  // lihat catatan revert 2026-09-22 di atas untuk kenapa ini sengaja tidak
-  // diperluas lagi ke klik tab manual.
+  // sengaja ke back back malah ada menu loginnya lagi". applyMode(mode) di
+  // atas sudah menjalankan pengecekan redirect kalau mode awal ini STAFF
+  // (URL bawa ?login=staff) -- kalau itu terjadi, halaman sudah pindah dan
+  // baris-baris di bawah ini tidak akan sempat jalan. Kalau TIDAK redirect
+  // (belum ada sesi valid), sisanya di sini cuma membuka modal login dan
+  // membersihkan query string dari URL.
   if (new URL(location.href).searchParams.get('login') === 'staff') {
-    const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
-    const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
-    if (existingRedirect) {
-      location.replace(existingRedirect);
-      return;
-    }
     el('entryLoginBtn')?.click();
     const clean = new URL(location.href);
     clean.searchParams.delete('login');

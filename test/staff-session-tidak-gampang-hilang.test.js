@@ -132,15 +132,18 @@ test('halaman login tidak tertinggal di history setelah login sukses -- tombol B
   assert.doesNotMatch(authEntrySplit, /location\.href = payload\.redirect/, 'login sukses tidak boleh memakai location.href');
 });
 
-test('pengecekan "sesi lain masih aktif" hanya menghadang PINDAH USER, dan baru jalan sesudah identitas diketahui', () => {
-  // Dulu lease dicek SEBELUM submit -- jadi login ulang orang yang sama pun
-  // ditolak, padahal yang perlu dicegah cuma user yang berbeda.
+test('login sukses tidak lagi ditahan oleh pengecekan "sesi lain masih aktif" -- Bos Cyo, 2026-09-22: ganti user cukup lewat Logout eksplisit, bukan penolakan di submit', () => {
+  // Supersedes bekas test ini (yang tadinya menuntut activeStaffLease()
+  // dicek SESUDAH identitas diketahui). Bos Cyo eksplisit menolak model
+  // "menghadang PINDAH USER" sama sekali: "coba cek di facebook, tiktok dsb
+  // apa juga bisa seperti itu" -- sesi yang berhasil login SELALU menang,
+  // titik. Yang mencegah tab lama dari user sebelumnya tetap jalan sekarang
+  // murni tugas staff-tab-lock.js (heartbeat/storage event), bukan submitLogin().
   const submitBody = authEntrySplit.slice(authEntrySplit.indexOf('async function submitLogin'), authEntrySplit.indexOf('form.addEventListener'));
-  const leaseCheckAt = submitBody.indexOf('activeStaffLease()');
-  const identityAt = submitBody.indexOf('const identity = staffIdentity(payload)');
-  assert.ok(identityAt > -1 && leaseCheckAt > -1, 'dua-duanya harus ada di submitLogin()');
-  assert.ok(leaseCheckAt > identityAt, 'lease wajib dicek SESUDAH identitas diketahui, bukan sebelum submit');
-  assert.match(submitBody, /lease\.staffId !== identity\.id \|\| lease\.role !== payload\.role/);
+  assert.doesNotMatch(submitBody, /activeStaffLease\(/, 'submitLogin() tidak boleh lagi memanggil activeStaffLease()');
+  assert.doesNotMatch(authEntrySplit, /function activeStaffLease/, 'activeStaffLease() wajib sudah dihapus total, bukan cuma tidak dipanggil');
+  assert.doesNotMatch(authEntrySplit, /Masih ada sesi karyawan lain/);
+  assert.match(submitBody, /const identity = staffIdentity\(payload\)/, 'identitas tetap perlu dibaca untuk menulis meta/lease sesi baru');
 });
 
 test('guard antar tab membandingkan siapa usernya, bukan berapa tabnya', () => {

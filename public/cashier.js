@@ -111,6 +111,45 @@ async function init() {
   showLogin();
 }
 
+// Bos Cyo, 2026-09-22: kasir Pendem tercatat login berhasil berkali-kali di
+// server (cashier_sessions) tapi tidak pernah benar-benar masuk. Akarnya:
+// halaman /cashier punya form login SENDIRI, terpisah dari form di halaman
+// depan (public/auth-entry-split.js) -- dua jalur paralel yang tidak
+// nyambung. Form di sini dari dulu cuma menyimpan token, TIDAK PERNAH
+// menulis lekerStaffSessionMeta atau lease browser (public/staff-tab-
+// lock.js), padahal staff-tab-lock.js MEMBACA keduanya untuk tahu "siapa
+// yang sedang pegang browser ini". Kalau sebelumnya ada kasir lain yang
+// sesinya berakhir tanpa logout resmi (tab/browser ditutup begitu saja --
+// hal biasa, bukan kesalahan kasir), lekerStaffSessionMeta gerai itu masih
+// menyimpan IDENTITAS KASIR LAMA. Kasir baru login lewat form ini berhasil
+// di server, tapi staff-tab-lock.js yang sudah telanjur jalan sejak
+// halaman dimuat (sebelum form ini disubmit) tetap membandingkan ke
+// identitas lama itu -- begitu heartbeat-nya jalan, dia bisa saja
+// menganggap "user lain" dan menendang balik ke login, walau yang login
+// barusan adalah kasir yang benar. Sekarang login lewat sini menulis meta +
+// lease yang sama seperti jalur satunya, lalu reload halaman supaya staff-
+// tab-lock.js membaca ulang dari awal dengan identitas yang benar --
+// bukan named coba nyambungin state yang sudah kadung berjalan.
+function persistStaffSessionAndReload(cashier) {
+  localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
+    id: cashier.id,
+    role: 'CASHIER',
+    name: cashier.employeeName || cashier.username || '',
+    storeCode: cashier.store?.code || ''
+  }));
+  const handoffId = crypto.randomUUID();
+  sessionStorage.setItem('lekerStaffHandoffId', handoffId);
+  localStorage.setItem('lekerStaffBrowserLease', JSON.stringify({
+    owner: handoffId,
+    stage: 'handoff',
+    staffId: cashier.id,
+    role: 'CASHIER',
+    name: cashier.employeeName || cashier.username || '',
+    updatedAt: Date.now()
+  }));
+  location.reload();
+}
+
 async function login(event) {
   event.preventDefault();
   el('cashierLoginMessage').textContent = '';
@@ -119,11 +158,8 @@ async function login(event) {
       method: 'POST',
       body: JSON.stringify({ username: el('cashierUsername').value, password: el('cashierPassword').value })
     });
-    state.token = payload.token;
-    state.cashier = payload.cashier;
-    localStorage.setItem('lekerCashierToken', state.token);
-    el('cashierPassword').value = '';
-    await openDashboard();
+    localStorage.setItem('lekerCashierToken', payload.token);
+    persistStaffSessionAndReload(payload.cashier);
   } catch (error) {
     el('cashierLoginMessage').textContent = error.message;
   }

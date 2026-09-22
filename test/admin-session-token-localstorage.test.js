@@ -188,33 +188,41 @@ test('/?login=staff auto-redirects an already-authenticated staff session to its
   assert.match(authEntrySplit, /staffBlocked.*=== '1'/);
 });
 
-// Bos Cyo, 2026-09-21: "kalo dia uda login jadi karyawan disuatu tab, ketika
-// dia klik login lagi di tab yang lain, harusnya dia langsung landing di
-// portal staf aja... intinya cegah di suatu tab masukin username lagi ketika
-// dia belum logout." Tried moving the redirect check inside applyMode() so
-// EVERY path into STAFF mode (URL and manual tab click) would auto-redirect.
-//
-// REVERTED 2026-09-22: that broadening is unsafe on a device shared between
-// cashiers on different shifts. Cashier B clicking the "Karyawan" tab to log
-// in as themselves would see cashier A's still-valid token in localStorage
-// and get silently bounced into A's session -- never shown a login form to
-// type their own username at all. Pendem's cashier (adependemk2s2) hit this
-// for ~5 hours: 13 successful server-side logins (cashier_sessions proves
-// the credentials were right every time) but never actually landing in a
-// stable dashboard -- the signature of a redirect loop, not a real auth
-// failure. The redirect must only fire for the exact /?login=staff URL (the
-// Back-button scenario, 2026-09-17) -- that path's device is provably the
-// same one that just logged in, never a different person walking up.
-test('the auto-redirect only fires for the exact /?login=staff URL, never from a manual "Karyawan" tab click -- a shared device must always show the login form so a different cashier can type their own username', () => {
+// Bos Cyo, 2026-09-21 then 2026-09-22 (final): "maunya ya sekali login baik
+// di tab manapun ya tetap dia yang login sebelum logout. kalo hp dibuat
+// gantian, ya harus di logout in dulu... coba cek di facebook, tiktok dsb
+// apa juga bisa seperti itu." An in-between same-day hotfix scoped the
+// redirect back to the /?login=staff URL only, out of a (wrong) assumption
+// that showing someone else's still-valid session before a manual tab click
+// was unsafe -- Bos Cyo confirmed that is exactly how mainstream apps work
+// and is the intended behavior; the actual defect behind kasir Pendem's
+// stuck relogin loop was traced to public/cashier.js's own dedicated login
+// form never writing lekerStaffSessionMeta/lease at all (fixed separately).
+// Final: applyMode('STAFF') auto-redirects from EVERY entry point (URL and
+// manual tab click) whenever a valid session already exists in this
+// browser; the only way to become a different person is to Logout first.
+test('applyMode(\'STAFF\') auto-redirects an already-authenticated session from every entry point (URL and manual "Karyawan" tab click), matching persistent-session apps like Facebook/TikTok', () => {
   const applyModeBody = authEntrySplit.slice(
     authEntrySplit.indexOf('function applyMode(nextMode) {'),
     authEntrySplit.indexOf('function staffIdentity(payload)')
   );
-  assert.doesNotMatch(applyModeBody, /existingStaffWorkspaceRedirect\(\)/, 'applyMode must never auto-redirect on its own -- that is what silently swapped a different cashier into someone else\'s session');
-  const urlGatedBlock = authEntrySplit.slice(authEntrySplit.lastIndexOf("searchParams.get('login') === 'staff') {"));
-  assert.match(urlGatedBlock, /existingStaffWorkspaceRedirect\(\)/);
-  assert.match(urlGatedBlock, /location\.replace\(existingRedirect\)/);
-  assert.match(authEntrySplit, /el\('entryStaffTab'\)\?\.addEventListener\('click', \(\) => applyMode\('STAFF'\)\)/, 'manual tab click must still just show the form via plain applyMode, no redirect check attached');
+  assert.match(applyModeBody, /existingStaffWorkspaceRedirect\(\)/, 'the redirect check must run from inside applyMode so every path into STAFF mode is covered, not only the URL-gated block');
+  assert.match(applyModeBody, /location\.replace\(existingRedirect\)/);
+  assert.match(applyModeBody, /return;/, 'must bail out before touching the login form UI once redirected');
+  assert.match(authEntrySplit, /el\('entryStaffTab'\)\?\.addEventListener\('click', \(\) => applyMode\('STAFF'\)\)/, 'the manual tab click still funnels through applyMode, which now carries the redirect check');
+});
+
+// Bos Cyo, 2026-09-22: a fresh, successful login must always win and become
+// this browser's active session -- no "someone else is still logged in"
+// refusal. That refusal only made sense when the redirect above was scoped
+// narrowly; now that any staff-mode entry already redirects away from a
+// still-valid session, the only way to even SEE the login form again is to
+// have logged out first (or the previous token expired) -- by the time
+// someone is submitting credentials, taking over is exactly the intended
+// outcome, not something to reject.
+test('a successful staff login is never rejected for "sesi karyawan lain" -- it always becomes the new session', () => {
+  assert.doesNotMatch(authEntrySplit, /Masih ada sesi karyawan lain/, 'the old blocking message must be gone -- login always succeeds and takes over');
+  assert.doesNotMatch(authEntrySplit, /function activeStaffLease/, 'its only caller (the blocking check) is gone, so the helper must be removed too, not left dead');
 });
 
 // Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry

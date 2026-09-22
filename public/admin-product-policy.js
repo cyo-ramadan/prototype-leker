@@ -441,7 +441,11 @@
       resetExtendedForm();
       enhanceProductRows();
       renderProductKinds();
-      if (typeof loadCatalog === 'function') loadCatalog(true).catch(() => {});
+      // Best-effort refresh sesudah simpan barang berhasil -- toast sukses
+      // barangnya sudah tampil di baris berikutnya, jadi kegagalan di sini
+      // cuma di-log (bukan toast lagi, supaya tidak menimpa toast sukses
+      // yang baru saja tampil), tapi tetap tidak ditelan diam-diam total.
+      if (typeof loadCatalog === 'function') loadCatalog(true).catch(error => console.error('admin-product-policy: post-save catalog refresh failed', error));
       toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.');
     } catch (error) {
       toast(error.message);
@@ -744,16 +748,33 @@
     } catch (error) { toast(error.message); }
   }
 
+  // Bos Cyo, 2026-09-22: Katalog Kode Barang Entity tidak muncul sama sekali
+  // (bukan cuma kosong -- judulnya pun tidak ada) di gerai Mandala, padahal
+  // entity_id-nya sama dengan Beji dkk yang normal. mountCatalogPanel() ada
+  // di urutan KEEMPAT dari lima mount*() yang dipanggil berurutan tanpa
+  // isolasi error sama sekali -- satu exception di salah satu mount*()
+  // sebelumnya (mis. karena state gerai yang datanya kosong/tidak lengkap
+  // memicu sesuatu yang belum kelihatan dari baca kode) diam-diam
+  // menghentikan SISANYA, termasuk mountCatalogPanel(), tanpa toast atau
+  // jejak apa pun ke user -- persis gejala yang dilaporkan. Setiap langkah
+  // sekarang diisolasi try/catch supaya satu mount yang gagal tidak pernah
+  // menggagalkan yang lain, dan error-nya di-log (bukan ditelan diam-diam)
+  // supaya kejadian serupa berikutnya kelihatan dari console, bukan cuma
+  // dari "kok kosong" yang susah dilacak.
+  function mountStep(name, fn) {
+    try { fn(); } catch (error) { console.error(`admin-product-policy: mount step "${name}" failed`, error); }
+  }
+
   function mount() {
-    mountProductFields();
-    mountProductKindMaster();
-    mountAccountingPortal();
-    mountCatalogPanel();
-    removeDuplicateClassificationPanel();
+    mountStep('mountProductFields', mountProductFields);
+    mountStep('mountProductKindMaster', mountProductKindMaster);
+    mountStep('mountAccountingPortal', mountAccountingPortal);
+    mountStep('mountCatalogPanel', mountCatalogPanel);
+    mountStep('removeDuplicateClassificationPanel', removeDuplicateClassificationPanel);
     const productTab = document.querySelector('[data-tab="products"]');
     productTab?.addEventListener('click', () => setTimeout(() => {
       loadEditor(true).catch(error => toast(error.message));
-      loadCatalog(true).catch(() => {});
+      loadCatalog(true).catch(error => toast(`Katalog Kode Barang Entity gagal dimuat: ${error.message}`));
     }, 0));
     window.addEventListener('product-master-reference-updated', () => loadEditor(true).catch(error => toast(error.message)));
     const list = el('productList');
@@ -762,12 +783,12 @@
     if (gate) new MutationObserver(() => {
       if (gate.classList.contains('hidden')) {
         loadEditor(true).catch(error => toast(error.message));
-        loadCatalog(true).catch(() => {});
+        loadCatalog(true).catch(error => toast(`Katalog Kode Barang Entity gagal dimuat: ${error.message}`));
       }
     }).observe(gate, { attributes: true, attributeFilter: ['class'] });
     if (gate?.classList.contains('hidden')) {
       loadEditor().catch(error => toast(error.message));
-      loadCatalog().catch(() => {});
+      loadCatalog().catch(error => toast(`Katalog Kode Barang Entity gagal dimuat: ${error.message}`));
     }
   }
 

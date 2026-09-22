@@ -197,8 +197,39 @@
     syncCounterparts();
   }
 
-  function goodsFlowDialog() {
-    const options = (state.products || []).map(product => `<option value="${Number(product.id)}">${escapeHtml(product.name)}</option>`).join('');
+  // Bos Cyo, 2026-09-22: "untuk milih barangnya harusnya pake search ya.
+  // terus katanya kasir/cs kirim cup sekarang ga bisa... cup itu masuk
+  // jenisnya ke bahan baku." Dua bug sekaligus: (1) daftar barangnya SALAH
+  // -- dulu pinjam state.products, yaitu daftar Menu Kasir yang sudah
+  // difilter cuma barang can_sell=1 (lihat listProducts di src/db-
+  // multistore.js), jadi bahan baku seperti Cup (tidak dijual langsung ke
+  // pelanggan) memang tidak pernah muncul di situ sama sekali -- bukan
+  // masalah UI, barangnya betul-betul tidak ada di daftar. (2) belum ada
+  // search, cuma dropdown panjang. Diperbaiki sekaligus: barangnya sekarang
+  // dari /api/cashier/stock-adjustment/options (daftar barang stock-tracked
+  // apa adanya, sama seperti Penyesuaian Stok pakai -- tidak difilter
+  // can_sell), dan dipilih lewat <input list>/<datalist> (search bawaan
+  // browser) alih-alih dropdown panjang. Bukan PIMASATU -- PIMASATU selalu
+  // menampilkan field harga per unit yang tidak relevan sama sekali di Arus
+  // Barang (nilainya dihitung server dari HPP, bukan diketik kasir).
+  async function goodsFlowDialog() {
+    let payload;
+    try {
+      payload = await api('/api/cashier/stock-adjustment/options');
+    } catch (error) {
+      return toast(`Daftar barang gagal dimuat: ${error.message}`);
+    }
+    const products = payload.products || [];
+    if (!products.length) {
+      openDialog({
+        eyebrow: 'Laci · Approval Queue',
+        title: 'Arus Barang',
+        readOnly: true,
+        body: '<p class="muted">Belum ada barang aktif dengan stock tracking untuk Arus Barang.</p>'
+      });
+      return;
+    }
+    const productByName = new Map(products.map(product => [product.productName.trim().toLowerCase(), product]));
     const sharedAccounts = state.sharedAccounts || [];
     const sharedAccountField = sharedAccounts.length ? `
         <div class="field"><label>Rekening Bersama <span class="muted">optional</span></label>
@@ -211,7 +242,10 @@
       eyebrow: 'Laci · Approval Queue',
       title: 'Arus Barang',
       body: `
-        <div class="field"><label>Barang</label><select id="approvalGoodsProduct" class="text-input" required>${options}</select></div>
+        <div class="field"><label>Barang</label>
+          <input id="approvalGoodsProductSearch" class="text-input" list="approvalGoodsProductOptions" autocomplete="off" placeholder="Cari barang..." required />
+          <datalist id="approvalGoodsProductOptions">${products.map(product => `<option value="${escapeHtml(product.productName)}"></option>`).join('')}</datalist>
+        </div>
         <div class="field"><label>Arah arus</label><select id="approvalGoodsDirection" class="text-input"><option value="IN">Barang Masuk</option><option value="OUT">Barang Keluar</option></select></div>
         <div class="field"><label>Qty</label><input id="approvalGoodsQuantity" class="text-input" type="number" min="1" step="1" required /></div>
         ${sharedAccountField}
@@ -221,11 +255,12 @@
       onSubmit: async () => {
         const quantity = Number(el('approvalGoodsQuantity').value);
         if (!Number.isInteger(quantity) || quantity <= 0) throw new Error('Qty arus barang wajib bilangan bulat lebih dari 0.');
-        const productId = Number(el('approvalGoodsProduct').value);
-        if (!Number.isInteger(productId)) throw new Error('Barang tidak valid.');
+        const typed = (el('approvalGoodsProductSearch').value || '').trim().toLowerCase();
+        const product = productByName.get(typed);
+        if (!product) throw new Error('Barang tidak ditemukan di daftar. Pilih dari hasil pencarian.');
         const sharedAccountId = el('approvalGoodsSharedAccount')?.value || '';
         await submitApprovalRequest('GOODS_FLOW', {
-          productId,
+          productId: product.productId,
           direction: el('approvalGoodsDirection').value,
           quantity,
           ...(sharedAccountId ? { sharedAccountId } : {}),

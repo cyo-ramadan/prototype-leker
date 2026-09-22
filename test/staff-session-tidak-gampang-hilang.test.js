@@ -160,6 +160,24 @@ test('guard antar tab membandingkan siapa usernya, bukan berapa tabnya', () => {
   assert.equal((staffTabLock.match(/leaseIsOtherUser\(/g) || []).length, 4, 'tiga penjaga + satu definisi -- tidak ada jalur block() yang melewatkan pengecekan user');
 });
 
+test('login yang baru saja sukses di tab ini sendiri tidak ikut kena tendang gara-gara race lease dengan tab lain yang masih terbuka', () => {
+  // Bos Cyo, 2026-09-22 (kasir Pendem): "berhasil login abis itu kepental
+  // balik lagi ke halaman login dan status logout." Akar KEDUA, terpisah
+  // dari perbaikan sesi persisten sebelumnya: tab lain yang masih terbuka
+  // dari user LAMA (belum logout resmi) bisa menimpa balik lease persis di
+  // jeda navigasi login yang BARU sukses, karena lease murni "siapa nulis
+  // terakhir" tanpa urutan/generasi. lekerStaffHandoffId di sessionStorage
+  // (tidak dibagi antar tab, beda dari localStorage) adalah bukti kuat
+  // login ini terjadi DI TAB INI SENDIRI, jadi harus mengalahkan lease yang
+  // racy -- bukan sebaliknya.
+  const mountGuard = staffTabLock.slice(
+    staffTabLock.indexOf("const freshHandoff ="),
+    staffTabLock.indexOf('writeLease();\n  sessionStorage.removeItem')
+  );
+  assert.match(mountGuard, /sessionStorage\.getItem\('lekerStaffHandoffId'\)/, 'harus membaca handoff milik tab ini sendiri, bukan localStorage yang dibagi tab lain');
+  assert.match(mountGuard, /if \(!freshHandoff && leaseIsFresh\(existing\) && leaseIsOtherUser\(existing\)\)/, 'tab yang baru saja handoff wajib dikecualikan dari block() saat mount, walau lease saat ini kelihatan "user lain"');
+});
+
 test('trigger "satu sesi per karyawan" benar-benar sudah tidak terpasang lagi di database', () => {
   // Akar terdalam dan paling tidak kelihatan: trigger migration 0011 mencabut
   // sesi lama di level DATABASE setiap ada sesi baru -- membereskan sisi

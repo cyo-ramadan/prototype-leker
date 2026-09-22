@@ -89,8 +89,30 @@
     location.replace('/?login=staff&staffBlocked=1');
   }
 
+  // Bos Cyo, 2026-09-22 (kasir Pendem): "berhasil login abis itu kepental
+  // balik lagi ke halaman login dan status logout." Akar KEDUA, terpisah
+  // dari perbaikan sesi persisten tadi -- ini race antar tab. submitLogin()/
+  // persistStaffSessionAndReload() menulis meta+lease lalu pindah halaman;
+  // di jeda singkat sebelum halaman baru ini sempat mount, tab LAIN yang
+  // masih terbuka dari user sebelumnya (belum logout resmi) bisa saja
+  // heartbeat-nya (tiap 5 detik, lihat writeLease() di bawah) kebetulan
+  // jalan duluan dan menimpa balik lease ke identitas lama -- lease itu
+  // murni "siapa nulis terakhir", tidak ada urutan/generasi. Akibatnya
+  // login yang BARU SAJA berhasil malah menganggap dirinya sendiri "user
+  // lain" dan menendang diri sendiri.
+  //
+  // sessionStorage TIDAK dibagi antar tab (beda dari localStorage), jadi
+  // lekerStaffHandoffId yang ditulis tepat sebelum pindah halaman itu bukti
+  // kuat: kalau ada di tab ini, login barusan memang terjadi DI TAB INI
+  // SENDIRI, bukan warisan dari tab lain -- lebih bisa dipercaya daripada
+  // lease yang rentan ditimpa tab lain. Jadi tab pemegang handoff SELALU
+  // dianggap sah, berapa pun isi lease saat ini, lalu langsung menimpanya --
+  // tab lama (kalau masih ada) yang kena tendang lewat heartbeat-nya
+  // sendiri berikutnya, bukan sebaliknya.
+  const freshHandoff = Boolean(sessionStorage.getItem('lekerStaffHandoffId'));
+
   const existing = readLease();
-  if (leaseIsFresh(existing) && leaseIsOtherUser(existing)) {
+  if (!freshHandoff && leaseIsFresh(existing) && leaseIsOtherUser(existing)) {
     block();
     return;
   }

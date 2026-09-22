@@ -30,17 +30,27 @@
     }
   }
 
-  // Bos Cyo, 2026-09-21: "kalo dia uda login jadi karyawan disuatu tab,
-  // ketika dia klik login lagi di tab yang lain, harusnya dia langsung
-  // landing di portal staf aja... intinya cegah di suatu tab masukin
-  // username lagi ketika dia belum logout." Sebelum ini, redirect-kalau-
-  // sudah-login cuma jalan kalau URL-nya persis /?login=staff (skenario
-  // tombol Back browser, 2026-09-17) -- klik tab "Karyawan" secara manual
-  // di tab lain (tanpa lewat URL itu) tetap menampilkan form kosong dan
-  // minta login ulang walau sesinya di browser itu masih valid. Sekarang
-  // pengecekannya pindah ke sini, jalan kapan pun mode STAFF mau
-  // ditampilkan -- lewat URL ?login=staff MAUPUN klik tab manual -- supaya
-  // dua-duanya langsung lompat ke workspace tanpa sempat menampilkan form.
+  // Bos Cyo, 2026-09-22: REVERT PARSIAL. 2026-09-21 perbaikan ini diperluas
+  // supaya klik tab "Karyawan" manual (bukan cuma URL /?login=staff) juga
+  // auto-redirect kalau sesi masih valid -- niatnya benar ("kalo dia uda
+  // login jadi karyawan disuatu tab, ketika klik login lagi di tab yang
+  // lain, harusnya langsung landing"), tapi ternyata berbahaya di device
+  // yang dipakai BERGANTIAN oleh beberapa kasir (mis. satu HP/laptop kasir
+  // gantian shift): begitu kasir B klik tab "Karyawan" untuk login sebagai
+  // DIRINYA SENDIRI, kode ini melihat masih ada token kasir A yang valid di
+  // localStorage dan langsung melempar B ke sesi A tanpa sempat menampilkan
+  // form sama sekali -- B tidak pernah dapat kesempatan mengetik username
+  // sendiri. Kasir Pendem (adependemk2s2) mengalami 13x percobaan login
+  // berhasil di server (cashier_sessions) tapi tidak pernah benar-benar
+  // masuk selama ~5 jam sejak fix ini live -- polanya cocok dengan loop
+  // redirect ini, bukan gagal login sungguhan. Dikembalikan ke perilaku
+  // semula yang sudah terbukti aman: auto-redirect CUMA untuk URL
+  // /?login=staff persis (skenario tombol Back, 2026-09-17) -- itu jalur
+  // yang device-nya bisa dipastikan masih sama, bukan potensi ganti orang.
+  // Klik tab "Karyawan" manual sekarang selalu menampilkan form lagi,
+  // seperti sebelum 2026-09-21 -- iya, itu berarti kasir yang SAMA klik
+  // ulang harus mengetik lagi, tapi itu jauh lebih aman daripada diam-diam
+  // masuk ke sesi orang lain.
   function existingStaffWorkspaceRedirect() {
     if (localStorage.getItem('lekerOwnerToken')) return '/admin';
     if (localStorage.getItem('lekerEntityAdminToken')) return '/entity-admin';
@@ -50,21 +60,7 @@
     return null;
   }
 
-  let redirectedToExistingWorkspace = false;
-
   function applyMode(nextMode) {
-    if (nextMode === 'STAFF') {
-      // staffBlocked=1 means the tab-lock deliberately just cleared this
-      // session's token -- the redirect must not fire off a stale read in
-      // that exact moment and must still fall through to the login form.
-      const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
-      const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
-      if (existingRedirect) {
-        redirectedToExistingWorkspace = true;
-        location.replace(existingRedirect);
-        return;
-      }
-    }
     mode = nextMode;
     el('entryCustomerTab')?.classList.toggle('active', mode === 'CUSTOMER');
     el('entryStaffTab')?.classList.toggle('active', mode === 'STAFF');
@@ -213,10 +209,16 @@
   // sendiri yang akan mendeteksi dan menampilkan login-nya (pola yang sama
   // seperti admin-session-bootstrap-guard.js) -- redirect ini tidak
   // menggantikan pengecekan server, cuma menghindari form login yang
-  // sebenarnya tidak perlu dilihat. Pengecekannya sendiri sudah dipindah ke
-  // dalam applyMode('STAFF') di atas (2026-09-21) supaya klik tab
-  // "Karyawan" manual di tab lain ikut kena juga, bukan cuma lewat URL ini.
-  if (new URL(location.href).searchParams.get('login') === 'staff' && !redirectedToExistingWorkspace) {
+  // sebenarnya tidak perlu dilihat. CUMA untuk URL /?login=staff persis --
+  // lihat catatan revert 2026-09-22 di atas untuk kenapa ini sengaja tidak
+  // diperluas lagi ke klik tab manual.
+  if (new URL(location.href).searchParams.get('login') === 'staff') {
+    const staffBlocked = new URL(location.href).searchParams.get('staffBlocked') === '1';
+    const existingRedirect = !staffBlocked && existingStaffWorkspaceRedirect();
+    if (existingRedirect) {
+      location.replace(existingRedirect);
+      return;
+    }
     el('entryLoginBtn')?.click();
     const clean = new URL(location.href);
     clean.searchParams.delete('login');

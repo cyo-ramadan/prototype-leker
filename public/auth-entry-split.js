@@ -5,6 +5,21 @@
   const el = id => document.getElementById(id);
   const storeCode = String(window.LEKER_STORE_CODE || 'G001').toUpperCase();
   const leaseKey = 'lekerStaffBrowserLease';
+  // Bos Cyo, 2026-09-22: kasir Pendem masih kepental balik ke login sesudah
+  // dua perbaikan sebelumnya, 4x berturut-turut dalam semenit -- pola PASTI
+  // gagal, bukan sesekali (race). crypto.randomUUID() baru didukung luas
+  // sejak ~2022 dan bisa tidak ada di browser/WebView lawas; kalau melempar
+  // TypeError di submitLogin(), seluruh alur berhenti SEBELUM
+  // location.replace() sempat jalan -- pengguna cuma lihat error di form
+  // yang sama, persis "kepental balik ke login". randomId() tidak pernah
+  // melempar, dan ID-nya cuma perlu unik per login, tidak perlu acak
+  // kriptografis.
+  const randomId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      try { return crypto.randomUUID(); } catch {}
+    }
+    return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  };
   let mode = new URL(location.href).searchParams.get('login') === 'staff' ? 'STAFF' : 'CUSTOMER';
 
   const note = form.querySelector('.entry-login-note');
@@ -141,29 +156,42 @@
       // ikut hilang saat OS/Chrome membuang browsing context di HP walau tabnya
       // tidak pernah ditutup -- persis bug yang sudah diperbaiki untuk
       // Owner/Admin pada 2026-09-13, cuma waktu itu kasir tidak ikut disentuh.
-      localStorage.setItem(staffTokenKey(payload.role), payload.token);
-      if (payload.role === 'ADMIN') localStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');
-      // Meta ikut ke localStorage: guard antar-tab harus bisa membandingkan
-      // SIAPA yang sedang aktif, dan itu mustahil kalau identitasnya ikut hilang
-      // bersama tab.
-      localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
-        id: identity.id,
-        role: payload.role,
-        name: identity.displayName || identity.employeeName || identity.username || '',
-        storeCode: identity.store?.code || ''
-      }));
-      // handoffId tetap di sessionStorage -- ini memang harus per-tab (penanda
-      // "halaman berikutnya adalah diri saya sendiri"), bukan dibagi antar tab.
-      const handoffId = crypto.randomUUID();
-      sessionStorage.setItem('lekerStaffHandoffId', handoffId);
-      localStorage.setItem(leaseKey, JSON.stringify({
-        owner: handoffId,
-        stage: 'handoff',
-        staffId: identity.id,
-        role: payload.role,
-        name: identity.displayName || identity.employeeName || identity.username || '',
-        updatedAt: Date.now()
-      }));
+      // Bos Cyo, 2026-09-22: kasir Pendem masih kepental balik ke login
+      // sesudah dua perbaikan sebelumnya -- 4x berturut-turut gagal dalam
+      // semenit, pola PASTI gagal, bukan sesekali. Token di atas SUDAH sah
+      // di server pada titik ini (login sebenarnya sudah berhasil); kalau
+      // langkah bookkeeping meta+lease di bawah melempar apa pun (localStorage
+      // penuh, mode privat yang membatasi storage, dsb), itu tidak boleh
+      // menggagalkan login yang sudah sah -- login lintas-tab cuma fitur
+      // tambahan, bukan syarat bisa masuk. Ditangkap terpisah supaya
+      // location.replace() di bawah tetap selalu jalan.
+      try {
+        localStorage.setItem(staffTokenKey(payload.role), payload.token);
+        if (payload.role === 'ADMIN') localStorage.setItem('lekerAdminStoreCode', identity.store?.code || '');
+        // Meta ikut ke localStorage: guard antar-tab harus bisa membandingkan
+        // SIAPA yang sedang aktif, dan itu mustahil kalau identitasnya ikut hilang
+        // bersama tab.
+        localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
+          id: identity.id,
+          role: payload.role,
+          name: identity.displayName || identity.employeeName || identity.username || '',
+          storeCode: identity.store?.code || ''
+        }));
+        // handoffId tetap di sessionStorage -- ini memang harus per-tab (penanda
+        // "halaman berikutnya adalah diri saya sendiri"), bukan dibagi antar tab.
+        const handoffId = randomId();
+        sessionStorage.setItem('lekerStaffHandoffId', handoffId);
+        localStorage.setItem(leaseKey, JSON.stringify({
+          owner: handoffId,
+          stage: 'handoff',
+          staffId: identity.id,
+          role: payload.role,
+          name: identity.displayName || identity.employeeName || identity.username || '',
+          updatedAt: Date.now()
+        }));
+      } catch (storageError) {
+        console.error('Gagal menulis status sesi lintas-tab, lanjut login tanpa fitur itu:', storageError);
+      }
       // replace(), bukan href: halaman login tidak boleh tertinggal di history.
       // Bos Cyo: "ke back ada pilihan login lagi" -- itu karena entry login
       // masih ada di riwayat, jadi tombol Back selalu bisa balik ke form.

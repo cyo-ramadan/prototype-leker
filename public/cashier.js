@@ -130,23 +130,48 @@ async function init() {
 // lease yang sama seperti jalur satunya, lalu reload halaman supaya staff-
 // tab-lock.js membaca ulang dari awal dengan identitas yang benar --
 // bukan named coba nyambungin state yang sudah kadung berjalan.
+// Bos Cyo, 2026-09-22: kasir Pendem masih kepental balik ke login sesudah
+// dua perbaikan sebelumnya, 4x berturut-turut dalam semenit -- pola PASTI
+// gagal, bukan sesekali (race). crypto.randomUUID() baru didukung luas
+// sejak ~2022 dan bisa tidak ada di browser/WebView lawas; kalau melempar
+// TypeError di sini, seluruh fungsi ini berhenti SEBELUM location.reload()
+// sempat jalan -- pengguna cuma lihat error di layar login yang sama,
+// persis "kepental balik ke login". randomId() tidak pernah melempar, dan
+// ID-nya cuma perlu unik per login, tidak perlu acak kriptografis.
+const randomId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try { return crypto.randomUUID(); } catch {}
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
 function persistStaffSessionAndReload(cashier) {
-  localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
-    id: cashier.id,
-    role: 'CASHIER',
-    name: cashier.employeeName || cashier.username || '',
-    storeCode: cashier.store?.code || ''
-  }));
-  const handoffId = crypto.randomUUID();
-  sessionStorage.setItem('lekerStaffHandoffId', handoffId);
-  localStorage.setItem('lekerStaffBrowserLease', JSON.stringify({
-    owner: handoffId,
-    stage: 'handoff',
-    staffId: cashier.id,
-    role: 'CASHIER',
-    name: cashier.employeeName || cashier.username || '',
-    updatedAt: Date.now()
-  }));
+  // Token kasir (lekerCashierToken) sudah ditulis oleh login() SEBELUM
+  // memanggil fungsi ini -- login itu sendiri sudah sah di server pada
+  // titik ini. Bookkeeping meta+lease di bawah cuma fitur tambahan (login
+  // lintas-tab); kalau itu melempar apa pun, jangan sampai ikut menggagalkan
+  // login yang sudah sah -- ditangkap supaya location.reload() tetap selalu
+  // jalan.
+  try {
+    localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
+      id: cashier.id,
+      role: 'CASHIER',
+      name: cashier.employeeName || cashier.username || '',
+      storeCode: cashier.store?.code || ''
+    }));
+    const handoffId = randomId();
+    sessionStorage.setItem('lekerStaffHandoffId', handoffId);
+    localStorage.setItem('lekerStaffBrowserLease', JSON.stringify({
+      owner: handoffId,
+      stage: 'handoff',
+      staffId: cashier.id,
+      role: 'CASHIER',
+      name: cashier.employeeName || cashier.username || '',
+      updatedAt: Date.now()
+    }));
+  } catch (storageError) {
+    console.error('Gagal menulis status sesi lintas-tab, lanjut login tanpa fitur itu:', storageError);
+  }
   location.reload();
 }
 

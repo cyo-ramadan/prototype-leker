@@ -55,6 +55,20 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    orang sungguhan.
 6. **Mulai dari kotak chat di web, bukan WhatsApp.** Dikonfirmasi Bos Cyo
    2026-09-17 ("ok berarti kita kasih tombol chat untuk owner ya").
+7. **Caca di dokumen ini SPESIFIK untuk konteks pelanggan-tenant (pemilik/
+   pegawai toko yang tanya soal operasional gerainya sendiri) -- bukan untuk
+   customer publik (pembeli yang mau pesan jajanan di suatu gerai).**
+   Dikonfirmasi Bos Cyo, 2026-09-22: "whatsapp dari customer ke caca dan dari
+   pelanggan tenant ke caca itu ya beda donks. caca harus bisa deteksi kalo
+   ini konteksnya masalah setting gerai, yang satu masalah pingin order2
+   jajanan di suatu gerai." Kalau nanti dibangun jalur WA buat customer
+   publik (akuisisi member / tanya-tanya jajanan), itu **fitur terpisah**,
+   jangan diam-diam digabung ke rancangan Caca di dokumen ini. Semua
+   keputusan #1-6 di atas (terutama nomor WA = kredensial yang didaftarkan
+   admin dari panel, bukan self-service) berlaku untuk konteks tenant ini
+   saja -- BELUM tentu cocok dipakai apa adanya untuk konteks customer
+   publik, yang audiensnya anonim dan volumenya berpotensi jauh lebih besar
+   dan tidak terkontrol.
 
 ---
 
@@ -73,6 +87,23 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    rekap asli punya Bos Cyo, bukan dipilih di atas kertas.
 5. Rekap sehari penuh masuk lewat "sesi laci buatan" (usul Hana di ADR) atau
    cara lain — belum dikonfirmasi Bos Cyo.
+6. **Jalur WA untuk customer publik (bukan pelanggan-tenant): satu nomor WA
+   yang mendeteksi konteks pengirim (tenant vs customer) lewat AI, atau dua
+   persona/nomor terpisah** ("Caca" khusus pelanggan tenant, "Cici" khusus
+   customer publik, usul Bos Cyo 2026-09-22)? Belum diputuskan mana yang
+   dipakai. Pertimbangan Hana kalau nanti dibahas lagi: satu nomor bersama
+   berarti risiko dari sisi customer (volume publik, lebih rawan dianggap
+   spam oleh Meta) bisa ikut menjatuhkan akses Caca versi tenant kalau
+   nomornya kena banned/limit -- jadi ada alasan infrastruktur (bukan cuma
+   kerapian nama) buat pisah nomor/persona sejak awal. Ini baru catatan
+   pertimbangan, bukan rekomendasi final; belum dibahas tuntas karena
+   Bos Cyo minta ditunda ("bahas lain kali aja").
+7. Seluruh mekanisme customer publik lewat WA (identitas = nomor WA tanpa
+   registrasi lain, akuisisi member lintas-tenant, dst) masih di tahap
+   ide kasar dan BELUM ada satu keputusan pun yang dikunci -- termasuk hal
+   dasar seperti verifikasi identitas, pemulihan kalau nomor ganti, dan
+   titik temu dengan sistem customer per-gerai yang sudah ada. Jangan
+   dianggap sudah punya arah yang jelas hanya karena sempat dibahas.
 
 ---
 

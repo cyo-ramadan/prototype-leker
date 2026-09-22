@@ -104,8 +104,27 @@ async function init() {
       state.cashier = payload.cashier;
       await openDashboard();
       return;
-    } catch {
-      clearSession();
+    } catch (error) {
+      // Bos Cyo, 2026-09-22 (kasir Pendem): dulu di sini `catch { clearSession(); }`
+      // TANPA membedakan sebabnya dan TANPA mencatat errornya sama sekali.
+      // Akibatnya satu kegagalan memuat data -- yang sebenarnya tidak ada
+      // hubungannya dengan hak akses -- menghapus SELURUH token karyawan di
+      // browser (kasir, Owner, Admin Gerai, Entity Admin sekaligus, lewat
+      // lekerClearStaffSession) lalu menampilkan form login. Itulah kenapa
+      // gagalnya memuat daftar pesanan Pendem kelihatan persis seperti
+      // "tidak bisa login", dan kenapa Entity Admin yang cuma mengintip
+      // halaman kasir ikut terlempar keluar.
+      //
+      // Sekarang sesi HANYA dihapus kalau server memang menolak identitasnya
+      // (401). Kegagalan lain ditampilkan apa adanya supaya kelihatan, bukan
+      // ditelan diam-diam -- sesi yang masih sah dibiarkan hidup.
+      if (error?.status === 401) {
+        clearSession();
+      } else {
+        console.error('Gagal memuat halaman kasir:', error);
+        toast(`Halaman kasir gagal dimuat: ${error?.message || 'kesalahan tidak diketahui'}`);
+        el('cashierLoginMessage').textContent = `Halaman kasir gagal dimuat: ${error?.message || 'kesalahan tidak diketahui'}`;
+      }
     }
   }
   showLogin();

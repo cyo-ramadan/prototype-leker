@@ -2,6 +2,30 @@ function placeholders(count) {
   return Array.from({ length: count }, () => '?').join(', ');
 }
 
+// D1 menolak statement dengan LEBIH DARI 100 bind variable -- "too many SQL
+// variables (SQLITE_ERROR)". Bukan teori: dibuktikan langsung ke D1 produksi
+// 2026-09-22, 100 parameter lolos, 101 parameter ditolak.
+//
+// Ini yang bikin kasir gerai Pendem tidak bisa masuk sama sekali sejak
+// pesanannya tembus 100: listOrders() mengambil 100 pesanan terakhir, lalu
+// rincian itemnya diambil sekaligus dengan bind (storeId + 100 order id) =
+// 101 variable -- tepat lewat satu. Query gagal, /api/cashier/orders balas
+// 500, halaman kasir gagal dimuat, dan (sebelum diperbaiki) seluruh token
+// karyawan ikut dihapus sehingga kelihatan seperti "tidak bisa login".
+// Gerai lain aman cuma karena pesanannya belum sampai 100 -- jadi ini bom
+// waktu untuk SETIAP gerai, bukan keanehan Pendem.
+//
+// Batasnya ditaruh di 90, bukan 99, supaya masih muat untuk query yang
+// membawa beberapa bind lain (storeId dsb) tanpa perlu dihitung ulang
+// tiap kali ada pemanggil baru.
+const MAX_BIND_IDS_PER_QUERY = 90;
+
+function chunkIds(ids, size = MAX_BIND_IDS_PER_QUERY) {
+  const chunks = [];
+  for (let index = 0; index < ids.length; index += size) chunks.push(ids.slice(index, index + size));
+  return chunks;
+}
+
 // products.price is stored at the exact-unit-cost scale (1 rupiah = 1.000.000
 // unit, migration 0060) so a sub-rupiah catalog price survives without
 // float/REAL as source of truth. Convert back to rupiah at the read boundary;
@@ -44,14 +68,20 @@ function mapOrderItemRow(row) {
 
 async function loadItemsForOrders(db, storeId, orderIds) {
   if (!orderIds.length) return new Map();
-  const result = await db.prepare(`
-    SELECT order_id, product_id, product_name, unit_price, line_total, quantity, note
-    FROM order_items
-    WHERE store_id = ? AND order_id IN (${placeholders(orderIds.length)})
-    ORDER BY id ASC
-  `).bind(storeId, ...orderIds).all();
   const grouped = new Map(orderIds.map(orderId => [orderId, []]));
-  for (const row of result.results ?? []) grouped.get(row.order_id)?.push(mapOrderItemRow(row));
+  // Dipecah per batch: sekali jalan tidak boleh melewati batas bind variable
+  // D1 (lihat MAX_BIND_IDS_PER_QUERY di atas). Urutan item di dalam satu
+  // pesanan tetap terjaga karena tiap batch tetap ORDER BY id dan tiap
+  // pesanan hanya pernah masuk di satu batch.
+  for (const chunk of chunkIds(orderIds)) {
+    const result = await db.prepare(`
+      SELECT order_id, product_id, product_name, unit_price, line_total, quantity, note
+      FROM order_items
+      WHERE store_id = ? AND order_id IN (${placeholders(chunk.length)})
+      ORDER BY id ASC
+    `).bind(storeId, ...chunk).all();
+    for (const row of result.results ?? []) grouped.get(row.order_id)?.push(mapOrderItemRow(row));
+  }
   return grouped;
 }
 
@@ -111,16 +141,23 @@ export async function listProducts(db, storeId) {
 export async function getProductsByIds(db, storeId, productIds) {
   const uniqueIds = [...new Set(productIds)];
   if (!uniqueIds.length) return [];
-  const result = await db.prepare(`
-    SELECT p.id, p.name, p.price, p.category, p.emoji
-    FROM products p
-    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
-    WHERE p.store_id = ?
-      AND p.is_active = 1
-      AND COALESCE(t.can_sell, 1) = 1
-      AND p.id IN (${placeholders(uniqueIds.length)})
-  `).bind(storeId, ...uniqueIds).all();
-  return (result.results ?? []).map(row => ({ ...row, price: costFromScaled(row.price) }));
+  // Ikut dipecah per batch dengan alasan yang sama seperti loadItemsForOrders:
+  // keranjang dengan lebih dari ~99 barang berbeda akan melewati batas bind
+  // variable D1 dan menggagalkan seluruh pesanan.
+  const rows = [];
+  for (const chunk of chunkIds(uniqueIds)) {
+    const result = await db.prepare(`
+      SELECT p.id, p.name, p.price, p.category, p.emoji
+      FROM products p
+      LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+      WHERE p.store_id = ?
+        AND p.is_active = 1
+        AND COALESCE(t.can_sell, 1) = 1
+        AND p.id IN (${placeholders(chunk.length)})
+    `).bind(storeId, ...chunk).all();
+    rows.push(...(result.results ?? []));
+  }
+  return rows.map(row => ({ ...row, price: costFromScaled(row.price) }));
 }
 
 export async function listOrders(db, storeId, limit = 100) {

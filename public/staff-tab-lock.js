@@ -37,9 +37,28 @@
   try { meta = JSON.parse(metaRaw); } catch { return; }
   if (!meta?.id || !meta?.role) return;
 
+  // Bos Cyo, 2026-09-22: kasir Pendem masih kepental sesudah dua perbaikan
+  // sebelumnya, dan pola barunya BUKAN kadang-gagal-kadang-tidak (race) --
+  // 4 kali berturut-turut gagal dalam semenit, jadi kemungkinan besar ini
+  // kegagalan yang PASTI terjadi di perangkatnya, bukan soal timing.
+  // crypto.randomUUID() -- dipakai di sini dan di titik login (cashier.js,
+  // auth-entry-split.js) -- baru didukung luas sejak ~2022 dan bisa saja
+  // tidak ada di browser/WebView lawas yang dipakai gerai tertentu. Kalau
+  // itu melempar TypeError, seluruh alur penulisan meta+lease berhenti di
+  // tengah jalan sebelum sempat pindah halaman -- persis kelihatan seperti
+  // "kepental balik ke login". randomId() di bawah tidak pernah melempar,
+  // ID-nya cuma perlu unik per pemuatan halaman, tidak perlu acak
+  // kriptografis.
+  const randomId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      try { return crypto.randomUUID(); } catch {}
+    }
+    return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  };
+
   const ttlMs = 15000;
   const heartbeatMs = 5000;
-  const pageId = crypto.randomUUID();
+  const pageId = randomId();
   let blocked = false;
 
   function readLease() {

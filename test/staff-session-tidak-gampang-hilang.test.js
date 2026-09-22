@@ -24,6 +24,7 @@ import { hashCredential } from '../src/owner-auth.js';
 const readPublic = name => readFileSync(new URL(`../public/${name}`, import.meta.url), 'utf8');
 const authEntrySplit = readPublic('auth-entry-split.js');
 const staffTabLock = readPublic('staff-tab-lock.js');
+const cashierJs = readPublic('cashier.js');
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
@@ -176,6 +177,47 @@ test('login yang baru saja sukses di tab ini sendiri tidak ikut kena tendang gar
   );
   assert.match(mountGuard, /sessionStorage\.getItem\('lekerStaffHandoffId'\)/, 'harus membaca handoff milik tab ini sendiri, bukan localStorage yang dibagi tab lain');
   assert.match(mountGuard, /if \(!freshHandoff && leaseIsFresh\(existing\) && leaseIsOtherUser\(existing\)\)/, 'tab yang baru saja handoff wajib dikecualikan dari block() saat mount, walau lease saat ini kelihatan "user lain"');
+});
+
+test('penulisan status sesi lintas-tab tidak pernah menggagalkan login yang sudah sah di server, apa pun penyebabnya', () => {
+  // Bos Cyo, 2026-09-22 (kasir Pendem): masih kepental balik ke login 4x
+  // berturut-turut dalam semenit sesudah DUA perbaikan sebelumnya --
+  // pola PASTI gagal, bukan sesekali (race). Dugaan kuat: crypto.randomUUID()
+  // baru didukung luas sejak ~2022 dan bisa tidak ada di browser/WebView
+  // lawas yang dipakai gerai tertentu; kalau melempar TypeError di tengah
+  // penulisan meta+lease, seluruh fungsi berhenti SEBELUM sempat pindah
+  // halaman -- pengguna cuma lihat error di form yang sama.
+  //
+  // Dua lapis perbaikan: (1) randomId() tidak pernah melempar -- fallback
+  // ke ID non-kriptografis kalau crypto.randomUUID tidak ada/tidak bisa
+  // dipanggil; (2) bookkeeping meta+lease dibungkus try/catch terpisah dari
+  // token yang sudah sah, supaya kegagalan APA PUN di situ (bukan cuma
+  // crypto.randomUUID -- localStorage penuh, mode privat, dsb) tidak pernah
+  // menggagalkan location.reload()/location.replace() yang sebenarnya
+  // berhak jalan karena login-nya sendiri sudah sukses di server.
+  for (const source of [cashierJs, authEntrySplit]) {
+    assert.match(source, /typeof crypto\.randomUUID === 'function'/, 'wajib mengecek dukungan crypto.randomUUID sebelum memakainya, bukan memanggilnya telanjang');
+    // Titik pemakaian (login/handoff) wajib lewat randomId(), bukan lagi
+    // langsung "= crypto.randomUUID()" -- pola telanjang yang tadinya bisa
+    // melempar TypeError dan menghentikan login di tengah jalan kalau
+    // browser/WebView-nya tidak mendukung.
+    assert.doesNotMatch(source, /=\s*crypto\.randomUUID\(\)/, 'tidak boleh ada lagi pemanggilan telanjang "= crypto.randomUUID()" di titik pemakaian');
+    assert.match(source, /const handoffId = randomId\(\);/, 'handoffId wajib dibuat lewat randomId(), bukan crypto.randomUUID() langsung');
+  }
+
+  const persistBody = cashierJs.slice(cashierJs.indexOf('function persistStaffSessionAndReload'), cashierJs.indexOf('async function login'));
+  const persistTryAt = persistBody.indexOf('try {');
+  const persistCatchAt = persistBody.indexOf('} catch (storageError)');
+  const persistReloadAt = persistBody.indexOf('location.reload();');
+  assert.ok(persistTryAt > -1 && persistCatchAt > persistTryAt, 'cashier.js: bookkeeping meta+lease wajib dibungkus try/catch');
+  assert.ok(persistReloadAt > persistCatchAt, 'cashier.js: location.reload() wajib tetap jalan SESUDAH blok try/catch, bukan di dalamnya');
+
+  const submitBody = authEntrySplit.slice(authEntrySplit.indexOf('async function submitLogin'), authEntrySplit.indexOf('form.addEventListener'));
+  const submitTryAt = submitBody.indexOf('try {');
+  const submitCatchAt = submitBody.indexOf('} catch (storageError)');
+  const submitReplaceAt = submitBody.lastIndexOf("location.replace(payload.redirect || '/');");
+  assert.ok(submitTryAt > -1 && submitCatchAt > submitTryAt, 'auth-entry-split.js: bookkeeping meta+lease wajib dibungkus try/catch');
+  assert.ok(submitReplaceAt > submitCatchAt, 'auth-entry-split.js: location.replace() wajib tetap jalan SESUDAH blok try/catch, bukan di dalamnya');
 });
 
 test('trigger "satu sesi per karyawan" benar-benar sudah tidak terpasang lagi di database', () => {

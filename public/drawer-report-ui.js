@@ -54,6 +54,18 @@
     const adjustmentRows = (sections.stockAdjustments || []).length
       ? sections.stockAdjustments.map(row => `<tr><td>${esc(row.productName)}</td><td>${number(row.recordedStock)}</td><td>${number(row.actualStock)}</td><td>${number(row.difference)}</td></tr>`).join('')
       : emptyRow(4, 'Belum ada penyesuaian stok.');
+    // Bos Cyo, 2026-09-23: "arus barang belum masuk ke laporan laci". Ini
+    // pergerakan barang biasa (barang masuk/keluar, misal transfer antar
+    // gerai) -- bukan Penyesuaian Stok, jadi tidak punya "stok tercatat vs
+    // stok riil", cuma arah + qty. Ditaruh satu kategori dengan Penyesuaian
+    // Stok (sama-sama pergerakan barang, bukan uang, jadi tidak masuk ke
+    // PERHITUNGAN kas).
+    const goodsFlowLabel = row => row.sharedAccountName
+      ? `${row.note || 'Arus Barang'} · Rekening Bersama: ${row.sharedAccountName}`
+      : (row.note || '-');
+    const goodsFlowRows = (sections.goodsFlow || []).length
+      ? sections.goodsFlow.map(row => `<tr><td>${esc(row.productName)}</td><td>${row.direction === 'OUT' ? 'Keluar' : 'Masuk'}</td><td>${number(row.quantity)}${row.unitSymbol ? ` ${esc(row.unitSymbol)}` : ''}</td><td>${esc(goodsFlowLabel(row))}</td></tr>`).join('')
+      : emptyRow(4, 'Belum ada Arus Barang.');
     const cashInRows = (sections.cashIn || []).length
       ? sections.cashIn.map(row => `<tr><td>${dateTime(row.createdAt)}</td><td>${rupiah(row.amount)}</td><td>${esc(row.description)}</td><td>${esc(row.cashAccount || '-')}</td><td>${esc(row.incomeAccount || '-')}</td></tr>`).join('')
       : emptyRow(5);
@@ -107,6 +119,7 @@
       ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems))}
       ${section('3B. BELANJA BAHAN BAYAR NON TUNAI', purchaseTable(sections.nonCashPurchases || [], totals.nonCashPurchases))}
       ${section('PENYESUAIAN STOK', table(['PRODUK', 'Stok Tercatat', 'Stok Riil', 'Selisih'], adjustmentRows))}
+      ${section('ARUS BARANG', table(['BARANG', 'ARAH', 'QTY', 'KETERANGAN'], goodsFlowRows))}
       ${section('PENDAPATAN LAIN', table(['Tanggal', 'Jumlah', 'Keterangan', 'Akun Kas', 'Akun Pendapatan'], cashInRows))}
       ${section('ARUS KAS MASUK', `${cashFlowIn}<div class="drawer-report-total">Total <b>${rupiah(totals.operationalCashIn)}</b></div>`)}
       ${section('ARUS KAS KELUAR', `${cashFlowOut}<div class="drawer-report-total">Total <b>${rupiah(totals.operationalCashOut)}</b></div>`)}

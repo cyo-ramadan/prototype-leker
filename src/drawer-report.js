@@ -51,7 +51,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, stockAdjustmentRows] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -172,15 +172,50 @@ export async function buildDrawerReport(db, storeId, drawerId) {
     result: `${row.output_product_name} · ${number(row.total_output_quantity)} ${row.output_unit_symbol || ''}`.trim(),
     material: `${row.component_product_name} · ${number(row.component_quantity)} ${row.component_unit_symbol || ''}`.trim()
   }));
-  const stockAdjustments = (stockAdjustmentRows.results ?? [])
+  // Bos Cyo, 2026-09-23: "arus barang belum masuk ke laporan laci". Ternyata
+  // query di atas SUDAH menarik semua approval_requests GOODS_FLOW yang
+  // posted -- termasuk Arus Barang biasa (barang masuk/keluar, bukan
+  // penyesuaian) -- tapi filter di bawah cuma meloloskan payload yang
+  // purpose-nya STOCK_ADJUSTMENT. Arus Barang biasa (payload.purpose tidak
+  // pernah diisi sama sekali untuk kasus ini, lihat normalizeApprovalPayload
+  // di operational-posting.js) DITARIK dari database lalu DIBUANG diam-diam
+  // di baris filter ini -- tidak pernah dirender di mana pun. Sekarang
+  // dipisah jadi dua daftar dari sumber yang sama, bukan ditarik ulang.
+  const goodsFlowRequestPayloads = (goodsFlowRequestRows.results ?? [])
     .map(row => { try { return JSON.parse(row.payload_json || '{}'); } catch { return null; } })
-    .filter(payload => payload?.purpose === 'STOCK_ADJUSTMENT')
+    .filter(Boolean);
+  const stockAdjustments = goodsFlowRequestPayloads
+    .filter(payload => payload.purpose === 'STOCK_ADJUSTMENT')
     .map(payload => ({
       productName: payload.productName,
       recordedStock: number(payload.currentQuantitySnapshot),
       actualStock: number(payload.targetQuantity),
       difference: number(payload.targetQuantity) - number(payload.currentQuantitySnapshot)
     }));
+  const goodsFlowPayloads = goodsFlowRequestPayloads.filter(payload => payload.purpose !== 'STOCK_ADJUSTMENT');
+  // Rekening Bersama itu opsional per-entry (src/operational-posting.js) --
+  // payload cuma menyimpan sharedAccountId, bukan namanya. Nama dicari
+  // sekali di sini (bukan per-baris) supaya laporan bisa menunjukkan
+  // "dikaitkan ke rekening apa", bukan cuma id mentah yang tidak berarti
+  // apa-apa buat kasir yang baca laporan.
+  const sharedAccountIds = [...new Set(goodsFlowPayloads.map(payload => payload.sharedAccountId).filter(Boolean))];
+  let sharedAccountNameById = new Map();
+  if (sharedAccountIds.length) {
+    const sharedAccountRows = await db.prepare(`
+      SELECT id, name FROM entity_shared_accounts WHERE id IN (${sharedAccountIds.map(() => '?').join(', ')})
+    `).bind(...sharedAccountIds).all();
+    sharedAccountNameById = new Map((sharedAccountRows.results ?? []).map(row => [row.id, row.name]));
+  }
+  const goodsFlow = goodsFlowPayloads.map(payload => ({
+    productName: payload.productName,
+    direction: payload.direction === 'OUT' ? 'OUT' : 'IN',
+    quantity: number(payload.quantity),
+    unitSymbol: payload.unitSymbol || '',
+    sharedAccountName: payload.sharedAccountId
+      ? (sharedAccountNameById.get(payload.sharedAccountId) || 'Rekening Bersama (sudah dihapus)')
+      : '',
+    note: payload.note || ''
+  }));
   const promotions = [];
   const stockRemaining = [];
   const promotionTotal = 0;
@@ -201,6 +236,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       nonCashSales,
       nonCashPurchases,
       stockAdjustments,
+      goodsFlow,
       cashIn,
       operationalCash
     },

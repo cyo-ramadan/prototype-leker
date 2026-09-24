@@ -14,6 +14,10 @@ import { hashCredential } from '../src/owner-auth.js';
 // LAIN. GET /api/admin/cashiers/:id/attendance mengisi celah itu, memakai
 // modul perhitungan yang sama (src/staff-attendance.js) supaya angkanya
 // konsisten antara sisi Admin dan sisi karyawan sendiri.
+//
+// Payroll dipindah ke endpoint sendiri (GET .../payroll) sesudah koreksi
+// Bos Cyo yang sama hari itu: "untuk detil gaji dikasi tombol dan kolom
+// sendiri saja" -- lihat test/payroll-adjustments.test.js untuk endpoint itu.
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
@@ -88,7 +92,7 @@ async function getAdminAttendance(env, adminToken, store, cashierId) {
   return handleAdminCashierApi(request(path, { token: adminToken, store }), env, path);
 }
 
-test('Admin melihat Riwayat Presensi + Riwayat Gaji karyawan lain -- sebelumnya tidak ada jalur ini sama sekali', async () => {
+test('Admin melihat Riwayat Presensi karyawan lain -- sebelumnya tidak ada jalur ini sama sekali', async () => {
   const sqlite = freshDatabase();
   try {
     const env = { DB: new D1Database(sqlite) };
@@ -107,14 +111,11 @@ test('Admin melihat Riwayat Presensi + Riwayat Gaji karyawan lain -- sebelumnya 
     assert.equal(payload.cashier.employeeName, 'CS Satu');
     assert.equal(payload.attendance.length, 1);
     assert.equal(payload.attendance[0].checkIn.lateMinutes, 7, 'lateness admin wajib sama dengan yang dihitung untuk karyawan sendiri');
-    assert.equal(payload.payroll.length, 1);
-    assert.equal(payload.payroll[0].paymentType, 'JAM');
-    assert.equal(payload.payroll[0].hoursWorked, 2.5);
-    assert.equal(payload.payroll[0].earningRupiah, 50000);
+    assert.equal(payload.payroll, undefined, 'payroll sengaja dipindah ke endpoint sendiri, tidak lagi dibawa endpoint attendance');
   } finally { sqlite.close(); }
 });
 
-test('Angka yang dilihat Admin identik dengan yang dilihat karyawan sendiri lewat Portal Staf -- satu sumber perhitungan', async () => {
+test('Angka payroll yang dilihat Admin identik dengan yang dilihat karyawan sendiri lewat Portal Staf -- satu sumber perhitungan', async () => {
   const sqlite = freshDatabase();
   try {
     const env = { DB: new D1Database(sqlite) };
@@ -125,13 +126,15 @@ test('Angka yang dilihat Admin identik dengan yang dilihat karyawan sendiri lewa
     const staffToken = await cashierToken(sqlite, cashier.id);
     insertClosedSession(sqlite, cashier.id, 'store_pendem', '2026-09-24T01:00:00.000Z', '2026-09-24T09:00:00.000Z');
 
-    const adminResponse = await getAdminAttendance(env, adminToken, 'PENDEM', cashier.id);
+    const payrollPath = `/api/admin/cashiers/${encodeURIComponent(cashier.id)}/payroll`;
+    const adminResponse = await handleAdminCashierApi(request(payrollPath, { token: adminToken, store: 'PENDEM' }), env, payrollPath);
+    assert.equal(adminResponse.status, 200);
     const adminPayload = await adminResponse.json();
     const staffResponse = await handleStaffPortalApi(request('/api/staff/portal', { token: staffToken }), env, '/api/staff/portal');
     const staffPayload = await staffResponse.json();
 
     assert.deepEqual(adminPayload.payroll, staffPayload.payroll);
-    assert.equal(adminPayload.attendance[0].checkIn.at, staffPayload.attendance[0].checkIn.at);
+    assert.deepEqual(adminPayload.adjustments, [], 'belum ada penyesuaian gaji, tapi field-nya wajib selalu ada (array kosong, bukan hilang)');
   } finally { sqlite.close(); }
 });
 

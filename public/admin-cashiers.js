@@ -126,7 +126,8 @@
           <div class="master-meta">${cashier.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
         <div class="master-actions">
-          <button class="mini-btn" type="button" data-attendance-cashier="${escapeHtml(cashier.id)}">📋 Presensi &amp; Gaji</button>
+          <button class="mini-btn" type="button" data-attendance-cashier="${escapeHtml(cashier.id)}">📋 Presensi</button>
+          <button class="mini-btn" type="button" data-payroll-cashier="${escapeHtml(cashier.id)}">💰 Gaji</button>
           <button class="mini-btn" type="button" data-edit-cashier="${escapeHtml(cashier.id)}">Edit</button>
           <button class="mini-btn danger" type="button" data-delete-cashier="${escapeHtml(cashier.id)}">Nonaktifkan</button>
         </div>
@@ -135,6 +136,7 @@
     document.querySelectorAll('[data-edit-cashier]').forEach(button => button.onclick = () => editCashier(button.dataset.editCashier));
     document.querySelectorAll('[data-delete-cashier]').forEach(button => button.onclick = () => deactivateCashier(button.dataset.deleteCashier));
     document.querySelectorAll('[data-attendance-cashier]').forEach(button => button.onclick = () => openAttendance(button.dataset.attendanceCashier));
+    document.querySelectorAll('[data-payroll-cashier]').forEach(button => button.onclick = () => openPayroll(button.dataset.payrollCashier));
   }
 
   // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang
@@ -198,24 +200,117 @@
       </div>
     </div>`;
   }
-  function payrollHtml(rows) {
-    if (!rows.length) return '<div class="empty">Belum ada sesi presensi yang selesai untuk dihitung gajinya.</div>';
-    const total = rows.reduce((sum, row) => sum + (Number(row.earningRupiah) || 0), 0);
-    return `<div class="admin-tip" style="margin-bottom:8px"><b>Total (${rows.length} sesi):</b> ${rupiah(total)}</div>
-      ${rows.map(row => `<div style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><strong>${escapeHtml(row.date)}</strong><div class="master-meta">${row.paymentType === 'SESI' ? 'Per sesi' : `Per jam${row.hoursWorked != null ? ` · ${row.hoursWorked} jam` : ''}`}</div></div><b>${rupiah(row.earningRupiah)}</b></div>`).join('')}`;
-  }
   async function openAttendance(id) {
     const cashier = data.cashiers.find(item => item.id === id);
     try {
       const payload = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/attendance`);
       const rows = payload.attendance || [];
       openAdminDetailModal({
-        head: `<div><h3 style="margin:0">Presensi &amp; Gaji</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')} · ${jobDetailLabel(cashier || { jobType: '', hourlyWage: 0, paymentType: 'JAM' })}</div></div>`,
-        body: `<h4 style="margin:0 0 8px">Riwayat Gaji</h4>${payrollHtml(payload.payroll || [])}
-          <h4 style="margin:16px 0 8px">Riwayat Presensi</h4>
-          <div>${rows.length ? rows.map(row => attendanceRowHtml(id, row)).join('') : '<div class="empty">Belum ada riwayat presensi.</div>'}</div>`
+        head: `<div><h3 style="margin:0">Presensi</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')}</div></div>`,
+        body: `<div>${rows.length ? rows.map(row => attendanceRowHtml(id, row)).join('') : '<div class="empty">Belum ada riwayat presensi.</div>'}</div>`
       });
       await loadAttendancePhotoThumbs();
+    } catch (error) { toast(error.message); }
+  }
+
+  // Bos Cyo, 2026-09-24: "untuk detil gaji dikasi tombol dan kolom sendiri
+  // saja. karna selain dari presensi, gaji nanti juga bisa dibuat oleh
+  // akuntan sendiri, misal tanggal 26 akuntan entry tambahan 30rb karena
+  // lembur ... jadi di tanggal 26 nanti akan terlihat 2 kartu, 1 dari
+  // presensi normal, 2 tambah entryan akuntan." payroll (dari presensi) dan
+  // adjustments (entry manual) DUA SUMBER BEDA -- digabung di sini per
+  // tanggal jadi kartu-kartu terpisah, bukan dijumlah jadi satu angka yang
+  // menyembunyikan dari mana asalnya.
+  let currentPayrollCashierId = null;
+  function payrollCardHtml(card) {
+    const positive = card.amountRupiah > 0;
+    const border = card.voided ? '#d8cfc2' : (card.kind === 'adjustment' ? (positive ? '#b2e6c9' : '#f3b8c6') : 'var(--line,#e6ddd0)');
+    const amountColor = card.voided ? 'var(--muted,#9c9284)' : (card.amountRupiah < 0 ? '#c2255c' : (card.kind === 'adjustment' ? '#2f9e44' : 'inherit'));
+    const voidBtn = (card.kind === 'adjustment' && !card.voided)
+      ? `<button class="mini-btn danger" type="button" data-void-adjustment="${escapeHtml(card.id)}" style="margin-top:6px">Batalkan</button>`
+      : '';
+    const subtitle = card.kind === 'adjustment'
+      ? `${escapeHtml(card.reason)}${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''} · <span class="master-meta">oleh ${escapeHtml(roleLabel(card.createdByRole))}</span>`
+      : `${card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`} · <span class="master-meta">dari presensi</span>`;
+    return `<div style="border:1px solid ${border};border-radius:16px;padding:10px;margin-bottom:6px;${card.voided ? 'opacity:.6' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>${subtitle}</div>
+        <b style="white-space:nowrap;color:${amountColor}">${card.amountRupiah < 0 ? '-' : ''}${rupiah(Math.abs(card.amountRupiah))}</b>
+      </div>
+      ${voidBtn}
+    </div>`;
+  }
+  function roleLabel(role) {
+    return { OWNER: 'Owner', ADMIN: 'Admin Gerai', ENTITY_ADMIN: 'Entity Admin', AGENT_TOKEN: 'Agen' }[role] || role || '-';
+  }
+  function payrollByDateHtml(payrollRows, adjustmentRows) {
+    const cardsByDate = new Map();
+    const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
+    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked });
+    for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', id: row.id, amountRupiah: row.amountRupiah, reason: row.reason, createdByRole: row.createdByRole, voided: row.voided, voidReason: row.voidReason });
+    if (!cardsByDate.size) return '<div class="empty">Belum ada riwayat gaji.</div>';
+    const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+    const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
+    return `<div class="admin-tip" style="margin-bottom:10px"><b>Total keseluruhan:</b> ${rupiah(grandTotal)}</div>
+      ${dates.map(date => {
+        const cards = cardsByDate.get(date);
+        const dayTotal = cards.reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
+        return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>${escapeHtml(date)}</strong><span class="master-meta">Subtotal: ${rupiah(dayTotal)}</span></div>${cards.map(payrollCardHtml).join('')}</div>`;
+      }).join('')}`;
+  }
+  async function openPayroll(id) {
+    const cashier = data.cashiers.find(item => item.id === id);
+    currentPayrollCashierId = id;
+    try {
+      const payload = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/payroll`);
+      openAdminDetailModal({
+        head: `<div><h3 style="margin:0">Gaji</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')} · ${jobDetailLabel(cashier || { jobType: '', hourlyWage: 0, paymentType: 'JAM' })}</div></div>`,
+        body: `
+          <form id="payrollAdjustmentForm" style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:12px;margin-bottom:16px">
+            <div class="admin-tip" style="margin-bottom:8px"><b>Penyesuaian Gaji</b> -- tambahan (lembur, bonus) atau potongan, terpisah dari hitungan presensi otomatis.</div>
+            <div class="admin-grid" style="grid-template-columns:1fr 1fr;gap:8px">
+              <label class="admin-field">Tanggal<input id="payrollAdjDate" type="date" required /></label>
+              <label class="admin-field">Nominal (Rp) <span class="field-note">boleh negatif = potongan</span><input id="payrollAdjAmount" type="number" step="1" required /></label>
+            </div>
+            <label class="admin-field">Alasan <span class="field-note">wajib, akan terlihat karyawan</span><input id="payrollAdjReason" maxlength="500" required /></label>
+            <button class="primary-btn" type="submit">Simpan Penyesuaian</button>
+          </form>
+          <div id="payrollCardsBody">${payrollByDateHtml(payload.payroll || [], payload.adjustments || [])}</div>`
+      });
+      el('payrollAdjustmentForm')?.addEventListener('submit', submitPayrollAdjustment);
+      bindVoidAdjustmentButtons();
+    } catch (error) { toast(error.message); }
+  }
+  function bindVoidAdjustmentButtons() {
+    document.querySelectorAll('[data-void-adjustment]').forEach(button => button.onclick = () => voidAdjustment(button.dataset.voidAdjustment));
+  }
+  async function submitPayrollAdjustment(event) {
+    event.preventDefault();
+    if (!currentPayrollCashierId) return;
+    try {
+      await request(`/api/admin/cashiers/${encodeURIComponent(currentPayrollCashierId)}/payroll`, {
+        method: 'POST',
+        body: JSON.stringify({
+          businessDate: el('payrollAdjDate').value,
+          amountRupiah: Number(el('payrollAdjAmount').value),
+          reason: el('payrollAdjReason').value
+        })
+      });
+      toast('Penyesuaian gaji disimpan');
+      await openPayroll(currentPayrollCashierId);
+    } catch (error) { toast(error.message); }
+  }
+  async function voidAdjustment(adjustmentId) {
+    if (!currentPayrollCashierId) return;
+    const reason = prompt('Alasan pembatalan penyesuaian ini?');
+    if (!reason || !reason.trim()) return;
+    try {
+      await request(`/api/admin/cashiers/${encodeURIComponent(currentPayrollCashierId)}/payroll-adjustments/${encodeURIComponent(adjustmentId)}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      });
+      toast('Penyesuaian dibatalkan');
+      await openPayroll(currentPayrollCashierId);
     } catch (error) { toast(error.message); }
   }
 

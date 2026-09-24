@@ -7,6 +7,7 @@ import { getCashierRaportFacts } from './staff-raport.js';
 // (src/cashier-auth.js) -- lihat komentar di staff-attendance.js untuk
 // alasan kenapa dipisah ke modul netral, bukan diimpor silang.
 import { scheduleMap, mapAttendance, listAttendance, buildPayroll } from './staff-attendance.js';
+import { listPayrollAdjustments } from './payroll-adjustments.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -28,7 +29,13 @@ export async function handleStaffPortalApi(request, env, pathname) {
       attendance,
       attendanceStatus: await latestAttendanceStatus(env.DB, auth.cashier.id),
       kpi: await getCashierRaportFacts(env.DB, auth.cashier.store.id, auth.cashier.id),
-      deposits: [], payroll: buildPayroll(attendance, jobDetail)
+      deposits: [],
+      payroll: buildPayroll(attendance, jobDetail),
+      // Bos Cyo, 2026-09-24: "gaji nanti juga bisa dibuat oleh akuntan
+      // sendiri ... jadi di tanggal 26 nanti akan terlihat 2 kartu." Ini
+      // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
+      // kelihatan di sini juga, bukan cuma di panel Admin.
+      payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id })
     });
   }
 

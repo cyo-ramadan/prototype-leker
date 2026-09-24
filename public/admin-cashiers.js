@@ -48,7 +48,6 @@
           </form>
           <div class="admin-card list-card">
             <div class="list-head"><h2>Master kasir gerai</h2><span id="cashierCount" class="master-count">0</span></div>
-            <label class="admin-check" style="margin-bottom:12px"><input id="cashierScheduleGateToggle" type="checkbox" /> Batasi gaji & presensi sesuai jadwal shift <span class="field-note">kalau ON: presensi di luar jam shift/hari libur gajinya Rp0, dan sesi yang lupa ditutup 1 jam setelah jadwal pulang otomatis ditutup sistem (kartu kuning). Kalau OFF: kembali ke perilaku lama, semua presensi dihitung penuh.</span></label>
             <div id="cashierList" class="master-list"></div>
           </div>
         </div>
@@ -133,7 +132,6 @@
   function render() {
     if (el('cashierStoreLabel')) el('cashierStoreLabel').textContent = data.store ? `${data.store.code} · ${data.store.storeName}` : (window.LEKER_STORE_CODE || 'G001');
     el('cashierCount').textContent = data.cashiers.length;
-    if (el('cashierScheduleGateToggle')) el('cashierScheduleGateToggle').checked = data.store?.attendanceScheduleGateEnabled !== false;
     el('cashierList').innerHTML = data.cashiers.length ? data.cashiers.map(cashier => `
       <div class="master-row contact-row ${cashier.isActive ? '' : 'inactive'}">
         <div class="master-main">
@@ -446,29 +444,10 @@
     } catch (error) { toast(error.message); }
   }
 
-  // Bos Cyo, 2026-09-24: "perkara ga ada bayaran gaji ketika diluar jam
-  // kerja dan force close ini msukin ke settingan aja, bisa on, bisa off.
-  // defaultnya on aja."
-  async function toggleScheduleGate(event) {
-    const enabled = event.target.checked;
-    try {
-      await request('/api/admin/cashiers/settings', {
-        method: 'PATCH',
-        body: JSON.stringify({ attendanceScheduleGateEnabled: enabled })
-      });
-      if (data.store) data.store.attendanceScheduleGateEnabled = enabled;
-      toast(enabled ? 'Gerbang jadwal gaji & force-close presensi diaktifkan' : 'Gerbang jadwal gaji & force-close presensi dimatikan');
-    } catch (error) {
-      event.target.checked = !enabled;
-      toast(error.message);
-    }
-  }
-
   document.querySelector('[data-tab="cashiers"]')?.addEventListener('click', switchTab);
   el('cashierForm')?.addEventListener('submit', save);
   el('cashierCancelEdit')?.addEventListener('click', resetForm);
   el('cashierPaymentType')?.addEventListener('change', syncWageLabel);
-  el('cashierScheduleGateToggle')?.addEventListener('change', toggleScheduleGate);
   syncWageLabel();
   // Klik "Libur" mematikan (bukan menghapus nilainya) input jam hari itu --
   // kalau di-uncheck lagi, jamnya masih ada seperti sebelumnya.

@@ -96,9 +96,10 @@ export function mapAttendance(row, scheduleByDay = new Map()) {
 //
 // `enabled` -- Bos Cyo, 2026-09-24: "perkara ga ada bayaran gaji ketika
 // diluar jam kerja dan force close ini msukin ke settingan aja, bisa on,
-// bisa off. defaultnya on aja." Saklar per-gerai (stores.
-// attendance_schedule_gate_enabled, migration 0118) -- caller meneruskan
-// nilainya dari store yang sedang dibuka. Off = fungsi ini no-op sama sekali.
+// bisa off. defaultnya on aja." Lalu dikoreksi hari yang sama: "opsi on/off
+// nya itu adalah kebijakan suatu tenant" -- bukan saklar per-gerai. Caller
+// (cashier-auth.js/staff-portal.js) meneruskan nilai yang sudah diresolusi
+// lewat src/tenant-policy.js. Off = fungsi ini no-op sama sekali.
 export async function forceCloseOverdueSessions(db, userId, scheduleByDay, enabled = true) {
   if (!enabled) return;
   const openRows = await db.prepare(`SELECT id, created_at FROM staff_attendance WHERE user_id = ? AND status = 'OPEN'`).bind(userId).all();

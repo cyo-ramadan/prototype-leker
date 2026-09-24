@@ -5,6 +5,7 @@ import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-a
 import { listPayrollAdjustments, createPayrollAdjustment, voidPayrollAdjustment } from './payroll-adjustments.js';
 import { activateEntityBackupCashier } from './entity-backup-cashiers.js';
 import { getJakartaBusinessDate } from './time.js';
+import { resolveTenantId, getTenantPolicySetting, ATTENDANCE_SCHEDULE_GATE_KEY } from './tenant-policy.js';
 
 // Identitas pemanggil requireManagement (Owner/Admin Gerai/Entity Admin/Agent
 // token) diringkas ke {role, id} generik -- dipakai sebagai jejak audit
@@ -182,8 +183,7 @@ function mapCashier(row, schedule = []) {
     store: {
       id: row.store_id,
       code: row.store_code,
-      storeName: row.store_name,
-      attendanceScheduleGateEnabled: row.attendance_schedule_gate_enabled == null ? true : Boolean(row.attendance_schedule_gate_enabled)
+      storeName: row.store_name
     },
     hourlyWage: Number(row.hourly_wage_scaled || 0) / WAGE_SCALE,
     jobType: row.job_type || '',
@@ -193,6 +193,16 @@ function mapCashier(row, schedule = []) {
   } : null;
 }
 
+// Bos Cyo, 2026-09-24: "opsi on/off nya itu adalah kebijakan suatu tenant"
+// -- diresolusi tiap request lewat entity_id gerai -> tenant_id (ADR-030),
+// bukan dibaca dari kolom `stores` (koreksi atas migration 0118). Lihat
+// src/tenant-policy.js untuk alasan lengkap kenapa levelnya tenant.
+async function attachAttendanceScheduleGate(db, cashier, entityId) {
+  const tenantId = await resolveTenantId(db, entityId);
+  cashier.store.attendanceScheduleGateEnabled = await getTenantPolicySetting(db, tenantId, ATTENDANCE_SCHEDULE_GATE_KEY);
+  return cashier;
+}
+
 export async function requireCashier(request, db) {
   const token = bearerToken(request);
   if (!token) return { ok: false, response: json({ error: 'Login kasir diperlukan.', code: 'CASHIER_LOGIN_REQUIRED' }, 401) };
@@ -200,7 +210,7 @@ export async function requireCashier(request, db) {
   const now = new Date().toISOString();
   const row = await db.prepare(`
     SELECT c.id, c.username, c.employee_name, c.is_active, c.is_entity_backup,
-           s.id AS store_id, s.code AS store_code, s.store_name, s.attendance_schedule_gate_enabled
+           s.id AS store_id, s.code AS store_code, s.store_name, s.entity_id
     FROM cashier_sessions cs
     JOIN cashiers c ON c.id = cs.cashier_id
     JOIN stores s ON s.id = c.store_id
@@ -209,7 +219,8 @@ export async function requireCashier(request, db) {
     LIMIT 1
   `).bind(tokenHash, now).first();
   if (!row) return { ok: false, response: json({ error: 'Session kasir tidak valid atau sudah habis.', code: 'CASHIER_SESSION_EXPIRED' }, 401) };
-  return { ok: true, cashier: mapCashier(row), tokenHash };
+  const cashier = await attachAttendanceScheduleGate(db, mapCashier(row), row.entity_id);
+  return { ok: true, cashier, tokenHash };
 }
 
 // Bos Cyo, 2026-09-17: "harusnya liat persis banget halaman kasir, tapi
@@ -263,8 +274,7 @@ export async function handleCashierAuthApi(request, env, pathname) {
 
     const row = await db.prepare(`
       SELECT c.id, c.username, c.password_hash, c.employee_name, c.is_active, c.is_entity_backup,
-             s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active,
-             s.attendance_schedule_gate_enabled
+             s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active, s.entity_id
       FROM cashiers c
       JOIN stores s ON s.id = c.store_id
       WHERE c.username = ? COLLATE NOCASE
@@ -285,7 +295,8 @@ export async function handleCashierAuthApi(request, env, pathname) {
         .bind(tokenHash, row.id, now.toISOString(), expiresAt)
     ]);
 
-    return json({ token, expiresAt, cashier: mapCashier(row), attendanceStatus: await latestAttendanceStatus(db, row.id) });
+    const cashier = await attachAttendanceScheduleGate(db, mapCashier(row), row.entity_id);
+    return json({ token, expiresAt, cashier, attendanceStatus: await latestAttendanceStatus(db, row.id) });
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/me') {
@@ -319,6 +330,12 @@ export async function handleAdminCashierApi(request, env, pathname) {
   if (!auth.ok) return auth.response;
   const store = await selectedAdminStore(db, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  // Bos Cyo, 2026-09-24: "opsi on/off nya itu adalah kebijakan suatu
+  // tenant" -- lihat src/tenant-policy.js. Diresolusi sekali di sini,
+  // dipakai kedua route presensi/gaji di bawah.
+  const attendanceScheduleGateEnabled = await getTenantPolicySetting(
+    db, await resolveTenantId(db, store.entityId), ATTENDANCE_SCHEDULE_GATE_KEY
+  );
 
   if (request.method === 'GET' && pathname === '/api/admin/cashiers') {
     // Bos Cyo, 2026-09-24: "untuk akun backup mending ikut entity aja, jadi
@@ -373,20 +390,6 @@ export async function handleAdminCashierApi(request, env, pathname) {
     });
   }
 
-  // Bos Cyo, 2026-09-24: "perkara ga ada bayaran gaji ketika diluar jam
-  // kerja dan force close ini msukin ke settingan aja, bisa on, bisa off.
-  // defaultnya on aja." Satu saklar per gerai (migration 0118) mengendalikan
-  // dua perilaku sekaligus -- lihat komentar forceCloseOverdueSessions di
-  // staff-attendance.js untuk daftar lengkapnya.
-  if (request.method === 'PATCH' && pathname === '/api/admin/cashiers/settings') {
-    const body = await readJson(request);
-    if (!body.ok) return json({ error: 'Payload pengaturan tidak valid.' }, 400);
-    const enabled = body.value?.attendanceScheduleGateEnabled !== false ? 1 : 0;
-    await db.prepare(`UPDATE stores SET attendance_schedule_gate_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-      .bind(enabled, store.id).run();
-    return json({ ok: true, attendanceScheduleGateEnabled: Boolean(enabled) });
-  }
-
   if (request.method === 'POST' && pathname === '/api/admin/cashiers') {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload kasir tidak valid.' }, 400);
@@ -432,7 +435,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
     const cashier = await db.prepare('SELECT id, employee_name, username FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
     if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
     const scheduleByDay = scheduleMap(await loadSchedule(db, id));
-    const attendance = await listAttendance(db, id, scheduleByDay, store.attendanceScheduleGateEnabled);
+    const attendance = await listAttendance(db, id, scheduleByDay, attendanceScheduleGateEnabled);
     return json({
       cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
       attendance
@@ -456,11 +459,11 @@ export async function handleAdminCashierApi(request, env, pathname) {
     if (request.method === 'GET') {
       const jobDetail = await loadJobDetail(db, id);
       const scheduleByDay = scheduleMap(await loadSchedule(db, id));
-      const attendance = await listAttendance(db, id, scheduleByDay, store.attendanceScheduleGateEnabled);
+      const attendance = await listAttendance(db, id, scheduleByDay, attendanceScheduleGateEnabled);
       const adjustments = await listPayrollAdjustments(db, { accountId: id, storeId: store.id });
       return json({
         cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
-        payroll: buildPayroll(attendance, jobDetail, scheduleByDay, store.attendanceScheduleGateEnabled),
+        payroll: buildPayroll(attendance, jobDetail, scheduleByDay, attendanceScheduleGateEnabled),
         adjustments
       });
     }

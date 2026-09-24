@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleStaffPortalApi } from '../src/staff-portal.js';
-import { handleAdminCashierApi } from '../src/cashier-auth.js';
 import { getCashierRaportFacts } from '../src/staff-raport.js';
 import { getJakartaDayOfWeek, getJakartaTimeOfDay, jakartaWallClockToUtc, getJakartaBusinessDate } from '../src/time.js';
 import { hashCredential } from '../src/owner-auth.js';
+import { resolveTenantId, getTenantPolicySetting, setTenantPolicySetting, ATTENDANCE_SCHEDULE_GATE_KEY } from '../src/tenant-policy.js';
 
 // Bos Cyo, 2026-09-24: "dibuat juga ya, ketika satu jam setelah waktu
 // presensi pulang dia belum absen maka langsung force close tanpa foto dan
@@ -100,23 +100,6 @@ function attendanceRequest({ token, type }) {
     headers: { Authorization: `Bearer ${token}` },
     body: form
   });
-}
-
-function adminRequest(pathname, { token, store, method = 'GET', body } = {}) {
-  const url = new URL(`https://example.test${pathname}`);
-  if (store) url.searchParams.set('store', store);
-  return new Request(url, {
-    method,
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined
-  });
-}
-
-async function seedAdminToken(db, adminId) {
-  const token = `emp-admin-${adminId}`;
-  db.prepare(`INSERT INTO store_admin_sessions (token_hash, admin_id, created_at, expires_at) VALUES (?, ?, '2026-06-01T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`)
-    .run(await hashCredential(token), adminId);
-  return token;
 }
 
 // 2020-01-01T01:00:00.000Z = Jakarta 2020-01-01 08:00 -- historis, jauh di
@@ -233,7 +216,8 @@ test('Saklar OFF: presensi di luar jadwal tetap dihitung penuh dan sesi kelupaan
   try {
     const env = { DB: new D1Database(db) };
     const pendem = storeRow(db, 'PENDEM');
-    db.prepare(`UPDATE stores SET attendance_schedule_gate_enabled = 0 WHERE id = ?`).run(pendem.id);
+    const tenantId = await resolveTenantId(env.DB, pendem.entity_id);
+    await setTenantPolicySetting(env.DB, tenantId, ATTENDANCE_SCHEDULE_GATE_KEY, false);
     const cashier = await seedCashier(db, pendem.id, 'fc6', 'CS Force Close Enam');
     seedJobDetail(db, cashier.id, { hourlyWage: 50000, paymentType: 'SESI' });
     seedSchedule(db, cashier.id, HISTORICAL_DAY_OF_WEEK, { shiftStart: '09:00', shiftEnd: '10:00' });
@@ -248,32 +232,39 @@ test('Saklar OFF: presensi di luar jadwal tetap dihitung penuh dan sesi kelupaan
   } finally { db.close(); }
 });
 
-test('PATCH /api/admin/cashiers/settings mengubah saklar dan tersimpan', async () => {
+// Bos Cyo, 2026-09-24 (koreksi): "setting2 jangan ditaruh disitu ... intinya
+// opsi on/off nya itu adalah kebijakan suatu tenant" -- saklar ini bukan lagi
+// kolom per-gerai di stores, jadi CRUD-nya sekarang lewat panel Kebijakan
+// Tenant milik Owner (src/owner-auth.js), bukan /api/admin/cashiers/settings.
+// Test CRUD endpoint itu ada di test/owner-tenant-entity-panel.test.js. Yang
+// masih relevan diuji di sini adalah resolusi nilainya lewat tenant, dipakai
+// oleh cashier-auth.js/staff-attendance.js.
+test('Saklar ON/OFF disimpan per tenant, bukan per gerai -- dua gerai beda tenant boleh beda kebijakan', async () => {
   const db = migratedDatabase();
   try {
     const env = { DB: new D1Database(db) };
-    const adminToken = await seedAdminToken(db, 'admin_pendem_pilot');
+    const pendem = storeRow(db, 'PENDEM');
+    const pendemTenantId = await resolveTenantId(env.DB, pendem.entity_id);
 
-    const off = await handleAdminCashierApi(adminRequest('/api/admin/cashiers/settings', {
-      token: adminToken, store: 'PENDEM', method: 'PATCH', body: { attendanceScheduleGateEnabled: false }
-    }), env, '/api/admin/cashiers/settings');
-    assert.equal(off.status, 200);
-    assert.equal((await off.json()).attendanceScheduleGateEnabled, false);
+    await setTenantPolicySetting(env.DB, pendemTenantId, ATTENDANCE_SCHEDULE_GATE_KEY, false);
+    assert.equal(await getTenantPolicySetting(env.DB, pendemTenantId, ATTENDANCE_SCHEDULE_GATE_KEY), false);
 
-    const listAfterOff = await handleAdminCashierApi(adminRequest('/api/admin/cashiers', { token: adminToken, store: 'PENDEM' }), env, '/api/admin/cashiers');
-    assert.equal((await listAfterOff.json()).store.attendanceScheduleGateEnabled, false);
-
-    const on = await handleAdminCashierApi(adminRequest('/api/admin/cashiers/settings', {
-      token: adminToken, store: 'PENDEM', method: 'PATCH', body: { attendanceScheduleGateEnabled: true }
-    }), env, '/api/admin/cashiers/settings');
-    assert.equal((await on.json()).attendanceScheduleGateEnabled, true);
+    db.prepare(`INSERT INTO tenants (id, name) VALUES ('TEN-FC-TEST', 'Tenant Lain')`).run();
+    assert.equal(
+      await getTenantPolicySetting(env.DB, 'TEN-FC-TEST', ATTENDANCE_SCHEDULE_GATE_KEY),
+      true,
+      'tenant lain tidak ikut berubah gara-gara tenant Pendem diubah'
+    );
   } finally { db.close(); }
 });
 
-test('Default saklar ON untuk gerai yang belum pernah diubah', async () => {
+test('Default saklar ON untuk tenant yang belum pernah diubah kebijakannya', async () => {
   const db = migratedDatabase();
   try {
-    const row = db.prepare('SELECT attendance_schedule_gate_enabled FROM stores WHERE code = ?').get('PENDEM');
-    assert.equal(row.attendance_schedule_gate_enabled, 1);
+    const env = { DB: new D1Database(db) };
+    const pendem = storeRow(db, 'PENDEM');
+    const tenantId = await resolveTenantId(env.DB, pendem.entity_id);
+    assert.ok(tenantId, 'Pendem harus sudah tertaut ke sebuah tenant lewat entity_tenancy');
+    assert.equal(await getTenantPolicySetting(env.DB, tenantId, ATTENDANCE_SCHEDULE_GATE_KEY), true);
   } finally { db.close(); }
 });

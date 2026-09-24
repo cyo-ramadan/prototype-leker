@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
+import { listLedgerForEmployee } from './payroll-ledger.js';
 
 // Master Karyawan (migration 0072). Pemisahan "orang" dari "akun login":
 // employees menyimpan manusianya (milik Entity), employee_account_links
@@ -324,6 +325,20 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
       return json({ error: 'Tautan sudah berubah di request lain.' }, 409);
     }
     return json({ ok: true });
+  }
+
+  // Riwayat Gaji per nama orang -- Bos Cyo, 2026-09-24: "riwayat gaji itu
+  // mending acuannya per nama orang aja ... kalo kita klik nama orang
+  // tersebut dari list maka keluar kartu2 gajinya pertanggal, dan dari mana
+  // gajinya tersebut dan masuk melalui apa." Lintas SEMUA akun/gerai yang
+  // pernah dipegang orang ini -- lihat listLedgerForEmployee, src/payroll-ledger.js.
+  const ledgerMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)\/payroll-ledger$/);
+  if (request.method === 'GET' && ledgerMatch) {
+    const id = decodeURIComponent(ledgerMatch[1]);
+    const employee = await db.prepare('SELECT id, full_name FROM employees WHERE id = ? AND entity_id = ?').bind(id, store.entityId).first();
+    if (!employee) return json({ error: 'Karyawan tidak ditemukan di entity gerai ini.' }, 404);
+    const { entries, hutangGajiBalanceRupiah } = await listLedgerForEmployee(db, id);
+    return json({ employee: { id: employee.id, fullName: employee.full_name }, entries, hutangGajiBalanceRupiah });
   }
 
   const employeeMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)$/);

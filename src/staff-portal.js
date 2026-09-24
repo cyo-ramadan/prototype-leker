@@ -6,7 +6,7 @@ import { getCashierRaportFacts } from './staff-raport.js';
 // karena dipakai dua sisi sekarang -- Portal Staf (di sini) dan Admin Gerai
 // (src/cashier-auth.js) -- lihat komentar di staff-attendance.js untuk
 // alasan kenapa dipisah ke modul netral, bukan diimpor silang.
-import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled, isWithinScheduledWindow } from './staff-attendance.js';
+import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled, isWithinScheduledWindow, forceCloseOverdueSessions } from './staff-attendance.js';
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
 import { recordAttendanceAccrual } from './payroll-ledger.js';
@@ -27,14 +27,14 @@ export async function handleStaffPortalApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/staff/portal') {
     const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
     const scheduleByDay = scheduleMap(await loadSchedule(env.DB, auth.cashier.id));
-    const attendance = await listAttendance(env.DB, auth.cashier.id, scheduleByDay);
+    const attendance = await listAttendance(env.DB, auth.cashier.id, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled);
     return json({
       staff: { userId: auth.cashier.id, username: auth.cashier.username, employeeName: auth.cashier.employeeName, store: auth.cashier.store },
       attendance,
       attendanceStatus: await latestAttendanceStatus(env.DB, auth.cashier.id),
       kpi: await getCashierRaportFacts(env.DB, auth.cashier.store.id, auth.cashier.id),
       deposits: [],
-      payroll: buildPayroll(attendance, jobDetail, scheduleByDay),
+      payroll: buildPayroll(attendance, jobDetail, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled),
       // Bos Cyo, 2026-09-24: "gaji nanti juga bisa dibuat oleh akuntan
       // sendiri ... jadi di tanggal 26 nanti akan terlihat 2 kartu." Ini
       // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
@@ -69,6 +69,15 @@ export async function handleStaffPortalApi(request, env, pathname) {
     const form = await request.formData();
     const attendanceType = String(form.get('type') || '').toLowerCase();
     if (!['in', 'out'].includes(attendanceType)) return json({ error: 'Tipe presensi wajib in atau out.' }, 400);
+
+    // Bos Cyo, 2026-09-24: sesi kemarin yang kelupaan ditutup (lewat 1 jam
+    // dari jadwal pulang) di-force-close DULU di sini, sebelum gerbang
+    // toggle presensi di bawah -- tanpa ini, presensi masuk hari ini akan
+    // ketolak selamanya ("Sudah presensi masuk") gara-gara sesi lama yang
+    // tidak pernah ditutup. Lihat forceCloseOverdueSessions di
+    // staff-attendance.js untuk alasan lengkap.
+    const scheduleByDay = scheduleMap(await loadSchedule(env.DB, auth.cashier.id));
+    await forceCloseOverdueSessions(env.DB, auth.cashier.id, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled);
 
     // 2026-09-04, Bos Cyo: presensi masuk/keluar adalah toggle state -- tidak
     // boleh presensi masuk dua kali berturut-turut tanpa presensi keluar
@@ -146,7 +155,9 @@ export async function handleStaffPortalApi(request, env, pathname) {
     // TIDAK dicatat ke Akun Gaji sama sekali (bukan dicatat lalu dibatalkan)
     // -- presensinya sendiri tetap tersimpan seperti biasa di staff_attendance.
     const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
-    if (jobDetail && isWithinScheduledWindow(updated.created_at, scheduleMap(await loadSchedule(env.DB, auth.cashier.id)))) {
+    const withinSchedule = !auth.cashier.store.attendanceScheduleGateEnabled
+      || isWithinScheduledWindow(updated.created_at, scheduleMap(await loadSchedule(env.DB, auth.cashier.id)));
+    if (jobDetail && withinSchedule) {
       const earningScaled = computeEarningScaled(jobDetail.payment_type, jobDetail.hourly_wage_scaled, updated.created_at, updated.check_out_at);
       const businessDate = getJakartaBusinessDate(new Date(updated.created_at));
       await recordAttendanceAccrual(env.DB, {

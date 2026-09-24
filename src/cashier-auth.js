@@ -182,7 +182,8 @@ function mapCashier(row, schedule = []) {
     store: {
       id: row.store_id,
       code: row.store_code,
-      storeName: row.store_name
+      storeName: row.store_name,
+      attendanceScheduleGateEnabled: row.attendance_schedule_gate_enabled == null ? true : Boolean(row.attendance_schedule_gate_enabled)
     },
     hourlyWage: Number(row.hourly_wage_scaled || 0) / WAGE_SCALE,
     jobType: row.job_type || '',
@@ -199,7 +200,7 @@ export async function requireCashier(request, db) {
   const now = new Date().toISOString();
   const row = await db.prepare(`
     SELECT c.id, c.username, c.employee_name, c.is_active, c.is_entity_backup,
-           s.id AS store_id, s.code AS store_code, s.store_name
+           s.id AS store_id, s.code AS store_code, s.store_name, s.attendance_schedule_gate_enabled
     FROM cashier_sessions cs
     JOIN cashiers c ON c.id = cs.cashier_id
     JOIN stores s ON s.id = c.store_id
@@ -262,7 +263,8 @@ export async function handleCashierAuthApi(request, env, pathname) {
 
     const row = await db.prepare(`
       SELECT c.id, c.username, c.password_hash, c.employee_name, c.is_active, c.is_entity_backup,
-             s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active
+             s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active,
+             s.attendance_schedule_gate_enabled
       FROM cashiers c
       JOIN stores s ON s.id = c.store_id
       WHERE c.username = ? COLLATE NOCASE
@@ -371,6 +373,20 @@ export async function handleAdminCashierApi(request, env, pathname) {
     });
   }
 
+  // Bos Cyo, 2026-09-24: "perkara ga ada bayaran gaji ketika diluar jam
+  // kerja dan force close ini msukin ke settingan aja, bisa on, bisa off.
+  // defaultnya on aja." Satu saklar per gerai (migration 0118) mengendalikan
+  // dua perilaku sekaligus -- lihat komentar forceCloseOverdueSessions di
+  // staff-attendance.js untuk daftar lengkapnya.
+  if (request.method === 'PATCH' && pathname === '/api/admin/cashiers/settings') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload pengaturan tidak valid.' }, 400);
+    const enabled = body.value?.attendanceScheduleGateEnabled !== false ? 1 : 0;
+    await db.prepare(`UPDATE stores SET attendance_schedule_gate_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .bind(enabled, store.id).run();
+    return json({ ok: true, attendanceScheduleGateEnabled: Boolean(enabled) });
+  }
+
   if (request.method === 'POST' && pathname === '/api/admin/cashiers') {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload kasir tidak valid.' }, 400);
@@ -416,7 +432,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
     const cashier = await db.prepare('SELECT id, employee_name, username FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
     if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
     const scheduleByDay = scheduleMap(await loadSchedule(db, id));
-    const attendance = await listAttendance(db, id, scheduleByDay);
+    const attendance = await listAttendance(db, id, scheduleByDay, store.attendanceScheduleGateEnabled);
     return json({
       cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
       attendance
@@ -440,11 +456,11 @@ export async function handleAdminCashierApi(request, env, pathname) {
     if (request.method === 'GET') {
       const jobDetail = await loadJobDetail(db, id);
       const scheduleByDay = scheduleMap(await loadSchedule(db, id));
-      const attendance = await listAttendance(db, id, scheduleByDay);
+      const attendance = await listAttendance(db, id, scheduleByDay, store.attendanceScheduleGateEnabled);
       const adjustments = await listPayrollAdjustments(db, { accountId: id, storeId: store.id });
       return json({
         cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
-        payroll: buildPayroll(attendance, jobDetail, scheduleByDay),
+        payroll: buildPayroll(attendance, jobDetail, scheduleByDay, store.attendanceScheduleGateEnabled),
         adjustments
       });
     }

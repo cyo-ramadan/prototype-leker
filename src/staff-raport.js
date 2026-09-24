@@ -24,7 +24,8 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
     db.prepare(`
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END), 0) AS closed,
-             COALESCE(SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END), 0) AS open
+             COALESCE(SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END), 0) AS open,
+             COALESCE(SUM(CASE WHEN auto_closed = 1 THEN 1 ELSE 0 END), 0) AS auto_closed
       FROM staff_attendance WHERE store_id = ? AND user_id = ?
     `).bind(storeId, cashierId).first(),
     db.prepare(`
@@ -56,7 +57,11 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
       attendance: {
         total: Number(attendance?.total || 0),
         closed: Number(attendance?.closed || 0),
-        open: Number(attendance?.open || 0)
+        open: Number(attendance?.open || 0),
+        // Bos Cyo, 2026-09-24: "di raport nanti juga ada catatan tidak tutup
+        // presensi berapa kali gt" -- sesi yang ditutup otomatis sistem
+        // (lupa presensi pulang), bukan ditutup kasirnya sendiri.
+        autoClosed: Number(attendance?.auto_closed || 0)
       },
       drawers: { total: Number(drawers?.total || 0), closed: Number(drawers?.closed || 0) }
     },

@@ -1,4 +1,4 @@
-import { getJakartaBusinessDate, getJakartaTimeOfDay, getJakartaDayOfWeek, timeOfDayToMinutes } from './time.js';
+import { getJakartaBusinessDate, getJakartaTimeOfDay, getJakartaDayOfWeek, timeOfDayToMinutes, jakartaWallClockToUtc } from './time.js';
 
 // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang ngga
 // ada di webnya admin, jadi ini saya sama mba rika juga bingung mau cek
@@ -58,6 +58,7 @@ export function mapAttendance(row, scheduleByDay = new Map()) {
     userId: row.user_id,
     storeId: row.store_id,
     status: row.status,
+    autoClosed: Boolean(row.auto_closed),
     checkIn: checkIn ? { ...checkIn, lateMinutes: computeLateMinutes(checkIn.at, scheduleByDay) } : null,
     checkOut: hasCheckOut ? {
       at: row.check_out_at,
@@ -69,10 +70,61 @@ export function mapAttendance(row, scheduleByDay = new Map()) {
   };
 }
 
-export async function listAttendance(db, userId, scheduleByDay, limit = 60) {
+// Bos Cyo, 2026-09-24: "ketika satu jam setelah waktu presensi pulang dia
+// belum absen maka langsung force close tanpa foto dan gps ... kartu
+// presensi hari itu juga jadi warna kuning." Dibedakan eksplisit dari alur
+// permit laci: "kalo laci gpp permit, karna memang akan dipakai cs lain.
+// kalo presensi langsung force close karna urusannya cuma dengan cs
+// bersangkutan" -- jadi LANGSUNG, tanpa pengajuan/ACC apa pun.
+//
+// check_out_at diisi jam PULANG JADWAL (shift_end), BUKAN shift_end+1jam --
+// jam ekstra itu cuma jeda deteksi sebelum sistem menyimpulkan "memang lupa
+// tutup", bukan jam lembur yang ikut dibayar. Bos Cyo eksplisit: lembur
+// sungguhan jalurnya lain -- "secara lapangan itu nanti bisa pake id user
+// backup atau lembur" (akun backup lintas gerai, atau entry Bea Gaji manual
+// "lembur") -- bukan dari jam tambahan di force-close ini.
+//
+// Lazy-expiry (dicek ulang tiap listAttendance() dipanggil, plus eksplisit
+// di awal POST /api/staff/attendance sebelum gerbang toggle presensi supaya
+// sesi kelupaan kemarin tidak memblokir presensi masuk hari ini), BUKAN
+// cron/polling periodik -- invariant CLAUDE.md #6, pola yang sama dengan
+// expireStalePermits (src/cashier-drawer-close-permit.js).
+//
+// Hari yang jadwalnya belum diatur Admin sama sekali (bukan ditandai libur,
+// cuma kosong) TIDAK di-force-close -- tidak ada "jam pulang" buat dijadikan
+// acuan, konsisten dengan computeLateMinutes/isWithinScheduledWindow.
+//
+// `enabled` -- Bos Cyo, 2026-09-24: "perkara ga ada bayaran gaji ketika
+// diluar jam kerja dan force close ini msukin ke settingan aja, bisa on,
+// bisa off. defaultnya on aja." Saklar per-gerai (stores.
+// attendance_schedule_gate_enabled, migration 0118) -- caller meneruskan
+// nilainya dari store yang sedang dibuka. Off = fungsi ini no-op sama sekali.
+export async function forceCloseOverdueSessions(db, userId, scheduleByDay, enabled = true) {
+  if (!enabled) return;
+  const openRows = await db.prepare(`SELECT id, created_at FROM staff_attendance WHERE user_id = ? AND status = 'OPEN'`).bind(userId).all();
+  const rows = openRows.results ?? [];
+  if (!rows.length) return;
+  const nowMs = Date.now();
+  for (const row of rows) {
+    const day = scheduleByDay.get(getJakartaDayOfWeek(new Date(row.created_at)));
+    if (!day || day.is_day_off || !day.shift_end) continue;
+    const shiftEndUtc = jakartaWallClockToUtc(getJakartaBusinessDate(new Date(row.created_at)), day.shift_end);
+    if (!shiftEndUtc) continue;
+    const deadline = new Date(shiftEndUtc.getTime() + 60 * 60 * 1000);
+    if (nowMs <= deadline.getTime()) continue;
+    await db.prepare(`
+      UPDATE staff_attendance SET status = 'CLOSED', check_out_at = ?, auto_closed = 1
+      WHERE id = ? AND status = 'OPEN'
+    `).bind(shiftEndUtc.toISOString(), row.id).run();
+  }
+}
+
+export async function listAttendance(db, userId, scheduleByDay, enabled = true, limit = 60) {
+  await forceCloseOverdueSessions(db, userId, scheduleByDay, enabled);
   const rows = await db.prepare(`
     SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
-           status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
+           status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters,
+           auto_closed
     FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
   `).bind(userId, limit).all();
   return (rows.results || []).map(row => mapAttendance(row, scheduleByDay));
@@ -124,14 +176,17 @@ export function isWithinScheduledWindow(checkInAt, scheduleByDay) {
   return checkInMinutes >= startMinutes && checkInMinutes <= endMinutes;
 }
 
-export function buildPayroll(attendanceRows, jobDetail, scheduleByDay = new Map()) {
+// `scheduleGateEnabled` -- saklar Bos Cyo (lihat forceCloseOverdueSessions
+// di atas untuk kutipan lengkap): off berarti SEMUA sesi dianggap dalam
+// jadwal (withinSchedule selalu true), persis perilaku sebelum fitur ini ada.
+export function buildPayroll(attendanceRows, jobDetail, scheduleByDay = new Map(), scheduleGateEnabled = true) {
   if (!jobDetail) return [];
   const hourlyWageScaled = Number(jobDetail.hourly_wage_scaled || 0);
   const paymentType = jobDetail.payment_type || 'JAM';
   return attendanceRows
     .filter(row => row.status === 'CLOSED' && row.checkIn && row.checkOut)
     .map(row => {
-      const withinSchedule = isWithinScheduledWindow(row.checkIn.at, scheduleByDay);
+      const withinSchedule = !scheduleGateEnabled || isWithinScheduledWindow(row.checkIn.at, scheduleByDay);
       const earningScaled = withinSchedule ? computeEarningScaled(paymentType, hourlyWageScaled, row.checkIn.at, row.checkOut.at) : 0;
       return {
         attendanceId: row.id,

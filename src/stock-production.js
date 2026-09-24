@@ -205,11 +205,20 @@ function validateTrackedProduction(product, components) {
 // whenever the product has an active recipe link, per Bos Cyo's direction.
 // A product with no recipe link has nothing to auto-produce from, so it can
 // only ever be sold Biasa (STOCK).
+//
+// Bos Cyo, 2026-09-24: "yang bisa dipasang di link dadakan hanyalah yang
+// hasilnya 1." Jual 1 = bikin 1 -- resep hasil banyak meninggalkan sisa batch
+// di stok umum, sehingga hapus penjualannya tidak bisa dibalik penuh
+// (transaction-correction-executor.js). resolveLinkedRecipe sudah menolak
+// link seperti itu; pengecekan di sini menahan link lama yang terlanjur ada.
 function resolveLineFulfillmentMode(product, requestedMode) {
-  const hasRecipe = Boolean(product.recipeLinkEnabled && product.recipe && product.recipe.outputQuantity >= 1);
+  const hasRecipe = Boolean(product.recipeLinkEnabled && product.recipe && product.recipe.outputQuantity === 1);
   if (!hasRecipe) {
     if (requestedMode === 'DADAKAN') {
-      return { ok: false, status: 409, error: `${product.name} belum terhubung ke resep aktif, tidak bisa dijual Dadakan.` };
+      const reason = product.recipeLinkEnabled && product.recipe
+        ? `resepnya menghasilkan ${product.recipe.outputQuantity}, sedangkan Dadakan hanya untuk resep hasil 1`
+        : 'belum terhubung ke resep aktif';
+      return { ok: false, status: 409, error: `${product.name} ${reason}, tidak bisa dijual Dadakan.` };
     }
     return { ok: true, mode: 'STOCK' };
   }

@@ -282,7 +282,7 @@ Active behavior:
 - until ACC, original transaction remains fully active;
 - approved Operational Expense correction soft-deletes the source and reconciles drawer/accounting;
 - normal-stock Sale correction returns stock using the original exact sale COGS snapshot, reverses earned points, soft-deletes source, and reverses any POSTED Accounting journal;
-- Sale with generated AUTO_DADAKAN production remains explicit `HOLD` until production-correction meaning is decided;
+- Sale with generated AUTO_DADAKAN production is corrected as an exact mirror: sale reversed, produced goods pulled back, components returned at their snapshot cost, production run `CANCELLED` (Bos Cyo 2026-09-24; see `contracts/transaction-void-permit-v1.md`). Dadakan links only accept recipes with output 1; legacy runs with output ≠ sold quantity still HOLD;
 - Purchase correction runs only when no later dependent stock/cost history exists; otherwise it remains explicit HOLD without rewriting downstream HPP;
 - Accounting reversal uses the same positive exact line amounts as the original journal with Debit/Credit sides swapped; negative journal-line amounts are not introduced;
 - corrected source facts are excluded from later manual POS Accounting reconciliation;
@@ -294,9 +294,9 @@ Active behavior:
 
 Raport facts are available, but score/grade remain `NEEDS_KPI_POLICY`. Bos Cyo still needs to define evaluation period, weights, target/direction, thresholds, and whether individual signals affect integrity score, operational score, or both.
 
-### Open: AUTO_DADAKAN Sale correction meaning
+### Resolved 2026-09-24: AUTO_DADAKAN Sale correction meaning
 
-If a Sale generated a production run, the correction executor currently HOLDs. Required business decision: should deleting/correcting the Sale also reverse that production run, or should produced goods remain as inventory? The system must not guess this because the two choices produce different stock/HPP history.
+Bos Cyo decided the Sale correction reverses its generated production as an exact mirror, and that only output-1 recipes may be linked for Dadakan ("jual 1 = bikin 1"), which guarantees there is no leftover batch to reconcile. Verified on production D1 before the change: 258 sellable-product recipes all have output 1, and none of 643 AUTO_DADAKAN runs produced more than was sold.
 
 ## Legacy business-fact seam
 

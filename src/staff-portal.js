@@ -6,7 +6,7 @@ import { getCashierRaportFacts } from './staff-raport.js';
 // karena dipakai dua sisi sekarang -- Portal Staf (di sini) dan Admin Gerai
 // (src/cashier-auth.js) -- lihat komentar di staff-attendance.js untuk
 // alasan kenapa dipisah ke modul netral, bukan diimpor silang.
-import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled } from './staff-attendance.js';
+import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled, isWithinScheduledWindow } from './staff-attendance.js';
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
 import { recordAttendanceAccrual } from './payroll-ledger.js';
@@ -34,7 +34,7 @@ export async function handleStaffPortalApi(request, env, pathname) {
       attendanceStatus: await latestAttendanceStatus(env.DB, auth.cashier.id),
       kpi: await getCashierRaportFacts(env.DB, auth.cashier.store.id, auth.cashier.id),
       deposits: [],
-      payroll: buildPayroll(attendance, jobDetail),
+      payroll: buildPayroll(attendance, jobDetail, scheduleByDay),
       // Bos Cyo, 2026-09-24: "gaji nanti juga bisa dibuat oleh akuntan
       // sendiri ... jadi di tanggal 26 nanti akan terlihat 2 kartu." Ini
       // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
@@ -139,8 +139,14 @@ export async function handleStaffPortalApi(request, env, pathname) {
     // -- bukan cuma dihitung ulang tiap kali dilihat seperti sebelumnya.
     // Kalau belum ada detail gaji diisi (jobDetail null/tarif 0), tidak ada
     // apa pun yang dicatat -- bukan error, cuma memang belum ada nilainya.
+    //
+    // Lalu koreksi Bos Cyo di hari yang sama: "kalo cs masuk diluar jam
+    // kerja seharusnya kan engga masuk itungan gaji?" -- sesi yang presensi
+    // masuknya di hari Libur atau di luar shift_start..shift_end hari itu
+    // TIDAK dicatat ke Akun Gaji sama sekali (bukan dicatat lalu dibatalkan)
+    // -- presensinya sendiri tetap tersimpan seperti biasa di staff_attendance.
     const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
-    if (jobDetail) {
+    if (jobDetail && isWithinScheduledWindow(updated.created_at, scheduleMap(await loadSchedule(env.DB, auth.cashier.id)))) {
       const earningScaled = computeEarningScaled(jobDetail.payment_type, jobDetail.hourly_wage_scaled, updated.created_at, updated.check_out_at);
       const businessDate = getJakartaBusinessDate(new Date(updated.created_at));
       await recordAttendanceAccrual(env.DB, {

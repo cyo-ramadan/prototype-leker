@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { bearerToken, hashCredential, requireManagement } from './owner-auth.js';
+import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js';
 
 const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -12,8 +13,9 @@ const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-
 // nama orangnya ... tombol karyawan itu yang aku maksudkan nama orang,
 // sedangkan yang ada di master kasir itu adalah employed atau pekerjaannya."
 // Sengaja BERTAHAN walau akun dioper ke karyawan lain (sifat jabatan, bukan
-// sifat orang) -- lihat migration 0104.
-export const WAGE_SCALE = 1_000_000;
+// sifat orang) -- lihat migration 0104. WAGE_SCALE sendiri didefinisikan di
+// staff-attendance.js supaya cashier-auth.js dan staff-portal.js sama-sama
+// bisa impor tanpa impor melingkar -- lihat komentar di sana.
 const MAX_HOURLY_WAGE_RUPIAH = 1_000_000; // pagar salah ketik, bukan aturan bisnis
 const owns = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
 
@@ -353,6 +355,58 @@ export async function handleAdminCashierApi(request, env, pathname) {
     await upsertJobDetail(db, id, detail.value);
     await upsertSchedule(db, id, schedule.value);
     return json({ ok: true, id }, 201);
+  }
+
+  // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang
+  // ngga ada di webnya admin, jadi ini saya sama mba rika juga bingung mau
+  // cek presensi dan hitung honornya, harus buka web lama." Riwayat Presensi
+  // + Riwayat Gaji (Portal Staf, /api/staff/portal) cuma pernah dibangun
+  // untuk karyawan melihat DIRINYA SENDIRI -- tidak pernah ada jalur Admin
+  // melihat riwayat karyawan LAIN. Endpoint ini pakai logika perhitungan
+  // yang SAMA PERSIS (staff-attendance.js) supaya angkanya konsisten dengan
+  // yang dilihat karyawan sendiri -- gaji pokok/tarifnya ikut hourlyWage +
+  // paymentType yang sudah diisi Admin di Master Kasir (GET /api/admin/cashiers
+  // di atas), bukan input terpisah.
+  const attendanceMatch = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)\/attendance$/);
+  if (attendanceMatch) {
+    if (request.method !== 'GET') return json({ error: 'Method tidak didukung.' }, 405);
+    const id = decodeURIComponent(attendanceMatch[1]);
+    const cashier = await db.prepare('SELECT id, employee_name, username FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
+    if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
+    const jobDetail = await loadJobDetail(db, id);
+    const scheduleByDay = scheduleMap(await loadSchedule(db, id));
+    const attendance = await listAttendance(db, id, scheduleByDay);
+    return json({
+      cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
+      attendance,
+      payroll: buildPayroll(attendance, jobDetail)
+    });
+  }
+
+  // Foto presensi versi Admin -- simetris dengan /api/staff/attendance/:id/photo
+  // (src/staff-portal.js), tapi discoped ke GERAI (lewat kepemilikan akun
+  // kasirnya), bukan ke diri sendiri. <img src="..."> browser tidak pernah
+  // membawa header Authorization custom (sama seperti versi staff), jadi
+  // caller wajib fetch() sebagai blob dulu -- lihat loadAttendancePhotoThumbs
+  // di public/staff.js untuk pola yang sama, ditiru di admin-cashiers.js.
+  const attendancePhotoMatch = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)\/attendance\/([^/]+)\/photo$/);
+  if (attendancePhotoMatch) {
+    if (request.method !== 'GET') return json({ error: 'Method tidak didukung.' }, 405);
+    const cashierId = decodeURIComponent(attendancePhotoMatch[1]);
+    const attendanceId = decodeURIComponent(attendancePhotoMatch[2]);
+    const cashier = await db.prepare('SELECT id FROM cashiers WHERE id = ? AND store_id = ?').bind(cashierId, store.id).first();
+    if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
+    const which = new URL(request.url).searchParams.get('which') === 'out' ? 'out' : 'in';
+    const blobColumn = which === 'out' ? 'check_out_photo_blob' : 'photo_blob';
+    const typeColumn = which === 'out' ? 'check_out_photo_type' : 'photo_type';
+    const row = await db.prepare(`
+      SELECT ${blobColumn} AS photo_blob, ${typeColumn} AS photo_type
+      FROM staff_attendance WHERE id = ? AND user_id = ?
+    `).bind(attendanceId, cashier.id).first();
+    if (!row || !row.photo_blob) return json({ error: 'Foto presensi tidak ditemukan.' }, 404);
+    return new Response(row.photo_blob, {
+      headers: { 'Content-Type': row.photo_type || 'image/jpeg', 'Cache-Control': 'private, max-age=86400' }
+    });
   }
 
   const match = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)$/);

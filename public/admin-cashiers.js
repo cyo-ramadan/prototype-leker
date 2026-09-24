@@ -126,6 +126,7 @@
           <div class="master-meta">${cashier.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
         <div class="master-actions">
+          <button class="mini-btn" type="button" data-attendance-cashier="${escapeHtml(cashier.id)}">📋 Presensi &amp; Gaji</button>
           <button class="mini-btn" type="button" data-edit-cashier="${escapeHtml(cashier.id)}">Edit</button>
           <button class="mini-btn danger" type="button" data-delete-cashier="${escapeHtml(cashier.id)}">Nonaktifkan</button>
         </div>
@@ -133,6 +134,89 @@
 
     document.querySelectorAll('[data-edit-cashier]').forEach(button => button.onclick = () => editCashier(button.dataset.editCashier));
     document.querySelectorAll('[data-delete-cashier]').forEach(button => button.onclick = () => deactivateCashier(button.dataset.deleteCashier));
+    document.querySelectorAll('[data-attendance-cashier]').forEach(button => button.onclick = () => openAttendance(button.dataset.attendanceCashier));
+  }
+
+  // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang
+  // ngga ada di webnya admin, jadi ini saya sama mba rika juga bingung mau
+  // cek presensi dan hitung honornya, harus buka web lama." Riwayat Presensi
+  // + Riwayat Gaji sebelumnya cuma pernah dibangun di Portal Staf (karyawan
+  // lihat dirinya sendiri, public/staff.js) -- warna/label lateness di bawah
+  // sengaja DITIRU PERSIS dari sana (nilai hex yang sama) supaya Admin dan
+  // karyawan melihat penilaian telat yang identik, bukan dua standar beda.
+  const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+  function dateTime(value) { return value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : ''; }
+  function locationLine(fact) {
+    if (!fact || fact.latitude == null || fact.longitude == null) return 'Lokasi tidak tersedia';
+    const accuracy = fact.accuracyMeters != null ? ` (±${Math.round(fact.accuracyMeters)}m)` : '';
+    return `${Number(fact.latitude).toFixed(5)}, ${Number(fact.longitude).toFixed(5)}${accuracy}`;
+  }
+  function latenessRowStyle(checkIn) {
+    const lateMinutes = checkIn?.lateMinutes;
+    if (lateMinutes == null || lateMinutes === 0) return '';
+    if (lateMinutes < 5) return 'background:#ffe4ec';
+    if (lateMinutes < 10) return 'background:#ffb3c6';
+    return 'background:#ff8fa3';
+  }
+  function latenessBadge(checkIn) {
+    const lateMinutes = checkIn?.lateMinutes;
+    if (lateMinutes == null) return '';
+    if (lateMinutes === 0) return ' · <span style="font-weight:800;color:#2f9e44">Tepat waktu</span>';
+    const color = lateMinutes < 5 ? '#d6336c' : lateMinutes < 10 ? '#c2255c' : '#a4133c';
+    return ` · <span style="font-weight:800;color:${color}">Telat ${lateMinutes} menit</span>`;
+  }
+  function attendancePhotoThumb(cashierId, row, which) {
+    const fact = which === 'in' ? row.checkIn : row.checkOut;
+    if (!fact) return '';
+    // <img src="..."> browser tidak pernah membawa Authorization Bearer
+    // header custom -- src dikosongkan dulu, diisi lewat fetch()+blob URL
+    // di loadAttendancePhotoThumbs() (sama seperti public/staff.js).
+    return `<img class="attendance-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:10px;margin-right:6px;background:var(--line,#eee)" data-photo-cashier="${escapeHtml(cashierId)}" data-photo-attendance="${escapeHtml(row.id)}" data-photo-which="${which}" alt="Foto presensi ${which === 'in' ? 'datang' : 'pulang'}" loading="lazy" />`;
+  }
+  let attendancePhotoUrls = [];
+  async function loadAttendancePhotoThumbs() {
+    attendancePhotoUrls.forEach(url => URL.revokeObjectURL(url));
+    attendancePhotoUrls = [];
+    const nodes = [...document.querySelectorAll('[data-photo-attendance]')];
+    await Promise.all(nodes.map(async img => {
+      try {
+        const response = await fetch(`/api/admin/cashiers/${encodeURIComponent(img.dataset.photoCashier)}/attendance/${encodeURIComponent(img.dataset.photoAttendance)}/photo?which=${img.dataset.photoWhich}`);
+        if (!response.ok) return;
+        const url = URL.createObjectURL(await response.blob());
+        attendancePhotoUrls.push(url);
+        img.src = url;
+      } catch {}
+    }));
+  }
+  function attendanceRowHtml(cashierId, row) {
+    return `<div style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:10px;margin-bottom:8px;display:flex;align-items:center;${latenessRowStyle(row.checkIn)}">
+      ${attendancePhotoThumb(cashierId, row, 'in')}${attendancePhotoThumb(cashierId, row, 'out')}
+      <div>
+        <strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>
+        <div class="master-meta">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div>
+        <div class="master-meta">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}` : '—'}</div>
+      </div>
+    </div>`;
+  }
+  function payrollHtml(rows) {
+    if (!rows.length) return '<div class="empty">Belum ada sesi presensi yang selesai untuk dihitung gajinya.</div>';
+    const total = rows.reduce((sum, row) => sum + (Number(row.earningRupiah) || 0), 0);
+    return `<div class="admin-tip" style="margin-bottom:8px"><b>Total (${rows.length} sesi):</b> ${rupiah(total)}</div>
+      ${rows.map(row => `<div style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><strong>${escapeHtml(row.date)}</strong><div class="master-meta">${row.paymentType === 'SESI' ? 'Per sesi' : `Per jam${row.hoursWorked != null ? ` · ${row.hoursWorked} jam` : ''}`}</div></div><b>${rupiah(row.earningRupiah)}</b></div>`).join('')}`;
+  }
+  async function openAttendance(id) {
+    const cashier = data.cashiers.find(item => item.id === id);
+    try {
+      const payload = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/attendance`);
+      const rows = payload.attendance || [];
+      openAdminDetailModal({
+        head: `<div><h3 style="margin:0">Presensi &amp; Gaji</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')} · ${jobDetailLabel(cashier || { jobType: '', hourlyWage: 0, paymentType: 'JAM' })}</div></div>`,
+        body: `<h4 style="margin:0 0 8px">Riwayat Gaji</h4>${payrollHtml(payload.payroll || [])}
+          <h4 style="margin:16px 0 8px">Riwayat Presensi</h4>
+          <div>${rows.length ? rows.map(row => attendanceRowHtml(id, row)).join('') : '<div class="empty">Belum ada riwayat presensi.</div>'}</div>`
+      });
+      await loadAttendancePhotoThumbs();
+    } catch (error) { toast(error.message); }
   }
 
   async function load() {

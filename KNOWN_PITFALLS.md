@@ -195,6 +195,8 @@ Migration `0038_operational_accounting_boundary.sql` menghapus direct FK tersebu
 
 Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai migration ledger yang menyatakan `0018` sudah applied sementara dua compatibility table dari migration itu tidak ada. Migration `0023` kemudian gagal saat mencoba mengubah object yang hilang.
 
+Kejadian kedua (2026-09-24): `approval_permits` di production tidak punya kolom `accounting_status`, `original_journal_id`, `reversal_journal_id` walaupun `0027` tercatat applied. Finalisasi Permit Hapus Transaksi menulis ke kolom itu, jadi **setiap** eksekusi yang berhasil gagal di langkah terakhir dengan "Terjadi kesalahan server". Efek stok/void-nya sudah jalan, tapi permit tetap tampak HOLD/NOT_ATTEMPTED (0 permit pernah `EXECUTED`). Test lokal tetap hijau karena database test dibangun dari file migration yang lengkap. Perbaikannya: finalisasi tidak lagi menulis ke kolom tersebut (status Accounting masuk `execution_detail`). Sebelum menulis ke kolom lama di tabel production, cek dulu `pragma_table_info` di D1 remote.
+
 **Current recovery discipline:**
 
 - ketika remote migration gagal karena missing/shape-mismatched object, inspect `d1 migrations list`, `sqlite_schema`, dan `PRAGMA table_info(...)` sebelum mengubah source migration;

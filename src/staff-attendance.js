@@ -97,14 +97,42 @@ export function computeEarningScaled(paymentType, hourlyWageScaled, checkInAt, c
   return Math.round((minutes * hourlyWageScaled) / 60);
 }
 
-export function buildPayroll(attendanceRows, jobDetail) {
+// Bos Cyo, 2026-09-24: "kalo cs masuk diluar jam kerja seharusnya kan engga
+// masuk itungan gaji?" -- sebelum ini jadwal cuma dipakai buat label telat
+// (computeLateMinutes), tidak pernah membatasi apakah sesinya dibayar.
+// Sekarang jadi pagar gaji juga: presensi masuk di HARI yang ditandai Libur,
+// atau di LUAR rentang shift_start..shift_end hari itu, gajinya 0 --
+// presensinya sendiri TETAP tersimpan dan kelihatan di riwayat, cuma tidak
+// ikut dihitung/dicatat sebagai gaji (Bos Cyo eksplisit pilih ini, bukan
+// dipotong ke jam jadwal atau ditandai buat ditinjau manual).
+//
+// Jadwal yang belum diisi SAMA SEKALI untuk hari itu (bukan ditandai libur,
+// cuma kosong/belum diatur Admin) TIDAK membatasi apa pun -- konsisten
+// dengan computeLateMinutes: kosong berarti "belum ada aturan untuk
+// dinilai", bukan otomatis dianggap "di luar jadwal". Shift lintas tengah
+// malam sengaja tidak ditangani di sini juga (sama seperti
+// computeLateMinutes), cuma dibandingkan jam-menit di hari presensi masuk.
+export function isWithinScheduledWindow(checkInAt, scheduleByDay) {
+  const day = scheduleByDay.get(getJakartaDayOfWeek(new Date(checkInAt)));
+  if (!day) return true;
+  if (day.is_day_off) return false;
+  if (!day.shift_start || !day.shift_end) return true;
+  const startMinutes = timeOfDayToMinutes(day.shift_start);
+  const endMinutes = timeOfDayToMinutes(day.shift_end);
+  const checkInMinutes = timeOfDayToMinutes(getJakartaTimeOfDay(new Date(checkInAt)));
+  if (startMinutes === null || endMinutes === null || checkInMinutes === null) return true;
+  return checkInMinutes >= startMinutes && checkInMinutes <= endMinutes;
+}
+
+export function buildPayroll(attendanceRows, jobDetail, scheduleByDay = new Map()) {
   if (!jobDetail) return [];
   const hourlyWageScaled = Number(jobDetail.hourly_wage_scaled || 0);
   const paymentType = jobDetail.payment_type || 'JAM';
   return attendanceRows
     .filter(row => row.status === 'CLOSED' && row.checkIn && row.checkOut)
     .map(row => {
-      const earningScaled = computeEarningScaled(paymentType, hourlyWageScaled, row.checkIn.at, row.checkOut.at);
+      const withinSchedule = isWithinScheduledWindow(row.checkIn.at, scheduleByDay);
+      const earningScaled = withinSchedule ? computeEarningScaled(paymentType, hourlyWageScaled, row.checkIn.at, row.checkOut.at) : 0;
       return {
         attendanceId: row.id,
         date: getJakartaBusinessDate(new Date(row.checkIn.at)),
@@ -112,7 +140,8 @@ export function buildPayroll(attendanceRows, jobDetail) {
         hoursWorked: paymentType === 'JAM'
           ? Math.round(((new Date(row.checkOut.at).getTime() - new Date(row.checkIn.at).getTime()) / 3600000) * 100) / 100
           : null,
-        earningRupiah: earningScaled / WAGE_SCALE
+        earningRupiah: earningScaled / WAGE_SCALE,
+        withinSchedule
       };
     });
 }

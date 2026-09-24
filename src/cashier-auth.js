@@ -444,7 +444,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
       const adjustments = await listPayrollAdjustments(db, { accountId: id, storeId: store.id });
       return json({
         cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
-        payroll: buildPayroll(attendance, jobDetail),
+        payroll: buildPayroll(attendance, jobDetail, scheduleByDay),
         adjustments
       });
     }

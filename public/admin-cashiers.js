@@ -258,7 +258,7 @@
       : '';
     const subtitle = card.kind === 'adjustment'
       ? `${escapeHtml(card.reason)}${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''} · <span class="master-meta">oleh ${escapeHtml(roleLabel(card.createdByRole))}</span>`
-      : `${card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`} · <span class="master-meta">dari presensi</span>`;
+      : `${card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`} · <span class="master-meta">dari presensi</span>${card.withinSchedule === false ? ' · <span style="color:#c2255c;font-weight:700">Di luar jadwal, tidak dihitung</span>' : ''}`;
     return `<div style="border:1px solid ${border};border-radius:16px;padding:10px;margin-bottom:6px;${card.voided ? 'opacity:.6' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div>${subtitle}</div>
@@ -273,7 +273,7 @@
   function payrollByDateHtml(payrollRows, adjustmentRows) {
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
-    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked });
+    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule });
     for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', id: row.id, amountRupiah: row.amountRupiah, reason: row.reason, createdByRole: row.createdByRole, voided: row.voided, voidReason: row.voidReason });
     if (!cardsByDate.size) return '<div class="empty">Belum ada riwayat gaji.</div>';
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));

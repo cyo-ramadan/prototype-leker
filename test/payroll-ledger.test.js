@@ -66,6 +66,15 @@ async function seedCashier(db, storeId, username, employeeName) {
   return { id, token };
 }
 
+// day_of_week: 0=Minggu .. 6=Sabtu (sama seperti getJakartaDayOfWeek). 2026-09-24
+// (dipakai berulang sebagai tanggal presensi di file ini) jatuh di day_of_week 4 (Kamis).
+function seedSchedule(db, accountId, dayOfWeek, { isDayOff = false, shiftStart = '', shiftEnd = '' } = {}) {
+  db.prepare(`
+    INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+    VALUES ('CASHIER', ?, ?, ?, ?, ?)
+  `).run(accountId, dayOfWeek, isDayOff ? 1 : 0, shiftStart, shiftEnd);
+}
+
 function seedJobDetail(db, cashierId, { hourlyWage = 50000, paymentType = 'SESI' } = {}) {
   db.prepare(`
     INSERT INTO account_job_details (account_type, account_id, hourly_wage_scaled, job_type, payment_type, updated_at)
@@ -334,5 +343,92 @@ test('Void Bea Gaji ikut membatalkan mirror-nya di Akun Gaji, saldo Hutang Gaji 
     assert.equal(afterPayload.hutangGajiBalanceRupiah, 0, 'baris dibatalkan tidak boleh ikut saldo lagi');
     assert.equal(afterPayload.entries.length, 1, 'baris tetap ada (append-only), ditandai voided');
     assert.equal(afterPayload.entries[0].voided, true);
+  } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-09-24: "kalo cs masuk diluar jam kerja seharusnya kan engga
+// masuk itungan gaji?" -- jadwal (account_shift_schedule) sekarang jadi
+// pagar gaji, bukan cuma label telat.
+
+function portalRequest(token) {
+  return new Request('https://example.test/api/staff/portal', { headers: { Authorization: `Bearer ${token}` } });
+}
+
+test('Presensi masuk di hari yang ditandai Libur -- gaji Rp0, tidak masuk Akun Gaji', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    const pendem = storeRow(db, 'PENDEM');
+    const cashier = await seedCashier(db, pendem.id, 'jadwal1', 'CS Jadwal Satu');
+    seedJobDetail(db, cashier.id, { hourlyWage: 50000, paymentType: 'SESI' });
+    seedSchedule(db, cashier.id, 4, { isDayOff: true }); // 2026-09-24 = Kamis (day_of_week 4)
+
+    await checkIn(env, cashier.token);
+    backdateOpenSession(db, cashier.id, '2026-09-24T01:00:00.000Z'); // Jakarta 08:00, hari Libur
+    await checkOut(env, cashier.token);
+
+    const rows = db.prepare(`SELECT * FROM payroll_ledger_entries WHERE account_id = ?`).all(cashier.id);
+    assert.equal(rows.length, 0, 'hari Libur -- tidak boleh ada baris Akun Gaji sama sekali');
+
+    const portalRes = await handleStaffPortalApi(portalRequest(cashier.token), env, '/api/staff/portal');
+    const portalPayload = await portalRes.json();
+    assert.equal(portalPayload.payroll.length, 1, 'presensinya sendiri tetap kelihatan di riwayat');
+    assert.equal(portalPayload.payroll[0].earningRupiah, 0);
+    assert.equal(portalPayload.payroll[0].withinSchedule, false);
+  } finally { db.close(); }
+});
+
+test('Presensi masuk di luar rentang jam shift hari itu -- gaji Rp0', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    const pendem = storeRow(db, 'PENDEM');
+    const cashier = await seedCashier(db, pendem.id, 'jadwal2', 'CS Jadwal Dua');
+    seedJobDetail(db, cashier.id, { hourlyWage: 50000, paymentType: 'SESI' });
+    seedSchedule(db, cashier.id, 4, { shiftStart: '09:00', shiftEnd: '18:00' }); // Kamis 09-18
+
+    await checkIn(env, cashier.token);
+    backdateOpenSession(db, cashier.id, '2026-09-24T15:00:00.000Z'); // Jakarta 22:00 -- di luar 09-18
+    await checkOut(env, cashier.token);
+
+    const rows = db.prepare(`SELECT * FROM payroll_ledger_entries WHERE account_id = ?`).all(cashier.id);
+    assert.equal(rows.length, 0, 'presensi jam 22:00 di luar shift 09-18 -- tidak boleh dicatat ke Akun Gaji');
+  } finally { db.close(); }
+});
+
+test('Presensi masuk DALAM rentang jam shift tetap dihitung normal -- pagar tidak kebablasan', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    const pendem = storeRow(db, 'PENDEM');
+    const cashier = await seedCashier(db, pendem.id, 'jadwal3', 'CS Jadwal Tiga');
+    seedJobDetail(db, cashier.id, { hourlyWage: 50000, paymentType: 'SESI' });
+    seedSchedule(db, cashier.id, 4, { shiftStart: '09:00', shiftEnd: '18:00' });
+
+    await checkIn(env, cashier.token);
+    backdateOpenSession(db, cashier.id, '2026-09-24T02:30:00.000Z'); // Jakarta 09:30 -- dalam jadwal
+    await checkOut(env, cashier.token);
+
+    const rows = db.prepare(`SELECT * FROM payroll_ledger_entries WHERE account_id = ?`).all(cashier.id);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].hutang_gaji_delta_scaled, 50000 * 1_000_000);
+  } finally { db.close(); }
+});
+
+test('Jadwal yang belum diatur sama sekali tidak membatasi apa pun -- presensi tetap dihitung seperti biasa', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    const pendem = storeRow(db, 'PENDEM');
+    const cashier = await seedCashier(db, pendem.id, 'jadwal4', 'CS Jadwal Empat');
+    seedJobDetail(db, cashier.id, { hourlyWage: 50000, paymentType: 'SESI' });
+    // Sengaja TIDAK seedSchedule sama sekali.
+
+    await checkIn(env, cashier.token);
+    backdateOpenSession(db, cashier.id, '2026-09-24T15:00:00.000Z'); // jam berapa pun, belum ada aturan
+    await checkOut(env, cashier.token);
+
+    const rows = db.prepare(`SELECT * FROM payroll_ledger_entries WHERE account_id = ?`).all(cashier.id);
+    assert.equal(rows.length, 1, 'jadwal kosong bukan berarti "di luar jadwal" -- tidak ada dasar pembatasan');
   } finally { db.close(); }
 });

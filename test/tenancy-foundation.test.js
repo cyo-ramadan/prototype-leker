@@ -130,7 +130,7 @@ test('tenant and group identity stay out of every other table', () => {
   }
   assert.deepEqual(
     tenantHolders.sort(),
-    ['consolidation_groups', 'entity_tenancy', 'tenant_module_installations'],
+    ['consolidation_groups', 'entity_tenancy', 'tenant_module_installations', 'tenant_policy_settings'],
     'tenant_id may live in ownership membership or tenant-scoped configuration only'
   );
 

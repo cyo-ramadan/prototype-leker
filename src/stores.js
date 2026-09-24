@@ -11,9 +11,6 @@ function mapStore(row) {
     entityId: row.entity_id ?? null,
     entityName: row.entity_name ?? null,
     tenantId: row.tenant_id ?? null,
-    // Bos Cyo, 2026-09-24: saklar per-gerai buat gerbang gaji-sesuai-jadwal +
-    // force-close presensi (migration 0118) -- default ON.
-    attendanceScheduleGateEnabled: row.attendance_schedule_gate_enabled == null ? true : Boolean(row.attendance_schedule_gate_enabled),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   } : null;
@@ -35,7 +32,6 @@ export async function resolveStore(db, token = DEFAULT_STORE_CODE, { includeInac
   const row = await db.prepare(`
     SELECT s.id, s.code, s.store_name, s.address, s.logo_data, s.is_active,
            s.entity_id, e.name AS entity_name, et.tenant_id,
-           s.attendance_schedule_gate_enabled,
            s.created_at, s.updated_at
     FROM stores s
     ${currentEntityContextJoin}
@@ -49,7 +45,6 @@ export async function listStores(db, { includeInactive = false } = {}) {
   const result = await db.prepare(`
     SELECT s.id, s.code, s.store_name, s.address, s.logo_data, s.is_active,
            s.entity_id, e.name AS entity_name, et.tenant_id,
-           s.attendance_schedule_gate_enabled,
            s.created_at, s.updated_at
     FROM stores s
     ${currentEntityContextJoin}

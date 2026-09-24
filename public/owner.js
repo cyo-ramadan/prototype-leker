@@ -4,7 +4,9 @@ const ownerState = {
   stores: [],
   sharingGroups: [],
   tenants: [],
-  entities: []
+  entities: [],
+  expandedTenantPolicyId: null,
+  tenantPolicySettings: []
 };
 
 const ownerEl = id => document.getElementById(id);
@@ -111,8 +113,57 @@ function renderOwnerTenants() {
   ownerEl('ownerTenantList').innerHTML = ownerState.tenants.length ? ownerState.tenants.map(tenant => `
     <div class="master-row">
       <div class="master-main"><strong>${ownerEscape(tenant.name)}</strong><div class="master-meta">${ownerEscape(tenant.status)}</div></div>
-    </div>`).join('') : '<div class="empty">Belum ada tenant.</div>';
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-toggle-tenant-policy="${ownerEscape(tenant.id)}">${ownerState.expandedTenantPolicyId === tenant.id ? 'Tutup kebijakan' : 'Kebijakan'}</button>
+      </div>
+    </div>
+    ${ownerState.expandedTenantPolicyId === tenant.id ? `
+    <div class="master-row" style="background:#f8f9fb;display:block">
+      ${ownerState.tenantPolicySettings.length ? ownerState.tenantPolicySettings.map(setting => `
+        <label class="admin-check" style="justify-content:flex-start;align-items:flex-start;gap:8px;display:flex;margin-bottom:10px">
+          <input type="checkbox" data-tenant-policy-key="${ownerEscape(setting.key)}" data-tenant-policy-tenant="${ownerEscape(tenant.id)}" ${setting.value ? 'checked' : ''} />
+          <span><b>${ownerEscape(setting.label)}</b><br><span class="muted" style="font-size:12px">${ownerEscape(setting.description)}</span></span>
+        </label>`).join('') : '<div class="empty">Belum ada kebijakan terdaftar.</div>'}
+    </div>` : ''}`).join('') : '<div class="empty">Belum ada tenant.</div>';
+  document.querySelectorAll('[data-toggle-tenant-policy]').forEach(button => {
+    button.onclick = () => toggleTenantPolicyPanel(button.dataset.toggleTenantPolicy);
+  });
+  document.querySelectorAll('[data-tenant-policy-key]').forEach(input => {
+    input.onchange = () => saveTenantPolicySetting(input.dataset.tenantPolicyTenant, input.dataset.tenantPolicyKey, input.checked);
+  });
   renderOwnerEntityTenantOptions();
+}
+
+async function toggleTenantPolicyPanel(tenantId) {
+  if (ownerState.expandedTenantPolicyId === tenantId) {
+    ownerState.expandedTenantPolicyId = null;
+    ownerState.tenantPolicySettings = [];
+    renderOwnerTenants();
+    return;
+  }
+  try {
+    const payload = await ownerApi(`/api/owner/tenants/${encodeURIComponent(tenantId)}/policy-settings`);
+    ownerState.expandedTenantPolicyId = tenantId;
+    ownerState.tenantPolicySettings = payload.settings || [];
+    renderOwnerTenants();
+  } catch (error) {
+    ownerToast(error.message);
+  }
+}
+
+async function saveTenantPolicySetting(tenantId, key, value) {
+  try {
+    const payload = await ownerApi(`/api/owner/tenants/${encodeURIComponent(tenantId)}/policy-settings`, {
+      method: 'PATCH',
+      body: JSON.stringify({ key, value })
+    });
+    ownerState.tenantPolicySettings = payload.settings || [];
+    renderOwnerTenants();
+    ownerToast('Kebijakan tenant tersimpan');
+  } catch (error) {
+    ownerToast(error.message);
+    renderOwnerTenants();
+  }
 }
 
 function renderOwnerEntityTenantOptions() {

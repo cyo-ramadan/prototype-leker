@@ -3,6 +3,8 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { bearerToken, hashCredential, requireManagement } from './owner-auth.js';
 import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js';
 import { listPayrollAdjustments, createPayrollAdjustment, voidPayrollAdjustment } from './payroll-adjustments.js';
+import { activateEntityBackupCashier } from './entity-backup-cashiers.js';
+import { getJakartaBusinessDate } from './time.js';
 
 // Identitas pemanggil requireManagement (Owner/Admin Gerai/Entity Admin/Agent
 // token) diringkas ke {role, id} generik -- dipakai sebagai jejak audit
@@ -185,6 +187,7 @@ function mapCashier(row, schedule = []) {
     hourlyWage: Number(row.hourly_wage_scaled || 0) / WAGE_SCALE,
     jobType: row.job_type || '',
     paymentType: row.payment_type || 'JAM',
+    isEntityBackup: Boolean(row.is_entity_backup),
     schedule
   } : null;
 }
@@ -195,7 +198,7 @@ export async function requireCashier(request, db) {
   const tokenHash = await hashCredential(token);
   const now = new Date().toISOString();
   const row = await db.prepare(`
-    SELECT c.id, c.username, c.employee_name, c.is_active,
+    SELECT c.id, c.username, c.employee_name, c.is_active, c.is_entity_backup,
            s.id AS store_id, s.code AS store_code, s.store_name
     FROM cashier_sessions cs
     JOIN cashiers c ON c.id = cs.cashier_id
@@ -258,7 +261,7 @@ export async function handleCashierAuthApi(request, env, pathname) {
     if (!username || !password) return json({ error: 'Username dan password wajib diisi.' }, 400);
 
     const row = await db.prepare(`
-      SELECT c.id, c.username, c.password_hash, c.employee_name, c.is_active,
+      SELECT c.id, c.username, c.password_hash, c.employee_name, c.is_active, c.is_entity_backup,
              s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active
       FROM cashiers c
       JOIN stores s ON s.id = c.store_id
@@ -316,18 +319,26 @@ export async function handleAdminCashierApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
 
   if (request.method === 'GET' && pathname === '/api/admin/cashiers') {
+    // Bos Cyo, 2026-09-24: "untuk akun backup mending ikut entity aja, jadi
+    // bikin akunnya cuma 1 aja." Sebelumnya WHERE c.store_id = ? doang --
+    // akun backup yang store_id-nya SEDANG menunjuk ke gerai lain (belum/
+    // sudah tidak diaktifkan di gerai ini) jadi tidak kelihatan sama sekali
+    // di Master Kasir gerai ini, padahal Admin gerai ini seharusnya tetap
+    // bisa melihat dan mengaktifkannya. Akun backup (is_entity_backup=1)
+    // ditambahkan kalau se-entity, terlepas store_id-nya lagi di gerai mana.
     const rows = await db.prepare(`
-      SELECT c.id, c.username, c.employee_name, c.is_active,
+      SELECT c.id, c.username, c.employee_name, c.is_active, c.is_entity_backup,
              s.id AS store_id, s.code AS store_code, s.store_name,
              j.hourly_wage_scaled, j.job_type, j.payment_type
       FROM cashiers c
       JOIN stores s ON s.id = c.store_id
       LEFT JOIN account_job_details j ON j.account_type = 'CASHIER' AND j.account_id = c.id
-      WHERE c.store_id = ?
+      WHERE c.store_id = ? OR (c.is_entity_backup = 1 AND s.entity_id = ?)
       ORDER BY c.employee_name COLLATE NOCASE
-    `).bind(store.id).all();
+    `).bind(store.id, store.entityId).all();
     const cashiers = rows.results ?? [];
     const scheduleByAccount = new Map();
+    const activationByAccount = new Map();
     if (cashiers.length) {
       const scheduleRows = await db.prepare(`
         SELECT account_id, day_of_week, is_day_off, shift_start, shift_end
@@ -338,8 +349,26 @@ export async function handleAdminCashierApi(request, env, pathname) {
         if (!scheduleByAccount.has(row.account_id)) scheduleByAccount.set(row.account_id, []);
         scheduleByAccount.get(row.account_id).push(mapScheduleRow(row));
       }
+      const backupIds = cashiers.filter(cashier => cashier.is_entity_backup).map(cashier => cashier.id);
+      if (backupIds.length) {
+        const todayDate = getJakartaBusinessDate();
+        const activationRows = await db.prepare(`
+          SELECT account_id, store_id, activated_by_role, activated_at
+          FROM account_daily_activations
+          WHERE account_type = 'CASHIER' AND business_date = ? AND account_id IN (${backupIds.map(() => '?').join(',')})
+        `).bind(todayDate, ...backupIds).all();
+        for (const row of activationRows.results ?? []) {
+          activationByAccount.set(row.account_id, { storeId: row.store_id, activatedByRole: row.activated_by_role, activatedAt: row.activated_at });
+        }
+      }
     }
-    return json({ cashiers: cashiers.map(row => mapCashier(row, scheduleByAccount.get(row.id) ?? [])), store });
+    return json({
+      cashiers: cashiers.map(row => ({
+        ...mapCashier(row, scheduleByAccount.get(row.id) ?? []),
+        todayActivation: row.is_entity_backup ? (activationByAccount.get(row.id) || null) : null
+      })),
+      store
+    });
   }
 
   if (request.method === 'POST' && pathname === '/api/admin/cashiers') {
@@ -355,13 +384,15 @@ export async function handleAdminCashierApi(request, env, pathname) {
     if (!detail.ok) return json({ error: detail.error }, 400);
     const schedule = scheduleInput(body.value ?? {}, null);
     if (!schedule.ok) return json({ error: schedule.error }, 400);
+    // Bos Cyo, 2026-09-24: akun backup lintas gerai -- lihat migration 0115.
+    const isEntityBackup = body.value?.isEntityBackup === true ? 1 : 0;
     const duplicate = await db.prepare('SELECT id FROM cashiers WHERE username = ? COLLATE NOCASE').bind(username).first();
     if (duplicate) return json({ error: 'Username kasir sudah dipakai.' }, 409);
     const id = `cashier_${crypto.randomUUID()}`;
     await db.prepare(`
-      INSERT INTO cashiers (id, username, password_hash, employee_name, store_id, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).bind(id, username, await hashCredential(password), employeeName, store.id).run();
+      INSERT INTO cashiers (id, username, password_hash, employee_name, store_id, is_active, is_entity_backup, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).bind(id, username, await hashCredential(password), employeeName, store.id, isEntityBackup).run();
     await upsertJobDetail(db, id, detail.value);
     await upsertSchedule(db, id, schedule.value);
     return json({ ok: true, id }, 201);
@@ -459,6 +490,33 @@ export async function handleAdminCashierApi(request, env, pathname) {
     return json({ ok: true });
   }
 
+  // Bos Cyo, 2026-09-24: aktivasi akun backup lintas gerai -- lihat migration
+  // 0115 dan src/entity-backup-cashiers.js. Sengaja DICEK LEWAT entity_id gerai
+  // TEMPAT AKUN ITU SEDANG BERADA (bukan store.id pemanggil), supaya Admin gerai
+  // manapun dalam entity yang sama bisa "menarik" akun backup ke gerainya --
+  // itu justru intinya fitur ini (satu akun, dipindah antar-gerai sesama entity).
+  const activateMatch = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)\/activate-today$/);
+  if (activateMatch) {
+    if (request.method !== 'POST') return json({ error: 'Method tidak didukung.' }, 405);
+    const id = decodeURIComponent(activateMatch[1]);
+    const backup = await db.prepare(`
+      SELECT c.id, c.is_entity_backup, s.entity_id AS entity_id
+      FROM cashiers c JOIN stores s ON s.id = c.store_id
+      WHERE c.id = ?
+    `).bind(id).first();
+    if (!backup || !backup.is_entity_backup) return json({ error: 'Akun backup tidak ditemukan.' }, 404);
+    if (backup.entity_id !== store.entityId) return json({ error: 'Akun backup ini bukan milik entity gerai Anda.' }, 403);
+    const actor = managementActor(auth);
+    const result = await activateEntityBackupCashier(db, {
+      accountId: id,
+      storeId: store.id,
+      activatedByRole: actor.role,
+      activatedById: actor.id
+    });
+    if (!result.ok) return json({ error: result.error }, 400);
+    return json({ ok: true, alreadyActive: Boolean(result.alreadyActive) });
+  }
+
   // Foto presensi versi Admin -- simetris dengan /api/staff/attendance/:id/photo
   // (src/staff-portal.js), tapi discoped ke GERAI (lewat kepemilikan akun
   // kasirnya), bukan ke diri sendiri. <img src="..."> browser tidak pernah
@@ -488,7 +546,7 @@ export async function handleAdminCashierApi(request, env, pathname) {
   const match = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)$/);
   if (!match) return json({ error: 'Route master kasir tidak ditemukan.' }, 404);
   const id = decodeURIComponent(match[1]);
-  const current = await db.prepare('SELECT id, username, employee_name, store_id, is_active FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
+  const current = await db.prepare('SELECT id, username, employee_name, store_id, is_active, is_entity_backup FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
   if (!current) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
 
   if (request.method === 'PATCH') {
@@ -498,6 +556,11 @@ export async function handleAdminCashierApi(request, env, pathname) {
     const employeeName = text(body.value?.employeeName ?? current.employee_name, 100);
     const password = String(body.value?.password ?? '');
     const isActive = body.value?.isActive === false ? 0 : 1;
+    // Bos Cyo, 2026-09-24: toggle akun backup lintas gerai lewat form edit yang
+    // sama -- undefined artinya field tidak dikirim (biarkan nilai lama).
+    const isEntityBackup = owns(body.value, 'isEntityBackup')
+      ? (body.value.isEntityBackup === true ? 1 : 0)
+      : current.is_entity_backup;
     if (username.length < 3 || !employeeName || (password && password.length < 6)) {
       return json({ error: 'Data kasir tidak valid.' }, 400);
     }
@@ -511,11 +574,11 @@ export async function handleAdminCashierApi(request, env, pathname) {
     if (duplicate) return json({ error: 'Username kasir sudah dipakai.' }, 409);
 
     if (password) {
-      await db.prepare(`UPDATE cashiers SET username = ?, password_hash = ?, employee_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
-        .bind(username, await hashCredential(password), employeeName, isActive, id, store.id).run();
+      await db.prepare(`UPDATE cashiers SET username = ?, password_hash = ?, employee_name = ?, is_active = ?, is_entity_backup = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
+        .bind(username, await hashCredential(password), employeeName, isActive, isEntityBackup, id, store.id).run();
     } else {
-      await db.prepare(`UPDATE cashiers SET username = ?, employee_name = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
-        .bind(username, employeeName, isActive, id, store.id).run();
+      await db.prepare(`UPDATE cashiers SET username = ?, employee_name = ?, is_active = ?, is_entity_backup = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
+        .bind(username, employeeName, isActive, isEntityBackup, id, store.id).run();
     }
     await upsertJobDetail(db, id, detail.value);
     await upsertSchedule(db, id, schedule.value);

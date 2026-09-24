@@ -8,6 +8,7 @@ import { getCashierRaportFacts } from './staff-raport.js';
 // alasan kenapa dipisah ke modul netral, bukan diimpor silang.
 import { scheduleMap, mapAttendance, listAttendance, buildPayroll } from './staff-attendance.js';
 import { listPayrollAdjustments } from './payroll-adjustments.js';
+import { isActivatedToday } from './entity-backup-cashiers.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -75,6 +76,19 @@ export async function handleStaffPortalApi(request, env, pathname) {
     }
     if (attendanceType === 'out' && currentStatus !== 'in') {
       return json({ error: 'Belum presensi masuk.', code: 'NOT_CHECKED_IN' }, 409);
+    }
+
+    // Bos Cyo, 2026-09-24: "intinya hal ini untuk menghindari di hari dan
+    // jam normal cs ini presensi memakai user backup, karna user backup itu
+    // gaji per jam nya lebih gede." Gerbangnya di presensi MASUK -- begitu
+    // sudah presensi masuk (sesi sedang berjalan), presensi keluar dibiarkan
+    // lewat tanpa cek ulang supaya orang yang sudah aktif tidak terjebak
+    // kalau aktivasinya kebetulan berakhir tengah hari.
+    if (attendanceType === 'in' && auth.cashier.isEntityBackup) {
+      const activated = await isActivatedToday(env.DB, auth.cashier.id, auth.cashier.store.id);
+      if (!activated) {
+        return json({ error: 'Akun backup ini belum diaktifkan Admin untuk gerai ini hari ini. Minta Admin aktifkan dulu sebelum presensi masuk.', code: 'BACKUP_NOT_ACTIVATED' }, 403);
+      }
     }
 
     const photo = await readLivePhoto(form, 'photo');

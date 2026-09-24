@@ -43,6 +43,7 @@
             <label class="admin-field" id="cashierWageLabel">Gaji per jam (Rp) <span class="field-note">opsional</span><input id="cashierHourlyWage" type="number" min="0" step="1" /></label>
             <div class="admin-field"><span>Jam &amp; hari kerja <span class="field-note">opsional per hari</span></span><div id="cashierScheduleRows" style="margin-top:6px">${scheduleRowsHtml()}</div></div>
             <label class="admin-check"><input id="cashierActive" type="checkbox" checked /> Aktif</label>
+            <label class="admin-check"><input id="cashierEntityBackup" type="checkbox" /> Akun Backup Lintas Gerai <span class="field-note">satu akun, dipakai gerai mana pun sesama entity -- wajib diaktifkan Admin per hari sebelum bisa presensi</span></label>
             <button class="primary-btn" type="submit">Simpan kasir</button>
           </form>
           <div class="admin-card list-card">
@@ -113,19 +114,36 @@
     el('cashierWageLabel').firstChild.textContent = isSesi ? 'Gaji per sesi (Rp) ' : 'Gaji per jam (Rp) ';
   }
 
+  // Bos Cyo, 2026-09-24: "untuk akun backup mending ikut entity aja ...
+  // intinya hal ini untuk menghindari di hari dan jam normal cs ini presensi
+  // memakai user backup." Baris backup menunjukkan gerai TEMPAT akun itu
+  // sedang aktif hari ini (kalau ada) supaya Admin gerai lain tahu akun ini
+  // sedang "dipinjam" gerai mana, dan tombol Aktifkan buat menariknya ke
+  // gerai yang sedang dibuka di layar ini.
+  function backupStatusLine(cashier) {
+    const activation = cashier.todayActivation;
+    if (!activation) return '<span style="color:#c2255c;font-weight:700">Belum diaktifkan hari ini</span>';
+    const atThisStore = activation.storeId === (data.store?.id);
+    return atThisStore
+      ? `<span style="color:#2f9e44;font-weight:700">Aktif di gerai ini hari ini</span> · <span class="master-meta">oleh ${escapeHtml(roleLabel(activation.activatedByRole))}</span>`
+      : `<span style="color:#e8590c;font-weight:700">Aktif di gerai lain hari ini</span>`;
+  }
+
   function render() {
     if (el('cashierStoreLabel')) el('cashierStoreLabel').textContent = data.store ? `${data.store.code} · ${data.store.storeName}` : (window.LEKER_STORE_CODE || 'G001');
     el('cashierCount').textContent = data.cashiers.length;
     el('cashierList').innerHTML = data.cashiers.length ? data.cashiers.map(cashier => `
       <div class="master-row contact-row ${cashier.isActive ? '' : 'inactive'}">
         <div class="master-main">
-          <strong>${escapeHtml(cashier.employeeName)}</strong>
+          <strong>${escapeHtml(cashier.employeeName)}</strong>${cashier.isEntityBackup ? ' <span class="master-meta" style="border:1px solid var(--line,#e6ddd0);border-radius:8px;padding:1px 6px">🔁 Backup Lintas Gerai</span>' : ''}
           <div class="master-meta">@${escapeHtml(cashier.username)} · ${escapeHtml(cashier.store.code)}</div>
           <div class="master-meta">${jobDetailLabel(cashier)}</div>
           <div class="master-meta">${scheduleSummary(cashier.schedule)}</div>
           <div class="master-meta">${cashier.isActive ? 'Aktif' : 'Nonaktif'}</div>
+          ${cashier.isEntityBackup ? `<div class="master-meta">${backupStatusLine(cashier)}</div>` : ''}
         </div>
         <div class="master-actions">
+          ${cashier.isEntityBackup ? `<button class="mini-btn" type="button" data-activate-backup="${escapeHtml(cashier.id)}">✅ Aktifkan gerai ini hari ini</button>` : ''}
           <button class="mini-btn" type="button" data-attendance-cashier="${escapeHtml(cashier.id)}">📋 Presensi</button>
           <button class="mini-btn" type="button" data-payroll-cashier="${escapeHtml(cashier.id)}">💰 Gaji</button>
           <button class="mini-btn" type="button" data-edit-cashier="${escapeHtml(cashier.id)}">Edit</button>
@@ -137,6 +155,15 @@
     document.querySelectorAll('[data-delete-cashier]').forEach(button => button.onclick = () => deactivateCashier(button.dataset.deleteCashier));
     document.querySelectorAll('[data-attendance-cashier]').forEach(button => button.onclick = () => openAttendance(button.dataset.attendanceCashier));
     document.querySelectorAll('[data-payroll-cashier]').forEach(button => button.onclick = () => openPayroll(button.dataset.payrollCashier));
+    document.querySelectorAll('[data-activate-backup]').forEach(button => button.onclick = () => activateBackup(button.dataset.activateBackup));
+  }
+
+  async function activateBackup(id) {
+    try {
+      const result = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/activate-today`, { method: 'POST' });
+      toast(result.alreadyActive ? 'Akun ini sudah aktif di gerai ini hari ini' : 'Akun backup diaktifkan untuk gerai ini hari ini');
+      await load();
+    } catch (error) { toast(error.message); }
   }
 
   // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang
@@ -346,6 +373,7 @@
     el('cashierForm').reset();
     el('cashierId').value = '';
     el('cashierActive').checked = true;
+    el('cashierEntityBackup').checked = false;
     el('cashierFormTitle').textContent = 'Tambah kasir';
     el('cashierCancelEdit').classList.add('hidden');
     el('cashierPassword').required = true;
@@ -370,6 +398,7 @@
     el('cashierHourlyWage').value = cashier.hourlyWage || '';
     fillScheduleForm(cashier.schedule);
     el('cashierActive').checked = cashier.isActive;
+    el('cashierEntityBackup').checked = Boolean(cashier.isEntityBackup);
     el('cashierFormTitle').textContent = 'Edit kasir';
     el('cashierCancelEdit').classList.remove('hidden');
     switchTab();
@@ -387,7 +416,8 @@
       paymentType: el('cashierPaymentType').value,
       hourlyWage: el('cashierHourlyWage').value || 0,
       schedule: readScheduleFromForm(),
-      isActive: el('cashierActive').checked
+      isActive: el('cashierActive').checked,
+      isEntityBackup: el('cashierEntityBackup').checked
     };
     try {
       await request(id ? `/api/admin/cashiers/${encodeURIComponent(id)}` : '/api/admin/cashiers', {

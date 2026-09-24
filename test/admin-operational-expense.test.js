@@ -54,6 +54,22 @@ function storeId(db, code) {
   return db.prepare('SELECT id FROM stores WHERE code = ?').get(code).id;
 }
 
+// Bos Cyo, 2026-09-24: Bea Gaji sekarang wajib menunjuk Karyawan nyata --
+// satu karyawan per entity (semua store fixture di sini sudah satu entity,
+// ENT-KPM) cukup untuk semua test yang tidak secara khusus menguji itu.
+function seedEmployee(db, entityId, fullName = 'Karyawan Bea Test') {
+  const id = `emp_beatest_${Math.random().toString(36).slice(2)}`;
+  db.prepare(`
+    INSERT INTO employees (id, entity_id, full_name, status, created_at, updated_at)
+    VALUES (?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `).run(id, entityId, fullName);
+  return id;
+}
+
+function entityIdOf(db, storeCode) {
+  return db.prepare('SELECT entity_id FROM stores WHERE code = ?').get(storeCode).entity_id;
+}
+
 function request(pathname, { token, store, method = 'GET', body } = {}) {
   const url = new URL(`https://example.test${pathname}`);
   if (store) url.searchParams.set('store', store);
@@ -71,9 +87,10 @@ test('bea yang dicatat Admin mengurangi Net Profit di tanggal yang diisi Admin, 
   try {
     const token = await seedOwnerToken(db);
     const env = { DB: new D1Database(db) };
+    const employeeId = seedEmployee(db, entityIdOf(db, 'KANTOR'));
 
     const createRes = await worker.fetch(request('/api/admin/operational-expenses', {
-      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 500000, businessDate: '2026-06-01' })
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 500000, businessDate: '2026-06-01', employeeId })
     }), env);
     assert.equal(createRes.status, 201);
 
@@ -98,6 +115,7 @@ test('bea yang dicatat MUNDUR ke hari yang cache-nya sudah tersimpan tetap terhi
     const token = await seedOwnerToken(db);
     const env = { DB: new D1Database(db) };
     const kantor = storeId(db, 'KANTOR');
+    const employeeId = seedEmployee(db, entityIdOf(db, 'KANTOR'));
 
     // Hari 2026-06-01 dihitung duluan dan masuk cache (nilainya 0, tanpa transaksi).
     const first = await getNetProfitReport(env.DB, { storeIds: [kantor], from: '2026-06-01', to: '2026-06-01', today: '2026-06-10' });
@@ -109,7 +127,7 @@ test('bea yang dicatat MUNDUR ke hari yang cache-nya sudah tersimpan tetap terhi
 
     // Baru kemudian Admin mencatat gaji, dibebankan MUNDUR ke tanggal itu.
     const createRes = await worker.fetch(request('/api/admin/operational-expenses', {
-      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 750000, businessDate: '2026-06-01' })
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 750000, businessDate: '2026-06-01', employeeId })
     }), env);
     assert.equal(createRes.status, 201);
 
@@ -129,9 +147,10 @@ test('bea yang dibatalkan berhenti mengurangi Net Profit, dan cache tanggalnya i
     const token = await seedOwnerToken(db);
     const env = { DB: new D1Database(db) };
     const kantor = storeId(db, 'KANTOR');
+    const employeeId = seedEmployee(db, entityIdOf(db, 'KANTOR'));
 
     const createRes = await worker.fetch(request('/api/admin/operational-expenses', {
-      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 300000, businessDate: '2026-06-01' })
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 300000, businessDate: '2026-06-01', employeeId })
     }), env);
     const created = await createRes.json();
 
@@ -160,9 +179,10 @@ test('bea milik gerai lain tidak pernah ikut terhitung', async () => {
   try {
     const token = await seedOwnerToken(db);
     const env = { DB: new D1Database(db) };
+    const employeeId = seedEmployee(db, entityIdOf(db, 'PENDEM'));
 
     await worker.fetch(request('/api/admin/operational-expenses', {
-      token, store: 'PENDEM', method: 'POST', body: beaBody({ amount: 999000, businessDate: '2026-06-01' })
+      token, store: 'PENDEM', method: 'POST', body: beaBody({ amount: 999000, businessDate: '2026-06-01', employeeId })
     }), env);
 
     const kantor = await getNetProfitReport(env.DB, {
@@ -184,22 +204,23 @@ test('tiga jenis bea diterima, jenis di luar daftar ditolak, nominal nol ditolak
   try {
     const token = await seedOwnerToken(db);
     const env = { DB: new D1Database(db) };
+    const employeeId = seedEmployee(db, entityIdOf(db, 'KANTOR'));
 
     for (const category of ['BEA_GAJI', 'BEA_LAPAK', 'BEA_LAINNYA']) {
       const res = await worker.fetch(request('/api/admin/operational-expenses', {
-        token, store: 'KANTOR', method: 'POST', body: beaBody({ category, amount: 10000 })
+        token, store: 'KANTOR', method: 'POST', body: beaBody({ category, amount: 10000, employeeId })
       }), env);
       assert.equal(res.status, 201, `${category} harus diterima`);
     }
 
     const unknown = await worker.fetch(request('/api/admin/operational-expenses', {
-      token, store: 'KANTOR', method: 'POST', body: beaBody({ category: 'BEA_NGAWUR' })
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ category: 'BEA_NGAWUR', employeeId })
     }), env);
     assert.equal(unknown.status, 400);
     assert.equal((await unknown.json()).code, 'UNKNOWN_BEA_CATEGORY');
 
     const zero = await worker.fetch(request('/api/admin/operational-expenses', {
-      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 0 })
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 0, employeeId })
     }), env);
     assert.equal(zero.status, 400);
 
@@ -212,9 +233,55 @@ test('tiga jenis bea diterima, jenis di luar daftar ditolak, nominal nol ditolak
   }
 });
 
+test('Bea Gaji wajib memilih Karyawan, boleh nominal negatif (potongan); Bea Lapak/Lainnya tetap wajib positif tanpa Karyawan', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedOwnerToken(db);
+    const env = { DB: new D1Database(db) };
+    const employeeId = seedEmployee(db, entityIdOf(db, 'KANTOR'));
+
+    const noEmployee = await worker.fetch(request('/api/admin/operational-expenses', {
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 100000 })
+    }), env);
+    assert.equal(noEmployee.status, 400);
+    assert.equal((await noEmployee.json()).code, 'BEA_GAJI_REQUIRES_EMPLOYEE');
+
+    const outsideEntity = await worker.fetch(request('/api/admin/operational-expenses', {
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ amount: 100000, employeeId: 'emp_nonexistent' })
+    }), env);
+    assert.equal(outsideEntity.status, 404);
+    assert.equal((await outsideEntity.json()).code, 'EMPLOYEE_OUT_OF_SCOPE');
+
+    // Potongan gaji akibat pinalti -- Bos Cyo: "penambahan dan pengurangan
+    // gaji akibat pinalti ... entry manual admin" -- nominal negatif wajib
+    // diterima KHUSUS Bea Gaji.
+    const potongan = await worker.fetch(request('/api/admin/operational-expenses', {
+      token, store: 'KANTOR', method: 'POST',
+      body: beaBody({ amount: -15000, description: 'Potongan: menghilangkan barang', employeeId })
+    }), env);
+    assert.equal(potongan.status, 201, JSON.stringify(await potongan.clone().json()));
+
+    // Bea Lapak/Lainnya tetap wajib positif (bukan Bea Gaji, tidak dapat
+    // pengecualian nominal negatif) dan tidak boleh menempel Karyawan.
+    const lapakNegative = await worker.fetch(request('/api/admin/operational-expenses', {
+      token, store: 'KANTOR', method: 'POST', body: beaBody({ category: 'BEA_LAPAK', amount: -5000 })
+    }), env);
+    assert.equal(lapakNegative.status, 400);
+
+    const list = await (await worker.fetch(request('/api/admin/operational-expenses', { token, store: 'KANTOR' }), env)).json();
+    const potonganRow = list.expenses.find(row => row.amount === -15000);
+    assert.ok(potonganRow, 'baris potongan harus tersimpan');
+    assert.equal(potonganRow.employeeId, employeeId);
+    assert.ok(potonganRow.employeeName, 'nama karyawan harus ikut ditampilkan');
+  } finally {
+    db.close();
+  }
+});
+
 test('Bea Operasional terdaftar sebagai sumber Beban di Laporan Net Profit', async () => {
   const source = readFileSync(new URL('../src/net-profit-report.js', import.meta.url), 'utf8');
-  assert.match(source, /BEBAN_SOURCES = \['expenses', 'admin_operational_expenses'\]/);
+  assert.match(source, /BEBAN_SOURCES = \['expenses', 'admin_operational_expenses', 'payroll_ledger_entries'\]/);
   assert.match(source, /FROM admin_operational_expenses/);
+  assert.match(source, /FROM payroll_ledger_entries/);
   assert.match(source, /export async function invalidateDailyProfitSnapshot/);
 });

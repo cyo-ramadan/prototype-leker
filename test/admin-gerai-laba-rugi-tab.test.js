@@ -50,6 +50,20 @@ function storeId(db, code) {
   return db.prepare('SELECT id FROM stores WHERE code = ?').get(code).id;
 }
 
+function entityIdOf(db, code) {
+  return db.prepare('SELECT entity_id FROM stores WHERE code = ?').get(code).entity_id;
+}
+
+// Bos Cyo, 2026-09-24: Bea Gaji sekarang wajib menunjuk Karyawan nyata.
+function seedEmployee(db, entityId, fullName = 'Karyawan Laba Rugi Test') {
+  const id = `emp_labarugi_${Math.random().toString(36).slice(2)}`;
+  db.prepare(`
+    INSERT INTO employees (id, entity_id, full_name, status, created_at, updated_at)
+    VALUES (?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `).run(id, entityId, fullName);
+  return id;
+}
+
 let seq = 0;
 const nextId = prefix => `${prefix}_${++seq}`;
 
@@ -230,13 +244,15 @@ test('Beban/Bea dirinci per kategori -- Bea Gaji, Bea Lapak, Bea Lainnya masing-
   const db = migratedDatabase();
   try {
     const token = await seedStoreAdminToken(db, 'KANTOR');
+    const employeeId = seedEmployee(db, entityIdOf(db, 'KANTOR'));
 
     for (const [category, amount] of [['BEA_GAJI', 500000], ['BEA_LAPAK', 200000], ['BEA_LAINNYA', 100000]]) {
-      await worker.fetch(new Request(`https://example.test/api/admin/operational-expenses?store=KANTOR`, {
+      const res = await worker.fetch(new Request(`https://example.test/api/admin/operational-expenses?store=KANTOR`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, description: category, amount, businessDate: '2026-06-01' })
+        body: JSON.stringify({ category, description: category, amount, businessDate: '2026-06-01', employeeId })
       }), { DB: new D1Database(db) });
+      assert.equal(res.status, 201, `${category} harus diterima`);
     }
 
     const env = { DB: new D1Database(db) };

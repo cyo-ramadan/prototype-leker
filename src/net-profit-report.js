@@ -43,7 +43,19 @@ function validateBusinessDate(value) {
 // ditambahkan eksplisit di computeFactsForDates() + netProfitFromFacts()
 // di sini juga -- penamaan itu penanda buat manusia, kode di sini yang
 // benar-benar dibaca laporan.
-const BEBAN_SOURCES = ['expenses', 'admin_operational_expenses'];
+//
+// 2026-09-24, Bos Cyo (koreksi Akun Gaji): "kalo dalam akuntansi ketika ada
+// gaji harian itu jurnalnya debet beban gaji kredit hutang gaji ... jadi
+// harusnya nominal di sesi jam harian itu uda mencetak beban dan hutang
+// gaji." Kolom beaGaji sekarang PENJUMLAHAN DUA sumber: Bea Gaji manual
+// (admin_operational_expenses, seperti semula) DITAMBAH akrual presensi
+// harian otomatis (payroll_ledger_entries, entry_type=ACCRUAL, migration
+// 0116, src/payroll-ledger.js) -- sengaja aditif, bukan mengganti sumber
+// lama, supaya laporan yang sudah ke-cache sebelum fitur ini tidak berubah
+// nilainya. HANYA sesi presensi yang SELESAI setelah fitur ini live yang
+// tercatat -- histori presensi sebelumnya TIDAK di-backfill (lihat catatan
+// migration 0116), jadi Beban Gaji bulan-bulan lama tidak tiba-tiba berubah.
+const BEBAN_SOURCES = ['expenses', 'admin_operational_expenses', 'payroll_ledger_entries'];
 
 const COST_SCALE = 1_000_000;
 // Sum di ruang scaled dulu (line_cogs), baru dibagi skala SEKALI di akhir --
@@ -112,7 +124,7 @@ async function computeFactsForDates(db, storeIds, dates) {
   const storePh = placeholders(storeIds);
   const datePh = placeholders(dates);
 
-  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows] = await Promise.all([
+  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows, attendanceAccrualRows] = await Promise.all([
     sumByStoreDate(db, `
       SELECT store_id, ${JAKARTA_BUSINESS_DATE_SQL} AS business_date, COALESCE(SUM(total_amount), 0) AS value
       FROM sales
@@ -174,6 +186,18 @@ async function computeFactsForDates(db, storeIds, dates) {
       FROM admin_operational_expenses
       WHERE voided_at IS NULL AND store_id IN (${storePh}) AND business_date IN (${datePh})
       GROUP BY store_id, business_date, category
+    `, [...storeIds, ...dates]),
+    // Akrual presensi harian otomatis (Bos Cyo: "nominal di sesi jam harian
+    // itu uda mencetak beban dan hutang gaji") -- payroll_ledger_entries
+    // ditambahkan ke beaGaji, ADITIF terhadap Bea Gaji manual di atas, bukan
+    // menggantikannya. Scaled (WAGE_SCALE = COST_SCALE = 1.000.000), dibagi
+    // sekali lewat rupiahFromScaledSum() sesudah SUM, bukan per baris.
+    sumByStoreDate(db, `
+      SELECT store_id, business_date, COALESCE(SUM(beban_gaji_delta_scaled), 0) AS value
+      FROM payroll_ledger_entries
+      WHERE entry_type = 'ACCRUAL' AND voided_at IS NULL
+        AND store_id IN (${storePh}) AND business_date IN (${datePh})
+      GROUP BY store_id, business_date
     `, [...storeIds, ...dates])
   ]);
 
@@ -202,6 +226,9 @@ async function computeFactsForDates(db, storeIds, dates) {
     if (row.category === 'BEA_GAJI') fact.beaGaji = amount;
     else if (row.category === 'BEA_LAPAK') fact.beaLapak = amount;
     else fact.beaLainnya += amount; // BEA_LAINNYA, dan kategori tak dikenal (jaga-jaga) ikut sini
+  }
+  for (const row of attendanceAccrualRows) {
+    facts.get(key(row.store_id, row.business_date)).beaGaji += rupiahFromScaledSum(row.value);
   }
   return facts;
 }

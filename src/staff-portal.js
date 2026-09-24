@@ -6,9 +6,12 @@ import { getCashierRaportFacts } from './staff-raport.js';
 // karena dipakai dua sisi sekarang -- Portal Staf (di sini) dan Admin Gerai
 // (src/cashier-auth.js) -- lihat komentar di staff-attendance.js untuk
 // alasan kenapa dipisah ke modul netral, bukan diimpor silang.
-import { scheduleMap, mapAttendance, listAttendance, buildPayroll } from './staff-attendance.js';
+import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled } from './staff-attendance.js';
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
+import { recordAttendanceAccrual } from './payroll-ledger.js';
+import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
+import { getJakartaBusinessDate } from './time.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -128,6 +131,31 @@ export async function handleStaffPortalApi(request, env, pathname) {
              status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
       FROM staff_attendance WHERE id = ?
     `).bind(open.id).first();
+
+    // Bos Cyo, 2026-09-24: "kalo dalam akuntansi ketika ada gaji harian itu
+    // jurnalnya debet beban gaji kredit hutang gaji ... jadi harusnya nominal
+    // di sesi jam harian itu uda mencetak beban dan hutang gaji." Begitu sesi
+    // presensi SELESAI, langsung dicatat sebagai fakta ke Akun Gaji (ledger)
+    // -- bukan cuma dihitung ulang tiap kali dilihat seperti sebelumnya.
+    // Kalau belum ada detail gaji diisi (jobDetail null/tarif 0), tidak ada
+    // apa pun yang dicatat -- bukan error, cuma memang belum ada nilainya.
+    const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
+    if (jobDetail) {
+      const earningScaled = computeEarningScaled(jobDetail.payment_type, jobDetail.hourly_wage_scaled, updated.created_at, updated.check_out_at);
+      const businessDate = getJakartaBusinessDate(new Date(updated.created_at));
+      await recordAttendanceAccrual(env.DB, {
+        accountType: 'CASHIER',
+        accountId: auth.cashier.id,
+        storeId: auth.cashier.store.id,
+        businessDate,
+        checkInAtIso: updated.created_at,
+        amountScaled: earningScaled,
+        attendanceId: updated.id,
+        description: `Gaji presensi ${businessDate}`
+      });
+      await invalidateDailyProfitSnapshot(env.DB, auth.cashier.store.id, businessDate);
+    }
+
     return json({ ok: true, attendance: mapAttendance(updated) }, 201);
   }
 

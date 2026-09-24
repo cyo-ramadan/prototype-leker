@@ -90,7 +90,7 @@ export async function listAttendance(db, userId, scheduleByDay, limit = 60) {
 // ke integer scaled terdekat, half-up untuk nilai non-negatif (yang selalu
 // terjadi di sini karena gaji tidak pernah negatif) -- konsisten dengan
 // invariant, tanpa perlu helper pembulatan terpisah.
-function computeEarningScaled(paymentType, hourlyWageScaled, checkInAt, checkOutAt) {
+export function computeEarningScaled(paymentType, hourlyWageScaled, checkInAt, checkOutAt) {
   if (paymentType === 'SESI') return hourlyWageScaled;
   const minutes = Math.round((new Date(checkOutAt).getTime() - new Date(checkInAt).getTime()) / 60000);
   if (!Number.isFinite(minutes) || minutes <= 0) return 0;

@@ -111,6 +111,7 @@
           ${employee.status === 'ACTIVE' ? linkPicker(employee) : ''}
         </div>
         <div class="master-actions">
+          <button class="mini-btn" type="button" data-payroll-ledger="${escapeHtml(employee.id)}">💰 Riwayat Gaji</button>
           ${employee.canManage === false ? '' : `<button class="mini-btn" type="button" data-edit-employee="${escapeHtml(employee.id)}">Edit</button>`}
           ${employee.canManage === false || employee.status !== 'ACTIVE' ? '' : `<button class="mini-btn danger" type="button" data-deactivate-employee="${escapeHtml(employee.id)}">Nonaktifkan</button>`}
         </div>
@@ -120,6 +121,55 @@
     document.querySelectorAll('[data-deactivate-employee]').forEach(button => button.onclick = () => deactivateEmployee(button.dataset.deactivateEmployee));
     document.querySelectorAll('[data-unlink]').forEach(button => button.onclick = () => unlinkAccount(button.dataset.unlink));
     document.querySelectorAll('[data-link-apply]').forEach(button => button.onclick = () => linkAccount(button.dataset.linkApply));
+    document.querySelectorAll('[data-payroll-ledger]').forEach(button => button.onclick = () => openPayrollLedger(button.dataset.payrollLedger));
+  }
+
+  // Bos Cyo, 2026-09-24: "riwayat gaji itu mending acuannya per nama orang
+  // aja ... kalo kita klik nama orang tersebut dari list maka keluar
+  // kartu2 gajinya pertanggal, dan dari mana gajinya tersebut dan masuk
+  // melalui apa ... model akun gaji ini sebaiknya mengikuti konsep debet
+  // dan kredit." Lintas SEMUA akun/gerai yang pernah dipegang orang ini --
+  // satu kartu = satu baris ledger, warna hijau menambah Hutang Gaji (gaji
+  // berjalan/bonus), merah mengurangi (potongan/pinalti); saldo total di
+  // atas adalah saldo Hutang Gaji orang ini sekarang.
+  const rupiahLedger = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+  function sourceLabel(entry) {
+    if (entry.sourceType === 'ATTENDANCE') return 'dari presensi';
+    return 'dari Bea Gaji (Operasional)';
+  }
+  function ledgerCardHtml(entry) {
+    const positive = entry.hutangGajiDeltaRupiah >= 0;
+    const border = entry.voided ? '#d8cfc2' : (positive ? '#b2e6c9' : '#f3b8c6');
+    const amountColor = entry.voided ? 'var(--muted,#9c9284)' : (positive ? '#2f9e44' : '#c2255c');
+    return `<div style="border:1px solid ${border};border-radius:16px;padding:10px;margin-bottom:6px;${entry.voided ? 'opacity:.6' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>${escapeHtml(entry.description || '-')} · <span class="master-meta">${escapeHtml(entry.storeCode)} · ${sourceLabel(entry)}</span>${entry.voided ? ' · <span style="color:#c2255c">Dibatalkan</span>' : ''}</div>
+        <b style="white-space:nowrap;color:${amountColor}">${positive ? '+' : ''}${rupiahLedger(entry.hutangGajiDeltaRupiah)}</b>
+      </div>
+    </div>`;
+  }
+  function ledgerByDateHtml(entries) {
+    if (!entries.length) return '<div class="empty">Belum ada riwayat gaji.</div>';
+    const byDate = new Map();
+    for (const entry of entries) {
+      if (!byDate.has(entry.businessDate)) byDate.set(entry.businessDate, []);
+      byDate.get(entry.businessDate).push(entry);
+    }
+    const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+    return dates.map(date => {
+      const cards = byDate.get(date);
+      const subtotal = cards.reduce((sum, entry) => sum + (entry.voided ? 0 : entry.hutangGajiDeltaRupiah), 0);
+      return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>${escapeHtml(date)}</strong><span class="master-meta">Subtotal: ${rupiahLedger(subtotal)}</span></div>${cards.map(ledgerCardHtml).join('')}</div>`;
+    }).join('');
+  }
+  async function openPayrollLedger(employeeId) {
+    try {
+      const payload = await request(`/api/admin/employees/${encodeURIComponent(employeeId)}/payroll-ledger${storeQuery()}`);
+      window.openAdminDetailModal({
+        head: `<div><h3 style="margin:0">Riwayat Gaji</h3><div class="master-meta">${escapeHtml(payload.employee?.fullName || '')} · Saldo Hutang Gaji: <b>${rupiahLedger(payload.hutangGajiBalanceRupiah)}</b></div></div>`,
+        body: `<div>${ledgerByDateHtml(payload.entries || [])}</div>`
+      });
+    } catch (error) { toast(error.message); }
   }
 
   async function load() {

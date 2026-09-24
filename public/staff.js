@@ -95,18 +95,36 @@
   // riwayat gaji". Satu baris per sesi presensi SELESAI -- dihitung ulang
   // server tiap load (src/staff-portal.js), bukan snapshot. Sesi yang masih
   // berjalan (OPEN) belum masuk daftar ini karena belum ada durasi final.
+  //
+  // Bos Cyo, 2026-09-24: "gaji nanti juga bisa dibuat oleh akuntan sendiri
+  // ... jadi di tanggal 26 nanti akan terlihat 2 kartu, 1 dari presensi
+  // normal, 2 tambah entryan akuntan." payrollAdjustments (entry manual
+  // Admin) digabung per tanggal dengan payroll (dari presensi) di sini --
+  // karyawan cuma bisa LIHAT, tidak bisa entry/batalkan sendiri (itu
+  // kewenangan Admin, lihat public/admin-cashiers.js).
   function renderPayroll() {
     const target = el('staffPayrollList'); if (!target) return;
-    const rows = portal?.payroll || [];
-    if (!rows.length) { target.innerHTML = '<div class="staff-empty">Belum ada sesi presensi yang selesai untuk dihitung gajinya.</div>'; return; }
-    const total = rows.reduce((sum, row) => sum + (Number(row.earningRupiah) || 0), 0);
+    const payrollRows = portal?.payroll || [];
+    const adjustmentRows = portal?.payrollAdjustments || [];
+    if (!payrollRows.length && !adjustmentRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
+    const cardsByDate = new Map();
+    const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
+    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked });
+    for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: row.amountRupiah, reason: row.reason, voided: row.voided, voidReason: row.voidReason });
+    const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+    const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
     target.innerHTML = `
-      <div class="staff-card" style="margin-bottom:12px"><div class="muted">Total (${rows.length} sesi)</div><h2 style="margin:5px 0">${money(total)}</h2></div>
-      <div class="attendance-list">${rows.map(row => `
-        <div class="attendance-row">
-          <div><strong>${escapeHtml(row.date)}</strong><div class="muted">${row.paymentType === 'SESI' ? 'Per sesi' : `Per jam${row.hoursWorked != null ? ` · ${row.hoursWorked} jam` : ''}`}</div></div>
-          <span>${money(row.earningRupiah)}</span>
-        </div>`).join('')}</div>`;
+      <div class="staff-card" style="margin-bottom:12px"><div class="muted">Total</div><h2 style="margin:5px 0">${money(grandTotal)}</h2></div>
+      ${dates.map(date => {
+        const cards = cardsByDate.get(date);
+        return `<div style="margin-bottom:10px"><div class="muted" style="margin-bottom:4px">${escapeHtml(date)}</div>
+          <div class="attendance-list">${cards.map(card => `
+            <div class="attendance-row" style="${card.voided ? 'opacity:.6' : ''}">
+              <div><strong>${card.kind === 'adjustment' ? escapeHtml(card.reason) : (card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`)}</strong>
+                ${card.kind === 'adjustment' ? `<div class="muted">Penyesuaian dari Admin${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''}</div>` : '<div class="muted">Dari presensi</div>'}</div>
+              <span style="${card.amountRupiah < 0 ? 'color:#c2255c' : ''}">${card.amountRupiah < 0 ? '-' : ''}${money(Math.abs(card.amountRupiah))}</span>
+            </div>`).join('')}</div></div>`;
+      }).join('')}`;
   }
   // Bos Cyo, 2026-09-19: "portal staf kasih tombol daily task ya ... isi2nya
   // aku mau kasih seperti pakai appron, bersih2, tes rasa2 ... pengaturan

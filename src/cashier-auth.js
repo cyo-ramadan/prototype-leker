@@ -2,6 +2,16 @@ import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { bearerToken, hashCredential, requireManagement } from './owner-auth.js';
 import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js';
+import { listPayrollAdjustments, createPayrollAdjustment, voidPayrollAdjustment } from './payroll-adjustments.js';
+
+// Identitas pemanggil requireManagement (Owner/Admin Gerai/Entity Admin/Agent
+// token) diringkas ke {role, id} generik -- dipakai sebagai jejak audit
+// created_by_role/created_by_id di payroll_adjustments, bukan buat otorisasi
+// (otorisasinya sudah selesai lewat requireManagement + scope store di atas).
+function managementActor(auth) {
+  const identity = auth.owner || auth.admin || auth.entityAdmin || auth.agent;
+  return { role: auth.authType, id: identity?.id || auth.authType };
+}
 
 const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -360,27 +370,93 @@ export async function handleAdminCashierApi(request, env, pathname) {
   // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang
   // ngga ada di webnya admin, jadi ini saya sama mba rika juga bingung mau
   // cek presensi dan hitung honornya, harus buka web lama." Riwayat Presensi
-  // + Riwayat Gaji (Portal Staf, /api/staff/portal) cuma pernah dibangun
-  // untuk karyawan melihat DIRINYA SENDIRI -- tidak pernah ada jalur Admin
-  // melihat riwayat karyawan LAIN. Endpoint ini pakai logika perhitungan
-  // yang SAMA PERSIS (staff-attendance.js) supaya angkanya konsisten dengan
-  // yang dilihat karyawan sendiri -- gaji pokok/tarifnya ikut hourlyWage +
-  // paymentType yang sudah diisi Admin di Master Kasir (GET /api/admin/cashiers
-  // di atas), bukan input terpisah.
+  // (Portal Staf, /api/staff/portal) cuma pernah dibangun untuk karyawan
+  // melihat DIRINYA SENDIRI -- tidak pernah ada jalur Admin melihat riwayat
+  // karyawan LAIN.
+  //
+  // Payroll SENGAJA tidak lagi dibawa di sini (dulu ada) -- "untuk detil
+  // gaji dikasi tombol dan kolom sendiri saja. karna selain dari presensi,
+  // gaji nanti juga bisa dibuat oleh akuntan sendiri" (Bos Cyo, 2026-09-24).
+  // Lihat GET .../payroll di bawah.
   const attendanceMatch = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)\/attendance$/);
   if (attendanceMatch) {
     if (request.method !== 'GET') return json({ error: 'Method tidak didukung.' }, 405);
     const id = decodeURIComponent(attendanceMatch[1]);
     const cashier = await db.prepare('SELECT id, employee_name, username FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
     if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
-    const jobDetail = await loadJobDetail(db, id);
     const scheduleByDay = scheduleMap(await loadSchedule(db, id));
     const attendance = await listAttendance(db, id, scheduleByDay);
     return json({
       cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
-      attendance,
-      payroll: buildPayroll(attendance, jobDetail)
+      attendance
     });
+  }
+
+  // Bos Cyo, 2026-09-24: "untuk detil gaji dikasi tombol dan kolom sendiri
+  // saja. karna selain dari presensi, gaji nanti juga bisa dibuat oleh
+  // akuntan sendiri, misal tanggal 26 akuntan entry tambahan 30rb karena
+  // lembur ... jadi di tanggal 26 nanti akan terlihat 2 kartu, 1 dari
+  // presensi normal, 2 tambah entryan akuntan." payroll (dihitung ulang
+  // dari presensi + tarif) dan adjustments (entry manual, baris permanen di
+  // payroll_adjustments) dua sumber terpisah -- caller (UI) yang
+  // menggabungkan per tanggal untuk ditampilkan sebagai kartu-kartu.
+  const payrollMatch = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)\/payroll$/);
+  if (payrollMatch) {
+    const id = decodeURIComponent(payrollMatch[1]);
+    const cashier = await db.prepare('SELECT id, employee_name, username FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
+    if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
+
+    if (request.method === 'GET') {
+      const jobDetail = await loadJobDetail(db, id);
+      const scheduleByDay = scheduleMap(await loadSchedule(db, id));
+      const attendance = await listAttendance(db, id, scheduleByDay);
+      const adjustments = await listPayrollAdjustments(db, { accountId: id, storeId: store.id });
+      return json({
+        cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
+        payroll: buildPayroll(attendance, jobDetail),
+        adjustments
+      });
+    }
+
+    if (request.method === 'POST') {
+      const body = await readJson(request);
+      if (!body.ok) return json({ error: 'Payload penyesuaian gaji tidak valid.' }, 400);
+      const actor = managementActor(auth);
+      const result = await createPayrollAdjustment(db, {
+        accountId: id,
+        storeId: store.id,
+        businessDate: body.value?.businessDate,
+        amountRupiah: body.value?.amountRupiah,
+        reason: body.value?.reason,
+        createdByRole: actor.role,
+        createdById: actor.id
+      });
+      if (!result.ok) return json({ error: result.error }, 400);
+      return json({ ok: true, id: result.id }, 201);
+    }
+
+    return json({ error: 'Method tidak didukung.' }, 405);
+  }
+
+  const voidAdjustmentMatch = pathname.match(/^\/api\/admin\/cashiers\/([^/]+)\/payroll-adjustments\/([^/]+)\/void$/);
+  if (voidAdjustmentMatch) {
+    if (request.method !== 'POST') return json({ error: 'Method tidak didukung.' }, 405);
+    const id = decodeURIComponent(voidAdjustmentMatch[1]);
+    const adjustmentId = decodeURIComponent(voidAdjustmentMatch[2]);
+    const cashier = await db.prepare('SELECT id FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
+    if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload pembatalan tidak valid.' }, 400);
+    const actor = managementActor(auth);
+    const result = await voidPayrollAdjustment(db, {
+      id: adjustmentId,
+      storeId: store.id,
+      reason: body.value?.reason,
+      voidedByRole: actor.role,
+      voidedById: actor.id
+    });
+    if (!result.ok) return json({ error: result.error }, 404);
+    return json({ ok: true });
   }
 
   // Foto presensi versi Admin -- simetris dengan /api/staff/attendance/:id/photo

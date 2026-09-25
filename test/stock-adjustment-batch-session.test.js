@@ -8,12 +8,22 @@ import { hashCredential } from '../src/owner-auth.js';
 // Bos Cyo, 2026-09-19: "kalo sampe skema 1 barang 1 permit diganti aja, yang
 // diajukan ya yg satu transaksi, kalo ga cukup ditulis di kartu ya kasih aja
 // tombol detil" -- one Stock Opname form (several barang with a difference)
-// now submits and gets decided as ONE unit instead of N independent permits.
-// This file covers the new orchestration: batch submit is all-or-nothing on
-// validation, and group ACC/Reject is all-or-nothing on staleness/decision --
-// each item is still its own approval_requests row (the UNIQUE constraint on
+// submits and posts as ONE unit instead of N independent permits. Each item
+// is still its own approval_requests row (the UNIQUE constraint on
 // inventory_ledger_entries.approval_request_id rules out merging rows), only
 // the submit/decide entry points are grouped by payload.sessionId.
+//
+// Bos Cyo, 2026-09-25 (amends ADR-041): "kalo untuk penyesuaian stok itu
+// engga usah minta acc an, langsung aja ya. kecuali arus barang harus acc
+// an." Submission now ALWAYS posts immediately (approved_by_role = 'SYSTEM'),
+// regardless of the store's Auto Permit toggle -- it is no longer possible to
+// submit a Stock Adjustment session and have it sit pending_approval under
+// normal operation. The one case rows can still end up pending_approval is a
+// posting failure that ISN'T staleness (an unrecognized error mid-batch) --
+// the management group-decide endpoint (PATCH .../session/:id) stays in
+// place as that recovery path, exercised below by inserting rows directly
+// the way a stuck/interrupted auto-post would leave them, rather than via
+// submitBatch (which now never leaves anything pending on success).
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
@@ -124,6 +134,43 @@ async function submitBatch(env, cashier, items) {
   );
 }
 
+// Simulates rows left behind by an auto-post attempt that failed for a
+// reason other than staleness (the one case Stock Adjustment can still sit
+// pending_approval) -- inserted directly rather than via submitBatch, which
+// now always posts on success and never leaves anything to recover.
+function insertStuckSession(sqlite, store, cashier, items) {
+  const sessionId = `stockopname_stuck_${crypto.randomUUID()}`;
+  const now = '2026-09-25T00:00:00.000Z';
+  const ids = items.map(item => {
+    const id = `approval_${crypto.randomUUID()}`;
+    const product = sqlite.prepare(`
+      SELECT p.name, p.base_unit_id, u.symbol AS unit_symbol
+      FROM products p JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+      WHERE p.id = ? AND p.store_id = ?
+    `).get(item.productId, store.id);
+    const currentQuantitySnapshot = Number(sqlite.prepare(
+      `SELECT COALESCE(quantity, 0) AS q FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`
+    ).get(store.id, item.productId).q);
+    const targetQuantity = item.targetQuantity;
+    const direction = targetQuantity > currentQuantitySnapshot ? 'IN' : 'OUT';
+    const quantity = Math.abs(targetQuantity - currentQuantitySnapshot);
+    const payload = {
+      purpose: 'STOCK_ADJUSTMENT', productId: item.productId, productName: product.name,
+      unitId: product.base_unit_id, unitSymbol: product.unit_symbol, currentQuantitySnapshot, targetQuantity, direction, quantity,
+      unitCostSnapshotScaled: 1000000, totalCostSnapshotScaled: 1000000 * quantity,
+      sessionId, reason: item.reason || 'stok opname', note: ''
+    };
+    sqlite.prepare(`
+      INSERT INTO approval_requests (
+        id, store_id, drawer_session_id, cashier_id, request_type,
+        approval_status, posting_status, payload_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
+    `).run(id, store.id, cashier.drawerId, cashier.cashierId, JSON.stringify(payload), now, now);
+    return id;
+  });
+  return { sessionId, ids };
+}
+
 test('batch submit is atomic: one invalid item fails the whole submission, no row created for either', async () => {
   const sqlite = freshDatabase();
   try {
@@ -170,7 +217,7 @@ test('batch submit rejects a duplicate productId within the same submission', as
   }
 });
 
-test('batch submit succeeds as one session: both rows share sessionId and stay pending until one decision', async () => {
+test('batch submit posts immediately as one session, no ACC needed, even with Auto Permit off', async () => {
   const sqlite = freshDatabase();
   try {
     const db = d1(sqlite);
@@ -178,6 +225,9 @@ test('batch submit succeeds as one session: both rows share sessionId and stay p
     const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001'`).get();
     const { productAId, productBId } = twoTrackedProducts(sqlite, store.id);
     const cashier = await cashierWithOpenDrawer(sqlite, store.id);
+
+    const settings = sqlite.prepare(`SELECT auto_permit_enabled FROM store_approval_settings WHERE store_id = ?`).get(store.id);
+    assert.equal(settings ?? null, null, 'fixture store must not have Auto Permit configured -- proves this path is unconditional');
 
     const response = await submitBatch(env, cashier, [
       { productId: productAId, targetQuantity: 7, reason: 'hitung fisik A' },
@@ -187,45 +237,13 @@ test('batch submit succeeds as one session: both rows share sessionId and stay p
     const body = await response.json();
     assert.ok(body.sessionId);
     assert.equal(body.requests.length, 2);
+    assert.deepEqual(body.posted, { attempted: true, posted: true });
     for (const item of body.requests) {
-      assert.equal(item.approvalStatus, 'pending_approval');
-      assert.equal(item.postingStatus, 'unposted');
+      assert.equal(item.approvalStatus, 'approved');
+      assert.equal(item.postingStatus, 'posted');
+      assert.equal(item.approvedByRole, 'SYSTEM');
       assert.equal(item.payload.sessionId, body.sessionId);
     }
-
-    const balanceA = sqlite.prepare(`SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`).get(store.id, productAId);
-    assert.equal(balanceA.quantity, 10, 'stock must not move while the session is still pending');
-  } finally {
-    sqlite.close();
-  }
-});
-
-test('group ACC posts every item in the session atomically in one decision', async () => {
-  const sqlite = freshDatabase();
-  try {
-    const db = d1(sqlite);
-    const env = { DB: db };
-    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001'`).get();
-    const { productAId, productBId } = twoTrackedProducts(sqlite, store.id);
-    const cashier = await cashierWithOpenDrawer(sqlite, store.id);
-    const { token: owner } = await ownerToken(sqlite);
-
-    const submit = await submitBatch(env, cashier, [
-      { productId: productAId, targetQuantity: 7 },
-      { productId: productBId, targetQuantity: 25 }
-    ]);
-    const { sessionId } = await submit.json();
-
-    const decidePathname = `/api/management/approval-requests/session/${sessionId}`;
-    const decide = await handleApprovalQueueApi(
-      request(decidePathname, { token: owner, method: 'PATCH', body: { decision: 'ACC' } }),
-      env, decidePathname
-    );
-    assert.equal(decide.status, 200);
-    const decideBody = await decide.json();
-    assert.equal(decideBody.posted, true);
-    assert.equal(decideBody.requests.length, 2);
-    assert.ok(decideBody.requests.every(item => item.approvalStatus === 'approved' && item.postingStatus === 'posted'));
 
     const balanceA = sqlite.prepare(`SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`).get(store.id, productAId);
     const balanceB = sqlite.prepare(`SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`).get(store.id, productBId);
@@ -236,7 +254,7 @@ test('group ACC posts every item in the session atomically in one decision', asy
   }
 });
 
-test('group ACC is all-or-nothing: one stale item in the session rejects the whole session, nothing posts', async () => {
+test('a stale item at posting time rejects the whole session immediately, nothing posts', async () => {
   const sqlite = freshDatabase();
   try {
     const db = d1(sqlite);
@@ -244,19 +262,19 @@ test('group ACC is all-or-nothing: one stale item in the session rejects the who
     const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001'`).get();
     const { productAId, productBId } = twoTrackedProducts(sqlite, store.id);
     const cashier = await cashierWithOpenDrawer(sqlite, store.id);
-    const { token: owner } = await ownerToken(sqlite);
 
-    const submit = await submitBatch(env, cashier, [
+    // Simulates a stuck session (see insertStuckSession) whose snapshot was
+    // taken from a balance that has since moved -- the same shape
+    // applyGroupAccDecision must still reject when the recovery path
+    // (management group-decide) is used to retry it.
+    const { sessionId } = insertStuckSession(sqlite, store, cashier, [
       { productId: productAId, targetQuantity: 7 },
       { productId: productBId, targetQuantity: 25 }
     ]);
-    const { sessionId } = await submit.json();
-
-    // Product A's stock changes after submission (another transaction moved
-    // it) -- the snapshot taken at submit time (10) no longer matches.
     sqlite.prepare(`UPDATE inventory_stock_balances SET quantity = 12, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND product_id = ?`)
       .run(store.id, productAId);
 
+    const { token: owner } = await ownerToken(sqlite);
     const decidePathname = `/api/management/approval-requests/session/${sessionId}`;
     const decide = await handleApprovalQueueApi(
       request(decidePathname, { token: owner, method: 'PATCH', body: { decision: 'ACC' } }),
@@ -280,7 +298,7 @@ test('group ACC is all-or-nothing: one stale item in the session rejects the who
   }
 });
 
-test('group Reject bounces every item in the session at once', async () => {
+test('a stuck pending session (recovery path) can still be ACC-ed or Rejected manually by an Admin', async () => {
   const sqlite = freshDatabase();
   try {
     const db = d1(sqlite);
@@ -290,11 +308,45 @@ test('group Reject bounces every item in the session at once', async () => {
     const cashier = await cashierWithOpenDrawer(sqlite, store.id);
     const { token: owner } = await ownerToken(sqlite);
 
-    const submit = await submitBatch(env, cashier, [
+    const { sessionId } = insertStuckSession(sqlite, store, cashier, [
       { productId: productAId, targetQuantity: 7 },
       { productId: productBId, targetQuantity: 25 }
     ]);
-    const { sessionId } = await submit.json();
+
+    const decidePathname = `/api/management/approval-requests/session/${sessionId}`;
+    const decide = await handleApprovalQueueApi(
+      request(decidePathname, { token: owner, method: 'PATCH', body: { decision: 'ACC' } }),
+      env, decidePathname
+    );
+    assert.equal(decide.status, 200);
+    const decideBody = await decide.json();
+    assert.equal(decideBody.posted, true);
+    assert.equal(decideBody.requests.length, 2);
+    assert.ok(decideBody.requests.every(item => item.approvalStatus === 'approved' && item.postingStatus === 'posted'));
+
+    const balanceA = sqlite.prepare(`SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`).get(store.id, productAId);
+    const balanceB = sqlite.prepare(`SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?`).get(store.id, productBId);
+    assert.equal(balanceA.quantity, 7);
+    assert.equal(balanceB.quantity, 25);
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('group Reject on the recovery path bounces every item in the session at once', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const db = d1(sqlite);
+    const env = { DB: db };
+    const store = sqlite.prepare(`SELECT id FROM stores WHERE code = 'G001'`).get();
+    const { productAId, productBId } = twoTrackedProducts(sqlite, store.id);
+    const cashier = await cashierWithOpenDrawer(sqlite, store.id);
+    const { token: owner } = await ownerToken(sqlite);
+
+    const { sessionId } = insertStuckSession(sqlite, store, cashier, [
+      { productId: productAId, targetQuantity: 7 },
+      { productId: productBId, targetQuantity: 25 }
+    ]);
 
     const decidePathname = `/api/management/approval-requests/session/${sessionId}`;
     const decide = await handleApprovalQueueApi(

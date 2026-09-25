@@ -34,6 +34,12 @@ uses (`rejectStaleStockAdjustment` → `buildOperationalPostingStatements` →
 `pending_approval`. Scope is `approval_requests` only — `transaction_void_permits`
 (Hapus/correction permits) is explicitly not affected.
 
+**Amendment 2026-09-25**: `GOODS_FLOW` with `payload.purpose = 'STOCK_ADJUSTMENT'`
+is now unconditional — it always posts directly (`approved_by_role = 'SYSTEM'`),
+regardless of this toggle's state (see ADR-041 amendment). Plain Arus Barang
+(`GOODS_FLOW` without that purpose), `CASH_FLOW`, and `ASSET` still respect the
+toggle exactly as described below.
+
 - `approved_by_role = 'AUTO_PERMIT'`, `approved_by_id` = the account that
   turned the toggle on (`store_approval_settings.enabled_by_id`), never the
   submitting cashier — this is the accountability trail Bos Cyo asked for.
@@ -109,9 +115,10 @@ Cashier Penyesuaian Stok now reuses the Approval Queue and canonical inventory s
 
 - cashier chooses a tracked Product Master item and target physical quantity;
 - server snapshots current stock, derives IN/OUT delta, and records exact `unitCostSnapshotScaled` + `totalCostSnapshotScaled` valuation evidence;
-- Admin/Owner ACC rechecks the snapshot;
+- posts immediately (`approved_by_role = 'SYSTEM'`) instead of waiting for Admin/Owner ACC (Bos Cyo, 2026-09-25 — see ADR-041 amendment); the snapshot is still re-checked against live stock at posting time;
 - stale requests fail closed without stock mutation;
-- successful ACC updates `inventory_stock_balances`, inventory ledger evidence, and `stock_movements` atomically;
+- a posting failure other than staleness leaves the row `pending_approval`/`unposted` as a recovery path an Admin can still ACC/Reject manually;
+- posting (whether direct or via the recovery path) updates `inventory_stock_balances`, inventory ledger evidence, and `stock_movements` atomically;
 - no second stock table/source is created;
 - V2 never rewrites Average Cost/HPP merely because quantity is corrected;
 - HPP changes after staging leave the older payload untouched, while the next adjustment snapshots the new HPP;

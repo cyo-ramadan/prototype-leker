@@ -8,6 +8,7 @@ import { handleEmployeeMasterApi } from '../src/employee-master.js';
 import { getNetProfitReport } from '../src/net-profit-report.js';
 import { recordAttendanceAccrual } from '../src/payroll-ledger.js';
 import { hashCredential } from '../src/owner-auth.js';
+import { getJakartaDayOfWeek } from '../src/time.js';
 
 // Bos Cyo, 2026-09-24 (koreksi atas Penyesuaian Gaji): "harusnya entry gaji
 // cukup yang di operasional itu kan bisa ... bikin semacam akun gaji, dan
@@ -403,10 +404,19 @@ test('Presensi masuk DALAM rentang jam shift tetap dihitung normal -- pagar tida
     const pendem = storeRow(db, 'PENDEM');
     const cashier = await seedCashier(db, pendem.id, 'jadwal3', 'CS Jadwal Tiga');
     seedJobDetail(db, cashier.id, { hourlyWage: 50000, paymentType: 'SESI' });
-    seedSchedule(db, cashier.id, 4, { shiftStart: '09:00', shiftEnd: '18:00' });
+    // Bos Cyo, 2026-09-25: jadwal 09:00-18:00 tanggal 2026-09-24 tetap yang
+    // dipakai file ini bikin test ini gagal begitu kalender lewat tanggal
+    // itu -- forceCloseOverdueSessions (real "now") menutup sesinya duluan
+    // sebelum checkOut() eksplisit di bawah sempat jalan, jadi 0 baris
+    // payroll tercatat. Dibikin relatif ke "sekarang" (hari + jam apa pun
+    // test ini dijalankan) supaya tidak jadi bom waktu kalender lagi:
+    // jadwal 00:00-23:59 hari ini pasti mencakup jam berapa pun sekarang,
+    // dan deadline force-close-nya (23:59+1jam) pasti masih jauh di depan.
+    const now = new Date();
+    seedSchedule(db, cashier.id, getJakartaDayOfWeek(now), { shiftStart: '00:00', shiftEnd: '23:59' });
 
     await checkIn(env, cashier.token);
-    backdateOpenSession(db, cashier.id, '2026-09-24T02:30:00.000Z'); // Jakarta 09:30 -- dalam jadwal
+    backdateOpenSession(db, cashier.id, new Date(now.getTime() - 5 * 60000).toISOString()); // 5 menit lalu, masih dalam jadwal
     await checkOut(env, cashier.token);
 
     const rows = db.prepare(`SELECT * FROM payroll_ledger_entries WHERE account_id = ?`).all(cashier.id);

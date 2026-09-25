@@ -136,23 +136,35 @@ async function handleCashierApprovalQueue(request, env, pathname) {
       ) VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
     `).bind(row.id, auth.cashier.store.id, drawerAuth.drawer.id, auth.cashier.id, JSON.stringify(row.payload), now, now)));
 
-    const settings = await getApprovalSettings(env.DB, auth.cashier.store.id);
-    if (!settings.autoPermitEnabled) {
-      return json({ ok: true, sessionId, requests: await Promise.all(rows.map(row => getRequest(env.DB, row.id))) }, 201);
-    }
-
+    // Bos Cyo, 2026-09-25: "kalo untuk penyesuaian stok itu engga usah minta
+    // acc an, langsung aja ya. kecuali arus barang harus acc an." Amends
+    // ADR-041 point 2 ("not per-request-type") for STOCK_ADJUSTMENT
+    // specifically -- it now ALWAYS posts immediately, regardless of the
+    // store's Auto Permit toggle (unlike plain Arus Barang, which still
+    // respects that toggle via the generic POST /api/cashier/approval-requests
+    // below). approverRole is 'SYSTEM' (established convention, e.g.
+    // payroll-ledger.js accruals), not 'AUTO_PERMIT' -- there is no human
+    // account that decided to turn this on, so it must not be misattributed
+    // to whoever last toggled Auto Permit (which may even be OFF).
+    //
+    // The management group-decide endpoint below (PATCH .../session/:id)
+    // stays in place as the recovery path: if posting fails for a reason
+    // other than a stale snapshot (which rejects outright here), the rows
+    // remain pending_approval/unposted and an Admin can still ACC/Reject them
+    // manually -- same "ACC lalu eksekusi dua statement terpisah" retry-safe
+    // shape as Permit Hapus Transaksi (KNOWN_PITFALLS.md).
     const currents = await Promise.all(rows.map(row => getRequest(env.DB, row.id)));
     const outcome = await applyGroupAccDecision(env, currents, {
-      approverRole: 'AUTO_PERMIT',
-      approverId: settings.enabledById || '',
+      approverRole: 'SYSTEM',
+      approverId: '',
       now,
-      note: 'Auto Permit'
+      note: 'Penyesuaian Stok langsung posting (tidak butuh ACC)'
     });
     return json({
       ok: true,
       sessionId,
       requests: outcome.requests || currents,
-      autoPermit: outcome.ok
+      posted: outcome.ok
         ? { attempted: true, posted: true }
         : { attempted: true, posted: false, code: outcome.code, reason: outcome.error }
     }, 201);

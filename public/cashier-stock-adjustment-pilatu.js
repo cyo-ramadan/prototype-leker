@@ -20,7 +20,7 @@
       const productById = new Map(products.map(product => [Number(product.productId), product]));
 
       openDialog({
-        eyebrow: 'Laci · Approval Queue',
+        eyebrow: 'Laci · Inventory',
         title: 'Penyesuaian Stok',
         body: `
           <style>
@@ -78,7 +78,7 @@
             <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500" placeholder="Contoh: hasil hitung fisik"></textarea></div>
           </div>
 
-          <p class="muted">Semua barang yang punya selisih diajukan sekaligus sebagai satu pengajuan -- ACC/Reject Admin berlaku untuk semuanya bersamaan. Stale-snapshot guard tetap re-check tiap barang; kalau ada satu yang stoknya berubah, seluruh pengajuan ini ditolak otomatis supaya diajukan ulang dari saldo terbaru.</p>`,
+          <p class="muted">Semua barang yang punya selisih langsung diposting sekaligus sebagai satu penyesuaian, tanpa menunggu ACC Admin. Stale-snapshot guard tetap re-check tiap barang persis sebelum diposting; kalau ada satu yang stoknya sudah berubah sejak panel ini dibuka, seluruh pengajuan ini ditolak otomatis supaya diajukan ulang dari saldo terbaru.</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
           const prepared = pilatu.prepareStockAdjustmentRows(selectedRows);
@@ -86,7 +86,7 @@
           if (!changed.length) throw new Error('Tidak ada selisih stok yang perlu diajukan.');
 
           const note = el('stockAdjustmentNote').value.trim();
-          await api('/api/cashier/approval-requests/stock-adjustment-batch', {
+          const result = await api('/api/cashier/approval-requests/stock-adjustment-batch', {
             method: 'POST',
             body: JSON.stringify({
               items: changed.map(row => ({
@@ -98,7 +98,14 @@
           });
 
           const skipped = prepared.length - changed.length;
-          toast(`${changed.length} Penyesuaian Stok masuk Approval Queue sebagai satu pengajuan${skipped ? ` · ${skipped} tanpa selisih dilewati` : ''}.`);
+          // Bos Cyo, 2026-09-25: "penyesuaian stok itu engga usah minta acc
+          // an, langsung aja" -- server sekarang selalu langsung posting,
+          // kecuali snapshot-nya sudah basi (ditolak, bukan menunggu ACC).
+          if (result.posted && result.posted.posted === false) {
+            toast(`Penyesuaian Stok ditolak: ${result.posted.reason || 'stok sudah berubah, ajukan ulang.'}`);
+          } else {
+            toast(`${changed.length} Penyesuaian Stok langsung diposting${skipped ? ` · ${skipped} tanpa selisih dilewati` : ''}.`);
+          }
           return true;
         }
       });

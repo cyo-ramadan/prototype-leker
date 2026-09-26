@@ -143,27 +143,51 @@ async function loadOrpItems(db, storeId) {
 }
 
 async function loadGajiAccounts(db, storeId) {
-  const rows = await db.prepare(`
-    SELECT l.employee_id, e.full_name,
+  const sums = `
            COALESCE(SUM(CASE WHEN l.entry_type <> 'PAYMENT' THEN l.hutang_gaji_delta_scaled ELSE 0 END), 0) AS created_scaled,
            COALESCE(SUM(CASE WHEN l.entry_type = 'PAYMENT' THEN -l.hutang_gaji_delta_scaled ELSE 0 END), 0) AS paid_scaled,
            COALESCE(SUM(l.hutang_gaji_delta_scaled), 0) AS balance_scaled,
            COUNT(*) AS entry_count,
-           MAX(l.business_date) AS last_date
-    FROM payroll_ledger_entries l
-    JOIN employees e ON e.id = l.employee_id
-    WHERE l.store_id = ? AND l.voided_at IS NULL AND l.employee_id IS NOT NULL
-    GROUP BY l.employee_id, e.full_name
-  `).bind(storeId).all();
-  return (rows.results ?? []).map(row => ({
-    employeeId: row.employee_id,
-    employeeName: row.full_name,
+           MAX(l.business_date) AS last_date`;
+  const [linked, unlinked] = await Promise.all([
+    db.prepare(`
+      SELECT l.employee_id, e.full_name, ${sums}
+      FROM payroll_ledger_entries l
+      JOIN employees e ON e.id = l.employee_id
+      WHERE l.store_id = ? AND l.voided_at IS NULL AND l.employee_id IS NOT NULL
+      GROUP BY l.employee_id, e.full_name
+    `).bind(storeId).all(),
+    // Bos Cyo, 2026-09-26: "laporan hutang piutangnya kok kosong". Akrual
+    // presensi dari akun kasir yang BELUM ditautkan ke Master Karyawan
+    // tercatat dengan employee_id kosong (payroll-ledger.js sengaja tidak
+    // menebak orangnya) -- dulu hilang dari laporan. Hutangnya nyata, jadi
+    // tetap ditampilkan atas nama akun kasirnya, tapi tidak bisa dibayar
+    // dari sini sampai akunnya ditautkan ke karyawan.
+    db.prepare(`
+      SELECT l.account_type, l.account_id, COALESCE(c.employee_name, c.username, l.account_id) AS account_name, ${sums}
+      FROM payroll_ledger_entries l
+      LEFT JOIN cashiers c ON c.id = l.account_id AND l.account_type = 'CASHIER'
+      WHERE l.store_id = ? AND l.voided_at IS NULL AND l.employee_id IS NULL
+      GROUP BY l.account_type, l.account_id, account_name
+    `).bind(storeId).all()
+  ]);
+  const map = (row, extra) => ({
+    ...extra,
     createdScaled: Number(row.created_scaled || 0),
     paidScaled: Number(row.paid_scaled || 0),
     balanceScaled: Number(row.balance_scaled || 0),
     entryCount: Number(row.entry_count || 0),
     lastDate: row.last_date
-  }));
+  });
+  return [
+    ...(linked.results ?? []).map(row => map(row, { employeeId: row.employee_id, employeeName: row.full_name, unlinked: false })),
+    ...(unlinked.results ?? []).map(row => map(row, {
+      employeeId: null,
+      accountKey: `${row.account_type}:${row.account_id}`,
+      employeeName: `${row.account_name} (akun kasir, belum ditautkan ke Master Karyawan)`,
+      unlinked: true
+    }))
+  ];
 }
 
 // Rekap per orang: satu orang bisa punya beberapa "akun" Hutang/Piutang
@@ -189,8 +213,11 @@ export async function buildHutangPiutangSummary(db, storeId) {
   }
 
   for (const gaji of gajiAccounts) {
-    const person = personFor('EMPLOYEE', gaji.employeeId, gaji.employeeName);
+    const person = gaji.unlinked
+      ? personFor('EMPLOYEE', `unlinked:${gaji.accountKey}`, gaji.employeeName)
+      : personFor('EMPLOYEE', gaji.employeeId, gaji.employeeName);
     const account = accountFor(person, 'GAJI', 'PAYABLE');
+    account.unlinked = gaji.unlinked;
     account.createdScaled += gaji.createdScaled;
     account.paidScaled += gaji.paidScaled;
     account.balanceScaled += gaji.balanceScaled;
@@ -215,7 +242,8 @@ export async function buildHutangPiutangSummary(db, storeId) {
       createdRupiah: rupiah(account.createdScaled),
       paidRupiah: rupiah(account.paidScaled),
       balanceRupiah: rupiah(account.balanceScaled),
-      payableByAdmin: account.balanceType === 'PAYABLE' && PAYABLE_BY_ADMIN.has(account.account),
+      payableByAdmin: account.balanceType === 'PAYABLE' && PAYABLE_BY_ADMIN.has(account.account) && !account.unlinked,
+      unlinked: Boolean(account.unlinked),
       items: account.items.map(item => ({
         id: item.id,
         description: item.description,

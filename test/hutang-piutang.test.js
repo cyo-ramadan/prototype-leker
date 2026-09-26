@@ -372,3 +372,30 @@ test('Laporan Beban merinci beban dari Bea Operasional, Pembayaran Lainnya, dan 
     assert.ok(payload.byCategory.length >= 3);
   } finally { db.close(); }
 });
+
+// Bos Cyo, 2026-09-26: "laporan hutang piutangnya kok kosong". Di produksi
+// satu-satunya hutang gaji berasal dari akun kasir yang belum ditautkan ke
+// Master Karyawan (employee_id kosong) -- dulu hilang dari laporan.
+test('Hutang Gaji dari akun kasir yang belum ditautkan ke karyawan tetap tampil, tapi tidak bisa dibayar', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    db.prepare(`INSERT INTO cashiers (id, username, password_hash, employee_name, store_id, is_active, created_at, updated_at) VALUES ('cashier_unlinked', 'uswatun', 'x', 'Uswatun', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).run(pendem.id);
+    db.prepare(`
+      INSERT INTO payroll_ledger_entries (id, employee_id, account_type, account_id, store_id, business_date, entry_type, hutang_gaji_delta_scaled, beban_gaji_delta_scaled, source_type, source_id)
+      VALUES ('pl_unlinked', NULL, 'CASHIER', 'cashier_unlinked', ?, '2026-09-25', 'ACCRUAL', 44520000000, 44520000000, 'ATTENDANCE', 'att_unlinked')
+    `).run(pendem.id);
+    const data = await summary(env, token);
+    assert.equal(data.totals.hutangRupiah, 44520);
+    const person = data.persons.find(p => p.counterpartyName.startsWith('Uswatun'));
+    assert.ok(person, 'hutang gaji akun kasir yang belum ditautkan harus kelihatan');
+    assert.match(person.counterpartyName, /belum ditautkan/);
+    const account = person.accounts[0];
+    assert.equal(account.unlinked, true);
+    assert.equal(account.payableByAdmin, false);
+    const pay = await call(handleHutangPiutangApi, env, '/api/admin/hutang-piutang/payments', {
+      token, method: 'POST', body: { accountKey: account.accountKey, amount: 1000, paymentMethod: 'KAS' }
+    });
+    assert.equal(pay.status, 409);
+  } finally { db.close(); }
+});

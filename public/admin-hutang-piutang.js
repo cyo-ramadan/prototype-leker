@@ -94,9 +94,11 @@
   function renderBayar(host) {
     const accounts = payableAccounts();
     const piutang = [];
+    const unlinked = [];
     for (const person of snapshot.persons || []) {
       for (const account of person.accounts) {
         if (account.balanceType === 'RECEIVABLE' && account.balanceRupiah !== 0) piutang.push({ person, account });
+        if (account.unlinked && account.balanceRupiah !== 0) unlinked.push({ person, account });
       }
     }
     host.innerHTML = `
@@ -120,6 +122,12 @@
         <div class="admin-card list-card">
           <div class="list-head"><div><h2>Riwayat pembayaran</h2><div class="muted">Salah input? Batalkan -- semua efeknya dibalik (termasuk Rekening Bersama), jejaknya tetap ada.</div></div><span class="master-count">${(snapshot.payments || []).length}</span></div>
           <div class="master-list">${renderPayments()}</div>
+          ${unlinked.length ? `
+          <div class="list-head" style="margin-top:18px"><div><h2>Hutang Gaji belum bisa dibayar</h2><div class="muted">Gaji dari presensi akun kasir yang belum ditautkan ke Master Karyawan. Tautkan akunnya ke karyawan di tab Karyawan dulu -- sesudah itu gaji berikutnya otomatis bisa dibayar dari sini.</div></div></div>
+          <div class="master-list">${unlinked.map(({ person, account }) => `
+            <article class="master-row"><div class="master-main">
+              <strong>${escapeHtml(person.counterpartyName)} · ${escapeHtml(account.label)} · ${rupiah(account.balanceRupiah)}</strong>
+            </div></article>`).join('')}</div>` : ''}
           ${piutang.length ? `
           <div class="list-head" style="margin-top:18px"><div><h2>Piutang</h2><div class="muted">Piutang setoran laci dilunasi lewat alur setoran (bukti transfer + ACC), bukan dari sini.</div></div></div>
           <div class="master-list">${piutang.map(({ person, account }) => `
@@ -273,7 +281,7 @@
                 ${account.items.length ? `<ul style="margin:4px 0 0;padding-left:18px">${account.items.map(item => `
                   <li class="muted">${escapeHtml(item.transactionDate)} · ${escapeHtml(item.description || '-')} · ${rupiah(item.originalRupiah)}${item.sourceVoided ? ' (sumber dibatalkan)' : ''} · dibayar ${rupiah(item.paidRupiah)} · sisa ${rupiah(item.balanceRupiah)}</li>`).join('')}</ul>` : ''}
               </div>`).join('')}
-          </details>`).join('') : '<div class="empty">Belum ada hutang/piutang.</div>'}</div>
+          </details>`).join('') : `<div class="empty">Belum ada hutang/piutang di gerai ini.<br><small>Hutang muncul dari: (1) tab Bea Operasional &rarr; Catat Hutang &amp; Beban; (2) pembelian kasir yang cara bayarnya dicentang "Jadi Hutang" di Setting Akuntansi &gt; Metode Pembayaran (pembelian lama ikut ditarik saat dicentang); (3) gaji dari presensi.</small></div>`}</div>
       </div>`;
   }
 

@@ -42,6 +42,13 @@
 
       const supplierOptions = ['<option value="">Tanpa supplier</option>', ...suppliers.map(supplier => `<option value="${escapeHtml(supplier.id)}">${escapeHtml(supplier.name)}</option>`)].join('');
       const selectableProducts = productOptions(products);
+      const deposits = purchasePayload.deposits || [];
+      // Bos Cyo, 2026-09-26: "kita pesen bahan baku seminggu sebelumnya ...
+      // yang dateng cuma 700rb ... berarti masih punya saldo/deposit barang
+      // senilai 300rb" -- kalau Admin sudah bikin Uang Muka Bahan Baku,
+      // pembelian sungguhan ini bisa langsung ditarik dari saldo itu, bukan
+      // jadi Hutang baru. Opsional; dropdown ini kosong kalau belum ada.
+      const depositOptions = deposits.map(deposit => `<option value="${escapeHtml(deposit.id)}">${escapeHtml(deposit.counterpartyName)} · sisa ${rupiah(deposit.balanceRupiah)}</option>`).join('');
       const lines = [];
 
       openDialog({
@@ -55,6 +62,7 @@
             <option value="PAYABLE">Hutang / Utang Usaha</option>
             <option value="NON_CASH">Non Tunai (legacy)</option>
           </select></div>
+          ${deposits.length ? `<div class="field"><label>Bayar dari Deposit <span class="muted">optional</span></label><select id="dialogPurchaseDeposit" class="text-input"><option value="">Tidak pakai Deposit</option>${depositOptions}</select></div>` : ''}
           <div class="field"><label>Deskripsi <span class="muted">optional</span></label><input id="dialogPurchaseDescription" class="text-input" maxlength="220" placeholder="Otomatis dari nama barang jika kosong" /></div>
           <div class="cashier-lock-note"><b>Tambah barang dari Master Barang</b><br><span class="muted">Barang tidak menerima input nama bebas. Pilihan di bawah berasal dari database gerai aktif.</span></div>
           <div class="field"><label>Barang</label><select id="dialogPurchaseProduct" class="text-input">${selectableProducts}</select></div>
@@ -80,6 +88,7 @@
             body: JSON.stringify({
               supplierId: el('dialogSupplier').value,
               paymentMethod: el('dialogPurchasePayment').value,
+              depositId: el('dialogPurchaseDeposit')?.value || null,
               description: el('dialogPurchaseDescription').value,
               note: el('dialogPurchaseNote').value,
               items: lines.map(line => ({ productId: line.productId, quantity: line.quantity, lineTotal: line.lineTotal }))

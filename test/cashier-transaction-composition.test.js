@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20260921-operasional-keterangan-editable-v1',
+    '/cashier-payment-methods.js?v=20260926-deposit-v1',
     '/cashier-enhancements.js?v='
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);

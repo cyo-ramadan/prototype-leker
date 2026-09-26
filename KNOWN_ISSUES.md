@@ -691,6 +691,51 @@ sejak awal); Pengeluaran Kasir (`expenses`) dengan cara bayar "Jadi Hutang" belu
 (yang diminta baru pembelian ke supplier); piutang setoran laci tetap dilunasi lewat alurnya sendiri
 (bukti + ACC), di layar ini cuma ditampilkan.
 
+## Uang Muka / Deposit (2026-09-26)
+
+Bos Cyo: "kalo misal dibikin beli deposit gitu apa ribet?" — token listrik dibeli Rp1jt, bulan
+ini baru kepakai Rp500rb; iklan dibayar Rp5jt, kesedot Rp2jt; bahan baku dipesan Rp1jt seminggu
+sebelumnya tapi yang datang cuma senilai Rp700rb. Sisa di ketiga contoh itu BUKAN Beban — masih
+nilai yang KITA pegang sampai direalisasikan.
+
+- **Bentuknya**: baris di `operational_receivables_payables` (migration 0122) dengan `source_type`
+  baru `DEPOSIT_LISTRIK`/`DEPOSIT_IKLAN`/`DEPOSIT_BAHAN_BAKU`/`DEPOSIT_LAINNYA`, `balance_type`
+  RECEIVABLE — persis pola EMPLOYEE_DEPOSIT, ditarik lewat mekanisme pembayaran yang sama dengan
+  Hutang (`addOperationalPayment`/`operational_receivable_payable_payments` tidak peduli arah
+  PAYABLE/RECEIVABLE). Modul baru `src/operational-deposits.js` cuma menyediakan pembuatan + daftar.
+- **UX**: SATU tombol baru ("Uang Muka/Deposit", panel ke-5 di `public/admin-hutang-piutang.js`)
+  untuk MEMBUAT saldo Deposit. TIDAK ADA tombol pembayaran baru — Deposit jadi cara bayar ke-4
+  (`KAS`/`BANK`/`REKBER`/`DEPOSIT`) di dua tombol yang sudah ada:
+  - **Pembayaran Hutang/Piutang**: melunasi Hutang pakai Deposit — `payHutang` menambah satu baris
+    penarikan Deposit (nempel `admin_payment_id` yang sama) di luar efek pelunasan Hutang biasa.
+  - **Pembayaran Lainnya**: realisasi listrik/iklan — admin ketik manual berapa yang kepakai bulan
+    ini, `payLainnya` mengakui Beban sebesar itu SAJA dan menarik Deposit sebesar itu juga (tidak ada
+    baris ledger Rekening Bersama di sini, uangnya sudah keluar waktu Deposit dibuat).
+  - **Bahan baku**: ditarik OTOMATIS di form Pembelian kasir (`src/cashier-purchase.js`, cara bayar
+    "Bayar dari Deposit" di `public/cashier-payment-methods.js` — lihat catatan dead-code di bawah)
+    sebesar nilai barang yang BENAR-BENAR diterima (fakta stok, bukan estimasi admin) — sengaja lewat
+    jalur Pembelian sungguhan, bukan Beban generik, supaya stok/HPP tidak korup. Kalau `depositId`
+    dipilih, pembelian itu LUNAS dari Deposit dan TIDAK membuat `PURCHASE_PAYABLE` baru.
+- **Laporan**: Deposit terbuka sengaja TIDAK nyampur ke Laporan Hutang Piutang (`loadOrpItems`
+  mengecualikan `DEPOSIT_*`) — dia laporan sendiri (daftar di panel ke-5), untuk alur Bos Cyo:
+  "admin nanti tugasnya sebelum tutup buku bulanan ngecekin deposit2 yang ada, dan ngeluarin
+  beban2 dari deposit itu."
+- **Batalkan**: `voidPayment` membalik baris penarikan Deposit lewat `admin_payment_id` yang sama,
+  TIDAK PEDULI kind pembayarannya (Hutang biasa/Hutang Gaji/Pembayaran Lainnya) — satu UPDATE generik
+  yang aman idempotent kalau memang tidak ada baris Deposit yang menempel.
+- **Batas yang sengaja dibiarkan**: membatalkan (void) pembelian bahan baku yang sudah menarik Deposit
+  TIDAK memulihkan saldo Deposit-nya secara otomatis (sama seperti PURCHASE_PAYABLE yang dibatalkan
+  tidak menghapus pembayaran yang sudah terjadi — invariant #8, saldo minus/kurang bukan bug). Kalau
+  ini jadi masalah nyata di lapangan, butuh task terpisah.
+- **Temuan sampingan waktu wiring ini**: dialog "Beli Bahan" kasir yang BENERAN live adalah
+  `purchaseDialog()` di `public/cashier-payment-methods.js` (PIMASATU) — dia menang lewat
+  capture-phase click listener yang `stopImmediatePropagation()`. `public/cashier-procurement-ui.js`
+  (dialog "V2" dari PR #239) TIDAK PERNAH ikut ke-`<script>`-kan di `cashier.html` dan memang
+  sengaja begitu (ada test yang menegaskannya, `cashier-transaction-composition.test.js`) — jadi
+  dia dead code, bukan bug baru dari sesi ini. Opsi Deposit tetap ditambahkan ke file itu juga
+  (murah, filenya sudah punya test sendiri), tapi kalau memang tidak akan pernah dipakai sebaiknya
+  dihapus di kesempatan lain supaya tidak menjebak agen berikutnya.
+
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, and Payroll transaction implementations. Also update this section when the Uang Muka/Deposit flow above changes shape (new deposit categories, Deposit-funded void reversal, Accounting posting for Deposit realization, or the dead `cashier-procurement-ui.js` file is finally removed or activated). Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

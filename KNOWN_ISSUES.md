@@ -645,6 +645,58 @@ they were deliberately not deleted because Pendem's pre-existing posted journal/
 history snapshots `entity_id` at write time (migration 0046) and still points at
 `ENT-PENDEM`.
 
+## Hutang: Gaji vs Lapak/Lainnya — dua ledger, satu tampilan (2026-09-26)
+
+Bos Cyo: "lapak juga lewat hutang dulu aja ... jadi nanti pembayaran2 by admin tinggal
+bayar2 hutang aja." Bea Lapak dan Bea Lainnya (`src/admin-operational-expense.js`) sekarang
+membuka Hutang lewat modul hutang-piutang generik yang sudah ada,
+`operational_receivables_payables` (migration 0074, sebelumnya cuma dipakai untuk piutang
+setoran laci EMPLOYEE_DEPOSIT). Jembatannya: `src/operational-expense-payables.js`
+(migration 0120), pola ekstensinya sama persis dengan `src/employee-deposit-settlement.js`
+— INSERT langsung dengan `source_type` sendiri, lalu pakai ulang
+`addOperationalPayment`/`getOperationalReceivablePayable`/`listOperationalReceivablesPayables`.
+
+Beban-nya diakui SEKALI, tepat saat baris `admin_operational_expenses` (BEA_LAPAK/BEA_LAINNYA)
+dibuat — itu satu-satunya momen pengakuan biaya untuk kategori ini karena tidak ada mekanisme
+akrual otomatis seperti gaji. Pelunasan lewat `POST /api/admin/operational-expenses/payables/:id/pay`
+CASH-NEUTRAL terhadap Laporan Net Profit: tidak pernah menulis baris `admin_operational_expenses`
+baru, cuma mengurangi saldo Hutang. Boleh melebihi sisa saldo (jadi minus) — bukan bug,
+invariant #8 CLAUDE.md.
+
+**Kenapa Bea Gaji TIDAK ikut lewat modul yang sama** (pertanyaan langsung Bos Cyo, dijawab
+eksplisit supaya tidak dianggap inkonsistensi yang tidak sengaja): `operational_receivables_payables`
+bentuknya "satu baris = satu tagihan dengan `original_amount` tetap, dilunasi bertahap lewat
+`operational_receivable_payable_payments`" — cocok untuk tagihan yang dicatat manual sesekali
+(sewa lapak bulan ini, tagihan WiFi bulan ini). Gaji punya bentuk berlawanan: nilainya numpuk
+OTOMATIS berkali-kali sehari dari presensi (`payroll_ledger_entries`, migration 0116, entry_type
+ACCRUAL), baru sesekali dilunasi sekaligus. Memaksakan gaji ke tabel yang sama berarti satu
+baris per shift kerja per karyawan (ratusan baris) plus perlu fitur "lunasi banyak baris
+sekaligus" yang belum ada di `addOperationalPayment` (dia dirancang untuk mencicil SATU baris,
+bukan melunasi banyak baris dalam satu aksi) — lebih banyak kerjaan baru daripada tetap
+memisahkannya. Jadi dua ledger ini bukan kebetulan tidak konsisten; keduanya menyimpan bentuk
+kejadian yang secara struktural berbeda.
+
+Supaya admin tidak perlu tahu ada dua sumber data di baliknya, `GET /api/admin/operational-expenses`
+dan `GET /api/admin/operational-expenses/payables` menggabungkan `hutangGaji`
+(`listOpenHutangGajiByStore`, per karyawan, dari `payroll_ledger_entries`) dan
+`hutangLapakLainnya` (dari `operational_receivables_payables`) jadi satu daftar Hutang di UI
+Bea Operasional. Baris Hutang Gaji di daftar itu tidak punya tombol Bayar sendiri — pelunasannya
+tetap lewat form Bea Operasional (kategori Bea Gaji, nominal negatif), tidak berubah dari
+sebelumnya.
+
+Void Bea Lapak/Lainnya yang Hutangnya belum tersentuh sama sekali ikut menutup Hutangnya jadi
+nol (lewat mekanisme pembayaran yang sama, bukan hapus/edit baris). Kalau Hutangnya sudah
+pernah dibayar sebagian/seluruhnya, void expense-nya tetap boleh tapi Hutangnya SENGAJA
+dibiarkan apa adanya — uang yang sudah benar-benar berpindah tidak pernah dihapus diam-diam
+hanya karena baris pengakuan Beban-nya dibatalkan.
+
+Belum dikerjakan (di luar scope sesi ini, ditulis eksplisit supaya tidak dianggap lupa):
+pembayaran Hutang belum terhubung ke metode bayar Rekening Bersama sebagai default — itu
+menunggu fitur terpisah "Rekening Bersama jadi pilihan cara bayar" yang juga belum dibangun
+(payment_methods belum ada satu pun row yang `shared_account_id`-nya terisi, dibuktikan
+langsung ke D1 produksi 2026-09-26 — hook `postSharedAccountLedgerForPaymentMethod` di
+`src/entity-shared-accounts.js` sudah ada tapi dorman total).
+
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: Rekening Bersama becomes a selectable payment method (payment_methods gets a row with `shared_account_id` populated) and/or gains a default for admin-recorded Bea Operasional payments; the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path; or the Hutang Gaji vs Hutang Lapak/Lainnya split above is unified or the payment-method default changes. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

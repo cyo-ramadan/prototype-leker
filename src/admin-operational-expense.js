@@ -3,7 +3,14 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
-import { recordBeaGajiAdjustment, voidLedgerEntryBySource, WAGE_SCALE } from './payroll-ledger.js';
+import { recordBeaGajiAdjustment, voidLedgerEntryBySource, listOpenHutangGajiByStore, WAGE_SCALE } from './payroll-ledger.js';
+import {
+  OPERATIONAL_EXPENSE_PAYABLE_CATEGORIES,
+  createOperationalExpensePayable,
+  listOpenOperationalExpensePayables,
+  payOperationalExpensePayable,
+  closeOperationalExpensePayableForVoid
+} from './operational-expense-payables.js';
 
 // Bea Operasional dari panel Admin Gerai (migration 0100) -- Bos Cyo,
 // 2026-09-17. Uang keluar yang dibayar Admin, bukan lewat laci kasir:
@@ -22,6 +29,14 @@ import { recordBeaGajiAdjustment, voidLedgerEntryBySource, WAGE_SCALE } from './
 // Beban Gaji) -- lihat migration 0116. Bea Gaji juga satu-satunya kategori
 // yang boleh nominal NEGATIF (potongan/pinalti gaji); Bea Lapak/Bea Lainnya
 // tetap wajib positif seperti semula.
+//
+// Bos Cyo, 2026-09-26: "lapak juga lewat hutang dulu aja". Bea Lapak/Bea
+// Lainnya sekarang JUGA membentuk Hutang (src/operational-expense-payables.js,
+// migration 0120) tepat saat baris ini dibuat -- Beban-nya diakui di sini
+// (baris admin_operational_expenses ini), Hutangnya cuma catatan "belum
+// dibayar" yang dilunasi lewat endpoint /payables/:id/pay terpisah (cash-
+// neutral, tidak menambah Beban lagi). Kenapa Bea Gaji tidak ikut pola yang
+// sama: KNOWN_ISSUES.md.
 
 export const BEA_CATEGORIES = Object.freeze([
   { code: 'BEA_GAJI', label: 'Bea Gaji' },
@@ -131,7 +146,12 @@ export async function handleAdminOperationalExpenseApi(request, env, pathname) {
       expenses: await listExpenses(db, store.id, {
         from: businessDateInput(url.searchParams.get('from')),
         to: businessDateInput(url.searchParams.get('to'))
-      })
+      }),
+      // Bos Cyo, 2026-09-26: layar Hutang gabungan -- Gaji (payroll-ledger.js)
+      // dan Lapak/Lainnya (operational-expense-payables.js) dalam satu daftar,
+      // biarpun di baliknya dua sumber data beda (KNOWN_ISSUES.md).
+      hutangGaji: await listOpenHutangGajiByStore(db, store.id),
+      hutangLapakLainnya: await listOpenOperationalExpensePayables(db, store.id)
     });
   }
 
@@ -186,19 +206,72 @@ export async function handleAdminOperationalExpenseApi(request, env, pathname) {
         createdByRole: actor.role,
         createdById: actor.id
       });
+    } else if (OPERATIONAL_EXPENSE_PAYABLE_CATEGORIES.includes(category)) {
+      // Bos Cyo, 2026-09-26: "lapak juga lewat hutang dulu aja". Baris di
+      // atas sudah mengakui Beban-nya (langsung, tidak ada akrual otomatis
+      // kayak gaji) -- ini cuma membuka Hutangnya, dilunasi lewat endpoint
+      // /payables/:id/pay terpisah, tidak menambah Beban lagi saat dibayar.
+      if (!store.entityId) return json({ error: 'Gerai ini belum terhubung Entity, Hutang Lapak/Lainnya butuh itu.', code: 'STORE_WITHOUT_ENTITY' }, 409);
+      await createOperationalExpensePayable(db, {
+        storeId: store.id,
+        entityId: store.entityId,
+        category,
+        expenseId: id,
+        counterpartyName: text(body.value?.counterpartyName, 200),
+        description,
+        amountRupiah: amount,
+        businessDate
+      });
     }
 
     // Hari yang sudah ditutup-buku mungkin sudah tersimpan di cache laporan
     // dengan angka lama -- buang cache tanggal itu supaya dihitung ulang.
     await invalidateDailyProfitSnapshot(db, store.id, businessDate);
 
-    return json({ ok: true, id, expenses: await listExpenses(db, store.id) }, 201);
+    return json({
+      ok: true, id, expenses: await listExpenses(db, store.id),
+      hutangGaji: await listOpenHutangGajiByStore(db, store.id),
+      hutangLapakLainnya: await listOpenOperationalExpensePayables(db, store.id)
+    }, 201);
+  }
+
+  // Hutang Lapak/Lainnya -- daftar kosong yang sudah lunas (0) tidak dianggap
+  // "open", sesuai listOpenOperationalExpensePayables (openOnly).
+  if (request.method === 'GET' && pathname === '/api/admin/operational-expenses/payables') {
+    return json({
+      hutangGaji: await listOpenHutangGajiByStore(db, store.id),
+      hutangLapakLainnya: await listOpenOperationalExpensePayables(db, store.id)
+    });
+  }
+
+  const payMatch = pathname.match(/^\/api\/admin\/operational-expenses\/payables\/([^/]+)\/pay$/);
+  if (request.method === 'POST' && payMatch) {
+    const payableId = decodeURIComponent(payMatch[1]);
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload pembayaran tidak valid.' }, 400);
+    const payAmount = amountInput(body.value?.amount, { allowNegative: false });
+    if (!payAmount || payAmount <= 0) return json({ error: 'Nominal bayar harus bilangan bulat rupiah lebih dari nol.' }, 400);
+    try {
+      const result = await payOperationalExpensePayable(db, payableId, {
+        storeId: store.id,
+        amountRupiah: payAmount,
+        note: text(body.value?.note, 300),
+        submittedBy: `${actor.role}:${actor.id}`
+      });
+      return json({
+        ok: true,
+        item: result.item,
+        hutangLapakLainnya: await listOpenOperationalExpensePayables(db, store.id)
+      });
+    } catch (error) {
+      return json({ error: error.message || 'Pembayaran Hutang gagal diproses.', code: error.code }, error.status || 400);
+    }
   }
 
   const voidMatch = pathname.match(/^\/api\/admin\/operational-expenses\/([^/]+)\/void$/);
   if (request.method === 'POST' && voidMatch) {
     const id = decodeURIComponent(voidMatch[1]);
-    const current = await db.prepare('SELECT id, business_date, voided_at FROM admin_operational_expenses WHERE id = ? AND store_id = ?')
+    const current = await db.prepare('SELECT id, category, business_date, voided_at FROM admin_operational_expenses WHERE id = ? AND store_id = ?')
       .bind(id, store.id).first();
     if (!current) return json({ error: 'Bea tidak ditemukan di gerai ini.' }, 404);
     if (current.voided_at) return json({ error: 'Bea ini sudah dibatalkan sebelumnya.', code: 'ALREADY_VOIDED' }, 409);
@@ -221,8 +294,18 @@ export async function handleAdminOperationalExpenseApi(request, env, pathname) {
       voidedByRole: actor.role, voidedById: actor.id, reason
     });
 
+    // Hutang Lapak/Lainnya-nya (kalau ada) ikut ditutup -- lihat komentar di
+    // closeOperationalExpensePayableForVoid soal kenapa ini aman.
+    if (OPERATIONAL_EXPENSE_PAYABLE_CATEGORIES.includes(current.category)) {
+      await closeOperationalExpensePayableForVoid(db, { storeId: store.id, expenseId: id, actorLabel: `${actor.role}:${actor.id}` });
+    }
+
     await invalidateDailyProfitSnapshot(db, store.id, current.business_date);
-    return json({ ok: true, expenses: await listExpenses(db, store.id) });
+    return json({
+      ok: true, expenses: await listExpenses(db, store.id),
+      hutangGaji: await listOpenHutangGajiByStore(db, store.id),
+      hutangLapakLainnya: await listOpenOperationalExpensePayables(db, store.id)
+    });
   }
 
   return json({ error: 'Route Bea Operasional tidak ditemukan.' }, 404);

@@ -4,6 +4,8 @@ import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
 import { handleCashierOperationalExpenseApi } from './cashier-operational-expense.js';
 import { resolvePosPaymentMethod } from './pos-payment-methods.js';
+import { purchasePayableStatement } from './hutang-piutang.js';
+import { getJakartaBusinessDate } from './time.js';
 
 const COST_SCALE = 1_000_000;
 const MAX_LINE_TOTAL = 9_000_000_000;
@@ -189,10 +191,21 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, cashier.store.id, body.value?.paymentMethod, 'CASH');
   if (!resolvedPayment) return json({ error: 'Cara bayar pembelian tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
   const paymentMethod = resolvedPayment.code;
+  let supplier = null;
   if (supplierId) {
-    const supplier = await env.DB.prepare(`SELECT id FROM suppliers WHERE id = ? AND store_id = ? AND is_active = 1`).bind(supplierId, cashier.store.id).first();
+    supplier = await env.DB.prepare(`SELECT id, name FROM suppliers WHERE id = ? AND store_id = ? AND is_active = 1`).bind(supplierId, cashier.store.id).first();
     if (!supplier) return json({ error: 'Supplier tidak ditemukan di gerai kasir.' }, 400);
   }
+  // Bos Cyo, 2026-09-26: "yang cara bayarnya hutang ke suplier ikut
+  // disambungkan ke catatan hutang kita" -- cara bayar yang ditandai admin
+  // "Jadi Hutang" (payment_methods.creates_payable) langsung membuka Hutang
+  // Pembelian di batch yang sama (src/hutang-piutang.js).
+  const payableMethod = await env.DB.prepare(`
+    SELECT name, creates_payable FROM payment_methods WHERE store_id = ? AND code = ? LIMIT 1
+  `).bind(cashier.store.id, paymentMethod).first();
+  const storeEntity = payableMethod?.creates_payable
+    ? await env.DB.prepare(`SELECT entity_id FROM stores WHERE id = ?`).bind(cashier.store.id).first()
+    : null;
   const id = `purchase_${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   const description = text(body.value?.description, 220) || `Pembelian ${normalized.items.map(item => item.productName).slice(0, 4).join(', ')}`;
@@ -201,6 +214,18 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
     env.DB.prepare(`INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, cashier.store.id, ownership.drawer.id, cashier.id, supplierId, description, normalized.totalAmount, note, now, paymentMethod),
     accounting.statement
   ];
+  if (payableMethod?.creates_payable) {
+    const payableStatement = purchasePayableStatement(env.DB, {
+      purchaseId: id,
+      store: { id: cashier.store.id, entityId: storeEntity?.entity_id || null },
+      supplier,
+      paymentMethod: { name: payableMethod.name },
+      totalAmount: normalized.totalAmount,
+      businessDate: getJakartaBusinessDate(new Date(now)),
+      description
+    });
+    if (payableStatement) statements.push(payableStatement);
+  }
   for (const item of normalized.items) statements.push(...purchaseItemStatements(env.DB, {
     purchaseId: id,
     storeId: cashier.store.id,

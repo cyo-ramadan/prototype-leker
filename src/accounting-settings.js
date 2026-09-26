@@ -80,7 +80,7 @@ async function listPaymentMethods(db, storeId) {
   const hasConfiguredDefault = await paymentMethodDefaultsAvailable(db);
   const defaultSelect = hasConfiguredDefault ? 'p.is_default' : `CASE WHEN p.code = 'CASH' THEN 1 ELSE 0 END AS is_default`;
   const rows = await db.prepare(`
-    SELECT p.id, p.code, p.name, p.account_id, p.shared_account_id, p.is_active, ${defaultSelect},
+    SELECT p.id, p.code, p.name, p.account_id, p.shared_account_id, p.creates_payable, p.is_active, ${defaultSelect},
            a.code AS account_code, a.name AS account_name, a.type AS account_type,
            sa.name AS shared_account_name
     FROM payment_methods p
@@ -97,6 +97,7 @@ async function listPaymentMethods(db, storeId) {
     account: row.account_id ? { id: row.account_id, code: row.account_code || '', name: row.account_name || '', type: row.account_type || '' } : null,
     sharedAccountId: row.shared_account_id || null,
     sharedAccountName: row.shared_account_name || null,
+    createsPayable: Boolean(row.creates_payable),
     isActive: Boolean(row.is_active),
     isDefault: Boolean(row.is_default)
   }));

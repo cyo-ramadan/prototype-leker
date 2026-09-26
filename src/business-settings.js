@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
+import { backfillPurchasePayables } from './hutang-piutang.js';
 
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const flag = value => value === false ? 0 : 1;
@@ -48,6 +49,10 @@ export async function savePaymentMethod(db, store, body, id = null) {
   const sharedAccountId = body?.sharedAccountId === undefined ? (current?.shared_account_id || null) : (text(body.sharedAccountId, 80) || null);
   const isActive = body?.isActive === undefined ? Number(current?.is_active ?? 1) : flag(body.isActive);
   const isDefault = body?.isDefault === undefined ? Number(current?.is_default ?? 0) : flag(body.isDefault);
+  // Bos Cyo, 2026-09-26: cara bayar yang artinya "hutang ke supplier" ditandai
+  // admin sendiri -- pembelian kasir dengan cara bayar ini otomatis jadi
+  // Hutang Pembelian (src/hutang-piutang.js). Default mati.
+  const createsPayable = body?.createsPayable === undefined ? Number(current?.creates_payable ?? 0) : (body.createsPayable === true ? 1 : 0);
   if (!code || !name) return json({ error: 'Kode dan nama metode pembayaran wajib valid.' }, 400);
   if (accountId && !await activeAccount(db, store.id, accountId)) return json({ error: 'Akun metode pembayaran harus akun aktif di gerai ini.' }, 400);
   if (sharedAccountId && !await activeSharedAccount(db, store.entityId, sharedAccountId)) return json({ error: 'Rekening Bersama harus aktif dan berada di entity gerai ini.' }, 400);
@@ -57,14 +62,19 @@ export async function savePaymentMethod(db, store, body, id = null) {
     await db.prepare(`UPDATE payment_methods SET is_default = 0, updated_at = CURRENT_TIMESTAMP WHERE store_id = ? AND id <> ?`).bind(store.id, id || '').run();
   }
   if (current) {
-    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, shared_account_id = ?, is_active = ?, is_default = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
-      .bind(name, accountId, sharedAccountId, isActive, isDefault, id, store.id).run();
-    return json({ ok: true });
+    await db.prepare(`UPDATE payment_methods SET name = ?, account_id = ?, shared_account_id = ?, is_active = ?, is_default = ?, creates_payable = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?`)
+      .bind(name, accountId, sharedAccountId, isActive, isDefault, createsPayable, id, store.id).run();
+    // Baru ditandai "Jadi Hutang" -> pembelian lama dengan cara bayar ini ikut
+    // ditarik jadi Hutang (idempotent, yang dibatalkan tidak ikut).
+    const backfilledPurchases = createsPayable && !Number(current.creates_payable || 0)
+      ? await backfillPurchasePayables(db, store, current.code)
+      : 0;
+    return json({ ok: true, backfilledPurchases });
   }
   const nextId = `payment_${store.id}_${crypto.randomUUID()}`;
   try {
-    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, shared_account_id, is_active, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(nextId, store.id, code, name, accountId, sharedAccountId, isActive, isDefault).run();
+    await db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, shared_account_id, is_active, is_default, creates_payable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(nextId, store.id, code, name, accountId, sharedAccountId, isActive, isDefault, createsPayable).run();
   } catch (error) {
     if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode/nama metode pembayaran sudah dipakai.' }, 409);
     throw error;

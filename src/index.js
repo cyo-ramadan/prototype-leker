@@ -34,6 +34,7 @@ import { handleProductPolicyApi } from './product-policy.js';
 import { handleProductMasterApi, handleProductMasterCatalogApi } from './product-master.js';
 import { handleNetProfitReportApi } from './net-profit-report.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
+import { handleHutangPiutangApi } from './hutang-piutang.js';
 import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
@@ -268,6 +269,8 @@ async function handleApi(request, env, url) {
   if (netProfitReportResponse) return netProfitReportResponse;
   const adminOperationalExpenseResponse = await handleAdminOperationalExpenseApi(request, env, pathname);
   if (adminOperationalExpenseResponse) return adminOperationalExpenseResponse;
+  const hutangPiutangResponse = await handleHutangPiutangApi(request, env, pathname);
+  if (hutangPiutangResponse) return hutangPiutangResponse;
   const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
   if (classificationResponse) return classificationResponse;
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);

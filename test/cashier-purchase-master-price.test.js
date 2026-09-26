@@ -68,7 +68,7 @@ test('purchase boundary keeps supplier and product eligibility store-scoped', as
 
   assert.match(
     source,
-    /SELECT id FROM suppliers WHERE id = \? AND store_id = \? AND is_active = 1/,
+    /SELECT id, name FROM suppliers WHERE id = \? AND store_id = \? AND is_active = 1/,
     'supplier identity must resolve inside the cashier store'
   );
   assert.match(

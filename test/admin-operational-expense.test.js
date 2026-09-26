@@ -208,7 +208,7 @@ test('tiga jenis bea diterima, jenis di luar daftar ditolak, nominal nol ditolak
 
     for (const category of ['BEA_GAJI', 'BEA_LAPAK', 'BEA_LAINNYA']) {
       const res = await worker.fetch(request('/api/admin/operational-expenses', {
-        token, store: 'KANTOR', method: 'POST', body: beaBody({ category, amount: 10000, employeeId })
+        token, store: 'KANTOR', method: 'POST', body: beaBody({ category, amount: 10000, employeeId, counterpartyType: 'OTHER', counterpartyName: 'Pemilik Lapak' })
       }), env);
       assert.equal(res.status, 201, `${category} harus diterima`);
     }

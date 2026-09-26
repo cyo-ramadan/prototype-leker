@@ -106,13 +106,22 @@
     }
   }
 
+  // Bos Cyo, 2026-09-26: di gerai baru (Mandala) "milih kategori barangnya
+  // aja ga keluar" -- dropdown Kategori hanya berisi kategori yang sudah ada
+  // di gerai itu, dan gerai baru belum punya satu pun. Dropdown kosong +
+  // atribut required = form bahkan tidak bisa disubmit. Server sudah
+  // otomatis membuat kategori yang belum ada saat barang disimpan, jadi
+  // cukup beri kolom untuk mengetik kategori baru.
   function mountProductFields() {
     const form = el('productForm');
     const category = el('productCategory')?.closest('label');
     if (!form || !category || el('productMasterFields')) return;
     mountPurchaseCostFields();
     mountProductCodeFields();
+    el('productCategory')?.removeAttribute('required');
     category.insertAdjacentHTML('afterend', `
+      <label class="admin-field">Kategori baru <span class="field-note">optional -- ketik kalau kategorinya belum ada di pilihan atas</span><input id="productCategoryNew" maxlength="60" placeholder="mis. Minuman" /></label>`);
+    el('productCategoryNew').closest('label').insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
         <details id="productOperationalDetails" class="admin-card" style="padding:12px;margin:0 0 12px">
           <summary style="cursor:pointer;font-weight:900">Stok & pengaturan lanjutan</summary>
@@ -380,6 +389,7 @@
 
   function resetExtendedForm() {
     state.activeProductId = 0;
+    if (el('productCategoryNew')) el('productCategoryNew').value = '';
     renderEditorFields(null);
   }
 
@@ -409,11 +419,13 @@
     try {
       if (!state.editor) await loadEditor();
       const productId = Number(el('productId')?.value || 0);
+      const category = el('productCategoryNew')?.value.trim() || el('productCategory').value;
+      if (!category) throw new Error('Pilih kategori, atau ketik Kategori baru.');
       const payload = {
         name: el('productName').value,
         purchasePrice: Number(String(el('productPurchasePrice').value).trim().replace(',', '.')),
         price: Number(String(el('productPrice').value).trim().replace(',', '.')),
-        category: el('productCategory').value,
+        category,
         emoji: '🥞',
         imageData: productImagePayload(),
         isActive: el('productActive').checked,
@@ -611,12 +623,17 @@
   // dipakai gerai ini. Ini murni UI -- semua logic fork/aktivasi/resep ada
   // di backend (src/product-master.js), panel ini cuma memanggil dan
   // menampilkan hasilnya.
+  // Bos Cyo, 2026-09-26: "dari master barang mandala buat ngeliat master
+  // barang entity aja ga bisa". Panel ini dulu disisipkan SESUDAH kotak
+  // Master barang sebagai anak grid ketiga -- di desktop ia jatuh ke kolom
+  // KIRI, di bawah form Tambah barang yang punya scroll sendiri, jadi tidak
+  // pernah kelihatan dari kotak Master barang. Sekarang ditaruh DI DALAM
+  // kotak Master barang, persis di bawah daftar barang gerai.
   function mountCatalogPanel() {
     const list = el('productList');
-    const card = list?.closest('.admin-card');
-    if (!card || el('productMasterCatalogCard')) return;
-    card.insertAdjacentHTML('afterend', `
-      <div id="productMasterCatalogCard" class="admin-card" style="margin-top:14px">
+    if (!list || el('productMasterCatalogCard')) return;
+    list.insertAdjacentHTML('afterend', `
+      <div id="productMasterCatalogCard" style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--line)">
         <div class="list-head">
           <div>
             <div class="admin-eyebrow">Master Entity</div>
@@ -650,7 +667,7 @@
       const usedHere = entry.usedByStores.some(usage => usage.storeCode === storeCode);
       const otherStores = entry.usedByStores.filter(usage => usage.storeCode !== storeCode);
       return `
-      <div class="master-row contact-row" data-catalog-entry="${esc(entry.id)}">
+      <div class="master-row${entry.imageData ? '' : ' contact-row'}" data-catalog-entry="${esc(entry.id)}">
         ${entry.imageData ? `<img class="master-thumb" src="${esc(entry.imageData)}" alt="${esc(entry.name || entry.code)}" />` : ''}
         <div class="master-main">
           <strong>${esc(entry.code)}${entry.name ? ` · ${esc(entry.name)}` : ''}</strong>

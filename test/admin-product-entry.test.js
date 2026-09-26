@@ -30,10 +30,24 @@ test('branch product form submits products to branch scoped protected endpoint',
   assert.match(ui, /'\/api\/admin\/products'/);
   assert.match(html, /id="productName"/);
   assert.match(html, /id="productPurchasePrice"/);
-  assert.match(html, /admin-product-policy\.js\?v=20260922-mount-error-isolation-v1/);
+  assert.match(html, /admin-product-policy\.js\?v=20260926-katalog-di-master-barang-v1/);
   assert.match(html, /admin-manufacturing\.js\?v=20260915-tab-icon-theme-v1/);
   assert.match(html, /admin-master-menu\.js\?v=20260915-tab-icon-theme-v1/);
   assert.match(html, /id="productPrice"/);
   assert.match(html, /id="productCategory"/);
   assert.match(html, /Simpan barang/);
+});
+
+// Bos Cyo, 2026-09-26 (gerai Mandala): katalog Kode Barang Entity harus ada DI
+// DALAM kotak Master barang (bukan anak grid ketiga yang jatuh ke kolom kiri di
+// bawah form), dan gerai tanpa kategori tetap bisa menambah barang lewat kolom
+// "Kategori baru" -- dropdown kosong + required dulu memblokir submit.
+test('product master catalog lives inside Master barang card and new category can be typed', async () => {
+  const policy = await readFile(new URL('../public/admin-product-policy.js', import.meta.url), 'utf8');
+  const mount = policy.slice(policy.indexOf('function mountCatalogPanel()'), policy.indexOf('function catalogEntryById('));
+  assert.match(mount, /list\.insertAdjacentHTML\('afterend'/);
+  assert.doesNotMatch(mount, /card\.insertAdjacentHTML/);
+  assert.match(policy, /el\('productCategory'\)\?\.removeAttribute\('required'\)/);
+  assert.match(policy, /id="productCategoryNew"/);
+  assert.match(policy, /el\('productCategoryNew'\)\?\.value\.trim\(\) \|\| el\('productCategory'\)\.value/);
 });

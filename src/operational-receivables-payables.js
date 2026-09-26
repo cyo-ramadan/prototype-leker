@@ -7,6 +7,13 @@ export const OPERATIONAL_SOURCE_TYPES = Object.freeze({
   PURCHASE_PAYABLE: 'PURCHASE_PAYABLE',
   COST_PAYABLE: 'COST_PAYABLE',
   EMPLOYEE_DEPOSIT: 'EMPLOYEE_DEPOSIT',
+  // migration 0120, Bos Cyo 2026-09-26: Bea Lapak/Bea Lainnya (src/admin-
+  // operational-expense.js) sekarang lewat Hutang dulu -- baris dibuat oleh
+  // src/operational-expense-payables.js (pola sama dengan EMPLOYEE_DEPOSIT:
+  // INSERT langsung, bukan lewat addOperationalReceivablePayable/
+  // ikanSourceSnapshot karena sumbernya bukan tabel Ikan).
+  BEA_LAPAK: 'BEA_LAPAK',
+  BEA_LAINNYA: 'BEA_LAINNYA',
 });
 
 const SOURCE_BALANCE_TYPES = Object.freeze({
@@ -14,6 +21,8 @@ const SOURCE_BALANCE_TYPES = Object.freeze({
   [OPERATIONAL_SOURCE_TYPES.PURCHASE_PAYABLE]: 'PAYABLE',
   [OPERATIONAL_SOURCE_TYPES.COST_PAYABLE]: 'PAYABLE',
   [OPERATIONAL_SOURCE_TYPES.EMPLOYEE_DEPOSIT]: 'RECEIVABLE',
+  [OPERATIONAL_SOURCE_TYPES.BEA_LAPAK]: 'PAYABLE',
+  [OPERATIONAL_SOURCE_TYPES.BEA_LAINNYA]: 'PAYABLE',
 });
 
 const API_ROOT = '/api/ikan/operational-receivables-payables';

@@ -134,3 +134,26 @@ export async function listLedgerForEmployee(db, employeeId) {
   const hutangGajiBalanceRupiah = entries.reduce((sum, entry) => sum + (entry.voided ? 0 : entry.hutangGajiDeltaRupiah), 0);
   return { entries, hutangGajiBalanceRupiah };
 }
+
+// Bos Cyo, 2026-09-26: layar Hutang gabungan (Gaji + Lapak + Lainnya jadi
+// satu daftar buat admin, biarpun di baliknya dua "mesin" beda -- lihat
+// KNOWN_ISSUES.md). Ini sisi Gaji-nya: siapa saja yang PERNAH punya baris
+// ledger di gerai ini dan saldo Hutang Gaji-nya masih tidak nol, diurutkan
+// dari yang terbesar. WAGE_SCALE, dibagi sekali sesudah SUM, bukan per baris.
+export async function listOpenHutangGajiByStore(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT l.employee_id, e.full_name,
+           SUM(l.hutang_gaji_delta_scaled) AS balance_scaled
+    FROM payroll_ledger_entries l
+    JOIN employees e ON e.id = l.employee_id
+    WHERE l.store_id = ? AND l.voided_at IS NULL AND l.employee_id IS NOT NULL
+    GROUP BY l.employee_id, e.full_name
+    HAVING balance_scaled <> 0
+    ORDER BY balance_scaled DESC
+  `).bind(storeId).all();
+  return (rows.results ?? []).map(row => ({
+    employeeId: row.employee_id,
+    employeeName: row.full_name,
+    balanceRupiah: Number(row.balance_scaled) / WAGE_SCALE
+  }));
+}

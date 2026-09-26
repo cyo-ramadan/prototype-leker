@@ -4,6 +4,7 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 import { newId } from './ikan-ids.js';
+import { getDepositForStore, listOpenDeposits, createDeposit, depositLabel } from './operational-deposits.js';
 
 // Bos Cyo, 2026-09-26: "bea operasional itu kita bikin tombol kusus untuk
 // membuat hutang ... lalu kita bikin tombol lagi di sisi admin misal kita
@@ -53,9 +54,18 @@ export const HUTANG_ACCOUNT_LABELS = Object.freeze({
 // setoran laci tetap lewat alurnya sendiri (bukti transfer + ACC, src/
 // employee-deposit-settlement.js) -- di sini cuma ditampilkan.
 const PAYABLE_BY_ADMIN = new Set(['GAJI', 'BEA_LAPAK', 'BEA_LAINNYA', 'PURCHASE_PAYABLE']);
-const PAYMENT_METHODS = new Set(['KAS', 'BANK', 'REKBER']);
-export const PAYMENT_METHOD_LABELS = Object.freeze({ KAS: 'Tunai / Kas Admin', BANK: 'Transfer Bank', REKBER: 'Rekening Bersama' });
+// Bos Cyo, 2026-09-26: "kalo dibolehkan engga bayar hutang aja, aka
+// pembayaran cash atau dengan deposit bisa dilakukan ke operasional itu".
+// Deposit jadi cara bayar ke-4 di DUA tombol yang sudah ada (Pembayaran
+// Hutang/Piutang & Pembayaran Lainnya) -- tidak ada tombol pembayaran baru,
+// cuma satu tombol baru untuk membuat Deposit-nya (src/operational-deposits.js).
+const PAYMENT_METHODS = new Set(['KAS', 'BANK', 'REKBER', 'DEPOSIT']);
+export const PAYMENT_METHOD_LABELS = Object.freeze({ KAS: 'Tunai / Kas Admin', BANK: 'Transfer Bank', REKBER: 'Rekening Bersama', DEPOSIT: 'Deposit' });
 const LAINNYA_CATEGORIES = new Set(['BEA_LAPAK', 'BEA_LAINNYA']);
+
+function depositMethodLabel(deposit) {
+  return `Deposit ${depositLabel(deposit.sourceType)} (${deposit.counterpartyName})`;
+}
 
 function domainError(message, code, status = 400) {
   const error = new Error(message);
@@ -113,6 +123,7 @@ async function loadOrpItems(db, storeId) {
            END AS source_voided
     FROM operational_receivables_payables r
     WHERE r.store_id = ?
+      AND r.source_type NOT IN ('DEPOSIT_LISTRIK', 'DEPOSIT_IKLAN', 'DEPOSIT_BAHAN_BAKU', 'DEPOSIT_LAINNYA')
     ORDER BY r.transaction_date, r.created_at
   `).bind(storeId).all();
   // Sumber (Bea/Pembelian) dibatalkan = hutangnya dianggap tidak pernah
@@ -299,17 +310,39 @@ export async function listSharedAccountsForPayment(db, store) {
   return (rows.results ?? []).map(row => ({ id: row.id, name: row.name, storeBalance: Number(row.store_balance || 0) }));
 }
 
-async function resolvePaymentMethod(db, store, paymentMethod, sharedAccountId) {
+async function resolvePaymentMethod(db, store, paymentMethod, sharedAccountId, depositId) {
   const method = text(paymentMethod, 20).toUpperCase();
-  if (!PAYMENT_METHODS.has(method)) throw domainError('Pilih cara bayar: Tunai, Transfer Bank, atau Rekening Bersama.', 'PAYMENT_METHOD_REQUIRED');
-  if (method !== 'REKBER') return { method, sharedAccount: null };
-  const id = text(sharedAccountId, 80);
-  if (!id) throw domainError('Pilih Rekening Bersama yang dipakai membayar.', 'SHARED_ACCOUNT_REQUIRED');
-  const account = await db.prepare(`
-    SELECT id, name FROM entity_shared_accounts WHERE id = ? AND entity_id = ? AND is_active = 1
-  `).bind(id, store.entityId || '').first();
-  if (!account) throw domainError('Rekening Bersama tidak aktif / bukan milik entity gerai ini.', 'SHARED_ACCOUNT_OUT_OF_SCOPE');
-  return { method, sharedAccount: account };
+  if (!PAYMENT_METHODS.has(method)) throw domainError('Pilih cara bayar: Tunai, Transfer Bank, Rekening Bersama, atau Deposit.', 'PAYMENT_METHOD_REQUIRED');
+  if (method === 'REKBER') {
+    const id = text(sharedAccountId, 80);
+    if (!id) throw domainError('Pilih Rekening Bersama yang dipakai membayar.', 'SHARED_ACCOUNT_REQUIRED');
+    const account = await db.prepare(`
+      SELECT id, name FROM entity_shared_accounts WHERE id = ? AND entity_id = ? AND is_active = 1
+    `).bind(id, store.entityId || '').first();
+    if (!account) throw domainError('Rekening Bersama tidak aktif / bukan milik entity gerai ini.', 'SHARED_ACCOUNT_OUT_OF_SCOPE');
+    return { method, sharedAccount: account, deposit: null };
+  }
+  if (method === 'DEPOSIT') {
+    const id = text(depositId, 80);
+    if (!id) throw domainError('Pilih Uang Muka/Deposit yang dipakai membayar.', 'DEPOSIT_REQUIRED');
+    const deposit = await getDepositForStore(db, store.id, id);
+    if (!deposit) throw domainError('Uang Muka/Deposit tidak ditemukan / bukan milik gerai ini.', 'DEPOSIT_OUT_OF_SCOPE');
+    return { method, sharedAccount: null, deposit };
+  }
+  return { method, sharedAccount: null, deposit: null };
+}
+
+// Satu baris penarikan Deposit -- persis pola FIFO di payHutang, cuma
+// tabelnya (dan arahnya) sama: operational_receivable_payable_payments
+// tidak peduli PAYABLE/RECEIVABLE, tinggal ditandai admin_payment_id yang
+// sama supaya voidPayment tahu ini nempel ke pembayaran yang mana.
+function depositDrawStatement(db, { deposit, store, actor, amountScaled, paymentId, note }) {
+  return db.prepare(`
+    INSERT INTO operational_receivable_payable_payments (
+      id, receivable_payable_id, store_id, entity_id, amount, approval_status,
+      proof_reference, note, submitted_by, admin_payment_id
+    ) VALUES (?, ?, ?, ?, ?, 'approved', '', ?, ?, ?)
+  `).bind(newId('ORPP'), deposit.id, store.id, deposit.entityId, amountScaled, note, `${actor.role}:${actor.id}`, paymentId);
 }
 
 // Uang keluar lewat Rekening Bersama = baris OUT sungguhan di ledger
@@ -326,7 +359,7 @@ function sharedLedgerStatement(db, { ledgerId, sharedAccount, store, direction, 
 
 // ----------------------------------------------------------- pembayaran ---
 
-export async function payHutang(db, { store, actor, accountKey, amountRupiah, paymentMethod, sharedAccountId, businessDate, note }) {
+export async function payHutang(db, { store, actor, accountKey, amountRupiah, paymentMethod, sharedAccountId, depositId, businessDate, note }) {
   const amount = amountInput(amountRupiah);
   if (!amount) throw domainError('Nominal bayar harus bilangan bulat rupiah lebih dari nol.', 'AMOUNT_INVALID');
   const summary = await buildHutangPiutangSummary(db, store.id);
@@ -339,11 +372,12 @@ export async function payHutang(db, { store, actor, accountKey, amountRupiah, pa
   if (!account) throw domainError('Hutang yang dipilih tidak ditemukan di gerai ini.', 'HUTANG_ACCOUNT_NOT_FOUND', 404);
   if (!account.payableByAdmin) throw domainError('Jenis ini tidak dilunasi dari layar Pembayaran Hutang (mis. piutang setoran laci punya alurnya sendiri).', 'HUTANG_ACCOUNT_NOT_PAYABLE', 409);
 
-  const { method, sharedAccount } = await resolvePaymentMethod(db, store, paymentMethod, sharedAccountId);
+  const { method, sharedAccount, deposit } = await resolvePaymentMethod(db, store, paymentMethod, sharedAccountId, depositId);
+  if (deposit && amount > deposit.balanceRupiah) throw domainError('Nominal melebihi saldo Deposit yang tersisa.', 'DEPOSIT_AMOUNT_EXCEEDS_BALANCE');
   const date = businessDateInput(businessDate) || getJakartaBusinessDate();
   const now = new Date().toISOString();
   const paymentId = `admpay_${crypto.randomUUID()}`;
-  const methodLabel = sharedAccount ? `Rekening Bersama ${sharedAccount.name}` : PAYMENT_METHOD_LABELS[method];
+  const methodLabel = sharedAccount ? `Rekening Bersama ${sharedAccount.name}` : deposit ? depositMethodLabel(deposit) : PAYMENT_METHOD_LABELS[method];
   const noteText = text(note, 300);
   const statements = [];
 
@@ -359,16 +393,24 @@ export async function payHutang(db, { store, actor, accountKey, amountRupiah, pa
   statements.push(db.prepare(`
     INSERT INTO admin_payments (
       id, store_id, entity_id, kind, hutang_account, counterparty_type, counterparty_id, counterparty_name,
-      amount, payment_method, shared_account_id, shared_ledger_id, business_date, note,
+      amount, payment_method, shared_account_id, shared_ledger_id, deposit_id, business_date, note,
       created_by_role, created_by_id, created_at
-    ) VALUES (?, ?, ?, 'HUTANG', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, 'HUTANG', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     paymentId, store.id, store.entityId || null, account.account, person.counterpartyType, person.counterpartyId,
-    person.counterpartyName, amount, method, sharedAccount?.id || null, sharedLedgerId, date, noteText,
+    person.counterpartyName, amount, method, sharedAccount?.id || null, sharedLedgerId, deposit?.id || null, date, noteText,
     actor.role, actor.id, now
   ));
 
   const amountScaled = amount * SCALE;
+  if (deposit) {
+    // Deposit menombok pelunasan Hutang ini -- satu baris tambahan menarik
+    // saldo Deposit, DI LUAR efek pelunasan Hutang di bawah (GAJI atau FIFO).
+    statements.push(depositDrawStatement(db, {
+      deposit, store, actor, amountScaled, paymentId,
+      note: `Pelunasan ${account.label} · ${person.counterpartyName}${noteText ? ` · ${noteText}` : ''}`
+    }));
+  }
   if (account.account === 'GAJI') {
     // entry_type PAYMENT sudah disiapkan migration 0116. Beban 0 -- beban
     // gajinya sudah diakui saat akrual presensi / Bea Gaji.
@@ -419,14 +461,17 @@ export async function payHutang(db, { store, actor, accountKey, amountRupiah, pa
   return getPayment(db, store.id, paymentId);
 }
 
-export async function payLainnya(db, { store, actor, category, description, counterpartyName, amountRupiah, paymentMethod, sharedAccountId, businessDate, note }) {
+export async function payLainnya(db, { store, actor, category, description, counterpartyName, amountRupiah, paymentMethod, sharedAccountId, depositId, businessDate, note }) {
   const cat = text(category, 20).toUpperCase();
   if (!LAINNYA_CATEGORIES.has(cat)) throw domainError('Jenis pembayaran lainnya: Bea Lapak atau Bea Lainnya.', 'CATEGORY_INVALID');
   const desc = text(description, 220);
   if (!desc) throw domainError('Keterangan wajib diisi.', 'DESCRIPTION_REQUIRED');
   const amount = amountInput(amountRupiah);
   if (!amount) throw domainError('Nominal harus bilangan bulat rupiah lebih dari nol.', 'AMOUNT_INVALID');
-  const { method, sharedAccount } = await resolvePaymentMethod(db, store, paymentMethod, sharedAccountId);
+  const { method, sharedAccount, deposit } = await resolvePaymentMethod(db, store, paymentMethod, sharedAccountId, depositId);
+  // Bos Cyo, 2026-09-26: ini realisasi listrik/iklan -- admin ketik manual
+  // berapa yang benar2 kepakai bulan ini, sisanya tetap nangkring di Deposit.
+  if (deposit && amount > deposit.balanceRupiah) throw domainError('Nominal melebihi saldo Deposit yang tersisa.', 'DEPOSIT_AMOUNT_EXCEEDS_BALANCE');
   const date = businessDateInput(businessDate) || getJakartaBusinessDate();
   const now = new Date().toISOString();
   const paymentId = `admpay_${crypto.randomUUID()}`;
@@ -451,13 +496,25 @@ export async function payLainnya(db, { store, actor, category, description, coun
   statements.push(db.prepare(`
     INSERT INTO admin_payments (
       id, store_id, entity_id, kind, hutang_account, counterparty_type, counterparty_id, counterparty_name,
-      amount, payment_method, shared_account_id, shared_ledger_id, expense_id, business_date, note,
+      amount, payment_method, shared_account_id, shared_ledger_id, deposit_id, expense_id, business_date, note,
       created_by_role, created_by_id, created_at
-    ) VALUES (?, ?, ?, 'LAINNYA', '', 'OTHER', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, 'LAINNYA', '', 'OTHER', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     paymentId, store.id, store.entityId || null, party, amount, method, sharedAccount?.id || null,
-    sharedLedgerId, expenseId, date, text(note, 300), actor.role, actor.id, now
+    sharedLedgerId, deposit?.id || null, expenseId, date, text(note, 300), actor.role, actor.id, now
   ));
+  if (deposit) {
+    // Deposit yang direalisasikan -- BUKAN uang baru keluar (sudah keluar
+    // waktu Deposit dibuat), cuma mengurangi saldo Deposit sebesar Beban
+    // yang baru diakui ini. Karena itu tidak ada baris ledger Rekening
+    // Bersama di sini walau pembuatan Deposit-nya dulu mungkin lewat REKBER.
+    // Harus SESUDAH admin_payments di atas -- baris ini menunjuk
+    // admin_payment_id yang baru saja dibuat.
+    statements.push(depositDrawStatement(db, {
+      deposit, store, actor, amountScaled: amount * SCALE, paymentId,
+      note: `Realisasi ${desc}`
+    }));
+  }
   await db.batch(statements);
   await invalidateDailyProfitSnapshot(db, store.id, date);
   return getPayment(db, store.id, paymentId);
@@ -495,12 +552,6 @@ export async function voidPayment(db, { store, actor, paymentId, reason }) {
       SET voided_at = CURRENT_TIMESTAMP, voided_by_role = ?, voided_by_id = ?, void_reason = ?
       WHERE source_type = 'BEA_OPERASIONAL' AND source_id = ? AND entry_type = 'PAYMENT' AND voided_at IS NULL
     `).bind(actor.role, actor.id, reasonText || 'Pembayaran dibatalkan', paymentId));
-  } else if (payment.kind === 'HUTANG') {
-    statements.push(db.prepare(`
-      UPDATE operational_receivable_payable_payments
-      SET approval_status = 'rejected', reviewed_by = ?, reviewed_at = ?, rejection_reason = ?
-      WHERE admin_payment_id = ? AND store_id = ? AND approval_status = 'approved'
-    `).bind(`${actor.role}:${actor.id}`, now, `Pembayaran dibatalkan${reasonText ? `: ${reasonText}` : ''}`, paymentId, store.id));
   } else if (payment.expense_id) {
     statements.push(db.prepare(`
       UPDATE admin_operational_expenses
@@ -508,6 +559,17 @@ export async function voidPayment(db, { store, actor, paymentId, reason }) {
       WHERE id = ? AND store_id = ? AND voided_at IS NULL
     `).bind(actor.role, actor.id, reasonText || 'Pembayaran dibatalkan', payment.expense_id, store.id));
   }
+  // Selalu balikkan baris ORP-payment yang menempel ke pembayaran ini --
+  // mencakup alokasi FIFO Hutang non-Gaji DAN penarikan Deposit apa pun
+  // (baik yang menombok pelunasan Hutang termasuk Gaji, maupun realisasi
+  // Pembayaran Lainnya). Keduanya numpang tabel yang sama dan sama-sama
+  // ditandai admin_payment_id ini, jadi satu UPDATE ini cukup -- aman kalau
+  // tidak ada baris yang cocok (mis. Hutang Gaji dibayar tunai tanpa Deposit).
+  statements.push(db.prepare(`
+    UPDATE operational_receivable_payable_payments
+    SET approval_status = 'rejected', reviewed_by = ?, reviewed_at = ?, rejection_reason = ?
+    WHERE admin_payment_id = ? AND store_id = ? AND approval_status = 'approved'
+  `).bind(`${actor.role}:${actor.id}`, now, `Pembayaran dibatalkan${reasonText ? `: ${reasonText}` : ''}`, paymentId, store.id));
   await db.batch(statements);
   if (payment.expense_id) await invalidateDailyProfitSnapshot(db, store.id, payment.business_date);
   return getPayment(db, store.id, paymentId);
@@ -524,8 +586,13 @@ function mapPayment(row) {
     counterpartyName: row.counterparty_name || '',
     amount: Number(row.amount),
     paymentMethod: row.payment_method,
-    paymentMethodLabel: row.payment_method === 'REKBER' ? `Rekening Bersama ${row.shared_account_name || ''}`.trim() : PAYMENT_METHOD_LABELS[row.payment_method],
+    paymentMethodLabel: row.payment_method === 'REKBER'
+      ? `Rekening Bersama ${row.shared_account_name || ''}`.trim()
+      : row.payment_method === 'DEPOSIT'
+        ? `Deposit ${depositLabel(row.deposit_source_type)} (${row.deposit_counterparty_name || ''})`.trim()
+        : PAYMENT_METHOD_LABELS[row.payment_method],
     sharedAccountId: row.shared_account_id || null,
+    depositId: row.deposit_id || null,
     expenseId: row.expense_id || null,
     expenseDescription: row.expense_description || '',
     businessDate: row.business_date,
@@ -538,10 +605,12 @@ function mapPayment(row) {
 }
 
 const PAYMENT_SELECT = `
-  SELECT ap.*, sa.name AS shared_account_name, e.description AS expense_description
+  SELECT ap.*, sa.name AS shared_account_name, e.description AS expense_description,
+         dep.source_type AS deposit_source_type, dep.counterparty_name_snapshot AS deposit_counterparty_name
   FROM admin_payments ap
   LEFT JOIN entity_shared_accounts sa ON sa.id = ap.shared_account_id
   LEFT JOIN admin_operational_expenses e ON e.id = ap.expense_id
+  LEFT JOIN operational_receivables_payables dep ON dep.id = ap.deposit_id
 `;
 
 async function getPayment(db, storeId, id) {
@@ -578,11 +647,14 @@ export async function buildBebanReport(db, storeId, { from, to }) {
     db.prepare(`
       SELECT e.id, e.business_date, e.category, e.description, e.amount, e.settlement, e.payment_method,
              COALESCE(NULLIF(e.counterparty_name, ''), emp.full_name, r.counterparty_name_snapshot, '') AS party,
-             sa.name AS shared_account_name
+             sa.name AS shared_account_name, dep.source_type AS deposit_source_type,
+             dep.counterparty_name_snapshot AS deposit_counterparty_name
       FROM admin_operational_expenses e
       LEFT JOIN employees emp ON emp.id = e.employee_id
       LEFT JOIN operational_receivables_payables r ON r.source_id = e.id AND r.store_id = e.store_id AND r.source_type IN ('BEA_LAPAK', 'BEA_LAINNYA')
       LEFT JOIN entity_shared_accounts sa ON sa.id = e.shared_account_id
+      LEFT JOIN admin_payments ap ON ap.expense_id = e.id AND ap.store_id = e.store_id
+      LEFT JOIN operational_receivables_payables dep ON dep.id = ap.deposit_id
       WHERE e.store_id = ? AND e.voided_at IS NULL AND e.business_date BETWEEN ? AND ?
     `).bind(storeId, from, to).all(),
     db.prepare(`
@@ -616,7 +688,11 @@ export async function buildBebanReport(db, storeId, { from, to }) {
       amount: Number(row.amount || 0),
       status: row.settlement === 'HUTANG'
         ? 'Jadi Hutang'
-        : `Dibayar langsung${row.payment_method ? ` · ${row.payment_method === 'REKBER' ? `Rekening Bersama ${row.shared_account_name || ''}`.trim() : (PAYMENT_METHOD_LABELS[row.payment_method] || row.payment_method)}` : ''}`
+        : `Dibayar langsung${row.payment_method ? ` · ${
+            row.payment_method === 'REKBER' ? `Rekening Bersama ${row.shared_account_name || ''}`.trim()
+            : row.payment_method === 'DEPOSIT' ? `Deposit ${depositLabel(row.deposit_source_type)} (${row.deposit_counterparty_name || ''})`.trim()
+            : (PAYMENT_METHOD_LABELS[row.payment_method] || row.payment_method)
+          }` : ''}`
     })),
     ...(gaji.results ?? []).map(row => ({
       id: row.id, businessDate: row.business_date, source: 'PRESENSI', sourceLabel: 'Gaji dari Presensi',
@@ -730,16 +806,18 @@ export async function handleHutangPiutangApi(request, env, pathname) {
     }
 
     if (request.method === 'GET' && pathname === '/api/admin/hutang-piutang') {
-      const [summary, sharedAccounts, payments] = await Promise.all([
+      const [summary, sharedAccounts, payments, deposits] = await Promise.all([
         buildHutangPiutangSummary(db, store.id),
         listSharedAccountsForPayment(db, store),
-        listPayments(db, store.id, { limit: 100 })
+        listPayments(db, store.id, { limit: 100 }),
+        listOpenDeposits(db, store.id)
       ]);
       return json({
         store,
         today: getJakartaBusinessDate(),
         ...publicSummary(summary),
         sharedAccounts,
+        deposits,
         paymentMethods: Object.entries(PAYMENT_METHOD_LABELS).map(([code, label]) => ({ code, label })),
         payments
       });
@@ -754,10 +832,14 @@ export async function handleHutangPiutangApi(request, env, pathname) {
         amountRupiah: body.value?.amount,
         paymentMethod: body.value?.paymentMethod,
         sharedAccountId: body.value?.sharedAccountId,
+        depositId: body.value?.depositId,
         businessDate: body.value?.businessDate,
         note: body.value?.note
       });
-      return json({ ok: true, payment, ...publicSummary(await buildHutangPiutangSummary(db, store.id)), sharedAccounts: await listSharedAccountsForPayment(db, store) }, 201);
+      return json({
+        ok: true, payment, ...publicSummary(await buildHutangPiutangSummary(db, store.id)),
+        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id)
+      }, 201);
     }
 
     if (request.method === 'POST' && pathname === '/api/admin/hutang-piutang/pembayaran-lainnya') {
@@ -771,10 +853,35 @@ export async function handleHutangPiutangApi(request, env, pathname) {
         amountRupiah: body.value?.amount,
         paymentMethod: body.value?.paymentMethod,
         sharedAccountId: body.value?.sharedAccountId,
+        depositId: body.value?.depositId,
         businessDate: body.value?.businessDate,
         note: body.value?.note
       });
-      return json({ ok: true, payment, sharedAccounts: await listSharedAccountsForPayment(db, store) }, 201);
+      return json({
+        ok: true, payment,
+        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id)
+      }, 201);
+    }
+
+    // Bos Cyo, 2026-09-26: satu-satunya tombol baru untuk seluruh fitur
+    // Deposit ini -- MEMBUAT saldo Deposit. Penarikannya numpang payments/
+    // pembayaran-lainnya (cara bayar "DEPOSIT") di atas, dan cashier-purchase.js
+    // (bahan baku, otomatis).
+    if (request.method === 'POST' && pathname === '/api/admin/hutang-piutang/deposits') {
+      const body = await readJson(request);
+      if (!body.ok) return json({ error: 'Payload Deposit tidak valid.' }, 400);
+      const deposit = await createDeposit(db, {
+        storeId: store.id,
+        entityId: store.entityId,
+        category: text(body.value?.category, 40).toUpperCase(),
+        counterpartyType: text(body.value?.counterpartyType, 20).toUpperCase() || 'OTHER',
+        counterpartyId: body.value?.counterpartyId,
+        counterpartyName: body.value?.counterpartyName,
+        description: body.value?.description,
+        amountRupiah: body.value?.amount,
+        businessDate: businessDateInput(body.value?.businessDate) || getJakartaBusinessDate()
+      });
+      return json({ ok: true, deposit, deposits: await listOpenDeposits(db, store.id) }, 201);
     }
 
     const voidMatch = pathname.match(/^\/api\/admin\/hutang-piutang\/payments\/([^/]+)\/void$/);
@@ -783,7 +890,10 @@ export async function handleHutangPiutangApi(request, env, pathname) {
       const payment = await voidPayment(db, {
         store, actor, paymentId: decodeURIComponent(voidMatch[1]), reason: body.ok ? body.value?.reason : ''
       });
-      return json({ ok: true, payment, ...publicSummary(await buildHutangPiutangSummary(db, store.id)), sharedAccounts: await listSharedAccountsForPayment(db, store) });
+      return json({
+        ok: true, payment, ...publicSummary(await buildHutangPiutangSummary(db, store.id)),
+        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id)
+      });
     }
 
     if (request.method === 'GET' && pathname === '/api/admin/hutang-piutang/payments') {

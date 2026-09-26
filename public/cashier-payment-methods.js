@@ -205,6 +205,13 @@
       }
 
       const supplierOptions = ['<option value="">Tanpa supplier</option>', ...suppliers.map(supplier => `<option value="${escapeHtml(supplier.id)}">${escapeHtml(supplier.name)}</option>`)].join('');
+      // Bos Cyo, 2026-09-26: "kita pesen bahan baku seminggu sebelumnya ...
+      // yang dateng cuma 700rb ... berarti masih punya saldo/deposit barang
+      // senilai 300rb" -- kalau Admin sudah bikin Uang Muka Bahan Baku, kasir
+      // bisa langsung menariknya dari sini alih-alih bikin Hutang baru.
+      // Opsional, cuma muncul kalau memang ada Deposit terbuka.
+      const deposits = purchasePayload.deposits || [];
+      const depositOptions = deposits.map(deposit => `<option value="${escapeHtml(deposit.id)}">${escapeHtml(deposit.counterpartyName)} · sisa ${rupiah(deposit.balanceRupiah)}</option>`).join('');
       let editor;
 
       openDialog({
@@ -215,6 +222,7 @@
           <div id="dialogPurchaseGrandTotal" class="cashier-lock-note">Total pembelian · Rp0</div>
           <div class="field"><label>Supplier</label><select id="dialogSupplier" class="text-input">${supplierOptions}</select></div>
           <div class="field"><label>Cara bayar</label><select id="dialogPurchasePayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
+          ${deposits.length ? `<div class="field"><label>Bayar dari Deposit <span class="muted">optional</span></label><select id="dialogPurchaseDeposit" class="text-input"><option value="">Tidak pakai Deposit</option>${depositOptions}</select></div>` : ''}
           <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>`,
         submitText: 'SIMPAN PEMBELIAN',
         onSubmit: async () => {
@@ -230,6 +238,7 @@
           const result = await canonicalFactPost('/api/cashier/purchases', {
             supplierId: byId('dialogSupplier').value,
             paymentMethod: byId('dialogPurchasePayment').value,
+            depositId: byId('dialogPurchaseDeposit')?.value || null,
             note: byId('dialogPurchaseNote').value,
             items: submittedItems
           });

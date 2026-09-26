@@ -19,7 +19,7 @@ write access. An agent may read anything.
 | **inventory-costing** | *unassigned* | `src/admin-stock.js`, `src/product-*.js` | ADR-015, ADR-020 |
 | **approval** | *unassigned* | `src/approval-queue.js`, `src/transaction-void-permits.js` | ADR-009, ADR-022 |
 | **rekening-bersama** | *unassigned* | `src/entity-shared-accounts.js`, `migrations/0111_*` | ADR-045 |
-| **hutang-pembayaran** | `hana` | `src/hutang-piutang.js`, `src/operational-expense-payables.js`, `src/admin-operational-expense.js`, `migrations/0120_*`, `migrations/0121_*` | `KNOWN_ISSUES.md` "Hutang, Pembayaran, dan Laporan Beban" |
+| **hutang-pembayaran** | `hana` | `src/hutang-piutang.js`, `src/operational-expense-payables.js`, `src/admin-operational-expense.js`, `src/operational-deposits.js`, `migrations/0120_*`, `migrations/0121_*`, `migrations/0122_*` | `KNOWN_ISSUES.md` "Hutang, Pembayaran, dan Laporan Beban", "Uang Muka / Deposit" |
 | **identity-tenancy** | `hana` | `src/stores.js`, `src/owner-auth.js`, `src/*-auth.js`, `migrations/0039_*` | ADR-030, ADR-001, ADR-006 |
 | **customer** | *unassigned* | `src/customers.js`, `src/customer-*.js` | ADR-002, ADR-005, ADR-026 |
 | **game** | *unassigned* | `src/game.js`, `game_*` tables | ADR-042, `contracts/game-module-v1.md` |

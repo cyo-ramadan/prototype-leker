@@ -5,7 +5,9 @@ import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
 import { handleCashierOperationalExpenseApi } from './cashier-operational-expense.js';
 import { resolvePosPaymentMethod } from './pos-payment-methods.js';
 import { purchasePayableStatement } from './hutang-piutang.js';
+import { getDepositForStore, listOpenDeposits } from './operational-deposits.js';
 import { getJakartaBusinessDate } from './time.js';
+import { newId } from './ikan-ids.js';
 
 const COST_SCALE = 1_000_000;
 const MAX_LINE_TOTAL = 9_000_000_000;
@@ -168,9 +170,17 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/cashier/purchases/options') {
     try {
       const warehouseEnabled = await storeWarehouseEnabled(env.DB, cashier.store.id);
+      // Bos Cyo, 2026-09-26: "kita pesen bahan baku seminggu sebelumnya ...
+      // yang dateng cuma 700rb ... berarti masih punya saldo/deposit barang
+      // senilai 300rb". Hanya Uang Muka Bahan Baku yang ditawarkan di sini --
+      // Deposit listrik/iklan/lainnya direalisasikan lewat Pembayaran Lainnya
+      // (Admin), bukan pembelian barang kasir.
+      const deposits = (await listOpenDeposits(env.DB, cashier.store.id))
+        .filter(deposit => deposit.sourceType === 'DEPOSIT_BAHAN_BAKU');
       return json({
         warehouseEnabled,
-        products: await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled)
+        products: await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled),
+        deposits
       });
     } catch (error) {
       console.error('cashier purchase options failed', { storeId: cashier.store.id, error });
@@ -196,11 +206,24 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
     supplier = await env.DB.prepare(`SELECT id, name FROM suppliers WHERE id = ? AND store_id = ? AND is_active = 1`).bind(supplierId, cashier.store.id).first();
     if (!supplier) return json({ error: 'Supplier tidak ditemukan di gerai kasir.' }, 400);
   }
+  // Bos Cyo, 2026-09-26: pembelian bahan baku bisa dilunasi dari Uang Muka
+  // Bahan Baku yang sudah dibuat Admin (deposit_id opsional) -- kasir tidak
+  // pegang tombol pembayaran baru, cukup pilih deposit yang mana di form
+  // pembelian yang sama. Sengaja menang atas cara bayar "Jadi Hutang": kalau
+  // deposit dipilih, pembelian ini LUNAS dari Deposit, bukan Hutang baru.
+  const depositId = text(body.value?.depositId, 80) || null;
+  let deposit = null;
+  if (depositId) {
+    deposit = await getDepositForStore(env.DB, cashier.store.id, depositId);
+    if (!deposit) return json({ error: 'Uang Muka/Deposit tidak ditemukan / bukan milik gerai ini.', code: 'DEPOSIT_OUT_OF_SCOPE' }, 400);
+    if (deposit.sourceType !== 'DEPOSIT_BAHAN_BAKU') return json({ error: 'Deposit ini bukan Uang Muka Bahan Baku.', code: 'DEPOSIT_CATEGORY_MISMATCH' }, 400);
+    if (normalized.totalAmount > deposit.balanceRupiah) return json({ error: 'Total pembelian melebihi saldo Deposit yang tersisa.', code: 'DEPOSIT_AMOUNT_EXCEEDS_BALANCE' }, 400);
+  }
   // Bos Cyo, 2026-09-26: "yang cara bayarnya hutang ke suplier ikut
   // disambungkan ke catatan hutang kita" -- cara bayar yang ditandai admin
   // "Jadi Hutang" (payment_methods.creates_payable) langsung membuka Hutang
   // Pembelian di batch yang sama (src/hutang-piutang.js).
-  const payableMethod = await env.DB.prepare(`
+  const payableMethod = deposit ? null : await env.DB.prepare(`
     SELECT name, creates_payable FROM payment_methods WHERE store_id = ? AND code = ? LIMIT 1
   `).bind(cashier.store.id, paymentMethod).first();
   const storeEntity = payableMethod?.creates_payable
@@ -211,7 +234,7 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const description = text(body.value?.description, 220) || `Pembelian ${normalized.items.map(item => item.productName).slice(0, 4).join(', ')}`;
   const accounting = await buildTransactionAccountingSnapshot(env.DB, { storeId: cashier.store.id, sourceType: 'PURCHASE', sourceId: id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod, now });
   const statements = [
-    env.DB.prepare(`INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, cashier.store.id, ownership.drawer.id, cashier.id, supplierId, description, normalized.totalAmount, note, now, paymentMethod),
+    env.DB.prepare(`INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method, deposit_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, cashier.store.id, ownership.drawer.id, cashier.id, supplierId, description, normalized.totalAmount, note, now, paymentMethod, deposit?.id || null),
     accounting.statement
   ];
   if (payableMethod?.creates_payable) {
@@ -226,6 +249,14 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
     });
     if (payableStatement) statements.push(payableStatement);
   }
+  if (deposit) {
+    statements.push(env.DB.prepare(`
+      INSERT INTO operational_receivable_payable_payments (
+        id, receivable_payable_id, store_id, entity_id, amount, approval_status,
+        proof_reference, note, submitted_by
+      ) VALUES (?, ?, ?, ?, ?, 'approved', '', ?, ?)
+    `).bind(newId('ORPP'), deposit.id, cashier.store.id, deposit.entityId, normalized.totalAmount * COST_SCALE, `Pembelian ${description}`, `CASHIER:${cashier.id}`));
+  }
   for (const item of normalized.items) statements.push(...purchaseItemStatements(env.DB, {
     purchaseId: id,
     storeId: cashier.store.id,
@@ -238,6 +269,7 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   await env.DB.batch(statements);
   return json({
     ok: true, id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod, totalAmount: normalized.totalAmount,
+    depositId: deposit?.id || null,
     warehouseEnabled,
     items: normalized.items.map(item => ({ productId: item.productId, productName: item.productName, productKindId: item.productKindId, productKindCode: item.productKindCode, quantity: item.quantity, unitSymbol: item.unitSymbol, lineTotal: item.lineTotal, unitCost: costFromScaled(item.unitCostScaled), unitCostScaled: item.unitCostScaled })),
     accounting: { contract: 'MAXI_ACCOUNTING_REFERENCE_V1', mappingStatus: accounting.status, mappingId: accounting.mappingId, debitAccountRefId: accounting.debitAccountRefId, creditAccountRefId: accounting.creditAccountRefId, journalReference: null },

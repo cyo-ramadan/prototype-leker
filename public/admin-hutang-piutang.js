@@ -9,16 +9,26 @@
   // .admin-tabs, section sendiri ke #adminApp, helper global (el/api/toast/
   // switchTab/escapeHtml/rupiah) dari admin.js; ?store= ditempel
   // store-context.js.
-  let snapshot = { persons: [], totals: {}, sharedAccounts: [], payments: [], today: '' };
+  let snapshot = { persons: [], totals: {}, sharedAccounts: [], deposits: [], payments: [], today: '' };
   let activePanel = 'bayar';
 
   const PANELS = [
     { key: 'bayar', label: '💳 Pembayaran Hutang/Piutang' },
     { key: 'lainnya', label: '🧾 Pembayaran Lainnya' },
+    { key: 'deposit', label: '🏦 Uang Muka/Deposit' },
     { key: 'laporan', label: '📒 Laporan Hutang Piutang' },
     { key: 'beban', label: '📊 Laporan Beban' }
   ];
   const PARTY_LABEL = { SUPPLIER: 'Supplier', EMPLOYEE: 'Karyawan', OTHER: 'Lainnya' };
+  // Sama persis dengan DEPOSIT_CATEGORIES di src/operational-deposits.js --
+  // enum kecil begini memang diduplikasi ke UI (pola sama dengan
+  // LAINNYA_CATEGORIES BEA_LAPAK/BEA_LAINNYA di bawah).
+  const DEPOSIT_CATEGORIES = [
+    { code: 'DEPOSIT_LISTRIK', label: 'Uang Muka Listrik' },
+    { code: 'DEPOSIT_IKLAN', label: 'Uang Muka Iklan' },
+    { code: 'DEPOSIT_BAHAN_BAKU', label: 'Uang Muka Bahan Baku' },
+    { code: 'DEPOSIT_LAINNYA', label: 'Uang Muka Lainnya' }
+  ];
 
   function mount() {
     const tabs = document.querySelector('.admin-tabs');
@@ -58,12 +68,15 @@
       '<option value="KAS">Tunai / Kas Admin</option>',
       '<option value="BANK">Transfer Bank</option>',
       ...(snapshot.sharedAccounts || []).map(account =>
-        `<option value="REKBER:${escapeHtml(account.id)}">Rekening Bersama ${escapeHtml(account.name)} (bagian gerai ini ${rupiah(account.storeBalance)})</option>`)
+        `<option value="REKBER:${escapeHtml(account.id)}">Rekening Bersama ${escapeHtml(account.name)} (bagian gerai ini ${rupiah(account.storeBalance)})</option>`),
+      ...(snapshot.deposits || []).map(deposit =>
+        `<option value="DEPOSIT:${escapeHtml(deposit.id)}">Deposit ${escapeHtml(deposit.categoryLabel)} · ${escapeHtml(deposit.counterpartyName)} (sisa ${rupiah(deposit.balanceRupiah)})</option>`)
     ].join('');
   }
 
   function paymentMethodPayload(value) {
     if (String(value).startsWith('REKBER:')) return { paymentMethod: 'REKBER', sharedAccountId: value.slice(7) };
+    if (String(value).startsWith('DEPOSIT:')) return { paymentMethod: 'DEPOSIT', depositId: value.slice(8) };
     return { paymentMethod: value };
   }
 
@@ -86,6 +99,7 @@
     if (!host) return;
     if (activePanel === 'bayar') renderBayar(host);
     else if (activePanel === 'lainnya') renderLainnya(host);
+    else if (activePanel === 'deposit') renderDeposit(host);
     else if (activePanel === 'laporan') renderLaporan(host);
     else renderBebanShell(host);
   }
@@ -180,7 +194,7 @@
           ...paymentMethodPayload(el('hpPayMethod').value)
         })
       });
-      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts });
+      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts, deposits: payload.deposits });
       snapshot.payments = [payload.payment, ...(snapshot.payments || [])];
       render();
       toast('Pembayaran hutang tersimpan');
@@ -195,7 +209,7 @@
         method: 'POST',
         body: JSON.stringify({ reason })
       });
-      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts });
+      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts, deposits: payload.deposits });
       snapshot.payments = (snapshot.payments || []).map(item => item.id === id ? payload.payment : item);
       render();
       toast('Pembayaran dibatalkan');
@@ -254,9 +268,63 @@
         })
       });
       snapshot.sharedAccounts = payload.sharedAccounts || snapshot.sharedAccounts;
+      snapshot.deposits = payload.deposits || snapshot.deposits;
       snapshot.payments = [payload.payment, ...(snapshot.payments || [])];
       render();
       toast('Pembayaran tersimpan');
+    } catch (error) { toast(error.message); }
+  }
+
+  // ------------------------------------------------------- Uang Muka/Deposit
+  function renderDeposit(host) {
+    const deposits = snapshot.deposits || [];
+    host.innerHTML = `
+      <div class="admin-grid master-layout">
+        <form id="hpDepositForm" class="admin-card sticky-form">
+          <div class="form-title-row"><h2>Catat Uang Muka/Deposit</h2></div>
+          <div class="muted" style="margin-bottom:10px">Uang yang dibayar duluan tapi belum tentu langsung jadi Beban semua (mis. token listrik, saldo iklan, DP bahan baku). Ini BUKAN Beban -- baru jadi Beban saat direalisasikan lewat cara bayar "Deposit" di Pembayaran Hutang/Piutang atau Pembayaran Lainnya, atau otomatis waktu kasir mencatat pembelian bahan baku yang memakai Deposit ini.</div>
+          <label class="admin-field">Jenis<select id="hpDepositCategory">${DEPOSIT_CATEGORIES.map(c => `<option value="${c.code}">${escapeHtml(c.label)}</option>`).join('')}</select></label>
+          <label class="admin-field">Jenis pihak<select id="hpDepositPartyType">
+            <option value="OTHER">Lainnya</option><option value="SUPPLIER">Supplier</option><option value="EMPLOYEE">Karyawan</option>
+          </select></label>
+          <label class="admin-field">Nama pihak <span class="field-note">opsional</span><input id="hpDepositPartyName" maxlength="200" placeholder="Contoh: PLN, Toko Iklan Jaya" /></label>
+          <label class="admin-field">Keterangan <span class="field-note">opsional</span><input id="hpDepositDescription" maxlength="300" /></label>
+          <div class="admin-grid two compact">
+            <label class="admin-field">Nominal (Rp)<input id="hpDepositAmount" type="number" step="1" min="1" required /></label>
+            <label class="admin-field">Tanggal<input id="hpDepositDate" type="date" required value="${escapeHtml(snapshot.today || '')}" /></label>
+          </div>
+          <button class="primary-btn" type="submit">Simpan Deposit</button>
+        </form>
+        <div class="admin-card list-card">
+          <div class="list-head"><div><h2>Deposit terbuka</h2><div class="muted">Cek sebelum tutup buku bulanan -- keluarkan Beban dari sini kalau sudah terealisasi.</div></div><span class="master-count">${deposits.length}</span></div>
+          <div class="master-list">${deposits.length ? deposits.map(deposit => `
+            <article class="master-row"><div class="master-main">
+              <strong>${escapeHtml(deposit.categoryLabel)} · ${escapeHtml(deposit.counterpartyName)} · sisa ${rupiah(deposit.balanceRupiah)}</strong>
+              <span>${escapeHtml(deposit.transactionDate)}${deposit.description ? ` · ${escapeHtml(deposit.description)}` : ''}</span>
+              <small>Dibuat ${rupiah(deposit.originalAmountRupiah)} · Terpakai ${rupiah(deposit.paidAmountRupiah)}</small>
+            </div></article>`).join('') : '<div class="empty">Belum ada Deposit terbuka.</div>'}</div>
+        </div>
+      </div>`;
+    el('hpDepositForm').addEventListener('submit', createDeposit);
+  }
+
+  async function createDeposit(event) {
+    event.preventDefault();
+    try {
+      const payload = await api('/api/admin/hutang-piutang/deposits', {
+        method: 'POST',
+        body: JSON.stringify({
+          category: el('hpDepositCategory').value,
+          counterpartyType: el('hpDepositPartyType').value,
+          counterpartyName: el('hpDepositPartyName').value,
+          description: el('hpDepositDescription').value,
+          amount: Number(el('hpDepositAmount').value),
+          businessDate: el('hpDepositDate').value
+        })
+      });
+      snapshot.deposits = payload.deposits || snapshot.deposits;
+      render();
+      toast('Deposit tersimpan');
     } catch (error) { toast(error.message); }
   }
 

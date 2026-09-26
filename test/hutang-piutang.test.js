@@ -118,6 +118,10 @@ async function catatHutang(env, token, body) {
   return call(handleAdminOperationalExpenseApi, env, '/api/admin/operational-expenses', { token, method: 'POST', body: { businessDate: '2026-09-26', ...body } });
 }
 
+async function catatDeposit(env, token, body, options = {}) {
+  return call(handleHutangPiutangApi, env, '/api/admin/hutang-piutang/deposits', { token, method: 'POST', body: { businessDate: '2026-09-26', ...body }, ...options });
+}
+
 test('Bea Operasional membuat Hutang ke Supplier/Karyawan/nama bebas, direkap per orang, Beban diakui sekali', async () => {
   const { db, env, pendem } = setup();
   try {
@@ -397,5 +401,152 @@ test('Hutang Gaji dari akun kasir yang belum ditautkan ke karyawan tetap tampil,
       token, method: 'POST', body: { accountKey: account.accountKey, amount: 1000, paymentMethod: 'KAS' }
     });
     assert.equal(pay.status, 409);
+  } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-09-26: "kalo dibikin beli deposit gitu apa ribet?" -- token
+// listrik/saldo iklan/DP bahan baku dibayar duluan, belum tentu langsung jadi
+// Beban semua. Satu tombol baru MEMBUAT Deposit; PENARIKANNYA numpang cara
+// bayar "Deposit" di dua tombol yang sudah ada (Pembayaran Hutang/Piutang &
+// Pembayaran Lainnya) plus otomatis di Pembelian kasir untuk bahan baku.
+
+test('Uang Muka/Deposit: dibuat lewat tombol sendiri, tidak nyampur ke Laporan Hutang Piutang, muncul di daftar Deposit terbuka', async () => {
+  const { db, env } = setup();
+  try {
+    const token = await adminToken(db);
+    const created = await catatDeposit(env, token, { category: 'DEPOSIT_LISTRIK', counterpartyType: 'OTHER', counterpartyName: 'PLN', description: 'Token listrik September', amount: 1000000 });
+    assert.equal(created.status, 201, JSON.stringify(created.payload));
+    assert.equal(created.payload.deposit.balanceRupiah, 1000000);
+
+    const data = await summary(env, token);
+    assert.equal(data.totals.hutangRupiah, 0);
+    assert.equal(data.totals.piutangRupiah, 0, 'Deposit bukan Piutang generik -- jangan nyampur ke Laporan Hutang Piutang');
+    assert.equal(data.persons.length, 0);
+    assert.equal(data.deposits.length, 1);
+    assert.equal(data.deposits[0].categoryLabel, 'Uang Muka Listrik');
+
+    assert.equal((await catatDeposit(env, token, { category: 'BUKAN_JENIS', counterpartyType: 'OTHER', amount: 1000 })).status, 400);
+    assert.equal((await catatDeposit(env, token, { category: 'DEPOSIT_LISTRIK', counterpartyType: 'OTHER', amount: 0 })).status, 400);
+  } finally { db.close(); }
+});
+
+test('Deposit bisa dipakai melunasi Hutang (cara bayar ke-4); Batalkan membalik Hutang dan Deposit', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    const azis = seedSupplier(db, pendem.id, 'Pak Azis');
+    await catatHutang(env, token, { category: 'BEA_LAPAK', description: 'Sewa lapak', amount: 200000, counterpartyType: 'SUPPLIER', counterpartyId: azis });
+    const deposit = (await catatDeposit(env, token, { category: 'DEPOSIT_LAINNYA', counterpartyType: 'OTHER', counterpartyName: 'Kas Cadangan', amount: 500000 })).payload.deposit;
+
+    const account = findAccount(await summary(env, token), 'Pak Azis', 'BEA_LAPAK');
+    const paid = await call(handleHutangPiutangApi, env, '/api/admin/hutang-piutang/payments', {
+      token, method: 'POST', body: { accountKey: account.accountKey, amount: 200000, paymentMethod: 'DEPOSIT', depositId: deposit.id }
+    });
+    assert.equal(paid.status, 201, JSON.stringify(paid.payload));
+    assert.equal(findAccount(paid.payload, 'Pak Azis', 'BEA_LAPAK').balanceRupiah, 0);
+    assert.equal(paid.payload.deposits.find(d => d.id === deposit.id).balanceRupiah, 300000, 'Deposit ikut tertarik sebesar pelunasan');
+    assert.match(paid.payload.payment.paymentMethodLabel, /Deposit/);
+
+    const voided = await call(handleHutangPiutangApi, env, `/api/admin/hutang-piutang/payments/${paid.payload.payment.id}/void`, { token, method: 'POST', body: {} });
+    assert.equal(voided.status, 200, JSON.stringify(voided.payload));
+    assert.equal(findAccount(voided.payload, 'Pak Azis', 'BEA_LAPAK').balanceRupiah, 200000, 'hutang kembali terbuka');
+    assert.equal(voided.payload.deposits.find(d => d.id === deposit.id).balanceRupiah, 500000, 'Deposit ikut dipulihkan');
+  } finally { db.close(); }
+});
+
+test('Deposit tidak bisa ditarik melebihi saldo yang tersisa', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    await catatHutang(env, token, { category: 'BEA_LAPAK', description: 'Sewa', amount: 1000000, counterpartyType: 'OTHER', counterpartyName: 'Pak RT' });
+    const deposit = (await catatDeposit(env, token, { category: 'DEPOSIT_LAINNYA', counterpartyType: 'OTHER', counterpartyName: 'Kas', amount: 100000 })).payload.deposit;
+    const account = findAccount(await summary(env, token), 'Pak RT', 'BEA_LAPAK');
+    const over = await call(handleHutangPiutangApi, env, '/api/admin/hutang-piutang/payments', {
+      token, method: 'POST', body: { accountKey: account.accountKey, amount: 200000, paymentMethod: 'DEPOSIT', depositId: deposit.id }
+    });
+    assert.equal(over.status, 400);
+    assert.equal(over.payload.code, 'DEPOSIT_AMOUNT_EXCEEDS_BALANCE');
+  } finally { db.close(); }
+});
+
+test('Pembayaran Lainnya bisa direalisasikan dari Deposit: Beban diakui sebagian, saldo Deposit turun, tanpa gerak Rekening Bersama', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    const deposit = (await catatDeposit(env, token, { category: 'DEPOSIT_LISTRIK', counterpartyType: 'OTHER', counterpartyName: 'PLN', amount: 1000000 })).payload.deposit;
+
+    const paid = await call(handleHutangPiutangApi, env, '/api/admin/hutang-piutang/pembayaran-lainnya', {
+      token, method: 'POST', body: { category: 'BEA_LAINNYA', description: 'Token listrik terpakai September', amount: 500000, paymentMethod: 'DEPOSIT', depositId: deposit.id, businessDate: '2026-09-26' }
+    });
+    assert.equal(paid.status, 201, JSON.stringify(paid.payload));
+    const expense = db.prepare(`SELECT settlement, amount FROM admin_operational_expenses WHERE id = ?`).get(paid.payload.payment.expenseId);
+    assert.equal(expense.settlement, 'LANGSUNG');
+    assert.equal(expense.amount, 500000);
+    assert.equal(paid.payload.deposits.find(d => d.id === deposit.id).balanceRupiah, 500000, 'separuh Deposit terealisasi jadi Beban, sisanya tetap Deposit');
+
+    const { breakdownByKey: rowsByKey } = await getNetProfitReport(env.DB, { storeIds: [pendem.id], from: '2026-09-26', to: '2026-09-26', today: '2099-01-01' });
+    assert.equal(rowsByKey.get(`${pendem.id}::2026-09-26`).beaLainnya, 500000, 'hanya yang direalisasikan yang jadi Beban, bukan seluruh Deposit');
+
+    const voided = await call(handleHutangPiutangApi, env, `/api/admin/hutang-piutang/payments/${paid.payload.payment.id}/void`, { token, method: 'POST', body: {} });
+    assert.ok(db.prepare(`SELECT voided_at FROM admin_operational_expenses WHERE id = ?`).get(paid.payload.payment.expenseId).voided_at);
+    assert.equal(voided.payload.deposits.find(d => d.id === deposit.id).balanceRupiah, 1000000, 'Deposit pulih penuh setelah dibatalkan');
+  } finally { db.close(); }
+});
+
+test('Deposit gerai lain tidak bisa dipakai membayar di gerai ini', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const pendemToken = await adminToken(db);
+    const dermoToken = await adminToken(db, 'admin_dermo_0080');
+    await catatHutang(env, pendemToken, { category: 'BEA_LAPAK', description: 'Sewa', amount: 100000, counterpartyType: 'OTHER', counterpartyName: 'Pak RT' });
+    const account = findAccount(await summary(env, pendemToken), 'Pak RT', 'BEA_LAPAK');
+    const dermoDeposit = (await catatDeposit(env, dermoToken, { category: 'DEPOSIT_LAINNYA', counterpartyType: 'OTHER', counterpartyName: 'Kas Dermo', amount: 500000 }, { store: 'DERMO' })).payload.deposit;
+
+    const cross = await call(handleHutangPiutangApi, env, '/api/admin/hutang-piutang/payments', {
+      token: pendemToken, method: 'POST', body: { accountKey: account.accountKey, amount: 50000, paymentMethod: 'DEPOSIT', depositId: dermoDeposit.id }
+    });
+    assert.equal(cross.status, 400);
+    assert.equal(cross.payload.code, 'DEPOSIT_OUT_OF_SCOPE');
+  } finally { db.close(); }
+});
+
+test('Deposit Bahan Baku ditarik otomatis waktu kasir mencatat Pembelian sungguhan, bukan jadi Hutang baru', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    const azis = seedSupplier(db, pendem.id, 'Pak Azis');
+    // Deposit lain (listrik) sengaja dibuat juga -- harus TIDAK ditawarkan
+    // ke kasir, cuma Uang Muka Bahan Baku yang relevan untuk Pembelian.
+    await catatDeposit(env, token, { category: 'DEPOSIT_LISTRIK', counterpartyType: 'OTHER', counterpartyName: 'PLN', amount: 200000 });
+    const deposit = (await catatDeposit(env, token, { category: 'DEPOSIT_BAHAN_BAKU', counterpartyType: 'SUPPLIER', counterpartyId: azis, counterpartyName: 'Pak Azis', amount: 1000000 })).payload.deposit;
+
+    const cashierId = 'cashier_hp_deposit';
+    db.prepare(`INSERT INTO cashiers (id, username, password_hash, employee_name, store_id, is_active, created_at, updated_at) VALUES (?, 'hpkasirdep', 'x', 'Kasir Deposit', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).run(cashierId, pendem.id);
+    db.prepare(`INSERT INTO cashier_sessions (token_hash, cashier_id, created_at, expires_at) VALUES (?, ?, '2026-09-24T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`).run(await hashCredential('hp-kasir-dep'), cashierId);
+    db.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, opening_amount, status, opened_at) VALUES ('drawer_hp_dep', ?, ?, 0, 'OPEN', '2026-09-26T00:00:00.000Z')`).run(pendem.id, cashierId);
+    const kasir = (pathname, body) => handleCashierPurchaseApi(new Request(`https://example.test${pathname}`, {
+      method: body ? 'POST' : 'GET',
+      headers: { Authorization: 'Bearer hp-kasir-dep', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined
+    }), env, pathname);
+
+    const options = await (await kasir('/api/cashier/purchases/options')).json();
+    assert.equal(options.deposits.length, 1, 'hanya Deposit Bahan Baku yang ditawarkan ke kasir, bukan listrik/iklan/lainnya');
+    const productId = options.products[0].productId;
+
+    const response = await kasir('/api/cashier/purchases', {
+      paymentMethod: 'CASH', supplierId: azis, depositId: deposit.id, items: [{ productId, quantity: 1, lineTotal: 700000 }]
+    });
+    assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+    const purchaseId = (await response.json()).id;
+
+    assert.equal((await summary(env, token)).totals.hutangRupiah, 0, 'tidak jadi Hutang -- lunas dari Deposit');
+    assert.equal((await summary(env, token)).deposits.find(d => d.id === deposit.id).balanceRupiah, 300000, 'Deposit ditarik sebesar nilai barang yang benar-benar diterima');
+    assert.equal(db.prepare(`SELECT deposit_id FROM purchases WHERE id = ?`).get(purchaseId).deposit_id, deposit.id);
+
+    const over = await kasir('/api/cashier/purchases', {
+      paymentMethod: 'CASH', supplierId: azis, depositId: deposit.id, items: [{ productId, quantity: 1, lineTotal: 400000 }]
+    });
+    assert.equal(over.status, 400, 'melebihi saldo Deposit yang tersisa harus ditolak');
   } finally { db.close(); }
 });

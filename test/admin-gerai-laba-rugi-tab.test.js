@@ -250,7 +250,7 @@ test('Beban/Bea dirinci per kategori -- Bea Gaji, Bea Lapak, Bea Lainnya masing-
       const res = await worker.fetch(new Request(`https://example.test/api/admin/operational-expenses?store=KANTOR`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, description: category, amount, businessDate: '2026-06-01', employeeId })
+        body: JSON.stringify({ category, description: category, amount, businessDate: '2026-06-01', employeeId, counterpartyType: 'OTHER', counterpartyName: 'Pemilik Lapak' })
       }), { DB: new D1Database(db) });
       assert.equal(res.status, 201, `${category} harus diterima`);
     }

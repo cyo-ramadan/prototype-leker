@@ -139,6 +139,7 @@
       <input class="acc-input" data-payment-name value="${esc(item.name || '')}" placeholder="Nama metode" />
       <select class="acc-select" data-payment-account>${accountOptions('', item.accountId || '', true)}</select>
       <select class="acc-select" data-payment-shared-account title="Tandai kalau cara bayar ini sebenarnya Rekening Bersama (dipakai lintas gerai di entity ini)">${sharedAccountOptions(item.sharedAccountId || '')}</select>
+      <label class="acc-muted" title="Pembelian kasir dengan cara bayar ini otomatis tercatat sebagai Hutang ke Supplier-nya (dilunasi lewat Pembayaran Hutang/Piutang). Saat baru dicentang, pembelian lama dengan cara bayar ini ikut ditarik jadi Hutang."><input type="checkbox" data-payment-creates-payable ${item.createsPayable ? 'checked' : ''}/> Jadi Hutang</label>
       <label class="acc-muted"><input type="checkbox" data-payment-active ${item.isActive !== false ? 'checked' : ''}/> Aktif</label>
       <label class="acc-muted"><input type="checkbox" data-payment-default ${item.isDefault ? 'checked' : ''}/> Default</label>
       <button class="acc-mini primary" data-save-payment type="button">Simpan</button>
@@ -151,17 +152,19 @@
       const id = row.dataset.paymentRow;
       const draft = row.dataset.draft === '1';
       try {
-        await api(draft ? '/api/admin/settings/accounting/payment-methods' : `/api/admin/settings/accounting/payment-methods/${encodeURIComponent(id)}`, {
+        const result = await api(draft ? '/api/admin/settings/accounting/payment-methods' : `/api/admin/settings/accounting/payment-methods/${encodeURIComponent(id)}`, {
           method: draft ? 'POST' : 'PATCH',
           body: JSON.stringify({
             name: row.querySelector('[data-payment-name]').value,
             accountId: row.querySelector('[data-payment-account]').value || null,
             sharedAccountId: row.querySelector('[data-payment-shared-account]').value || null,
+            createsPayable: row.querySelector('[data-payment-creates-payable]').checked,
             isActive: row.querySelector('[data-payment-active]').checked,
             isDefault: row.querySelector('[data-payment-default]').checked
           })
         });
-        await load(true); toast('Metode pembayaran tersimpan');
+        await load(true);
+        toast(result?.backfilledPurchases ? `Metode pembayaran tersimpan · ${result.backfilledPurchases} pembelian lama ditarik jadi Hutang` : 'Metode pembayaran tersimpan');
       } catch (error) { toast(error.message); }
     }));
     el('accAddPayment')?.addEventListener('click', () => {

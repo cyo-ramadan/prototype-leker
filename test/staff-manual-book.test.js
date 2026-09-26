@@ -163,6 +163,10 @@ test('Portal Staf (kasir) melihat gabungan Info Entity + Info Gerai, dan tidak b
 test('belum diisi Admin sama sekali -- Portal Staf dapat string kosong, bukan error', async () => {
   const sqlite = freshDatabase();
   try {
+    // migrations/0120_entity_manual_book_test_content.sql (uji tulis Karen,
+    // 2026-09-26, sudah applied di produksi) mengisi Info Entity ENT-KPM.
+    // Test ini soal kondisi "belum diisi", jadi baris seed itu dibuang dulu.
+    sqlite.prepare(`DELETE FROM entity_manual_book WHERE entity_id = 'ENT-KPM'`).run();
     const env = { DB: d1(sqlite) };
     const storeToken = await storeAdminToken(sqlite, 'admin_pendem_pilot');
     const created = await (await handleAdminCashierApi(request('/api/admin/cashiers', {

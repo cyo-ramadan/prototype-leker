@@ -6,9 +6,15 @@ const state = {
   cartOpen: false,
   rodaRewards: [],
   rodaRotation: 0,
-  rodaSpinning: false
+  rodaSpinning: false,
+  orderPoller: null
 };
-const ORDER_POLL_INTERVAL_MS = 5000;
+// Mitigasi sementara 2026-09-27: interval dinaikkan dari 5000ms dan polling
+// dihentikan begitu status final, sambil menunggu penggantian permanen
+// (push, bukan polling -- lihat KNOWN_PITFALLS.md "Periodic cashier polling"
+// dan ADR-048). Ini BUKAN solusi akhir: tetap network polling periodik,
+// cuma jauh lebih jarang.
+const ORDER_POLL_INTERVAL_MS = 20000;
 const CART_SWIPE_THRESHOLD_PX = 48;
 const CART_EDGE_GESTURE_PX = 36;
 
@@ -451,6 +457,10 @@ function resetKiosk() {
   renderMenu();
 }
 
+function isTerminalOrderStatus(status) {
+  return status === 'COMPLETED' || status === 'CANCELLED';
+}
+
 async function refreshActiveOrder() {
   if (!state.activeOrder || document.hidden) return;
   try {
@@ -461,11 +471,19 @@ async function refreshActiveOrder() {
       state.activeOrder = order;
       showStatus(order);
     }
+    // Status final tidak akan berubah lagi -- hentikan polling supaya tab
+    // yang dibiarkan terbuka lama sesudah pesanan selesai tidak terus
+    // menyumbang request ke server tanpa nilai apa pun.
+    if (isTerminalOrderStatus(order.status) && state.orderPoller) {
+      clearInterval(state.orderPoller);
+      state.orderPoller = null;
+    }
   } catch {}
 }
 
 function startOrderPolling() {
-  setInterval(refreshActiveOrder, ORDER_POLL_INTERVAL_MS);
+  if (state.orderPoller) clearInterval(state.orderPoller);
+  state.orderPoller = setInterval(refreshActiveOrder, ORDER_POLL_INTERVAL_MS);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshActiveOrder();
   });

@@ -63,13 +63,13 @@
     });
   }
 
-  function paymentMethodOptions() {
+  function paymentMethodOptions({ withDeposits = true } = {}) {
     return [
       '<option value="KAS">Tunai / Kas Admin</option>',
       '<option value="BANK">Transfer Bank</option>',
       ...(snapshot.sharedAccounts || []).map(account =>
         `<option value="REKBER:${escapeHtml(account.id)}">Rekening Bersama ${escapeHtml(account.name)} (bagian gerai ini ${rupiah(account.storeBalance)})</option>`),
-      ...(snapshot.deposits || []).map(deposit =>
+      ...(withDeposits ? snapshot.deposits || [] : []).map(deposit =>
         `<option value="DEPOSIT:${escapeHtml(deposit.id)}">Deposit ${escapeHtml(deposit.categoryLabel)} · ${escapeHtml(deposit.counterpartyName)} (sisa ${rupiah(deposit.balanceRupiah)})</option>`)
     ].join('');
   }
@@ -293,6 +293,7 @@
             <label class="admin-field">Nominal (Rp)<input id="hpDepositAmount" type="number" step="1" min="1" required /></label>
             <label class="admin-field">Tanggal<input id="hpDepositDate" type="date" required value="${escapeHtml(snapshot.today || '')}" /></label>
           </div>
+          <label class="admin-field">Dibayar dari<select id="hpDepositMethod">${paymentMethodOptions({ withDeposits: false })}</select><span class="field-note">Rekening Bersama = saldo bagian gerai ini benar-benar berkurang</span></label>
           <button class="primary-btn" type="submit">Simpan Deposit</button>
         </form>
         <div class="admin-card list-card">
@@ -319,7 +320,8 @@
           counterpartyName: el('hpDepositPartyName').value,
           description: el('hpDepositDescription').value,
           amount: Number(el('hpDepositAmount').value),
-          businessDate: el('hpDepositDate').value
+          businessDate: el('hpDepositDate').value,
+          ...paymentMethodPayload(el('hpDepositMethod').value)
         })
       });
       snapshot.deposits = payload.deposits || snapshot.deposits;

@@ -685,11 +685,11 @@ bukan di tabel. Pelunasan gaji tetap lewat pintu yang sama (entry_type `PAYMENT`
 migration 0116; source_type `BEA_OPERASIONAL` dipakai ulang supaya tidak rebuild tabel yang berisi
 data produksi, dibedakan lewat entry_type).
 
-Belum dikerjakan / sengaja di luar scope: Laporan Cashflow (ditunda Bos Cyo); posting jurnal
-Akuntansi untuk pelunasan (Akuntansi belum tahu soal pelunasan admin — sama seperti Bea Operasional
-sejak awal); Pengeluaran Kasir (`expenses`) dengan cara bayar "Jadi Hutang" belum ikut jadi hutang
-(yang diminta baru pembelian ke supplier); piutang setoran laci tetap dilunasi lewat alurnya sendiri
-(bukti + ACC), di layar ini cuma ditampilkan.
+Belum dikerjakan / sengaja di luar scope: Laporan Cashflow (ditunda Bos Cyo); Pengeluaran Kasir
+(`expenses`) dengan cara bayar "Jadi Hutang" belum ikut jadi hutang (yang diminta baru pembelian ke
+supplier); piutang setoran laci tetap dilunasi lewat alurnya sendiri (bukti + ACC), di layar ini cuma
+ditampilkan. **Posting jurnal Akuntansi sudah tersambung sejak 2026-09-27 untuk transaksi BARU**
+(ADR-046, bagian "Fitur admin tersambung ke Akuntansi" di bawah).
 
 ## Uang Muka / Deposit (2026-09-26)
 
@@ -735,6 +735,27 @@ nilai yang KITA pegang sampai direalisasikan.
   dia dead code, bukan bug baru dari sesi ini. Opsi Deposit tetap ditambahkan ke file itu juga
   (murah, filenya sudah punya test sendiri), tapi kalau memang tidak akan pernah dipakai sebaiknya
   dihapus di kesempatan lain supaya tidak menjebak agen berikutnya.
+
+## Fitur admin tersambung ke Akuntansi (2026-09-27)
+
+Bos Cyo: "dari awal uda konek akuntansi ... kita uda tentuin setiap transaksi bikin jurnal ini dan
+itu ... untuk data2 baru aja, data lama biarin tanpa akuntansi." Detail keputusan dan tabel jurnalnya:
+`adr/ADR-046-admin-facts-connected-to-accounting.md`.
+
+- Bea Operasional, Pembayaran Hutang/Piutang, Pembayaran Lainnya, gaji presensi, dan Uang Muka/Deposit
+  otomatis dijurnal SESUDAH tersimpan (`src/accounting-admin-bridge.js`, dipasang di `src/index.js`).
+  Gagal-lembut: kalau akunnya belum siap, transaksi tetap tersimpan, delivery tercatat
+  `NEEDS_CONFIGURATION`.
+- Akun & aturan bawaan dari migration 0123 (dan trigger untuk gerai baru). Akun buatan admin dengan
+  nama persis sama ("Beban Sewa Lapak", "Hutang Sewa Lapak", "Beban Dibayar Dimuka") dipakai ulang.
+- Batal = jurnal pembalik. Fakta sebelum 0123 tidak dijurnal dan tidak dibalik.
+- Sekalian untuk transaksi kasir baru: "Non Tunai (Legacy)" default ke akun Bank, barang tanpa Jenis
+  Barang otomatis dapat Jenis Barang sesuai Tipe Barang. 81 delivery lama yang sudah nyangkut TIDAK
+  diposting otomatis; kalau admin menekan sinkron Akuntansi, yang penyebabnya Non Tunai akan ikut
+  terposting (yang penyebabnya Jenis Barang tetap nyangkut karena snapshot transaksinya kosong).
+- Pembelian kasir dari Deposit sekarang tersimpan dengan cara bayar `DEPOSIT` (dulu `CASH`) supaya
+  laporan laci tidak menganggap uang laci keluar.
+- Belum: Laporan Net Profit/Beban/Hutang Piutang masih menghitung sendiri, belum membaca jurnal.
 
 ## DOC-IMPACT
 

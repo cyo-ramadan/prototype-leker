@@ -870,7 +870,20 @@ export async function handleHutangPiutangApi(request, env, pathname) {
     if (request.method === 'POST' && pathname === '/api/admin/hutang-piutang/deposits') {
       const body = await readJson(request);
       if (!body.ok) return json({ error: 'Payload Deposit tidak valid.' }, 400);
+      // Dibayar dari mana (ADR-046). Deposit tidak bisa dibayar dari Deposit.
+      const requestedMethod = text(body.value?.paymentMethod, 20).toUpperCase() || 'KAS';
+      if (requestedMethod === 'DEPOSIT') throw domainError('Uang Muka/Deposit dibayar dari Tunai, Bank, atau Rekening Bersama.', 'PAYMENT_METHOD_REQUIRED');
+      const funding = await resolvePaymentMethod(db, store, requestedMethod, body.value?.sharedAccountId, null);
+      const fundingAmount = amountInput(body.value?.amount);
+      const fundingLedgerId = funding.sharedAccount && fundingAmount ? `shared_ledger_${crypto.randomUUID()}` : null;
       const deposit = await createDeposit(db, {
+        fundingMethod: funding.method,
+        fundingSharedAccountId: funding.sharedAccount?.id || null,
+        fundingSharedLedgerId: fundingLedgerId,
+        extraStatements: depositId => fundingLedgerId ? [sharedLedgerStatement(db, {
+          ledgerId: fundingLedgerId, sharedAccount: funding.sharedAccount, store, direction: 'OUT', amount: fundingAmount,
+          paymentId: depositId, note: `Uang Muka / Deposit · ${text(body.value?.counterpartyName, 120)}`.trim(), actor, now: new Date().toISOString()
+        })] : [],
         storeId: store.id,
         entityId: store.entityId,
         category: text(body.value?.category, 40).toUpperCase(),

@@ -3,6 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { getAccountingBridgeSummary } from './accounting-pos-bridge.js';
+import { getAccountStandardization, standardizeStoreAccounts } from './accounting-standardize.js';
 import {
   ACCOUNT_TYPES,
   createAccountingAccount,
@@ -38,10 +39,11 @@ function monthStart(businessDate) {
 
 async function bootstrap(db, store) {
   const businessDate = getJakartaBusinessDate();
-  const [accounts, journals, bridgeSummary] = await Promise.all([
+  const [accounts, journals, bridgeSummary, standardization] = await Promise.all([
     listAccountingAccounts(db, store.id),
     listAccountingJournals(db, store.id, { limit: 12 }),
-    getAccountingBridgeSummary(db, store.id)
+    getAccountingBridgeSummary(db, store.id),
+    getAccountStandardization(db, store.id)
   ]);
   return {
     contract: 'MAXI_ACCOUNTING_WORKSPACE_V1',
@@ -56,7 +58,9 @@ async function bootstrap(db, store) {
     postedJournalPolicy: 'IMMUTABLE_REVERSAL_ONLY',
     accounts,
     recentJournals: journals,
-    bridgeSummary
+    bridgeSummary,
+    customAccountsAllowed: standardization.customAccountsAllowed,
+    standardization
   };
 }
 
@@ -114,6 +118,9 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
   if (pathname === '/api/admin/accounting/accounts') {
     if (request.method === 'GET') return json({ accounts: await listAccountingAccounts(env.DB, store.id) });
     if (request.method === 'POST') return createAccount(request, env, store);
+  }
+  if (request.method === 'POST' && pathname === '/api/admin/accounting/standardize-accounts') {
+    return resultResponse(await standardizeStoreAccounts(env.DB, store));
   }
   const accountMatch = pathname.match(/^\/api\/admin\/accounting\/accounts\/([^/]+)$/);
   if (request.method === 'PATCH' && accountMatch) {

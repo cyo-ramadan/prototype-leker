@@ -59,6 +59,9 @@ untuk data2 baru aja gpp sih, data lama biarin tanpa akuntansi."
   menyatukan keduanya adalah langkah terpisah.
 - Akun per-orang buatan admin ("Hutang Gaji <nama>") tidak dipakai otomatis; rincian per orang
   ada di Laporan Hutang Piutang.
+- Diperbarui ADR-047 (hari yang sama): akun buatan admin yang dipakai ulang di tabel atas
+  ("Hutang Sewa Lapak", "Beban Dibayar Dimuka", "Beban Sewa Lapak") diganti akun standar
+  2101/1401/6106 di semua gerai kecuali DERMO.
 - Rekening Bersama (ADR-045, dulu sengaja di luar Akuntansi) kini punya cerminan satu akun
   1103 per gerai untuk pembayaran admin. Penjualan/pembelian kasir lewat cara bayar yang
   ditautkan ke Rekening Bersama tetap memakai akun cara bayar POS-nya sendiri.

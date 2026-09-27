@@ -248,7 +248,7 @@ test('Gerai mode ringan (bukan ACCOUNTING) dilewati tanpa jejak', async () => {
   } finally { db.close(); }
 });
 
-test('Akun yang sudah dibuat admin sendiri (nama sama persis) dipakai ulang, bukan diduplikasi', async () => {
+test('Akun buatan admin yang dipakai ulang 0123 diganti akun standar oleh 0124 (ADR-047)', async () => {
   const { db } = setup({
     beforeAdminBridge(db) {
       db.prepare(`INSERT INTO chart_of_accounts (id, store_id, code, name, type) VALUES ('acc_bsl', 'store_pendem', 'ACC-000003', 'Beban Sewa Lapak', 'EXPENSE')`).run();
@@ -258,13 +258,14 @@ test('Akun yang sudah dibuat admin sendiri (nama sama persis) dipakai ulang, buk
   });
   try {
     const rules = Object.fromEntries(db.prepare(`
-      SELECT r.id, r.fixed_account_id FROM journal_rules r WHERE r.store_id = 'store_pendem' AND r.id LIKE '%admin_%'
-    `).all().map(row => [row.id, row.fixed_account_id]));
-    assert.equal(rules.jrule_store_pendem_admin_bea_lapak_dr, 'acc_bsl');
-    assert.equal(rules.jrule_store_pendem_admin_bea_lapak_cr, 'acc_hsl');
-    assert.equal(rules.jrule_store_pendem_admin_uang_muka_dr, 'acc_bdd');
-    const duplicates = db.prepare(`SELECT code FROM chart_of_accounts WHERE store_id = 'store_pendem' AND code IN ('6106', '1401')`).all();
-    assert.deepEqual(duplicates, [], 'tidak bikin akun kembar kalau admin sudah punya');
+      SELECT r.id, a.code FROM journal_rules r JOIN chart_of_accounts a ON a.id = r.fixed_account_id
+      WHERE r.store_id = 'store_pendem' AND r.id LIKE '%admin_%'
+    `).all().map(row => [row.id, row.code]));
+    assert.equal(rules.jrule_store_pendem_admin_bea_lapak_dr, '6106');
+    assert.equal(rules.jrule_store_pendem_admin_bea_lapak_cr, '2101');
+    assert.equal(rules.jrule_store_pendem_admin_uang_muka_dr, '1401');
+    const leftovers = db.prepare(`SELECT id FROM chart_of_accounts WHERE id IN ('acc_bsl', 'acc_hsl', 'acc_bdd')`).all();
+    assert.deepEqual(leftovers, [], 'akun admin yang tidak pernah dijurnal dihapus');
   } finally { db.close(); }
 });
 

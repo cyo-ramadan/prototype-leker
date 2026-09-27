@@ -170,6 +170,8 @@ test('Accounting workspace posts immutable journals and reports only requested p
   const db = d1(sqlite);
   const store = { id: 'store_001', code: 'G001', storeName: 'Gerai 001' };
   try {
+    // ADR-047: tambah akun sendiri hanya untuk gerai yang diizinkan custom.
+    sqlite.prepare(`UPDATE stores SET custom_accounts_allowed = 1 WHERE id = ?`).run(store.id);
     const createdOne = await createAccountingAccount(db, store, { accountName: 'Bank BCA', accountType: 'ASSET', subtype: 'BANK' });
     const createdTwo = await createAccountingAccount(db, store, { accountName: 'Beban Internet', accountType: 'EXPENSE' });
     assert.equal(createdOne.accountCode, 'ACC-000001');

@@ -100,6 +100,7 @@ test('approved CASH expense correction soft-deletes source, restores drawer expe
       VALUES (?, ?, ?, ?, 'Gas operasional', 10000, '2026-08-13T10:10:00.000Z', 'CASH')
     `).run(expenseId, fixture.store.id, fixture.drawerId, fixture.cashierId);
 
+    sqlite.prepare(`UPDATE stores SET custom_accounts_allowed = 1 WHERE id = ?`).run(fixture.store.id);
     const debit = await createAccountingAccount(db, fixture.store, { accountName: 'Beban Test', accountType: 'EXPENSE' });
     const credit = await createAccountingAccount(db, fixture.store, { accountName: 'Kas Test', accountType: 'ASSET' });
     assert.equal(debit.ok, true); assert.equal(credit.ok, true);

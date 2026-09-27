@@ -75,6 +75,7 @@
     if (source === 'MANUAL') return 'Manual';
     if (source === 'LEKER_POS') return 'POS';
     if (source === 'WAREHOUSE') return 'Warehouse';
+    if (source === 'ACCOUNT_STANDARDIZE') return 'Penyamaan Akun';
     return source || '-';
   }
 
@@ -158,11 +159,39 @@
     document.querySelectorAll('[data-acct-view]').forEach(button => button.classList.toggle('active', button.dataset.acctView === state.view));
   }
 
+  // ADR-047: gerai standar memakai akun yang sama dengan gerai lain; tambah/ubah
+  // akun dikunci. Akun lama buatan gerai yang masih bersaldo dipindah lewat
+  // tombol "Samakan ke Akun Standar" (satu jurnal pemindahan, lalu akun ditutup).
+  function standardCardHtml() {
+    const pending = state.bootstrap.standardization?.pending || [];
+    const rows = pending.map(account => `<tr><td class="acct-code">${esc(account.accountCode)}</td><td>${esc(account.accountName)}</td><td>${rpExact(scaledToExact(['ASSET', 'EXPENSE'].includes(account.accountType) ? account.balanceScaled : -account.balanceScaled))}</td><td>${account.target ? `${esc(account.target.accountCode)} ${esc(account.target.accountName)}` : '<span class="acct-chip inactive">Belum ada pasangan</span>'}</td></tr>`).join('');
+    const movable = pending.some(account => account.target);
+    return `<div class="acct-card"><h3>Akun Standar</h3><p style="margin:0 0 10px">Gerai ini memakai daftar akun yang sama dengan gerai lain supaya jurnal otomatis berlaku seragam. Menambah atau mengubah akun sendiri belum dibuka.</p>
+      ${pending.length ? `<p style="margin:0 0 10px">Masih ada akun lama buatan gerai. Tombol di bawah memindahkan saldonya ke akun standar dengan satu jurnal, lalu menutup akun lamanya.</p>
+      <div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Kode</th><th>Akun lama</th><th>Saldo</th><th>Pindah ke</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${movable ? '<div class="acct-actions"><button id="acctStandardize" class="acct-btn primary" type="button">Samakan ke Akun Standar</button></div>' : ''}` : '<p class="acct-code" style="margin:0">Semua akun sudah standar.</p>'}
+    </div>`;
+  }
+
+  async function standardizeAccounts() {
+    const button = el('acctStandardize');
+    if (button) button.disabled = true;
+    try {
+      const result = await api('/api/admin/accounting/standardize-accounts', { method: 'POST', body: '{}' });
+      await load(true);
+      toast(result.journal ? `Saldo dipindah · ${result.journal.journalNumber}` : 'Akun lama sudah ditutup');
+    } catch (error) {
+      if (button) button.disabled = false;
+      toast(error.message);
+    }
+  }
+
   function renderAccounts(host) {
-    const editing = state.bootstrap.accounts.find(account => account.accountId === state.editingAccountId) || null;
-    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Akun</h2><p>Buat dan kelola akun di sini. Kode akun dibuat otomatis oleh program dan tidak diedit manual. Akun sistem Penyesuaian dikunci oleh Accounting.</p></div></div>
+    const locked = state.bootstrap.customAccountsAllowed === false;
+    const editing = locked ? null : state.bootstrap.accounts.find(account => account.accountId === state.editingAccountId) || null;
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Data Akun</h2><p>${locked ? 'Daftar akun standar gerai ini. Kode dan nama akun sama di semua gerai.' : 'Buat dan kelola akun di sini. Kode akun dibuat otomatis oleh program dan tidak diedit manual. Akun sistem Penyesuaian dikunci oleh Accounting.'}</p></div></div>
       <div class="acct-grid">
-        <form id="acctAccountForm" class="acct-card">
+        ${locked ? standardCardHtml() : `<form id="acctAccountForm" class="acct-card">
           <h3>${editing ? `Atur ${esc(editing.accountCode)}` : 'Buat Akun Baru'}</h3>
           ${editing ? `<div class="acct-field"><span>Kode otomatis</span><input class="acct-input" value="${esc(editing.accountCode)}" disabled /></div>` : '<div class="acct-field"><span>Kode Akun</span><input class="acct-input" value="Dibuat otomatis saat simpan" disabled /></div>'}
           <label class="acct-field"><span>Nama Akun</span><input id="acctAccountName" class="acct-input" maxlength="100" value="${esc(editing?.accountName || '')}" required /></label>
@@ -170,10 +199,11 @@
           <label class="acct-field"><span>Subtype / Kelompok</span><input id="acctAccountSubtype" class="acct-input" maxlength="60" value="${esc(editing?.subtype || '')}" placeholder="optional" /></label>
           ${editing ? `<label class="acct-field"><span>Status</span><select id="acctAccountActive" class="acct-select"><option value="1" ${editing.isActive ? 'selected' : ''}>Aktif</option><option value="0" ${!editing.isActive ? 'selected' : ''}>Nonaktif</option></select></label>` : ''}
           <div class="acct-actions"><button class="acct-btn primary" type="submit">${editing ? 'Simpan Perubahan' : 'Buat Akun'}</button>${editing ? '<button id="acctCancelAccountEdit" class="acct-btn" type="button">Batal</button>' : ''}</div>
-        </form>
-        <div class="acct-card"><h3>Chart of Accounts</h3><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Kode</th><th>Nama</th><th>Tipe</th><th>Status</th><th></th></tr></thead><tbody>${state.bootstrap.accounts.map(account => `<tr><td class="acct-code">${esc(account.accountCode)}</td><td>${esc(account.accountName)}${account.isSystemManaged ? ' <span class="acct-chip">System</span>' : account.reviewRequired ? ' <span class="acct-chip">Review</span>' : ''}</td><td>${esc(account.accountType)}</td><td><span class="acct-chip ${account.isActive ? '' : 'inactive'}">${account.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td>${account.isSystemManaged ? '<span class="acct-code">Dikelola sistem</span>' : `<button class="acct-btn" data-edit-acct-account="${esc(account.accountId)}" type="button">Atur</button>`}</td></tr>`).join('')}</tbody></table></div></div>
+        </form>`}
+        <div class="acct-card"><h3>Chart of Accounts</h3><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Kode</th><th>Nama</th><th>Tipe</th><th>Status</th><th></th></tr></thead><tbody>${state.bootstrap.accounts.map(account => `<tr><td class="acct-code">${esc(account.accountCode)}</td><td>${esc(account.accountName)}${account.isSystemManaged ? ' <span class="acct-chip">System</span>' : account.reviewRequired ? ' <span class="acct-chip">Review</span>' : ''}</td><td>${esc(account.accountType)}</td><td><span class="acct-chip ${account.isActive ? '' : 'inactive'}">${account.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td>${account.isSystemManaged ? '<span class="acct-code">Dikelola sistem</span>' : locked ? '<span class="acct-code">Standar</span>' : `<button class="acct-btn" data-edit-acct-account="${esc(account.accountId)}" type="button">Atur</button>`}</td></tr>`).join('')}</tbody></table></div></div>
       </div></div>`;
-    el('acctAccountForm').addEventListener('submit', saveAccount);
+    el('acctAccountForm')?.addEventListener('submit', saveAccount);
+    el('acctStandardize')?.addEventListener('click', standardizeAccounts);
     el('acctCancelAccountEdit')?.addEventListener('click', () => { state.editingAccountId = ''; renderAccounts(host); });
     host.querySelectorAll('[data-edit-acct-account]').forEach(button => button.addEventListener('click', () => { state.editingAccountId = button.dataset.editAcctAccount; renderAccounts(host); }));
   }

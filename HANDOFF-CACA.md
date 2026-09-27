@@ -6,6 +6,10 @@ ditulis di sini atau ditunjuk dari sini.
 
 Ditulis: 2026-09-17 · Oleh: Hana · Untuk: sesi lanjutan proyek Caca
 
+> **Update 2026-09-27:** Bos Cyo menggeser prioritas ke asisten yang bisa **mencatat**
+> (mengganti akuntan) untuk dirinya dan semua tenant. Baca `HANDOFF-HANA-PEMBUKUAN.md` dulu.
+> Keputusan di dokumen ini tetap berlaku kecuali disebut lain di sana.
+
 ---
 
 ## Status singkat

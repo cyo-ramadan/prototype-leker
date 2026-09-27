@@ -40,6 +40,7 @@ import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
 import { handleAccountingPosBridgeApi } from './accounting-pos-bridge.js';
 import { attachAccountingBridgeToCommittedResponse } from './accounting-pos-bridge-response.js';
+import { attachAdminAccountingToCommittedResponse } from './accounting-admin-bridge.js';
 import { handleBusinessSettingsApi } from './business-settings.js';
 import { handleAccountingSettingsApi } from './accounting-settings.js';
 import { handleWarehouseSettingsApi } from './warehouse-settings.js';
@@ -268,9 +269,9 @@ async function handleApi(request, env, url) {
   const netProfitReportResponse = await handleNetProfitReportApi(request, env, pathname);
   if (netProfitReportResponse) return netProfitReportResponse;
   const adminOperationalExpenseResponse = await handleAdminOperationalExpenseApi(request, env, pathname);
-  if (adminOperationalExpenseResponse) return adminOperationalExpenseResponse;
+  if (adminOperationalExpenseResponse) return attachAdminAccountingToCommittedResponse(request, adminOperationalExpenseResponse, env, pathname);
   const hutangPiutangResponse = await handleHutangPiutangApi(request, env, pathname);
-  if (hutangPiutangResponse) return hutangPiutangResponse;
+  if (hutangPiutangResponse) return attachAdminAccountingToCommittedResponse(request, hutangPiutangResponse, env, pathname);
   const classificationResponse = await handleAdminProductClassificationApi(request, env, pathname);
   if (classificationResponse) return classificationResponse;
   const productPolicyResponse = await handleProductPolicyApi(request, env, pathname);
@@ -321,7 +322,7 @@ async function handleApi(request, env, url) {
   const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);
   if (cashierAuthResponse) return cashierAuthResponse;
   const staffPortalResponse = await handleStaffPortalApi(request, env, pathname);
-  if (staffPortalResponse) return staffPortalResponse;
+  if (staffPortalResponse) return attachAdminAccountingToCommittedResponse(request, staffPortalResponse, env, pathname);
   const cashierCustomerSearchResponse = await handleCashierCustomerSearchApi(request, env, pathname);
   if (cashierCustomerSearchResponse) return cashierCustomerSearchResponse;
   const cashierProductionResponse = await handleCashierProductionApi(request, env, pathname);

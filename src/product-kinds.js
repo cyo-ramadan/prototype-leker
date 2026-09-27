@@ -30,6 +30,21 @@ export async function listProductKinds(db, storeId) {
   }));
 }
 
+// Barang tanpa Jenis Barang bikin penjualan/pembeliannya nyangkut
+// NEEDS_PRODUCT_KIND di Akuntansi (ADR-046). Kalau admin tidak memilih,
+// pakai Jenis Barang yang kodenya sama dengan Tipe Barang, lalu Bahan Baku.
+export async function defaultProductKindForItemType(db, storeId, itemTypeId) {
+  const row = await db.prepare(`
+    SELECT COALESCE(
+      (SELECT k.id FROM product_kinds k JOIN item_types t ON t.id = ? AND t.store_id = k.store_id
+       WHERE k.store_id = ? AND k.code = t.code AND k.is_active = 1 ORDER BY k.id LIMIT 1),
+      (SELECT k.id FROM product_kinds k
+       WHERE k.store_id = ? AND k.code = 'RAW_MATERIAL' AND k.is_active = 1 ORDER BY k.id LIMIT 1)
+    ) AS id
+  `).bind(itemTypeId || '', storeId, storeId).first();
+  return row?.id || null;
+}
+
 export async function resolveProductKind(db, storeId, productKindId, { allowInactive = false } = {}) {
   const id = String(productKindId || '').trim();
   if (!id) return { ok: true, productKindId: null };

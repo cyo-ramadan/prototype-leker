@@ -200,7 +200,7 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   const note = text(body.value?.note, 500);
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, cashier.store.id, body.value?.paymentMethod, 'CASH');
   if (!resolvedPayment) return json({ error: 'Cara bayar pembelian tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
-  const paymentMethod = resolvedPayment.code;
+  let paymentMethod = resolvedPayment.code;
   let supplier = null;
   if (supplierId) {
     supplier = await env.DB.prepare(`SELECT id, name FROM suppliers WHERE id = ? AND store_id = ? AND is_active = 1`).bind(supplierId, cashier.store.id).first();
@@ -218,6 +218,9 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
     if (!deposit) return json({ error: 'Uang Muka/Deposit tidak ditemukan / bukan milik gerai ini.', code: 'DEPOSIT_OUT_OF_SCOPE' }, 400);
     if (deposit.sourceType !== 'DEPOSIT_BAHAN_BAKU') return json({ error: 'Deposit ini bukan Uang Muka Bahan Baku.', code: 'DEPOSIT_CATEGORY_MISMATCH' }, 400);
     if (normalized.totalAmount > deposit.balanceRupiah) return json({ error: 'Total pembelian melebihi saldo Deposit yang tersisa.', code: 'DEPOSIT_AMOUNT_EXCEEDS_BALANCE' }, 400);
+    // Uang laci tidak keluar sepeser pun -- jangan sampai laporan laci
+    // menghitungnya sebagai "Pembelian Cash".
+    paymentMethod = 'DEPOSIT';
   }
   // Bos Cyo, 2026-09-26: "yang cara bayarnya hutang ke suplier ikut
   // disambungkan ke catatan hutang kita" -- cara bayar yang ditandai admin

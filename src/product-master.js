@@ -3,7 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
-import { listProductKinds, resolveProductKind } from './product-kinds.js';
+import { defaultProductKindForItemType, listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const COST_SCALE = 1_000_000;
@@ -227,6 +227,7 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     allowInactive: Boolean(current?.product_kind_id && current.product_kind_id === productKindId)
   });
   if (!kind.ok) return { ok: false, status: 400, error: kind.error };
+  if (!kind.productKindId) kind.productKindId = await defaultProductKindForItemType(db, storeId, refs.itemTypeId);
 
   if (current) {
     const unitGuard = await validateBaseUnitChange(db, storeId, productId, current.base_unit_id, refs.baseUnitId);

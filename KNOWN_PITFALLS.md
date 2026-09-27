@@ -445,11 +445,11 @@ Detail dan tahapan migrasinya di `adr/ADR-030-multi-entity-tenancy-and-accountin
 
 **Pitfall:** Jangan menandai sebuah Jenis Transaksi `Lengkap` hanya karena rule Debit/Kredit-nya terisi, kalau tidak ada satu pun modul yang memposting melaluinya.
 
-Enam Jenis Transaksi hari ini ada di Setting Akuntansi tanpa konsumen posting: `wh_opname`, `wh_production`, `wh_transfer`, `wh_return`, `deposit`, `payroll`. Tiga yang pertama bahkan sudah punya rule aktif yang dikonfigurasi admin. Admin melihat `Lengkap`, wajar menyimpulkan Stock Opname menghasilkan jurnal, dan jurnal itu tidak pernah terbit — tanpa error, tanpa jejak, karena tidak pernah ada yang mencoba.
+Enam Jenis Transaksi (per ADR-031) ada di Setting Akuntansi tanpa konsumen posting: `wh_opname`, `wh_production`, `wh_transfer`, `wh_return`, `deposit`, `payroll`. Tiga yang pertama bahkan sudah punya rule aktif yang dikonfigurasi admin. Admin melihat `Lengkap`, wajar menyimpulkan Stock Opname menghasilkan jurnal, dan jurnal itu tidak pernah terbit — tanpa error, tanpa jejak, karena tidak pernah ada yang mencoba.
 
 **Current strategy:**
 
-- konsumen posting yang sebenarnya hanya `src/accounting-pos-bridge.js` (`sale`, `purchase_material`, `operational`) dan `src/accounting-cash-flow-bridge.js` (`cash_flow_in`, `cash_flow_out`);
+- konsumen posting yang sebenarnya: `src/accounting-pos-bridge.js` (`sale`, `purchase_material`, `operational`), `src/accounting-cash-flow-bridge.js` (`cash_flow_in`, `cash_flow_out`), `src/accounting-warehouse-production-bridge.js` (`wh_production`), dan sejak ADR-046 `src/accounting-admin-bridge.js` (`admin_gaji`, `admin_bea_lapak`, `admin_bea_lainnya`, `admin_uang_muka`). `payroll` dan `deposit` (Setoran) bawaan 0045 masih tanpa konsumen;
 - `src/accounting-reference.js` hanya registry, bukan poster — jangan dihitung sebagai konsumen;
 - Jenis Transaksi tanpa konsumen ditandai *belum tersambung*, bukan `Lengkap`;
 - membuat lane posting baru untuk `wh_*` berarti memutuskan semantik Inventory → Accounting, dan itu milik Bos Cyo (Constitution R2).

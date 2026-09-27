@@ -146,7 +146,11 @@ test('Sesi yang belum lewat 1 jam sejak jam pulang jadwal TIDAK di-force-close',
     const dayOfWeek = getJakartaDayOfWeek(now);
     // Shift berakhir 2 jam LAGI dari sekarang -- deadline (shift_end+1jam)
     // masih 3 jam di depan, jelas belum lewat.
-    const shiftEnd = getJakartaTimeOfDay(new Date(now.getTime() + 2 * 60 * 60 * 1000));
+    // Kalau dijalankan jam 22.00-24.00 WIB, "2 jam lagi" melompat ke besok
+    // (mis. 01:02) dan jadi lebih kecil dari shiftStart -- test ini dulu merah
+    // tiap malam. Batasi ke 23:59 hari yang sama.
+    const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const shiftEnd = getJakartaDayOfWeek(later) === dayOfWeek ? getJakartaTimeOfDay(later) : '23:59';
     seedSchedule(db, cashier.id, dayOfWeek, { shiftStart: '00:00', shiftEnd });
     const attendanceId = insertOpenAttendance(db, cashier.id, pendem.id, now.toISOString());
 

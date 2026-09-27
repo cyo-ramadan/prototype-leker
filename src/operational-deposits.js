@@ -42,8 +42,13 @@ export function depositLabel(category) {
   return DEPOSIT_LABEL_BY_CODE[category] || category;
 }
 
+// fundingMethod (ADR-046): dari mana uang Deposit ini keluar -- KAS/BANK/
+// REKBER. Dibutuhkan jurnal Akuntansinya (Dr Uang Muka / Cr akun cara bayar).
+// Rekening Bersama wajib benar-benar berkurang: pemanggil memberi baris ledger
+// OUT lewat extraStatements supaya lahir dalam satu batch dengan Deposit-nya.
 export async function createDeposit(db, {
-  storeId, entityId, category, counterpartyType, counterpartyId, counterpartyName, description, amountRupiah, businessDate
+  storeId, entityId, category, counterpartyType, counterpartyId, counterpartyName, description, amountRupiah, businessDate,
+  fundingMethod = '', fundingSharedAccountId = null, fundingSharedLedgerId = null, extraStatements = () => []
 }) {
   if (!DEPOSIT_CODES.includes(category)) throw domainError('Jenis Uang Muka/Deposit tidak dikenal.', 'DEPOSIT_CATEGORY_INVALID');
   if (!COUNTERPARTY_TYPES.includes(counterpartyType)) throw domainError('Jenis pihak tidak dikenal.', 'DEPOSIT_COUNTERPARTY_TYPE_INVALID');
@@ -55,16 +60,21 @@ export async function createDeposit(db, {
   // (beda dari Bea/Pembelian yang punya baris asalnya sendiri), jadi id
   // baris ini sekaligus jadi source_id-nya sendiri untuk penelusuran.
   const id = newId('ORP');
-  await db.prepare(`
-    INSERT INTO operational_receivables_payables (
-      id, store_id, entity_id, source_type, balance_type, source_id,
-      counterparty_id, counterparty_name_snapshot, description,
-      original_amount, transaction_date, counterparty_type
-    ) VALUES (?, ?, ?, ?, 'RECEIVABLE', ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, storeId, entityId, category, id, counterpartyId || null, name,
-    String(description || '').trim().slice(0, 300), amountScaled, businessDate, counterpartyType
-  ).run();
+  await db.batch([
+    ...extraStatements(id),
+    db.prepare(`
+      INSERT INTO operational_receivables_payables (
+        id, store_id, entity_id, source_type, balance_type, source_id,
+        counterparty_id, counterparty_name_snapshot, description,
+        original_amount, transaction_date, counterparty_type,
+        funding_method, funding_shared_account_id, funding_shared_ledger_id
+      ) VALUES (?, ?, ?, ?, 'RECEIVABLE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id, storeId, entityId, category, id, counterpartyId || null, name,
+      String(description || '').trim().slice(0, 300), amountScaled, businessDate, counterpartyType,
+      fundingMethod, fundingSharedAccountId, fundingSharedLedgerId
+    )
+  ]);
   return getOperationalReceivablePayable(db, id, { storeId });
 }
 

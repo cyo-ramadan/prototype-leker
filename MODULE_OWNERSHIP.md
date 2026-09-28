@@ -12,7 +12,7 @@ write access. An agent may read anything.
 | Module | Owner | Source | Contract / rules |
 |---|---|---|---|
 | **architecture** | `hana` | `adr/`, `contracts/` | ADR-030, ADR-040, Constitution, Integration Contract Standard |
-| **accounting** | *unassigned* | `src/accounting-*.js` (termasuk `src/accounting-standardize.js`, `migrations/0124_*`) | ADR-017, ADR-019, ADR-029, ADR-047, `contracts/accounting-*.md` |
+| **accounting** | *unassigned* | `src/accounting-*.js` (termasuk `src/accounting-standardize.js`, `src/accounting-journal-schedules.js`, `migrations/0124_*`, `migrations/0125_*`) | ADR-017, ADR-019, ADR-029, ADR-047, ADR-049, `contracts/accounting-*.md` |
 | **accounting-settings** | *unassigned* | `src/accounting-settings.js`, `src/warehouse-settings.js` | ADR-017, `contracts/accounting-settings-v1.md` |
 | **operasional** | `karen` | `src/cashier-*.js`, `src/orders*.js`, `src/operational-posting.js` | ADR-029, `contracts/cashier-transaction-composition-v1.md` |
 | **produksi** | `elle` | `src/cashier-production.js`, `src/stock-production.js`, `src/manufacturing-master.js` | ADR-012, ADR-013 |

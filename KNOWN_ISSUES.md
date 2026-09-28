@@ -772,6 +772,26 @@ Bos Cyo: "aku pingin akun2 nya sinkron dulu, engga custome per tenant dan gerai 
 - Akun buatan gerai yang namanya tidak ada di peta (`accounting_standard_account_aliases`) tidak
   disentuh — per 2026-09-27 tidak ada di luar DERMO.
 
+## Jurnal Beban Rutin + Split Beban per Periode (2026-09-28)
+
+Bos Cyo: "Pembuat & Split Jurnal Beban" -- mengganti pekerjaan akuntan manusia. Detail lengkap:
+`adr/ADR-049-recurring-and-split-expense-journals.md`.
+
+- **Beban Rutin** (`tab Akuntansi → Beban Rutin`): template beban berulang (Beban Lapak, Listrik,
+  WiFi, dst) dengan nominal, akun Beban/Lawan, tanggal mulai, dan pola perulangan (harian/
+  mingguan/bulanan). Bisa **auto-post** atau **menunggu konfirmasi** (banner "N jurnal menunggu
+  dibuat" dengan tombol Buat Sekarang/Lewati) -- pilihan per template.
+- **Split Beban** (tombol di detail jurnal): memecah satu jurnal yang sudah ada jadi beban harian
+  merata selama periode manfaatnya. Hanya ditawarkan untuk jurnal 2 baris dengan satu sisi Debit
+  ke akun ASSET (uang muka/deposit/dibayar dimuka). Pembulatan: sisa pembagian masuk ke hari
+  terakhir, total akhir selalu PERSIS sama dengan nominal sumber. Jurnal sumber tidak pernah
+  diubah -- Split cuma membuat jurnal BARU yang bisa dilacak balik dari jurnal sumbernya.
+- Satu mesin jadwal (`accounting_journal_schedules` + `accounting_journal_schedule_occurrences`,
+  migration 0125) dipakai untuk dua-duanya. Posting **lazy** -- dicek tiap `GET /api/admin/accounting`
+  dibuka, pola yang sama dengan `forceCloseOverdueSessions` (presensi). Tanpa cron/Durable Object.
+  Semua posting lewat `postAccountingJournal()` seperti biasa (`src/accounting-journal-schedules.js`).
+- Belum ada notifikasi lewat chat (ide Caca) -- sengaja ditunda sesuai catatan Bos Cyo sendiri.
+
 ## DOC-IMPACT
 
 **REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, and Payroll transaction implementations. Also update this section when the Uang Muka/Deposit flow above changes shape (new deposit categories, Deposit-funded void reversal, Accounting posting for Deposit realization, or the dead `cashier-procurement-ui.js` file is finally removed or activated). Also update when: the standard chart of accounts (ADR-047) changes — new standard accounts, new name aliases, another store allowed custom accounts, or the per-tenant custom stage begins. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

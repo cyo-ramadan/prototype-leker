@@ -807,6 +807,37 @@ pindah workspace" dan "itu kan ada tempat detil laci kamu tambahin tombol copy".
   format mengikuti gaya laporan lama tapi datanya dari field yang sama persis dengan yang sudah
   ditampilkan di layar (bukan field tambahan yang tidak ada di New Web).
 
+## Ganti Satuan Barang yang Sudah Punya Histori (2026-09-28)
+
+Bos Cyo lapor kasus nyata: barang "Larutan Teh Poci Vanilla" di Mandala kepasang satuan pcs
+padahal maksudnya ml, dan barangnya sudah punya stok. `validateBaseUnitChange`
+(`src/product-master.js`) dulu menolak mentah dengan pesan yang menunjuk ke "proses konversi/
+migrasi terpisah" yang **tidak pernah benar-benar dibangun** -- Admin buntu, tidak ada jalan resmi
+membenarkannya sendiri.
+
+Keputusan Bos Cyo: kasus salah-pasang-satuan itu murni salah label, bukan salah skala -- angka
+stok/HPP/takaran resep yang sudah kepencet memang dimaksudkan dalam satuan yang benar sejak awal,
+jadi tidak ada rasio konversi yang perlu dihitung sama sekali. UX-nya sengaja dibuat tanpa form
+input rasio apa pun ("dari sisi admin enak ga perlu mikir apa2 ribetnya, di proses programnya
+aja"):
+
+- Admin ganti satuan seperti biasa di Master Barang. Kalau barang itu ternyata sudah punya resep
+  dan/atau stok movement dan/atau saldo != 0, server balas sekali (409, kode
+  `BASE_UNIT_HISTORY_CONFIRM_REQUIRED`) dengan pesan yang menjelaskan: angka stok/HPP/resep TIDAK
+  akan diubah, cuma labelnya.
+- `public/admin-product-policy.js` menangkap kode itu otomatis, munculkan `confirm()` sekali klik,
+  dan submit ulang dengan `confirmUnitChange:true` -- tidak ada form/rasio tambahan.
+- Begitu dikonfirmasi: `base_unit_id` barang berubah, **tidak ada angka lain yang direcompute**
+  (stok, HPP, takaran resep yang memakainya tetap apa adanya). Perubahan dicatat ke
+  `product_base_unit_change_log` (migration 0126) murni sebagai jejak audit -- bukan sumber saldo.
+- Berlaku per gerai (satuan memang milik `products` row tiap gerai, bukan Kode Barang Entity) --
+  gerai lain yang kebetulan pakai Kode Barang Entity yang sama TIDAK ikut berubah otomatis.
+- Barang "Larutan Teh Poci Vanilla" di Mandala sengaja **belum dibenerin** -- dipakai sebagai kasus
+  uji nyata begitu fitur ini live (permintaan Bos Cyo: "sekalian buat debug").
+- Kalau ternyata butuh rasio konversi sungguhan (bukan relabel, misal satuannya memang beda skala),
+  fitur ini TIDAK menghitungkannya -- itu di luar scope keputusan Bos Cyo kali ini, perlu desain
+  terpisah kalau ada kasus seperti itu belakangan.
+
 ## DOC-IMPACT
 
 **REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, and Payroll transaction implementations. Also update this section when the Uang Muka/Deposit flow above changes shape (new deposit categories, Deposit-funded void reversal, Accounting posting for Deposit realization, or the dead `cashier-procurement-ui.js` file is finally removed or activated). Also update when: the standard chart of accounts (ADR-047) changes — new standard accounts, new name aliases, another store allowed custom accounts, or the per-tenant custom stage begins. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

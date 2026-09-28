@@ -23,8 +23,30 @@
       }
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `Request gagal (${response.status})`);
+    if (!response.ok) {
+      const error = new Error(payload.error || `Request gagal (${response.status})`);
+      error.code = payload.code;
+      throw error;
+    }
     return payload;
+  }
+
+  // Bos Cyo, 2026-09-28: ganti satuan barang yang sudah punya histori dulu
+  // ditolak mentah, sekarang server balas kode ini sekali (409) dengan pesan
+  // yang menjelaskan konsekuensinya. UX-nya sengaja tanpa form/rasio apa pun
+  // -- satu warning, satu klik lanjut, submit ulang otomatis dengan flag
+  // confirmUnitChange. Kalau Admin batal, form dibiarkan apa adanya (satuan
+  // tidak berubah, tidak ada apa pun yang tersimpan).
+  async function apiWithUnitChangeConfirm(path, options) {
+    try {
+      return await api(path, options);
+    } catch (error) {
+      if (error.code !== 'BASE_UNIT_HISTORY_CONFIRM_REQUIRED') throw error;
+      if (!window.confirm(`${error.message}\n\nLanjutkan ganti satuan?`)) throw error;
+      const body = JSON.parse(options.body || '{}');
+      body.confirmUnitChange = true;
+      return api(path, { ...options, body: JSON.stringify(body) });
+    }
   }
 
   function toast(message) {
@@ -443,7 +465,7 @@
         payload.productCode = el('productCode').value.trim();
         payload.productMasterName = el('productMasterName')?.value.trim() || '';
       }
-      const response = await api(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
+      const response = await apiWithUnitChangeConfirm(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
         method: productId ? 'PATCH' : 'POST',
         body: JSON.stringify(payload)
       });

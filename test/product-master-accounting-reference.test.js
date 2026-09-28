@@ -66,7 +66,7 @@ test('Product Master validates type unit points recipe and product kind without 
   assert.match(productMaster, /resolveLinkedRecipe/);
   assert.match(productMaster, /resolveProductKind/);
   assert.match(productMaster, /Poin barang harus bilangan bulat/);
-  assert.match(productMaster, /Satuan dasar tidak boleh diganti setelah barang punya resep atau histori stok/);
+  assert.match(productMaster, /BASE_UNIT_HISTORY_CONFIRM_REQUIRED/);
   assert.doesNotMatch(productMaster, /productionMode|production_mode\s*=|Mode DADAKAN membutuhkan/);
   assert.doesNotMatch(productMaster, /AccountingAccount|productAccounting|salesAccountRef|cogsAccountRef/);
 });

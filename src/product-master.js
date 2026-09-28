@@ -179,8 +179,17 @@ async function editorPayload(db, store) {
   return { store, products, recipes, productKinds, ...refs };
 }
 
-async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId) {
-  if (!currentUnitId || currentUnitId === nextUnitId) return { ok: true };
+// Bos Cyo, 2026-09-28: dulu ganti satuan barang yang sudah punya histori
+// ditolak mentah-mentah, pesannya menunjuk ke "proses konversi/migrasi
+// terpisah" yang tidak pernah benar-benar dibangun. Keputusan Bos Cyo: kasus
+// salah-pasang-satuan (mis. kepencet pcs padahal maksudnya ml) itu murni
+// salah label -- angka stok/HPP/takaran resep yang sudah ada memang
+// dimaksudkan dalam satuan yang benar sejak awal, jadi tidak perlu rasio
+// konversi apa pun. Admin cukup dikasih warning sekali (lihat migration
+// 0126_product_base_unit_change_log.sql) lalu boleh lanjut -- diteruskan
+// lewat flag confirmUnitChange dari body, bukan form input tambahan.
+async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId, confirmed) {
+  if (!currentUnitId || currentUnitId === nextUnitId) return { ok: true, changed: false };
   const [recipe, movement, balance] = await db.batch([
     db.prepare(`SELECT id FROM manufacturing_recipes WHERE store_id = ? AND output_product_id = ? LIMIT 1`).bind(storeId, productId),
     db.prepare(`SELECT id FROM stock_movements WHERE store_id = ? AND product_id = ? LIMIT 1`).bind(storeId, productId),
@@ -189,13 +198,21 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
   const hasRecipe = Boolean(recipe.results?.length);
   const hasMovement = Boolean(movement.results?.length);
   const quantity = Number(balance.results?.[0]?.quantity || 0);
-  if (hasRecipe || hasMovement || quantity !== 0) {
+  const hadHistory = hasRecipe || hasMovement || quantity !== 0;
+  if (hadHistory && !confirmed) {
+    const [oldUnit, newUnit] = await db.batch([
+      db.prepare('SELECT name, symbol FROM units WHERE id = ?').bind(currentUnitId),
+      db.prepare('SELECT name, symbol FROM units WHERE id = ?').bind(nextUnitId)
+    ]);
+    const label = row => row ? `${row.name} (${row.symbol})` : 'satuan sebelumnya';
     return {
       ok: false,
-      error: 'Satuan dasar tidak boleh diganti setelah barang punya resep atau histori stok. Gunakan proses konversi/migrasi satuan terpisah.'
+      status: 409,
+      code: 'BASE_UNIT_HISTORY_CONFIRM_REQUIRED',
+      error: `Barang ini sudah punya histori stok dan/atau resep. Angka stok, harga pokok, dan takaran resep yang memakai barang ini TIDAK akan diubah -- hanya label satuan yang berganti dari ${label(oldUnit.results?.[0])} ke ${label(newUnit.results?.[0])}. Simpan sekali lagi untuk melanjutkan.`
     };
   }
-  return { ok: true };
+  return { ok: true, changed: true, hadHistory, hasRecipe, hasMovement, quantity };
 }
 
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
@@ -229,9 +246,20 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
   if (!kind.ok) return { ok: false, status: 400, error: kind.error };
   if (!kind.productKindId) kind.productKindId = await defaultProductKindForItemType(db, storeId, refs.itemTypeId);
 
+  let baseUnitChangeLog = null;
   if (current) {
-    const unitGuard = await validateBaseUnitChange(db, storeId, productId, current.base_unit_id, refs.baseUnitId);
-    if (!unitGuard.ok) return { ok: false, status: 409, error: unitGuard.error };
+    const confirmUnitChange = owns(body, 'confirmUnitChange') && body.confirmUnitChange === true;
+    const unitGuard = await validateBaseUnitChange(db, storeId, productId, current.base_unit_id, refs.baseUnitId, confirmUnitChange);
+    if (!unitGuard.ok) return { ok: false, status: unitGuard.status || 409, error: unitGuard.error, code: unitGuard.code };
+    if (unitGuard.changed && unitGuard.hadHistory) {
+      baseUnitChangeLog = {
+        fromUnitId: current.base_unit_id,
+        toUnitId: refs.baseUnitId,
+        hasRecipe: unitGuard.hasRecipe,
+        hasMovement: unitGuard.hasMovement,
+        quantity: unitGuard.quantity
+      };
+    }
   }
 
   let recipeLink = { ok: true, linkedRecipeId: null, recipe: null };
@@ -259,7 +287,8 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     pointsPerUnit,
     linkedRecipeId: recipeLink.linkedRecipeId,
     recipeLinkEnabled: recipeLink.recipe ? 1 : 0,
-    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0
+    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0,
+    baseUnitChangeLog
   };
 }
 
@@ -343,7 +372,7 @@ export async function handleProductMasterApi(request, env, pathname) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload Master Barang tidak valid.' }, 400);
   const normalized = await normalizeEditorInput(env.DB, store.id, productId, body.value, current);
-  if (!normalized.ok) return json({ error: normalized.error }, normalized.status);
+  if (!normalized.ok) return json({ error: normalized.error, code: normalized.code }, normalized.status);
   await ensureCategory(env.DB, store.id, normalized.category);
 
   // Retrofit Kode Barang: barang lama yang belum pernah didaftarkan ke
@@ -397,6 +426,23 @@ export async function handleProductMasterApi(request, env, pathname) {
       env.DB.prepare('UPDATE products SET image_data = ? WHERE product_master_id = ?')
         .bind(normalized.productImage, current.product_master_id)
     );
+  }
+  if (normalized.baseUnitChangeLog) {
+    // Jejak audit "Ganti Satuan" (migration 0126) -- murni catatan, bukan
+    // sumber saldo apa pun. Angka stok/HPP/resep sengaja TIDAK direcompute
+    // (lihat komentar validateBaseUnitChange): ini relabel murni, bukan
+    // konversi skala.
+    const actor = actorFrom(auth);
+    const log = normalized.baseUnitChangeLog;
+    statements.push(env.DB.prepare(`
+      INSERT INTO product_base_unit_change_log (
+        store_id, product_id, product_name, from_unit_id, to_unit_id,
+        had_recipe, had_movement, stock_quantity_at_change, changed_by_role, changed_by_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      store.id, productId, normalized.name, log.fromUnitId, log.toUnitId,
+      log.hasRecipe ? 1 : 0, log.hasMovement ? 1 : 0, log.quantity, actor.role, actor.id
+    ));
   }
   await env.DB.batch(statements);
   return json({ ok: true, id: productId, editor: await editorPayload(env.DB, store) });

@@ -16,7 +16,7 @@ write access. An agent may read anything.
 | **accounting-settings** | *unassigned* | `src/accounting-settings.js`, `src/warehouse-settings.js` | ADR-017, `contracts/accounting-settings-v1.md` |
 | **operasional** | `karen` | `src/cashier-*.js`, `src/orders*.js`, `src/operational-posting.js` | ADR-029, `contracts/cashier-transaction-composition-v1.md` |
 | **produksi** | `elle` | `src/cashier-production.js`, `src/stock-production.js`, `src/manufacturing-master.js` | ADR-012, ADR-013 |
-| **inventory-costing** | *unassigned* | `src/admin-stock.js`, `src/product-*.js` | ADR-015, ADR-020 |
+| **inventory-costing** | *unassigned* | `src/admin-stock.js`, `src/product-*.js`, `migrations/0126_*` | ADR-015, ADR-020, `KNOWN_ISSUES.md` "Ganti Satuan Barang yang Sudah Punya Histori" |
 | **approval** | *unassigned* | `src/approval-queue.js`, `src/transaction-void-permits.js` | ADR-009, ADR-022 |
 | **rekening-bersama** | *unassigned* | `src/entity-shared-accounts.js`, `migrations/0111_*` | ADR-045 |
 | **hutang-pembayaran** | `hana` | `src/hutang-piutang.js`, `src/operational-expense-payables.js`, `src/admin-operational-expense.js`, `src/operational-deposits.js`, `src/accounting-admin-bridge.js`, `migrations/0120_*`, `migrations/0121_*`, `migrations/0122_*`, `migrations/0123_*` | `KNOWN_ISSUES.md` "Hutang, Pembayaran, dan Laporan Beban", "Uang Muka / Deposit", `ADR-046` |

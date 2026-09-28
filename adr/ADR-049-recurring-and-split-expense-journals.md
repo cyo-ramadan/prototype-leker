@@ -1,8 +1,9 @@
 # ADR-049 — Jurnal Beban Rutin + Split Beban per Periode
 
-Status: PROPOSED — desain lengkap, siap dikerjakan Karen; beberapa default dipilih Hana secara
-eksplisit di bawah (bukan pertanyaan terbuka) supaya tidak menunda pengerjaan, tapi tetap
-dicatat supaya Bos Cyo bisa koreksi kalau salah tebak.
+Status: ACCEPTED & IMPLEMENTED (2026-09-28, Bos Cyo: "kerjakan untuk kamu sendiri itu" -- Hana
+yang mengerjakan langsung, bukan dilempar ke Karen). Beberapa default dipilih Hana secara
+eksplisit (bukan pertanyaan terbuka) supaya tidak menunda pengerjaan, tapi tetap dicatat supaya
+Bos Cyo bisa koreksi kalau salah tebak.
 Tanggal: 2026-09-28
 Diminta oleh: Bos Cyo ("Pembuat & Split Jurnal Beban")
 

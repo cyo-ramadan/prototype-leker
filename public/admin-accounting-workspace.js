@@ -76,6 +76,7 @@
     if (source === 'LEKER_POS') return 'POS';
     if (source === 'WAREHOUSE') return 'Warehouse';
     if (source === 'ACCOUNT_STANDARDIZE') return 'Penyamaan Akun';
+    if (source === 'ACCOUNTING_SCHEDULE') return 'Beban Rutin/Split';
     return source || '-';
   }
 
@@ -121,6 +122,7 @@
         <div class="acct-brand"><small>MAXI · ACCOUNTING</small><strong>Akuntansi</strong></div>
         <nav class="acct-nav">
           ${navButton('accounts','Data Akun')}
+          ${navButton('schedules','Beban Rutin')}
           ${navButton('journal-create','Buat Jurnal')}
           ${navButton('journals','Data Jurnal')}
           ${navButton('ledger','Buku Besar')}
@@ -138,6 +140,11 @@
     return `<option value="">Pilih akun…</option>${rows.map(account => `<option value="${esc(account.accountId)}" ${account.accountId === selected ? 'selected' : ''}>${esc(account.accountCode)} — ${esc(account.accountName)}</option>`).join('')}`;
   }
 
+  function accountOptionsByType(selected, types) {
+    const rows = (state.bootstrap?.accounts || []).filter(account => account.isActive && types.includes(account.accountType));
+    return `<option value="">Pilih akun…</option>${rows.map(account => `<option value="${esc(account.accountId)}" ${account.accountId === selected ? 'selected' : ''}>${esc(account.accountCode)} — ${esc(account.accountName)}</option>`).join('')}`;
+  }
+
   function period() {
     return state.bootstrap?.defaultPeriod || { from: '', to: '' };
   }
@@ -151,6 +158,7 @@
     const host = el('accountingWorkspaceBody');
     if (!host || !state.bootstrap) return;
     if (state.view === 'accounts') renderAccounts(host);
+    else if (state.view === 'schedules') renderSchedules(host);
     else if (state.view === 'journal-create') renderJournalCreate(host);
     else if (state.view === 'journals') renderJournals(host);
     else if (state.view === 'ledger') renderLedger(host);
@@ -220,6 +228,157 @@
       await load(true);
       toast(editing ? 'Akun diperbarui' : `Akun dibuat · ${result.accountCode}`);
     } catch (error) { toast(error.message); }
+  }
+
+  // ADR-049: Beban Rutin (template berulang) + banner occurrence yang
+  // menunggu konfirmasi admin (auto_create = 0, sudah jatuh tempo).
+  const RECURRENCE_LABELS = { DAILY: 'Setiap hari', WEEKLY_ON_DAY: 'Setiap minggu', MONTHLY_ON_DAY: 'Setiap bulan' };
+  const WEEKDAY_LABELS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
+
+  function recurrenceSummary(schedule) {
+    if (schedule.recurrenceType === 'WEEKLY_ON_DAY') return `Setiap hari ${WEEKDAY_LABELS[schedule.recurrenceValue] || '-'}`;
+    if (schedule.recurrenceType === 'MONTHLY_ON_DAY') return `Setiap tanggal ${schedule.recurrenceValue}`;
+    return 'Setiap hari';
+  }
+
+  function pendingBannerHtml() {
+    const pending = state.bootstrap?.pendingOccurrences || [];
+    if (!pending.length) return '';
+    return `<div class="acct-card acct-pending-banner"><h3>⏰ ${pending.length} jurnal menunggu dibuat</h3><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Beban</th><th>Tanggal</th><th>Nominal</th><th></th></tr></thead><tbody>${pending.map(row => `<tr><td>${esc(row.scheduleName)}</td><td>${esc(row.occurrenceDate)}</td><td>${rpExact(scaledToExact(row.amountScaled))}</td><td><button class="acct-btn primary" data-occ-post="${esc(row.occurrenceId)}" type="button">Buat Sekarang</button> <button class="acct-btn" data-occ-skip="${esc(row.occurrenceId)}" type="button">Lewati</button></td></tr>`).join('')}</tbody></table></div></div>`;
+  }
+
+  function renderSchedules(host) {
+    const schedules = state.bootstrap?.recurringSchedules || [];
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Beban Rutin</h2><p>Beban yang berulang (sewa lapak, listrik, WiFi, dst) -- buat sekali, sistem yang mengingatkan atau membuat jurnalnya tiap jatuh tempo.</p></div></div>
+      ${pendingBannerHtml()}
+      <div class="acct-grid">
+        <form id="acctScheduleForm" class="acct-card">
+          <h3>Buat Beban Rutin</h3>
+          <label class="acct-field"><span>Nama Beban</span><input id="schedName" class="acct-input" maxlength="100" placeholder="Contoh: Beban Lapak" required /></label>
+          <label class="acct-field"><span>Nominal per kemunculan (Rp)</span><input id="schedAmount" class="acct-input" type="number" min="1" step="1" required /></label>
+          <label class="acct-field"><span>Akun Beban</span><select id="schedDebitAccount" class="acct-select" required>${accountOptionsByType('', ['EXPENSE'])}</select></label>
+          <label class="acct-field"><span>Akun Lawan (Hutang/Kas/dll)</span><select id="schedCreditAccount" class="acct-select" required>${accountOptions('', true)}</select></label>
+          <label class="acct-field"><span>Mulai tanggal</span><input id="schedStartDate" class="acct-input" type="date" value="${esc(state.bootstrap.currentBusinessDate)}" required /></label>
+          <label class="acct-field"><span>Perulangan</span><select id="schedRecurrenceType" class="acct-select"><option value="MONTHLY_ON_DAY">Tiap bulan (tanggal sama)</option><option value="WEEKLY_ON_DAY">Tiap minggu (hari sama)</option><option value="DAILY">Tiap hari</option></select></label>
+          <label class="acct-field"><span><input id="schedAutoCreate" type="checkbox" /> Buat otomatis tanpa konfirmasi</span></label>
+          <div class="acct-actions"><button class="acct-btn primary" type="submit">Buat Beban Rutin</button></div>
+        </form>
+        <div class="acct-card"><h3>Daftar Beban Rutin</h3><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Nama</th><th>Nominal</th><th>Perulangan</th><th>Mode</th><th>Status</th><th>Terakhir dibuat</th><th></th></tr></thead><tbody>${schedules.map(schedule => `<tr><td>${esc(schedule.name)}</td><td>${rpExact(scaledToExact(schedule.amountScaled))}</td><td>${esc(recurrenceSummary(schedule))}</td><td><span class="acct-chip">${schedule.autoCreate ? 'Auto' : 'Konfirmasi'}</span></td><td><span class="acct-chip ${schedule.isActive ? '' : 'inactive'}">${schedule.isActive ? 'Aktif' : 'Nonaktif'}</span></td><td>${esc(schedule.lastGeneratedDate || '-')}</td><td><button class="acct-btn" data-sched-toggle="${esc(schedule.scheduleId)}" data-active="${schedule.isActive ? 1 : 0}" type="button">${schedule.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button></td></tr>`).join('') || '<tr><td colspan="7">Belum ada Beban Rutin.</td></tr>'}</tbody></table></div></div>
+      </div></div>`;
+    el('acctScheduleForm').addEventListener('submit', submitScheduleForm);
+    host.querySelectorAll('[data-occ-post]').forEach(button => button.addEventListener('click', () => postPendingOccurrence(button.dataset.occPost)));
+    host.querySelectorAll('[data-occ-skip]').forEach(button => button.addEventListener('click', () => skipPendingOccurrence(button.dataset.occSkip)));
+    host.querySelectorAll('[data-sched-toggle]').forEach(button => button.addEventListener('click', () => toggleSchedule(button.dataset.schedToggle, button.dataset.active !== '1')));
+  }
+
+  async function submitScheduleForm(event) {
+    event.preventDefault();
+    try {
+      await api('/api/admin/accounting/expense-schedules', { method: 'POST', body: JSON.stringify({
+        name: el('schedName').value,
+        amount: Number(el('schedAmount').value),
+        debitAccountId: el('schedDebitAccount').value,
+        creditAccountId: el('schedCreditAccount').value,
+        startDate: el('schedStartDate').value,
+        recurrenceType: el('schedRecurrenceType').value,
+        autoCreate: el('schedAutoCreate').checked
+      }) });
+      await load(true);
+      toast('Beban Rutin dibuat');
+    } catch (error) { toast(error.message); }
+  }
+
+  async function postPendingOccurrence(occurrenceId) {
+    try {
+      await api(`/api/admin/accounting/expense-schedules/occurrences/${encodeURIComponent(occurrenceId)}/post`, { method: 'POST', body: '{}' });
+      await load(true);
+      toast('Jurnal dibuat');
+    } catch (error) { toast(error.message); }
+  }
+
+  async function skipPendingOccurrence(occurrenceId) {
+    try {
+      await api(`/api/admin/accounting/expense-schedules/occurrences/${encodeURIComponent(occurrenceId)}/skip`, { method: 'POST', body: '{}' });
+      await load(true);
+      toast('Dilewati, tidak ada jurnal dibuat');
+    } catch (error) { toast(error.message); }
+  }
+
+  async function toggleSchedule(scheduleId, nextActive) {
+    try {
+      await api(`/api/admin/accounting/expense-schedules/${encodeURIComponent(scheduleId)}`, { method: 'PATCH', body: JSON.stringify({ isActive: nextActive }) });
+      await load(true);
+      toast(nextActive ? 'Beban Rutin diaktifkan' : 'Beban Rutin dinonaktifkan');
+    } catch (error) { toast(error.message); }
+  }
+
+  // ADR-049: Split Beban -- form + preview (dihitung di klien) muncul di
+  // detail jurnal yang memenuhi syarat (2 baris, salah satunya Debit ke ASSET).
+  function splitPreviewRows(totalAmountScaled, startDate, endDate) {
+    if (!startDate || !endDate || endDate < startDate) return null;
+    const totalDays = Math.round((new Date(`${endDate}T00:00:00Z`) - new Date(`${startDate}T00:00:00Z`)) / 86400000) + 1;
+    if (totalDays < 1 || totalDays > 1096) return null;
+    const total = BigInt(totalAmountScaled);
+    const days = BigInt(totalDays);
+    const baseShare = total / days;
+    const lastShare = total - baseShare * (days - 1n);
+    const rows = [];
+    for (let i = 0; i < totalDays; i += 1) {
+      const d = new Date(`${startDate}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + i);
+      rows.push({ date: d.toISOString().slice(0, 10), amountScaled: i === totalDays - 1 ? lastShare : baseShare });
+    }
+    return { totalDays, perDayScaled: baseShare, lastDayScaled: lastShare, rows };
+  }
+
+  function splitSectionHtml(journal, split, eligibility) {
+    if (split) {
+      const total = split.occurrences.reduce((sum, occ) => sum + BigInt(occ.amountScaled), 0n);
+      return `<div class="acct-detail" style="margin-top:14px"><b>Dipecah jadi ${split.occurrences.length} beban harian</b> · total ${rpExact(scaledToExact(total.toString()))}<div class="acct-table-wrap" style="margin-top:8px"><table class="acct-table"><thead><tr><th>Tanggal</th><th>Nominal</th><th>Status</th></tr></thead><tbody>${split.occurrences.map(occ => `<tr><td>${esc(occ.occurrenceDate)}</td><td>${rpExact(scaledToExact(occ.amountScaled))}</td><td><span class="acct-chip ${occ.status === 'POSTED' ? '' : occ.status === 'SKIPPED' ? 'inactive' : ''}">${esc(occ.status)}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+    }
+    if (!eligibility?.eligible) return '';
+    const assetLine = eligibility.assetLine;
+    return `<div class="acct-detail" style="margin-top:14px"><button id="acctSplitToggle" class="acct-btn" type="button">Split Beban</button>
+      <div id="acctSplitForm" class="hidden" style="margin-top:10px">
+        <div class="acct-grid">
+          <div class="acct-field"><span>Nominal sumber</span><input class="acct-input" value="${esc(rpExact(scaledToExact(assetLine.amountScaled)))}" disabled /></div>
+          <label class="acct-field"><span>Tanggal mulai</span><input id="splitStartDate" class="acct-input" type="date" value="${esc(journal.businessDate)}" /></label>
+          <label class="acct-field"><span>Tanggal akhir</span><input id="splitEndDate" class="acct-input" type="date" /></label>
+          <label class="acct-field"><span>Akun Beban</span><select id="splitExpenseAccount" class="acct-select">${accountOptionsByType('', ['EXPENSE'])}</select></label>
+          <label class="acct-field"><span>Akun Lawan</span><select id="splitContraAccount" class="acct-select">${accountOptions(assetLine.accountId, true)}</select></label>
+        </div>
+        <div id="acctSplitPreview" class="acct-empty" style="margin-top:8px">Isi tanggal mulai dan akhir untuk melihat preview.</div>
+        <div class="acct-actions" style="margin-top:8px"><button id="acctSplitSubmit" class="acct-btn primary" type="button" disabled>Buat Split</button></div>
+      </div>
+    </div>`;
+  }
+
+  function bindSplitSection(journalId, totalAmountScaled) {
+    const toggle = el('acctSplitToggle');
+    if (!toggle) return;
+    toggle.addEventListener('click', () => el('acctSplitForm').classList.toggle('hidden'));
+    const refreshPreview = () => {
+      const preview = splitPreviewRows(totalAmountScaled, el('splitStartDate').value, el('splitEndDate').value);
+      const submitBtn = el('acctSplitSubmit');
+      if (!preview) { el('acctSplitPreview').innerHTML = 'Isi tanggal mulai dan akhir (maks ± 3 tahun) untuk melihat preview.'; submitBtn.disabled = true; return; }
+      submitBtn.disabled = false;
+      el('acctSplitPreview').innerHTML = `<div>${preview.totalDays} hari × ${rpExact(scaledToExact(preview.perDayScaled.toString()))}/hari (hari terakhir ${rpExact(scaledToExact(preview.lastDayScaled.toString()))})</div><div class="acct-table-wrap" style="max-height:220px;overflow:auto;margin-top:6px"><table class="acct-table"><tbody>${preview.rows.map(row => `<tr><td>${esc(row.date)}</td><td>${rpExact(scaledToExact(row.amountScaled.toString()))}</td></tr>`).join('')}</tbody></table></div>`;
+    };
+    el('splitStartDate').addEventListener('change', refreshPreview);
+    el('splitEndDate').addEventListener('change', refreshPreview);
+    el('acctSplitSubmit').addEventListener('click', async () => {
+      try {
+        await api(`/api/admin/accounting/journals/${encodeURIComponent(journalId)}/split`, { method: 'POST', body: JSON.stringify({
+          startDate: el('splitStartDate').value,
+          endDate: el('splitEndDate').value,
+          expenseAccountId: el('splitExpenseAccount').value,
+          contraAccountId: el('splitContraAccount').value
+        }) });
+        window.closeAdminDetailModal?.();
+        await load(true);
+        toast('Split Beban dibuat');
+      } catch (error) { toast(error.message); }
+    });
   }
 
   function journalLineHtml(line) {
@@ -336,8 +495,9 @@
       const j = result.journal;
       window.openAdminDetailModal({
         head: `<div><div class="admin-eyebrow">Journal Detail</div><h2>${esc(j.journalNumber)}</h2><div class="muted">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)} · ${esc(j.businessDate)}</div></div>`,
-        body: `<div class="acct-detail"><div class="acct-detail-head"><div>${esc(j.description)}</div><span class="acct-chip">POSTED · immutable</span></div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}${line.isSystemGenerated ? ' <span class="acct-chip">System</span>' : ''}</td><td>${line.side === 'DEBIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div></div>`
+        body: `<div class="acct-detail"><div class="acct-detail-head"><div>${esc(j.description)}</div><span class="acct-chip">POSTED · immutable</span></div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}${line.isSystemGenerated ? ' <span class="acct-chip">System</span>' : ''}</td><td>${line.side === 'DEBIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div>${splitSectionHtml(j, result.split, result.splitEligibility)}</div>`
       });
+      if (!result.split && result.splitEligibility?.eligible) bindSplitSection(j.journalId, result.splitEligibility.assetLine.amountScaled);
     } catch (error) { toast(error.message); }
   }
 

@@ -274,19 +274,38 @@ function cacaTogglePanel() {
   if (tersembunyi) cacaBukaPanel(); else cacaTutupPanel();
 }
 
+// Daftar gerai dan status mesin AI tidak saling bergantung, jadi masing-masing
+// gagal sendiri-sendiri. Versi pertama menaruh keduanya dalam satu rantai: cek
+// status gagal, daftar gerai ikut tidak dimuat, dan panel jadi kotak kosong
+// dengan tombol mati tanpa petunjuk kenapa.
 async function cacaMuatPanel() {
+  const masalah = [];
+  let siap = false;
+
+  try {
+    await cacaMuatGerai();
+  } catch (error) {
+    masalah.push(`Daftar gerai gagal dimuat: ${error.message}`);
+  }
+
   try {
     const status = await cacaApi('/api/caca/status');
-    cacaEl('cacaStatus').textContent = status.siap
-      ? 'Caca siap membaca lembar rekap.'
-      : 'Caca belum tersambung ke mesin AI — kunci API belum dipasang.';
-    cacaEl('cacaKirim').disabled = !status.siap;
-    cacaEl('cacaTanyaKirim').disabled = !status.siap;
-    await cacaMuatGerai();
-    cacaState.siapDipakai = true;
+    siap = Boolean(status.siap);
+    if (!siap) masalah.push('Caca belum tersambung ke mesin AI — kunci API belum dipasang.');
   } catch (error) {
-    cacaEl('cacaStatus').textContent = error.message;
+    masalah.push(`Status Caca gagal dimuat: ${error.message}`);
   }
+
+  const adaGerai = Boolean(cacaEl('cacaTanyaStore')?.value);
+  if (siap && !adaGerai) masalah.push('Belum ada gerai di entity ini.');
+
+  cacaEl('cacaStatus').textContent = masalah.length ? masalah.join(' ') : 'Caca siap.';
+  cacaEl('cacaKirim').disabled = !(siap && adaGerai);
+  cacaEl('cacaTanyaKirim').disabled = !(siap && adaGerai);
+
+  // Hanya dianggap selesai kalau semuanya beres, supaya membuka panel lagi
+  // mencoba ulang — bukan terjebak di keadaan gagal sampai halaman di-refresh.
+  cacaState.siapDipakai = masalah.length === 0;
 }
 
 function initCacaPanel() {

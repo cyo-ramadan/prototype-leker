@@ -6,7 +6,7 @@
 // lembar rekap yang dipakai sehari-hari.
 
 import { json, readJson } from './http.js';
-import { requireManagement } from './owner-auth.js';
+import { requireManagement, ownerFromRequest, entityAdminFromRequest } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { aiConfigured, callStructured, modelAktif } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
@@ -188,8 +188,15 @@ export async function handleCacaApi(request, env, pathname) {
   if (!pathname.startsWith('/api/caca/')) return null;
 
   if (request.method === 'GET' && pathname === '/api/caca/status') {
-    const auth = await requireManagement(request, env.DB);
-    if (!auth.ok) return auth.response;
+    // Status cuma menjawab "mesin AI sudah tersambung atau belum" — tidak
+    // menyentuh data gerai mana pun, jadi tidak perlu terikat ke satu gerai.
+    // Versi pertama memakai requireManagement, yang tanpa ?store= jatuh ke
+    // gerai bawaan G001; Entity Admin yang entity-nya tidak memuat G001 ditolak,
+    // proses panel berhenti, kotak Gerai kosong dan tombol Tanya mati.
+    // Yang perlu dipastikan di sini hanya siapa yang bertanya (K5 ADR-045).
+    if (!(await ownerFromRequest(request, env.DB)) && !(await entityAdminFromRequest(request, env.DB))) {
+      return json({ error: 'Login Owner atau Entity Admin diperlukan.' }, 401);
+    }
     return json({ siap: aiConfigured(env), model: modelAktif(env), bisaMenyimpan: false });
   }
 

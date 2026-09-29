@@ -10,6 +10,8 @@
 // keputusan Bos Cyo 2026-09-17. Repo ini nol-dependency dan jalan di Cloudflare
 // Workers, jadi pemanggilan pakai fetch bawaan, bukan SDK npm.
 
+import { jelaskanPenolakan } from './caca-ai-error.js';
+
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
 const DEFAULT_MAX_TOKENS = 16000;
@@ -104,8 +106,10 @@ export async function callStructured(env, {
   }
 
   if (!response.ok) {
-    // Badan error penyedia bisa memuat potongan permintaan; jangan diteruskan ke klien.
-    return { ok: false, status: 502, error: `Mesin AI menolak permintaan (${response.status}).` };
+    // Alasan penyedia hanya diteruskan untuk kegagalan kredensial dan jatah
+    // (lihat caca-ai-error.js); status lain tetap generik.
+    const badanError = await response.json().catch(() => null);
+    return { ok: false, status: 502, error: jelaskanPenolakan(response.status, badanError, env.GEMINI_API_KEY) };
   }
 
   let payload;

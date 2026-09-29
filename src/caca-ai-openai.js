@@ -15,6 +15,8 @@
 // Repo ini nol-dependency dan jalan di Cloudflare Workers, jadi pemanggilan
 // pakai fetch bawaan, bukan SDK npm.
 
+import { jelaskanPenolakan } from './caca-ai-error.js';
+
 const API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-6-luna';
 const DEFAULT_MAX_TOKENS = 16000;
@@ -131,8 +133,10 @@ export async function callStructured(env, {
   }
 
   if (!response.ok) {
-    // Badan error penyedia bisa memuat potongan permintaan; jangan diteruskan ke klien.
-    return { ok: false, status: 502, error: `Mesin AI menolak permintaan (${response.status}).` };
+    // Alasan penyedia hanya diteruskan untuk kegagalan kredensial dan jatah
+    // (lihat caca-ai-error.js); status lain tetap generik.
+    const badanError = await response.json().catch(() => null);
+    return { ok: false, status: 502, error: jelaskanPenolakan(response.status, badanError, env.OPENAI_API_KEY) };
   }
 
   let payload;

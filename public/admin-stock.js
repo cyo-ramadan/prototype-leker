@@ -90,6 +90,7 @@
           <strong>${esc(item.productName)}</strong>
           <div class="master-meta">${esc(item.itemTypeName || 'Tanpa tipe')} · ${esc(tracking)} · ${esc(production)}</div>
           <div class="master-prices"><span>Saldo</span><span><b>${qty}</b></span></div>
+          <div class="master-prices"><span>HPP saat ini</span><span><b>${esc(rupiah4(item.averageCost))}</b></span></div>
         </div>
         <div class="master-actions">
           <button class="admin-tx-btn admin-tx-btn-primary" type="button" data-stock-detail="${item.productId}">📦 Lihat Mutasi</button>

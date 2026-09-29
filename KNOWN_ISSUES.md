@@ -838,35 +838,66 @@ aja"):
   fitur ini TIDAK menghitungkannya -- itu di luar scope keputusan Bos Cyo kali ini, perlu desain
   terpisah kalau ada kasus seperti itu belakangan.
 
-## Produksi Dadakan Digabung ke Penjualan di Riwayat Transaksi (2026-09-29)
+## Produksi Dadakan Tetap Tampil Sendiri di Riwayat Transaksi, Ditandai Terkait Penjualan (2026-09-29, dikoreksi dari percobaan sembunyikan)
 
 Bos Cyo lihat Riwayat Transaksi (Data Transaksi Kasir/Admin) menampilkan produksi AUTO_DADAKAN
 sebagai baris "Produksi" terpisah dari Penjualan yang memicunya, padahal tombol Hapus tidak pernah
 nyala di baris Produksi mana pun (`VOID_SUBJECT_TYPES`/`SUBJECT_TYPES` cuma SALE/PURCHASE/EXPENSE).
-Keputusan Bos Cyo: "dibuat 1 rangkaian saja untuk penjualan dan produksi dadakan ... kalo diliat
-detailnya ada produksinya juga, tapi masuk kriteria penjualan" -- bukan menambah tombol Hapus baru
-di baris Produksi, tapi menghilangkan baris Produksi dadakannya sama sekali dan menampilkan
-bahan+hasilnya di dalam Detail Penjualan.
+Sempat dicoba pendekatan "gabung total" -- baris Produksi dadakan dihilangkan sama sekali dari
+daftar, cuma muncul di dalam Detail Penjualan. Setelah "adu gagasan" dengan Bos Cyo, diputuskan
+**baliknya**: baris Produksi dadakan **tetap tampil sendiri** di daftar (dibutuhkan untuk filter
+Arus Barang & Produksi -- lihat di bawah -- supaya audit pergerakan bahan tetap lengkap), tapi
+dikasih penanda jelas bahwa itu bagian dari satu Penjualan, bukan aktivitas berdiri sendiri.
 
-- `src/admin-transactions.js` (`listStoreTransactions`): production_runs dengan `mode =
-  'AUTO_DADAKAN'` tidak lagi diikutkan sebagai baris `PRODUCTION` -- berlaku untuk daftar Admin
-  maupun mirror read-only Kasir/CS (satu sumber query yang sama). Produksi MANUAL (batch masak
-  beneran) tetap tampil sebagai baris sendiri seperti biasa.
+- `src/admin-transactions.js` (`listStoreTransactions`): semua `production_runs` tetap tampil
+  sebagai baris `PRODUCTION`, termasuk `mode = 'AUTO_DADAKAN'` -- berlaku untuk daftar Admin maupun
+  mirror read-only Kasir/CS (satu sumber query yang sama). Baris Penjualan yang memicu produksi
+  dadakan dapat penanda `· +Produksi Dadakan` di deskripsinya; baris Produksi dadakannya sendiri
+  dapat penanda `· Dadakan (terkait Penjualan <id>)`. Produksi MANUAL tidak dapat penanda apa pun
+  (memang bukan dadakan).
 - `saleDetail()` (`src/admin-transaction-detail.js`) sudah lama mengembalikan `productionRuns`
   (bahan, hasil, HPP snapshot) untuk penjualan yang memicu produksi dadakan -- itu sudah dirender di
-  Detail Admin (`public/admin-transactions-ui.js`, "Production Snapshot"). Yang baru: Detail
-  Penjualan di sisi Kasir/CS (`public/cashier-data-explorer.js`, `renderSaleProductionRuns`)
-  sekarang ikut menampilkannya juga -- sebelumnya kosong.
-- Tombol Hapus di baris Penjualan **tidak berubah sama sekali** -- itu sudah lama membalik
-  produksi dadakannya sekaligus (mirror penuh, lihat "Pembalik penuh (mirror) untuk hapus
-  penjualan yang memicu produksi dadakan" di atas). Karena baris Produksi dadakan sudah tidak
-  tampil sendiri, satu tombol itu memang sudah cukup -- tidak perlu jalur hapus kedua.
-- **Ditemukan tapi sengaja tidak dibenahi (di luar scope)**: tombol Detail pada baris Produksi
-  MANUAL di sisi Kasir/CS ternyata sudah lama rusak -- `transactionDetailByKindId` (dipakai jalur
-  Kasir/CS) tidak pernah menangani `kind = 'PRODUCTION'` sama sekali (cuma `handleAdminProductionDetailApi`
-  di sisi Admin yang punya query-nya), jadi klik Detail di Produksi MANUAL dari akun Kasir akan
-  gagal "Detail transaksi tidak ditemukan". Ini bug lama yang tidak berhubungan dengan penggabungan
-  dadakan di atas -- dicatat di sini biar tidak hilang, belum ada yang minta dibenerin.
+  Detail Admin (`public/admin-transactions-ui.js`, "Production Snapshot"). Detail Penjualan di sisi
+  Kasir/CS (`public/cashier-data-explorer.js`, `renderSaleProductionRuns`) ikut menampilkannya juga.
+- Hapus tetap **hanya** lewat baris Penjualan -- itu sudah lama membalik produksi dadakannya
+  sekaligus (mirror penuh, lihat "Pembalik penuh (mirror) untuk hapus penjualan yang memicu
+  produksi dadakan" di atas). Baris Produksi dadakan yang tampil sendiri **bukan** jalur hapus
+  kedua -- dia cuma bacaan/audit, penanda di deskripsinya mengarahkan orang balik ke Penjualannya
+  kalau mau menghapus.
+- Transaksi yang sudah dihapus (voided) **tetap tampil** di daftar (tidak pernah difilter keluar),
+  status berubah jadi `voided` dan dikasih penanda "Read only" di Kasir/CS
+  (`voidNoteHtml`, `public/cashier-data-explorer.js`) maupun Admin (`statusLabel` ->
+  "Dihapus (read only)", `public/admin-transactions-ui.js`). Jurnal pembaliknya sendiri hidup di
+  modul Accounting terpisah (invariant #4), tidak muncul di daftar operasional ini.
+- **Masih belum dibenahi (di luar scope, sudah dicek ulang dan masih berlaku)**: tombol Detail pada
+  baris Produksi (dadakan maupun MANUAL) di sisi Kasir/CS masih rusak -- `transactionDetailByKindId`
+  (dipakai jalur Kasir/CS) tidak pernah menangani `kind = 'PRODUCTION'` sama sekali (cuma
+  `handleAdminProductionDetailApi` di sisi Admin yang punya query-nya), jadi klik Detail di baris
+  Produksi mana pun dari akun Kasir akan gagal "Detail transaksi tidak ditemukan". Ini jadi lebih
+  relevan sekarang karena baris Produksi memang dirancang untuk diklik Detail-nya -- belum ada yang
+  minta dibenerin, dicatat lagi di sini biar tidak hilang.
+
+## Filter Riwayat Transaksi: Arus Barang dan Produksi Dipisah (2026-09-29)
+
+Filter gabungan `INVENTORY` ("Arus Barang & Produksi") dipecah jadi dua filter berdiri sendiri:
+`GOODS_FLOW` ("Arus Barang") dan `PRODUCTION` ("Produksi"), di `src/admin-transactions.js`
+(`filterClause`) plus tombol/opsi filter di `public/cashier-data-explorer.js` dan
+`public/admin-transactions-ui.js`. `STOCK_ADJUSTMENTS` tetap filter sendiri seperti sebelumnya
+(sebagian dari `GOODS_FLOW` di level `kind`, dibedakan lewat `purpose` di `payload_json`).
+
+## Stok: Search Nama/Kategori, Kartu Mobile Diringkas, HPP Ditampilkan (2026-09-29)
+
+- Search barang di tab Stok (Kasir/CS, `public/cashier-data-explorer.js`) sekarang ikut mencocokkan
+  kategori (`itemTypeName`), bukan cuma nama -- menyamakan perilaku yang sebelumnya sudah ada di
+  sisi Admin (`public/admin-stock.js`). Dua-duanya substring/"contain text", bukan exact match.
+- `listStoreStockBalances`/`listStoreStockBalancesForProducts` (`src/admin-stock.js`) sekarang ikut
+  mengembalikan `averageCost` (HPP saat ini, dikonversi balik dari `products.average_cost` yang
+  scaled-integer). Ditampilkan di sisi Admin (`public/admin-stock.js`) di samping Saldo. Kasir/CS
+  tidak dirender (di luar permintaan Bos Cyo kali ini -- "kususnya disisi admin"), tapi datanya ikut
+  lewat karena satu fungsi backend yang sama dipakai kedua sisi.
+- Kartu mobile (`<640px`) Data Transaksi Kasir/CS (`public/cashier-data-explorer.js`) menyembunyikan
+  kolom Jenis, Status, ID, dan ID Laci lewat CSS (`display:none` per `data-label`) -- infonya tetap
+  ada di tabel desktop dan di Detail, cuma tidak ikut memanjangkan kartu di HP.
 
 ## DOC-IMPACT
 

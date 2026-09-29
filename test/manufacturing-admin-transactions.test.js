@@ -78,7 +78,9 @@ test('admin transaction explorer reads operational facts lazily and exposes acco
   assert.match(transactionApi, /nextCursor: hasMore && last \? `\$\{last\.occurredAt\}\|\$\{last\.id\}`/);
   assert.match(transactionUi, /Klik Detail/);
   assert.match(transactionUi, /Production Snapshot/);
-  assert.match(transactionUi, /Stok & Produksi/);
+  assert.match(transactionUi, /Arus Barang/);
+  assert.match(transactionUi, /📦.*Arus Barang/);
+  assert.match(transactionUi, /🏭.*Produksi/);
   assert.doesNotMatch(transactionUi, /setInterval\s*\(/);
 });
 

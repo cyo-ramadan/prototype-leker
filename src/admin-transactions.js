@@ -106,25 +106,35 @@ function groupStockAdjustmentSessions(transactions) {
 // Only the visible page's sales are checked now, via sale_items' sale_id index.
 async function loadDadakanSaleIds(db, storeId, rows) {
   const saleIds = rows.filter(row => row.kind === 'SALE').map(row => row.id);
-  if (!saleIds.length) return new Set();
-  const result = await db.prepare(`
-    SELECT DISTINCT sale_id FROM sale_items
-    WHERE sale_id IN (${saleIds.map(() => '?').join(', ')}) AND store_id = ? AND production_run_id IS NOT NULL
-  `).bind(...saleIds, storeId).all();
-  return new Set((result.results ?? []).map(row => row.sale_id));
+  const found = new Set();
+  // Pages go up to 100 rows; D1 rejects >100 bind variables per statement.
+  for (let start = 0; start < saleIds.length; start += 90) {
+    const chunk = saleIds.slice(start, start + 90);
+    const result = await db.prepare(`
+      SELECT DISTINCT sale_id FROM sale_items
+      WHERE sale_id IN (${chunk.map(() => '?').join(', ')}) AND store_id = ? AND production_run_id IS NOT NULL
+    `).bind(...chunk, storeId).all();
+    for (const row of result.results ?? []) found.add(row.sale_id);
+  }
+  return found;
 }
 
 async function loadPosDeliveryMap(db, storeId, rows) {
   const refs = rows.filter(row => POS_ACCOUNTING_FACT_KINDS.has(row.kind)).map(row => ({ factType: row.kind, factId: row.id }));
-  if (!refs.length) return new Map();
-  const clauses = refs.map(() => '(fact_type = ? AND fact_id = ?)').join(' OR ');
-  const bindings = refs.flatMap(ref => [ref.factType, ref.factId]);
-  const result = await db.prepare(`
-    SELECT fact_type, fact_id, status, journal_id, failure_code, failure_detail, attempts, last_attempt_at
-    FROM accounting_bridge_deliveries
-    WHERE store_id = ? AND producer_module = 'POS' AND (${clauses})
-  `).bind(storeId, ...bindings).all();
-  return new Map((result.results ?? []).map(row => [`${row.fact_type}:${row.fact_id}`, row]));
+  const map = new Map();
+  // 2 binds per ref + storeId: 45 refs = 91, under D1's 100-bind cap.
+  for (let start = 0; start < refs.length; start += 45) {
+    const chunk = refs.slice(start, start + 45);
+    const clauses = chunk.map(() => '(fact_type = ? AND fact_id = ?)').join(' OR ');
+    const bindings = chunk.flatMap(ref => [ref.factType, ref.factId]);
+    const result = await db.prepare(`
+      SELECT fact_type, fact_id, status, journal_id, failure_code, failure_detail, attempts, last_attempt_at
+      FROM accounting_bridge_deliveries
+      WHERE store_id = ? AND producer_module = 'POS' AND (${clauses})
+    `).bind(storeId, ...bindings).all();
+    for (const row of result.results ?? []) map.set(`${row.fact_type}:${row.fact_id}`, row);
+  }
+  return map;
 }
 
 // Shared by Admin's own Transaksi explorer and the Kasir read-only mirror --

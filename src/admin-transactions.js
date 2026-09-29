@@ -4,24 +4,25 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
 import { ACCOUNTING_POS_BRIDGE_CONTRACT } from './accounting-pos-bridge.js';
 
-const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'STOCK_ADJUSTMENTS', 'INVENTORY', 'ASSETS']);
-// STOCK_ADJUSTMENTS and INVENTORY both key off kind = GOODS_FLOW at the SQL
+const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'STOCK_ADJUSTMENTS', 'GOODS_FLOW', 'PRODUCTION', 'ASSETS']);
+// STOCK_ADJUSTMENTS and GOODS_FLOW both key off kind = GOODS_FLOW at the SQL
 // level -- purpose = 'STOCK_ADJUSTMENT' lives inside payload_json, not its
 // own column, so the two filters need their own WHERE clause (see
 // filterClause below) rather than a plain `kind IN (...)` set like the rest.
 const KIND_FILTER = {
   SALES: new Set(['SALE']), PURCHASES: new Set(['PURCHASE']),
   OPERATIONS: new Set(['EXPENSE', 'OTHER_INCOME', 'CASH_FLOW']),
+  PRODUCTION: new Set(['PRODUCTION']),
   ASSETS: new Set(['ASSET'])
 };
 function filterClause(filter) {
   if (filter === 'STOCK_ADJUSTMENTS') return { clause: `AND kind = 'GOODS_FLOW' AND json_extract(payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'`, values: [] };
   // `!= 'STOCK_ADJUSTMENT'` would silently drop every row where purpose is
-  // absent (PRODUCTION rows have no payload_json at all, plain GOODS_FLOW
-  // rows have no purpose key) -- json_extract returns NULL there, and NULL
-  // compared with anything is NULL, not true, in SQL's three-valued logic.
-  // `IS NOT` is the NULL-safe form: NULL IS NOT 'x' is true.
-  if (filter === 'INVENTORY') return { clause: `AND kind IN ('GOODS_FLOW', 'PRODUCTION') AND json_extract(payload_json, '$.purpose') IS NOT 'STOCK_ADJUSTMENT'`, values: [] };
+  // absent (plain GOODS_FLOW rows have no purpose key) -- json_extract
+  // returns NULL there, and NULL compared with anything is NULL, not true,
+  // in SQL's three-valued logic. `IS NOT` is the NULL-safe form: NULL IS
+  // NOT 'x' is true.
+  if (filter === 'GOODS_FLOW') return { clause: `AND kind = 'GOODS_FLOW' AND json_extract(payload_json, '$.purpose') IS NOT 'STOCK_ADJUSTMENT'`, values: [] };
   const kindSet = KIND_FILTER[filter] || null;
   if (!kindSet) return { clause: '', values: [] };
   return { clause: `AND kind IN (${[...kindSet].map(() => '?').join(', ')})`, values: [...kindSet] };
@@ -128,7 +129,10 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   const result = await db.prepare(`
     WITH pos_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,
-             CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END AS description,
+             (CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END) ||
+             (CASE WHEN EXISTS (
+                SELECT 1 FROM production_runs pr WHERE pr.store_id = s.store_id AND pr.sale_id = s.id AND pr.mode = 'AUTO_DADAKAN'
+              ) THEN ' · +Produksi Dadakan' ELSE '' END) AS description,
              CASE WHEN s.voided_at IS NULL THEN 'posted' ELSE 'voided' END AS status,
              s.payment_method, s.drawer_session_id, s.cashier_id, c.employee_name AS cashier_name,
              'SALE' AS reference_type, s.id AS reference_id, NULL AS payload_json
@@ -161,23 +165,23 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
              c.employee_name, 'APPROVAL_REQUEST', a.id, a.payload_json
       FROM approval_requests a LEFT JOIN cashiers c ON c.id = a.cashier_id WHERE a.store_id = ?
       UNION ALL
-      -- Bos Cyo, 2026-09-29: produksi AUTO_DADAKAN adalah efek samping SATU
-      -- baris Penjualan (hasil = qty yang dijual, tidak pernah nyisa ke
-      -- transaksi lain -- lihat resolveLinkedRecipe/loadGeneratedProductionMirror),
-      -- bukan aktivitas berdiri sendiri. Kalau muncul sebagai baris terpisah
-      -- di sini, kelihatan seperti dua transaksi padahal satu kejadian, dan
-      -- tombol Hapus tidak pernah nyala di sini (VOID_SUBJECT_TYPES cuma
-      -- SALE/PURCHASE/EXPENSE) -- Bos Cyo minta digabung: cukup satu baris
-      -- Penjualan, produksinya kelihatan di Detail penjualan itu (lihat
-      -- saleDetail() -> detail.productionRuns, admin-transaction-detail.js).
-      -- Produksi MANUAL (batch masak beneran) tetap baris sendiri seperti
-      -- biasa.
+      -- Bos Cyo, 2026-09-29: sempat dicoba sembunyikan produksi AUTO_DADAKAN
+      -- dari daftar (karena tombol Hapus tidak pernah nyala di baris Produksi
+      -- -- VOID_SUBJECT_TYPES cuma SALE/PURCHASE/EXPENSE, dan hasil produksi
+      -- dadakan = qty yang dijual, tidak pernah nyisa ke transaksi lain).
+      -- Setelah didiskusikan ulang: TETAP ditampilkan sebagai baris sendiri
+      -- (filter "Arus Barang & Produksi" butuh ini biar lengkap buat audit
+      -- pergerakan bahan), cuma diberi penanda jelas kalau itu bagian dari
+      -- satu Penjualan -- bukan aktivitas berdiri sendiri yang bisa dihapus
+      -- sendiri-sendiri. Hapus tetap lewat baris Penjualannya (mirror penuh,
+      -- lihat transaction-correction-executor.js).
       SELECT pr.id, 'PRODUCTION', pr.created_at, NULL,
-             'Produksi · ' || pr.output_product_name || ' · ' || pr.total_output_quantity || ' ' || pr.output_unit_symbol,
+             'Produksi · ' || pr.output_product_name || ' · ' || pr.total_output_quantity || ' ' || pr.output_unit_symbol ||
+             (CASE WHEN pr.mode = 'AUTO_DADAKAN' THEN ' · Dadakan (terkait Penjualan ' || COALESCE(pr.sale_id, '-') || ')' ELSE '' END),
              LOWER(pr.status), '', pr.drawer_session_id, pr.created_by_id, c.employee_name,
              'PRODUCTION_RUN', pr.id, NULL
       FROM production_runs pr LEFT JOIN cashiers c ON c.id = pr.created_by_id
-      WHERE pr.store_id = ? AND pr.mode != 'AUTO_DADAKAN'
+      WHERE pr.store_id = ?
     ),
     transaction_facts AS (
       SELECT * FROM pos_facts

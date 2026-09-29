@@ -22,7 +22,7 @@
   const FILTERS = [
     ['ALL', 'Semua'], ['SALES', 'Penjualan'], ['PURCHASES', 'Pembelian'],
     ['OPERATIONS', 'Operasional'], ['STOCK_ADJUSTMENTS', 'Penyesuaian Stok'],
-    ['INVENTORY', 'Arus Barang & Produksi'], ['ASSETS', 'Aset']
+    ['GOODS_FLOW', 'Arus Barang'], ['PRODUCTION', 'Produksi'], ['ASSETS', 'Aset']
   ];
   const PAGE_SIZES = [5, 20, 50, 100];
   const SORT_OPTIONS = [
@@ -78,6 +78,16 @@
             .cashier-tx-table td.cashier-tx-id{max-width:none}
             .cashier-tx-table td::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase}
             .cashier-tx-table td.cashier-tx-actions::before{content:none}
+            /* Bos Cyo, 2026-09-29: "hide/hilangin dari tampilan kartu yaitu
+               jenis (karna sudah ada info di deskripsi), id dan id laci, dan
+               status ... biar kartu ga semakin panjang" -- field-field ini
+               tetap ada di tabel desktop dan di Detail, cuma disembunyikan
+               dari kartu mobile biar CS lebih cepat nyari transaksi tanpa
+               scroll kartu yang kepanjangan. */
+            .cashier-tx-table td[data-label="Jenis"],
+            .cashier-tx-table td[data-label="Status"],
+            .cashier-tx-table td[data-label="ID"],
+            .cashier-tx-table td[data-label="ID Laci"]{display:none}
           }
         </style>
         <div class="cashier-dialog-head">
@@ -192,8 +202,20 @@
     return `<button class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-tx-void-kind="${escapeHtml(row.kind)}" data-cashier-tx-void-id="${escapeHtml(String(row.id))}">Hapus</button>`;
   }
 
+  // Bos Cyo, 2026-09-29: "data yang udah di-del/soft delete itu tetap tampil
+  // beserta jurnal pembaliknya atau dihilangkan? kalo masih tetap tampil,
+  // minimal dibuat transparant aja (read-only)" -- transaksi yang sudah
+  // dihapus TETAP tampil di daftar (baris tidak pernah hilang, cuma
+  // status-nya berubah jadi 'voided' -- lihat listStoreTransactions di
+  // src/admin-transactions.js), tombol Hapus sudah otomatis hilang
+  // (voidButtonHtml), dan sekarang dikasih penanda "Read only" yang sama
+  // persis dengan penanda saat permit hapus masih diproses, biar konsisten.
+  // Jurnal pembalik akuntansinya sendiri hidup di modul Accounting terpisah
+  // (invariant #4: Accounting yang memiliki posting jurnal), bukan di
+  // daftar transaksi operasional ini.
   function voidNoteHtml(row) {
     if (!VOID_SUBJECT_TYPES.has(row.kind)) return '';
+    if (row.status === 'voided') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · transaksi ini sudah dihapus</span>';
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
     if (permit?.approvalStatus === 'pending_approval') return '<span class="cashier-tx-readonly-note"><b>Read only (request delete)</b> · menunggu Admin</span>';
     if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · sudah di-ACC Admin, sedang diproses</span>';
@@ -454,7 +476,7 @@
   function renderStockList() {
     const host = el('cashierDataStock');
     host.innerHTML = `
-      <label class="admin-field" style="margin-bottom:10px">Cari barang<input id="cashierDataStockSearch" class="text-input" type="search" placeholder="Nama barang" /></label>
+      <label class="admin-field" style="margin-bottom:10px">Cari barang<input id="cashierDataStockSearch" class="text-input" type="search" placeholder="Nama / kategori barang" /></label>
       <div id="cashierDataStockList" class="master-list"></div>
       <div id="cashierDataStockDetail" class="hidden" style="margin-top:14px"></div>`;
     renderStockRows();
@@ -469,7 +491,7 @@
       list.innerHTML = '<div class="muted">Ketik nama barang untuk mencari saldo stok.</div>';
       return;
     }
-    const visible = state.stocks.filter(item => (item.productName || '').toLocaleLowerCase('id-ID').includes(query));
+    const visible = state.stocks.filter(item => `${item.productName || ''} ${item.itemTypeName || ''}`.toLocaleLowerCase('id-ID').includes(query));
     list.innerHTML = visible.length ? visible.map(item => {
       const qty = item.quantity == null ? 'Belum diinisialisasi' : `${item.quantity} ${escapeHtml(item.unitSymbol || '')}`;
       return `<article class="master-row" style="align-items:center">

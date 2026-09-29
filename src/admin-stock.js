@@ -2,6 +2,9 @@ import { json } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 
+const COST_SCALE = 1_000_000;
+const costFromScaled = value => Number(value || 0) / COST_SCALE;
+
 function parseCursor(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -22,6 +25,7 @@ const STOCK_BALANCE_SELECT = `
          t.name AS item_type_name, COALESCE(t.track_stock, 1) AS type_track_stock,
          p.base_unit_id, u.symbol AS unit_symbol,
          b.quantity, b.updated_at,
+         p.average_cost,
          r.id AS recipe_id, r.revision AS recipe_revision
   FROM products p
   LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
@@ -42,6 +46,7 @@ function mapStockBalanceRow(row) {
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled) && Boolean(row.type_track_stock),
     quantity: row.quantity == null ? null : Number(row.quantity),
     updatedAt: row.updated_at || null,
+    averageCost: costFromScaled(row.average_cost),
     productionMode: row.production_mode || 'STOCK',
     recipeLinkEnabled: Boolean(row.recipe_link_enabled),
     activeRecipe: row.recipe_id ? { id: row.recipe_id, revision: Number(row.recipe_revision || 0) } : null

@@ -52,7 +52,8 @@
             <button class="admin-tx-btn" data-transaction-filter="SALES" type="button">🛒 Penjualan</button>
             <button class="admin-tx-btn" data-transaction-filter="PURCHASES" type="button">🧺 Pembelian</button>
             <button class="admin-tx-btn" data-transaction-filter="OPERATIONS" type="button">💸 Operasional</button>
-            <button class="admin-tx-btn" data-transaction-filter="INVENTORY" type="button">📦 Stok & Produksi</button>
+            <button class="admin-tx-btn" data-transaction-filter="GOODS_FLOW" type="button">📦 Arus Barang</button>
+            <button class="admin-tx-btn" data-transaction-filter="PRODUCTION" type="button">🏭 Produksi</button>
             <button class="admin-tx-btn" data-transaction-filter="ASSETS" type="button">🏷️ Aset</button>
           </div>
           <div class="admin-grid two compact" style="margin-top:12px">
@@ -126,6 +127,7 @@
   function statusLabel(transaction) {
     const raw = String(transaction.status || '');
     if (raw === 'posted') return 'Posted';
+    if (raw === 'voided') return 'Dihapus (read only)';
     if (raw === 'pending_approval/unposted') return 'Pending ACC';
     if (raw === 'approved/posted') return 'ACC + Posted';
     if (raw.startsWith('rejected/')) return 'Rejected';

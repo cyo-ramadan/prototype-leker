@@ -32,11 +32,10 @@ test('Admin Transaksi filter chips and the Detail action use the shared theme cl
   assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="SALES" type="button">🛒 Penjualan</);
   assert.match(transactionsUi, /id="adminTransactionFilters" class="admin-tx-toolbar"/);
   assert.match(transactionsUi, /class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind/);
-  // Filter text must stay an exact substring match for existing regression
-  // coverage in admin-transaction-explorer.test.js and
-  // manufacturing-admin-transactions.test.js, so the ampersand is not
-  // HTML-entity-escaped.
-  assert.match(transactionsUi, /Stok & Produksi/);
+  // Bos Cyo, 2026-09-29: filter Arus Barang dan Produksi dipisah jadi dua
+  // tombol -- dulu satu tombol "Stok & Produksi" gabungan.
+  assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="GOODS_FLOW" type="button">📦 Arus Barang</);
+  assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="PRODUCTION" type="button">🏭 Produksi</);
 });
 
 test('Admin Transaksi filter toggling uses the shared active/grey classes, not the unrelated global .primary-btn', () => {

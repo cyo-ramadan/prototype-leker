@@ -139,6 +139,56 @@ test('Kasir Data endpoints require a cashier session and are read-only', async (
   }
 });
 
+test('Bos Cyo, 2026-09-29: filter Arus Barang dan Produksi dipisah, bukan digabung jadi satu "Arus Barang & Produksi"', async () => {
+  const db = migratedDatabase();
+  try {
+    const { token, cashierId } = await cashierToken(db, 'store_001');
+    const drawerId = 'drawer_split_filter_test';
+    openDrawer(db, drawerId, 'store_001', cashierId);
+
+    db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at)
+      VALUES ('approval_split_goods_flow_test', 'store_001', ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, '2026-09-29T09:00:00.000Z', '2026-09-29T09:00:00.000Z')
+    `).run(drawerId, cashierId, JSON.stringify({ productName: 'Gula', direction: 'IN', quantity: 10 }));
+
+    const outputProduct = db.prepare(`
+      SELECT p.id, p.name, u.id AS unit_id, u.symbol AS unit_symbol
+      FROM products p JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+      WHERE p.store_id = 'store_001' ORDER BY p.id LIMIT 1
+    `).get();
+    db.prepare(`
+      INSERT INTO manufacturing_recipes (id, store_id, output_product_id, output_unit_id, output_quantity, revision, status, created_at)
+      VALUES ('recipe_split_filter_test', 'store_001', ?, ?, 1, 1, 'ACTIVE', '2026-09-29T00:00:00.000Z')
+    `).run(outputProduct.id, outputProduct.unit_id);
+    db.prepare(`
+      INSERT INTO production_runs (
+        id, store_id, drawer_session_id, mode, output_product_id, output_product_name,
+        output_unit_id, output_unit_symbol, recipe_id, recipe_revision, batches,
+        output_quantity_per_batch, total_output_quantity, status, created_by_role, created_by_id, created_at
+      ) VALUES ('run_split_filter_test', 'store_001', ?, 'MANUAL', ?, ?, ?, ?, 'recipe_split_filter_test', 1, 1, 1, 1, 'POSTED', 'CASHIER', ?, '2026-09-29T09:02:00.000Z')
+    `).run(drawerId, outputProduct.id, outputProduct.name, outputProduct.unit_id, outputProduct.unit_symbol, cashierId);
+
+    const env = { DB: new D1Database(db) };
+    const goodsFlowResponse = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?filter=GOODS_FLOW' }), env, '/api/cashier/data/transactions'
+    );
+    const goodsFlowBody = await goodsFlowResponse.json();
+    const goodsFlowIds = goodsFlowBody.transactions.map(item => item.id);
+    assert.ok(goodsFlowIds.includes('approval_split_goods_flow_test'), 'filter Arus Barang menampilkan baris GOODS_FLOW');
+    assert.ok(!goodsFlowIds.includes('run_split_filter_test'), 'filter Arus Barang tidak lagi ikut menampilkan baris Produksi');
+
+    const productionResponse = await handleCashierDataApi(
+      request('/api/cashier/data/transactions', { token, params: '?filter=PRODUCTION' }), env, '/api/cashier/data/transactions'
+    );
+    const productionBody = await productionResponse.json();
+    const productionIds = productionBody.transactions.map(item => item.id);
+    assert.ok(productionIds.includes('run_split_filter_test'), 'filter Produksi menampilkan baris PRODUCTION');
+    assert.ok(!productionIds.includes('approval_split_goods_flow_test'), 'filter Produksi tidak ikut menampilkan baris Arus Barang');
+  } finally {
+    db.close();
+  }
+});
+
 test('Kasir Data Transaksi filter STOCK_ADJUSTMENTS isolates purpose=STOCK_ADJUSTMENT GOODS_FLOW rows from plain Arus Barang and Produksi', async () => {
   const db = migratedDatabase();
   try {
@@ -164,12 +214,12 @@ test('Kasir Data Transaksi filter STOCK_ADJUSTMENTS isolates purpose=STOCK_ADJUS
     assert.equal(stockAdjBody.transactions[0].id, 'approval_stock_adj_filter_test');
 
     const inventoryResponse = await handleCashierDataApi(
-      request('/api/cashier/data/transactions', { token, params: '?filter=INVENTORY' }), env, '/api/cashier/data/transactions'
+      request('/api/cashier/data/transactions', { token, params: '?filter=GOODS_FLOW' }), env, '/api/cashier/data/transactions'
     );
     const inventoryBody = await inventoryResponse.json();
     const inventoryIds = inventoryBody.transactions.map(item => item.id);
     assert.ok(inventoryIds.includes('approval_plain_goods_flow_filter_test'));
-    assert.ok(!inventoryIds.includes('approval_stock_adj_filter_test'), 'INVENTORY must not also show STOCK_ADJUSTMENT rows now that they have their own filter');
+    assert.ok(!inventoryIds.includes('approval_stock_adj_filter_test'), 'GOODS_FLOW must not also show STOCK_ADJUSTMENT rows now that they have their own filter');
   } finally {
     db.close();
   }
@@ -362,6 +412,13 @@ test('Kasir Data Transaksi reflows into stacked rows on a phone-width screen ins
   assert.match(stockExplorerUi, /data-label="Status"/);
   assert.match(stockExplorerUi, /cashierDataSort/);
   assert.match(stockExplorerUi, /SORT_OPTIONS/);
+});
+
+test('Bos Cyo, 2026-09-29: kartu mobile Data Transaksi menyembunyikan Jenis/Status/ID/ID Laci supaya kartu tidak kepanjangan, tapi tetap ada di tabel desktop dan Detail', () => {
+  assert.match(stockExplorerUi, /@media\(max-width:640px\)\{[\s\S]*td\[data-label="Jenis"\][\s\S]*td\[data-label="Status"\][\s\S]*td\[data-label="ID"\][\s\S]*td\[data-label="ID Laci"\]\{display:none\}/);
+  // Kolomnya sendiri tetap dirender (dipakai tabel desktop + jadi sumber data-label) -- cuma disembunyikan lewat CSS di lebar HP.
+  assert.match(stockExplorerUi, /data-label="Jenis">/);
+  assert.match(stockExplorerUi, /data-label="ID Laci">/);
 });
 
 test('Transaksi/Stok tabs and Detail are orange-filled buttons, Hapus/Batal Hapus is grey, and Cari Lanjutan has an entry point', () => {

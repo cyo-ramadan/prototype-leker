@@ -4,15 +4,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { listStoreTransactions } from '../src/admin-transactions.js';
 
-// Bos Cyo, 2026-09-29: Riwayat Transaksi menampilkan produksi AUTO_DADAKAN
-// sebagai baris terpisah dari Penjualan yang memicunya -- padahal keduanya
-// satu kejadian (hasil produksi = qty yang dijual, tidak pernah nyisa ke
-// transaksi lain). Bos Cyo minta digabung jadi satu rangkaian: produksi
-// dadakan tidak lagi muncul sebagai baris Produksi sendiri, cukup kelihatan
-// di dalam Detail Penjualan (lihat saleDetail() -> detail.productionRuns,
-// src/admin-transaction-detail.js, dan render-nya di
-// public/cashier-data-explorer.js + public/admin-transactions-ui.js).
-// Produksi MANUAL (batch masak beneran) tetap baris sendiri seperti biasa.
+// Bos Cyo, 2026-09-29: sempat dicoba sembunyikan produksi AUTO_DADAKAN dari
+// Riwayat Transaksi (digabung total ke Detail Penjualan). Setelah "adu
+// gagasan", diputuskan baliknya: TETAP tampil sebagai baris sendiri --
+// filter "Arus Barang & Produksi" butuh ini biar lengkap buat audit
+// pergerakan bahan -- tapi dikasih penanda jelas kalau itu bagian dari satu
+// Penjualan (bukan aktivitas berdiri sendiri yang bisa dihapus sendiri-
+// sendiri). Hapus tetap lewat baris Penjualannya (mirror penuh).
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
@@ -72,7 +70,7 @@ function seedRecipeAndRun(db, { runId, mode, saleId = null, outputProduct, compo
   `).run(`comp_${runId}`, runId, componentProduct.id, componentProduct.name, componentProduct.unit_id, componentProduct.unit_symbol);
 }
 
-test('produksi AUTO_DADAKAN tidak muncul sebagai baris Produksi sendiri di Riwayat Transaksi -- sudah terwakili di dalam Penjualannya', async () => {
+test('produksi AUTO_DADAKAN tetap tampil sebagai baris sendiri di Riwayat Transaksi, dengan penanda terkait Penjualannya', async () => {
   const db = migratedDatabase();
   try {
     const store = db.prepare("SELECT id FROM stores WHERE code = 'G001' LIMIT 1").get();
@@ -99,11 +97,19 @@ test('produksi AUTO_DADAKAN tidak muncul sebagai baris Produksi sendiri di Riway
 
     const listing = await listStoreTransactions(new D1Database(db), store.id, { filter: 'ALL', limit: 50 });
     assert.equal(listing.ok, true);
-    const kinds = new Map(listing.transactions.map(row => [row.id, row.kind]));
+    const byId = new Map(listing.transactions.map(row => [row.id, row]));
 
-    assert.equal(kinds.get('sale_dadakan_merge'), 'SALE', 'penjualan yang memicu produksi dadakan tetap muncul');
-    assert.equal(kinds.has('run_dadakan_merge'), false, 'produksi AUTO_DADAKAN tidak boleh muncul sebagai baris sendiri lagi');
-    assert.equal(kinds.get('run_manual_merge'), 'PRODUCTION', 'produksi MANUAL (batch masak) tetap muncul sebagai baris sendiri');
+    const sale = byId.get('sale_dadakan_merge');
+    assert.equal(sale.kind, 'SALE');
+    assert.match(sale.description, /\+Produksi Dadakan/, 'Penjualan yang memicu produksi dadakan ditandai di deskripsinya');
+
+    const dadakan = byId.get('run_dadakan_merge');
+    assert.equal(dadakan.kind, 'PRODUCTION', 'produksi AUTO_DADAKAN tetap tampil sebagai baris sendiri');
+    assert.match(dadakan.description, /Dadakan \(terkait Penjualan sale_dadakan_merge\)/, 'baris Produksi dadakan menyebut Penjualan yang terkait');
+
+    const manual = byId.get('run_manual_merge');
+    assert.equal(manual.kind, 'PRODUCTION');
+    assert.doesNotMatch(manual.description, /Dadakan|terkait Penjualan/, 'produksi MANUAL tidak dikasih penanda link (memang bukan dadakan)');
   } finally {
     db.close();
   }

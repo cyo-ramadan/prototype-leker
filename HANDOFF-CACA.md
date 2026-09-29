@@ -52,6 +52,16 @@ Prasyaratnya: kunci mesin AI terpasang sebagai secret Cloudflare. Tanpa itu
 panelnya hidup tapi menjawab "belum tersambung". Jangan pernah meminta kuncinya
 dalam bentuk teks ke Bos Cyo (invariant #9).
 
+**Mengganti kunci bisa memundurkan program.** 2026-09-29: kunci diganti lewat
+dashboard Cloudflare, lalu kode yang melayani user ternyata versi sebelum
+PR #358 — perbaikan status Caca hilang, padahal build `main` terakhir
+`SUCCESS`. Mengganti secret membuat deployment baru, dan deployment itu bisa
+berangkat dari versi yang lebih lama dari build `main` terakhir. Sesudah
+mengganti kunci, buktikan kode live masih versi `main` (grep hasil
+`workers_get_worker_code` untuk teks yang baru ditambahkan). Kalau mundur,
+jalankan ulang build `main` — jangan menyimpulkan kuncinya yang salah dari
+gejala yang ternyata datang dari kode lama.
+
 **Dua mesin AI tersedia berdampingan, tinggal pilih:**
 
 | Mesin | Kunci | Kapan dipakai |

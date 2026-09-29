@@ -379,3 +379,13 @@ test('Penyesuaian Stok Detail renders a table with Selisih per item, not the sin
   assert.match(stockExplorerUi, /<th>Selisih<\/th>/);
   assert.match(stockExplorerUi, /detail\.items/);
 });
+
+// Bos Cyo, 2026-09-29: produksi AUTO_DADAKAN sudah tidak muncul sebagai
+// baris Produksi sendiri (src/admin-transactions.js) -- bahan+hasilnya
+// sekarang wajib kelihatan di dalam Detail Penjualan, bukan hilang sama
+// sekali dari tampilan.
+test('Detail Penjualan menampilkan produksi dadakan yang menyertainya (bahan + hasil), bukan cuma item yang dijual', () => {
+  assert.match(stockExplorerUi, /renderSaleProductionRuns/);
+  assert.match(stockExplorerUi, /detail\.productionRuns/);
+  assert.match(stockExplorerUi, /renderSaleProductionRuns\(detail\.productionRuns \|\| \[\]\)/);
+});

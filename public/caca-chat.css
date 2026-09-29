@@ -157,6 +157,67 @@
   border-bottom-left-radius: 4px;
 }
 
+.caca-draft {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  background: #fdf5e6;
+  font-size: 0.9rem;
+}
+
+.caca-draft.tercatat {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.caca-draft.dibatalkan {
+  opacity: 0.55;
+}
+
+.caca-draft-judul {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.caca-draft-baris {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.caca-draft-baris span {
+  color: var(--muted);
+}
+
+.caca-draft-dampak {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.caca-draft-aksi {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.caca-draft-aksi button {
+  flex: 1 1 0;
+  width: auto;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 0.92rem;
+  box-shadow: none;
+}
+
+.caca-draft-aksi button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .caca-jejak {
   display: block;
   margin-top: 5px;
@@ -167,16 +228,28 @@
 .caca-tanya-baris {
   display: flex;
   gap: 8px;
+  align-items: stretch;
 }
 
 .caca-tanya-baris input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
+}
+
+/* .primary-btn global-nya width:100%, yang di dalam flex bikin tombol memakan
+   seluruh baris dan kotak ketiknya tergencet jadi segaris. */
+.caca-tanya-baris .primary-btn {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  box-shadow: none;
 }
 
 .caca-contoh {

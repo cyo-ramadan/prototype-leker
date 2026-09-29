@@ -11,6 +11,8 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { aiConfigured, callStructured, CACA_VISION_MODEL } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 import { jawabPertanyaan } from './caca-agen.js';
+import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
+import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -124,10 +126,61 @@ async function tanya(request, env) {
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
   return json({
-    jawaban: hasil.jawaban,
+    jawaban: hasil.jawaban ?? null,
     alat: hasil.alat,
     periode: hasil.periode ?? null,
+    draft: hasil.draft ?? null,
+    perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
     store: { code: store.code, storeName: store.storeName }
+  });
+}
+
+// Konfirmasi tidak memanggil model sama sekali — orang menekan tombol, dan yang
+// dicatat adalah isi draft, bukan tafsiran ulang atas kalimatnya.
+//
+// Draft dikirim balik oleh panel, bukan disimpan di server. Itu aman karena
+// seluruh isinya diperiksa ulang di sini lewat jalur yang sama persis dengan
+// waktu draft-nya pertama disusun, lalu diperiksa sekali lagi oleh endpoint
+// Bea Operasional. Draft yang diutak-atik di browser tidak melewatkan satu
+// pemeriksaan pun — dan orang yang mengirimnya memang berwenang mencatat
+// pengeluaran lewat panel biasa, jadi tidak ada wewenang yang bertambah.
+async function catat(request, env) {
+  const auth = await requireManagement(request, env.DB);
+  if (!auth.ok) return auth.response;
+
+  const store = await selectedStore(env.DB, request);
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+
+  const konteks = konteksPenyuruh(auth, store);
+  if (!konteks) {
+    return json({ error: 'Caca baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403);
+  }
+
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+
+  const draft = body.value?.draft;
+  const diperiksaUlang = siapkanDraftPengeluaran({
+    keterangan: draft?.keterangan,
+    nominal_tertulis: String(draft?.nominal ?? ''),
+    pihak_tertulis: draft?.pihak,
+    tanggal_tertulis: draft?.tanggal
+  }, { hariIni: konteks.hariIni });
+
+  if (!diperiksaUlang.ok) return json({ error: diperiksaUlang.tanya }, 400);
+
+  const hasil = await postingPengeluaran(diperiksaUlang.draft, {
+    request,
+    env,
+    storeCode: store.code,
+    handler: handleAdminOperationalExpenseApi
+  });
+  if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
+
+  return json({
+    tercatat: true,
+    draft: diperiksaUlang.draft,
+    jawaban: `Sudah Caca catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`
   });
 }
 
@@ -146,6 +199,10 @@ export async function handleCacaApi(request, env, pathname) {
 
   if (request.method === 'POST' && pathname === '/api/caca/tanya') {
     return tanya(request, env);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/caca/catat') {
+    return catat(request, env);
   }
 
   return json({ error: 'Route Caca tidak ditemukan.' }, 404);

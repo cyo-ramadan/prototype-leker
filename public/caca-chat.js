@@ -62,6 +62,54 @@ function cacaTambahGelembung(dari, teks, catatan = '') {
   return gelembung;
 }
 
+// Yang ditampilkan adalah akibatnya, bukan pengulangan perintah — konfirmasi
+// yang cuma mengulang kalimat sendiri gampang di-klik tanpa dibaca.
+function cacaTampilkanDraft(payload) {
+  const draft = payload.draft;
+  const wadah = cacaEl('cacaPercakapan');
+  const kartu = document.createElement('div');
+  kartu.className = 'caca-draft';
+  kartu.innerHTML = `
+    <div class="caca-draft-judul">Caca mau mencatat ini — dicek dulu ya:</div>
+    <div class="caca-draft-baris"><span>Untuk</span><strong>${cacaEscape(draft.keterangan)}</strong></div>
+    <div class="caca-draft-baris"><span>Nominal</span><strong>${cacaRupiah(draft.nominal)}</strong></div>
+    <div class="caca-draft-baris"><span>Ke</span><strong>${cacaEscape(draft.pihak)}</strong></div>
+    <div class="caca-draft-baris"><span>Tanggal</span><strong>${cacaEscape(draft.tanggal)}</strong></div>
+    <ul class="caca-draft-dampak">${draft.dampak.map(d => `<li>${cacaEscape(d)}</li>`).join('')}</ul>
+    <div class="caca-draft-aksi">
+      <button class="primary-btn" type="button" data-caca-catat>Ya, catat</button>
+      <button class="secondary-btn" type="button" data-caca-batal>Batal</button>
+    </div>`;
+  wadah.appendChild(kartu);
+  wadah.scrollTop = wadah.scrollHeight;
+
+  const kunci = () => kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
+
+  kartu.querySelector('[data-caca-batal]').addEventListener('click', () => {
+    kunci();
+    kartu.classList.add('dibatalkan');
+    cacaTambahGelembung('caca', 'Oke, tidak jadi dicatat.');
+  });
+
+  kartu.querySelector('[data-caca-catat]').addEventListener('click', async () => {
+    kunci();
+    try {
+      const store = cacaEl('cacaTanyaStore').value;
+      const hasil = await cacaApi(`/api/caca/catat?store=${encodeURIComponent(store)}`, {
+        method: 'POST',
+        body: JSON.stringify({ draft })
+      });
+      kartu.classList.add('tercatat');
+      cacaTambahGelembung('caca', hasil.jawaban);
+    } catch (error) {
+      // Tombol dibuka lagi: yang gagal biasanya bisa diulang setelah sebabnya
+      // dibereskan, dan menguncinya permanen memaksa mengetik ulang dari awal.
+      kartu.querySelectorAll('button').forEach(b => { b.disabled = false; });
+      cacaTambahGelembung('caca', error.message);
+    }
+  });
+}
+
 function cacaJejakAlat(payload) {
   if (!payload.alat) return '';
   const periode = payload.periode ? ` · ${payload.periode.dari}${payload.periode.sampai !== payload.periode.dari ? ` s/d ${payload.periode.sampai}` : ''}` : '';
@@ -87,9 +135,13 @@ async function cacaTanya(event) {
       body: JSON.stringify({ pertanyaan })
     });
     menunggu.remove();
-    // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
-    // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
-    cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+    if (payload.perluKonfirmasi && payload.draft) {
+      cacaTampilkanDraft(payload);
+    } else {
+      // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
+      // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
+      cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+    }
   } catch (error) {
     menunggu.remove();
     cacaTambahGelembung('caca', error.message);

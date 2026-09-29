@@ -12,19 +12,26 @@
 
 import { callStructured } from './caca-ai-client.js';
 import { ALAT_BACA, PERIODE, daftarAlatUntukModel, jalankanAlat } from './caca-alat.js';
+import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPengeluaran } from './caca-tulis.js';
 
+export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
+
+// Satu skema untuk memilih alat SEKALIGUS menangkap isinya, bukan dua panggilan
+// terpisah. Memisahkannya terasa lebih rapi tapi menggandakan biaya tiap
+// perintah, padahal model sudah membaca kalimat yang sama di kedua langkah itu.
 const SKEMA_PILIH_ALAT = Object.freeze({
   type: 'object',
   required: ['alat'],
   properties: {
     alat: {
       type: 'string',
-      enum: [...ALAT_BACA.map((alat) => alat.nama), 'tidak_ada'],
-      description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa menjawab.'
+      enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_CATAT_PENGELUARAN, 'tidak_ada'],
+      description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
     },
     periode: { type: 'string', enum: [...PERIODE] },
     dari: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
     sampai: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
+    ...TANGKAP_PENGELUARAN_SCHEMA.properties,
     alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
   }
 });
@@ -55,12 +62,17 @@ function promptPilihAlat(konteks) {
     'Alat yang tersedia:',
     daftarAlatUntukModel(),
     '',
+    `- ${ALAT_CATAT_PENGELUARAN}: mencatat pengeluaran operasional yang dibayarkan ke seseorang,`,
+    '  mis. "beli gas 22rb ke Pak Slamet", "bayar sampah 50rb".',
+    '',
     'Aturan:',
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
-    '- Kamu belum bisa mencatat, mengubah, atau membatalkan apa pun. Kalau yang diminta itu,',
-    '  jawab "tidak_ada" dan sebutkan alasannya.'
+    '- Kamu belum bisa mencatat penjualan, pembelian bahan, atau gaji, dan belum bisa mengubah',
+    '  atau membatalkan apa pun. Kalau yang diminta itu, jawab "tidak_ada" dan sebutkan alasannya.',
+    '',
+    TANGKAP_PENGELUARAN_PROMPT
   ].join('\n');
 }
 
@@ -108,6 +120,17 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
         ? `Caca belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
         : 'Caca belum bisa menjawab yang itu.'
     };
+  }
+
+  // Jalur TULIS berhenti di sini: draft disusun kode, tidak ada panggilan model
+  // kedua. Menyerahkan penyusunan draft ke model berarti membayar dua kali
+  // untuk satu perintah, dan memberinya kesempatan mengarang angka yang tidak
+  // ada di perintah aslinya.
+  if (namaAlat === ALAT_CATAT_PENGELUARAN) {
+    const disiapkan = siapkanDraftPengeluaran(pilihan.value, { hariIni: konteks.hariIni });
+    return disiapkan.ok
+      ? { ok: true, alat: namaAlat, draft: disiapkan.draft, perluKonfirmasi: true }
+      : { ok: true, alat: namaAlat, jawaban: disiapkan.tanya, belumLengkap: true };
   }
 
   const hasil = await jalankan(namaAlat, pilihan.value, { request, env, storeCode: konteks.storeCode, hariIni: konteks.hariIni });

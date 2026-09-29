@@ -4,7 +4,8 @@
 const cacaState = {
   storeCode: '',
   sedangBaca: false,
-  sedangTanya: false
+  sedangTanya: false,
+  siapDipakai: false
 };
 
 const cacaEl = id => document.getElementById(id);
@@ -179,6 +180,48 @@ async function cacaKirimGambar() {
   }
 }
 
+// Panel Caca hidup di luar sistem tab, jadi pindah tab tidak menyentuhnya sama
+// sekali. Yang menentukan dia ada atau tidak cuma satu hal: masih login Entity
+// Admin atau tidak.
+function cacaSetTampil(tampil) {
+  cacaEl('cacaFab')?.classList.toggle('hidden', !tampil);
+  if (!tampil) cacaTutupPanel();
+}
+
+function cacaTutupPanel() {
+  cacaEl('cacaPanel')?.classList.add('hidden');
+  cacaEl('cacaFab')?.setAttribute('aria-expanded', 'false');
+}
+
+// Panel tidak boleh menutupi tab bar. Kalau menutupi, Bos Cyo harus menutup
+// Caca dulu tiap kali mau pindah tab — persis kebalikan dari maksudnya menemani
+// sambil kerja. Tinggi tab bar berubah-ubah (di layar sempit dia membungkus
+// jadi beberapa baris), jadi batasnya diukur dari posisi aslinya, bukan ditebak
+// dengan angka tetap di CSS.
+function cacaAturTinggiPanel() {
+  const panel = cacaEl('cacaPanel');
+  if (!panel || panel.classList.contains('hidden')) return;
+  const tabBar = document.querySelector('.admin-tabs');
+  const batasAtas = tabBar ? tabBar.getBoundingClientRect().bottom + 12 : 80;
+  const jarakBawah = window.innerWidth <= 560 ? 76 : 84;
+  panel.style.maxHeight = `${Math.max(220, window.innerHeight - batasAtas - jarakBawah)}px`;
+}
+
+function cacaBukaPanel() {
+  cacaEl('cacaPanel')?.classList.remove('hidden');
+  cacaEl('cacaFab')?.setAttribute('aria-expanded', 'true');
+  cacaAturTinggiPanel();
+  cacaEl('cacaPertanyaan')?.focus();
+  // Dimuat sekali saat pertama dibuka; percakapan yang sudah jalan tidak direset
+  // waktu panel ditutup-buka lagi.
+  if (!cacaState.siapDipakai) cacaMuatPanel();
+}
+
+function cacaTogglePanel() {
+  const tersembunyi = cacaEl('cacaPanel')?.classList.contains('hidden');
+  if (tersembunyi) cacaBukaPanel(); else cacaTutupPanel();
+}
+
 async function cacaMuatPanel() {
   try {
     const status = await cacaApi('/api/caca/status');
@@ -188,6 +231,7 @@ async function cacaMuatPanel() {
     cacaEl('cacaKirim').disabled = !status.siap;
     cacaEl('cacaTanyaKirim').disabled = !status.siap;
     await cacaMuatGerai();
+    cacaState.siapDipakai = true;
   } catch (error) {
     cacaEl('cacaStatus').textContent = error.message;
   }
@@ -197,7 +241,13 @@ function initCacaPanel() {
   cacaEl('cacaKirim')?.addEventListener('click', cacaKirimGambar);
   cacaEl('cacaTanyaForm')?.addEventListener('submit', cacaTanya);
   cacaEl('cacaStore')?.addEventListener('change', event => { cacaState.storeCode = event.target.value; });
+  cacaEl('cacaFab')?.addEventListener('click', cacaTogglePanel);
+  cacaEl('cacaTutup')?.addEventListener('click', cacaTutupPanel);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') cacaTutupPanel();
+  });
+  window.addEventListener('resize', cacaAturTinggiPanel);
 }
 
-window.cacaMuatPanel = cacaMuatPanel;
+window.cacaSetTampil = cacaSetTampil;
 document.addEventListener('DOMContentLoaded', initCacaPanel);

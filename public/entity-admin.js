@@ -59,6 +59,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
+  window.cacaSetTampil?.(true);
 }
 
 // --- Buku Entity ---------------------------------------------------------
@@ -75,8 +76,6 @@ function switchEntityTab(name) {
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
-  entityAdminEl('entityTab-caca')?.classList.toggle('active', name === 'caca');
-  if (name === 'caca') window.cacaMuatPanel?.();
 }
 
 // Master Barang & Karyawan (ADR-043) sudah entity-scoped di backend
@@ -608,6 +607,7 @@ function showEntityAdminLogin() {
   entityAdminEl('entityAdminLoginView').classList.remove('hidden');
   entityAdminEl('entityAdminApp').classList.add('hidden');
   entityAdminEl('entityAdminLogoutBtn').classList.add('hidden');
+  window.cacaSetTampil?.(false);
 }
 
 async function loadEntityAdminData() {

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGeminiRequest, callStructured, aiConfigured } from '../src/caca-ai-client.js';
+import { callStructured, aiConfigured } from '../src/caca-ai-client.js';
+import { buildGeminiRequest } from '../src/caca-ai-gemini.js';
 import { REKAP_SCHEMA } from '../src/caca-rekap-reader.js';
 
 const env = { GEMINI_API_KEY: 'kunci-uji' };

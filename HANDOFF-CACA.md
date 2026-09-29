@@ -48,9 +48,21 @@ belum dilakukan. Yang sudah terbukti cuma logika penguraian angka dan
 penghitungan ulangnya (diuji dengan angka asli lembar 06-Sep-26); kemampuan
 model membaca fotonya **belum diukur sama sekali**.
 
-Prasyaratnya: `GEMINI_API_KEY` terpasang sebagai secret Cloudflare. Tanpa itu
+Prasyaratnya: kunci mesin AI terpasang sebagai secret Cloudflare. Tanpa itu
 panelnya hidup tapi menjawab "belum tersambung". Jangan pernah meminta kuncinya
 dalam bentuk teks ke Bos Cyo (invariant #9).
+
+**Dua mesin AI tersedia berdampingan, tinggal pilih:**
+
+| Mesin | Kunci | Kapan dipakai |
+|---|---|---|
+| `gemini-3.1-flash-lite` (bawaan) | `GEMINI_API_KEY` | Uji coba — ada jalur gratis |
+| `gpt-6-luna` | `OPENAI_API_KEY` | Pemakaian sungguhan — ~3x lebih murah per token |
+
+Memasang kunci saja sudah cukup untuk menyalakan. Kalau dua-duanya terpasang,
+`CACA_MESIN` (`gemini` / `openai`) yang menentukan. Berpindah tidak menyentuh
+kode sama sekali — logika pembacaan, penguraian nominal, dan penyusunan draft
+tidak tahu-menahu soal penyedia mana yang sedang dipakai.
 
 Mesin yang terpasang **`gemini-3.1-flash-lite`**, dipilih karena murah selagi
 masih tahap uji (~Rp70 per foto). Itu keputusan sadar Bos Cyo, bukan default

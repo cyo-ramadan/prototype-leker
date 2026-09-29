@@ -8,7 +8,7 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { aiConfigured, callStructured, CACA_VISION_MODEL } from './caca-ai-client.js';
+import { aiConfigured, callStructured, modelAktif } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
@@ -190,7 +190,7 @@ export async function handleCacaApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/caca/status') {
     const auth = await requireManagement(request, env.DB);
     if (!auth.ok) return auth.response;
-    return json({ siap: aiConfigured(env), model: CACA_VISION_MODEL, bisaMenyimpan: false });
+    return json({ siap: aiConfigured(env), model: modelAktif(env), bisaMenyimpan: false });
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/baca-rekap') {

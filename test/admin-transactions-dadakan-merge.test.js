@@ -94,6 +94,15 @@ test('produksi AUTO_DADAKAN tetap tampil sebagai baris sendiri di Riwayat Transa
 
     seedRecipeAndRun(db, { runId: 'run_dadakan_merge', mode: 'AUTO_DADAKAN', saleId: 'sale_dadakan_merge', outputProduct, componentProduct, cashierId: cashier.id });
     seedRecipeAndRun(db, { runId: 'run_manual_merge', mode: 'MANUAL', outputProduct: manualOutputProduct, componentProduct, cashierId: cashier.id });
+    // Real dadakan sales record the run on their sale line (cashier-sales-tracking.js).
+    db.prepare(`
+      INSERT INTO sale_items (id, sale_id, store_id, product_id, product_name, unit_price, quantity, line_total, production_run_id)
+      VALUES ('item_dadakan_merge', 'sale_dadakan_merge', 'store_001', ?, ?, 6000, 1, 6000, 'run_dadakan_merge')
+    `).run(outputProduct.id, outputProduct.name);
+    db.prepare(`
+      INSERT INTO sales (id, store_id, cashier_id, drawer_session_id, customer_name, total_amount, payment_method, created_at)
+      VALUES ('sale_plain_merge', ?, ?, 'drawer_dadakan_merge', '', 3000, 'CASH', '2026-09-29T06:30:00.000Z')
+    `).run(store.id, cashier.id);
 
     const listing = await listStoreTransactions(new D1Database(db), store.id, { filter: 'ALL', limit: 50 });
     assert.equal(listing.ok, true);
@@ -102,6 +111,7 @@ test('produksi AUTO_DADAKAN tetap tampil sebagai baris sendiri di Riwayat Transa
     const sale = byId.get('sale_dadakan_merge');
     assert.equal(sale.kind, 'SALE');
     assert.match(sale.description, /\+Produksi Dadakan/, 'Penjualan yang memicu produksi dadakan ditandai di deskripsinya');
+    assert.doesNotMatch(byId.get('sale_plain_merge').description, /Produksi Dadakan/, 'Penjualan biasa tidak ikut ditandai');
 
     const dadakan = byId.get('run_dadakan_merge');
     assert.equal(dadakan.kind, 'PRODUCTION', 'produksi AUTO_DADAKAN tetap tampil sebagai baris sendiri');
@@ -113,4 +123,15 @@ test('produksi AUTO_DADAKAN tetap tampil sebagai baris sendiri di Riwayat Transa
   } finally {
     db.close();
   }
+});
+
+// 2026-09-29: a per-sale EXISTS over production_runs inside the list query read
+// (sales x production runs) rows on every page load and exhausted D1's daily
+// free read quota within minutes -- every login in every store then failed.
+test('list query never runs a per-row subquery over production_runs for sales', () => {
+  const source = readFileSync(new URL('../src/admin-transactions.js', import.meta.url), 'utf8');
+  const listQuery = source.slice(source.indexOf('WITH pos_facts AS'), source.indexOf('ORDER BY occurred_at DESC, id DESC LIMIT ?'));
+  assert.ok(listQuery.length > 0);
+  assert.doesNotMatch(listQuery, /EXISTS\s*\(/i);
+  assert.doesNotMatch(listQuery, /SELECT[^;]*FROM production_runs pr WHERE pr\.store_id = s\.store_id/);
 });

@@ -50,17 +50,26 @@ Operational Expense correction is active. ACC marks the source soft-deleted. If 
 
 ### SALE — normal stock sale
 
-Correction is active when the Sale did not create `AUTO_DADAKAN` production.
-
 ACC preserves the original Sale and SALE stock movements, uses original `sale_items.line_cogs` exact scaled snapshots, returns sold quantities through new `SALE_VOID` stock movements, incorporates returned stock into current moving-average cost using historical exact COGS rather than current Product Master HPP, reverses earned customer points when applicable, marks the Sale soft-deleted, and reverses the original posted Accounting journal when one exists.
 
 Missing/invalid Sale cost snapshot fails closed with `SALE_COST_SNAPSHOT_REQUIRED`.
 
 ### SALE — AUTO_DADAKAN
 
-Execution is **HOLD** with `SALE_AUTO_PRODUCTION_CORRECTION_POLICY_REQUIRED`.
+Decided by Bos Cyo 2026-09-24: correcting the Sale reverses its generated production run as an exact mirror ("yang + diganti minus dan yang minus diganti +"). In the same atomic batch as the normal Sale correction above:
 
-The unresolved business decision is whether correcting the Sale also reverses its generated production run or leaves the produced goods as stock. Until Bos Cyo defines that meaning, the system must not guess or partially mutate the Sale.
+- every recorded `PRODUCTION_OUTPUT` movement is pulled back with a `PRODUCTION_VOID` OUT movement and its value (`production_runs.hpp_total_scaled`) removed from moving-average cost;
+- every recorded `PRODUCTION_INPUT` movement is returned with a `PRODUCTION_VOID` IN movement valued at its `production_run_components.total_cost_snapshot_scaled`;
+- the production run is marked `CANCELLED` (drawer report already counts only `POSTED`; Transaction Explorer shows the status);
+- only movements that were actually recorded are mirrored (untracked goods have none); original movements are never edited.
+
+AUTO_DADAKAN production posts no Accounting journal of its own (verified on production D1: 643 runs, 0 deliveries), so the Sale journal reversal is the only Accounting reversal.
+
+Precondition enforced upstream: a recipe can be linked for Dadakan only when its output quantity is 1 (`resolveLinkedRecipe`, `DADAKAN_RECIPE_OUTPUT_MUST_BE_ONE`), and a legacy link to a larger-output recipe cannot sell Dadakan. So produced quantity always equals sold quantity and no leftover batch can have been consumed by another transaction.
+
+Remaining HOLD codes (fail closed, no mutation): `SALE_AUTO_PRODUCTION_EXCESS_OUTPUT` (legacy run where output ≠ sold quantity), `SALE_AUTO_PRODUCTION_STATE_INVALID`, `PRODUCTION_COST_SNAPSHOT_REQUIRED`, `PRODUCTION_MOVEMENT_INVALID`.
+
+If the goods were physically made and discarded, that consumption is recorded separately through audited Stock Adjustment.
 
 ### PURCHASE
 

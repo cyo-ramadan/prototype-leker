@@ -23,8 +23,22 @@ test('entity-admin.html gains a Laporan tab with date range, store checklist, an
 test('switchEntityTab wires the reports tab and calls the net-profit endpoint on run', async () => {
   const source = await read('public/entity-admin.js');
   assert.match(source, /name === 'reports'/);
-  assert.match(source, /api\/admin\/reports\/net-profit\?from=/);
+  assert.match(source, /api\/admin\/reports\/net-profit\?store=/);
   assert.match(source, /runEntityReport/);
+});
+
+// Bug ketemu langsung (2026-09-17): tanpa ?store=, request jatuh ke gerai
+// default (server-side) yang bisa saja BUKAN bagian dari entity si pemanggil
+// -- laporan kelihatan kosong/ditolak tanpa pesan yang jelas kenapa, karena
+// dari sisi UI tidak ada error yang mencolok. ?store= wajib dikirim supaya
+// server tahu entity mana yang memanggil (src/net-profit-report.js
+// selectedStore()).
+test('runEntityReport() mengirim ?store= dari gerai entity sendiri, bukan mengandalkan default server', async () => {
+  const source = await read('public/entity-admin.js');
+  const fnBody = source.slice(source.indexOf('async function runEntityReport'), source.indexOf('async function saveEntityEmployee'));
+  assert.match(fnBody, /anyEntityStoreCode\(\)/, 'harus memakai gerai entity sendiri sebagai pengenal pemanggil, bukan default server');
+  assert.match(fnBody, /store=\$\{encodeURIComponent\(callerStoreCode\)\}/);
+  assert.match(fnBody, /if \(!callerStoreCode\)/, 'entity tanpa gerai sama sekali harus dicegat dengan pesan, bukan memanggil API dengan store kosong');
 });
 
 test('store checklist is mounted once and never resets user selection on tab re-entry', async () => {

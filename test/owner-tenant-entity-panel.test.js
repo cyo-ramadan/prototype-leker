@@ -170,6 +170,53 @@ test('a new store can be created directly under an entity, and an existing store
   }
 });
 
+// Bos Cyo, 2026-09-24: "setting2 sebenernya aku siapkan untuk beda tenant
+// apabila mereka memiliki kebijkaan kusus ... intinya opsi on/off nya itu
+// adalah kebijakan suatu tenant." Panel ini generik lewat
+// TENANT_POLICY_DEFINITIONS (src/tenant-policy.js), bukan hardcode satu saklar.
+test('Owner can read and toggle a tenant\'s policy settings, scoped per tenant', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await ownerToken(db);
+    const env = { DB: new D1Database(db) };
+    const tenant = db.prepare(`SELECT id FROM tenants WHERE id = 'TEN-PROTOTYPE'`).get();
+
+    const initial = await handleOwnerApi(request(`/api/owner/tenants/${tenant.id}/policy-settings`, { token }), env, `/api/owner/tenants/${tenant.id}/policy-settings`);
+    assert.equal(initial.status, 200);
+    const initialBody = await initial.json();
+    const gate = initialBody.settings.find(item => item.key === 'attendance_schedule_gate');
+    assert.ok(gate, 'saklar gerbang jadwal presensi/gaji harus muncul di daftar');
+    assert.equal(gate.value, true, 'default ON kalau belum pernah diubah');
+    assert.ok(gate.label && gate.description, 'label dan penjelasan wajib ada supaya Owner paham dampaknya');
+
+    const patched = await handleOwnerApi(
+      request(`/api/owner/tenants/${tenant.id}/policy-settings`, { token, method: 'PATCH', body: { key: 'attendance_schedule_gate', value: false } }),
+      env, `/api/owner/tenants/${tenant.id}/policy-settings`
+    );
+    assert.equal(patched.status, 200);
+    const patchedBody = await patched.json();
+    assert.equal(patchedBody.settings.find(item => item.key === 'attendance_schedule_gate').value, false);
+
+    const reread = await handleOwnerApi(request(`/api/owner/tenants/${tenant.id}/policy-settings`, { token }), env, `/api/owner/tenants/${tenant.id}/policy-settings`);
+    assert.equal((await reread.json()).settings.find(item => item.key === 'attendance_schedule_gate').value, false, 'tersimpan, bukan cuma dikembalikan sekali');
+
+    db.prepare(`INSERT INTO tenants (id, name) VALUES ('TEN-PANEL-TEST-OTHER', 'Tenant Lain')`).run();
+    const otherTenant = await handleOwnerApi(request(`/api/owner/tenants/TEN-PANEL-TEST-OTHER/policy-settings`, { token }), env, `/api/owner/tenants/TEN-PANEL-TEST-OTHER/policy-settings`);
+    assert.equal((await otherTenant.json()).settings.find(item => item.key === 'attendance_schedule_gate').value, true, 'tenant lain tidak ikut berubah');
+
+    const unknownTenant = await handleOwnerApi(request(`/api/owner/tenants/tenant_does_not_exist/policy-settings`, { token }), env, `/api/owner/tenants/tenant_does_not_exist/policy-settings`);
+    assert.equal(unknownTenant.status, 404);
+
+    const unknownKey = await handleOwnerApi(
+      request(`/api/owner/tenants/${tenant.id}/policy-settings`, { token, method: 'PATCH', body: { key: 'not_a_real_key', value: true } }),
+      env, `/api/owner/tenants/${tenant.id}/policy-settings`
+    );
+    assert.equal(unknownKey.status, 400);
+  } finally {
+    db.close();
+  }
+});
+
 test('Owner console wires the Tenant/Entity create forms and the store-create Entity picker', () => {
   assert.match(ownerHtml, /id="tenantCreateForm"/);
   assert.match(ownerHtml, /id="ownerTenantName"/);
@@ -185,4 +232,12 @@ test('Owner console wires the Tenant/Entity create forms and the store-create En
   assert.match(ownerUi, /entityId: ownerEl\('ownerStoreEntity'\)\.value \|\| null/);
   assert.match(ownerUi, /ownerEl\('tenantCreateForm'\)\.addEventListener\('submit', createOwnerTenant\)/);
   assert.match(ownerUi, /ownerEl\('entityCreateForm'\)\.addEventListener\('submit', createOwnerEntity\)/);
+});
+
+test('Owner console renders and toggles per-tenant policy settings generically from the API response', () => {
+  assert.match(ownerUi, /function toggleTenantPolicyPanel\(tenantId\)/);
+  assert.match(ownerUi, /function saveTenantPolicySetting\(tenantId, key, value\)/);
+  assert.match(ownerUi, /\/api\/owner\/tenants\/\$\{encodeURIComponent\(tenantId\)\}\/policy-settings/);
+  assert.match(ownerUi, /data-tenant-policy-key/);
+  assert.match(ownerUi, /ownerState\.tenantPolicySettings\.map\(setting =>/);
 });

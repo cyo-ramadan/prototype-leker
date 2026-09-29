@@ -129,6 +129,62 @@ test('drawer report excludes production runs from other drawer sessions and canc
   }
 });
 
+test('Bos Cyo, 2026-09-28: satu batch masak dengan beberapa bahan jadi SATU baris MASAK, bukan diulang per bahan', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = db.prepare("SELECT id FROM cashiers WHERE store_id = 'store_001' AND is_active = 1 ORDER BY id LIMIT 1").get();
+    db.prepare(`
+      INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, opening_amount, status, opened_at)
+      VALUES ('drawer_masak_multi', 'store_001', ?, 100000, 'OPEN', '2026-09-03T00:00:00.000Z')
+    `).run(cashier.id);
+
+    const outputProduct = productWithBaseUnit(db, null);
+    const componentA = productWithBaseUnit(db, outputProduct.id);
+    const componentB = db.prepare(`
+      SELECT p.id, p.name, u.id AS unit_id, u.symbol AS unit_symbol
+      FROM products p JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+      WHERE p.store_id = 'store_001' AND p.id NOT IN (?, ?) ORDER BY p.id LIMIT 1
+    `).get(outputProduct.id, componentA.id);
+
+    const recipeId = 'recipe_masak_multi';
+    db.prepare(`
+      INSERT INTO manufacturing_recipes (id, store_id, output_product_id, output_unit_id, output_quantity, revision, status, created_at)
+      VALUES (?, 'store_001', ?, ?, 1, 1, 'ACTIVE', '2026-09-03T00:00:00.000Z')
+    `).run(recipeId, outputProduct.id, outputProduct.unit_id);
+
+    // Satu production_runs row (satu batch masak) dengan DUA komponen bahan --
+    // ini persis kasus nyata (mis. Larutan Teh Poci: Air Mineral + Teh celup).
+    db.prepare(`
+      INSERT INTO production_runs (
+        id, store_id, drawer_session_id, mode, output_product_id, output_product_name,
+        output_unit_id, output_unit_symbol, recipe_id, recipe_revision, batches,
+        output_quantity_per_batch, total_output_quantity, status, created_by_role, created_by_id, created_at
+      ) VALUES ('run_masak_multi', 'store_001', 'drawer_masak_multi', 'MANUAL', ?, ?, ?, ?, ?, 1, 1, 2000, 2000, 'POSTED', 'CASHIER', ?, '2026-09-03T06:00:00.000Z')
+    `).run(outputProduct.id, outputProduct.name, outputProduct.unit_id, outputProduct.unit_symbol, recipeId, cashier.id);
+    db.prepare(`
+      INSERT INTO production_run_components (
+        id, production_run_id, store_id, component_product_id, component_product_name,
+        component_unit_id, component_unit_symbol, quantity_per_batch, total_quantity
+      ) VALUES ('comp_masak_multi_a', 'run_masak_multi', 'store_001', ?, ?, ?, ?, 2000, 2000)
+    `).run(componentA.id, componentA.name, componentA.unit_id, componentA.unit_symbol);
+    db.prepare(`
+      INSERT INTO production_run_components (
+        id, production_run_id, store_id, component_product_id, component_product_name,
+        component_unit_id, component_unit_symbol, quantity_per_batch, total_quantity
+      ) VALUES ('comp_masak_multi_b', 'run_masak_multi', 'store_001', ?, ?, ?, ?, 1, 1)
+    `).run(componentB.id, componentB.name, componentB.unit_id, componentB.unit_symbol);
+
+    const report = await buildDrawerReport(new D1Database(db), 'store_001', 'drawer_masak_multi');
+    assert.ok(report);
+    assert.equal(report.sections.cooking.length, 1, 'satu production_runs row (2 komponen) wajib jadi SATU baris MASAK, bukan 2 baris dengan HASIL yang sama diulang');
+    const [row] = report.sections.cooking;
+    assert.ok(row.material.includes(componentA.name), `bahan A (${componentA.name}) wajib ada di baris material: ${row.material}`);
+    assert.ok(row.material.includes(componentB.name), `bahan B (${componentB.name}) wajib ada di baris material: ${row.material}`);
+  } finally {
+    db.close();
+  }
+});
+
 test('drawer report keeps AUTO_DADAKAN sale fulfillment out of the MASAK section (Workboard isu_88f27ccf)', async () => {
   const db = migratedDatabase();
   try {

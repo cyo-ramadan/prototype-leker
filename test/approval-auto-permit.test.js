@@ -315,10 +315,21 @@ test('Auto Permit and the management ACC decision share one posting function -- 
   const applyAccDecisionDefined = (approvalQueueSource.match(/async function applyAccDecision\(/g) || []).length;
   assert.equal(applyAccDecisionDefined, 1, 'applyAccDecision must be defined exactly once');
   assert.equal(totalOccurrences - applyAccDecisionDefined, 2, 'applyAccDecision must be called from exactly two places: the cashier Auto Permit path and the management ACC decision');
+
+  // buildOperationalPostingStatements now has a second legitimate caller,
+  // applyGroupAccDecision (2026-09-19, Stock Adjustment "satu transaksi"
+  // batch/group decide) -- it reuses the exact same posting contract for a
+  // whole Stock Opname session instead of re-implementing it, so this is
+  // still one posting function, not a drifted duplicate. Guard the count at
+  // exactly two (applyAccDecision + applyGroupAccDecision) and that both are
+  // themselves defined exactly once, so a THIRD ad-hoc call site would still
+  // fail this test.
+  const applyGroupAccDecisionDefined = (approvalQueueSource.match(/async function applyGroupAccDecision\(/g) || []).length;
+  assert.equal(applyGroupAccDecisionDefined, 1, 'applyGroupAccDecision must be defined exactly once');
   assert.equal(
     (approvalQueueSource.match(/buildOperationalPostingStatements\(/g) || []).length,
-    1,
-    'buildOperationalPostingStatements must only be invoked once, from inside applyAccDecision -- never duplicated at a second call site'
+    2,
+    'buildOperationalPostingStatements must only be invoked from applyAccDecision and applyGroupAccDecision -- never duplicated at a third call site'
   );
 });
 

@@ -39,8 +39,126 @@
     return `<section class="drawer-report-section"><h4>${esc(title)}</h4>${content}</section>`;
   }
 
+  // Bos Cyo, 2026-09-28: tombol Salin di Detail Laci -- format teks siap
+  // ditempel ke WA, dari data yang SAMA dengan yang sudah ditampilkan di
+  // atas (bukan field tambahan yang tidak ada di tampilan). Dipakai baik
+  // dari sisi Kasir maupun Admin karena render() ini satu-satunya sumber
+  // untuk dua-duanya.
+  let lastReportForCopy = null;
+  const plain = value => String(value ?? '').replace(/\|/g, '-').replace(/[\r\n]+/g, ' ').trim();
+  const textMoneyLines = (items, emptyText = '(kosong)') => items.length
+    ? items.map(([name, amount]) => `${plain(name)} | ${amount == null ? '-' : number(amount)}`).join('\n')
+    : emptyText;
+  const textTableLines = (rows, emptyText = '(kosong)') => rows.length ? rows.map(cells => cells.map(plain).join(' | ')).join('\n') : emptyText;
+
+  function textSalesSection(rows, total, itemCount) {
+    const lines = rows.length ? rows.map(row => {
+      const qty = Number(row.quantity) || 0;
+      const amount = Number(row.total) || 0;
+      const unit = qty ? Math.round(amount / qty) : amount;
+      return `${plain(row.productName)} | ${number(qty)}x${number(unit)}=${number(amount)}`;
+    }) : ['(kosong)'];
+    lines.push(`Total (${number(itemCount)} item) | ${number(total)}`);
+    return lines.join('\n');
+  }
+
+  function textPurchaseSection(rows, total) {
+    const lines = rows.length ? rows.map(row => `${plain(String(row.description || '').replace(/^Pembelian\s+/i, ''))} | ${number(row.totalAmount)}`) : ['(kosong)'];
+    lines.push(`Total | ${number(total)}`);
+    return lines.join('\n');
+  }
+
+  function textExpenseSection(rows, total) {
+    const lines = rows.length ? rows.map(row => `${plain(row.description)} | ${number(row.amount)}`) : ['(kosong)'];
+    lines.push(`Total | ${number(total)}`);
+    return lines.join('\n');
+  }
+
+  function buildCopyText(report) {
+    const drawer = report.drawer;
+    const sections = report.sections || {};
+    const totals = report.totals || {};
+    const lines = [
+      `ID Laci: ${drawer.id}`,
+      `Shift: ${drawer.shiftLabel || '-'}`,
+      `Penanggung jawab: ${drawer.cashierName || '-'} (@${drawer.cashierUsername || '-'})`,
+      `Datang: ${dateTime(drawer.openedAt)}`,
+      `Pulang: ${dateTime(drawer.closedAt)}`,
+      `Modal: ${rupiah(drawer.openingAmount)}`,
+      `Insentif: ${rupiah(drawer.incentiveAmount)}`,
+      `Status: ${drawer.status}`
+    ];
+    if (drawer.openingNote) lines.push(`Keterangan Buka: ${plain(drawer.openingNote)}`);
+    if (drawer.closingNote) lines.push(`Keterangan Pulang: ${plain(drawer.closingNote)}`);
+    lines.push('');
+
+    lines.push('1. PENJUALAN BAYAR TUNAI', 'PRODUK | TERJUAL', textSalesSection(sections.cashSales || [], totals.cashSales, totals.cashSalesItems), '');
+    lines.push('2. PROMOSI', 'NAMA | JUMLAH | TOTAL', textTableLines((sections.promotions || []).map(row => [row.name, number(row.quantity), row.total]), '(kosong)'), `Total | ${number(totals.promotions)}`, '');
+    lines.push('3A. BELANJA BAHAN BAYAR TUNAI', 'PRODUK | TOTAL', textPurchaseSection(sections.cashPurchases || [], totals.cashPurchases), '');
+    lines.push('4.1 OPERASIONAL KAS', 'Keterangan | Total', textExpenseSection(sections.cashExpenses || [], totals.cashExpenses), '');
+    lines.push('4.2 OPERASIONAL NON KAS', 'Keterangan | Total', textExpenseSection(sections.nonCashExpenses || [], totals.nonCashExpenses), '');
+    lines.push('5. MASAK', 'HASIL | BAHAN BAKU', textTableLines((sections.cooking || []).map(row => [row.result || '', row.material || '']), 'Belum ada modul Masak pada prototype ini.'), '');
+    lines.push('6. STOK SISA', 'PRODUK | STOK AWAL | STOK AKHIR', textTableLines((sections.stockRemaining || []).map(row => [row.productName, number(row.openingStock), number(row.closingStock)]), 'Belum ada inventory ledger untuk snapshot stok laci.'), '');
+
+    lines.push('PERHITUNGAN', textMoneyLines([
+      ['Penjualan Tunai (Plus)', totals.cashSales],
+      ['Promosi (Minus)', totals.promotions],
+      ['Pendapatan Riil Tunai', totals.realCashRevenue],
+      ['Modal', drawer.openingAmount],
+      ['Belanja Bahan Tunai (Minus)', totals.cashPurchases],
+      ['Operasional Kas (Minus)', totals.cashExpenses],
+      ['Pendapatan Lain (Plus)', totals.cashIn],
+      ['Arus Kas Masuk (Plus)', totals.operationalCashIn],
+      ['Arus Kas Keluar (Minus)', totals.operationalCashOut],
+      ['Ekspektasi Di Laci', totals.expectedCash],
+      ['Saldo Pulang', drawer.closingAmount],
+      ['Selisih Kas', totals.cashDifference]
+    ]), '');
+
+    lines.push('----- CATATAN TAMBAHAN -----', '');
+    lines.push('1B. PENJUALAN BAYAR NON TUNAI', 'PRODUK | TERJUAL', textSalesSection(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems), '');
+    lines.push('3B. BELANJA BAHAN BAYAR NON TUNAI', 'PRODUK | TOTAL', textPurchaseSection(sections.nonCashPurchases || [], totals.nonCashPurchases), '');
+    lines.push('PENYESUAIAN STOK', 'PRODUK | Stok Tercatat | Stok Riil | Selisih', textTableLines((sections.stockAdjustments || []).map(row => [row.productName, number(row.recordedStock), number(row.actualStock), number(row.difference)]), 'Belum ada penyesuaian stok.'), '');
+    lines.push('ARUS BARANG', 'BARANG | ARAH | QTY | KETERANGAN', textTableLines((sections.goodsFlow || []).map(row => [row.productName, row.direction === 'OUT' ? 'Keluar' : 'Masuk', `${number(row.quantity)}${row.unitSymbol ? ` ${row.unitSymbol}` : ''}`, row.sharedAccountName ? `${row.note || 'Arus Barang'} - Rekening Bersama: ${row.sharedAccountName}` : (row.note || '-')]), 'Belum ada Arus Barang.'), '');
+    lines.push('PENDAPATAN LAIN', 'Tanggal | Jumlah | Keterangan | Akun Kas | Akun Pendapatan', textTableLines((sections.cashIn || []).map(row => [dateTime(row.createdAt), number(row.amount), row.description, row.cashAccount || '-', row.incomeAccount || '-']), '(kosong)'), '');
+    lines.push('ARUS KAS MASUK', textMoneyLines((sections.operationalCash || []).filter(row => row.direction === 'IN').map(row => [row.description || row.note || 'Arus Kas', row.amount]), '(kosong)'), `Total | ${number(totals.operationalCashIn)}`, '');
+    lines.push('ARUS KAS KELUAR', textMoneyLines((sections.operationalCash || []).filter(row => row.direction === 'OUT').map(row => [row.description || row.note || 'Arus Kas', row.amount]), '(kosong)'), `Total | ${number(totals.operationalCashOut)}`);
+
+    return lines.join('\n');
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return ok;
+      } catch { return false; }
+    }
+  }
+
+  document.addEventListener('click', async event => {
+    const button = event.target.closest?.('[data-drawer-report-copy]');
+    if (!button || !lastReportForCopy) return;
+    const original = button.textContent;
+    const ok = await copyToClipboard(buildCopyText(lastReportForCopy));
+    button.textContent = ok ? '✅ Disalin' : '⚠️ Gagal menyalin';
+    setTimeout(() => { button.textContent = original; }, 1600);
+  });
+
   function render(report) {
     if (!report?.drawer) return '<div class="empty">Detail laci tidak tersedia.</div>';
+    lastReportForCopy = report;
     const drawer = report.drawer;
     const sections = report.sections || {};
     const totals = report.totals || {};
@@ -54,6 +172,18 @@
     const adjustmentRows = (sections.stockAdjustments || []).length
       ? sections.stockAdjustments.map(row => `<tr><td>${esc(row.productName)}</td><td>${number(row.recordedStock)}</td><td>${number(row.actualStock)}</td><td>${number(row.difference)}</td></tr>`).join('')
       : emptyRow(4, 'Belum ada penyesuaian stok.');
+    // Bos Cyo, 2026-09-23: "arus barang belum masuk ke laporan laci". Ini
+    // pergerakan barang biasa (barang masuk/keluar, misal transfer antar
+    // gerai) -- bukan Penyesuaian Stok, jadi tidak punya "stok tercatat vs
+    // stok riil", cuma arah + qty. Ditaruh satu kategori dengan Penyesuaian
+    // Stok (sama-sama pergerakan barang, bukan uang, jadi tidak masuk ke
+    // PERHITUNGAN kas).
+    const goodsFlowLabel = row => row.sharedAccountName
+      ? `${row.note || 'Arus Barang'} · Rekening Bersama: ${row.sharedAccountName}`
+      : (row.note || '-');
+    const goodsFlowRows = (sections.goodsFlow || []).length
+      ? sections.goodsFlow.map(row => `<tr><td>${esc(row.productName)}</td><td>${row.direction === 'OUT' ? 'Keluar' : 'Masuk'}</td><td>${number(row.quantity)}${row.unitSymbol ? ` ${esc(row.unitSymbol)}` : ''}</td><td>${esc(goodsFlowLabel(row))}</td></tr>`).join('')
+      : emptyRow(4, 'Belum ada Arus Barang.');
     const cashInRows = (sections.cashIn || []).length
       ? sections.cashIn.map(row => `<tr><td>${dateTime(row.createdAt)}</td><td>${rupiah(row.amount)}</td><td>${esc(row.description)}</td><td>${esc(row.cashAccount || '-')}</td><td>${esc(row.incomeAccount || '-')}</td></tr>`).join('')
       : emptyRow(5);
@@ -68,6 +198,7 @@
 
     return `<div class="drawer-report">
       <div class="drawer-report-header">
+        <button type="button" class="drawer-report-copy-btn" data-drawer-report-copy title="Salin detail laci untuk ditempel ke WhatsApp">📋 Salin</button>
         <div><span>ID Laci</span><b>${esc(drawer.id)}</b></div>
         <div><span>Penanggung jawab</span><b>${esc(drawer.cashierName || '-')} · @${esc(drawer.cashierUsername || '-')}</b></div>
         <div><span>Shift</span><b>${esc(drawer.shiftLabel || '-')}</b></div>
@@ -107,6 +238,7 @@
       ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems))}
       ${section('3B. BELANJA BAHAN BAYAR NON TUNAI', purchaseTable(sections.nonCashPurchases || [], totals.nonCashPurchases))}
       ${section('PENYESUAIAN STOK', table(['PRODUK', 'Stok Tercatat', 'Stok Riil', 'Selisih'], adjustmentRows))}
+      ${section('ARUS BARANG', table(['BARANG', 'ARAH', 'QTY', 'KETERANGAN'], goodsFlowRows))}
       ${section('PENDAPATAN LAIN', table(['Tanggal', 'Jumlah', 'Keterangan', 'Akun Kas', 'Akun Pendapatan'], cashInRows))}
       ${section('ARUS KAS MASUK', `${cashFlowIn}<div class="drawer-report-total">Total <b>${rupiah(totals.operationalCashIn)}</b></div>`)}
       ${section('ARUS KAS KELUAR', `${cashFlowOut}<div class="drawer-report-total">Total <b>${rupiah(totals.operationalCashOut)}</b></div>`)}

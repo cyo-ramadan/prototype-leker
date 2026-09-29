@@ -69,14 +69,20 @@ test('Jenis Biaya CRUD never inserts/updates an Accounting rule id (ADR-029 boun
   assert.doesNotMatch(costMasterSource, /UPDATE cost_types[\s\S]*?accounting_component_rule_id/);
 });
 
-test('a store with zero seeded Jenis Biaya can create one from Master Biaya and see it appear', async () => {
+test('a store with zero MANUALLY seeded Jenis Biaya can create one from Master Biaya and see it appear', async () => {
   const db = migratedDatabase();
   try {
     // store_002 mirrors the real gap: only store_001 got cost_types seeded by
-    // migration 0034, every other store (confirmed in production) starts with
-    // zero rows and an empty "Jenis Biaya" dropdown.
+    // migration 0034, every other store (confirmed in production) started
+    // with an empty "Jenis Biaya" dropdown -- that's the bug this test still
+    // guards. Since migration 0113, every store (including store_002) also
+    // gets exactly one auto-seeded row, "Lainnya" (Bos Cyo, 2026-09-21:
+    // Kategori Biaya catch-all for Pengeluaran Operasional's editable
+    // Keterangan), so the starting count is 1, not 0.
     const before = db.prepare("SELECT COUNT(*) AS n FROM cost_types WHERE store_id = 'store_002'").get();
-    assert.equal(before.n, 0, 'store_002 must start with no Jenis Biaya (matches the reported bug)');
+    assert.equal(before.n, 1, 'store_002 starts with exactly the auto-seeded "Lainnya" Jenis Biaya, nothing manually seeded');
+    const seeded = db.prepare("SELECT name FROM cost_types WHERE store_id = 'store_002'").get();
+    assert.equal(seeded.name, 'Lainnya');
 
     const token = await adminToken(db, 'store_002');
     const env = { DB: new D1Database(db) };
@@ -89,9 +95,10 @@ test('a store with zero seeded Jenis Biaya can create one from Master Biaya and 
     assert.equal(createResponse.status, 201);
     const created = await createResponse.json();
     assert.equal(created.ok, true);
-    assert.equal(created.costTypes.length, 1);
-    assert.equal(created.costTypes[0].name, 'Pengiriman');
-    assert.equal(created.costTypes[0].isActive, true);
+    assert.equal(created.costTypes.length, 2, 'the auto-seeded "Lainnya" plus the newly created "Pengiriman"');
+    const createdEntry = created.costTypes.find(item => item.id === created.id);
+    assert.equal(createdEntry.name, 'Pengiriman');
+    assert.equal(createdEntry.isActive, true);
 
     const row = db.prepare('SELECT store_id, code, accounting_component_rule_id, is_active FROM cost_types WHERE id = ?').get(created.id);
     assert.equal(row.store_id, 'store_002');
@@ -105,8 +112,8 @@ test('a store with zero seeded Jenis Biaya can create one from Master Biaya and 
       '/api/admin/master/costs'
     );
     const bootstrapBody = await bootstrap.json();
-    assert.equal(bootstrapBody.costTypes.length, 1);
-    assert.equal(bootstrapBody.costTypes[0].id, created.id);
+    assert.equal(bootstrapBody.costTypes.length, 2);
+    assert.ok(bootstrapBody.costTypes.some(item => item.id === created.id));
   } finally {
     db.close();
   }

@@ -23,8 +23,30 @@
       }
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `Request gagal (${response.status})`);
+    if (!response.ok) {
+      const error = new Error(payload.error || `Request gagal (${response.status})`);
+      error.code = payload.code;
+      throw error;
+    }
     return payload;
+  }
+
+  // Bos Cyo, 2026-09-28: ganti satuan barang yang sudah punya histori dulu
+  // ditolak mentah, sekarang server balas kode ini sekali (409) dengan pesan
+  // yang menjelaskan konsekuensinya. UX-nya sengaja tanpa form/rasio apa pun
+  // -- satu warning, satu klik lanjut, submit ulang otomatis dengan flag
+  // confirmUnitChange. Kalau Admin batal, form dibiarkan apa adanya (satuan
+  // tidak berubah, tidak ada apa pun yang tersimpan).
+  async function apiWithUnitChangeConfirm(path, options) {
+    try {
+      return await api(path, options);
+    } catch (error) {
+      if (error.code !== 'BASE_UNIT_HISTORY_CONFIRM_REQUIRED') throw error;
+      if (!window.confirm(`${error.message}\n\nLanjutkan ganti satuan?`)) throw error;
+      const body = JSON.parse(options.body || '{}');
+      body.confirmUnitChange = true;
+      return api(path, { ...options, body: JSON.stringify(body) });
+    }
   }
 
   function toast(message) {
@@ -106,13 +128,22 @@
     }
   }
 
+  // Bos Cyo, 2026-09-26: di gerai baru (Mandala) "milih kategori barangnya
+  // aja ga keluar" -- dropdown Kategori hanya berisi kategori yang sudah ada
+  // di gerai itu, dan gerai baru belum punya satu pun. Dropdown kosong +
+  // atribut required = form bahkan tidak bisa disubmit. Server sudah
+  // otomatis membuat kategori yang belum ada saat barang disimpan, jadi
+  // cukup beri kolom untuk mengetik kategori baru.
   function mountProductFields() {
     const form = el('productForm');
     const category = el('productCategory')?.closest('label');
     if (!form || !category || el('productMasterFields')) return;
     mountPurchaseCostFields();
     mountProductCodeFields();
+    el('productCategory')?.removeAttribute('required');
     category.insertAdjacentHTML('afterend', `
+      <label class="admin-field">Kategori baru <span class="field-note">optional -- ketik kalau kategorinya belum ada di pilihan atas</span><input id="productCategoryNew" maxlength="60" placeholder="mis. Minuman" /></label>`);
+    el('productCategoryNew').closest('label').insertAdjacentHTML('afterend', `
       <div id="productMasterFields">
         <details id="productOperationalDetails" class="admin-card" style="padding:12px;margin:0 0 12px">
           <summary style="cursor:pointer;font-weight:900">Stok & pengaturan lanjutan</summary>
@@ -380,6 +411,7 @@
 
   function resetExtendedForm() {
     state.activeProductId = 0;
+    if (el('productCategoryNew')) el('productCategoryNew').value = '';
     renderEditorFields(null);
   }
 
@@ -409,11 +441,13 @@
     try {
       if (!state.editor) await loadEditor();
       const productId = Number(el('productId')?.value || 0);
+      const category = el('productCategoryNew')?.value.trim() || el('productCategory').value;
+      if (!category) throw new Error('Pilih kategori, atau ketik Kategori baru.');
       const payload = {
         name: el('productName').value,
         purchasePrice: Number(String(el('productPurchasePrice').value).trim().replace(',', '.')),
         price: Number(String(el('productPrice').value).trim().replace(',', '.')),
-        category: el('productCategory').value,
+        category,
         emoji: '🥞',
         imageData: productImagePayload(),
         isActive: el('productActive').checked,
@@ -431,7 +465,7 @@
         payload.productCode = el('productCode').value.trim();
         payload.productMasterName = el('productMasterName')?.value.trim() || '';
       }
-      const response = await api(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
+      const response = await apiWithUnitChangeConfirm(productId ? `/api/admin/master/products/editor/${productId}` : '/api/admin/master/products/editor', {
         method: productId ? 'PATCH' : 'POST',
         body: JSON.stringify(payload)
       });
@@ -441,7 +475,11 @@
       resetExtendedForm();
       enhanceProductRows();
       renderProductKinds();
-      if (typeof loadCatalog === 'function') loadCatalog(true).catch(() => {});
+      // Best-effort refresh sesudah simpan barang berhasil -- toast sukses
+      // barangnya sudah tampil di baris berikutnya, jadi kegagalan di sini
+      // cuma di-log (bukan toast lagi, supaya tidak menimpa toast sukses
+      // yang baru saja tampil), tapi tetap tidak ditelan diam-diam total.
+      if (typeof loadCatalog === 'function') loadCatalog(true).catch(error => console.error('admin-product-policy: post-save catalog refresh failed', error));
       toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.');
     } catch (error) {
       toast(error.message);
@@ -607,12 +645,17 @@
   // dipakai gerai ini. Ini murni UI -- semua logic fork/aktivasi/resep ada
   // di backend (src/product-master.js), panel ini cuma memanggil dan
   // menampilkan hasilnya.
+  // Bos Cyo, 2026-09-26: "dari master barang mandala buat ngeliat master
+  // barang entity aja ga bisa". Panel ini dulu disisipkan SESUDAH kotak
+  // Master barang sebagai anak grid ketiga -- di desktop ia jatuh ke kolom
+  // KIRI, di bawah form Tambah barang yang punya scroll sendiri, jadi tidak
+  // pernah kelihatan dari kotak Master barang. Sekarang ditaruh DI DALAM
+  // kotak Master barang, persis di bawah daftar barang gerai.
   function mountCatalogPanel() {
     const list = el('productList');
-    const card = list?.closest('.admin-card');
-    if (!card || el('productMasterCatalogCard')) return;
-    card.insertAdjacentHTML('afterend', `
-      <div id="productMasterCatalogCard" class="admin-card" style="margin-top:14px">
+    if (!list || el('productMasterCatalogCard')) return;
+    list.insertAdjacentHTML('afterend', `
+      <div id="productMasterCatalogCard" style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--line)">
         <div class="list-head">
           <div>
             <div class="admin-eyebrow">Master Entity</div>
@@ -646,7 +689,7 @@
       const usedHere = entry.usedByStores.some(usage => usage.storeCode === storeCode);
       const otherStores = entry.usedByStores.filter(usage => usage.storeCode !== storeCode);
       return `
-      <div class="master-row contact-row" data-catalog-entry="${esc(entry.id)}">
+      <div class="master-row${entry.imageData ? '' : ' contact-row'}" data-catalog-entry="${esc(entry.id)}">
         ${entry.imageData ? `<img class="master-thumb" src="${esc(entry.imageData)}" alt="${esc(entry.name || entry.code)}" />` : ''}
         <div class="master-main">
           <strong>${esc(entry.code)}${entry.name ? ` · ${esc(entry.name)}` : ''}</strong>
@@ -744,16 +787,33 @@
     } catch (error) { toast(error.message); }
   }
 
+  // Bos Cyo, 2026-09-22: Katalog Kode Barang Entity tidak muncul sama sekali
+  // (bukan cuma kosong -- judulnya pun tidak ada) di gerai Mandala, padahal
+  // entity_id-nya sama dengan Beji dkk yang normal. mountCatalogPanel() ada
+  // di urutan KEEMPAT dari lima mount*() yang dipanggil berurutan tanpa
+  // isolasi error sama sekali -- satu exception di salah satu mount*()
+  // sebelumnya (mis. karena state gerai yang datanya kosong/tidak lengkap
+  // memicu sesuatu yang belum kelihatan dari baca kode) diam-diam
+  // menghentikan SISANYA, termasuk mountCatalogPanel(), tanpa toast atau
+  // jejak apa pun ke user -- persis gejala yang dilaporkan. Setiap langkah
+  // sekarang diisolasi try/catch supaya satu mount yang gagal tidak pernah
+  // menggagalkan yang lain, dan error-nya di-log (bukan ditelan diam-diam)
+  // supaya kejadian serupa berikutnya kelihatan dari console, bukan cuma
+  // dari "kok kosong" yang susah dilacak.
+  function mountStep(name, fn) {
+    try { fn(); } catch (error) { console.error(`admin-product-policy: mount step "${name}" failed`, error); }
+  }
+
   function mount() {
-    mountProductFields();
-    mountProductKindMaster();
-    mountAccountingPortal();
-    mountCatalogPanel();
-    removeDuplicateClassificationPanel();
+    mountStep('mountProductFields', mountProductFields);
+    mountStep('mountProductKindMaster', mountProductKindMaster);
+    mountStep('mountAccountingPortal', mountAccountingPortal);
+    mountStep('mountCatalogPanel', mountCatalogPanel);
+    mountStep('removeDuplicateClassificationPanel', removeDuplicateClassificationPanel);
     const productTab = document.querySelector('[data-tab="products"]');
     productTab?.addEventListener('click', () => setTimeout(() => {
       loadEditor(true).catch(error => toast(error.message));
-      loadCatalog(true).catch(() => {});
+      loadCatalog(true).catch(error => toast(`Katalog Kode Barang Entity gagal dimuat: ${error.message}`));
     }, 0));
     window.addEventListener('product-master-reference-updated', () => loadEditor(true).catch(error => toast(error.message)));
     const list = el('productList');
@@ -762,12 +822,12 @@
     if (gate) new MutationObserver(() => {
       if (gate.classList.contains('hidden')) {
         loadEditor(true).catch(error => toast(error.message));
-        loadCatalog(true).catch(() => {});
+        loadCatalog(true).catch(error => toast(`Katalog Kode Barang Entity gagal dimuat: ${error.message}`));
       }
     }).observe(gate, { attributes: true, attributeFilter: ['class'] });
     if (gate?.classList.contains('hidden')) {
       loadEditor().catch(error => toast(error.message));
-      loadCatalog().catch(() => {});
+      loadCatalog().catch(error => toast(`Katalog Kode Barang Entity gagal dimuat: ${error.message}`));
     }
   }
 

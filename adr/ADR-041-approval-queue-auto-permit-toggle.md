@@ -103,3 +103,39 @@ the Approval Queue area. This ADR is the authoritative amendment to ADR-009
 point 8 — ACC/Reject remain explicit management decisions by default; Auto
 Permit is the one explicit, audited, store-scoped exception a store can opt
 into.
+
+## Amendment 2026-09-25: STOCK_ADJUSTMENT is per-request-type, unconditional
+
+Bos Cyo (verbatim): "kalo untuk penyesuaian stok itu engga usah minta acc an,
+langsung aja ya. kecuali arus barang harus acc an." (Stock Adjustment doesn't
+need ACC, post it directly; Arus Barang still needs ACC.)
+
+This reverses Decision point 2's "not per-request-type" specifically for
+`GOODS_FLOW` with `payload.purpose = 'STOCK_ADJUSTMENT'`:
+
+- `POST /api/cashier/approval-requests/stock-adjustment-batch` now always
+  calls the same posting contract (`applyGroupAccDecision`) immediately after
+  insert, **regardless of `store_approval_settings.auto_permit_enabled`**.
+  A store with the toggle OFF still gets Stock Adjustment posted directly.
+- Plain `GOODS_FLOW` (Arus Barang, no `STOCK_ADJUSTMENT` purpose), `CASH_FLOW`,
+  and `ASSET` are unchanged — they still go through
+  `POST /api/cashier/approval-requests` and still respect the store's Auto
+  Permit toggle exactly as this ADR originally decided.
+- `approved_by_role` for this path is `'SYSTEM'`, not `'AUTO_PERMIT'` — no
+  human account decided to enable it (it is unconditional, not opt-in), so
+  attributing it to whoever last toggled the store's Auto Permit (which may
+  even currently read OFF) would misrepresent the audit trail.
+- The existing stale-snapshot guard (`rejectStaleStockAdjustment`/
+  `checkStockAdjustmentStale`) is unchanged: a Stock Adjustment whose snapshot
+  no longer matches live stock at posting time is still rejected outright,
+  not silently posted against stale data.
+- The management group-decide endpoint (`PATCH
+  /api/management/approval-requests/session/:id`) is kept as the recovery
+  path: if the direct-post attempt fails for a reason other than staleness
+  (an unrecognized posting error), the rows stay `pending_approval`/`unposted`
+  exactly as before, and an Admin can still ACC/Reject them manually.
+
+Accountability is preserved differently than the toggle case: since posting
+is now unconditional, the accountability that matters is the cashier's
+`reason` field on each Stock Adjustment (already mandatory) and the
+`sessionId` grouping (Data Transaksi), not a second human sign-off.

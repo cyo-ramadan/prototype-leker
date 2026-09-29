@@ -11,7 +11,7 @@ const state = {
   orders: [],
   products: [],
   draft: new Map(),
-  token: sessionStorage.getItem('lekerCashierToken')
+  token: localStorage.getItem('lekerCashierToken')
     || (readOnlyPreviewIntent && (localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken')))
     || '',
   cashier: null,
@@ -104,11 +104,94 @@ async function init() {
       state.cashier = payload.cashier;
       await openDashboard();
       return;
-    } catch {
-      clearSession();
+    } catch (error) {
+      // Bos Cyo, 2026-09-22 (kasir Pendem): dulu di sini `catch { clearSession(); }`
+      // TANPA membedakan sebabnya dan TANPA mencatat errornya sama sekali.
+      // Akibatnya satu kegagalan memuat data -- yang sebenarnya tidak ada
+      // hubungannya dengan hak akses -- menghapus SELURUH token karyawan di
+      // browser (kasir, Owner, Admin Gerai, Entity Admin sekaligus, lewat
+      // lekerClearStaffSession) lalu menampilkan form login. Itulah kenapa
+      // gagalnya memuat daftar pesanan Pendem kelihatan persis seperti
+      // "tidak bisa login", dan kenapa Entity Admin yang cuma mengintip
+      // halaman kasir ikut terlempar keluar.
+      //
+      // Sekarang sesi HANYA dihapus kalau server memang menolak identitasnya
+      // (401). Kegagalan lain ditampilkan apa adanya supaya kelihatan, bukan
+      // ditelan diam-diam -- sesi yang masih sah dibiarkan hidup.
+      if (error?.status === 401) {
+        clearSession();
+      } else {
+        console.error('Gagal memuat halaman kasir:', error);
+        toast(`Halaman kasir gagal dimuat: ${error?.message || 'kesalahan tidak diketahui'}`);
+        el('cashierLoginMessage').textContent = `Halaman kasir gagal dimuat: ${error?.message || 'kesalahan tidak diketahui'}`;
+      }
     }
   }
   showLogin();
+}
+
+// Bos Cyo, 2026-09-22: kasir Pendem tercatat login berhasil berkali-kali di
+// server (cashier_sessions) tapi tidak pernah benar-benar masuk. Akarnya:
+// halaman /cashier punya form login SENDIRI, terpisah dari form di halaman
+// depan (public/auth-entry-split.js) -- dua jalur paralel yang tidak
+// nyambung. Form di sini dari dulu cuma menyimpan token, TIDAK PERNAH
+// menulis lekerStaffSessionMeta atau lease browser (public/staff-tab-
+// lock.js), padahal staff-tab-lock.js MEMBACA keduanya untuk tahu "siapa
+// yang sedang pegang browser ini". Kalau sebelumnya ada kasir lain yang
+// sesinya berakhir tanpa logout resmi (tab/browser ditutup begitu saja --
+// hal biasa, bukan kesalahan kasir), lekerStaffSessionMeta gerai itu masih
+// menyimpan IDENTITAS KASIR LAMA. Kasir baru login lewat form ini berhasil
+// di server, tapi staff-tab-lock.js yang sudah telanjur jalan sejak
+// halaman dimuat (sebelum form ini disubmit) tetap membandingkan ke
+// identitas lama itu -- begitu heartbeat-nya jalan, dia bisa saja
+// menganggap "user lain" dan menendang balik ke login, walau yang login
+// barusan adalah kasir yang benar. Sekarang login lewat sini menulis meta +
+// lease yang sama seperti jalur satunya, lalu reload halaman supaya staff-
+// tab-lock.js membaca ulang dari awal dengan identitas yang benar --
+// bukan named coba nyambungin state yang sudah kadung berjalan.
+// Bos Cyo, 2026-09-22: kasir Pendem masih kepental balik ke login sesudah
+// dua perbaikan sebelumnya, 4x berturut-turut dalam semenit -- pola PASTI
+// gagal, bukan sesekali (race). crypto.randomUUID() baru didukung luas
+// sejak ~2022 dan bisa tidak ada di browser/WebView lawas; kalau melempar
+// TypeError di sini, seluruh fungsi ini berhenti SEBELUM location.reload()
+// sempat jalan -- pengguna cuma lihat error di layar login yang sama,
+// persis "kepental balik ke login". randomId() tidak pernah melempar, dan
+// ID-nya cuma perlu unik per login, tidak perlu acak kriptografis.
+const randomId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try { return crypto.randomUUID(); } catch {}
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+};
+
+function persistStaffSessionAndReload(cashier) {
+  // Token kasir (lekerCashierToken) sudah ditulis oleh login() SEBELUM
+  // memanggil fungsi ini -- login itu sendiri sudah sah di server pada
+  // titik ini. Bookkeeping meta+lease di bawah cuma fitur tambahan (login
+  // lintas-tab); kalau itu melempar apa pun, jangan sampai ikut menggagalkan
+  // login yang sudah sah -- ditangkap supaya location.reload() tetap selalu
+  // jalan.
+  try {
+    localStorage.setItem('lekerStaffSessionMeta', JSON.stringify({
+      id: cashier.id,
+      role: 'CASHIER',
+      name: cashier.employeeName || cashier.username || '',
+      storeCode: cashier.store?.code || ''
+    }));
+    const handoffId = randomId();
+    sessionStorage.setItem('lekerStaffHandoffId', handoffId);
+    localStorage.setItem('lekerStaffBrowserLease', JSON.stringify({
+      owner: handoffId,
+      stage: 'handoff',
+      staffId: cashier.id,
+      role: 'CASHIER',
+      name: cashier.employeeName || cashier.username || '',
+      updatedAt: Date.now()
+    }));
+  } catch (storageError) {
+    console.error('Gagal menulis status sesi lintas-tab, lanjut login tanpa fitur itu:', storageError);
+  }
+  location.reload();
 }
 
 async function login(event) {
@@ -119,11 +202,8 @@ async function login(event) {
       method: 'POST',
       body: JSON.stringify({ username: el('cashierUsername').value, password: el('cashierPassword').value })
     });
-    state.token = payload.token;
-    state.cashier = payload.cashier;
-    sessionStorage.setItem('lekerCashierToken', state.token);
-    el('cashierPassword').value = '';
-    await openDashboard();
+    localStorage.setItem('lekerCashierToken', payload.token);
+    persistStaffSessionAndReload(payload.cashier);
   } catch (error) {
     el('cashierLoginMessage').textContent = error.message;
   }
@@ -146,7 +226,9 @@ function clearSession() {
   state.readOnly = false;
   state.voucherCustomer = null;
   state.rodaOfficialResult = null;
-  sessionStorage.removeItem('lekerCashierToken');
+  window.lekerClearStaffSession?.();
+  localStorage.removeItem('lekerCashierToken');
+  localStorage.removeItem('lekerStaffSessionMeta');
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
 }
@@ -250,6 +332,13 @@ async function loadDrawer() {
   state.drawer = payload.drawer || null;
   state.canWrite = Boolean(payload.canWrite);
   state.lastClosingAmount = payload.lastClosingAmount == null ? null : Number(payload.lastClosingAmount);
+  state.closePermitPending = false;
+  if (state.drawer && !state.canWrite && !state.readOnly) {
+    try {
+      const permits = (await api('/api/cashier/drawer/close-permits')).permits || [];
+      state.closePermitPending = permits.some(permit => permit.drawerSessionId === state.drawer.id && permit.status === 'PENDING');
+    } catch {}
+  }
   renderDrawer();
   renderOrders();
   renderDraft();
@@ -273,6 +362,7 @@ function renderDrawer() {
     // Owner/Admin Gerai/Entity Admin yang memang tidak pernah boleh menulis
     // apa pun status lacinya (lihat requireCashierOrReadOnlyManagement).
     el('openDrawerBtn').disabled = Boolean(state.readOnly);
+    el('openDrawerBtn').textContent = '🔓 Buka Laci';
     el('openDrawerBtn').classList.remove('hidden');
     el('closeDrawerBtn').classList.add('hidden');
   } else if (state.canWrite) {
@@ -284,12 +374,27 @@ function renderDrawer() {
     el('closeDrawerBtn').classList.remove('hidden');
   } else {
     el('drawerTitle').textContent = `Laci dipegang ${drawer.cashierName}`;
-    el('drawerStatusText').textContent = `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order, tetapi perubahan data dikunci.`;
+    el('drawerStatusText').textContent = state.closePermitPending
+      ? `Pengajuan tutup laci ${drawer.cashierName} sedang menunggu ACC Admin.`
+      : `Akun ${state.cashier.employeeName} tetap bisa melihat menu dan order. Klik Buka Laci untuk mengajukan tutup laci ini kalau memang sudah waktumu jaga.`;
     badge.textContent = 'READ ONLY';
     badge.classList.add('occupied');
-    el('openDrawerBtn').classList.remove('hidden');
-    el('openDrawerBtn').disabled = true;
     el('closeDrawerBtn').classList.add('hidden');
+    el('openDrawerBtn').classList.remove('hidden');
+    // Bos Cyo, 2026-09-19 (koreksi UX): tombol pengajuan tutup laci TIDAK
+    // lagi tombol terpisah -- klik "Buka Laci" yang sama, saat lacinya
+    // dipegang orang lain, yang memicu alur konfirmasi -> pengajuan. Read-
+    // only management visitor (Owner/Admin/Entity Admin) tidak pernah
+    // relevan mengajukan ini -- mereka bukan yang akan mulai shift.
+    if (state.readOnly) {
+      el('openDrawerBtn').disabled = true;
+      el('openDrawerBtn').textContent = '🔓 Buka Laci';
+    } else {
+      el('openDrawerBtn').disabled = state.closePermitPending;
+      el('openDrawerBtn').textContent = state.closePermitPending
+        ? '📨 Menunggu ACC Admin...'
+        : '🔓 Buka Laci';
+    }
   }
 
   const purchaseButton = el('purchaseBtn');
@@ -712,7 +817,16 @@ async function submitDialog(event) {
 // dibahas kasir langsung dengan akuntan di luar sistem ini, bukan lewat
 // permit otomatis. Laci pertama di gerai (belum ada saldo akhir sebelumnya)
 // tetap manual, karena tidak ada "kemarin" untuk dilanjutkan.
+// Bos Cyo, 2026-09-19 (koreksi UX): tombol pengajuan tutup laci sebelumnya
+// tidak lagi tombol terpisah -- "Buka Laci" yang sama dipakai untuk dua
+// hal: benar-benar membuka laci kosong, ATAU (kalau lacinya masih dipegang
+// kasir lain) memicu alur konfirmasi -> pengajuan tutup paksa ke Admin.
 function openDrawerDialog() {
+  const drawer = state.drawer;
+  if (drawer && !state.canWrite) {
+    if (state.readOnly) return;
+    return requestOpenOccupiedDrawer(drawer);
+  }
   const hasPrevious = state.lastClosingAmount != null;
   const openingField = hasPrevious
     ? `<div class="field"><label>Saldo awal laci</label><input id="dialogOpeningAmount" class="text-input" type="number" value="${state.lastClosingAmount}" readonly disabled /><p class="muted">Melanjutkan saldo akhir laci sebelumnya. Kalau kas fisik tidak cocok, bahas langsung dengan akuntan.</p></div>`
@@ -748,6 +862,52 @@ function closeDrawerDialog() {
       });
       await loadDrawer();
       toast('Laci ditutup');
+      return true;
+    }
+  });
+}
+
+// Bos Cyo, 2026-09-19: "kalo ada cs emang jam kerjanya sebagai kasir harus
+// buka laci itu maka dia itu klik buka lacinya request, lalu ada pertanyaan,
+// laci sedang dibuka oleh cs ... apakah kamu yakin mau buka laci? kalo dia
+// yes, ada pertanyaan lagi, apakah kamu sudah didepan laci, masukkan uang
+// laci saat ini." Dua konfirmasi berjenjang: native confirm() dulu (yakin
+// mau ajukan), baru dialog isi saldo kas fisik (formalitas -- begitu
+// disubmit langsung terkirim jadi pengajuan ke Admin, tidak ada langkah
+// ketiga). Sudah ada pengajuan pending untuk laci ini -- tidak buka apa pun
+// lagi, cukup kasih tahu statusnya, supaya tidak ajuin berkali-kali.
+function requestOpenOccupiedDrawer(drawer) {
+  if (state.closePermitPending) {
+    toast(`Pengajuan tutup laci ${drawer.cashierName} masih menunggu ACC Admin.`);
+    return;
+  }
+  if (!confirm(`Laci sedang dibuka oleh ${drawer.cashierName}. Apakah kamu yakin mau mengajukan buka laci ini?`)) return;
+  requestClosePermitDialog(drawer);
+}
+
+// Nominal di sini adalah hasil hitung fisik kasir yang mengajukan (laci
+// sudah ada di tangannya, pemegang lama sudah tidak di tempat) -- begitu
+// Admin ACC (atau Auto Permit gerai ini sedang aktif, langsung tanpa
+// menunggu Admin), angka ini yang menutup laci lama, setoran (kalau ada)
+// tetap atas nama pemegang lama, bukan yang mengajukan.
+function requestClosePermitDialog(drawer) {
+  const previousHolder = drawer.cashierName;
+  openDialog({
+    eyebrow: state.cashier?.store.code || 'Gerai',
+    title: `Konfirmasi Buka Laci ${previousHolder}`,
+    body: `<p class="muted">Pastikan kamu sudah di depan laci sekarang. Masukkan saldo kas fisik laci saat ini -- laci ${previousHolder} baru benar-benar tertutup setelah Admin meng-ACC pengajuan ini (atau langsung, kalau gerai ini sudah mengaktifkan Auto Permit).</p><div class="field"><label>Saldo kas fisik laci saat ini</label><input id="dialogPermitClosingAmount" class="text-input" type="number" min="0" step="1" required /></div><div class="field"><label>Setoran (opsional, atas nama ${previousHolder})</label><input id="dialogPermitDepositAmount" class="text-input" type="number" min="0" step="1" value="0" /></div><div class="field"><label>Alasan / keterangan <span class="muted">optional</span></label><textarea id="dialogPermitReason" rows="2" maxlength="500" placeholder="Contoh: sudah waktu shift saya, ${previousHolder} sudah pulang"></textarea></div>`,
+    submitText: 'AJUKAN KE ADMIN',
+    onSubmit: async () => {
+      const result = await api('/api/cashier/drawer/close-permits', {
+        method: 'POST',
+        body: JSON.stringify({
+          closingAmount: Number(el('dialogPermitClosingAmount').value),
+          depositAmount: Number(el('dialogPermitDepositAmount').value || 0),
+          reason: el('dialogPermitReason').value
+        })
+      });
+      await loadDrawer();
+      toast(result.autoPermit ? 'Laci langsung ditutup (Auto Permit aktif)' : 'Pengajuan terkirim, menunggu ACC Admin');
       return true;
     }
   });

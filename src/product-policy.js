@@ -44,6 +44,17 @@ export async function resolveLinkedRecipe(db, storeId, productId, linkedRecipeId
     LIMIT 1
   `).bind(id, storeId, productId).first();
   if (!recipe) return { ok: false, error: 'Resep linked harus resep aktif dengan hasil barang yang sama.' };
+  // Bos Cyo, 2026-09-24: "yang bisa dipasang di link dadakan hanyalah yang
+  // hasilnya 1. resep hasilnya banyak ga bisa dipasang di link dadakan."
+  // Resep hasil banyak (mis. Larutan Teh 2000 ml) tetap boleh dibuat untuk
+  // produksi manual, cuma tidak boleh jadi link dadakan.
+  if (Number(recipe.output_quantity) !== 1) {
+    return {
+      ok: false,
+      code: 'DADAKAN_RECIPE_OUTPUT_MUST_BE_ONE',
+      error: `Resep ini menghasilkan ${Number(recipe.output_quantity)}, sedangkan link dadakan hanya boleh resep yang hasilnya 1 (jual 1 = bikin 1).`
+    };
+  }
   return {
     ok: true,
     linkedRecipeId: recipe.id,

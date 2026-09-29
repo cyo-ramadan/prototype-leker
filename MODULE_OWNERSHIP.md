@@ -12,12 +12,14 @@ write access. An agent may read anything.
 | Module | Owner | Source | Contract / rules |
 |---|---|---|---|
 | **architecture** | `hana` | `adr/`, `contracts/` | ADR-030, ADR-040, Constitution, Integration Contract Standard |
-| **accounting** | *unassigned* | `src/accounting-*.js` | ADR-017, ADR-019, ADR-029, `contracts/accounting-*.md` |
+| **accounting** | *unassigned* | `src/accounting-*.js` (termasuk `src/accounting-standardize.js`, `src/accounting-journal-schedules.js`, `migrations/0124_*`, `migrations/0125_*`) | ADR-017, ADR-019, ADR-029, ADR-047, ADR-049, `contracts/accounting-*.md` |
 | **accounting-settings** | *unassigned* | `src/accounting-settings.js`, `src/warehouse-settings.js` | ADR-017, `contracts/accounting-settings-v1.md` |
 | **operasional** | `karen` | `src/cashier-*.js`, `src/orders*.js`, `src/operational-posting.js` | ADR-029, `contracts/cashier-transaction-composition-v1.md` |
 | **produksi** | `elle` | `src/cashier-production.js`, `src/stock-production.js`, `src/manufacturing-master.js` | ADR-012, ADR-013 |
-| **inventory-costing** | *unassigned* | `src/admin-stock.js`, `src/product-*.js` | ADR-015, ADR-020 |
+| **inventory-costing** | *unassigned* | `src/admin-stock.js`, `src/product-*.js`, `migrations/0126_*` | ADR-015, ADR-020, `KNOWN_ISSUES.md` "Ganti Satuan Barang yang Sudah Punya Histori" |
 | **approval** | *unassigned* | `src/approval-queue.js`, `src/transaction-void-permits.js` | ADR-009, ADR-022 |
+| **rekening-bersama** | *unassigned* | `src/entity-shared-accounts.js`, `migrations/0111_*` | ADR-045 |
+| **hutang-pembayaran** | `hana` | `src/hutang-piutang.js`, `src/operational-expense-payables.js`, `src/admin-operational-expense.js`, `src/operational-deposits.js`, `src/accounting-admin-bridge.js`, `migrations/0120_*`, `migrations/0121_*`, `migrations/0122_*`, `migrations/0123_*` | `KNOWN_ISSUES.md` "Hutang, Pembayaran, dan Laporan Beban", "Uang Muka / Deposit", `ADR-046` |
 | **identity-tenancy** | `hana` | `src/stores.js`, `src/owner-auth.js`, `src/*-auth.js`, `migrations/0039_*` | ADR-030, ADR-001, ADR-006 |
 | **customer** | *unassigned* | `src/customers.js`, `src/customer-*.js` | ADR-002, ADR-005, ADR-026 |
 | **game** | *unassigned* | `src/game.js`, `game_*` tables | ADR-042, `contracts/game-module-v1.md` |

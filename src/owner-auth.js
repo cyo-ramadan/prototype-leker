@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { listStores, normalizeStoreCode, resolveStore } from './stores.js';
 import { secureTokenEqual } from './debugger-control-plane.js';
+import { TENANT_POLICY_DEFINITIONS, listTenantPolicySettings, setTenantPolicySetting } from './tenant-policy.js';
 
 // Identitas mesin buat agen (Hana/Claude Code, dst) yang menulis lewat
 // /api/admin/* -- Bos Cyo, 2026-09-16, setelah menolak pendekatan awal
@@ -435,6 +436,36 @@ export async function handleOwnerApi(request, env, pathname) {
     const id = `tenant_${crypto.randomUUID()}`;
     await db.prepare(`INSERT INTO tenants (id, name, status, created_at) VALUES (?, ?, 'ACTIVE', CURRENT_TIMESTAMP)`).bind(id, name).run();
     return json({ ok: true, tenants: await listTenants(db) }, 201);
+  }
+
+  // Bos Cyo, 2026-09-24: "setting2 sebenernya aku siapkan untuk beda tenant
+  // apabila mereka memiliki kebijakan kusus ... intinya opsi on/off nya itu
+  // adalah kebijakan suatu tenant." Lihat src/tenant-policy.js untuk daftar
+  // saklar yang dikenal -- panel ini generik, menambah saklar baru cukup
+  // menambah satu entri di TENANT_POLICY_DEFINITIONS, tidak perlu endpoint
+  // baru.
+  const policySettingsMatch = pathname.match(/^\/api\/owner\/tenants\/([^/]+)\/policy-settings$/);
+  if (policySettingsMatch) {
+    const tenantId = decodeURIComponent(policySettingsMatch[1]);
+    const tenant = await db.prepare(`SELECT id FROM tenants WHERE id = ?`).bind(tenantId).first();
+    if (!tenant) return json({ error: 'Tenant tidak ditemukan.' }, 404);
+
+    if (request.method === 'GET') {
+      return json({ tenantId, settings: await listTenantPolicySettings(db, tenantId) });
+    }
+
+    if (request.method === 'PATCH') {
+      const body = await readJson(request);
+      if (!body.ok) return json({ error: 'Payload pengaturan tidak valid.' }, 400);
+      const key = text(body.value?.key, 60);
+      if (!TENANT_POLICY_DEFINITIONS.some(def => def.key === key)) {
+        return json({ error: 'Kunci pengaturan tidak dikenal.', code: 'UNKNOWN_POLICY_KEY' }, 400);
+      }
+      await setTenantPolicySetting(db, tenantId, key, body.value?.value === true, { role: 'OWNER', id: auth.owner.id });
+      return json({ ok: true, settings: await listTenantPolicySettings(db, tenantId) });
+    }
+
+    return json({ error: 'Method tidak didukung.' }, 405);
   }
 
   if (request.method === 'GET' && pathname === '/api/owner/entities') {

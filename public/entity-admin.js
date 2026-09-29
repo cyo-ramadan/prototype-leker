@@ -4,6 +4,7 @@ const entityAdminState = {
   stores: [],
   accounts: [],
   journals: [],
+  sharedAccounts: [],
   productMasters: [],
   employees: []
 };
@@ -66,9 +67,11 @@ function switchEntityTab(name) {
   document.querySelectorAll('[data-entity-tab]').forEach(button => button.classList.toggle('active', button.dataset.entityTab === name));
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
+  entityAdminEl('entityTab-sharedaccounts')?.classList.toggle('active', name === 'sharedaccounts');
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
+  if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
@@ -88,7 +91,187 @@ function anyEntityStoreCode() {
   return entityAdminState.stores[0]?.code || '';
 }
 
+// --- Rekening Bersama -------------------------------------------------------
+// Bos Cyo, 2026-09-20: satu Entity boleh punya lebih dari satu Rekening
+// Bersama (mis. "Rekening Maxi Malang", "Rekening Bos Cyo", "Hutang Bos
+// Cyo"), dipakai lintas semua gerai di entity ini. Panel ini murni
+// create/rename + lihat rincian (total + breakdown per gerai + transfer yang
+// masih in-transit); transfer antar gerai sendiri dikerjakan dari Admin
+// Gerai (src/entity-shared-accounts.js, admin-shared-accounts.js) karena itu
+// aksi operasional milik gerai pengirim/penerima, bukan konfigurasi entity.
+
+async function loadEntitySharedAccounts() {
+  const payload = await entityAdminApi(`/api/entity/shared-accounts?store=${encodeURIComponent(anyEntityStoreCode())}`);
+  entityAdminState.sharedAccounts = payload.accounts || [];
+  renderEntitySharedAccounts();
+}
+
+function renderEntitySharedAccounts() {
+  const rows = entityAdminState.sharedAccounts || [];
+  entityAdminEl('entitySharedAccountCount').textContent = rows.length;
+  entityAdminEl('entitySharedAccountList').innerHTML = rows.length ? rows.map(account => `
+    <div class="master-row contact-row ${account.isActive ? '' : 'inactive'}">
+      <div class="master-main">
+        <strong>${entityAdminEscape(account.name)}</strong>
+        <div class="master-meta">${account.isActive ? 'Aktif' : 'Nonaktif'}</div>
+      </div>
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-view-shared-account="${entityAdminEscape(account.id)}">Rincian</button>
+        <button class="mini-btn" type="button" data-toggle-shared-account="${entityAdminEscape(account.id)}">${account.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada Rekening Bersama di entity ini.</div>';
+
+  document.querySelectorAll('[data-view-shared-account]').forEach(button => button.onclick = () => viewEntitySharedAccount(button.dataset.viewSharedAccount));
+  document.querySelectorAll('[data-toggle-shared-account]').forEach(button => button.onclick = () => toggleEntitySharedAccount(button.dataset.toggleSharedAccount));
+}
+
+async function toggleEntitySharedAccount(id) {
+  const account = (entityAdminState.sharedAccounts || []).find(item => item.id === id);
+  if (!account) return;
+  try {
+    await entityAdminApi(`/api/entity/shared-accounts/${encodeURIComponent(id)}?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive: !account.isActive })
+    });
+    await loadEntitySharedAccounts();
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function viewEntitySharedAccount(id) {
+  const card = entityAdminEl('entitySharedAccountViewCard');
+  try {
+    const view = await entityAdminApi(`/api/entity/shared-accounts/${encodeURIComponent(id)}/view?store=${encodeURIComponent(anyEntityStoreCode())}`);
+    entityAdminEl('entitySharedAccountViewTitle').textContent = `Rincian -- ${view.account.name}`;
+    const breakdownRows = view.storeBreakdown.map(row => `
+      <div class="master-row contact-row">
+        <div class="master-main"><strong>${entityAdminEscape(row.storeCode)} · ${entityAdminEscape(row.storeName)}</strong></div>
+        <div class="master-meta">Rp${entityReportRupiah(row.balance)}</div>
+      </div>`).join('') || '<div class="empty">Belum ada gerai dengan saldo di rekening ini.</div>';
+    const inTransitRows = view.inTransit.transfers.map(transfer => `
+      <div class="master-row contact-row">
+        <div class="master-main"><strong>${entityAdminEscape(transfer.fromStoreCode)} &rarr; ${entityAdminEscape(transfer.toStoreCode)}</strong><div class="master-meta">${entityAdminEscape(transfer.reason || '-')}</div></div>
+        <div class="master-meta">Rp${entityReportRupiah(transfer.amount)}</div>
+      </div>`).join('') || '<div class="empty">Tidak ada transfer yang masih menunggu diterima.</div>';
+    entityAdminEl('entitySharedAccountViewBody').innerHTML = `
+      <div class="admin-tip" style="margin-bottom:12px"><strong>Total rekening: Rp${entityReportRupiah(view.total)}</strong> (di luar Akuntansi -- murni tracking operasional)</div>
+      <h3>Komposisi per gerai</h3>
+      <div style="margin-bottom:14px">${breakdownRows}</div>
+      <h3>Sedang transfer (in transit) -- total Rp${entityReportRupiah(view.inTransit.total)}</h3>
+      <div>${inTransitRows}</div>`;
+    card.style.display = '';
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+entityAdminEl('entitySharedAccountForm')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await entityAdminApi(`/api/entity/shared-accounts?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'POST',
+      body: JSON.stringify({ name: entityAdminEl('entitySharedAccountName').value })
+    });
+    entityAdminEl('entitySharedAccountForm').reset();
+    await loadEntitySharedAccounts();
+  } catch (error) { entityAdminToast(error.message); }
+});
+
+entityAdminEl('entitySharedAccountViewClose')?.addEventListener('click', () => {
+  entityAdminEl('entitySharedAccountViewCard').style.display = 'none';
+});
+
 // --- Master Barang Entity -------------------------------------------------
+
+// Kompresi foto sebelum dikirim -- sama persis pola imageFileToDataUrl di
+// admin.js (maxSide 800, quality .76 dipakai buat foto barang di sana),
+// diduplikasi kecil di sini karena entity-admin.html tidak memuat admin.js.
+async function entityProductMasterImageToDataUrl(file) {
+  if (!file) return '';
+  if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar.');
+  const source = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Gagal membaca gambar.'));
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Gambar tidak bisa dibuka.'));
+    img.src = source;
+  });
+  const maxSide = 800;
+  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', 0.76);
+}
+
+// Format sama persis admin-product-policy.js (Katalog Kode Barang Entity di
+// Admin Gerai): satu bahan per baris, "nama bahan | takaran (opsional)".
+function parseEntityRecipeEditorText(value) {
+  return String(value || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    const [ingredientLabel, quantityLabel = ''] = line.split('|').map(part => part.trim());
+    return { ingredientLabel, quantityLabel };
+  }).filter(component => component.ingredientLabel);
+}
+
+async function submitEntityProductMasterForm(event) {
+  event.preventDefault();
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) return entityAdminToast('Belum ada gerai di entity ini.');
+  try {
+    const photoFile = entityAdminEl('entityProductMasterPhoto').files[0];
+    const imageDataUrl = photoFile ? await entityProductMasterImageToDataUrl(photoFile) : '';
+    const recipeComponents = parseEntityRecipeEditorText(entityAdminEl('entityProductMasterRecipe').value);
+    await entityAdminApi(`/api/admin/product-masters?store=${encodeURIComponent(storeCode)}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        code: entityAdminEl('entityProductMasterCode').value,
+        name: entityAdminEl('entityProductMasterName').value,
+        imageData: imageDataUrl,
+        recipeComponents
+      })
+    });
+    entityAdminEl('entityProductMasterForm').reset();
+    await loadEntityProductMasters();
+    entityAdminToast('Kode Barang diupload');
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function saveEntityProductMasterRecipe(masterId) {
+  const textarea = document.querySelector(`[data-entity-recipe-editor-input="${masterId}"]`);
+  const components = parseEntityRecipeEditorText(textarea?.value);
+  try {
+    await entityAdminApi(`/api/admin/product-masters/${encodeURIComponent(masterId)}/recipe-components?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'PUT',
+      body: JSON.stringify({ components })
+    });
+    await loadEntityProductMasters();
+    entityAdminToast('Resep acuan disimpan');
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function editEntityProductMaster(masterId) {
+  const entry = (entityAdminState.productMasters || []).find(item => item.id === masterId);
+  if (!entry) return;
+  const name = prompt('Nama (label internal):', entry.name || '');
+  if (name === null) return;
+  const storeCode = anyEntityStoreCode();
+  try {
+    await entityAdminApi(`/api/admin/product-masters/${encodeURIComponent(masterId)}?store=${encodeURIComponent(storeCode)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
+    });
+    await loadEntityProductMasters();
+    entityAdminToast('Kode Barang diperbarui');
+  } catch (error) { entityAdminToast(error.message); }
+}
 
 async function loadEntityProductMasters() {
   const storeCode = anyEntityStoreCode();
@@ -118,8 +301,21 @@ function renderEntityProductMasters() {
         <strong>${entityAdminEscape(entry.code)}${entry.name ? ` · ${entityAdminEscape(entry.name)}` : ''}</strong>
         <div class="master-meta">Dipakai ${entry.usedByStores.length} gerai${entry.usedByStores.length ? `: ${entry.usedByStores.map(u => entityAdminEscape(u.storeCode)).join(', ')}` : ''}</div>
         <div class="master-meta">Resep acuan: ${renderEntityProductMasterRecipeList(entry)}</div>
+        <div class="master-meta"><button class="mini-btn" type="button" data-toggle-entity-recipe="${entityAdminEscape(entry.id)}">✎ Edit resep acuan</button></div>
+        <div data-entity-recipe-editor="${entityAdminEscape(entry.id)}" class="hidden" style="margin-top:8px">
+          <textarea data-entity-recipe-editor-input="${entityAdminEscape(entry.id)}" rows="3" style="width:100%" placeholder="Satu bahan per baris, format: nama bahan | takaran (takaran opsional)">${entry.recipeReference.map(c => `${c.ingredientLabel}${c.quantityLabel ? ` | ${c.quantityLabel}` : ''}`).join('\n')}</textarea>
+          <button class="mini-btn" type="button" data-save-entity-recipe="${entityAdminEscape(entry.id)}">Simpan resep acuan</button>
+        </div>
       </div>
-    </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-edit-entity-pm="${entityAdminEscape(entry.id)}">Edit</button>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada Kode Barang di entity ini. Upload lewat form di sebelah, atau daftarkan lewat field "Kode Barang" saat menambah/edit barang di Admin Gerai.</div>';
+  list.querySelectorAll('[data-edit-entity-pm]').forEach(button => button.onclick = () => editEntityProductMaster(button.dataset.editEntityPm));
+  list.querySelectorAll('[data-toggle-entity-recipe]').forEach(button => button.addEventListener('click', () => {
+    document.querySelector(`[data-entity-recipe-editor="${button.dataset.toggleEntityRecipe}"]`)?.classList.toggle('hidden');
+  }));
+  list.querySelectorAll('[data-save-entity-recipe]').forEach(button => button.addEventListener('click', () => saveEntityProductMasterRecipe(button.dataset.saveEntityRecipe)));
 }
 
 // --- Karyawan level Entity -------------------------------------------------
@@ -212,8 +408,16 @@ async function runEntityReport() {
   if (!from || !to) { status.textContent = 'Isi dari/sampai tanggal dulu.'; return; }
   if (!codes.length) { status.textContent = 'Pilih minimal satu gerai.'; return; }
   status.textContent = 'Menghitung… (pertama kali untuk periode baru bisa agak lama, sesudahnya instan)';
+  // ?store= WAJIB ada -- server memakainya untuk tahu entity mana yang
+  // memanggil (selectedStore() di src/net-profit-report.js). Tanpa ini,
+  // request jatuh ke gerai default (G001) yang bisa saja bukan bagian dari
+  // entity Bos Cyo sama sekali, jadi seluruh gerai yang diminta ditolak
+  // sebagai "di luar entity" -- laporan kelihatan kosong tanpa pesan yang
+  // jelas kenapa (dibuktikan langsung, 2026-09-17).
+  const callerStoreCode = anyEntityStoreCode();
+  if (!callerStoreCode) { status.textContent = 'Belum ada gerai di entity ini.'; return; }
   try {
-    const payload = await entityAdminApi(`/api/admin/reports/net-profit?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
+    const payload = await entityAdminApi(`/api/admin/reports/net-profit?store=${encodeURIComponent(callerStoreCode)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
     renderEntityReportTable(payload);
     status.textContent = '';
   } catch (error) {
@@ -431,6 +635,7 @@ async function entityAdminLogout() {
   entityAdminState.token = '';
   entityAdminState.entityAdmin = null;
   entityAdminState.stores = [];
+  window.lekerClearStaffSession?.();
   localStorage.removeItem('lekerEntityAdminToken');
   showEntityAdminLogin();
 }
@@ -447,6 +652,7 @@ async function initEntityAdmin() {
   addEntityJournalLine();
   addEntityJournalLine();
   entityAdminEl('entityProductMasterRefresh')?.addEventListener('click', () => loadEntityProductMasters().catch(error => entityAdminToast(error.message)));
+  entityAdminEl('entityProductMasterForm')?.addEventListener('submit', submitEntityProductMasterForm);
   entityAdminEl('entityEmployeeForm')?.addEventListener('submit', saveEntityEmployee);
   entityAdminEl('entityReportRun')?.addEventListener('click', () => runEntityReport());
 

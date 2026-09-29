@@ -212,23 +212,21 @@ async function runCorrectionAndFinalize(env, scope, approved, approverRole, appr
 
   const accounting = executed.accounting || { accountingStatus: 'NOT_REQUIRED' };
   const executionCode = accounting.ok === false ? (accounting.code || 'ACCOUNTING_REVERSAL_FAILED') : '';
-  const executionDetail = accounting.ok === false ? (accounting.error || 'Operational correction selesai, tetapi jurnal pembalik belum berhasil.') : (accounting.detail || 'Correction selesai.');
+  const baseDetail = accounting.ok === false ? (accounting.error || 'Operational correction selesai, tetapi jurnal pembalik belum berhasil.') : (accounting.detail || 'Correction selesai.');
+  const executionDetail = `${baseDetail} · Accounting: ${accounting.accountingStatus || 'NOT_REQUIRED'}${accounting.reversalJournalId ? ` (jurnal pembalik ${accounting.reversalJournalId})` : ''}`;
+  // Production D1 approval_permits tidak punya kolom accounting_status /
+  // original_journal_id / reversal_journal_id (schema drift: migration 0027
+  // tercatat applied, kolomnya tidak ada -- dicek 2026-09-24 lewat
+  // pragma_table_info). Menulis ke kolom itu membuat SETIAP eksekusi yang
+  // berhasil gagal di langkah finalisasi (0 permit pernah EXECUTED). Status
+  // Accounting dicatat di execution_detail; jurnal pembaliknya sendiri tetap
+  // bisa ditelusuri lewat idempotency key LEKER_POS_VOID:<permitId>.
   await env.DB.prepare(`
     UPDATE approval_permits
     SET execution_status = 'EXECUTED', execution_code = ?, execution_detail = ?,
-        accounting_status = ?, original_journal_id = ?, reversal_journal_id = ?,
         executed_at = ?, updated_at = ?
     WHERE id = ?
-  `).bind(
-    executionCode,
-    executionDetail,
-    accounting.accountingStatus || 'NOT_REQUIRED',
-    accounting.originalJournalId || null,
-    accounting.reversalJournalId || null,
-    now,
-    now,
-    approved.id
-  ).run();
+  `).bind(executionCode, executionDetail, now, now, approved.id).run();
 
   return { ok: true, permit: await getPermit(env.DB, approved.id), executed: true, accounting };
 }

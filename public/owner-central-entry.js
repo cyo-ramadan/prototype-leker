@@ -15,8 +15,9 @@
         });
       }
     } catch {}
+    window.lekerClearStaffSession?.();
     localStorage.removeItem('lekerOwnerToken');
-    sessionStorage.removeItem('lekerStaffSessionMeta');
+    localStorage.removeItem('lekerStaffSessionMeta');
     location.href = '/?login=staff';
   }, true);
 })();

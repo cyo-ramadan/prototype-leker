@@ -105,7 +105,7 @@ test('Master Barang Harga Beli (reference field) still accepts Indonesian comma 
 test('Master Barang save handler removes the legacy admin.js submit listener before attaching its own', () => {
   const mountIndex = productPolicyUi.indexOf('function mountProductFields');
   assert.ok(mountIndex > -1);
-  const mountBody = productPolicyUi.slice(mountIndex, mountIndex + 2200);
+  const mountBody = productPolicyUi.slice(mountIndex, productPolicyUi.indexOf('function mountProductKindMaster', mountIndex));
   const removeIndex = mountBody.indexOf("form.removeEventListener('submit', window.saveProduct)");
   const addIndex = mountBody.indexOf("form.addEventListener('submit', saveProductMaster, true)");
   assert.ok(removeIndex > -1, 'must drop the legacy public/admin.js saveProduct listener bound on the same #productForm');

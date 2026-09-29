@@ -3,6 +3,19 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { getAccountingBridgeSummary } from './accounting-pos-bridge.js';
+import { getAccountStandardization, standardizeStoreAccounts } from './accounting-standardize.js';
+import {
+  createRecurringSchedule,
+  createSplitPlan,
+  getSplitOccurrencesForJournal,
+  listPendingOccurrences,
+  listRecurringSchedules,
+  postOccurrenceNow,
+  processDueSchedules,
+  skipOccurrenceNow,
+  splitEligibility,
+  updateRecurringSchedule
+} from './accounting-journal-schedules.js';
 import {
   ACCOUNT_TYPES,
   createAccountingAccount,
@@ -38,10 +51,16 @@ function monthStart(businessDate) {
 
 async function bootstrap(db, store) {
   const businessDate = getJakartaBusinessDate();
-  const [accounts, journals, bridgeSummary] = await Promise.all([
+  // Lazy catch-up (ADR-049) -- tanpa cron/scheduled worker, dicek tiap kali
+  // panel Akuntansi dibuka, pola yang sama dengan forceCloseOverdueSessions.
+  const scheduleRun = await processDueSchedules(db, store, { today: businessDate });
+  const [accounts, journals, bridgeSummary, standardization, recurringSchedules, pendingOccurrences] = await Promise.all([
     listAccountingAccounts(db, store.id),
     listAccountingJournals(db, store.id, { limit: 12 }),
-    getAccountingBridgeSummary(db, store.id)
+    getAccountingBridgeSummary(db, store.id),
+    getAccountStandardization(db, store.id),
+    listRecurringSchedules(db, store.id),
+    listPendingOccurrences(db, store.id, { today: businessDate })
   ]);
   return {
     contract: 'MAXI_ACCOUNTING_WORKSPACE_V1',
@@ -56,7 +75,12 @@ async function bootstrap(db, store) {
     postedJournalPolicy: 'IMMUTABLE_REVERSAL_ONLY',
     accounts,
     recentJournals: journals,
-    bridgeSummary
+    bridgeSummary,
+    customAccountsAllowed: standardization.customAccountsAllowed,
+    standardization,
+    recurringSchedules,
+    pendingOccurrences,
+    scheduleRun
   };
 }
 
@@ -115,6 +139,9 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
     if (request.method === 'GET') return json({ accounts: await listAccountingAccounts(env.DB, store.id) });
     if (request.method === 'POST') return createAccount(request, env, store);
   }
+  if (request.method === 'POST' && pathname === '/api/admin/accounting/standardize-accounts') {
+    return resultResponse(await standardizeStoreAccounts(env.DB, store));
+  }
   const accountMatch = pathname.match(/^\/api\/admin\/accounting\/accounts\/([^/]+)$/);
   if (request.method === 'PATCH' && accountMatch) {
     return updateAccount(request, env, store, decodeURIComponent(accountMatch[1]));
@@ -135,7 +162,41 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
   const journalMatch = pathname.match(/^\/api\/admin\/accounting\/journals\/([^/]+)$/);
   if (request.method === 'GET' && journalMatch) {
     const journal = await getAccountingJournal(env.DB, store.id, decodeURIComponent(journalMatch[1]));
-    return journal ? json({ journal }) : json({ error: 'Jurnal tidak ditemukan.', code: 'JOURNAL_NOT_FOUND' }, 404);
+    if (!journal) return json({ error: 'Jurnal tidak ditemukan.', code: 'JOURNAL_NOT_FOUND' }, 404);
+    // ADR-049: sertakan status Split -- kalau sudah pernah di-split, tampilkan
+    // hasilnya (pelacakan balik); kalau belum, tampilkan apakah jurnal ini
+    // memenuhi syarat ditawarkan tombol Split.
+    const split = await getSplitOccurrencesForJournal(env.DB, store.id, journal.journalId);
+    return json({ journal, split, splitEligibility: split ? null : splitEligibility(journal) });
+  }
+
+  if (pathname === '/api/admin/accounting/expense-schedules') {
+    if (request.method === 'GET') return json({ schedules: await listRecurringSchedules(env.DB, store.id) });
+    if (request.method === 'POST') {
+      const body = await readJson(request);
+      if (!body.ok) return json({ error: 'Payload Beban Rutin tidak valid.' }, 400);
+      return resultResponse(await createRecurringSchedule(env.DB, store, body.value), 201);
+    }
+  }
+  const scheduleMatch = pathname.match(/^\/api\/admin\/accounting\/expense-schedules\/([^/]+)$/);
+  if (request.method === 'PATCH' && scheduleMatch) {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Beban Rutin tidak valid.' }, 400);
+    return resultResponse(await updateRecurringSchedule(env.DB, store, decodeURIComponent(scheduleMatch[1]), body.value));
+  }
+  const occurrencePostMatch = pathname.match(/^\/api\/admin\/accounting\/expense-schedules\/occurrences\/([^/]+)\/post$/);
+  if (request.method === 'POST' && occurrencePostMatch) {
+    return resultResponse(await postOccurrenceNow(env.DB, store, decodeURIComponent(occurrencePostMatch[1])));
+  }
+  const occurrenceSkipMatch = pathname.match(/^\/api\/admin\/accounting\/expense-schedules\/occurrences\/([^/]+)\/skip$/);
+  if (request.method === 'POST' && occurrenceSkipMatch) {
+    return resultResponse(await skipOccurrenceNow(env.DB, store, decodeURIComponent(occurrenceSkipMatch[1])));
+  }
+  const splitCreateMatch = pathname.match(/^\/api\/admin\/accounting\/journals\/([^/]+)\/split$/);
+  if (request.method === 'POST' && splitCreateMatch) {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Split Beban tidak valid.' }, 400);
+    return resultResponse(await createSplitPlan(env.DB, store, { ...body.value, sourceJournalId: decodeURIComponent(splitCreateMatch[1]) }), 201);
   }
 
   if (request.method === 'GET' && pathname === '/api/admin/accounting/ledger') {

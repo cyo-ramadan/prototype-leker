@@ -30,7 +30,9 @@ test('cashier request snapshots the transaction and Admin ACC routes to determin
   assert.match(apiSource, /subject_snapshot_json/);
   assert.match(apiSource, /approval_status = 'pending_approval'/);
   assert.match(apiSource, /executeTransactionCorrection/);
-  assert.match(executorSource, /SALE_AUTO_PRODUCTION_CORRECTION_POLICY_REQUIRED/);
+  assert.doesNotMatch(executorSource, /SALE_AUTO_PRODUCTION_CORRECTION_POLICY_REQUIRED/);
+  assert.match(executorSource, /SALE_AUTO_PRODUCTION_EXCESS_OUTPUT/);
+  assert.match(executorSource, /PRODUCTION_VOID/);
   assert.match(executorSource, /SALE_COST_SNAPSHOT_REQUIRED/);
   assert.match(executorSource, /PURCHASE_DOWNSTREAM_STOCK_EXISTS/);
   assert.match(executorSource, /SALE_VOID/);

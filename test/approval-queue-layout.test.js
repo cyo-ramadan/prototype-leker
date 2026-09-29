@@ -71,6 +71,24 @@ test('admin and owner can decide queue and ACC invokes atomic operational postin
   assert.doesNotMatch(approvalApi, /POSTING_CONTRACT_REQUIRED/);
 });
 
+test('Stock Opname sessions render as one grouped card with a Detail toggle and one ACC/Reject for the whole group', () => {
+  // 2026-09-19: "kalo sampe skema 1 barang 1 permit diganti aja, yang
+  // diajukan ya yg satu transaksi, kalo ga cukup ditulis di kartu ya kasih
+  // aja tombol detil" -- rows sharing payload.sessionId now render as ONE
+  // card with a Detail toggle, and decide through the group session endpoint
+  // instead of per-item ACC/Reject. Rows without a sessionId (including
+  // legacy pre-feature rows) must keep rendering exactly as singleton cards.
+  assert.match(approvalApi, /\/api\/cashier\/approval-requests\/stock-adjustment-batch/);
+  assert.ok(approvalApi.includes('approval-requests\\/session\\/'), 'management PATCH route for a whole session must exist');
+  assert.match(approvalApi, /async function applyGroupAccDecision\(/);
+  assert.match(managementUi, /groupRequestsBySession/);
+  assert.match(managementUi, /data-approval-group-toggle/);
+  assert.match(managementUi, /data-approval-session-acc/);
+  assert.match(managementUi, /data-approval-session-reject/);
+  assert.match(managementUi, /approval-requests\/session\//);
+  assert.match(managementUi, />Detail</);
+});
+
 test('retained order and search flow stays present', () => {
   assert.match(cashierModes, /Dari Customer/);
   assert.match(cashierModes, /Dari Kasir/);

@@ -4,6 +4,157 @@ const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const hold = (code, detail) => ({ ok: false, status: 'HOLD', code, detail });
 const fail = (code, detail) => ({ ok: false, status: 'FAILED', code, detail });
 
+const safeCount = value => Number.isSafeInteger(Number(value)) && Number(value) > 0;
+const safeCost = value => value != null && Number.isSafeInteger(Number(value)) && Number(value) >= 0;
+const stockBalanceSql = `COALESCE((
+  SELECT quantity FROM inventory_stock_balances b
+  WHERE b.store_id = products.store_id AND b.product_id = products.id
+), 0)`;
+
+// Bos Cyo, 2026-09-24: "kalo angka dari proses penjualan dan turunannya itu
+// awalnya + diganti minus dan yang minus diganti + hasilnya bukannya akan
+// lebih aman ya untuk soft delete." Hapus penjualan yang memicu produksi
+// AUTO_DADAKAN membalik produksinya juga, persis cerminan: hasil produksi
+// yang dulu masuk (+) ditarik lagi (-), bahan baku yang dulu keluar (-)
+// dikembalikan (+) dengan nilai snapshot waktu dipakai. Yang dibalik hanya
+// pergerakan stok yang memang tercatat (barang tanpa Track stok tidak punya
+// pergerakan). Aman karena link dadakan hanya boleh resep hasil 1
+// (resolveLinkedRecipe): hasil produksi = qty yang dijual, tidak ada sisa
+// batch yang bisa sudah terjual ke transaksi lain. Run lama yang ternyata
+// hasilnya lebih besar dari yang dijual tetap HOLD, bukan ditebak.
+async function loadGeneratedProductionMirror(db, storeId, saleId) {
+  const linked = await db.prepare(`
+    SELECT DISTINCT production_run_id
+    FROM sale_items
+    WHERE sale_id = ? AND store_id = ? AND production_run_id IS NOT NULL
+  `).bind(saleId, storeId).all();
+  const runs = [];
+  for (const { production_run_id: runId } of linked.results ?? []) {
+    const run = await db.prepare(`
+      SELECT id, output_product_name, total_output_quantity, requested_sale_quantity, hpp_total_scaled, status
+      FROM production_runs
+      WHERE id = ? AND store_id = ? AND mode = 'AUTO_DADAKAN'
+      LIMIT 1
+    `).bind(runId, storeId).first();
+    if (!run || run.status !== 'POSTED') {
+      return hold('SALE_AUTO_PRODUCTION_STATE_INVALID', `Produksi dadakan ${runId} tidak ditemukan atau sudah tidak berstatus POSTED.`);
+    }
+    if (Number(run.total_output_quantity) !== Number(run.requested_sale_quantity)) {
+      return hold(
+        'SALE_AUTO_PRODUCTION_EXCESS_OUTPUT',
+        `Produksi dadakan ${run.output_product_name} menghasilkan ${run.total_output_quantity}, padahal yang dijual ${run.requested_sale_quantity}. Sisa hasil produksi sudah masuk stok umum, jadi pembalik penuh ditahan.`
+      );
+    }
+    if (!safeCost(run.hpp_total_scaled)) {
+      return hold('PRODUCTION_COST_SNAPSHOT_REQUIRED', `Snapshot HPP produksi ${run.output_product_name} tidak cukup untuk membalik produksi secara deterministic.`);
+    }
+    const movements = await db.prepare(`
+      SELECT sm.product_id, sm.product_name, sm.unit_id, sm.unit_symbol, sm.direction, sm.quantity, sm.source_type,
+             c.total_cost_snapshot_scaled
+      FROM stock_movements sm
+      LEFT JOIN production_run_components c
+        ON c.production_run_id = sm.source_id AND c.store_id = sm.store_id AND c.component_product_id = sm.product_id
+      WHERE sm.store_id = ? AND sm.source_id = ? AND sm.source_type IN ('PRODUCTION_INPUT', 'PRODUCTION_OUTPUT')
+      ORDER BY sm.source_type, sm.product_id
+    `).bind(storeId, run.id).all();
+    for (const movement of movements.results ?? []) {
+      const isInput = movement.source_type === 'PRODUCTION_INPUT';
+      if (!safeCount(movement.quantity) || movement.direction !== (isInput ? 'OUT' : 'IN')) {
+        return hold('PRODUCTION_MOVEMENT_INVALID', `Mutasi stok produksi ${movement.product_name} tidak konsisten untuk dibalik.`);
+      }
+      if (isInput && !safeCost(movement.total_cost_snapshot_scaled)) {
+        return hold('PRODUCTION_COST_SNAPSHOT_REQUIRED', `Snapshot HPP bahan ${movement.product_name} tidak cukup untuk mengembalikan stok secara deterministic.`);
+      }
+    }
+    runs.push({ id: run.id, hppTotalScaled: Number(run.hpp_total_scaled), movements: movements.results ?? [] });
+  }
+  return { ok: true, runs };
+}
+
+function productionMirrorStatements(db, storeId, runs, permit, actor, now) {
+  const statements = [];
+  for (const run of runs) {
+    for (const movement of run.movements) {
+      const quantity = Number(movement.quantity);
+      const productId = movement.product_id;
+      const returnsComponent = movement.source_type === 'PRODUCTION_INPUT';
+      if (returnsComponent) {
+        const value = Number(movement.total_cost_snapshot_scaled);
+        statements.push(
+          db.prepare(`
+            INSERT OR IGNORE INTO inventory_stock_balances (store_id, product_id, quantity, updated_at)
+            VALUES (?, ?, 0, ?)
+          `).bind(storeId, productId, now),
+          db.prepare(`
+            UPDATE products
+            SET average_cost = CASE
+                  WHEN ${stockBalanceSql} <= 0
+                    THEN CAST((? + CAST(? / 2 AS INTEGER)) / ? AS INTEGER)
+                  ELSE CAST((${stockBalanceSql} * average_cost + ? + CAST((${stockBalanceSql} + ?) / 2 AS INTEGER))
+                            / (${stockBalanceSql} + ?) AS INTEGER)
+                END,
+                cost_updated_at = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND store_id = ?
+          `).bind(value, quantity, quantity, value, quantity, quantity, now, productId, storeId)
+        );
+      } else {
+        // Menarik nilai HPP produksi yang dulu masuk. Kalau saldo sisa <= 0
+        // atau nilainya tidak cukup (stok sudah berubah jauh), Average Cost
+        // dibiarkan -- tidak pernah jadi negatif atau dibagi nol.
+        const value = run.hppTotalScaled;
+        statements.push(db.prepare(`
+          UPDATE products
+          SET average_cost = CASE
+                WHEN ${stockBalanceSql} - ? <= 0 THEN average_cost
+                WHEN ${stockBalanceSql} * average_cost - ? < 0 THEN average_cost
+                ELSE CAST((${stockBalanceSql} * average_cost - ? + CAST((${stockBalanceSql} - ?) / 2 AS INTEGER))
+                          / (${stockBalanceSql} - ?) AS INTEGER)
+              END,
+              cost_updated_at = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND store_id = ?
+        `).bind(quantity, value, value, quantity, quantity, now, productId, storeId));
+      }
+      statements.push(
+        db.prepare(`
+          UPDATE inventory_stock_balances
+          SET quantity = quantity + ?, updated_at = ?
+          WHERE store_id = ? AND product_id = ?
+        `).bind(returnsComponent ? quantity : -quantity, now, storeId, productId),
+        db.prepare(`
+          INSERT INTO stock_movements (
+            id, source_key, store_id, product_id, product_name, unit_id, unit_symbol,
+            direction, quantity, source_type, source_id, drawer_session_id, note,
+            actor_role, actor_id, occurred_at
+          )
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PRODUCTION_VOID', ?, drawer_session_id, ?, ?, ?, ?
+          FROM production_runs
+          WHERE id = ? AND store_id = ?
+        `).bind(
+          `stock_move_${crypto.randomUUID()}`,
+          `PRODUCTION_VOID:${permit.id}:${run.id}:${movement.source_type}:${productId}`,
+          storeId, productId, movement.product_name, movement.unit_id, movement.unit_symbol,
+          returnsComponent ? 'IN' : 'OUT', quantity, run.id,
+          `Permit ${permit.id} · pembalik produksi dadakan (${returnsComponent ? 'bahan kembali' : 'hasil ditarik'})`,
+          actor.role, actor.id, now,
+          run.id, storeId
+        ),
+        db.prepare(`
+          INSERT INTO product_average_cost_snapshots (id, store_id, product_id, average_cost_scaled, source_type, source_id, created_at)
+          SELECT ?, store_id, id, average_cost, 'CORRECTION', ?, ?
+          FROM products WHERE id = ? AND store_id = ?
+        `).bind(`hpp_snap_${crypto.randomUUID()}`, permit.id, now, productId, storeId)
+      );
+    }
+    statements.push(db.prepare(`
+      UPDATE production_runs SET status = 'CANCELLED'
+      WHERE id = ? AND store_id = ? AND status = 'POSTED'
+    `).bind(run.id, storeId));
+  }
+  return statements;
+}
+
 async function executeSaleCorrection(db, storeId, permit, actor, now) {
   const sale = await db.prepare(`
     SELECT id, customer_id, total_points, voided_at
@@ -14,17 +165,8 @@ async function executeSaleCorrection(db, storeId, permit, actor, now) {
   if (!sale) return fail('SALE_NOT_FOUND', 'Penjualan sumber tidak ditemukan.');
   if (sale.voided_at) return { ok: true, duplicate: true };
 
-  const generatedProduction = await db.prepare(`
-    SELECT COUNT(*) AS count
-    FROM sale_items
-    WHERE sale_id = ? AND store_id = ? AND production_run_id IS NOT NULL
-  `).bind(permit.subjectId, storeId).first();
-  if (Number(generatedProduction?.count || 0) > 0) {
-    return hold(
-      'SALE_AUTO_PRODUCTION_CORRECTION_POLICY_REQUIRED',
-      'Penjualan ini memicu produksi AUTO_DADAKAN. Keputusan apakah produksi ikut dibatalkan atau barang hasil tetap menjadi stok belum ditetapkan.'
-    );
-  }
+  const production = await loadGeneratedProductionMirror(db, storeId, permit.subjectId);
+  if (!production.ok) return production;
 
   const rows = await db.prepare(`
     SELECT sm.product_id, sm.product_name, sm.unit_id, sm.unit_symbol, sm.quantity,
@@ -102,6 +244,11 @@ async function executeSaleCorrection(db, storeId, permit, actor, now) {
       )
     );
   }
+
+  // Sesudah pembalik penjualan di atas: barang hasil dadakan baru dikembalikan
+  // ke stok oleh loop di atas, jadi penarikan hasil produksinya harus jalan
+  // sesudahnya supaya saldo yang dibaca sudah termasuk barang yang kembali.
+  statements.push(...productionMirrorStatements(db, storeId, production.runs, permit, actor, now));
 
   if (sale.customer_id && Number(sale.total_points || 0) > 0) {
     statements.push(db.prepare(`

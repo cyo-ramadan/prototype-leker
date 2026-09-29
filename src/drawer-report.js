@@ -51,7 +51,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, stockAdjustmentRows] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -92,12 +92,12 @@ export async function buildDrawerReport(db, storeId, drawerId) {
     // batch "MASAK" work this section reports on -- selling a recipe-linked
     // drink must not make it look like it was brewed separately.
     db.prepare(`
-      SELECT pr.output_product_name, pr.total_output_quantity, pr.output_unit_symbol,
+      SELECT pr.id AS run_id, pr.created_at, pr.output_product_name, pr.total_output_quantity, pr.output_unit_symbol,
              c.component_product_name, c.total_quantity AS component_quantity, c.component_unit_symbol
       FROM production_runs pr
       JOIN production_run_components c ON c.production_run_id = pr.id AND c.store_id = pr.store_id
       WHERE pr.store_id = ? AND pr.drawer_session_id = ? AND pr.status = 'POSTED' AND pr.mode = 'MANUAL'
-      ORDER BY pr.created_at, c.component_product_name COLLATE NOCASE
+      ORDER BY pr.created_at, pr.id, c.component_product_name COLLATE NOCASE
     `).bind(storeId, drawerId).all(),
     db.prepare(`
       SELECT payload_json
@@ -168,19 +168,74 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const cashSalesItems = cashSales.reduce((total, row) => total + row.quantity, 0);
   const nonCashSalesItems = nonCashSales.reduce((total, row) => total + row.quantity, 0);
 
-  const cooking = (productionRows.results ?? []).map(row => ({
-    result: `${row.output_product_name} · ${number(row.total_output_quantity)} ${row.output_unit_symbol || ''}`.trim(),
-    material: `${row.component_product_name} · ${number(row.component_quantity)} ${row.component_unit_symbol || ''}`.trim()
-  }));
-  const stockAdjustments = (stockAdjustmentRows.results ?? [])
+  // Bos Cyo, 2026-09-28: "kalo bahannya 4 baris, hasilnya ngikut 4 baris
+  // dengan nama yang sama" -- satu batch masak (satu production_runs row)
+  // bisa punya beberapa bahan (production_run_components), dan query di atas
+  // mengembalikan satu baris SQL per pasangan batch x bahan. Digrupkan per
+  // run_id di sini supaya SATU batch = SATU baris laporan dengan semua
+  // bahannya digabung, bukan diulang per bahan.
+  const productionRunOrder = [];
+  const productionRunGroups = new Map();
+  for (const row of productionRows.results ?? []) {
+    if (!productionRunGroups.has(row.run_id)) {
+      productionRunGroups.set(row.run_id, {
+        result: `${row.output_product_name} · ${number(row.total_output_quantity)} ${row.output_unit_symbol || ''}`.trim(),
+        materials: []
+      });
+      productionRunOrder.push(row.run_id);
+    }
+    productionRunGroups.get(row.run_id).materials.push(
+      `${row.component_product_name} · ${number(row.component_quantity)} ${row.component_unit_symbol || ''}`.trim()
+    );
+  }
+  const cooking = productionRunOrder.map(runId => {
+    const group = productionRunGroups.get(runId);
+    return { result: group.result, material: group.materials.join(', ') };
+  });
+  // Bos Cyo, 2026-09-23: "arus barang belum masuk ke laporan laci". Ternyata
+  // query di atas SUDAH menarik semua approval_requests GOODS_FLOW yang
+  // posted -- termasuk Arus Barang biasa (barang masuk/keluar, bukan
+  // penyesuaian) -- tapi filter di bawah cuma meloloskan payload yang
+  // purpose-nya STOCK_ADJUSTMENT. Arus Barang biasa (payload.purpose tidak
+  // pernah diisi sama sekali untuk kasus ini, lihat normalizeApprovalPayload
+  // di operational-posting.js) DITARIK dari database lalu DIBUANG diam-diam
+  // di baris filter ini -- tidak pernah dirender di mana pun. Sekarang
+  // dipisah jadi dua daftar dari sumber yang sama, bukan ditarik ulang.
+  const goodsFlowRequestPayloads = (goodsFlowRequestRows.results ?? [])
     .map(row => { try { return JSON.parse(row.payload_json || '{}'); } catch { return null; } })
-    .filter(payload => payload?.purpose === 'STOCK_ADJUSTMENT')
+    .filter(Boolean);
+  const stockAdjustments = goodsFlowRequestPayloads
+    .filter(payload => payload.purpose === 'STOCK_ADJUSTMENT')
     .map(payload => ({
       productName: payload.productName,
       recordedStock: number(payload.currentQuantitySnapshot),
       actualStock: number(payload.targetQuantity),
       difference: number(payload.targetQuantity) - number(payload.currentQuantitySnapshot)
     }));
+  const goodsFlowPayloads = goodsFlowRequestPayloads.filter(payload => payload.purpose !== 'STOCK_ADJUSTMENT');
+  // Rekening Bersama itu opsional per-entry (src/operational-posting.js) --
+  // payload cuma menyimpan sharedAccountId, bukan namanya. Nama dicari
+  // sekali di sini (bukan per-baris) supaya laporan bisa menunjukkan
+  // "dikaitkan ke rekening apa", bukan cuma id mentah yang tidak berarti
+  // apa-apa buat kasir yang baca laporan.
+  const sharedAccountIds = [...new Set(goodsFlowPayloads.map(payload => payload.sharedAccountId).filter(Boolean))];
+  let sharedAccountNameById = new Map();
+  if (sharedAccountIds.length) {
+    const sharedAccountRows = await db.prepare(`
+      SELECT id, name FROM entity_shared_accounts WHERE id IN (${sharedAccountIds.map(() => '?').join(', ')})
+    `).bind(...sharedAccountIds).all();
+    sharedAccountNameById = new Map((sharedAccountRows.results ?? []).map(row => [row.id, row.name]));
+  }
+  const goodsFlow = goodsFlowPayloads.map(payload => ({
+    productName: payload.productName,
+    direction: payload.direction === 'OUT' ? 'OUT' : 'IN',
+    quantity: number(payload.quantity),
+    unitSymbol: payload.unitSymbol || '',
+    sharedAccountName: payload.sharedAccountId
+      ? (sharedAccountNameById.get(payload.sharedAccountId) || 'Rekening Bersama (sudah dihapus)')
+      : '',
+    note: payload.note || ''
+  }));
   const promotions = [];
   const stockRemaining = [];
   const promotionTotal = 0;
@@ -201,6 +256,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       nonCashSales,
       nonCashPurchases,
       stockAdjustments,
+      goodsFlow,
       cashIn,
       operationalCash
     },

@@ -82,6 +82,10 @@ test('both sides present is not enough to call a category complete', async () =>
   // the test recreates the condition rather than assuming the fixture still
   // carries it.
   sqlite.exec(`UPDATE products SET product_kind_id = NULL WHERE store_id = '${STORE}';`);
+  // Migration 0123 kini menautkan NON_CASH ke Bank secara default; kondisi
+  // "cara bayar belum dilink" juga dibuat ulang di sini, bukan diandalkan
+  // dari fixture.
+  sqlite.exec(`UPDATE payment_methods SET account_id = NULL WHERE store_id = '${STORE}' AND code = 'NON_CASH';`);
   const sale = await category(sqlite, 'sale');
 
   assert.ok(sale.debitCount >= 1 && sale.creditCount >= 1);

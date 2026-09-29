@@ -51,6 +51,25 @@
     function renderResults() { const key = search.value.trim().toLowerCase(); const found = list().filter(item => !key || `${getLabel(item)} ${getMeta(item)}`.toLowerCase().includes(key)).slice(0,8); results.innerHTML = found.length ? found.map(item => `<button type="button" data-result="${esc(getId(item))}"><strong>${esc(getLabel(item))}</strong><span>${esc(getMeta(item))}</span></button>`).join('') : '<div class="pimasatu-empty">Tidak ditemukan.</div>'; results.classList.remove('hidden'); }
     function renderLines() { if(!renderDetails){linesHost.classList.add('hidden');return;} linesHost.innerHTML = state.lines.length ? state.lines.map((line,index) => `<article class="pimasatu-line"><div><strong>${esc(line.label)}</strong><span>${esc(line.meta)}</span></div><label>Qty<input class="text-input" data-line-qty="${index}" type="number" min="1" step="1" value="${line.quantity}"/></label><div><strong>${money(line.quantity*line.unitAmount)}</strong>${isToggleMode ? `<small class="muted">${unitMoney(line.unitAmount)}/unit</small>` : ''}<button type="button" class="text-btn" data-remove="${index}">Hapus</button></div></article>`).join('') : '<div class="muted pimasatu-empty">Belum ada item.</div>'; linesHost.querySelectorAll('[data-remove]').forEach(button => button.onclick = () => { state.lines.splice(Number(button.dataset.remove),1); renderLines(); onLinesChange(state.lines.slice()); }); linesHost.querySelectorAll('[data-line-qty]').forEach(input => input.onchange = () => { const value=Number(input.value); if(value>0){state.lines[Number(input.dataset.lineQty)].quantity=value; renderLines(); onLinesChange(state.lines.slice());} }); }
     toggle.onclick = () => setExpanded(true); search.onfocus = renderResults; search.oninput = () => { state.selectedId=null; price.value=''; if (total) total.value=''; renderResults(); };
+    // Bos Cyo, 2026-09-21: dilaporkan dari Pendem dan Beji -- kasir sudah
+    // masukin barang (kelihatan di Detail), tapi tetap muncul toast "wajib
+    // 1-50 baris barang" dan transaksinya TIDAK tersimpan (dicek langsung ke
+    // D1, tidak ada baris baru). Akarnya: search/Qty/Harga/Total di sini
+    // adalah <input> biasa di dalam form dialog yang sama dengan tombol
+    // SIMPAN -- keyboard HP (tombol "Go"/"Done"/Enter) submit form itu
+    // secara implisit begitu ditekan di salah satu field ini, SEBELUM barang
+    // sempat diklik "+ Masukkan" ke Detail. Form ke-submit dengan 0 baris,
+    // toast errornya muncul, baru setelah itu kasir lanjut menambah barang
+    // -- toast lama masih kelihatan menempel di layar padahal Detail-nya
+    // sudah keisi. preventDefault Enter di sini menghentikan submit implisit
+    // itu; kalau item sudah dipilih, Enter di Qty/Harga/Total langsung jadi
+    // pemicu "+ Masukkan" supaya tetap kerasa responsif.
+    composer.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if (event.target !== qty && event.target !== price && event.target !== total) return;
+      if (state.selectedId) host.querySelector('.pimasatu-add').click();
+    });
     if (amountToggle) amountToggle.onclick = () => { state.activeField = state.activeField === 'perUnit' ? 'total' : 'perUnit'; applyActiveField(); };
     results.onclick = event => {
       const button=event.target.closest('[data-result]'); if(!button)return;

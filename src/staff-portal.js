@@ -1,7 +1,17 @@
 import { json } from './http.js';
-import { requireCashier, latestAttendanceStatus } from './cashier-auth.js';
+import { requireCashier, latestAttendanceStatus, loadJobDetail, loadSchedule } from './cashier-auth.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { getCashierRaportFacts } from './staff-raport.js';
+// Bos Cyo, 2026-09-24: logika presensi+payroll dipindah ke modul bersama
+// karena dipakai dua sisi sekarang -- Portal Staf (di sini) dan Admin Gerai
+// (src/cashier-auth.js) -- lihat komentar di staff-attendance.js untuk
+// alasan kenapa dipisah ke modul netral, bukan diimpor silang.
+import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled, isWithinScheduledWindow, forceCloseOverdueSessions } from './staff-attendance.js';
+import { listPayrollAdjustments } from './payroll-adjustments.js';
+import { isActivatedToday } from './entity-backup-cashiers.js';
+import { recordAttendanceAccrual } from './payroll-ledger.js';
+import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
+import { getJakartaBusinessDate } from './time.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -9,58 +19,27 @@ const coord = value => {
   return Number.isFinite(number) ? number : null;
 };
 
-// Satu baris staff_attendance sekarang menjelaskan satu sesi kerja penuh
-// (migration 0068): kolom lama (created_at/photo_type/latitude/longitude/
-// location_accuracy_meters) adalah fakta presensi MASUK; check_out_* adalah
-// fakta presensi PULANG pada baris yang sama. Baris lama dari sebelum
-// migration ini (attendance_type='out' tanpa presensi masuk yang tercatat di
-// baris yang sama) ditampilkan sebagai checkOut saja, checkIn null.
-function mapAttendance(row) {
-  const singlePhotoFact = {
-    at: row.created_at,
-    photoType: row.photo_type,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    accuracyMeters: row.location_accuracy_meters
-  };
-  const hasCheckOut = row.check_out_at != null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    storeId: row.store_id,
-    status: row.status,
-    checkIn: hasCheckOut || row.attendance_type !== 'out' ? singlePhotoFact : null,
-    checkOut: hasCheckOut ? {
-      at: row.check_out_at,
-      photoType: row.check_out_photo_type,
-      latitude: row.check_out_latitude,
-      longitude: row.check_out_longitude,
-      accuracyMeters: row.check_out_location_accuracy_meters
-    } : (row.attendance_type === 'out' ? singlePhotoFact : null)
-  };
-}
-
-async function listAttendance(db, userId, limit = 60) {
-  const rows = await db.prepare(`
-    SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
-           status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
-    FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
-  `).bind(userId, limit).all();
-  return (rows.results || []).map(mapAttendance);
-}
-
 export async function handleStaffPortalApi(request, env, pathname) {
   if (!pathname.startsWith('/api/staff/')) return null;
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
 
   if (request.method === 'GET' && pathname === '/api/staff/portal') {
+    const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
+    const scheduleByDay = scheduleMap(await loadSchedule(env.DB, auth.cashier.id));
+    const attendance = await listAttendance(env.DB, auth.cashier.id, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled);
     return json({
       staff: { userId: auth.cashier.id, username: auth.cashier.username, employeeName: auth.cashier.employeeName, store: auth.cashier.store },
-      attendance: await listAttendance(env.DB, auth.cashier.id),
+      attendance,
       attendanceStatus: await latestAttendanceStatus(env.DB, auth.cashier.id),
       kpi: await getCashierRaportFacts(env.DB, auth.cashier.store.id, auth.cashier.id),
-      deposits: [], payroll: []
+      deposits: [],
+      payroll: buildPayroll(attendance, jobDetail, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled),
+      // Bos Cyo, 2026-09-24: "gaji nanti juga bisa dibuat oleh akuntan
+      // sendiri ... jadi di tanggal 26 nanti akan terlihat 2 kartu." Ini
+      // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
+      // kelihatan di sini juga, bukan cuma di panel Admin.
+      payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id })
     });
   }
 
@@ -91,6 +70,15 @@ export async function handleStaffPortalApi(request, env, pathname) {
     const attendanceType = String(form.get('type') || '').toLowerCase();
     if (!['in', 'out'].includes(attendanceType)) return json({ error: 'Tipe presensi wajib in atau out.' }, 400);
 
+    // Bos Cyo, 2026-09-24: sesi kemarin yang kelupaan ditutup (lewat 1 jam
+    // dari jadwal pulang) di-force-close DULU di sini, sebelum gerbang
+    // toggle presensi di bawah -- tanpa ini, presensi masuk hari ini akan
+    // ketolak selamanya ("Sudah presensi masuk") gara-gara sesi lama yang
+    // tidak pernah ditutup. Lihat forceCloseOverdueSessions di
+    // staff-attendance.js untuk alasan lengkap.
+    const scheduleByDay = scheduleMap(await loadSchedule(env.DB, auth.cashier.id));
+    await forceCloseOverdueSessions(env.DB, auth.cashier.id, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled);
+
     // 2026-09-04, Bos Cyo: presensi masuk/keluar adalah toggle state -- tidak
     // boleh presensi masuk dua kali berturut-turut tanpa presensi keluar
     // di antaranya, dan tidak bisa presensi keluar kalau belum presensi masuk.
@@ -100,6 +88,19 @@ export async function handleStaffPortalApi(request, env, pathname) {
     }
     if (attendanceType === 'out' && currentStatus !== 'in') {
       return json({ error: 'Belum presensi masuk.', code: 'NOT_CHECKED_IN' }, 409);
+    }
+
+    // Bos Cyo, 2026-09-24: "intinya hal ini untuk menghindari di hari dan
+    // jam normal cs ini presensi memakai user backup, karna user backup itu
+    // gaji per jam nya lebih gede." Gerbangnya di presensi MASUK -- begitu
+    // sudah presensi masuk (sesi sedang berjalan), presensi keluar dibiarkan
+    // lewat tanpa cek ulang supaya orang yang sudah aktif tidak terjebak
+    // kalau aktivasinya kebetulan berakhir tengah hari.
+    if (attendanceType === 'in' && auth.cashier.isEntityBackup) {
+      const activated = await isActivatedToday(env.DB, auth.cashier.id, auth.cashier.store.id);
+      if (!activated) {
+        return json({ error: 'Akun backup ini belum diaktifkan Admin untuk gerai ini hari ini. Minta Admin aktifkan dulu sebelum presensi masuk.', code: 'BACKUP_NOT_ACTIVATED' }, 403);
+      }
     }
 
     const photo = await readLivePhoto(form, 'photo');
@@ -139,6 +140,39 @@ export async function handleStaffPortalApi(request, env, pathname) {
              status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
       FROM staff_attendance WHERE id = ?
     `).bind(open.id).first();
+
+    // Bos Cyo, 2026-09-24: "kalo dalam akuntansi ketika ada gaji harian itu
+    // jurnalnya debet beban gaji kredit hutang gaji ... jadi harusnya nominal
+    // di sesi jam harian itu uda mencetak beban dan hutang gaji." Begitu sesi
+    // presensi SELESAI, langsung dicatat sebagai fakta ke Akun Gaji (ledger)
+    // -- bukan cuma dihitung ulang tiap kali dilihat seperti sebelumnya.
+    // Kalau belum ada detail gaji diisi (jobDetail null/tarif 0), tidak ada
+    // apa pun yang dicatat -- bukan error, cuma memang belum ada nilainya.
+    //
+    // Lalu koreksi Bos Cyo di hari yang sama: "kalo cs masuk diluar jam
+    // kerja seharusnya kan engga masuk itungan gaji?" -- sesi yang presensi
+    // masuknya di hari Libur atau di luar shift_start..shift_end hari itu
+    // TIDAK dicatat ke Akun Gaji sama sekali (bukan dicatat lalu dibatalkan)
+    // -- presensinya sendiri tetap tersimpan seperti biasa di staff_attendance.
+    const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
+    const withinSchedule = !auth.cashier.store.attendanceScheduleGateEnabled
+      || isWithinScheduledWindow(updated.created_at, scheduleMap(await loadSchedule(env.DB, auth.cashier.id)));
+    if (jobDetail && withinSchedule) {
+      const earningScaled = computeEarningScaled(jobDetail.payment_type, jobDetail.hourly_wage_scaled, updated.created_at, updated.check_out_at);
+      const businessDate = getJakartaBusinessDate(new Date(updated.created_at));
+      await recordAttendanceAccrual(env.DB, {
+        accountType: 'CASHIER',
+        accountId: auth.cashier.id,
+        storeId: auth.cashier.store.id,
+        businessDate,
+        checkInAtIso: updated.created_at,
+        amountScaled: earningScaled,
+        attendanceId: updated.id,
+        description: `Gaji presensi ${businessDate}`
+      });
+      await invalidateDailyProfitSnapshot(env.DB, auth.cashier.store.id, businessDate);
+    }
+
     return json({ ok: true, attendance: mapAttendance(updated) }, 201);
   }
 

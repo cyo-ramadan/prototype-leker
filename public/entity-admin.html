@@ -7,8 +7,8 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/admin.css" />
   <link rel="stylesheet" href="/owner.css" />
-  <script src="/staff-entry-guard.js"></script>
-  <script src="/staff-tab-lock.js?v=20260915-staff-handoff-v1"></script>
+  <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
+  <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -40,6 +40,7 @@
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
+        <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
         <button class="admin-tab" data-entity-tab="employees" type="button">Karyawan</button>
         <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
@@ -130,13 +131,45 @@
         </div>
       </section>
 
-      <section id="entityTab-productmasters" class="admin-section">
-        <div class="admin-card">
-          <div class="list-head">
-            <div><h2>Master Barang Entity</h2><div class="muted">Barang yang punya Kode Barang bisa dipakai gerai mana pun di entity ini lewat "Gunakan/Aktifkan" dari Admin Gerai masing-masing. Aktivasi per gerai tetap dilakukan dari Admin Gerai (butuh konteks harga/kategori gerai itu sendiri) -- di sini murni untuk melihat semua Kode Barang entity ini dan gerai mana saja yang sudah pakai.</div></div>
-            <button id="entityProductMasterRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+      <section id="entityTab-sharedaccounts" class="admin-section">
+        <div class="admin-grid two" style="align-items:start">
+          <form id="entitySharedAccountForm" class="admin-card">
+            <h2>Tambah Rekening Bersama</h2>
+            <div class="muted" style="margin-bottom:10px">Dipakai lintas semua gerai di entity ini -- mis. "Rekening Maxi Malang", atau akun informal seperti "Rekening Bos Cyo"/"Hutang Bos Cyo". Ini murni tracking operasional, di luar Akuntansi.</div>
+            <label class="admin-field">Nama Rekening<input id="entitySharedAccountName" maxlength="120" required /></label>
+            <button class="primary-btn" type="submit">Simpan Rekening</button>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head"><h2>Daftar Rekening Bersama</h2><span id="entitySharedAccountCount" class="master-count">0</span></div>
+            <div id="entitySharedAccountList" class="master-list"></div>
           </div>
-          <div id="entityProductMasterList" class="master-list" style="margin-top:12px"></div>
+        </div>
+        <div class="admin-card" id="entitySharedAccountViewCard" style="margin-top:16px; display:none">
+          <div class="list-head"><h2 id="entitySharedAccountViewTitle">Rincian Rekening</h2><button id="entitySharedAccountViewClose" class="text-btn" type="button">Tutup</button></div>
+          <div id="entitySharedAccountViewBody"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-productmasters" class="admin-section">
+        <div class="admin-grid two" style="align-items:start">
+          <form id="entityProductMasterForm" class="admin-card">
+            <h2>Upload Kode Barang baru</h2>
+            <div class="muted" style="margin-bottom:10px">Didaftarkan langsung dari sini, gerai mana pun di entity ini (termasuk gerai yang belum punya barang sama sekali) bisa langsung "Gunakan/Aktifkan" dari Admin Gerai masing-masing -- tidak perlu ada barang lokal dulu.</div>
+            <label class="admin-field">Kode Barang<input id="entityProductMasterCode" maxlength="40" required /></label>
+            <label class="admin-field">Nama <span class="field-note">label internal, bukan nama tampil ke pelanggan</span><input id="entityProductMasterName" maxlength="100" /></label>
+            <label class="admin-field">Foto <span class="field-note">optional</span><input id="entityProductMasterPhoto" type="file" accept="image/*" /></label>
+            <label class="admin-field">Resep acuan <span class="field-note">optional, murni referensi -- tidak pernah memblokir aktivasi gerai</span>
+              <textarea id="entityProductMasterRecipe" rows="3" placeholder="Satu bahan per baris, format: nama bahan | takaran (takaran opsional)"></textarea>
+            </label>
+            <button class="primary-btn" type="submit">Upload Kode Barang</button>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head">
+              <div><h2>Master Barang Entity</h2><div class="muted">Aktivasi per gerai tetap dilakukan dari Admin Gerai (butuh konteks harga/kategori gerai itu sendiri) -- di sini murni untuk upload/koreksi Kode Barang dan melihat gerai mana saja yang sudah pakai.</div></div>
+              <button id="entityProductMasterRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+            </div>
+            <div id="entityProductMasterList" class="master-list" style="margin-top:12px"></div>
+          </div>
         </div>
       </section>
 
@@ -185,7 +218,7 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css" />
 <script src="/caca-chat.js"></script>
-<script src="/entity-admin.js"></script>
+<script src="/entity-admin.js?v=20260920-rekening-bersama-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

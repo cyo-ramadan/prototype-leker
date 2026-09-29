@@ -234,7 +234,23 @@ async function activeAccountReferenceCount(db, storeId, accountId) {
   return Number(row?.count || 0);
 }
 
+// ADR-047: gerai standar (stores.custom_accounts_allowed = 0) hanya memakai
+// akun standar yang sama di semua gerai. Akun custom baru dan ubah nama/tutup
+// akun dikunci; hanya gerai yang diizinkan (DERMO) yang boleh custom.
+export async function customAccountsAllowed(db, storeId) {
+  const row = await db.prepare(`SELECT custom_accounts_allowed FROM stores WHERE id = ?`).bind(storeId).first();
+  return Number(row?.custom_accounts_allowed || 0) === 1;
+}
+
+const STANDARD_ACCOUNTS_LOCKED = Object.freeze({
+  ok: false,
+  status: 409,
+  code: 'STANDARD_ACCOUNTS_LOCKED',
+  error: 'Gerai ini memakai akun standar yang sama dengan gerai lain. Tambah/ubah akun sendiri belum dibuka.'
+});
+
 export async function createAccountingAccount(db, store, input) {
+  if (!await customAccountsAllowed(db, store.id)) return { ...STANDARD_ACCOUNTS_LOCKED };
   const accountName = text(input?.accountName, 100);
   const accountType = text(input?.accountType, 20).toUpperCase();
   const subtype = text(input?.subtype, 60).toUpperCase();
@@ -263,6 +279,7 @@ export async function createAccountingAccount(db, store, input) {
 }
 
 export async function updateAccountingAccount(db, store, accountId, input) {
+  if (!await customAccountsAllowed(db, store.id)) return { ...STANDARD_ACCOUNTS_LOCKED };
   const current = await db.prepare(`
     SELECT id, code, name, type, subtype, is_active
     FROM chart_of_accounts

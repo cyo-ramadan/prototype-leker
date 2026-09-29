@@ -23,16 +23,27 @@ Actual yield dan actual consumption dapat berbeda dari standar karena kondisi la
 
 Polling beberapa detik sekali dari setiap tab kasir membuat request Worker/D1 bertambah terus walaupun tidak ada perubahan. Membuka lebih dari satu tab menggandakan traffic tersebut dan dapat memperburuk error quota/network tanpa memberi nilai operasional yang sebanding.
 
-**Current strategy:**
+**Current strategy (sisi Kasir):**
 
 - Dashboard kasir memuat menu, order, dan status laci saat dibuka.
-- Tidak ada periodic `setInterval` refresh yang aktif.
+- Tidak ada periodic `setInterval` refresh yang aktif -- `startPolling()` bawaan `public/cashier.js` sengaja **di-override** menjadi versi tanpa interval oleh `public/cashier-workspace.js` lalu `public/cashier-refresh.js` (di-load belakangan di `cashier.html`, jadi override-nya menang sebelum login manapun terjadi). Definisi asli yang punya `setInterval` di `cashier.js` adalah dead code yang sengaja dibiarkan supaya pemanggil lama tidak error, BUKAN kode yang benar-benar jalan.
 - Kasir mempunyai tombol **Refresh Pesanan** untuk refresh manual.
 - Order dan status laci direfresh ketika tab kembali visible atau window kembali focus.
 - Action kasir yang mengubah state tetap memperbarui state terkait setelah request selesai.
 - Error network/quota tidak boleh dianggap sebagai session expiry. Session hanya dilepas pada response auth yang benar-benar menyatakan session tidak valid.
 
-Jika realtime otomatis dibutuhkan nanti, gunakan mekanisme push yang disetujui dan diuji, misalnya WebSocket/SSE, bukan mengembalikan polling rapat tanpa impact assessment.
+**Koreksi 2026-09-27 -- sisi Customer TIDAK ikut bebas polling seperti yang tertulis di atas.**
+Kalimat "current strategy" di atas cuma pernah dicek untuk Kasir. `public/customer.js`
+(`startOrderPolling()` dipanggil dari `init()`, tanpa override apa pun di file lain) benar-benar
+menjalankan `setInterval(refreshActiveOrder, ORDER_POLL_INTERVAL_MS)` selama pelanggan membuka
+layar status pesanannya -- awalnya tiap 5 detik, tanpa berhenti walau pesanan sudah
+`COMPLETED`/`CANCELLED`, selama tab masih terbuka. Ditemukan waktu D1 produksi kena
+`exceeded D1's free tier daily row read limit` (2026-09-27) sampai login kasir/Entity Admin ikut
+gagal. Mitigasi sementara yang sudah live: interval dinaikkan ke 20 detik dan polling berhenti
+begitu status pesanan final. Ini **bukan** perbaikan permanen -- masih polling periodik, cuma
+lebih jarang. Perbaikan yang sesuai aturan bab ini (push, bukan polling) ada di `adr/ADR-048-*`.
+
+Jika realtime otomatis dibutuhkan, gunakan mekanisme push yang disetujui dan diuji, misalnya WebSocket/SSE, bukan mengembalikan polling rapat tanpa impact assessment. **Kalau menemukan halaman lain yang diduga bebas polling, buktikan ke kode yang benar-benar jalan (cek override-nya) -- jangan percaya pada bagian dokumen ini yang belum diverifikasi ulang untuk halaman itu.**
 
 ## Recipe bukan HPP final
 
@@ -194,6 +205,8 @@ Migration `0038_operational_accounting_boundary.sql` menghapus direct FK tersebu
 **Pitfall:** Jangan menganggap row pada tabel migration D1 otomatis membuktikan semua table/index/trigger yang pernah didefinisikan migration tersebut masih ada di remote database.
 
 Insiden deployment Accounting 2026-08-13 membuktikan remote D1 dapat mempunyai migration ledger yang menyatakan `0018` sudah applied sementara dua compatibility table dari migration itu tidak ada. Migration `0023` kemudian gagal saat mencoba mengubah object yang hilang.
+
+Kejadian kedua (2026-09-24): `approval_permits` di production tidak punya kolom `accounting_status`, `original_journal_id`, `reversal_journal_id` walaupun `0027` tercatat applied. Finalisasi Permit Hapus Transaksi menulis ke kolom itu, jadi **setiap** eksekusi yang berhasil gagal di langkah terakhir dengan "Terjadi kesalahan server". Efek stok/void-nya sudah jalan, tapi permit tetap tampak HOLD/NOT_ATTEMPTED (0 permit pernah `EXECUTED`). Test lokal tetap hijau karena database test dibangun dari file migration yang lengkap. Perbaikannya: finalisasi tidak lagi menulis ke kolom tersebut (status Accounting masuk `execution_detail`). Sebelum menulis ke kolom lama di tabel production, cek dulu `pragma_table_info` di D1 remote.
 
 **Current recovery discipline:**
 
@@ -360,6 +373,67 @@ Fetch independen harus paralel, hasilnya dibagi melalui cache satu sesi, dan bol
 
 Selesaikan bootstrap/default write terlebih dahulu, kemudian jalankan independent read queries secara paralel. Overlap batch write + read pada request yang sama dapat membuat endpoint gabungan gagal walaupun endpoint reference individual tetap sehat.
 
+## File JS lama yang diubah tapi query `?v=` tidak dibump -- browser lama tetap pakai isi lama
+
+**Pitfall:** kode Worker sudah live (deploy sukses, dicek langsung dan terbukti) tapi fitur
+tetap tidak muncul di browser yang sudah pernah membuka halaman itu sebelumnya. Beda dari
+pitfall "Preview Worker tidak membuktikan remote D1 siap" (yang soal server belum live) --
+ini soal server SUDAH live, tapi klien menyimpan salinan lama file `.js`-nya sendiri.
+
+**Dibuktikan 2026-09-17, sesudah kejadian di "Preview Worker tidak membuktikan remote D1
+siap" (koreksi kedua) sudah selesai diperbaiki dan dicek live lewat `workers_get_worker_code`:**
+Bos Cyo tetap melapor fitur belum muncul. `public/entity-admin.js` (mengatur tab Master
+Barang/Karyawan/Laporan yang baru ditambahkan) di-include dari `entity-admin.html` TANPA
+query `?v=` sama sekali -- setiap file `.js` lain di halaman yang sama sudah pakai pola
+`?v=YYYYMMDD-deskripsi-vN` (lihat isi HTML manapun di `public/`), tapi file ini luput. Yang
+lebih halus: beberapa file lain yang ikut diubah hari ini (`admin-product-policy.js`,
+`branch-owner-auth.js`, `cashier.js`, `cashier-workspace.js`, `auth-entry-split.js`,
+`staff-tab-lock.js`) MEMANG sudah punya `?v=`, tapi angkanya dari tanggal SEBELUM perubahan
+hari ini (mis. `20260816`) -- browser yang sudah pernah memuat file itu tidak tahu isinya
+sudah beda, karena query string-nya sama persis dengan yang sudah di-cache.
+
+**Aturan:** setiap kali sebuah file `public/*.js` yang SUDAH ADA (bukan file baru) diubah,
+query `?v=` di SETIAP HTML yang me-referensikannya wajib dibump ke tanggal/label baru --
+bukan cuma ditambahkan sekali waktu file itu pertama kali dibuat lalu dilupakan. File baru
+otomatis aman (browser belum pernah menyimpan apa pun di URL itu), yang berbahaya justru file
+LAMA yang diedit. Ini pasangan dari aturan `CLAUDE.md` "file `src/`/`public/` baru wajib
+ditambahkan ke script `check`" -- keduanya sama-sama gampang lupa karena tidak ada test/error
+yang menandai kalau lupa. Kalau ragu file mana yang perlu dibump, grep semua `<script src="/`
+di `public/*.html` untuk file yang baru saja diedit; kalau ada yang query-nya SAMA dengan versi
+sebelum perubahan (atau tidak punya `?v=` sama sekali), itu wajib dibump.
+
+Kemungkinan ini juga yang menjelaskan "Status 2026-08-31" yang belum tuntas di pitfall "Login
+Admin Gerai yang 'muter-muter' berulang" (dugaan cache browser/PWA lama yang waktu itu belum
+sempat diverifikasi) -- pola gejalanya identik (server sudah benar, klien belum ambil ulang).
+
+## Sesi karyawan bisa dicabut oleh TRIGGER DATABASE, bukan cuma oleh kode aplikasi
+
+**Pitfall:** kalau ada laporan "kok ter-logout sendiri" / "buka tab kedua, tab pertama mati",
+jangan berhenti menyisir kode aplikasi. Sesi bisa dicabut oleh trigger SQLite yang tidak
+terlihat dari `src/` maupun `public/` sama sekali.
+
+**Dibuktikan 2026-09-18**, saat memperbaiki keluhan Bos Cyo ("user yang uda login gampang ke
+refresh ini bikin user jadi malas pakai pos ini"). Empat akar sudah ketemu dan diperbaiki di
+sisi aplikasi — token kasir yang cuma di `sessionStorage`, identitas staf yang ikut hilang saat
+tab ditutup, guard yang berbasis "satu tab" bukan "satu user", dan penolakan login 409
+`STAFF_SESSION_ACTIVE` — tapi test baru yang seharusnya lulus tetap gagal: sesudah login kedua,
+`cashier_sessions` cuma berisi SATU baris. Penyebabnya `trg_cashier_single_session` (plus
+kembarannya untuk owner dan store admin) dari `migrations/0011_staff_single_session.sql`:
+`BEFORE INSERT ... DELETE FROM cashier_sessions WHERE cashier_id = NEW.cashier_id`. Setiap sesi
+baru menghapus seluruh sesi lama pemilik akun yang sama, di level database. Tidak ada satu baris
+pun di `src/unified-login.js` atau `src/cashier-auth.js` yang kelihatan melakukannya.
+
+**Kenapa gampang terlewat:** `grep` untuk `DELETE FROM cashier_sessions` di `src/` memang ada
+hasilnya (logout per `token_hash`, pembersihan yang kedaluwarsa) dan semuanya terlihat wajar —
+justru itu yang bikin yakin tidak ada yang salah. Trigger-nya cuma muncul kalau yang di-grep
+folder `migrations/`, atau kalau `sqlite_schema` diperiksa langsung.
+
+**Aturannya:** sebelum menyimpulkan "tidak ada kode yang menghapus baris ini", periksa
+`sqlite_schema` untuk `type = 'trigger'` pada tabel yang bersangkutan, bukan cuma `grep` di
+`src/`. Dan kalau menulis test soal berapa baris yang tersisa sesudah sebuah operasi, jalankan
+test-nya di atas database yang SUDAH menjalankan seluruh migration (pola `migratedDatabase()`) —
+test yang cuma membaca file sumber tidak akan pernah menangkap jenis masalah ini.
+
 ## Accounting tetap owner posting jurnal
 
 Prototype Leker boleh menyimpan Settings dan business facts. POS/Warehouse tidak boleh menulis langsung ke database Accounting atau membuat General Ledger tandingan. Dalam local composition host, semua journal write tetap wajib melalui Accounting posting entry point yang sama.
@@ -382,11 +456,11 @@ Detail dan tahapan migrasinya di `adr/ADR-030-multi-entity-tenancy-and-accountin
 
 **Pitfall:** Jangan menandai sebuah Jenis Transaksi `Lengkap` hanya karena rule Debit/Kredit-nya terisi, kalau tidak ada satu pun modul yang memposting melaluinya.
 
-Enam Jenis Transaksi hari ini ada di Setting Akuntansi tanpa konsumen posting: `wh_opname`, `wh_production`, `wh_transfer`, `wh_return`, `deposit`, `payroll`. Tiga yang pertama bahkan sudah punya rule aktif yang dikonfigurasi admin. Admin melihat `Lengkap`, wajar menyimpulkan Stock Opname menghasilkan jurnal, dan jurnal itu tidak pernah terbit — tanpa error, tanpa jejak, karena tidak pernah ada yang mencoba.
+Enam Jenis Transaksi (per ADR-031) ada di Setting Akuntansi tanpa konsumen posting: `wh_opname`, `wh_production`, `wh_transfer`, `wh_return`, `deposit`, `payroll`. Tiga yang pertama bahkan sudah punya rule aktif yang dikonfigurasi admin. Admin melihat `Lengkap`, wajar menyimpulkan Stock Opname menghasilkan jurnal, dan jurnal itu tidak pernah terbit — tanpa error, tanpa jejak, karena tidak pernah ada yang mencoba.
 
 **Current strategy:**
 
-- konsumen posting yang sebenarnya hanya `src/accounting-pos-bridge.js` (`sale`, `purchase_material`, `operational`) dan `src/accounting-cash-flow-bridge.js` (`cash_flow_in`, `cash_flow_out`);
+- konsumen posting yang sebenarnya: `src/accounting-pos-bridge.js` (`sale`, `purchase_material`, `operational`), `src/accounting-cash-flow-bridge.js` (`cash_flow_in`, `cash_flow_out`), `src/accounting-warehouse-production-bridge.js` (`wh_production`), dan sejak ADR-046 `src/accounting-admin-bridge.js` (`admin_gaji`, `admin_bea_lapak`, `admin_bea_lainnya`, `admin_uang_muka`). `payroll` dan `deposit` (Setoran) bawaan 0045 masih tanpa konsumen;
 - `src/accounting-reference.js` hanya registry, bukan poster — jangan dihitung sebagai konsumen;
 - Jenis Transaksi tanpa konsumen ditandai *belum tersambung*, bukan `Lengkap`;
 - membuat lane posting baru untuk `wh_*` berarti memutuskan semantik Inventory → Accounting, dan itu milik Bos Cyo (Constitution R2).
@@ -438,6 +512,20 @@ Cloudflare D1 menegakkan `SQLITE_LIMIT_COMPOUND_SELECT` yang jauh lebih kecil da
 
 Kalau menambah cabang baru ke query gabungan manapun di masa depan (bukan cuma yang ini), hitung dulu berapa cabang dalam SATU compound-select node sebelum menulisnya, dan **buktikan ke D1 langsung** (via query tool) sebelum menganggap `npm test` hijau cukup sebagai bukti.
 
+## D1 membatasi 100 bind variable per statement -- gerai yang pesanannya tembus 100 langsung tidak bisa dipakai
+
+**Pitfall:** Jangan menulis `... IN (${placeholders(ids.length)})` untuk daftar id yang jumlahnya ikut tumbuh bersama data, dan jangan menganggap `npm test` hijau membuktikan query itu jalan di production.
+
+Cloudflare D1 menolak statement dengan **lebih dari 100 bind variable** (`too many SQL variables: SQLITE_ERROR`). Dibuktikan langsung ke D1 production (2026-09-22): 100 parameter lolos, 101 ditolak. Sama persis kelasnya dengan pitfall compound-SELECT di atas -- harness test lokal `node:sqlite` jauh lebih longgar, jadi query yang pasti meledak di production tetap hijau di `npm test`.
+
+**Kejadian nyatanya (2026-09-22, kasir gerai Pendem):** `listOrders()` mengambil 100 pesanan terakhir, lalu `loadItemsForOrders()` mengambil rincian itemnya sekaligus dengan bind `(storeId + 100 order id)` = **101 variable, tepat lewat satu**. Begitu pesanan Pendem menembus 100 (101 pesanan; Dermo 64, Beji 21 -- semuanya masih aman), `/api/cashier/orders` gagal total **setiap kali**. Jadi ini bukan keanehan satu gerai, tapi **bom waktu untuk SETIAP gerai** begitu pesanannya menumpuk.
+
+**Yang bikin mahal: gejalanya sama sekali tidak menunjuk ke penyebabnya.** `public/cashier.js` dulu menangkap kegagalan itu dengan `catch { clearSession(); }` tanpa membedakan sebab dan tanpa mencatat error -- dan `clearSession()` menghapus SELURUH token karyawan di browser (kasir, Owner, Admin Gerai, Entity Admin sekaligus). Jadi kegagalan memuat daftar pesanan tampil sebagai **"kasir tidak bisa login"**, lengkap dengan Entity Admin yang cuma mengintip halaman kasir ikut terlempar keluar. Tiga perbaikan berturut-turut (sesi persisten lintas tab, race lease antar tab, fallback `crypto.randomUUID`) semuanya salah sasaran karena gejalanya mengarahkan ke login, padahal login tidak pernah bermasalah -- server bahkan mencatat sesinya berhasil dibuat setiap kali.
+
+**Dua pelajarannya, dan dua-duanya wajib dipakai:**
+1. Setiap query dengan `IN (...)` yang daftarnya ikut tumbuh bersama data wajib dipecah per batch (`chunkIds()`/`MAX_BIND_IDS_PER_QUERY` di `src/db-multistore.js`, batasnya 90 supaya masih muat bind lain seperti `storeId`). Sebelum menulis yang baru, hitung: `1 (storeId) + panjang daftar` -- kalau bisa lewat 100, itu bug yang cuma menunggu datanya cukup banyak.
+2. **Kegagalan memuat data tidak boleh mencabut sesi.** Hanya penolakan identitas yang jelas (401) yang boleh memanggil `clearSession()`. `catch` tanpa pembeda sebab -- apalagi yang menelan errornya tanpa log -- mengubah bug data biasa jadi "logout misterius" yang menyeret pangkat lain ikut keluar dan menyesatkan diagnosis berhari-hari.
+
 ## ACC lalu eksekusi dua statement terpisah -- disconnect di tengah bikin permit nyangkut selamanya
 
 **Pitfall:** Jangan menulis alur "tandai approved" lalu "jalankan efek + tandai selesai" sebagai dua write terpisah dalam satu request handler dan menganggap keduanya pasti jalan berurutan sampai selesai.
@@ -476,4 +564,4 @@ Kalau membangun fitur pencatatan Beban baru apa pun (dari Admin maupun Kasir), c
 
 ## DOC-IMPACT
 
-**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion, **push ke branch fitur mana pun harus diperlakukan sebagai deploy production yang sesungguhnya** (tidak ada isolasi preview D1/Worker yang terbukti, lihat koreksi 2026-08-31 di "Preview Worker tidak membuktikan remote D1 siap"), **laporan "login Admin Gerai muter-muter" wajib dibaca dari riwayat lengkapnya dulu** sebelum re-diagnose dari nol (lihat "Login Admin Gerai yang 'muter-muter' berulang"), dan **compound SELECT di D1 dibatasi 5 term** -- test lokal `node:sqlite` tidak menegakkan limit ini sama sekali, jadi query gabungan >5 cabang bisa hijau di `npm test` tapi gagal total di production (lihat "D1 membatasi compound SELECT ke 5 term"), **alur "keputusan lalu eksekusi" yang ditulis sebagai dua write terpisah harus retry-safe** karena disconnect di tengah bisa bikin state nyangkut permanen tanpa error yang jelas (lihat "ACC lalu eksekusi dua statement terpisah"), dan **setiap navigasi in-app baru antar halaman staf wajib memanggil `lekerPrepareStaffHandoff()`** sebelum pindah halaman, atau guard satu-tab bisa memblokir diri sendiri dan terlihat seperti logout misterius (lihat "Navigasi in-app antar halaman staf dianggap 'tab kompetitor'"), dan **fitur Beban baru (dari Admin maupun Kasir) wajib didaftarkan manual ke `BEBAN_SOURCES`/`computeFactsForDates()` di `src/net-profit-report.js`** atau Laporan Net Profit akan diam-diam kelihatan lebih untung dari aslinya tanpa error apa pun (lihat "Laporan Net Profit tidak otomatis ikut fitur Beban baru"), dan **setiap parameter query yang menyebut gerai wajib divalidasi terhadap kewenangan pemanggil, bukan cuma `?store=`** -- gate `requireManagement()` hanya mengunci `?store=`, sehingga parameter daftar gerai seperti `stores=` bisa jadi jalur baca lintas gerai yang lolos tanpa error (lihat "`?store=` mengunci pemanggil, tapi parameter daftar gerai di query string tidak ikut terkunci"). dan **migration D1 dan kode Worker punya "kapan live"-nya beda** -- migration applied ke D1 production dari push ke branch mana pun (tidak branch-aware, tetap berbahaya), tapi kode Worker baru benar-benar melayani user sesudah branch-nya masuk `main`, jadi "push berhasil + migration applied" TIDAK boleh disimpulkan sebagai "sudah bisa dicoba user" (lihat koreksi 2026-09-17 di "Preview Worker tidak membuktikan remote D1 siap").
+**REQUIRED** — Jenis Transaksi terdaftar tidak membuktikan rule-nya terpasang, `wh_transfer`/`wh_production` dilarang menyentuh Pendapatan/Beban, status `Lengkap` tanpa konsumen posting adalah janji palsu, `store_id` tidak boleh diperlakukan sebagai batas tenant, Production Panel memperlakukan Recipe sebagai template immutable dengan actual execution snapshot, refresh kasir tetap event-driven, costing/journal memakai exact scaled integer snapshots, saldo negatif dipertahankan sebagai signed balance, auto Penyesuaian dibatasi policy, operational Qty tidak bocor menjadi stock movement, Accounting Settings tetap configuration-only, Warehouse tidak memiliki duplicate mapping, `chart_of_accounts` tetap sole canonical COA registry, out-of-band schema dilarang, business-application tables tidak boleh FK langsung ke Accounting interpretation tables, stock-integrity policy tetap milik Inventory/Costing, production D1 recovery harus memverifikasi schema object, schema-changing Worker deployment harus membuktikan remote D1 readiness sebelum promotion, **push ke branch fitur mana pun harus diperlakukan sebagai deploy production yang sesungguhnya** (tidak ada isolasi preview D1/Worker yang terbukti, lihat koreksi 2026-08-31 di "Preview Worker tidak membuktikan remote D1 siap"), **laporan "login Admin Gerai muter-muter" wajib dibaca dari riwayat lengkapnya dulu** sebelum re-diagnose dari nol (lihat "Login Admin Gerai yang 'muter-muter' berulang"), dan **compound SELECT di D1 dibatasi 5 term** -- test lokal `node:sqlite` tidak menegakkan limit ini sama sekali, jadi query gabungan >5 cabang bisa hijau di `npm test` tapi gagal total di production (lihat "D1 membatasi compound SELECT ke 5 term"), **alur "keputusan lalu eksekusi" yang ditulis sebagai dua write terpisah harus retry-safe** karena disconnect di tengah bisa bikin state nyangkut permanen tanpa error yang jelas (lihat "ACC lalu eksekusi dua statement terpisah"), dan **setiap navigasi in-app baru antar halaman staf wajib memanggil `lekerPrepareStaffHandoff()`** sebelum pindah halaman, atau guard satu-tab bisa memblokir diri sendiri dan terlihat seperti logout misterius (lihat "Navigasi in-app antar halaman staf dianggap 'tab kompetitor'"), dan **fitur Beban baru (dari Admin maupun Kasir) wajib didaftarkan manual ke `BEBAN_SOURCES`/`computeFactsForDates()` di `src/net-profit-report.js`** atau Laporan Net Profit akan diam-diam kelihatan lebih untung dari aslinya tanpa error apa pun (lihat "Laporan Net Profit tidak otomatis ikut fitur Beban baru"), dan **setiap parameter query yang menyebut gerai wajib divalidasi terhadap kewenangan pemanggil, bukan cuma `?store=`** -- gate `requireManagement()` hanya mengunci `?store=`, sehingga parameter daftar gerai seperti `stores=` bisa jadi jalur baca lintas gerai yang lolos tanpa error (lihat "`?store=` mengunci pemanggil, tapi parameter daftar gerai di query string tidak ikut terkunci"). dan **migration D1 dan kode Worker punya "kapan live"-nya beda** -- migration applied ke D1 production dari push ke branch mana pun (tidak branch-aware, tetap berbahaya), tapi kode Worker baru benar-benar melayani user sesudah branch-nya masuk `main`, jadi "push berhasil + migration applied" TIDAK boleh disimpulkan sebagai "sudah bisa dicoba user" (lihat koreksi 2026-09-17 di "Preview Worker tidak membuktikan remote D1 siap"). dan **file `public/*.js` LAMA yang diubah wajib dibump query `?v=`-nya di setiap HTML yang me-referensikannya** -- server live tidak berarti browser yang sudah pernah membuka halaman itu ikut ambil versi baru; file baru otomatis aman, file lama yang diedit itu yang berbahaya (lihat "File JS lama yang diubah tapi query `?v=` tidak dibump"). dan **sesi/baris bisa dicabut oleh TRIGGER database, bukan cuma oleh kode aplikasi** -- sebelum menyimpulkan "tidak ada kode yang menghapusnya", periksa `sqlite_schema` untuk trigger pada tabel itu, karena `grep` di `src/` tidak akan menemukannya (lihat "Sesi karyawan bisa dicabut oleh TRIGGER DATABASE"). dan **D1 menolak statement dengan lebih dari 100 bind variable**, sehingga query `IN (...)` yang daftarnya ikut tumbuh bersama data wajib dipecah per batch -- lolos di `node:sqlite`, meledak di production begitu datanya cukup banyak, dan **kegagalan memuat data tidak boleh mencabut sesi** (hanya 401 yang boleh memanggil `clearSession()`), karena `catch` tanpa pembeda sebab mengubah bug data biasa jadi "logout misterius" yang menyesatkan diagnosis berhari-hari (lihat "D1 membatasi 100 bind variable per statement"). dan **"current strategy" tanpa polling di bab "Periodic cashier polling" cuma berlaku terbukti untuk Kasir, bukan otomatis untuk halaman lain** -- `public/customer.js` ternyata masih menjalankan `setInterval` sungguhan untuk status pesanan pelanggan sampai ditemukan 2026-09-27 lewat D1 production kena limit baca harian; selalu buktikan ke override yang benar-benar jalan sebelum percaya klaim "tidak ada polling" di dokumen ini (lihat koreksi di bab yang sama, dan `adr/ADR-048-*` untuk penggantinya).

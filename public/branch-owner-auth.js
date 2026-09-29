@@ -88,6 +88,7 @@
         headers: { Authorization: `Bearer ${adminToken}` }
       });
     } catch {}
+    window.lekerClearStaffSession?.();
     localStorage.removeItem('lekerAdminToken');
     localStorage.removeItem('lekerAdminStoreCode');
     localStorage.removeItem('lekerAdminPin');

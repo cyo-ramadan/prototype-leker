@@ -7,6 +7,7 @@ import {
   SYSTEM_ADJUSTMENT_POLICY,
   postAccountingJournal
 } from './accounting-ledger.js';
+import { uangMukaAccountId } from './accounting-admin-bridge.js';
 
 export const ACCOUNTING_POS_BRIDGE_CONTRACT = 'MAXI_ACCOUNTING_POS_BRIDGE_V1';
 
@@ -101,7 +102,7 @@ async function loadSaleFact(db, storeId, factId) {
 
 async function loadPurchaseFact(db, storeId, factId) {
   const header = await db.prepare(`
-    SELECT id, total_amount, payment_method, created_at, description
+    SELECT id, total_amount, payment_method, created_at, description, deposit_id
     FROM purchases
     WHERE id = ? AND store_id = ?
     LIMIT 1
@@ -118,6 +119,7 @@ async function loadPurchaseFact(db, storeId, factId) {
     factId: header.id,
     totalAmountMinor: Number(header.total_amount),
     paymentMethodCode: header.payment_method || 'CASH',
+    depositId: header.deposit_id || null,
     description: text(header.description, 300) || `Pembelian ${header.id}`,
     createdAt: header.created_at,
     itemLines: (rows.results ?? []).map(row => ({
@@ -216,6 +218,21 @@ async function paymentAccount(db, storeId, paymentMethodCode) {
     accountId: row.account_id || null,
     accountCode: row.account_code || '',
     accountName: row.account_name || ''
+  };
+}
+
+async function depositPaymentAccount(db, storeId) {
+  const accountId = await uangMukaAccountId(db, storeId);
+  const row = accountId
+    ? await db.prepare('SELECT id, code, name FROM chart_of_accounts WHERE id = ? AND store_id = ? AND is_active = 1').bind(accountId, storeId).first()
+    : null;
+  return {
+    paymentMethodId: null,
+    code: 'DEPOSIT',
+    name: 'Uang Muka / Deposit',
+    accountId: row?.id || null,
+    accountCode: row?.code || '',
+    accountName: row?.name || ''
   };
 }
 
@@ -400,11 +417,16 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
   const ambiguous = detectAmbiguousGenericRules(rules);
   if (ambiguous) return ambiguous;
 
-  const payment = await paymentAccount(db, store.id, fact.paymentMethodCode);
+  // Pembelian yang dilunasi dari Uang Muka/Deposit (ADR-046): uangnya sudah
+  // keluar waktu Deposit dibuat, jadi sisi pembayarannya mengurangi akun
+  // Uang Muka, bukan akun cara bayar kasir.
+  const payment = fact.depositId
+    ? await depositPaymentAccount(db, store.id)
+    : await paymentAccount(db, store.id, fact.paymentMethodCode);
   if (rules.some(rule => rule.sourceType === 'payment_method')) {
     if (!payment) return configurationFailure('NEEDS_PAYMENT_METHOD', `Cara bayar ${fact.paymentMethodCode} belum terdaftar/aktif.`);
     if (!payment.accountId || !payment.accountCode) {
-      return configurationFailure('NEEDS_PAYMENT_MAPPING', `Cara bayar ${fact.paymentMethodCode} belum dilink ke akun.`);
+      return configurationFailure('NEEDS_PAYMENT_MAPPING', `Cara bayar ${payment.code} belum dilink ke akun.`);
     }
   }
 

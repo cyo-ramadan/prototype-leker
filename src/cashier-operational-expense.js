@@ -64,7 +64,13 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
       if (!master || !quantity || unitAmount === null) return json({ error: 'Master Biaya, Qty, atau nominal biaya tidak valid.' }, 400);
       const amount = quantity * unitAmount;
       if (!Number.isSafeInteger(amount) || amount <= 0) return json({ error: 'Total detail biaya tidak valid.' }, 400);
-      normalizedItems.push({ master, quantity, unitAmount, amount });
+      // Keterangan boleh beda dari nama Kategori (Master Biaya) yang dipilih
+      // -- kasir sengaja mengetik ulang (mis. "Tarikan Sampah RT 03"). Kalau
+      // tidak dikirim/kosong, tetap default ke nama Master seperti perilaku
+      // lama. cost_master_id tetap dari Kategori yang dipilih (bisa sudah di-
+      // snap ke "Biaya Lainnya" oleh UI), bukan ditebak dari teks Keterangan.
+      const description = text(requested?.description, 220) || master.name;
+      normalizedItems.push({ master, quantity, unitAmount, amount, description });
     }
     const now = new Date().toISOString();
     const statements = [];
@@ -78,12 +84,12 @@ export async function handleCashierOperationalExpenseApi(request, env, pathname)
       statements.push(env.DB.prepare(`
         INSERT INTO expenses (
           id, store_id, drawer_session_id, cashier_id, description, amount,
-          quantity, created_at, payment_method
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          quantity, created_at, payment_method, cost_master_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(id, auth.cashier.store.id, ownership.drawer.id, auth.cashier.id,
-        item.master.name, item.amount, String(item.quantity), now, resolvedPayment.code));
+        item.description, item.amount, String(item.quantity), now, resolvedPayment.code, item.master.id));
       statements.push(accounting.statement);
-      committed.push({ id, costMasterId: item.master.id, name: item.master.name, quantity: item.quantity, unitAmount: item.unitAmount, amount: item.amount, costTypeId: item.master.cost_type_id, costGroup: item.master.cost_group });
+      committed.push({ id, costMasterId: item.master.id, name: item.description, quantity: item.quantity, unitAmount: item.unitAmount, amount: item.amount, costTypeId: item.master.cost_type_id, costGroup: item.master.cost_group });
     }
     await env.DB.batch(statements);
     return json({

@@ -52,18 +52,24 @@ test('portal exposes attendance, KPI, deposits and payroll sections', () => {
   assert.match(staffUi, /CameraSnapshotModal\.open/);
 });
 
-test('staff API authorization is refreshed from sessionStorage per fetch', () => {
-  assert.match(transport, /sessionStorage\.getItem\('lekerCashierToken'\)/);
+// 2026-09-18: token kasir pindah sessionStorage -> localStorage (biar sesi
+// tidak hilang saat tab ditutup). Yang DIJAGA test ini tidak berubah sama
+// sekali: tokennya dibaca ulang tiap fetch (tidak di-cache), dan token kasir
+// selalu dicoba LEBIH DULU -- fallback ke token manajemen (Owner/Admin
+// Gerai/Entity Admin) cuma boleh untuk viewer read-only "Lihat Kasir" yang
+// digerbang eksplisit lewat ?readonly=1, bukan bocor bebas untuk "Kasir
+// Login" biasa (Bos Cyo, 2026-09-17).
+test('staff API authorization is re-read per fetch, cashier token first, management token only behind ?readonly=1', () => {
+  assert.match(transport, /localStorage\.getItem\('lekerCashierToken'\)/);
   assert.match(transport, /headers\.set\('Authorization'/);
   assert.match(transport, /body instanceof FormData/);
   assert.match(transport, /headers\.delete\('Content-Type'\)/);
-  // lekerCashierToken tetap dicoba lebih dulu di setiap fetch (tidak
-  // di-cache); satu-satunya fallback ke localStorage yang diizinkan adalah
-  // token manajemen (Owner/Admin Gerai/Entity Admin) untuk viewer read-only
-  // "Lihat Kasir", dan itu wajib digerbang eksplisit lewat ?readonly=1 --
-  // bukan bocor bebas untuk "Kasir Login" biasa (Bos Cyo, 2026-09-17).
-  assert.match(transport, /sessionStorage\.getItem\('lekerCashierToken'\)\s*\n\s*\|\|\s*\(isReadOnlyPreview/);
-  assert.doesNotMatch(transport, /localStorage\.getItem\([^)]*Token[^)]*\)\s*\|\|\s*sessionStorage/, 'localStorage must never be tried before sessionStorage');
+  assert.match(transport, /localStorage\.getItem\('lekerCashierToken'\)\s*\n\s*\|\|\s*\(isReadOnlyPreview/);
+  assert.doesNotMatch(
+    transport,
+    /\(isReadOnlyPreview[\s\S]{0,200}?\)\s*\n?\s*\|\|\s*localStorage\.getItem\('lekerCashierToken'\)/,
+    'token manajemen tidak boleh pernah dicoba sebelum token kasir'
+  );
 });
 
 test('migration stores photos without adding blobs to attendance list payloads', () => {

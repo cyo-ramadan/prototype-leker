@@ -15,3 +15,54 @@ export function getJakartaBusinessDate(date = new Date()) {
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
 }
+
+// "HH:MM" jam dinding Jakarta -- dipakai membandingkan jam presensi ke
+// shift_start/shift_end (account_job_details), yang juga diisi Admin sebagai
+// jam dinding lokal, bukan UTC.
+export function getJakartaTimeOfDay(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.hour}:${values.minute}`;
+}
+
+// Menit sejak tengah malam, dari string "HH:MM". Dipakai untuk selisih
+// keterlambatan -- integer, tidak ada isu float sama sekali (bukan uang,
+// tapi tetap dihindari desimal supaya perbandingannya presisi).
+export function timeOfDayToMinutes(hhmm) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(hhmm ?? ''));
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+// Kebalikan dari getJakartaTimeOfDay/getJakartaBusinessDate: dari tanggal
+// bisnis Jakarta ("YYYY-MM-DD") + jam dinding ("HH:MM"), kembalikan Date UTC
+// yang tepat menunjuk momen itu. Dipakai buat force-close presensi (Bos Cyo,
+// 2026-09-24: "satu jam setelah waktu presensi pulang dia belum absen maka
+// langsung force close") -- perlu tahu KAPAN persisnya "jam pulang jadwal"
+// itu jatuh di kalender UTC supaya bisa dibandingkan ke waktu sekarang.
+// Jakarta tidak punya DST jadi offset +7 jam selalu valid (sama seperti
+// JAKARTA_BUSINESS_DATE_SQL di net-profit-report.js).
+export function jakartaWallClockToUtc(businessDate, hhmm) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(businessDate ?? ''));
+  const minutes = timeOfDayToMinutes(hhmm);
+  if (!match || minutes === null) return null;
+  const [, year, month, day] = match;
+  const fauxUtc = Date.UTC(Number(year), Number(month) - 1, Number(day), 0, minutes);
+  return new Date(fauxUtc - 7 * 60 * 60 * 1000);
+}
+
+// 0=Minggu .. 6=Sabtu, hari kalender Jakarta (bukan UTC) -- dipakai
+// account_shift_schedule (migration 0106) supaya jam kerja bisa beda per
+// hari (mis. Senin-Jumat 09:00-18:00, Sabtu libur, Minggu 09:00-22:00).
+// Dihitung dari tanggal Jakarta (Y-M-D) yang dikonstruksi ulang jadi UTC
+// tengah hari, supaya aman dari isu DST/timezone -- cuma kalender yang
+// dipakai, bukan jam.
+export function getJakartaDayOfWeek(date = new Date()) {
+  const [year, month, day] = getJakartaBusinessDate(date).split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+}

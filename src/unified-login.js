@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { hashCredential } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
+import { findEmployeeSessionConflict } from './employee-master.js';
 
 const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -174,27 +175,61 @@ function staffSessionSpec(match) {
   return { table: 'cashier_sessions', idColumn: 'cashier_id', mapped: cashier, redirect: '/cashier', payloadKey: 'cashier' };
 }
 
-async function createStaffSession(db, match, { takeover = false } = {}) {
-  const spec = staffSessionSpec(match);
-  const session = createSessionWindow();
-  await db.prepare(`DELETE FROM ${spec.table} WHERE expires_at <= ?`).bind(session.now).run();
-  const active = await db.prepare(`SELECT token_hash, expires_at FROM ${spec.table} WHERE ${spec.idColumn} = ? AND expires_at > ? LIMIT 1`)
-    .bind(match.row.id, session.now).first();
+// Bos Cyo, 2026-09-18: "mau login juga kadang risih ada permintaan, mau pakai
+// sesi ini, padahal terakhir masih login. user udah mulai risih."
+//
+// Dulu di sini: kalau akun yang sama masih punya sesi aktif, login DITOLAK
+// (409 STAFF_SESSION_ACTIVE) dan user disuruh menekan "Ambil alih sesi" dulu.
+// Prompt itu justru paling sering muncul untuk ORANG YANG SAMA di BROWSER YANG
+// SAMA -- token di browser hilang (tab ditutup / context dibuang OS) sementara
+// sesi di server masih hidup 12 jam, jadi setiap login ulang selalu kena tanya.
+// Prompt-nya tidak menambah keamanan apa pun: tombol "Ambil alih" bebas
+// ditekan siapa saja yang sudah lolos password, jadi satu-satunya gerbang yang
+// nyata memang password itu sendiri.
+//
+// Sekarang: satu akun boleh punya beberapa sesi aktif sekaligus (2 tab, HP +
+// laptop). Aman karena setiap sesi berdiri sendiri -- validasi dan logout
+// dua-duanya per `token_hash` (src/cashier-auth.js, src/owner-auth.js), bukan
+// per akun. Jadi logout di satu tempat TIDAK mematikan sesi di tempat lain,
+// dan sesi lama tidak lagi dicabut diam-diam cuma karena ada login baru.
+// Field `takeover` di body request sengaja tidak lagi dibaca sama sekali --
+// klien versi lama yang masih mengirimnya tidak error, cuma diabaikan.
+// Nama role di sini ('ADMIN') beda dari account_type di employee_account_links
+// ('STORE_ADMIN', migration 0072) -- dua kosakata yang tumbuh independen di
+// dua modul beda. Peta kecil ini yang menjembatani, bukan menyamakan
+// istilahnya di salah satu sisi (keduanya sudah dipakai luas di tempat lain).
+const ROLE_TO_EMPLOYEE_ACCOUNT_TYPE = { CASHIER: 'CASHIER', ADMIN: 'STORE_ADMIN', ENTITY_ADMIN: 'ENTITY_ADMIN' };
 
-  if (active && !takeover) {
-    return {
-      ok: false,
-      response: json({
-        error: 'Akun karyawan ini masih aktif di tab atau perangkat lain.',
-        code: 'STAFF_SESSION_ACTIVE',
-        canTakeover: true,
-        role: match.role,
-        expiresAt: active.expires_at
-      }, 409)
-    };
+async function createStaffSession(db, match) {
+  const session = createSessionWindow();
+
+  // Bos Cyo, 2026-09-18: "kalo ada 1 nama coba login 2 akun ... maka ini
+  // harus di tolak" -- satu KARYAWAN tidak boleh aktif di akun lain yang
+  // juga tertaut ke dirinya, lintas gerai dalam entity yang sama. Dicek
+  // SEBELUM sesi baru dibuat, dan TIDAK PERNAH mencabut sesi yang sudah
+  // berjalan (Bos Cyo eksplisit: sesi yang lacinya sedang terbuka paling
+  // wajib dipertahankan) -- lihat komentar lengkap di
+  // findEmployeeSessionConflict, src/employee-master.js.
+  const employeeAccountType = ROLE_TO_EMPLOYEE_ACCOUNT_TYPE[match.role];
+  if (employeeAccountType) {
+    const conflict = await findEmployeeSessionConflict(db, employeeAccountType, match.row.id, session.now);
+    if (conflict) {
+      const conflictRoleLabel = conflict.conflict_account_type === 'CASHIER' ? 'Kasir'
+        : conflict.conflict_account_type === 'STORE_ADMIN' ? 'Admin Gerai' : 'Entity Admin';
+      return {
+        ok: false,
+        response: json({
+          error: `${conflict.employee_name} masih aktif sebagai ${conflictRoleLabel}${conflict.conflict_store_code ? ` di gerai ${conflict.conflict_store_code}` : ''}. Logout dari sana dulu sebelum login di akun ini.`,
+          code: 'EMPLOYEE_ACTIVE_ELSEWHERE',
+          conflictAccountType: conflict.conflict_account_type,
+          conflictStoreCode: conflict.conflict_store_code || null
+        }, 409)
+      };
+    }
   }
 
-  if (active) await db.prepare(`DELETE FROM ${spec.table} WHERE ${spec.idColumn} = ?`).bind(match.row.id).run();
+  const spec = staffSessionSpec(match);
+  await db.prepare(`DELETE FROM ${spec.table} WHERE expires_at <= ?`).bind(session.now).run();
   const tokenHash = await hashCredential(session.token);
   await db.prepare(`INSERT INTO ${spec.table} (token_hash, ${spec.idColumn}, created_at, expires_at) VALUES (?, ?, ?, ?)`)
     .bind(tokenHash, match.row.id, session.now, session.expiresAt).run();
@@ -217,7 +252,7 @@ async function readCredentials(request) {
   const username = usernameText(body.value?.username);
   const password = String(body.value?.password ?? '');
   if (!username || !password) return { ok: false, response: json({ error: 'Username dan password wajib diisi.' }, 400) };
-  return { ok: true, username, passwordHash: await hashCredential(password), takeover: body.value?.takeover === true };
+  return { ok: true, username, passwordHash: await hashCredential(password) };
 }
 
 async function handleCustomerLogin(request, env) {
@@ -243,7 +278,7 @@ async function handleStaffLogin(request, env) {
       code: 'AMBIGUOUS_STAFF_LOGIN'
     }, 409);
   }
-  const result = await createStaffSession(env.DB, matches[0], { takeover: credentials.takeover });
+  const result = await createStaffSession(env.DB, matches[0]);
   return result.ok ? json(result.payload) : result.response;
 }
 
@@ -263,7 +298,7 @@ async function handleLegacyUnifiedLogin(request, env) {
   if (!matches.length) return json({ error: 'Username atau password salah.' }, 401);
   if (matches.length > 1) return json({ error: 'Kredensial bentrok. Gunakan login Pelanggan atau Karyawan.', code: 'AMBIGUOUS_LOGIN' }, 409);
   if (matches[0].role === 'CUSTOMER') return json(await createCustomerSession(env.DB, matches[0].row));
-  const result = await createStaffSession(env.DB, matches[0], { takeover: credentials.takeover });
+  const result = await createStaffSession(env.DB, matches[0]);
   return result.ok ? json(result.payload) : result.response;
 }
 

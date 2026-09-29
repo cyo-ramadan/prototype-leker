@@ -3,7 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
-import { listProductKinds, resolveProductKind } from './product-kinds.js';
+import { defaultProductKindForItemType, listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const COST_SCALE = 1_000_000;
@@ -179,8 +179,17 @@ async function editorPayload(db, store) {
   return { store, products, recipes, productKinds, ...refs };
 }
 
-async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId) {
-  if (!currentUnitId || currentUnitId === nextUnitId) return { ok: true };
+// Bos Cyo, 2026-09-28: dulu ganti satuan barang yang sudah punya histori
+// ditolak mentah-mentah, pesannya menunjuk ke "proses konversi/migrasi
+// terpisah" yang tidak pernah benar-benar dibangun. Keputusan Bos Cyo: kasus
+// salah-pasang-satuan (mis. kepencet pcs padahal maksudnya ml) itu murni
+// salah label -- angka stok/HPP/takaran resep yang sudah ada memang
+// dimaksudkan dalam satuan yang benar sejak awal, jadi tidak perlu rasio
+// konversi apa pun. Admin cukup dikasih warning sekali (lihat migration
+// 0126_product_base_unit_change_log.sql) lalu boleh lanjut -- diteruskan
+// lewat flag confirmUnitChange dari body, bukan form input tambahan.
+async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nextUnitId, confirmed) {
+  if (!currentUnitId || currentUnitId === nextUnitId) return { ok: true, changed: false };
   const [recipe, movement, balance] = await db.batch([
     db.prepare(`SELECT id FROM manufacturing_recipes WHERE store_id = ? AND output_product_id = ? LIMIT 1`).bind(storeId, productId),
     db.prepare(`SELECT id FROM stock_movements WHERE store_id = ? AND product_id = ? LIMIT 1`).bind(storeId, productId),
@@ -189,13 +198,21 @@ async function validateBaseUnitChange(db, storeId, productId, currentUnitId, nex
   const hasRecipe = Boolean(recipe.results?.length);
   const hasMovement = Boolean(movement.results?.length);
   const quantity = Number(balance.results?.[0]?.quantity || 0);
-  if (hasRecipe || hasMovement || quantity !== 0) {
+  const hadHistory = hasRecipe || hasMovement || quantity !== 0;
+  if (hadHistory && !confirmed) {
+    const [oldUnit, newUnit] = await db.batch([
+      db.prepare('SELECT name, symbol FROM units WHERE id = ?').bind(currentUnitId),
+      db.prepare('SELECT name, symbol FROM units WHERE id = ?').bind(nextUnitId)
+    ]);
+    const label = row => row ? `${row.name} (${row.symbol})` : 'satuan sebelumnya';
     return {
       ok: false,
-      error: 'Satuan dasar tidak boleh diganti setelah barang punya resep atau histori stok. Gunakan proses konversi/migrasi satuan terpisah.'
+      status: 409,
+      code: 'BASE_UNIT_HISTORY_CONFIRM_REQUIRED',
+      error: `Barang ini sudah punya histori stok dan/atau resep. Angka stok, harga pokok, dan takaran resep yang memakai barang ini TIDAK akan diubah -- hanya label satuan yang berganti dari ${label(oldUnit.results?.[0])} ke ${label(newUnit.results?.[0])}. Simpan sekali lagi untuk melanjutkan.`
     };
   }
-  return { ok: true };
+  return { ok: true, changed: true, hadHistory, hasRecipe, hasMovement, quantity };
 }
 
 async function normalizeEditorInput(db, storeId, productId, body, current = null) {
@@ -227,10 +244,22 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     allowInactive: Boolean(current?.product_kind_id && current.product_kind_id === productKindId)
   });
   if (!kind.ok) return { ok: false, status: 400, error: kind.error };
+  if (!kind.productKindId) kind.productKindId = await defaultProductKindForItemType(db, storeId, refs.itemTypeId);
 
+  let baseUnitChangeLog = null;
   if (current) {
-    const unitGuard = await validateBaseUnitChange(db, storeId, productId, current.base_unit_id, refs.baseUnitId);
-    if (!unitGuard.ok) return { ok: false, status: 409, error: unitGuard.error };
+    const confirmUnitChange = owns(body, 'confirmUnitChange') && body.confirmUnitChange === true;
+    const unitGuard = await validateBaseUnitChange(db, storeId, productId, current.base_unit_id, refs.baseUnitId, confirmUnitChange);
+    if (!unitGuard.ok) return { ok: false, status: unitGuard.status || 409, error: unitGuard.error, code: unitGuard.code };
+    if (unitGuard.changed && unitGuard.hadHistory) {
+      baseUnitChangeLog = {
+        fromUnitId: current.base_unit_id,
+        toUnitId: refs.baseUnitId,
+        hasRecipe: unitGuard.hasRecipe,
+        hasMovement: unitGuard.hasMovement,
+        quantity: unitGuard.quantity
+      };
+    }
   }
 
   let recipeLink = { ok: true, linkedRecipeId: null, recipe: null };
@@ -258,7 +287,8 @@ async function normalizeEditorInput(db, storeId, productId, body, current = null
     pointsPerUnit,
     linkedRecipeId: recipeLink.linkedRecipeId,
     recipeLinkEnabled: recipeLink.recipe ? 1 : 0,
-    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0
+    stockTrackingEnabled: stockTrackingEnabled ? 1 : 0,
+    baseUnitChangeLog
   };
 }
 
@@ -342,7 +372,7 @@ export async function handleProductMasterApi(request, env, pathname) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload Master Barang tidak valid.' }, 400);
   const normalized = await normalizeEditorInput(env.DB, store.id, productId, body.value, current);
-  if (!normalized.ok) return json({ error: normalized.error }, normalized.status);
+  if (!normalized.ok) return json({ error: normalized.error, code: normalized.code }, normalized.status);
   await ensureCategory(env.DB, store.id, normalized.category);
 
   // Retrofit Kode Barang: barang lama yang belum pernah didaftarkan ke
@@ -396,6 +426,23 @@ export async function handleProductMasterApi(request, env, pathname) {
       env.DB.prepare('UPDATE products SET image_data = ? WHERE product_master_id = ?')
         .bind(normalized.productImage, current.product_master_id)
     );
+  }
+  if (normalized.baseUnitChangeLog) {
+    // Jejak audit "Ganti Satuan" (migration 0126) -- murni catatan, bukan
+    // sumber saldo apa pun. Angka stok/HPP/resep sengaja TIDAK direcompute
+    // (lihat komentar validateBaseUnitChange): ini relabel murni, bukan
+    // konversi skala.
+    const actor = actorFrom(auth);
+    const log = normalized.baseUnitChangeLog;
+    statements.push(env.DB.prepare(`
+      INSERT INTO product_base_unit_change_log (
+        store_id, product_id, product_name, from_unit_id, to_unit_id,
+        had_recipe, had_movement, stock_quantity_at_change, changed_by_role, changed_by_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      store.id, productId, normalized.name, log.fromUnitId, log.toUnitId,
+      log.hasRecipe ? 1 : 0, log.hasMovement ? 1 : 0, log.quantity, actor.role, actor.id
+    ));
   }
   await env.DB.batch(statements);
   return json({ ok: true, id: productId, editor: await editorPayload(env.DB, store) });
@@ -539,6 +586,45 @@ export async function handleProductMasterCatalogApi(request, env, pathname) {
     return json({ store, catalog: await loadProductMasterCatalog(db, store.entityId) });
   }
 
+  // Upload Master Barang lewat Admin Entity (Bos Cyo, 2026-09-19: "bikin
+  // sistem upload barang lewat admin entity dan uploadnya juga di master
+  // barang entity ya") -- sebelumnya satu-satunya jalan bikin Kode Barang
+  // adalah nebeng field "Kode Barang" saat gerai bikin/edit barangnya
+  // sendiri (lihat handleProductMasterApi di atas). Ini jalur top-down:
+  // Entity Admin/Owner mendaftarkan Kode Barang duluan, gerai mana pun
+  // (termasuk gerai yang belum punya barang sama sekali) tinggal
+  // "Gunakan/Aktifkan" dari katalog di bawah -- tidak perlu ada products
+  // row lebih dulu di gerai mana pun.
+  if (request.method === 'POST' && pathname === '/api/admin/product-masters') {
+    if (!(auth.owner || auth.entityAdmin)) {
+      return json({ error: 'Upload Master Barang Entity hanya bisa dilakukan Entity Admin atau Owner.', code: 'ENTITY_LEVEL_ONLY' }, 403);
+    }
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Master Barang Entity tidak valid.' }, 400);
+    const code = productCodeText(body.value?.code);
+    if (!code) return json({ error: 'Kode Barang wajib diisi.' }, 400);
+    const existingCode = await db.prepare('SELECT id FROM product_masters WHERE entity_id = ? AND code = ?').bind(store.entityId, code).first();
+    if (existingCode) {
+      return json({ error: 'Kode Barang ini sudah dipakai di entity ini.', code: 'PRODUCT_CODE_ALREADY_EXISTS' }, 409);
+    }
+    const image = imageData(body.value?.imageData);
+    if (image === null) return json({ error: 'Foto barang tidak valid.' }, 400);
+    const masterId = await createProductMaster(db, store.entityId, code, text(body.value?.name, 100), image, actorFrom(auth));
+    // Resep acuan opsional sekalian saat upload -- tetap murni referensi
+    // (ADR-043, keputusan Bos Cyo 2026-09-17): tidak pernah memblokir atau
+    // otomatis dipasang ke resep produksi gerai mana pun saat aktivasi.
+    if (Array.isArray(body.value?.recipeComponents) && body.value.recipeComponents.length) {
+      const components = body.value.recipeComponents
+        .map(component => ({
+          ingredientLabel: text(component?.ingredientLabel, 100),
+          quantityLabel: text(component?.quantityLabel, 40)
+        }))
+        .filter(component => component.ingredientLabel);
+      await replaceRecipeComponents(db, masterId, components);
+    }
+    return json({ ok: true, id: masterId, catalog: await loadProductMasterCatalog(db, store.entityId) }, 201);
+  }
+
   const activateMatch = pathname.match(/^\/api\/admin\/product-masters\/([^/]+)\/activate$/);
   if (request.method === 'POST' && activateMatch) {
     const masterId = decodeURIComponent(activateMatch[1]);
@@ -566,6 +652,33 @@ export async function handleProductMasterCatalogApi(request, env, pathname) {
       }))
       .filter(component => component.ingredientLabel);
     await replaceRecipeComponents(db, masterId, components);
+    return json({ ok: true, catalog: await loadProductMasterCatalog(db, store.entityId) });
+  }
+
+  const patchMatch = pathname.match(/^\/api\/admin\/product-masters\/([^/]+)$/);
+  if (request.method === 'PATCH' && patchMatch) {
+    if (!(auth.owner || auth.entityAdmin)) {
+      return json({ error: 'Mengubah Master Barang Entity hanya bisa dilakukan Entity Admin atau Owner.', code: 'ENTITY_LEVEL_ONLY' }, 403);
+    }
+    const masterId = decodeURIComponent(patchMatch[1]);
+    const master = await db.prepare('SELECT id, entity_id, name, image_data FROM product_masters WHERE id = ?').bind(masterId).first();
+    if (!master) return json({ error: 'Kode Barang tidak ditemukan.' }, 404);
+    if (master.entity_id !== store.entityId) {
+      return json({ error: 'Kode Barang ini bukan milik entity gerai ini.', code: 'PRODUCT_MASTER_ENTITY_MISMATCH' }, 403);
+    }
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Master Barang Entity tidak valid.' }, 400);
+    const name = owns(body.value, 'name') ? text(body.value.name, 100) : master.name;
+    const image = owns(body.value, 'imageData') ? imageData(body.value.imageData) : master.image_data;
+    if (image === null) return json({ error: 'Foto barang tidak valid.' }, 400);
+    // Foto Kode Barang milik Entity (ADR-043) -- ganti di sini ikut
+    // memperbarui setiap products row (gerai mana pun) yang sudah pakai
+    // Kode Barang ini, sama seperti saat foto diganti lewat edit barang
+    // biasa di satu gerai (lihat handleProductMasterApi PATCH di atas).
+    await db.batch([
+      db.prepare('UPDATE product_masters SET name = ?, image_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(name, image, masterId),
+      db.prepare('UPDATE products SET image_data = ? WHERE product_master_id = ?').bind(image, masterId)
+    ]);
     return json({ ok: true, catalog: await loadProductMasterCatalog(db, store.entityId) });
   }
 

@@ -7,6 +7,23 @@ export const OPERATIONAL_SOURCE_TYPES = Object.freeze({
   PURCHASE_PAYABLE: 'PURCHASE_PAYABLE',
   COST_PAYABLE: 'COST_PAYABLE',
   EMPLOYEE_DEPOSIT: 'EMPLOYEE_DEPOSIT',
+  // migration 0120, Bos Cyo 2026-09-26: Bea Lapak/Bea Lainnya (src/admin-
+  // operational-expense.js) sekarang lewat Hutang dulu -- baris dibuat oleh
+  // src/operational-expense-payables.js (pola sama dengan EMPLOYEE_DEPOSIT:
+  // INSERT langsung, bukan lewat addOperationalReceivablePayable/
+  // ikanSourceSnapshot karena sumbernya bukan tabel Ikan).
+  BEA_LAPAK: 'BEA_LAPAK',
+  BEA_LAINNYA: 'BEA_LAINNYA',
+  // migration 0122, Bos Cyo 2026-09-26: "bayar duluan, belum tentu langsung
+  // jadi beban semua" (token listrik, saldo iklan, DP bahan baku) --
+  // src/operational-deposits.js. RECEIVABLE karena ini nilai yang KITA
+  // pegang (bukan orang berhutang ke kita), ditarik belakangan sebagian-
+  // sebagian lewat addOperationalPayment yang sama dipakai Hutang -- fungsi
+  // itu memang tidak peduli arah PAYABLE/RECEIVABLE, cuma mengurangi saldo.
+  DEPOSIT_LISTRIK: 'DEPOSIT_LISTRIK',
+  DEPOSIT_IKLAN: 'DEPOSIT_IKLAN',
+  DEPOSIT_BAHAN_BAKU: 'DEPOSIT_BAHAN_BAKU',
+  DEPOSIT_LAINNYA: 'DEPOSIT_LAINNYA',
 });
 
 const SOURCE_BALANCE_TYPES = Object.freeze({
@@ -14,6 +31,12 @@ const SOURCE_BALANCE_TYPES = Object.freeze({
   [OPERATIONAL_SOURCE_TYPES.PURCHASE_PAYABLE]: 'PAYABLE',
   [OPERATIONAL_SOURCE_TYPES.COST_PAYABLE]: 'PAYABLE',
   [OPERATIONAL_SOURCE_TYPES.EMPLOYEE_DEPOSIT]: 'RECEIVABLE',
+  [OPERATIONAL_SOURCE_TYPES.BEA_LAPAK]: 'PAYABLE',
+  [OPERATIONAL_SOURCE_TYPES.BEA_LAINNYA]: 'PAYABLE',
+  [OPERATIONAL_SOURCE_TYPES.DEPOSIT_LISTRIK]: 'RECEIVABLE',
+  [OPERATIONAL_SOURCE_TYPES.DEPOSIT_IKLAN]: 'RECEIVABLE',
+  [OPERATIONAL_SOURCE_TYPES.DEPOSIT_BAHAN_BAKU]: 'RECEIVABLE',
+  [OPERATIONAL_SOURCE_TYPES.DEPOSIT_LAINNYA]: 'RECEIVABLE',
 });
 
 const API_ROOT = '/api/ikan/operational-receivables-payables';

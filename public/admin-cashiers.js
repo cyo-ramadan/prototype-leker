@@ -3,6 +3,23 @@
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
   let data = { cashiers: [], store: null };
 
+  // Bos Cyo, 2026-09-19: "akunnya dibikin lebih detil aja misal jam kerja
+  // dan hari kerja. jadi misal hari senin jam 9-18 sampai hari jumat sama,
+  // terus sabtu libur, minggu jam 9-22." Urutan tampilan mulai Senin (bukan
+  // Minggu) supaya cocok cara Bos Cyo menjelaskan jadwalnya sendiri.
+  const DAY_LABELS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+  function scheduleRowsHtml() {
+    return DAY_ORDER.map(day => `
+      <div class="admin-grid" style="grid-template-columns:64px auto 1fr 1fr;gap:6px;align-items:center;margin-bottom:4px">
+        <span>${DAY_LABELS[day]}</span>
+        <label style="display:flex;align-items:center;gap:4px;font-weight:400;white-space:nowrap"><input type="checkbox" data-sched-off="${day}" /> Libur</label>
+        <input type="time" data-sched-start="${day}" />
+        <input type="time" data-sched-end="${day}" />
+      </div>`).join('');
+  }
+
   const tabs = document.querySelector('.admin-tabs');
   if (tabs && !document.querySelector('[data-tab="cashiers"]')) {
     tabs.insertAdjacentHTML('beforeend', '<button class="admin-tab" data-tab="cashiers" type="button">🧑‍💼 Create Kasir</button>');
@@ -19,8 +36,14 @@
             <div class="admin-tip" style="margin-bottom:12px">Kasir otomatis terikat ke gerai workspace ini: <b id="cashierStoreLabel">-</b></div>
             <label class="admin-field">Username<input id="cashierUsername" maxlength="40" autocomplete="off" required /></label>
             <label class="admin-field">Password <span id="cashierPasswordNote" class="field-note">min. 6 karakter</span><input id="cashierPassword" type="password" minlength="6" autocomplete="new-password" required /></label>
-            <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /></label>
+            <label class="admin-field">Nama karyawan<input id="cashierEmployeeName" maxlength="100" required /><span class="field-note">Cuma label tampilan akun ini -- bukan tautan resmi. Menautkan ke orang sungguhan tetap dari tab Karyawan.</span></label>
+            <div class="admin-tip" style="margin-bottom:12px">Detail di bawah menempel ke AKUN ini (jabatannya), bukan ke orang yang memegangnya -- tetap berlaku walau akun ini dioper ke karyawan lain.</div>
+            <label class="admin-field">Jenis pekerjaan <span class="field-note">opsional</span><input id="cashierJobType" maxlength="100" placeholder="mis. Kasir Shift Pagi" /></label>
+            <label class="admin-field">Jenis pembayaran<select id="cashierPaymentType"><option value="JAM">Per Jam</option><option value="SESI">Per Sesi</option></select></label>
+            <label class="admin-field" id="cashierWageLabel">Gaji per jam (Rp) <span class="field-note">opsional</span><input id="cashierHourlyWage" type="number" min="0" step="1" /></label>
+            <div class="admin-field"><span>Jam &amp; hari kerja <span class="field-note">opsional per hari</span></span><div id="cashierScheduleRows" style="margin-top:6px">${scheduleRowsHtml()}</div></div>
             <label class="admin-check"><input id="cashierActive" type="checkbox" checked /> Aktif</label>
+            <label class="admin-check"><input id="cashierEntityBackup" type="checkbox" /> Akun Backup Lintas Gerai <span class="field-note">satu akun, dipakai gerai mana pun sesama entity -- wajib diaktifkan Admin per hari sebelum bisa presensi</span></label>
             <button class="primary-btn" type="submit">Simpan kasir</button>
           </form>
           <div class="admin-card list-card">
@@ -53,17 +76,76 @@
     document.querySelectorAll('.admin-section').forEach(section => section.classList.toggle('active', section.id === 'tab-cashiers'));
   }
 
+  function jobDetailLabel(cashier) {
+    const parts = [];
+    if (cashier.jobType) parts.push(escapeHtml(cashier.jobType));
+    if (cashier.hourlyWage > 0) parts.push(`${rupiah(cashier.hourlyWage)}/${cashier.paymentType === 'SESI' ? 'sesi' : 'jam'}`);
+    return parts.length ? parts.join(' · ') : 'Detail jabatan belum diisi';
+  }
+
+  // Mengelompokkan hari berurutan yang jadwalnya identik, persis cara Bos
+  // Cyo menjelaskan sendiri: "senin jam 9-18 sampai jumat sama, sabtu
+  // libur, minggu jam 9-22" -- bukan daftar 7 baris terpisah.
+  function scheduleSummary(schedule) {
+    if (!schedule || !schedule.length) return 'Jadwal belum diatur';
+    const byDay = new Map(schedule.map(day => [day.dayOfWeek, day]));
+    const ordered = DAY_ORDER.map(day => byDay.get(day) || { dayOfWeek: day, isDayOff: false, shiftStart: '', shiftEnd: '' });
+    const groups = [];
+    for (const day of ordered) {
+      const key = day.isDayOff ? 'OFF' : (day.shiftStart || day.shiftEnd) ? `${day.shiftStart}|${day.shiftEnd}` : 'UNSET';
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.days.push(day.dayOfWeek);
+      else groups.push({ key, days: [day.dayOfWeek] });
+    }
+    const labels = groups.map(group => {
+      if (group.key === 'UNSET') return null;
+      const dayLabel = group.days.length > 1
+        ? `${DAY_LABELS[group.days[0]]}–${DAY_LABELS[group.days[group.days.length - 1]]}`
+        : DAY_LABELS[group.days[0]];
+      if (group.key === 'OFF') return `${dayLabel} Libur`;
+      const [start, end] = group.key.split('|');
+      return `${dayLabel} ${escapeHtml(start || '?')}–${escapeHtml(end || '?')}`;
+    }).filter(Boolean);
+    return labels.length ? labels.join(' · ') : 'Jadwal belum diatur';
+  }
+
+  function syncWageLabel() {
+    const isSesi = el('cashierPaymentType').value === 'SESI';
+    el('cashierWageLabel').firstChild.textContent = isSesi ? 'Gaji per sesi (Rp) ' : 'Gaji per jam (Rp) ';
+  }
+
+  // Bos Cyo, 2026-09-24: "untuk akun backup mending ikut entity aja ...
+  // intinya hal ini untuk menghindari di hari dan jam normal cs ini presensi
+  // memakai user backup." Baris backup menunjukkan gerai TEMPAT akun itu
+  // sedang aktif hari ini (kalau ada) supaya Admin gerai lain tahu akun ini
+  // sedang "dipinjam" gerai mana, dan tombol Aktifkan buat menariknya ke
+  // gerai yang sedang dibuka di layar ini.
+  function backupStatusLine(cashier) {
+    const activation = cashier.todayActivation;
+    if (!activation) return '<span style="color:#c2255c;font-weight:700">Belum diaktifkan hari ini</span>';
+    const atThisStore = activation.storeId === (data.store?.id);
+    return atThisStore
+      ? `<span style="color:#2f9e44;font-weight:700">Aktif di gerai ini hari ini</span> · <span class="master-meta">oleh ${escapeHtml(roleLabel(activation.activatedByRole))}</span>`
+      : `<span style="color:#e8590c;font-weight:700">Aktif di gerai lain hari ini</span>`;
+  }
+
   function render() {
     if (el('cashierStoreLabel')) el('cashierStoreLabel').textContent = data.store ? `${data.store.code} · ${data.store.storeName}` : (window.LEKER_STORE_CODE || 'G001');
     el('cashierCount').textContent = data.cashiers.length;
     el('cashierList').innerHTML = data.cashiers.length ? data.cashiers.map(cashier => `
       <div class="master-row contact-row ${cashier.isActive ? '' : 'inactive'}">
         <div class="master-main">
-          <strong>${escapeHtml(cashier.employeeName)}</strong>
+          <strong>${escapeHtml(cashier.employeeName)}</strong>${cashier.isEntityBackup ? ' <span class="master-meta" style="border:1px solid var(--line,#e6ddd0);border-radius:8px;padding:1px 6px">🔁 Backup Lintas Gerai</span>' : ''}
           <div class="master-meta">@${escapeHtml(cashier.username)} · ${escapeHtml(cashier.store.code)}</div>
+          <div class="master-meta">${jobDetailLabel(cashier)}</div>
+          <div class="master-meta">${scheduleSummary(cashier.schedule)}</div>
           <div class="master-meta">${cashier.isActive ? 'Aktif' : 'Nonaktif'}</div>
+          ${cashier.isEntityBackup ? `<div class="master-meta">${backupStatusLine(cashier)}</div>` : ''}
         </div>
         <div class="master-actions">
+          ${cashier.isEntityBackup ? `<button class="mini-btn" type="button" data-activate-backup="${escapeHtml(cashier.id)}">✅ Aktifkan gerai ini hari ini</button>` : ''}
+          <button class="mini-btn" type="button" data-attendance-cashier="${escapeHtml(cashier.id)}">📋 Presensi</button>
+          <button class="mini-btn" type="button" data-payroll-cashier="${escapeHtml(cashier.id)}">💰 Gaji</button>
           <button class="mini-btn" type="button" data-edit-cashier="${escapeHtml(cashier.id)}">Edit</button>
           <button class="mini-btn danger" type="button" data-delete-cashier="${escapeHtml(cashier.id)}">Nonaktifkan</button>
         </div>
@@ -71,6 +153,197 @@
 
     document.querySelectorAll('[data-edit-cashier]').forEach(button => button.onclick = () => editCashier(button.dataset.editCashier));
     document.querySelectorAll('[data-delete-cashier]').forEach(button => button.onclick = () => deactivateCashier(button.dataset.deleteCashier));
+    document.querySelectorAll('[data-attendance-cashier]').forEach(button => button.onclick = () => openAttendance(button.dataset.attendanceCashier));
+    document.querySelectorAll('[data-payroll-cashier]').forEach(button => button.onclick = () => openPayroll(button.dataset.payrollCashier));
+    document.querySelectorAll('[data-activate-backup]').forEach(button => button.onclick = () => activateBackup(button.dataset.activateBackup));
+  }
+
+  async function activateBackup(id) {
+    try {
+      const result = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/activate-today`, { method: 'POST' });
+      toast(result.alreadyActive ? 'Akun ini sudah aktif di gerai ini hari ini' : 'Akun backup diaktifkan untuk gerai ini hari ini');
+      await load();
+    } catch (error) { toast(error.message); }
+  }
+
+  // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang
+  // ngga ada di webnya admin, jadi ini saya sama mba rika juga bingung mau
+  // cek presensi dan hitung honornya, harus buka web lama." Riwayat Presensi
+  // + Riwayat Gaji sebelumnya cuma pernah dibangun di Portal Staf (karyawan
+  // lihat dirinya sendiri, public/staff.js) -- warna/label lateness di bawah
+  // sengaja DITIRU PERSIS dari sana (nilai hex yang sama) supaya Admin dan
+  // karyawan melihat penilaian telat yang identik, bukan dua standar beda.
+  const rupiah = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+  function dateTime(value) { return value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : ''; }
+  function locationLine(fact) {
+    if (!fact || fact.latitude == null || fact.longitude == null) return 'Lokasi tidak tersedia';
+    const accuracy = fact.accuracyMeters != null ? ` (±${Math.round(fact.accuracyMeters)}m)` : '';
+    return `${Number(fact.latitude).toFixed(5)}, ${Number(fact.longitude).toFixed(5)}${accuracy}`;
+  }
+  function latenessRowStyle(checkIn) {
+    const lateMinutes = checkIn?.lateMinutes;
+    if (lateMinutes == null || lateMinutes === 0) return '';
+    if (lateMinutes < 5) return 'background:#ffe4ec';
+    if (lateMinutes < 10) return 'background:#ffb3c6';
+    return 'background:#ff8fa3';
+  }
+  function latenessBadge(checkIn) {
+    const lateMinutes = checkIn?.lateMinutes;
+    if (lateMinutes == null) return '';
+    if (lateMinutes === 0) return ' · <span style="font-weight:800;color:#2f9e44">Tepat waktu</span>';
+    const color = lateMinutes < 5 ? '#d6336c' : lateMinutes < 10 ? '#c2255c' : '#a4133c';
+    return ` · <span style="font-weight:800;color:${color}">Telat ${lateMinutes} menit</span>`;
+  }
+  function attendancePhotoThumb(cashierId, row, which) {
+    const fact = which === 'in' ? row.checkIn : row.checkOut;
+    if (!fact) return '';
+    // <img src="..."> browser tidak pernah membawa Authorization Bearer
+    // header custom -- src dikosongkan dulu, diisi lewat fetch()+blob URL
+    // di loadAttendancePhotoThumbs() (sama seperti public/staff.js).
+    return `<img class="attendance-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:10px;margin-right:6px;background:var(--line,#eee)" data-photo-cashier="${escapeHtml(cashierId)}" data-photo-attendance="${escapeHtml(row.id)}" data-photo-which="${which}" alt="Foto presensi ${which === 'in' ? 'datang' : 'pulang'}" loading="lazy" />`;
+  }
+  let attendancePhotoUrls = [];
+  async function loadAttendancePhotoThumbs() {
+    attendancePhotoUrls.forEach(url => URL.revokeObjectURL(url));
+    attendancePhotoUrls = [];
+    const nodes = [...document.querySelectorAll('[data-photo-attendance]')];
+    await Promise.all(nodes.map(async img => {
+      try {
+        const response = await fetch(`/api/admin/cashiers/${encodeURIComponent(img.dataset.photoCashier)}/attendance/${encodeURIComponent(img.dataset.photoAttendance)}/photo?which=${img.dataset.photoWhich}`);
+        if (!response.ok) return;
+        const url = URL.createObjectURL(await response.blob());
+        attendancePhotoUrls.push(url);
+        img.src = url;
+      } catch {}
+    }));
+  }
+  // Bos Cyo, 2026-09-24: "kartu presensi hari itu juga jadi warna kuning"
+  // untuk sesi yang ditutup otomatis sistem (lupa presensi pulang) --
+  // menang atas warna gradasi telat, karena ini sinyal yang lebih penting
+  // ("lupa tutup" vs "telat datang").
+  function attendanceRowHtml(cashierId, row) {
+    const rowStyle = row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn);
+    return `<div style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:10px;margin-bottom:8px;display:flex;align-items:center;${rowStyle}">
+      ${attendancePhotoThumb(cashierId, row, 'in')}${attendancePhotoThumb(cashierId, row, 'out')}
+      <div>
+        <strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}
+        <div class="master-meta">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div>
+        <div class="master-meta">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · <span class="master-meta">tanpa foto/GPS -- lupa presensi pulang</span>' : ''}` : '—'}</div>
+      </div>
+    </div>`;
+  }
+  async function openAttendance(id) {
+    const cashier = data.cashiers.find(item => item.id === id);
+    try {
+      const payload = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/attendance`);
+      const rows = payload.attendance || [];
+      openAdminDetailModal({
+        head: `<div><h3 style="margin:0">Presensi</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')}</div></div>`,
+        body: `<div>${rows.length ? rows.map(row => attendanceRowHtml(id, row)).join('') : '<div class="empty">Belum ada riwayat presensi.</div>'}</div>`
+      });
+      await loadAttendancePhotoThumbs();
+    } catch (error) { toast(error.message); }
+  }
+
+  // Bos Cyo, 2026-09-24: "untuk detil gaji dikasi tombol dan kolom sendiri
+  // saja. karna selain dari presensi, gaji nanti juga bisa dibuat oleh
+  // akuntan sendiri, misal tanggal 26 akuntan entry tambahan 30rb karena
+  // lembur ... jadi di tanggal 26 nanti akan terlihat 2 kartu, 1 dari
+  // presensi normal, 2 tambah entryan akuntan." payroll (dari presensi) dan
+  // adjustments (entry manual) DUA SUMBER BEDA -- digabung di sini per
+  // tanggal jadi kartu-kartu terpisah, bukan dijumlah jadi satu angka yang
+  // menyembunyikan dari mana asalnya.
+  let currentPayrollCashierId = null;
+  function payrollCardHtml(card) {
+    const positive = card.amountRupiah > 0;
+    const border = card.voided ? '#d8cfc2' : (card.kind === 'adjustment' ? (positive ? '#b2e6c9' : '#f3b8c6') : 'var(--line,#e6ddd0)');
+    const amountColor = card.voided ? 'var(--muted,#9c9284)' : (card.amountRupiah < 0 ? '#c2255c' : (card.kind === 'adjustment' ? '#2f9e44' : 'inherit'));
+    const voidBtn = (card.kind === 'adjustment' && !card.voided)
+      ? `<button class="mini-btn danger" type="button" data-void-adjustment="${escapeHtml(card.id)}" style="margin-top:6px">Batalkan</button>`
+      : '';
+    const subtitle = card.kind === 'adjustment'
+      ? `${escapeHtml(card.reason)}${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''} · <span class="master-meta">oleh ${escapeHtml(roleLabel(card.createdByRole))}</span>`
+      : `${card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`} · <span class="master-meta">dari presensi</span>${card.withinSchedule === false ? ' · <span style="color:#c2255c;font-weight:700">Di luar jadwal, tidak dihitung</span>' : ''}`;
+    return `<div style="border:1px solid ${border};border-radius:16px;padding:10px;margin-bottom:6px;${card.voided ? 'opacity:.6' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>${subtitle}</div>
+        <b style="white-space:nowrap;color:${amountColor}">${card.amountRupiah < 0 ? '-' : ''}${rupiah(Math.abs(card.amountRupiah))}</b>
+      </div>
+      ${voidBtn}
+    </div>`;
+  }
+  function roleLabel(role) {
+    return { OWNER: 'Owner', ADMIN: 'Admin Gerai', ENTITY_ADMIN: 'Entity Admin', AGENT_TOKEN: 'Agen' }[role] || role || '-';
+  }
+  function payrollByDateHtml(payrollRows, adjustmentRows) {
+    const cardsByDate = new Map();
+    const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
+    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule });
+    for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', id: row.id, amountRupiah: row.amountRupiah, reason: row.reason, createdByRole: row.createdByRole, voided: row.voided, voidReason: row.voidReason });
+    if (!cardsByDate.size) return '<div class="empty">Belum ada riwayat gaji.</div>';
+    const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+    const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
+    return `<div class="admin-tip" style="margin-bottom:10px"><b>Total keseluruhan:</b> ${rupiah(grandTotal)}</div>
+      ${dates.map(date => {
+        const cards = cardsByDate.get(date);
+        const dayTotal = cards.reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
+        return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>${escapeHtml(date)}</strong><span class="master-meta">Subtotal: ${rupiah(dayTotal)}</span></div>${cards.map(payrollCardHtml).join('')}</div>`;
+      }).join('')}`;
+  }
+  async function openPayroll(id) {
+    const cashier = data.cashiers.find(item => item.id === id);
+    currentPayrollCashierId = id;
+    try {
+      const payload = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/payroll`);
+      openAdminDetailModal({
+        head: `<div><h3 style="margin:0">Gaji</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')} · ${jobDetailLabel(cashier || { jobType: '', hourlyWage: 0, paymentType: 'JAM' })}</div></div>`,
+        body: `
+          <form id="payrollAdjustmentForm" style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:12px;margin-bottom:16px">
+            <div class="admin-tip" style="margin-bottom:8px"><b>Penyesuaian Gaji</b> -- tambahan (lembur, bonus) atau potongan, terpisah dari hitungan presensi otomatis.</div>
+            <div class="admin-grid" style="grid-template-columns:1fr 1fr;gap:8px">
+              <label class="admin-field">Tanggal<input id="payrollAdjDate" type="date" required /></label>
+              <label class="admin-field">Nominal (Rp) <span class="field-note">boleh negatif = potongan</span><input id="payrollAdjAmount" type="number" step="1" required /></label>
+            </div>
+            <label class="admin-field">Alasan <span class="field-note">wajib, akan terlihat karyawan</span><input id="payrollAdjReason" maxlength="500" required /></label>
+            <button class="primary-btn" type="submit">Simpan Penyesuaian</button>
+          </form>
+          <div id="payrollCardsBody">${payrollByDateHtml(payload.payroll || [], payload.adjustments || [])}</div>`
+      });
+      el('payrollAdjustmentForm')?.addEventListener('submit', submitPayrollAdjustment);
+      bindVoidAdjustmentButtons();
+    } catch (error) { toast(error.message); }
+  }
+  function bindVoidAdjustmentButtons() {
+    document.querySelectorAll('[data-void-adjustment]').forEach(button => button.onclick = () => voidAdjustment(button.dataset.voidAdjustment));
+  }
+  async function submitPayrollAdjustment(event) {
+    event.preventDefault();
+    if (!currentPayrollCashierId) return;
+    try {
+      await request(`/api/admin/cashiers/${encodeURIComponent(currentPayrollCashierId)}/payroll`, {
+        method: 'POST',
+        body: JSON.stringify({
+          businessDate: el('payrollAdjDate').value,
+          amountRupiah: Number(el('payrollAdjAmount').value),
+          reason: el('payrollAdjReason').value
+        })
+      });
+      toast('Penyesuaian gaji disimpan');
+      await openPayroll(currentPayrollCashierId);
+    } catch (error) { toast(error.message); }
+  }
+  async function voidAdjustment(adjustmentId) {
+    if (!currentPayrollCashierId) return;
+    const reason = prompt('Alasan pembatalan penyesuaian ini?');
+    if (!reason || !reason.trim()) return;
+    try {
+      await request(`/api/admin/cashiers/${encodeURIComponent(currentPayrollCashierId)}/payroll-adjustments/${encodeURIComponent(adjustmentId)}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      });
+      toast('Penyesuaian dibatalkan');
+      await openPayroll(currentPayrollCashierId);
+    } catch (error) { toast(error.message); }
   }
 
   async function load() {
@@ -80,14 +353,39 @@
     } catch (error) { toast(error.message); }
   }
 
+  function fillScheduleForm(schedule) {
+    const byDay = new Map((schedule || []).map(day => [day.dayOfWeek, day]));
+    DAY_ORDER.forEach(day => {
+      const value = byDay.get(day) || { isDayOff: false, shiftStart: '', shiftEnd: '' };
+      document.querySelector(`[data-sched-off="${day}"]`).checked = value.isDayOff;
+      document.querySelector(`[data-sched-start="${day}"]`).value = value.shiftStart || '';
+      document.querySelector(`[data-sched-end="${day}"]`).value = value.shiftEnd || '';
+      document.querySelector(`[data-sched-start="${day}"]`).disabled = value.isDayOff;
+      document.querySelector(`[data-sched-end="${day}"]`).disabled = value.isDayOff;
+    });
+  }
+
+  function readScheduleFromForm() {
+    return DAY_ORDER.map(day => ({
+      dayOfWeek: day,
+      isDayOff: document.querySelector(`[data-sched-off="${day}"]`).checked,
+      shiftStart: document.querySelector(`[data-sched-start="${day}"]`).value,
+      shiftEnd: document.querySelector(`[data-sched-end="${day}"]`).value
+    }));
+  }
+
   function resetForm() {
     el('cashierForm').reset();
     el('cashierId').value = '';
     el('cashierActive').checked = true;
+    el('cashierEntityBackup').checked = false;
     el('cashierFormTitle').textContent = 'Tambah kasir';
     el('cashierCancelEdit').classList.add('hidden');
     el('cashierPassword').required = true;
     el('cashierPasswordNote').textContent = 'min. 6 karakter';
+    el('cashierPaymentType').value = 'JAM';
+    syncWageLabel();
+    fillScheduleForm([]);
   }
 
   function editCashier(id) {
@@ -99,7 +397,13 @@
     el('cashierPassword').required = false;
     el('cashierPasswordNote').textContent = 'kosongkan jika tidak diubah';
     el('cashierEmployeeName').value = cashier.employeeName;
+    el('cashierJobType').value = cashier.jobType || '';
+    el('cashierPaymentType').value = cashier.paymentType || 'JAM';
+    syncWageLabel();
+    el('cashierHourlyWage').value = cashier.hourlyWage || '';
+    fillScheduleForm(cashier.schedule);
     el('cashierActive').checked = cashier.isActive;
+    el('cashierEntityBackup').checked = Boolean(cashier.isEntityBackup);
     el('cashierFormTitle').textContent = 'Edit kasir';
     el('cashierCancelEdit').classList.remove('hidden');
     switchTab();
@@ -113,7 +417,12 @@
       username: el('cashierUsername').value,
       password: el('cashierPassword').value,
       employeeName: el('cashierEmployeeName').value,
-      isActive: el('cashierActive').checked
+      jobType: el('cashierJobType').value,
+      paymentType: el('cashierPaymentType').value,
+      hourlyWage: el('cashierHourlyWage').value || 0,
+      schedule: readScheduleFromForm(),
+      isActive: el('cashierActive').checked,
+      isEntityBackup: el('cashierEntityBackup').checked
     };
     try {
       await request(id ? `/api/admin/cashiers/${encodeURIComponent(id)}` : '/api/admin/cashiers', {
@@ -138,6 +447,16 @@
   document.querySelector('[data-tab="cashiers"]')?.addEventListener('click', switchTab);
   el('cashierForm')?.addEventListener('submit', save);
   el('cashierCancelEdit')?.addEventListener('click', resetForm);
+  el('cashierPaymentType')?.addEventListener('change', syncWageLabel);
+  syncWageLabel();
+  // Klik "Libur" mematikan (bukan menghapus nilainya) input jam hari itu --
+  // kalau di-uncheck lagi, jamnya masih ada seperti sebelumnya.
+  el('cashierScheduleRows')?.addEventListener('change', event => {
+    const day = event.target.dataset.schedOff;
+    if (day === undefined) return;
+    document.querySelector(`[data-sched-start="${day}"]`).disabled = event.target.checked;
+    document.querySelector(`[data-sched-end="${day}"]`).disabled = event.target.checked;
+  });
 
   const gate = el('authGate');
   if (gate) new MutationObserver(() => { if (gate.classList.contains('hidden')) load(); }).observe(gate, { attributes: true, attributeFilter: ['class'] });

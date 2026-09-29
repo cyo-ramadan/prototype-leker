@@ -7,6 +7,10 @@ ditulis di sini atau ditunjuk dari sini.
 Ditulis: 2026-09-17 · Oleh: Hana · Untuk: sesi lanjutan proyek Caca
 Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
+> **Update 2026-09-27:** Bos Cyo menggeser prioritas ke asisten yang bisa **mencatat**
+> (mengganti akuntan) untuk dirinya dan semua tenant. Baca `HANDOFF-HANA-PEMBUKUAN.md` dulu.
+> Keputusan di dokumen ini tetap berlaku kecuali disebut lain di sana.
+
 ---
 
 ## Status singkat
@@ -111,6 +115,20 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
 10. **Nama barang dicocokkan ke master barang gerai yang sedang login**, hanya
     kalau cocok persis. Tidak di-hardcode, tidak ditebak mirip-mirip — antar
     tenant daftar barangnya pasti berbeda.
+11. **Caca di dokumen ini SPESIFIK untuk konteks pelanggan-tenant (pemilik/
+   pegawai toko yang tanya soal operasional gerainya sendiri) -- bukan untuk
+   customer publik (pembeli yang mau pesan jajanan di suatu gerai).**
+   Dikonfirmasi Bos Cyo, 2026-09-22: "whatsapp dari customer ke caca dan dari
+   pelanggan tenant ke caca itu ya beda donks. caca harus bisa deteksi kalo
+   ini konteksnya masalah setting gerai, yang satu masalah pingin order2
+   jajanan di suatu gerai." Kalau nanti dibangun jalur WA buat customer
+   publik (akuisisi member / tanya-tanya jajanan), itu **fitur terpisah**,
+   jangan diam-diam digabung ke rancangan Caca di dokumen ini. Semua
+   keputusan #1-6 di atas (terutama nomor WA = kredensial yang didaftarkan
+   admin dari panel, bukan self-service) berlaku untuk konteks tenant ini
+   saja -- BELUM tentu cocok dipakai apa adanya untuk konteks customer
+   publik, yang audiensnya anonim dan volumenya berpotensi jauh lebih besar
+   dan tidak terkontrol.
 
 ---
 
@@ -132,6 +150,23 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    cara lain — belum dikonfirmasi Bos Cyo. Baru relevan di Tahap 3.
 6. Apakah bentuk lembar rekap sama di semua cabang/tenant, atau tiap tempat
    punya versi sendiri. Menentukan seberapa longgar pembacaannya harus dibuat.
+7. **Jalur WA untuk customer publik (bukan pelanggan-tenant): satu nomor WA
+   yang mendeteksi konteks pengirim (tenant vs customer) lewat AI, atau dua
+   persona/nomor terpisah** ("Caca" khusus pelanggan tenant, "Cici" khusus
+   customer publik, usul Bos Cyo 2026-09-22)? Belum diputuskan mana yang
+   dipakai. Pertimbangan Hana kalau nanti dibahas lagi: satu nomor bersama
+   berarti risiko dari sisi customer (volume publik, lebih rawan dianggap
+   spam oleh Meta) bisa ikut menjatuhkan akses Caca versi tenant kalau
+   nomornya kena banned/limit -- jadi ada alasan infrastruktur (bukan cuma
+   kerapian nama) buat pisah nomor/persona sejak awal. Ini baru catatan
+   pertimbangan, bukan rekomendasi final; belum dibahas tuntas karena
+   Bos Cyo minta ditunda ("bahas lain kali aja").
+8. Seluruh mekanisme customer publik lewat WA (identitas = nomor WA tanpa
+   registrasi lain, akuisisi member lintas-tenant, dst) masih di tahap
+   ide kasar dan BELUM ada satu keputusan pun yang dikunci -- termasuk hal
+   dasar seperti verifikasi identitas, pemulihan kalau nomor ganti, dan
+   titik temu dengan sistem customer per-gerai yang sudah ada. Jangan
+   dianggap sudah punya arah yang jelas hanya karena sempat dibahas.
 
 ---
 

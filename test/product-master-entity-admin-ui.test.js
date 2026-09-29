@@ -40,3 +40,27 @@ test('activation never blocks on missing local ingredients -- the UI never calls
   const activateFn = source.slice(source.indexOf('async function activateCatalogEntry'), source.indexOf('function parseRecipeEditorText'));
   assert.doesNotMatch(activateFn, /ingredient/i, 'activation payload must only carry name/category/price -- resep tetap best-effort, tidak pernah jadi syarat aktivasi');
 });
+
+// Bos Cyo, 2026-09-22: Katalog Kode Barang Entity tidak muncul sama sekali
+// (bahkan judulnya) di gerai Mandala walau data entity-nya identik dengan
+// Beji. mount() memanggil lima mount*() berurutan tanpa isolasi error --
+// satu exception di langkah mana pun sebelum mountCatalogPanel() diam-diam
+// menghentikan sisanya, tanpa toast atau jejak apa pun. Setiap langkah
+// sekarang wajib lewat mountStep(), yang menangkap error per langkah supaya
+// satu mount yang gagal tidak pernah menggagalkan mountCatalogPanel() (atau
+// sebaliknya), dan errornya di-log alih-alih ditelan diam-diam.
+test('every mount*() step is isolated so one failing step (e.g. mountProductFields) can never silently prevent mountCatalogPanel from running', async () => {
+  const source = await read('public/admin-product-policy.js');
+  const mountFn = source.slice(source.indexOf('function mount() {'), source.indexOf('mount();'));
+  for (const step of ['mountProductFields', 'mountProductKindMaster', 'mountAccountingPortal', 'mountCatalogPanel', 'removeDuplicateClassificationPanel']) {
+    assert.match(mountFn, new RegExp(`mountStep\\('${step}', ${step}\\)`), `${step} must go through the per-step try/catch, not be called bare`);
+  }
+  assert.match(source, /function mountStep\(name, fn\) \{\s*try \{ fn\(\); \} catch \(error\)/);
+});
+
+test('a failed Katalog Kode Barang Entity fetch surfaces a toast instead of being silently swallowed', async () => {
+  const source = await read('public/admin-product-policy.js');
+  assert.doesNotMatch(source, /loadCatalog\([^)]*\)\.catch\(\(\) => \{\}\)/, 'loadCatalog() failures must never be swallowed silently again');
+  const matches = source.match(/loadCatalog\([^)]*\)\.catch\(error => toast\(`Katalog Kode Barang Entity gagal dimuat: \$\{error\.message\}`\)\)/g) || [];
+  assert.ok(matches.length >= 3, 'all three loadCatalog() call sites (tab click, initial gate-hidden check, and gate MutationObserver) must report failures');
+});

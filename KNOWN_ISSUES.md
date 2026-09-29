@@ -34,6 +34,12 @@ uses (`rejectStaleStockAdjustment` → `buildOperationalPostingStatements` →
 `pending_approval`. Scope is `approval_requests` only — `transaction_void_permits`
 (Hapus/correction permits) is explicitly not affected.
 
+**Amendment 2026-09-25**: `GOODS_FLOW` with `payload.purpose = 'STOCK_ADJUSTMENT'`
+is now unconditional — it always posts directly (`approved_by_role = 'SYSTEM'`),
+regardless of this toggle's state (see ADR-041 amendment). Plain Arus Barang
+(`GOODS_FLOW` without that purpose), `CASH_FLOW`, and `ASSET` still respect the
+toggle exactly as described below.
+
 - `approved_by_role = 'AUTO_PERMIT'`, `approved_by_id` = the account that
   turned the toggle on (`store_approval_settings.enabled_by_id`), never the
   submitting cashier — this is the accountability trail Bos Cyo asked for.
@@ -109,9 +115,10 @@ Cashier Penyesuaian Stok now reuses the Approval Queue and canonical inventory s
 
 - cashier chooses a tracked Product Master item and target physical quantity;
 - server snapshots current stock, derives IN/OUT delta, and records exact `unitCostSnapshotScaled` + `totalCostSnapshotScaled` valuation evidence;
-- Admin/Owner ACC rechecks the snapshot;
+- posts immediately (`approved_by_role = 'SYSTEM'`) instead of waiting for Admin/Owner ACC (Bos Cyo, 2026-09-25 — see ADR-041 amendment); the snapshot is still re-checked against live stock at posting time;
 - stale requests fail closed without stock mutation;
-- successful ACC updates `inventory_stock_balances`, inventory ledger evidence, and `stock_movements` atomically;
+- a posting failure other than staleness leaves the row `pending_approval`/`unposted` as a recovery path an Admin can still ACC/Reject manually;
+- posting (whether direct or via the recovery path) updates `inventory_stock_balances`, inventory ledger evidence, and `stock_movements` atomically;
 - no second stock table/source is created;
 - V2 never rewrites Average Cost/HPP merely because quantity is corrected;
 - HPP changes after staging leave the older payload untouched, while the next adjustment snapshots the new HPP;
@@ -282,7 +289,7 @@ Active behavior:
 - until ACC, original transaction remains fully active;
 - approved Operational Expense correction soft-deletes the source and reconciles drawer/accounting;
 - normal-stock Sale correction returns stock using the original exact sale COGS snapshot, reverses earned points, soft-deletes source, and reverses any POSTED Accounting journal;
-- Sale with generated AUTO_DADAKAN production remains explicit `HOLD` until production-correction meaning is decided;
+- Sale with generated AUTO_DADAKAN production is corrected as an exact mirror: sale reversed, produced goods pulled back, components returned at their snapshot cost, production run `CANCELLED` (Bos Cyo 2026-09-24; see `contracts/transaction-void-permit-v1.md`). Dadakan links only accept recipes with output 1; legacy runs with output ≠ sold quantity still HOLD;
 - Purchase correction runs only when no later dependent stock/cost history exists; otherwise it remains explicit HOLD without rewriting downstream HPP;
 - Accounting reversal uses the same positive exact line amounts as the original journal with Debit/Credit sides swapped; negative journal-line amounts are not introduced;
 - corrected source facts are excluded from later manual POS Accounting reconciliation;
@@ -294,9 +301,9 @@ Active behavior:
 
 Raport facts are available, but score/grade remain `NEEDS_KPI_POLICY`. Bos Cyo still needs to define evaluation period, weights, target/direction, thresholds, and whether individual signals affect integrity score, operational score, or both.
 
-### Open: AUTO_DADAKAN Sale correction meaning
+### Resolved 2026-09-24: AUTO_DADAKAN Sale correction meaning
 
-If a Sale generated a production run, the correction executor currently HOLDs. Required business decision: should deleting/correcting the Sale also reverse that production run, or should produced goods remain as inventory? The system must not guess this because the two choices produce different stock/HPP history.
+Bos Cyo decided the Sale correction reverses its generated production as an exact mirror, and that only output-1 recipes may be linked for Dadakan ("jual 1 = bikin 1"), which guarantees there is no leftover batch to reconcile. Verified on production D1 before the change: 258 sellable-product recipes all have output 1, and none of 643 AUTO_DADAKAN runs produced more than was sold.
 
 ## Legacy business-fact seam
 
@@ -638,6 +645,199 @@ they were deliberately not deleted because Pendem's pre-existing posted journal/
 history snapshots `entity_id` at write time (migration 0046) and still points at
 `ENT-PENDEM`.
 
+## Hutang, Pembayaran, dan Laporan Beban (2026-09-26)
+
+Aturannya SATU untuk semua jenis (Bos Cyo: "bikin hutang dan bebannya itu di tombol bea
+operasional itu. untuk pembayarannya beda lagi"):
+
+- **Bea Operasional** (`src/admin-operational-expense.js`) = satu-satunya pintu MEMBUAT Hutang +
+  mengakui Beban. Bea Gaji → Hutang Gaji karyawan (`payroll_ledger_entries`); nominal minus tetap
+  = potongan/pinalti (mengurangi beban & hutang), BUKAN pembayaran. Bea Lapak/Lainnya → Hutang ke
+  pihak yang WAJIB dipilih: Supplier (Master Supplier gerai), Karyawan (Master Karyawan entity),
+  atau nama bebas (`operational_receivables_payables` + `counterparty_type`, migration 0121).
+- **Pembelian kasir** dengan cara bayar yang ditandai admin "Jadi Hutang"
+  (`payment_methods.creates_payable`, Setting Akuntansi > Metode Pembayaran) otomatis jadi Hutang
+  Pembelian (`PURCHASE_PAYABLE`) ke Supplier-nya (kosong → nama cara bayar) di batch yang sama.
+  Saat baru dicentang, pembelian lama dengan cara bayar itu ikut ditarik (idempotent). Hanya PAYABLE
+  bawaan yang dicentang dari awal: di produksi kasir TIDAK memakai PAYABLE — mereka memakai cara bayar
+  buatan admin ("Piutang Poci Malang" 28 pembelian, "Pembayaran Restock" 16, per 2026-09-26). Mana
+  yang artinya hutang diputuskan admin/Bos Cyo, bukan ditebak kode.
+- **Tab Hutang & Pembayaran** (`src/hutang-piutang.js`, `public/admin-hutang-piutang.js`), 4 tombol:
+  Pembayaran Hutang/Piutang (pilih hutang per orang, alokasi FIFO, cash-neutral terhadap Laporan Net
+  Profit), Pembayaran Lainnya (beban langsung dibayar, tanpa hutang — `settlement = 'LANGSUNG'`),
+  Laporan Hutang Piutang per orang, Laporan Beban (kasir + Bea Admin + akrual presensi + selisih stok
+  kurang, dirinci per baris untuk dipelajari).
+- **Cara bayar Rekening Bersama = sungguhan**: baris OUT di `entity_shared_account_ledger`
+  (source_type EXPENSE, source_id = `admin_payments.id`) mengurangi bagian gerai itu. Batalkan →
+  baris IN pembalik (ledger immutable). Saldo bagian gerai boleh minus (invariant #8).
+- `admin_payments` = header semua uang keluar via Admin (fondasi Laporan Cashflow yang ditunda).
+  Pembatalan membalik semua efek tanpa menghapus: Gaji → baris PAYMENT di-void; hutang lain →
+  alokasi `rejected`; Pembayaran Lainnya → Bea-nya di-void (Bea seperti ini tidak bisa dibatalkan dari
+  tab Bea, `VOID_VIA_PAYMENT`, supaya uangnya ikut dibalik).
+- Saldo dihitung saat dibaca: Bea/Pembelian sumber yang dibatalkan membuat nominal hutangnya 0, tapi
+  pembayaran yang sudah terjadi tetap dihitung (saldo minus = pihak itu berhutang balik). Tidak ada
+  "pembayaran palsu" untuk menutup hutang.
+
+**Kenapa Hutang Gaji tetap ledger sendiri** (pertanyaan langsung Bos Cyo): `operational_receivables_
+payables` bentuknya "satu baris = satu tagihan, dilunasi bertahap"; gaji numpuk otomatis berkali-kali
+sehari dari presensi. Dua ledger itu disatukan di tampilan per orang (`buildHutangPiutangSummary`),
+bukan di tabel. Pelunasan gaji tetap lewat pintu yang sama (entry_type `PAYMENT`, sudah disiapkan
+migration 0116; source_type `BEA_OPERASIONAL` dipakai ulang supaya tidak rebuild tabel yang berisi
+data produksi, dibedakan lewat entry_type).
+
+Belum dikerjakan / sengaja di luar scope: Laporan Cashflow (ditunda Bos Cyo); Pengeluaran Kasir
+(`expenses`) dengan cara bayar "Jadi Hutang" belum ikut jadi hutang (yang diminta baru pembelian ke
+supplier); piutang setoran laci tetap dilunasi lewat alurnya sendiri (bukti + ACC), di layar ini cuma
+ditampilkan. **Posting jurnal Akuntansi sudah tersambung sejak 2026-09-27 untuk transaksi BARU**
+(ADR-046, bagian "Fitur admin tersambung ke Akuntansi" di bawah).
+
+## Uang Muka / Deposit (2026-09-26)
+
+Bos Cyo: "kalo misal dibikin beli deposit gitu apa ribet?" — token listrik dibeli Rp1jt, bulan
+ini baru kepakai Rp500rb; iklan dibayar Rp5jt, kesedot Rp2jt; bahan baku dipesan Rp1jt seminggu
+sebelumnya tapi yang datang cuma senilai Rp700rb. Sisa di ketiga contoh itu BUKAN Beban — masih
+nilai yang KITA pegang sampai direalisasikan.
+
+- **Bentuknya**: baris di `operational_receivables_payables` (migration 0122) dengan `source_type`
+  baru `DEPOSIT_LISTRIK`/`DEPOSIT_IKLAN`/`DEPOSIT_BAHAN_BAKU`/`DEPOSIT_LAINNYA`, `balance_type`
+  RECEIVABLE — persis pola EMPLOYEE_DEPOSIT, ditarik lewat mekanisme pembayaran yang sama dengan
+  Hutang (`addOperationalPayment`/`operational_receivable_payable_payments` tidak peduli arah
+  PAYABLE/RECEIVABLE). Modul baru `src/operational-deposits.js` cuma menyediakan pembuatan + daftar.
+- **UX**: SATU tombol baru ("Uang Muka/Deposit", panel ke-5 di `public/admin-hutang-piutang.js`)
+  untuk MEMBUAT saldo Deposit. TIDAK ADA tombol pembayaran baru — Deposit jadi cara bayar ke-4
+  (`KAS`/`BANK`/`REKBER`/`DEPOSIT`) di dua tombol yang sudah ada:
+  - **Pembayaran Hutang/Piutang**: melunasi Hutang pakai Deposit — `payHutang` menambah satu baris
+    penarikan Deposit (nempel `admin_payment_id` yang sama) di luar efek pelunasan Hutang biasa.
+  - **Pembayaran Lainnya**: realisasi listrik/iklan — admin ketik manual berapa yang kepakai bulan
+    ini, `payLainnya` mengakui Beban sebesar itu SAJA dan menarik Deposit sebesar itu juga (tidak ada
+    baris ledger Rekening Bersama di sini, uangnya sudah keluar waktu Deposit dibuat).
+  - **Bahan baku**: ditarik OTOMATIS di form Pembelian kasir (`src/cashier-purchase.js`, cara bayar
+    "Bayar dari Deposit" di `public/cashier-payment-methods.js` — lihat catatan dead-code di bawah)
+    sebesar nilai barang yang BENAR-BENAR diterima (fakta stok, bukan estimasi admin) — sengaja lewat
+    jalur Pembelian sungguhan, bukan Beban generik, supaya stok/HPP tidak korup. Kalau `depositId`
+    dipilih, pembelian itu LUNAS dari Deposit dan TIDAK membuat `PURCHASE_PAYABLE` baru.
+- **Laporan**: Deposit terbuka sengaja TIDAK nyampur ke Laporan Hutang Piutang (`loadOrpItems`
+  mengecualikan `DEPOSIT_*`) — dia laporan sendiri (daftar di panel ke-5), untuk alur Bos Cyo:
+  "admin nanti tugasnya sebelum tutup buku bulanan ngecekin deposit2 yang ada, dan ngeluarin
+  beban2 dari deposit itu."
+- **Batalkan**: `voidPayment` membalik baris penarikan Deposit lewat `admin_payment_id` yang sama,
+  TIDAK PEDULI kind pembayarannya (Hutang biasa/Hutang Gaji/Pembayaran Lainnya) — satu UPDATE generik
+  yang aman idempotent kalau memang tidak ada baris Deposit yang menempel.
+- **Batas yang sengaja dibiarkan**: membatalkan (void) pembelian bahan baku yang sudah menarik Deposit
+  TIDAK memulihkan saldo Deposit-nya secara otomatis (sama seperti PURCHASE_PAYABLE yang dibatalkan
+  tidak menghapus pembayaran yang sudah terjadi — invariant #8, saldo minus/kurang bukan bug). Kalau
+  ini jadi masalah nyata di lapangan, butuh task terpisah.
+- **Temuan sampingan waktu wiring ini**: dialog "Beli Bahan" kasir yang BENERAN live adalah
+  `purchaseDialog()` di `public/cashier-payment-methods.js` (PIMASATU) — dia menang lewat
+  capture-phase click listener yang `stopImmediatePropagation()`. `public/cashier-procurement-ui.js`
+  (dialog "V2" dari PR #239) TIDAK PERNAH ikut ke-`<script>`-kan di `cashier.html` dan memang
+  sengaja begitu (ada test yang menegaskannya, `cashier-transaction-composition.test.js`) — jadi
+  dia dead code, bukan bug baru dari sesi ini. Opsi Deposit tetap ditambahkan ke file itu juga
+  (murah, filenya sudah punya test sendiri), tapi kalau memang tidak akan pernah dipakai sebaiknya
+  dihapus di kesempatan lain supaya tidak menjebak agen berikutnya.
+
+## Fitur admin tersambung ke Akuntansi (2026-09-27)
+
+Bos Cyo: "dari awal uda konek akuntansi ... kita uda tentuin setiap transaksi bikin jurnal ini dan
+itu ... untuk data2 baru aja, data lama biarin tanpa akuntansi." Detail keputusan dan tabel jurnalnya:
+`adr/ADR-046-admin-facts-connected-to-accounting.md`.
+
+- Bea Operasional, Pembayaran Hutang/Piutang, Pembayaran Lainnya, gaji presensi, dan Uang Muka/Deposit
+  otomatis dijurnal SESUDAH tersimpan (`src/accounting-admin-bridge.js`, dipasang di `src/index.js`).
+  Gagal-lembut: kalau akunnya belum siap, transaksi tetap tersimpan, delivery tercatat
+  `NEEDS_CONFIGURATION`.
+- Akun & aturan bawaan dari migration 0123 (dan trigger untuk gerai baru). Akun buatan admin dengan
+  nama persis sama ("Beban Sewa Lapak", "Hutang Sewa Lapak", "Beban Dibayar Dimuka") dipakai ulang.
+- Batal = jurnal pembalik. Fakta sebelum 0123 tidak dijurnal dan tidak dibalik.
+- Sekalian untuk transaksi kasir baru: "Non Tunai (Legacy)" default ke akun Bank, barang tanpa Jenis
+  Barang otomatis dapat Jenis Barang sesuai Tipe Barang. 81 delivery lama yang sudah nyangkut TIDAK
+  diposting otomatis; kalau admin menekan sinkron Akuntansi, yang penyebabnya Non Tunai akan ikut
+  terposting (yang penyebabnya Jenis Barang tetap nyangkut karena snapshot transaksinya kosong).
+- Pembelian kasir dari Deposit sekarang tersimpan dengan cara bayar `DEPOSIT` (dulu `CASH`) supaya
+  laporan laci tidak menganggap uang laci keluar.
+- Belum: Laporan Net Profit/Beban/Hutang Piutang masih menghitung sendiri, belum membaca jurnal.
+
+## Akun standar di semua gerai (2026-09-27)
+
+Bos Cyo: "aku pingin akun2 nya sinkron dulu, engga custome per tenant dan gerai dulu." Detail:
+`adr/ADR-047-standard-chart-of-accounts.md`.
+
+- Semua gerai kecuali DERMO (`stores.custom_accounts_allowed`) memakai akun standar yang sama;
+  tambah/ubah akun dikunci di server dan UI. Gerai baru otomatis standar.
+- Migration 0124 mengarahkan aturan jurnal & cara bayar ke akun standar, menghapus akun buatan gerai
+  yang belum pernah dipakai, dan menutup yang saldonya nol. Tidak menulis jurnal.
+- Akun buatan gerai yang masih bersaldo menunggu tombol **"Samakan ke Akun Standar"** (tab Akuntansi
+  → Data Akun) per gerai: Beji, Genengan, Pendem, Sugiono. Sampai diklik, saldo lama tetap di akun
+  lama (tidak hilang, tidak dobel).
+- Akun buatan gerai yang namanya tidak ada di peta (`accounting_standard_account_aliases`) tidak
+  disentuh — per 2026-09-27 tidak ada di luar DERMO.
+
+## Jurnal Beban Rutin + Split Beban per Periode (2026-09-28)
+
+Bos Cyo: "Pembuat & Split Jurnal Beban" -- mengganti pekerjaan akuntan manusia. Detail lengkap:
+`adr/ADR-049-recurring-and-split-expense-journals.md`.
+
+- **Beban Rutin** (`tab Akuntansi → Beban Rutin`): template beban berulang (Beban Lapak, Listrik,
+  WiFi, dst) dengan nominal, akun Beban/Lawan, tanggal mulai, dan pola perulangan (harian/
+  mingguan/bulanan). Bisa **auto-post** atau **menunggu konfirmasi** (banner "N jurnal menunggu
+  dibuat" dengan tombol Buat Sekarang/Lewati) -- pilihan per template.
+- **Split Beban** (tombol di detail jurnal): memecah satu jurnal yang sudah ada jadi beban harian
+  merata selama periode manfaatnya. Hanya ditawarkan untuk jurnal 2 baris dengan satu sisi Debit
+  ke akun ASSET (uang muka/deposit/dibayar dimuka). Pembulatan: sisa pembagian masuk ke hari
+  terakhir, total akhir selalu PERSIS sama dengan nominal sumber. Jurnal sumber tidak pernah
+  diubah -- Split cuma membuat jurnal BARU yang bisa dilacak balik dari jurnal sumbernya.
+- Satu mesin jadwal (`accounting_journal_schedules` + `accounting_journal_schedule_occurrences`,
+  migration 0125) dipakai untuk dua-duanya. Posting **lazy** -- dicek tiap `GET /api/admin/accounting`
+  dibuka, pola yang sama dengan `forceCloseOverdueSessions` (presensi). Tanpa cron/Durable Object.
+  Semua posting lewat `postAccountingJournal()` seperti biasa (`src/accounting-journal-schedules.js`).
+- Belum ada notifikasi lewat chat (ide Caca) -- sengaja ditunda sesuai catatan Bos Cyo sendiri.
+
+## Ganti Gerai cepat + Salin Detail Laci (2026-09-28)
+
+Bos Cyo: "sekarang aku mau ada tombol simbol ganti melayang ... tujuannya menyingkat waktu untuk
+pindah workspace" dan "itu kan ada tempat detil laci kamu tambahin tombol copy".
+
+- **Tombol ganti gerai melayang** (`public/admin-workspace-switcher.js`, muncul di semua halaman
+  Workspace Gerai): pojok kanan bawah, khusus Owner dan Entity Admin (yang memang berwenang lintas
+  gerai) -- Admin Gerai biasa tidak melihat tombol ini sama sekali, tetap dipin ke satu gerai
+  (invariant #5). Klik tombol membuka daftar gerai TANPA pindah halaman; klik satu gerai baru
+  navigasi ke workspace gerai itu. Sebelumnya harus balik ke Entity Admin dulu.
+- **Tombol Salin di Detail Laci** (`public/drawer-report-ui.js`, satu renderer dipakai Kasir dan
+  Admin): menyalin seluruh isi Detail Laci yang sedang dibuka jadi teks siap ditempel ke WhatsApp,
+  format mengikuti gaya laporan lama tapi datanya dari field yang sama persis dengan yang sudah
+  ditampilkan di layar (bukan field tambahan yang tidak ada di New Web).
+
+## Ganti Satuan Barang yang Sudah Punya Histori (2026-09-28)
+
+Bos Cyo lapor kasus nyata: barang "Larutan Teh Poci Vanilla" di Mandala kepasang satuan pcs
+padahal maksudnya ml, dan barangnya sudah punya stok. `validateBaseUnitChange`
+(`src/product-master.js`) dulu menolak mentah dengan pesan yang menunjuk ke "proses konversi/
+migrasi terpisah" yang **tidak pernah benar-benar dibangun** -- Admin buntu, tidak ada jalan resmi
+membenarkannya sendiri.
+
+Keputusan Bos Cyo: kasus salah-pasang-satuan itu murni salah label, bukan salah skala -- angka
+stok/HPP/takaran resep yang sudah kepencet memang dimaksudkan dalam satuan yang benar sejak awal,
+jadi tidak ada rasio konversi yang perlu dihitung sama sekali. UX-nya sengaja dibuat tanpa form
+input rasio apa pun ("dari sisi admin enak ga perlu mikir apa2 ribetnya, di proses programnya
+aja"):
+
+- Admin ganti satuan seperti biasa di Master Barang. Kalau barang itu ternyata sudah punya resep
+  dan/atau stok movement dan/atau saldo != 0, server balas sekali (409, kode
+  `BASE_UNIT_HISTORY_CONFIRM_REQUIRED`) dengan pesan yang menjelaskan: angka stok/HPP/resep TIDAK
+  akan diubah, cuma labelnya.
+- `public/admin-product-policy.js` menangkap kode itu otomatis, munculkan `confirm()` sekali klik,
+  dan submit ulang dengan `confirmUnitChange:true` -- tidak ada form/rasio tambahan.
+- Begitu dikonfirmasi: `base_unit_id` barang berubah, **tidak ada angka lain yang direcompute**
+  (stok, HPP, takaran resep yang memakainya tetap apa adanya). Perubahan dicatat ke
+  `product_base_unit_change_log` (migration 0126) murni sebagai jejak audit -- bukan sumber saldo.
+- Berlaku per gerai (satuan memang milik `products` row tiap gerai, bukan Kode Barang Entity) --
+  gerai lain yang kebetulan pakai Kode Barang Entity yang sama TIDAK ikut berubah otomatis.
+- Barang "Larutan Teh Poci Vanilla" di Mandala sengaja **belum dibenerin** -- dipakai sebagai kasus
+  uji nyata begitu fitur ini live (permintaan Bos Cyo: "sekalian buat debug").
+- Kalau ternyata butuh rasio konversi sungguhan (bukan relabel, misal satuannya memang beda skala),
+  fitur ini TIDAK menghitungkannya -- itu di luar scope keputusan Bos Cyo kali ini, perlu desain
+  terpisah kalau ada kasus seperti itu belakangan.
+
 ## DOC-IMPACT
 
-**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, Deposit, and Payroll transaction implementations. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.
+**REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, and Payroll transaction implementations. Also update this section when the Uang Muka/Deposit flow above changes shape (new deposit categories, Deposit-funded void reversal, Accounting posting for Deposit realization, or the dead `cashier-procurement-ui.js` file is finally removed or activated). Also update when: the standard chart of accounts (ADR-047) changes — new standard accounts, new name aliases, another store allowed custom accounts, or the per-tenant custom stage begins. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

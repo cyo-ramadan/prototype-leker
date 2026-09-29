@@ -1,16 +1,23 @@
 (() => {
-  // Laporan Untung Rugi di panel Admin Gerai (Bos Cyo, 2026-09-17). Versi
-  // Entity (entity-admin.js) menampilkan satu angka per gerai per hari untuk
-  // perbandingan antar gerai; yang di sini sebaliknya -- cuma SATU gerai, tapi
-  // dirinci supaya Admin tahu KENAPA untung/ruginya segitu. Bos Cyo:
-  // "aku pingin bikin pos untuk user yang ga paham akunting minimal bisa
-  // keluar rugi labanya", jadi istilah di layar sengaja bahasa warung
-  // ("modal barang yang terjual"), bukan istilah akuntansi.
+  // Laporan Untung Rugi di panel Admin Gerai (Bos Cyo, 2026-09-17, dirombak
+  // sesi berikutnya di hari yang sama). Versi Entity (entity-admin.js)
+  // menampilkan satu angka per gerai per hari untuk perbandingan antar
+  // gerai; yang di sini sebaliknya -- cuma SATU gerai, tapi dirinci supaya
+  // Admin tahu KENAPA untung/ruginya segitu.
   //
-  // Backend: src/net-profit-report.js. Gerainya dikunci ke gerai yang sedang
-  // dibuka (window.LEKER_STORE_CODE) -- dikirim eksplisit, bukan dibiarkan
-  // default, supaya Owner yang membuka panel gerai pun melihat gerai itu saja,
-  // bukan gabungan seluruh entity.
+  // Istilahnya SENGAJA pakai kosakata Bos Cyo sendiri (Omset, HPP, Bea) --
+  // bukan lagi dihindari seperti draft pertama ("Modal barang yang
+  // terjual"). Bos Cyo: ringkasan pertama dianggap "ga jelas", diminta
+  // pakai variabel yang sudah dia sebutkan sendiri: Omset + Pendapatan
+  // Lain - HPP = Untung Kotor; lalu Untung Kotor +/- Penyesuaian Stok
+  // (DUA baris terpisah: Lebih dan Hilang, bukan satu angka net) - Beban/
+  // Bea (Gaji, Lapak, Lainnya masing-masing sendiri) = Untung Bersih.
+  //
+  // Backend: src/net-profit-report.js, bentuk breakdown per migration 0101.
+  // Gerainya dikunci ke gerai yang sedang dibuka (window.LEKER_STORE_CODE)
+  // -- dikirim eksplisit, bukan dibiarkan default, supaya Owner yang
+  // membuka panel gerai pun melihat gerai itu saja, bukan gabungan seluruh
+  // entity.
   let snapshot = null;
 
   const money = value => rupiah(value);
@@ -88,29 +95,6 @@
     el('labaRugiTo').value = today;
   }
 
-  function renderSummary() {
-    const totals = snapshot.breakdownTotals;
-    const grossProfit = totals.otherIncome + totals.revenue - totals.hpp;
-    const box = el('labaRugiSummary');
-    box.style.display = '';
-    box.innerHTML = `
-      <div class="list-head"><div><h2>Ringkasan ${escapeHtml(snapshot.from)} s/d ${escapeHtml(snapshot.to)}</h2><div class="muted">${escapeHtml(snapshot.stores.map(store => store.storeName).join(', '))}</div></div></div>
-      <div style="font-size:26px;font-weight:800;margin:6px 0 2px;${tone(totals.netProfit)}">${signed(totals.netProfit)}</div>
-      <div class="muted" style="margin-bottom:14px">${totals.netProfit < 0 ? 'Rugi bersih periode ini' : 'Untung bersih periode ini'}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tbody>
-          ${summaryRow('Penjualan', totals.revenue)}
-          ${summaryRow('Pendapatan lain', totals.otherIncome)}
-          ${summaryRow('Modal barang yang terjual', -totals.hpp)}
-          ${summaryRow('Untung kotor', grossProfit, true)}
-          ${summaryRow('Biaya & bea yang dikeluarkan', -totals.expense)}
-          ${summaryRow(totals.stockAdjustmentNet < 0 ? 'Stok hilang/susut' : 'Stok lebih saat dicocokkan', totals.stockAdjustmentNet)}
-          ${summaryRow(totals.netProfit < 0 ? 'Rugi bersih' : 'Untung bersih', totals.netProfit, true)}
-        </tbody>
-      </table>
-      <div class="muted" style="margin-top:12px">Pembelian bahan dan pembelian aset tidak ikut dipotong di sini — uangnya berubah jadi barang/aset, bukan hilang. Bahan baru terhitung saat barangnya terjual, lewat baris "Modal barang yang terjual".</div>`;
-  }
-
   function summaryRow(label, value, strong = false) {
     const weight = strong ? 'font-weight:800;border-top:1px solid var(--line)' : '';
     return `<tr style="${weight}">
@@ -119,25 +103,57 @@
     </tr>`;
   }
 
+  function renderSummary() {
+    const totals = snapshot.breakdownTotals;
+    const box = el('labaRugiSummary');
+    box.style.display = '';
+    box.innerHTML = `
+      <div class="list-head"><div><h2>Ringkasan ${escapeHtml(snapshot.from)} s/d ${escapeHtml(snapshot.to)}</h2><div class="muted">${escapeHtml(snapshot.stores.map(store => store.storeName).join(', '))}</div></div></div>
+      <div style="font-size:26px;font-weight:800;margin:6px 0 2px;${tone(totals.netProfit)}">${signed(totals.netProfit)}</div>
+      <div class="muted" style="margin-bottom:14px">${totals.netProfit < 0 ? 'Untung Bersih (Rugi) periode ini' : 'Untung Bersih periode ini'}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <tbody>
+          ${summaryRow('Omset', totals.revenue)}
+          ${summaryRow('Pendapatan Lain', totals.otherIncome)}
+          ${summaryRow('HPP', -totals.hpp)}
+          ${summaryRow('Untung Kotor', totals.grossProfit, true)}
+          ${summaryRow('Penyesuaian Stok — Lebih (+)', totals.stockAdjustmentGain)}
+          ${summaryRow('Penyesuaian Stok — Hilang (−)', -totals.stockAdjustmentLoss)}
+          ${summaryRow('Beban Kasir', -totals.expenseKasir)}
+          ${summaryRow('Bea Gaji', -totals.beaGaji)}
+          ${summaryRow('Bea Lapak', -totals.beaLapak)}
+          ${summaryRow('Bea Lainnya', -totals.beaLainnya)}
+          ${summaryRow('Untung Bersih', totals.netProfit, true)}
+        </tbody>
+      </table>
+      <div class="muted" style="margin-top:12px">Pembelian bahan dan pembelian aset tidak ikut dipotong di sini — uangnya berubah jadi barang/aset, bukan hilang. Bahan baru terhitung saat barangnya terjual, lewat baris "HPP".</div>`;
+  }
+
   function renderDaily() {
     const box = el('labaRugiDaily');
     box.style.display = '';
     const header = `<tr style="text-align:right;font-size:12px;color:var(--muted,#666)">
       <th style="text-align:left;padding:6px 8px">Tanggal</th>
-      <th style="padding:6px 8px">Penjualan</th>
-      <th style="padding:6px 8px">Modal</th>
-      <th style="padding:6px 8px">Biaya & bea</th>
-      <th style="padding:6px 8px">Untung</th>
+      <th style="padding:6px 8px">Omset</th>
+      <th style="padding:6px 8px">Pendapatan Lain</th>
+      <th style="padding:6px 8px">HPP</th>
+      <th style="padding:6px 8px">Stok (+)</th>
+      <th style="padding:6px 8px">Stok (−)</th>
+      <th style="padding:6px 8px">Beban/Bea</th>
+      <th style="padding:6px 8px">Untung Bersih</th>
     </tr>`;
     const body = snapshot.rows.map(row => `<tr style="text-align:right">
       <td style="text-align:left;padding:6px 8px">${escapeHtml(row.businessDate)}</td>
-      <td style="padding:6px 8px">${money(row.breakdown.revenue + row.breakdown.otherIncome)}</td>
+      <td style="padding:6px 8px">${money(row.breakdown.revenue)}</td>
+      <td style="padding:6px 8px">${money(row.breakdown.otherIncome)}</td>
       <td style="padding:6px 8px">${money(row.breakdown.hpp)}</td>
-      <td style="padding:6px 8px">${money(row.breakdown.expense)}</td>
+      <td style="padding:6px 8px">${money(row.breakdown.stockAdjustmentGain)}</td>
+      <td style="padding:6px 8px">${money(row.breakdown.stockAdjustmentLoss)}</td>
+      <td style="padding:6px 8px">${money(row.breakdown.totalBeban)}</td>
       <td style="padding:6px 8px;font-weight:700;${tone(row.breakdown.netProfit)}">${signed(row.breakdown.netProfit)}</td>
     </tr>`).join('');
     box.innerHTML = `
-      <div class="list-head"><div><h2>Rincian per hari</h2><div class="muted">Kolom Penjualan sudah termasuk pendapatan lain.</div></div><span class="master-count">${snapshot.rows.length}</span></div>
+      <div class="list-head"><div><h2>Rincian per hari</h2><div class="muted">Kolom Beban/Bea sudah gabungan Beban Kasir + Bea Gaji/Lapak/Lainnya — rincian per kategori ada di Ringkasan di atas.</div></div><span class="master-count">${snapshot.rows.length}</span></div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px">${header}${body}</table></div>`;
   }
 

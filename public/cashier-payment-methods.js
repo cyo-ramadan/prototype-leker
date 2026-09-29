@@ -34,15 +34,31 @@
     return accounting.bridgeStatus ? `Accounting ${accounting.bridgeStatus}` : 'Accounting belum memberi status';
   }
 
+  // Bos Cyo, 2026-09-19: "katanya semua gerai ga bisa entry penjualan" --
+  // di iPhone/iPad (Safari) muncul error browser "ReadableStream uploading
+  // is not supported". Akar masalahnya bukan bug baru di server: fungsi ini
+  // dulu bikin objek Request sendiri lalu fetch(request) -- begitu melewati
+  // dua fetch wrapper global yang sudah ada (staff-auth-fetch.js lalu
+  // store-context.js, keduanya menyuntik Authorization/?store= dengan
+  // membungkus ulang jadi `new Request(existingRequest, ...)`), body-nya
+  // ke-reconstruct dua kali berturut-turut. WebKit/Safari punya batasan
+  // lama: request yang bodinya sudah pernah melewati reconstruction Request
+  // ganda begini dianggap streaming body, dan Safari tidak mendukung upload
+  // streaming lewat fetch() -- makanya gagal total di semua gerai yang
+  // pakai perangkat iOS, sementara Chrome/Android tidak kena.
+  // Perbaikannya: jangan pernah bikin objek Request sendiri di sini --
+  // panggil fetch(path, init) dengan path berupa string biasa, PERSIS pola
+  // yang sudah dipakai fungsi api() di cashier.js dan terbukti aman di
+  // kedua wrapper itu (keduanya cuma reconstruct Request kalau input yang
+  // masuk memang sudah berupa instance Request).
   async function canonicalFactPost(path, payload) {
     const headers = { 'Content-Type': 'application/json' };
     if (state.token) headers.Authorization = `Bearer ${state.token}`;
-    const request = new Request(new URL(path, location.origin), {
+    const response = await fetch(path, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload)
     });
-    const response = await fetch(request);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(data.error || `Request gagal (${response.status})`);
@@ -189,6 +205,13 @@
       }
 
       const supplierOptions = ['<option value="">Tanpa supplier</option>', ...suppliers.map(supplier => `<option value="${escapeHtml(supplier.id)}">${escapeHtml(supplier.name)}</option>`)].join('');
+      // Bos Cyo, 2026-09-26: "kita pesen bahan baku seminggu sebelumnya ...
+      // yang dateng cuma 700rb ... berarti masih punya saldo/deposit barang
+      // senilai 300rb" -- kalau Admin sudah bikin Uang Muka Bahan Baku, kasir
+      // bisa langsung menariknya dari sini alih-alih bikin Hutang baru.
+      // Opsional, cuma muncul kalau memang ada Deposit terbuka.
+      const deposits = purchasePayload.deposits || [];
+      const depositOptions = deposits.map(deposit => `<option value="${escapeHtml(deposit.id)}">${escapeHtml(deposit.counterpartyName)} · sisa ${rupiah(deposit.balanceRupiah)}</option>`).join('');
       let editor;
 
       openDialog({
@@ -199,8 +222,8 @@
           <div id="dialogPurchaseGrandTotal" class="cashier-lock-note">Total pembelian · Rp0</div>
           <div class="field"><label>Supplier</label><select id="dialogSupplier" class="text-input">${supplierOptions}</select></div>
           <div class="field"><label>Cara bayar</label><select id="dialogPurchasePayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
-          <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>
-          <p class="muted">PIMASATU hanya mengatur pola input barang. Supplier dan cara bayar adalah data transaksi terpisah.</p>`,
+          ${deposits.length ? `<div class="field"><label>Bayar dari Deposit <span class="muted">optional</span></label><select id="dialogPurchaseDeposit" class="text-input"><option value="">Tidak pakai Deposit</option>${depositOptions}</select></div>` : ''}
+          <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="dialogPurchaseNote" rows="2" maxlength="500"></textarea></div>`,
         submitText: 'SIMPAN PEMBELIAN',
         onSubmit: async () => {
           const lines = editor.getLines();
@@ -215,6 +238,7 @@
           const result = await canonicalFactPost('/api/cashier/purchases', {
             supplierId: byId('dialogSupplier').value,
             paymentMethod: byId('dialogPurchasePayment').value,
+            depositId: byId('dialogPurchaseDeposit')?.value || null,
             note: byId('dialogPurchaseNote').value,
             items: submittedItems
           });
@@ -247,6 +271,17 @@
     }
   }
 
+  // Bos Cyo, 2026-09-21: "harusnya kan itu milih dari master biaya ya dengan
+  // cara search, tapi bikin itu editable untuk nama... kalo yang dipilih
+  // kemudian di edit misalkan jadi biaya tarikan sampah, maka defaultnya
+  // [kategori]nya jadi biaya lainnya." Dua kolom terpisah per baris:
+  // "Kategori Biaya" (PIMASATU, tetap wajib dari Master Biaya lewat search --
+  // tidak berubah) dan "Keterangan Biaya" (baru, teks bebas di luar PIMASATU
+  // supaya PIMASATU tetap generic/tidak tahu soal Master Biaya -- lihat
+  // contracts/pimasatu-ui-v1.md). Begitu Keterangan diketik beda dari nama
+  // Kategori yang lagi kepilih, submit otomatis memindahkan Kategori
+  // efektifnya ke "Biaya Lainnya" (auto-seed per gerai, migration 0113) --
+  // bukan sistem menebak-nebak Kategori lain dari teks bebas.
   async function operationalDialog() {
     await refreshAccountingSettings();
     if (!methods().length) return toast('Belum ada cara bayar POS yang aktif.');
@@ -260,24 +295,46 @@
 
     const costs = payload.costs || [];
     if (!costs.length) return toast('Belum ada Master Biaya aktif.');
+    const fallbackCost = costs.find(cost => String(cost.name).trim().toLowerCase() === 'biaya lainnya') || null;
+    // costMasterId (Kategori yang dipilih di PIMASATU) -> Keterangan Biaya
+    // yang diketik ulang kasir. Tidak ada entry di sini berarti Keterangan
+    // masih default = nama Kategori.
+    const descriptionOverrides = new Map();
     let editor;
+
+    function renderDescriptionEditor(lines) {
+      const host = byId('operationalDescriptionEditor');
+      if (!host) return;
+      host.innerHTML = lines.map(line => {
+        const value = descriptionOverrides.has(line.id) ? descriptionOverrides.get(line.id) : line.label;
+        return `<div class="field"><label>Keterangan Biaya · ${escapeHtml(line.label)}</label><input class="text-input" data-operational-description="${escapeHtml(line.id)}" maxlength="220" value="${escapeHtml(value)}" /></div>`;
+      }).join('');
+      host.querySelectorAll('[data-operational-description]').forEach(input => {
+        input.addEventListener('input', () => descriptionOverrides.set(input.dataset.operationalDescription, input.value));
+      });
+    }
 
     openDialog({
       eyebrow: 'Laci · Operasional',
       title: 'Pengeluaran Operasional',
       body: `
         <div id="operationalPimasatu"></div>
-        <div class="field"><label>Kontak terkait</label><div id="operationalContactSummary" class="cashier-lock-note">Mengikuti kontak pada Master Biaya yang dipilih.</div></div>
+        <div id="operationalDescriptionEditor"></div>
+        <div class="field"><label>Kontak terkait</label><div id="operationalContactSummary" class="cashier-lock-note">Mengikuti kontak pada Kategori Biaya yang dipilih.</div></div>
         <div class="field"><label>Cara bayar</label><select id="dialogOperationalPayment" class="text-input">${methodOptions()}</select><div class="muted">Berasal dari metode bayar POS.</div></div>
-        <div id="dialogOperationalTotal" class="cashier-lock-note">Total operasional · Rp0</div>
-        <p class="muted">PIMASATU hanya mengatur pola input biaya. Kontak dan cara bayar tetap berada di layer transaksi.</p>`,
+        <div id="dialogOperationalTotal" class="cashier-lock-note">Total operasional · Rp0</div>`,
       submitText: 'SIMPAN OPERASIONAL',
       onSubmit: async () => {
-        const items = editor.getLines().map(line => ({
-          costMasterId: line.id,
-          quantity: line.quantity,
-          unitAmount: line.unitAmount
-        }));
+        const items = editor.getLines().map(line => {
+          const custom = (descriptionOverrides.get(line.id) || '').trim();
+          const overridden = Boolean(custom) && custom.toLowerCase() !== line.label.trim().toLowerCase();
+          return {
+            costMasterId: overridden && fallbackCost ? fallbackCost.id : line.id,
+            quantity: line.quantity,
+            unitAmount: line.unitAmount,
+            description: overridden ? custom : line.label
+          };
+        });
         if (!items.length) throw new Error('Masukkan minimal satu biaya operasional.');
         const result = await canonicalFactPost('/api/cashier/expenses', {
           items,
@@ -295,7 +352,7 @@
       getLabel: item => item.name,
       getMeta: item => [item.costTypeName, item.costGroup, item.contact].filter(Boolean).join(' · '),
       getDefaultAmount: item => item.outgoingAmount,
-      itemLabel: 'Biaya / variabel',
+      itemLabel: 'Kategori Biaya',
       priceLabel: 'Biaya keluar / unit',
       detailTitle: 'Detail Operasional',
       onError: toast,
@@ -306,6 +363,7 @@
         const total = lines.reduce((sum, line) => sum + (Number(line.quantity) * Number(line.unitAmount)), 0);
         const totalHost = byId('dialogOperationalTotal');
         if (totalHost) totalHost.textContent = `Total operasional · ${rupiah(total)}`;
+        renderDescriptionEditor(lines);
       }
     });
   }

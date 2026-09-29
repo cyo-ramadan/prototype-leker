@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
+import { listLedgerForEmployee } from './payroll-ledger.js';
 
 // Master Karyawan (migration 0072). Pemisahan "orang" dari "akun login":
 // employees menyimpan manusianya (milik Entity), employee_account_links
@@ -19,6 +20,14 @@ import { requireManagement } from './owner-auth.js';
 
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 
+// Detail shift (gaji per jam, jam kerja, jenis pekerjaan) TIDAK lagi di sini.
+// Koreksi Bos Cyo, 2026-09-18: "harus nya detil itu tadi kamu taruh di user
+// kasir/staf. bukan malah di nama orangnya ... tombol karyawan itu yang aku
+// maksudkan nama orang, sedangkan yang ada di master kasir itu adalah
+// employed atau pekerjaannya." Modul ini (employees + employee_account_links)
+// murni identitas orang + siapa memegang akun apa -- detail pekerjaan pindah
+// ke src/cashier-auth.js (account_job_details, migration 0104), menempel ke
+// AKUN, bukan ke tautan atau ke orangnya.
 const ACCOUNT_SOURCES = {
   CASHIER: { table: 'cashiers', nameColumn: 'employee_name', scope: 'STORE' },
   STORE_ADMIN: { table: 'store_admins', nameColumn: 'display_name', scope: 'STORE' },
@@ -61,6 +70,49 @@ function mapLink(row) {
     effectiveTo: row.effective_to || null,
     endedReason: row.ended_reason || ''
   };
+}
+
+// Bos Cyo, 2026-09-18: "kalo ada 1 nama coba login 2 akun, ini berlaku di
+// entity ya. misal ninda cs dermo usa login, kok ada lagi akun ca pendem
+// dengan nama ninda login, maka ini harus di tolak." Satu KARYAWAN (bukan
+// satu akun) tidak boleh aktif di lebih dari satu akun bersamaan, lintas
+// gerai dalam entity yang sama -- entity-wide otomatis di sini karena
+// employee_id sudah menjangkarkan seluruh tautan seorang karyawan ke SATU
+// entity (dijaga trg_employee_link_scope_insert, migration 0072), bukan
+// dibatasi ke satu gerai.
+//
+// Dipanggil dari src/unified-login.js SEBELUM sesi baru dibuat -- bukan
+// dengan mencabut sesi yang sudah aktif. Bos Cyo eksplisit: "yang paling
+// dipertahankan untuk tidak logout adalah akun yang lagi buka laci" --
+// jadi sesi yang sudah berjalan (mungkin lacinya sedang terbuka) TIDAK
+// PERNAH disentuh sama sekali; yang ditolak selalu percobaan login BARU.
+//
+// Cuma berlaku untuk akun yang benar-benar tertaut ke Master Karyawan
+// (employee_account_links) -- akun yang masih pakai "Nama karyawan" bebas
+// (belum ditautkan) tidak kena pagar ini, karena sistem tidak punya cara
+// yang bisa dipercaya untuk tahu itu orang yang sama atau cuma kebetulan
+// nama sama.
+export async function findEmployeeSessionConflict(db, accountType, accountId, nowIso) {
+  if (!ACCOUNT_SOURCES[accountType]) return null;
+  const row = await db.prepare(`
+    SELECT e.full_name AS employee_name,
+           l2.account_type AS conflict_account_type,
+           l2.account_id AS conflict_account_id,
+           s.code AS conflict_store_code,
+           s.store_name AS conflict_store_name
+    FROM employee_account_links l1
+    JOIN employees e ON e.id = l1.employee_id
+    JOIN employee_account_links l2 ON l2.employee_id = l1.employee_id AND l2.id <> l1.id AND l2.effective_to IS NULL
+    LEFT JOIN stores s ON s.id = l2.store_id
+    WHERE l1.account_type = ? AND l1.account_id = ? AND l1.effective_to IS NULL
+      AND (
+        (l2.account_type = 'CASHIER' AND EXISTS (SELECT 1 FROM cashier_sessions x WHERE x.cashier_id = l2.account_id AND x.expires_at > ?))
+        OR (l2.account_type = 'STORE_ADMIN' AND EXISTS (SELECT 1 FROM store_admin_sessions x WHERE x.admin_id = l2.account_id AND x.expires_at > ?))
+        OR (l2.account_type = 'ENTITY_ADMIN' AND EXISTS (SELECT 1 FROM entity_admin_sessions x WHERE x.entity_admin_id = l2.account_id AND x.expires_at > ?))
+      )
+    LIMIT 1
+  `).bind(accountType, accountId, nowIso, nowIso, nowIso).first();
+  return row || null;
 }
 
 async function selectedAdminStore(db, request) {
@@ -273,6 +325,20 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
       return json({ error: 'Tautan sudah berubah di request lain.' }, 409);
     }
     return json({ ok: true });
+  }
+
+  // Riwayat Gaji per nama orang -- Bos Cyo, 2026-09-24: "riwayat gaji itu
+  // mending acuannya per nama orang aja ... kalo kita klik nama orang
+  // tersebut dari list maka keluar kartu2 gajinya pertanggal, dan dari mana
+  // gajinya tersebut dan masuk melalui apa." Lintas SEMUA akun/gerai yang
+  // pernah dipegang orang ini -- lihat listLedgerForEmployee, src/payroll-ledger.js.
+  const ledgerMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)\/payroll-ledger$/);
+  if (request.method === 'GET' && ledgerMatch) {
+    const id = decodeURIComponent(ledgerMatch[1]);
+    const employee = await db.prepare('SELECT id, full_name FROM employees WHERE id = ? AND entity_id = ?').bind(id, store.entityId).first();
+    if (!employee) return json({ error: 'Karyawan tidak ditemukan di entity gerai ini.' }, 404);
+    const { entries, hutangGajiBalanceRupiah } = await listLedgerForEmployee(db, id);
+    return json({ employee: { id: employee.id, fullName: employee.full_name }, entries, hutangGajiBalanceRupiah });
   }
 
   const employeeMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)$/);

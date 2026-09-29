@@ -21,8 +21,8 @@ koreksi di `CLAUDE.md` 2026-09-17, kode Worker yang melayani user baru berubah
 setelah branch digabung ke `main`, bukan setelah di-push. Klaim "sudah live"
 pada versi handoff sebelumnya salah dan dikoreksi di sini.
 
-Isinya: Caca bisa dikirimi foto lembar rekap lewat tab "Caca" di panel Entity
-Admin, membacanya, lalu menampilkan hasil beserta daftar hal yang perlu
+Isinya: Caca bisa dikirimi foto lembar rekap lewat panel chat melayang di
+Entity Admin, membacanya, lalu menampilkan hasil beserta daftar hal yang perlu
 dipastikan. **Belum ada alat tulis sama sekali** — tidak ada satu pun jalur yang
 menyimpan hasil bacaan jadi transaksi. Itu disengaja, jangan "dilengkapi" tanpa
 membaca D1 di ADR-044 dulu.
@@ -37,7 +37,7 @@ Bos Cyo, belum ada kodenya.
   yang dua-duanya direvisi setelah Bos Cyo mengirim lembar sungguhan.
 - Kodenya: `src/caca-chat.js` (endpoint), `src/caca-rekap-reader.js` (penguraian
   angka + verifikasi), `src/caca-ai-client.js` (pemanggil model),
-  `public/caca-chat.js` + `public/caca-chat.css` (panel), tab Caca di
+  `public/caca-chat.js` + `public/caca-chat.css` (panel), kerangka panel di
   `public/entity-admin.html`. Test: `test/caca-rekap-reader.test.js`.
 
 ## Yang paling penting dikerjakan berikutnya
@@ -51,6 +51,15 @@ model membaca fotonya **belum diukur sama sekali**.
 Prasyaratnya: kunci mesin AI terpasang sebagai secret Cloudflare. Tanpa itu
 panelnya hidup tapi menjawab "belum tersambung". Jangan pernah meminta kuncinya
 dalam bentuk teks ke Bos Cyo (invariant #9).
+
+**Bentuk panelnya meniru WhatsApp** (keputusan Bos Cyo 2026-09-30): satu ruang
+chat, tanpa tombol "baca rekap" terpisah — teks dikirim sebagai pertanyaan,
+foto (tombol + di kotak ketik) dikirim sebagai lembar rekap. Judul panel adalah
+gerai yang sedang dibahas, dipilih lewat tombol ▾ di sampingnya. Pilihan
+"semua gerai" (tingkat entity) sudah ada di daftar tapi **belum punya alat**:
+panel sengaja tidak mengirim apa pun ke server dalam mode itu, karena tanpa
+`?store=` server jatuh ke gerai bawaan dan menjawab untuk gerai yang salah.
+Alat tingkat entity menyusul — tinggal menyambung di `cacaGeraiAktif()`.
 
 **Mengganti kunci bisa memundurkan program.** 2026-09-29: kunci diganti lewat
 dashboard Cloudflare, lalu kode yang melayani user ternyata versi sebelum
@@ -221,7 +230,7 @@ Jangan bangun ulang yang sudah ada:
 | Penguraian angka + verifikasi lembar | `src/caca-rekap-reader.js` | Sudah teruji dengan angka lembar asli. Tambah jenis pemeriksaan di sini, bukan di prompt. |
 | Resolusi gerai/entity dari sesi login | `src/stores.js`, `src/owner-auth.js` (`requireManagement`) | Pakai ini, jangan bikin jalur otorisasi baru |
 | Pendaftaran modul per tenant (untuk paket langganan) | `platform_modules` + `tenant_module_installations` (migration 0080), `src/platform-module-registry.js` | Modul Caca direncanakan bernama `CACA_WA`; belum dipasang, Tahap 1 belum berkuota |
-| Panel tempat menaruh tombol chat | `public/entity-admin.html` | Tab "Caca" sudah ada di sini |
+| Panel tempat menaruh tombol chat | `public/entity-admin.html` | Panel melayang, di luar sistem tab |
 
 **Alat baca "untung hari ini" sudah tersedia di `main`** —
 `src/net-profit-report.js` plus panel `public/admin-net-profit-report.js`, masuk

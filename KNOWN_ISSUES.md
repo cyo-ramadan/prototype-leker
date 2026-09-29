@@ -838,6 +838,36 @@ aja"):
   fitur ini TIDAK menghitungkannya -- itu di luar scope keputusan Bos Cyo kali ini, perlu desain
   terpisah kalau ada kasus seperti itu belakangan.
 
+## Produksi Dadakan Digabung ke Penjualan di Riwayat Transaksi (2026-09-29)
+
+Bos Cyo lihat Riwayat Transaksi (Data Transaksi Kasir/Admin) menampilkan produksi AUTO_DADAKAN
+sebagai baris "Produksi" terpisah dari Penjualan yang memicunya, padahal tombol Hapus tidak pernah
+nyala di baris Produksi mana pun (`VOID_SUBJECT_TYPES`/`SUBJECT_TYPES` cuma SALE/PURCHASE/EXPENSE).
+Keputusan Bos Cyo: "dibuat 1 rangkaian saja untuk penjualan dan produksi dadakan ... kalo diliat
+detailnya ada produksinya juga, tapi masuk kriteria penjualan" -- bukan menambah tombol Hapus baru
+di baris Produksi, tapi menghilangkan baris Produksi dadakannya sama sekali dan menampilkan
+bahan+hasilnya di dalam Detail Penjualan.
+
+- `src/admin-transactions.js` (`listStoreTransactions`): production_runs dengan `mode =
+  'AUTO_DADAKAN'` tidak lagi diikutkan sebagai baris `PRODUCTION` -- berlaku untuk daftar Admin
+  maupun mirror read-only Kasir/CS (satu sumber query yang sama). Produksi MANUAL (batch masak
+  beneran) tetap tampil sebagai baris sendiri seperti biasa.
+- `saleDetail()` (`src/admin-transaction-detail.js`) sudah lama mengembalikan `productionRuns`
+  (bahan, hasil, HPP snapshot) untuk penjualan yang memicu produksi dadakan -- itu sudah dirender di
+  Detail Admin (`public/admin-transactions-ui.js`, "Production Snapshot"). Yang baru: Detail
+  Penjualan di sisi Kasir/CS (`public/cashier-data-explorer.js`, `renderSaleProductionRuns`)
+  sekarang ikut menampilkannya juga -- sebelumnya kosong.
+- Tombol Hapus di baris Penjualan **tidak berubah sama sekali** -- itu sudah lama membalik
+  produksi dadakannya sekaligus (mirror penuh, lihat "Pembalik penuh (mirror) untuk hapus
+  penjualan yang memicu produksi dadakan" di atas). Karena baris Produksi dadakan sudah tidak
+  tampil sendiri, satu tombol itu memang sudah cukup -- tidak perlu jalur hapus kedua.
+- **Ditemukan tapi sengaja tidak dibenahi (di luar scope)**: tombol Detail pada baris Produksi
+  MANUAL di sisi Kasir/CS ternyata sudah lama rusak -- `transactionDetailByKindId` (dipakai jalur
+  Kasir/CS) tidak pernah menangani `kind = 'PRODUCTION'` sama sekali (cuma `handleAdminProductionDetailApi`
+  di sisi Admin yang punya query-nya), jadi klik Detail di Produksi MANUAL dari akun Kasir akan
+  gagal "Detail transaksi tidak ditemukan". Ini bug lama yang tidak berhubungan dengan penggabungan
+  dadakan di atas -- dicatat di sini biar tidak hilang, belum ada yang minta dibenerin.
+
 ## DOC-IMPACT
 
 **REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, and Payroll transaction implementations. Also update this section when the Uang Muka/Deposit flow above changes shape (new deposit categories, Deposit-funded void reversal, Accounting posting for Deposit realization, or the dead `cashier-procurement-ui.js` file is finally removed or activated). Also update when: the standard chart of accounts (ADR-047) changes — new standard accounts, new name aliases, another store allowed custom accounts, or the per-tenant custom stage begins. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

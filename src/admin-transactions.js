@@ -161,11 +161,23 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
              c.employee_name, 'APPROVAL_REQUEST', a.id, a.payload_json
       FROM approval_requests a LEFT JOIN cashiers c ON c.id = a.cashier_id WHERE a.store_id = ?
       UNION ALL
+      -- Bos Cyo, 2026-09-29: produksi AUTO_DADAKAN adalah efek samping SATU
+      -- baris Penjualan (hasil = qty yang dijual, tidak pernah nyisa ke
+      -- transaksi lain -- lihat resolveLinkedRecipe/loadGeneratedProductionMirror),
+      -- bukan aktivitas berdiri sendiri. Kalau muncul sebagai baris terpisah
+      -- di sini, kelihatan seperti dua transaksi padahal satu kejadian, dan
+      -- tombol Hapus tidak pernah nyala di sini (VOID_SUBJECT_TYPES cuma
+      -- SALE/PURCHASE/EXPENSE) -- Bos Cyo minta digabung: cukup satu baris
+      -- Penjualan, produksinya kelihatan di Detail penjualan itu (lihat
+      -- saleDetail() -> detail.productionRuns, admin-transaction-detail.js).
+      -- Produksi MANUAL (batch masak beneran) tetap baris sendiri seperti
+      -- biasa.
       SELECT pr.id, 'PRODUCTION', pr.created_at, NULL,
              'Produksi · ' || pr.output_product_name || ' · ' || pr.total_output_quantity || ' ' || pr.output_unit_symbol,
              LOWER(pr.status), '', pr.drawer_session_id, pr.created_by_id, c.employee_name,
              'PRODUCTION_RUN', pr.id, NULL
-      FROM production_runs pr LEFT JOIN cashiers c ON c.id = pr.created_by_id WHERE pr.store_id = ?
+      FROM production_runs pr LEFT JOIN cashiers c ON c.id = pr.created_by_id
+      WHERE pr.store_id = ? AND pr.mode != 'AUTO_DADAKAN'
     ),
     transaction_facts AS (
       SELECT * FROM pos_facts

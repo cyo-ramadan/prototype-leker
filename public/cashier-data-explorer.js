@@ -324,6 +324,21 @@
     return `${detail.approvalStatus || '-'} / ${detail.postingStatus || '-'}`;
   }
 
+  // Bos Cyo, 2026-09-29: "dibuat 1 rangkaian saja untuk penjualan dan
+  // produksi dadakan ... kalo diliat detailnya ada produksinya juga, tapi
+  // masuk kriteria penjualan" -- produksi AUTO_DADAKAN sudah tidak muncul
+  // sebagai baris Produksi sendiri di daftar (lihat admin-transactions.js),
+  // jadi bahan+hasilnya ditampilkan di sini, di dalam Detail Penjualan.
+  function renderSaleProductionRuns(runs) {
+    if (!runs.length) return '';
+    return `<div class="admin-tip" style="margin-top:10px"><b>Produksi Dadakan</b></div>
+      <div class="master-list">${runs.map(run => `
+        <div class="master-row"><div class="master-main">
+          <strong>${escapeHtml(run.outputProductName)} · ${run.totalOutputQuantity} ${escapeHtml(run.unitSymbol || '')}</strong>
+          <div class="master-meta">Bahan: ${(run.components || []).map(component => `${escapeHtml(component.productName)} ${component.totalQuantity} ${escapeHtml(component.unitSymbol || '')}`).join(', ') || '-'}</div>
+        </div></div>`).join('')}</div>`;
+  }
+
   function renderSaleDetailBody(detail) {
     const items = detail.items || [];
     return `
@@ -336,7 +351,8 @@
       <div class="admin-tip" style="margin-top:10px"><b>Total</b><div>${rupiah(detail.total)}</div></div>
       <div class="admin-tip"><b>Metode Bayar</b><div>${escapeHtml(detail.paymentMethod || '-')}</div></div>
       ${detail.note ? `<div class="admin-tip"><b>Catatan</b><div>${escapeHtml(detail.note)}</div></div>` : ''}
-      <div class="admin-tip"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>`;
+      <div class="admin-tip"><b>Kasir</b><div>${escapeHtml(detail.cashierName || '-')}</div></div>
+      ${renderSaleProductionRuns(detail.productionRuns || [])}`;
   }
 
   function renderSimpleDetailBody(detail) {

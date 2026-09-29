@@ -188,9 +188,50 @@
       </section>
     </section>
   </main>
+  <!-- Caca sengaja DI LUAR sistem tab: dia teman kerja yang ikut ke mana pun
+       Bos Cyo pindah, bukan satu halaman yang harus dibuka. Selama masih login
+       Entity Admin, tombolnya tetap ada. -->
+  <button id="cacaFab" class="caca-fab hidden" type="button" aria-expanded="false" aria-controls="cacaPanel" title="Tanya Caca">
+    <span class="caca-fab-ikon" aria-hidden="true">C</span>
+    <span class="caca-fab-teks">Caca</span>
+  </button>
+
+  <div id="cacaPanel" class="caca-melayang hidden" role="dialog" aria-label="Caca" aria-modal="false">
+    <div class="caca-melayang-kepala">
+      <div><strong>Caca</strong><div class="muted" id="cacaStatus">Memuat…</div></div>
+      <button id="cacaTutup" class="text-btn" type="button" aria-label="Tutup Caca">Tutup</button>
+    </div>
+    <div class="caca-melayang-isi">
+        <div class="admin-card">
+          <div class="admin-tip" style="margin-bottom:12px">Caca baru bisa <strong>menjawab pertanyaan</strong> — belum bisa mencatat atau mengubah apa pun. Dia cuma melihat yang boleh Bos lihat.</div>
+          <label class="admin-field">Gerai<select id="cacaTanyaStore"></select></label>
+          <div id="cacaPercakapan" class="caca-percakapan" aria-live="polite"></div>
+          <form id="cacaTanyaForm" class="caca-tanya-baris">
+            <input id="cacaPertanyaan" maxlength="500" placeholder="untung hari ini berapa?" autocomplete="off" />
+            <button id="cacaTanyaKirim" class="primary-btn" type="submit" disabled>Tanya</button>
+          </form>
+          <div class="caca-contoh muted">Coba: "untung hari ini berapa?" · "penjualan kemarin" · "stok tinggal berapa?"</div>
+        </div>
+
+        <div class="admin-card" style="margin-top:16px">
+          <div class="list-head"><div><h2>Caca — baca lembar rekap</h2></div></div>
+          <div class="admin-tip" style="margin:12px 0">Tahap uji coba: Caca hanya membaca dan memastikan. Belum ada yang tersimpan jadi transaksi.</div>
+          <div class="admin-grid two compact">
+            <label class="admin-field">Gerai<select id="cacaStore"></select></label>
+            <label class="admin-field">Foto lembar rekap<input id="cacaGambar" type="file" accept="image/*" /></label>
+          </div>
+          <button id="cacaKirim" class="primary-btn" type="button" disabled>Minta Caca baca</button>
+          <div id="cacaPesan" class="muted" style="margin-top:10px" aria-live="polite"></div>
+          <div id="cacaHasil" style="margin-top:14px"></div>
+        </div>
+    </div>
+  </div>
+
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<script src="/entity-admin.js?v=20260920-rekening-bersama-v1"></script>
+<link rel="stylesheet" href="/caca-chat.css" />
+<script src="/caca-chat.js"></script>
+<script src="/entity-admin.js?v=20260929-caca-melayang-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

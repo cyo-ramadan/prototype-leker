@@ -1,6 +1,7 @@
 # ADR-044 — "Caca": asisten toko lewat WhatsApp
 
-Status: PROPOSED — desain, menunggu keputusan Bos Cyo di bagian "Keputusan yang Hana minta"
+Status: ACCEPTED — Tahap 1 (baca lembar rekap lewat web) sudah mendarat; akurasi
+bacanya belum diukur dengan foto sungguhan. Tahap 2 ke atas masih desain.
 Tanggal: 2026-09-17
 Diminta oleh: Bos Cyo
 Ditulis oleh: Hana
@@ -228,6 +229,48 @@ draft yang sama juga muncul di panel web — supaya orang yang lebih paham
 bacaan AI, dan memperbaikinya dengan benar kalau rumit. Satu baris draft, dua
 cara menyelesaikannya.
 
+## Apa yang ternyata ada di lembar rekap asli
+
+Bos Cyo mengirim satu lembar sungguhan (06-Sep-26, cabang mekarwangi) pada
+2026-09-17. Isinya mengubah beberapa asumsi yang ditulis di atas dari tebakan
+jadi fakta, dan itu yang membentuk Tahap 1.
+
+**Lembarnya spreadsheet, bukan tulisan tangan.** Asumsi awal "foto lembar rekap
+tulisan tangan" meleset — yang dipakai lembar Excel di HP. Bacanya jauh lebih
+mudah dan lebih akurat daripada yang diperkirakan, jadi kekhawatiran salah baca
+angka tulisan tangan tidak seberat dugaan. Ini tidak berarti pagar konfirmasi
+boleh dilonggarkan: lembar berikutnya bisa saja tulisan tangan.
+
+**Lembarnya sendiri tidak selalu konsisten, dan itu bukan kesalahan yang boleh
+dibetulkan Caca.** Contoh nyata di lembar itu: jeruk stoknya turun 3 tapi kolom
+penjualannya kosong; mangga turun 13 tapi penjualannya ditulis 2. Kalau Caca
+"pintar" lalu menyimpulkan angka penjualan dari selisih stok, hasilnya berbeda
+dari yang ditulis pemilik toko — dan bedanya tidak akan pernah ketahuan karena
+tidak ada error. Aturannya: **Caca menyalin apa adanya, dan kejanggalan
+diangkat sebagai pertanyaan, tidak pernah sebagai koreksi.**
+
+**Kolom yang mengurangi setoran belum tentu beban.** Di lembar itu ada "Qris
+181.000" di posisi pengurang. Dugaan kuat: itu penjualan yang dibayar non-tunai,
+jadi uangnya tidak masuk laci — mengurangi setoran, tapi bukan uang keluar.
+Kalau Caca memperlakukannya sebagai beban, laba toko tampak lebih kecil 181.000
+dari seharusnya. Ini persis wilayah invariant #4: Operasional melaporkan fakta,
+Accounting yang menafsirkan — jadi Caca **wajib menanyakan artinya**, bukan
+memilih tafsirnya sendiri.
+
+**Ada pemeriksa silang gratis di lembarnya.** Cup terpakai 307 − 183 = 124,
+persis sama dengan total item terjual. Angka semacam ini berguna untuk
+mendeteksi salah baca tanpa biaya tambahan, dan pola serupa layak dicari di
+lembar tenant lain.
+
+**Stok minus muncul di data nyata** (milk tea leci, −1). Sesuai invariant #8,
+itu dilaporkan apa adanya, tidak dirapikan supaya enak dilihat.
+
+**Nama barang tidak boleh dipatok di kode.** Di lembar ini nama-namanya
+kebetulan sama dengan master barang yang ada, tapi Bos Cyo menegaskan antar
+tenant daftar barangnya pasti berbeda. Pencocokan karena itu selalu dilakukan
+terhadap master barang milik gerai yang sedang login, dan hanya cocok persis —
+tebakan mirip-mirip akan memasangkan barang yang salah tanpa ada yang sadar.
+
 ## Kuota dan paket
 
 Begitu Caca jadi asisten yang diajak ngobrol, **tiap pesan user ada biayanya** —
@@ -328,10 +371,19 @@ kita kendalikan.
 
 ### Perkiraan biaya (kasar — wajib diukur ulang sebelum dipakai menetapkan harga)
 
+Dengan `gemini-3.1-flash-lite` yang terpasang sekarang:
+
 | | Perkiraan per satuan |
 |---|---|
-| Satu pertanyaan ("untung berapa hari ini?") | sekitar Rp 50–150 |
-| Satu foto rekap harian dibaca | sekitar Rp 400–1.000 |
+| Satu pertanyaan ("untung berapa hari ini?") | sekitar Rp 10–30 |
+| Satu foto rekap harian dibaca | sekitar Rp 70 |
+
+Kalau nanti pindah ke model kelas atas (mis. Claude Opus), angkanya naik sekitar
+15 kali lipat: ~Rp1.000–2.000 per foto. Perbedaan sebesar itu yang membuat
+pengukuran akurasi jadi penting — kalau yang murah ternyata sama telitinya untuk
+lembar spreadsheet yang rapi, tidak ada alasan membayar lima belas kali lipat.
+Angka lama di ADR ini (Rp400–1.000) berasal dari asumsi model kelas menengah dan
+sudah tidak dipakai.
 
 Satu pelanggan yang sehari kirim 1 foto + tanya 5 kali ≈ **Rp 15.000–35.000
 sebulan**. Angka ini yang harus dipegang waktu menetapkan harga langganan:
@@ -342,13 +394,61 @@ bukan patokan.)
 
 ### Model mana untuk apa
 
+**Terpasang sekarang: `gemini-3.1-flash-lite`** ($0.25 / $1.50 per juta token,
+sekitar Rp70 per foto). Keputusan Bos Cyo 2026-09-17, dan alasannya menang atas
+saran awal Hana yang memilih model termahal duluan:
+
+> "cari yang lebih murah dulu, itu nanti yang kita uji, mumpung masih nguji,
+> justru kalo pelanggan uda banyak uda ga bisa nguji maka pilihannya cloude yang
+> terbaik."
+
+Logikanya benar dan layak dicatat sebagai prinsip: **jendela untuk bereksperimen
+itu sekarang, selagi belum ada pelanggan yang dirugikan kalau hasilnya jelek.**
+Begitu sudah dipakai orang banyak, mengganti-ganti mesin jadi mahal risikonya,
+dan saat itulah pilihan jatuh ke yang paling bisa diandalkan. Jadi murah dulu
+bukan berarti murah selamanya — ini urutan, bukan target akhir.
+
+Pagar yang menyertainya, supaya "murah" tidak diam-diam berubah jadi "salah":
+akurasi bacanya wajib diukur sebelum ada satu pun jalur simpan dinyalakan. Kalau
+model murah sering meleset, yang naik adalah modelnya — bukan toleransi kita
+terhadap angka yang salah.
+
+### Jalur gratis boleh untuk menguji, TIDAK boleh begitu ada pelanggan
+
+Gemini punya jalur gratis (~1.500 permintaan/hari, tanpa kartu kredit) yang lebih
+dari cukup untuk mengukur akurasi. Tapi di jalur gratis **data yang dikirim
+dipakai Google untuk mengembangkan produknya**; jaminan "data tidak dipakai
+melatih model" baru berlaku di jalur berbayar.
+
+Yang dikirim Caca adalah lembar keuangan toko. Jadi pagarnya:
+
+- **Boleh gratis** selama yang diuji lembar milik Bos Cyo sendiri. Itu datanya
+  sendiri, risikonya ditanggung sendiri, dan keputusannya ada padanya.
+- **Wajib berbayar sebelum satu pun tenant lain datanya lewat sini.** Data
+  keuangan pelanggan dipercayakan ke kita; mengirimkannya lewat jalur yang
+  isinya boleh dipakai pihak lain itu melanggar janji ke pelanggan, bukan
+  sekadar pilihan teknis. Ini juga alasan yang sama kenapa ADR ini menolak
+  menumpang produk chatbot jadi.
+
+Hematnya kecil dan tidak sebanding: menguji 20 lembar di jalur berbayar sekitar
+Rp1.400. Pindah gratis → berbayar **tidak mengubah kode sama sekali** (kunci dan
+endpoint sama, yang berubah status penagihan di akun Google), jadi tidak ada
+alasan teknis untuk menunda-nunda pindah.
+
+**Dukungan WhatsApp bukan kriteria memilih model.** Sempat jadi kekhawatiran
+Bos Cyo ("yang suport dikonekin di wa juga"), tapi yang menyambung ke WhatsApp
+adalah Worker kita sendiri lewat Meta Cloud API. Model AI hanya menerima teks
+atau gambar dari Worker dan mengirim balik jawabannya; dia tidak pernah tahu
+pesan itu datang dari WA, web, atau kanal lain. Semua model bisa dipakai, jadi
+pemilihan murni soal akurasi dan biaya.
+
+Pembagian kerja model yang tetap berlaku:
 - **Tanya-jawab harian dan pemilihan alat** → model kecil/murah. Pekerjaannya
   ringan: pahami maksud, panggil satu alat baca, susun kalimat.
-- **Baca foto** → model yang lebih kuat. **Di bagian ini jangan pelit.** Salah
-  baca angka uang itu persis kegagalan yang menghabiskan kepercayaan pelanggan;
-  hemat beberapa ratus rupiah di situ tidak sebanding. Cara amannya: mulai satu
-  model, uji dengan lembar rekap asli, hitung berapa sering meleset, baru
-  putuskan naik atau turun.
+- **Baca foto** → di sini yang paling rawan, karena salah baca angka uang itu
+  persis kegagalan yang menghabiskan kepercayaan pelanggan. Sementara ini
+  dijalankan di model murah **karena sedang diukur**, bukan karena sudah
+  terbukti cukup. Naikkan begitu angka melesetnya menunjukkan perlu.
 
 Penghemat terbesar yang gratis: bagian instruksi Caca yang selalu sama di tiap
 chat bisa di-*cache* sehingga tidak dihitung penuh berulang-ulang — potongannya
@@ -359,31 +459,43 @@ ditekan ke angka kecil di tabel atas.
 
 Jangan dibangun sekaligus. Tiap tahap sudah bisa dipakai sendiri:
 
-*Direvisi 2026-09-17 setelah diskusi lanjut: WhatsApp turun dari langkah
-pertama ke Tahap 2. Alasannya di bawah.*
+*Direvisi dua kali pada 2026-09-17. Pertama: WhatsApp turun dari langkah pertama
+ke tahap belakang. Kedua: membaca foto naik ke Tahap 1, mendahului tanya-jawab,
+atas arahan Bos Cyo ("fokus kerjakan ai di web nya dulu agar dia bener2 bisa
+ngerti kalo dikasih gambar seperti itu").*
 
-1. **Tahap 1 — Caca bisa DITANYA, lewat kotak chat di WEB.** Bukan WhatsApp
-   dulu. Pasang otak AI-nya dengan **alat baca saja**: untung hari ini,
-   penjualan kemarin, sisa stok — sebagai tombol chat di panel yang sudah jalan.
+Kenapa membaca foto boleh didahulukan padahal sebelumnya sengaja ditaruh
+belakangan: yang berbahaya dari foto bukan **membacanya**, tapi **menjadikannya
+transaksi**. Selama modulnya tidak punya alat tulis sama sekali, risikonya nol
+sementara yang dibuktikan justru bagian paling belum pasti sekaligus paling
+bernilai untuk pasar Bos Cyo. Urutan lama menunda pembuktian yang mahal ke
+paling akhir; urutan ini memisahkan risiko dari pembuktian.
 
-   Kenapa web dulu, bukan WA: tidak perlu verifikasi Meta, tidak perlu nunggu
-   berhari-hari, tidak ada biaya per pesan untuk uji coba, dan bisa dicoba hari
-   itu juga. Yang dibuktikan di sini justru hal yang paling belum pasti —
-   **apakah jawaban Caca benar-benar berguna**, atau cuma kelihatan keren di
-   angan-angan. Kalau meleset, yang hilang cuma waktu; kalau bagus, WhatsApp
-   tinggal ditambah sebagai pintu masuk karena otaknya sudah jadi.
+1. **Tahap 1 — Caca MEMBACA lembar rekap, lewat web, tanpa alat tulis.**
+   *Sudah mendarat* (`src/caca-chat.js`, `src/caca-rekap-reader.js`,
+   `src/caca-ai-client.js`, tab Caca di `public/entity-admin.html`).
+   Foto lembar masuk, Caca menyalin isinya, kode yang mengurai angka dan
+   menghitung ulang, hasilnya ditampilkan beserta daftar hal yang perlu
+   dipastikan. Tidak ada jalur simpan sama sekali.
 
+   Yang belum selesai di tahap ini: **akurasi bacanya belum diukur** dengan
+   foto sungguhan dalam jumlah yang cukup. Itu pekerjaan berikutnya sebelum
+   tahap mana pun dilanjutkan — kalau Caca sering meleset di sini, seluruh
+   rencana di bawah tidak ada gunanya.
+2. **Tahap 2 — Caca bisa DITANYA.** Alat baca: untung hari ini, penjualan
+   kemarin, sisa stok. Masih di web, memakai otak yang sudah terpasang di
+   Tahap 1. Sisi ini tidak menyentuh uang sama sekali.
+3. **Tahap 3 — alur konfirmasi dan posting.** Baru di sini hasil bacaan boleh
+   menjadi transaksi, lewat draft + konfirmasi (D1) dan jalur API yang sama
+   dengan Kasir. Ini bagian paling berisiko, dan sengaja ditaruh setelah
+   akurasi bacanya terbukti.
+4. **Tahap 4 — sambungkan ke WhatsApp.** Meta Cloud API, pendaftaran nomor dari
+   web, satu nomor bersama. Di sini verifikasi WABA harus beres.
    WhatsApp itu *kanal*; yang mahal dan menentukan itu *otaknya*.
-2. **Tahap 2 — sambungkan ke WhatsApp.** Meta Cloud API, pendaftaran nomor dari
-   web, kemampuan yang sama persis dengan Tahap 1 (baca saja) tapi lewat WA.
-   Di sini baru urusan verifikasi WABA harus beres.
-3. **Tahap 3 — foto rekap harian.** Alat tulis + baca gambar. Ini bagian yang
-   paling mahal dan paling berisiko, jadi sengaja ditaruh setelah alur
-   konfirmasi terbukti dipakai orang sungguhan.
-4. **Tahap 4 — pesan suara.** Di pasar Indonesia, user yang gaptek sering lebih
+5. **Tahap 5 — pesan suara.** Di pasar Indonesia, user yang gaptek sering lebih
    lancar mengirim voice note daripada mengetik. Suara → teks → masuk pipeline
    yang sama persis, jadi ini tambahan kecil dengan dampak besar.
-5. **Tahap 5 — Caca kirim duluan** (mis. rekap otomatis jam tutup). Baru di
+6. **Tahap 6 — Caca kirim duluan** (mis. rekap otomatis jam tutup). Baru di
    sini urusan *message template* berbayar Meta perlu diselesaikan, jadi
    ditunda sampai nilainya terbukti.
 
@@ -413,10 +525,14 @@ pertama ke Tahap 2. Alasannya di bawah.*
 1. **Verifikasi bisnis Meta** — Bos Cyo siap menjalani proses WABA (verifikasi
    Facebook Business, nomor khusus yang tidak dipakai WA biasa)? Ini prasyarat
    keras, tidak ada jalan pintas yang aman.
-2. **Satu nomor untuk semua pelanggan, atau satu nomor per pelanggan?** Satu
-   nomor bersama = murah, tapi semua pelanggan bergantung pada satu nomor.
-   Nomor sendiri per pelanggan = lebih mahal dan lebih ribet dipasang, tapi
-   masalah satu pelanggan tidak menular. Ini keputusan bisnis.
+2. ~~Satu nomor untuk semua pelanggan, atau satu nomor per pelanggan?~~
+   **SUDAH DIJAWAB 2026-09-17: satu nomor WA dipakai bersama semua pelanggan.**
+   Konsekuensi yang menempel pada keputusan ini dan harus dipikul di Tahap 2:
+   satu nomor itu titik kegagalan tunggal — kalau nomornya bermasalah, seluruh
+   pelanggan kehilangan kanal input sekaligus. Itu yang membuat D2 (wajib jalur
+   resmi Meta) berubah dari saran jadi keharusan mutlak; jalur tidak resmi pada
+   satu nomor bersama berarti mempertaruhkan semua pelanggan pada satu blokir.
+   Nomor khusus per pelanggan disimpan sebagai paket premium, bukan bawaan.
 3. ~~Mulai dari Tahap 1 (Caca bisa ditanya)?~~ **SUDAH DIJAWAB 2026-09-17:**
    ya, dan lebih jauh lagi — mulai dari kotak chat di **web**, WhatsApp
    menyusul. ("ok berarti kita kasih tombol chat untuk owner ya")
@@ -435,8 +551,15 @@ pertama ke Tahap 2. Alasannya di bawah.*
 
 ## DOC-IMPACT
 
-**REQUIRED** — begitu Tahap 0 mendarat: `README.md` (kanal input baru),
-`MODULE_OWNERSHIP.md` (pemilik modul CACA_WA), `KNOWN_PITFALLS.md` (aturan
-"alat tulis AI tidak pernah memposting langsung" dan "angka keuangan tidak
-boleh keluar dari ingatan model" naik jadi pitfall resmi), dan `RUNBOOK.md`
-(prosedur kalau nomor WA bermasalah atau kuota habis).
+**REQUIRED, belum dikerjakan** — Tahap 1 sudah mendarat, tapi dokumen turunan
+ini belum menyusul: `README.md` (kanal input baru), `MODULE_OWNERSHIP.md`
+(pemilik modul CACA_WA), `KNOWN_PITFALLS.md` (tiga aturan yang naik jadi pitfall
+resmi: "alat tulis AI tidak pernah memposting langsung", "angka keuangan tidak
+boleh keluar dari ingatan model", dan "AI tidak boleh membetulkan lembar yang
+tidak konsisten — kejanggalan jadi pertanyaan"), dan `RUNBOOK.md` (prosedur
+kalau kunci API bermasalah, dan nanti kalau nomor WA bermasalah atau kuota
+habis).
+
+**REQUIRED, menunggu pengukuran** — begitu akurasi baca Tahap 1 terukur:
+bagian "Perkiraan biaya" dan "Model mana untuk apa" di ADR ini diganti angka
+sungguhan, bukan ancang-ancang.

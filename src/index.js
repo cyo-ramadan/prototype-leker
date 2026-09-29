@@ -24,6 +24,7 @@ import { handleStaffManualBookApi } from './staff-manual-book.js';
 import { handleStaffAnnouncementApi } from './staff-announcement.js';
 import { handleStaffDailyTaskApi } from './staff-daily-task.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
+import { handleCacaApi } from './caca-chat.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleEmployeeDepositApi } from './employee-deposit-settlement.js';
@@ -318,6 +319,8 @@ async function handleApi(request, env, url) {
   if (announcementResponse) return announcementResponse;
   const dailyTaskResponse = await handleStaffDailyTaskApi(request, env, pathname);
   if (dailyTaskResponse) return dailyTaskResponse;
+  const cacaResponse = await handleCacaApi(request, env, pathname);
+  if (cacaResponse) return cacaResponse;
   if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
   const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);
   if (cashierAuthResponse) return cashierAuthResponse;

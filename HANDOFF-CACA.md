@@ -5,6 +5,7 @@ implementer). Instance tidak berbagi memory, jadi semua yang perlu diketahui
 ditulis di sini atau ditunjuk dari sini.
 
 Ditulis: 2026-09-17 · Oleh: Hana · Untuk: sesi lanjutan proyek Caca
+Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
 > **Update 2026-09-27:** Bos Cyo menggeser prioritas ke asisten yang bisa **mencatat**
 > (mengganti akuntan) untuk dirinya dan semua tenant. Baca `HANDOFF-HANA-PEMBUKUAN.md` dulu.
@@ -14,12 +15,65 @@ Ditulis: 2026-09-17 · Oleh: Hana · Untuk: sesi lanjutan proyek Caca
 
 ## Status singkat
 
-**Belum ada satu baris kode pun yang ditulis.** Yang sudah ada cuma desain.
-Jangan mencari modul Caca di repo — belum ada.
+**Tahap 1 sudah ada kodenya, lulus test, tapi BELUM live.** Kodenya masih di
+branch `claude/wonderful-fermat-bn4szi` dan belum digabung ke `main` — sesuai
+koreksi di `CLAUDE.md` 2026-09-17, kode Worker yang melayani user baru berubah
+setelah branch digabung ke `main`, bukan setelah di-push. Klaim "sudah live"
+pada versi handoff sebelumnya salah dan dikoreksi di sini.
+
+Isinya: Caca bisa dikirimi foto lembar rekap lewat tab "Caca" di panel Entity
+Admin, membacanya, lalu menampilkan hasil beserta daftar hal yang perlu
+dipastikan. **Belum ada alat tulis sama sekali** — tidak ada satu pun jalur yang
+menyimpan hasil bacaan jadi transaksi. Itu disengaja, jangan "dilengkapi" tanpa
+membaca D1 di ADR-044 dulu.
+
+Rencana kemampuan selanjutnya (baca data tenant, catat penjualan/pembelian,
+ajukan pembatalan) ada di **`adr/ADR-045`** — arah dan pagarnya sudah disetujui
+Bos Cyo, belum ada kodenya.
 
 - Desain lengkap: **`adr/ADR-044-whatsapp-intake-dan-ai-draft-entry.md`**
-  (status PROPOSED). **Baca itu dulu, utuh, sebelum apa pun.**
-- Sesi asal (2026-09-17) fokus ke fitur non-AI dan sudah ditutup untuk topik ini.
+  (status ACCEPTED untuk Tahap 1). **Baca itu dulu, utuh, sebelum apa pun** —
+  terutama bagian "Apa yang ternyata ada di lembar rekap asli" dan urutan tahap,
+  yang dua-duanya direvisi setelah Bos Cyo mengirim lembar sungguhan.
+- Kodenya: `src/caca-chat.js` (endpoint), `src/caca-rekap-reader.js` (penguraian
+  angka + verifikasi), `src/caca-ai-client.js` (pemanggil model),
+  `public/caca-chat.js` + `public/caca-chat.css` (panel), tab Caca di
+  `public/entity-admin.html`. Test: `test/caca-rekap-reader.test.js`.
+
+## Yang paling penting dikerjakan berikutnya
+
+**Ukur akurasi bacanya dengan foto sungguhan.** Ini satu-satunya hal yang
+menentukan apakah tahap-tahap berikutnya layak dilanjutkan, dan sampai sekarang
+belum dilakukan. Yang sudah terbukti cuma logika penguraian angka dan
+penghitungan ulangnya (diuji dengan angka asli lembar 06-Sep-26); kemampuan
+model membaca fotonya **belum diukur sama sekali**.
+
+Prasyaratnya: kunci mesin AI terpasang sebagai secret Cloudflare. Tanpa itu
+panelnya hidup tapi menjawab "belum tersambung". Jangan pernah meminta kuncinya
+dalam bentuk teks ke Bos Cyo (invariant #9).
+
+**Dua mesin AI tersedia berdampingan, tinggal pilih:**
+
+| Mesin | Kunci | Kapan dipakai |
+|---|---|---|
+| `gemini-3.1-flash-lite` (bawaan) | `GEMINI_API_KEY` | Uji coba — ada jalur gratis |
+| `gpt-6-luna` | `OPENAI_API_KEY` | Pemakaian sungguhan — ~3x lebih murah per token |
+
+Memasang kunci saja sudah cukup untuk menyalakan. Kalau dua-duanya terpasang,
+`CACA_MESIN` (`gemini` / `openai`) yang menentukan. Berpindah tidak menyentuh
+kode sama sekali — logika pembacaan, penguraian nominal, dan penyusunan draft
+tidak tahu-menahu soal penyedia mana yang sedang dipakai.
+
+Mesin yang terpasang **`gemini-3.1-flash-lite`**, dipilih karena murah selagi
+masih tahap uji (~Rp70 per foto). Itu keputusan sadar Bos Cyo, bukan default
+yang kebetulan — alasan dan pagarnya di ADR-044 bagian "Model mana untuk apa".
+Jangan menaikkannya ke model mahal tanpa angka meleset yang menunjukkan perlu,
+dan jangan pula menganggap yang murah sudah terbukti cukup sebelum diukur.
+
+**Kalau kuncinya dari jalur gratis Gemini:** itu sah untuk menguji lembar milik
+Bos Cyo sendiri, tapi **wajib pindah ke jalur berbayar sebelum data tenant lain
+lewat sini** — di jalur gratis isinya boleh dipakai Google mengembangkan
+produknya. Pindahnya tidak mengubah kode sama sekali. Rincian di ADR-044.
 
 ---
 
@@ -59,7 +113,21 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    orang sungguhan.
 6. **Mulai dari kotak chat di web, bukan WhatsApp.** Dikonfirmasi Bos Cyo
    2026-09-17 ("ok berarti kita kasih tombol chat untuk owner ya").
-7. **Caca di dokumen ini SPESIFIK untuk konteks pelanggan-tenant (pemilik/
+7. **Satu nomor WA dipakai bersama semua pelanggan**, bukan nomor per pelanggan.
+   Dikonfirmasi Bos Cyo 2026-09-17. Konsekuensinya: nomor itu jadi titik
+   kegagalan tunggal, jadi jalur resmi Meta (D2) bukan lagi saran melainkan
+   keharusan. Nomor khusus jadi paket premium, bukan bawaan.
+8. **Membaca foto didahulukan, sebelum kemampuan tanya-jawab.** Arahan Bos Cyo
+   2026-09-17 ("fokus kerjakan ai di web nya dulu agar dia bener2 bisa ngerti
+   kalo dikasih gambar seperti itu"). Aman dilakukan lebih awal justru karena
+   modulnya tidak diberi alat tulis sama sekali.
+9. **Caca menyalin, kode yang menghitung.** Model tidak pernah diminta
+   menjumlahkan atau membetulkan. Ini yang membuat salah baca satu angka
+   ketahuan lewat total yang tidak nyambung, bukan lewat begitu saja.
+10. **Nama barang dicocokkan ke master barang gerai yang sedang login**, hanya
+    kalau cocok persis. Tidak di-hardcode, tidak ditebak mirip-mirip — antar
+    tenant daftar barangnya pasti berbeda.
+11. **Caca di dokumen ini SPESIFIK untuk konteks pelanggan-tenant (pemilik/
    pegawai toko yang tanya soal operasional gerainya sendiri) -- bukan untuk
    customer publik (pembeli yang mau pesan jajanan di suatu gerai).**
    Dikonfirmasi Bos Cyo, 2026-09-22: "whatsapp dari customer ke caca dan dari
@@ -78,20 +146,23 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
 
 ## Yang BELUM diputuskan (butuh Bos Cyo)
 
-1. **Satu nomor WA bersama untuk semua pelanggan, atau nomor per pelanggan?**
-   Hana menyarankan satu nomor bersama (onboarding pelanggan gaptek jadi mungkin,
-   modal di depan kecil), dengan nomor khusus dijual sebagai paket premium nanti
-   — **tapi Bos Cyo belum mengonfirmasi ini secara eksplisit.** Jangan
-   diperlakukan sebagai sudah diputuskan.
+1. **Arti kolom "Qris" di lembar rekap.** Dugaan kuat Hana: penjualan yang
+   dibayar non-tunai, jadi mengurangi setoran tapi bukan uang keluar. Belum
+   dikonfirmasi Bos Cyo. Jangan ditebak sendiri — salah tafsir di sini bikin
+   laba toko salah tanpa ada error yang muncul. Sementara ini Caca
+   menanyakannya setiap kali ketemu.
 2. Verifikasi bisnis Meta (WABA) — siap dijalani atau belum? Prasyarat keras
    sebelum jalur WhatsApp bisa dimulai sama sekali.
 3. Angka paket: berapa foto/hari dan tanya-jawab/hari per tingkat langganan.
    Perlu diukur biayanya dulu, jangan ditebak.
-4. Model persisnya untuk baca foto — ditentukan setelah diuji pakai lembar
-   rekap asli punya Bos Cyo, bukan dipilih di atas kertas.
+4. Apakah model murah sudah cukup teliti untuk baca foto — sekarang dipasang
+   `gemini-3.1-flash-lite`, belum diukur. Naikkan hanya setelah ada angka
+   meleset dari pengujian lembar sungguhan, bukan ditebak di atas kertas.
 5. Rekap sehari penuh masuk lewat "sesi laci buatan" (usul Hana di ADR) atau
-   cara lain — belum dikonfirmasi Bos Cyo.
-6. **Jalur WA untuk customer publik (bukan pelanggan-tenant): satu nomor WA
+   cara lain — belum dikonfirmasi Bos Cyo. Baru relevan di Tahap 3.
+6. Apakah bentuk lembar rekap sama di semua cabang/tenant, atau tiap tempat
+   punya versi sendiri. Menentukan seberapa longgar pembacaannya harus dibuat.
+7. **Jalur WA untuk customer publik (bukan pelanggan-tenant): satu nomor WA
    yang mendeteksi konteks pengirim (tenant vs customer) lewat AI, atau dua
    persona/nomor terpisah** ("Caca" khusus pelanggan tenant, "Cici" khusus
    customer publik, usul Bos Cyo 2026-09-22)? Belum diputuskan mana yang
@@ -102,7 +173,7 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    kerapian nama) buat pisah nomor/persona sejak awal. Ini baru catatan
    pertimbangan, bukan rekomendasi final; belum dibahas tuntas karena
    Bos Cyo minta ditunda ("bahas lain kali aja").
-7. Seluruh mekanisme customer publik lewat WA (identitas = nomor WA tanpa
+8. Seluruh mekanisme customer publik lewat WA (identitas = nomor WA tanpa
    registrasi lain, akuisisi member lintas-tenant, dst) masih di tahap
    ide kasar dan BELUM ada satu keputusan pun yang dikunci -- termasuk hal
    dasar seperti verifikasi identitas, pemulihan kalau nomor ganti, dan
@@ -113,21 +184,20 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
 
 ## Langkah berikutnya yang disarankan
 
-**Mulai dari kotak chat Caca di aplikasi web yang sudah jalan — bukan WhatsApp.**
+**Ukur dulu, jangan menambah fitur.** Godaan terbesar di titik ini adalah
+langsung menyambung tombol simpan atau menambah kemampuan tanya-jawab, padahal
+hal yang paling menentukan belum diketahui: seberapa sering Caca salah membaca.
 
-Alasannya (ini keputusan sadar, bukan menunda):
-- Tidak perlu verifikasi Meta, tidak perlu nunggu berhari-hari, tidak ada biaya
-  per pesan untuk uji coba.
-- Membuktikan hal yang paling belum pasti: **apakah jawaban Caca benar-benar
-  berguna**, atau cuma kelihatan keren di angan-angan.
-- Kalau ternyata meleset atau tidak ada yang memakai, yang hilang cuma waktu —
-  bukan biaya verifikasi + nomor + langganan AI.
-- Kalau ternyata bagus, WhatsApp tinggal ditambah sebagai pintu masuk; otaknya
-  sudah jadi.
+Urutannya:
+1. Pasang kunci API, kirim beberapa lembar rekap sungguhan lewat panelnya.
+2. Catat berapa banyak baris yang meleset dan di bagian mana — angka, nama
+   barang, atau baris yang kelewat.
+3. Kalau melesetnya sering, perbaiki pembacaan dulu (prompt, atau model).
+   Kalau jarang, baru lanjut ke Tahap 2 atau 3 sesuai ADR.
 
-Isi langkah pertama: tombol chat untuk Owner/Admin di panel web, dengan **alat
-baca saja** (belum ada alat tulis sama sekali). Target pertanyaan: untung hari
-ini, penjualan kemarin, sisa stok.
+Yang **tidak** boleh dilakukan sebelum langkah di atas selesai: menyambungkan
+hasil bacaan ke jalur simpan mana pun. Alur konfirmasi yang belum terbukti
+akurat cuma memindahkan kesalahan ke tempat yang lebih sulit dilacak.
 
 ---
 
@@ -137,20 +207,32 @@ Jangan bangun ulang yang sudah ada:
 
 | Kebutuhan Caca | Sudah ada di | Catatan |
 |---|---|---|
-| Alat baca "untung hari ini/kemarin" | `src/net-profit-report.js` | Sudah jadi & teruji. Sudah punya cache harian, tidak berat dipanggil berulang. Praktis tinggal dibungkus jadi alat. |
+| Pemanggilan model AI | `src/caca-ai-client.js` | Satu-satunya tempat bicara ke penyedia model. Jangan panggil langsung dari handler — modelnya harus tetap bisa ditukar. |
+| Penguraian angka + verifikasi lembar | `src/caca-rekap-reader.js` | Sudah teruji dengan angka lembar asli. Tambah jenis pemeriksaan di sini, bukan di prompt. |
 | Resolusi gerai/entity dari sesi login | `src/stores.js`, `src/owner-auth.js` (`requireManagement`) | Pakai ini, jangan bikin jalur otorisasi baru |
-| Pendaftaran modul per tenant (untuk paket langganan) | `platform_modules` + `tenant_module_installations` (migration 0080), `src/platform-module-registry.js` | Modul Caca direncanakan bernama `CACA_WA` |
-| Panel tempat menaruh tombol chat | `public/entity-admin.html` / `public/branch-admin.html` | Panel Entity Admin baru saja dapat tab Laporan; polanya bisa ditiru |
+| Pendaftaran modul per tenant (untuk paket langganan) | `platform_modules` + `tenant_module_installations` (migration 0080), `src/platform-module-registry.js` | Modul Caca direncanakan bernama `CACA_WA`; belum dipasang, Tahap 1 belum berkuota |
+| Panel tempat menaruh tombol chat | `public/entity-admin.html` | Tab "Caca" sudah ada di sini |
+
+**Alat baca "untung hari ini" sudah tersedia di `main`** —
+`src/net-profit-report.js` plus panel `public/admin-net-profit-report.js`, masuk
+lewat PR #295/#296. Jadi Tahap 2 tinggal membungkusnya jadi alat, bukan
+membangun dari nol.
 
 ---
 
 ## Pagar yang tidak boleh dilanggar
 
-Selain 6 keputusan di atas:
+Selain 10 keputusan di atas:
 
 - **`CLAUDE.md` invariant #1–#9 tetap berlaku penuh.** Terutama: uang selalu
   scaled-integer (bukan float), Accounting satu-satunya yang memposting jurnal,
   isolasi `store_id` server-side.
+- **Gerai tidak pernah ditentukan dari isi gambar.** Lembar rekap memuat tulisan
+  "Cabang", dan itu sengaja diabaikan — yang dipakai selalu gerai dari sesi login
+  yang sudah divalidasi. Penerapan invariant #5 ke kanal baru.
+- **Caca tidak membetulkan lembar yang tidak konsisten.** Kejanggalan diangkat
+  sebagai pertanyaan. AI yang "merapikan" angka pemilik toko menghasilkan
+  pembukuan yang tidak pernah bisa dicocokkan balik ke kertasnya.
 - **Angka keuangan tidak boleh keluar dari ingatan model.** Semua angka wajib
   datang dari query saat ditanya. Model yang "mengingat" angka kemarin lalu
   menyebutkannya lagi hari ini adalah cara paling halus menyajikan angka palsu
@@ -172,18 +254,21 @@ Saran Hana, mengikuti pembagian kerja di `CLAUDE.md`:
   seiring Bos Cyo memperjelas maksudnya. Menyerahkan rancangan yang belum stabil
   ke agen implementer yang mulai dari nol itu pemborosan — dia akan mengerjakan
   versi yang sudah basi sebelum selesai.
-- **Implementasi, setelah rancangan langkah pertama dikunci → agen implementer
-  (Karen/dst)** lewat papan agent-bus, pakai skill `agent-task-brief`. Langkah
-  pertama (kotak chat + alat baca saja) itu potongan yang rapi dan berbatas
-  jelas — cocok dilempar.
-- Kecualinya: kalau ternyata langkah pertama banyak coba-coba yang saling
-  bergantung (mis. menyetel kualitas jawaban sambil menguji), Hana pegang
-  sendiri dulu sampai bentuknya jelas, baru dilempar.
+- **Implementasi, setelah rancangan sebuah tahap dikunci → agen implementer
+  (Karen/dst)** lewat papan agent-bus, pakai skill `agent-task-brief`.
+- Tahap 1 dikerjakan Hana sendiri, sesuai perkecualian di `CLAUDE.md`: bentuknya
+  berubah beberapa kali dalam satu percakapan, dan konteks lembar rekap aslinya
+  mahal ditransfer ulang ke sesi yang mulai dari nol.
+- **Pengukuran akurasi berikutnya juga cocok dipegang Hana**, karena hasilnya
+  langsung mengubah rancangan (prompt, pemeriksaan, pilihan model) — itu
+  rangkaian coba-coba yang saling bergantung, bukan potongan kerja berbatas
+  jelas. Begitu angkanya stabil, Tahap 2 dan 3 sudah rapi untuk dilempar.
 
 ---
 
 ## DOC-IMPACT
 
-Dokumen ini **sementara** — berlaku sampai langkah pertama Caca mendarat. Begitu
+Dokumen ini **sementara** — berlaku sampai akurasi baca Tahap 1 terukur dan
+dokumen turunannya menyusul (lihat DOC-IMPACT di ADR-044). Begitu
 modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 `MODULE_OWNERSHIP.md`, dan `RUNBOOK.md`, lalu file ini dihapus.

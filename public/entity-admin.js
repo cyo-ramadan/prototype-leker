@@ -59,6 +59,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
+  window.cacaSetTampil?.(true);
 }
 
 // --- Buku Entity ---------------------------------------------------------
@@ -606,6 +607,7 @@ function showEntityAdminLogin() {
   entityAdminEl('entityAdminLoginView').classList.remove('hidden');
   entityAdminEl('entityAdminApp').classList.add('hidden');
   entityAdminEl('entityAdminLogoutBtn').classList.add('hidden');
+  window.cacaSetTampil?.(false);
 }
 
 async function loadEntityAdminData() {

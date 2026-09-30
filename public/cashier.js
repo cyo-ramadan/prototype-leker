@@ -317,13 +317,46 @@ function renderDraft() {
   document.querySelectorAll('[data-draft-minus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.draftMinus), -1));
   document.querySelectorAll('[data-draft-plus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.draftPlus), 1));
   document.querySelectorAll('[data-draft-mode]').forEach(button => button.onclick = () => toggleDraftProductionMode(Number(button.dataset.draftMode)));
+  document.querySelectorAll('[data-draft-recipe]').forEach(select => select.onchange = () => setDraftRecipe(Number(select.dataset.draftRecipe), select.value));
   el('processSaleBtn').disabled = !state.canWrite || !lines.length;
 }
 
 function draftModeToggleHtml(line) {
   if (!line.product.recipeLinkEnabled) return '';
   const isBiasa = line.productionMode === 'STOCK';
-  return `<button type="button" class="mini-btn" data-draft-mode="${line.product.id}" title="Klik untuk ganti">${isBiasa ? 'Biasa (stok jadi)' : 'Dadakan (produksi dari resep)'}</button>`;
+  return `<button type="button" class="mini-btn" data-draft-mode="${line.product.id}" title="Klik untuk ganti">${isBiasa ? 'Biasa (stok jadi)' : 'Dadakan (produksi dari resep)'}</button>${draftRecipeSelectHtml(line)}`;
+}
+
+// Barang dengan beberapa resep aktif (varian): kasir memilih resep yang dipakai
+// untuk produksi Dadakan. Pilihan terakhir yang dipakai penjualan menjadi resep
+// aktif barang itu untuk penjualan berikutnya (disimpan server saat penjualan).
+function draftRecipeSelectHtml(line) {
+  const variants = line.product.recipeVariants || [];
+  if (variants.length < 2 || line.productionMode === 'STOCK') return '';
+  const chosen = line.recipeId || line.product.activeRecipeId;
+  const options = variants.map(variant => `<option value="${escapeHtml(variant.id)}"${variant.id === chosen ? ' selected' : ''}>${escapeHtml(variant.label || 'Resep utama')}</option>`).join('');
+  return `<label class="muted" style="display:block;margin-top:4px">Resep: <select data-draft-recipe="${line.product.id}">${options}</select></label>`;
+}
+
+function draftRecipeId(line) {
+  const variants = line.product.recipeVariants || [];
+  if (variants.length < 2 || line.productionMode === 'STOCK') return undefined;
+  return line.recipeId || line.product.activeRecipeId || undefined;
+}
+
+function setDraftRecipe(productId, recipeId) {
+  const line = state.draft.get(Number(productId));
+  if (!line) return;
+  line.recipeId = recipeId;
+  renderDraft();
+}
+
+function rememberChosenRecipes(lines) {
+  for (const line of lines) {
+    const recipeId = draftRecipeId(line);
+    const product = recipeId ? state.products.find(item => Number(item.id) === Number(line.product.id)) : null;
+    if (product) product.activeRecipeId = recipeId;
+  }
 }
 
 async function loadDrawer() {
@@ -513,9 +546,10 @@ async function processSale() {
       body: JSON.stringify({
         customerName: el('saleCustomerName').value,
         note: el('saleNote').value,
-        items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity, productionMode: line.productionMode }))
+        items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity, productionMode: line.productionMode, recipeId: draftRecipeId(line) }))
       })
     });
+    rememberChosenRecipes([...state.draft.values()]);
     state.draft.clear();
     el('saleCustomerName').value = '';
     el('saleNote').value = '';

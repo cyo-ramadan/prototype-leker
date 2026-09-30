@@ -12,7 +12,7 @@ export async function handleCashierWorkspaceApi(request, env, pathname) {
   if (!auth.ok) return auth.response;
   const cashier = auth.cashier;
   const [products, orders, drawer, paymentMethods, cashFlowCounterparts, sharedAccounts] = await Promise.all([
-    listProducts(env.DB, cashier.store.id),
+    listProducts(env.DB, cashier.store.id, { withRecipeVariants: true }),
     listOrders(env.DB, cashier.store.id),
     getOpenDrawer(env.DB, cashier.store.id),
     listPosPaymentMethods(env.DB, cashier.store.id),

@@ -135,6 +135,18 @@ export async function handleProductPolicyApi(request, env, pathname) {
   } else {
     requestedRecipeId = current.linkedRecipeId || current.activeRecipe?.id || null;
   }
+  // Barang dengan beberapa resep aktif (varian): resep yang dipakai hanya boleh
+  // diganti kasir lewat Penjualan. Kalau sambungan lama sudah tidak aktif
+  // (mis. resepnya direvisi), admin tetap boleh memilih ulang di sini.
+  if (current.activeRecipe && (requestedRecipeId || null) !== (current.linkedRecipeId || null)) {
+    const variantCount = await env.DB.prepare(`
+      SELECT COUNT(*) AS n FROM manufacturing_recipes
+      WHERE store_id = ? AND output_product_id = ? AND status = 'ACTIVE'
+    `).bind(store.id, productId).first();
+    if (Number(variantCount?.n || 0) > 1) {
+      return json({ error: 'Barang ini punya lebih dari satu resep aktif. Resep yang dipakai diganti kasir lewat Penjualan, tidak bisa diubah dari Master Barang.', code: 'RECIPE_VARIANT_SWITCH_VIA_SALE' }, 409);
+    }
+  }
   const recipeLink = await resolveLinkedRecipe(env.DB, store.id, productId, requestedRecipeId);
   if (!recipeLink.ok) return json({ error: recipeLink.error }, 400);
 

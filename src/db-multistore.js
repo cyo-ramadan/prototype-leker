@@ -1,3 +1,4 @@
+import { loadActiveRecipeVariants } from './stock-production.js';
 function placeholders(count) {
   return Array.from({ length: count }, () => '?').join(', ');
 }
@@ -85,10 +86,11 @@ async function loadItemsForOrders(db, storeId, orderIds) {
   return grouped;
 }
 
-export async function listProducts(db, storeId) {
+export async function listProducts(db, storeId, { withRecipeVariants = false } = {}) {
   const result = await db.prepare(`
     SELECT p.id, p.name, p.price, p.category, p.emoji, p.image_data, p.image_visual_key,
            CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS has_recipe_link,
+           r.id AS active_recipe_id, p.has_recipe_variants,
            -- Kategori Utama yang dipakai buat filter dua-tingkat: kalau
            -- kategori barang ini punya induk, pakai nama induknya; kalau dia
            -- sendiri kategori teratas TAPI punya anak (berarti dia sendiri
@@ -116,6 +118,11 @@ export async function listProducts(db, storeId) {
       AND COALESCE(t.can_sell, 1) = 1
     ORDER BY p.display_order ASC, p.id ASC
   `).bind(storeId).all();
+  // Varian resep hanya untuk menu kasir dan hanya untuk barang bertanda
+  // has_recipe_variants (lookup ber-index); menu pelanggan tidak memuatnya.
+  const variantsByProduct = withRecipeVariants
+    ? await loadActiveRecipeVariants(db, storeId, (result.results ?? []).filter(row => row.has_recipe_variants).map(row => Number(row.id)))
+    : new Map();
   return (result.results ?? []).map(row => ({
     id: row.id,
     name: row.name,
@@ -134,8 +141,17 @@ export async function listProducts(db, storeId) {
     imageVisualKey: row.image_visual_key || '',
     // Lets Kasir offer a Biasa/Dadakan fulfillment choice per sale line for
     // this item -- see prepareSaleStockProduction() in stock-production.js.
-    recipeLinkEnabled: Boolean(row.has_recipe_link)
+    recipeLinkEnabled: Boolean(row.has_recipe_link),
+    ...(withRecipeVariants ? recipeVariantFields(row, variantsByProduct.get(Number(row.id))) : {})
   }));
+}
+
+function recipeVariantFields(row, variants) {
+  if (!variants || variants.size < 2) return { recipeVariants: [], activeRecipeId: row.active_recipe_id || null };
+  return {
+    recipeVariants: [...variants.values()].map(variant => ({ id: variant.id, label: variant.label, revision: variant.revision })),
+    activeRecipeId: row.active_recipe_id || null
+  };
 }
 
 export async function getProductsByIds(db, storeId, productIds) {

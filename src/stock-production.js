@@ -1,4 +1,5 @@
 import { buildProductionCostingStatements } from './manufacture-costing.js';
+import { recipeSwitchStatements } from './recipe-variant-switch.js';
 
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
 
@@ -57,10 +58,37 @@ function stockDeltaStatements(db, product, delta, context) {
   ];
 }
 
+// Resep aktif hasil-1 per barang, hanya untuk barang yang bertanda punya varian
+// (products.has_recipe_variants) -- lookup ber-index, bukan scan semua resep.
+export async function loadActiveRecipeVariants(db, storeId, productIds) {
+  const grouped = new Map();
+  for (let index = 0; index < productIds.length; index += 90) {
+    const chunk = productIds.slice(index, index + 90);
+    const rows = await db.prepare(`
+      SELECT id, output_product_id, revision, output_quantity, variant_label
+      FROM manufacturing_recipes
+      WHERE store_id = ? AND status = 'ACTIVE' AND output_quantity = 1
+        AND output_product_id IN (${placeholders(chunk.length)})
+      ORDER BY output_product_id, revision
+    `).bind(storeId, ...chunk).all();
+    for (const row of rows.results ?? []) {
+      const productId = Number(row.output_product_id);
+      if (!grouped.has(productId)) grouped.set(productId, new Map());
+      grouped.get(productId).set(row.id, {
+        id: row.id,
+        revision: Number(row.revision || 0),
+        outputQuantity: Number(row.output_quantity || 0),
+        label: row.variant_label || ''
+      });
+    }
+  }
+  return grouped;
+}
+
 async function loadSaleProducts(db, storeId, productIds) {
   const rows = await db.prepare(`
     SELECT p.id, p.name, p.base_unit_id, p.points_per_unit,
-           p.linked_recipe_id, p.stock_tracking_enabled,
+           p.linked_recipe_id, p.stock_tracking_enabled, p.has_recipe_variants,
            u.symbol AS unit_symbol,
            COALESCE(t.track_stock, 1) AS type_track_stock,
            COALESCE(t.can_produce, 1) AS can_produce,
@@ -75,9 +103,13 @@ async function loadSaleProducts(db, storeId, productIds) {
      AND r.status = 'ACTIVE'
     WHERE p.store_id = ? AND p.id IN (${placeholders(productIds.length)})
   `).bind(storeId, ...productIds).all();
+  const variantsByProduct = await loadActiveRecipeVariants(
+    db, storeId, (rows.results ?? []).filter(row => row.has_recipe_variants).map(row => Number(row.id))
+  );
   return new Map((rows.results ?? []).map(row => [Number(row.id), {
     id: Number(row.id),
     name: row.name,
+    variants: variantsByProduct.get(Number(row.id)) ?? new Map(),
     unitId: row.base_unit_id,
     unitSymbol: row.unit_symbol || '',
     pointsPerUnit: Number(row.points_per_unit || 0),
@@ -255,13 +287,29 @@ export async function prepareSaleStockProduction(db, {
   }
 
   const lineModes = new Map();
+  const lineRecipes = new Map();
   const recipeIds = [];
   for (const line of lines) {
     const product = products.get(Number(line.productId));
     const resolved = resolveLineFulfillmentMode(product, String(line.productionMode || '').toUpperCase());
     if (!resolved.ok) return resolved;
     lineModes.set(line, resolved.mode);
-    if (resolved.mode === 'DADAKAN') recipeIds.push(product.recipe.id);
+    if (resolved.mode === 'DADAKAN') {
+      // Barang dengan beberapa resep aktif: kasir mengirim resep yang dia lihat
+      // di layar. Server memakai persis itu (bukan menebak dari sambungan
+      // barang) supaya layar kasir yang basi tidak memotong bahan yang salah.
+      const chosenId = line.chosenRecipeId || null;
+      let recipe = product.recipe;
+      if (chosenId && chosenId !== product.recipe.id) {
+        const variant = product.variants.get(chosenId);
+        if (!variant) {
+          return { ok: false, status: 409, error: `Resep yang dipilih untuk ${product.name} sudah tidak aktif. Muat ulang menu kasir lalu pilih resepnya lagi.` };
+        }
+        recipe = { id: variant.id, revision: variant.revision, outputQuantity: variant.outputQuantity };
+      }
+      lineRecipes.set(line, recipe);
+      recipeIds.push(recipe.id);
+    }
   }
   const componentsByRecipe = await loadRecipeComponents(db, storeId, [...new Set(recipeIds)]);
 
@@ -280,7 +328,7 @@ export async function prepareSaleStockProduction(db, {
     shortageInfo.set(product.id, { name: product.name, unitSymbol: product.unitSymbol });
     const mode = lineModes.get(line);
     if (mode === 'DADAKAN') {
-      const recipe = product.recipe;
+      const recipe = lineRecipes.get(line);
       const components = componentsByRecipe.get(recipe.id) || [];
       const batches = Math.ceil(Number(line.quantity) / recipe.outputQuantity);
       for (const component of components) {
@@ -327,11 +375,19 @@ export async function prepareSaleStockProduction(db, {
     };
 
     if (mode === 'DADAKAN') {
-      const recipe = product.recipe;
+      const recipe = lineRecipes.get(line);
       const components = componentsByRecipe.get(recipe.id) || [];
       if (!components.length) return { ok: false, status: 409, error: `Resep ${product.name} tidak memiliki komponen.` };
       const tracking = validateTrackedProduction(product, components);
       if (!tracking.ok) return tracking;
+      if (recipe.id !== product.recipe.id) {
+        // Resep aktif barang berpindah ke pilihan kasir; penjualan berikutnya
+        // memakai pilihan terakhir ini. Ikut dalam batch yang sama dengan
+        // produksinya, jadi tidak ada keadaan setengah jadi.
+        statements.push(...recipeSwitchStatements(db, {
+          storeId, productId: product.id, fromRecipeId: product.recipe.id, toRecipeId: recipe.id, cashierId, saleId, now
+        }));
+      }
       const batches = Math.ceil(Number(line.quantity) / recipe.outputQuantity);
       const runId = `production_${crypto.randomUUID()}`;
       enriched.recipeId = recipe.id;

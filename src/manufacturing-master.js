@@ -264,6 +264,9 @@ async function createRecipeRevision(db, store, auth, payload) {
       revision, text(payload?.notes, 500), variantLabel, actor.role, actor.id, now
     )
   ];
+  if (variantLabel) {
+    statements.push(db.prepare(`UPDATE products SET has_recipe_variants = 1 WHERE id = ? AND store_id = ?`).bind(outputProductId, store.id));
+  }
   for (const item of normalized) {
     const product = componentsById.get(item.productId);
     statements.push(db.prepare(`

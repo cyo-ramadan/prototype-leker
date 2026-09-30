@@ -259,7 +259,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/menu') {
-    return json({ cashier, products: await listProducts(db, cashier.store.id) });
+    return json({ cashier, products: await listProducts(db, cashier.store.id, { withRecipeVariants: true }) });
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/suppliers') {

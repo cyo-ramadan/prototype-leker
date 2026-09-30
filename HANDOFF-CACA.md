@@ -61,6 +61,27 @@ panel sengaja tidak mengirim apa pun ke server dalam mode itu, karena tanpa
 `?store=` server jatuh ke gerai bawaan dan menjawab untuk gerai yang salah.
 Alat tingkat entity menyusul — tinggal menyambung di `cacaGeraiAktif()`.
 
+**Alat tulis tahap kedua (2026-09-30): barang baru, resep baru, jurnal
+entity** — di `src/caca-aksi.js`, pola sama dengan catat pengeluaran: satu
+panggilan AI untuk menangkap kalimat, sisanya kode. Yang perlu diketahui:
+- Nama barang/bahan/satuan/akun dicocokkan kode ke master: persis dulu, lalu
+  "mengandung" satu arah dan hanya kalau kandidatnya tepat satu. Lebih dari
+  satu = ditanyakan. (Dua arah pernah membuat "Kas Lama" nonaktif jatuh ke
+  "Kas" — dijaga test.)
+- Harga beli barang baru tidak pernah diisi 0 diam-diam; jurnal wajib balance
+  exact (invariant #3), selisih ditanyakan.
+- Jurnal hanya di lingkup entity (`?lingkup=entity`, Entity Admin saja);
+  barang dan resep hanya per gerai. Model boleh memilih alat lingkup lain,
+  lalu kode yang menjelaskan harus pindah lingkup.
+- Saat "Ya" ditekan, draft disusun ULANG dari tangkapannya dan harus sama
+  persis dengan yang tadi tampil — kalau master berubah atau draft diutak-atik,
+  ditolak. Jurnal membawa `sourceReferenceId` per draft, jadi klik ganda tidak
+  menghasilkan jurnal kembar.
+- Semua tulisan lewat endpoint layar yang sama (`PINTU_AKSI` di
+  `src/caca-chat.js`) dengan kredensial penyuruh. Menambah alat tulis baru =
+  tambah entri di `AKSI_TULIS` dan, kalau endpoint-nya baru, di `PINTU_AKSI`.
+- Belum ada: mengubah/menghapus barang atau resep, jurnal balik, jurnal gerai.
+
 **Lokasi server menentukan apakah Gemini mau menjawab.** 2026-09-30 Caca
 mati dengan `400 FAILED_PRECONDITION: User location is not supported for the
 API use` — kuncinya benar, tapi Worker dijalankan di data center terdekat

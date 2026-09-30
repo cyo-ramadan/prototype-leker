@@ -73,9 +73,9 @@ A recipe contains:
 - status ACTIVE or ARCHIVED;
 - creator and timestamp metadata.
 
-Only one ACTIVE recipe may exist for one output product in one store.
+Only one ACTIVE recipe may exist for one output product **per variant** in one store. `variant_label` (migration 0127) is empty for an ordinary single recipe; a non-empty label (e.g. "Larutan manis") lets the same output product hold a second ACTIVE recipe. `products.linked_recipe_id` stays the single pointer to the recipe currently in force, so every existing reader is unchanged. Choosing between variants at sale time is a later step (cashier-side switch, not yet built).
 
-Updating a recipe creates a new immutable revision and archives the previous ACTIVE revision. Historical revisions are never rewritten.
+Updating a recipe creates a new immutable revision and archives the previous ACTIVE revision **of the same variant** (other variants stay ACTIVE). Historical revisions are never rewritten.
 
 Direct self-reference and circular BOM graphs are rejected.
 
@@ -96,3 +96,5 @@ HPP must not be calculated by blindly reading the latest `products.purchase_pric
 ## Performance
 
 Master data is loaded only when the relevant Master section is opened. Recipe components are fetched in grouped queries rather than one request per row. No periodic polling is introduced.
+
+<!-- DOC-IMPACT: 2026-09-30 variant_label on manufacturing_recipes; one ACTIVE recipe per output product per variant (migration 0127). -->

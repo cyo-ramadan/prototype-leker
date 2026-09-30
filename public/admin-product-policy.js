@@ -301,7 +301,7 @@
     if (el('productAverageCost')) el('productAverageCost').value = String(product?.averageCost || 0);
 
     const recipes = recipesForProduct(product?.id || 0);
-    el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
+    el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName}${recipe.variantLabel ? ` (${recipe.variantLabel})` : ''} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
     el('productLinkedRecipe').disabled = !product?.id;
     renderRecipeNote();
     renderProductKinds();
@@ -317,9 +317,13 @@
       note.textContent = 'Barang baru disimpan dulu. Setelah resep untuk barang ini dibuat di Master Resep, edit barang lalu pilih Recipe Linked.';
       return;
     }
-    note.textContent = recipeId
+    const variantCount = recipesForProduct(productId).length;
+    const variantHint = variantCount > 1
+      ? ` Barang ini punya ${variantCount} resep aktif (varian); pilihan di sini adalah resep yang sedang dipakai, nanti kasir yang menggantinya saat Penjualan.`
+      : '';
+    note.textContent = (recipeId
       ? 'Resep ini menjadi linkage eksplisit barang. Mode pemenuhan tidak disimpan di Master Barang; nanti ditentukan di transaksi Penjualan.'
-      : 'Belum ada resep yang dilink. Resep tetap dikelola dari Master Resep.';
+      : 'Belum ada resep yang dilink. Resep tetap dikelola dari Master Resep.') + variantHint;
   }
 
   function renderProductKinds() {

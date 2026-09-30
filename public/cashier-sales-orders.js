@@ -310,7 +310,9 @@
         name: item.name,
         price: Number(item.price),
         category: '',
-        recipeLinkEnabled: Boolean(live?.recipeLinkEnabled)
+        recipeLinkEnabled: Boolean(live?.recipeLinkEnabled),
+        recipeVariants: live?.recipeVariants || [],
+        activeRecipeId: live?.activeRecipeId || null
       };
       state.draft.set(product.id, { product, quantity: Number(item.qty), productionMode: defaultProductionMode(product) });
     }
@@ -347,6 +349,7 @@
       modalList.querySelectorAll('[data-modal-draft-minus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.modalDraftMinus), -1));
       modalList.querySelectorAll('[data-modal-draft-plus]').forEach(button => button.onclick = () => changeDraft(Number(button.dataset.modalDraftPlus), 1));
       modalList.querySelectorAll('[data-draft-mode]').forEach(button => button.onclick = () => toggleDraftProductionMode(Number(button.dataset.draftMode)));
+      modalList.querySelectorAll('[data-draft-recipe]').forEach(select => select.onchange = () => setDraftRecipe(Number(select.dataset.draftRecipe), select.value));
       if (byId('saleDialogTotal')) byId('saleDialogTotal').textContent = money(lines.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0));
       if (byId('cashierDialogSubmit')) byId('cashierDialogSubmit').disabled = !state.canWrite || !lines.length;
     }
@@ -377,9 +380,10 @@
           customerName: byId('saleDialogCustomerName')?.value ?? byId('saleCustomerName').value,
           note: byId('saleDialogNote')?.value ?? byId('saleNote').value,
           sourceOrderId: draftOriginOrderId,
-          items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity, productionMode: line.productionMode }))
+          items: [...state.draft.values()].map(line => ({ productId: line.product.id, quantity: line.quantity, productionMode: line.productionMode, recipeId: draftRecipeId(line) }))
         })
       });
+      rememberChosenRecipes([...state.draft.values()]);
       if (payload.order) state.orders.unshift(payload.order);
       draftOriginOrderId = null;
       clearSelectedCustomer();

@@ -302,7 +302,11 @@
 
     const recipes = recipesForProduct(product?.id || 0);
     el('productLinkedRecipe').innerHTML = `<option value="">Tidak terhubung</option>${optionRows(recipes, product?.linkedRecipeId, recipe => `${recipe.outputProductName}${recipe.variantLabel ? ` (${recipe.variantLabel})` : ''} · v${recipe.revision} · hasil ${recipe.outputQuantity} ${recipe.outputUnitSymbol}`)}`;
-    el('productLinkedRecipe').disabled = !product?.id;
+    // Barang dengan beberapa resep aktif: resep yang dipakai hanya diganti kasir
+    // lewat Penjualan (server juga menolak). Sambungan yang sudah tidak aktif
+    // tetap bisa dipilih ulang di sini.
+    const variantLocked = recipes.length > 1 && recipes.some(recipe => recipe.id === product?.linkedRecipeId);
+    el('productLinkedRecipe').disabled = !product?.id || variantLocked;
     renderRecipeNote();
     renderProductKinds();
     renderProductCodeFields(product);
@@ -319,7 +323,7 @@
     }
     const variantCount = recipesForProduct(productId).length;
     const variantHint = variantCount > 1
-      ? ` Barang ini punya ${variantCount} resep aktif (varian); pilihan di sini adalah resep yang sedang dipakai, nanti kasir yang menggantinya saat Penjualan.`
+      ? ` Barang ini punya ${variantCount} resep aktif (varian); pilihan di sini adalah resep yang sedang dipakai dan hanya bisa dilihat; kasir yang menggantinya saat Penjualan.`
       : '';
     note.textContent = (recipeId
       ? 'Resep ini menjadi linkage eksplisit barang. Mode pemenuhan tidak disimpan di Master Barang; nanti ditentukan di transaksi Penjualan.'

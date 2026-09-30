@@ -21,6 +21,13 @@ function lineProductionMode(item) {
   return raw === 'STOCK' || raw === 'DADAKAN' ? raw : null;
 }
 
+// Resep yang dipilih kasir untuk barang bervarian; divalidasi server di
+// prepareSaleStockProduction() terhadap resep aktif barang itu.
+function lineChosenRecipeId(item) {
+  const id = text(item?.recipeId, 160);
+  return id || null;
+}
+
 function isOrderNumberConflict(error) {
   const message = String(error?.message ?? error).toLowerCase();
   return message.includes('unique') || message.includes('constraint');
@@ -48,7 +55,7 @@ export function validateDirectLines(products, requested) {
     total += lineTotal;
     lines.push({
       productId, productName: product.name, unitPrice: Math.round(lineTotal / quantity), quantity, lineTotal, note: '',
-      productionMode: lineProductionMode(item)
+      productionMode: lineProductionMode(item), chosenRecipeId: lineChosenRecipeId(item)
     });
   }
   return { ok: true, lines, total };
@@ -71,7 +78,7 @@ function validateOrderSnapshotLines(order, requested) {
     total += lineTotal;
     lines.push({
       productId, productName: snapshot.name, unitPrice, quantity, lineTotal, note: snapshot.note || '',
-      productionMode: lineProductionMode(item)
+      productionMode: lineProductionMode(item), chosenRecipeId: lineChosenRecipeId(item)
     });
   }
   return { ok: true, lines, total };

@@ -61,6 +61,15 @@ panel sengaja tidak mengirim apa pun ke server dalam mode itu, karena tanpa
 `?store=` server jatuh ke gerai bawaan dan menjawab untuk gerai yang salah.
 Alat tingkat entity menyusul — tinggal menyambung di `cacaGeraiAktif()`.
 
+**Lokasi server menentukan apakah Gemini mau menjawab.** 2026-09-30 Caca
+mati dengan `400 FAILED_PRECONDITION: User location is not supported for the
+API use` — kuncinya benar, tapi Worker dijalankan di data center terdekat
+pengguna, dan dari Indonesia itu kadang wilayah yang tidak dilayani Google.
+Obatnya `placement.region = "gcp:asia-southeast1"` di `wrangler.jsonc` (dijaga
+`test/worker-placement.test.js`). Singapura dipilih karena didukung Gemini dan
+dekat dengan D1 (APAC). Kalau pesan yang sama muncul lagi, cek dulu apakah
+baris itu masih ada dan terpasang di Worker yang live — jangan mengganti kunci.
+
 **Mengganti kunci bisa memundurkan program.** 2026-09-29: kunci diganti lewat
 dashboard Cloudflare, lalu kode yang melayani user ternyata versi sebelum
 PR #358 — perbaikan status Caca hilang, padahal build `main` terakhir

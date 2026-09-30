@@ -3,6 +3,14 @@
   "name": "prototype-leker-v2",
   "main": "src/index.js",
   "compatibility_date": "2026-08-07",
+  // Worker dijalankan dekat Singapura, bukan di data center terdekat pengguna.
+  // 2026-09-30: Gemini menolak Caca dengan "User location is not supported"
+  // karena request dari Indonesia kadang dilayani data center di wilayah yang
+  // tidak didukung Google. Singapura didukung, dan D1 (APAC) juga dekat sana,
+  // jadi query database tidak bertambah jauh. Lihat HANDOFF-CACA.md.
+  "placement": {
+    "region": "gcp:asia-southeast1"
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

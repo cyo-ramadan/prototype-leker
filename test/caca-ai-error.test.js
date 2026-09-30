@@ -12,7 +12,7 @@ test('kunci ditolak: pesan menyebut status, petunjuk, dan alasan dari penyedia',
     error: { message: 'API keys are not supported by this API. Expected OAuth2 access token.', status: 'UNAUTHENTICATED' }
   }, KUNCI);
 
-  assert.match(pesan, /\(401\)/);
+  assert.match(pesan, /\(401, UNAUTHENTICATED\)/);
   assert.match(pesan, /Kunci ditolak/);
   assert.match(pesan, /Expected OAuth2 access token/, 'alasan asli penyedia harus kelihatan');
 });
@@ -74,7 +74,7 @@ test('Gemini: penolakan 401 sampai ke layar dengan alasan, tanpa kunci', async (
   });
 
   assert.equal(hasil.ok, false);
-  assert.match(hasil.error, /\(401\)/);
+  assert.match(hasil.error, /\(401, UNAUTHENTICATED\)/);
   assert.match(hasil.error, /Bad credentials/);
   assert.equal(hasil.error.includes(KUNCI), false);
 });
@@ -97,4 +97,43 @@ test('penolakan dengan badan bukan JSON tidak membuat program crash', async () =
 
   assert.equal(hasil.ok, false);
   assert.match(hasil.error, /Kunci ditolak/);
+});
+
+// Gemini memakai 400 untuk kunci yang tidak valid atau kedaluwarsa.
+// 2026-09-30 Caca cuma menampilkan "(400)" dan sebabnya tidak bisa dicari.
+test('400 dari Gemini karena kunci: alasannya diteruskan', () => {
+  const pesan = jelaskanPenolakan(400, {
+    error: {
+      code: 400,
+      message: 'API key expired. Please renew the API key.',
+      status: 'INVALID_ARGUMENT',
+      details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'API_KEY_EXPIRED' }]
+    }
+  }, KUNCI);
+
+  assert.match(pesan, /\(400, INVALID_ARGUMENT\)/);
+  assert.match(pesan, /akun atau kunci/);
+  assert.match(pesan, /API key expired/);
+});
+
+test('400 karena lokasi server tidak didukung juga dianggap soal akun', () => {
+  const pesan = jelaskanPenolakan(400, {
+    error: { message: 'User location is not supported for the API use.', status: 'FAILED_PRECONDITION' }
+  }, KUNCI);
+
+  assert.match(pesan, /\(400, FAILED_PRECONDITION\)/);
+  assert.match(pesan, /User location is not supported/);
+});
+
+test('400 lain tetap menyembunyikan isi, hanya kode status penyedia yang tampil', () => {
+  const pesan = jelaskanPenolakan(400, {
+    error: { message: 'Invalid value at "contents[0]": rahasia isi permintaan pelanggan', status: 'INVALID_ARGUMENT' }
+  }, KUNCI);
+
+  assert.equal(pesan, 'Mesin AI menolak permintaan (400, INVALID_ARGUMENT).');
+});
+
+test('kode status penyedia yang bukan satu token tidak ditampilkan', () => {
+  const pesan = jelaskanPenolakan(500, { error: { status: 'isi permintaan: gas 22rb' } }, KUNCI);
+  assert.equal(pesan, 'Mesin AI menolak permintaan (500).');
 });

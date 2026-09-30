@@ -65,10 +65,16 @@ function cacaNamaScope(scope) {
   return store ? store.storeName : 'Pilih gerai';
 }
 
-// Gerai yang dikirim ke server. Mode entity belum punya alat sendiri, jadi
-// sengaja tidak mengirim apa-apa daripada diam-diam jatuh ke satu gerai.
+// Gerai yang dikirim ke server. Mode entity tidak pernah mengirim ?store=:
+// tanpa itu server akan jatuh ke gerai bawaan, jadi mode entity memakai
+// ?lingkup=entity yang dilayani terpisah.
 function cacaGeraiAktif() {
   return cacaState.scope && cacaState.scope !== CACA_ENTITY ? cacaState.scope : '';
+}
+
+function cacaQueryLingkup(scope) {
+  if (scope === CACA_ENTITY) return 'lingkup=entity';
+  return `store=${encodeURIComponent(scope)}`;
 }
 
 async function cacaMuatGerai() {
@@ -93,7 +99,7 @@ function cacaRenderDaftarGerai() {
     </li>`;
 
   daftar.innerHTML = [
-    baris(CACA_ENTITY, cacaNamaScope(CACA_ENTITY), 'Tingkat entity — segera'),
+    baris(CACA_ENTITY, cacaNamaScope(CACA_ENTITY), 'Buku entity — untuk jurnal'),
     ...cacaState.stores.map(store => baris(store.code, store.storeName, store.code))
   ].join('');
 }
@@ -119,7 +125,7 @@ function cacaGantiGerai(scope) {
   // di atasnya dan di bawahnya bisa berasal dari gerai yang berbeda.
   cacaTambahPenanda(`Sekarang membahas ${cacaNamaScope(scope)}`);
   if (scope === CACA_ENTITY) {
-    cacaTambahGelembung('caca', 'Mode entity masih disiapkan — nanti di sini Caca bisa menjawab untuk semua gerai sekaligus. Untuk sekarang, pilih satu gerai dulu lewat tombol ▾ di atas.');
+    cacaTambahGelembung('caca', 'Di buku entity Caca baru bisa membuat jurnal, mis. "jurnal setoran modal 5jt: debit Kas, kredit Modal Pemilik". Laporan dan barang tetap per gerai.');
   }
 }
 
@@ -178,18 +184,39 @@ function cacaSapa() {
 
 // Yang ditampilkan adalah akibatnya, bukan pengulangan perintah — konfirmasi
 // yang cuma mengulang kalimat sendiri gampang di-klik tanpa dibaca.
-function cacaTampilkanDraft(payload, store) {
-  const draft = payload.draft;
-  const html = `
-    <div class="caca-draft">
-      <div class="caca-draft-judul">Caca mau mencatat ini — dicek dulu ya:</div>
+function cacaIsiDraft(draft) {
+  // Draft aksi (barang, resep, jurnal) membawa baris dan tabelnya sendiri;
+  // draft pengeluaran yang lebih dulu ada masih memakai bentuk lamanya.
+  if (Array.isArray(draft.baris)) {
+    const baris = draft.baris.map(([label, nilai]) => `<div class="caca-draft-baris"><span>${cacaEscape(label)}</span><strong>${cacaEscape(nilai)}</strong></div>`).join('');
+    const tabel = draft.tabel
+      ? `<div class="caca-tabel-geser"><table class="caca-table"><thead><tr>${draft.tabel.kolom.map(k => `<th>${cacaEscape(k)}</th>`).join('')}</tr></thead><tbody>${
+          draft.tabel.isi.map(r => `<tr>${r.map(sel => `<td>${cacaEscape(sel)}</td>`).join('')}</tr>`).join('')
+        }</tbody></table></div>`
+      : '';
+    return { judul: draft.judul, isi: baris + tabel, tombol: draft.aksi === 'buat_jurnal' ? 'Ya, posting' : 'Ya, buat' };
+  }
+  return {
+    judul: 'Caca mau mencatat ini — dicek dulu ya:',
+    isi: `
       <div class="caca-draft-baris"><span>Untuk</span><strong>${cacaEscape(draft.keterangan)}</strong></div>
       <div class="caca-draft-baris"><span>Nominal</span><strong>${cacaRupiah(draft.nominal)}</strong></div>
       <div class="caca-draft-baris"><span>Ke</span><strong>${cacaEscape(draft.pihak)}</strong></div>
-      <div class="caca-draft-baris"><span>Tanggal</span><strong>${cacaEscape(draft.tanggal)}</strong></div>
+      <div class="caca-draft-baris"><span>Tanggal</span><strong>${cacaEscape(draft.tanggal)}</strong></div>`,
+    tombol: 'Ya, catat'
+  };
+}
+
+function cacaTampilkanDraft(payload, scope) {
+  const draft = payload.draft;
+  const tampilan = cacaIsiDraft(draft);
+  const html = `
+    <div class="caca-draft">
+      <div class="caca-draft-judul">${cacaEscape(tampilan.judul)}</div>
+      ${tampilan.isi}
       <ul class="caca-draft-dampak">${draft.dampak.map(d => `<li>${cacaEscape(d)}</li>`).join('')}</ul>
       <div class="caca-draft-aksi">
-        <button class="primary-btn" type="button" data-caca-catat>Ya, catat</button>
+        <button class="primary-btn" type="button" data-caca-catat>${cacaEscape(tampilan.tombol)}</button>
         <button class="secondary-btn" type="button" data-caca-batal>Batal</button>
       </div>
     </div>`;
@@ -200,16 +227,16 @@ function cacaTampilkanDraft(payload, store) {
   kartu.querySelector('[data-caca-batal]').addEventListener('click', () => {
     kunci();
     kartu.classList.add('dibatalkan');
-    cacaTambahGelembung('caca', 'Oke, tidak jadi dicatat.');
+    cacaTambahGelembung('caca', 'Oke, tidak jadi.');
   });
 
-  // Gerai diambil dari saat draft dibuat, bukan dari judul sekarang: kalau
-  // Bos sempat ganti gerai sebelum menekan "Ya", catatannya tetap masuk ke
-  // gerai yang tertulis di draft.
+  // Gerai/lingkup diambil dari saat draft dibuat, bukan dari judul sekarang:
+  // kalau Bos sempat ganti gerai sebelum menekan "Ya", hasilnya tetap masuk ke
+  // tempat yang tertulis di draft.
   kartu.querySelector('[data-caca-catat]').addEventListener('click', async () => {
     kunci();
     try {
-      const hasil = await cacaApi(`/api/caca/catat?store=${encodeURIComponent(store)}`, {
+      const hasil = await cacaApi(`/api/caca/catat?${cacaQueryLingkup(scope)}`, {
         method: 'POST',
         body: JSON.stringify({ draft })
       });
@@ -317,10 +344,10 @@ function cacaAturTombol() {
   if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim);
 }
 
-function cacaCekGerai() {
-  if (cacaGeraiAktif()) return true;
+function cacaCekGerai({ bolehEntity = false } = {}) {
+  if (cacaGeraiAktif() || (bolehEntity && cacaState.scope === CACA_ENTITY)) return true;
   cacaTambahGelembung('caca', cacaState.scope === CACA_ENTITY
-    ? 'Pertanyaan tingkat entity belum bisa Caca jawab. Pilih satu gerai dulu lewat tombol ▾ di atas.'
+    ? 'Lembar rekap dibaca per gerai. Pilih gerainya dulu lewat tombol ▾ di atas.'
     : 'Pilih gerainya dulu lewat tombol ▾ di atas.');
   return false;
 }
@@ -349,18 +376,18 @@ async function cacaKirimFoto() {
 
 async function cacaKirimTeks(pertanyaan) {
   cacaTambahGelembung('saya', pertanyaan);
-  if (!cacaCekGerai()) return;
+  if (!cacaCekGerai({ bolehEntity: true })) return;
 
-  const store = cacaGeraiAktif();
+  const scope = cacaState.scope;
   const mengetik = cacaTambahMengetik();
   try {
-    const payload = await cacaApi(`/api/caca/tanya?store=${encodeURIComponent(store)}`, {
+    const payload = await cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
       method: 'POST',
       body: JSON.stringify({ pertanyaan })
     });
     mengetik.remove();
     if (payload.perluKonfirmasi && payload.draft) {
-      cacaTampilkanDraft(payload, store);
+      cacaTampilkanDraft(payload, scope);
     } else {
       // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
       // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.

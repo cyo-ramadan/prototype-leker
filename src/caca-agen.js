@@ -13,28 +13,37 @@
 import { callStructured } from './caca-ai-client.js';
 import { ALAT_BACA, PERIODE, daftarAlatUntukModel, jalankanAlat } from './caca-alat.js';
 import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPengeluaran } from './caca-tulis.js';
+import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel } from './caca-aksi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 
 // Satu skema untuk memilih alat SEKALIGUS menangkap isinya, bukan dua panggilan
 // terpisah. Memisahkannya terasa lebih rapi tapi menggandakan biaya tiap
 // perintah, padahal model sudah membaca kalimat yang sama di kedua langkah itu.
-const SKEMA_PILIH_ALAT = Object.freeze({
-  type: 'object',
-  required: ['alat'],
-  properties: {
-    alat: {
-      type: 'string',
-      enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_CATAT_PENGELUARAN, 'tidak_ada'],
-      description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
-    },
-    periode: { type: 'string', enum: [...PERIODE] },
-    dari: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
-    sampai: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
-    ...TANGKAP_PENGELUARAN_SCHEMA.properties,
-    alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
-  }
-});
+//
+// Daftar alat bergantung lingkup: di tingkat gerai semua alat baca dan tulis
+// gerai; di tingkat entity baru jurnal. Alat lingkup lain tetap disebut di
+// enum supaya model bisa memilihnya, lalu kode yang menjelaskan harus pindah
+// lingkup — lebih jelas daripada model menjawab "tidak bisa" tanpa alasan.
+function skemaPilihAlat() {
+  return {
+    type: 'object',
+    required: ['alat'],
+    properties: {
+      alat: {
+        type: 'string',
+        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), 'tidak_ada'],
+        description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
+      },
+      periode: { type: 'string', enum: [...PERIODE] },
+      dari: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
+      sampai: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
+      ...TANGKAP_PENGELUARAN_SCHEMA.properties,
+      ...SKEMA_AKSI,
+      alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
+    }
+  };
+}
 
 const SKEMA_JAWABAN = Object.freeze({
   type: 'object',
@@ -47,33 +56,40 @@ const SKEMA_JAWABAN = Object.freeze({
 function kalimatKonteks(konteks) {
   return [
     `Yang bertanya: ${konteks.nama} (${konteks.peran}).`,
-    `Gerai yang sedang dibuka: ${konteks.storeName} (${konteks.storeCode}).`,
+    konteks.lingkup === 'entity'
+      ? `Yang sedang dibuka: buku entity ${konteks.namaLingkup} (semua gerai), bukan satu gerai.`
+      : `Gerai yang sedang dibuka: ${konteks.storeName} (${konteks.storeCode}).`,
     `Hari ini tanggal ${konteks.hariIni}.`
   ].join('\n');
 }
 
 function promptPilihAlat(konteks) {
+  const diGerai = konteks.lingkup !== 'entity';
   return [
     'Kamu Caca, asisten toko. Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok',
-    'untuk menjawab pertanyaan, dan menentukan periodenya.',
+    'untuk perintah atau pertanyaan, lalu menyalin isinya jadi data.',
     '',
     kalimatKonteks(konteks),
     '',
     'Alat yang tersedia:',
-    daftarAlatUntukModel(),
-    '',
-    `- ${ALAT_CATAT_PENGELUARAN}: mencatat pengeluaran operasional yang dibayarkan ke seseorang,`,
-    '  mis. "beli gas 22rb ke Pak Slamet", "bayar sampah 50rb".',
+    diGerai ? daftarAlatUntukModel() : '',
+    diGerai ? `- ${ALAT_CATAT_PENGELUARAN}: mencatat pengeluaran operasional yang dibayarkan ke seseorang,` : '',
+    diGerai ? '  mis. "beli gas 22rb ke Pak Slamet", "bayar sampah 50rb".' : '',
+    daftarAksiUntukModel('gerai'),
+    daftarAksiUntukModel('entity'),
     '',
     'Aturan:',
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
-    '- Kamu belum bisa mencatat penjualan, pembelian bahan, atau gaji, dan belum bisa mengubah',
-    '  atau membatalkan apa pun. Kalau yang diminta itu, jawab "tidak_ada" dan sebutkan alasannya.',
+    '- Kamu belum bisa mencatat penjualan, pembelian bahan, atau gaji, dan belum bisa mengubah,',
+    '  menghapus, atau membatalkan apa pun. Kalau yang diminta itu, jawab "tidak_ada" dan sebutkan alasannya.',
+    '- Isi hanya kolom milik alat yang dipilih. Kolom alat lain dikosongkan.',
+    '- Nama barang, bahan, satuan, dan akun disalin PERSIS seperti diucapkan. Jangan dibetulkan,',
+    '  jangan dilengkapi, jangan ditebak — pencocokannya dikerjakan sistem.',
     '',
     TANGKAP_PENGELUARAN_PROMPT
-  ].join('\n');
+  ].filter((baris) => baris !== '').join('\n');
 }
 
 function promptSusunJawaban(konteks) {
@@ -95,19 +111,21 @@ function promptSusunJawaban(konteks) {
 
 /**
  * @param {string} pertanyaan pesan dari penyuruh
- * @param {object} konteks { nama, peran, storeCode, storeName, hariIni }
- * @param {object} jalur { request, env } — request asli, dipakai meminjam wewenang penyuruh
+ * @param {object} konteks { nama, peran, lingkup, namaLingkup, storeCode, storeName, hariIni }
+ * @param {object} jalur { request, env } — request asli, dipakai meminjam wewenang penyuruh;
+ *   jalurAksi { baca, kirim } — pintu ke endpoint aslinya untuk alat tulis
  */
 export async function jawabPertanyaan(pertanyaan, konteks, {
   request,
   env,
   jalankan = jalankanAlat,
-  panggilModel = callStructured
+  panggilModel = callStructured,
+  jalurAksi = null
 } = {}) {
   const pilihan = await panggilModel(env, {
     system: promptPilihAlat(konteks),
     content: [{ type: 'text', text: pertanyaan }],
-    schema: SKEMA_PILIH_ALAT
+    schema: skemaPilihAlat()
   });
   if (!pilihan.ok) return { ok: false, status: pilihan.status, error: pilihan.error };
 
@@ -119,6 +137,38 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
       jawaban: pilihan.value?.alasan_kosong
         ? `Caca belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
         : 'Caca belum bisa menjawab yang itu.'
+    };
+  }
+
+  const aksi = cariAksi(namaAlat);
+  if (aksi) {
+    if (aksi.lingkup !== (konteks.lingkup ?? 'gerai')) {
+      return {
+        ok: true,
+        alat: namaAlat,
+        belumLengkap: true,
+        jawaban: aksi.lingkup === 'entity'
+          ? 'Jurnal dibuat di buku entity. Pilih "semua gerai" lewat tombol ▾ di atas dulu, lalu ulangi perintahnya.'
+          : 'Yang itu dikerjakan per gerai. Pilih gerainya dulu lewat tombol ▾ di atas, lalu ulangi perintahnya.'
+      };
+    }
+    if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Caca belum bisa menjalankan itu dari sini.', ditolak: true };
+    const disiapkan = await aksi.siapkan(pilihan.value, { ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup });
+    if (!disiapkan.ok) {
+      return { ok: true, alat: namaAlat, jawaban: disiapkan.tanya || disiapkan.error, belumLengkap: true };
+    }
+    // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa
+    // disusun ulang dan dibandingkan tanpa memanggil model lagi.
+    const tangkapan = Object.fromEntries(Object.keys(aksi.skema).map((kunci) => [kunci, pilihan.value?.[kunci] ?? null]));
+    return { ok: true, alat: namaAlat, draft: { ...disiapkan.draft, tangkapan }, perluKonfirmasi: true };
+  }
+
+  if (konteks.lingkup === 'entity') {
+    return {
+      ok: true,
+      alat: namaAlat,
+      belumLengkap: true,
+      jawaban: 'Di tingkat entity Caca baru bisa membuat jurnal. Untuk yang itu, pilih satu gerai dulu lewat tombol ▾ di atas.'
     };
   }
 

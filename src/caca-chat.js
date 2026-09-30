@@ -1,9 +1,10 @@
-// Panel chat Caca — ADR-044 Tahap 1, jalur web.
+// Panel chat Caca — ADR-044/045, jalur web.
 //
-// Tahap ini sengaja TIDAK punya alat tulis: hasil bacaan dikembalikan untuk
-// dikonfirmasi orang, tidak disentuhkan ke sales/expenses/tabel fakta mana pun.
-// Yang sedang diuji di sini cuma satu hal — apakah Caca benar-benar mengerti
-// lembar rekap yang dipakai sehari-hari.
+// Baca rekap tetap hanya membaca: hasilnya dikembalikan untuk dikonfirmasi
+// orang, tidak disentuhkan ke tabel fakta mana pun. Alat tulis (pengeluaran,
+// barang, resep, jurnal) selalu berhenti di draft; baru tersimpan lewat
+// /api/caca/catat setelah orang menekan tombol, dan itu pun lewat endpoint
+// yang sama dengan yang dipakai layar.
 
 import { json, readJson } from './http.js';
 import { requireManagement, ownerFromRequest, entityAdminFromRequest } from './owner-auth.js';
@@ -12,7 +13,11 @@ import { aiConfigured, callStructured, modelAktif } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
+import { cariAksi, periksaUlangDraft } from './caca-aksi.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
+import { handleProductMasterApi } from './product-master.js';
+import { handleManufacturingMasterApi } from './manufacturing-master.js';
+import { handleEntityAccountingApi } from './entity-accounting.js';
 import { getJakartaBusinessDate } from './time.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -104,17 +109,80 @@ function konteksPenyuruh(auth, store) {
   };
 }
 
-async function tanya(request, env) {
+// Pintu yang boleh dilewati alat tulis Caca. Semuanya endpoint yang sama
+// dengan yang dipakai layar, dipanggil dengan kredensial si penyuruh — Caca
+// tidak punya wewenang sendiri, dan tidak ada jalur tulis baru ke database.
+export const PINTU_AKSI = Object.freeze([
+  ['/api/admin/master/products/editor', handleProductMasterApi],
+  ['/api/admin/manufacturing/', handleManufacturingMasterApi],
+  ['/api/entity-admin/', handleEntityAccountingApi]
+]);
+
+export function bangunJalurAksi(request, env, { storeCode = '', pintu = PINTU_AKSI } = {}) {
+  async function panggil(method, pathname, body) {
+    const handler = pintu.find(([awalan]) => pathname.startsWith(awalan))?.[1];
+    if (!handler) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Caca.' };
+
+    const url = new URL(pathname, 'https://leker.internal');
+    // Gerai selalu dari sesi panel, tidak pernah dari kalimat (invariant #5).
+    if (storeCode) url.searchParams.set('store', storeCode);
+    const headers = new Headers(request.headers);
+    headers.delete('content-length');
+    if (body) headers.set('content-type', 'application/json');
+
+    const response = await handler(new Request(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    }), env, pathname);
+    if (!response) return { ok: false, status: 502, error: 'Jalur tidak menjawab.' };
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return { ok: false, status: response.status, error: data?.error || `Ditolak (${response.status}).` };
+    return { ok: true, data };
+  }
+  return {
+    baca: (pathname) => panggil('GET', pathname),
+    kirim: (method, pathname, body) => panggil(method, pathname, body)
+  };
+}
+
+// Lingkup entity (buku entity, semua gerai) hanya untuk Entity Admin: endpoint
+// jurnal entity sendiri hanya menerima sesi Entity Admin, dan Owner tidak
+// punya satu entity yang jelas.
+async function lingkupPenyuruh(request, env) {
+  const url = new URL(request.url);
+  if (url.searchParams.get('lingkup') === 'entity') {
+    const entityAdmin = await entityAdminFromRequest(request, env.DB);
+    if (!entityAdmin) {
+      return { ok: false, response: json({ error: 'Mode entity hanya untuk Entity Admin.', code: 'CACA_LINGKUP_ENTITY_DITOLAK' }, 403) };
+    }
+    return {
+      ok: true,
+      storeCode: '',
+      konteks: {
+        nama: entityAdmin.displayName || 'Entity Admin',
+        peran: 'Entity Admin',
+        lingkup: 'entity',
+        namaLingkup: entityAdmin.entityName || 'Entity',
+        hariIni: getJakartaBusinessDate()
+      }
+    };
+  }
+
   const auth = await requireManagement(request, env.DB);
-  if (!auth.ok) return auth.response;
-
+  if (!auth.ok) return { ok: false, response: auth.response };
   const store = await selectedStore(env.DB, request);
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
-
+  if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
-    return json({ error: 'Caca baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403);
+    return { ok: false, response: json({ error: 'Caca baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
   }
+  return { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } };
+}
+
+async function tanya(request, env) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
 
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
@@ -122,7 +190,11 @@ async function tanya(request, env) {
   const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, 500);
   if (!pertanyaan) return json({ error: 'Pertanyaannya kosong.' }, 400);
 
-  const hasil = await jawabPertanyaan(pertanyaan, konteks, { request, env });
+  const hasil = await jawabPertanyaan(pertanyaan, lingkup.konteks, {
+    request,
+    env,
+    jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode })
+  });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
   return json({
@@ -131,8 +203,30 @@ async function tanya(request, env) {
     periode: hasil.periode ?? null,
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
-    store: { code: store.code, storeName: store.storeName }
+    store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
+}
+
+async function catatAksi(request, env, draft) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+
+  const aksi = cariAksi(draft.aksi);
+  if (aksi.lingkup !== lingkup.konteks.lingkup) {
+    return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Caca menyusun ulang ya.' }, 409);
+  }
+
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode });
+  const diperiksa = await periksaUlangDraft(draft, {
+    ...jalur,
+    hariIni: lingkup.konteks.hariIni,
+    namaLingkup: lingkup.konteks.namaLingkup
+  });
+  if (!diperiksa.ok) return json({ error: diperiksa.error }, diperiksa.status);
+
+  const hasil = await aksi.posting(diperiksa.draft, jalur);
+  if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
+  return json({ tercatat: true, draft: diperiksa.draft, jawaban: hasil.jawaban });
 }
 
 // Konfirmasi tidak memanggil model sama sekali — orang menekan tombol, dan yang
@@ -209,6 +303,11 @@ export async function handleCacaApi(request, env, pathname) {
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/catat') {
+    // Body dibaca sekali di sini untuk memilih jalurnya: draft aksi (barang,
+    // resep, jurnal) atau draft pengeluaran yang lebih dulu ada.
+    const salinan = request.clone();
+    const body = await readJson(salinan);
+    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value.draft);
     return catat(request, env);
   }
 

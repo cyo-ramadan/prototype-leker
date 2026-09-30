@@ -97,13 +97,15 @@
             <div class="form-title-row"><h2 id="recipeFormTitle">Buat Resep / BOM</h2><button id="recipeReset" class="text-btn" type="button">Reset</button></div>
             <label class="admin-field">Hasil barang<select id="recipeOutputProduct" required></select></label>
             <label class="admin-field">Qty hasil<input id="recipeOutputQty" type="number" min="0.001" step="0.001" value="1" required /></label>
+            <label class="admin-field">Nama varian (opsional)<input id="recipeVariantLabel" type="text" maxlength="40" placeholder="Kosongkan bila barang ini hanya punya satu resep" /></label>
+            <div class="muted" style="margin:-4px 0 10px">Isi nama varian (mis. "Larutan manis") untuk membuat resep kedua pada barang yang sama tanpa mengarsipkan resep pertama. Nama varian yang sama = revisi varian itu.</div>
             <div class="list-head"><strong>Komponen pembentuk</strong><button id="addRecipeComponent" class="mini-btn" type="button">+ Komponen</button></div>
             <div id="recipeComponents" style="display:grid;gap:8px;margin:10px 0"></div>
             <label class="admin-field">Catatan<textarea id="recipeNotes" rows="2" maxlength="500"></textarea></label>
             <button class="primary-btn" type="submit">Simpan sebagai revision baru</button>
           </form>
           <div class="admin-card list-card">
-            <div class="list-head"><div><h2>Resep Aktif</h2><div class="muted">Satu resep aktif per barang hasil. Update membuat revision baru.</div></div><span id="recipeCount" class="master-count">0</span></div>
+            <div class="list-head"><div><h2>Resep Aktif</h2><div class="muted">Satu resep aktif per barang hasil per varian. Update membuat revision baru.</div></div><span id="recipeCount" class="master-count">0</span></div>
             <div id="recipeList" class="master-list"></div>
           </div>
         </div>
@@ -363,6 +365,7 @@
       outputProductId: Number(el('recipeOutputProduct').value),
       outputQuantity: Number(el('recipeOutputQty').value),
       components,
+      variantLabel: el('recipeVariantLabel').value,
       notes: el('recipeNotes').value
     };
   }
@@ -381,6 +384,7 @@
     el('recipeForm').reset();
     el('recipeOutputQty').value = '1';
     el('recipeNotes').value = '';
+    el('recipeVariantLabel').value = '';
     el('recipeComponents').innerHTML = '';
     el('recipeFormTitle').textContent = 'Buat Resep / BOM';
     addComponentRow();
@@ -392,6 +396,7 @@
     el('recipeOutputProduct').value = String(recipe.outputProductId);
     el('recipeOutputQty').value = String(recipe.outputQuantity);
     el('recipeNotes').value = recipe.notes || '';
+    el('recipeVariantLabel').value = recipe.variantLabel || '';
     el('recipeComponents').innerHTML = '';
     recipe.components.forEach(component => addComponentRow(component));
     el('recipeFormTitle').textContent = `Buat Revisi dari v${recipe.revision}`;
@@ -413,7 +418,7 @@
       <article class="master-row" style="align-items:flex-start">
         <div class="master-main">
           <strong>${esc(recipe.outputProductName)} · ${recipe.outputQuantity} ${esc(recipe.outputUnitSymbol)}</strong>
-          <div class="master-meta">Revision ${recipe.revision} · ${esc(recipe.status)}</div>
+          <div class="master-meta">${recipe.variantLabel ? `Varian ${esc(recipe.variantLabel)} · ` : ''}Revision ${recipe.revision} · ${esc(recipe.status)}</div>
           <div class="master-meta" style="margin-top:6px">${recipe.components.map(component => `${esc(component.productName)} ${component.quantity} ${esc(component.unitSymbol)}`).join(' + ')}</div>
           ${recipe.notes ? `<div class="master-meta">${esc(recipe.notes)}</div>` : ''}
         </div>

@@ -108,7 +108,7 @@ async function listRecipeRows(db, storeId, includeArchived = false) {
   const rows = await db.prepare(`
     SELECT r.id, r.output_product_id, p.name AS output_product_name,
            r.output_unit_id, u.symbol AS output_unit_symbol,
-           r.output_quantity, r.revision, r.status, r.notes,
+           r.output_quantity, r.revision, r.status, r.notes, r.variant_label,
            r.created_by_role, r.created_by_id, r.created_at, r.archived_at
     FROM manufacturing_recipes r
     JOIN products p ON p.id = r.output_product_id AND p.store_id = r.store_id
@@ -151,6 +151,7 @@ async function listRecipeRows(db, storeId, includeArchived = false) {
     revision: Number(row.revision),
     status: row.status,
     notes: row.notes,
+    variantLabel: row.variant_label || '',
     createdByRole: row.created_by_role,
     createdById: row.created_by_id,
     createdAt: row.created_at,
@@ -192,6 +193,7 @@ async function recipeWouldCycle(db, storeId, outputProductId, componentProductId
 async function createRecipeRevision(db, store, auth, payload) {
   const outputProductId = Number(payload?.outputProductId);
   const outputQuantity = positiveInteger(payload?.outputQuantity);
+  const variantLabel = text(payload?.variantLabel, 40);
   const requested = Array.isArray(payload?.components) ? payload.components : [];
   if (!Number.isInteger(outputProductId) || !outputQuantity || !requested.length) {
     return { ok: false, response: json({ error: 'Hasil barang, qty hasil bulat, dan minimal satu komponen wajib valid.' }, 400) };
@@ -250,16 +252,16 @@ async function createRecipeRevision(db, store, auth, payload) {
     db.prepare(`
       UPDATE manufacturing_recipes
       SET status = 'ARCHIVED', archived_at = ?
-      WHERE store_id = ? AND output_product_id = ? AND status = 'ACTIVE'
-    `).bind(now, store.id, outputProductId),
+      WHERE store_id = ? AND output_product_id = ? AND variant_label = ? AND status = 'ACTIVE'
+    `).bind(now, store.id, outputProductId, variantLabel),
     db.prepare(`
       INSERT INTO manufacturing_recipes (
         id, store_id, output_product_id, output_unit_id, output_quantity,
-        revision, status, notes, created_by_role, created_by_id, created_at, archived_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, NULL)
+        revision, status, notes, variant_label, created_by_role, created_by_id, created_at, archived_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?, NULL)
     `).bind(
       recipeId, store.id, outputProductId, output.base_unit_id, outputQuantity,
-      revision, text(payload?.notes, 500), actor.role, actor.id, now
+      revision, text(payload?.notes, 500), variantLabel, actor.role, actor.id, now
     )
   ];
   for (const item of normalized) {

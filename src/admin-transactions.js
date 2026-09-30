@@ -99,17 +99,42 @@ function groupStockAdjustmentSessions(transactions) {
   return result;
 }
 
+// 2026-09-29: this marker was once an EXISTS subquery inside pos_facts, which
+// ran for EVERY sale in the store and scanned every production_runs row per
+// sale (no sale_id index) -- sales x runs row reads per page load. It burned
+// D1's whole free daily read quota within minutes and took every login down.
+// Only the visible page's sales are checked now, via sale_items' sale_id index.
+async function loadDadakanSaleIds(db, storeId, rows) {
+  const saleIds = rows.filter(row => row.kind === 'SALE').map(row => row.id);
+  const found = new Set();
+  // Pages go up to 100 rows; D1 rejects >100 bind variables per statement.
+  for (let start = 0; start < saleIds.length; start += 90) {
+    const chunk = saleIds.slice(start, start + 90);
+    const result = await db.prepare(`
+      SELECT DISTINCT sale_id FROM sale_items
+      WHERE sale_id IN (${chunk.map(() => '?').join(', ')}) AND store_id = ? AND production_run_id IS NOT NULL
+    `).bind(...chunk, storeId).all();
+    for (const row of result.results ?? []) found.add(row.sale_id);
+  }
+  return found;
+}
+
 async function loadPosDeliveryMap(db, storeId, rows) {
   const refs = rows.filter(row => POS_ACCOUNTING_FACT_KINDS.has(row.kind)).map(row => ({ factType: row.kind, factId: row.id }));
-  if (!refs.length) return new Map();
-  const clauses = refs.map(() => '(fact_type = ? AND fact_id = ?)').join(' OR ');
-  const bindings = refs.flatMap(ref => [ref.factType, ref.factId]);
-  const result = await db.prepare(`
-    SELECT fact_type, fact_id, status, journal_id, failure_code, failure_detail, attempts, last_attempt_at
-    FROM accounting_bridge_deliveries
-    WHERE store_id = ? AND producer_module = 'POS' AND (${clauses})
-  `).bind(storeId, ...bindings).all();
-  return new Map((result.results ?? []).map(row => [`${row.fact_type}:${row.fact_id}`, row]));
+  const map = new Map();
+  // 2 binds per ref + storeId: 45 refs = 91, under D1's 100-bind cap.
+  for (let start = 0; start < refs.length; start += 45) {
+    const chunk = refs.slice(start, start + 45);
+    const clauses = chunk.map(() => '(fact_type = ? AND fact_id = ?)').join(' OR ');
+    const bindings = chunk.flatMap(ref => [ref.factType, ref.factId]);
+    const result = await db.prepare(`
+      SELECT fact_type, fact_id, status, journal_id, failure_code, failure_detail, attempts, last_attempt_at
+      FROM accounting_bridge_deliveries
+      WHERE store_id = ? AND producer_module = 'POS' AND (${clauses})
+    `).bind(storeId, ...bindings).all();
+    for (const row of result.results ?? []) map.set(`${row.fact_type}:${row.fact_id}`, row);
+  }
+  return map;
 }
 
 // Shared by Admin's own Transaksi explorer and the Kasir read-only mirror --
@@ -129,10 +154,7 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   const result = await db.prepare(`
     WITH pos_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,
-             (CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END) ||
-             (CASE WHEN EXISTS (
-                SELECT 1 FROM production_runs pr WHERE pr.store_id = s.store_id AND pr.sale_id = s.id AND pr.mode = 'AUTO_DADAKAN'
-              ) THEN ' · +Produksi Dadakan' ELSE '' END) AS description,
+             (CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END) AS description,
              CASE WHEN s.voided_at IS NULL THEN 'posted' ELSE 'voided' END AS status,
              s.payment_method, s.drawer_session_id, s.cashier_id, c.employee_name AS cashier_name,
              'SALE' AS reference_type, s.id AS reference_id, NULL AS payload_json
@@ -202,7 +224,11 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   ).all();
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
   const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);
-  const normalized = visibleRows.map(row => normalizeRow(row, deliveryMap));
+  const dadakanSaleIds = await loadDadakanSaleIds(db, storeId, visibleRows);
+  const normalized = visibleRows.map(row => normalizeRow(
+    dadakanSaleIds.has(row.id) && row.kind === 'SALE' ? { ...row, description: `${row.description} · +Produksi Dadakan` } : row,
+    deliveryMap
+  ));
   // Cursor must key off the raw, ungrouped rows -- grouping only changes how
   // many list entries this page renders as, never where the SQL keyset
   // pagination actually left off.

@@ -59,7 +59,7 @@
     <div id="customerFeedbackModal" class="customer-feedback-backdrop hidden" aria-hidden="true">
       <section class="customer-feedback-card" role="dialog" aria-modal="true" aria-labelledby="customerFeedbackTitle">
         <div class="customer-feedback-head">
-          <div><div class="muted">${escapeHtml(window.MaxiSkin?.brand() || 'MAXI Leker')} · ${escapeHtml(storeCode)}</div><h2 id="customerFeedbackTitle">Kotak Saran</h2></div>
+          <div><div class="muted">${escapeHtml(window.MaxiSkin?.brand() || 'MAXI')} · ${escapeHtml(storeCode)}</div><h2 id="customerFeedbackTitle">Kotak Saran</h2></div>
           <button id="customerFeedbackClose" class="customer-feedback-close" type="button" aria-label="Tutup">×</button>
         </div>
         <div id="customerFeedbackBody"></div>

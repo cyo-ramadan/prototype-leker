@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MAXI Leker</title>
+  <title>MAXI</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/customer-responsive.css" />
   <link rel="stylesheet" href="/customer-repeat-order.css" />
@@ -26,14 +26,14 @@
 <noscript><div style="padding:14px 16px;background:#fff4e5;color:#7a3e00;font:15px/1.4 system-ui,sans-serif;border-bottom:1px solid #f0c987"><b>JavaScript di browser ini mati.</b> Aplikasi tidak bisa menampilkan menu atau login. Hidupkan di Setelan situs &gt; JavaScript, lalu muat ulang. Cek HP: <a href="/diagnostik">/diagnostik</a></div></noscript>
 <div class="app-shell">
   <header class="topbar">
-    <div class="brand"><div id="brandMark" class="brand-mark">L</div><div><span id="storeBrandName">MAXI LEKER</span><small>Self Order · <span data-store-code>G001</span></small></div></div>
+    <div class="brand"><div id="brandMark" class="brand-mark">M</div><div><span id="storeBrandName">MAXI</span><small>Self Order · <span data-store-code>G001</span></small></div></div>
     <span class="pill">Bisa beli tanpa login</span>
   </header>
 
   <main id="shopView" class="layout customer-layout">
     <section>
       <div class="hero">
-        <h1 data-skin-hide>Pilih leker.<br>Tap, order, beres.</h1><h1 data-skin-only>Pilih menu.<br>Tap, order, beres.</h1>
+        <h1>Pilih menu.<br>Tap, order, beres.</h1>
         <p>Pesanan langsung masuk ke kasir gerai yang dipilih. Login pelanggan optional, jadi guest tetap bisa langsung beli.</p>
       </div>
       <div id="categoryGroupRow" class="category-row category-group-row" hidden></div>
@@ -70,7 +70,7 @@
     <div id="cartList" class="cart-list"></div>
     <div class="field"><label>Nama customer</label><input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" /></div>
     <input id="tableLabel" type="hidden" value="" />
-    <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: semua leker jangan terlalu kering" data-skin-placeholder="Contoh: kurangi gula untuk semua minuman"></textarea></div>
+    <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: kurangi gula untuk semua pesanan"></textarea></div>
     <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
     <div class="checkout-note">Kalau login, nama order dan Customer ID otomatis mengikuti akun pelanggan dan tidak bisa diganti. Guest bebas mengisi nama.</div>
     <button id="checkoutBtn" class="primary-btn" disabled>FIX PESANAN · KIRIM KE KASIR</button>
@@ -87,12 +87,12 @@
   </section>
 </div>
 <script src="/store-context.js?v=20260828-admin-context-fix-v1"></script>
-<script src="/ui-skin.js?v=20261001-siap-jual-v2"></script>
+<script src="/ui-skin.js?v=20261001-siap-jual-v3"></script>
 <script src="/customer-store-select.js?v=20260913-master-visual-v2"></script>
-<script src="/customer-login.js?v=20261001-siap-jual-v2"></script>
+<script src="/customer-login.js?v=20261001-siap-jual-v3"></script>
 <script src="/auth-entry-split.js?v=20260922-randomuuid-fallback-v1"></script>
 <script src="/menu-category-filter.js?v=20260915-subkategori-v1"></script>
-<script src="/customer.js?v=20260927-stop-polling-mitigasi-v1"></script>
+<script src="/customer.js?v=20261001-siap-jual-v3"></script>
 <script>
   // Customer menu stays focused on ordering. The legacy inline Roda renderer
   // remains in customer.js for compatibility tests, but this entry point turns
@@ -102,6 +102,6 @@
 <script src="/customer-repeat-order.js"></script>
 <script src="/customer-order-status.js"></script>
 <script src="/customer-feedback-session-ready.js"></script>
-<script src="/customer-feedback.js?v=20261001-siap-jual-v2"></script>
+<script src="/customer-feedback.js?v=20261001-siap-jual-v3"></script>
 </body>
 </html>

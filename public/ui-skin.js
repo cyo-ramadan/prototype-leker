@@ -13,7 +13,7 @@
 //   - [data-skin-text="..."]  -> teks diganti saat skin ON,
 //   - [data-skin-placeholder] -> placeholder diganti saat skin ON,
 //   - [data-skin-brand]       -> diisi nama merek dari server (semua tenant),
-//   - judul tab: "MAXI Leker" diganti nama merek tenant (semua tenant).
+//   - judul tab: kata "MAXI" diganti nama merek dari server (semua tenant).
 // Teks yang dirender JS memakai window.MaxiSkin.pick(teksLama, teksBaru).
 //
 // Hasil terakhir disimpan per gerai/entity di localStorage supaya halaman
@@ -81,7 +81,7 @@
     else delete root.dataset.skin;
     // Merek berlaku untuk semua tenant (bukan bagian saklar skin).
     document.title = state.brandName
-      ? originalTitle.replace(/MAXI\s+Leker/i, state.brandName)
+      ? originalTitle.replace(/\bMAXI\b/, state.brandName)
       : originalTitle;
     applyDom();
   }

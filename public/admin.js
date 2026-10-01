@@ -195,7 +195,7 @@ function renderAll() {
 }
 
 function renderStore() {
-  el('storeName').value = state.data.store?.storeName || 'MAXI LEKER';
+  el('storeName').value = state.data.store?.storeName || 'MAXI';
   el('storeRefLat').value = state.data.store?.attendanceRefLatitude ?? '';
   el('storeRefLng').value = state.data.store?.attendanceRefLongitude ?? '';
   state.storeLogoData = state.data.store?.logoData || '';

@@ -60,10 +60,10 @@ test('ui-profile: Lab store gets the new skin; Leker store stays classic; toggli
   try {
     const env = { DB: new D1Database(db) };
     assert.deepEqual(await profile(env, 'store=LAB01'), { skin: 'siap-jual', brandName: PRODUCT_BRAND_NAME });
-    // Merek berlaku untuk semua tenant; Leker tetap "MAXI Leker".
-    assert.deepEqual(await profile(env, 'store=G001'), { skin: 'classic', brandName: 'MAXI Leker' });
+    // Merek satu untuk semua tenant (universal, bukan khusus Leker).
+    assert.deepEqual(await profile(env, 'store=G001'), { skin: 'classic', brandName: PRODUCT_BRAND_NAME });
     assert.deepEqual(await profile(env, 'entity=ENT-LAB-TAMPILAN'), { skin: 'siap-jual', brandName: PRODUCT_BRAND_NAME });
-    assert.deepEqual(await profile(env, ''), { skin: 'classic', brandName: null });
+    assert.deepEqual(await profile(env, ''), { skin: 'classic', brandName: PRODUCT_BRAND_NAME });
 
     await setTenantPolicySetting(env.DB, 'TEN-LAB-TAMPILAN', UI_SKIN_SIAP_JUAL_KEY, false, { role: 'OWNER', id: 'test' });
     assert.equal((await profile(env, 'store=LAB01')).skin, 'classic');
@@ -114,7 +114,9 @@ test('T1 handoff UI/UX berlaku untuk SEMUA tenant: tanpa "Prototype", tanpa cata
     /Legacy \/ tracking off/,
     /ditolak (otomatis )?sebagai stale/,
     /Stale-snapshot guard/,
-    /Renderer detail/
+    /Renderer detail/,
+    /MAXI LEKER|MAXI Leker ·|<title>MAXI Leker/,
+    /Pilih leker|leker jangan|Belum ada leker|menyiapkan leker/
   ];
   for (const file of files) {
     const source = readFileSync(new URL(file, publicDir), 'utf8');

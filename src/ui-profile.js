@@ -16,21 +16,12 @@ import { UI_SKIN_SIAP_JUAL_KEY, getTenantPolicySetting, resolveTenantId } from '
 export const UI_SKIN_CLASSIC = 'classic';
 export const UI_SKIN_SIAP_JUAL = 'siap-jual';
 
-// Satu-satunya tempat nama merek. Berlaku untuk SEMUA tenant (T1 handoff
-// UI/UX, bukan bagian dari saklar skin). Nama produk final belum diputuskan
-// Bos Cyo (kandidat: OwnerTenang / PantauGerai / GeraiJujur) -- ganti
-// PRODUCT_BRAND_NAME saja. Tenant jaringan Leker sendiri tetap tampil
-// "MAXI Leker" (handoff T1: "merek per tenant, bukan diganti paksa").
+// Satu-satunya tempat nama merek, sama untuk SEMUA tenant (Bos Cyo
+// 2026-10-01: handoff UI/UX "dikerjakan buat universal", bukan khusus
+// Leker). Nama produk final belum diputuskan (kandidat: OwnerTenang /
+// PantauGerai / GeraiJujur) -- ganti di sini saja; teks bawaan HTML ikut
+// memakai "MAXI" sebagai nilai awal sebelum server menjawab.
 export const PRODUCT_BRAND_NAME = 'MAXI';
-export const TENANT_BRAND_NAMES = Object.freeze({
-  'TEN-PROTOTYPE': 'MAXI Leker',
-  'TEN-HARILIBUR': 'MAXI Leker'
-});
-
-export function brandNameForTenant(tenantId) {
-  if (!tenantId) return null;
-  return TENANT_BRAND_NAMES[tenantId] || PRODUCT_BRAND_NAME;
-}
 
 async function tenantIdForContext(db, { storeCode, entityId }) {
   if (storeCode) {
@@ -46,7 +37,7 @@ export async function resolveUiProfile(db, context = {}) {
   const on = tenantId ? await getTenantPolicySetting(db, tenantId, UI_SKIN_SIAP_JUAL_KEY) : false;
   return {
     skin: on ? UI_SKIN_SIAP_JUAL : UI_SKIN_CLASSIC,
-    brandName: brandNameForTenant(tenantId)
+    brandName: PRODUCT_BRAND_NAME
   };
 }
 

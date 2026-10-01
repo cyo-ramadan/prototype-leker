@@ -163,18 +163,21 @@ dipilih dulu di satu tenant laboratorium, baru diterapkan ke semua.
   dan merek; `public/ui-skin.js` dimuat di kasir, portal staf, workspace gerai, panel pemilik
   (entity-admin), dan halaman pelanggan. Owner Console (pemilik platform, lintas tenant) sengaja
   tidak ikut skin.
-- **Aturan untuk perubahan UI berikutnya (wajib)**: perubahan tampilan "Siap Jual" **selalu**
-  di belakang saklar — HTML pakai `data-skin-hide` / `data-skin-only` / `data-skin-text` /
-  `data-skin-placeholder` / `data-skin-brand`; teks dari JS pakai
-  `window.MaxiSkin?.pick(teksLama, teksBaru) ?? teksLama`. Teks lama jangan dihapus sampai Bos
-  Cyo memilih skin final dan menyalakannya untuk semua tenant.
-- **Merek**: satu tempat, `PRODUCT_BRAND_NAME` di `src/ui-profile.js` (sementara "MAXI").
-- **T1 yang sudah di belakang saklar**: judul tab tanpa "Prototype"/"Leker", merek di header,
-  teks "modul Masak pada prototype", catatan "Karen"/"canonical"/"inventory_stock_balances",
-  "PROVISIONAL", "Legacy / tracking off", istilah "stale/snapshot" di persetujuan stok, "Renderer
-  detail", tombol "Cari Lanjutan" (disembunyikan), teks hero & contoh catatan "leker" di halaman
-  pelanggan.
-- **Belum**: catatan di Owner Console (`owner.html:59,93` — tidak ikut skin), cek layar HP
-  sungguhan, T2–T6.
+- **Koreksi Bos Cyo (2026-10-01, sesudahnya)**: *"yang tadi diminta dari handoff itu kerjakan
+  ke semua tenant, perintah sehabis itu baru untuk tenant khusus ini."* Jadi:
+  - **T1–T6 di handoff ini berlaku untuk SEMUA tenant** — tidak di belakang saklar. T1 sudah:
+    judul tanpa "Prototype", merek dari satu tempat (`PRODUCT_BRAND_NAME` = "MAXI" untuk tenant
+    baru; jaringan Leker tetap "MAXI Leker" lewat `TENANT_BRAND_NAMES` di `src/ui-profile.js`),
+    catatan developer diganti bahasa pemilik (Karen/canonical/stale/snapshot/PROVISIONAL/legacy/
+    Renderer), catatan ADR-030 & poin "belum diaktifkan" di Owner Console dihapus, tombol "Cari
+    Lanjutan" disembunyikan. Tes `test/ui-skin-tenant-toggle.test.js` menolak kata-kata itu
+    kembali.
+  - **Saklar `ui_skin_siap_jual` hanya untuk desain "jualan" baru** (permintaan Bos Cyo
+    berikutnya) yang diuji di tenant Lab Tampilan sebelum dipilih untuk semua tenant. Desain itu
+    selalu di belakang saklar: HTML pakai `data-skin-hide` / `data-skin-only` / `data-skin-text`
+    / `data-skin-placeholder`, CSS pakai `html[data-skin="siap-jual"]`, teks JS pakai
+    `window.MaxiSkin?.pick(teksLama, teksBaru)`. Yang sudah di belakang saklar: hero & contoh
+    catatan halaman pelanggan ("Pilih menu"), label "Panel Pemilik" di panel Entity Admin.
+- **Belum**: cek layar HP sungguhan, T2–T6.
 
 <!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

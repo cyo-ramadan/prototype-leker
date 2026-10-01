@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleUiProfileApi, PRODUCT_BRAND_NAME } from '../src/ui-profile.js';
+import { readdirSync as listDir } from 'node:fs';
 import { UI_SKIN_SIAP_JUAL_KEY, listTenantPolicySettings, setTenantPolicySetting } from '../src/tenant-policy.js';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
@@ -59,7 +60,8 @@ test('ui-profile: Lab store gets the new skin; Leker store stays classic; toggli
   try {
     const env = { DB: new D1Database(db) };
     assert.deepEqual(await profile(env, 'store=LAB01'), { skin: 'siap-jual', brandName: PRODUCT_BRAND_NAME });
-    assert.deepEqual(await profile(env, 'store=G001'), { skin: 'classic', brandName: null });
+    // Merek berlaku untuk semua tenant; Leker tetap "MAXI Leker".
+    assert.deepEqual(await profile(env, 'store=G001'), { skin: 'classic', brandName: 'MAXI Leker' });
     assert.deepEqual(await profile(env, 'entity=ENT-LAB-TAMPILAN'), { skin: 'siap-jual', brandName: PRODUCT_BRAND_NAME });
     assert.deepEqual(await profile(env, ''), { skin: 'classic', brandName: null });
 
@@ -90,14 +92,36 @@ test('the switch shows up in the Owner tenant policy panel and defaults OFF for 
   }
 });
 
-test('skin script is loaded on every tenant-facing page, and T1 copy only changes behind the switch', () => {
+test('skin script is loaded on every tenant-facing page', () => {
   for (const page of ['cashier', 'staff', 'branch-admin', 'entity-admin', 'customer']) {
     const html = readFileSync(new URL(`../public/${page}.html`, import.meta.url), 'utf8');
     assert.match(html, /<script src="\/ui-skin\.js\?v=[^"]+"><\/script>/, `${page}.html must load ui-skin.js`);
   }
-  const drawerUi = readFileSync(new URL('../public/drawer-report-ui.js', import.meta.url), 'utf8');
-  // Teks lama tetap ada (tenant OFF), teks baru hanya lewat MaxiSkin.pick.
-  assert.match(drawerUi, /MaxiSkin\?\.pick\('Belum ada modul Masak pada prototype ini\.', 'Belum ada catatan masak\.'\)/);
-  const presets = readFileSync(new URL('../public/admin-accounting-flow-presets.js', import.meta.url), 'utf8');
-  assert.match(presets, /MaxiSkin\?\.pick\('Kategori ini sudah dikustomisasi[^']*Karen[^']*', 'Kategori ini sudah diatur manual/);
+});
+
+test('T1 handoff UI/UX berlaku untuk SEMUA tenant: tanpa "Prototype", tanpa catatan developer, tanpa "segera hadir"', () => {
+  const publicDir = new URL('../public/', import.meta.url);
+  const files = listDir(publicDir).filter(name => /\.(html|js)$/.test(name) && name !== 'ui-skin.js');
+  const banned = [
+    /<title>[^<]*Prototype/i,
+    /modul Masak pada prototype/,
+    /Karen (sengaja|tidak overwrite)/,
+    /canonical <code>inventory_stock_balances/,
+    /operasi tersendiri per ADR-030/,
+    /earn\/redeem belum diaktifkan/,
+    /segera hadir/,
+    /Status PROVISIONAL sampai terhubung/,
+    /Legacy \/ tracking off/,
+    /ditolak (otomatis )?sebagai stale/,
+    /Stale-snapshot guard/,
+    /Renderer detail/
+  ];
+  for (const file of files) {
+    const source = readFileSync(new URL(file, publicDir), 'utf8');
+    for (const pattern of banned) assert.doesNotMatch(source, pattern, `${file} masih memuat ${pattern}`);
+  }
+  // Perubahan T1 tidak boleh bersembunyi di balik saklar skin Lab.
+  const drawerUi = readFileSync(new URL('drawer-report-ui.js', publicDir), 'utf8');
+  assert.match(drawerUi, /'Belum ada catatan masak\.'/);
+  assert.doesNotMatch(drawerUi, /MaxiSkin/);
 });

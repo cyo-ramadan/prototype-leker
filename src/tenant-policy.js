@@ -31,7 +31,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
   {
     key: UI_SKIN_SIAP_JUAL_KEY,
     label: 'Tampilan baru (uji skin "Siap Jual")',
-    description: 'ON: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan di tenant ini memakai tampilan baru yang sedang disiapkan untuk dijual (tanpa tulisan "Prototype", tanpa catatan developer, fitur setengah jadi disembunyikan). OFF: tampilan tetap seperti sekarang. Berlaku setelah halaman dimuat ulang.',
+    description: 'ON: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan di tenant ini memakai desain baru yang sedang diuji untuk dijual. OFF: tampilan tetap seperti sekarang. Berlaku setelah halaman dimuat ulang.',
     defaultValue: false
   }
 ]);

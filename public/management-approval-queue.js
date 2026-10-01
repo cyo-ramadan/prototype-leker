@@ -92,7 +92,7 @@
         <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="master-count">pending</span></div>
         <p>${payloadSummary(request)}</p>
         <div class="muted">${esc(request.payload?.note || '')}</div>
-        ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? `<div class="muted" style="margin-top:8px">${(window.MaxiSkin?.pick('ACC akan re-check stok aktual terhadap snapshot. Jika stok sudah berubah, request otomatis ditolak sebagai stale.', 'Stok dicek ulang saat disetujui. Kalau stok sudah berubah, pengajuan otomatis ditolak.') ?? 'ACC akan re-check stok aktual terhadap snapshot. Jika stok sudah berubah, request otomatis ditolak sebagai stale.')}</div>` : ''}
+        ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? `<div class="muted" style="margin-top:8px">Stok dicek ulang saat disetujui. Kalau stok sudah berubah, pengajuan otomatis ditolak.</div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
           <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC + POSTING</button>
           <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">Reject</button>
@@ -111,7 +111,7 @@
         <div id="${detailId}" class="muted" style="margin-top:10px;display:none">
           ${group.items.map(item => `<div style="padding:6px 0;border-top:1px solid #edf0f4">${payloadSummary(item)}${item.payload?.note ? `<div class="muted">${esc(item.payload.note)}</div>` : ''}</div>`).join('')}
         </div>
-        <div class="muted" style="margin-top:8px">${(window.MaxiSkin?.pick('ACC akan re-check stok aktual semua barang terhadap snapshot. Kalau ada satu saja yang berubah, seluruh sesi ini ditolak otomatis sebagai stale -- tidak ada yang diposting sebagian.', 'Stok semua barang dicek ulang saat disetujui. Kalau ada satu saja yang berubah, seluruh pengajuan ditolak -- tidak ada yang tercatat sebagian.') ?? 'ACC akan re-check stok aktual semua barang terhadap snapshot. Kalau ada satu saja yang berubah, seluruh sesi ini ditolak otomatis sebagai stale -- tidak ada yang diposting sebagian.')}</div>
+        <div class="muted" style="margin-top:8px">Stok semua barang dicek ulang saat disetujui. Kalau ada satu saja yang berubah, seluruh pengajuan ditolak -- tidak ada yang tercatat sebagian.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
           <button class="primary-btn" type="button" data-approval-session-acc="${esc(group.sessionId)}">ACC + POSTING SEMUA</button>
           <button class="secondary-btn" type="button" data-approval-session-reject="${esc(group.sessionId)}">Reject Semua</button>
@@ -258,7 +258,7 @@
     if (!app || document.getElementById('ownerApprovalQueue')) return;
     app.insertAdjacentHTML('beforeend', `
       <section id="ownerApprovalQueue" class="admin-card" style="margin-top:18px">
-        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">${(window.MaxiSkin?.pick('Owner dapat mereview pending approval seluruh gerai. Penyesuaian Stok memakai snapshot dan stale guard sebelum posting.', 'Semua permintaan persetujuan dari seluruh gerai. Penyesuaian stok dicek ulang sebelum dicatat.') ?? 'Owner dapat mereview pending approval seluruh gerai. Penyesuaian Stok memakai snapshot dan stale guard sebelum posting.')}</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Semua permintaan persetujuan dari seluruh gerai. Penyesuaian stok dicek ulang sebelum dicatat.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
         <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
       </section>`);
     document.getElementById('managementApprovalRefresh')?.addEventListener('click', loadQueue);

@@ -1,4 +1,7 @@
-// Skin tampilan per tenant -- Bos Cyo, 2026-10-01 (HANDOFF-UIUX-SIAP-JUAL.md).
+// Merek + skin tampilan per tenant -- Bos Cyo, 2026-10-01 (HANDOFF-UIUX-SIAP-JUAL.md).
+//
+// Merek (judul tab, [data-skin-brand]) berlaku untuk SEMUA tenant. Skin
+// "siap-jual" (desain jualan) hanya untuk tenant yang saklarnya ON.
 //
 // Tenant yang saklar "Tampilan baru" (kebijakan tenant ui_skin_siap_jual)-nya
 // ON melihat tampilan "Siap Jual"; tenant lain tetap tampilan sekarang.
@@ -9,8 +12,8 @@
 //   - [data-skin-only]        -> hanya tampil saat skin ON,
 //   - [data-skin-text="..."]  -> teks diganti saat skin ON,
 //   - [data-skin-placeholder] -> placeholder diganti saat skin ON,
-//   - [data-skin-brand]       -> diisi nama merek dari server,
-//   - judul tab: "Prototype Leker"/"MAXI Leker" diganti nama merek.
+//   - [data-skin-brand]       -> diisi nama merek dari server (semua tenant),
+//   - judul tab: "MAXI Leker" diganti nama merek tenant (semua tenant).
 // Teks yang dirender JS memakai window.MaxiSkin.pick(teksLama, teksBaru).
 //
 // Hasil terakhir disimpan per gerai/entity di localStorage supaya halaman
@@ -66,7 +69,7 @@
     scope.querySelectorAll('[data-skin-placeholder]').forEach(node => swap(node, 'data-skin-placeholder', 'placeholder', 'skinOriginalPlaceholder'));
     scope.querySelectorAll('[data-skin-brand]').forEach(node => {
       if (!('skinOriginalBrand' in node.dataset)) node.dataset.skinOriginalBrand = node.textContent;
-      node.textContent = isOn() && state.brandName
+      node.textContent = state.brandName
         ? (node.dataset.skinBrand === 'upper' ? state.brandName.toUpperCase() : state.brandName)
         : node.dataset.skinOriginalBrand;
     });
@@ -76,8 +79,9 @@
     injectStyle();
     if (isOn()) root.dataset.skin = SKIN_ON;
     else delete root.dataset.skin;
-    document.title = isOn() && state.brandName
-      ? originalTitle.replace(/(MAXI\s+)?(Prototype\s+)?Leker/i, state.brandName)
+    // Merek berlaku untuk semua tenant (bukan bagian saklar skin).
+    document.title = state.brandName
+      ? originalTitle.replace(/MAXI\s+Leker/i, state.brandName)
       : originalTitle;
     applyDom();
   }

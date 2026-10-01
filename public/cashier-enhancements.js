@@ -137,7 +137,7 @@
     if (!dialog.open) dialog.showModal();
     try {
       const payload = await cashierRequest(`/api/cashier/drawers/${encodeURIComponent(id)}/details`);
-      panel.innerHTML = window.MAXIDrawerReport?.render(payload.report) || (window.MaxiSkin?.pick('<div class="empty">Renderer detail laci belum tersedia.</div>', '<div class="empty">Detail laci belum bisa ditampilkan. Muat ulang halaman.</div>') ?? '<div class="empty">Renderer detail laci belum tersedia.</div>');
+      panel.innerHTML = window.MAXIDrawerReport?.render(payload.report) || '<div class="empty">Detail laci belum bisa ditampilkan. Muat ulang halaman.</div>';
     } catch (error) {
       panel.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
     }

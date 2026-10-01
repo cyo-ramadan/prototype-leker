@@ -117,7 +117,7 @@
     return `<div class="acc-card" style="padding:14px;margin-top:16px">
       <div class="acc-item-top"><div><b>Warehouse reference</b><div class="acc-muted">Source of truth tetap Warehouse Settings.</div></div><span class="acc-chip warn">ROUTING HOLD</span></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap">${chips}</div>
-      <p class="acc-muted" style="line-height:1.55;margin:12px 0 0">${(window.MaxiSkin?.pick(`Pilihan gudang sudah direuse dari modul Warehouse. Eksekusi source/destination pada Arus Barang belum diaktifkan karena canonical <code>inventory_stock_balances</code> masih store-level, belum warehouse-level. Karen sengaja tidak membuat stok lokasi bayangan.`, 'Stok saat ini dihitung per gerai, belum per gudang.') ?? `Pilihan gudang sudah direuse dari modul Warehouse. Eksekusi source/destination pada Arus Barang belum diaktifkan karena canonical <code>inventory_stock_balances</code> masih store-level, belum warehouse-level. Karen sengaja tidak membuat stok lokasi bayangan.`)}</p>
+      <p class="acc-muted" style="line-height:1.55;margin:12px 0 0">Stok saat ini dihitung per gerai, belum per gudang.</p>
     </div>`;
   }
 
@@ -221,7 +221,7 @@
       const current = (accounting.transactionCategories || []).find(item => item.id === tx.id || item.code === code);
       const activeRules = (current?.rules || []).filter(rule => rule.isActive);
       if (activeRules.length && !matchesManagedShape(activeRules, preset)) {
-        throw new Error((window.MaxiSkin?.pick('Kategori ini sudah dikustomisasi di Aturan Transaksi. Karen tidak overwrite rule custom; edit manual dari sana.', 'Kategori ini sudah diatur manual di Aturan Transaksi, jadi tidak ditimpa. Ubah langsung dari sana.') ?? 'Kategori ini sudah dikustomisasi di Aturan Transaksi. Karen tidak overwrite rule custom; edit manual dari sana.'));
+        throw new Error('Kategori ini sudah diatur manual di Aturan Transaksi, jadi tidak ditimpa. Ubah langsung dari sana.');
       }
 
       if (isCashPreset(code)) {

@@ -12,6 +12,7 @@ import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './c
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleDrawerClosePermitApi } from './cashier-drawer-close-permit.js';
 import { handleAttendanceCorrectionPermitApi } from './attendance-correction-permit.js';
+import { handlePermitReportApi } from './permit-report.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -260,6 +261,8 @@ async function handleApi(request, env, url) {
   if (drawerClosePermitResponse) return drawerClosePermitResponse;
   const attendanceCorrectionPermitResponse = await handleAttendanceCorrectionPermitApi(request, env, pathname);
   if (attendanceCorrectionPermitResponse) return attendanceCorrectionPermitResponse;
+  const permitReportResponse = await handlePermitReportApi(request, env, pathname);
+  if (permitReportResponse) return permitReportResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

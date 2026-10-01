@@ -3,18 +3,20 @@
 // semua perubahan ... kalo suatu tenant meng-off-kan, ui/ux tetap seperti
 // yang sekarang."
 //
-// Tombolnya adalah saklar kebijakan tenant UI_SKIN_SIAP_JUAL_KEY
-// (src/tenant-policy.js) -- diubah Owner dari panel Kebijakan tenant.
+// Tombolnya adalah pilihan kebijakan tenant UI_SKIN_KEY (0/A/B/C,
+// src/tenant-policy.js) -- diubah Owner dari panel Kebijakan tenant.
 // Endpoint ini menjawab "halaman ini pakai skin apa dan merek apa" (merek
-// berlaku untuk semua tenant, skin hanya untuk tenant yang saklarnya ON),
+// berlaku untuk semua tenant, skin hanya untuk tenant yang memilih A/B/C),
 // dibaca public/ui-skin.js di setiap halaman. Sengaja publik (halaman
 // pelanggan juga memakainya) dan sengaja tidak mengembalikan id tenant.
 import { json } from './http.js';
 import { resolveStore } from './stores.js';
-import { UI_SKIN_SIAP_JUAL_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
+import { UI_SKIN_KEY, getTenantPolicyChoice, resolveTenantId } from './tenant-policy.js';
 
 export const UI_SKIN_CLASSIC = 'classic';
-export const UI_SKIN_SIAP_JUAL = 'siap-jual';
+// Pilihan Owner (0/A/B/C) -> kode skin yang dipakai halaman (<html data-skin>
+// dan file /skin-<kode>.css). 0 = tampilan sekarang, tanpa data-skin.
+const SKIN_BY_CHOICE = Object.freeze({ A: 'a', B: 'b', C: 'c' });
 
 // Satu-satunya tempat nama merek, sama untuk SEMUA tenant (Bos Cyo
 // 2026-10-01: handoff UI/UX "dikerjakan buat universal", bukan khusus
@@ -34,9 +36,9 @@ async function tenantIdForContext(db, { storeCode, entityId }) {
 
 export async function resolveUiProfile(db, context = {}) {
   const tenantId = await tenantIdForContext(db, context);
-  const on = tenantId ? await getTenantPolicySetting(db, tenantId, UI_SKIN_SIAP_JUAL_KEY) : false;
+  const choice = tenantId ? await getTenantPolicyChoice(db, tenantId, UI_SKIN_KEY) : '0';
   return {
-    skin: on ? UI_SKIN_SIAP_JUAL : UI_SKIN_CLASSIC,
+    skin: SKIN_BY_CHOICE[choice] || UI_SKIN_CLASSIC,
     brandName: PRODUCT_BRAND_NAME
   };
 }

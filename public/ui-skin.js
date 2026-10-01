@@ -1,17 +1,14 @@
 // Merek + skin tampilan per tenant -- Bos Cyo, 2026-10-01 (HANDOFF-UIUX-SIAP-JUAL.md).
 //
 // Merek (judul tab, [data-skin-brand]) berlaku untuk SEMUA tenant. Skin
-// "siap-jual" (desain jualan) hanya untuk tenant yang saklarnya ON.
-//
-// Tenant yang saklar "Tampilan baru" (kebijakan tenant ui_skin_siap_jual)-nya
-// ON melihat tampilan "Siap Jual"; tenant lain tetap tampilan sekarang.
-// Server yang memutuskan (GET /api/ui-profile, src/ui-profile.js); file ini
-// hanya menerapkan:
-//   - <html data-skin="siap-jual"> sebagai pegangan CSS,
-//   - [data-skin-hide]        -> disembunyikan saat skin ON,
-//   - [data-skin-only]        -> hanya tampil saat skin ON,
-//   - [data-skin-text="..."]  -> teks diganti saat skin ON,
-//   - [data-skin-placeholder] -> placeholder diganti saat skin ON,
+// (desain jualan) mengikuti pilihan Owner per tenant: 0 = tampilan sekarang,
+// A/B/C = calon desain (kebijakan tenant ui_skin). Server yang memutuskan
+// (GET /api/ui-profile, src/ui-profile.js); file ini hanya menerapkan:
+//   - <html data-skin="a|b|c"> + memuat /skin-<kode>.css dan hurufnya,
+//   - [data-skin-hide]        -> disembunyikan saat skin A/B/C,
+//   - [data-skin-only]        -> hanya tampil saat skin A/B/C,
+//   - [data-skin-text="..."]  -> teks diganti saat skin A/B/C,
+//   - [data-skin-placeholder] -> placeholder diganti saat skin A/B/C,
 //   - [data-skin-brand]       -> diisi nama merek dari server (semua tenant),
 //   - judul tab: kata "MAXI" diganti nama merek dari server (semua tenant).
 // Teks yang dirender JS memakai window.MaxiSkin.pick(teksLama, teksBaru).
@@ -20,7 +17,13 @@
 // berikutnya langsung tampil benar tanpa kedip; server tetap dicek tiap
 // halaman dimuat (bukan polling -- invariant #6).
 (() => {
-  const SKIN_ON = 'siap-jual';
+  const SKIN_ASSET_VERSION = '20261001-skin-abc-v1';
+  const SKIN_FONTS = {
+    a: 'family=Plus+Jakarta+Sans:wght@400;600;700;800',
+    b: 'family=Archivo:wdth,wght@62..125,400..900',
+    c: 'family=Nunito:wght@400;600;700;800;900'
+  };
+  const normalizeSkin = value => (Object.prototype.hasOwnProperty.call(SKIN_FONTS, value) ? value : 'classic');
   const CACHE_PREFIX = 'maxiUiSkin:';
   const ENTITY_KEY = 'maxiUiSkinEntity';
   const root = document.documentElement;
@@ -47,14 +50,42 @@
     return storeCode ? { key: `store:${storeCode.toUpperCase()}`, query: `store=${encodeURIComponent(storeCode)}` } : null;
   }
 
-  const isOn = () => state.skin === SKIN_ON;
+  const isOn = () => state.skin !== 'classic';
+
+  // Satu <link> gaya + satu <link> huruf, diganti saat skin berubah.
+  function loadSkinAssets() {
+    const head = document.head || root;
+    for (const id of ['maxiSkinCss', 'maxiSkinFont']) {
+      const old = document.getElementById(id);
+      if (old && old.dataset.skin !== state.skin) old.remove();
+    }
+    if (!isOn() || document.getElementById('maxiSkinCss')) return;
+    const font = document.createElement('link');
+    font.id = 'maxiSkinFont';
+    font.rel = 'stylesheet';
+    font.dataset.skin = state.skin;
+    font.href = `https://fonts.googleapis.com/css2?${SKIN_FONTS[state.skin]}&display=swap`;
+    const css = document.createElement('link');
+    css.id = 'maxiSkinCss';
+    css.rel = 'stylesheet';
+    css.dataset.skin = state.skin;
+    css.href = `/skin-${state.skin}.css?v=${SKIN_ASSET_VERSION}`;
+    head.appendChild(font);
+    head.appendChild(css);
+  }
+
+  function setRootSkin() {
+    if (isOn()) root.dataset.skin = state.skin;
+    else delete root.dataset.skin;
+    loadSkinAssets();
+  }
 
   function injectStyle() {
     if (document.getElementById('maxiUiSkinStyle')) return;
     const style = document.createElement('style');
     style.id = 'maxiUiSkinStyle';
-    style.textContent = 'html[data-skin="siap-jual"] [data-skin-hide]{display:none!important}'
-      + 'html:not([data-skin="siap-jual"]) [data-skin-only]{display:none!important}';
+    style.textContent = 'html[data-skin] [data-skin-hide]{display:none!important}'
+      + 'html:not([data-skin]) [data-skin-only]{display:none!important}';
     (document.head || root).appendChild(style);
   }
 
@@ -77,8 +108,7 @@
 
   function apply() {
     injectStyle();
-    if (isOn()) root.dataset.skin = SKIN_ON;
-    else delete root.dataset.skin;
+    setRootSkin();
     // Merek berlaku untuk semua tenant (bukan bagian saklar skin).
     document.title = state.brandName
       ? originalTitle.replace(/\bMAXI\b/, state.brandName)
@@ -88,7 +118,7 @@
 
   function setState(next, ctx) {
     const changed = next.skin !== state.skin || next.brandName !== state.brandName;
-    state = { skin: next.skin === SKIN_ON ? SKIN_ON : 'classic', brandName: next.brandName || null };
+    state = { skin: normalizeSkin(next.skin), brandName: next.brandName || null };
     if (ctx) write(CACHE_PREFIX + ctx.key, JSON.stringify(state));
     apply();
     if (changed) window.dispatchEvent(new CustomEvent('maxi-skin-change', { detail: { ...state } }));
@@ -109,13 +139,14 @@
   if (initialCtx) {
     try {
       const cached = JSON.parse(read(CACHE_PREFIX + initialCtx.key) || 'null');
-      if (cached) state = { skin: cached.skin === SKIN_ON ? SKIN_ON : 'classic', brandName: cached.brandName || null };
+      if (cached) state = { skin: normalizeSkin(cached.skin), brandName: cached.brandName || null };
     } catch {}
   }
-  if (isOn()) root.dataset.skin = SKIN_ON;
+  setRootSkin();
 
   window.MaxiSkin = {
     isOn,
+    skin: () => state.skin,
     brand: () => state.brandName,
     pick: (classicValue, skinValue) => (isOn() ? skinValue : classicValue),
     apply: scope => applyDom(scope || document),

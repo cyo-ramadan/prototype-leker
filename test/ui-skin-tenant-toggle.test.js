@@ -4,7 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleUiProfileApi, PRODUCT_BRAND_NAME } from '../src/ui-profile.js';
 import { readdirSync as listDir } from 'node:fs';
-import { UI_SKIN_SIAP_JUAL_KEY, listTenantPolicySettings, setTenantPolicySetting } from '../src/tenant-policy.js';
+import { UI_SKIN_KEY, listTenantPolicySettings, setTenantPolicySetting } from '../src/tenant-policy.js';
+import { handleOwnerApi, hashCredential } from '../src/owner-auth.js';
 
 const migrationDir = new URL('../migrations/', import.meta.url);
 
@@ -35,7 +36,7 @@ async function profile(env, query) {
   return response.json();
 }
 
-test('migration 0132 creates the Lab Tampilan tenant with one store, an owner login, and the skin switched ON', () => {
+test('migration 0132/0133 creates the Lab Tampilan tenant with one store, an owner login, and skin A only for Lab', () => {
   const db = migratedDatabase();
   try {
     assert.equal(db.prepare(`SELECT name FROM tenants WHERE id = 'TEN-LAB-TAMPILAN'`).get()?.name, 'Lab Tampilan');
@@ -46,49 +47,70 @@ test('migration 0132 creates the Lab Tampilan tenant with one store, an owner lo
     `).get();
     assert.equal(store?.tenant_id, 'TEN-LAB-TAMPILAN');
     assert.equal(db.prepare(`SELECT entity_id FROM entity_admins WHERE username = 'lab_pemilik'`).get()?.entity_id, 'ENT-LAB-TAMPILAN');
-    const setting = db.prepare(`SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = 'TEN-LAB-TAMPILAN' AND setting_key = ?`).get(UI_SKIN_SIAP_JUAL_KEY);
-    assert.equal(setting?.setting_value, '1');
-    // Tidak ada tenant lain yang ikut dinyalakan.
-    assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM tenant_policy_settings WHERE setting_key = ?`).get(UI_SKIN_SIAP_JUAL_KEY).n, 1);
+    const setting = db.prepare(`SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = 'TEN-LAB-TAMPILAN' AND setting_key = ?`).get(UI_SKIN_KEY);
+    assert.equal(setting?.setting_value, 'A');
+    // Tidak ada tenant lain yang ikut berubah tampilan.
+    assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM tenant_policy_settings WHERE setting_key = ?`).get(UI_SKIN_KEY).n, 1);
   } finally {
     db.close();
   }
 });
 
-test('ui-profile: Lab store gets the new skin; Leker store stays classic; toggling the tenant switch flips it', async () => {
+test('ui-profile follows the tenant choice 0/A/B/C; other tenants stay on 0 (tampilan sekarang)', async () => {
   const db = migratedDatabase();
   try {
     const env = { DB: new D1Database(db) };
-    assert.deepEqual(await profile(env, 'store=LAB01'), { skin: 'siap-jual', brandName: PRODUCT_BRAND_NAME });
-    // Merek satu untuk semua tenant (universal, bukan khusus Leker).
+    assert.deepEqual(await profile(env, 'store=LAB01'), { skin: 'a', brandName: PRODUCT_BRAND_NAME });
     assert.deepEqual(await profile(env, 'store=G001'), { skin: 'classic', brandName: PRODUCT_BRAND_NAME });
-    assert.deepEqual(await profile(env, 'entity=ENT-LAB-TAMPILAN'), { skin: 'siap-jual', brandName: PRODUCT_BRAND_NAME });
+    assert.deepEqual(await profile(env, 'entity=ENT-LAB-TAMPILAN'), { skin: 'a', brandName: PRODUCT_BRAND_NAME });
     assert.deepEqual(await profile(env, ''), { skin: 'classic', brandName: PRODUCT_BRAND_NAME });
 
-    await setTenantPolicySetting(env.DB, 'TEN-LAB-TAMPILAN', UI_SKIN_SIAP_JUAL_KEY, false, { role: 'OWNER', id: 'test' });
+    for (const [choice, skin] of [['B', 'b'], ['C', 'c'], ['0', 'classic'], ['A', 'a']]) {
+      await setTenantPolicySetting(env.DB, 'TEN-LAB-TAMPILAN', UI_SKIN_KEY, choice, { role: 'OWNER', id: 'test' });
+      assert.equal((await profile(env, 'store=LAB01')).skin, skin, `pilihan ${choice}`);
+    }
+    // Nilai asing tidak pernah tersimpan sebagai skin.
+    await setTenantPolicySetting(env.DB, 'TEN-LAB-TAMPILAN', UI_SKIN_KEY, 'Z', { role: 'OWNER', id: 'test' });
     assert.equal((await profile(env, 'store=LAB01')).skin, 'classic');
-
-    const lekerTenant = db.prepare(`
-      SELECT et.tenant_id FROM stores s JOIN entity_tenancy et ON et.entity_id = s.entity_id AND et.effective_to IS NULL
-      WHERE s.code = 'G001'
-    `).get().tenant_id;
-    await setTenantPolicySetting(env.DB, lekerTenant, UI_SKIN_SIAP_JUAL_KEY, true, { role: 'OWNER', id: 'test' });
-    assert.equal((await profile(env, 'store=G001')).skin, 'siap-jual');
+    assert.equal((await profile(env, 'store=G001')).skin, 'classic');
   } finally {
     db.close();
   }
 });
 
-test('the switch shows up in the Owner tenant policy panel and defaults OFF for existing tenants', async () => {
+test('Owner panel lists the skin choice (default 0) and rejects unknown options', async () => {
   const db = migratedDatabase();
   try {
     const env = { DB: new D1Database(db) };
     const leker = await listTenantPolicySettings(env.DB, 'TEN-PROTOTYPE');
-    assert.equal(leker.find(item => item.key === UI_SKIN_SIAP_JUAL_KEY)?.value, false);
-    const lab = await listTenantPolicySettings(env.DB, 'TEN-LAB-TAMPILAN');
-    assert.equal(lab.find(item => item.key === UI_SKIN_SIAP_JUAL_KEY)?.value, true);
+    const skin = leker.find(item => item.key === UI_SKIN_KEY);
+    assert.equal(skin?.type, 'choice');
+    assert.equal(skin?.value, '0');
+    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C']);
+
+    const owner = db.prepare('SELECT id FROM owner_accounts ORDER BY id LIMIT 1').get();
+    db.prepare(`INSERT INTO owner_sessions (token_hash, owner_id, created_at, expires_at) VALUES (?, ?, '2026-10-01T00:00:00Z', '2099-01-01T00:00:00Z')`)
+      .run(await hashCredential('skin-owner-token'), owner.id);
+    const patch = value => handleOwnerApi(new Request('https://example.test/api/owner/tenants/TEN-PROTOTYPE/policy-settings', {
+      method: 'PATCH', headers: { Authorization: 'Bearer skin-owner-token', 'Content-Type': 'application/json' }, body: JSON.stringify({ key: UI_SKIN_KEY, value })
+    }), env, '/api/owner/tenants/TEN-PROTOTYPE/policy-settings');
+    assert.equal((await patch('X')).status, 400);
+    const ok = await patch('B');
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).settings.find(item => item.key === UI_SKIN_KEY).value, 'B');
   } finally {
     db.close();
+  }
+});
+
+test('three skin stylesheets exist and only apply under their own html[data-skin]', () => {
+  for (const code of ['a', 'b', 'c']) {
+    const css = readFileSync(new URL(`../public/skin-${code}.css`, import.meta.url), 'utf8');
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(rule => rule.trim()).filter(Boolean);
+    for (const rule of rules) {
+      const selectors = rule.split('{')[0].split(',').map(part => part.trim()).filter(Boolean);
+      for (const selector of selectors) assert.ok(selector.startsWith(`html[data-skin="${code}"]`), `skin-${code}.css: selector bocor ke tenant lain: ${selector}`);
+    }
   }
 });
 

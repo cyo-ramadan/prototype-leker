@@ -193,10 +193,29 @@ hapus → pemilik Setujui/Tolak dari HP, (3) foto absen + lokasi sebagai "bukti 
 pemilik (bukan HPP/permit/saldo kas); warna = status; navigasi di jangkauan jempol (4 tujuan:
 Ringkasan, Persetujuan, Karyawan, Laporan); minus tetap tampil.
 
-Tiga calon skin, menunggu pilihan Bos Cyo: **A Tenang** (hijau landing page, kartu rapi),
-**B Papan Siaga** (gelap, angka besar, tabel semua gerai), **C Kabar Gerai** (kejadian gerai
-sebagai pesan ala WhatsApp dengan tombol keputusan). Skin terpilih dibangun **hanya** di
-belakang saklar `ui_skin_siap_jual` (tenant Lab), dicoba di HP sungguhan, didemokan ke 1–2
-pemilik, baru dinyalakan untuk semua tenant.
+Tiga calon skin: **A Tenang** (hijau landing page, kartu rapi), **B Papan Siaga** (atas
+grafit, sudut tegas, huruf rapat & angka besar), **C Kabar Gerai** (atas hijau toska ala WhatsApp,
+kartu berbentuk gelembung).
+
+**2026-10-01, Bos Cyo: "bikin aja ketiga2nya. nanti ada tombol a b dan c dan 0. 0 itu yang
+skr."** Sudah dibangun:
+- Saklar ON/OFF diganti pilihan kebijakan tenant `ui_skin` = `0`/`A`/`B`/`C` (Owner Console →
+  Tenant → Kebijakan → "Tampilan (skin)"). Default `0` untuk semua tenant; Lab mulai di `A`
+  (migration 0133). Baris lama `ui_skin_siap_jual` dari 0132 tidak dibaca lagi.
+- `/api/ui-profile` menjawab `skin: classic|a|b|c`; `public/ui-skin.js` memasang
+  `<html data-skin="a|b|c">`, memuat `/skin-<kode>.css` + hurufnya (Plus Jakarta Sans / Archivo /
+  Nunito). Pilihan `0` tidak memuat apa pun.
+- `public/skin-a.css`, `skin-b.css`, `skin-c.css` dibangkitkan dari **satu kerangka selektor yang
+  sama** (beda hanya token + sedikit aturan khas) — menimpa topbar, merek, tombol, tab, kartu,
+  isian, kartu menu, laci, keranjang, hero pelanggan. Tes menolak selektor yang bocor keluar
+  `html[data-skin="<kode>"]`.
+- Dicek di layar 390 px lewat server lokal: halaman pelanggan, Workspace Gerai, kasir (layar
+  presensi), Owner Console pemilih skin.
+
+**Batasnya (jujur):** ini lapisan *tampilan* di atas layar yang ada — warna, huruf, bentuk. Bagian
+mockup yang butuh layar baru belum ada di skin mana pun: Ringkasan Pemilik (T3, berlaku untuk semua
+tenant), umpan "Kabar" ala chat (C), tabel status semua gerai (B), dan navigasi 4 tujuan di bawah
+layar. B sengaja tidak gelap penuh: banyak kartu lama berwarna putih tertanam di kode, jadi latar
+gelap penuh akan meninggalkan pulau putih; gelapnya ada di bagian atas/tombol utama.
 
 <!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

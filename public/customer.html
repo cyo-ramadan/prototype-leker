@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="/auth-entry-split.css" />
   <style>
     /* Skin per tenant (public/ui-skin.js): versi baru disembunyikan sampai skin ON. */
-    html:not([data-skin="siap-jual"]) [data-skin-only]{display:none!important}
-    html[data-skin="siap-jual"] [data-skin-hide]{display:none!important}
+    html:not([data-skin]) [data-skin-only]{display:none!important}
+    html[data-skin] [data-skin-hide]{display:none!important}
     .game-handle{position:fixed;z-index:65;right:0;top:calc(47% - 82px);transform:translateY(-50%);width:54px;height:60px;border:1px solid #d8c7b2;border-right:0;border-radius:18px 0 0 18px;background:rgba(255,255,255,.96);box-shadow:-8px 10px 24px rgba(64,45,25,.12);color:var(--brand-2);text-decoration:none;display:grid;place-items:center;align-content:center;gap:2px;transition:transform .2s ease,opacity .18s ease,background .18s ease}
     .game-handle:hover{background:#fff4e8;transform:translate(-2px,-50%)}
     .game-handle:focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
@@ -87,7 +87,7 @@
   </section>
 </div>
 <script src="/store-context.js?v=20260828-admin-context-fix-v1"></script>
-<script src="/ui-skin.js?v=20261001-siap-jual-v3"></script>
+<script src="/ui-skin.js?v=20261001-skin-abc-v1"></script>
 <script src="/customer-store-select.js?v=20260913-master-visual-v2"></script>
 <script src="/customer-login.js?v=20261001-siap-jual-v3"></script>
 <script src="/auth-entry-split.js?v=20260922-randomuuid-fallback-v1"></script>

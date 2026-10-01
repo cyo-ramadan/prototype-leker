@@ -26,9 +26,12 @@ Konteks strategi lengkap: `HANDOFF-STRATEGI-PENJUALAN.md` (baca §1, §4, §5, �
 
 ## 1. Sasaran pembeli (supaya keputusan UI konsisten)
 
-- **Utama**: pemilik **3–10 gerai minuman/booth kecil**, 1–2 karyawan per gerai, pemilik
+- **Koreksi Bos Cyo 2026-10-01: "targetnya fnb ya, bukan cuma leker".** Sasaran = pemilik usaha
+  **F&B** secara umum (kedai kopi, warung/rumah makan kecil, bakery, booth minuman, jajanan),
+  bukan hanya Leker atau booth minuman. Teks, contoh isian, dan data demo harus umum F&B.
+- **Utama**: pemilik **3–10 gerai F&B kecil** (semula ditulis "minuman/booth"), 1–2 karyawan per gerai, pemilik
   jarang di lokasi, akrab HP dan WhatsApp, **tidak paham akuntansi**.
-- **Pengali**: pemilik usaha kemitraan/franchise minuman (satu deal = banyak gerai mitra).
+- **Pengali**: pemilik usaha kemitraan/franchise F&B (satu deal = banyak gerai mitra).
 - Pesan jual: **"Gerai jalan, kas jujur, karyawan terpantau — tanpa Anda harus datang."**
 - Paket yang dijual dulu: **Paket Kontrol Gerai** (kasir, laci, presensi foto+GPS, permit
   ACC pemilik, stok+HPP dari resep, untung-rugi sederhana, gaji dari presensi, laporan
@@ -185,7 +188,7 @@ dipilih dulu di satu tenant laboratorium, baru diterapkan ke semua.
 
 ## 8. Desain "jualan" (khusus tenant Lab, belum untuk umum)
 
-Disusun 2026-10-01 dari sudut pandang penjual: pembeli = pemilik 3–10 booth minuman yang
+Disusun 2026-10-01 dari sudut pandang penjual: pembeli = pemilik 3–10 gerai F&B (kopi, makanan, minuman, bakery) yang
 jarang di lokasi; takutnya kas kurang, titip absen, struk dihapus, bahan bocor, hitung gaji.
 Empat momen yang memenangkan demo: (1) Ringkasan semua gerai < 30 detik, (2) kasir minta
 hapus → pemilik Setujui/Tolak dari HP, (3) foto absen + lokasi sebagai "bukti kerja jujur",

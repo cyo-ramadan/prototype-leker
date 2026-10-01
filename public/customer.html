@@ -70,7 +70,7 @@
     <div id="cartList" class="cart-list"></div>
     <div class="field"><label>Nama customer</label><input id="customerName" class="text-input" placeholder="Contoh: Ciyo" maxlength="60" /></div>
     <input id="tableLabel" type="hidden" value="" />
-    <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: kurangi gula untuk semua pesanan"></textarea></div>
+    <div class="field"><label>Catatan umum</label><textarea id="generalNote" rows="2" placeholder="Contoh: tidak pedas, es dipisah"></textarea></div>
     <div class="total-row"><span>Total</span><strong id="cartTotal">Rp0</strong></div>
     <div class="checkout-note">Kalau login, nama order dan Customer ID otomatis mengikuti akun pelanggan dan tidak bisa diganti. Guest bebas mengisi nama.</div>
     <button id="checkoutBtn" class="primary-btn" disabled>FIX PESANAN · KIRIM KE KASIR</button>
@@ -92,7 +92,7 @@
 <script src="/customer-login.js?v=20261001-siap-jual-v3"></script>
 <script src="/auth-entry-split.js?v=20260922-randomuuid-fallback-v1"></script>
 <script src="/menu-category-filter.js?v=20260915-subkategori-v1"></script>
-<script src="/customer.js?v=20261001-siap-jual-v3"></script>
+<script src="/customer.js?v=20261001-fnb-v1"></script>
 <script>
   // Customer menu stays focused on ordering. The legacy inline Roda renderer
   // remains in customer.js for compatibility tests, but this entry point turns

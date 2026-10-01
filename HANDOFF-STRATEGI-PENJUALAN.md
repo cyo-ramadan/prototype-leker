@@ -240,6 +240,7 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Posisi**: bukan "aplikasi kasir", melainkan *sistem kontrol gerai* — "Gerai jalan, kas
   jujur, karyawan terpantau — tanpa Anda harus datang."
 - **Segmen pertama**: pemilik 3–10 gerai minuman/booth; pengali: pemilik kemitraan/franchise.
+  *Koreksi Bos Cyo 2026-10-01 (lewat sesi UI/UX): "targetnya fnb ya, bukan cuma leker" — segmen = gerai **F&B** umum (kopi, makanan, minuman, bakery, warung), Leker hanya bukti pemakaian.*
 - **Paket pertama — Paket Kontrol Gerai**: kasir+laci, presensi foto+GPS+radius, permit ACC
   pemilik, stok+HPP dari resep, untung-rugi sederhana, gaji dari presensi, laporan
   presensi/permit, multi-gerai. Pembukuan lengkap = paket naik kelas.

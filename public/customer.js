@@ -419,7 +419,7 @@ function showStatus(order) {
   if (order.status === 'NEW') {
     el('statusIcon').textContent = '🧾';
     el('statusTitle').textContent = 'Pesanan diterima';
-    el('statusText').textContent = 'Kasir sudah menerima order. Customer boleh meninggalkan booth sementara.';
+    el('statusText').textContent = 'Kasir sudah menerima order. Pesanan Anda sedang disiapkan.';
   }
   if (order.status === 'PREPARING') {
     el('stepPrep').classList.add('active');

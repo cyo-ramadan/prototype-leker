@@ -325,7 +325,11 @@ async function handleApi(request, env, url) {
   if (announcementResponse) return announcementResponse;
   const dailyTaskResponse = await handleStaffDailyTaskApi(request, env, pathname);
   if (dailyTaskResponse) return dailyTaskResponse;
-  const cacaResponse = await handleCacaApi(request, env, pathname);
+  // Una menulis lewat pintu masuk ini juga (bukan handler modul langsung),
+  // supaya pembungkus seperti jembatan Akuntansi ikut berlaku.
+  const cacaResponse = await handleCacaApi(request, env, pathname, {
+    jalurUtama: (permintaan) => handleApi(permintaan, env, new URL(permintaan.url))
+  });
   if (cacaResponse) return cacaResponse;
   if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);
   const cashierAuthResponse = await handleCashierAuthApi(request, env, pathname);

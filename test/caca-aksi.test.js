@@ -37,7 +37,7 @@ function jalurPalsu({ bootstrap = BOOTSTRAP, resep = { recipes: [] }, akun = AKU
     baca: async (path) => {
       if (path === '/api/admin/manufacturing/bootstrap') return { ok: true, data: bootstrap };
       if (path === '/api/admin/manufacturing/recipes') return { ok: true, data: resep };
-      if (path === '/api/entity-admin/accounts') return { ok: true, data: akun };
+      if (path === '/api/entity-admin/accounts' || path === '/api/admin/accounting/accounts') return { ok: true, data: akun };
       return { ok: false, error: `jalur tidak dikenal: ${path}` };
     },
     kirim: async (method, path, body) => {
@@ -216,16 +216,42 @@ test('agen: perintah tulis berhenti di draft, tidak ada yang terkirim', async ()
   assert.equal(jalur.terkirim.length, 0);
 });
 
-test('agen: jurnal di lingkup gerai diarahkan ke mode entity, dan sebaliknya', async () => {
-  const diGerai = await draftDariAgen('jurnal', { alat: 'buat_jurnal' }, KONTEKS_GERAI, jalurPalsu());
-  assert.match(diGerai.jawaban, /semua gerai/);
-  assert.equal(diGerai.draft, undefined);
+test('agen: jurnal ikut buku yang dibuka; barang tetap per gerai', async () => {
+  const baris = [{ akun: 'Kas', sisi: 'debit', nominal: '1rb' }, { akun: 'Modal Pemilik', sisi: 'kredit', nominal: '1rb' }];
+  const jalur = jalurPalsu();
+  const diGerai = await draftDariAgen('jurnal', { alat: 'buat_jurnal', jurnal_keterangan: 'x', jurnal_baris: baris }, KONTEKS_GERAI, jalur);
+  assert.equal(diGerai.draft.buku, 'gerai');
+  assert.match(diGerai.draft.dampak[0], /buku gerai Leker Beji/);
 
-  const diEntity = await draftDariAgen('bikin barang', { alat: 'buat_barang' }, KONTEKS_ENTITY, jalurPalsu());
-  assert.match(diEntity.jawaban, /per gerai/);
+  const diEntity = await draftDariAgen('jurnal', { alat: 'buat_jurnal', jurnal_keterangan: 'x', jurnal_baris: baris }, KONTEKS_ENTITY, jalurPalsu());
+  assert.equal(diEntity.draft.buku, 'entity');
+
+  const barangDiEntity = await draftDariAgen('bikin barang', { alat: 'buat_barang' }, KONTEKS_ENTITY, jalurPalsu());
+  assert.match(barangDiEntity.jawaban, /per gerai/);
 
   const bacaDiEntity = await draftDariAgen('untung?', { alat: 'laba_periode', periode: 'hari_ini' }, KONTEKS_ENTITY, jalurPalsu());
   assert.match(bacaDiEntity.jawaban, /baru bisa membuat jurnal/);
+});
+
+test('jurnal gerai diposting ke buku gerai, jurnal entity ke buku entity', async () => {
+  const baris = [{ akun: 'Kas', sisi: 'debit', nominal: '1rb' }, { akun: 'Modal Pemilik', sisi: 'kredit', nominal: '1rb' }];
+  for (const [konteks, tujuan] of [[KONTEKS_GERAI, '/api/admin/accounting/journals'], [KONTEKS_ENTITY, '/api/entity-admin/journals']]) {
+    const jalur = jalurPalsu();
+    const { draft } = await draftDariAgen('jurnal', { alat: 'buat_jurnal', jurnal_keterangan: 'x', jurnal_baris: baris }, konteks, jalur);
+    const diperiksa = await periksaUlangDraft(draft, { ...jalur, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup });
+    assert.equal(diperiksa.ok, true);
+    await diperiksa.aksi.posting(diperiksa.draft, jalur);
+    assert.equal(jalur.terkirim[0].path, tujuan);
+  }
+});
+
+test('akun Penyesuaian milik sistem tidak bisa dipilih lewat chat', async () => {
+  const akun = { accounts: [...AKUN.accounts, { accountId: 'acc_adj', accountCode: '3-999', accountName: 'Penyesuaian', isActive: true, isSystemManaged: true }] };
+  const hasil = await cariAksi('buat_jurnal').siapkan({
+    jurnal_keterangan: 'x',
+    jurnal_baris: [{ akun: 'Penyesuaian', sisi: 'debit', nominal: '1rb' }, { akun: 'Kas', sisi: 'kredit', nominal: '1rb' }]
+  }, jalurPalsu({ akun }));
+  assert.equal(hasil.ok, false);
 });
 
 test('konfirmasi: draft yang sama persis diposting, dengan referensi yang sama', async () => {
@@ -235,7 +261,7 @@ test('konfirmasi: draft yang sama persis diposting, dengan referensi yang sama',
     jurnal_baris: [{ akun: 'Kas', sisi: 'debit', nominal: '5jt' }, { akun: 'Modal Pemilik', sisi: 'kredit', nominal: '5jt' }]
   }, KONTEKS_ENTITY, jalur);
 
-  const diperiksa = await periksaUlangDraft(draft, { ...jalur, namaLingkup: KONTEKS_ENTITY.namaLingkup });
+  const diperiksa = await periksaUlangDraft(draft, { ...jalur, namaLingkup: KONTEKS_ENTITY.namaLingkup, lingkup: 'entity' });
   assert.equal(diperiksa.ok, true);
   assert.equal(diperiksa.draft.muatan.sourceReferenceId, draft.muatan.sourceReferenceId);
 
@@ -270,24 +296,29 @@ test('konfirmasi: data master berubah sejak draft dibuat → diminta draft ulang
 
 // --- pintu ------------------------------------------------------------------
 
-test('pintu aksi: gerai dari sesi, kredensial penyuruh diteruskan, jalur lain ditolak', async () => {
+test('pintu aksi: lewat jalur utama, gerai dari sesi, kredensial diteruskan, jalur lain ditolak', async () => {
   const diterima = [];
-  const pintu = [['/api/admin/manufacturing/', async (req) => {
+  const jalurUtama = async (req) => {
     diterima.push(req);
     return new Response(JSON.stringify({ ok: true }), { status: 201 });
-  }]];
+  };
   const request = new Request('https://leker.test/api/caca/catat?store=G002', {
     method: 'POST', headers: { authorization: 'Bearer rahasia', 'content-type': 'application/json' }, body: '{}'
   });
-  const jalur = bangunJalurAksi(request, {}, { storeCode: 'G002', pintu });
+  const jalur = bangunJalurAksi(request, {}, { storeCode: 'G002', jalurUtama });
 
   const hasil = await jalur.kirim('POST', '/api/admin/manufacturing/recipes', { a: 1 });
   assert.equal(hasil.ok, true);
   const url = new URL(diterima[0].url);
+  assert.equal(url.pathname, '/api/admin/manufacturing/recipes');
   assert.equal(url.searchParams.get('store'), 'G002');
   assert.equal(diterima[0].headers.get('authorization'), 'Bearer rahasia');
   assert.deepEqual(await diterima[0].json(), { a: 1 });
 
-  const liar = await jalur.kirim('POST', '/api/admin/stores/hapus', {});
-  assert.equal(liar.ok, false);
+  // Bukan pintu yang terdaftar: tidak pernah sampai ke jalur utama.
+  for (const liar of ['/api/admin/stores/hapus', '/api/cashier/sales', '/api/caca/catat', '/api/admin/hutang-piutangX']) {
+    const ditolak = await jalur.kirim('POST', liar, {});
+    assert.equal(ditolak.ok, false, liar);
+  }
+  assert.equal(diterima.length, 1);
 });

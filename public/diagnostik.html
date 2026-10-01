@@ -22,7 +22,21 @@
   <h1>Diagnosis Browser</h1>
   <p>Halaman ini hanya memeriksa browser di HP ini. Tidak ada kata sandi atau data akun yang dikirim atau ditampilkan.</p>
   <div class="aksi"><button id="muatUlang" type="button">Muat ulang</button><button id="salin" type="button">Salin hasil</button></div>
-  <div id="hasil">Butuh JavaScript untuk menjalankan pemeriksaan ini.</div>
-  <script src="/diagnostik.js"></script>
+  <div id="hasil">JavaScript tidak berjalan di browser ini, jadi pemeriksaan tidak bisa dimulai. Cek: Setelan situs > JavaScript di browser, atau matikan aplikasi pemblokir iklan/VPN lalu muat ulang.</div>
+  <script>
+    // Skrip di dalam halaman ini jalan hanya kalau JavaScript hidup. File
+    // pemeriksaan dimuat dari sini supaya kegagalan mengambilnya (diblokir
+    // jaringan/filter) bisa dibedakan dari JavaScript yang mati sama sekali.
+    (function () {
+      var hasil = document.getElementById('hasil');
+      hasil.textContent = 'JavaScript di dalam halaman ini jalan. Memuat file pemeriksaan...';
+      var script = document.createElement('script');
+      script.src = '/diagnostik.js';
+      script.onerror = function () {
+        hasil.textContent = 'JavaScript hidup, tetapi file pemeriksaan /diagnostik.js gagal diambil. Kemungkinan diblokir aplikasi/filter di HP atau jaringan.';
+      };
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>

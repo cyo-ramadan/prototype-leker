@@ -61,6 +61,17 @@ panel sengaja tidak mengirim apa pun ke server dalam mode itu, karena tanpa
 `?store=` server jatuh ke gerai bawaan dan menjawab untuk gerai yang salah.
 Alat tingkat entity menyusul — tinggal menyambung di `cacaGeraiAktif()`.
 
+**Nama tampil: Maimunah, menyebut diri "Una"** (keputusan Bos Cyo 2026-10-01).
+Nama kode, file, endpoint `/api/caca/*`, dan kunci penyimpanan tetap `caca` —
+yang diganti hanya yang terlihat orang dan identitas di prompt model. Jangan
+mengganti nama file demi konsistensi; itu churn tanpa manfaat bagi pemakai.
+
+**Una ikut ke workspace gerai** (`/s/:kode/admin`, `branch-admin.html`) untuk
+Entity Admin. Kerangka panel dipasang `public/caca-chat.js` sendiri. Percakapan
+disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
+login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
+baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
+
 **Alat tulis tahap kedua (2026-09-30): barang baru, resep baru, jurnal
 entity** — di `src/caca-aksi.js`, pola sama dengan catat pengeluaran: satu
 panggilan AI untuk menangkap kalimat, sisanya kode. Yang perlu diketahui:

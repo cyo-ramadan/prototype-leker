@@ -188,58 +188,15 @@
       </section>
     </section>
   </main>
-  <!-- Caca sengaja DI LUAR sistem tab: dia teman kerja yang ikut ke mana pun
-       Bos Cyo pindah, bukan satu halaman yang harus dibuka. Selama masih login
-       Entity Admin, tombolnya tetap ada. -->
-  <button id="cacaFab" class="caca-fab hidden" type="button" aria-expanded="false" aria-controls="cacaPanel" title="Tanya Caca">
-    <span class="caca-fab-ikon" aria-hidden="true">C</span>
-    <span class="caca-fab-teks">Caca</span>
-  </button>
-
-  <!-- Satu ruang chat, meniru WhatsApp: baca rekap bukan tombol terpisah lagi,
-       cukup kirim fotonya lewat tombol + di samping kotak ketik. Judulnya gerai
-       yang sedang dibahas, bukan nama Caca — itu yang menentukan data mana
-       yang dilihat. -->
-  <div id="cacaPanel" class="caca-melayang hidden" role="dialog" aria-label="Caca" aria-modal="false">
-    <div class="caca-kepala">
-      <span class="caca-avatar" aria-hidden="true">C</span>
-      <div class="caca-kepala-teks">
-        <button id="cacaPilihGerai" class="caca-judul" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="cacaDaftarGerai">
-          <span id="cacaJudulGerai">Memuat gerai…</span>
-          <span class="caca-panah" aria-hidden="true">▾</span>
-        </button>
-        <div class="caca-subjudul" id="cacaStatus">Memuat…</div>
-      </div>
-      <button id="cacaTutup" class="caca-ikon-btn" type="button" aria-label="Tutup Caca">✕</button>
-      <ul id="cacaDaftarGerai" class="caca-daftar-gerai hidden" role="listbox" aria-label="Pilih gerai yang dibahas"></ul>
-    </div>
-
-    <div id="cacaPercakapan" class="caca-percakapan" aria-live="polite"></div>
-
-    <div id="cacaLampiran" class="caca-lampiran hidden">
-      <img id="cacaLampiranGambar" alt="Foto yang akan dikirim" />
-      <div class="caca-lampiran-teks">
-        <strong>Foto lembar rekap</strong>
-        <span id="cacaLampiranNama"></span>
-      </div>
-      <button id="cacaLampiranBuang" class="caca-ikon-btn" type="button" aria-label="Batal kirim foto">✕</button>
-    </div>
-
-    <form id="cacaTanyaForm" class="caca-ketik">
-      <button id="cacaLampirkan" class="caca-ikon-btn caca-tambah" type="button" aria-label="Kirim foto lembar rekap" title="Kirim foto lembar rekap">+</button>
-      <input id="cacaGambar" type="file" accept="image/*" hidden />
-      <input id="cacaPertanyaan" maxlength="500" placeholder="Ketik pesan" autocomplete="off" />
-      <button id="cacaTanyaKirim" class="caca-kirim" type="submit" aria-label="Kirim" disabled>
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg>
-      </button>
-    </form>
-  </div>
+  <!-- Una (Maimunah, dulu "Caca") sengaja DI LUAR sistem tab: kerangka
+       tombol dan panelnya dipasang public/caca-chat.js sendiri, supaya panel
+       yang sama bisa ikut ke workspace gerai (branch-admin.html). -->
 
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<link rel="stylesheet" href="/caca-chat.css?v=20260930-chat-ala-wa-v1" />
-<script src="/caca-chat.js?v=20260930-caca-aksi-v1"></script>
-<script src="/entity-admin.js?v=20260929-caca-melayang-v1"></script>
+<link rel="stylesheet" href="/caca-chat.css?v=20261001-una-v1" />
+<script src="/caca-chat.js?v=20261001-una-v1"></script>
+<script src="/entity-admin.js?v=20261001-una-lupakan-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

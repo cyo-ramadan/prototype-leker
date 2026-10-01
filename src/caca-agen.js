@@ -66,7 +66,7 @@ function kalimatKonteks(konteks) {
 function promptPilihAlat(konteks) {
   const diGerai = konteks.lingkup !== 'entity';
   return [
-    'Kamu Caca, asisten toko. Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok',
+    'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok',
     'untuk perintah atau pertanyaan, lalu menyalin isinya jadi data.',
     '',
     kalimatKonteks(konteks),
@@ -94,7 +94,7 @@ function promptPilihAlat(konteks) {
 
 function promptSusunJawaban(konteks) {
   return [
-    'Kamu Caca, asisten toko. Susun jawaban singkat dari data yang diberikan.',
+    'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Susun jawaban singkat dari data yang diberikan.',
     '',
     kalimatKonteks(konteks),
     '',
@@ -135,8 +135,8 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
       ok: true,
       alat: null,
       jawaban: pilihan.value?.alasan_kosong
-        ? `Caca belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
-        : 'Caca belum bisa menjawab yang itu.'
+        ? `Una belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
+        : 'Una belum bisa menjawab yang itu.'
     };
   }
 
@@ -152,7 +152,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
           : 'Yang itu dikerjakan per gerai. Pilih gerainya dulu lewat tombol ▾ di atas, lalu ulangi perintahnya.'
       };
     }
-    if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Caca belum bisa menjalankan itu dari sini.', ditolak: true };
+    if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
     const disiapkan = await aksi.siapkan(pilihan.value, { ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup });
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: disiapkan.tanya || disiapkan.error, belumLengkap: true };
@@ -168,7 +168,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
       ok: true,
       alat: namaAlat,
       belumLengkap: true,
-      jawaban: 'Di tingkat entity Caca baru bisa membuat jurnal. Untuk yang itu, pilih satu gerai dulu lewat tombol ▾ di atas.'
+      jawaban: 'Di tingkat entity Una baru bisa membuat jurnal. Untuk yang itu, pilih satu gerai dulu lewat tombol ▾ di atas.'
     };
   }
 

@@ -139,7 +139,7 @@ const barang = Object.freeze({
       ok: true,
       draft: {
         aksi: 'buat_barang',
-        judul: 'Caca mau membuat barang baru — dicek dulu ya:',
+        judul: 'Una mau membuat barang baru — dicek dulu ya:',
         baris: [
           ['Nama', nama],
           ['Kategori', kategori],
@@ -160,7 +160,7 @@ const barang = Object.freeze({
   async posting(draft, ctx) {
     const hasil = await ctx.kirim('POST', '/api/admin/master/products/editor', draft.muatan);
     if (!hasil.ok) return hasil;
-    return { ok: true, jawaban: `Sudah Caca buat: barang "${draft.muatan.name}".` };
+    return { ok: true, jawaban: `Sudah Una buat: barang "${draft.muatan.name}".` };
   }
 });
 
@@ -230,7 +230,7 @@ const resep = Object.freeze({
       ok: true,
       draft: {
         aksi: 'buat_resep',
-        judul: 'Caca mau membuat resep ini — dicek dulu ya:',
+        judul: 'Una mau membuat resep ini — dicek dulu ya:',
         baris: [
           ['Hasil', `${qtyHasil.nilai} ${satuan(hasil.nilai)} ${hasil.nilai.name}`.replace(/\s+/g, ' ')],
           ...(varian ? [['Varian', varian]] : [])
@@ -259,7 +259,7 @@ const resep = Object.freeze({
   async posting(draft, ctx) {
     const hasil = await ctx.kirim('POST', '/api/admin/manufacturing/recipes', draft.muatan);
     if (!hasil.ok) return hasil;
-    return { ok: true, jawaban: 'Sudah Caca buat resepnya.' };
+    return { ok: true, jawaban: 'Sudah Una buat resepnya.' };
   }
 });
 
@@ -332,7 +332,7 @@ const jurnal = Object.freeze({
       ok: true,
       draft: {
         aksi: 'buat_jurnal',
-        judul: 'Caca mau memposting jurnal ini — dicek dulu ya:',
+        judul: 'Una mau memposting jurnal ini — dicek dulu ya:',
         baris: [['Keterangan', keterangan], ['Tanggal', tanggal], ['Total', rupiah(debit)]],
         tabel: {
           kolom: ['Akun', 'Debit', 'Kredit'],
@@ -365,8 +365,8 @@ const jurnal = Object.freeze({
     return {
       ok: true,
       jawaban: hasil.data?.duplicate
-        ? `Jurnal ini sudah pernah diposting${nomor ? ` (${nomor})` : ''}, tidak Caca posting dua kali.`
-        : `Sudah Caca posting jurnalnya${nomor ? `: ${nomor}` : ''}.`
+        ? `Jurnal ini sudah pernah diposting${nomor ? ` (${nomor})` : ''}, tidak Una posting dua kali.`
+        : `Sudah Una posting jurnalnya${nomor ? `: ${nomor}` : ''}.`
     };
   }
 });
@@ -397,7 +397,7 @@ export async function periksaUlangDraft(draft, ctx) {
   if (!disusun.ok) return { ok: false, status: 409, error: disusun.tanya || disusun.error };
   const { tangkapan: _abaikan, ...dilihat } = draft;
   if (JSON.stringify(disusun.draft) !== JSON.stringify(dilihat)) {
-    return { ok: false, status: 409, error: 'Datanya berubah sejak draft ini dibuat. Minta Caca menyusun ulang ya.' };
+    return { ok: false, status: 409, error: 'Datanya berubah sejak draft ini dibuat. Minta Una menyusun ulang ya.' };
   }
   return { ok: true, aksi, draft: disusun.draft };
 }

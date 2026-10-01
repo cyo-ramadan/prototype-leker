@@ -109,7 +109,7 @@ export async function callStructured(env, {
   fetchImpl = fetch
 } = {}) {
   if (!terpasang(env)) {
-    return { ok: false, status: 503, error: 'Caca belum tersambung ke mesin AI. Kunci API belum dipasang.' };
+    return { ok: false, status: 503, error: 'Una belum tersambung ke mesin AI. Kunci API belum dipasang.' };
   }
 
   let response;
@@ -128,7 +128,7 @@ export async function callStructured(env, {
     return {
       ok: false,
       status: timedOut ? 504 : 502,
-      error: timedOut ? 'Caca kelamaan membaca, coba lagi ya.' : 'Caca tidak bisa menghubungi mesin AI.'
+      error: timedOut ? 'Una kelamaan membaca, coba lagi ya.' : 'Una tidak bisa menghubungi mesin AI.'
     };
   }
 
@@ -151,19 +151,19 @@ export async function callStructured(env, {
     return { ok: false, status: 502, error: 'Lembarnya terlalu panjang buat sekali baca. Coba difoto per bagian.' };
   }
   if (pilihan?.message?.refusal) {
-    return { ok: false, status: 422, error: 'Caca tidak bisa memproses permintaan ini.' };
+    return { ok: false, status: 422, error: 'Una tidak bisa memproses permintaan ini.' };
   }
 
   const teks = pilihan?.message?.content ?? '';
   if (!teks) {
-    return { ok: false, status: 502, error: 'Caca tidak berhasil membaca isinya dalam bentuk yang bisa dipakai.' };
+    return { ok: false, status: 502, error: 'Una tidak berhasil membaca isinya dalam bentuk yang bisa dipakai.' };
   }
 
   let value;
   try {
     value = JSON.parse(teks);
   } catch {
-    return { ok: false, status: 502, error: 'Hasil bacaan Caca tidak berbentuk yang bisa diolah.' };
+    return { ok: false, status: 502, error: 'Hasil bacaan Una tidak berbentuk yang bisa diolah.' };
   }
 
   return {

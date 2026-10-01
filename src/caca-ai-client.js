@@ -47,8 +47,8 @@ export async function callStructured(env, permintaan = {}) {
   if (!penyedia) {
     const diminta = String(env?.CACA_MESIN ?? '').trim();
     return diminta
-      ? { ok: false, status: 503, error: `Mesin AI "${diminta}" belum dikenal Caca.` }
-      : { ok: false, status: 503, error: 'Caca belum tersambung ke mesin AI. Kunci API belum dipasang.' };
+      ? { ok: false, status: 503, error: `Mesin AI "${diminta}" belum dikenal Una.` }
+      : { ok: false, status: 503, error: 'Una belum tersambung ke mesin AI. Kunci API belum dipasang.' };
   }
   if (!penyedia.terpasang(env)) {
     return { ok: false, status: 503, error: `Kunci ${penyedia.KUNCI_ENV} belum dipasang.` };

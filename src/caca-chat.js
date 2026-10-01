@@ -38,7 +38,7 @@ async function listStoreProducts(db, storeId) {
 
 function validateImage(gambar) {
   if (!gambar || typeof gambar !== 'object') return 'Belum ada gambar yang dikirim.';
-  if (!MEDIA_TYPES.includes(gambar.media_type)) return 'Jenis gambar ini belum bisa dibaca Caca.';
+  if (!MEDIA_TYPES.includes(gambar.media_type)) return 'Jenis gambar ini belum bisa dibaca Una.';
   const data = String(gambar.data ?? '');
   if (!data) return 'Gambarnya kosong.';
   if (data.length > MAX_IMAGE_LENGTH) return 'Gambarnya kebesaran. Coba foto ulang dengan ukuran lebih kecil.';
@@ -88,7 +88,7 @@ async function bacaRekap(request, env) {
     store: { id: store.id, code: store.code, storeName: store.storeName },
     model: hasil.model,
     hasil: periksaRekap(hasil.value, daftarBarang),
-    catatan: 'Ini baru bacaan Caca, belum tersimpan sebagai transaksi.'
+    catatan: 'Ini baru bacaan Una, belum tersimpan sebagai transaksi.'
   });
 }
 
@@ -121,7 +121,7 @@ export const PINTU_AKSI = Object.freeze([
 export function bangunJalurAksi(request, env, { storeCode = '', pintu = PINTU_AKSI } = {}) {
   async function panggil(method, pathname, body) {
     const handler = pintu.find(([awalan]) => pathname.startsWith(awalan))?.[1];
-    if (!handler) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Caca.' };
+    if (!handler) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Una.' };
 
     const url = new URL(pathname, 'https://leker.internal');
     // Gerai selalu dari sesi panel, tidak pernah dari kalimat (invariant #5).
@@ -175,7 +175,7 @@ async function lingkupPenyuruh(request, env) {
   if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
-    return { ok: false, response: json({ error: 'Caca baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
+    return { ok: false, response: json({ error: 'Una baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
   }
   return { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } };
 }
@@ -213,7 +213,7 @@ async function catatAksi(request, env, draft) {
 
   const aksi = cariAksi(draft.aksi);
   if (aksi.lingkup !== lingkup.konteks.lingkup) {
-    return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Caca menyusun ulang ya.' }, 409);
+    return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Una menyusun ulang ya.' }, 409);
   }
 
   const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode });
@@ -247,7 +247,7 @@ async function catat(request, env) {
 
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
-    return json({ error: 'Caca baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403);
+    return json({ error: 'Una baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403);
   }
 
   const body = await readJson(request);
@@ -274,7 +274,7 @@ async function catat(request, env) {
   return json({
     tercatat: true,
     draft: diperiksaUlang.draft,
-    jawaban: `Sudah Caca catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`
+    jawaban: `Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`
   });
 }
 
@@ -311,5 +311,5 @@ export async function handleCacaApi(request, env, pathname) {
     return catat(request, env);
   }
 
-  return json({ error: 'Route Caca tidak ditemukan.' }, 404);
+  return json({ error: 'Route Una tidak ditemukan.' }, 404);
 }

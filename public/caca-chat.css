@@ -617,3 +617,28 @@
   color: var(--muted);
   font-size: 0.82rem;
 }
+
+/* Draft yang dibawa dari halaman sebelumnya: tombolnya mati, karena isi draft
+   yang dipegang halaman lama tidak ikut pindah dan tidak bisa dicek ulang. */
+.caca-draft.kedaluwarsa {
+  opacity: 0.6;
+}
+
+.caca-draft-catatan {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Workspace gerai: tombol "Ganti Gerai" (52px, right 18px) memakai pojok yang
+   sama, jadi tombol Una berdiri di sebelah kirinya. */
+.caca-di-workspace .caca-fab {
+  right: 84px;
+}
+
+@media (max-width: 560px) {
+  .caca-di-workspace .caca-fab {
+    right: 80px;
+  }
+}

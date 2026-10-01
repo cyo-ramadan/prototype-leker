@@ -36,7 +36,7 @@ export function uraikanNominal(teks) {
   const [, angkaTeks, satuanTeks] = cocok;
   const satuan = satuanTeks ? cariSatuan(satuanTeks) : null;
   if (satuanTeks && !satuan) {
-    return { ok: false, tanya: `Satuan "${satuanTeks}" belum Caca kenal. Tulis nominal penuhnya ya?` };
+    return { ok: false, tanya: `Satuan "${satuanTeks}" belum Una kenal. Tulis nominal penuhnya ya?` };
   }
 
   const negatif = angkaTeks.startsWith('-');

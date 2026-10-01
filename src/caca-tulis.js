@@ -41,7 +41,7 @@ export const TANGKAP_PENGELUARAN_SCHEMA = Object.freeze({
 });
 
 export const TANGKAP_PENGELUARAN_PROMPT = [
-  'Kamu Caca, asisten toko. Tugasmu di langkah ini cuma menyalin isi perintah jadi data.',
+  'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Tugasmu di langkah ini cuma menyalin isi perintah jadi data.',
   '',
   'Aturan keras:',
   '- Salin nominal PERSIS seperti diucapkan. "22rb" ditulis "22rb", bukan 22000 dan bukan 22.',

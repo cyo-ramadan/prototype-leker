@@ -2,6 +2,7 @@ import { json } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate, jakartaWallClockToUtc } from './time.js';
+import { overRadiusMeters } from './attendance-gps.js';
 
 // Bos Cyo, 2026-10-01: "sediakan tombol untuk membaca data2 permit, bisa
 // pilih kategorinya juga, permit presensi, permit hapus penjualan, permit
@@ -9,6 +10,7 @@ import { getJakartaBusinessDate, jakartaWallClockToUtc } from './time.js';
 // karyawan requestnya." Laporan baca-saja yang menggabungkan permit dari
 // tabel-tabel yang sudah ada (tidak ada tabel baru dan tidak ada yang ditulis):
 //   - ATTENDANCE_CORRECTION  attendance_correction_permits
+//   - ATTENDANCE_GPS         attendance_gps_permits (perbaikan GPS presensi)
 //   - TRANSACTION_VOID       approval_permits (hapus penjualan/pembelian/pengeluaran)
 //   - CASH_FLOW/GOODS_FLOW/ASSET  approval_requests (uang kas, arus barang, aset)
 //   - DRAWER_CLOSE           drawer_close_permits (tutup laci sebelumnya)
@@ -37,6 +39,15 @@ const SOURCES = [
     select: `p.id, p.requested_by_cashier_id AS requester_id, c.employee_name AS requester_name, p.created_at,
              p.decided_at, p.decided_by_role, p.decision_note, p.reason, p.original_check_in_at, p.requested_check_in_at`,
     summary: row => `Jam masuk ${clock(row.original_check_in_at)} diminta jadi ${clock(row.requested_check_in_at)}`
+  },
+  {
+    code: 'ATTENDANCE_GPS', label: 'Perbaikan GPS Presensi',
+    from: 'attendance_gps_permits p JOIN cashiers c ON c.id = p.requested_by_cashier_id',
+    storeColumn: 'p.store_id', requesterColumn: 'p.requested_by_cashier_id', createdColumn: 'p.created_at',
+    statusExpr: 'p.status', baseWhere: '1 = 1',
+    select: `p.id, p.requested_by_cashier_id AS requester_id, c.employee_name AS requester_name, p.created_at,
+             p.decided_at, p.decided_by_role, p.decision_note, p.reason, p.which, p.original_status, p.original_distance_m`,
+    summary: row => `GPS presensi ${row.which === 'OUT' ? 'pulang' : 'masuk'}: ${row.original_status === 'OUT_OF_RADIUS' ? `melebihi batas radius ${overRadiusMeters(row.original_distance_m)} meter` : 'tanpa GPS'}`
   },
   {
     code: 'TRANSACTION_VOID', label: 'Hapus Transaksi',

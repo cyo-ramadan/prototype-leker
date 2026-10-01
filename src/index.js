@@ -12,7 +12,9 @@ import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './c
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleDrawerClosePermitApi } from './cashier-drawer-close-permit.js';
 import { handleAttendanceCorrectionPermitApi } from './attendance-correction-permit.js';
+import { handleAttendanceGpsPermitApi } from './attendance-gps-permit.js';
 import { handlePermitReportApi } from './permit-report.js';
+import { handleAttendanceReportApi } from './attendance-report.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -261,8 +263,12 @@ async function handleApi(request, env, url) {
   if (drawerClosePermitResponse) return drawerClosePermitResponse;
   const attendanceCorrectionPermitResponse = await handleAttendanceCorrectionPermitApi(request, env, pathname);
   if (attendanceCorrectionPermitResponse) return attendanceCorrectionPermitResponse;
+  const attendanceGpsPermitResponse = await handleAttendanceGpsPermitApi(request, env, pathname);
+  if (attendanceGpsPermitResponse) return attendanceGpsPermitResponse;
   const permitReportResponse = await handlePermitReportApi(request, env, pathname);
   if (permitReportResponse) return permitReportResponse;
+  const attendanceReportResponse = await handleAttendanceReportApi(request, env, pathname);
+  if (attendanceReportResponse) return attendanceReportResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

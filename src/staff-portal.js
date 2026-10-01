@@ -11,6 +11,8 @@ import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
 import { recordAttendanceAccrual } from './payroll-ledger.js';
 import { expirePermitsForClosedSessions, listOwnCorrectionPermits } from './attendance-correction-permit.js';
+import { listOwnGpsPermits } from './attendance-gps-permit.js';
+import { evaluateGps, storeReference, gpsNotice, overRadiusMeters } from './attendance-gps.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 import { getJakartaBusinessDate } from './time.js';
 
@@ -41,7 +43,8 @@ export async function handleStaffPortalApi(request, env, pathname) {
       // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
       // kelihatan di sini juga, bukan cuma di panel Admin.
       payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id }),
-      attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id)
+      attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id),
+      attendanceGpsPermits: await listOwnGpsPermits(env.DB, auth.cashier.id)
     });
   }
 
@@ -112,18 +115,32 @@ export async function handleStaffPortalApi(request, env, pathname) {
     const accuracy = coord(form.get('accuracy'));
     const now = new Date().toISOString();
 
+    // Bos Cyo, 2026-10-01: presensi dinilai terhadap titik acuan gerai tapi
+    // TIDAK PERNAH ditolak karena GPS -- tanpa GPS atau di luar radius tetap
+    // tersimpan dan diberi tanda merah (lihat src/attendance-gps.js).
+    const gps = evaluateGps({
+      latitude, longitude,
+      reference: storeReference(await env.DB.prepare(`SELECT attendance_ref_latitude, attendance_ref_longitude FROM stores WHERE id = ?`).bind(auth.cashier.store.id).first())
+    });
+    const gpsResponse = {
+      status: gps.status,
+      overRadiusMeters: gps.status === 'OUT_OF_RADIUS' ? overRadiusMeters(gps.distanceM) : null,
+      notice: gpsNotice(gps)
+    };
+
     if (attendanceType === 'in') {
       const id = `attendance_${crypto.randomUUID()}`;
       await env.DB.prepare(`
-        INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at, latitude, longitude, location_accuracy_meters, status)
-        VALUES (?, ?, ?, 'in', ?, ?, ?, ?, ?, ?, 'OPEN')
-      `).bind(id, auth.cashier.id, auth.cashier.store.id, photo.bytes, photo.type, now, latitude, longitude, accuracy).run();
+        INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at, latitude, longitude, location_accuracy_meters, status, gps_in_status, gps_in_distance_m)
+        VALUES (?, ?, ?, 'in', ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?)
+      `).bind(id, auth.cashier.id, auth.cashier.store.id, photo.bytes, photo.type, now, latitude, longitude, accuracy, gps.status, gps.distanceM).run();
       const created = await env.DB.prepare(`
         SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
-               status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
+               status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters,
+               gps_in_status, gps_in_distance_m, gps_in_resolved_permit_id, gps_in_resolution_note
         FROM staff_attendance WHERE id = ?
       `).bind(id).first();
-      return json({ ok: true, attendance: mapAttendance(created) }, 201);
+      return json({ ok: true, attendance: mapAttendance(created), gps: gpsResponse }, 201);
     }
 
     const open = await env.DB.prepare(`SELECT id FROM staff_attendance WHERE user_id = ? AND status = 'OPEN' ORDER BY created_at DESC LIMIT 1`).bind(auth.cashier.id).first();
@@ -131,16 +148,19 @@ export async function handleStaffPortalApi(request, env, pathname) {
     const result = await env.DB.prepare(`
       UPDATE staff_attendance
       SET status = 'CLOSED', check_out_at = ?, check_out_photo_blob = ?, check_out_photo_type = ?,
-          check_out_latitude = ?, check_out_longitude = ?, check_out_location_accuracy_meters = ?
+          check_out_latitude = ?, check_out_longitude = ?, check_out_location_accuracy_meters = ?,
+          gps_out_status = ?, gps_out_distance_m = ?
       WHERE id = ? AND status = 'OPEN'
-    `).bind(now, photo.bytes, photo.type, latitude, longitude, accuracy, open.id).run();
+    `).bind(now, photo.bytes, photo.type, latitude, longitude, accuracy, gps.status, gps.distanceM, open.id).run();
     if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
       return json({ error: 'Presensi sudah berubah status di request lain.' }, 409);
     }
     await expirePermitsForClosedSessions(env.DB, { attendanceId: open.id });
     const updated = await env.DB.prepare(`
       SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
-             status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters
+             status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters,
+             gps_in_status, gps_in_distance_m, gps_in_resolved_permit_id, gps_in_resolution_note,
+             gps_out_status, gps_out_distance_m, gps_out_resolved_permit_id, gps_out_resolution_note
       FROM staff_attendance WHERE id = ?
     `).bind(open.id).first();
 
@@ -176,7 +196,7 @@ export async function handleStaffPortalApi(request, env, pathname) {
       await invalidateDailyProfitSnapshot(env.DB, auth.cashier.store.id, businessDate);
     }
 
-    return json({ ok: true, attendance: mapAttendance(updated) }, 201);
+    return json({ ok: true, attendance: mapAttendance(updated), gps: gpsResponse }, 201);
   }
 
   return json({ error: 'Route Portal Staf tidak ditemukan.' }, 404);

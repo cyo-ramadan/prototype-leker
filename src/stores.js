@@ -7,6 +7,8 @@ function mapStore(row) {
     storeName: row.store_name,
     address: row.address,
     logoData: row.logo_data,
+    attendanceRefLatitude: row.attendance_ref_latitude ?? null,
+    attendanceRefLongitude: row.attendance_ref_longitude ?? null,
     isActive: Boolean(row.is_active),
     entityId: row.entity_id ?? null,
     entityName: row.entity_name ?? null,
@@ -31,6 +33,7 @@ export async function resolveStore(db, token = DEFAULT_STORE_CODE, { includeInac
   const normalized = String(token || DEFAULT_STORE_CODE).trim();
   const row = await db.prepare(`
     SELECT s.id, s.code, s.store_name, s.address, s.logo_data, s.is_active,
+           s.attendance_ref_latitude, s.attendance_ref_longitude,
            s.entity_id, e.name AS entity_name, et.tenant_id,
            s.created_at, s.updated_at
     FROM stores s
@@ -44,6 +47,7 @@ export async function resolveStore(db, token = DEFAULT_STORE_CODE, { includeInac
 export async function listStores(db, { includeInactive = false } = {}) {
   const result = await db.prepare(`
     SELECT s.id, s.code, s.store_name, s.address, s.logo_data, s.is_active,
+           s.attendance_ref_latitude, s.attendance_ref_longitude,
            s.entity_id, e.name AS entity_name, et.tenant_id,
            s.created_at, s.updated_at
     FROM stores s

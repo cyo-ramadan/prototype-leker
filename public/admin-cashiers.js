@@ -48,7 +48,7 @@
           </form>
           <div>
             <div class="admin-card list-card" style="margin-bottom:14px">
-              <div class="list-head"><div><h2>Pengajuan koreksi jam presensi</h2><div class="muted">Karyawan yang presensi masuknya telat karena alasan sah mengajukan perubahan jam. ACC mengganti jam masuk; kadaluarsa otomatis bila sesinya selesai sebelum diputuskan (lalu lewat Penyesuaian Gaji).</div></div><span id="correctionPermitCount" class="master-count">0</span></div>
+              <div class="list-head"><div><h2>Pengajuan koreksi presensi</h2><div class="muted">Koreksi jam masuk (ACC mengganti jam; kadaluarsa otomatis bila sesinya selesai sebelum diputuskan, lalu lewat Penyesuaian Gaji) dan perbaikan GPS (ACC memadamkan tanda merah dengan keterangan; ditolak tetap merah).</div></div><span id="correctionPermitCount" class="master-count">0</span></div>
               <div id="correctionPermitList" class="master-list"></div>
             </div>
             <div class="admin-card list-card">
@@ -227,6 +227,25 @@
   // untuk sesi yang ditutup otomatis sistem (lupa presensi pulang) --
   // menang atas warna gradasi telat, karena ini sinyal yang lebih penting
   // ("lupa tutup" vs "telat datang").
+  // Tanda GPS presensi untuk Admin: merah selama belum diperbaiki, lengkap
+  // dengan jarak ke titik acuan dan status pengajuan perbaikannya.
+  let attendanceGpsPermits = new Map();
+  function adminGpsLine(row, which) {
+    const fact = which === 'IN' ? row.checkIn : row.checkOut;
+    const gps = fact?.gps;
+    if (!gps) return '';
+    const title = which === 'IN' ? 'GPS masuk' : 'GPS pulang';
+    if (gps.resolved) {
+      return `<div class="master-meta" style="padding:4px 8px;border-radius:8px;background:#ebfbee;color:#2b8a3e"><b>✓ ${title} dikonfirmasi</b>${gps.resolved.note ? ` · ${escapeHtml(gps.resolved.note)}` : ''}</div>`;
+    }
+    if (!gps.needsAttention) return '';
+    const problem = gps.status === 'NO_GPS' ? 'tanpa GPS' : `melebihi batas radius ${gps.overRadiusMeters} m${gps.distanceMeters != null ? ` (jarak ${gps.distanceMeters} m dari titik acuan)` : ''}`;
+    const permit = attendanceGpsPermits.get(`${row.id}|${which}`);
+    const state = !permit ? '' : permit.status === 'PENDING' ? ' · perbaikan diajukan, menunggu ACC' : permit.status === 'REJECTED' ? ` · perbaikan ditolak${permit.decisionNote ? `: ${escapeHtml(permit.decisionNote)}` : ''}` : '';
+    return `<div style="padding:4px 8px;border-radius:8px;background:#ffe3e3;border:1px solid #e03131;color:#c92a2a;font-size:13px"><b>⚠ ${title}: ${problem}</b>${state}</div>`;
+  }
+  function adminGpsBlockHtml(row) { return adminGpsLine(row, 'IN') + (row.checkOut ? adminGpsLine(row, 'OUT') : ''); }
+
   function attendanceRowHtml(cashierId, row) {
     const rowStyle = row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn);
     return `<div style="border:1px solid var(--line,#e6ddd0);border-radius:16px;padding:10px;margin-bottom:8px;display:flex;align-items:center;${rowStyle}">
@@ -235,6 +254,7 @@
         <strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}
         <div class="master-meta">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div>
         <div class="master-meta">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · <span class="master-meta">tanpa foto/GPS -- lupa presensi pulang</span>' : ''}` : '—'}</div>
+        ${adminGpsBlockHtml(row)}
         ${row.correction ? `<div class="master-meta"><span style="font-weight:800;color:#1971c2">✎ Jam masuk dikoreksi</span> (asli ${escapeHtml(clockTime(row.correction.originalAt))}) · Alasan: ${escapeHtml(row.correction.reason)}${row.correction.decisionNote ? ` · Catatan Admin: ${escapeHtml(row.correction.decisionNote)}` : ''}</div>` : ''}
       </div>
     </div>`;
@@ -242,7 +262,11 @@
   async function openAttendance(id) {
     const cashier = data.cashiers.find(item => item.id === id);
     try {
-      const payload = await request(`/api/admin/cashiers/${encodeURIComponent(id)}/attendance`);
+      const [payload, gpsPermitPayload] = await Promise.all([
+        request(`/api/admin/cashiers/${encodeURIComponent(id)}/attendance`),
+        request('/api/admin/attendance-gps-permits?status=ALL').catch(() => ({ permits: [] }))
+      ]);
+      attendanceGpsPermits = new Map((gpsPermitPayload.permits || []).map(permit => [`${permit.attendanceId}|${permit.which}`, permit]));
       const rows = payload.attendance || [];
       openAdminDetailModal({
         head: `<div><h3 style="margin:0">Presensi</h3><div class="master-meta">${escapeHtml(cashier?.employeeName || payload.cashier?.employeeName || '')} · @${escapeHtml(cashier?.username || payload.cashier?.username || '')}</div></div>`,
@@ -363,9 +387,19 @@
 
   // Bos Cyo, 2026-10-01: permit koreksi jam presensi masuk. Auto Permit tidak
   // berlaku (menyentuh gaji); Admin selalu memutuskan sendiri.
+  // Dua jenis pengajuan di satu antrean: koreksi JAM masuk (TIME) dan perbaikan
+  // GPS (GPS). Admin cukup satu tempat untuk memutuskan semuanya.
   let correctionPermits = [];
   const clockTime = value => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value));
   const dayLabelOf = value => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' }).format(new Date(value));
+  const utcIso = value => String(value).includes('T') ? value : `${String(value).replace(' ', 'T')}Z`;
+  function permitDescription(permit) {
+    if (permit.kind === 'GPS') {
+      const problem = permit.originalStatus === 'NO_GPS' ? 'tanpa GPS' : `melebihi radius ${permit.overRadiusMeters} m${permit.originalDistanceMeters != null ? ` (jarak ${permit.originalDistanceMeters} m dari acuan)` : ''}`;
+      return `Perbaikan GPS presensi ${permit.which === 'IN' ? 'masuk' : 'pulang'} · ${escapeHtml(permit.attendanceAt ? dayLabelOf(utcIso(permit.attendanceAt)) : '')} · ${escapeHtml(problem)}`;
+    }
+    return `${escapeHtml(dayLabelOf(permit.originalCheckInAt))} · tercatat masuk ${escapeHtml(clockTime(permit.originalCheckInAt))} → diminta ${escapeHtml(clockTime(permit.requestedCheckInAt))}`;
+  }
   function renderCorrectionPermits() {
     if (!el('correctionPermitList')) return;
     el('correctionPermitCount').textContent = correctionPermits.length;
@@ -373,25 +407,30 @@
       <div class="master-row contact-row">
         <div class="master-main">
           <strong>${escapeHtml(permit.requestedByName)}</strong>
-          <div class="master-meta">${escapeHtml(dayLabelOf(permit.originalCheckInAt))} · tercatat masuk ${escapeHtml(clockTime(permit.originalCheckInAt))} → diminta ${escapeHtml(clockTime(permit.requestedCheckInAt))}</div>
+          <div class="master-meta">${permitDescription(permit)}</div>
           <div class="master-meta">Alasan: ${escapeHtml(permit.reason)}</div>
-          <div class="master-meta">Diajukan ${escapeHtml(new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(permit.createdAt.includes('T') ? permit.createdAt : `${permit.createdAt.replace(' ', 'T')}Z`)))}</div>
+          <div class="master-meta">Diajukan ${escapeHtml(new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(utcIso(permit.createdAt))))}</div>
         </div>
         <div class="master-actions">
-          <button class="mini-btn" type="button" data-acc-correction="${escapeHtml(permit.id)}">ACC</button>
-          <button class="mini-btn danger" type="button" data-reject-correction="${escapeHtml(permit.id)}">Tolak</button>
+          <button class="mini-btn" type="button" data-acc-correction="${escapeHtml(permit.id)}" data-permit-kind="${permit.kind}">ACC</button>
+          <button class="mini-btn danger" type="button" data-reject-correction="${escapeHtml(permit.id)}" data-permit-kind="${permit.kind}">Tolak</button>
         </div>
       </div>`).join('') : '<div class="empty">Tidak ada pengajuan koreksi yang menunggu.</div>';
-    document.querySelectorAll('[data-acc-correction]').forEach(button => button.onclick = () => decideCorrectionPermit(button.dataset.accCorrection, 'ACC'));
-    document.querySelectorAll('[data-reject-correction]').forEach(button => button.onclick = () => decideCorrectionPermit(button.dataset.rejectCorrection, 'REJECT'));
+    document.querySelectorAll('[data-acc-correction]').forEach(button => button.onclick = () => decideCorrectionPermit(button.dataset.accCorrection, 'ACC', button.dataset.permitKind));
+    document.querySelectorAll('[data-reject-correction]').forEach(button => button.onclick = () => decideCorrectionPermit(button.dataset.rejectCorrection, 'REJECT', button.dataset.permitKind));
   }
   async function loadCorrectionPermits() {
-    try {
-      correctionPermits = (await request('/api/admin/attendance-correction-permits')).permits || [];
-    } catch { correctionPermits = []; }
+    const load = async (path, kind) => {
+      try { return ((await request(path)).permits || []).map(permit => ({ ...permit, kind })); } catch { return []; }
+    };
+    const [time, gps] = await Promise.all([
+      load('/api/admin/attendance-correction-permits', 'TIME'),
+      load('/api/admin/attendance-gps-permits', 'GPS')
+    ]);
+    correctionPermits = [...time, ...gps].sort((a, b) => String(utcIso(a.createdAt)).localeCompare(String(utcIso(b.createdAt))));
     renderCorrectionPermits();
   }
-  async function decideCorrectionPermit(id, decision) {
+  async function decideCorrectionPermit(id, decision, kind) {
     let note = '';
     if (decision === 'REJECT') {
       note = (prompt('Alasan penolakan (wajib, supaya karyawan tahu):', '') ?? '').trim();
@@ -399,9 +438,10 @@
     } else {
       note = (prompt('Catatan ACC (opsional, ikut tercatat di kartu presensi):', '') ?? '').trim();
     }
+    const base = kind === 'GPS' ? '/api/admin/attendance-gps-permits' : '/api/admin/attendance-correction-permits';
     try {
-      await request(`/api/admin/attendance-correction-permits/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ decision, note }) });
-      toast(decision === 'ACC' ? 'Jam masuk dikoreksi' : 'Pengajuan ditolak');
+      await request(`${base}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ decision, note }) });
+      toast(decision === 'ACC' ? (kind === 'GPS' ? 'Tanda GPS dihapus dengan keterangan' : 'Jam masuk dikoreksi') : 'Pengajuan ditolak');
     } catch (error) { toast(error.message); }
     await loadCorrectionPermits();
   }

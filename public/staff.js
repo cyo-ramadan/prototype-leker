@@ -127,12 +127,70 @@
       }
     };
   }
+  // Bos Cyo, 2026-10-01: presensi dinilai terhadap titik acuan gerai tetapi
+  // TIDAK PERNAH ditolak; tanpa GPS atau di luar radius tetap tersimpan dan
+  // kartunya diberi kolom merah. Karyawan hanya melihat selisih dari batas
+  // (bukan batasnya). Perbaikan lewat permit; ACC memadamkan merahnya dengan
+  // keterangan, ditolak tetap merah. Lihat src/attendance-gps.js.
+  function gpsPermitFor(attendanceId, which) {
+    return (portal?.attendanceGpsPermits || []).find(permit => permit.attendanceId === attendanceId && permit.which === which) || null;
+  }
+  function gpsLine(row, which) {
+    const fact = which === 'IN' ? row.checkIn : row.checkOut;
+    const gps = fact?.gps;
+    if (!gps) return '';
+    const title = which === 'IN' ? 'GPS presensi masuk' : 'GPS presensi pulang';
+    if (gps.resolved) {
+      return `<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:#ebfbee;color:#2b8a3e;font-size:13px"><b>✓ ${title} dikonfirmasi Admin</b>${gps.resolved.note ? ` · ${escapeHtml(gps.resolved.note)}` : ''}</div>`;
+    }
+    if (!gps.needsAttention) return '';
+    const problem = gps.status === 'NO_GPS' ? 'tanpa GPS' : `melebihi batas radius ${gps.overRadiusMeters} meter`;
+    const permit = gpsPermitFor(row.id, which);
+    let action = '';
+    if (!permit) action = `<div style="margin-top:6px"><button type="button" class="secondary-btn" data-gps-fix="${escapeHtml(row.id)}|${which}">Ajukan perbaikan GPS</button></div>`;
+    else if (permit.status === 'PENDING') action = '<div style="margin-top:4px;font-size:13px">Perbaikan diajukan, menunggu ACC Admin.</div>';
+    else if (permit.status === 'REJECTED') action = `<div style="margin-top:4px;font-size:13px">Perbaikan ditolak Admin${permit.decisionNote ? `: ${escapeHtml(permit.decisionNote)}` : ''}. Tanda tetap merah.</div>`;
+    return `<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:#ffe3e3;border:1px solid #e03131;color:#c92a2a;font-size:13px"><b>⚠ ${title}: ${problem}</b>${action}</div>`;
+  }
+  function gpsBlockHtml(row) { return gpsLine(row, 'IN') + (row.checkOut ? gpsLine(row, 'OUT') : ''); }
+  function openGpsFixDialog(attendanceId, which) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
+    overlay.innerHTML = `<form style="background:#fff;border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
+      <h3 style="margin:0">Ajukan perbaikan GPS</h3>
+      <div class="muted">Jelaskan kenapa GPS presensi ${which === 'IN' ? 'masuk' : 'pulang'} ini tidak sesuai, mis. GPS HP error padahal sudah di gerai. Admin akan memutuskan. Jika di-ACC tanda merahnya hilang dengan keterangan; jika ditolak tetap merah dan tidak bisa diajukan lagi.</div>
+      <label style="display:grid;gap:4px">Alasan<textarea name="reason" rows="3" maxlength="500" required placeholder="mis. GPS HP error, saya sudah di gerai"></textarea></label>
+      <div class="staff-message" data-gps-message style="display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="secondary-btn" data-gps-cancel>Batal</button><button type="submit" class="primary-btn">Kirim pengajuan</button></div>
+    </form>`;
+    document.body.appendChild(overlay);
+    const form = overlay.querySelector('form');
+    const message = overlay.querySelector('[data-gps-message]');
+    overlay.querySelector('[data-gps-cancel]').onclick = () => overlay.remove();
+    form.onsubmit = async event => {
+      event.preventDefault();
+      message.style.display = 'none';
+      try {
+        await staffApi(`/api/staff/attendance/${encodeURIComponent(attendanceId)}/gps-permits`, {
+          method: 'POST',
+          body: JSON.stringify({ which, reason: form.elements.reason.value })
+        });
+        overlay.remove();
+        toastStaff('Pengajuan perbaikan GPS terkirim, menunggu ACC Admin.');
+        await loadPortal();
+      } catch (error) {
+        message.textContent = error.message;
+        message.style.display = 'block';
+      }
+    };
+  }
   // Bos Cyo, 2026-09-24: "kartu presensi hari itu juga jadi warna kuning"
   // untuk sesi yang ditutup otomatis sistem karena lupa presensi pulang.
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div>${correctionBlockHtml(row)}</div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div>${correctionBlockHtml(row)}${gpsBlockHtml(row)}</div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
     document.querySelectorAll('[data-correct-attendance]').forEach(button => button.onclick = () => openCorrectionDialog(button.dataset.correctAttendance));
+    document.querySelectorAll('[data-gps-fix]').forEach(button => button.onclick = () => { const [id, which] = button.dataset.gpsFix.split('|'); openGpsFixDialog(id, which); });
     loadAttendancePhotoThumbs();
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }
@@ -308,10 +366,12 @@
     if (geo?.latitude != null) form.set('latitude', String(geo.latitude));
     if (geo?.longitude != null) form.set('longitude', String(geo.longitude));
     if (geo?.accuracy != null) form.set('accuracy', String(geo.accuracy));
-    await staffApi('/api/staff/attendance', { method: 'POST', body: form });
+    const result = await staffApi('/api/staff/attendance', { method: 'POST', body: form });
     portal = await staffApi('/api/staff/portal');
     renderPortal();
     clearCameraMessage();
+    // Presensi selalu tersimpan; kalau GPS bermasalah, beri tahu (tanpa menyebut batas radius).
+    if (result?.gps?.notice) { showCameraMessage(result.gps.notice); setTimeout(clearCameraMessage, 10000); }
   }
   function startAttendance(type) {
     clearCameraMessage();

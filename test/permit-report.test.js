@@ -123,7 +123,7 @@ test('semua kategori digabung: status dinormalkan, ringkasan per kategori dan st
     assert.equal(payload.summary.total, 6);
     assert.deepEqual(payload.summary.byStatus, { PENDING: 1, APPROVED: 2, REJECTED: 1, EXPIRED: 2 });
     assert.equal(payload.summary.byCategory.TRANSACTION_VOID.APPROVED, 1);
-    assert.deepEqual(payload.categories.map(item => item.code), ['ATTENDANCE_CORRECTION', 'TRANSACTION_VOID', 'CASH_FLOW', 'GOODS_FLOW', 'ASSET', 'DRAWER_CLOSE']);
+    assert.deepEqual(payload.categories.map(item => item.code), ['ATTENDANCE_CORRECTION', 'ATTENDANCE_GPS', 'TRANSACTION_VOID', 'CASH_FLOW', 'GOODS_FLOW', 'ASSET', 'DRAWER_CLOSE']);
     assert.ok(payload.requesters.some(item => item.name === 'Rina'));
     assert.ok(!payload.requesters.some(item => item.name === 'Orang Gerai Lain'), 'karyawan gerai lain tidak muncul di filter');
     // Terbaru di atas.

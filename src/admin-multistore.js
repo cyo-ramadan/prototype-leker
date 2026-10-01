@@ -198,7 +198,30 @@ export async function handleAdminApi(request, env, pathname) {
     const address = text(body.value?.address ?? store.address, 180);
     const logo = imageData(body.value?.logoData, MAX_LOGO_IMAGE_LENGTH);
     if (!storeName || logo === null) return json({ error: 'Identitas gerai tidak valid.' }, 400);
-    await db.prepare(`UPDATE stores SET store_name = ?, address = ?, logo_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(storeName, address, logo, store.id).run();
+
+    // Titik acuan presensi (Bos Cyo, 2026-10-01): lintang + bujur harus
+    // diisi bersamaan atau dikosongkan bersamaan. Tidak dikirim = tidak diubah.
+    let refLatitude = store.attendanceRefLatitude ?? null;
+    let refLongitude = store.attendanceRefLongitude ?? null;
+    const body_ = body.value || {};
+    if ('attendanceRefLatitude' in body_ || 'attendanceRefLongitude' in body_) {
+      const blank = value => value === null || value === undefined || String(value).trim() === '';
+      if (blank(body_.attendanceRefLatitude) && blank(body_.attendanceRefLongitude)) {
+        refLatitude = null;
+        refLongitude = null;
+      } else {
+        const latitude = Number(body_.attendanceRefLatitude);
+        const longitude = Number(body_.attendanceRefLongitude);
+        if (blank(body_.attendanceRefLatitude) || blank(body_.attendanceRefLongitude)
+          || !Number.isFinite(latitude) || !Number.isFinite(longitude)
+          || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+          return json({ error: 'Lokasi acuan presensi harus berupa lintang (-90 sampai 90) dan bujur (-180 sampai 180) yang valid, diisi keduanya.' }, 400);
+        }
+        refLatitude = latitude;
+        refLongitude = longitude;
+      }
+    }
+    await db.prepare(`UPDATE stores SET store_name = ?, address = ?, logo_data = ?, attendance_ref_latitude = ?, attendance_ref_longitude = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(storeName, address, logo, refLatitude, refLongitude, store.id).run();
     return json({ ok: true, store: await resolveStore(db, store.id, { includeInactive: true }) });
   }
 

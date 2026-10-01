@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Diagnosis Browser · MAXI Leker</title>
+  <style>
+    body{margin:0;padding:16px;font:15px/1.4 system-ui,sans-serif;background:#fff;color:#1a1a1a}
+    h1{font-size:20px;margin:0 0 4px}
+    p{margin:0 0 12px;color:#555}
+    .aksi{display:flex;gap:8px;margin:12px 0}
+    button{padding:10px 14px;border:1px solid #bbb;border-radius:8px;background:#f5f5f5;font:inherit}
+    .baris{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:8px 0;border-bottom:1px solid #eee}
+    .baris b{overflow-wrap:anywhere}
+    .baris small{grid-column:1/-1;color:#666;overflow-wrap:anywhere}
+    .baris.gagal span{color:#b00020;font-weight:700}
+    .baris.ok span{color:#1b7f3b}
+  </style>
+</head>
+<body>
+  <h1>Diagnosis Browser</h1>
+  <p>Halaman ini hanya memeriksa browser di HP ini. Tidak ada kata sandi atau data akun yang dikirim atau ditampilkan.</p>
+  <div class="aksi"><button id="muatUlang" type="button">Muat ulang</button><button id="salin" type="button">Salin hasil</button></div>
+  <div id="hasil">Butuh JavaScript untuk menjalankan pemeriksaan ini.</div>
+  <script src="/diagnostik.js"></script>
+</body>
+</html>

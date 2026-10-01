@@ -52,4 +52,14 @@ attendance row.
 Admin routes are scoped to the store in `?store=`; a permit from another store
 returns 403 `PERMIT_STORE_SCOPE_MISMATCH`.
 
-<!-- DOC-IMPACT: 2026-10-01 new contract; migration 0129; src/attendance-correction-permit.js. -->
+## Laporan Permit
+
+`GET /api/admin/permit-report` (src/permit-report.js, tab "Laporan Permit" di Admin
+Gerai) membaca permit dari semua jenis, tanpa menulis apa pun: koreksi presensi,
+hapus transaksi (`approval_permits`), uang kas / arus barang / aset
+(`approval_requests`), dan tutup laci sebelumnya. Filter: `category`, `requester`
+(karyawan pengaju), `status` (PENDING/APPROVED/REJECTED/EXPIRED), `from`/`to`
+(default 30 hari terakhir, tanggal Jakarta). Permit tutup laci yang ditolak
+sistem dilaporkan sebagai EXPIRED.
+
+<!-- DOC-IMPACT: 2026-10-01 new contract; migration 0129; src/attendance-correction-permit.js; src/permit-report.js. -->

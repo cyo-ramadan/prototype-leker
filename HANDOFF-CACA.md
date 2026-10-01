@@ -72,6 +72,24 @@ disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
 login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
+**Alat tulis tahap ketiga (2026-10-01): semua transaksi admin gerai yang
+tidak menyentuh kas/laci** — `src/caca-aksi-bayar.js`: Bea Gaji, Bea Lapak,
+Pembayaran Lainnya, pelunasan hutang, Uang Muka/Deposit. Cara bayar hanya
+Transfer Bank / Rekening Bersama / Deposit; "Tunai / Kas Admin" sengaja
+ditolak sebelum data apa pun dibaca (keputusan Bos Cyo: Una tidak menyentuh
+kas/laci). Jurnal kini mengikuti lingkup panel: buku gerai atau buku entity.
+Penjualan dan pembelian barang TIDAK di sini — keduanya lewat kasir (Bos Cyo
+2026-10-01). Rencana berikutnya dari Bos Cyo: mekanisme tenant tanpa
+karyawan, owner tunggal merangkap kasir dan admin.
+
+**Una menulis lewat pintu masuk utama (`handleApi` di `src/index.js`),
+bukan handler modul.** Sampai 2026-10-01 Una memanggil handler modul
+langsung dan melewati jembatan Akuntansi ADR-046 yang dipasang di pintu
+utama: Bea yang dicatat Una tidak dijurnal. Sekarang `bangunJalurAksi`
+menerima `jalurUtama` dari index.js dan hanya meneruskan path yang ada di
+`PINTU_AKSI` (dijaga test). Bea yang terlanjur dicatat Una sebelum perbaikan
+ini tidak dijurnal mundur (sama seperti kebijakan tanpa backfill ADR-046).
+
 **Alat tulis tahap kedua (2026-09-30): barang baru, resep baru, jurnal
 entity** — di `src/caca-aksi.js`, pola sama dengan catat pengeluaran: satu
 panggilan AI untuk menangkap kalimat, sisanya kode. Yang perlu diketahui:

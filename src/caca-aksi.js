@@ -17,69 +17,13 @@
 // dengan yang tadi dilihat orang — kalau beda, ditolak dan diminta draft ulang.
 // Yang diposting selalu yang sudah dilihat, tidak pernah tafsiran baru.
 
-import { uraikanNominal, rupiah } from './caca-nominal.js';
+import { rupiah } from './caca-nominal.js';
+import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } from './caca-aksi-dasar.js';
+import { AKSI_BAYAR } from './caca-aksi-bayar.js';
 
-const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
+export { normalkan, cocokkanSatu };
+
 const REFERENSI = /^caca_[0-9a-f-]{36}$/;
-
-// --- pencocokan nama ------------------------------------------------------
-
-export function normalkan(teks) {
-  return String(teks ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-/**
- * Mencari satu baris yang namanya cocok. Sama persis dulu; kalau tidak ada,
- * baru "mengandung" — dan itu pun hanya dipakai kalau kandidatnya tepat satu.
- * Lebih dari satu kandidat dikembalikan sebagai pertanyaan, bukan dipilihkan.
- *
- * @returns {{ok:true, nilai:any} | {ok:false, tanya:string}}
- */
-export function cocokkanSatu(tertulis, daftar, { label, namaDari, kunciLain = () => [] }) {
-  const kunci = normalkan(tertulis);
-  if (!kunci) return { ok: false, tanya: `${label} yang mana ya?` };
-
-  const persis = daftar.filter((item) => [namaDari(item), ...kunciLain(item)].some((nama) => normalkan(nama) === kunci));
-  if (persis.length === 1) return { ok: true, nilai: persis[0] };
-  if (persis.length > 1) {
-    return { ok: false, tanya: `Ada ${persis.length} ${label} bernama "${tertulis}". Yang mana ya?` };
-  }
-
-  // Satu arah saja: yang diucapkan boleh lebih pendek dari nama aslinya
-  // ("terigu" -> "Tepung Terigu"), tidak sebaliknya. Dua arah membuat "Kas
-  // Lama" (akun nonaktif) diam-diam cocok ke "Kas" — akun yang salah, tanpa
-  // pertanyaan apa pun.
-  const mirip = daftar.filter((item) => normalkan(namaDari(item)).includes(kunci));
-  if (mirip.length === 1) return { ok: true, nilai: mirip[0] };
-  if (mirip.length > 1) {
-    const contoh = mirip.slice(0, 5).map((item) => `"${namaDari(item)}"`).join(', ');
-    return { ok: false, tanya: `"${tertulis}" cocok dengan beberapa ${label}: ${contoh}. Yang mana ya?` };
-  }
-  return { ok: false, tanya: `${label[0].toUpperCase()}${label.slice(1)} "${tertulis}" tidak ketemu.` };
-}
-
-function jumlahBulat(teks, label) {
-  const hasil = uraikanNominal(teks);
-  if (!hasil.ok) return { ok: false, tanya: `${label}: ${hasil.tanya}` };
-  if (!Number.isInteger(hasil.nilai) || hasil.nilai <= 0) {
-    return { ok: false, tanya: `${label} harus bilangan bulat lebih dari nol.` };
-  }
-  return { ok: true, nilai: hasil.nilai };
-}
-
-function rupiahDari(teks, label, { bolehNol = false } = {}) {
-  // Pengurai nominal sengaja menolak nol (pengeluaran nol tidak masuk akal),
-  // tapi harga beli nol sah untuk barang yang dibuat sendiri lewat resep.
-  if (bolehNol && /^(rp\.?)?\s*(0+|nol)$/i.test(String(teks ?? '').trim())) return { ok: true, nilai: 0 };
-  const hasil = uraikanNominal(teks);
-  if (!hasil.ok) return { ok: false, tanya: `${label}: ${hasil.tanya}` };
-  if (hasil.nilai < 0 || (!bolehNol && hasil.nilai === 0)) return { ok: false, tanya: `${label} tidak boleh ${hasil.nilai < 0 ? 'minus' : 'nol'}.` };
-  return { ok: true, nilai: hasil.nilai };
-}
-
-function teks(nilai, max) {
-  return String(nilai ?? '').trim().slice(0, max);
-}
 
 // --- barang baru ----------------------------------------------------------
 
@@ -263,14 +207,22 @@ const resep = Object.freeze({
   }
 });
 
-// --- jurnal entity --------------------------------------------------------
+// --- jurnal (buku entity atau buku gerai) ---------------------------------
 
 const SISI = Object.freeze({ debit: 'DEBIT', kredit: 'CREDIT' });
 
+// Buku mana yang dipakai ditentukan lingkup panel, bukan kalimat: "semua
+// gerai" = buku entity, satu gerai = buku gerai itu. Endpoint keduanya sama
+// dengan yang dipakai layar Buku Entity dan layar Akuntansi gerai.
+const BUKU_JURNAL = Object.freeze({
+  entity: { akun: '/api/entity-admin/accounts', jurnal: '/api/entity-admin/journals', nama: 'buku entity' },
+  gerai: { akun: '/api/admin/accounting/accounts', jurnal: '/api/admin/accounting/journals', nama: 'buku gerai' }
+});
+
 const jurnal = Object.freeze({
   nama: 'buat_jurnal',
-  lingkup: 'entity',
-  petunjuk: 'membuat jurnal umum di buku entity, mis. "jurnal setoran modal 5jt: debit Kas, kredit Modal Pemilik".',
+  lingkup: 'semua',
+  petunjuk: 'membuat jurnal umum (manual) di buku yang sedang dibuka, mis. "jurnal setoran modal 5jt: debit Kas, kredit Modal Pemilik".',
   skema: {
     jurnal_keterangan: { type: 'string', description: 'buat_jurnal: keterangan jurnal.' },
     jurnal_tanggal: { type: 'string', description: 'buat_jurnal: YYYY-MM-DD, hanya kalau penanya menyebut tanggal tertentu.' },
@@ -296,14 +248,16 @@ const jurnal = Object.freeze({
     if (barisMentah.length < 2) return { ok: false, tanya: 'Jurnal butuh minimal dua baris: akun yang di-debit dan yang di-kredit, beserta nominalnya.' };
     if (barisMentah.length > 30) return { ok: false, tanya: 'Barisnya kebanyakan untuk dibuat lewat chat (maks 30).' };
 
-    const tanggalDisebut = teks(t?.jurnal_tanggal, 10);
-    if (tanggalDisebut && !TANGGAL.test(tanggalDisebut)) return { ok: false, tanya: 'Tanggalnya belum jelas. Tanggal berapa ya?' };
-    const tanggal = tanggalDisebut || ctx.hariIni;
-    if (tanggal > ctx.hariIni) return { ok: false, tanya: 'Tanggalnya di masa depan. Maksudnya tanggal berapa?' };
+    const tanggalHasil = tanggalDari(t?.jurnal_tanggal, ctx.hariIni);
+    if (!tanggalHasil.ok) return tanggalHasil;
+    const tanggal = tanggalHasil.nilai;
 
-    const ref = await ctx.baca('/api/entity-admin/accounts');
+    const buku = ctx.lingkup === 'entity' ? 'entity' : 'gerai';
+    const ref = await ctx.baca(BUKU_JURNAL[buku].akun);
     if (!ref.ok) return ref;
-    const akunAktif = (ref.data.accounts ?? []).filter((a) => a.isActive);
+    // Akun Penyesuaian milik sistem tidak boleh dipilih lewat chat: toleransinya
+    // bukan karpet untuk menyembunyikan selisih (invariant #3).
+    const akunAktif = (ref.data.accounts ?? []).filter((a) => a.isActive && !a.isSystemManaged);
 
     const baris = [];
     let debit = 0;
@@ -332,7 +286,8 @@ const jurnal = Object.freeze({
       ok: true,
       draft: {
         aksi: 'buat_jurnal',
-        judul: 'Una mau memposting jurnal ini — dicek dulu ya:',
+        buku,
+        judul: `Una mau memposting jurnal ini ke ${BUKU_JURNAL[buku].nama} — dicek dulu ya:`,
         baris: [['Keterangan', keterangan], ['Tanggal', tanggal], ['Total', rupiah(debit)]],
         tabel: {
           kolom: ['Akun', 'Debit', 'Kredit'],
@@ -343,7 +298,9 @@ const jurnal = Object.freeze({
           ])
         },
         dampak: [
-          `Masuk buku entity ${ctx.namaLingkup}, bukan buku satu gerai.`,
+          buku === 'entity'
+            ? `Masuk buku entity ${ctx.namaLingkup}, bukan buku satu gerai.`
+            : `Masuk buku gerai ${ctx.namaLingkup} saja, bukan buku entity.`,
           'Jurnal yang sudah diposting tidak bisa diedit — koreksinya lewat jurnal balik.'
         ],
         muatan: {
@@ -359,7 +316,7 @@ const jurnal = Object.freeze({
   },
 
   async posting(draft, ctx) {
-    const hasil = await ctx.kirim('POST', '/api/entity-admin/journals', draft.muatan);
+    const hasil = await ctx.kirim('POST', BUKU_JURNAL[draft.buku === 'entity' ? 'entity' : 'gerai'].jurnal, draft.muatan);
     if (!hasil.ok) return hasil;
     const nomor = hasil.data?.journal?.journalNumber || hasil.data?.journal?.journal_number;
     return {
@@ -371,13 +328,17 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BAYAR]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;
 }
 
 export const SKEMA_AKSI = Object.freeze(Object.assign({}, ...AKSI_TULIS.map((aksi) => aksi.skema)));
+
+export function bolehDiLingkup(aksi, lingkup) {
+  return aksi.lingkup === 'semua' || aksi.lingkup === lingkup;
+}
 
 export function daftarAksiUntukModel(lingkup) {
   return AKSI_TULIS

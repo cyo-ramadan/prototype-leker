@@ -13,11 +13,8 @@ import { aiConfigured, callStructured, modelAktif } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
-import { cariAksi, periksaUlangDraft } from './caca-aksi.js';
+import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
-import { handleProductMasterApi } from './product-master.js';
-import { handleManufacturingMasterApi } from './manufacturing-master.js';
-import { handleEntityAccountingApi } from './entity-accounting.js';
 import { getJakartaBusinessDate } from './time.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -109,19 +106,37 @@ function konteksPenyuruh(auth, store) {
   };
 }
 
-// Pintu yang boleh dilewati alat tulis Caca. Semuanya endpoint yang sama
-// dengan yang dipakai layar, dipanggil dengan kredensial si penyuruh — Caca
-// tidak punya wewenang sendiri, dan tidak ada jalur tulis baru ke database.
+// Pintu yang boleh dilewati Una untuk membaca master dan menulis transaksi.
+// Semuanya endpoint yang sama dengan yang dipakai layar, dipanggil dengan
+// kredensial si penyuruh — Una tidak punya wewenang sendiri, dan tidak ada
+// jalur tulis baru ke database.
+//
+// Permintaannya dikirim lewat PINTU MASUK UTAMA program (handleApi di
+// index.js), bukan langsung ke handler modulnya. Versi sebelumnya memanggil
+// handler langsung, dan diam-diam melewati pembungkus yang dipasang di pintu
+// masuk utama — termasuk jembatan Akuntansi (ADR-046): Bea yang dicatat Una
+// tidak pernah dijurnal, padahal yang dicatat lewat layar dijurnal. Lewat
+// pintu utama, apa pun yang dipasang di sana untuk layar ikut berlaku untuk Una.
 export const PINTU_AKSI = Object.freeze([
-  ['/api/admin/master/products/editor', handleProductMasterApi],
-  ['/api/admin/manufacturing/', handleManufacturingMasterApi],
-  ['/api/entity-admin/', handleEntityAccountingApi]
+  '/api/admin/master/products/editor',
+  '/api/admin/manufacturing/bootstrap',
+  '/api/admin/manufacturing/recipes',
+  '/api/admin/accounting/accounts',
+  '/api/admin/accounting/journals',
+  '/api/admin/operational-expenses',
+  '/api/admin/hutang-piutang',
+  '/api/entity-admin/accounts',
+  '/api/entity-admin/journals'
 ]);
 
-export function bangunJalurAksi(request, env, { storeCode = '', pintu = PINTU_AKSI } = {}) {
+function pintuDiizinkan(pathname, pintu) {
+  return pintu.some((awalan) => pathname === awalan || pathname.startsWith(`${awalan}/`));
+}
+
+export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pintu = PINTU_AKSI } = {}) {
   async function panggil(method, pathname, body) {
-    const handler = pintu.find(([awalan]) => pathname.startsWith(awalan))?.[1];
-    if (!handler) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Una.' };
+    if (!pintuDiizinkan(pathname, pintu)) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Una.' };
+    if (!jalurUtama) return { ok: false, status: 500, error: 'Jalur utama belum tersambung.' };
 
     const url = new URL(pathname, 'https://leker.internal');
     // Gerai selalu dari sesi panel, tidak pernah dari kalimat (invariant #5).
@@ -130,11 +145,11 @@ export function bangunJalurAksi(request, env, { storeCode = '', pintu = PINTU_AK
     headers.delete('content-length');
     if (body) headers.set('content-type', 'application/json');
 
-    const response = await handler(new Request(url, {
+    const response = await jalurUtama(new Request(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined
-    }), env, pathname);
+    }));
     if (!response) return { ok: false, status: 502, error: 'Jalur tidak menjawab.' };
     const data = await response.json().catch(() => null);
     if (!response.ok) return { ok: false, status: response.status, error: data?.error || `Ditolak (${response.status}).` };
@@ -180,7 +195,7 @@ async function lingkupPenyuruh(request, env) {
   return { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } };
 }
 
-async function tanya(request, env) {
+async function tanya(request, env, jalurUtama) {
   const lingkup = await lingkupPenyuruh(request, env);
   if (!lingkup.ok) return lingkup.response;
 
@@ -193,7 +208,7 @@ async function tanya(request, env) {
   const hasil = await jawabPertanyaan(pertanyaan, lingkup.konteks, {
     request,
     env,
-    jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode })
+    jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama })
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
@@ -207,20 +222,21 @@ async function tanya(request, env) {
   });
 }
 
-async function catatAksi(request, env, draft) {
+async function catatAksi(request, env, draft, jalurUtama) {
   const lingkup = await lingkupPenyuruh(request, env);
   if (!lingkup.ok) return lingkup.response;
 
   const aksi = cariAksi(draft.aksi);
-  if (aksi.lingkup !== lingkup.konteks.lingkup) {
+  if (!bolehDiLingkup(aksi, lingkup.konteks.lingkup)) {
     return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Una menyusun ulang ya.' }, 409);
   }
 
-  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode });
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
   const diperiksa = await periksaUlangDraft(draft, {
     ...jalur,
     hariIni: lingkup.konteks.hariIni,
-    namaLingkup: lingkup.konteks.namaLingkup
+    namaLingkup: lingkup.konteks.namaLingkup,
+    lingkup: lingkup.konteks.lingkup
   });
   if (!diperiksa.ok) return json({ error: diperiksa.error }, diperiksa.status);
 
@@ -238,7 +254,7 @@ async function catatAksi(request, env, draft) {
 // Bea Operasional. Draft yang diutak-atik di browser tidak melewatkan satu
 // pemeriksaan pun — dan orang yang mengirimnya memang berwenang mencatat
 // pengeluaran lewat panel biasa, jadi tidak ada wewenang yang bertambah.
-async function catat(request, env) {
+async function catat(request, env, jalurUtama) {
   const auth = await requireManagement(request, env.DB);
   if (!auth.ok) return auth.response;
 
@@ -267,7 +283,8 @@ async function catat(request, env) {
     request,
     env,
     storeCode: store.code,
-    handler: handleAdminOperationalExpenseApi
+    // Lewat pintu utama juga, supaya jembatan Akuntansi Bea ikut jalan.
+    handler: jalurUtama ? (permintaan) => jalurUtama(permintaan) : handleAdminOperationalExpenseApi
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
 
@@ -278,7 +295,12 @@ async function catat(request, env) {
   });
 }
 
-export async function handleCacaApi(request, env, pathname) {
+/**
+ * @param {object} [pilihan]
+ * @param {(request: Request) => Promise<Response>} [pilihan.jalurUtama] pintu masuk
+ *   utama program (handleApi di index.js) untuk semua tulisan Una.
+ */
+export async function handleCacaApi(request, env, pathname, { jalurUtama } = {}) {
   if (!pathname.startsWith('/api/caca/')) return null;
 
   if (request.method === 'GET' && pathname === '/api/caca/status') {
@@ -299,7 +321,7 @@ export async function handleCacaApi(request, env, pathname) {
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/tanya') {
-    return tanya(request, env);
+    return tanya(request, env, jalurUtama);
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/catat') {
@@ -307,8 +329,8 @@ export async function handleCacaApi(request, env, pathname) {
     // resep, jurnal) atau draft pengeluaran yang lebih dulu ada.
     const salinan = request.clone();
     const body = await readJson(salinan);
-    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value.draft);
-    return catat(request, env);
+    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value.draft, jalurUtama);
+    return catat(request, env, jalurUtama);
   }
 
   return json({ error: 'Route Una tidak ditemukan.' }, 404);

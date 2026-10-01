@@ -43,6 +43,7 @@ Routes utama:
 - `/cashier` — workspace Kasir setelah login Karyawan.
 - `/admin` — Owner Console setelah login Karyawan.
 - `/s/<KODE>/admin` — workspace Admin Gerai setelah login Karyawan.
+- `/produk/` — landing page penjualan (statis, tanpa login). Isinya dijaga `test/landing-page-claims.test.js`; konteks di `HANDOFF-STRATEGI-PENJUALAN.md` §10.
 
 Entry login mempunyai dua tab saja:
 

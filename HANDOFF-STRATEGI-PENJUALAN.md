@@ -217,6 +217,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 |---|---|---|---|---|
 | 2026-10-01 | pengembangan | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | JUAL | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
 | 2026-10-01 | pengembangan | Halaman diagnostik perangkat | INTERNAL | Mengurangi beban dukungan "tidak bisa login" |
+| 2026-10-01 | strategi | Landing page penjualan di `/produk/` (hanya fitur Paket Kontrol; tombol "Minta demo lewat WhatsApp") | INTERNAL | Belum dibagikan: nomor WhatsApp, nama merek, dan izin memakai angka Leker masih menunggu Bos Cyo |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -254,6 +255,14 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Urutan kanal**: jual langsung lewat jaringan Bos Cyo → pemilik kemitraan → konten
   TikTok/Reels (tema "pemilik tenang walau tidak di gerai") → Google Search setelah halaman
   depan siap → iklan Meta paling akhir.
+- **Landing page** ada di `/produk/` pada alamat aplikasi sekarang. Yang wajib diisi sebelum
+  dibagikan: nomor WhatsApp, nama merek (satu blok pengaturan di bagian bawah halaman), dan
+  persetujuan Bos Cyo memakai angka Leker (14 gerai, 37 akun, 1.200+ penjualan, 540 barang).
+  Halaman hanya boleh menjanjikan fitur berstatus `JUAL`; tes otomatis menolak kata seperti
+  AI/Caca, game, poin, offline, jurnal, prototype. **Pindah ke domain sendiri**: begitu domain
+  dibeli, pasang sebagai Custom Domain di Cloudflare dan arahkan halaman utama domain itu ke
+  landing page — keputusan teknisnya (Worker statis terpisah vs. aturan per alamat di Worker
+  utama) diambil sesi pengembangan saat itu, tanpa mengubah isi halaman.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 

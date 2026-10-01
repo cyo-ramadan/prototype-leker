@@ -87,5 +87,14 @@ test('daftar skrip yang diperiksa mencakup alur login pelanggan dan kasir, dan s
     assert.ok(SCRIPTS.includes(name), `${name} harus diperiksa`);
   }
   for (const name of SCRIPTS) readFileSync(new URL(`../public/${name}`, import.meta.url));
-  assert.match(html, /<script src="\/diagnostik\.js"><\/script>/);
+  assert.match(html, /script\.src = '\/diagnostik\.js'/);
+  assert.match(html, /script\.onerror/, 'gagal ambil file harus dibedakan dari JavaScript mati');
+  assert.match(html, /JavaScript tidak berjalan di browser ini/, 'teks cadangan untuk JavaScript mati');
+});
+
+test('halaman pelanggan dan kasir menampilkan pesan jelas bila JavaScript mati, dengan tautan ke /diagnostik', () => {
+  for (const page of ['customer.html', 'cashier.html']) {
+    const source = readFileSync(new URL(`../public/${page}`, import.meta.url), 'utf8');
+    assert.match(source, /<noscript>[\s\S]*JavaScript di browser ini mati[\s\S]*href="\/diagnostik"[\s\S]*<\/noscript>/, page);
+  }
 });

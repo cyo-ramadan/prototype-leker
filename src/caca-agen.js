@@ -13,7 +13,7 @@
 import { callStructured } from './caca-ai-client.js';
 import { ALAT_BACA, PERIODE, daftarAlatUntukModel, jalankanAlat } from './caca-alat.js';
 import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPengeluaran } from './caca-tulis.js';
-import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel } from './caca-aksi.js';
+import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 
@@ -73,17 +73,20 @@ function promptPilihAlat(konteks) {
     '',
     'Alat yang tersedia:',
     diGerai ? daftarAlatUntukModel() : '',
-    diGerai ? `- ${ALAT_CATAT_PENGELUARAN}: mencatat pengeluaran operasional yang dibayarkan ke seseorang,` : '',
-    diGerai ? '  mis. "beli gas 22rb ke Pak Slamet", "bayar sampah 50rb".' : '',
+    diGerai ? `- ${ALAT_CATAT_PENGELUARAN}: mencatat Bea Lainnya yang BELUM dibayar (jadi hutang) ke seseorang,` : '',
+    diGerai ? '  mis. "beli gas 22rb ke Pak Slamet, bayarnya nanti", "sampah 50rb ngutang ke Pak RT".' : '',
     daftarAksiUntukModel('gerai'),
+    daftarAksiUntukModel('semua'),
     daftarAksiUntukModel('entity'),
     '',
     'Aturan:',
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
-    '- Kamu belum bisa mencatat penjualan, pembelian bahan, atau gaji, dan belum bisa mengubah,',
+    '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu juga belum bisa mengubah,',
     '  menghapus, atau membatalkan apa pun. Kalau yang diminta itu, jawab "tidak_ada" dan sebutkan alasannya.',
+    '- Kalau yang dibayar memakai uang tunai/kas/laci, tetap pilih alatnya dan salin cara bayarnya apa adanya;',
+    '  sistem yang akan menolaknya.',
     '- Isi hanya kolom milik alat yang dipilih. Kolom alat lain dikosongkan.',
     '- Nama barang, bahan, satuan, dan akun disalin PERSIS seperti diucapkan. Jangan dibetulkan,',
     '  jangan dilengkapi, jangan ditebak — pencocokannya dikerjakan sistem.',
@@ -142,18 +145,20 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
 
   const aksi = cariAksi(namaAlat);
   if (aksi) {
-    if (aksi.lingkup !== (konteks.lingkup ?? 'gerai')) {
+    if (!bolehDiLingkup(aksi, konteks.lingkup ?? 'gerai')) {
       return {
         ok: true,
         alat: namaAlat,
         belumLengkap: true,
         jawaban: aksi.lingkup === 'entity'
-          ? 'Jurnal dibuat di buku entity. Pilih "semua gerai" lewat tombol ▾ di atas dulu, lalu ulangi perintahnya.'
+          ? 'Yang itu dikerjakan di buku entity. Pilih "semua gerai" lewat tombol ▾ di atas dulu, lalu ulangi perintahnya.'
           : 'Yang itu dikerjakan per gerai. Pilih gerainya dulu lewat tombol ▾ di atas, lalu ulangi perintahnya.'
       };
     }
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
-    const disiapkan = await aksi.siapkan(pilihan.value, { ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup });
+    const disiapkan = await aksi.siapkan(pilihan.value, {
+      ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai'
+    });
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: disiapkan.tanya || disiapkan.error, belumLengkap: true };
     }

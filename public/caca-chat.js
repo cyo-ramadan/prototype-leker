@@ -317,7 +317,10 @@ function cacaIsiDraft(draft) {
           draft.tabel.isi.map(r => `<tr>${r.map(sel => `<td>${cacaEscape(sel)}</td>`).join('')}</tr>`).join('')
         }</tbody></table></div>`
       : '';
-    return { judul: draft.judul, isi: baris + tabel, tombol: draft.aksi === 'buat_jurnal' ? 'Ya, posting' : 'Ya, buat' };
+    const tombol = draft.aksi === 'buat_jurnal' ? 'Ya, posting'
+      : ['buat_barang', 'buat_resep'].includes(draft.aksi) ? 'Ya, buat'
+        : 'Ya, catat';
+    return { judul: draft.judul, isi: baris + tabel, tombol };
   }
   return {
     judul: 'Una mau mencatat ini — dicek dulu ya:',

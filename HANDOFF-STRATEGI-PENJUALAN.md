@@ -1,0 +1,219 @@
+# Handoff — Sesi Strategi Penjualan & Marketing webapp MAXI
+
+Untuk: **sesi baru yang mulai dari nol** (Hana versi strategi). Instance tidak berbagi
+memory, jadi semua yang perlu diketahui ada di sini.
+
+Ditulis: 2026-10-01 · Oleh: Hana (sesi pengembangan) · Atas permintaan Bos Cyo
+Dibaca dari: kode di `main`, database produksi (angka di bagian 2), dan dokumen repo.
+
+> **Cara memperbarui dokumen ini.** Sesi pengembangan menambah fitur terus. Tiap fitur
+> baru yang masuk, tambahkan satu baris di bagian 8 (Catatan perubahan) dan, kalau
+> mengubah kelebihan/kelemahan, ubah bagian 4–5. Jangan menulis ulang sejarah — tambah
+> di bawah, beri tanggal.
+
+---
+
+## 0. Tugas sesi ini (dari Bos Cyo)
+
+Fokus **satu hal**: bagaimana webapp ini **terjual**.
+
+- penentuan segment dan siapa yang dibidik duluan,
+- posisi dan pesan jual (kenapa orang harus pilih ini),
+- penyesuaian UI/UX supaya enak dijual dan enak dicoba,
+- strategi cari trafik berbayar dan organik,
+- sampai goal akhir: **penjualan** (calon pembeli → coba → bayar → bertahan).
+
+Sesi ini **bukan** untuk ngoding atau memutuskan arsitektur. Kalau analisis strategi
+menghasilkan kebutuhan fitur/UI, tulis sebagai permintaan untuk Bos Cyo, lalu dia bawa ke
+sesi pengembangan.
+
+Bos Cyo bukan orang koding: jelaskan logikanya, jangan nama file atau istilah teknis
+kecuali dia tanya lebih dalam.
+
+---
+
+## 1. Produk dalam satu paragraf
+
+MAXI adalah **POS + manajemen gerai + pembukuan otomatis** berbasis web (jalan di HP dan
+laptop, tanpa instal), awalnya dibuat untuk jaringan gerai minuman **Leker**. Satu pemilik
+bisa memantau banyak gerai dari satu tempat: kasir mencatat penjualan, stok dan harga pokok
+(HPP) terhitung sendiri dari resep, dan semua transaksi otomatis menjadi **jurnal
+akuntansi** — sehingga pemilik tidak bergantung penuh pada akuntan. Bagian yang
+paling khas: **kontrol atas karyawan** (presensi foto + GPS, izin/permit yang harus di-ACC
+pemilik, raport karyawan, gaji otomatis dari presensi). Arah jangka panjang: satu platform
+dengan modul yang dipasang per pelanggan (bisnis F&B, olshop, dst), plus asisten AI yang
+bisa diajak ngobrol dan mencatatkan transaksi.
+
+Tujuan awal Bos Cyo membuat ini: **menghemat biaya operasional sendiri** (pembukuan,
+pengawasan gerai), baru kemudian dijual ke pemilik usaha lain.
+
+---
+
+## 2. Bukti pemakaian nyata (dibaca dari database produksi, 2026-10-01)
+
+| Hal | Angka |
+|---|---|
+| Gerai aktif | 14 |
+| Akun karyawan/kasir aktif | 37 |
+| "Tenant" (perusahaan pemilik) | 3 — jaringan Leker MAXI, PT Harilibur (Leker Mall Dinoyo), dan Galeh (olshop) |
+| Total penjualan tercatat | 1.220, sejak 11 Agustus 2026 |
+| Penjualan sejak 15 September | 1.186 (±97% dari total — pemakaian baru benar-benar jalan dua minggu terakhir) |
+| Gerai yang menjual dalam 2 minggu terakhir | 8 dari 14 |
+| Total pesanan lewat halaman pelanggan | 1.259, tetapi hanya **10** yang dibuat pelanggan yang login |
+| Akun pelanggan terdaftar | 11 |
+| Barang di master | 540 · Pembelian bahan tercatat: 176 |
+
+Catatan jujur untuk dibaca dengan hati-hati:
+- Sebagian data kemungkinan **uji coba** (tidak semua transaksi dipisah dari data tes).
+- **Hana tidak tahu**: apakah ada pelanggan **berbayar dari luar** lingkaran Bos Cyo, harga
+  yang diinginkan, biaya per gerai, atau target angka penjualan. Tanyakan ke Bos Cyo — jangan
+  mengarang.
+- Semua tenant yang ada sekarang masih dalam lingkaran Bos Cyo (jaringannya sendiri,
+  mitra, dan satu usaha olshop). Artinya **produk terbukti jalan di operasi nyata, tetapi
+  belum teruji dijual ke orang asing**.
+
+---
+
+## 3. Fitur — apa yang bisa dilakukan sekarang
+
+Ditulis dari sudut pandang manfaat. Status: ✅ jalan di produksi · 🟡 ada tapi belum penuh ·
+⬜ baru rencana.
+
+### A. Kasir & operasional harian (POS)
+- ✅ Pilih menu, draft pesanan, antrean pesanan dari pelanggan, jual langsung.
+- ✅ **Laci kas**: buka/tutup laci, saldo awal otomatis melanjutkan saldo akhir sebelumnya, satu laci aktif per gerai. Kasir lain yang lupa tutup laci bisa diminta ditutup lewat permit.
+- ✅ Beli bahan, pengeluaran operasional, pendapatan lain, arus kas, arus barang, aset.
+- ✅ **Cara bayar dinamis**: tunai, transfer, dll. diatur per gerai (hanya tunai yang menggerakkan uang fisik laci). Pembayaran **dari Deposit/uang muka** ke supplier.
+- ✅ **Hutang & piutang** beserta laporan beban.
+- ✅ **Produksi**: manual atau "dadakan" (bahan terpakai saat dijual, tanpa produksi terpisah).
+- ✅ **Dua resep untuk satu menu** (mis. larutan jasmine manis vs tawar): kasir bisa ganti resep aktif saat jualan; pilihan terakhir jadi pilihan berikutnya. *(Tahap berikutnya — resep diatur di level perusahaan agar tidak diisi per gerai — sedang dikerjakan.)*
+- ✅ **Stok & HPP otomatis** (rata-rata bergerak), penyesuaian stok teraudit, stok negatif dibiarkan terlihat apa adanya.
+- ✅ **Hapus/void transaksi lewat permit** (kasir minta, admin ACC; ada mode Auto Permit yang bisa dinyalakan pemilik).
+
+### B. Kontrol karyawan — ini diferensiasi utama
+- ✅ **Presensi** dengan foto langsung (live photo) + jam + GPS; masuk/pulang.
+- ✅ **Radius GPS** (baru 1 Okt): presensi dinilai terhadap titik acuan gerai; di luar radius atau tanpa GPS **tetap bisa absen tapi kartunya merah**; karyawan hanya diberi tahu "melebihi N meter", bukan batasnya; bisa mengajukan perbaikan dengan alasan, pemilik ACC atau tolak.
+- ✅ **Jadwal shift 7 hari**, deteksi telat, tutup presensi otomatis kalau lupa pulang, gaji otomatis nol kalau absen di luar jadwal (bisa dimatikan).
+- ✅ **Gaji dari presensi**: per jam atau per sesi, riwayat gaji per orang, otomatis jadi beban gaji di pembukuan.
+- ✅ **Koreksi jam presensi** lewat permit (mis. web error), hanya selagi sesi berjalan.
+- ✅ **Raport karyawan**: fakta (penjualan, void, presensi, telat, tidak tutup presensi, GPS merah). 🟡 **Skor/grade belum ada** — bobot KPI belum ditetapkan, sengaja tidak dikarang.
+- ✅ **Laporan Permit** (semua jenis permit, filter per kategori/karyawan) dan **Laporan Presensi** (rangkuman per karyawan untuk penilaian KPI manual).
+- ✅ Master Karyawan terpisah dari akun login, akun cadangan lintas gerai, aturan satu orang tidak boleh login di dua akun sekaligus.
+- ✅ Portal Staf: manual book, pengumuman, daily task, riwayat gaji.
+- ✅ Halaman **diagnostik perangkat** (untuk karyawan yang tidak bisa login karena browser memblokir cookie/penyimpanan).
+
+### C. Pemilik & admin — melihat semua gerai
+- ✅ Hirarki Owner → Perusahaan (Entity) → Gerai; ganti gerai cepat; detail laci dengan tombol salin.
+- ✅ Laporan **untung rugi** (net profit) harian, stok + HPP, riwayat transaksi dengan filter.
+- ✅ Master barang, kategori, supplier, pelanggan, kasir, karyawan.
+
+### D. Pembukuan otomatis (Akuntansi)
+- ✅ Setiap penjualan/pembelian/biaya **otomatis menjadi jurnal**; bagan akun standar seragam di semua gerai.
+- ✅ Buku besar, rugi laba, neraca; jurnal manual yang wajib seimbang; **jurnal terposting tidak bisa diedit** (koreksi lewat pembalik) — rapi untuk audit.
+- ✅ Jurnal beban rutin dan pembagian beban per periode.
+- ✅ Uang disimpan sebagai bilangan bulat berskala (tidak pernah desimal mengambang) → tidak ada selisih pembulatan.
+- ✅ Tiga "edisi" per gerai: LITE (POS saja), FLEXIBLE, ACCOUNTING (penuh).
+
+### E. Sisi pelanggan akhir
+- ✅ Halaman pesan sendiri per gerai (jalan tanpa login, bisa checkout sebagai tamu), status pesanan, pesan ulang.
+- ✅ Daftar jadi pelanggan (disetujui admin, ada sambungan WhatsApp), saldo poin, umpan balik pribadi ke pemilik.
+- ✅ Voucher dan roda putar berhadiah (Roda Puter).
+- ✅ **Berbagi pelanggan antar gerai** (satu identitas pelanggan di beberapa gerai, hanya kalau pemilik mengizinkan).
+- 🟡 **Poin**: saldo tampil, tetapi rumus dapat/tukar poin belum diaktifkan.
+- 🟡 Modul Game generasi baru baru fondasi.
+
+### F. Asisten AI (Caca/Una)
+- 🟡 Panel chat ala WhatsApp di dalam aplikasi: baca foto lembar rekap, bantu membuat barang/resep/jurnal, mencatat transaksi admin lewat jalur resmi. Dirancang sebagai "pembukuan tanpa akuntan": pemilik cukup bilang "Pak Eddy transfer tambah modal, catat ya".
+- ⬜ Saluran **WhatsApp sungguhan** belum ada (sekarang hanya panel di web).
+- Catatan: akurasi membaca foto rekap sungguhan belum diukur serius.
+
+### G. Platform
+- ✅ Beberapa perusahaan dalam satu sistem dengan data terpisah; modul dipasang-lepas per perusahaan (Game, Warehouse, Akuntansi).
+- ⬜ **Anjungan tap kartu** (absen tap kartu dengan suara): baru desain, belum ada perangkat.
+
+---
+
+## 4. Kelebihan (yang bisa dijual)
+
+1. **Sudah dipakai harian di 14 gerai/37 kasir** — bukan prototipe di atas kertas; masalah lapangan sungguhan (login HP murah, kasir lupa tutup laci, dll.) sudah ditemui dan diperbaiki.
+2. **Pembukuan ikut otomatis**: penjualan → jurnal → laporan. POS biasa berhenti di struk; ini lanjut sampai neraca. Pesan jual kuat untuk pemilik yang pusing dengan akuntan/Excel.
+3. **Kontrol karyawan yang jarang ada di POS murah**: foto+GPS presensi, permit yang harus di-ACC pemilik (hapus transaksi, uang kas, tutup laci, koreksi presensi), raport. Ini jawaban atas ketakutan nomor satu pemilik gerai: *"karyawan curang saat saya tidak ada."*
+4. **Multi-gerai dari satu layar** dengan data tiap gerai terpisah rapi — cocok untuk pemilik yang sudah punya 3+ gerai/franchise.
+5. **HPP dan stok dari resep** — penting untuk F&B (minuman/makanan) yang margin-nya ditentukan bahan; dua resep per menu menjawab kebiasaan lapangan.
+6. **Tanpa instal, jalan di HP**; biaya infrastruktur sangat rendah (Cloudflare) sehingga margin harga bisa agresif.
+7. **Integritas data diprioritaskan** (uang tanpa desimal mengambang, jurnal tak bisa diubah, ±1.200 tes otomatis) — nilai untuk pembeli yang pernah dirugikan data "hilang/selisih".
+8. **Arah asisten AI** untuk pasar yang gaptek dan akrab dengan WhatsApp — pembeda besar kalau jadi.
+9. **Desain "memanjakan pemilik"**: laporan sudah disusun supaya pemilik cepat menilai (permit, presensi, GPS, raport).
+
+## 5. Kelemahan & risiko (jujur)
+
+**Pasar & bukti**
+1. **Belum terbukti dijual ke orang asing.** Semua pengguna dalam lingkaran Bos Cyo. Belum ada harga, paket, uji bayar, atau testimoni dari luar.
+2. **Tidak ada sistem langganan/penagihan** (paket, invoice, trial, upgrade) di aplikasi; pendaftaran perusahaan dan gerai baru masih dikerjakan tim (lewat prosedur onboarding), **bukan daftar sendiri**. Ini penghalang langsung bagi iklan berbayar — calon pembeli tidak bisa "coba sekarang".
+3. **Tidak ada halaman pemasaran/landing**: alamat utama langsung melempar ke halaman kiosk pelanggan dengan judul "MAXI Prototype Leker". Nama produk dan merek untuk pasar belum final.
+4. **Hampir semua fitur dibangun dari kebutuhan Leker (minuman)** — pasar lain (retail, jasa, olshop) belum teruji walau arsitekturnya modular.
+
+**Produk**
+5. **Sisi pelanggan akhir lemah**: 1.259 pesanan tapi hanya 10 dari pelanggan login, 11 akun pelanggan, poin belum aktif. Jangan jual "aplikasi pelanggan" sebagai keunggulan utama dulu.
+6. **Tidak ada pembayaran online** (QRIS/e-wallet terintegrasi). "Cara bayar" hanya pencatatan metode; uang tidak diproses sistem.
+7. **Tidak ada mode offline** dan bukan aplikasi native/PWA: kalau internet gerai mati, kasir berhenti. Ini keberatan klasik pembeli POS di F&B kecil.
+8. **Banyak fitur, banyak layar admin**: kuat untuk pemilik serius, tetapi **kurva belajar** untuk pemilik kecil yang gaptek. Belum ada riset UX atau onboarding terpandu; tampilan admin tumbuh per permintaan fitur.
+9. **Skor KPI karyawan belum ada** (hanya fakta) — padahal ini bahan jual "memanjakan owner"; butuh keputusan bobot dari Bos Cyo.
+10. **Beberapa aturan akuntansi/stok masih terbuka** (kebijakan stok negatif, pecahan satuan, jenis retur, aturan stock opname) — risiko kalau dijual ke bisnis yang butuh stok sangat ketat.
+11. **Asisten AI belum sampai WhatsApp** dan akurasinya belum diukur; jangan dijanjikan sebagai fitur jadi.
+12. **Tampilan beberapa fitur terbaru belum diuji di perangkat nyata** (pengujian otomatis kuat, tetapi pengamatan layar HP sungguhan terbatas). Satu kasus nyata: satu karyawan tidak bisa login karena browser memblokir penyimpanan — kasus seperti ini akan lebih sering muncul di pengguna asing dengan HP beragam.
+
+**Teknis yang berdampak ke bisnis**
+13. **Satu database bersama dengan jatah baca harian** (paket gratis Cloudflare, 5 juta baris/hari). Aman untuk puluhan gerai karena desain sudah hemat, tetapi **pertumbuhan cepat butuh naik paket** dan perhitungan biaya per pelanggan. Isolasi data antar perusahaan bergantung pada aturan aplikasi, bukan database terpisah — bisa jadi pertanyaan pembeli besar.
+14. **Ketergantungan pada satu pemilik pengetahuan** (Bos Cyo + agen AI). Dokumentasi sangat lengkap, tetapi belum ada tim dukungan pelanggan atau SLA.
+
+---
+
+## 6. Bahan mentah untuk strategi (hipotesis, bukan fakta — uji di sesi ini)
+
+- **Pembeli paling cocok (hipotesis)**: pemilik **2–10 gerai F&B/retail** yang tidak bisa selalu hadir dan khawatir karyawan/pembukuan. Pemilik 1 gerai yang tidak punya karyawan kurang butuh fitur kontrol; jaringan besar butuh jaminan yang belum ada.
+- **Pesan jual yang paling sejalan dengan kekuatan produk**: bukan "POS lengkap" (banyak pesaing murah), melainkan **"gerai jalan, pembukuan jalan, karyawan terpantau — tanpa Anda hadir"**.
+- **Bukti sosial yang bisa dibuat sendiri**: 14 gerai Leker yang memakainya sehari-hari — kumpulkan cerita/angka (waktu tutup buku, selisih kas, kasus permit yang menyelamatkan) sebagai studi kasus.
+- **Hal yang wajib ada sebelum iklan berbayar**: halaman landing, nama/merek final, paket + harga, jalur coba (demo atau akun uji), cara pendaftaran/pembayaran. Tanpa ini trafik berbayar akan terbuang.
+- **Pertanyaan untuk Bos Cyo** (jawabannya mengubah seluruh strategi): berapa harga/gerai/bulan yang dibayangkan? Mau jual sebagai langganan atau sekali beli? Mau layani sendiri (onboarding manual) atau self-service? Siapa kompetitor yang pernah dilihat pelanggan Leker? Berapa gerai/bulan yang sanggup dilayani tim sekarang? Berapa budget iklan?
+
+---
+
+## 7. Skill yang cocok untuk sesi ini
+
+Dicek 2026-10-01 di akun Bos Cyo: **belum ada skill khusus marketing/SEO/iklan** yang aktif
+maupun yang bisa disarankan dari katalog. Yang sudah aktif dan berguna:
+
+| Skill | Dipakai untuk |
+|---|---|
+| `deep-research` | riset pasar, kompetitor POS/akuntansi UMKM, harga pasar, tren — menghasilkan laporan bersumber |
+| `chrome-browser` | membuka situs kompetitor, melihat halaman harga & landing mereka, perpustakaan iklan, hasil pencarian — di Chrome Bos Cyo sendiri |
+| `xlsx` | model harga, hitungan corong (trafik → coba → bayar), anggaran iklan, proyeksi per gerai |
+| `pptx` | materi presentasi/pitch ke calon pelanggan atau mitra |
+| `skill-creator` | **membuat skill sendiri** "strategi-penjualan-MAXI" berisi konteks produk (dokumen ini), gaya bahasa merek, persona pembeli, dan SOP menulis iklan/landing — supaya sesi mana pun langsung nyambung |
+
+Saran urutan: mulai dengan `deep-research` (kompetitor + harga), lalu `xlsx` (model
+harga & corong), baru jadikan hasilnya skill sendiri lewat `skill-creator`.
+
+---
+
+## 8. Catatan perubahan fitur (tambahkan di bawah, terbaru di akhir)
+
+| Tanggal | Perubahan | Dampak ke penjualan |
+|---|---|---|
+| 2026-10-01 | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
+| 2026-10-01 | Halaman diagnostik perangkat | Mengurangi beban dukungan "tidak bisa login" |
+| *(sesi pengembangan menambah baris di sini)* | | |
+
+---
+
+## 9. Rujukan di repo (untuk yang ingin menggali lebih dalam)
+
+`README.md` (gambaran fitur & rute), `MODULE_CATALOG.md` (status per modul),
+`KNOWN_ISSUES.md` (masalah terbuka), `adr/ADR-040…` (arah platform modul/tenant),
+`adr/ADR-044…`/`ADR-045…` + `HANDOFF-CACA.md` + `HANDOFF-HANA-PEMBUKUAN.md` (asisten AI),
+`contracts/attendance-gps-v1.md` (presensi GPS), `HANDOFF-anjungan-tap-kartu-v1.md`
+(absen tap kartu), `POS_MODULE_INDEPENDENCE.md` (arah POS berdiri sendiri tanpa akuntansi —
+penting kalau mau menjual edisi POS-saja).
+
+<!-- DOC-IMPACT: 2026-10-01 dokumen baru; tidak mengubah perilaku sistem. -->

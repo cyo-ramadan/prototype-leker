@@ -255,3 +255,41 @@ test('endpoint laporan menolak gerai di luar entity pemanggil, dan mengembalikan
     db.close();
   }
 });
+
+// Bos Cyo, 2026-10-01: grafik perbandingan gerai di Laporan Entity (Untung
+// Bersih, Omset, Untung Kotor, Beban, HPP, Margin) memakai total per gerai.
+test('respons laporan membawa total per gerai (omset, HPP, untung kotor, beban, untung bersih) yang cocok dengan jumlah harian', async () => {
+  const db = migratedDatabase();
+  try {
+    const token = await seedOwnerToken(db);
+    const kantor = seedDrawer(db, 'KANTOR');
+    const pendem = seedDrawer(db, 'PENDEM');
+    seedSale(db, { ...kantor, createdAt: '2026-06-01T05:00:00.000Z', totalAmount: 20000, lineCogsRupiah: 5000 });
+    seedSale(db, { ...kantor, createdAt: '2026-06-02T05:00:00.000Z', totalAmount: 10000, lineCogsRupiah: 4000 });
+    seedExpense(db, { ...kantor, createdAt: '2026-06-02T05:00:00.000Z', amount: 3000 });
+    seedSale(db, { ...pendem, createdAt: '2026-06-01T05:00:00.000Z', totalAmount: 1000, lineCogsRupiah: 500 });
+    seedExpense(db, { ...pendem, createdAt: '2026-06-01T05:00:00.000Z', amount: 8000 });
+    const env = { DB: new D1Database(db) };
+
+    const res = await worker.fetch(request('/api/admin/reports/net-profit', {
+      token, store: 'KANTOR', search: { from: '2026-06-01', to: '2026-06-02', stores: 'KANTOR,PENDEM' }
+    }), env);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    const byCode = Object.fromEntries(body.storeTotals.map(row => [row.code, row]));
+
+    assert.equal(byCode.KANTOR.revenue, 30000);
+    assert.equal(byCode.KANTOR.hpp, 9000);
+    assert.equal(byCode.KANTOR.grossProfit, 21000);
+    assert.equal(byCode.KANTOR.totalBeban, 3000);
+    assert.equal(byCode.KANTOR.netProfit, 18000);
+    assert.equal(byCode.KANTOR.netProfit, body.totals.byStore.KANTOR, 'sama dengan jumlah harian');
+
+    // Gerai yang rugi tetap negatif apa adanya (invariant: saldo negatif bukan bug).
+    assert.equal(byCode.PENDEM.revenue, 1000);
+    assert.equal(byCode.PENDEM.netProfit, -7500);
+    assert.equal(byCode.PENDEM.netProfit, body.totals.byStore.PENDEM);
+  } finally {
+    db.close();
+  }
+});

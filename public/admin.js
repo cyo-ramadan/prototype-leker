@@ -110,6 +110,18 @@ function bindStaticEvents() {
   el('logoutBtn').addEventListener('click', lockAdmin);
   document.querySelectorAll('.admin-tab').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
   el('storeForm').addEventListener('submit', saveStore);
+  el('storeRefUseHere').addEventListener('click', () => {
+    if (!navigator.geolocation) { toast('Browser ini tidak mendukung GPS.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        el('storeRefLat').value = position.coords.latitude.toFixed(6);
+        el('storeRefLng').value = position.coords.longitude.toFixed(6);
+        toast(`Lokasi terisi (akurasi ±${Math.round(position.coords.accuracy)} m). Tekan Simpan untuk menyimpan.`);
+      },
+      () => toast('Lokasi tidak bisa dibaca. Izinkan akses lokasi di browser.'),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  });
   el('storeLogo').addEventListener('change', previewStoreLogo);
   el('productForm').addEventListener('submit', saveProduct);
   el('productImage').addEventListener('change', previewProductImage);
@@ -184,6 +196,8 @@ function renderAll() {
 
 function renderStore() {
   el('storeName').value = state.data.store?.storeName || 'MAXI LEKER';
+  el('storeRefLat').value = state.data.store?.attendanceRefLatitude ?? '';
+  el('storeRefLng').value = state.data.store?.attendanceRefLongitude ?? '';
   state.storeLogoData = state.data.store?.logoData || '';
   el('storeLogoPreview').src = state.storeLogoData || '/default-product.svg';
 }
@@ -202,7 +216,12 @@ async function saveStore(event) {
   try {
     const payload = await api('/api/admin/store', {
       method: 'PUT',
-      body: JSON.stringify({ storeName: el('storeName').value, logoData: state.storeLogoData })
+      body: JSON.stringify({
+        storeName: el('storeName').value,
+        logoData: state.storeLogoData,
+        attendanceRefLatitude: el('storeRefLat').value,
+        attendanceRefLongitude: el('storeRefLng').value
+      })
     });
     state.data.store = payload.store;
     el('storeLogo').value = '';

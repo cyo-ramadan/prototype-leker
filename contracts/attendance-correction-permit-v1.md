@@ -56,7 +56,7 @@ returns 403 `PERMIT_STORE_SCOPE_MISMATCH`.
 
 `GET /api/admin/permit-report` (src/permit-report.js, tab "Laporan Permit" di Admin
 Gerai) membaca permit dari semua jenis, tanpa menulis apa pun: koreksi presensi,
-hapus transaksi (`approval_permits`), uang kas / arus barang / aset
+perbaikan GPS presensi (`attendance_gps_permits`, lihat `attendance-gps-v1.md`), hapus transaksi (`approval_permits`), uang kas / arus barang / aset
 (`approval_requests`), dan tutup laci sebelumnya. Filter: `category`, `requester`
 (karyawan pengaju), `status` (PENDING/APPROVED/REJECTED/EXPIRED), `from`/`to`
 (default 30 hari terakhir, tanggal Jakarta). Permit tutup laci yang ditolak

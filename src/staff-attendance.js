@@ -1,3 +1,4 @@
+import { gpsFact } from './attendance-gps.js';
 import { getJakartaBusinessDate, getJakartaTimeOfDay, getJakartaDayOfWeek, timeOfDayToMinutes, jakartaWallClockToUtc } from './time.js';
 
 // Bos Cyo, 2026-09-24: "presensi cs kok ngga muncul di web baru... yang ngga
@@ -43,7 +44,7 @@ function computeLateMinutes(checkInAt, scheduleByDay) {
 // fakta presensi PULANG pada baris yang sama. Baris lama dari sebelum
 // migration ini (attendance_type='out' tanpa presensi masuk yang tercatat di
 // baris yang sama) ditampilkan sebagai checkOut saja, checkIn null.
-export function mapAttendance(row, scheduleByDay = new Map()) {
+export function mapAttendance(row, scheduleByDay = new Map(), options = {}) {
   const singlePhotoFact = {
     at: row.created_at,
     photoType: row.photo_type,
@@ -66,13 +67,18 @@ export function mapAttendance(row, scheduleByDay = new Map()) {
       reason: row.correction_reason || '',
       decisionNote: row.correction_decision_note || ''
     } : null,
-    checkIn: checkIn ? { ...checkIn, lateMinutes: computeLateMinutes(checkIn.at, scheduleByDay) } : null,
+    checkIn: checkIn ? {
+      ...checkIn,
+      lateMinutes: computeLateMinutes(checkIn.at, scheduleByDay),
+      gps: gpsFact(row.gps_in_status, row.gps_in_distance_m, row.gps_in_resolved_permit_id, row.gps_in_resolution_note, options)
+    } : null,
     checkOut: hasCheckOut ? {
       at: row.check_out_at,
       photoType: row.check_out_photo_type,
       latitude: row.check_out_latitude,
       longitude: row.check_out_longitude,
-      accuracyMeters: row.check_out_location_accuracy_meters
+      accuracyMeters: row.check_out_location_accuracy_meters,
+      gps: gpsFact(row.gps_out_status, row.gps_out_distance_m, row.gps_out_resolved_permit_id, row.gps_out_resolution_note, options)
     } : (row.attendance_type === 'out' ? singlePhotoFact : null)
   };
 }
@@ -127,15 +133,17 @@ export async function forceCloseOverdueSessions(db, userId, scheduleByDay, enabl
   }
 }
 
-export async function listAttendance(db, userId, scheduleByDay, enabled = true, limit = 60) {
+export async function listAttendance(db, userId, scheduleByDay, enabled = true, limit = 60, options = {}) {
   await forceCloseOverdueSessions(db, userId, scheduleByDay, enabled);
   const rows = await db.prepare(`
     SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
            status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters,
-           auto_closed, original_created_at, correction_reason, correction_decision_note
+           auto_closed, original_created_at, correction_reason, correction_decision_note,
+           gps_in_status, gps_in_distance_m, gps_in_resolved_permit_id, gps_in_resolution_note,
+           gps_out_status, gps_out_distance_m, gps_out_resolved_permit_id, gps_out_resolution_note
     FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
   `).bind(userId, limit).all();
-  return (rows.results || []).map(row => mapAttendance(row, scheduleByDay));
+  return (rows.results || []).map(row => mapAttendance(row, scheduleByDay, options));
 }
 
 // Bos Cyo, 2026-09-19: "pendapatan gaji perharinya harusnya juga masukin ke

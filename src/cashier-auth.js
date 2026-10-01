@@ -435,7 +435,9 @@ export async function handleAdminCashierApi(request, env, pathname) {
     const cashier = await db.prepare('SELECT id, employee_name, username FROM cashiers WHERE id = ? AND store_id = ?').bind(id, store.id).first();
     if (!cashier) return json({ error: 'Kasir tidak ditemukan di gerai ini.' }, 404);
     const scheduleByDay = scheduleMap(await loadSchedule(db, id));
-    const attendance = await listAttendance(db, id, scheduleByDay, attendanceScheduleGateEnabled);
+    // includeDistance: jarak ke titik acuan hanya untuk Admin (karyawan cuma
+    // diberi selisihnya, lihat src/attendance-gps.js).
+    const attendance = await listAttendance(db, id, scheduleByDay, attendanceScheduleGateEnabled, 60, { includeDistance: true });
     return json({
       cashier: { id: cashier.id, employeeName: cashier.employee_name, username: cashier.username },
       attendance

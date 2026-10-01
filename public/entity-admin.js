@@ -749,6 +749,8 @@ async function loadEntityAdminData() {
   const payload = await entityAdminApi('/api/entity-admin/stores');
   entityAdminState.entityAdmin = payload.entityAdmin;
   entityAdminState.stores = payload.stores || [];
+  // Skin tampilan ikut tenant pemilik entity ini (public/ui-skin.js).
+  window.MaxiSkin?.useEntity(payload.entityAdmin?.entityId);
 }
 
 function renderEntityAdminStores() {

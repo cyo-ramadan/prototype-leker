@@ -14,6 +14,12 @@
 // waktu menambah saklar baru -- src/owner-auth.js merender daftar ini
 // generik, tidak perlu endpoint/kolom baru per saklar.
 export const ATTENDANCE_SCHEDULE_GATE_KEY = 'attendance_schedule_gate';
+// Bos Cyo, 2026-10-01: tombol per tenant -- ON = tampilan baru (skin "Siap
+// Jual", HANDOFF-UIUX-SIAP-JUAL.md) yang sedang diuji di tenant Lab Tampilan;
+// OFF = tampilan sekarang. Dibaca halaman lewat GET /api/ui-profile
+// (src/ui-profile.js). Default OFF supaya tenant yang sudah jalan tidak
+// berubah tampilan tanpa diminta.
+export const UI_SKIN_SIAP_JUAL_KEY = 'ui_skin_siap_jual';
 
 export const TENANT_POLICY_DEFINITIONS = Object.freeze([
   {
@@ -21,6 +27,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     label: 'Batasi gaji & presensi sesuai jadwal shift',
     description: 'ON: presensi di luar jam shift/hari libur gajinya Rp0, dan sesi yang lupa ditutup 1 jam setelah jadwal pulang otomatis ditutup sistem. OFF: cocok untuk tenant yang kebijakannya tidak pakai akun khusus lembur -- di luar jam kerja tetap dihitung gaji, dan tidak di-force-close karena memang masih dianggap kerja.',
     defaultValue: true
+  },
+  {
+    key: UI_SKIN_SIAP_JUAL_KEY,
+    label: 'Tampilan baru (uji skin "Siap Jual")',
+    description: 'ON: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan di tenant ini memakai tampilan baru yang sedang disiapkan untuk dijual (tanpa tulisan "Prototype", tanpa catatan developer, fitur setengah jadi disembunyikan). OFF: tampilan tetap seperti sekarang. Berlaku setelah halaman dimuat ulang.',
+    defaultValue: false
   }
 ]);
 

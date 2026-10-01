@@ -97,8 +97,8 @@
     lines.push('3A. BELANJA BAHAN BAYAR TUNAI', 'PRODUK | TOTAL', textPurchaseSection(sections.cashPurchases || [], totals.cashPurchases), '');
     lines.push('4.1 OPERASIONAL KAS', 'Keterangan | Total', textExpenseSection(sections.cashExpenses || [], totals.cashExpenses), '');
     lines.push('4.2 OPERASIONAL NON KAS', 'Keterangan | Total', textExpenseSection(sections.nonCashExpenses || [], totals.nonCashExpenses), '');
-    lines.push('5. MASAK', 'HASIL | BAHAN BAKU', textTableLines((sections.cooking || []).map(row => [row.result || '', row.material || '']), 'Belum ada modul Masak pada prototype ini.'), '');
-    lines.push('6. STOK SISA', 'PRODUK | STOK AWAL | STOK AKHIR', textTableLines((sections.stockRemaining || []).map(row => [row.productName, number(row.openingStock), number(row.closingStock)]), 'Belum ada inventory ledger untuk snapshot stok laci.'), '');
+    lines.push('5. MASAK', 'HASIL | BAHAN BAKU', textTableLines((sections.cooking || []).map(row => [row.result || '', row.material || '']), (window.MaxiSkin?.pick('Belum ada modul Masak pada prototype ini.', 'Belum ada catatan masak.') ?? 'Belum ada modul Masak pada prototype ini.')), '');
+    lines.push('6. STOK SISA', 'PRODUK | STOK AWAL | STOK AKHIR', textTableLines((sections.stockRemaining || []).map(row => [row.productName, number(row.openingStock), number(row.closingStock)]), (window.MaxiSkin?.pick('Belum ada inventory ledger untuk snapshot stok laci.', 'Belum ada catatan stok untuk laci ini.') ?? 'Belum ada inventory ledger untuk snapshot stok laci.')), '');
 
     lines.push('PERHITUNGAN', textMoneyLines([
       ['Penjualan Tunai (Plus)', totals.cashSales],
@@ -165,10 +165,10 @@
     const promoList = moneyList((sections.promotions || []).map(row => [lineName(row.name, row.quantity), row.total]));
     const cookingRows = (sections.cooking || []).length
       ? sections.cooking.map(row => `<tr><td>${esc(row.result || '')}</td><td>${esc(row.material || '')}</td></tr>`).join('')
-      : emptyRow(2, 'Belum ada modul Masak pada prototype ini.');
+      : emptyRow(2, (window.MaxiSkin?.pick('Belum ada modul Masak pada prototype ini.', 'Belum ada catatan masak.') ?? 'Belum ada modul Masak pada prototype ini.'));
     const stockRows = (sections.stockRemaining || []).length
       ? sections.stockRemaining.map(row => `<tr><td>${esc(row.productName)}</td><td>${number(row.openingStock)}</td><td>${number(row.closingStock)}</td></tr>`).join('')
-      : emptyRow(3, 'Belum ada inventory ledger untuk snapshot stok laci.');
+      : emptyRow(3, (window.MaxiSkin?.pick('Belum ada inventory ledger untuk snapshot stok laci.', 'Belum ada catatan stok untuk laci ini.') ?? 'Belum ada inventory ledger untuk snapshot stok laci.'));
     const adjustmentRows = (sections.stockAdjustments || []).length
       ? sections.stockAdjustments.map(row => `<tr><td>${esc(row.productName)}</td><td>${number(row.recordedStock)}</td><td>${number(row.actualStock)}</td><td>${number(row.difference)}</td></tr>`).join('')
       : emptyRow(4, 'Belum ada penyesuaian stok.');

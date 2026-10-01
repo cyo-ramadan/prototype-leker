@@ -146,4 +146,35 @@ memutuskan kapan demo, iklan, atau halaman depan boleh jalan — tanpa harus mem
 1. Nama merek + domain (mempengaruhi T1 dan landing).
 2. Harga paket (tidak menghalangi T1–T6).
 
-<!-- DOC-IMPACT: 2026-10-01 dokumen baru; tidak mengubah perilaku sistem. -->
+## 7. Progres (diisi sesi UI/UX)
+
+### 2026-10-01 — Tenant Lab Tampilan + saklar skin per tenant (permintaan Bos Cyo)
+
+Bos Cyo minta semua perubahan UI/UX **tidak langsung kena semua tenant**: dikerjakan dan
+dipilih dulu di satu tenant laboratorium, baru diterapkan ke semua.
+
+- **Tenant baru** `TEN-LAB-TAMPILAN` "Lab Tampilan" (migration 0132): entity
+  `ENT-LAB-TAMPILAN`, satu gerai kosong `LAB01` "Gerai Contoh", login pemilik (Entity Admin)
+  `lab_pemilik` — password **tidak** ada di repo, sudah diserahkan ke Bos Cyo. Kasir dibuat
+  dari Workspace Gerai seperti biasa.
+- **Saklar**: kebijakan tenant `ui_skin_siap_jual` (`src/tenant-policy.js`), muncul otomatis di
+  Owner Console → Tenant → Kebijakan. Default **OFF** untuk semua tenant; hanya Lab yang ON.
+- **Cara kerja**: `GET /api/ui-profile?store=` / `?entity=` (`src/ui-profile.js`) menjawab skin
+  dan merek; `public/ui-skin.js` dimuat di kasir, portal staf, workspace gerai, panel pemilik
+  (entity-admin), dan halaman pelanggan. Owner Console (pemilik platform, lintas tenant) sengaja
+  tidak ikut skin.
+- **Aturan untuk perubahan UI berikutnya (wajib)**: perubahan tampilan "Siap Jual" **selalu**
+  di belakang saklar — HTML pakai `data-skin-hide` / `data-skin-only` / `data-skin-text` /
+  `data-skin-placeholder` / `data-skin-brand`; teks dari JS pakai
+  `window.MaxiSkin?.pick(teksLama, teksBaru) ?? teksLama`. Teks lama jangan dihapus sampai Bos
+  Cyo memilih skin final dan menyalakannya untuk semua tenant.
+- **Merek**: satu tempat, `PRODUCT_BRAND_NAME` di `src/ui-profile.js` (sementara "MAXI").
+- **T1 yang sudah di belakang saklar**: judul tab tanpa "Prototype"/"Leker", merek di header,
+  teks "modul Masak pada prototype", catatan "Karen"/"canonical"/"inventory_stock_balances",
+  "PROVISIONAL", "Legacy / tracking off", istilah "stale/snapshot" di persetujuan stok, "Renderer
+  detail", tombol "Cari Lanjutan" (disembunyikan), teks hero & contoh catatan "leker" di halaman
+  pelanggan.
+- **Belum**: catatan di Owner Console (`owner.html:59,93` — tidak ikut skin), cek layar HP
+  sungguhan, T2–T6.
+
+<!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

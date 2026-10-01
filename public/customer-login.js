@@ -75,7 +75,7 @@
     <div id="entryLoginModal" class="entry-login-backdrop hidden" aria-hidden="true">
       <section class="entry-login-card" role="dialog" aria-modal="true" aria-labelledby="entryLoginTitle">
         <div class="entry-login-head">
-          <div><div class="muted">MAXI Leker · ${escapeHtml(storeCode)}</div><h2 id="entryLoginTitle">Login</h2></div>
+          <div><div class="muted">${escapeHtml(window.MaxiSkin?.brand() || 'MAXI Leker')} · ${escapeHtml(storeCode)}</div><h2 id="entryLoginTitle">Login</h2></div>
           <button id="entryLoginClose" class="entry-login-close" type="button" aria-label="Tutup">×</button>
         </div>
 

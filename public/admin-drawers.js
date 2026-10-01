@@ -161,7 +161,7 @@
       const payload = await request(`/api/admin/drawers/${encodeURIComponent(id)}`);
       window.openAdminDetailModal({
         head: `<div class="admin-eyebrow">Rincian Laci</div><h2>Gerai ${esc(payload.store?.code || window.LEKER_STORE_CODE || '')}</h2>`,
-        body: window.MAXIDrawerReport?.render(payload.report) || '<div class="empty">Renderer detail belum tersedia.</div>'
+        body: window.MAXIDrawerReport?.render(payload.report) || (window.MaxiSkin?.pick('<div class="empty">Renderer detail belum tersedia.</div>', '<div class="empty">Detail laci belum bisa ditampilkan. Muat ulang halaman.</div>') ?? '<div class="empty">Renderer detail belum tersedia.</div>')
       });
     } catch (error) {
       window.openAdminDetailModal({

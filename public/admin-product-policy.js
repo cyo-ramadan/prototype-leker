@@ -241,7 +241,7 @@
         </div>
 
         <div class="admin-card" style="margin-top:14px">
-          <div class="list-head"><div><h2>Akun Referensi Dasar</h2><div class="muted">Status PROVISIONAL sampai terhubung ke akun canonical dari modul Accounting.</div></div><span id="accountingAccountCount" class="master-count">0</span></div>
+          <div class="list-head"><div><h2>Akun Referensi Dasar</h2><div class="muted">${(window.MaxiSkin?.pick('Status PROVISIONAL sampai terhubung ke akun canonical dari modul Accounting.', 'Akun dasar untuk mengelompokkan produk.') ?? 'Status PROVISIONAL sampai terhubung ke akun canonical dari modul Accounting.')}</div></div><span id="accountingAccountCount" class="master-count">0</span></div>
           <div id="accountingReferenceList" class="master-list" style="margin-top:12px"></div>
         </div>
       </section>`);

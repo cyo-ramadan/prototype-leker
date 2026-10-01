@@ -71,6 +71,7 @@ import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
 import { handleCostMasterApi } from './cost-master.js';
 import { handleDebuggerApi } from './debugger-control-plane.js';
+import { handleUiProfileApi } from './ui-profile.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -218,6 +219,8 @@ async function handleApi(request, env, url) {
 
   const debuggerResponse = await handleDebuggerApi(request, env, pathname);
   if (debuggerResponse) return debuggerResponse;
+  const uiProfileResponse = await handleUiProfileApi(request, env, pathname);
+  if (uiProfileResponse) return uiProfileResponse;
   const unifiedLoginResponse = await handleUnifiedLoginApi(request, env, pathname);
   if (unifiedLoginResponse) return unifiedLoginResponse;
   const costMasterResponse = await handleCostMasterApi(request, env, pathname);

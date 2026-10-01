@@ -78,7 +78,7 @@
             <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500" placeholder="Contoh: hasil hitung fisik"></textarea></div>
           </div>
 
-          <p class="muted">Semua barang yang punya selisih langsung diposting sekaligus sebagai satu penyesuaian, tanpa menunggu ACC Admin. Stale-snapshot guard tetap re-check tiap barang persis sebelum diposting; kalau ada satu yang stoknya sudah berubah sejak panel ini dibuka, seluruh pengajuan ini ditolak otomatis supaya diajukan ulang dari saldo terbaru.</p>`,
+          <p class="muted">${(window.MaxiSkin?.pick('Semua barang yang punya selisih langsung diposting sekaligus sebagai satu penyesuaian, tanpa menunggu ACC Admin. Stale-snapshot guard tetap re-check tiap barang persis sebelum diposting; kalau ada satu yang stoknya sudah berubah sejak panel ini dibuka, seluruh pengajuan ini ditolak otomatis supaya diajukan ulang dari saldo terbaru.', 'Semua barang yang punya selisih langsung dicatat sekaligus, tanpa menunggu ACC Admin. Sebelum dicatat, stok tiap barang dicek ulang; kalau ada yang berubah sejak panel ini dibuka, pengajuan ditolak supaya diulang dari stok terbaru.') ?? 'Semua barang yang punya selisih langsung diposting sekaligus sebagai satu penyesuaian, tanpa menunggu ACC Admin. Stale-snapshot guard tetap re-check tiap barang persis sebelum diposting; kalau ada satu yang stoknya sudah berubah sejak panel ini dibuka, seluruh pengajuan ini ditolak otomatis supaya diajukan ulang dari saldo terbaru.')}</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
           const prepared = pilatu.prepareStockAdjustmentRows(selectedRows);

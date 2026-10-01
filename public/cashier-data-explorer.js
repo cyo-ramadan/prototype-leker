@@ -171,6 +171,8 @@
     });
     // Placeholder entry point only -- the actual per-field AND/OR search
     // builder is a separate, not-yet-designed feature. Just the button for now.
+    // Skin "Siap Jual": fitur yang belum jadi disembunyikan, bukan diumumkan.
+    if (window.MaxiSkin?.isOn()) el('cashierDataSearchAdvancedBtn').hidden = true;
     el('cashierDataSearchAdvancedBtn').addEventListener('click', () => toast('Cari Lanjutan segera hadir.'));
   }
 

@@ -10,6 +10,7 @@ import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarnin
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
 import { recordAttendanceAccrual } from './payroll-ledger.js';
+import { expirePermitsForClosedSessions, listOwnCorrectionPermits } from './attendance-correction-permit.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 import { getJakartaBusinessDate } from './time.js';
 
@@ -39,7 +40,8 @@ export async function handleStaffPortalApi(request, env, pathname) {
       // sendiri ... jadi di tanggal 26 nanti akan terlihat 2 kartu." Ini
       // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
       // kelihatan di sini juga, bukan cuma di panel Admin.
-      payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id })
+      payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id }),
+      attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id)
     });
   }
 
@@ -135,6 +137,7 @@ export async function handleStaffPortalApi(request, env, pathname) {
     if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
       return json({ error: 'Presensi sudah berubah status di request lain.' }, 409);
     }
+    await expirePermitsForClosedSessions(env.DB, { attendanceId: open.id });
     const updated = await env.DB.prepare(`
       SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
              status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters

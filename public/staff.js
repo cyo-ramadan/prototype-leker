@@ -67,11 +67,72 @@
     const color = lateMinutes < 5 ? '#d6336c' : lateMinutes < 10 ? '#c2255c' : '#a4133c';
     return ` · <span style="font-weight:800;color:${color}">Telat ${lateMinutes} menit</span>`;
   }
+  // Bos Cyo, 2026-10-01: permit koreksi jam presensi masuk (web error dsb.).
+  // Hanya selagi sesi masih berjalan; setelah pulang, koreksi lewat Penyesuaian
+  // Gaji oleh Admin. Lihat src/attendance-correction-permit.js.
+  const clockTime = value => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value));
+  const CORRECTION_CHIPS = { PENDING: ['Menunggu ACC Admin', '#8b5d00'], REJECTED: ['Ditolak Admin', '#a4133c'], EXPIRED: ['Kadaluarsa', '#6c757d'] };
+  function correctionPermitFor(attendanceId) {
+    return (portal?.attendanceCorrectionPermits || []).find(permit => permit.attendanceId === attendanceId) || null;
+  }
+  function correctionBlockHtml(row) {
+    if (row.correction) {
+      const note = row.correction.decisionNote ? ` · Catatan Admin: ${escapeHtml(row.correction.decisionNote)}` : '';
+      return `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:#1971c2">✎ Jam masuk dikoreksi</span> (tercatat asli ${escapeHtml(clockTime(row.correction.originalAt))}) · Alasan: ${escapeHtml(row.correction.reason)}${note}</div>`;
+    }
+    const permit = correctionPermitFor(row.id);
+    let html = '';
+    if (permit && permit.status !== 'APPROVED') {
+      const [label, color] = CORRECTION_CHIPS[permit.status] || [permit.status, '#6c757d'];
+      const detail = permit.status === 'PENDING'
+        ? `diajukan ke ${escapeHtml(clockTime(permit.requestedCheckInAt))}`
+        : escapeHtml(permit.decisionNote || '');
+      html += `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:${color}">Koreksi jam masuk: ${escapeHtml(label)}</span>${detail ? ` · ${detail}` : ''}</div>`;
+    }
+    const canRequest = row.status === 'OPEN' && row.checkIn && (!permit || permit.status !== 'PENDING');
+    if (canRequest) html += `<button type="button" class="secondary-btn" data-correct-attendance="${escapeHtml(row.id)}" style="margin-top:6px">Ajukan koreksi jam masuk</button>`;
+    return html;
+  }
+  function openCorrectionDialog(attendanceId) {
+    const row = (portal?.attendance || []).find(item => item.id === attendanceId);
+    if (!row?.checkIn) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
+    overlay.innerHTML = `<form style="background:#fff;border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
+      <h3 style="margin:0">Ajukan koreksi jam masuk</h3>
+      <div class="muted">Jam masuk tercatat ${escapeHtml(clockTime(row.checkIn.at))}. Isi jam yang seharusnya dan alasan yang sah, mis. web error. Admin akan memutuskan ACC atau Tolak. Hanya bisa diajukan sebelum presensi pulang.</div>
+      <label style="display:grid;gap:4px">Jam masuk seharusnya<input type="time" name="time" required /></label>
+      <label style="display:grid;gap:4px">Alasan<textarea name="reason" rows="3" maxlength="500" required placeholder="mis. web presensi error sejak pagi"></textarea></label>
+      <div class="staff-message" data-correction-message style="display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="secondary-btn" data-correction-cancel>Batal</button><button type="submit" class="primary-btn">Kirim pengajuan</button></div>
+    </form>`;
+    document.body.appendChild(overlay);
+    const form = overlay.querySelector('form');
+    const message = overlay.querySelector('[data-correction-message]');
+    overlay.querySelector('[data-correction-cancel]').onclick = () => overlay.remove();
+    form.onsubmit = async event => {
+      event.preventDefault();
+      message.style.display = 'none';
+      try {
+        await staffApi(`/api/staff/attendance/${encodeURIComponent(attendanceId)}/correction-permits`, {
+          method: 'POST',
+          body: JSON.stringify({ requestedTime: form.elements.time.value, reason: form.elements.reason.value })
+        });
+        overlay.remove();
+        toastStaff('Pengajuan terkirim, menunggu ACC Admin.');
+        await loadPortal();
+      } catch (error) {
+        message.textContent = error.message;
+        message.style.display = 'block';
+      }
+    };
+  }
   // Bos Cyo, 2026-09-24: "kartu presensi hari itu juga jadi warna kuning"
   // untuk sesi yang ditutup otomatis sistem karena lupa presensi pulang.
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div></div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div>${correctionBlockHtml(row)}</div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
+    document.querySelectorAll('[data-correct-attendance]').forEach(button => button.onclick = () => openCorrectionDialog(button.dataset.correctAttendance));
     loadAttendancePhotoThumbs();
   }
   function metric(label, value, detail = '') { return `<div class="staff-card" style="margin:0"><div class="muted">${escapeHtml(label)}</div><h2 style="margin:5px 0">${escapeHtml(String(value))}</h2>${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ''}</div>`; }

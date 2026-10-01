@@ -46,9 +46,15 @@
             <label class="admin-check"><input id="cashierEntityBackup" type="checkbox" /> Akun Backup Lintas Gerai <span class="field-note">satu akun, dipakai gerai mana pun sesama entity -- wajib diaktifkan Admin per hari sebelum bisa presensi</span></label>
             <button class="primary-btn" type="submit">Simpan kasir</button>
           </form>
-          <div class="admin-card list-card">
-            <div class="list-head"><h2>Master kasir gerai</h2><span id="cashierCount" class="master-count">0</span></div>
-            <div id="cashierList" class="master-list"></div>
+          <div>
+            <div class="admin-card list-card" style="margin-bottom:14px">
+              <div class="list-head"><div><h2>Pengajuan koreksi jam presensi</h2><div class="muted">Karyawan yang presensi masuknya telat karena alasan sah mengajukan perubahan jam. ACC mengganti jam masuk; kadaluarsa otomatis bila sesinya selesai sebelum diputuskan (lalu lewat Penyesuaian Gaji).</div></div><span id="correctionPermitCount" class="master-count">0</span></div>
+              <div id="correctionPermitList" class="master-list"></div>
+            </div>
+            <div class="admin-card list-card">
+              <div class="list-head"><h2>Master kasir gerai</h2><span id="cashierCount" class="master-count">0</span></div>
+              <div id="cashierList" class="master-list"></div>
+            </div>
           </div>
         </div>
       </section>`);
@@ -229,6 +235,7 @@
         <strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}
         <div class="master-meta">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div>
         <div class="master-meta">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · <span class="master-meta">tanpa foto/GPS -- lupa presensi pulang</span>' : ''}` : '—'}</div>
+        ${row.correction ? `<div class="master-meta"><span style="font-weight:800;color:#1971c2">✎ Jam masuk dikoreksi</span> (asli ${escapeHtml(clockTime(row.correction.originalAt))}) · Alasan: ${escapeHtml(row.correction.reason)}${row.correction.decisionNote ? ` · Catatan Admin: ${escapeHtml(row.correction.decisionNote)}` : ''}</div>` : ''}
       </div>
     </div>`;
   }
@@ -351,6 +358,52 @@
       data = await request('/api/admin/cashiers');
       render();
     } catch (error) { toast(error.message); }
+    await loadCorrectionPermits();
+  }
+
+  // Bos Cyo, 2026-10-01: permit koreksi jam presensi masuk. Auto Permit tidak
+  // berlaku (menyentuh gaji); Admin selalu memutuskan sendiri.
+  let correctionPermits = [];
+  const clockTime = value => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value));
+  const dayLabelOf = value => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' }).format(new Date(value));
+  function renderCorrectionPermits() {
+    if (!el('correctionPermitList')) return;
+    el('correctionPermitCount').textContent = correctionPermits.length;
+    el('correctionPermitList').innerHTML = correctionPermits.length ? correctionPermits.map(permit => `
+      <div class="master-row contact-row">
+        <div class="master-main">
+          <strong>${escapeHtml(permit.requestedByName)}</strong>
+          <div class="master-meta">${escapeHtml(dayLabelOf(permit.originalCheckInAt))} · tercatat masuk ${escapeHtml(clockTime(permit.originalCheckInAt))} → diminta ${escapeHtml(clockTime(permit.requestedCheckInAt))}</div>
+          <div class="master-meta">Alasan: ${escapeHtml(permit.reason)}</div>
+          <div class="master-meta">Diajukan ${escapeHtml(new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(permit.createdAt.includes('T') ? permit.createdAt : `${permit.createdAt.replace(' ', 'T')}Z`)))}</div>
+        </div>
+        <div class="master-actions">
+          <button class="mini-btn" type="button" data-acc-correction="${escapeHtml(permit.id)}">ACC</button>
+          <button class="mini-btn danger" type="button" data-reject-correction="${escapeHtml(permit.id)}">Tolak</button>
+        </div>
+      </div>`).join('') : '<div class="empty">Tidak ada pengajuan koreksi yang menunggu.</div>';
+    document.querySelectorAll('[data-acc-correction]').forEach(button => button.onclick = () => decideCorrectionPermit(button.dataset.accCorrection, 'ACC'));
+    document.querySelectorAll('[data-reject-correction]').forEach(button => button.onclick = () => decideCorrectionPermit(button.dataset.rejectCorrection, 'REJECT'));
+  }
+  async function loadCorrectionPermits() {
+    try {
+      correctionPermits = (await request('/api/admin/attendance-correction-permits')).permits || [];
+    } catch { correctionPermits = []; }
+    renderCorrectionPermits();
+  }
+  async function decideCorrectionPermit(id, decision) {
+    let note = '';
+    if (decision === 'REJECT') {
+      note = (prompt('Alasan penolakan (wajib, supaya karyawan tahu):', '') ?? '').trim();
+      if (!note) return;
+    } else {
+      note = (prompt('Catatan ACC (opsional, ikut tercatat di kartu presensi):', '') ?? '').trim();
+    }
+    try {
+      await request(`/api/admin/attendance-correction-permits/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ decision, note }) });
+      toast(decision === 'ACC' ? 'Jam masuk dikoreksi' : 'Pengajuan ditolak');
+    } catch (error) { toast(error.message); }
+    await loadCorrectionPermits();
   }
 
   function fillScheduleForm(schedule) {

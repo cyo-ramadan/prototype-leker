@@ -70,10 +70,12 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
   entityAdminEl('entityTab-sharedaccounts')?.classList.toggle('active', name === 'sharedaccounts');
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
+  entityAdminEl('entityTab-entityrecipes')?.classList.toggle('active', name === 'entityrecipes');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
   if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
+  if (name === 'entityrecipes') loadEntityRecipes().catch(error => entityAdminToast(error.message));
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
 }
@@ -315,6 +317,139 @@ function renderEntityProductMasters() {
     document.querySelector(`[data-entity-recipe-editor="${button.dataset.toggleEntityRecipe}"]`)?.classList.toggle('hidden');
   }));
   list.querySelectorAll('[data-save-entity-recipe]').forEach(button => button.addEventListener('click', () => saveEntityProductMasterRecipe(button.dataset.saveEntityRecipe)));
+}
+
+// --- Resep Produksi Entity (ADR-050) ----------------------------------------
+// Template resep milik Entity, dirujuk lewat Kode Barang. Disimpan di sini,
+// lalu "diterapkan" ke gerai: hasilnya resep milik gerai itu sendiri.
+
+const ENTITY_RECIPE_STATUS_LABELS = {
+  READY: ['Siap diterapkan', '#2f9e44'],
+  REPLACES: ['Akan menggantikan resep aktif gerai', '#8b5d00'],
+  UP_TO_DATE: ['Sudah memakai revisi ini', '#6c757d'],
+  BLOCKED: ['Belum bisa', '#a4133c']
+};
+
+async function loadEntityRecipes() {
+  const storeCode = anyEntityStoreCode();
+  const list = entityAdminEl('entityRecipeList');
+  if (!storeCode) { list.innerHTML = '<div class="empty">Belum ada gerai di entity ini.</div>'; return; }
+  const [recipes, catalog] = await Promise.all([
+    entityAdminApi(`/api/admin/entity-recipes?store=${encodeURIComponent(storeCode)}`),
+    entityAdminApi(`/api/admin/product-masters?store=${encodeURIComponent(storeCode)}`)
+  ]);
+  entityAdminState.entityRecipes = recipes.templates || [];
+  entityAdminState.productMasters = catalog.catalog || [];
+  const output = entityAdminEl('entityRecipeOutput');
+  const chosen = output.value;
+  output.innerHTML = '<option value="">Pilih Kode Barang…</option>' + entityAdminState.productMasters.map(entry =>
+    `<option value="${entityAdminEscape(entry.id)}">${entityAdminEscape(entry.code)}${entry.name ? ` · ${entityAdminEscape(entry.name)}` : ''}</option>`).join('');
+  output.value = chosen;
+  renderEntityRecipes();
+}
+
+function renderEntityRecipes() {
+  const list = entityAdminEl('entityRecipeList');
+  const templates = entityAdminState.entityRecipes || [];
+  list.innerHTML = templates.length ? templates.map(item => `
+    <div class="master-row" style="align-items:flex-start">
+      <div class="master-main">
+        <strong>${entityAdminEscape(item.outputCode)}${item.outputName ? ` · ${entityAdminEscape(item.outputName)}` : ''}${item.variantLabel ? ` — ${entityAdminEscape(item.variantLabel)}` : ''}</strong>
+        <div class="master-meta">Hasil ${item.outputQuantity} ${entityAdminEscape(item.outputUnitCode)} · revisi ${item.revision}</div>
+        <div class="master-meta">Bahan: ${item.components.map(component => `${entityAdminEscape(component.code)} ${component.quantity} ${entityAdminEscape(component.unitCode)}`).join(', ')}</div>
+        ${item.notes ? `<div class="master-meta">${entityAdminEscape(item.notes)}</div>` : ''}
+      </div>
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-entity-recipe-edit="${entityAdminEscape(item.id)}">Edit</button>
+        <button class="mini-btn" type="button" data-entity-recipe-preview="${entityAdminEscape(item.id)}">Pratinjau &amp; terapkan</button>
+      </div>
+    </div>`).join('') : '<div class="empty">Belum ada resep Entity. Isi form di sebelah.</div>';
+  list.querySelectorAll('[data-entity-recipe-edit]').forEach(button => button.onclick = () => fillEntityRecipeForm(button.dataset.entityRecipeEdit));
+  list.querySelectorAll('[data-entity-recipe-preview]').forEach(button => button.onclick = () => previewEntityRecipe(button.dataset.entityRecipePreview).catch(error => entityAdminToast(error.message)));
+}
+
+function fillEntityRecipeForm(templateId) {
+  const item = (entityAdminState.entityRecipes || []).find(entry => entry.id === templateId);
+  if (!item) return;
+  entityAdminEl('entityRecipeOutput').value = item.outputMasterId;
+  entityAdminEl('entityRecipeVariant').value = item.variantLabel;
+  entityAdminEl('entityRecipeOutputQty').value = item.outputQuantity;
+  entityAdminEl('entityRecipeOutputUnit').value = item.outputUnitCode;
+  entityAdminEl('entityRecipeComponents').value = item.components.map(component => `${component.code} | ${component.quantity} | ${component.unitCode}`).join('\n');
+  entityAdminEl('entityRecipeNotes').value = item.notes;
+  entityAdminToast('Resep dimuat di form. Ubah lalu Simpan untuk membuat revisi baru.');
+}
+
+function parseEntityRecipeComponents(value) {
+  const catalog = entityAdminState.productMasters || [];
+  const lines = String(value || '').split('\n').map(line => line.trim()).filter(Boolean);
+  return lines.map(line => {
+    const [code, quantity, unitCode] = line.split('|').map(part => part.trim());
+    const master = catalog.find(entry => entry.code.toLowerCase() === String(code || '').toLowerCase());
+    if (!master) throw new Error(`Kode Barang "${code}" tidak ada di entity ini.`);
+    return { masterId: master.id, quantity: Number(quantity), unitCode };
+  });
+}
+
+async function submitEntityRecipeForm(event) {
+  event.preventDefault();
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode) return entityAdminToast('Belum ada gerai di entity ini.');
+  try {
+    const components = parseEntityRecipeComponents(entityAdminEl('entityRecipeComponents').value);
+    await entityAdminApi(`/api/admin/entity-recipes?store=${encodeURIComponent(storeCode)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        outputMasterId: entityAdminEl('entityRecipeOutput').value,
+        variantLabel: entityAdminEl('entityRecipeVariant').value,
+        outputQuantity: Number(entityAdminEl('entityRecipeOutputQty').value),
+        outputUnitCode: entityAdminEl('entityRecipeOutputUnit').value,
+        components,
+        notes: entityAdminEl('entityRecipeNotes').value
+      })
+    });
+    entityAdminEl('entityRecipePreview').innerHTML = '';
+    await loadEntityRecipes();
+    entityAdminToast('Resep Entity disimpan. Belum diterapkan ke gerai mana pun.');
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+async function previewEntityRecipe(templateId) {
+  const storeCode = anyEntityStoreCode();
+  const box = entityAdminEl('entityRecipePreview');
+  box.innerHTML = '<div class="muted">Memeriksa kesiapan tiap gerai…</div>';
+  const payload = await entityAdminApi(`/api/admin/entity-recipes/${encodeURIComponent(templateId)}/preview?store=${encodeURIComponent(storeCode)}`);
+  const title = `${payload.template.outputCode}${payload.template.variantLabel ? ` — ${payload.template.variantLabel}` : ''} (revisi ${payload.template.revision})`;
+  box.innerHTML = `<div class="list-head"><h3>Terapkan: ${entityAdminEscape(title)}</h3></div>
+    ${payload.stores.map(store => {
+      const [label, color] = ENTITY_RECIPE_STATUS_LABELS[store.status] || [store.status, '#6c757d'];
+      const selectable = store.status === 'READY' || store.status === 'REPLACES';
+      const problems = (store.problems || []).map(problem => `<div class="master-meta">• ${entityAdminEscape(problem)}</div>`).join('');
+      const replaces = store.status === 'REPLACES' ? `<div class="master-meta">Resep aktif gerai (revisi ${store.replacesRevision}) akan diarsipkan dan diganti revisi baru dari resep Entity.</div>` : '';
+      return `<label class="master-row" style="align-items:flex-start;gap:10px">
+        <input type="checkbox" data-entity-recipe-store="${entityAdminEscape(store.storeId)}" ${selectable ? '' : 'disabled'} ${store.status === 'READY' ? 'checked' : ''} />
+        <div class="master-main"><strong>${entityAdminEscape(store.storeCode)} · ${entityAdminEscape(store.storeName)}</strong>
+          <div class="master-meta" style="color:${color};font-weight:800">${entityAdminEscape(label)}</div>${replaces}${problems}</div>
+      </label>`;
+    }).join('')}
+    <button class="primary-btn" type="button" data-entity-recipe-apply="${entityAdminEscape(templateId)}" style="margin-top:10px">Terapkan ke gerai terpilih</button>
+    <div id="entityRecipeApplyResult" class="muted" style="margin-top:8px"></div>`;
+  box.querySelector('[data-entity-recipe-apply]').onclick = () => applyEntityRecipe(templateId).catch(error => entityAdminToast(error.message));
+}
+
+async function applyEntityRecipe(templateId) {
+  const storeCode = anyEntityStoreCode();
+  const storeIds = [...document.querySelectorAll('[data-entity-recipe-store]:checked')].map(input => input.dataset.entityRecipeStore);
+  if (!storeIds.length) return entityAdminToast('Pilih minimal satu gerai.');
+  const payload = await entityAdminApi(`/api/admin/entity-recipes/${encodeURIComponent(templateId)}/apply?store=${encodeURIComponent(storeCode)}`, {
+    method: 'POST',
+    body: JSON.stringify({ storeIds })
+  });
+  const labels = { APPLIED: 'berhasil diterapkan', SKIPPED: 'dilewati (sudah terbaru)', BLOCKED: 'belum bisa', FAILED: 'gagal' };
+  entityAdminToast('Penerapan selesai. Periksa hasil per gerai.');
+  await previewEntityRecipe(templateId).catch(() => {});
+  entityAdminEl('entityRecipeApplyResult').innerHTML = payload.results.map(result =>
+    `<div>${entityAdminEscape(result.storeCode || result.storeId)}: ${entityAdminEscape(labels[result.status] || result.status)}${result.error ? ` — ${entityAdminEscape(result.error)}` : ''}${(result.problems || []).length ? ` — ${entityAdminEscape(result.problems.join('; '))}` : ''}</div>`).join('');
 }
 
 // --- Karyawan level Entity -------------------------------------------------
@@ -652,6 +787,8 @@ async function initEntityAdmin() {
   entityAdminEl('entityJournalForm').addEventListener('submit', submitEntityJournal);
   addEntityJournalLine();
   addEntityJournalLine();
+  entityAdminEl('entityRecipeForm')?.addEventListener('submit', submitEntityRecipeForm);
+  entityAdminEl('entityRecipeRefresh')?.addEventListener('click', () => loadEntityRecipes().catch(error => entityAdminToast(error.message)));
   entityAdminEl('entityProductMasterRefresh')?.addEventListener('click', () => loadEntityProductMasters().catch(error => entityAdminToast(error.message)));
   entityAdminEl('entityProductMasterForm')?.addEventListener('submit', submitEntityProductMasterForm);
   entityAdminEl('entityEmployeeForm')?.addEventListener('submit', saveEntityEmployee);

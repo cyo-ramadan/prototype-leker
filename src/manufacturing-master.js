@@ -190,7 +190,11 @@ async function recipeWouldCycle(db, storeId, outputProductId, componentProductId
   return componentProductIds.some(visitsOutput);
 }
 
-async function createRecipeRevision(db, store, auth, payload) {
+// `options.repointFromRecipeId` -- Resep Entity (ADR-050): bila barang hasil
+// sedang menunjuk resep yang digantikan revisi ini, penunjuk dipindah ke
+// revisi baru dalam batch yang sama. `options.extraStatements(recipeId)`
+// menambah statement ke batch yang sama (jejak penerapan).
+export async function createRecipeRevision(db, store, auth, payload, options = {}) {
   const outputProductId = Number(payload?.outputProductId);
   const outputQuantity = positiveInteger(payload?.outputQuantity);
   const variantLabel = text(payload?.variantLabel, 40);
@@ -279,6 +283,13 @@ async function createRecipeRevision(db, store, auth, payload) {
       product.base_unit_id, item.quantity, item.displayOrder
     ));
   }
+  if (options.repointFromRecipeId) {
+    statements.push(db.prepare(`
+      UPDATE products SET linked_recipe_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND store_id = ? AND linked_recipe_id = ?
+    `).bind(recipeId, outputProductId, store.id, options.repointFromRecipeId));
+  }
+  if (typeof options.extraStatements === 'function') statements.push(...options.extraStatements(recipeId));
   try {
     await db.batch(statements);
   } catch (error) {
@@ -287,7 +298,7 @@ async function createRecipeRevision(db, store, auth, payload) {
     }
     throw error;
   }
-  return { ok: true, response: json({ ok: true, id: recipeId, revision }, 201) };
+  return { ok: true, id: recipeId, revision, response: json({ ok: true, id: recipeId, revision }, 201) };
 }
 
 export async function handleManufacturingMasterApi(request, env, pathname) {

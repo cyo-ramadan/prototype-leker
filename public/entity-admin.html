@@ -42,6 +42,7 @@
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
         <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
+        <button class="admin-tab" data-entity-tab="entityrecipes" type="button">Resep Produksi</button>
         <button class="admin-tab" data-entity-tab="employees" type="button">Karyawan</button>
         <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
       </nav>
@@ -147,6 +148,35 @@
         </div>
       </section>
 
+      <section id="entityTab-entityrecipes" class="admin-section">
+        <div class="admin-grid two" style="align-items:start">
+          <form id="entityRecipeForm" class="admin-card">
+            <h2>Resep Produksi Entity</h2>
+            <div class="muted" style="margin-bottom:10px">Isi resep sekali di sini, lalu terapkan ke gerai-gerai yang barangnya sudah diaktifkan. Mengubah resep di sini tidak mengubah resep gerai mana pun sampai Anda menerapkannya. Satu barang boleh punya beberapa resep (varian), mis. "Larutan manis".</div>
+            <label class="admin-field">Kode Barang hasil<select id="entityRecipeOutput" required></select></label>
+            <label class="admin-field">Nama varian <span class="field-note">kosongkan untuk resep biasa</span><input id="entityRecipeVariant" maxlength="40" placeholder="mis. Larutan manis" /></label>
+            <div class="admin-grid two compact">
+              <label class="admin-field">Jumlah hasil<input id="entityRecipeOutputQty" type="number" min="1" step="1" value="1" required /></label>
+              <label class="admin-field">Satuan hasil<input id="entityRecipeOutputUnit" maxlength="20" value="PCS" required /></label>
+            </div>
+            <label class="admin-field">Bahan <span class="field-note">satu bahan per baris: KODE BARANG | jumlah | satuan</span>
+              <textarea id="entityRecipeComponents" rows="5" placeholder="LARUTAN-TAWAR | 100 | GRAM&#10;CUP | 1 | PCS" required></textarea>
+            </label>
+            <label class="admin-field">Catatan <span class="field-note">optional</span><input id="entityRecipeNotes" maxlength="200" /></label>
+            <button class="primary-btn" type="submit">Simpan resep</button>
+            <div class="muted" style="margin-top:8px">Jumlah wajib bilangan bulat dalam satuan dasar barang. Satuan harus sama dengan satuan dasar barang di gerai; gerai yang satuannya berbeda akan ditolak saat diterapkan.</div>
+          </form>
+          <div class="admin-card list-card">
+            <div class="list-head">
+              <div><h2>Resep di entity ini</h2><div class="muted">Pilih "Pratinjau &amp; terapkan" untuk melihat gerai mana yang siap.</div></div>
+              <button id="entityRecipeRefresh" class="secondary-btn" type="button">↻ Refresh</button>
+            </div>
+            <div id="entityRecipeList" class="master-list" style="margin-top:12px"></div>
+            <div id="entityRecipePreview" style="margin-top:12px"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="entityTab-employees" class="admin-section">
         <div class="admin-grid two" style="align-items:start">
           <form id="entityEmployeeForm" class="admin-card">
@@ -196,7 +226,7 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261001-una-v1" />
 <script src="/caca-chat.js?v=20261001-una-bayar-v1"></script>
-<script src="/entity-admin.js?v=20261001-una-lupakan-v1"></script>
+<script src="/entity-admin.js?v=20261001-resep-entity-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

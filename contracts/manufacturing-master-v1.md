@@ -93,8 +93,12 @@ HPP fields may use decimal precision. Current production snapshots reserve decim
 
 HPP must not be calculated by blindly reading the latest `products.purchase_price`.
 
+## Entity Recipe Templates (ADR-050)
+
+An Owner / Entity Admin may keep a recipe template per Kode Barang (`product_masters`) in `entity_recipe_templates` (+ `entity_recipe_template_components`, migration 0131): output and components are Kode Barang, quantities are positive integers with a unit code, one ACTIVE template per output Kode Barang per `variant_label`, immutable revisions. A template never moves stock. **Applying** it to a store (`POST /api/admin/entity-recipes/:id/apply {storeIds}`, after `GET .../preview`) creates a normal `manufacturing_recipes` revision for that store through the same path as the store Master Resep, so every rule above still holds. Fail-closed per store: output/component not activated for the Kode Barang, more than one active product for it, or a base unit whose code differs from the template are `BLOCKED` (nothing written for that store). If the store already has an ACTIVE recipe of the same variant it is archived and, when `products.linked_recipe_id` pointed at it, the pointer moves to the new revision in the same batch; a pointer is never created from nothing. `entity_recipe_applications` records which template revision is in force in which store (`UNIQUE(template_id, store_id)`).
+
 ## Performance
 
 Master data is loaded only when the relevant Master section is opened. Recipe components are fetched in grouped queries rather than one request per row. No periodic polling is introduced.
 
-<!-- DOC-IMPACT: 2026-09-30 variant_label on manufacturing_recipes; one ACTIVE recipe per output product per variant (migration 0127); cashier recipe choice at sale, has_recipe_variants, product_recipe_switch_log (migration 0128). -->
+<!-- DOC-IMPACT: 2026-10-01 Entity recipe templates, preview/apply to store recipes (migration 0131, ADR-050); 2026-09-30 variant_label on manufacturing_recipes; one ACTIVE recipe per output product per variant (migration 0127); cashier recipe choice at sale, has_recipe_variants, product_recipe_switch_log (migration 0128). -->

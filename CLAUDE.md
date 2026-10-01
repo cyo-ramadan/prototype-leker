@@ -143,6 +143,9 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   `KNOWN_PITFALLS.md` "File JS lama yang diubah tapi query `?v=` tidak dibump"). File baru aman
   tanpa ini karena browser belum pernah menyimpan apa pun di URL-nya.
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
+- **Fitur/perubahan yang terlihat pengguna sudah live di `main`** → tambah satu baris di
+  `HANDOFF-STRATEGI-PENJUALAN.md` §8 (format di sana). Sesi strategi penjualan hanya membaca
+  tabel itu untuk tahu apa yang berubah.
 - Kerjakan di branch fitur, jangan commit langsung ke `main`.
 - Sebelum commit pertama tiap sesi, set `git config user.name "Hana"` dan
   `git config user.email "hana@agent.maxi"` — supaya histori commit menunjukkan

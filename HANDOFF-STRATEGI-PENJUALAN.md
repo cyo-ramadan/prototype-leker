@@ -199,11 +199,26 @@ harga & corong), baru jadikan hasilnya skill sendiri lewat `skill-creator`.
 
 ## 8. Catatan perubahan fitur (tambahkan di bawah, terbaru di akhir)
 
-| Tanggal | Perubahan | Dampak ke penjualan |
-|---|---|---|
-| 2026-10-01 | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
-| 2026-10-01 | Halaman diagnostik perangkat | Mengurangi beban dukungan "tidak bisa login" |
-| *(sesi pengembangan menambah baris di sini)* | | |
+**Ini satu-satunya tempat sesi strategi membaca perkembangan produk.** Sesi strategi tidak
+membaca kode atau dokumen lain untuk tahu apa yang berubah — jadi kalau tidak ditulis di sini,
+dianggap belum ada.
+
+Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
+- Tambah **satu baris per perubahan yang sudah live di `main`** (bukan yang baru di branch).
+- Kolom **Status jual** pakai salah satu: `JUAL` (boleh didemokan/dijanjikan), `SEMBUNYI`
+  (jadi tapi disembunyikan untuk tenant baru), `UJI` (live tapi belum layak dijanjikan),
+  `INTERNAL` (tidak terlihat pembeli).
+- Tulis dengan bahasa pemilik usaha, satu kalimat. Tanpa nama file.
+- Kalau perubahan mengubah kelebihan/kelemahan, ubah juga §4–5 (atau tulis "§5 perlu
+  ditinjau" di kolom Dampak supaya sesi strategi tahu).
+- Jangan menghapus baris lama.
+
+| Tanggal | Sesi | Perubahan | Status jual | Dampak ke penjualan |
+|---|---|---|---|---|
+| 2026-10-01 | pengembangan | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | JUAL | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
+| 2026-10-01 | pengembangan | Halaman diagnostik perangkat | INTERNAL | Mengurangi beban dukungan "tidak bisa login" |
+| 2026-10-01 | strategi | Landing page penjualan di `/produk/` (hanya fitur Paket Kontrol; tombol "Minta demo lewat WhatsApp") | INTERNAL | Belum dibagikan: nomor WhatsApp, nama merek, dan izin memakai angka Leker masih menunggu Bos Cyo |
+| *(semua sesi menambah baris di sini)* | | | | |
 
 ---
 
@@ -216,4 +231,39 @@ harga & corong), baru jadikan hasilnya skill sendiri lewat `skill-creator`.
 (absen tap kartu), `POS_MODULE_INDEPENDENCE.md` (arah POS berdiri sendiri tanpa akuntansi —
 penting kalau mau menjual edisi POS-saja).
 
-<!-- DOC-IMPACT: 2026-10-01 dokumen baru; tidak mengubah perilaku sistem. -->
+## 10. Keputusan sementara sesi strategi (2026-10-01)
+
+Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
+
+- **Jual sekarang, jangan tunggu semua fitur.** Fitur yang belum jadi disembunyikan per
+  Tenant, bukan dihapus.
+- **Posisi**: bukan "aplikasi kasir", melainkan *sistem kontrol gerai* — "Gerai jalan, kas
+  jujur, karyawan terpantau — tanpa Anda harus datang."
+- **Segmen pertama**: pemilik 3–10 gerai minuman/booth; pengali: pemilik kemitraan/franchise.
+- **Paket pertama — Paket Kontrol Gerai**: kasir+laci, presensi foto+GPS+radius, permit ACC
+  pemilik, stok+HPP dari resep, untung-rugi sederhana, gaji dari presensi, laporan
+  presensi/permit, multi-gerai. Pembukuan lengkap = paket naik kelas.
+- **Disembunyikan untuk tenant baru**: asisten AI Caca/Una, Game/Roda Puter, poin pelanggan,
+  pendaftaran akun pelanggan, menu akuntansi lengkap.
+- **Harga hipotesis** *(menunggu)*: Rp149rb/gerai/bulan (Kontrol), Rp249rb (+Pembukuan).
+  Pembanding: Majoo Rp249rb–999rb, Moka Rp299rb–799rb, Pawoon Rp299rb per outlet/bulan;
+  aplikasi absensi terpisah Rp5rb–12rb/karyawan/bulan.
+- **Nama/domain** *(menunggu)*: kandidat OwnerTenang (pilihan Hana), PantauGerai, GeraiJujur;
+  ketersediaan domain belum dicek.
+- **Wajib sebelum demo ke orang luar**: lihat `HANDOFF-UIUX-SIAP-JUAL.md` T1–T5 (bersih kesan
+  prototype, saklar paket, Ringkasan Pemilik, pemilik tahu permit menunggu, tenant demo).
+- **Urutan kanal**: jual langsung lewat jaringan Bos Cyo → pemilik kemitraan → konten
+  TikTok/Reels (tema "pemilik tenang walau tidak di gerai") → Google Search setelah halaman
+  depan siap → iklan Meta paling akhir.
+- **Landing page** ada di `/produk/` pada alamat aplikasi sekarang. Yang wajib diisi sebelum
+  dibagikan: nomor WhatsApp, nama merek (satu blok pengaturan di bagian bawah halaman), dan
+  persetujuan Bos Cyo memakai angka Leker (14 gerai, 37 akun, 1.200+ penjualan, 540 barang).
+  Halaman hanya boleh menjanjikan fitur berstatus `JUAL`; tes otomatis menolak kata seperti
+  AI/Caca, game, poin, offline, jurnal, prototype. **Pindah ke domain sendiri**: begitu domain
+  dibeli, pasang sebagai Custom Domain di Cloudflare dan arahkan halaman utama domain itu ke
+  landing page — keputusan teknisnya (Worker statis terpisah vs. aturan per alamat di Worker
+  utama) diambil sesi pengembangan saat itu, tanpa mengubah isi halaman.
+- **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
+  di hari ke-90.
+
+<!-- DOC-IMPACT: 2026-10-01 dokumen baru; 2026-10-01 §8 diberi format wajib lintas sesi dan §10 keputusan sementara ditambahkan. Tidak mengubah perilaku sistem. -->

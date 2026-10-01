@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/admin.css" />
   <link rel="stylesheet" href="/owner.css" />
+  <link rel="stylesheet" href="/entity-report-chart.css?v=20261001-grafik-gerai-v1" />
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
 </head>
@@ -211,6 +212,13 @@
           <button id="entityReportRun" class="primary-btn" type="button" style="margin-top:12px">Tampilkan Laporan</button>
           <div id="entityReportStatus" class="admin-tip" style="margin-top:10px"></div>
         </div>
+        <div class="admin-card ent-viz" id="entityReportChartCard" style="margin-top:14px">
+          <div class="list-head"><div><h2>Perbandingan Gerai</h2><div class="muted">Pilih yang ingin dilihat. Urutan dari yang terbesar di atas sampai yang terkecil di bawah.</div></div></div>
+          <div class="ent-viz-metrics" id="entityReportMetrics" role="group" aria-label="Pilih ukuran yang dibandingkan"></div>
+          <div id="entityReportChart"><div class="empty">Tekan "Tampilkan Laporan" dulu.</div></div>
+          <details class="ent-viz-details"><summary>Lihat sebagai tabel angka</summary><div id="entityReportStoreTable" style="overflow-x:auto"></div></details>
+          <div id="entityReportTip" class="ent-viz-tip" role="tooltip"></div>
+        </div>
         <div class="admin-card list-card" style="margin-top:14px">
           <div class="list-head"><h2>Net Profit per Hari</h2></div>
           <div id="entityReportTableWrap" style="overflow-x:auto;margin-top:10px"></div>
@@ -226,7 +234,7 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261001-una-v1" />
 <script src="/caca-chat.js?v=20261001-una-bayar-v1"></script>
-<script src="/entity-admin.js?v=20261001-resep-entity-v1"></script>
+<script src="/entity-admin.js?v=20261001-grafik-gerai-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

@@ -434,12 +434,26 @@ export async function handleNetProfitReportApi(request, env, pathname) {
     totals.total += row.total;
   }
 
+  // Total per gerai untuk grafik perbandingan Entity (Omset, Untung, Beban...):
+  // dijumlah dari rincian harian yang SUDAH dihitung/ter-cache di atas, jadi
+  // tidak menambah satu query pun.
+  const storeTotals = selected.map(store => {
+    const sum = { ...EMPTY_BREAKDOWN };
+    for (const businessDate of dates) {
+      const day = breakdownByKey.get(`${store.id}::${businessDate}`);
+      if (!day) continue;
+      for (const field of Object.keys(sum)) sum[field] += Number(day[field] || 0);
+    }
+    return { code: store.code, storeName: store.storeName, ...sum };
+  });
+
   const response = {
     from, to,
     scope: entityWide ? 'ENTITY' : 'STORE',
     stores: selected.map(store => ({ code: store.code, storeName: store.storeName })),
     rows,
-    totals
+    totals,
+    storeTotals
   };
   if (withBreakdown) {
     response.breakdownTotals = rows.reduce((acc, row) => ({

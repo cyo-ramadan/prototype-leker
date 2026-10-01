@@ -59,6 +59,13 @@ export function mapAttendance(row, scheduleByDay = new Map()) {
     storeId: row.store_id,
     status: row.status,
     autoClosed: Boolean(row.auto_closed),
+    // Jam masuk yang dikoreksi lewat permit (Admin sudah ACC): created_at sudah
+    // berisi jam hasil koreksi, jam aslinya ada di original_created_at.
+    correction: row.original_created_at ? {
+      originalAt: row.original_created_at,
+      reason: row.correction_reason || '',
+      decisionNote: row.correction_decision_note || ''
+    } : null,
     checkIn: checkIn ? { ...checkIn, lateMinutes: computeLateMinutes(checkIn.at, scheduleByDay) } : null,
     checkOut: hasCheckOut ? {
       at: row.check_out_at,
@@ -125,7 +132,7 @@ export async function listAttendance(db, userId, scheduleByDay, enabled = true, 
   const rows = await db.prepare(`
     SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
            status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters,
-           auto_closed
+           auto_closed, original_created_at, correction_reason, correction_decision_note
     FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?
   `).bind(userId, limit).all();
   return (rows.results || []).map(row => mapAttendance(row, scheduleByDay));

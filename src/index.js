@@ -11,6 +11,7 @@ import { getPublicStore, handleAdminApi } from './admin-multistore.js';
 import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleDrawerClosePermitApi } from './cashier-drawer-close-permit.js';
+import { handleAttendanceCorrectionPermitApi } from './attendance-correction-permit.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -257,6 +258,8 @@ async function handleApi(request, env, url) {
   if (adminDrawerResponse) return adminDrawerResponse;
   const drawerClosePermitResponse = await handleDrawerClosePermitApi(request, env, pathname);
   if (drawerClosePermitResponse) return drawerClosePermitResponse;
+  const attendanceCorrectionPermitResponse = await handleAttendanceCorrectionPermitApi(request, env, pathname);
+  if (attendanceCorrectionPermitResponse) return attendanceCorrectionPermitResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

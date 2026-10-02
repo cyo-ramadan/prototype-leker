@@ -14,6 +14,7 @@ import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-re
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
+import { gayaJawaban, gayaSelesai } from './caca-gaya.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 
@@ -227,8 +228,10 @@ async function tanya(request, env, jalurUtama) {
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
+  const gaya = gayaJawaban(hasil);
   return json({
-    jawaban: hasil.jawaban ?? null,
+    jawaban: gaya.jawaban,
+    sapaan: gaya.sapaan,
     alat: hasil.alat,
     periode: hasil.periode ?? null,
     tabel: hasil.tabel ?? null,
@@ -259,7 +262,7 @@ async function catatAksi(request, env, draft, jalurUtama) {
 
   const hasil = await aksi.posting(diperiksa.draft, { ...jalur, lingkup: lingkup.konteks.lingkup });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
-  return json({ tercatat: true, draft: diperiksa.draft, jawaban: hasil.jawaban });
+  return json({ tercatat: true, draft: diperiksa.draft, jawaban: gayaSelesai(hasil.jawaban) });
 }
 
 // Konfirmasi tidak memanggil model sama sekali — orang menekan tombol, dan yang
@@ -308,7 +311,7 @@ async function catat(request, env, jalurUtama) {
   return json({
     tercatat: true,
     draft: diperiksaUlang.draft,
-    jawaban: `Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`
+    jawaban: gayaSelesai(`Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`)
   });
 }
 

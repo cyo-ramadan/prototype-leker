@@ -235,6 +235,34 @@ test('sinkron otomatis: membuka Laporan Untung Rugi memposting koreksi yang tert
   } finally { ctx.db.close(); }
 });
 
+test('bahan baku yang harga rata-ratanya salah catat (tidak dipakai produksi dadakan) bisa dibetulkan: tanpa baris penjualan, hanya harga rata-rata, tercatat riwayatnya', async () => {
+  const ctx = await setup();
+  try {
+    // "Air Mineral" salah catat pembelian: qty 2 (maksudnya 32.000 ml) -> harga rata-rata 8.000/ml.
+    const air = addProduct(ctx.db, 'Air Mineral', 'unit_kantor_rp', 8000 * SCALE);
+    ctx.db.prepare("UPDATE products SET item_type_id = 'item_type_store_kantor_raw' WHERE id = ?").run(air);
+    const list = await (await call(ctx, 'GET', '/api/admin/hpp-recalculation/components')).json();
+    const found = list.components.find(item => item.productId === air);
+    assert.ok(found, 'bahan baku biasa ikut daftar');
+    assert.equal(found.usedInSales, false);
+
+    const preview = await (await call(ctx, 'POST', '/api/admin/hpp-recalculation/preview', { componentProductId: air, unitCost: '0,5', from: '2026-09-01' })).json();
+    assert.equal(preview.summary.lineCount, 0);
+    assert.equal(preview.summary.averageCostOnly, true);
+    assert.equal(preview.summary.previousAverageCostRupiah, 8000);
+    assert.equal(preview.summary.newAverageCostRupiah, 0.5);
+
+    const res = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: air, unitCost: '0,5', from: '2026-09-01', reason: 'Salah catat pembelian: 2 seharusnya 32.000 ml' });
+    assert.equal(res.status, 201);
+    assert.equal(ctx.db.prepare('SELECT average_cost FROM products WHERE id = ?').get(air).average_cost, SCALE / 2);
+    const header = ctx.db.prepare('SELECT line_count, previous_average_cost_scaled, unit_cost_scaled FROM hpp_recalculations').get();
+    assert.deepEqual([Number(header.line_count), Number(header.previous_average_cost_scaled), Number(header.unit_cost_scaled)], [0, 8000 * SCALE, SCALE / 2]);
+
+    const again = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: air, unitCost: '0,5', from: '2026-09-01', reason: 'ulang sama persis' });
+    assert.equal(again.status, 409, 'harga sudah sama -> tidak ada yang dikerjakan');
+  } finally { ctx.db.close(); }
+});
+
 test('validasi: bahan gerai lain ditolak, harga harus angka, tanpa login ditolak, daftar bahan hanya yang dipakai produksi dadakan', async () => {
   const ctx = await setup();
   try {
@@ -258,5 +286,5 @@ test('UI: tab Hitung Ulang HPP di Admin Gerai, pratinjau dulu baru terapkan, men
   assert.match(js, /\/api\/admin\/hpp-recalculation\/preview/);
   assert.match(js, /Hanya HPP yang berubah/);
   assert.match(js, /Pratinjau dulu sebelum menerapkan/);
-  assert.match(html, /admin-hpp-recalc\.js\?v=20261002-hitung-ulang-hpp-v1/);
+  assert.match(html, /admin-hpp-recalc\.js\?v=20261002-hitung-ulang-hpp-v2/);
 });

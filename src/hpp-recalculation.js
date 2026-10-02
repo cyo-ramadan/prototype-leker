@@ -55,26 +55,41 @@ function actorFrom(auth) {
   return { role: 'LEGACY_PIN', id: '' };
 }
 
-// Bahan yang pernah dipakai produksi dadakan di gerai ini.
+// Bahan di gerai ini yang boleh dikoreksi harganya: (a) yang pernah dipakai
+// produksi dadakan -- penjualannya ikut dihitung ulang, dan (b) bahan baku
+// lain (mis. Air Mineral, Gula) yang harga rata-ratanya salah karena salah
+// catat pembelian -- tanpa penjualan langsung, tapi harga rata-ratanya ikut
+// meracuni produksi berikutnya, jadi harus bisa dibetulkan juga.
 export async function listRecalculableComponents(db, storeId) {
   const rows = await db.prepare(`
-    SELECT p.id, p.name, u.code AS unit_code, u.symbol AS unit_symbol, p.average_cost
+    SELECT p.id, p.name, u.code AS unit_code, u.symbol AS unit_symbol, p.average_cost,
+           CASE WHEN p.id IN (
+             SELECT DISTINCT c.component_product_id
+             FROM production_run_components c
+             JOIN production_runs r ON r.id = c.production_run_id AND r.store_id = c.store_id
+             WHERE c.store_id = ? AND r.mode = 'AUTO_DADAKAN'
+           ) THEN 1 ELSE 0 END AS used_in_sales
     FROM products p
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
-    WHERE p.store_id = ? AND p.id IN (
-      SELECT DISTINCT c.component_product_id
-      FROM production_run_components c
-      JOIN production_runs r ON r.id = c.production_run_id AND r.store_id = c.store_id
-      WHERE c.store_id = ? AND r.mode = 'AUTO_DADAKAN'
+    LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
+    WHERE p.store_id = ? AND (
+      p.id IN (
+        SELECT DISTINCT c.component_product_id
+        FROM production_run_components c
+        JOIN production_runs r ON r.id = c.production_run_id AND r.store_id = c.store_id
+        WHERE c.store_id = ? AND r.mode = 'AUTO_DADAKAN'
+      )
+      OR (p.is_active = 1 AND COALESCE(t.can_consume, 0) = 1 AND COALESCE(t.can_sell, 1) = 0)
     )
     ORDER BY p.name COLLATE NOCASE
-  `).bind(storeId, storeId).all();
+  `).bind(storeId, storeId, storeId).all();
   return (rows.results ?? []).map(row => ({
     productId: Number(row.id),
     name: row.name,
     unitCode: row.unit_code || '',
     unitSymbol: row.unit_symbol || '',
-    averageCostRupiah: Number(row.average_cost || 0) / SCALE
+    averageCostRupiah: Number(row.average_cost || 0) / SCALE,
+    usedInSales: Boolean(row.used_in_sales)
   }));
 }
 
@@ -153,6 +168,7 @@ export async function computeHppRecalculation(db, storeId, { componentProductId,
 
   const oldTotal = lines.reduce((sum, line) => sum + line.oldCost, 0);
   const newTotal = lines.reduce((sum, line) => sum + line.newCost, 0);
+  const previousAverage = Number(component.average_cost || 0);
   return {
     ok: true,
     component: { productId: Number(component.id), name: component.name, averageCostScaled: Number(component.average_cost || 0) },
@@ -166,6 +182,11 @@ export async function computeHppRecalculation(db, storeId, { componentProductId,
       oldTotalScaled: oldTotal,
       newTotalScaled: newTotal,
       manualProductionSkipped: Number(manual?.n || 0),
+      // Tidak ada penjualan yang terdampak tapi harga rata-rata bahan memang beda:
+      // Terapkan hanya membetulkan harga rata-rata (bahan baku yang salah catat).
+      averageCostOnly: lines.length === 0 && previousAverage !== unitCostScaled,
+      previousAverageCostRupiah: previousAverage / SCALE,
+      newAverageCostRupiah: unitCostScaled / SCALE,
       byDate: [...byDate.values()].sort((a, b) => a.businessDate.localeCompare(b.businessDate)).map(day => ({
         businessDate: day.businessDate,
         saleCount: day.sales.size,
@@ -292,7 +313,7 @@ export async function postPendingHppCorrections(db, storeId, limit = 100, { retr
 async function applyHppRecalculation(db, store, auth, input, reason) {
   const computed = await computeHppRecalculation(db, store.id, input);
   if (!computed.ok) return computed;
-  if (!computed.lines.length) return { ok: false, status: 409, error: 'Tidak ada penjualan yang HPP-nya berubah dengan harga ini.' };
+  if (!computed.lines.length && !computed.summary.averageCostOnly) return { ok: false, status: 409, error: 'Tidak ada penjualan yang HPP-nya berubah dan harga rata-rata bahan sudah sama dengan harga ini.' };
 
   const id = `hpprecalc_${crypto.randomUUID()}`;
   const actor = actorFrom(auth);

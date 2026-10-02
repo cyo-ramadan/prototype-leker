@@ -390,6 +390,7 @@ function cacaRenderTabel(tabel) {
 }
 
 function cacaJejakAlat(payload) {
+  if (payload.jejak) return payload.jejak;
   if (!payload.alat) return '';
   const periode = payload.periode ? ` · ${payload.periode.dari}${payload.periode.sampai !== payload.periode.dari ? ` s/d ${payload.periode.sampai}` : ''}` : '';
   return `dari ${payload.alat}${periode}`;
@@ -533,9 +534,12 @@ async function cacaKirimTeks(pertanyaan) {
       // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
       // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
       const tabel = cacaRenderTabel(payload.tabel);
+      const peringatan = payload.peringatan ? `<p class="caca-peringatan">${cacaEscape(payload.peringatan)}</p>` : '';
       if (tabel) {
         // Kalimatnya di atas tabel, bukan di bawahnya.
-        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}` });
+        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}${peringatan}` });
+      } else if (peringatan) {
+        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${peringatan}` });
       } else {
         cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
       }

@@ -46,7 +46,18 @@ const ALASAN_AKUN = new Set([
 
 const POLA_AKUN = /\b(api key|location is not supported|billing|free tier is not available)\b/i;
 
+const PETUNJUK_SKEMA_400 = 'Bentuk jawaban yang diminta ke mesin AI ditolak (masalah di sisi program, bukan di akun atau pertanyaan).';
+
 const PETUNJUK_AKUN_400 = 'Ditolak karena akun atau kunci, bukan karena pertanyaannya (kunci tidak valid/kedaluwarsa, atau layanan tidak tersedia).';
+
+// Penolakan skema (terlalu rumit, enum salah, dst.) menyebut isi SKEMA kita
+// sendiri, bukan isi permintaan pelanggan, jadi alasannya aman ditampilkan —
+// dan tanpa itu satu-satunya petunjuk adalah angka 400.
+const POLA_SKEMA = /(schema|constraint|too many states|response_?schema|response_?mime|generation_?config|enum)/i;
+
+function soalSkema(badan) {
+  return POLA_SKEMA.test(String(badan?.error?.message ?? ''));
+}
 
 function soalAkun(badan) {
   const rincian = Array.isArray(badan?.error?.details) ? badan.error.details : [];
@@ -84,7 +95,9 @@ export function jelaskanPenolakan(status, badan, kunci) {
   const asal = badan?.error?.message;
   const kodePenyedia = kodeSingkat(badan?.error?.status) || kodeSingkat(badan?.error?.code);
   const dasar = `Mesin AI menolak permintaan (${status}${kodePenyedia ? `, ${kodePenyedia}` : ''})`;
-  const petunjuk = PETUNJUK[status] || (soalAkun(badan) ? PETUNJUK_AKUN_400 : '');
+  const petunjuk = PETUNJUK[status]
+    || (soalAkun(badan) ? PETUNJUK_AKUN_400 : '')
+    || (status === 400 && soalSkema(badan) ? PETUNJUK_SKEMA_400 : '');
   if (!petunjuk) return `${dasar}.`;
 
   const alasan = asal ? ringkas(samarkan(asal, kunci)) : '';

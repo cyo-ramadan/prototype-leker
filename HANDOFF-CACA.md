@@ -72,6 +72,39 @@ disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
 login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
+**Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
+— alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,
+~50 endpoint baca admin/entity), lalu bergantian dengan kode maksimal tiga
+langkah (`src/caca-baca.js`): baca → hitung/baca lagi → jawab. Hal-hal yang
+tidak boleh dilonggarkan:
+- **Model tidak pernah menghitung.** Saring/urut/jumlah/banding/kolom turunan
+  dikerjakan `src/caca-hitung.js` (BigInt skala 1.000.000, half-up, tanpa
+  float). Tabel di layar dari kode; angka di jawaban yang tidak ada di data
+  dilaporkan (`peringatan`).
+- **Semua hasil lewat `src/caca-baca-aman.js`** sebelum ke penyedia AI: rahasia
+  (sandi, PIN, token, hash) dibuang, gambar/data besar dibuang, kontak dan
+  identitas pribadi disamarkan. Berlaku untuk SEMUA endpoint, jadi keamanan tidak
+  bergantung pada menyaring satu per satu.
+- **Parameter per API ditulis tangan di katalog; tidak ada parameter gerai.**
+  (Pitfall "parameter daftar gerai di query string tidak ikut terkunci".)
+  `test/caca-baca-katalog.test.js` menjaga ini dan memastikan setiap path
+  katalog ada di kode. Menambah API baca = tambah satu baris di katalog.
+- **Pintu**: katalog hanya membuka halaman baca PERSIS, bukan sub-path tulis.
+- **Kuota**: maks 24 pembacaan dan 3 langkah per pertanyaan; API `berat` tidak
+  pernah dijalankan ke banyak gerai (kecuali `stok_entity`, yang memang satu
+  panggilan lintas gerai). Pitfall kuota baca D1 harian (2026-09-29).
+- **Belum terbukti: batas kueri per permintaan.** Akun terindikasi Workers
+  gratis (D1 menyentuh "free tier daily row read limit"), yang membatasi 50
+  kueri D1 per permintaan. Fan-out ke ~10 gerai bisa kena batas itu: pembacaan
+  berhenti, gerai yang tidak terbaca disebut di jawaban, dan jalur yang meledak
+  jadi kegagalan baca (bukan 500). Obat sebenarnya: Workers berbayar. Alat akun
+  "semua gerai" (`caca-aksi-akun.js`) punya risiko yang sama.
+- Skema pilih-alat sudah besar; bila penyedia menolak ("too many states"),
+  pesan alasannya sekarang tampil (400 soal skema) — sederhanakan skema, jangan
+  tambah isian.
+- Data Bos Cyo sendiri boleh lewat jalur gratis Gemini untuk uji coba; data
+  tenant lain wajib jalur berbayar (ADR-044).
+
 **Gaya bicara Una (2026-10-02, Bos Cyo: "jangan kaku")** — santai, sesekali
 "peh" (logat Tulungagung) kalau kerjaannya agak berat, kadang "wkwk/ckck/hhe".
 Kalimat dari kode dibumbui di batas API lewat `src/caca-gaya.js` (acak,

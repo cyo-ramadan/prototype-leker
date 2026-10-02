@@ -642,3 +642,13 @@
     right: 80px;
   }
 }
+
+/* Angka di jawaban yang tidak ditemukan persis di data: dilaporkan, bukan didiamkan. */
+.caca-peringatan {
+  margin: 8px 0 0;
+  padding: 6px 9px;
+  border-left: 3px solid var(--amber);
+  border-radius: 6px;
+  background: #fdf5e6;
+  font-size: 0.8rem;
+}

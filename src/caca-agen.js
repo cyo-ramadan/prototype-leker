@@ -16,6 +16,7 @@ import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPen
 import { GAYA_UNTUK_MODEL } from './caca-gaya.js';
 import { bacaBebas, SKEMA_BACA_API } from './caca-baca.js';
 import { daftarApiUntukModel } from './caca-baca-katalog.js';
+import { hitungPeriode } from './caca-alat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
@@ -195,11 +196,26 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
   }
 
   if (konteks.lingkup === 'entity') {
+    // Alat baca satu-gerai lama tetap berguna di tingkat entity: dijalankan lewat
+    // pembaca bebas yang membacanya ke semua gerai. Periode tetap dihitung kode.
+    const pemetaan = {
+      laba_periode: () => ({ api: 'laba', ...pilihan.value }),
+      stok_sisa: () => ({ api: 'stok_entity', api_query: [] })
+    };
+    if (pemetaan[namaAlat] && jalurAksi) {
+      const dipilih = pemetaan[namaAlat]();
+      if (namaAlat === 'laba_periode') {
+        const p = hitungPeriode(dipilih.periode, { dari: dipilih.dari, sampai: dipilih.sampai }, konteks.hariIni);
+        if (!p.ok) return { ok: true, alat: namaAlat, jawaban: p.error, ditolak: true };
+      }
+      const hasil = await bacaBebas({ pertanyaan, pilihan: dipilih, konteks, jalurAksi, panggilModel, env });
+      return hasil.ok ? { ...hasil, alat: namaAlat } : { ok: false, status: hasil.status, error: hasil.error };
+    }
     return {
       ok: true,
       alat: namaAlat,
       belumLengkap: true,
-      jawaban: 'Di tingkat entity Una baru bisa membuat jurnal. Untuk yang itu, pilih satu gerai dulu lewat tombol ▾ di atas.'
+      jawaban: 'Mencatat dikerjakan per gerai. Pilih gerainya dulu lewat tombol ▾ di atas, lalu ulangi perintahnya.'
     };
   }
 

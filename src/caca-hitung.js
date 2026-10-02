@@ -71,6 +71,13 @@ function bagiHalfUp(pembilang, penyebut) {
 
 /** Kolom bertitik ("barang.nama"); nama kolom dicocokkan persis, lalu tanpa beda huruf besar. */
 export function ambilKolom(baris, kolom) {
+  // Hasil gabungan banyak gerai memakai nama kolom bertitik apa adanya
+  // ("totals.netProfit" sebagai SATU kunci), jadi kunci utuh dicoba lebih dulu.
+  if (baris && typeof baris === 'object') {
+    if (Object.hasOwn(baris, kolom)) return baris[kolom];
+    const utuh = Object.keys(baris).find((k) => k.includes('.') && k.toLowerCase() === String(kolom).toLowerCase());
+    if (utuh !== undefined) return baris[utuh];
+  }
   let sekarang = baris;
   for (const bagian of String(kolom).split('.')) {
     if (sekarang === null || typeof sekarang !== 'object') return undefined;

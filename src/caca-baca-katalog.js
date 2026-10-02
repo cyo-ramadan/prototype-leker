@@ -28,7 +28,9 @@ const TGL = 'YYYY-MM-DD';
  * @property {string} path path endpoint ("/:id" diganti param `id`)
  * @property {'gerai'|'entity'} lingkup gerai = butuh ?store=; entity = tingkat entity
  * @property {Record<string,string>} [param] parameter query yang diizinkan -> penjelasan
- * @property {boolean} [berat] tidak boleh dijalankan ke banyak gerai sekaligus
+ * @property {boolean} [berat] mahal dibaca; di lingkup entity jumlah barisnya dibatasi (batasLimit)
+ * @property {boolean} [tanpaFanOut] tidak bermakna lintas gerai (id/akun beda di tiap gerai) atau terlalu berat
+ * @property {number} [batasLimit] batas baris per gerai saat dibaca lintas gerai
  * @property {boolean} [lintasGerai] satu panggilan sudah mencakup semua gerai entity
  * @property {string} ringkas apa isinya, kalimat untuk model
  */
@@ -37,7 +39,7 @@ const TGL = 'YYYY-MM-DD';
 export const KATALOG = Object.freeze([
   // --- penjualan, pembelian, produksi: riwayat transaksi --------------------
   {
-    id: 'transaksi', path: '/api/admin/transactions', lingkup: 'gerai', berat: true,
+    id: 'transaksi', path: '/api/admin/transactions', lingkup: 'gerai', berat: true, batasLimit: 20,
     param: {
       filter: 'ALL | SALES | PURCHASES | OPERATIONS | STOCK_ADJUSTMENTS | GOODS_FLOW | PRODUCTION | ASSETS',
       from: `tanggal awal ${TGL}`, to: `tanggal akhir ${TGL}`, limit: 'maks 100', q: 'kata kunci'
@@ -94,7 +96,7 @@ export const KATALOG = Object.freeze([
     ringkas: 'Saldo stok semua barang gerai saat ini.'
   },
   {
-    id: 'stok_mutasi', path: '/api/admin/stock/:id/movements', lingkup: 'gerai', berat: true,
+    id: 'stok_mutasi', path: '/api/admin/stock/:id/movements', lingkup: 'gerai', berat: true, tanpaFanOut: true,
     param: { id: 'WAJIB: id barang (angka) dari alat barang/stok', limit: 'maks 100' },
     ringkas: 'Riwayat mutasi stok SATU barang (masuk/keluar), terbaru dulu.'
   },
@@ -103,7 +105,7 @@ export const KATALOG = Object.freeze([
     ringkas: 'Saldo stok semua barang di SEMUA gerai entity sekaligus (satu panggilan, sudah per gerai).'
   },
   {
-    id: 'hpp_hitung_ulang', path: '/api/admin/hpp-recalculation', lingkup: 'gerai', berat: true,
+    id: 'hpp_hitung_ulang', path: '/api/admin/hpp-recalculation', lingkup: 'gerai', berat: true, tanpaFanOut: true,
     ringkas: 'Status hitung ulang HPP barang gerai.'
   },
 
@@ -137,7 +139,7 @@ export const KATALOG = Object.freeze([
 
   // --- akuntansi --------------------------------------------------------------
   {
-    id: 'akuntansi_ringkas', path: '/api/admin/accounting', lingkup: 'gerai', berat: true,
+    id: 'akuntansi_ringkas', path: '/api/admin/accounting', lingkup: 'gerai', berat: true, tanpaFanOut: true,
     ringkas: 'Ringkasan Akuntansi gerai: daftar akun, jurnal terbaru, status jembatan, beban rutin.'
   },
   {
@@ -150,7 +152,7 @@ export const KATALOG = Object.freeze([
     ringkas: 'Daftar jurnal gerai (nomor, tanggal, sumber, keterangan).'
   },
   {
-    id: 'buku_besar', path: '/api/admin/accounting/ledger', lingkup: 'gerai', berat: true,
+    id: 'buku_besar', path: '/api/admin/accounting/ledger', lingkup: 'gerai', berat: true, tanpaFanOut: true,
     param: { accountId: 'WAJIB: id akun dari alat akun', from: TGL, to: TGL },
     ringkas: 'Buku besar satu akun gerai: mutasi dan saldo berjalan.'
   },
@@ -284,7 +286,7 @@ export const ID_API = Object.freeze(KATALOG.map((api) => api.id));
 export function daftarApiUntukModel() {
   return KATALOG.map((api) => {
     const param = Object.entries(api.param).map(([nama, arti]) => `${nama}=${arti}`).join('; ');
-    return `- ${api.id}${api.lingkup === 'entity' ? ' [entity]' : ''}${api.berat ? ' [berat]' : ''}: ${api.ringkas}${param ? ` (param: ${param})` : ''}`;
+    return `- ${api.id}${api.lingkup === 'entity' ? ' [entity]' : ''}${api.berat ? ' [berat]' : ''}${api.tanpaFanOut ? ' [satu gerai]' : ''}: ${api.ringkas}${param ? ` (param: ${param})` : ''}`;
   }).join('\n');
 }
 

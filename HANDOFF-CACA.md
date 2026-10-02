@@ -90,9 +90,15 @@ tidak boleh dilonggarkan:
   `test/caca-baca-katalog.test.js` menjaga ini dan memastikan setiap path
   katalog ada di kode. Menambah API baca = tambah satu baris di katalog.
 - **Pintu**: katalog hanya membuka halaman baca PERSIS, bukan sub-path tulis.
-- **Kuota**: maks 24 pembacaan dan 3 langkah per pertanyaan; API `berat` tidak
-  pernah dijalankan ke banyak gerai (kecuali `stok_entity`, yang memang satu
-  panggilan lintas gerai). Pitfall kuota baca D1 harian (2026-09-29).
+- **Kuota**: maks 24 pembacaan dan 3 langkah per pertanyaan. Di lingkup entity
+  ("semua gerai", Bos Cyo 2026-10-02) API per gerai dibaca ke semua gerai dan
+  digabung dengan kolom `_gerai`; API `berat` (mis. `transaksi`) tetap lintas
+  gerai tapi barisnya dibatasi `batasLimit` per gerai. API yang tidak bermakna
+  lintas gerai (`tanpaFanOut`: id/akun beda per gerai) ditolak dengan alasan, dan
+  `stok_entity` satu panggilan lintas gerai. Alat baca lama (`laba_periode`,
+  `stok_sisa`) di lingkup entity dijalankan lewat pembaca ini. Periode ("kemarin")
+  selalu dihitung kode dan menimpa tanggal tulisan model. Pitfall kuota baca D1
+  harian (2026-09-29).
 - **Belum terbukti: batas kueri per permintaan.** Akun terindikasi Workers
   gratis (D1 menyentuh "free tier daily row read limit"), yang membatasi 50
   kueri D1 per permintaan. Fan-out ke ~10 gerai bisa kena batas itu: pembacaan

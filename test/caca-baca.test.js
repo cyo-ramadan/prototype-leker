@@ -206,17 +206,65 @@ test('semua gerai: gerai yang gagal disebut, dan batas sistem menghentikan pemba
   assert.equal(jalur.dibaca.some((d) => d.startsWith('GENENGAN')), false, 'tidak lanjut membaca setelah kena batas');
 });
 
-test('semua gerai: API berat ditolak (satu gerai saja), kecuali yang memang lintas gerai', async () => {
+test('semua gerai: API berat tetap dibaca lintas gerai, tapi barisnya dibatasi per gerai (kuota)', async () => {
+  const diminta = [];
+  const jalur = jalurPalsu({
+    perGerai: Object.fromEntries(['BEJI', 'DERMO', 'GENENGAN'].map((kode) => [kode, (alamat) => {
+      diminta.push(`${kode} ${alamat}`);
+      return { transactions: [{ id: `${kode}-1`, kind: 'SALE', total: 10000 }] };
+    }]))
+  });
+  const { panggilModel } = modelBertahap(langkah({ langkah: 'jawab', jawaban: 'Ada 3 penjualan.' }));
+  const hasil = await bacaBebas({
+    pertanyaan: 'penjualan terbaru semua gerai',
+    pilihan: { api: 'transaksi', api_query: [{ kunci: 'limit', nilai: '100' }, { kunci: 'filter', nilai: 'SALES' }] },
+    konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel
+  });
+  assert.equal(hasil.ok, true);
+  assert.equal(diminta.length, 3);
+  // Diminta 100 per gerai, dipotong jadi 20 — dan filter yang sah ikut.
+  assert.ok(diminta.every((d) => /limit=20/.test(d) && /filter=SALES/.test(d)), diminta.join('\n'));
+  // Tanpa limit pun tetap dibatasi.
+  diminta.length = 0;
+  await bacaBebas({ pertanyaan: 'x', pilihan: { api: 'transaksi' }, konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel: modelBertahap(langkah({ langkah: 'jawab', jawaban: 'ok' })).panggilModel });
+  assert.ok(diminta.every((d) => /limit=20/.test(d)));
+});
+
+test('semua gerai: API yang tidak bermakna lintas gerai ditolak dengan alasan; lintas gerai asli satu panggilan', async () => {
   const jalur = jalurPalsu({ perGerai: { BEJI: { '/api/admin/entity-stock': { rows: [{ name: 'Gula', quantity: 5 }] } } } });
   const { panggilModel, panggilan } = modelBertahap(langkah({ langkah: 'jawab', jawaban: 'Gula 5.' }));
 
-  const berat = await bacaBebas({ pertanyaan: 'transaksi', pilihan: { api: 'transaksi' }, konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel });
-  assert.match(berat.jawaban, /berat, jadi hanya bisa untuk satu gerai/);
+  for (const api of ['akuntansi_ringkas', 'hpp_hitung_ulang']) {
+    const ditolak = await bacaBebas({ pertanyaan: 'x', pilihan: { api }, konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel });
+    assert.match(ditolak.jawaban, /hanya bermakna untuk satu gerai/, api);
+  }
+  const mutasi = await bacaBebas({ pertanyaan: 'x', pilihan: { api: 'stok_mutasi', api_query: [{ kunci: 'id', nilai: '5' }] }, konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel });
+  assert.match(mutasi.jawaban, /hanya bermakna untuk satu gerai/);
   assert.equal(panggilan.length, 0);
 
   const lintas = await bacaBebas({ pertanyaan: 'stok semua', pilihan: { api: 'stok_entity' }, konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel });
   assert.equal(lintas.ok, true);
   assert.equal(jalur.dibaca.filter((d) => d.endsWith('/api/admin/entity-stock')).length, 1);
+});
+
+test('periode dihitung kode dari maunya model; tanggal tulisan model ditimpa', async () => {
+  const diminta = [];
+  const jalur = jalurPalsu({
+    perGerai: Object.fromEntries(['BEJI', 'DERMO'].map((kode) => [kode, (alamat) => {
+      diminta.push(alamat);
+      return { totals: { revenue: 100 } };
+    }]))
+  });
+  const { panggilModel } = modelBertahap(langkah({ langkah: 'jawab', jawaban: 'ok' }));
+  await bacaBebas({
+    pertanyaan: 'laba kemarin',
+    pilihan: { api: 'laba', periode: 'kemarin', api_query: [{ kunci: 'from', nilai: '2020-01-01' }] },
+    konteks: KONTEKS_ENTITY, jalurAksi: jalur, panggilModel
+  });
+  assert.deepEqual(diminta, [
+    '/api/admin/reports/net-profit?from=2026-10-01&to=2026-10-01',
+    '/api/admin/reports/net-profit?from=2026-10-01&to=2026-10-01'
+  ]);
 });
 
 test('API tingkat entity dibaca sekali lewat jalur utama, tanpa fan-out', async () => {
@@ -243,4 +291,32 @@ test('otak Una: baca_api ada di pilihan alat, dengan daftar API di prompt, lalu 
   assert.equal(hasil.alat, 'baca_api');
   assert.equal(hasil.jawaban, 'Gula tinggal 5.');
   assert.equal(hasil.draft, undefined);
+});
+
+// --- alat baca lama di tingkat entity -------------------------------------------------
+
+test('otak Una: "untung hari ini" di tingkat entity dibaca ke semua gerai, bukan ditolak', async () => {
+  const jalur = jalurPalsu({
+    perGerai: {
+      BEJI: { '/api/admin/reports/net-profit': { totals: { netProfit: 117000 } } },
+      DERMO: { '/api/admin/reports/net-profit': { totals: { netProfit: 50000 } } },
+      GENENGAN: { '/api/admin/reports/net-profit': { totals: { netProfit: 9000 } } }
+    }
+  });
+  const { panggilModel, panggilan } = modelBertahap(
+    langkah({ alat: 'laba_periode', periode: 'hari_ini' }),
+    langkah({ langkah: 'hitung', daftar: 'ringkasan_gerai', agregat_fungsi: 'jumlah', agregat_kolom: 'totals.netProfit' }),
+    langkah({ langkah: 'jawab', jawaban: 'Total untung semua gerai 176.000.' })
+  );
+  const hasil = await jawabPertanyaan('untung hari ini berapa', KONTEKS_ENTITY, { env: {}, jalurAksi: jalur, panggilModel });
+  assert.equal(hasil.ok, true);
+  assert.deepEqual(hasil.tabel.isi, [['176.000', '3']]);
+  assert.equal(hasil.peringatan, null);
+  assert.equal(panggilan.length, 3);
+});
+
+test('otak Una: mencatat di tingkat entity dijawab dengan alasan yang benar (per gerai)', async () => {
+  const { panggilModel } = modelBertahap(langkah({ alat: 'catat_pengeluaran', keterangan: 'gas', nominal_tertulis: '22rb' }));
+  const hasil = await jawabPertanyaan('beli gas 22rb', KONTEKS_ENTITY, { env: {}, jalurAksi: jalurPalsu(), panggilModel });
+  assert.match(hasil.jawaban, /Mencatat dikerjakan per gerai/);
 });

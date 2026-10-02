@@ -159,3 +159,9 @@ test('ambilDaftar: jalur bertitik, bukan array → null', () => {
   assert.equal(ambilDaftar({ a: 5 }, 'a'), null);
   assert.equal(ambilDaftar({ a: [] }, 'b'), null);
 });
+
+test('kolom bertitik sebagai satu kunci (hasil gabungan banyak gerai) terbaca', () => {
+  const baris = [{ _gerai: 'BEJI', 'totals.netProfit': 117000 }, { _gerai: 'DERMO', 'totals.netProfit': '50000' }];
+  assert.equal(ambilKolom(baris[0], 'totals.netProfit'), 117000);
+  assert.deepEqual(jalankanHitung(baris, { agregat: { fungsi: 'jumlah', kolom: 'totals.netProfit' } }).isi, [['167.000', '2']]);
+});

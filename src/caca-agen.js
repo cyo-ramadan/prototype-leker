@@ -14,9 +14,12 @@ import { callStructured } from './caca-ai-client.js';
 import { ALAT_BACA, PERIODE, daftarAlatUntukModel, jalankanAlat } from './caca-alat.js';
 import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPengeluaran } from './caca-tulis.js';
 import { GAYA_UNTUK_MODEL } from './caca-gaya.js';
+import { bacaBebas, SKEMA_BACA_API } from './caca-baca.js';
+import { daftarApiUntukModel } from './caca-baca-katalog.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
+export const ALAT_BACA_API = 'baca_api';
 
 // Satu skema untuk memilih alat SEKALIGUS menangkap isinya, bukan dua panggilan
 // terpisah. Memisahkannya terasa lebih rapi tapi menggandakan biaya tiap
@@ -33,7 +36,7 @@ function skemaPilihAlat() {
     properties: {
       alat: {
         type: 'string',
-        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), 'tidak_ada'],
+        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_BACA_API, ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), 'tidak_ada'],
         description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
       },
       periode: { type: 'string', enum: [...PERIODE] },
@@ -41,6 +44,7 @@ function skemaPilihAlat() {
       sampai: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
       ...TANGKAP_PENGELUARAN_SCHEMA.properties,
       ...SKEMA_AKSI,
+      ...SKEMA_BACA_API,
       alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
     }
   };
@@ -76,6 +80,10 @@ function promptPilihAlat(konteks) {
     diGerai ? daftarAlatUntukModel() : '',
     diGerai ? `- ${ALAT_CATAT_PENGELUARAN}: mencatat Bea Lainnya yang BELUM dibayar (jadi hutang) ke seseorang,` : '',
     diGerai ? '  mis. "beli gas 22rb ke Pak Slamet, bayarnya nanti", "sampah 50rb ngutang ke Pak RT".' : '',
+    `- ${ALAT_BACA_API}: MEMBACA data apa pun yang ada di layar admin (penjualan, pembelian, stok, barang, HPP,`,
+    '  resep, hutang, jurnal, karyawan, pelanggan, laporan, dst.) — untuk PERTANYAAN yang tidak dijawab alat baca lain di atas,',
+    '  mis. "barang mana yang HPP-nya di atas harga jual?", "siapa saja yang hutang gaji?". Pilih "api" dari daftar API di bawah;',
+    '  perhitungan nanti dikerjakan sistem. Bukan untuk mencatat/mengubah.',
     daftarAksiUntukModel('gerai'),
     daftarAksiUntukModel('semua'),
     daftarAksiUntukModel('entity'),
@@ -92,7 +100,10 @@ function promptPilihAlat(konteks) {
     '- Nama barang, bahan, satuan, dan akun disalin PERSIS seperti diucapkan. Jangan dibetulkan,',
     '  jangan dilengkapi, jangan ditebak — pencocokannya dikerjakan sistem.',
     '',
-    TANGKAP_PENGELUARAN_PROMPT
+    TANGKAP_PENGELUARAN_PROMPT,
+    '',
+    'Daftar API untuk alat baca_api:',
+    daftarApiUntukModel()
   ].filter((baris) => baris !== '').join('\n');
 }
 
@@ -144,6 +155,14 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
         ? `Una belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
         : 'Una belum bisa menjawab yang itu.'
     };
+  }
+
+  if (namaAlat === ALAT_BACA_API) {
+    if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa membuka data dari sini.', ditolak: true };
+    const hasil = await bacaBebas({
+      pertanyaan, pilihan: pilihan.value, konteks, jalurAksi, panggilModel, env
+    });
+    return hasil.ok ? { ...hasil, alat: namaAlat } : { ok: false, status: hasil.status, error: hasil.error };
   }
 
   const aksi = cariAksi(namaAlat);

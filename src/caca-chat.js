@@ -15,6 +15,7 @@ import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
 import { gayaJawaban, gayaSelesai } from './caca-gaya.js';
+import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 
@@ -120,7 +121,16 @@ function konteksPenyuruh(auth, store) {
 // pintu utama, apa pun yang dipasang di sana untuk layar ikut berlaku untuk Una.
 // Entri yang diakhiri "$" hanya cocok persis (tanpa sub-path): dipakai untuk
 // halaman bootstrap yang sub-path-nya justru jalur tulis lain.
+// Jalur baca bebas diambil dari katalog (caca-baca-katalog.js), bukan ditulis
+// dua kali: katalog yang menentukan apa yang boleh dibaca Una.
+// Sengaja cocok PERSIS (atau pola untuk ":id"), bukan awalan: katalog hanya
+// membuka halaman bacanya, bukan sub-path tulis di bawahnya.
+const PINTU_BACA = Object.freeze([...new Set(KATALOG.map((api) => (api.path.includes(':id')
+  ? `^${api.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(':id', '\\d{1,9}')}$`
+  : `${api.path}$`)))]);
+
 export const PINTU_AKSI = Object.freeze([
+  ...PINTU_BACA,
   '/api/admin/accounting$',
   '/api/admin/accounting/balance-sheet',
   '/api/admin/settings/accounting$',
@@ -138,9 +148,12 @@ export const PINTU_AKSI = Object.freeze([
 ]);
 
 function pintuDiizinkan(pathname, pintu) {
-  return pintu.some((awalan) => (awalan.endsWith('$')
-    ? pathname === awalan.slice(0, -1)
-    : pathname === awalan || pathname.startsWith(`${awalan}/`)));
+  return pintu.some((awalan) => {
+    if (awalan.startsWith('^')) return new RegExp(awalan).test(pathname);
+    return awalan.endsWith('$')
+      ? pathname === awalan.slice(0, -1)
+      : pathname === awalan || pathname.startsWith(`${awalan}/`);
+  });
 }
 
 export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pintu = PINTU_AKSI } = {}) {
@@ -157,11 +170,18 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
     headers.delete('content-length');
     if (body) headers.set('content-type', 'application/json');
 
-    const response = await jalurUtama(new Request(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined
-    }));
+    let response;
+    try {
+      response = await jalurUtama(new Request(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      }));
+    } catch (error) {
+      // Satu jalur yang meledak (mis. batas kueri per permintaan di Cloudflare)
+      // tidak boleh menjatuhkan seluruh percakapan; dilaporkan sebagai gagal baca.
+      return { ok: false, status: 500, error: `pembacaan gagal: ${String(error?.message ?? error).slice(0, 120)}` };
+    }
     if (!response) return { ok: false, status: 502, error: 'Jalur tidak menjawab.' };
     const data = await response.json().catch(() => null);
     if (!response.ok) return { ok: false, status: response.status, error: data?.error || `Ditolak (${response.status}).` };
@@ -235,6 +255,8 @@ async function tanya(request, env, jalurUtama) {
     alat: hasil.alat,
     periode: hasil.periode ?? null,
     tabel: hasil.tabel ?? null,
+    jejak: hasil.jejak ?? null,
+    peringatan: hasil.peringatan ?? null,
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null

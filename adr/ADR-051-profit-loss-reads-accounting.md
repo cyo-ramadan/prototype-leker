@@ -71,6 +71,24 @@ dicoba dalam 15 menit terakhir dan masih gagal (mis. `NEEDS_CONFIGURATION`) dile
 membuka laporan tidak mengulang kerja yang pasti gagal dan tidak menguras kuota D1. Kegagalan
 sinkron tidak pernah menggagalkan laporan. Tombol sinkron manual tetap ada dan mencoba semuanya.
 
+## Tambahan 2026-10-02: default Jenis Barang terkunci di awal
+
+Bos Cyo: setiap barang baru langsung masuk Jenis Barang yang tertaut ke akun Persediaan dan HPP;
+HPP sementara = Harga Beli yang diisi (0 bila kosong); mengubahnya urusan Setting Akuntansi nanti.
+Yang sudah ada sebelumnya: barang tanpa pilihan jenis otomatis dapat Jenis Barang bawaan
+(`defaultProductKindForItemType`) dan trigger migration membuatkan Item Category (akun 1301/5101/4101)
+untuk Jenis Barang baru di gerai Akuntansi. Yang ditambahkan:
+- `ensureItemCategoryForKind` (`src/product-kinds.js`): jaring pengaman saat Jenis Barang dibuat dan
+  saat barang disimpan -- jenis yang dibuat sebelum trigger ada / sebelum gerai pindah ke Akuntansi
+  dilengkapi akunnya. Gerai non-Akuntansi tidak disentuh.
+- Barang baru: `average_cost` = Harga Beli yang diisi (pembelian pertama menggantikannya lewat
+  Average Cost).
+- Akar masalah `NEEDS_PRODUCT_KIND` di produksi: baris transaksi lama (60 penjualan, 10 pembelian)
+  punya snapshot Jenis Barang kosong karena dibuat sebelum barangnya punya jenis. Saat sinkron,
+  snapshot yang kosong diisi dari Jenis Barang barang itu sekarang (`healItemKindSnapshot` di
+  `src/accounting-pos-bridge.js`) -- klasifikasi saja, nominal tidak disentuh, snapshot yang sudah
+  terisi tidak diubah.
+
 ## DOC-IMPACT
 
 Perbarui kalau: pemetaan subtype akun berubah, mesin POS dipensiunkan, cache dipasang untuk

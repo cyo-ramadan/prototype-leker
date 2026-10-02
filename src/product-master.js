@@ -3,7 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
-import { defaultProductKindForItemType, listProductKinds, resolveProductKind } from './product-kinds.js';
+import { defaultProductKindForItemType, ensureItemCategoryForKind, listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const COST_SCALE = 1_000_000;
@@ -336,14 +336,17 @@ export async function handleProductMasterApi(request, env, pathname) {
           id, store_id, name, purchase_price, price, category, emoji, image_data,
           display_order, is_active, item_type_id, product_kind_id, base_unit_id,
           points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled,
-          product_master_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          product_master_id, average_cost
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
         normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
         normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
         normalized.pointsPerUnit, normalized.recipeLinkEnabled,
-        normalized.linkedRecipeId, normalized.stockTrackingEnabled, productMasterId
+        normalized.linkedRecipeId, normalized.stockTrackingEnabled, productMasterId,
+        // HPP sementara = Harga Beli yang diisi (0 bila kosong); pembelian
+        // pertama menggantikannya lewat Average Cost.
+        normalized.purchasePrice
       )
     ];
     if (normalized.stockTrackingEnabled) {
@@ -353,6 +356,7 @@ export async function handleProductMasterApi(request, env, pathname) {
       `).bind(store.id, id));
     }
     await env.DB.batch(statements);
+    await ensureItemCategoryForKind(env.DB, store.id, normalized.productKindId);
     return json({ ok: true, id, editor: await editorPayload(env.DB, store) }, 201);
   }
 
@@ -445,6 +449,7 @@ export async function handleProductMasterApi(request, env, pathname) {
     ));
   }
   await env.DB.batch(statements);
+  await ensureItemCategoryForKind(env.DB, store.id, normalized.productKindId);
   return json({ ok: true, id: productId, editor: await editorPayload(env.DB, store) });
 }
 

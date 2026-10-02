@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
-import { getNetProfitReport } from '../src/net-profit-report.js';
+// ADR-051: gerai edisi ACCOUNTING membaca Untung Rugi dari jurnal; tes di file ini
+// menguji mesin fakta POS (dipakai gerai LITE/FLEXIBLE), jadi memanggilnya langsung.
+import { getPosFactsNetProfitReport as getNetProfitReport } from '../src/net-profit-report.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 // Bea Operasional dari panel Admin (Bea Gaji/Lapak/Lainnya, migration 0100),

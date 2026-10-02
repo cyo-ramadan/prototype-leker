@@ -300,5 +300,5 @@ test('UI Entity Admin: panel Resep Produksi Entity terpasang dengan pratinjau + 
   assert.match(js, /\/preview/);
   assert.match(js, /\/apply/);
   assert.match(js, /data-entity-recipe-apply/);
-  assert.match(html, /entity-admin\.js\?v=20261001-grafik-gerai-v1/);
+  assert.match(html, /entity-admin\.js\?v=20261002-grafik-gerai-v3/);
 });

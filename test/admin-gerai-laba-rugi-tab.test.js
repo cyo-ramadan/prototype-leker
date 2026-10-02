@@ -43,6 +43,9 @@ function migratedDatabase() {
   for (const file of readdirSync(migrationDir).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort()) {
     db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
   }
+  // ADR-051: gerai ACCOUNTING membaca Untung Rugi dari jurnal. File ini menguji
+  // mesin fakta POS (gerai LITE/FLEXIBLE), jadi semua gerai uji dibuat FLEXIBLE.
+  db.exec("UPDATE stores SET edition = 'FLEXIBLE'");
   return db;
 }
 
@@ -336,7 +339,8 @@ test('ringkasan Laporan Untung Rugi memecah tiap variabel yang diminta Bos Cyo s
   // sebagai DUA baris terpisah (+/-) dan Beban/Bea per kategori -- bukan
   // dilebur jadi satu angka "Biaya & bea yang dikeluarkan" seperti draft
   // pertama.
-  const body = laba.slice(laba.indexOf('function renderSummary'), laba.indexOf('function renderDaily'));
+  // ADR-051: baris Bea per kategori (gerai tanpa Akuntansi) tinggal di bebanRows().
+  const body = laba.slice(laba.indexOf('function bebanRows'), laba.indexOf('function renderDaily'));
   const labels = [...body.matchAll(/summaryRow\('([^']*)'/g)].map(match => match[1]);
   const expected = ['Omset', 'Pendapatan Lain', 'HPP', 'Untung Kotor', 'Bea Gaji', 'Bea Lapak', 'Bea Lainnya', 'Untung Bersih'];
   for (const label of expected) {

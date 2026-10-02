@@ -88,8 +88,8 @@
 
   function renderSingleCard(request) {
     return `
-      <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-        <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="master-count">pending</span></div>
+      <article class="admin-card approval-card" style="box-shadow:none;margin-bottom:10px">
+        <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="status-chip warn">Menunggu</span></div>
         <p>${payloadSummary(request)}</p>
         <div class="muted">${esc(request.payload?.note || '')}</div>
         ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? `<div class="muted" style="margin-top:8px">Stok dicek ulang saat disetujui. Kalau stok sudah berubah, pengajuan otomatis ditolak.</div>` : ''}
@@ -104,8 +104,8 @@
     const first = group.items[0];
     const detailId = `approvalGroupDetail-${esc(group.sessionId)}`;
     return `
-      <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-        <div class="list-head"><div><strong>STOCK ADJUSTMENT · ${group.items.length} barang</strong><div class="muted">${esc(first.cashierName || first.cashierId)} · ${esc(first.storeId)}</div></div><span class="master-count">pending</span></div>
+      <article class="admin-card approval-card" style="box-shadow:none;margin-bottom:10px">
+        <div class="list-head"><div><strong>Penyesuaian stok · ${group.items.length} barang</strong><div class="muted">${esc(first.cashierName || first.cashierId)} · ${esc(first.storeId)}</div></div><span class="status-chip warn">Menunggu</span></div>
         <p>${group.items.length} barang diajukan sebagai satu Stock Opname. ACC/Reject di bawah berlaku untuk semuanya sekaligus.</p>
         <button class="secondary-btn" type="button" data-approval-group-toggle="${esc(group.sessionId)}">Detail</button>
         <div id="${detailId}" class="muted" style="margin-top:10px;display:none">

@@ -906,7 +906,7 @@ function renderEntityAdminStores() {
     <article class="owner-store-card ${store.isActive ? '' : 'inactive'}">
       <div class="owner-store-code">${entityAdminEscape(store.code)}</div>
       <h3>${entityAdminEscape(store.storeName)}</h3>
-      <p>${entityAdminEscape(store.address || 'Alamat belum diisi')}</p>
+      ${store.address ? `<p>${entityAdminEscape(store.address)}</p>` : ''}
       <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
       <div class="owner-store-actions">
         <a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>

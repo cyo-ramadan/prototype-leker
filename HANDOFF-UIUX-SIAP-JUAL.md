@@ -236,6 +236,11 @@ gelap penuh akan meninggalkan pulau putih; gelapnya ada di bagian atas/tombol ut
   di file itu**. Skin 0 tidak berubah.
 - **Sisa kesan prototype dibersihkan (semua tenant):** tab "Laporan" kosong ("Coming next") di
   Workspace Gerai dicabut; label "Structure level 0/0.5/1" diganti bahasa pemilik.
+- **Susulan (semua tenant):** kartu gerai (Owner Console & tab Gerai Panel Pemilik) dari 6 baris jadi
+  3 ([kode] Nama · status / entity / tombol kecil, "Alamat belum diisi" tidak ditampilkan); kartu
+  persetujuan (Approval Queue) ringkas dengan penanda "Menunggu". **Sengaja tidak disentuh** karena
+  sudah diatur khusus Bos Cyo: kartu transaksi/stok Kasir, Detail Laci + tombol Salin, laporan &
+  grafik & stok Entity, warna kuning presensi, tata letak Setting Akuntansi, kartu antrean pesanan Kasir.
 - **Landing page `/produk/` dirombak:** satu janji ("Gerai jalan. Kas jujur. Anda tenang."), satu
   gambar (HP dengan kejadian gerai), tiga janji, "Sehari bersama kami", F&B umum, satu ajakan.
   Tetap patuh `test/landing-page-claims.test.js` (hanya fitur berstatus JUAL).

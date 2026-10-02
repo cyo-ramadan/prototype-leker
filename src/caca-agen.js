@@ -52,6 +52,22 @@ function skemaPilihAlat() {
   };
 }
 
+// Bos Cyo 2026-10-02: hanya pencatatan yang menyangkut uang masuk/keluar yang
+// boleh menanyakan detail — dan itu pun dengan ajakan yang halus, bukan
+// interogasi. Barang/resep tidak bertanya (detail kecil diisi bawaan).
+export const ALAT_UANG = Object.freeze(new Set([
+  'catat_pengeluaran', 'buat_jurnal', 'catat_bea_gaji', 'catat_bea_lapak', 'bayar_lainnya',
+  'bayar_hutang', 'buat_uang_muka', 'pindah_saldo_akun'
+]));
+
+export function tanyaHalus(namaAlat, tanya) {
+  const teks = String(tanya ?? '').trim();
+  if (!ALAT_UANG.has(namaAlat) || !teks) return teks;
+  // Kalimat terpisah: pertanyaannya bisa diawali nama orang/akun yang huruf
+  // besarnya tidak boleh berubah.
+  return `Dikit lagi ya Bos, biar catatan uangnya nggak meleset. ${teks}`;
+}
+
 const SKEMA_JAWABAN = Object.freeze({
   type: 'object',
   required: ['jawaban'],
@@ -95,6 +111,8 @@ function promptPilihAlat(konteks) {
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
+    '- Membuat barang/bahan/resep: tetap pilih alatnya walau detailnya kurang (kategori, satuan, harga beli, jumlah',
+    '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
     '  Salin SEMUA barangnya; jangan diringkas, jangan dipilih sebagian.',
     '- Pertanyaan "apa itu ...", "maksudnya ... apa", "caranya gimana", "mulai dari mana", "Una bisa apa" = jelaskan.',
@@ -191,7 +209,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
       storeCode: konteks.storeCode
     });
     if (!disiapkan.ok) {
-      return { ok: true, alat: namaAlat, jawaban: disiapkan.tanya || disiapkan.error, belumLengkap: true };
+      return { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya || disiapkan.error), belumLengkap: true };
     }
     // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
     // dihitung kode — tanpa draft, tanpa panggilan model kedua.
@@ -234,7 +252,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
     const disiapkan = siapkanDraftPengeluaran(pilihan.value, { hariIni: konteks.hariIni });
     return disiapkan.ok
       ? { ok: true, alat: namaAlat, draft: disiapkan.draft, perluKonfirmasi: true }
-      : { ok: true, alat: namaAlat, jawaban: disiapkan.tanya, belumLengkap: true };
+      : { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya), belumLengkap: true };
   }
 
   const hasil = await jalankan(namaAlat, pilihan.value, { request, env, storeCode: konteks.storeCode, hariIni: konteks.hariIni });

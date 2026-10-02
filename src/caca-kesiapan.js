@@ -82,6 +82,8 @@ export function susunKesiapan({ referensi, resep, kasir, karyawan, laci }) {
     {
       id: 'resep',
       wajib: false,
+      // Dipakai panel untuk menawarkan "masukin bahan dulu" atau langsung resep.
+      jumlah: { bahan, resep: jumlahResep },
       judul: 'Bahan & resep',
       selesai: jumlahResep === null ? null : jumlahResep > 0,
       keterangan: jumlahResep

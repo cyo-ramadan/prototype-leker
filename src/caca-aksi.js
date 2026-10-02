@@ -43,18 +43,19 @@ const barang = Object.freeze({
   },
 
   async siapkan(t, ctx) {
+    // Bos Cyo 2026-10-02: yang penting cuma nama, harga jual, harga beli; detail
+    // lain diisi yang dasar, JANGAN ditanyakan. Yang benar-benar tidak bisa
+    // ditebak hanya nama dan harga jual. Kategori dan harga beli yang tidak
+    // disebut diisi bawaan — tapi ditulis terang di draft, bukan diam-diam;
+    // modal yang kosong ditanyakan santai SESUDAH barangnya jadi (panel).
     const nama = teks(t?.barang_nama, 100);
     if (!nama) return { ok: false, tanya: 'Nama barangnya apa?' };
-    const kategori = teks(t?.barang_kategori, 60);
-    if (!kategori) return { ok: false, tanya: `"${nama}" masuk kategori apa?` };
+    const kategori = teks(t?.barang_kategori, 60) || 'Menu';
     if (!teks(t?.barang_harga_jual, 40)) return { ok: false, tanya: `Harga jual "${nama}" berapa?` };
     const jual = rupiahDari(t.barang_harga_jual, 'Harga jual', { bolehNol: true });
     if (!jual.ok) return jual;
-    // Harga beli ikut menentukan HPP awal, jadi tidak diisi diam-diam dengan 0.
-    if (!teks(t?.barang_harga_beli, 40)) {
-      return { ok: false, tanya: `Harga beli (modal) "${nama}" berapa? Tulis 0 kalau barangnya dibuat sendiri lewat resep.` };
-    }
-    const beli = rupiahDari(t.barang_harga_beli, 'Harga beli', { bolehNol: true });
+    const tanpaHargaBeli = !teks(t?.barang_harga_beli, 40);
+    const beli = tanpaHargaBeli ? { ok: true, nilai: 0 } : rupiahDari(t.barang_harga_beli, 'Harga beli', { bolehNol: true });
     if (!beli.ok) return beli;
 
     const ref = await ctx.baca(`/api/admin/manufacturing/bootstrap`);
@@ -96,6 +97,8 @@ const barang = Object.freeze({
         ],
         dampak: [
           `Barang baru di ${ctx.namaLingkup}, langsung aktif.`,
+          ...(teks(t?.barang_kategori, 60) ? [] : ['Kategorinya Una taruh di "Menu" — bisa dipindah nanti.']),
+          ...(tanpaHargaBeli ? ['Harga beli belum disebut, diisi 0: modalnya menyusul dari resep atau pembelian pertama.'] : []),
           'Stok awalnya 0 — stok bertambah lewat pembelian atau produksi.',
           'Foto, poin, dan tipe barang bisa dilengkapi nanti di Master Barang.'
         ],
@@ -148,9 +151,10 @@ const resep = Object.freeze({
 
     const hasil = cocokkanSatu(t.resep_hasil, daftar, opsi);
     if (!hasil.ok) return hasil;
+    // Hasil yang tidak disebut = 1 (takaran untuk satu porsi), tertulis di draft.
     const qtyHasil = teks(t?.resep_hasil_qty, 20)
       ? jumlahBulat(t.resep_hasil_qty, `Jumlah hasil ${hasil.nilai.name}`)
-      : { ok: false, tanya: `Satu kali produksi menghasilkan berapa ${hasil.nilai.unitSymbol || ''} ${hasil.nilai.name}?`.replace(/\s+/g, ' ') };
+      : { ok: true, nilai: 1 };
     if (!qtyHasil.ok) return qtyHasil;
 
     const komponen = [];
@@ -187,6 +191,7 @@ const resep = Object.freeze({
           isi: komponen.map((k) => [k.barang.name, `${k.qty} ${satuan(k.barang)}`.trim()])
         },
         dampak: [
+          ...(teks(t?.resep_hasil_qty, 20) ? [] : [`Jumlah hasil tidak disebut, Una anggap takarannya untuk 1 ${satuan(hasil.nilai) || ''} ${hasil.nilai.name}.`.replace(/\s+/g, ' ')]),
           diganti
             ? `Resep aktif ${hasil.nilai.name}${varian ? ` varian ${varian}` : ''} (revisi ${diganti.revision}) diarsipkan dan diganti yang ini.`
             : `Resep pertama untuk ${hasil.nilai.name}${varian ? ` varian ${varian}` : ''}.`,

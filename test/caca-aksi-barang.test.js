@@ -88,17 +88,18 @@ test('isi massal: baris bermasalah dilewati dan disebut, sisanya tetap jalan', a
   assert.match(dampak, /Disebut dua kali, dipakai yang pertama: Kopi/);
 });
 
-test('isi massal bahan: tipe Bahan, harga jual 0, satuan wajib disebut', async () => {
+test('isi massal bahan: tipe Bahan, harga jual 0, satuan yang tidak disebut jadi pcs dan ditulis', async () => {
   const hasil = await siapkan({
     daftar_jenis: 'bahan',
     daftar_barang: [{ nama: 'Gula Pasir', satuan: 'gram' }, { nama: 'Susu', satuan: 'ml', harga_beli: '20' }, { nama: 'Teh' }]
   });
   assert.deepEqual(hasil.draft.muatan.daftar, [
     { name: 'Gula Pasir', category: 'Bahan', price: 0, purchasePrice: 0, baseUnitId: 'u_g', itemTypeId: 't_bahan' },
-    { name: 'Susu', category: 'Bahan', price: 0, purchasePrice: 20, baseUnitId: 'u_ml', itemTypeId: 't_bahan' }
+    { name: 'Susu', category: 'Bahan', price: 0, purchasePrice: 20, baseUnitId: 'u_ml', itemTypeId: 't_bahan' },
+    { name: 'Teh', category: 'Bahan', price: 0, purchasePrice: 0, baseUnitId: 'u_pcs', itemTypeId: 't_bahan' }
   ]);
   assert.deepEqual(hasil.draft.tabel.kolom, ['Nama', 'Kategori', 'Harga beli', 'Satuan']);
-  assert.ok(hasil.draft.dampak.some((d) => /Teh \(satuannya belum disebut/.test(d)));
+  assert.ok(hasil.draft.dampak.some((d) => /Una pakai pcs: Teh/.test(d)));
 });
 
 test('isi massal: daftar kosong atau semuanya sudah ada → ditanyakan, bukan draft kosong', async () => {

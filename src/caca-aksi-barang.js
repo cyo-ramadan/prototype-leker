@@ -74,6 +74,7 @@ function uraikanDaftar(t, ref) {
   const kembarDiDaftar = [];
   let pakaiKategoriBawaan = false;
   let tanpaHargaBeli = 0;
+  const bahanTanpaSatuan = [];
 
   for (const b of daftar) {
     const nama = teks(b.nama, 100);
@@ -106,12 +107,14 @@ function uraikanDaftar(t, ref) {
       const cocok = cocokkanSatu(b.satuan, satuanList, { label: 'satuan', namaDari: (u) => u.name, kunciLain: (u) => [u.symbol, u.code] });
       if (!cocok.ok) { dilewati.push({ nama, alasan: `satuan "${teks(b.satuan, 40)}" belum dikenal` }); continue; }
       satuan = cocok.nilai;
-    } else if (jenis === JENIS.jualan && pcs) {
+    } else if (pcs) {
+      // Bos Cyo 2026-10-02: detail yang tidak disebut diisi yang dasar, tidak
+      // ditanyakan. Untuk bahan, satuan pcs disebut terang di draft karena
+      // takaran resep bergantung padanya.
       satuan = pcs;
+      if (jenis === JENIS.bahan) bahanTanpaSatuan.push(nama);
     } else {
-      // Satuan dasar bahan menentukan takaran resep (gram vs kg vs pcs), jadi
-      // tidak ditebak.
-      dilewati.push({ nama, alasan: 'satuannya belum disebut (gram, ml, pcs, …)' });
+      dilewati.push({ nama, alasan: 'satuan pcs belum ada di gerai ini' });
       continue;
     }
 
@@ -129,7 +132,7 @@ function uraikanDaftar(t, ref) {
     });
   }
 
-  return { ok: true, jenis, baris, dilewati, kembarDiDaftar, kelebihan, ribuan, pakaiKategoriBawaan, tanpaHargaBeli };
+  return { ok: true, jenis, baris, dilewati, kembarDiDaftar, kelebihan, ribuan, pakaiKategoriBawaan, tanpaHargaBeli, bahanTanpaSatuan };
 }
 
 const barangBanyak = Object.freeze({
@@ -198,6 +201,7 @@ const barangBanyak = Object.freeze({
         ? 'Harga beli yang kosong diisi 0: modalnya menyusul dari resep atau pembelian pertama.'
         : 'Harga beli yang kosong diisi 0: terisi sendiri dari pembelian pertama.');
     }
+    if (urai.bahanTanpaSatuan.length) dampak.push(`Satuan belum disebut, Una pakai pcs: ${urai.bahanTanpaSatuan.join(', ')} — kalau maksudnya gram/ml, bilang aja nanti.`);
     if (sudahAda.length) dampak.push(`Sudah ada di gerai ini, dilewati: ${sudahAda.join(', ')}.`);
     if (urai.dilewati.length) dampak.push(`Belum bisa dibuat: ${urai.dilewati.map((d) => `${d.nama} (${d.alasan})`).join('; ')}.`);
     if (urai.kembarDiDaftar.length) dampak.push(`Disebut dua kali, dipakai yang pertama: ${urai.kembarDiDaftar.join(', ')}.`);

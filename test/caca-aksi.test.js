@@ -230,7 +230,10 @@ test('agen: jurnal ikut buku yang dibuka; barang tetap per gerai', async () => {
   assert.match(barangDiEntity.jawaban, /per gerai/);
 
   const bacaDiEntity = await draftDariAgen('untung?', { alat: 'laba_periode', periode: 'hari_ini' }, KONTEKS_ENTITY, jalurPalsu());
-  assert.match(bacaDiEntity.jawaban, /baru bisa membuat jurnal/);
+  // Dulu ditolak ("baru bisa membuat jurnal"); sekarang dibaca ke semua gerai lewat pembaca bebas.
+  // Jalur palsu di tes ini tidak punya daftar gerai, jadi yang dilaporkan: daftar gerai tak terbaca.
+  assert.doesNotMatch(bacaDiEntity.jawaban, /baru bisa membuat jurnal/);
+  assert.match(bacaDiEntity.jawaban, /daftar gerai tidak terbaca/);
 });
 
 test('jurnal gerai diposting ke buku gerai, jurnal entity ke buku entity', async () => {

@@ -19,6 +19,7 @@ import {
   jalankanHitung, petaDaftar, ambilDaftar, NAMA_OPERASI, NAMA_OP_SARING, NAMA_AGREGAT
 } from './caca-hitung.js';
 import { GAYA_UNTUK_MODEL } from './caca-gaya.js';
+import { PERIODE, hitungPeriode } from './caca-alat.js';
 
 export const MAKS_LANGKAH = 3;
 export const MAKS_BACA = 24;
@@ -97,7 +98,10 @@ function skemaLangkah(bolehLagi) {
       agregat_kolom: { type: 'string' },
       agregat_per: { type: 'string', description: 'hitung: kelompokkan per kolom ini.' },
       api: SKEMA_BACA_API.api,
-      api_query: SKEMA_BACA_API.api_query
+      api_query: SKEMA_BACA_API.api_query,
+      periode: { type: 'string', enum: [...PERIODE], description: 'baca: periode untuk API ber-param from/to/asOf. Pakai ini, jangan menulis tanggal sendiri.' },
+      dari: { type: 'string', description: 'baca: YYYY-MM-DD, hanya kalau periode = rentang.' },
+      sampai: { type: 'string', description: 'baca: YYYY-MM-DD, hanya kalau periode = rentang.' }
     }
   };
 }
@@ -110,7 +114,7 @@ function promptLangkah(konteks, bolehLagi) {
     'Kamu sedang menjawab pertanyaan pemilik toko dengan MEMBACA data, selangkah demi selangkah.',
     '',
     konteks.lingkup === 'entity'
-      ? `Yang dibuka: buku entity ${konteks.namaLingkup} (semua gerai).`
+      ? `Yang dibuka: buku entity ${konteks.namaLingkup} (semua gerai). API per gerai otomatis dibaca ke SEMUA gerai; daftarnya digabung dan tiap baris punya kolom "_gerai" (kode gerai).`
       : `Gerai yang dibuka: ${konteks.namaLingkup}.`,
     `Hari ini tanggal ${konteks.hariIni}.`,
     '',
@@ -122,6 +126,7 @@ function promptLangkah(konteks, bolehLagi) {
     'Aturan keras:',
     '- SEMUA angka di jawaban harus persis dari data atau hasil hitung di bawah. Dilarang menghitung, menjumlah, membandingkan, atau memperkirakan angka sendiri.',
     '- Dilarang menyebut angka yang tidak ada di data. Kalau data tidak memuat yang ditanyakan, bilang belum ada datanya.',
+    '- API yang punya param from/to/asOf: isi "periode" (hari_ini, kemarin, 7_hari_terakhir, bulan_ini, bulan_lalu, rentang). JANGAN menulis tanggal sendiri.',
     '- Nama kolom dan jalur daftar dipakai PERSIS seperti tertulis di data. Kolom uang: harga/HPP/saldo dalam rupiah.',
     '- Tulis rupiah dengan pemisah ribuan, mis. 808.000.',
     '- Kalau hasil hitung terpotong (ditampilkan N dari M baris), sebutkan jumlah M-nya.',
@@ -248,9 +253,32 @@ export async function bacaBebas({
     return state.gerai;
   }
 
-  async function bacaApi(id, pasangan) {
+  async function bacaApi(id, pasanganAsli, spec) {
     const api = cariApi(id);
     if (!api) return { ok: false, error: `API "${id}" tidak ada di daftar.` };
+    const lintas = api.lingkup === 'gerai' && konteks.lingkup === 'entity';
+    if (lintas && api.tanpaFanOut) {
+      return { ok: false, error: `${api.id} hanya bermakna untuk satu gerai (idnya/akunnya beda di tiap gerai). Minta pemilik memilih gerainya di judul panel dulu.` };
+    }
+
+    // Periode ditentukan KODE dari maunya model ("kemarin"), bukan tanggal tulisan model.
+    let pasangan = Array.isArray(pasanganAsli) ? pasanganAsli.filter(Boolean).map((p) => ({ ...p })) : [];
+    const adaRentang = Object.hasOwn(api.param, 'from') && Object.hasOwn(api.param, 'to');
+    const adaAsOf = Object.hasOwn(api.param, 'asOf');
+    if ((adaRentang || adaAsOf) && spec?.periode) {
+      const p = hitungPeriode(spec.periode, { dari: spec.dari, sampai: spec.sampai }, konteks.hariIni);
+      if (!p.ok) return { ok: false, error: p.error };
+      pasangan = pasangan.filter((x) => !['from', 'to', 'asOf'].includes(x.kunci));
+      if (adaRentang) pasangan.push({ kunci: 'from', nilai: p.dari }, { kunci: 'to', nilai: p.sampai });
+      if (adaAsOf) pasangan.push({ kunci: 'asOf', nilai: p.sampai });
+    }
+    // Lintas gerai dibatasi barisnya per gerai (kuota baca D1).
+    if (lintas && api.batasLimit) {
+      const ada = pasangan.find((x) => x.kunci === 'limit');
+      const diminta = Number(ada?.nilai);
+      const dipakai = Number.isInteger(diminta) && diminta > 0 ? Math.min(diminta, api.batasLimit) : api.batasLimit;
+      pasangan = pasangan.filter((x) => x.kunci !== 'limit').concat({ kunci: 'limit', nilai: String(dipakai) });
+    }
     const alamat = bangunAlamat(api, pasangan);
     if (!alamat.ok) return { ok: false, error: alamat.error };
 
@@ -272,8 +300,6 @@ export async function bacaBebas({
       const r = await bacaSatu(jalurAksi.jalurGerai(daftar.nilai[0]), alamat.alamat);
       if (!r.ok) return { ok: false, error: `${api.id}: ${r.error}` };
       ({ data, catatan } = bersihkan(r.data));
-    } else if (api.berat) {
-      return { ok: false, error: `${api.id} berat, jadi hanya bisa untuk satu gerai. Minta pemilik memilih gerainya di judul panel dulu.` };
     } else {
       const daftar = await daftarGerai();
       if (!daftar.ok) return { ok: false, error: `${api.id}: daftar gerai tidak terbaca (${daftar.error})` };
@@ -312,7 +338,7 @@ export async function bacaBebas({
   }
 
   // Bacaan pertama datang dari pilihan awal (tanpa panggilan model tambahan).
-  const pertama = await bacaApi(pilihan?.api, pilihan?.api_query);
+  const pertama = await bacaApi(pilihan?.api, pilihan?.api_query, pilihan);
   if (!pertama.ok) {
     return { ok: true, jawaban: `Una belum bisa membuka datanya: ${pertama.error}`, ditolak: true, jejak: null };
   }
@@ -350,7 +376,7 @@ export async function bacaBebas({
     }
 
     if (v.langkah === 'baca') {
-      tunjukkan(await bacaApi(v.api, v.api_query));
+      tunjukkan(await bacaApi(v.api, v.api_query, v));
     } else {
       // hitung
       const rec = (v.sumber && [...urutan].reverse().find((r) => r.id === v.sumber)) || urutan[urutan.length - 1];

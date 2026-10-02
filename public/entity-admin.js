@@ -118,7 +118,7 @@ function renderEntitySharedAccounts() {
     <div class="master-row contact-row ${account.isActive ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(account.name)}</strong>
-        <div class="master-meta">${account.isActive ? 'Aktif' : 'Nonaktif'}</div>
+        <span class="status-chip ${account.isActive ? 'ok' : 'off'}">${account.isActive ? 'Aktif' : 'Nonaktif'}</span>
       </div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-view-shared-account="${entityAdminEscape(account.id)}">Rincian</button>
@@ -476,7 +476,8 @@ function renderEntityEmployees() {
     <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(employee.fullName)}</strong>
-        <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `Direkrut ${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</div>
+        <span class="status-chip ${employee.status === 'ACTIVE' ? 'ok' : 'off'}">${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</span>
+        <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
         <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
@@ -743,7 +744,8 @@ function renderEntityAccounts() {
     <div class="master-row contact-row ${account.isActive ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(account.accountCode)} · ${entityAdminEscape(account.accountName)}</strong>
-        <div class="master-meta">${entityAdminEscape(ENTITY_ACCOUNT_TYPE_LABEL[account.accountType] || account.accountType)}${account.subtype ? ` · ${entityAdminEscape(account.subtype)}` : ''} · ${account.isActive ? 'Aktif' : 'Nonaktif'}</div>
+        ${account.isActive ? '' : '<span class="status-chip off">Nonaktif</span>'}
+        <div class="master-meta">${entityAdminEscape(ENTITY_ACCOUNT_TYPE_LABEL[account.accountType] || account.accountType)}${account.subtype ? ` · ${entityAdminEscape(account.subtype)}` : ''}</div>
       </div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-edit-entity-account="${entityAdminEscape(account.accountId)}">Edit</button>
@@ -876,7 +878,9 @@ function renderEntityJournals() {
     <div class="master-row contact-row">
       <div class="master-main">
         <strong>${entityAdminEscape(journal.journalNumber)}</strong>
-        <div class="master-meta">${entityAdminEscape(journal.businessDate)} · ${entityAdminEscape(journal.description)}${journal.isReversal ? ' · reversal' : ''}</div>
+        ${journal.isReversal ? '<span class="status-chip warn">Pembalik</span>' : ''}
+        <div class="master-meta">${entityAdminEscape(journal.businessDate)}</div>
+        <div class="master-meta">${entityAdminEscape(journal.description)}</div>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada jurnal di buku Entity ini.</div>';
 }

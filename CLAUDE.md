@@ -149,6 +149,9 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   `text-input`, dst.) dan warna lewat `var(--...)`, bukan warna hex/`white` di `style=""`.
   Komponen yang benar-benar baru (mis. grafik) boleh punya token sendiri asal latarnya terang.
   Jangan menyunting `public/skin-*.css` untuk fitur biasa.
+  Tab baru di Workspace Gerai / Panel Pemilik: daftarkan ke grupnya di `public/nav-groups.js`
+  (`GROUPS`), kalau tidak di skin A/B/C ia muncul di grup "Lainnya". Kartu daftar pakai
+  `.master-row` + `.status-chip` (`public/list-cards.css`), jangan tumpuk keterangan per baris.
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
 - **Fitur/perubahan yang terlihat pengguna sudah live di `main`** → tambah satu baris di
   `HANDOFF-STRATEGI-PENJUALAN.md` §8 (format di sana). Sesi strategi penjualan hanya membaca

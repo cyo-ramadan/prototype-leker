@@ -90,6 +90,11 @@ html[data-skin="a"] .cart-handle.has-items { background: var(--skin-primary); bo
 html[data-skin="a"] .drawer-mode-badge.write, html[data-skin="a"] .cashier-lock-note.write { background: var(--green-soft); color: var(--green); }
 html[data-skin="a"] .cashier-lock-note, html[data-skin="a"] .drawer-mode-badge.occupied { background: var(--skin-warn-soft); color: var(--skin-warn); }
 html[data-skin="a"] .image-preview-wrap, html[data-skin="a"] .master-thumb, html[data-skin="a"] .cashier-menu-image { background: var(--skin-chip-bg); }
+html[data-skin="a"] .admin-top-actions > a, html[data-skin="a"] .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; border-radius: var(--skin-r-pill); line-height: 1.2; }
+@media (max-width: 620px) {
+  html[data-skin="a"] .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  html[data-skin="a"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+}
 
 html[data-skin="a"] h1, html[data-skin="a"] h2, html[data-skin="a"] h3 { letter-spacing: -.02em; }
 html[data-skin="a"] .brand { font-weight: 800; }

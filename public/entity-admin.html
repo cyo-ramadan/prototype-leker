@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MAXI · Entity Admin</title>
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/admin.css?v=20261002-kartu-ringkas-v1" />
+  <link rel="stylesheet" href="/list-cards.css?v=20261002-kartu-ringkas-v1" />
   <link rel="stylesheet" href="/owner.css" />
   <link rel="stylesheet" href="/entity-report-chart.css?v=20261002-grafik-gerai-v3" />
   <link rel="stylesheet" href="/entity-stock-matrix.css?v=20261002-stok-gerai-v2" />
@@ -13,7 +14,7 @@
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
   <script>window.MAXI_SKIN_PAGE = 'entity-admin';</script>
-  <script src="/ui-skin.js?v=20261001-skin-abc-v1"></script>
+  <script src="/ui-skin.js?v=20261002-skin-abc-v2"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -26,7 +27,7 @@
 
   <main class="owner-shell">
     <section id="entityAdminLoginView" class="admin-auth-card">
-      <div class="admin-eyebrow">Structure level 0.5 · Entity</div>
+      <div class="admin-eyebrow">Panel Pemilik Usaha</div>
       <h1>Login Entity Admin</h1>
       <p class="muted">Entity Admin login sekali, lalu pilih gerai mana pun di bawah Entity-nya -- tidak perlu ganti kredensial tiap pindah gerai seperti Admin Gerai biasa.</p>
       <label class="admin-field">Username<input id="entityAdminUsername" autocomplete="username" maxlength="40" required /></label>
@@ -37,7 +38,7 @@
 
     <section id="entityAdminApp" class="hidden">
       <div class="owner-heading">
-        <div><div class="admin-eyebrow">Structure level 0.5 · Entity</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Gerai di bawah entity ini, buku Entity, dan pengaturan customer yang dipakai bersama sesuai scope Entity.</p></div>
+        <div><div class="admin-eyebrow">Panel Pemilik Usaha</div><h1 id="entityAdminEntityName">Entity</h1><p class="muted">Gerai di bawah entity ini, buku Entity, dan pengaturan customer yang dipakai bersama sesuai scope Entity.</p></div>
         <div id="entityAdminIdentity" class="owner-chip"></div>
       </div>
 
@@ -285,7 +286,8 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261002-una-baca-v1" />
 <script src="/caca-chat.js?v=20261003-una-ingat-v1"></script>
-<script src="/entity-admin.js?v=20261002-laporan-gerai-skin-v1"></script>
+<script src="/entity-admin.js?v=20261002-kartu-ringkas-v1"></script>
+<script src="/nav-groups.js?v=20261002-menu-grup-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261002-stok-gerai-v2"></script>
 <script src="/entity-store-report.js?v=20261002-laporan-gerai-v1"></script>
 <script>

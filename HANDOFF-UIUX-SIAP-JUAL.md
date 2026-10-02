@@ -221,4 +221,23 @@ tenant), umpan "Kabar" ala chat (C), tabel status semua gerai (B), dan navigasi 
 layar. B sengaja tidak gelap penuh: banyak kartu lama berwarna putih tertanam di kode, jadi latar
 gelap penuh akan meninggalkan pulau putih; gelapnya ada di bagian atas/tombol utama.
 
+### 2026-10-02 — Kartu ringkas, menu berkelompok, landing page baru (permintaan Bos Cyo)
+
+- **Kartu daftar (semua tenant):** akar masalah "nama terpotong & keterangan satu kata per baris"
+  adalah grid HP `50px | isi` yang dipakai juga oleh kartu tanpa foto. `public/list-cards.css`
+  (dimuat sesudah `admin.css`/`cashier-master-panels.css`) mengganti jadi flex: isi memakai lebar
+  penuh, nama + keterangan mengalir satu baris dengan pemisah titik, status jadi penanda berwarna
+  (`.status-chip ok|warn|bad|off`). Dipakai di daftar tenant/entity (Owner), karyawan, akun,
+  rekening, jurnal (Entity).
+- **Menu berkelompok (hanya skin A/B/C):** `public/nav-groups.js` menyembunyikan deretan tab lama
+  dan menampilkan 7 tombol (Workspace Gerai: Toko, Transaksi, Barang, Tim, Laporan, Keuangan,
+  Pelanggan) / 6 tombol (Panel Pemilik) dengan sub-tombol di dalamnya. Tombol asli tetap ada dan
+  ditekan lewat `click()`; tab baru dari sesi lain otomatis masuk "Lainnya" — **daftarkan di `GROUPS`
+  di file itu**. Skin 0 tidak berubah.
+- **Sisa kesan prototype dibersihkan (semua tenant):** tab "Laporan" kosong ("Coming next") di
+  Workspace Gerai dicabut; label "Structure level 0/0.5/1" diganti bahasa pemilik.
+- **Landing page `/produk/` dirombak:** satu janji ("Gerai jalan. Kas jujur. Anda tenang."), satu
+  gambar (HP dengan kejadian gerai), tiga janji, "Sehari bersama kami", F&B umum, satu ajakan.
+  Tetap patuh `test/landing-page-claims.test.js` (hanya fitur berstatus JUAL).
+
 <!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

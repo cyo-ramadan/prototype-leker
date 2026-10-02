@@ -1,0 +1,98 @@
+/* Kartu daftar (.master-row) -- Bos Cyo, 2026-10-02: "masih ada banget space
+   untuk ke kanan tapi tulisan malah dibuat putus ... yang perlu dihemat itu
+   justru baris nya. selama ada data yang bisa diselesaikan ke kanan, ya
+   masukkan saja kesitu."
+
+   Akar masalahnya: .master-row dulu grid 3 kolom (foto | isi | tombol), dan di
+   HP jadi `50px minmax(0,1fr)`. Kartu TANPA foto (tenant, entity, karyawan,
+   akun, jurnal, ...) ikut menaruh isinya di kolom 50px itu -- nama terpotong
+   "Gale...", keterangan turun satu kata per baris, kanan kosong.
+
+   Sekarang flex yang membungkus: foto (kalau ada) + isi mengisi sisa lebar +
+   tombol di kanan, dan baru turun baris kalau memang tidak muat. Di dalam isi,
+   nama dan keterangan mengalir dalam satu baris dengan pemisah titik:
+     rani · tulungagung · posted
+   Berlaku untuk semua tenant (perbaikan tampilan, bukan skin). File ini dimuat
+   sesudah admin.css / cashier-master-panels.css supaya menimpa aturan lama. */
+
+.master-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 11px 14px;
+}
+.master-row > .master-thumb { flex: 0 0 auto; }
+.master-row > .master-main { flex: 1 1 220px; min-width: 0; }
+.master-row > .master-actions { flex: 0 0 auto; margin-left: auto; grid-column: auto; justify-content: flex-end; }
+/* Kolom angka di kanan (mis. saldo) tetap rapat di kanan. */
+.master-row > .master-meta { flex: 0 0 auto; margin: 0 0 0 auto; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.master-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 0;
+}
+.master-main > strong {
+  display: inline;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.3;
+  margin-right: 10px;
+}
+.master-main > .master-meta {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 0 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+/* Pemisah titik hanya ANTAR keterangan (bukan sesudah nama/penanda status),
+   supaya baris kedua tidak diawali titik kalau keterangannya turun. */
+.master-main > .master-meta + .master-meta::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .35;
+  margin-right: 6px;
+  align-self: center;
+}
+/* Isi lain (harga, form, tabel kecil) tetap satu baris penuh di bawahnya. */
+.master-main > :not(strong):not(.master-meta):not(.status-chip) { flex-basis: 100%; }
+.master-main > .master-prices { margin-top: 4px; }
+
+/* Penanda status berwarna: Aktif / Nonaktif / Menunggu / Ditolak. */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  line-height: 1.6;
+  white-space: nowrap;
+  background: #eef0ec;
+  color: #4b5650;
+}
+.status-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-chip.ok { background: #e3f4ea; color: #17784a; }
+.status-chip.warn { background: #fdf0d8; color: #94600b; }
+.status-chip.bad { background: #fbe6e3; color: #b3362e; }
+.status-chip.off { background: #eef0ec; color: #69736d; }
+.master-main > .status-chip { margin-right: 10px; align-self: center; }
+
+@media (max-width: 620px) {
+  .master-row { padding: 10px 12px; }
+  .master-row > .master-main { flex-basis: 180px; }
+  .master-main > strong { font-size: 14.5px; }
+}

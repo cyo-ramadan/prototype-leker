@@ -50,3 +50,26 @@ test('negative net profit values are visually distinguished in the rendered tabl
   const source = await read('public/entity-admin.js');
   assert.match(source, /value < 0/);
 });
+
+// Bos Cyo, 2026-10-01: grafik perbandingan gerai -- urut dari terbesar ke
+// terkecil, hijau untung / merah rugi, dengan tombol pilihan ukuran.
+test('Laporan Entity punya grafik perbandingan gerai dengan tombol Untung Bersih, Omset, Untung Kotor, Total Beban, HPP, Margin', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+  const js = await read('public/entity-admin.js');
+  const html = await read('public/entity-admin.html');
+  const css = await read('public/entity-report-chart.css');
+
+  for (const label of ['Untung Bersih', 'Omset', 'Untung Kotor', 'Total Beban', 'HPP', 'Margin Bersih %']) assert.ok(js.includes(`label: '${label}'`), label);
+  assert.match(js, /storeTotals/);
+  assert.match(js, /\.sort\(\(a, b\) => \(b\.v \?\? -Infinity\) - \(a\.v \?\? -Infinity\)/, 'urut terbesar di atas');
+  // Untung/rugi bukan hanya warna: ada tanda segitiga dan angka bertanda minus.
+  assert.match(js, /\\u25b2/);
+  assert.match(js, /\\u25bc/);
+  assert.match(js, /entityVizMinus/);
+  assert.match(css, /--viz-good/);
+  assert.match(css, /--viz-bad/);
+  assert.match(html, /id="entityReportChart"/);
+  assert.match(html, /entity-report-chart\.css\?v=20261001-grafik-gerai-v1/);
+  assert.match(html, /entity-admin\.js\?v=20261002-grafik-gerai-skin-v1/);
+});

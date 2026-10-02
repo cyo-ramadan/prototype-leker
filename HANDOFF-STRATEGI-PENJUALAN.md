@@ -218,6 +218,8 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-01 | pengembangan | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | JUAL | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
 | 2026-10-01 | pengembangan | Halaman diagnostik perangkat | INTERNAL | Mengurangi beban dukungan "tidak bisa login" |
 | 2026-10-01 | strategi | Landing page penjualan di `/produk/` (hanya fitur Paket Kontrol; tombol "Minta demo lewat WhatsApp") | INTERNAL | Belum dibagikan: nomor WhatsApp, nama merek, dan izin memakai angka Leker masih menunggu Bos Cyo |
+| 2026-10-01 | pengembangan | Resep produksi diisi sekali di tingkat perusahaan lalu diterapkan ke banyak gerai sekaligus (termasuk menu dengan dua resep) | UJI | Mengurangi kerja pasang resep per gerai bagi pemilik banyak gerai; belum dicoba di gerai nyata |
+| 2026-10-01 | pengembangan | Grafik perbandingan gerai di laporan perusahaan: untung/rugi (hijau/merah), omset, untung kotor, beban, HPP, margin, urut dari terbesar | JUAL | Pemilik langsung melihat gerai mana yang untung dan mana yang rugi dalam satu layar; §5 perlu ditinjau: beban yang hanya dibuat di Akuntansi belum ikut angka laporan ini |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

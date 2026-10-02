@@ -534,6 +534,139 @@ function renderEntityReportTable(payload) {
   wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:14px">${header}${body}${footer}</table>`;
 }
 
+// --- Grafik perbandingan gerai (Bos Cyo, 2026-10-01) ------------------------
+// Satu batang per gerai, urut dari nilai terbesar (atas) ke terkecil (bawah).
+// Untung/rugi memakai hijau/merah DENGAN tanda ▲/▼ dan angka bertanda, jadi
+// warna bukan satu-satunya penanda. Omset, HPP, dan Beban satu warna saja
+// (besaran, bukan untung/rugi). Angka diambil dari storeTotals respons laporan
+// -- sudah dijumlah di server dari rincian harian, tanpa query tambahan.
+
+const ENTITY_REPORT_METRICS = {
+  net: { label: 'Untung Bersih', kind: 'polar', value: row => row.netProfit, hint: 'Hijau = untung, merah = rugi, setelah semua beban.' },
+  revenue: { label: 'Omset', kind: 'magnitude', value: row => row.revenue, hint: 'Total penjualan (belum dikurangi apa pun).' },
+  gross: { label: 'Untung Kotor', kind: 'polar', value: row => row.grossProfit, hint: 'Omset + pendapatan lain - HPP, sebelum beban.' },
+  beban: { label: 'Total Beban', kind: 'cost', value: row => row.totalBeban, hint: 'Beban kasir + Bea Gaji/Lapak/Lainnya + gaji dari presensi.' },
+  hpp: { label: 'HPP', kind: 'cost', value: row => row.hpp, hint: 'Harga pokok barang yang terjual.' },
+  margin: { label: 'Margin Bersih %', kind: 'polar', percent: true, value: row => (row.revenue > 0 ? (row.netProfit / row.revenue) * 100 : null), hint: 'Untung bersih dibagi omset.' }
+};
+
+const entityVizMinus = '\u2212';
+
+function entityVizCompact(value) {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? entityVizMinus : '';
+  const trim = number => String(Math.round(number * 10) / 10).replace('.', ',');
+  if (abs >= 1_000_000_000) return `${sign}${trim(abs / 1_000_000_000)}M`;
+  if (abs >= 1_000_000) return `${sign}${trim(abs / 1_000_000)}jt`;
+  if (abs >= 1_000) return `${sign}${trim(abs / 1_000)}rb`;
+  return `${sign}${Math.round(abs)}`;
+}
+
+const entityVizRupiah = value => `${value < 0 ? entityVizMinus : ''}Rp${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.abs(Number(value) || 0))}`;
+
+function entityVizFormat(metric, value) {
+  if (value === null || value === undefined) return '\u2014';
+  return metric.percent ? `${value < 0 ? entityVizMinus : ''}${String(Math.round(Math.abs(value) * 10) / 10).replace('.', ',')}%` : entityVizCompact(value);
+}
+
+function renderEntityReportMetricButtons() {
+  const box = entityAdminEl('entityReportMetrics');
+  if (!box) return;
+  const current = entityAdminState.reportMetric || 'net';
+  box.innerHTML = Object.entries(ENTITY_REPORT_METRICS).map(([key, metric]) =>
+    `<button type="button" class="ent-viz-metric" data-entity-metric="${key}" aria-pressed="${key === current}">${entityAdminEscape(metric.label)}</button>`).join('');
+  box.querySelectorAll('[data-entity-metric]').forEach(button => button.addEventListener('click', () => {
+    entityAdminState.reportMetric = button.dataset.entityMetric;
+    renderEntityReportMetricButtons();
+    renderEntityReportChart();
+  }));
+}
+
+function showEntityVizTip(event, row) {
+  const tip = entityAdminEl('entityReportTip');
+  if (!tip) return;
+  const line = (label, value) => `<div><span>${label}</span><span>${value}</span></div>`;
+  tip.innerHTML = `<strong>${entityAdminEscape(row.code)} \u00b7 ${entityAdminEscape(row.storeName || '')}</strong>
+    ${line('Omset', entityVizRupiah(row.revenue))}
+    ${line('Pendapatan lain', entityVizRupiah(row.otherIncome))}
+    ${line('HPP', entityVizRupiah(row.hpp))}
+    ${line('Untung kotor', entityVizRupiah(row.grossProfit))}
+    ${line('Beban kasir', entityVizRupiah(row.expenseKasir))}
+    ${line('Bea gaji', entityVizRupiah(row.beaGaji))}
+    ${line('Bea lapak', entityVizRupiah(row.beaLapak))}
+    ${line('Bea lainnya', entityVizRupiah(row.beaLainnya))}
+    ${line('Stok lebih / hilang', `${entityVizRupiah(row.stockAdjustmentGain)} / ${entityVizRupiah(row.stockAdjustmentLoss)}`)}
+    ${line('<b>Untung bersih</b>', `<b>${entityVizRupiah(row.netProfit)}</b>`)}`;
+  tip.style.display = 'block';
+  const rect = event.currentTarget.getBoundingClientRect();
+  const width = tip.offsetWidth;
+  const left = Math.min(Math.max(8, rect.left + 24), window.innerWidth - width - 8);
+  const below = rect.bottom + 8;
+  tip.style.left = `${left}px`;
+  tip.style.top = `${below + tip.offsetHeight > window.innerHeight ? Math.max(8, rect.top - tip.offsetHeight - 8) : below}px`;
+}
+
+function hideEntityVizTip() {
+  const tip = entityAdminEl('entityReportTip');
+  if (tip) tip.style.display = 'none';
+}
+
+function renderEntityReportChart() {
+  const wrap = entityAdminEl('entityReportChart');
+  const payload = entityAdminState.reportPayload;
+  if (!wrap || !payload) return;
+  const stores = payload.storeTotals || [];
+  if (!stores.length) { wrap.innerHTML = '<div class="empty">Tidak ada data untuk periode/gerai ini.</div>'; entityAdminEl('entityReportStoreTable').innerHTML = ''; return; }
+  const metric = ENTITY_REPORT_METRICS[entityAdminState.reportMetric || 'net'];
+  const rows = stores.map(store => ({ ...store, v: metric.value(store) }))
+    .sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity) || a.code.localeCompare(b.code));
+  const values = rows.map(row => row.v).filter(value => value !== null);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = max - min || 1;
+  const zero = (-min / span) * 100;
+
+  let summary = '';
+  if (metric.kind === 'polar' && !metric.percent) {
+    const total = values.reduce((sum, value) => sum + value, 0);
+    summary = `Total semua gerai: <b>${entityVizRupiah(total)}</b> \u00b7 ${values.filter(value => value > 0).length} gerai untung \u00b7 ${values.filter(value => value < 0).length} gerai rugi`;
+  } else if (!metric.percent) {
+    summary = `Total semua gerai: <b>${entityVizRupiah(values.reduce((sum, value) => sum + value, 0))}</b>`;
+  } else {
+    summary = `${values.filter(value => value > 0).length} gerai untung \u00b7 ${values.filter(value => value < 0).length} gerai rugi \u00b7 gerai tanpa omset ditampilkan \u2014`;
+  }
+  const legend = metric.kind === 'polar'
+    ? `<div class="ent-viz-legend"><span><i style="background:var(--viz-good)"></i>\u25b2 Untung</span><span><i style="background:var(--viz-bad)"></i>\u25bc Rugi</span></div>` : '';
+
+  wrap.innerHTML = `<div class="ent-viz-summary">${entityAdminEscape(metric.hint)}<br>${summary} \u00b7 ${entityAdminEscape(payload.from)} s/d ${entityAdminEscape(payload.to)}</div>${legend}
+    <div class="ent-viz-rows" role="list">${rows.map((row, index) => {
+      const value = row.v;
+      const width = value === null ? 0 : Math.max(Math.abs(value) / span * 100, value === 0 ? 0 : 0.8);
+      const negative = value !== null && value < 0;
+      const cls = metric.kind === 'polar' ? (negative ? 'neg' : 'pos') : metric.kind === 'cost' ? 'cost' : 'mag';
+      const left = negative ? zero - width : zero;
+      const glyph = metric.kind === 'polar' && value !== null && value !== 0 ? (negative ? '\u25bc' : '\u25b2') : '';
+      return `<div class="ent-viz-row" role="listitem" tabindex="0" data-entity-viz-row="${index}">
+        <div class="ent-viz-name" title="${entityAdminEscape(row.storeName || row.code)}">${entityAdminEscape(row.code)}</div>
+        <div class="ent-viz-track"><span class="ent-viz-axis" style="left:${zero}%"></span>${value === null ? '' : `<span class="ent-viz-bar ${cls}" style="left:${left}%;width:${width}%"></span>`}</div>
+        <div class="ent-viz-value ${negative ? 'ent-viz-neg' : ''}">${glyph ? `<small aria-hidden="true">${glyph}</small>` : ''}${entityAdminEscape(entityVizFormat(metric, value))}</div>
+      </div>`;
+    }).join('')}</div>`;
+  wrap.querySelectorAll('[data-entity-viz-row]').forEach(node => {
+    const row = rows[Number(node.dataset.entityVizRow)];
+    node.addEventListener('mouseenter', event => showEntityVizTip(event, row));
+    node.addEventListener('focus', event => showEntityVizTip(event, row));
+    node.addEventListener('mouseleave', hideEntityVizTip);
+    node.addEventListener('blur', hideEntityVizTip);
+  });
+
+  const cell = value => `<td class="${value < 0 ? 'ent-viz-neg' : ''}">${entityReportRupiah(value)}</td>`;
+  entityAdminEl('entityReportStoreTable').innerHTML = `<table class="ent-viz-table"><thead><tr>
+      <th>Gerai</th><th>Omset</th><th>HPP</th><th>Untung kotor</th><th>Total beban</th><th>Untung bersih</th><th>Margin</th></tr></thead><tbody>
+      ${rows.map(row => `<tr><td>${entityAdminEscape(row.code)}</td>${cell(row.revenue)}${cell(row.hpp)}${cell(row.grossProfit)}${cell(row.totalBeban)}${cell(row.netProfit)}<td>${entityAdminEscape(entityVizFormat(ENTITY_REPORT_METRICS.margin, ENTITY_REPORT_METRICS.margin.value(row)))}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
 async function runEntityReport() {
   const from = entityAdminEl('entityReportFrom').value;
   const to = entityAdminEl('entityReportTo').value;
@@ -553,6 +686,9 @@ async function runEntityReport() {
   try {
     const payload = await entityAdminApi(`/api/admin/reports/net-profit?store=${encodeURIComponent(callerStoreCode)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
     renderEntityReportTable(payload);
+    entityAdminState.reportPayload = payload;
+    renderEntityReportMetricButtons();
+    renderEntityReportChart();
     status.textContent = '';
   } catch (error) {
     status.textContent = error.message;
@@ -795,6 +931,7 @@ async function initEntityAdmin() {
   entityAdminEl('entityProductMasterForm')?.addEventListener('submit', submitEntityProductMasterForm);
   entityAdminEl('entityEmployeeForm')?.addEventListener('submit', saveEntityEmployee);
   entityAdminEl('entityReportRun')?.addEventListener('click', () => runEntityReport());
+  renderEntityReportMetricButtons();
 
   if (!entityAdminState.token) return showEntityAdminLogin();
   try {

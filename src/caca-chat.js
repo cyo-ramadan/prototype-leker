@@ -15,6 +15,7 @@ import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
 import { gayaJawaban, gayaSelesai } from './caca-gaya.js';
+import { bersihkanRiwayat } from './caca-riwayat.js';
 import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
@@ -241,7 +242,10 @@ async function tanya(request, env, jalurUtama) {
   const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, 500);
   if (!pertanyaan) return json({ error: 'Pertanyaannya kosong.' }, 400);
 
-  const hasil = await jawabPertanyaan(pertanyaan, lingkup.konteks, {
+  // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
+  // memahami rujukan. Tidak ada tindakan yang lahir darinya tanpa draft + "Ya".
+  const konteks = { ...lingkup.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat) };
+  const hasil = await jawabPertanyaan(pertanyaan, konteks, {
     request,
     env,
     jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama })

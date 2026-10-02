@@ -20,6 +20,7 @@ import {
 } from './caca-hitung.js';
 import { GAYA_UNTUK_MODEL } from './caca-gaya.js';
 import { PERIODE, hitungPeriode } from './caca-alat.js';
+import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 
 export const MAKS_LANGKAH = 3;
 export const MAKS_BACA = 24;
@@ -124,6 +125,7 @@ function promptLangkah(konteks, bolehLagi) {
     bolehLagi ? '- "baca": kalau perlu data lain. Pilih "api" dari daftar di bawah.' : '- Ini langkah terakhir: jawab sekarang dengan data yang ada. Kalau belum cukup, bilang apa yang kurang.',
     '',
     'Aturan keras:',
+    ATURAN_RIWAYAT,
     '- SEMUA angka di jawaban harus persis dari data atau hasil hitung di bawah. Dilarang menghitung, menjumlah, membandingkan, atau memperkirakan angka sendiri.',
     '- Dilarang menyebut angka yang tidak ada di data. Kalau data tidak memuat yang ditanyakan, bilang belum ada datanya.',
     '- API yang punya param from/to/asOf: isi "periode" (hari_ini, kemarin, 7_hari_terakhir, bulan_ini, bulan_lalu, rentang). JANGAN menulis tanggal sendiri.',
@@ -347,7 +349,7 @@ export async function bacaBebas({
   let langkah = 0;
   for (;;) {
     const bolehLagi = langkah < maksLangkah - 1;
-    const isi = [`Pertanyaan: ${pertanyaan}`, '', ...blok].join('\n').slice(0, MAKS_TEKS_KE_MODEL);
+    const isi = [`Pertanyaan: ${pesanDenganRiwayat(pertanyaan, konteks.riwayat)}`, '', ...blok].join('\n').slice(0, MAKS_TEKS_KE_MODEL);
     const balasan = await panggilModel(env, {
       system: promptLangkah(konteks, bolehLagi),
       content: [{ type: 'text', text: isi }],

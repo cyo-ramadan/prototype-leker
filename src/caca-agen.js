@@ -95,8 +95,13 @@ function promptPilihAlat(konteks) {
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
-    '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu juga belum bisa mengubah,',
-    '  menghapus, atau membatalkan apa pun. Kalau yang diminta itu, jawab "tidak_ada" dan sebutkan alasannya.',
+    '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
+    '  Salin SEMUA barangnya; jangan diringkas, jangan dipilih sebagian.',
+    '- Pertanyaan "apa itu ...", "maksudnya ... apa", "caranya gimana", "mulai dari mana", "Una bisa apa" = jelaskan.',
+    '  Pertanyaan angka/data gerai (untung, stok, HPP barang tertentu) tetap pakai alat baca.',
+    '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu juga belum bisa mengubah atau',
+    '  menghapus data — satu-satunya pengecualian: menonaktifkan barang (nonaktifkan_barang), termasuk "batalkan',
+    '  barang yang barusan dibuat". Selain itu jawab "tidak_ada" dan sebutkan alasannya.',
     '- Kalau yang dibayar memakai uang tunai/kas/laci, tetap pilih alatnya dan salin cara bayarnya apa adanya;',
     '  sistem yang akan menolaknya.',
     '- Isi hanya kolom milik alat yang dipilih. Kolom alat lain dikosongkan.',
@@ -190,7 +195,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
     }
     // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
     // dihitung kode — tanpa draft, tanpa panggilan model kedua.
-    if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null };
+    if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null, tawaran: disiapkan.tawaran ?? null };
     // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa
     // disusun ulang dan dibandingkan tanpa memanggil model lagi.
     const tangkapan = Object.fromEntries(Object.keys(aksi.skema).map((kunci) => [kunci, pilihan.value?.[kunci] ?? null]));

@@ -14,7 +14,10 @@ import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-re
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
-import { gayaJawaban, gayaSelesai } from './caca-gaya.js';
+import { gayaJawaban, gayaSelesai, bumbui } from './caca-gaya.js';
+import { periksaKesiapan, sapaanKesiapan } from './caca-kesiapan.js';
+import { jelaskan } from './caca-jelaskan.js';
+import { MENU_SCHEMA, MENU_SYSTEM_PROMPT, tangkapanDariMenu } from './caca-baca-menu.js';
 import { bersihkanRiwayat } from './caca-riwayat.js';
 import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
@@ -239,7 +242,8 @@ async function tanya(request, env, jalurUtama) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
 
-  const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, 500);
+  // Cukup panjang untuk daftar menu yang ditempel sekaligus (isi barang massal).
+  const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, MAKS_PERTANYAAN);
   if (!pertanyaan) return json({ error: 'Pertanyaannya kosong.' }, 400);
 
   // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
@@ -261,16 +265,18 @@ async function tanya(request, env, jalurUtama) {
     tabel: hasil.tabel ?? null,
     jejak: hasil.jejak ?? null,
     peringatan: hasil.peringatan ?? null,
+    tawaran: hasil.tawaran ?? null,
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }
 
-async function catatAksi(request, env, draft, jalurUtama) {
+async function catatAksi(request, env, isi, jalurUtama) {
   const lingkup = await lingkupPenyuruh(request, env);
   if (!lingkup.ok) return lingkup.response;
 
+  const draft = isi.draft;
   const aksi = cariAksi(draft.aksi);
   if (!bolehDiLingkup(aksi, lingkup.konteks.lingkup)) {
     return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Una menyusun ulang ya.' }, 409);
@@ -286,9 +292,120 @@ async function catatAksi(request, env, draft, jalurUtama) {
   });
   if (!diperiksa.ok) return json({ error: diperiksa.error }, diperiksa.status);
 
+  // Draft bertahap (isi barang massal, batalkan barang): satu baris per
+  // permintaan, panel yang mengulang. Draftnya tetap diperiksa ulang utuh di
+  // setiap potongan, jadi tidak ada baris yang lolos tanpa dicek.
+  if (aksi.bertahap) {
+    const jumlah = diperiksa.draft.muatan.daftar.length;
+    const bagian = isi.bagian;
+    if (!Number.isInteger(bagian) || bagian < 0 || bagian >= jumlah) {
+      return json({ error: 'Urutan barisnya tidak valid. Muat ulang halaman lalu coba lagi ya.' }, 400);
+    }
+    const hasil = await aksi.postingBagian(diperiksa.draft, bagian, { ...jalur, lingkup: lingkup.konteks.lingkup });
+    if (!hasil.ok) return json({ error: hasil.error, bagian }, hasil.status ?? 502);
+    return json({ tercatat: true, bagian, jumlah, hasil: hasil.hasil, nama: hasil.nama, id: hasil.id ?? null, selesai: bagian === jumlah - 1 });
+  }
+
   const hasil = await aksi.posting(diperiksa.draft, { ...jalur, lingkup: lingkup.konteks.lingkup });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
   return json({ tercatat: true, draft: diperiksa.draft, jawaban: gayaSelesai(hasil.jawaban) });
+}
+
+// --- pendamping pengguna baru (UNA-PENDAMPING.md) ---------------------------
+
+const MAKS_PERTANYAAN = 4000;
+
+// Sapaan pertama Una: kondisi gerai + kerjaan yang ditawarkan. Tanpa mesin AI.
+async function kesiapan(request, env, jalurUtama) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+  if (lingkup.konteks.lingkup === 'entity') {
+    return json({ lingkup: 'entity', kesiapan: null, sapaan: null });
+  }
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
+  const hasil = await periksaKesiapan(jalur);
+  return json({
+    lingkup: 'gerai',
+    store: { code: lingkup.store.code, storeName: lingkup.store.storeName },
+    kesiapan: hasil,
+    sapaan: bumbui(sapaanKesiapan(hasil, lingkup.store.storeName), hasil.siapJualan ? ['beres'] : [])
+  });
+}
+
+function ctxAksi(jalur, lingkup) {
+  return {
+    ...jalur,
+    hariIni: lingkup.konteks.hariIni,
+    namaLingkup: lingkup.konteks.namaLingkup,
+    lingkup: lingkup.konteks.lingkup,
+    storeCode: lingkup.storeCode
+  };
+}
+
+// Draft yang disusun tanpa mesin AI karena isinya sudah terstruktur di panel
+// (mis. tombol "batalkan yang barusan" membawa id barang yang tadi dibuat).
+// Hanya menyusun draft; menyimpan tetap lewat /api/caca/catat + periksa ulang.
+const SIAPKAN_LANGSUNG = Object.freeze(['nonaktifkan_barang']);
+
+async function siapkanLangsung(request, env, jalurUtama) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+  const aksi = SIAPKAN_LANGSUNG.includes(body.value?.aksi) ? cariAksi(body.value.aksi) : null;
+  if (!aksi) return json({ error: 'Jenis draft ini tidak bisa disusun langsung.' }, 400);
+  if (!bolehDiLingkup(aksi, lingkup.konteks.lingkup)) return json({ error: 'Pilih gerainya dulu lewat tombol ▾ di atas.' }, 409);
+
+  const tangkapan = body.value?.tangkapan && typeof body.value.tangkapan === 'object' ? body.value.tangkapan : {};
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
+  const disiapkan = await aksi.siapkan(tangkapan, ctxAksi(jalur, lingkup));
+  if (!disiapkan.ok) return json({ jawaban: bumbui(disiapkan.tanya || disiapkan.error, ['tanya']), draft: null, perluKonfirmasi: false });
+  return json({ jawaban: null, draft: { ...disiapkan.draft, tangkapan }, perluKonfirmasi: true });
+}
+
+// Foto papan menu/daftar harga → draft isi barang massal.
+async function bacaMenu(request, env, jalurUtama) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+  if (lingkup.konteks.lingkup === 'entity') {
+    return json({ error: 'Daftar menu diisi per gerai. Pilih gerainya dulu lewat tombol ▾ di atas.' }, 409);
+  }
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+  const masalahGambar = validateImage(body.value?.gambar);
+  if (masalahGambar) return json({ error: masalahGambar }, 400);
+
+  const bacaan = await callStructured(env, {
+    system: MENU_SYSTEM_PROMPT,
+    content: [
+      { type: 'image', mediaType: body.value.gambar.media_type, data: body.value.gambar.data },
+      { type: 'text', text: 'Salin daftar menu/harga di foto ini apa adanya.' }
+    ],
+    schema: MENU_SCHEMA
+  });
+  if (!bacaan.ok) return json({ error: bacaan.error }, bacaan.status);
+
+  const tangkapan = tangkapanDariMenu(bacaan.value);
+  if (bacaan.value?.bukan_menu || !tangkapan.daftar_barang.length) {
+    return json({
+      jawaban: bumbui('Una nggak nemu daftar menu atau harga di foto itu. Coba foto lebih dekat dan lurus, atau ketik aja daftarnya.', ['tanya']),
+      draft: null,
+      perluKonfirmasi: false
+    });
+  }
+
+  const aksi = cariAksi('buat_barang_banyak');
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
+  const disiapkan = await aksi.siapkan(tangkapan, ctxAksi(jalur, lingkup));
+  if (!disiapkan.ok) return json({ jawaban: bumbui(disiapkan.tanya || disiapkan.error, ['tanya']), draft: null, perluKonfirmasi: false });
+  const hasil = { draft: { ...disiapkan.draft, tangkapan } };
+  return json({
+    jawaban: null,
+    sapaan: gayaJawaban(hasil).sapaan,
+    draft: hasil.draft,
+    perluKonfirmasi: true,
+    terbaca: tangkapan.daftar_barang.length
+  });
 }
 
 // Konfirmasi tidak memanggil model sama sekali — orang menekan tombol, dan yang
@@ -375,8 +492,28 @@ export async function handleCacaApi(request, env, pathname, { jalurUtama } = {})
     // resep, jurnal) atau draft pengeluaran yang lebih dulu ada.
     const salinan = request.clone();
     const body = await readJson(salinan);
-    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value.draft, jalurUtama);
+    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value, jalurUtama);
     return catat(request, env, jalurUtama);
+  }
+
+  if (request.method === 'GET' && pathname === '/api/caca/kesiapan') {
+    return kesiapan(request, env, jalurUtama);
+  }
+
+  if (request.method === 'GET' && pathname === '/api/caca/jelaskan') {
+    if (!(await ownerFromRequest(request, env.DB)) && !(await entityAdminFromRequest(request, env.DB))) {
+      return json({ error: 'Login Owner atau Entity Admin diperlukan.' }, 401);
+    }
+    const hasil = jelaskan(new URL(request.url).searchParams.get('topik'));
+    return json({ ...hasil, jawaban: bumbui(hasil.jawaban, hasil.dikenal ? [] : ['tanya']) });
+  }
+
+  if (request.method === 'POST' && pathname === '/api/caca/siapkan') {
+    return siapkanLangsung(request, env, jalurUtama);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/caca/baca-menu') {
+    return bacaMenu(request, env, jalurUtama);
   }
 
   return json({ error: 'Route Una tidak ditemukan.' }, 404);

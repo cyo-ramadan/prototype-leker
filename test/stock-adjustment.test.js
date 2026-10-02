@@ -272,7 +272,8 @@ test('Stock Adjustment exposes stale-snapshot, temporal HPP, and approval UX gua
   assert.match(cashierUiSource, /purpose: 'STOCK_ADJUSTMENT'/);
   assert.match(cashierUiSource, /Target stok fisik/);
   assert.match(managementUiSource, /STOCK ADJUSTMENT/);
-  assert.match(managementUiSource, /stale/);
+  assert.match(managementUiSource, /STOCK_ADJUSTMENT_STALE/);
+  assert.match(managementUiSource, /dicek ulang saat disetujui/);
   assert.match(contractV1Source, /target quantity/i);
   assert.match(contractV1Source, /STOCK_ADJUSTMENT_STALE/);
   assert.match(contractV2Source, /unitCostSnapshotScaled/);

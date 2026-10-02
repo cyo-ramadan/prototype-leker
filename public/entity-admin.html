@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MAXI Leker · Entity Admin</title>
+  <title>MAXI · Entity Admin</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/admin.css" />
   <link rel="stylesheet" href="/owner.css" />
@@ -12,11 +12,13 @@
   <link rel="stylesheet" href="/entity-store-report.css?v=20261002-laporan-gerai-v1" />
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
+  <script>window.MAXI_SKIN_PAGE = 'entity-admin';</script>
+  <script src="/ui-skin.js?v=20261001-skin-abc-v1"></script>
 </head>
 <body>
 <div class="app-shell">
   <header class="topbar admin-topbar">
-    <div class="brand"><div class="brand-mark">E</div><div>MAXI LEKER<small>Entity Admin</small></div></div>
+    <div class="brand"><div class="brand-mark">E</div><div><span data-skin-brand="upper">MAXI</span><small data-skin-text="Panel Pemilik">Entity Admin</small></div></div>
     <div class="admin-top-actions">
       <button id="entityAdminLogoutBtn" class="secondary-btn hidden" type="button">Logout</button>
     </div>
@@ -283,7 +285,7 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261001-una-v1" />
 <script src="/caca-chat.js?v=20261002-una-santai-v1"></script>
-<script src="/entity-admin.js?v=20261002-laporan-gerai-v1"></script>
+<script src="/entity-admin.js?v=20261002-laporan-gerai-skin-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261002-stok-gerai-v2"></script>
 <script src="/entity-store-report.js?v=20261002-laporan-gerai-v1"></script>
 <script>

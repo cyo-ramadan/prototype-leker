@@ -83,7 +83,7 @@
     }
     target.innerHTML = visible.length ? visible.map(item => {
       const qty = item.quantity == null ? 'Belum diinisialisasi' : `${item.quantity} ${esc(item.unitSymbol || '')}`;
-      const tracking = item.stockTrackingEnabled ? 'Tracked' : 'Legacy / tracking off';
+      const tracking = item.stockTrackingEnabled ? 'Tracked' : 'Stok tidak dihitung';
       const production = item.productionMode === 'DADAKAN' ? `DADAKAN${item.recipeLinkEnabled ? ' · resep linked' : ''}` : 'STOCK';
       return `<article class="master-row" style="align-items:center">
         <div class="master-main">

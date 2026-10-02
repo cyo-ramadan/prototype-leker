@@ -227,6 +227,8 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-02 | pengembangan | Barang baru otomatis masuk Jenis Barang yang tertaut akun Persediaan/HPP dengan HPP awal = Harga Beli (0 bila kosong); transaksi lama yang jenis barangnya kosong ikut terpulihkan dan masuk pembukuan |
 | 2026-10-02 | pengembangan | Hitung Ulang HPP kini juga bisa membetulkan harga rata-rata bahan baku (mis. Air Mineral, Gula) yang salah catat pembelian, tanpa menunggu ada penjualan terdampak |
 | 2026-10-02 | pengembangan | Laporan Gerai di Admin Entity: klik satu gerai, tampil per tanggal Omset, HPP, SO+, SO−, Gross Profit, Beban Lapak, Gaji, Beban Lainnya, Net Profit |
+| 2026-10-02 | UI/UX | Semua tenant: tulisan "Prototype"/"Leker" dan catatan developer hilang dari layar; merek satu tempat ("MAXI" sementara); fitur setengah jadi ("segera hadir") disembunyikan; halaman pelanggan bahasa F&B umum | JUAL | Kesan pertama tidak lagi "prototipe"; siap didemokan ke pemilik F&B mana pun |
+| 2026-10-02 | UI/UX | Pilihan tampilan per tenant 0/A/B/C (Tenang, Papan Siaga, Kabar Gerai) di Owner Console; semua tenant lama tetap 0, tenant Lab Tampilan (gerai LAB01) dipakai uji | UJI | Bahan memilih tampilan jualan; belum ada Ringkasan Pemilik |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -249,6 +251,7 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Posisi**: bukan "aplikasi kasir", melainkan *sistem kontrol gerai* — "Gerai jalan, kas
   jujur, karyawan terpantau — tanpa Anda harus datang."
 - **Segmen pertama**: pemilik 3–10 gerai minuman/booth; pengali: pemilik kemitraan/franchise.
+  *Koreksi Bos Cyo 2026-10-01 (lewat sesi UI/UX): "targetnya fnb ya, bukan cuma leker" — segmen = gerai **F&B** umum (kopi, makanan, minuman, bakery, warung), Leker hanya bukti pemakaian.*
 - **Paket pertama — Paket Kontrol Gerai**: kasir+laci, presensi foto+GPS+radius, permit ACC
   pemilik, stok+HPP dari resep, untung-rugi sederhana, gaji dari presensi, laporan
   presensi/permit, multi-gerai. Pembukuan lengkap = paket naik kelas.

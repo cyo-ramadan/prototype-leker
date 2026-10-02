@@ -461,7 +461,12 @@ export async function handleOwnerApi(request, env, pathname) {
       if (!TENANT_POLICY_DEFINITIONS.some(def => def.key === key)) {
         return json({ error: 'Kunci pengaturan tidak dikenal.', code: 'UNKNOWN_POLICY_KEY' }, 400);
       }
-      await setTenantPolicySetting(db, tenantId, key, body.value?.value === true, { role: 'OWNER', id: auth.owner.id });
+      const definition = TENANT_POLICY_DEFINITIONS.find(def => def.key === key);
+      const rawValue = body.value?.value;
+      if (definition.type === 'choice' && !definition.options.some(option => option.value === String(rawValue))) {
+        return json({ error: 'Pilihan tidak dikenal.', code: 'UNKNOWN_POLICY_OPTION' }, 400);
+      }
+      await setTenantPolicySetting(db, tenantId, key, definition.type === 'choice' ? String(rawValue) : rawValue === true, { role: 'OWNER', id: auth.owner.id });
       return json({ ok: true, settings: await listTenantPolicySettings(db, tenantId) });
     }
 

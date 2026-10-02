@@ -46,11 +46,16 @@ const KANTOR_PENDEM_MANDALA_STORE_IDS = /\bstore_kantor\b|\bstore_pendem\b|\bsto
 // below) with nothing left to undo it, leaving a stray trigger that the
 // real, correctly-ordered migration chain does not have.
 const REVERTS_EDITION_DEPENDENT_MIGRATION = /\b0070_drawer_opening_discrepancy_accounting\b/;
+// Migration yang menulis ke tenant_policy_settings bergantung pada 0119
+// (tabelnya), dan 0119 sendiri ikut terlewat di sini karena menyebut
+// stores.edition -- jadi ikut dilewati, lalu diputar ulang bersama 0119.
+const WRITES_TENANT_POLICY_SETTINGS = /\bINTO tenant_policy_settings\b/;
 const dependsOnEdition = file => file === EDITION_MIGRATION
   || DATA_ONLY_STORE_ONBOARDING_MIGRATIONS.has(file)
   || /\bedition\b/.test(readMigration(file))
   || KANTOR_PENDEM_MANDALA_STORE_IDS.test(readMigration(file))
-  || REVERTS_EDITION_DEPENDENT_MIGRATION.test(readMigration(file));
+  || REVERTS_EDITION_DEPENDENT_MIGRATION.test(readMigration(file))
+  || WRITES_TENANT_POLICY_SETTINGS.test(readMigration(file));
 
 function migratedDb({ includeEdition = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');

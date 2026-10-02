@@ -92,7 +92,7 @@ function parseInput(body) {
 // koreksi sebelumnya untuk bahan yang sama di produksi yang sama, jadi
 // hitung ulang kedua kali tidak menggandakan koreksi.
 export async function computeHppRecalculation(db, storeId, { componentProductId, unitCostScaled, from }) {
-  const component = await db.prepare(`SELECT id, name, average_cost FROM products WHERE id = ? AND store_id = ?`).bind(componentProductId, storeId).first();
+  const component = await db.prepare(`SELECT id, name, average_cost, product_kind_id FROM products WHERE id = ? AND store_id = ?`).bind(componentProductId, storeId).first();
   if (!component) return { ok: false, status: 404, error: 'Bahan tidak ditemukan di gerai ini.' };
 
   const rows = await db.prepare(`
@@ -124,7 +124,8 @@ export async function computeHppRecalculation(db, storeId, { componentProductId,
       saleId: row.sale_id,
       soldName: row.sold_name,
       soldKindId: row.sold_kind_id || null,
-      componentKindId: row.component_product_kind_id || null,
+      // Snapshot produksi lama kadang tidak mencatat Jenis Barang bahan: pakai Jenis Barang bahan sekarang.
+      componentKindId: row.component_product_kind_id || component.product_kind_id || null,
       businessDate: row.business_date,
       runId: row.run_id,
       quantity,
@@ -227,8 +228,10 @@ export async function postPendingHppCorrections(db, storeId, limit = 100) {
   for (const group of groups.results ?? []) {
     const factId = `${group.recalculation_id}:${group.sale_id}`;
     const lineRows = await db.prepare(`
-      SELECT component_kind_id, sold_kind_id, delta_scaled FROM hpp_recalculation_lines
-      WHERE recalculation_id = ? AND sale_id = ?
+      SELECT COALESCE(l.component_kind_id, p.product_kind_id) AS component_kind_id, l.sold_kind_id, l.delta_scaled
+      FROM hpp_recalculation_lines l
+      LEFT JOIN products p ON p.id = l.component_product_id AND p.store_id = l.store_id
+      WHERE l.recalculation_id = ? AND l.sale_id = ?
     `).bind(group.recalculation_id, group.sale_id).all();
     const lines = lineRows.results ?? [];
     const accounts = await kindAccounts(db, storeId, lines.flatMap(line => [line.component_kind_id, line.sold_kind_id]));

@@ -638,8 +638,12 @@ function renderEntityReportChart() {
   const legend = metric.kind === 'polar'
     ? `<div class="ent-viz-legend"><span><i style="background:var(--viz-good)"></i>\u25b2 Untung</span><span><i style="background:var(--viz-bad)"></i>\u25bc Rugi</span></div>` : '';
 
-  const unposted = Object.entries(payload.unposted || {}).map(([code, info]) =>
-    `<div class="admin-tip" style="margin:0 0 8px"><b>${entityAdminEscape(code)}</b>: ${info.count} transaksi belum masuk pembukuan, jadi angkanya bisa kurang.</div>`).join('');
+  // Satu baris ringkas, bukan satu kotak per gerai (Bos Cyo, 2026-10-02: tujuh
+  // kotak peringatan menutupi grafik di layar HP).
+  const unpostedEntries = Object.entries(payload.unposted || {}).filter(([, info]) => info.count > 0);
+  const unposted = unpostedEntries.length
+    ? `<div class="admin-tip" style="margin:0 0 8px">Belum masuk pembukuan (angka gerai ini bisa kurang): ${unpostedEntries.map(([code, info]) => `<b>${entityAdminEscape(code)}</b> ${info.count}`).join(' \u00b7 ')}</div>`
+    : '';
   wrap.innerHTML = `${unposted}<div class="ent-viz-summary">${entityAdminEscape(metric.hint)}<br>${summary} \u00b7 ${entityAdminEscape(payload.from)} s/d ${entityAdminEscape(payload.to)}</div>${legend}
     <div class="ent-viz-rows" role="list">${rows.map((row, index) => {
       const value = row.v;

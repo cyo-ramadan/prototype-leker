@@ -68,7 +68,7 @@ async function setup() {
 
 // Satu penjualan Leker dadakan: harga = jumlah adonan (1 adonan = Rp1), tapi
 // HPP tercatat memakai harga adonan yang salah.
-function seedDadakanSale(ctx, { price, createdAt, voided = false, journalPosted = false }) {
+function seedDadakanSale(ctx, { price, createdAt, voided = false, journalPosted = false, componentKind = KIND }) {
   const { db, adonan, leker } = ctx;
   const saleId = nextId('sale');
   const runId = nextId('run');
@@ -82,7 +82,7 @@ function seedDadakanSale(ctx, { price, createdAt, voided = false, journalPosted 
   db.prepare(`INSERT INTO production_run_components (id, production_run_id, store_id, component_product_id, component_product_name, component_unit_id, component_unit_symbol,
       quantity_per_batch, total_quantity, unit_cost_snapshot_scaled, total_cost_snapshot_scaled, component_product_kind_id)
     VALUES (?, ?, 'store_kantor', ?, 'Adonan Leker', 'unit_kantor_rp', 'Rp', ?, ?, ?, ?, ?)`)
-    .run(nextId('comp'), runId, adonan, price, price, WRONG_COST, wrongCost, KIND);
+    .run(nextId('comp'), runId, adonan, price, price, WRONG_COST, wrongCost, componentKind);
   db.prepare(`INSERT INTO sale_items (id, sale_id, store_id, product_id, product_name, unit_price, quantity, line_total, unit_cost_snapshot, line_cogs, production_run_id, product_kind_id)
     VALUES (?, ?, 'store_kantor', ?, 'Leker Keju', ?, 1, ?, ?, ?, ?, ?)`)
     .run(nextId('item'), saleId, leker, price, price, wrongCost, wrongCost, runId, KIND);
@@ -179,6 +179,29 @@ test('gerai Akuntansi: jurnal koreksi Debit Persediaan bahan / Kredit HPP untuk 
     const syncAgain = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
     assert.equal(syncAgain.results.filter(row => row.factType === 'HPP_KOREKSI').length, 0, 'tidak diposting dua kali');
     assert.ok(posted);
+  } finally { ctx.db.close(); }
+});
+
+test('gerai Akuntansi: snapshot produksi lama tanpa Jenis Barang bahan tetap bisa dijurnal (pakai Jenis Barang bahan sekarang), termasuk baris lama yang sudah tersimpan kosong', async () => {
+  const ctx = await setup();
+  try {
+    // Kasus produksi nyata DERMO: component_product_kind_id kosong di snapshot.
+    seedDadakanSale(ctx, { price: 2000, createdAt: '2026-09-15T05:00:00.000Z', journalPosted: true, componentKind: null });
+    const legacy = seedDadakanSale(ctx, { price: 5000, createdAt: '2026-09-16T05:00:00.000Z', componentKind: null });
+
+    const res = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'Leker barang titipan' });
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.deepEqual(body.journals.map(item => item.status), ['POSTED'], 'tidak lagi macet NEEDS_CONFIGURATION');
+    assert.equal(ctx.db.prepare("SELECT component_kind_id FROM hpp_recalculation_lines LIMIT 1").get().component_kind_id, KIND);
+
+    // Baris yang terlanjur tersimpan dengan kind kosong (sebelum perbaikan) diselamatkan saat sinkron.
+    ctx.db.prepare('UPDATE hpp_recalculation_lines SET component_kind_id = NULL WHERE sale_id = ?').run(legacy);
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status)
+      VALUES ('delivery_legacy', 'store_kantor', 'POS', 'SALE', ?, 'sale', 'POSTED')`).run(legacy);
+    const sync = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
+    assert.equal(sync.results.filter(row => row.factType === 'HPP_KOREKSI' && row.status === 'POSTED').length, 1);
+    assert.equal(ctx.db.prepare("SELECT COUNT(*) AS n FROM accounting_journal_headers WHERE source_reference_id LIKE 'HPP_KOREKSI:%'").get().n, 2);
   } finally { ctx.db.close(); }
 });
 

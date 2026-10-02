@@ -916,8 +916,9 @@ Yang masih terbuka (bukan bagian ADR-051, ditemukan saat verifikasi produksi):
   (a) DERMO — bahan "Adonan Leker" bersatuan `RUPIAH` dipakai 10.000 satuan per Leker dengan
   Average Cost Rp1.092 per satuan; (b) GENENGAN — "Larutan Teh Poci Jasmine" Average Cost
   Rp1.267 per ML dipakai 237 ML per gelas. Keduanya masalah data biaya bahan, bukan laporan.
-  Jurnal HPP yang sudah posted tidak diedit (invariant #2); perbaikan lewat reversal setelah
-  keputusan Bos Cyo.
+  Jurnal HPP yang sudah posted tidak diedit (invariant #2). Alat perbaikannya kini ada: **Hitung
+  Ulang HPP** (ADR-052) di panel Admin Gerai. Belum dijalankan untuk DERMO/GENENGAN. Nominal
+  pembelian yang salah (DERMO Rp1 milyar dan Rp100 juta) belum dikoreksi -- di luar Hitung Ulang HPP.
 
 ## DOC-IMPACT
 

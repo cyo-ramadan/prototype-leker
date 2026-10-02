@@ -131,7 +131,7 @@ async function computeFactsForDates(db, storeIds, dates) {
   const storePh = placeholders(storeIds);
   const datePh = placeholders(dates);
 
-  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows, attendanceAccrualRows] = await Promise.all([
+  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows, attendanceAccrualRows, hppCorrectionRows] = await Promise.all([
     sumByStoreDate(db, `
       SELECT store_id, ${JAKARTA_BUSINESS_DATE_SQL} AS business_date, COALESCE(SUM(total_amount), 0) AS value
       FROM sales
@@ -205,6 +205,14 @@ async function computeFactsForDates(db, storeIds, dates) {
       WHERE entry_type = 'ACCRUAL' AND voided_at IS NULL
         AND store_id IN (${storePh}) AND business_date IN (${datePh})
       GROUP BY store_id, business_date
+    `, [...storeIds, ...dates]),
+    // Hitung Ulang HPP (src/hpp-recalculation.js): selisih HPP per tanggal
+    // penjualan, dijumlahkan ke HPP snapshot -- snapshot lama tidak ditulis ulang.
+    sumByStoreDate(db, `
+      SELECT store_id, business_date, COALESCE(SUM(delta_scaled), 0) AS value
+      FROM hpp_recalculation_lines
+      WHERE store_id IN (${storePh}) AND business_date IN (${datePh})
+      GROUP BY store_id, business_date
     `, [...storeIds, ...dates])
   ]);
 
@@ -234,6 +242,7 @@ async function computeFactsForDates(db, storeIds, dates) {
     else if (row.category === 'BEA_LAPAK') fact.beaLapak = amount;
     else fact.beaLainnya += amount; // BEA_LAINNYA, dan kategori tak dikenal (jaga-jaga) ikut sini
   }
+  for (const row of hppCorrectionRows) facts.get(key(row.store_id, row.business_date)).hppScaled += Number(row.value || 0);
   for (const row of attendanceAccrualRows) {
     facts.get(key(row.store_id, row.business_date)).beaGaji += rupiahFromScaledSum(row.value);
   }

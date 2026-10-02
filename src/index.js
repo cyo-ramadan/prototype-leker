@@ -16,6 +16,7 @@ import { handleAttendanceGpsPermitApi } from './attendance-gps-permit.js';
 import { handlePermitReportApi } from './permit-report.js';
 import { handleAttendanceReportApi } from './attendance-report.js';
 import { handleEntityRecipeApi } from './entity-recipe.js';
+import { handleHppRecalculationApi } from './hpp-recalculation.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -272,6 +273,8 @@ async function handleApi(request, env, url) {
   if (attendanceReportResponse) return attendanceReportResponse;
   const entityRecipeResponse = await handleEntityRecipeApi(request, env, pathname);
   if (entityRecipeResponse) return entityRecipeResponse;
+  const hppRecalculationResponse = await handleHppRecalculationApi(request, env, pathname);
+  if (hppRecalculationResponse) return hppRecalculationResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

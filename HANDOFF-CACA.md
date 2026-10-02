@@ -123,6 +123,11 @@ yang berhasil mengisi dirinya sendiri; Galeh 41 hari nol barang). Yang dibangun:
 - Sengaja **tidak** lewat chat: akun kasir (PIN tidak boleh lewat mesin AI pihak
   ketiga) — Una membukakan layarnya.
 - Test ujung ke ujung: `test/caca-pendamping.test.js` (migration asli, gerai IKAN01).
+- **Koreksi Bos Cyo (sesudahnya): yang bukan uang tidak bertanya.** Barang/bahan/resep cukup nama +
+  harga jual; kategori, satuan (pcs), harga beli (0), dan jumlah hasil resep (1) diisi bawaan dan
+  ditulis di draft. Sesudah barang jualan tanpa modal jadi, panel bertanya santai "dibikin sendiri atau
+  beli jadi?" (kalimat tetap, tanpa AI) lalu menggiring ke resep. Alat uang (`ALAT_UANG` di
+  `src/caca-agen.js`) tetap bertanya, diawali ajakan halus (`tanyaHalus`).
 
 **Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
 — alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,

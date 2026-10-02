@@ -480,6 +480,13 @@ async function cacaJalankanTawaran(tombol) {
     cacaBukaLayar(t.layar);
     return;
   }
+  if (t.jenis === 'obrolan') {
+    // Pertanyaan santai cukup dijawab sekali: tombol sebarisnya dimatikan.
+    tombol.parentElement?.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    cacaSimpanPercakapan();
+    cacaJawabObrolan(t);
+    return;
+  }
   if (t.jenis === 'batalkan') {
     tombol.disabled = true;
     await cacaSiapkanBatal(t.id || []);
@@ -618,6 +625,7 @@ function cacaTampilkanDraft(payload, scope) {
       cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
       cacaSimpanPercakapan();
       cacaTambahGelembung('caca', hasil.jawaban);
+      if (draft.aksi === 'buat_barang') cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
     } catch (error) {
       // Tombol dibuka lagi: yang gagal biasanya bisa diulang setelah sebabnya
       // dibereskan, dan menguncinya permanen memaksa mengetik ulang dari awal.
@@ -696,6 +704,7 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
       lanjut ? `Langkah berikutnya: ${lanjut.judul.toLowerCase()} — ${lanjut.keterangan.charAt(0).toLowerCase()}${lanjut.keterangan.slice(1)}` : ''
     ].filter(Boolean).join('\n'));
     cacaTambahTawaran([...tawaran, ...(lanjut?.tawaran || [])]);
+    cacaObrolanSesudahBarang(draft, dibuat.map(h => h.nama));
     return;
   }
   const dinonaktifkan = selesai.filter(h => h.hasil === 'dinonaktifkan');
@@ -705,6 +714,60 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
   cacaTambahGelembung('caca', dinonaktifkan.length
     ? `Sudah Una nonaktifkan ${dinonaktifkan.length} barang. Riwayatnya tetap aman, dan bisa diaktifkan lagi di Data Barang.`
     : 'Barang-barang itu ternyata sudah nonaktif semua.');
+}
+
+// --- obrolan santai sesudah barang jadi ---------------------------------------
+//
+// Bos Cyo 2026-10-02: barang cukup nama + harga, detail lain diisi yang dasar
+// tanpa ditanya. Sesudah beres baru ngobrol santai: "dibikin dulu atau langsung
+// jadi?" — jawabannya menggiring ke resep (dibikin) atau ke mencatat kulakan
+// di kasir (beli jadi). Hanya ditanyakan untuk barang jualan yang modalnya
+// belum disebut; kalimatnya tetap, tidak lewat mesin AI.
+
+const CACA_PEMBUKA_SANTAI = ['Mantap, daftar jualannya makin rame hhe.', 'Sip, kasir udah bisa jualan itu.', 'Oke beres. Pelan-pelan kita rapiin bareng ya.'];
+
+function cacaObrolanSesudahBarang(draft, namaDibuat) {
+  if (!namaDibuat.length || draft.tangkapan?.daftar_jenis === 'bahan') return;
+  const baris = draft.aksi === 'buat_barang' ? [draft.muatan] : (draft.muatan?.daftar || []);
+  const tanpaModal = baris.filter(b => b && !b.purchasePrice && namaDibuat.includes(b.name)).map(b => b.name);
+  if (!tanpaModal.length) return;
+  const sebut = tanpaModal.length === 1 ? tanpaModal[0] : `${tanpaModal[0]} dan yang lain`;
+  const pembuka = CACA_PEMBUKA_SANTAI[Math.floor(Math.random() * CACA_PEMBUKA_SANTAI.length)];
+  cacaTambahGelembung('caca', `${pembuka} Ngomong-ngomong, kalau boleh tau nih Bos — ${sebut} itu dibikin sendiri dulu, atau belinya udah langsung jadi?`);
+  cacaCatatRiwayat('una', `Una bertanya apakah ${sebut} dibikin sendiri atau dibeli jadi.`);
+  cacaTambahTawaran([
+    { jenis: 'obrolan', kunci: 'dibikin', label: '🍳 Dibikin sendiri', barang: tanpaModal[0] },
+    { jenis: 'obrolan', kunci: 'dibeli', label: '🛒 Beli udah jadi', barang: tanpaModal[0] },
+    { jenis: 'obrolan', kunci: 'nanti', label: 'Nanti aja' }
+  ]);
+}
+
+function cacaJawabObrolan(t) {
+  cacaTambahGelembung('saya', t.label.replace(/^\W+\s*/u, ''));
+  cacaCatatRiwayat('saya', t.label);
+  if (t.kunci === 'dibikin') {
+    const jumlah = cacaState.kesiapan?.langkah?.find(l => l.id === 'resep')?.jumlah;
+    const barang = t.barang || 'menunya';
+    cacaTambahGelembung('caca', `Wah racikan sendiri, mantep hhe. Biar untung tiap porsi ${barang} kebaca pas, kita catat resepnya yuk — cukup sebut bahannya sama kira-kira takarannya, nggak harus presisi dulu. Nanti tiap kali kejual, stok bahannya ikut berkurang sendiri.`);
+    cacaCatatRiwayat('una', 'Una menawarkan membuat resep.');
+    cacaTambahTawaran(jumlah?.bahan
+      ? [
+          { jenis: 'isi', label: '✍️ Bikin resepnya', teks: `resep ${barang}: hasil 1, ` },
+          { jenis: 'jelaskan', topik: 'resep', label: 'Resep itu gunanya apa?' }
+        ]
+      : [
+          { jenis: 'isi', label: '✍️ Masukin bahannya dulu', teks: 'masukin bahan: Gula pasir (gram), Teh (gram), Susu kental manis (ml)' },
+          { jenis: 'jelaskan', topik: 'resep', label: 'Resep itu gunanya apa?' }
+        ]);
+    return;
+  }
+  if (t.kunci === 'dibeli') {
+    cacaTambahGelembung('caca', 'Sip, berarti tinggal kulakan aja ya. Nanti tiap belanja barangnya dicatat di Kasir, modalnya kebaca sendiri — jadi untungnya pas tanpa Bos ngitung manual.');
+    cacaCatatRiwayat('una', 'Una menjelaskan modal terbaca dari pembelian di kasir.');
+    cacaTambahTawaran([{ jenis: 'jelaskan', topik: 'hpp', label: 'Modal (HPP) itu dihitung gimana?' }]);
+    return;
+  }
+  cacaTambahGelembung('caca', 'Oke santai, kapan-kapan aja hhe. Una di sini kalau butuh.');
 }
 
 // "Batalkan yang barusan": draft nonaktifkan disusun dari id barang yang tadi

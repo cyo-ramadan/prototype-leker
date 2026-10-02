@@ -83,6 +83,20 @@ Aturan desain yang mengikat semua jawaban di atas:
 - **Tanpa AI pun pendampingan jalan.** Cek kesiapan dan kamus istilah dihitung kode, jadi tetap
   muncul walau kunci AI belum dipasang atau kuota habis.
 
+**Koreksi Bos Cyo (2026-10-02, sesudah tahap pertama):** *"kalo aku nih ya disuruh bikin barang, yang
+paling penting adalah harga jual, beli dan nama barang, detil lainnya aku kasih yang basic aja, engga
+perlu nanyakan ... baru nanti setelah kerjain bilang kalo udah done, terus ngobrol santai ... nanya kalo
+boleh tau aja nih barangnya ini dibikin dulu apa uda langsung jadi ... saranin pake resep secara ga
+langsung menggiring ke manufactur. jadi semuanya seperti itu kecuali pencatatan yang nanti berhubungan
+dengan masuk keluar uang langsung barulah itu ditanyakan detil tapi dengan ajakan yang soft."* Maka:
+- Barang, bahan, resep **tidak bertanya** selain nama dan harga jual. Kategori → "Menu"/"Bahan",
+  satuan → pcs, harga beli → 0, jumlah hasil resep → 1 — semuanya ditulis terang di draft.
+- Sesudah barang jualan tanpa modal jadi, Una ngobrol santai lalu bertanya "dibikin sendiri atau beli
+  jadi?". Dibikin → diajak bikin resep (atau masukin bahan dulu). Beli jadi → modal terbaca dari
+  pembelian di kasir.
+- Pencatatan uang masuk/keluar (biaya, gaji, lapak, hutang, uang muka, jurnal, pindah saldo) tetap
+  bertanya bila kurang, diawali ajakan halus.
+
 ## 4. Yang dibangun (tahap ini)
 
 1. **Cek kesiapan gerai** — `GET /api/caca/kesiapan?store=` membaca 5 layar yang sudah ada
@@ -116,4 +130,5 @@ supplier, pendampingan di Kasir. Kandidat tahap berikutnya ada di §5.
 - **Ukur**: berapa gerai baru yang mencapai jualan pertama < 24 jam setelah dibuat.
 
 <!-- DOC-IMPACT: 2026-10-02 dokumen baru — riset ketakutan pengguna baru dan rancangan Una
-pendamping (kesiapan gerai, isi barang massal bertahap, foto daftar menu, kamus, batalkan). -->
+pendamping (kesiapan gerai, isi barang massal bertahap, foto daftar menu, kamus, batalkan); 2026-10-02
+koreksi Bos Cyo: non-uang tidak bertanya, obrolan santai menggiring ke resep, uang ditanya halus. -->

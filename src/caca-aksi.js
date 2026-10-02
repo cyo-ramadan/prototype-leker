@@ -20,6 +20,7 @@
 import { rupiah } from './caca-nominal.js';
 import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } from './caca-aksi-dasar.js';
 import { AKSI_BAYAR } from './caca-aksi-bayar.js';
+import { AKSI_AKUN } from './caca-aksi-akun.js';
 
 export { normalkan, cocokkanSatu };
 
@@ -328,7 +329,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BAYAR]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BAYAR, ...AKSI_AKUN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;
@@ -353,7 +354,9 @@ export function daftarAksiUntukModel(lingkup) {
  */
 export async function periksaUlangDraft(draft, ctx) {
   const aksi = cariAksi(draft?.aksi);
-  if (!aksi) return { ok: false, status: 400, error: 'Jenis draft ini tidak dikenal.' };
+  // Alat baca tidak punya draft untuk dikonfirmasi; tidak ada yang boleh
+  // "diposting" lewat namanya.
+  if (!aksi || aksi.baca) return { ok: false, status: 400, error: 'Jenis draft ini tidak dikenal.' };
   const disusun = await aksi.siapkan(draft.tangkapan, { ...ctx, referensi: draft?.muatan?.sourceReferenceId });
   if (!disusun.ok) return { ok: false, status: 409, error: disusun.tanya || disusun.error };
   const { tangkapan: _abaikan, ...dilihat } = draft;

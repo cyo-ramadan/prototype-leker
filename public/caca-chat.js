@@ -319,6 +319,7 @@ function cacaIsiDraft(draft) {
       : '';
     const tombol = draft.aksi === 'buat_jurnal' ? 'Ya, posting'
       : ['buat_barang', 'buat_resep'].includes(draft.aksi) ? 'Ya, buat'
+        : ['atur_cara_bayar', 'pindah_saldo_akun'].includes(draft.aksi) ? 'Ya, jalankan'
         : 'Ya, catat';
     return { judul: draft.judul, isi: baris + tabel, tombol };
   }
@@ -377,6 +378,15 @@ function cacaTampilkanDraft(payload, scope) {
       cacaTambahGelembung('caca', error.message);
     }
   });
+}
+
+// Tabel hasil alat baca (mis. cek Rekening Bersama). Isinya sudah teks jadi
+// dari server; tetap di-escape karena berasal dari data master.
+function cacaRenderTabel(tabel) {
+  if (!tabel?.kolom?.length) return '';
+  return `<div class="caca-tabel-geser"><table class="caca-table"><thead><tr>${tabel.kolom.map(k => `<th>${cacaEscape(k)}</th>`).join('')}</tr></thead><tbody>${
+    (tabel.isi || []).map(r => `<tr>${r.map(sel => `<td>${cacaEscape(sel)}</td>`).join('')}</tr>`).join('')
+  }</tbody></table></div>`;
 }
 
 function cacaJejakAlat(payload) {
@@ -519,7 +529,13 @@ async function cacaKirimTeks(pertanyaan) {
     } else {
       // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
       // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
-      cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+      const tabel = cacaRenderTabel(payload.tabel);
+      if (tabel) {
+        // Kalimatnya di atas tabel, bukan di bawahnya.
+        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}` });
+      } else {
+        cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+      }
     }
   } catch (error) {
     mengetik.remove();

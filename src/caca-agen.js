@@ -157,11 +157,15 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
     }
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
     const disiapkan = await aksi.siapkan(pilihan.value, {
-      ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai'
+      ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
+      storeCode: konteks.storeCode
     });
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: disiapkan.tanya || disiapkan.error, belumLengkap: true };
     }
+    // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
+    // dihitung kode — tanpa draft, tanpa panggilan model kedua.
+    if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null };
     // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa
     // disusun ulang dan dibandingkan tanpa memanggil model lagi.
     const tangkapan = Object.fromEntries(Object.keys(aksi.skema).map((kunci) => [kunci, pilihan.value?.[kunci] ?? null]));

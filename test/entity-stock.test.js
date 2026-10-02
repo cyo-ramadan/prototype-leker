@@ -196,8 +196,11 @@ test('UI: tab Stok Gerai terpasang di Admin Entity dengan versi script/css yang 
   assert.match(html, /data-entity-tab="entitystock"/);
   assert.match(html, /id="entityTab-entitystock"/);
   assert.match(html, /id="entityStockTable"/);
-  assert.match(html, /entity-stock-matrix\.js\?v=20261002-stok-gerai-v1/);
-  assert.match(html, /entity-stock-matrix\.css\?v=20261002-stok-gerai-v1/);
+  assert.match(html, /id="entityStockStoreBtn"/);
+  assert.match(html, /id="entityStockXlsx"/);
+  assert.match(html, /id="entityStockPdf"/);
+  assert.match(html, /entity-stock-matrix\.js\?v=20261002-stok-gerai-v2/);
+  assert.match(html, /entity-stock-matrix\.css\?v=20261002-stok-gerai-v2/);
   assert.match(html, /entity-admin\.js\?v=20261002-stok-gerai-v1/);
   const js = readFileSync(new URL('../public/entity-admin.js', import.meta.url), 'utf8');
   assert.match(js, /loadEntityStockMatrix/);

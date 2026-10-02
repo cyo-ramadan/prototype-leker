@@ -13,6 +13,7 @@
 import { callStructured } from './caca-ai-client.js';
 import { ALAT_BACA, PERIODE, daftarAlatUntukModel, jalankanAlat } from './caca-alat.js';
 import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPengeluaran } from './caca-tulis.js';
+import { GAYA_UNTUK_MODEL } from './caca-gaya.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
@@ -106,9 +107,11 @@ function promptSusunJawaban(konteks) {
     '  termasuk angka yang kamu ingat dari percakapan sebelumnya.',
     '- Kalau data tidak memuat yang ditanyakan, bilang belum ada datanya. Jangan mengira-ira.',
     '- Tulis rupiah dengan pemisah ribuan, mis. 808.000.',
-    '- Bahasa sehari-hari, 1-3 kalimat. Tidak perlu basa-basi pembuka.',
+    '- 1-3 kalimat. Tidak perlu basa-basi pembuka.',
     '- Kalau periodenya hari ini, ingatkan sekilas bahwa harinya masih jalan.',
-    '- Kamu asisten otomatis. Kalau ditanya, jujur saja; jangan mengaku manusia.'
+    '- Kamu asisten otomatis. Kalau ditanya, jujur saja; jangan mengaku manusia.',
+    '',
+    GAYA_UNTUK_MODEL
   ].join('\n');
 }
 
@@ -157,11 +160,15 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
     }
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
     const disiapkan = await aksi.siapkan(pilihan.value, {
-      ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai'
+      ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
+      storeCode: konteks.storeCode
     });
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: disiapkan.tanya || disiapkan.error, belumLengkap: true };
     }
+    // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
+    // dihitung kode — tanpa draft, tanpa panggilan model kedua.
+    if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null };
     // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa
     // disusun ulang dan dibandingkan tanpa memanggil model lagi.
     const tangkapan = Object.fromEntries(Object.keys(aksi.skema).map((kunci) => [kunci, pilihan.value?.[kunci] ?? null]));

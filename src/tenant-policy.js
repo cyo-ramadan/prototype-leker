@@ -14,6 +14,18 @@
 // waktu menambah saklar baru -- src/owner-auth.js merender daftar ini
 // generik, tidak perlu endpoint/kolom baru per saklar.
 export const ATTENDANCE_SCHEDULE_GATE_KEY = 'attendance_schedule_gate';
+// Bos Cyo, 2026-10-01: pilihan skin per tenant -- "nanti ada tombol a b dan
+// c dan 0. 0 itu yang skr." 0 = tampilan sekarang; A/B/C = calon desain
+// jualan yang sedang diuji (HANDOFF-UIUX-SIAP-JUAL.md §8). Dibaca halaman
+// lewat GET /api/ui-profile (src/ui-profile.js). Default 0 supaya tenant
+// yang sudah jalan tidak berubah tampilan tanpa diminta.
+export const UI_SKIN_KEY = 'ui_skin';
+export const UI_SKIN_OPTIONS = Object.freeze([
+  { value: '0', label: '0 · Sekarang' },
+  { value: 'A', label: 'A · Tenang' },
+  { value: 'B', label: 'B · Papan Siaga' },
+  { value: 'C', label: 'C · Kabar Gerai' }
+]);
 
 export const TENANT_POLICY_DEFINITIONS = Object.freeze([
   {
@@ -21,6 +33,14 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     label: 'Batasi gaji & presensi sesuai jadwal shift',
     description: 'ON: presensi di luar jam shift/hari libur gajinya Rp0, dan sesi yang lupa ditutup 1 jam setelah jadwal pulang otomatis ditutup sistem. OFF: cocok untuk tenant yang kebijakannya tidak pakai akun khusus lembur -- di luar jam kerja tetap dihitung gaji, dan tidak di-force-close karena memang masih dianggap kerja.',
     defaultValue: true
+  },
+  {
+    key: UI_SKIN_KEY,
+    type: 'choice',
+    options: UI_SKIN_OPTIONS,
+    label: 'Tampilan (skin)',
+    description: '0 = tampilan sekarang. A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    defaultValue: '0'
   }
 ]);
 
@@ -50,6 +70,31 @@ export async function getTenantPolicySetting(db, tenantId, key, defaultValue) {
   return row.setting_value === '1';
 }
 
+// Saklar bertipe 'choice' (mis. skin 0/A/B/C) menyimpan nilainya apa adanya,
+// bukan '1'/'0'. Nilai di luar daftar opsi dianggap default.
+export function normalizePolicyValue(key, value) {
+  const def = DEFINITION_BY_KEY.get(key);
+  if (def?.type === 'choice') {
+    const raw = String(value ?? '');
+    return def.options.some(option => option.value === raw) ? raw : def.defaultValue;
+  }
+  return value ? '1' : '0';
+}
+
+function decodePolicyValue(def, stored) {
+  if (def?.type === 'choice') return normalizePolicyValue(def.key, stored);
+  return stored === '1';
+}
+
+export async function getTenantPolicyChoice(db, tenantId, key) {
+  const def = DEFINITION_BY_KEY.get(key);
+  if (!tenantId) return def?.defaultValue ?? null;
+  const row = await db.prepare(`
+    SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = ? AND setting_key = ?
+  `).bind(tenantId, key).first();
+  return row ? decodePolicyValue(def, row.setting_value) : (def?.defaultValue ?? null);
+}
+
 export async function setTenantPolicySetting(db, tenantId, key, value, { role = '', id = '' } = {}) {
   await db.prepare(`
     INSERT INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_at, updated_by_role, updated_by_id)
@@ -57,7 +102,7 @@ export async function setTenantPolicySetting(db, tenantId, key, value, { role = 
     ON CONFLICT (tenant_id, setting_key) DO UPDATE SET
       setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP,
       updated_by_role = excluded.updated_by_role, updated_by_id = excluded.updated_by_id
-  `).bind(tenantId, key, value ? '1' : '0', role, id).run();
+  `).bind(tenantId, key, normalizePolicyValue(key, value), role, id).run();
 }
 
 // Buat panel Owner -- semua saklar yang dikenal + nilainya SEKARANG untuk
@@ -66,9 +111,11 @@ export async function listTenantPolicySettings(db, tenantId) {
   const rows = tenantId
     ? (await db.prepare(`SELECT setting_key, setting_value FROM tenant_policy_settings WHERE tenant_id = ?`).bind(tenantId).all()).results ?? []
     : [];
-  const savedByKey = new Map(rows.map(row => [row.setting_key, row.setting_value === '1']));
+  const savedByKey = new Map(rows.map(row => [row.setting_key, decodePolicyValue(DEFINITION_BY_KEY.get(row.setting_key), row.setting_value)]));
   return TENANT_POLICY_DEFINITIONS.map(def => ({
     key: def.key,
+    type: def.type || 'boolean',
+    options: def.options || null,
     label: def.label,
     description: def.description,
     value: savedByKey.has(def.key) ? savedByKey.get(def.key) : def.defaultValue

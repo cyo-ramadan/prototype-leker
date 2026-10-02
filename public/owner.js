@@ -119,7 +119,14 @@ function renderOwnerTenants() {
     </div>
     ${ownerState.expandedTenantPolicyId === tenant.id ? `
     <div class="master-row" style="background:#f8f9fb;display:block">
-      ${ownerState.tenantPolicySettings.length ? ownerState.tenantPolicySettings.map(setting => `
+      ${ownerState.tenantPolicySettings.length ? ownerState.tenantPolicySettings.map(setting => setting.type === 'choice' ? `
+        <div style="margin-bottom:12px">
+          <b>${ownerEscape(setting.label)}</b>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">
+            ${(setting.options || []).map(option => `<button type="button" class="${option.value === setting.value ? 'primary-btn' : 'secondary-btn'}" style="width:auto;padding:8px 14px;font-size:13px" data-tenant-policy-choice="${ownerEscape(setting.key)}" data-tenant-policy-tenant="${ownerEscape(tenant.id)}" data-tenant-policy-value="${ownerEscape(option.value)}" aria-pressed="${option.value === setting.value}">${ownerEscape(option.label)}</button>`).join('')}
+          </div>
+          <span class="muted" style="font-size:12px">${ownerEscape(setting.description)}</span>
+        </div>` : `
         <label class="admin-check" style="justify-content:flex-start;align-items:flex-start;gap:8px;display:flex;margin-bottom:10px">
           <input type="checkbox" data-tenant-policy-key="${ownerEscape(setting.key)}" data-tenant-policy-tenant="${ownerEscape(tenant.id)}" ${setting.value ? 'checked' : ''} />
           <span><b>${ownerEscape(setting.label)}</b><br><span class="muted" style="font-size:12px">${ownerEscape(setting.description)}</span></span>
@@ -127,6 +134,9 @@ function renderOwnerTenants() {
     </div>` : ''}`).join('') : '<div class="empty">Belum ada tenant.</div>';
   document.querySelectorAll('[data-toggle-tenant-policy]').forEach(button => {
     button.onclick = () => toggleTenantPolicyPanel(button.dataset.toggleTenantPolicy);
+  });
+  document.querySelectorAll('[data-tenant-policy-choice]').forEach(button => {
+    button.onclick = () => saveTenantPolicySetting(button.dataset.tenantPolicyTenant, button.dataset.tenantPolicyChoice, button.dataset.tenantPolicyValue);
   });
   document.querySelectorAll('[data-tenant-policy-key]').forEach(input => {
     input.onchange = () => saveTenantPolicySetting(input.dataset.tenantPolicyTenant, input.dataset.tenantPolicyKey, input.checked);

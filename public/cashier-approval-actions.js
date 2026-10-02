@@ -46,7 +46,7 @@
           <div class="field"><label>Alasan penyesuaian</label><input id="stockAdjustmentReason" class="text-input" maxlength="220" placeholder="Contoh: hasil hitung fisik" required /></div>
           <div class="field"><label>Catatan <span class="muted">optional</span></label><textarea id="stockAdjustmentNote" rows="2" maxlength="500"></textarea></div>
           <div id="stockAdjustmentDelta" class="cashier-lock-note"></div>
-          <p class="muted">Saat diajukan, server menyimpan snapshot stok saat ini. Saat Admin/Owner ACC, stok dicek ulang. Jika sudah berubah karena transaksi lain, pengajuan ditolak sebagai stale dan harus diajukan ulang.</p>`,
+          <p class="muted">Stok dicek ulang saat Admin/Owner menyetujui. Kalau stok sudah berubah karena transaksi lain, pengajuan ditolak dan perlu diajukan ulang.</p>`,
         submitText: 'AJUKAN PENYESUAIAN',
         onSubmit: async () => {
           const productId = Number(el('stockAdjustmentProduct').value);

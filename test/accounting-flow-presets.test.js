@@ -37,16 +37,15 @@ test('goods flow presets use Jenis Barang inventory mapping and configurable cou
 test('warehouse choices are read from the existing Warehouse Settings capability and execution remains fail-closed', () => {
   assert.match(ui, /\/api\/admin\/settings\/warehouse/);
   assert.match(ui, /ROUTING HOLD/);
-  assert.match(ui, /inventory_stock_balances/);
-  assert.match(ui, /store-level/);
+  // Bahasa pemilik (HANDOFF-UIUX-SIAP-JUAL T1): stok masih per gerai, belum per gudang.
+  assert.match(ui, /Stok saat ini dihitung per gerai, belum per gudang/);
   assert.match(warehouseSettings, /MAXI_WAREHOUSE_SETTINGS_V1/);
   assert.doesNotMatch(accountingSettings, /warehouse_.*account.*mapping/i);
 });
 
 test('preset reapply refuses to overwrite customized journal rule shapes', () => {
   assert.match(ui, /matchesManagedShape/);
-  assert.match(ui, /sudah dikustomisasi/);
-  assert.match(ui, /Karen tidak overwrite rule custom/);
+  assert.match(ui, /sudah diatur manual di Aturan Transaksi, jadi tidak ditimpa/);
 });
 
 test('cash flow choices and defaults are administered through canonical Accounting Settings', () => {

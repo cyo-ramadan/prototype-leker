@@ -343,7 +343,7 @@ async function submitCustomerFeedback(request, env) {
     ok: true,
     feedbackCode: code,
     rewardPoints: CUSTOMER_FEEDBACK_REWARD_POINTS,
-    message: 'Saran sudah diterima. Terima kasih sudah membantu evaluasi MAXI Leker.'
+    message: 'Saran sudah diterima. Terima kasih sudah membantu evaluasi gerai ini.'
   }, 201);
 }
 

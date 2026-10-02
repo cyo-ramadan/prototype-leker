@@ -439,6 +439,6 @@ test('UI: kartu presensi staf + antrean Admin + tab Laporan Presensi + form titi
   assert.match(html, /admin-attendance-report\.js\?v=20261001-laporan-presensi-v1/);
   assert.match(html, /admin-cashiers\.js\?v=20261001-gps-presensi-v1/);
   assert.match(html, /admin-cashier-raport\.js\?v=20261001-gps-presensi-v1/);
-  assert.match(html, /admin\.js\?v=20261001-lokasi-acuan-presensi-v1/);
+  assert.match(html, /admin\.js\?v=20261001-siap-jual-v3/);
   assert.match(read('../public/admin.js'), /storeRefUseHere/);
 });

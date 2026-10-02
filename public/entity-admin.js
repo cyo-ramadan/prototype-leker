@@ -591,10 +591,9 @@ function showEntityVizTip(event, row) {
     ${line('Pendapatan lain', entityVizRupiah(row.otherIncome))}
     ${line('HPP', entityVizRupiah(row.hpp))}
     ${line('Untung kotor', entityVizRupiah(row.grossProfit))}
-    ${line('Beban kasir', entityVizRupiah(row.expenseKasir))}
-    ${line('Bea gaji', entityVizRupiah(row.beaGaji))}
-    ${line('Bea lapak', entityVizRupiah(row.beaLapak))}
-    ${line('Bea lainnya', entityVizRupiah(row.beaLainnya))}
+    ${row.source === 'ACCOUNTING' && (row.bebanAccounts || []).length
+      ? row.bebanAccounts.map(account => line(entityAdminEscape(account.name), entityVizRupiah(account.amount))).join('')
+      : `${line('Beban kasir', entityVizRupiah(row.expenseKasir))}${line('Bea gaji', entityVizRupiah(row.beaGaji))}${line('Bea lapak', entityVizRupiah(row.beaLapak))}${line('Bea lainnya', entityVizRupiah(row.beaLainnya))}`}
     ${line('Stok lebih / hilang', `${entityVizRupiah(row.stockAdjustmentGain)} / ${entityVizRupiah(row.stockAdjustmentLoss)}`)}
     ${line('<b>Untung bersih</b>', `<b>${entityVizRupiah(row.netProfit)}</b>`)}`;
   tip.style.display = 'block';
@@ -621,10 +620,9 @@ function renderEntityReportChart() {
   const rows = stores.map(store => ({ ...store, v: metric.value(store) }))
     .sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity) || a.code.localeCompare(b.code));
   const values = rows.map(row => row.v).filter(value => value !== null);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const span = max - min || 1;
-  const zero = (-min / span) * 100;
+  // Semua batang tumbuh ke KANAN dari satu garis dasar di kiri; panjang = nilai
+  // mutlak, untung/rugi hanya dibedakan lewat warna (permintaan Bos Cyo).
+  const span = Math.max(1, ...values.map(value => Math.abs(value)));
 
   let summary = '';
   if (metric.kind === 'polar' && !metric.percent) {
@@ -638,17 +636,18 @@ function renderEntityReportChart() {
   const legend = metric.kind === 'polar'
     ? `<div class="ent-viz-legend"><span><i style="background:var(--viz-good)"></i>\u25b2 Untung</span><span><i style="background:var(--viz-bad)"></i>\u25bc Rugi</span></div>` : '';
 
-  wrap.innerHTML = `<div class="ent-viz-summary">${entityAdminEscape(metric.hint)}<br>${summary} \u00b7 ${entityAdminEscape(payload.from)} s/d ${entityAdminEscape(payload.to)}</div>${legend}
+  const unposted = Object.entries(payload.unposted || {}).map(([code, info]) =>
+    `<div class="admin-tip" style="margin:0 0 8px"><b>${entityAdminEscape(code)}</b>: ${info.count} transaksi belum masuk pembukuan, jadi angkanya bisa kurang.</div>`).join('');
+  wrap.innerHTML = `${unposted}<div class="ent-viz-summary">${entityAdminEscape(metric.hint)}<br>${summary} \u00b7 ${entityAdminEscape(payload.from)} s/d ${entityAdminEscape(payload.to)}</div>${legend}
     <div class="ent-viz-rows" role="list">${rows.map((row, index) => {
       const value = row.v;
       const width = value === null ? 0 : Math.max(Math.abs(value) / span * 100, value === 0 ? 0 : 0.8);
       const negative = value !== null && value < 0;
       const cls = metric.kind === 'polar' ? (negative ? 'neg' : 'pos') : metric.kind === 'cost' ? 'cost' : 'mag';
-      const left = negative ? zero - width : zero;
       const glyph = metric.kind === 'polar' && value !== null && value !== 0 ? (negative ? '\u25bc' : '\u25b2') : '';
       return `<div class="ent-viz-row" role="listitem" tabindex="0" data-entity-viz-row="${index}">
         <div class="ent-viz-name" title="${entityAdminEscape(row.storeName || row.code)}">${entityAdminEscape(row.code)}</div>
-        <div class="ent-viz-track"><span class="ent-viz-axis" style="left:${zero}%"></span>${value === null ? '' : `<span class="ent-viz-bar ${cls}" style="left:${left}%;width:${width}%"></span>`}</div>
+        <div class="ent-viz-track"><span class="ent-viz-axis"></span>${value === null ? '' : `<span class="ent-viz-bar ${cls}" style="width:${width}%"></span>`}</div>
         <div class="ent-viz-value ${negative ? 'ent-viz-neg' : ''}">${glyph ? `<small aria-hidden="true">${glyph}</small>` : ''}${entityAdminEscape(entityVizFormat(metric, value))}</div>
       </div>`;
     }).join('')}</div>`;

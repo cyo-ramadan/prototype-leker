@@ -899,21 +899,25 @@ Filter gabungan `INVENTORY` ("Arus Barang & Produksi") dipecah jadi dua filter b
   kolom Jenis, Status, ID, dan ID Laci lewat CSS (`display:none` per `data-label`) -- infonya tetap
   ada di tabel desktop dan di Detail, cuma tidak ikut memanjangkan kartu di HP.
 
-## Laporan Untung Rugi (Net Profit) belum membaca beban yang hanya ada di Akuntansi (2026-10-01)
+## Laporan Untung Rugi dibaca dari Akuntansi untuk gerai berAkuntansi (2026-10-02, ADR-051)
 
-Laporan Untung Rugi Admin Gerai dan Entity dihitung dari **fakta POS/Admin**, bukan dari jurnal
-Akuntansi: penjualan, HPP, pendapatan lain, Beban Kasir, Bea Gaji/Lapak/Lainnya (panel Admin),
-akrual gaji dari presensi, dan Penyesuaian Stok. Konsekuensinya, beban yang **hanya** dibuat di
-Akuntansi (jurnal manual, Jurnal Beban Rutin / Split Beban ADR-049, jurnal yang dibuat Una untuk
-Entity) **tidak** mengurangi angka ini; ia hanya muncul di Rugi Laba Akuntansi. Beban dari fakta
-Admin ikut kedua laporan karena jembatan ADR-046 menjurnalkannya.
+Menggantikan catatan 2026-10-01 ("belum membaca beban yang hanya ada di Akuntansi"). Gerai edisi
+`ACCOUNTING` kini membaca Untung Rugi dari jurnal (beban dirinci per nama akun); gerai
+`LITE`/`FLEXIBLE` tetap dari fakta POS. Fakta admin yang tertinggal ikut disinkronkan lewat tombol
+sinkron Akuntansi. Detail dan alasan: `adr/ADR-051-profit-loss-reads-accounting.md`.
 
-Sengaja belum ditambal: menambahkan beban Akuntansi ke laporan ini harus menghindari hitung ganda
-(beban yang sudah berasal dari fakta POS/Admin juga ada di jurnal) dan tidak boleh membuat
-laporan bergantung pada Akuntansi (`POS_MODULE_INDEPENDENCE.md`). Butuh keputusan Bos Cyo.
-
-Grafik perbandingan gerai di Laporan Entity (Untung Bersih, Omset, Untung Kotor, Total Beban, HPP,
-Margin) memakai angka laporan yang sama, jadi mewarisi batasan ini.
+Yang masih terbuka (bukan bagian ADR-051, ditemukan saat verifikasi produksi):
+- **Transaksi tertahan di Setting Akuntansi** membuat angka gerai kurang: Non Tunai belum
+  dipetakan (BEJI/GENENGAN/PENDEM, 9 penjualan), Barang tanpa Jenis Barang (DERMO 29+9, TLEKUNG
+  12+1, G001 9), aturan transaksi Beban belum lengkap (MANDALA, 3 pengeluaran). Laporan
+  menampilkan peringatan; perbaikannya pekerjaan terpisah.
+- **HPP tidak wajar di DERMO dan GENENGAN** (jurnal Sept 2026: HPP DERMO Rp175,6 juta vs omset
+  Rp0,9 juta; GENENGAN Rp179,1 juta vs Rp1,8 juta; gerai lain wajar). Penyebab terbaca di data:
+  (a) DERMO — bahan "Adonan Leker" bersatuan `RUPIAH` dipakai 10.000 satuan per Leker dengan
+  Average Cost Rp1.092 per satuan; (b) GENENGAN — "Larutan Teh Poci Jasmine" Average Cost
+  Rp1.267 per ML dipakai 237 ML per gelas. Keduanya masalah data biaya bahan, bukan laporan.
+  Jurnal HPP yang sudah posted tidak diedit (invariant #2); perbaikan lewat reversal setelah
+  keputusan Bos Cyo.
 
 ## DOC-IMPACT
 

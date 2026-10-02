@@ -70,6 +70,6 @@ test('Laporan Entity punya grafik perbandingan gerai dengan tombol Untung Bersih
   assert.match(css, /--viz-good/);
   assert.match(css, /--viz-bad/);
   assert.match(html, /id="entityReportChart"/);
-  assert.match(html, /entity-report-chart\.css\?v=20261001-grafik-gerai-v1/);
-  assert.match(html, /entity-admin\.js\?v=20261001-grafik-gerai-v1/);
+  assert.match(html, /entity-report-chart\.css\?v=20261002-grafik-gerai-v3/);
+  assert.match(html, /entity-admin\.js\?v=20261002-grafik-gerai-v3/);
 });

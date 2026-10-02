@@ -6,7 +6,9 @@ import { handleAdminOperationalExpenseApi } from '../src/admin-operational-expen
 import { handleHutangPiutangApi } from '../src/hutang-piutang.js';
 import { handleBusinessSettingsApi } from '../src/business-settings.js';
 import { handleCashierPurchaseApi } from '../src/cashier-purchase.js';
-import { getNetProfitReport } from '../src/net-profit-report.js';
+// ADR-051: gerai edisi ACCOUNTING membaca Untung Rugi dari jurnal; tes di file ini
+// menguji mesin fakta POS (dipakai gerai LITE/FLEXIBLE), jadi memanggilnya langsung.
+import { getPosFactsNetProfitReport as getNetProfitReport } from '../src/net-profit-report.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 // Bos Cyo, 2026-09-26: Bea Operasional = pintu MEMBUAT Hutang + Beban (ke

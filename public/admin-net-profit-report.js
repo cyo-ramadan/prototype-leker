@@ -40,7 +40,7 @@
     shell.insertAdjacentHTML('beforeend', `
       <section id="tab-labarugi" class="admin-section">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Laporan Untung Rugi</h2><div class="muted">Dihitung langsung dari transaksi gerai ini — tidak perlu Accounting aktif. Hari yang sudah lewat disimpan otomatis supaya dibuka lagi jadi instan; hari ini selalu dihitung ulang.</div></div></div>
+          <div class="list-head"><div><h2>Laporan Untung Rugi</h2><div class="muted">Untung Rugi gerai ini: dibaca dari pembukuan bila gerai memakai Akuntansi, dan dari transaksi kasir bila tidak. Hari yang sudah lewat disimpan otomatis supaya dibuka lagi jadi instan; hari ini selalu dihitung ulang.</div></div></div>
           <div class="admin-grid two compact">
             <label class="admin-field">Dari tanggal<input id="labaRugiFrom" type="date" required /></label>
             <label class="admin-field">Sampai tanggal<input id="labaRugiTo" type="date" required /></label>
@@ -103,6 +103,27 @@
     </tr>`;
   }
 
+  // Gerai ber-Akuntansi: beban dirinci per NAMA AKUN pembukuan (ADR-051);
+  // gerai tanpa Akuntansi tetap memakai pembagian lama.
+  function bebanRows(totals) {
+    if (snapshot.source === 'ACCOUNTING') {
+      const accounts = totals.bebanAccounts || [];
+      return accounts.length ? accounts.map(account => summaryRow(account.name, -account.amount)).join('') : summaryRow('Beban', 0);
+    }
+    return [
+      summaryRow('Beban Kasir', -totals.expenseKasir),
+      summaryRow('Bea Gaji', -totals.beaGaji),
+      summaryRow('Bea Lapak', -totals.beaLapak),
+      summaryRow('Bea Lainnya', -totals.beaLainnya)
+    ].join('');
+  }
+
+  function unpostedNotice() {
+    const entries = Object.entries(snapshot.unposted || {});
+    if (!entries.length) return '';
+    return entries.map(([code, info]) => `<div class="admin-tip" style="margin-top:12px"><b>${info.count} transaksi belum masuk pembukuan</b> — angka di atas bisa kurang dari sebenarnya.${info.reasons?.length ? ` Penyebab terbanyak: ${escapeHtml(info.reasons.map(reason => `${reason.detail || reason.code} (${reason.count})`).join('; '))}.` : ''} Buka Akuntansi lalu tekan sinkron untuk memasukkannya.</div>`).join('');
+  }
+
   function renderSummary() {
     const totals = snapshot.breakdownTotals;
     const box = el('labaRugiSummary');
@@ -119,14 +140,12 @@
           ${summaryRow('Untung Kotor', totals.grossProfit, true)}
           ${summaryRow('Penyesuaian Stok — Lebih (+)', totals.stockAdjustmentGain)}
           ${summaryRow('Penyesuaian Stok — Hilang (−)', -totals.stockAdjustmentLoss)}
-          ${summaryRow('Beban Kasir', -totals.expenseKasir)}
-          ${summaryRow('Bea Gaji', -totals.beaGaji)}
-          ${summaryRow('Bea Lapak', -totals.beaLapak)}
-          ${summaryRow('Bea Lainnya', -totals.beaLainnya)}
+          ${bebanRows(totals)}
           ${summaryRow('Untung Bersih', totals.netProfit, true)}
         </tbody>
       </table>
-      <div class="muted" style="margin-top:12px">Pembelian bahan dan pembelian aset tidak ikut dipotong di sini — uangnya berubah jadi barang/aset, bukan hilang. Bahan baru terhitung saat barangnya terjual, lewat baris "HPP".</div>`;
+      ${unpostedNotice()}
+      <div class="muted" style="margin-top:12px">${snapshot.source === 'ACCOUNTING' ? 'Angka dibaca dari pembukuan (Akuntansi) gerai ini, termasuk beban yang dicatat langsung di Akuntansi. ' : ''}Pembelian bahan dan pembelian aset tidak ikut dipotong di sini — uangnya berubah jadi barang/aset, bukan hilang. Bahan baru terhitung saat barangnya terjual, lewat baris "HPP".</div>`;
   }
 
   function renderDaily() {

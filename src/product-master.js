@@ -60,6 +60,7 @@ async function selectedStore(db, request) {
 }
 
 const productCodeText = value => String(value ?? '').trim().slice(0, 40);
+const wantsShortReply = request => new URL(request.url).searchParams.get('ringkas') === '1';
 
 function actorFrom(auth) {
   if (auth.owner) return { role: 'OWNER', id: auth.owner.id };
@@ -357,6 +358,10 @@ export async function handleProductMasterApi(request, env, pathname) {
     }
     await env.DB.batch(statements);
     await ensureItemCategoryForKind(env.DB, store.id, normalized.productKindId);
+    // ?ringkas=1: pemanggil yang membuat banyak barang berturut-turut (Una)
+    // tidak butuh seluruh isi editor -- termasuk foto semua barang -- di tiap
+    // balasan. Layar Data Barang tetap menerima payload lengkap seperti biasa.
+    if (wantsShortReply(request)) return json({ ok: true, id }, 201);
     return json({ ok: true, id, editor: await editorPayload(env.DB, store) }, 201);
   }
 
@@ -450,6 +455,7 @@ export async function handleProductMasterApi(request, env, pathname) {
   }
   await env.DB.batch(statements);
   await ensureItemCategoryForKind(env.DB, store.id, normalized.productKindId);
+  if (wantsShortReply(request)) return json({ ok: true, id: productId });
   return json({ ok: true, id: productId, editor: await editorPayload(env.DB, store) });
 }
 

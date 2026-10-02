@@ -21,6 +21,8 @@ import { rupiah } from './caca-nominal.js';
 import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } from './caca-aksi-dasar.js';
 import { AKSI_BAYAR } from './caca-aksi-bayar.js';
 import { AKSI_AKUN } from './caca-aksi-akun.js';
+import { AKSI_BARANG } from './caca-aksi-barang.js';
+import { ALAT_JELASKAN } from './caca-jelaskan.js';
 
 export { normalkan, cocokkanSatu };
 
@@ -103,7 +105,7 @@ const barang = Object.freeze({
   },
 
   async posting(draft, ctx) {
-    const hasil = await ctx.kirim('POST', '/api/admin/master/products/editor', draft.muatan);
+    const hasil = await ctx.kirim('POST', '/api/admin/master/products/editor?ringkas=1', draft.muatan);
     if (!hasil.ok) return hasil;
     return { ok: true, jawaban: `Sudah Una buat: barang "${draft.muatan.name}".` };
   }
@@ -329,7 +331,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BAYAR, ...AKSI_AKUN]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_BAYAR, ...AKSI_AKUN, ALAT_JELASKAN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;
@@ -357,7 +359,9 @@ export async function periksaUlangDraft(draft, ctx) {
   // Alat baca tidak punya draft untuk dikonfirmasi; tidak ada yang boleh
   // "diposting" lewat namanya.
   if (!aksi || aksi.baca) return { ok: false, status: 400, error: 'Jenis draft ini tidak dikenal.' };
-  const disusun = await aksi.siapkan(draft.tangkapan, { ...ctx, referensi: draft?.muatan?.sourceReferenceId });
+  // draftAsli dipakai alat bertahap (caca-aksi-barang.js): potongan yang sudah
+  // diposting tidak boleh membuat potongan berikutnya dianggap "berubah".
+  const disusun = await aksi.siapkan(draft.tangkapan, { ...ctx, referensi: draft?.muatan?.sourceReferenceId, draftAsli: draft });
   if (!disusun.ok) return { ok: false, status: 409, error: disusun.tanya || disusun.error };
   const { tangkapan: _abaikan, ...dilihat } = draft;
   if (JSON.stringify(disusun.draft) !== JSON.stringify(dilihat)) {

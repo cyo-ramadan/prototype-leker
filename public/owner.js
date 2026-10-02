@@ -88,7 +88,7 @@ function renderOwnerStores() {
     <article class="owner-store-card ${store.isActive ? '' : 'inactive'}">
       <div class="owner-store-code">${ownerEscape(store.code)}</div>
       <h3>${ownerEscape(store.storeName)}</h3>
-      <p>${ownerEscape(store.address || 'Alamat belum diisi')}</p>
+      ${store.address ? `<p>${ownerEscape(store.address)}</p>` : ''}
       <p class="muted">${store.entityName ? `Entity: ${ownerEscape(store.entityName)}` : 'Entity belum ditentukan'}</p>
       <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
       <div class="owner-store-actions">

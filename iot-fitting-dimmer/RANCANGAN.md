@@ -38,6 +38,10 @@ Bundling dengan bohlam LED dimmable adalah upsell yang wajar.
 
 ## 2. Arsitektur listrik
 
+![Skema v1](docs/skema-v1.png)
+
+Gambar: `docs/skema-v1.png` (sumber vektor `docs/skema-v1.svg`). Detail teks di bawah.
+
 Rangkaian **non-isolasi**: seluruh PCB bertegangan jala-jala. Aman selama
 tertutup penuh di casing — sama seperti mayoritas bohlam pintar komersial.
 

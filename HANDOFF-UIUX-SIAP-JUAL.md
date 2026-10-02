@@ -245,4 +245,17 @@ gelap penuh akan meninggalkan pulau putih; gelapnya ada di bagian atas/tombol ut
   gambar (HP dengan kejadian gerai), tiga janji, "Sehari bersama kami", F&B umum, satu ajakan.
   Tetap patuh `test/landing-page-claims.test.js` (hanya fitur berstatus JUAL).
 
+### 2026-10-03 — Skin D "Mode Warung" (cara pakai baru, bukan hanya tampilan)
+
+Konsep, USP, dan fase berikutnya: **`DESAIN-SKIN-D-WARUNG.md`**. Ringkasnya:
+- Pilihan `ui_skin = D`. Kasir tenant D yang sudah absen & memegang laci langsung masuk
+  **`/s/<kode>/warung`** (`public/warung.{html,css,js}`): cari / "paling sering" → keranjang →
+  Bayar → uang diterima → kembalian besar → "Tersimpan". Penjualan lewat `/api/cashier/sales`
+  yang sama. Absen & buka laci tetap di Kasir lengkap (`public/warung-entry.js` memberi tombol
+  pulang ke Mode Warung).
+- Panel Pemilik tenant D: blok **"Hari ini"** (`public/warung-pemilik.js`) — untung bersih hari ini
+  semua gerai + kemarin, pengajuan menunggu per gerai, laci buka/tutup per gerai.
+- `public/skin-*.css` sekarang dibangkitkan oleh `scripts/generate-skin-css.py` (ubah token di
+  sana, jangan sunting CSS hasilnya).
+
 <!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

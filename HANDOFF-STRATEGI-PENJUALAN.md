@@ -232,6 +232,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-02 | UI/UX | Kartu daftar ringkas (nama utuh, keterangan satu baris, status berwarna) di semua tenant; tab "Laporan" kosong dicabut | JUAL | Layar admin tidak lagi terlihat rusak di HP |
 | 2026-10-02 | UI/UX | Skin A/B/C: tombol admin dikelompokkan (Workspace Gerai 24 → 7, Panel Pemilik 10 → 6) dengan sub-menu | UJI | Calon pembeli tidak kaget melihat tombol terlalu banyak |
 | 2026-10-02 | UI/UX | Landing page `/produk/` dirombak: satu janji, satu gambar HP, "Sehari bersama kami", F&B umum | INTERNAL | Masih menunggu nomor WhatsApp, nama merek, dan izin angka bukti |
+| 2026-10-03 | UI/UX | Skin D "Mode Warung" untuk kelontong/UMKM kecil: kasir satu layar (cari, paling sering, kembalian besar) + layar Pemilik "Hari ini" (untung bersih hari ini, yang menunggu keputusan, laci per gerai). Konsep & USP: "Untungnya kelihatan. Uangnya aman." | UJI | Membuka segmen kelontong/UMKM; lihat DESAIN-SKIN-D-WARUNG.md untuk USP & fase berikut |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

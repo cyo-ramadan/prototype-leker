@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const posBridge = readFileSync(new URL('../src/accounting-pos-bridge.js', import.meta.url), 'utf8');
 const guard = readFileSync(new URL('../src/accounting-reconciliation-guard.js', import.meta.url), 'utf8');
+const autoSync = readFileSync(new URL('../src/accounting-auto-sync.js', import.meta.url), 'utf8');
 const bridgeUi = readFileSync(new URL('../public/admin-accounting-bridge-ui.js', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 
@@ -25,13 +26,14 @@ test('the backlog is counted from the facts, not from delivery attempts', () => 
 test('the backlog predicate has one definition shared by both callers', () => {
   // Two copies drifted before: the guard filtered voided facts and the bridge
   // copy did not, so which one ran decided whether a voided sale could be
-  // re-posted. The predicate now lives in one place and is imported.
-  assert.match(guard, /import \{ activePendingPosFacts, dispatchPosAccountingFact \}/);
-  assert.match(guard, /activePendingPosFacts\(env\.DB/);
-  assert.ok(
-    !guard.includes('FROM sales s'),
-    'the guard must not carry its own copy of the backlog query'
-  );
+  // re-posted. The predicate now lives in one place and is imported. Since
+  // 2026-10-02 the sync loop itself is shared too (manual button + auto-sync).
+  assert.match(guard, /syncStoreAccounting\(env\.DB/);
+  assert.match(autoSync, /import \{ activePendingPosFacts, dispatchPosAccountingFact \}/);
+  assert.match(autoSync, /activePendingPosFacts\(db/);
+  for (const [name, source] of [['guard', guard], ['auto-sync', autoSync]]) {
+    assert.ok(!source.includes('FROM sales s'), `the ${name} must not carry its own copy of the backlog query`);
+  }
 });
 
 test('exactly one handler owns the bridge sync route', () => {

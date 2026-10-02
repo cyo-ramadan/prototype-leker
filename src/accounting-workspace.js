@@ -3,6 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { getAccountingBridgeSummary } from './accounting-pos-bridge.js';
+import { autoSyncAccounting } from './accounting-auto-sync.js';
 import { getAccountStandardization, standardizeStoreAccounts } from './accounting-standardize.js';
 import {
   createRecurringSchedule,
@@ -54,6 +55,8 @@ async function bootstrap(db, store) {
   // Lazy catch-up (ADR-049) -- tanpa cron/scheduled worker, dicek tiap kali
   // panel Akuntansi dibuka, pola yang sama dengan forceCloseOverdueSessions.
   const scheduleRun = await processDueSchedules(db, store, { today: businessDate });
+  // Sinkron otomatis transaksi yang belum masuk jurnal (pengganti tombol sinkron).
+  await autoSyncAccounting(db, [store]);
   const [accounts, journals, bridgeSummary, standardization, recurringSchedules, pendingOccurrences] = await Promise.all([
     listAccountingAccounts(db, store.id),
     listAccountingJournals(db, store.id, { limit: 12 }),

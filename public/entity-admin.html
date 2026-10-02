@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/admin.css" />
   <link rel="stylesheet" href="/owner.css" />
   <link rel="stylesheet" href="/entity-report-chart.css?v=20261002-grafik-gerai-v3" />
+  <link rel="stylesheet" href="/entity-stock-matrix.css?v=20261002-stok-gerai-v1" />
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
 </head>
@@ -44,6 +45,7 @@
         <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
         <button class="admin-tab" data-entity-tab="entityrecipes" type="button">Resep Produksi</button>
+        <button class="admin-tab" data-entity-tab="entitystock" type="button">Stok Gerai</button>
         <button class="admin-tab" data-entity-tab="employees" type="button">Karyawan</button>
         <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
       </nav>
@@ -178,6 +180,31 @@
         </div>
       </section>
 
+      <section id="entityTab-entitystock" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head"><div><h2>Stok semua gerai</h2><div class="muted">Satu baris per bahan, satu kolom per gerai. Pilih gerai yang mau dilihat, lalu tekan "Tampilkan". Hanya dibaca; data diambil saat Anda menekan tombol, tidak diperbarui sendiri.</div></div></div>
+          <div class="stk-controls">
+            <div class="stk-kind" role="group" aria-label="Jenis barang">
+              <button type="button" data-stock-kind="BAHAN" aria-pressed="true">Bahan</button>
+              <button type="button" data-stock-kind="SEMUA" aria-pressed="false">Semua barang</button>
+            </div>
+            <input id="entityStockSearch" class="stk-search" type="search" placeholder="Cari nama atau Kode Barang" />
+            <button id="entityStockRun" class="primary-btn" type="button">Tampilkan</button>
+          </div>
+          <div class="admin-field">
+            <div style="margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">Gerai yang ditampilkan
+              <button id="entityStockAll" class="text-btn" type="button">Pilih semua</button>
+              <button id="entityStockNone" class="text-btn" type="button">Kosongkan</button>
+            </div>
+            <div id="entityStockStores" class="stk-stores"></div>
+          </div>
+          <div id="entityStockStatus" class="admin-tip" style="margin-top:8px"></div>
+        </div>
+        <div class="admin-card" style="margin-top:14px">
+          <div id="entityStockTable"><div class="empty">Tekan "Tampilkan" untuk melihat stok.</div></div>
+        </div>
+      </section>
+
       <section id="entityTab-employees" class="admin-section">
         <div class="admin-grid two" style="align-items:start">
           <form id="entityEmployeeForm" class="admin-card">
@@ -234,7 +261,8 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261001-una-v1" />
 <script src="/caca-chat.js?v=20261001-una-bayar-v1"></script>
-<script src="/entity-admin.js?v=20261002-grafik-gerai-v3"></script>
+<script src="/entity-admin.js?v=20261002-stok-gerai-v1"></script>
+<script src="/entity-stock-matrix.js?v=20261002-stok-gerai-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

@@ -226,6 +226,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-02 | pengembangan | Sinkron Akuntansi otomatis: transaksi yang belum masuk pembukuan dimasukkan sendiri saat laporan untung rugi atau panel Akuntansi dibuka; tidak perlu tekan tombol sinkron |
 | 2026-10-02 | pengembangan | Barang baru otomatis masuk Jenis Barang yang tertaut akun Persediaan/HPP dengan HPP awal = Harga Beli (0 bila kosong); transaksi lama yang jenis barangnya kosong ikut terpulihkan dan masuk pembukuan |
 | 2026-10-02 | pengembangan | Hitung Ulang HPP kini juga bisa membetulkan harga rata-rata bahan baku (mis. Air Mineral, Gula) yang salah catat pembelian, tanpa menunggu ada penjualan terdampak |
+| 2026-10-02 | pengembangan | Laporan Gerai di Admin Entity: klik satu gerai, tampil per tanggal Omset, HPP, SO+, SO−, Gross Profit, Beban Lapak, Gaji, Beban Lainnya, Net Profit |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

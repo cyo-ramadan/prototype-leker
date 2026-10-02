@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/owner.css" />
   <link rel="stylesheet" href="/entity-report-chart.css?v=20261002-grafik-gerai-v3" />
   <link rel="stylesheet" href="/entity-stock-matrix.css?v=20261002-stok-gerai-v2" />
+  <link rel="stylesheet" href="/entity-store-report.css?v=20261002-laporan-gerai-v1" />
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
 </head>
@@ -46,6 +47,7 @@
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
         <button class="admin-tab" data-entity-tab="entityrecipes" type="button">Resep Produksi</button>
         <button class="admin-tab" data-entity-tab="entitystock" type="button">Stok Gerai</button>
+        <button class="admin-tab" data-entity-tab="storereport" type="button">Laporan Gerai</button>
         <button class="admin-tab" data-entity-tab="employees" type="button">Karyawan</button>
         <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
       </nav>
@@ -180,6 +182,22 @@
         </div>
       </section>
 
+      <section id="entityTab-storereport" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head"><div><h2>Laporan Gerai</h2><div class="muted">Klik satu gerai: tiap baris satu tanggal, kolomnya Omset, HPP, SO+, SO−, Gross Profit, Beban Lapak, Gaji, Beban Lainnya, dan Net Profit.</div></div></div>
+          <div id="entityStoreReportStores" class="srp-stores"></div>
+          <div class="stk-controls">
+            <label class="admin-field">Dari tanggal<input id="entityStoreReportFrom" type="date" /></label>
+            <label class="admin-field">Sampai tanggal<input id="entityStoreReportTo" type="date" /></label>
+            <button id="entityStoreReportRun" class="secondary-btn" type="button">Tampilkan</button>
+          </div>
+          <div id="entityStoreReportStatus" class="admin-tip" style="margin-top:8px"></div>
+        </div>
+        <div class="admin-card" style="margin-top:14px">
+          <div id="entityStoreReportTable"></div>
+        </div>
+      </section>
+
       <section id="entityTab-entitystock" class="admin-section">
         <div class="admin-card">
           <div class="list-head"><div><h2>Stok gerai</h2><div class="muted">Pilih gerai lewat tombol di bawah. Untuk tabel semua gerai (satu baris per bahan, satu kolom per gerai), pakai Export. Hanya dibaca; data diambil saat dibuka atau saat Anda menekan tombol, tidak diperbarui sendiri.</div></div></div>
@@ -265,8 +283,9 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261001-una-v1" />
 <script src="/caca-chat.js?v=20261002-una-santai-v1"></script>
-<script src="/entity-admin.js?v=20261002-stok-gerai-v2"></script>
+<script src="/entity-admin.js?v=20261002-laporan-gerai-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261002-stok-gerai-v2"></script>
+<script src="/entity-store-report.js?v=20261002-laporan-gerai-v1"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

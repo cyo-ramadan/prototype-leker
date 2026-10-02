@@ -72,12 +72,14 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-entityrecipes')?.classList.toggle('active', name === 'entityrecipes');
   entityAdminEl('entityTab-entitystock')?.classList.toggle('active', name === 'entitystock');
+  entityAdminEl('entityTab-storereport')?.classList.toggle('active', name === 'storereport');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
   if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'entityrecipes') loadEntityRecipes().catch(error => entityAdminToast(error.message));
   if (name === 'entitystock') window.loadEntityStockMatrix?.();
+  if (name === 'storereport') window.loadEntityStoreReport?.();
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
 }

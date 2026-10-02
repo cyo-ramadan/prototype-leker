@@ -106,7 +106,7 @@ test('Owner panel lists the skin choice (default 0) and rejects unknown options'
 test('three skin stylesheets exist and only apply under their own html[data-skin]', () => {
   for (const code of ['a', 'b', 'c']) {
     const css = readFileSync(new URL(`../public/skin-${code}.css`, import.meta.url), 'utf8');
-    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(rule => rule.trim()).filter(Boolean);
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '').split('}').map(rule => rule.trim()).filter(Boolean);
     for (const rule of rules) {
       const selectors = rule.split('{')[0].split(',').map(part => part.trim()).filter(Boolean);
       for (const selector of selectors) assert.ok(selector.startsWith(`html[data-skin="${code}"]`), `skin-${code}.css: selector bocor ke tenant lain: ${selector}`);
@@ -137,6 +137,8 @@ test('T1 handoff UI/UX berlaku untuk SEMUA tenant: tanpa "Prototype", tanpa cata
     /ditolak (otomatis )?sebagai stale/,
     /Stale-snapshot guard/,
     /Renderer detail/,
+    /Coming next/i,
+    /Structure level/i,
     /MAXI LEKER|MAXI Leker ·|<title>MAXI Leker/,
     /Pilih leker|leker jangan|Belum ada leker|menyiapkan leker/
   ];

@@ -21,8 +21,8 @@
 #endif
 
 // ---- Pin (ESP8285, lihat skema) ----
-static const uint8_t PIN_ZC = 4;    // GPIO4: keluaran detektor zero-cross (NPN + pull-up)
-static const uint8_t PIN_GATE = 5;  // GPIO5: basis NPN penarik gate TRIAC (aktif HIGH)
+static const uint8_t PIN_ZC = 4;    // GPIO4: keluaran optocoupler zero-cross (LTV-354T + pull-up)
+static const uint8_t PIN_GATE = 5;  // GPIO5: basis NPN penggerak LED optotriac (aktif HIGH)
 
 static const uint16_t UDP_PORT = 4210;
 static const char *UDP_PROBE = "LEKER_LAMPU?";
@@ -143,9 +143,9 @@ static void startWifi() {
   WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.hostname(hostName());
-  // Daya pancar 17 dBm (maks 20.5) memangkas lonjakan arus saat TX —
-  // catu kapasitor kita punya cadangan arus terbatas.
-  WiFi.setOutputPower(17.0f);
+  // Daya pancar 15 dBm (maks 20.5) memangkas lonjakan arus saat TX ke ±170mA —
+  // elco tandon catu kapasitor sengaja kecil (470uF) supaya muat di fitting.
+  WiFi.setOutputPower(15.0f);
   if (cfg.ssid[0] == 0) {
     g_setupMode = true;
     startAp();

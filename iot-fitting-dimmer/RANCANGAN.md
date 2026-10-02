@@ -5,7 +5,7 @@ fitting ini di antara fitting plafon dan bohlam yang sudah ada, lalu mengatur
 lampu dari HP: nyala/mati, redup-terang, timer, jadwal, mode rumah berpenghuni.
 Tanpa trafo, tanpa induktor.
 
-> Status: **rancangan + firmware v1.0.0 (sudah lolos kompilasi & tes kurva)**.
+> Status: **rancangan v2 (komponen kecil) + firmware v1.0.0 (lolos kompilasi & tes kurva)**.
 > Belum ada prototipe fisik. Semua angka harga adalah **perkiraan pasar** yang
 > wajib dicek ulang ke supplier sebelum produksi.
 
@@ -36,88 +36,138 @@ hanya bisa nyala/mati/jadwal, tidak bisa diredupkan.** Aplikasi punya pilihan
 "Jenis bohlam" supaya LED biasa tidak dipaksa redup (kedip/cepat rusak).
 Bundling dengan bohlam LED dimmable adalah upsell yang wajar.
 
-## 2. Arsitektur listrik
+## 2. Arsitektur listrik (v2 — dimensi kecil, muat di fitting)
 
-![Skema v1](docs/skema-v1.png)
+![Skema v2](docs/skema-v2.png)
 
-Gambar: `docs/skema-v1.png` (sumber vektor `docs/skema-v1.svg`). Detail teks di bawah.
+Gambar: `docs/skema-v2.png` (sumber vektor `docs/skema-v2.svg`). Detail teks di bawah.
 
-Rangkaian **non-isolasi**: seluruh PCB bertegangan jala-jala. Aman selama
-tertutup penuh di casing — sama seperti mayoritas bohlam pintar komersial.
+**Perubahan dari v1:** di v1 kapasitor X2 berukuran 1,5µF (±26×11×20 mm) dan elconya
+1000µF (Ø10×16 mm), terlalu besar untuk fitting. Penyebabnya penyearah setengah
+gelombang yang cuma memakai separuh gelombang listrik. v2 memakai **penyearah
+gelombang penuh** (dioda jembatan SMD), jadi kapasitornya cukup **0,68µF**
+untuk arus yang sama. Konsekuensinya, rangkaian tidak lagi "menempel" ke
+netral, sehingga TRIAC dan detektor zero-cross dihubungkan lewat **dua
+optocoupler kecil**. Tambahan biayanya ±Rp2.800, dan alat jadi lebih kebal
+noise.
+
+Rangkaian tetap **non-isolasi**: seluruh PCB bertegangan jala-jala. Aman selama
+tertutup penuh di casing, sama seperti mayoritas bohlam pintar komersial.
 
 ```
- L ──F1──┬──────────────── LAMPU (fitting keluar) ─── MT2 ┐
-  47Ω 2W │                                               TRIAC Z0109MN (SOT-223)
-fusible MOV 471                                          MT1 ┘
-         │                                                   │
- N ──────┴───────────────────────────────────────────────────┴── = rail "+7V5"
-         │
-   [CATU KAPASITOR — setengah gelombang, rail negatif terhadap N]
-   L(sesudah F1) ── C1 1,5µF X2 310VAC (‖ R 2×470k bleeder) ── A
-   A ── D2 (1N4007, anoda A → katoda N)          ← setengah gelombang positif
-   GND ── D1 (1N4007, anoda GND → katoda A)      ← mengisi C2 saat N > L
-   N ─┬─ ZD1 7V5 1W (katoda di N) ─┬─ GND
-      └─ C2 1000µF 16V 105°C ──────┘
-   N(+7V5) → U1 HT7833 (IN)   GND → U1 (GND)   U1 OUT = 3V3 (terhadap GND)
-            C3 10µF + 100nF di 3V3
+ L ──F1──┬──────────────────────── BOHLAM (fitting keluar) ── MT2 ┐
+ 100Ω 1W │                                                TRIAC Z0109MN (SOT-223)
+fusible MOV 05D471K                                           MT1 ┘
+         │                                                        │
+ N ──────┴────────────────────────────────────────────────────────┘
 
-   [DETEKSI ZERO-CROSS]
-   L ── 3× 680k 1206 seri ──┬── basis Q3 S8050 ; emitor GND
-                            ├── 100k ke GND ; 1N4148 (katoda basis) ke GND
-   kolektor Q3 ── 10k ke 3V3 ── GPIO4 (berganti level tiap zero-cross)
+ [CATU KAPASITOR — gelombang penuh]
+   L(sesudah F1) ── C1 0,68µF X2 310VAC (‖ 2×1M 1206 bleeder) ── BR1 ~1
+   N ────────────────────────────────────────────────────────────── BR1 ~2
+   BR1 = MB10F (jembatan SMD).  BR1 + = rel 7V5,  BR1 − = GND
+   7V5 ─┬─ ZD1 7V5 1W SMA (katoda di 7V5) ─┬─ GND
+        └─ C2 470µF 10V 105°C ─────────────┘
+   7V5 → U1 HT7833 → 3V3 (C3 10µF + 100nF dekat ESP)
 
-   [PENGGERAK GATE]
-   GPIO5 ── 1k ── basis Q2 S8050 (10k basis→GND) ; emitor GND
-   kolektor Q2 ── 470Ω ── GATE TRIAC ; 1k GATE–MT1
-   → arus gate mengalir dari N (MT1) ke GND = kuadran II/III, paling peka.
+ [DETEKSI ZERO-CROSS — optocoupler input AC]
+   L ── 2×220k 1206 ── OK1 LTV-354T (SOP-4, LED bolak-balik) ── 2×220k 1206 ── N
+   OK1 transistor: kolektor ── GPIO4 (pull-up 100k ke 3V3), emitor GND
+   → GPIO4 LOW sepanjang gelombang, naik HIGH sesaat di setiap zero-cross
+
+ [PENGGERAK TRIAC — optotriac]
+   GPIO5 ── 4k7 ── basis Q1 MMBT3904 (SOT-23), emitor GND
+   3V3 ── 150Ω ── LED OK2 MOC3023S ── kolektor Q1        (±10 mA, 250µs/tembak)
+   OK2 sisi triac: MT2 ── 330Ω ── OK2 ── GATE TRIAC ; 1k GATE–MT1
 ```
-
-Kenapa susunan "N = rail atas, GND 7,5V di bawah netral": MT1 TRIAC harus
-nyambung ke netral (jalur arus lampu), dan TRIAC paling andal dipicu arus gate
-negatif. Dengan rangkaian di-referensikan begini, transistor cukup menarik gate
-ke GND — tidak perlu optotriac (hemat ±Rp2.000 dan 15mA arus LED).
 
 Kalau L dan N tertukar di instalasi rumah (sangat umum di Indonesia), alat tetap
-berfungsi: semua bagian "ikut" kabel yang tersambung ke MT1.
+berfungsi karena jembatan dioda dan kedua optocoupler tidak peduli polaritas.
 
-### 2.1 Anggaran arus (yang paling menentukan desain tanpa trafo)
+### 2.1 Anggaran arus
 
-Arus rata-rata catu setengah gelombang: `I ≈ f · C1 · (2·Vpuncak − Vz)`
+Arus rata-rata catu gelombang penuh: `I ≈ 4 · f · C1 · (Vpuncak − Vz − 1,4)`
 
-| Tegangan PLN | Arus tersedia |
+| Tegangan PLN | Arus tersedia (C1 = 0,68µF) |
 |---|---|
-| 198V (−10%) | 50 × 1,5µF × (560 − 8) ≈ **41 mA** |
-| 220V | ≈ **46 mA** |
-| 240V | ≈ **50 mA** (sisa dibuang zener ≈ 0,2W) |
+| 198V (−10%) | 200 × 0,68µF × (280 − 9) ≈ **37 mA** |
+| 220V | ≈ **41 mA** |
+| 240V | ≈ **45 mA** (sisa dibuang zener ≤ 0,25W) |
 
-Kebutuhan: ESP8285 modem-sleep tersambung WiFi ≈ 20–30 mA rata-rata, deteksi
-ZC 0,3 mA, gate TRIAC 0,4 mA rata-rata. Puncak TX WiFi 170–250 mA selama
-beberapa ms ditanggung C2: 1000µF turun dari 7,5V ke 3,6V menyimpan ±3,9 mC =
-±15 ms pada 250 mA — jauh di atas durasi satu burst TX.
+Kebutuhan:
+- ESP8285 dalam modem-sleep sambil tersambung WiFi: ±20–30 mA rata-rata.
+- LED optotriac: ±0,3 mA rata-rata.
+- Detektor zero-cross: ±0,03 mA, diambil dari sisi 3V3.
 
-Firmware ikut membantu: daya pancar dipangkas ke 17 dBm, modem-sleep aktif,
-tidak pakai light-sleep (light-sleep mematikan timer TRIAC).
+Lonjakan arus saat WiFi memancar (±170 mA pada daya 15 dBm) ditanggung C2.
+470µF yang turun dari 7,5V ke 3,6V menyimpan ±1,8 mC, cukup untuk ±10 ms.
+Satu burst TX cuma beberapa ms.
 
-Disipasi panas: F1 ≈ 0,5W (arus RMS C1 ≈ 104 mA), ZD1 ≤ 0,4W, TRIAC ≈ 0,6W pada
-100W lampu. **Rating produk: maks 60W pijar / 40W LED dimmable** — fitting
-tertutup di bawah bohlam pijar bisa >70°C; semua elco wajib 105°C long-life.
+Firmware ikut menjaga anggaran ini:
+- Daya pancar dipangkas ke **15 dBm**. Jangkauan sedikit turun tapi masih cukup
+  untuk satu rumah.
+- Modem-sleep aktif.
+- Light-sleep tidak dipakai, karena light-sleep mematikan timer TRIAC.
 
-### 2.2 Pengaman
+Disipasi panas:
+- F1 ≈ 0,22W (arus RMS C1 ≈ 47 mA).
+- ZD1 ≤ 0,25W.
+- TRIAC ≈ 0,4W pada beban 60W.
 
-- F1 resistor *fusible flameproof* 47Ω 2W: membatasi arus lonjakan saat
-  dinyalakan di puncak gelombang dan putus aman kalau C1 short.
-- MOV 7D471K: lonjakan petir/induktif dari jaringan.
+**Rating produk: maks 60W pijar / 40W LED dimmable.** Fitting tertutup di
+bawah bohlam pijar bisa >70°C, jadi elco wajib 105°C long-life.
+
+### 2.2 Ukuran komponen besar & tata letak di fitting
+
+| Komponen | v1 | **v2** |
+|---|---|---|
+| Kapasitor penurun X2 | 1,5µF P22,5: ±26 × 11 × 20 mm | **0,68µF P15: ±18 × 8,5 × 14,5 mm** |
+| Elco tandon | 1000µF 16V: Ø10 × 16 mm | **470µF 10V: Ø6,3 × 11 mm** (dibaringkan) |
+| Resistor sekering | 47Ω 2W: Ø5 × 15 mm | **100Ω 1W: Ø3,5 × 9 mm** |
+| MOV | 7D471K: Ø9 mm | **05D471K: Ø7 mm** |
+| Dioda | 2× 1N4007 (THT) | **MB10F SMD 4,7 × 4 mm** |
+| Zener | 1W THT | **SMA 4,3 × 2,6 mm** |
+| Penggerak TRIAC | S8050 + resistor | **MOC3023S (SMD-6 ±9 × 6,5 mm) + MMBT3904** |
+| Detektor ZC | S8050 + 3 resistor 680k | **LTV-354T SOP-4 4,4 × 3,6 mm** |
+| ESP | modul ESP8285 (ESP-M3) ±12 × 16 mm | sama |
+
+Ukuran di atas adalah ukuran khas datasheet. Wajib dicek ulang ke merek yang
+benar-benar dibeli, karena ukuran kapasitor X2 berbeda antar merek ±2 mm.
+
+**Tata letak yang diusulkan:**
+- **Satu PCB tegak 22 × 38 mm, tebal 1 mm**, berdiri searah sumbu fitting.
+- **Sisi A (komponen besar):** C1, C2, F1, MOV, TRIAC. Total tebal ±10 mm.
+- **Sisi B (komponen kecil):** semua SMD, plus modul ESP di ujung atas. Antena
+  harus berada di ujung yang jauh dari ulir kuningan E27, karena logam meredam
+  WiFi.
+- **Penampang total:** ±22 × 13 mm, diagonal ±26 mm. Jadi muat di rongga
+  casing berdiameter dalam ≥ 28 mm.
+- **Casing fitting sambungan E27** umumnya Ø38–42 mm (rongga dalam ±32–35 mm).
+  Usulan dimensi luar produk: **±Ø40 × 65 mm** (termasuk ulir E27).
+- **Jarak aman di PCB:** jalur L dan N berjarak ≥ 2,5 mm. Buat celah potong (slot)
+  di bawah C1 dan di antara dua sisi optocoupler.
+
+Kalau masih kurang kecil, langkah berikutnya: chip ESP8285 dipasang langsung di
+PCB (tanpa modul) dengan antena jalur PCB. Ukuran PCB bisa turun ke ±18 × 30
+mm, tapi desain RF-nya harus diuji ulang dan sertifikasinya melekat ke desain
+itu.
+
+### 2.3 Pengaman
+
+- F1 resistor *fusible flameproof* 100Ω 1W: membatasi arus lonjakan saat
+  dinyalakan tepat di puncak gelombang (maks ±3A sesaat) dan putus aman kalau
+  C1 short.
+- MOV 05D471K: lonjakan petir/induktif dari jaringan.
 - C1 wajib kelas **X2** (gagal = terbuka, bukan short).
-- Bleeder 2×470k: C1 terkosongkan saat fitting dicabut (tidak nyetrum di pin).
+- Bleeder 2×1M: C1 terkosongkan saat fitting dicabut (pin tidak nyetrum).
 - Gate dilepas paksa di awal tiap setengah gelombang oleh firmware.
-- Opsional (tambah ±Rp1.000): sekering termal 115°C di jalur L.
+- Opsional (tambah ±Rp1.000 dan Ø4 × 11 mm): sekering termal 115°C di jalur L.
 
-### 2.3 Pin ESP8285
+### 2.4 Pin ESP8285
 
 | GPIO | Fungsi | Catatan |
 |---|---|---|
-| 4 | Input zero-cross | Tidak punya peran boot |
-| 5 | Gate TRIAC (lewat Q2) | LOW saat boot → lampu tidak berkedip saat dinyalakan |
+| 4 | Input zero-cross (dari LTV-354T) | Tidak punya peran boot; pull-up internal + 100k |
+| 5 | LED optotriac (lewat Q1) | LOW saat boot → lampu tidak berkedip saat dinyalakan |
 | 0/2/15 | Strap boot | Biarkan pull-up/pull-down standar modul |
 | TX/RX | Pad flashing | Hanya untuk produksi, **tidak boleh** dihubungkan ke PC saat ada listrik 220V |
 
@@ -125,43 +175,48 @@ tertutup di bawah bohlam pijar bisa >70°C; semua elco wajib 105°C long-life.
 
 | Komponen | Rp/unit |
 |---|---:|
-| Modul ESP8285 (ESP-M3 / ESP-01M, flash 1MB internal) | 17.000 |
-| C1 1,5µF X2 310VAC | 2.500 |
-| F1 47Ω 2W fusible | 600 |
-| MOV 7D471K | 500 |
-| 2× 1N4007, ZD1 7V5 1W | 500 |
-| C2 1000µF/16V 105°C | 1.500 |
+| Modul ESP8285 (ESP-M3, flash 1MB internal) | 17.000 |
+| C1 0,68µF X2 310VAC P15 | 1.800 |
+| F1 100Ω 1W fusible | 400 |
+| MOV 05D471K | 400 |
+| BR1 MB10F + ZD1 7V5 SMA | 600 |
+| C2 470µF/10V 105°C | 900 |
 | HT7833 + C3 | 1.300 |
 | TRIAC Z0109MN | 1.800 |
-| 2× S8050, 1N4148, resistor-resistor | 800 |
-| Sekering termal 115°C | 1.000 |
-| PCB bulat 2 layer | 2.000 |
+| Optotriac MOC3023S | 1.800 |
+| Optocoupler LTV-354T | 1.000 |
+| MMBT3904, resistor SMD | 600 |
+| Sekering termal 115°C (opsional) | 1.000 |
+| PCB 22×38 mm 2 layer | 1.500 |
 | Casing fitting E27→E27 (PC/ABS V-0) | 6.000 |
 | Dus + manual + stiker QR & PIN | 3.000 |
 | Perakitan + flash + uji 220V | 4.000 |
 | Cadangan reject/garansi 5% | 2.200 |
-| **HPP per unit** | **±44.700** |
+| **HPP per unit** | **±45.400** |
 
 ## 4. Harga jual & margin
 
 | Skenario | Harga | Potongan marketplace + promo (±20%) | Bersih | Laba/unit | Margin |
 |---|---:|---:|---:|---:|---:|
-| Rekomendasi | **Rp79.000** | 15.800 | 63.200 | 18.500 | **23%** |
-| Promo bawah | Rp69.000 | 13.800 | 55.200 | 10.500 | 15% |
-| Paket 3 pcs | Rp219.000 | 43.800 | 175.200 | 41.100 | 19% |
+| Rekomendasi | **Rp79.000** | 15.800 | 63.200 | 17.800 | **22%** |
+| Promo bawah | Rp69.000 | 13.800 | 55.200 | 9.800 | 14% |
+| Paket 3 pcs | Rp219.000 | 43.800 | 175.200 | 39.000 | 18% |
 
-Di bawah Rp100rb dan margin di atas 10% di semua skenario — **dengan catatan
-biaya sertifikasi di §6 belum masuk**. Biaya itu harus dibagi ke jumlah unit:
-misalnya Rp25 juta dibagi 1.000 unit = Rp25rb/unit (margin habis), dibagi 5.000
-unit = Rp5rb/unit (margin rekomendasi turun ke ±17%). Jadi rencanakan batch
-produksi yang cukup besar, atau jual awal sebagai B2B (kafe/kos/villa) dulu.
+Semua skenario di bawah Rp100rb dengan margin di atas 10%, **tapi biaya
+sertifikasi di §6 belum masuk**. Biaya itu harus dibagi ke jumlah unit:
+- Rp25 juta dibagi 1.000 unit = Rp25rb/unit, margin habis.
+- Dibagi 5.000 unit = Rp5rb/unit, margin harga rekomendasi turun ke ±16%.
+
+Jadi rencanakan batch produksi yang cukup besar, atau mulai jualan B2B
+(kafe/kos/villa) dulu.
 
 ## 5. Firmware & aplikasi
 
 Kode: `iot-fitting-dimmer/firmware/` (PlatformIO atau Arduino IDE, core ESP8266 3.1.x).
 
 - **Kontrol fase TRIAC**: interrupt zero-cross (otomatis 50/60 Hz) + Timer1,
-  pulsa gate 250µs. Kurva kecerahan dikoreksi daya dan mata (gamma 2) sehingga
+  pulsa LED optotriac 250µs. Titik nol sejati dihitung dari tengah pulsa
+  optocoupler, jadi tidak perlu kalibrasi per unit. Kurva kecerahan dikoreksi daya dan mata (gamma 2) sehingga
   slider terasa rata. "Redup minimum" bisa diatur (0–60%) untuk LED dimmable
   yang kedip di level rendah.
 - **Setup WiFi tanpa aplikasi**: lampu baru memancarkan WiFi `Lampu-XXXXXX`,

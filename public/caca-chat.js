@@ -297,7 +297,7 @@ function cacaSapa() {
   const wadah = cacaEl('cacaPercakapan');
   if (!wadah || wadah.childElementCount) return;
   cacaTambahPenanda('Hari ini');
-  const gelembung = cacaTambahGelembung('caca', 'Halo Bos, Una di sini! Tanya apa saja soal gerai yang dipilih di atas, atau suruh Una mencatat. Mau Una baca lembar rekap? Tekan + di bawah lalu pilih fotonya.');
+  const gelembung = cacaTambahGelembung('caca', 'Halo Bos, Una di sini hhe. Tanya apa aja soal gerai yang dipilih di atas, atau suruh Una nyatet. Mau Una bacain lembar rekap? Tekan + di bawah terus pilih fotonya.');
   const saran = document.createElement('div');
   saran.className = 'caca-saran';
   saran.innerHTML = CACA_SARAN.map(teks => `<button type="button" data-caca-saran="${cacaEscape(teks)}">${cacaEscape(teks)}</button>`).join('');
@@ -319,6 +319,7 @@ function cacaIsiDraft(draft) {
       : '';
     const tombol = draft.aksi === 'buat_jurnal' ? 'Ya, posting'
       : ['buat_barang', 'buat_resep'].includes(draft.aksi) ? 'Ya, buat'
+        : ['atur_cara_bayar', 'pindah_saldo_akun'].includes(draft.aksi) ? 'Ya, jalankan'
         : 'Ya, catat';
     return { judul: draft.judul, isi: baris + tabel, tombol };
   }
@@ -354,7 +355,7 @@ function cacaTampilkanDraft(payload, scope) {
     kunci();
     kartu.classList.add('dibatalkan');
     cacaSimpanPercakapan();
-    cacaTambahGelembung('caca', 'Oke, tidak jadi.');
+    cacaTambahGelembung('caca', 'Oke, gajadi deh.');
   });
 
   // Gerai/lingkup diambil dari saat draft dibuat, bukan dari judul sekarang:
@@ -377,6 +378,15 @@ function cacaTampilkanDraft(payload, scope) {
       cacaTambahGelembung('caca', error.message);
     }
   });
+}
+
+// Tabel hasil alat baca (mis. cek Rekening Bersama). Isinya sudah teks jadi
+// dari server; tetap di-escape karena berasal dari data master.
+function cacaRenderTabel(tabel) {
+  if (!tabel?.kolom?.length) return '';
+  return `<div class="caca-tabel-geser"><table class="caca-table"><thead><tr>${tabel.kolom.map(k => `<th>${cacaEscape(k)}</th>`).join('')}</tr></thead><tbody>${
+    (tabel.isi || []).map(r => `<tr>${r.map(sel => `<td>${cacaEscape(sel)}</td>`).join('')}</tr>`).join('')
+  }</tbody></table></div>`;
 }
 
 function cacaJejakAlat(payload) {
@@ -515,11 +525,20 @@ async function cacaKirimTeks(pertanyaan) {
     });
     mengetik.remove();
     if (payload.perluKonfirmasi && payload.draft) {
+      // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
+      // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".
+      if (payload.sapaan) cacaTambahGelembung('caca', payload.sapaan);
       cacaTampilkanDraft(payload, scope);
     } else {
       // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
       // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
-      cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+      const tabel = cacaRenderTabel(payload.tabel);
+      if (tabel) {
+        // Kalimatnya di atas tabel, bukan di bawahnya.
+        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}` });
+      } else {
+        cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+      }
     }
   } catch (error) {
     mengetik.remove();

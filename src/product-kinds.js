@@ -45,6 +45,41 @@ export async function defaultProductKindForItemType(db, storeId, itemTypeId) {
   return row?.id || null;
 }
 
+// Akun bawaan seragam (migration 0124 / ADR-046): Persediaan 1301, HPP 5101,
+// Penjualan 4101. Jenis Barang baru di gerai Akuntansi langsung dapat Item
+// Category dengan akun-akun ini, jadi barang barunya tidak pernah nyangkut
+// "Jenis Barang belum dilink ke akun". Mengubahnya tetap lewat Setting
+// Akuntansi -- ini hanya default awal (Bos Cyo, 2026-10-02).
+const DEFAULT_KIND_ACCOUNT_CODES = Object.freeze({ inventory: '1301', cogs: '5101', revenue: '4101' });
+
+export async function ensureItemCategoryForKind(db, storeId, productKindId) {
+  if (!productKindId) return { created: false, reason: 'NO_KIND' };
+  const store = await db.prepare('SELECT edition FROM stores WHERE id = ? LIMIT 1').bind(storeId).first();
+  if (store?.edition !== 'ACCOUNTING') return { created: false, reason: 'NOT_ACCOUNTING_STORE' };
+  const existing = await db.prepare('SELECT id FROM item_categories WHERE store_id = ? AND product_kind_id = ? LIMIT 1').bind(storeId, productKindId).first();
+  if (existing) return { created: false, reason: 'EXISTS' };
+  const kind = await db.prepare('SELECT id, name FROM product_kinds WHERE id = ? AND store_id = ? LIMIT 1').bind(productKindId, storeId).first();
+  if (!kind) return { created: false, reason: 'KIND_NOT_FOUND' };
+  const accounts = await db.prepare(`
+    SELECT id, code FROM chart_of_accounts
+    WHERE store_id = ? AND is_active = 1 AND code IN (?, ?, ?)
+  `).bind(storeId, DEFAULT_KIND_ACCOUNT_CODES.inventory, DEFAULT_KIND_ACCOUNT_CODES.cogs, DEFAULT_KIND_ACCOUNT_CODES.revenue).all();
+  const byCode = new Map((accounts.results ?? []).map(row => [row.code, row.id]));
+  const inventory = byCode.get(DEFAULT_KIND_ACCOUNT_CODES.inventory);
+  const cogs = byCode.get(DEFAULT_KIND_ACCOUNT_CODES.cogs);
+  if (!inventory || !cogs) return { created: false, reason: 'DEFAULT_ACCOUNTS_MISSING' };
+  try {
+    await db.prepare(`
+      INSERT INTO item_categories (id, store_id, product_kind_id, name, inventory_account_id, cogs_account_id, revenue_account_id, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    `).bind(`itemcat_${storeId}_${crypto.randomUUID()}`, storeId, productKindId, kind.name, inventory, cogs, byCode.get(DEFAULT_KIND_ACCOUNT_CODES.revenue) || null).run();
+  } catch (error) {
+    // Nama Item Category sama dengan yang lain: biarkan -- tidak boleh menggagalkan pembuatan barang.
+    return { created: false, reason: 'INSERT_FAILED' };
+  }
+  return { created: true, reason: 'CREATED' };
+}
+
 export async function resolveProductKind(db, storeId, productKindId, { allowInactive = false } = {}) {
   const id = String(productKindId || '').trim();
   if (!id) return { ok: true, productKindId: null };
@@ -83,6 +118,7 @@ export async function handleProductKindApi(request, env, pathname) {
       if (String(error?.message || '').includes('UNIQUE')) return json({ error: 'Kode atau nama Jenis Barang sudah dipakai.' }, 409);
       throw error;
     }
+    await ensureItemCategoryForKind(env.DB, store.id, id);
     return json({ ok: true, id, productKinds: await listProductKinds(env.DB, store.id) }, 201);
   }
 

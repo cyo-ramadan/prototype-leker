@@ -1,0 +1,23 @@
+/* Stok bahan di Admin Entity (Bos Cyo, 2026-10-02): tampilan satu gerai,
+   satuan di samping nama bahan supaya semua bahan terlihat tanpa menggeser. */
+.stk-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.stk-picker { position: relative; }
+.stk-store-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: #1d1b18; color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.stk-store-name { font-weight: 600; opacity: .8; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stk-menu { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; min-width: 230px; max-height: 60vh; overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.15); padding: 6px; }
+.stk-menu[hidden] { display: none; }
+.stk-menu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; font: inherit; cursor: pointer; }
+.stk-menu button:hover { background: #faf6ee; }
+.stk-menu button[aria-selected="true"] { background: #fff1e8; color: #b8431b; }
+.stk-kind { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.stk-kind button { border: 0; background: #fff; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; min-height: 40px; }
+.stk-kind button[aria-pressed="true"] { background: #1d1b18; color: #fff; }
+.stk-search { flex: 1 1 180px; min-width: 140px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; background: #fffcf8; color: var(--ink); outline: none; }
+.stk-search:focus { border-color: #c99670; box-shadow: 0 0 0 3px rgba(220,91,43,.10); }
+.stk-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.stk-table th, .stk-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); }
+.stk-table th { text-align: left; font-size: 12px; color: #52514e; background: #faf6ee; }
+.stk-table th:last-child, .stk-table td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stk-u { color: #756f67; font-size: 12px; white-space: nowrap; }
+.stk-zero { color: #d03b3b; font-weight: 800; }
+.stk-none { color: #a8a39a; }

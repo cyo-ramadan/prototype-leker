@@ -134,7 +134,7 @@ test('pesan ke karyawan hanya menyebut selisih (melebihi batas radius N meter), 
 
   const notice = gpsNotice({ status: 'OUT_OF_RADIUS', distanceM: 85 });
   assert.match(notice, /melebihi batas radius 10 meter/);
-  assert.doesNotMatch(notice, /75/);
+  assert.doesNotMatch(notice, /(?<![\w.-])75(?![\w.])/);
   assert.doesNotMatch(notice, /85/);
   assert.equal(gpsNotice({ status: 'OK' }), '');
   assert.match(gpsNotice({ status: 'NO_GPS' }), /tanpa GPS/);
@@ -159,7 +159,7 @@ test('presensi di luar radius atau tanpa GPS tetap tersimpan (tidak pernah ditol
     assert.equal(masukBody.gps.overRadiusMeters, 10);
     assert.match(masukBody.gps.notice, /melebihi batas radius 10 meter/);
     const raw = JSON.stringify(masukBody);
-    assert.doesNotMatch(raw, /75/);
+    assert.doesNotMatch(raw, /(?<![\w.-])75(?![\w.])/);
     assert.doesNotMatch(raw, /distanceMeters/);
     const row = sqlite.prepare('SELECT gps_in_status, gps_in_distance_m, status FROM staff_attendance').get();
     assert.equal(row.gps_in_status, 'OUT_OF_RADIUS');

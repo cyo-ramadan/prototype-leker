@@ -2,7 +2,15 @@ import { json } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
+import { countUnsyncedPosFacts } from './accounting-pos-bridge.js';
+import { countPendingAdminFacts } from './accounting-admin-bridge.js';
+import { autoSyncAccounting } from './accounting-auto-sync.js';
 
+// ADR-051 (2026-10-02): mesin fakta POS di file ini tetap berdiri sendiri
+// untuk gerai LITE/FLEXIBLE. Gerai ACCOUNTING dibaca dari jurnal (lihat
+// computeAccountingBreakdown di bawah) -- impor jembatan di atas hanya untuk
+// menghitung transaksi yang belum masuk pembukuan.
+//
 // Duplikasi sengaja dari src/accounting-ledger.js -- modul ini harus
 // TIDAK bergantung pada Accounting sama sekali (Bos Cyo, 2026-09-17:
 // "desainnya sampai detik ini harus bisa dulu tanpa akuntansi"), jadi
@@ -124,7 +132,7 @@ async function computeFactsForDates(db, storeIds, dates) {
   const storePh = placeholders(storeIds);
   const datePh = placeholders(dates);
 
-  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows, attendanceAccrualRows] = await Promise.all([
+  const [revenueRows, otherIncomeRows, expenseRows, hppRows, stockAdjustmentRows, adminExpenseRows, attendanceAccrualRows, hppCorrectionRows] = await Promise.all([
     sumByStoreDate(db, `
       SELECT store_id, ${JAKARTA_BUSINESS_DATE_SQL} AS business_date, COALESCE(SUM(total_amount), 0) AS value
       FROM sales
@@ -198,6 +206,14 @@ async function computeFactsForDates(db, storeIds, dates) {
       WHERE entry_type = 'ACCRUAL' AND voided_at IS NULL
         AND store_id IN (${storePh}) AND business_date IN (${datePh})
       GROUP BY store_id, business_date
+    `, [...storeIds, ...dates]),
+    // Hitung Ulang HPP (src/hpp-recalculation.js): selisih HPP per tanggal
+    // penjualan, dijumlahkan ke HPP snapshot -- snapshot lama tidak ditulis ulang.
+    sumByStoreDate(db, `
+      SELECT store_id, business_date, COALESCE(SUM(delta_scaled), 0) AS value
+      FROM hpp_recalculation_lines
+      WHERE store_id IN (${storePh}) AND business_date IN (${datePh})
+      GROUP BY store_id, business_date
     `, [...storeIds, ...dates])
   ]);
 
@@ -227,6 +243,7 @@ async function computeFactsForDates(db, storeIds, dates) {
     else if (row.category === 'BEA_LAPAK') fact.beaLapak = amount;
     else fact.beaLainnya += amount; // BEA_LAINNYA, dan kategori tak dikenal (jaga-jaga) ikut sini
   }
+  for (const row of hppCorrectionRows) facts.get(key(row.store_id, row.business_date)).hppScaled += Number(row.value || 0);
   for (const row of attendanceAccrualRows) {
     facts.get(key(row.store_id, row.business_date)).beaGaji += rupiahFromScaledSum(row.value);
   }
@@ -268,7 +285,9 @@ export async function invalidateDailyProfitSnapshot(db, storeId, businessDate) {
     .bind(storeId, businessDate).run();
 }
 
-export async function getNetProfitReport(db, { storeIds, from, to, today = getJakartaBusinessDate() }) {
+// Mesin fakta POS (gerai LITE/FLEXIBLE). Diekspor juga untuk tes yang memang
+// menguji mesin ini secara langsung.
+export async function getPosFactsNetProfitReport(db, { storeIds, from, to, today = getJakartaBusinessDate() }) {
   const dates = enumerateDates(from, to);
   const closedDates = dates.filter(date => date < today);
   const needsLiveToday = dates.includes(today);
@@ -350,6 +369,116 @@ export async function getNetProfitReport(db, { storeIds, from, to, today = getJa
   return { dates, netProfitByKey, breakdownByKey };
 }
 
+
+// ---------------------------------------------------------------------------
+// ADR-051 (Bos Cyo, 2026-10-02): "kalo sekarang keputusannya akuntansinya
+// dikonekin ... yang bener harusnya dikurangin dari beban2 akuntansi ... nanti
+// perhitungan rugi laba dsb mulai dari akuntansi."
+//
+// Gerai edisi ACCOUNTING: angka Untung Rugi dibaca dari jurnal Akuntansi
+// (semua jurnal: transaksi kasir, fitur admin, jurnal manual, Beban Rutin,
+// jurnal Una) -- jadi beban yang hanya dicatat di Akuntansi ikut mengurangi.
+// Gerai LITE/FLEXIBLE tetap memakai mesin fakta POS di atas (POS berdiri
+// sendiri, POS_MODULE_INDEPENDENCE.md).
+//
+// Pemetaan akun -> baris laporan (bahasa pemilik usaha):
+//   REVENUE  SALES                -> Omset
+//   REVENUE  INVENTORY_ADJUSTMENT -> Stok Lebih
+//   REVENUE  lainnya              -> Pendapatan Lain
+//   EXPENSE  COGS                 -> HPP
+//   EXPENSE  INVENTORY_ADJUSTMENT -> Stok Hilang
+//   EXPENSE  lainnya              -> Beban, dirinci PER AKUN (nama akun)
+// Jurnal pembalik ikut terjumlah, jadi transaksi yang dibatalkan netral.
+// Jumlah dihitung di ruang scaled per (gerai, tanggal, akun), dibagi skala
+// sekali di akhir (invariant #1). Tidak di-cache: jurnal boleh masuk mundur
+// (sinkron transaksi tertunda, Bea tanggal lalu), jadi angka lama boleh berubah.
+const ACCOUNTING_BREAKDOWN_KEYS = ['revenue', 'otherIncome', 'hpp', 'stockAdjustmentGain', 'stockAdjustmentLoss'];
+
+function emptyAccountingBreakdown() {
+  return { ...EMPTY_BREAKDOWN, source: 'ACCOUNTING', bebanAccounts: [] };
+}
+
+async function computeAccountingBreakdown(db, storeIds, from, to) {
+  const result = new Map();
+  if (!storeIds.length) return result;
+  const rows = await db.prepare(`
+    SELECT h.store_id, h.business_date, a.code, a.name, a.type, a.subtype,
+           COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_scaled ELSE -l.amount_scaled END), 0) AS debit_minus_credit
+    FROM accounting_journal_headers h
+    JOIN accounting_journal_lines l ON l.journal_id = h.id AND l.store_id = h.store_id
+    JOIN chart_of_accounts a ON a.id = l.account_id AND a.store_id = l.store_id
+    WHERE h.store_id IN (${placeholders(storeIds)})
+      AND h.business_date >= ? AND h.business_date <= ?
+      AND a.type IN ('REVENUE', 'EXPENSE')
+    GROUP BY h.store_id, h.business_date, a.id
+  `).bind(...storeIds, from, to).all();
+
+  const scaled = new Map();
+  for (const row of rows.results ?? []) {
+    const key = `${row.store_id}::${row.business_date}`;
+    if (!scaled.has(key)) scaled.set(key, { revenue: 0, otherIncome: 0, hpp: 0, stockAdjustmentGain: 0, stockAdjustmentLoss: 0, beban: new Map() });
+    const bucket = scaled.get(key);
+    const dmc = Number(row.debit_minus_credit || 0);
+    if (row.type === 'REVENUE') {
+      const amount = -dmc;
+      if (row.subtype === 'SALES') bucket.revenue += amount;
+      else if (row.subtype === 'INVENTORY_ADJUSTMENT') bucket.stockAdjustmentGain += amount;
+      else bucket.otherIncome += amount;
+    } else if (row.subtype === 'COGS') bucket.hpp += dmc;
+    else if (row.subtype === 'INVENTORY_ADJUSTMENT') bucket.stockAdjustmentLoss += dmc;
+    else {
+      const entry = bucket.beban.get(row.code) || { code: row.code, name: row.name, scaled: 0 };
+      entry.scaled += dmc;
+      bucket.beban.set(row.code, entry);
+    }
+  }
+
+  for (const [key, bucket] of scaled) {
+    const breakdown = emptyAccountingBreakdown();
+    for (const field of ACCOUNTING_BREAKDOWN_KEYS) breakdown[field] = rupiahFromScaledSum(bucket[field]);
+    breakdown.bebanAccounts = [...bucket.beban.values()]
+      .map(entry => ({ code: entry.code, name: entry.name, amount: rupiahFromScaledSum(entry.scaled) }))
+      .filter(entry => entry.amount !== 0)
+      .sort((a, b) => a.code.localeCompare(b.code));
+    breakdown.totalBeban = breakdown.bebanAccounts.reduce((sum, entry) => sum + entry.amount, 0);
+    breakdown.grossProfit = breakdown.revenue + breakdown.otherIncome - breakdown.hpp;
+    breakdown.netProfit = breakdown.grossProfit - breakdown.totalBeban + breakdown.stockAdjustmentGain - breakdown.stockAdjustmentLoss;
+    result.set(key, breakdown);
+  }
+  return result;
+}
+
+// Satu pintu: tiap gerai dibaca dari sumber yang sesuai edisinya.
+export async function getNetProfitReport(db, { storeIds, from, to, today = getJakartaBusinessDate() }) {
+  const dates = enumerateDates(from, to);
+  const editionRows = storeIds.length
+    ? await db.prepare(`SELECT id, edition FROM stores WHERE id IN (${placeholders(storeIds)})`).bind(...storeIds).all()
+    : { results: [] };
+  const accountingIds = new Set((editionRows.results ?? []).filter(row => row.edition === 'ACCOUNTING').map(row => row.id));
+  const posIds = storeIds.filter(id => !accountingIds.has(id));
+
+  const pos = posIds.length
+    ? await getPosFactsNetProfitReport(db, { storeIds: posIds, from, to, today })
+    : { netProfitByKey: new Map(), breakdownByKey: new Map() };
+  const netProfitByKey = new Map(pos.netProfitByKey);
+  const breakdownByKey = new Map();
+  for (const [key, value] of pos.breakdownByKey) breakdownByKey.set(key, { ...value, source: 'POS' });
+
+  if (accountingIds.size) {
+    const accounting = await computeAccountingBreakdown(db, [...accountingIds], from, to);
+    for (const storeId of accountingIds) {
+      for (const businessDate of dates) {
+        const key = `${storeId}::${businessDate}`;
+        const breakdown = accounting.get(key) || emptyAccountingBreakdown();
+        breakdownByKey.set(key, breakdown);
+        netProfitByKey.set(key, breakdown.netProfit);
+      }
+    }
+  }
+  const sourceByStore = Object.fromEntries(storeIds.map(id => [id, accountingIds.has(id) ? 'ACCOUNTING' : 'POS']));
+  return { dates, netProfitByKey, breakdownByKey, sourceByStore };
+}
+
 async function selectedStore(db, request) {
   const token = new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
   return resolveStore(db, token, { includeInactive: true });
@@ -402,7 +531,11 @@ export async function handleNetProfitReportApi(request, env, pathname) {
   }
   if (!selected.length) return json({ from, to, stores: [], rows: [] });
 
-  const { dates, netProfitByKey, breakdownByKey } = await getNetProfitReport(db, {
+  // Transaksi yang belum masuk pembukuan disinkronkan otomatis dulu (gerai
+  // Akuntansi saja), supaya laporan tidak menunggu tombol sinkron ditekan.
+  await autoSyncAccounting(db, selected);
+
+  const { dates, netProfitByKey, breakdownByKey, sourceByStore } = await getNetProfitReport(db, {
     storeIds: selected.map(store => store.id),
     from,
     to
@@ -435,41 +568,64 @@ export async function handleNetProfitReportApi(request, env, pathname) {
   }
 
   // Total per gerai untuk grafik perbandingan Entity (Omset, Untung, Beban...):
-  // dijumlah dari rincian harian yang SUDAH dihitung/ter-cache di atas, jadi
-  // tidak menambah satu query pun.
-  const storeTotals = selected.map(store => {
+  // dijumlah dari rincian harian yang SUDAH dihitung di atas, jadi tidak
+  // menambah satu query pun. Beban per akun (sumber Akuntansi) ikut dijumlah.
+  const sumBreakdown = dayBreakdowns => {
     const sum = { ...EMPTY_BREAKDOWN };
-    for (const businessDate of dates) {
-      const day = breakdownByKey.get(`${store.id}::${businessDate}`);
+    const beban = new Map();
+    for (const day of dayBreakdowns) {
       if (!day) continue;
-      for (const field of Object.keys(sum)) sum[field] += Number(day[field] || 0);
+      for (const field of Object.keys(EMPTY_BREAKDOWN)) sum[field] += Number(day[field] || 0);
+      for (const entry of day.bebanAccounts || []) {
+        const current = beban.get(entry.code) || { code: entry.code, name: entry.name, amount: 0 };
+        current.amount += entry.amount;
+        beban.set(entry.code, current);
+      }
     }
-    return { code: store.code, storeName: store.storeName, ...sum };
-  });
+    return { ...sum, bebanAccounts: [...beban.values()].filter(entry => entry.amount !== 0).sort((a, b) => a.code.localeCompare(b.code)) };
+  };
+  const storeTotals = selected.map(store => ({
+    code: store.code,
+    storeName: store.storeName,
+    source: sourceByStore[store.id] || 'POS',
+    ...sumBreakdown(dates.map(businessDate => breakdownByKey.get(`${store.id}::${businessDate}`)))
+  }));
+
+  // Transaksi yang belum masuk pembukuan (gerai sumber Akuntansi): angkanya
+  // ikut ditampilkan supaya laporan tidak diam-diam kurang. Dihitung dari
+  // fakta itu sendiri (definisi yang sama dengan tombol sinkron Akuntansi).
+  const unposted = {};
+  for (const store of selected) {
+    if (sourceByStore[store.id] !== 'ACCOUNTING') continue;
+    const [posCount, adminCount, reasons] = await Promise.all([
+      countUnsyncedPosFacts(db, store.id),
+      countPendingAdminFacts(db, store.id),
+      db.prepare(`
+        SELECT failure_code, failure_detail, COUNT(*) AS n FROM accounting_bridge_deliveries
+        WHERE store_id = ? AND status IN ('NEEDS_CONFIGURATION', 'FAILED', 'PENDING')
+        GROUP BY failure_code, failure_detail ORDER BY n DESC LIMIT 5
+      `).bind(store.id).all()
+    ]);
+    if (posCount + adminCount > 0) {
+      unposted[store.code] = {
+        count: posCount + adminCount,
+        reasons: (reasons.results ?? []).map(row => ({ code: row.failure_code || '', detail: row.failure_detail || '', count: Number(row.n || 0) }))
+      };
+    }
+  }
 
   const response = {
     from, to,
     scope: entityWide ? 'ENTITY' : 'STORE',
-    stores: selected.map(store => ({ code: store.code, storeName: store.storeName })),
+    stores: selected.map(store => ({ code: store.code, storeName: store.storeName, source: sourceByStore[store.id] || 'POS' })),
     rows,
     totals,
-    storeTotals
+    storeTotals,
+    unposted
   };
   if (withBreakdown) {
-    response.breakdownTotals = rows.reduce((acc, row) => ({
-      revenue: acc.revenue + row.breakdown.revenue,
-      otherIncome: acc.otherIncome + row.breakdown.otherIncome,
-      hpp: acc.hpp + row.breakdown.hpp,
-      grossProfit: acc.grossProfit + row.breakdown.grossProfit,
-      expenseKasir: acc.expenseKasir + row.breakdown.expenseKasir,
-      beaGaji: acc.beaGaji + row.breakdown.beaGaji,
-      beaLapak: acc.beaLapak + row.breakdown.beaLapak,
-      beaLainnya: acc.beaLainnya + row.breakdown.beaLainnya,
-      totalBeban: acc.totalBeban + row.breakdown.totalBeban,
-      stockAdjustmentGain: acc.stockAdjustmentGain + row.breakdown.stockAdjustmentGain,
-      stockAdjustmentLoss: acc.stockAdjustmentLoss + row.breakdown.stockAdjustmentLoss,
-      netProfit: acc.netProfit + row.breakdown.netProfit
-    }), { ...EMPTY_BREAKDOWN });
+    response.source = sourceByStore[selected[0].id] || 'POS';
+    response.breakdownTotals = sumBreakdown(rows.map(row => row.breakdown));
   }
   return json(response);
 }

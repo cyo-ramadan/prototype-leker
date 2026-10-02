@@ -72,6 +72,27 @@ disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
 login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
+**Gaya bicara Una (2026-10-02, Bos Cyo: "jangan kaku")** — santai, sesekali
+"peh" (logat Tulungagung) kalau kerjaannya agak berat, kadang "wkwk/ckck/hhe".
+Kalimat dari kode dibumbui di batas API lewat `src/caca-gaya.js` (acak,
+peluang sebagian), jawaban model lewat `GAYA_UNTUK_MODEL` di prompt. **Isi
+draft tidak boleh dibumbui**: draft dicocokkan ulang huruf per huruf saat "Ya";
+untuk draft berat bumbunya jadi `sapaan` terpisah di luar kartu.
+
+**Alat akun (2026-10-02)** — `src/caca-aksi-akun.js`: `cek_rekening_bersama`
+(baca saja: mutasi Rekening Bersama vs akun 1103 per gerai), `atur_cara_bayar`
+(akun, tautan Rekber, nama, aktif/nonaktif), `pindah_saldo_akun` (jurnal resmi
+dua sisi dengan nominal skala persis, opsional menonaktifkan akun asal; juga
+"nonaktifkan saja" untuk akun bersaldo nol). Prinsip Bos Cyo: yang dikerjakan
+Una harus sudah punya jalurnya di sistem — semuanya merangkai endpoint layar
+yang ada, tidak ada endpoint baru. Di lingkup "semua gerai" perintah dijalankan
+ke tiap gerai entity (`jalurGerai`), pencocokan akun/cara bayar per gerai wajib
+PERSIS (bukan "mengandung") supaya satu kalimat tidak memilih akun berbeda di
+tiap gerai, dan hasil tiap gerai dilaporkan sendiri-sendiri. Akun di gerai
+standar (ADR-047) tetap terkunci — draft menyebutnya, tidak dipaksa. Alat
+baca ditandai `baca: true`: menjawab langsung tanpa draft dan tidak bisa
+"diposting" lewat /api/caca/catat.
+
 **Alat tulis tahap ketiga (2026-10-01): semua transaksi admin gerai yang
 tidak menyentuh kas/laci** — `src/caca-aksi-bayar.js`: Bea Gaji, Bea Lapak,
 Pembayaran Lainnya, pelunasan hutang, Uang Muka/Deposit. Cara bayar hanya

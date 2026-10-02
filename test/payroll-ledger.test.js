@@ -5,7 +5,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { handleStaffPortalApi } from '../src/staff-portal.js';
 import { handleAdminOperationalExpenseApi } from '../src/admin-operational-expense.js';
 import { handleEmployeeMasterApi } from '../src/employee-master.js';
-import { getNetProfitReport } from '../src/net-profit-report.js';
+// ADR-051: gerai edisi ACCOUNTING membaca Untung Rugi dari jurnal; tes di file ini
+// menguji mesin fakta POS (dipakai gerai LITE/FLEXIBLE), jadi memanggilnya langsung.
+import { getPosFactsNetProfitReport as getNetProfitReport } from '../src/net-profit-report.js';
 import { recordAttendanceAccrual } from '../src/payroll-ledger.js';
 import { hashCredential } from '../src/owner-auth.js';
 import { getJakartaDayOfWeek } from '../src/time.js';

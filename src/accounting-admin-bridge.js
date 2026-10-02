@@ -278,6 +278,50 @@ const BUILDERS = Object.freeze({
   UANG_MUKA: buildUangMuka
 });
 
+// ----------------------------------------------------------- backlog ---
+// ADR-051 (Bos Cyo, 2026-10-02): "beban yang belum konek akuntansi mulailah
+// digabungkan" -- menggantikan ADR-046 poin 4 (tanpa backfill). Fakta admin
+// yang belum punya delivery POSTED (lahir sebelum 0123, lewat jalur yang dulu
+// melewati jembatan, atau gagal karena setting) ikut disinkronkan lewat
+// tombol sinkron Akuntansi yang sama dengan transaksi kasir. Idempotent:
+// dispatchAdminAccountingFact memakai kunci LEKER_ADMIN:<fakta>:<id>.
+// Urut created_at supaya hutang lahir (Bea) dijurnal sebelum pelunasannya.
+const ADMIN_BACKLOG_SQL = `
+  SELECT 'BEA' AS fact_type, e.id AS fact_id, e.created_at
+  FROM admin_operational_expenses e
+  WHERE e.store_id = ? AND e.voided_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = e.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'BEA' AND d.fact_id = e.id AND d.status = 'POSTED')
+  UNION ALL
+  SELECT 'GAJI_PRESENSI', p.id, p.created_at
+  FROM payroll_ledger_entries p
+  WHERE p.store_id = ? AND p.entry_type = 'ACCRUAL' AND p.voided_at IS NULL AND p.beban_gaji_delta_scaled > 0
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = p.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'GAJI_PRESENSI' AND d.fact_id = p.id AND d.status = 'POSTED')
+  UNION ALL
+  SELECT 'BAYAR_HUTANG', a.id, a.created_at
+  FROM admin_payments a
+  WHERE a.store_id = ? AND a.kind = 'HUTANG' AND a.voided_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = a.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'BAYAR_HUTANG' AND d.fact_id = a.id AND d.status = 'POSTED')
+  UNION ALL
+  SELECT 'UANG_MUKA', r.id, r.created_at
+  FROM operational_receivables_payables r
+  WHERE r.store_id = ? AND r.source_type LIKE 'DEPOSIT_%' AND r.funding_method <> ''
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = r.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'UANG_MUKA' AND d.fact_id = r.id AND d.status = 'POSTED')
+`;
+
+export async function pendingAdminFacts(db, storeId, limit = 50) {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
+  const rows = await db.prepare(`
+    SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_SQL})
+    ORDER BY created_at, fact_type, fact_id LIMIT ?
+  `).bind(storeId, storeId, storeId, storeId, safeLimit).all();
+  return rows.results ?? [];
+}
+
+export async function countPendingAdminFacts(db, storeId) {
+  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId).first();
+  return Number(row?.count || 0);
+}
+
 // ------------------------------------------------------------- dispatch ---
 
 export async function dispatchAdminAccountingFact(db, factType, factId) {

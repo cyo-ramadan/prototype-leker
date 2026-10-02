@@ -40,6 +40,9 @@ function migratedDatabase() {
   for (const file of readdirSync(migrationDir).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort()) {
     db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
   }
+  // ADR-051: gerai ACCOUNTING membaca Untung Rugi dari jurnal. File ini menguji
+  // mesin fakta POS (gerai LITE/FLEXIBLE), jadi semua gerai uji dibuat FLEXIBLE.
+  db.exec("UPDATE stores SET edition = 'FLEXIBLE'");
   return db;
 }
 

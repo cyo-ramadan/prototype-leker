@@ -1,0 +1,14 @@
+/* Laporan Gerai (Admin Entity): baris = tanggal, kolom = Omset .. Net Profit. */
+.srp-stores { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.srp-store { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 800; cursor: pointer; min-height: 40px; }
+.srp-store[aria-pressed="true"] { background: #1d1b18; color: #fff; border-color: #1d1b18; }
+.srp-wrap { overflow: auto; max-height: 75vh; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.srp-table { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 100%; font-variant-numeric: tabular-nums; }
+.srp-table th, .srp-table td { padding: 7px 9px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); background: #fff; }
+.srp-table thead th { position: sticky; top: 0; z-index: 2; background: #faf6ee; font-size: 12px; color: #52514e; }
+.srp-table tfoot th, .srp-table tfoot td { position: sticky; bottom: 0; background: #faf6ee; font-weight: 800; }
+.srp-table th:first-child, .srp-table td:first-child { position: sticky; left: 0; z-index: 1; text-align: left; box-shadow: 1px 0 0 var(--line); }
+.srp-table thead th:first-child, .srp-table tfoot th:first-child { z-index: 3; }
+.srp-strong { font-weight: 800; }
+.srp-pos { color: #1f7a3a; }
+.srp-neg { color: #c62828; }

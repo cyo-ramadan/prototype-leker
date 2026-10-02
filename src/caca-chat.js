@@ -14,6 +14,7 @@ import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-re
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
+import { gayaJawaban, gayaSelesai } from './caca-gaya.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 
@@ -117,7 +118,14 @@ function konteksPenyuruh(auth, store) {
 // masuk utama — termasuk jembatan Akuntansi (ADR-046): Bea yang dicatat Una
 // tidak pernah dijurnal, padahal yang dicatat lewat layar dijurnal. Lewat
 // pintu utama, apa pun yang dipasang di sana untuk layar ikut berlaku untuk Una.
+// Entri yang diakhiri "$" hanya cocok persis (tanpa sub-path): dipakai untuk
+// halaman bootstrap yang sub-path-nya justru jalur tulis lain.
 export const PINTU_AKSI = Object.freeze([
+  '/api/admin/accounting$',
+  '/api/admin/accounting/balance-sheet',
+  '/api/admin/settings/accounting$',
+  '/api/admin/settings/business/payment-methods',
+  '/api/entity-admin/stores',
   '/api/admin/master/products/editor',
   '/api/admin/manufacturing/bootstrap',
   '/api/admin/manufacturing/recipes',
@@ -130,15 +138,19 @@ export const PINTU_AKSI = Object.freeze([
 ]);
 
 function pintuDiizinkan(pathname, pintu) {
-  return pintu.some((awalan) => pathname === awalan || pathname.startsWith(`${awalan}/`));
+  return pintu.some((awalan) => (awalan.endsWith('$')
+    ? pathname === awalan.slice(0, -1)
+    : pathname === awalan || pathname.startsWith(`${awalan}/`)));
 }
 
 export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pintu = PINTU_AKSI } = {}) {
-  async function panggil(method, pathname, body) {
+  async function panggil(method, alamat, body) {
+    // Query (mis. ?asOf=) boleh ikut, tapi izinnya dinilai dari path saja.
+    const url = new URL(alamat, 'https://leker.internal');
+    const pathname = url.pathname;
     if (!pintuDiizinkan(pathname, pintu)) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Una.' };
     if (!jalurUtama) return { ok: false, status: 500, error: 'Jalur utama belum tersambung.' };
 
-    const url = new URL(pathname, 'https://leker.internal');
     // Gerai selalu dari sesi panel, tidak pernah dari kalimat (invariant #5).
     if (storeCode) url.searchParams.set('store', storeCode);
     const headers = new Headers(request.headers);
@@ -157,7 +169,11 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
   }
   return {
     baca: (pathname) => panggil('GET', pathname),
-    kirim: (method, pathname, body) => panggil(method, pathname, body)
+    kirim: (method, pathname, body) => panggil(method, pathname, body),
+    // Lingkup entity menjalankan satu perintah ke banyak gerai. Tiap gerai
+    // tetap lewat requireManagement endpointnya sendiri, jadi gerai di luar
+    // entity si penyuruh ditolak di sana, bukan dipercaya dari sini.
+    jalurGerai: (kode) => bangunJalurAksi(request, env, { storeCode: kode, jalurUtama, pintu })
   };
 }
 
@@ -212,10 +228,13 @@ async function tanya(request, env, jalurUtama) {
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
+  const gaya = gayaJawaban(hasil);
   return json({
-    jawaban: hasil.jawaban ?? null,
+    jawaban: gaya.jawaban,
+    sapaan: gaya.sapaan,
     alat: hasil.alat,
     periode: hasil.periode ?? null,
+    tabel: hasil.tabel ?? null,
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
@@ -236,13 +255,14 @@ async function catatAksi(request, env, draft, jalurUtama) {
     ...jalur,
     hariIni: lingkup.konteks.hariIni,
     namaLingkup: lingkup.konteks.namaLingkup,
-    lingkup: lingkup.konteks.lingkup
+    lingkup: lingkup.konteks.lingkup,
+    storeCode: lingkup.storeCode
   });
   if (!diperiksa.ok) return json({ error: diperiksa.error }, diperiksa.status);
 
-  const hasil = await aksi.posting(diperiksa.draft, jalur);
+  const hasil = await aksi.posting(diperiksa.draft, { ...jalur, lingkup: lingkup.konteks.lingkup });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
-  return json({ tercatat: true, draft: diperiksa.draft, jawaban: hasil.jawaban });
+  return json({ tercatat: true, draft: diperiksa.draft, jawaban: gayaSelesai(hasil.jawaban) });
 }
 
 // Konfirmasi tidak memanggil model sama sekali — orang menekan tombol, dan yang
@@ -291,7 +311,7 @@ async function catat(request, env, jalurUtama) {
   return json({
     tercatat: true,
     draft: diperiksaUlang.draft,
-    jawaban: `Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`
+    jawaban: gayaSelesai(`Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`)
   });
 }
 

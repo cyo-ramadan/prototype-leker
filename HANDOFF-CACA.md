@@ -85,6 +85,45 @@ Riwayat disimpan bersama obrolan di sessionStorage dan ikut hilang saat logout.
 Menambah panjang ingatan = ubah `MAKS_PERCAKAPAN` (server) dan
 `CACA_PESAN_NYAMBUNG` (panel) bersamaan; biayanya naik tiap panggilan model.
 
+**Una pendamping pengguna baru (2026-10-02, Bos Cyo: "usp kita kan berbasis chat
+... hapus ketakutan itu dengan fitur chat yang bisa mengerjakan ketakutan itu")** —
+riset dan alasannya di **`UNA-PENDAMPING.md`** (bukti utama: belum ada satu gerai pun
+yang berhasil mengisi dirinya sendiri; Galeh 41 hari nol barang). Yang dibangun:
+- **Cek kesiapan** `GET /api/caca/kesiapan` (`src/caca-kesiapan.js`): membaca 5 layar
+  yang ada lewat `bangunJalurAksi`, menyusun langkah menu → akun kasir → jualan pertama
+  (wajib) lalu resep, karyawan, titik lokasi (anjuran). **Tanpa mesin AI** — tetap
+  jalan walau kunci belum dipasang. Bacaan yang gagal = "belum diketahui", tidak pernah
+  dianggap belum beres. Panel memakainya untuk sapaan pertama dan saat ganti gerai.
+- **Tawaran sekali ketuk** (`tawaran` di jawaban): `isi` (contoh perintah ke kotak
+  ketik), `kirim`, `jelaskan`, `foto_menu`, `buka` (klik tab Workspace Gerai; dari
+  Panel Pemilik lewat `/s/:kode/admin#una-buka=<tab>`), `batalkan`.
+- **Isi barang massal** `buat_barang_banyak` (`src/caca-aksi-barang.js`): maks 60
+  baris; default kategori/satuan/harga beli ditulis terang di dampak; baris tanpa
+  harga atau satuan dilewati dan disebut (bukan diisi 0); harga singkat ("5") dibaca
+  ribuan HANYA kalau semua harga ditulis begitu, dan itu ditulis di draft. Pertanyaan
+  kini sampai 4.000 karakter (daftar ditempel), kotak ketik jadi textarea.
+- **Draft bertahap** (`bertahap: true`): `/api/caca/catat` menerima `{draft, bagian}`
+  dan memposting SATU baris; panel mengulang dengan hitungan "12 dari 40" dan tombol
+  "Lanjutkan" kalau berhenti di tengah. Draft diperiksa ulang utuh di setiap potongan;
+  pembagian "sudah ada" diambil dari draft (`ctx.draftAsli`) supaya barang potongan
+  sebelumnya tidak membuat draft dianggap berubah, dan keberadaan barang dicek lagi
+  tepat sebelum dibuat (klik ganda = `sudah_ada`, tidak kembar). Editor barang
+  menerima `?ringkas=1` supaya balasan tiap barang tidak membawa seluruh isi editor.
+- **Foto daftar menu** `POST /api/caca/baca-menu` (`src/caca-baca-menu.js`): lampiran
+  foto kini memilih "Daftar menu / harga" atau "Lembar rekap" (bawaan mengikuti
+  kesiapan). Model hanya menyalin nama/harga/judul kelompok; kode menyusun draft yang
+  sama dengan jalur ketik. Tulisan kapital semua dirapikan dan terlihat di draft.
+- **Kamus & peta aplikasi** `jelaskan` (`src/caca-jelaskan.js`), juga
+  `GET /api/caca/jelaskan?topik=`: isi ditulis tangan, dicocokkan kode — model tidak
+  mengarang definisi. Menambah topik = tambah entri `KAMUS`; test memastikan setiap
+  tawaran menunjuk layar/topik yang ada.
+- **Batalkan yang barusan** `nonaktifkan_barang`: menonaktifkan (bukan menghapus)
+  lewat `POST /api/caca/siapkan` (draft tanpa AI dari id barang yang tadi dibuat;
+  hanya aksi di `SIAPKAN_LANGSUNG`) lalu draft + "Ya", bertahap.
+- Sengaja **tidak** lewat chat: akun kasir (PIN tidak boleh lewat mesin AI pihak
+  ketiga) — Una membukakan layarnya.
+- Test ujung ke ujung: `test/caca-pendamping.test.js` (migration asli, gerai IKAN01).
+
 **Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
 — alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,
 ~50 endpoint baca admin/entity), lalu bergantian dengan kode maksimal tiga
@@ -112,12 +151,14 @@ tidak boleh dilonggarkan:
   `stok_sisa`) di lingkup entity dijalankan lewat pembaca ini. Periode ("kemarin")
   selalu dihitung kode dan menimpa tanggal tulisan model. Pitfall kuota baca D1
   harian (2026-09-29).
-- **Belum terbukti: batas kueri per permintaan.** Akun terindikasi Workers
-  gratis (D1 menyentuh "free tier daily row read limit"), yang membatasi 50
-  kueri D1 per permintaan. Fan-out ke ~10 gerai bisa kena batas itu: pembacaan
-  berhenti, gerai yang tidak terbaca disebut di jawaban, dan jalur yang meledak
-  jadi kegagalan baca (bukan 500). Obat sebenarnya: Workers berbayar. Alat akun
-  "semua gerai" (`caca-aksi-akun.js`) punya risiko yang sama.
+- **Batas per permintaan (dikoreksi 2026-10-02 dari dokumentasi Cloudflare).**
+  Akun terindikasi Workers gratis (D1 menyentuh "free tier daily row read
+  limit"). Batasnya **bukan** 50 kueri D1: paket gratis membatasi 50 subrequest
+  *eksternal* dan **1.000 panggilan ke layanan Cloudflare (termasuk D1)** per
+  permintaan, plus **10 ms CPU**. Yang lebih mungkin kena adalah CPU (mengurai
+  JSON besar berkali-kali), bukan jumlah kueri. Kalau satu jalur meledak,
+  pembacaan berhenti, gerai yang tidak terbaca disebut di jawaban (bukan 500).
+  Kerja tulis banyak baris sengaja dipecah per permintaan (draft bertahap).
 - Skema pilih-alat sudah besar; bila penyedia menolak ("too many states"),
   pesan alasannya sekarang tampil (400 soal skema) — sederhanakan skema, jangan
   tambah isian.
@@ -182,7 +223,8 @@ panggilan AI untuk menangkap kalimat, sisanya kode. Yang perlu diketahui:
 - Semua tulisan lewat endpoint layar yang sama (`PINTU_AKSI` di
   `src/caca-chat.js`) dengan kredensial penyuruh. Menambah alat tulis baru =
   tambah entri di `AKSI_TULIS` dan, kalau endpoint-nya baru, di `PINTU_AKSI`.
-- Belum ada: mengubah/menghapus barang atau resep, jurnal balik, jurnal gerai.
+- Belum ada: mengubah/menghapus barang atau resep, jurnal balik. (Jurnal gerai
+  sudah ada sejak 2026-10-01; menonaktifkan barang sejak 2026-10-02.)
 
 **Lokasi server menentukan apakah Gemini mau menjawab.** 2026-09-30 Caca
 mati dengan `400 FAILED_PRECONDITION: User location is not supported for the

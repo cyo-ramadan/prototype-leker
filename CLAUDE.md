@@ -142,7 +142,9 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   me-referensikannya (server live tidak berarti browser lama ikut ambil versi baru — lihat
   `KNOWN_PITFALLS.md` "File JS lama yang diubah tapi query `?v=` tidak dibump"). File baru aman
   tanpa ini karena browser belum pernah menyimpan apa pun di URL-nya.
-- **Skin tampilan per tenant (0/A/B/C)** -- `HANDOFF-UIUX-SIAP-JUAL.md` §8. Fitur baru cukup
+- **Skin tampilan per tenant (0/A/B/C/D)** -- `HANDOFF-UIUX-SIAP-JUAL.md` §8. D ("Mode Warung") juga
+  punya layar sendiri (`public/warung*.js`, `DESAIN-SKIN-D-WARUNG.md`); CSS skin dibangkitkan
+  `scripts/generate-skin-css.py`. Fitur baru cukup
   dibangun sekali di layar biasa (skin 0); A/B/C hanya lapisan CSS di atasnya, jadi fiturnya ikut
   muncul otomatis. Supaya tampilannya juga ikut berubah: pakai kelas yang sudah ada
   (`admin-card`, `primary-btn`, `secondary-btn`, `mini-btn`, `admin-tab`, `master-row`,

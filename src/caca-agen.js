@@ -17,6 +17,7 @@ import { GAYA_UNTUK_MODEL } from './caca-gaya.js';
 import { bacaBebas, SKEMA_BACA_API } from './caca-baca.js';
 import { daftarApiUntukModel } from './caca-baca-katalog.js';
 import { hitungPeriode } from './caca-alat.js';
+import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
@@ -90,6 +91,7 @@ function promptPilihAlat(konteks) {
     daftarAksiUntukModel('entity'),
     '',
     'Aturan:',
+    ATURAN_RIWAYAT,
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
@@ -142,7 +144,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
 } = {}) {
   const pilihan = await panggilModel(env, {
     system: promptPilihAlat(konteks),
-    content: [{ type: 'text', text: pertanyaan }],
+    content: [{ type: 'text', text: pesanDenganRiwayat(pertanyaan, konteks.riwayat) }],
     schema: skemaPilihAlat()
   });
   if (!pilihan.ok) return { ok: false, status: pilihan.status, error: pilihan.error };
@@ -238,7 +240,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
     content: [{
       type: 'text',
       text: [
-        `Pertanyaan: ${pertanyaan}`,
+        `Pertanyaan: ${pesanDenganRiwayat(pertanyaan, konteks.riwayat)}`,
         hasil.periode ? `Periode yang dipakai: ${hasil.periode.dari} sampai ${hasil.periode.sampai}` : '',
         'Data:',
         JSON.stringify(hasil.data)

@@ -15,7 +15,13 @@ const CACA_INGAT_GERAI = 'lekerCacaGerai';
 const CACA_SIMPANAN = 'lekerUnaPercakapan';
 const CACA_MAKS_SIMPAN = 80;
 
+const CACA_MAKS_RIWAYAT = 60;
+const CACA_PESAN_NYAMBUNG = 5;
+
 const cacaState = {
+  // Ingatan jangka pendek: {dari: 'saya'|'una'|'sistem', teks}. Dikirim 5 pesan
+  // Bos terakhir supaya "kalau kemarin?" nyambung; server membersihkannya lagi.
+  riwayat: [],
   scope: '',
   stores: [],
   entityName: '',
@@ -118,6 +124,33 @@ function cacaSidikLogin() {
   return token ? String(hash) : '';
 }
 
+function cacaCatatRiwayat(dari, teks) {
+  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  if (!bersih) return;
+  cacaState.riwayat.push({ dari, teks: bersih });
+  if (cacaState.riwayat.length > CACA_MAKS_RIWAYAT) cacaState.riwayat.splice(0, cacaState.riwayat.length - CACA_MAKS_RIWAYAT);
+}
+
+// Dari belakang sampai 5 pesan Bos terkumpul; dipanggil SEBELUM pesan sekarang
+// dicatat, supaya pesan sekarang tidak terkirim dua kali.
+function cacaRiwayatUntukServer() {
+  let pesanBos = 0;
+  let mulai = 0;
+  for (let i = cacaState.riwayat.length - 1; i >= 0; i -= 1) {
+    if (cacaState.riwayat[i].dari !== 'saya') continue;
+    pesanBos += 1;
+    if (pesanBos === CACA_PESAN_NYAMBUNG) { mulai = i; break; }
+  }
+  return cacaState.riwayat.slice(mulai);
+}
+
+function cacaRingkasDraft(draft) {
+  const baris = Array.isArray(draft.baris)
+    ? draft.baris.map(([label, nilai]) => `${label}: ${nilai}`).join('; ')
+    : `Untuk: ${draft.keterangan}; Nominal: ${draft.nominal}; Ke: ${draft.pihak}; Tanggal: ${draft.tanggal}`;
+  return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris}`;
+}
+
 function cacaSimpanPercakapan() {
   const wadah = cacaEl('cacaPercakapan');
   if (!wadah) return;
@@ -132,7 +165,7 @@ function cacaSimpanPercakapan() {
   });
   while (salinan.childElementCount > CACA_MAKS_SIMPAN) salinan.firstElementChild.remove();
   try {
-    sessionStorage.setItem(CACA_SIMPANAN, JSON.stringify({ sidik: cacaSidikLogin(), html: salinan.innerHTML }));
+    sessionStorage.setItem(CACA_SIMPANAN, JSON.stringify({ sidik: cacaSidikLogin(), html: salinan.innerHTML, riwayat: cacaState.riwayat }));
   } catch { /* penuh atau diblokir: percakapan tetap jalan, cuma tidak bertahan */ }
 }
 
@@ -154,6 +187,7 @@ function cacaPulihkanPercakapan() {
     return;
   }
   wadah.innerHTML = simpanan.html;
+  cacaState.riwayat = Array.isArray(simpanan.riwayat) ? simpanan.riwayat : [];
   wadah.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan)').forEach(kartu => {
     kartu.classList.add('kedaluwarsa');
     kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
@@ -244,6 +278,7 @@ function cacaGantiGerai(scope) {
   // Penanda di tengah percakapan, seperti label tanggal di WhatsApp: jawaban
   // di atasnya dan di bawahnya bisa berasal dari gerai yang berbeda.
   cacaTambahPenanda(`Sekarang membahas ${cacaNamaScope(scope)}`);
+  cacaCatatRiwayat('sistem', `Bos pindah membahas ${cacaNamaScope(scope)}.`);
   if (scope === CACA_ENTITY) {
     cacaTambahGelembung('caca', 'Di buku entity Una baru bisa membuat jurnal, mis. "jurnal setoran modal 5jt: debit Kas, kredit Modal Pemilik". Laporan dan barang tetap per gerai.');
   }
@@ -354,6 +389,7 @@ function cacaTampilkanDraft(payload, scope) {
   kartu.querySelector('[data-caca-batal]').addEventListener('click', () => {
     kunci();
     kartu.classList.add('dibatalkan');
+    cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.');
     cacaSimpanPercakapan();
     cacaTambahGelembung('caca', 'Oke, gajadi deh.');
   });
@@ -369,6 +405,7 @@ function cacaTampilkanDraft(payload, scope) {
         body: JSON.stringify({ draft })
       });
       kartu.classList.add('tercatat');
+      cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
       cacaSimpanPercakapan();
       cacaTambahGelembung('caca', hasil.jawaban);
     } catch (error) {
@@ -495,6 +532,7 @@ async function cacaKirimFoto() {
   const { file, url } = cacaState.lampiran;
   cacaBuangLampiran({ terkirim: true });
   cacaTambahGelembung('saya', '', '', { html: `<img class="caca-foto" src="${cacaEscape(url)}" alt="Foto lembar rekap" />` });
+  cacaCatatRiwayat('saya', 'Bos mengirim foto lembar rekap.');
   if (!cacaCekGerai()) return;
 
   const store = cacaGeraiAktif();
@@ -507,6 +545,7 @@ async function cacaKirimFoto() {
     });
     mengetik.remove();
     cacaTambahGelembung('caca', '', 'dari lembar rekap', { html: cacaRenderRekap(payload) });
+    cacaCatatRiwayat('una', `Una membaca lembar rekap tanggal ${payload.hasil?.tanggal_tertulis || '(tidak terbaca)'}; hasilnya ditampilkan di layar.`);
   } catch (error) {
     mengetik.remove();
     cacaTambahGelembung('caca', error.message);
@@ -514,7 +553,9 @@ async function cacaKirimFoto() {
 }
 
 async function cacaKirimTeks(pertanyaan) {
+  const riwayat = cacaRiwayatUntukServer();
   cacaTambahGelembung('saya', pertanyaan);
+  cacaCatatRiwayat('saya', pertanyaan);
   if (!cacaCekGerai({ bolehEntity: true })) return;
 
   const scope = cacaState.scope;
@@ -522,9 +563,12 @@ async function cacaKirimTeks(pertanyaan) {
   try {
     const payload = await cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
       method: 'POST',
-      body: JSON.stringify({ pertanyaan })
+      body: JSON.stringify({ pertanyaan, riwayat })
     });
     mengetik.remove();
+    cacaCatatRiwayat('una', payload.perluKonfirmasi && payload.draft
+      ? cacaRingkasDraft(payload.draft)
+      : `${payload.jawaban || ''}${payload.tabel ? ' [tabel ditampilkan]' : ''}`);
     if (payload.perluKonfirmasi && payload.draft) {
       // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
       // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".
@@ -594,6 +638,7 @@ function cacaLupakan() {
   cacaHapusSimpanan();
   const wadah = cacaEl('cacaPercakapan');
   if (wadah) wadah.innerHTML = '';
+  cacaState.riwayat = [];
   cacaState.siapDipakai = false;
 }
 

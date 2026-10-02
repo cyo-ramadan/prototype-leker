@@ -72,6 +72,13 @@ disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
 login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
+**Gaya bicara Una (2026-10-02, Bos Cyo: "jangan kaku")** — santai, sesekali
+"peh" (logat Tulungagung) kalau kerjaannya agak berat, kadang "wkwk/ckck/hhe".
+Kalimat dari kode dibumbui di batas API lewat `src/caca-gaya.js` (acak,
+peluang sebagian), jawaban model lewat `GAYA_UNTUK_MODEL` di prompt. **Isi
+draft tidak boleh dibumbui**: draft dicocokkan ulang huruf per huruf saat "Ya";
+untuk draft berat bumbunya jadi `sapaan` terpisah di luar kartu.
+
 **Alat akun (2026-10-02)** — `src/caca-aksi-akun.js`: `cek_rekening_bersama`
 (baca saja: mutasi Rekening Bersama vs akun 1103 per gerai), `atur_cara_bayar`
 (akun, tautan Rekber, nama, aktif/nonaktif), `pindah_saldo_akun` (jurnal resmi

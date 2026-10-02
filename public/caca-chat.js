@@ -297,7 +297,7 @@ function cacaSapa() {
   const wadah = cacaEl('cacaPercakapan');
   if (!wadah || wadah.childElementCount) return;
   cacaTambahPenanda('Hari ini');
-  const gelembung = cacaTambahGelembung('caca', 'Halo Bos, Una di sini! Tanya apa saja soal gerai yang dipilih di atas, atau suruh Una mencatat. Mau Una baca lembar rekap? Tekan + di bawah lalu pilih fotonya.');
+  const gelembung = cacaTambahGelembung('caca', 'Halo Bos, Una di sini hhe. Tanya apa aja soal gerai yang dipilih di atas, atau suruh Una nyatet. Mau Una bacain lembar rekap? Tekan + di bawah terus pilih fotonya.');
   const saran = document.createElement('div');
   saran.className = 'caca-saran';
   saran.innerHTML = CACA_SARAN.map(teks => `<button type="button" data-caca-saran="${cacaEscape(teks)}">${cacaEscape(teks)}</button>`).join('');
@@ -355,7 +355,7 @@ function cacaTampilkanDraft(payload, scope) {
     kunci();
     kartu.classList.add('dibatalkan');
     cacaSimpanPercakapan();
-    cacaTambahGelembung('caca', 'Oke, tidak jadi.');
+    cacaTambahGelembung('caca', 'Oke, gajadi deh.');
   });
 
   // Gerai/lingkup diambil dari saat draft dibuat, bukan dari judul sekarang:
@@ -525,6 +525,9 @@ async function cacaKirimTeks(pertanyaan) {
     });
     mengetik.remove();
     if (payload.perluKonfirmasi && payload.draft) {
+      // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
+      // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".
+      if (payload.sapaan) cacaTambahGelembung('caca', payload.sapaan);
       cacaTampilkanDraft(payload, scope);
     } else {
       // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri

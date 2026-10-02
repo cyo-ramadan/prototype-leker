@@ -108,11 +108,19 @@ function renderOwnerStoreEntityOptions() {
   ).join('')}`;
 }
 
+// Status sebagai penanda berwarna (public/list-cards.css .status-chip), bukan
+// kata ACTIVE polos -- Bos Cyo 2026-10-02: kartu dibuat ringkas & enak dilihat.
+const OWNER_STATUS_CHIP = { ACTIVE: ['ok', 'Aktif'], INACTIVE: ['off', 'Nonaktif'], ARCHIVED: ['off', 'Diarsipkan'], SUSPENDED: ['bad', 'Ditangguhkan'] };
+function ownerStatusChip(status) {
+  const [tone, label] = OWNER_STATUS_CHIP[String(status || '').toUpperCase()] || ['off', status || '-'];
+  return `<span class="status-chip ${tone}">${ownerEscape(label)}</span>`;
+}
+
 function renderOwnerTenants() {
   ownerEl('ownerTenantCount').textContent = ownerState.tenants.length;
   ownerEl('ownerTenantList').innerHTML = ownerState.tenants.length ? ownerState.tenants.map(tenant => `
     <div class="master-row">
-      <div class="master-main"><strong>${ownerEscape(tenant.name)}</strong><div class="master-meta">${ownerEscape(tenant.status)}</div></div>
+      <div class="master-main"><strong>${ownerEscape(tenant.name)}</strong>${ownerStatusChip(tenant.status)}</div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-toggle-tenant-policy="${ownerEscape(tenant.id)}">${ownerState.expandedTenantPolicyId === tenant.id ? 'Tutup kebijakan' : 'Kebijakan'}</button>
       </div>
@@ -189,7 +197,7 @@ function renderOwnerEntities() {
   ownerEl('ownerEntityCount').textContent = ownerState.entities.length;
   ownerEl('ownerEntityList').innerHTML = ownerState.entities.length ? ownerState.entities.map(entity => `
     <div class="master-row">
-      <div class="master-main"><strong>${ownerEscape(entity.name)}</strong><div class="master-meta">${entity.tenantName ? ownerEscape(entity.tenantName) : 'Belum tertaut tenant'} · ${ownerEscape(entity.status)}</div></div>
+      <div class="master-main"><strong>${ownerEscape(entity.name)}</strong>${ownerStatusChip(entity.status)}<div class="master-meta">${entity.tenantName ? `Tenant ${ownerEscape(entity.tenantName)}` : 'Belum tertaut tenant'}</div></div>
     </div>`).join('') : '<div class="empty">Belum ada entity.</div>';
   renderOwnerStoreEntityOptions();
 }
@@ -236,7 +244,7 @@ function renderCustomerSharing() {
       <div class="master-main">
         <strong>${ownerEscape(group.name)}</strong>
         <div class="master-meta">${group.stores.length ? group.stores.map(store => ownerEscape(store.code)).join(' ↔ ') : 'Tidak ada gerai'}</div>
-        <div class="master-meta">${group.isActive ? 'Berbagi pelanggan aktif' : 'Nonaktif'}</div>
+        <span class="status-chip ${group.isActive ? 'ok' : 'off'}">${group.isActive ? 'Berbagi aktif' : 'Nonaktif'}</span>
       </div>
       <div class="master-actions">
         ${group.isActive ? `<button class="mini-btn" type="button" data-edit-sharing="${ownerEscape(group.id)}">Edit</button><button class="mini-btn danger" type="button" data-disable-sharing="${ownerEscape(group.id)}">Matikan</button>` : ''}

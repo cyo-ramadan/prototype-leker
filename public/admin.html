@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MAXI · Owner</title>
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/admin.css?v=20261002-kartu-ringkas-v1" />
+  <link rel="stylesheet" href="/list-cards.css?v=20261002-kartu-ringkas-v1" />
   <link rel="stylesheet" href="/owner.css" />
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
@@ -34,12 +35,12 @@
 
     <section id="ownerApp" class="hidden">
       <div class="owner-heading">
-        <div><div class="admin-eyebrow">Structure level 1</div><h1>Gerai</h1><p class="muted">Gerai berada di atas seluruh master dan transaksi.</p></div>
+        <div><div class="admin-eyebrow">Semua usaha</div><h1>Gerai</h1><p class="muted">Gerai berada di atas seluruh master dan transaksi.</p></div>
         <div id="ownerIdentity" class="owner-chip"></div>
       </div>
 
       <section class="admin-card" style="margin-bottom:18px">
-        <div class="list-head"><div><h2>Structure level 0 · Tenant &amp; Entity</h2><div class="muted">Tenant = pelanggan MAXI yang berlangganan. Entity (Badan Usaha) = pemilik buku &amp; stok sendiri, bisa lebih dari satu gerai. Gerai baru boleh dikaitkan ke sebuah Entity di bawah.</div></div></div>
+        <div class="list-head"><div><h2>Tenant &amp; Entity</h2><div class="muted">Tenant = pelanggan MAXI yang berlangganan. Entity (Badan Usaha) = pemilik buku &amp; stok sendiri, bisa lebih dari satu gerai. Gerai baru boleh dikaitkan ke sebuah Entity di bawah.</div></div></div>
         <div class="admin-grid two" style="margin-top:14px">
           <div class="admin-card" style="box-shadow:none">
             <form id="tenantCreateForm">
@@ -102,7 +103,7 @@
   </main>
   <div id="ownerToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<script src="/owner.js?v=20261001-pilih-skin-v1"></script>
+<script src="/owner.js?v=20261002-kartu-ringkas-v1"></script>
 <script src="/owner-central-entry.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
 <script src="/management-approval-queue.js?v=20261001-siap-jual-v3"></script>
 <script src="/management-transaction-void-permits.js"></script>

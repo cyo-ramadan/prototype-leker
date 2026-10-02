@@ -90,6 +90,11 @@ html[data-skin="b"] .cart-handle.has-items { background: var(--skin-primary); bo
 html[data-skin="b"] .drawer-mode-badge.write, html[data-skin="b"] .cashier-lock-note.write { background: var(--green-soft); color: var(--green); }
 html[data-skin="b"] .cashier-lock-note, html[data-skin="b"] .drawer-mode-badge.occupied { background: var(--skin-warn-soft); color: var(--skin-warn); }
 html[data-skin="b"] .image-preview-wrap, html[data-skin="b"] .master-thumb, html[data-skin="b"] .cashier-menu-image { background: var(--skin-chip-bg); }
+html[data-skin="b"] .admin-top-actions > a, html[data-skin="b"] .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; border-radius: var(--skin-r-pill); line-height: 1.2; }
+@media (max-width: 620px) {
+  html[data-skin="b"] .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  html[data-skin="b"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+}
 
 html[data-skin="b"] body { font-stretch: 92%; }
 html[data-skin="b"] h1, html[data-skin="b"] h2, html[data-skin="b"] .cashier-panel-head h2 { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: .01em; }

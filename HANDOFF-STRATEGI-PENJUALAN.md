@@ -229,6 +229,9 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-02 | pengembangan | Laporan Gerai di Admin Entity: klik satu gerai, tampil per tanggal Omset, HPP, SO+, SO−, Gross Profit, Beban Lapak, Gaji, Beban Lainnya, Net Profit |
 | 2026-10-02 | UI/UX | Semua tenant: tulisan "Prototype"/"Leker" dan catatan developer hilang dari layar; merek satu tempat ("MAXI" sementara); fitur setengah jadi ("segera hadir") disembunyikan; halaman pelanggan bahasa F&B umum | JUAL | Kesan pertama tidak lagi "prototipe"; siap didemokan ke pemilik F&B mana pun |
 | 2026-10-02 | UI/UX | Pilihan tampilan per tenant 0/A/B/C (Tenang, Papan Siaga, Kabar Gerai) di Owner Console; semua tenant lama tetap 0, tenant Lab Tampilan (gerai LAB01) dipakai uji | UJI | Bahan memilih tampilan jualan; belum ada Ringkasan Pemilik |
+| 2026-10-02 | UI/UX | Kartu daftar ringkas (nama utuh, keterangan satu baris, status berwarna) di semua tenant; tab "Laporan" kosong dicabut | JUAL | Layar admin tidak lagi terlihat rusak di HP |
+| 2026-10-02 | UI/UX | Skin A/B/C: tombol admin dikelompokkan (Workspace Gerai 24 → 7, Panel Pemilik 10 → 6) dengan sub-menu | UJI | Calon pembeli tidak kaget melihat tombol terlalu banyak |
+| 2026-10-02 | UI/UX | Landing page `/produk/` dirombak: satu janji, satu gambar HP, "Sehari bersama kami", F&B umum | INTERNAL | Masih menunggu nomor WhatsApp, nama merek, dan izin angka bukti |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

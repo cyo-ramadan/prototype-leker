@@ -1,9 +1,8 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { activePendingPosFacts, dispatchPosAccountingFact } from './accounting-pos-bridge.js';
-import { dispatchAdminAccountingFact, pendingAdminFacts } from './accounting-admin-bridge.js';
-import { postPendingHppCorrections } from './hpp-recalculation.js';
+import { dispatchPosAccountingFact } from './accounting-pos-bridge.js';
+import { syncStoreAccounting } from './accounting-auto-sync.js';
 
 const FACT_TABLE = Object.freeze({ SALE: 'sales', PURCHASE: 'purchases', EXPENSE: 'expenses' });
 const text = (value, max = 300) => String(value ?? '').trim().slice(0, max);
@@ -37,25 +36,6 @@ export async function handleAccountingReconciliationGuardApi(request, env, pathn
     const result = await dispatchPosAccountingFact(env.DB, store, { factType, factId });
     return json(result, result.ok ? 200 : 409);
   }
-  const rows = await activePendingPosFacts(env.DB, store.id, body.value?.limit || 50);
-  const results = [];
-  for (const row of rows) {
-    const result = await dispatchPosAccountingFact(env.DB, store, { factType: row.fact_type, factId: row.fact_id });
-    results.push({ factType: row.fact_type, factId: row.fact_id, status: result.status, code: result.code || '', journalId: result.journalId || null });
-  }
-  // ADR-051: fakta admin (Bea, gaji presensi, pelunasan hutang, uang muka) yang
-  // belum masuk jurnal ikut disinkronkan -- hanya gerai yang memakai Akuntansi.
-  const edition = await env.DB.prepare('SELECT edition FROM stores WHERE id = ? LIMIT 1').bind(store.id).first();
-  if (edition?.edition === 'ACCOUNTING') {
-    const adminRows = await pendingAdminFacts(env.DB, store.id, body.value?.limit || 50);
-    for (const row of adminRows) {
-      const result = await dispatchAdminAccountingFact(env.DB, row.fact_type, row.fact_id);
-      results.push({ factType: row.fact_type, factId: row.fact_id, status: result.status, code: result.code || '', journalId: result.journalId || null });
-    }
-    // Koreksi Hitung Ulang HPP yang menunggu jurnal penjualannya masuk.
-    for (const row of await postPendingHppCorrections(env.DB, store.id, body.value?.limit || 50)) {
-      results.push({ factType: 'HPP_KOREKSI', factId: row.factId, status: row.status, code: '', journalId: null });
-    }
-  }
+  const results = await syncStoreAccounting(env.DB, store, { limit: body.value?.limit || 50 });
   return json({ attempted: results.length, posted: results.filter(row => row.status === 'POSTED').length, needsConfiguration: results.filter(row => row.status === 'NEEDS_CONFIGURATION').length, failed: results.filter(row => row.status === 'FAILED').length, results });
 }

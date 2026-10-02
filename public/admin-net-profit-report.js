@@ -121,7 +121,7 @@
   function unpostedNotice() {
     const entries = Object.entries(snapshot.unposted || {});
     if (!entries.length) return '';
-    return entries.map(([code, info]) => `<div class="admin-tip" style="margin-top:12px"><b>${info.count} transaksi belum masuk pembukuan</b> — angka di atas bisa kurang dari sebenarnya.${info.reasons?.length ? ` Penyebab terbanyak: ${escapeHtml(info.reasons.map(reason => `${reason.detail || reason.code} (${reason.count})`).join('; '))}.` : ''} Buka Akuntansi lalu tekan sinkron untuk memasukkannya.</div>`).join('');
+    return entries.map(([code, info]) => `<div class="admin-tip" style="margin-top:12px"><b>${info.count} transaksi belum masuk pembukuan</b> — angka di atas bisa kurang dari sebenarnya.${info.reasons?.length ? ` Penyebab terbanyak: ${escapeHtml(info.reasons.map(reason => `${reason.detail || reason.code} (${reason.count})`).join('; '))}.` : ''} Sistem mencoba memasukkannya otomatis setiap laporan dibuka; yang masih tersisa perlu setelan sesuai penyebab di atas.</div>`).join('');
   }
 
   function renderSummary() {

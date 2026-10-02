@@ -210,7 +210,10 @@ async function saveDelivery(db, storeId, factId, status, journalId, code, detail
 // Posting jurnal koreksi yang masih tertunda: per (hitung ulang, penjualan),
 // hanya bila jurnal penjualannya sudah POSTED. Dipanggil sesudah Terapkan dan
 // dari tombol sinkron Akuntansi.
-export async function postPendingHppCorrections(db, storeId, limit = 100) {
+// retryAfter (ISO): koreksi yang sudah dicoba sesudah waktu itu dilewati --
+// dipakai sinkron otomatis supaya yang macet karena setelan tidak dicoba ulang
+// di setiap pembukaan laporan.
+export async function postPendingHppCorrections(db, storeId, limit = 100, { retryAfter = null } = {}) {
   if (!(await isAccountingStore(db, storeId))) return [];
   const groups = await db.prepare(`
     SELECT l.recalculation_id, l.sale_id, MIN(l.business_date) AS business_date, h.component_product_name
@@ -218,11 +221,12 @@ export async function postPendingHppCorrections(db, storeId, limit = 100) {
     JOIN hpp_recalculations h ON h.id = l.recalculation_id
     WHERE l.store_id = ?
       AND EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = l.store_id AND d.producer_module = 'POS' AND d.fact_type = 'SALE' AND d.fact_id = l.sale_id AND d.status = 'POSTED')
-      AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = l.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'HPP_KOREKSI' AND d.fact_id = l.recalculation_id || ':' || l.sale_id AND d.status = 'POSTED')
+      AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = l.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'HPP_KOREKSI' AND d.fact_id = l.recalculation_id || ':' || l.sale_id
+                        AND (d.status = 'POSTED' OR (? IS NOT NULL AND d.last_attempt_at > ?)))
     GROUP BY l.recalculation_id, l.sale_id
     ORDER BY MIN(l.business_date)
     LIMIT ?
-  `).bind(storeId, Math.max(1, Math.min(200, Number(limit) || 100))).all();
+  `).bind(storeId, retryAfter, retryAfter, Math.max(1, Math.min(200, Number(limit) || 100))).all();
 
   const results = [];
   for (const group of groups.results ?? []) {

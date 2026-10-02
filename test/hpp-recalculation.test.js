@@ -205,6 +205,36 @@ test('gerai Akuntansi: snapshot produksi lama tanpa Jenis Barang bahan tetap bis
   } finally { ctx.db.close(); }
 });
 
+test('sinkron otomatis: membuka Laporan Untung Rugi memposting koreksi yang tertunda tanpa tombol sinkron; yang baru gagal tidak dicoba ulang sebelum jeda', async () => {
+  const ctx = await setup();
+  try {
+    const pending = seedDadakanSale(ctx, { price: 5000, createdAt: '2026-09-16T05:00:00.000Z' });
+    assert.equal((await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'Leker barang titipan' })).status, 201);
+    const koreksi = () => ctx.db.prepare("SELECT COUNT(*) AS n FROM accounting_journal_headers WHERE source_reference_id LIKE 'HPP_KOREKSI:%'").get().n;
+    assert.equal(koreksi(), 0, 'jurnal penjualan belum masuk -> koreksi menunggu');
+
+    // Jurnal penjualan masuk belakangan; cukup buka laporan.
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status)
+      VALUES ('delivery_auto', 'store_kantor', 'POS', 'SALE', ?, 'sale', 'POSTED')`).run(pending);
+    // Seolah koreksi ini baru saja gagal dicoba: jalur otomatis menunggu jeda.
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status, last_attempt_at)
+      SELECT 'delivery_hpp_recent', 'store_kantor', 'ADMIN', 'HPP_KOREKSI', recalculation_id || ':' || sale_id, 'hpp_koreksi', 'NEEDS_CONFIGURATION', ? FROM hpp_recalculation_lines LIMIT 1`)
+      .run(new Date().toISOString());
+    const report = () => call(ctx, 'GET', '/api/admin/reports/net-profit?from=2026-09-16&to=2026-09-16&stores=KANTOR');
+    assert.equal((await report()).status, 200);
+    assert.equal(koreksi(), 0, 'baru dicoba < 15 menit lalu -> dilewati');
+
+    ctx.db.prepare("UPDATE accounting_bridge_deliveries SET last_attempt_at = '2026-01-01T00:00:00.000Z' WHERE id = 'delivery_hpp_recent'").run();
+    assert.equal((await report()).status, 200);
+    assert.equal(koreksi(), 1, 'sesudah jeda, koreksi masuk otomatis saat laporan dibuka');
+
+    // Tombol sinkron manual tetap mencoba semuanya (tanpa jeda) dan tidak memposting dua kali.
+    const sync = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
+    assert.equal(sync.results.filter(row => row.factType === 'HPP_KOREKSI').length, 0);
+    assert.equal(koreksi(), 1);
+  } finally { ctx.db.close(); }
+});
+
 test('validasi: bahan gerai lain ditolak, harga harus angka, tanpa login ditolak, daftar bahan hanya yang dipakai produksi dadakan', async () => {
   const ctx = await setup();
   try {

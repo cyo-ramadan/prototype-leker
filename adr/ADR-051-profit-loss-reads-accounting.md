@@ -60,7 +60,18 @@ penjualan tanpa Jenis Barang (DERMO, TLEKUNG, G001).
 - Bea/gaji yang dicatat sebelum 0123 sudah ikut jurnal kalau memang dikirim jembatan; yang
   tertinggal disinkronkan, jadi hutang lama yang dilunasi tidak lagi membuat saldo Utang minus.
 
+## Tambahan 2026-10-02: sinkron otomatis
+
+Bos Cyo: "sinkron itu jadikan auto sinkron aja". Langkah sinkron (fakta POS, fakta admin,
+koreksi Hitung Ulang HPP) kini satu mesin, `src/accounting-auto-sync.js`, dipakai tombol manual
+dan jalur otomatis. Jalur otomatis berjalan lazy -- tanpa cron dan tanpa polling (invariant #6):
+saat panel Akuntansi dibuka dan saat Laporan Untung Rugi dibaca, hanya untuk gerai
+`edition = 'ACCOUNTING'`, maksimal 25 fakta per jenis per gerai per permintaan. Fakta yang sudah
+dicoba dalam 15 menit terakhir dan masih gagal (mis. `NEEDS_CONFIGURATION`) dilewati supaya
+membuka laporan tidak mengulang kerja yang pasti gagal dan tidak menguras kuota D1. Kegagalan
+sinkron tidak pernah menggagalkan laporan. Tombol sinkron manual tetap ada dan mencoba semuanya.
+
 ## DOC-IMPACT
 
 Perbarui kalau: pemetaan subtype akun berubah, mesin POS dipensiunkan, cache dipasang untuk
-sumber jurnal, atau jenis fakta admin baru ditambahkan ke backlog sinkron.
+sumber jurnal, atau jenis fakta admin baru ditambahkan ke backlog sinkron, atau pemicu/jeda sinkron otomatis berubah.

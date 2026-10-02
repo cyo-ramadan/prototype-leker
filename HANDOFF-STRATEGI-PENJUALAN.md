@@ -223,6 +223,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-02 | pengembangan | Laporan Untung Rugi gerai yang memakai Akuntansi kini dibaca dari pembukuan (beban yang dicatat di Akuntansi ikut mengurang), beban dirinci per nama akun, ada peringatan bila ada transaksi belum masuk pembukuan; grafik perbandingan gerai batangnya satu arah, untung/rugi dibedakan warna | JUAL | Satu angka untung-rugi yang sama di laporan pemilik dan di pembukuan; §5 perlu ditinjau: HPP DERMO dan GENENGAN masih tidak wajar (data biaya bahan), jangan didemokan dengan dua gerai itu |
 | 2026-10-02 | pengembangan | Hitung Ulang HPP: pemilik membetulkan harga bahan yang salah tercatat (pratinjau dulu, lalu terapkan); hanya HPP yang berubah, laporan dan pembukuan ikut terkoreksi | JUAL | Menjawab keberatan "angka HPP berantakan karena salah input" tanpa minta bantuan akuntan |
 | 2026-10-02 | pengembangan | Stok Gerai di Admin Entity: tombol pilih gerai, daftar bahan dengan satuan di samping nama (satu gerai sekali lihat); tabel semua gerai (satu kolom per gerai) lewat Export Excel atau PDF |
+| 2026-10-02 | pengembangan | Sinkron Akuntansi otomatis: transaksi yang belum masuk pembukuan dimasukkan sendiri saat laporan untung rugi atau panel Akuntansi dibuka; tidak perlu tekan tombol sinkron |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

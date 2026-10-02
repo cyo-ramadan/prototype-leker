@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { handleUiProfileApi } from '../src/ui-profile.js';
+import { UI_SKIN_KEY, setTenantPolicySetting } from '../src/tenant-policy.js';
+import { assetRoute } from '../src/index.js';
+
+// Skin D = "Mode Warung" (DESAIN-SKIN-D-WARUNG.md): bukan hanya tampilan,
+// tapi kasir satu layar + layar Pemilik "Hari ini" -- dan hanya untuk tenant
+// yang memilih D.
+const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+const migrationDir = new URL('../migrations/', import.meta.url);
+
+class D1Statement {
+  constructor(db, sql, params = []) { this.db = db; this.sql = sql; this.params = params; }
+  bind(...params) { return new D1Statement(this.db, this.sql, params); }
+  first() { return this.db.prepare(this.sql).get(...this.params) ?? null; }
+  all() { return { results: this.db.prepare(this.sql).all(...this.params) }; }
+  run() { const r = this.db.prepare(this.sql).run(...this.params); return { meta: { changes: Number(r.changes || 0) } }; }
+}
+class D1Database { constructor(db) { this.db = db; } prepare(sql) { return new D1Statement(this.db, sql); } }
+
+function migratedDatabase() {
+  const db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON;');
+  for (const file of readdirSync(migrationDir).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort()) {
+    db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
+  }
+  return db;
+}
+
+test('pilihan D menjadi skin "d" hanya untuk tenant yang memilihnya', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    await setTenantPolicySetting(env.DB, 'TEN-LAB-TAMPILAN', UI_SKIN_KEY, 'D', { role: 'OWNER', id: 'test' });
+    const profile = async query => (await handleUiProfileApi(new Request(`https://example.test/api/ui-profile?${query}`), env, '/api/ui-profile')).json();
+    assert.equal((await profile('store=LAB01')).skin, 'd');
+    assert.equal((await profile('store=G001')).skin, 'classic');
+  } finally {
+    db.close();
+  }
+});
+
+test('/s/<kode>/warung membuka halaman Mode Warung', () => {
+  assert.equal(assetRoute('/s/LAB01/warung'), '/warung');
+  assert.equal(assetRoute('/s/LAB01/warung/'), '/warung');
+  assert.equal(assetRoute('/s/LAB01/cashier'), '/cashier');
+});
+
+test('Mode Warung menjual lewat jalur kasir yang sama dan tidak membuat ulang absen/laci', () => {
+  const ui = read('public/warung.js');
+  assert.match(ui, /'\/api\/cashier\/sales', \{ method: 'POST'/);
+  assert.match(ui, /\/api\/cashier\/drawer/);
+  assert.match(ui, /attendanceStatus !== 'in'/);
+  assert.doesNotMatch(ui, /\/api\/cashier\/drawer\/open|\/api\/staff\/attendance/);
+  // Cara bayar untuk pembeli saja: utang ke supplier & legacy tidak ditawarkan.
+  assert.match(ui, /\['PAYABLE', 'NON_CASH'\]/);
+  // Tanpa polling periodik (invariant #6).
+  assert.doesNotMatch(ui, /setInterval/);
+});
+
+test('pintu masuk & layar Pemilik hanya aktif di skin D', () => {
+  const entry = read('public/warung-entry.js');
+  const owner = read('public/warung-pemilik.js');
+  assert.match(entry, /MaxiSkin\?\.skin\?\.\(\) !== 'd'\) return/);
+  assert.match(owner, /MaxiSkin\?\.skin\?\.\(\) !== 'd'\) return unmount\(\)/);
+  assert.doesNotMatch(owner, /setInterval/);
+  assert.match(read('public/cashier.html'), /<script src="\/warung-entry\.js"><\/script>/);
+  assert.match(read('public/entity-admin.html'), /<script src="\/warung-pemilik\.js"><\/script>/);
+});

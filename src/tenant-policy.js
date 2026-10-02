@@ -24,7 +24,10 @@ export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
   { value: 'B', label: 'B · Papan Siaga' },
-  { value: 'C', label: 'C · Kabar Gerai' }
+  { value: 'C', label: 'C · Kabar Gerai' },
+  // D bukan cuma tampilan: "Mode Warung" untuk kelontong/UMKM kecil --
+  // kasir satu layar + layar Pemilik "Hari ini" (DESAIN-SKIN-D-WARUNG.md).
+  { value: 'D', label: 'D · Mode Warung' }
 ]);
 
 export const TENANT_POLICY_DEFINITIONS = Object.freeze([
@@ -39,7 +42,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     type: 'choice',
     options: UI_SKIN_OPTIONS,
     label: 'Tampilan (skin)',
-    description: '0 = tampilan sekarang. A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    description: '0 = tampilan sekarang. D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
     defaultValue: '0'
   }
 ]);

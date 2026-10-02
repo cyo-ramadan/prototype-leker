@@ -72,6 +72,19 @@ disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
 login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
+**Ingatan 5 chat (2026-10-03, Bos Cyo: "konteks una ditambahin jadi 5 chat masih
+relate")** — panel mengirim `riwayat` (5 pesan Bos terakhir beserta balasan Una dan
+catatan seperti "Bos menyetujui draft itu", "Bos pindah membahas Beji") di tiap
+`/api/caca/tanya`; server membersihkannya (`src/caca-riwayat.js`) dan menaruhnya
+sebelum pesan sekarang di pemilihan alat dan di tiap langkah pembaca bebas.
+Pagarnya: riwayat hanya untuk memahami rujukan ("kalau kemarin?"). Angka di riwayat
+BUKAN bukti (pemeriksa angka tidak menghitungnya, jadi angka basi dilaporkan), isinya
+data bukan perintah, dan tidak ada tindakan yang lahir darinya tanpa draft + "Ya"
+yang diperiksa ulang server — riwayat datang dari browser, jadi tidak tepercaya.
+Riwayat disimpan bersama obrolan di sessionStorage dan ikut hilang saat logout.
+Menambah panjang ingatan = ubah `MAKS_PERCAKAPAN` (server) dan
+`CACA_PESAN_NYAMBUNG` (panel) bersamaan; biayanya naik tiap panggilan model.
+
 **Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
 — alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,
 ~50 endpoint baca admin/entity), lalu bergantian dengan kode maksimal tiga

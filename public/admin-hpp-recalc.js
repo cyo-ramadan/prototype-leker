@@ -71,7 +71,7 @@
     const chosen = select.value;
     select.innerHTML = components.length
       ? components.map(item => `<option value="${item.productId}">${escapeHtml(item.name)}${item.unitSymbol ? ` (${escapeHtml(item.unitSymbol)})` : ''}</option>`).join('')
-      : '<option value="">Belum ada bahan yang dipakai produksi dadakan</option>';
+      : '<option value="">Belum ada bahan di gerai ini</option>';
     if (chosen) select.value = chosen;
     if (!el('hppRecalcFrom').value) el('hppRecalcFrom').value = '2026-01-01';
     showCurrent();
@@ -107,7 +107,10 @@
         ${s.byDate.map(day => `<tr style="text-align:right"><td style="text-align:left;padding:6px">${escapeHtml(day.businessDate)}</td><td style="padding:6px">${day.saleCount}</td><td style="padding:6px">${rupiahText(day.oldHppRupiah)}</td><td style="padding:6px">${rupiahText(day.newHppRupiah)}</td><td style="padding:6px">${rupiahText(day.deltaRupiah)}</td></tr>`).join('')}
       </table></div>
       <button id="hppRecalcApply" class="primary-btn" type="button" style="margin-top:12px">Terapkan hitung ulang</button>`
-      : '<div class="empty">Tidak ada penjualan yang HPP-nya berubah dengan harga ini.</div>'}`;
+      : (s.averageCostOnly
+        ? `<div class="admin-tip" style="margin-bottom:10px">Tidak ada penjualan yang terdampak. Terapkan hanya membetulkan <b>harga rata-rata ${escapeHtml(payload.component)}</b> dari ${rupiahText(s.previousAverageCostRupiah)} menjadi ${rupiahText(s.newAverageCostRupiah)} per satuan, supaya produksi berikutnya tidak memakai harga yang salah. Stok dan pembelian tidak berubah.</div>
+           <button id="hppRecalcApply" class="primary-btn" type="button">Terapkan harga rata-rata</button>`
+        : '<div class="empty">Tidak ada penjualan yang HPP-nya berubah dan harga rata-rata bahan sudah sama dengan harga ini.</div>')}`;
     el('hppRecalcApply')?.addEventListener('click', () => apply().catch(error => setStatus(error.message)));
     setStatus('');
   }
@@ -120,7 +123,9 @@
     setStatus('Menerapkan…');
     const payload = await call(`/api/admin/hpp-recalculation?${storeQuery()}`, { method: 'POST', body: JSON.stringify({ ...previewed, reason }) });
     const posted = (payload.journals || []).filter(item => item.status === 'POSTED').length;
-    setStatus(`Selesai. HPP dikoreksi ${rupiahText(payload.summary.deltaRupiah)}.${posted ? ` ${posted} jurnal koreksi masuk pembukuan.` : ''}`);
+    setStatus(payload.summary.averageCostOnly
+      ? 'Selesai. Harga rata-rata bahan sudah dibetulkan.'
+      : `Selesai. HPP dikoreksi ${rupiahText(payload.summary.deltaRupiah)}.${posted ? ` ${posted} jurnal koreksi masuk pembukuan.` : ''}`);
     previewed = null;
     el('hppRecalcResult').style.display = 'none';
     await load();

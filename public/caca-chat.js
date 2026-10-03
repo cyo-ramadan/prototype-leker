@@ -104,7 +104,7 @@ const CACA_KERANGKA = `
     <form id="cacaTanyaForm" class="caca-ketik">
       <button id="cacaLampirkan" class="caca-ikon-btn caca-tambah" type="button" aria-label="Kirim foto daftar menu atau lembar rekap" title="Kirim foto daftar menu atau lembar rekap">+</button>
       <input id="cacaGambar" type="file" accept="image/*" hidden />
-      <textarea id="cacaPertanyaan" rows="1" maxlength="4000" placeholder="Ketik pesan" autocomplete="off"></textarea>
+      <textarea id="cacaPertanyaan" rows="1" placeholder="Ketik pesan" autocomplete="off"></textarea>
       <button id="cacaTanyaKirim" class="caca-kirim" type="submit" aria-label="Kirim" disabled>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg>
       </button>
@@ -794,11 +794,12 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
   }
   if (draft.aksi === 'koreksi_hpp_banyak') {
     const dikoreksi = selesai.filter(h => h.hasil === 'dikoreksi');
-    teks.textContent = `Selesai: HPP ${dikoreksi.length} bahan dikoreksi.`;
-    cacaCatatRiwayat('sistem', `Bos menyetujui; Una mengoreksi HPP ${dikoreksi.length} bahan: ${dikoreksi.map(h => h.nama).join(', ')}.`);
+    const sudahBenar = selesai.filter(h => h.hasil === 'sudah_sesuai');
+    teks.textContent = `Selesai: HPP ${dikoreksi.length} bahan dikoreksi${sudahBenar.length ? `, ${sudahBenar.length} sudah benar` : ''}.`;
+    cacaCatatRiwayat('sistem', `Bos menyetujui; Una mengoreksi HPP ${dikoreksi.length} bahan: ${dikoreksi.map(h => h.nama).join(', ')}${sudahBenar.length ? `. Sudah benar (dilewati): ${sudahBenar.map(h => h.nama).join(', ')}` : ''}.`);
     cacaSimpanPercakapan();
     const gerai = cacaNamaScope(scope);
-    cacaTambahGelembung('caca', `Beres, HPP ${dikoreksi.length} bahan di ${gerai} sudah Una koreksi dan penjualannya dihitung ulang. Jurnal koreksinya dibuat otomatis; kalau ada yang belum masuk pembukuan, minta Una Sinkron Akuntansi.`);
+    cacaTambahGelembung('caca', `Beres, HPP ${dikoreksi.length} bahan di ${gerai} sudah Una koreksi dan penjualannya dihitung ulang${sudahBenar.length ? ` (${sudahBenar.length} ternyata sudah benar, Una lewati)` : ''}. Rinciannya ada di Riwayat Hitung Ulang HPP. Jurnal koreksinya dibuat otomatis; kalau ada yang belum masuk pembukuan, minta Una Sinkron Akuntansi.`);
     return;
   }
   const dinonaktifkan = selesai.filter(h => h.hasil === 'dinonaktifkan');

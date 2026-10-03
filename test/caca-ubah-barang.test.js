@@ -253,7 +253,7 @@ test('agen: "ganti harga ... jadi 7rb" menuju ubah_barang dengan riwayat; prompt
     assert.equal(panggilan.length, 1);
     assert.match(panggilan[0].system, /ubah_barang: /);
     assert.doesNotMatch(panggilan[0].system, /tidak memiliki alat/);
-    assert.match(panggilan[0].system, /mengubah barang \(ubah_barang/);
+    assert.match(panggilan[0].system, /alat tindakan yang ada di daftar[\s\S]*ubah_barang/);
   } finally { galeh.db.close(); }
 });
 

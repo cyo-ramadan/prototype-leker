@@ -23,7 +23,9 @@ import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
 export const ALAT_RENCANA = 'rencana';
-export const MAKS_LANGKAH_RENCANA = 5;
+export const MAKS_LANGKAH_RENCANA = 8;
+// Perintah satu langkah boleh memuat daftar lengkap (mis. 30 baris koreksi HPP).
+export const MAKS_PERINTAH_LANGKAH = 4000;
 
 // Satu skema untuk memilih alat SEKALIGUS menangkap isinya, bukan dua panggilan
 // terpisah. Memisahkannya terasa lebih rapi tapi menggandakan biaya tiap
@@ -89,7 +91,7 @@ export function susunRencana(mentah) {
   const langkah = (Array.isArray(mentah) ? mentah : [])
     .map((l) => ({
       judul: String(l?.judul ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
-      perintah: String(l?.perintah ?? '').replace(/\s+/g, ' ').trim().slice(0, 400)
+      perintah: String(l?.perintah ?? '').replace(/[ \t]+/g, ' ').trim().slice(0, MAKS_PERINTAH_LANGKAH)
     }))
     .filter((l) => l.judul && l.perintah)
     .slice(0, MAKS_LANGKAH_RENCANA);
@@ -144,10 +146,14 @@ function promptPilihAlat(konteks) {
     '  jangan bilang tidak punya akses ke master.',
     '- Harga/HPP/stok barang tertentu yang disebut namanya = cek_barang (bukan baca_api).',
     `- ${ALAT_RENCANA}: pilih ini HANYA kalau perintahnya berisi 2 pekerjaan atau lebih yang berurutan dan saling bergantung,`,
-    '  mis. "cek harga yang anomali, lalu ganti dengan harga normal". Tulis 2-5 langkah: judul pendek + perintah',
+    `  mis. "cek harga yang anomali, lalu ganti dengan harga normal". Tulis 2-${MAKS_LANGKAH_RENCANA} langkah: judul pendek + perintah`,
     '  lengkap yang bisa dikerjakan sendiri (rujuk "hasil langkah sebelumnya" untuk data yang baru akan diketahui).',
     '  Jangan mengarang angka: kalau butuh angka dari Bos (mis. harga normal), perintah langkahnya minta Una',
     '  menanyakannya. Bukan untuk satu pertanyaan atau satu perintah tunggal.',
+    '  Kalau pesan Bos sudah memuat daftar/angka untuk sebuah langkah, perintah langkah itu WAJIB menyalin daftarnya',
+    '  LENGKAP dan PERSIS (semua baris, angka dan tanggal apa adanya) — jangan diringkas jadi "sesuai daftar".',
+    '- Satu daftar panjang untuk SATU alat (mis. daftar koreksi HPP, daftar barang, daftar tipe barang) bukan rencana:',
+    '  pilih alatnya langsung, sepanjang apa pun daftarnya.',
     '- Membuat barang/bahan/resep: tetap pilih alatnya walau detailnya kurang (kategori, satuan, harga beli, jumlah',
     '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
@@ -157,12 +163,18 @@ function promptPilihAlat(konteks) {
     '  "yang itu", "maksudnya ... tadi"), yang menyebut barang/gerai/angka tertentu, atau yang meminta tindakan',
     '  (ubah, betulkan, koreksi, hapus). Rujukan: lengkapi dari percakapan sebelumnya lalu pilih alat data atau tindakan.',
     '- Pertanyaan angka/data gerai (untung, stok, HPP barang tertentu) tetap pakai alat baca.',
-    '- Mengoreksi/mengubah HPP sebuah bahan yang salah atau tidak wajar, termasuk menghitung ulang HPP penjualan sejak',
+    '- Mengoreksi/mengubah HPP SATU bahan yang salah atau tidak wajar, termasuk menghitung ulang HPP penjualan sejak',
     '  tanggal yang salah = hitung_ulang_hpp. Salin nama bahan, harga benar per satuan, dan tanggal PERSIS seperti disebut.',
-    '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu juga belum bisa mengubah atau',
-    '  menghapus data lain — pengecualiannya: mengubah barang (ubah_barang: harga jual, harga beli, nama, kategori),',
-    '  menonaktifkan barang (nonaktifkan_barang, termasuk "batalkan barang yang barusan dibuat"), dan koreksi HPP',
-    '  (hitung_ulang_hpp). Selain itu jawab "tidak_ada" dan sebutkan alasannya.',
+    '- Koreksi HPP 2 bahan atau lebih (daftar "nama = harga", per baris atau dipisah koma) = koreksi_hpp_banyak, bukan',
+    '  hitung_ulang_hpp. Salin SEMUA baris ke kh_daftar dengan URUTAN yang sama; harga disalin PERSIS (koma tetap koma,',
+    '  titik tetap titik, tanpa "per g"/"per pcs"); tanggal mulai ke kh_dari. Jangan diringkas, jangan dipilih sebagian.',
+    '- Membetulkan Tipe Barang (bahan baku / setengah jadi / barang jadi), Jenis Barang, atau satuan dasar, satu atau',
+    '  banyak barang = betulkan_klasifikasi_barang. Salin SEMUA nama barang ke kb_daftar, masing-masing dengan isian yang disebut.',
+    '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu tidak bisa menghapus transaksi atau',
+    '  mengedit jurnal yang sudah tercatat. Mengubah data hanya lewat alat tindakan yang ada di daftar di atas (mis.',
+    '  ubah_barang, nonaktifkan_barang, hitung_ulang_hpp, koreksi_hpp_banyak, betulkan_klasifikasi_barang,',
+    '  sinkron_akuntansi, samakan_aturan_jurnal, atur_cara_bayar). Kalau tidak ada alat yang cocok, jawab "tidak_ada"',
+    '  dan sebutkan alasannya.',
     '- Ganti harga/nama/kategori barang yang SUDAH ADA = ubah_barang, bukan buat_barang. Nama barang disalin tanpa',
     '  nama gerai ("di mandala" itu gerai, bukan bagian nama). Salah ketik nama dibetulkan sistem, jangan ditanyakan.',
     '- Kalau yang dibayar memakai uang tunai/kas/laci, tetap pilih alatnya dan salin cara bayarnya apa adanya;',

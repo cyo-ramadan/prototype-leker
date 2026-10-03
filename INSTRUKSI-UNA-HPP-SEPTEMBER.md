@@ -6,12 +6,14 @@ Dibuat 2026-10-03 oleh Hana atas permintaan Bos Cyo. Angka dihitung dari data pr
 
 1. Buka panel Una. **Pilih gerainya dulu** di pengalih lingkup (bukan "Buku entity"): alat koreksi HPP hanya bekerja per gerai.
 2. Kalau gerai itu punya blok **Langkah 0** (membetulkan tipe barang), tempel itu dulu. Una menampilkan draft, cek, tekan **Ya**. Ini wajib duluan: bahan yang tercatat sebagai Barang Jadi tidak muncul di daftar yang boleh dikoreksi HPP-nya.
-3. Tempel blok **Langkah 1** gerai itu. Una menampilkan **satu draft** berisi semua bahan (tabel: HPP sekarang, harga benar, jumlah penjualan terdampak, selisih HPP). Cek, tekan **Ya** satu kali. Una menjalankannya berurutan sambil menunjukkan kemajuan.
+3. Tempel blok **Langkah 1** gerai itu. Una menampilkan **satu draft** berisi semua bahan (tabel: HPP sekarang, harga benar, tanggal mulai). Cek, tekan **Ya** satu kali. Una menjalankannya berurutan sambil menunjukkan kemajuan; jumlah penjualan dan selisih HPP tiap bahan tercatat di Riwayat Hitung Ulang HPP. Bahan yang ternyata sudah benar dilewati otomatis.
 4. Ulangi untuk gerai berikutnya, lalu tempel blok **Penutup** untuk tiap gerai.
 
 **Penting:** harga memakai **koma** sebagai desimal (`4,664` = Rp4 lebih sedikit, bukan empat ribu). Jangan diganti titik: `4.664` dibaca Una sebagai empat ribu enam ratus enam puluh empat (pemisah ribuan).
 
 Kalau Una berhenti di tengah (mis. satu bahan ditolak), tombol "Lanjutkan dari ..." muncul; bahan yang sudah jalan tidak diulang.
+
+Kirim **satu blok per pesan** (Langkah 0, lalu Langkah 1, lalu Penutup). Satu pesan maksimal 8.000 huruf; kalau lebih, Una menolak dengan jelas dan tidak mengerjakan sebagian.
 
 ## Dasar angka
 

@@ -31,7 +31,7 @@
       keyOf: button => button.dataset.entityTab,
       ignore: [],
       groups: [
-        { id: 'stores', icon: '🏪', label: 'Gerai', items: ['stores'] },
+        { id: 'stores', icon: '🏪', label: 'Gerai', items: ['stores', 'drawerstatus'] },
         { id: 'reports', icon: '📈', label: 'Laporan', items: ['reports', 'storereport'] },
         { id: 'goods', icon: '📦', label: 'Barang', items: ['productmasters', 'entityrecipes', 'entitystock'] },
         { id: 'team', icon: '👥', label: 'Karyawan', items: ['employees'] },
@@ -51,7 +51,7 @@
     accountingWorkspaceTab: 'Pembukuan', accountingSettingsTab: 'Pengaturan Pembukuan', sharedaccounts: 'Rekening Bersama',
     hutangpiutang: 'Hutang & Pembayaran', beaops: 'Biaya Operasional',
     customers: 'Pelanggan', 'customer-feedback': 'Kotak Saran', vouchers: 'Voucher',
-    storereport: 'Laporan per Gerai', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
+    storereport: 'Laporan per Gerai', drawerstatus: 'Status Laci', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
     ledger: 'Buku Usaha'
   };
   const ENTITY_LABELS = { stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama' };

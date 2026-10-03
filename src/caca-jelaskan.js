@@ -112,6 +112,17 @@ export const KAMUS = Object.freeze([
     tawaran: [buka('products')]
   },
   {
+    id: 'master_barang',
+    judul: 'Master barang: gerai atau entity?',
+    kunci: ['master barang', 'data barang', 'kode barang', 'master entity', 'barang entity', 'harga di master'],
+    isi: [
+      'Harga jual, harga beli, nama, dan kategori barang disimpan di Data Barang TIAP GERAI — jadi harga Es Teh di Mandala bisa beda dengan di Dermo.',
+      'Entity cuma menyimpan Kode Barang dan foto, supaya barang yang sama bisa dipakai banyak gerai tanpa diketik ulang.',
+      'Kalau Bos minta Una ubah harga, yang diubah Data Barang gerai yang dipilih di judul chat Una (tombol ▾), bukan gerai yang sedang terbuka di workspace.'
+    ].join('\n'),
+    tawaran: [buka('products')]
+  },
+  {
     id: 'satuan',
     judul: 'Satuan barang',
     kunci: ['satuan', 'unit', 'gram', 'pcs', 'mililiter', 'satuan dasar'],

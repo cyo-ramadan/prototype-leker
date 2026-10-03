@@ -22,6 +22,8 @@ import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup 
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
+export const ALAT_RENCANA = 'rencana';
+export const MAKS_LANGKAH_RENCANA = 5;
 
 // Satu skema untuk memilih alat SEKALIGUS menangkap isinya, bukan dua panggilan
 // terpisah. Memisahkannya terasa lebih rapi tapi menggandakan biaya tiap
@@ -38,7 +40,7 @@ function skemaPilihAlat() {
     properties: {
       alat: {
         type: 'string',
-        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_BACA_API, ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), 'tidak_ada'],
+        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_BACA_API, ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), ALAT_RENCANA, 'tidak_ada'],
         description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
       },
       periode: { type: 'string', enum: [...PERIODE] },
@@ -47,6 +49,18 @@ function skemaPilihAlat() {
       ...TANGKAP_PENGELUARAN_SCHEMA.properties,
       ...SKEMA_AKSI,
       ...SKEMA_BACA_API,
+      rencana_langkah: {
+        type: 'array',
+        description: `rencana: ${MAKS_LANGKAH_RENCANA} langkah paling banyak, urut.`,
+        items: {
+          type: 'object',
+          required: ['judul', 'perintah'],
+          properties: {
+            judul: { type: 'string', description: 'Judul langkah, pendek dan santai, mis. "Baca daftar harga".' },
+            perintah: { type: 'string', description: 'Perintah lengkap untuk langkah itu, seperti diketik Bos ke Una.' }
+          }
+        }
+      },
       alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
     }
   };
@@ -68,6 +82,18 @@ export function tanyaHalus(namaAlat, tanya) {
   // Kalimat terpisah: pertanyaannya bisa diawali nama orang/akun yang huruf
   // besarnya tidak boleh berubah.
   return `Dikit lagi ya Bos, biar catatan uangnya nggak meleset. ${teks}`;
+}
+
+/** Langkah rencana dari model, dibersihkan; null kalau tidak layak (kurang dari 2). */
+export function susunRencana(mentah) {
+  const langkah = (Array.isArray(mentah) ? mentah : [])
+    .map((l) => ({
+      judul: String(l?.judul ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      perintah: String(l?.perintah ?? '').replace(/\s+/g, ' ').trim().slice(0, 400)
+    }))
+    .filter((l) => l.judul && l.perintah)
+    .slice(0, MAKS_LANGKAH_RENCANA);
+  return langkah.length >= 2 ? langkah : null;
 }
 
 const SKEMA_JAWABAN = Object.freeze({
@@ -113,6 +139,15 @@ function promptPilihAlat(konteks) {
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
+    '- Fakta aplikasi: harga jual, harga beli, nama, kategori barang ada di Data Barang TIAP GERAI. Entity tidak',
+    '  menyimpan harga (hanya Kode Barang dan foto). Jadi "ubah di master" = ubah Data Barang gerai yang sedang dibuka;',
+    '  jangan bilang tidak punya akses ke master.',
+    '- Harga/HPP/stok barang tertentu yang disebut namanya = cek_barang (bukan baca_api).',
+    `- ${ALAT_RENCANA}: pilih ini HANYA kalau perintahnya berisi 2 pekerjaan atau lebih yang berurutan dan saling bergantung,`,
+    '  mis. "cek harga yang anomali, lalu ganti dengan harga normal". Tulis 2-5 langkah: judul pendek + perintah',
+    '  lengkap yang bisa dikerjakan sendiri (rujuk "hasil langkah sebelumnya" untuk data yang baru akan diketahui).',
+    '  Jangan mengarang angka: kalau butuh angka dari Bos (mis. harga normal), perintah langkahnya minta Una',
+    '  menanyakannya. Bukan untuk satu pertanyaan atau satu perintah tunggal.',
     '- Membuat barang/bahan/resep: tetap pilih alatnya walau detailnya kurang (kategori, satuan, harga beli, jumlah',
     '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
@@ -191,6 +226,17 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
         ? `Una belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
         : 'Una belum bisa menjawab yang itu.'
     };
+  }
+
+  if (namaAlat === ALAT_RENCANA) {
+    const langkah = susunRencana(pilihan.value?.rencana_langkah);
+    if (!langkah) {
+      return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa memecah perintah itu jadi langkah-langkah. Coba sebut satu per satu ya.', belumLengkap: true };
+    }
+    // Rencana tidak menjalankan apa pun di server: panel yang mengirim tiap
+    // langkah sebagai pesan biasa, jadi tiap langkah tetap lewat pilih-alat,
+    // draft, dan "Ya" yang sama — rencana tidak membuka jalan pintas.
+    return { ok: true, alat: namaAlat, rencana: langkah, jawaban: 'Siap, Una kerjakan bertahap ya.' };
   }
 
   if (namaAlat === ALAT_BACA_API) {

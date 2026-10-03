@@ -10,6 +10,13 @@ yang ditulis lewat jalur lain, tidak ada aturan keuangan yang berubah.
 
 ---
 
+> **2026-10-02:** rancangan "pemilik jaga sendiri, tanpa karyawan" yang sempat ditulis di sini
+> dipindah jadi **skin E** (Bos Cyo: *"yang kusus ga ada karyawan dibuat skin e"*) —
+> `DESAIN-SKIN-E-JAGA-SENDIRI.md`. Skin D tetap untuk warung yang dijaga bergantian
+> (pemilik + anak/karyawan). Katalog semua skin: `DESAIN-SKIN-KATALOG.md`.
+
+---
+
 ## 1. Siapa pembelinya
 
 **Bu Sri, 46 tahun, warung kelontong di depan rumah.** 300-an jenis barang: rokok, mi instan,
@@ -96,4 +103,5 @@ Kalimat iklannya: **"Untungnya kelihatan. Uangnya aman."**
 - Semua penjualan tetap lewat jalur kasir yang sama (laci aktif, stok, modal, izin).
 - Absen dan buka laci tetap memakai alur yang sudah ada (foto + lokasi), tidak dibuat ulang.
 
+<!-- DOC-IMPACT: 2026-10-02 revisi 2 (pemilik tunggal) dipindah ke skin E: DESAIN-SKIN-E-JAGA-SENDIRI.md. -->
 <!-- DOC-IMPACT: 2026-10-03 dokumen baru; menambah skin D (Mode Warung) di belakang pilihan tenant ui_skin = D. -->

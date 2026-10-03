@@ -155,8 +155,10 @@ export async function handleCashierDrawerApi(request, env, pathname) {
       return json({ error: `Laci sudah dibuka oleh ${existing.cashierName}.`, code: 'DRAWER_ALREADY_OPEN', drawer: existing }, 409);
     }
     // Bos Cyo 2026-09-04: cuma kasir yang sudah presensi masuk yang boleh
-    // buka laci dan jadi penanggung jawabnya.
-    if (await latestAttendanceStatus(db, cashier.id) !== 'in') {
+    // buka laci dan jadi penanggung jawabnya. Kecuali tenant skin E (Bos Cyo
+    // 2026-10-02): pemiliknya jaga sendiri, presensi ke diri sendiri tidak
+    // menjaga apa-apa.
+    if (!cashier.store.ownerOperated && await latestAttendanceStatus(db, cashier.id) !== 'in') {
       return json({ error: 'Presensi masuk dulu sebelum buka laci.', code: 'PRESENSI_REQUIRED' }, 403);
     }
     const body = await readJson(request);

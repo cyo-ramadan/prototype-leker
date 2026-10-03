@@ -4,6 +4,8 @@
 //  - kalau belum (perlu absen / buka laci), Kasir lengkap tetap tampil dan ada
 //    tombol "Kembali ke Mode Warung" untuk pulang setelah selesai;
 //  - ?lengkap=1 (dari menu "Kasir lengkap" di Mode Warung) tidak diarahkan balik.
+// Skin E (Jaga Sendiri): pemiliknya sendiri yang jaga, tidak ada absen -- kasir
+// selalu diarahkan ke Mode Warung (buka/tutup warung ada di sana).
 // Tenant skin 0/A/B/C tidak tersentuh sama sekali.
 (() => {
   const params = new URLSearchParams(location.search);
@@ -17,16 +19,18 @@
     link.href = warungPath();
     link.textContent = '🏪 Kembali ke Mode Warung';
     link.style.cssText = 'position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:80;'
-      + 'background:#1446c8;color:#fff;text-decoration:none;font-weight:800;font-size:15px;padding:13px 18px;'
+      + `background:${window.MaxiSkin?.skin?.() === 'e' ? '#0A5A48' : '#1446c8'};color:#fff;` + 'text-decoration:none;font-weight:800;font-size:15px;padding:13px 18px;'
       + 'border-radius:999px;box-shadow:0 10px 24px rgba(17,24,39,.25)';
     document.body.appendChild(link);
   }
 
   async function check() {
-    if (window.MaxiSkin?.skin?.() !== 'd') return;
+    const skin = window.MaxiSkin?.skin?.();
+    if (skin !== 'd' && skin !== 'e') return;
     if (!localStorage.getItem('lekerCashierToken')) return;
     addReturnButton();
     if (params.get('lengkap') === '1') return;
+    if (skin === 'e') { location.replace(warungPath()); return; }
     try {
       const [me, drawer] = await Promise.all([
         fetch('/api/cashier/me', { cache: 'no-store' }).then(response => (response.ok ? response.json() : null)),

@@ -135,3 +135,82 @@ button { cursor: pointer; }
   max-width: calc(100vw - 32px); background: var(--ink); color: #fff; border-radius: 14px; padding: 12px 16px; font-size: 15px; font-weight: 600; transition: .2s ease;
 }
 .w-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---- Komponen skin E (dipakai hanya saat html.w-solo) ---------------------- */
+.w-open-box { display: grid; gap: 10px; width: 100%; max-width: 480px; text-align: left; }
+.w-untung { display: grid; gap: 12px; }
+.w-profit { border-radius: 24px; padding: 20px; display: grid; gap: 4px; background: var(--ink); color: #fff; }
+.w-profit small { font-size: 15px; font-weight: 800; }
+.w-profit b { font-size: clamp(40px, 12vw, 58px); line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.w-profit p { margin: 0; font-size: 16px; font-weight: 700; }
+.w-card { background: var(--card); border-radius: 22px; padding: 14px 16px; display: grid; gap: 4px; }
+.w-card h2 { margin: 0 0 6px; font-size: 18px; }
+.w-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 16.5px; }
+.w-row:last-of-type { border-bottom: 0; }
+.w-row span { min-width: 0; overflow-wrap: anywhere; }
+.w-row b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.w-note { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.w-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 130px; padding: 4px 0 2px; }
+.w-bar { height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 6px; align-items: end; justify-items: center; }
+.w-bar i { display: block; width: 100%; max-width: 34px; border-radius: 10px 10px 4px 4px; background: var(--green); }
+.w-bar.neg i { background: var(--red); border-radius: 4px 4px 10px 10px; }
+.w-bar small { font-size: 13px; font-weight: 800; color: var(--muted); }
+.w-close-btn { margin: 4px auto 0; }
+.w-tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  padding: 6px 10px calc(6px + var(--safe-b)); background: var(--card); border-top: 1px solid var(--line);
+}
+.w-tabs button { display: grid; justify-items: center; gap: 2px; min-height: 58px; border: 0; border-radius: 16px; background: transparent; font-weight: 800; font-size: 15px; color: var(--muted); }
+.w-tabs button span { font-size: 22px; line-height: 1; }
+.w-tabs button[aria-pressed="true"] { background: var(--blue-soft); color: var(--ink); }
+html.w-solo .w-cartbar { bottom: calc(70px + var(--safe-b)); padding-bottom: 10px; }
+html.w-solo .w-main { padding-bottom: calc(190px + var(--safe-b)); }
+html.w-solo .w-toast { bottom: calc(170px + var(--safe-b)); }
+
+/* ---- Skin E "Jaga Sendiri": pastel untuk permukaan, teks/angka gelap -------
+   Bos Cyo 2026-10-02: "warna pastel, kalo soft kan keliatan ini kasir engga kaku."
+   Kontras dihitung (DESAIN-SKIN-E-JAGA-SENDIRI.md §6): teks #1F2328 di semua
+   pastel >= 11,9:1; tombol hijau tua #0A5A48 + putih 8,2:1; angka untung
+   #075A30 7,9:1; minus #921A11 7,8:1. Tidak ada teks putih di atas pastel. */
+html[data-skin="e"] {
+  --ink: #1F2328; --ink-2: #3a3632; --muted: #57534E; --line: #F0E2D3;
+  --bg: #FFF8EF; --card: #ffffff;
+  --blue: #0A5A48; --blue-2: #075A30; --blue-soft: #D9F2E6;
+  --yellow: #FFD8C2; --yellow-soft: #FFF1BF;
+  --green: #075A30; --green-soft: #D9F2E6; --red: #921A11;
+  --font: "Nunito", "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+html[data-skin="e"] body { font-weight: 600; }
+/* Pola Shopee yang diambil: pita warna di atas dengan kotak cari di dalamnya --
+   tapi pitanya persik lembut dengan teks gelap, bukan oranye jenuh + teks putih. */
+html[data-skin="e"] .w-top { background: #FFD8C2; color: var(--ink); flex-wrap: wrap; border-radius: 0 0 24px 24px; padding-bottom: 12px; }
+html[data-skin="e"] .w-store small { opacity: 1; color: var(--ink-2); font-weight: 700; }
+html[data-skin="e"] .w-mark { color: var(--blue); }
+html[data-skin="e"] .w-more { background: rgba(255,255,255,.7); color: var(--ink); border-color: rgba(31,35,40,.12); }
+html[data-skin="e"] .w-top .w-search { position: static; flex: 1 0 100%; order: 3; background: transparent; padding: 4px 0 0; }
+html[data-skin="e"] .w-search input { border-color: transparent; background: #fff; }
+html[data-skin="e"] .w-search input:focus { border-color: var(--blue); }
+html[data-skin="e"] .w-clear { top: 13px; }
+html[data-skin="e"] .w-tile { box-shadow: none; }
+html[data-skin="e"] .w-tile:nth-child(5n+1) { background: #D9F2E6; }
+html[data-skin="e"] .w-tile:nth-child(5n+2) { background: #FFE5D4; }
+html[data-skin="e"] .w-tile:nth-child(5n+3) { background: #E8E3FA; }
+html[data-skin="e"] .w-tile:nth-child(5n+4) { background: #D9ECFA; }
+html[data-skin="e"] .w-tile:nth-child(5n+5) { background: #FFF1BF; }
+html[data-skin="e"] .w-tile span { color: var(--ink); }
+html[data-skin="e"] .w-tile.in-cart { border-color: var(--blue); background: #fff; }
+html[data-skin="e"] .w-tile i { background: var(--blue); color: #fff; }
+html[data-skin="e"] .w-pay span { background: #fff; color: var(--ink); }
+html[data-skin="e"] .w-due { background: #D9F2E6; color: var(--ink); }
+html[data-skin="e"] .w-due small { opacity: 1; color: var(--ink-2); }
+html[data-skin="e"] .w-change { background: #FFF1BF; border-color: #F2D98A; }
+html[data-skin="e"] .w-change.short { background: #FDE4E1; border-color: #F3B8B0; color: var(--red); }
+html[data-skin="e"] .w-profit { background: #D9F2E6; color: var(--ink); }
+html[data-skin="e"] .w-profit b { color: var(--green); }
+html[data-skin="e"] .w-profit b.neg { color: var(--red); }
+html[data-skin="e"] .w-profit p { color: var(--ink-2); }
+html[data-skin="e"] .w-card { border: 1px solid var(--line); }
+html[data-skin="e"] .w-done { background: #D9F2E6; color: var(--ink); }
+html[data-skin="e"] .w-done-check { background: var(--blue); color: #fff; }
+html[data-skin="e"] .w-done .w-big-btn { background: var(--blue); color: #fff; }
+html[data-skin="e"] .w-gate-icon { width: 96px; height: 96px; border-radius: 50%; background: #FFE5D4; display: grid; place-items: center; }

@@ -1,4 +1,4 @@
-# Pembangkit public/skin-{a,b,c,d}.css dari satu kerangka selektor (HANDOFF-UIUX-SIAP-JUAL.md §8).
+# Pembangkit public/skin-{a,b,c,d,e}.css dari satu kerangka selektor (HANDOFF-UIUX-SIAP-JUAL.md §8).
 # Pakai: python3 scripts/generate-skin-css.py public  -- ubah token di SKINS, jangan sunting CSS hasilnya.
 COMMON = r"""
 html[data-skin="{s}"] {{
@@ -148,6 +148,26 @@ html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total 
 /* Mode Warung: angka untung (warung-pemilik.js) langsung di atas, tanpa kalimat teknis. */
 html[data-skin="d"] #entityAdminApp .owner-heading .muted, html[data-skin="d"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
 html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }
+"""),
+ 'e': dict(title='E · Jaga Sendiri', note='Untuk warung TANPA karyawan (pemilik = kasir = admin): pastel lembut untuk permukaan, teks/angka gelap (kontras >= 7:1), tombol hijau tua. Cara pakai barunya (Buka/Tutup warung, tab Untung) ada di warung.html; aturan servernya di isOwnerOperatedChoice (src/tenant-policy.js). DESAIN-SKIN-E-JAGA-SENDIRI.md.', tok={
+  '--skin-font': '"Nunito", "Figtree", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#FFF8EF', '--skin-page-bg': '#FFF8EF', '--surface': '#ffffff', '--ink': '#1F2328', '--muted': '#57534E', '--line': '#F0E2D3',
+  '--brand': '#0A5A48', '--brand-2': '#075A30', '--green': '#075A30', '--green-soft': '#D9F2E6', '--amber': '#6A4000',
+  '--shadow': '0 6px 18px rgba(31,35,40,.06)', '--skin-card-shadow': 'none',
+  '--skin-top-bg': '#FFD8C2', '--skin-top-ink': '#1F2328', '--skin-top-muted': '#3a3632', '--skin-top-line': '#F5C9AE',
+  '--skin-mark-bg': '#0A5A48', '--skin-mark-ink': '#ffffff',
+  '--skin-hero-bg': '#D9F2E6', '--skin-hero-ink': '#1F2328', '--skin-hero-muted': '#3a3632',
+  '--skin-primary': '#0A5A48', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#0A5A48', '--skin-active-ink': '#ffffff',
+  '--skin-input-bg': '#ffffff', '--skin-chip-bg': '#FFF1BF', '--skin-focus': 'rgba(10,90,72,.20)',
+  '--skin-danger': '#921A11', '--skin-danger-soft': '#FDE4E1', '--skin-danger-line': '#F3B8B0', '--skin-warn': '#6A4000', '--skin-warn-soft': '#FFF1BF',
+  '--skin-r-sm': '14px', '--skin-r': '18px', '--skin-r-lg': '22px', '--skin-r-pill': '999px'}, extra=r"""
+html[data-skin="e"] body { font-size: 16.5px; font-weight: 600; }
+html[data-skin="e"] .brand { font-weight: 900; }
+html[data-skin="e"] .primary-btn { min-height: 54px; font-size: 17px; }
+html[data-skin="e"] .total-row strong, html[data-skin="e"] .cashier-draft-total strong { font-size: 28px; }
+html[data-skin="e"] .admin-card, html[data-skin="e"] .master-row { border-color: var(--line); }
+html[data-skin="e"] #entityAdminApp .owner-heading .muted, html[data-skin="e"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
+html[data-skin="e"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }
 """),
 }
 

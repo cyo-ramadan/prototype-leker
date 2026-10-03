@@ -258,4 +258,16 @@ Konsep, USP, dan fase berikutnya: **`DESAIN-SKIN-D-WARUNG.md`**. Ringkasnya:
 - `public/skin-*.css` sekarang dibangkitkan oleh `scripts/generate-skin-css.py` (ubah token di
   sana, jangan sunting CSS hasilnya).
 
+### 2026-10-02 — Skin E "Jaga Sendiri" + katalog catatan per skin
+
+Bos Cyo: *"yang kusus ga ada karyawan dibuat skin e"*. Konsep, persona (Bu Rina), riset warna:
+**`DESAIN-SKIN-E-JAGA-SENDIRI.md`**. Catatan persona + masalah + janji untuk SEMUA skin:
+**`DESAIN-SKIN-KATALOG.md`**.
+- Pilihan `ui_skin = E` → `data-skin="e"` (pastel, Nunito; `scripts/generate-skin-css.py` +
+  `public/warung.css`).
+- Satu-satunya skin yang mengubah aturan server (`isOwnerOperatedChoice`, `src/tenant-policy.js` →
+  `cashier.store.ownerOperated`): buka laci tanpa presensi, pengajuan selalu Auto Permit,
+  `GET /api/cashier/warung/untung` untuk login kasir.
+- Layar `/s/<kode>/warung` di tenant E: Buka/Tutup warung langsung di layar, tab Jual · Untung.
+
 <!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

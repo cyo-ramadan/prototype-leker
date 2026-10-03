@@ -1,5 +1,5 @@
 // Layar Pemilik "Hari ini" -- skin D / Mode Warung (DESAIN-SKIN-D-WARUNG.md §4b).
-// Hanya muncul kalau tenant memilih skin D. Satu angka besar (untung bersih
+// Hanya muncul kalau tenant memilih skin D atau E. Satu angka besar (untung bersih
 // hari ini semua gerai), lalu yang butuh keputusan, lalu daftar gerai.
 // Semua data dari endpoint yang sudah ada, hanya baca:
 //   GET /api/admin/reports/net-profit  (untung bersih per gerai per hari)
@@ -82,7 +82,7 @@
   function unmount() { $('hariIni')?.remove(); }
 
   async function load() {
-    if (window.MaxiSkin?.skin?.() !== 'd') return unmount();
+    if (!['d', 'e'].includes(window.MaxiSkin?.skin?.())) return unmount();
     const list = stores();
     if (!list.length || loading) return;
     const section = mount();
@@ -152,7 +152,7 @@
 
   document.addEventListener('click', event => { if (event.target.closest('[data-hi-refresh]')) load(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
-  window.addEventListener('maxi-skin-change', () => { lastStoresKey = ''; maybeLoad(); if (window.MaxiSkin?.skin?.() !== 'd') unmount(); });
+  window.addEventListener('maxi-skin-change', () => { lastStoresKey = ''; maybeLoad(); if (!['d', 'e'].includes(window.MaxiSkin?.skin?.())) unmount(); });
 
   function start() {
     const app = $('entityAdminApp');

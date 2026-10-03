@@ -7,18 +7,22 @@
   <title>MAXI · Jual</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&display=swap" />
-  <link rel="stylesheet" href="/warung.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" />
+  <link rel="stylesheet" href="/warung.css?v=20261002-skin-e-v1" />
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
   <script src="/store-context.js"></script>
-  <script src="/ui-skin.js?v=20261003-skin-abcd-v2"></script>
+  <script src="/ui-skin.js?v=20261002-skin-e-v1"></script>
   <script src="/staff-auth-fetch.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
 </head>
 <body>
   <!-- Mode Warung (skin D) -- DESAIN-SKIN-D-WARUNG.md. Satu layar untuk jualan:
        cari / paling sering -> keranjang -> Bayar -> kembalian. Penjualan tetap
        lewat jalur kasir yang sama (/api/cashier/sales); absen & buka laci tetap
-       lewat Kasir lengkap. -->
-  <header class="w-top">
+       lewat Kasir lengkap.
+       Skin E (Jaga Sendiri, DESAIN-SKIN-E-JAGA-SENDIRI.md) memakai halaman yang sama
+       dengan cara pakai pemilik tanpa karyawan: Buka/Tutup warung langsung di sini
+       (tanpa absen), tab Jual · Untung di bawah, warna pastel. -->
+  <header id="wTop" class="w-top">
     <div class="w-store">
       <span class="w-mark" aria-hidden="true">●</span>
       <div><strong id="wStoreName">Warung</strong><small id="wWho">Memuat…</small></div>
@@ -26,6 +30,7 @@
     <button id="wMoreBtn" class="w-more" type="button" aria-haspopup="menu" aria-expanded="false">Lainnya</button>
     <nav id="wMoreMenu" class="w-menu" role="menu" hidden>
       <a role="menuitem" id="wFullCashier" href="#">Kasir lengkap<small>Belanja, biaya, pesanan, tutup laci</small></a>
+      <button role="menuitem" id="wCloseShop" type="button" hidden>Tutup warung</button>
       <button role="menuitem" id="wRefresh" type="button">Muat ulang daftar barang</button>
       <button role="menuitem" id="wLogout" type="button">Keluar</button>
     </nav>
@@ -37,16 +42,46 @@
       <h1 id="wGateTitle">Warung belum dibuka</h1>
       <p id="wGateText">Absen dulu, lalu buka laci. Setelah itu Anda kembali ke sini untuk jualan.</p>
       <a id="wGateBtn" class="w-big-btn" href="#">Mulai jaga warung</a>
+      <div id="wOpenBox" class="w-open-box" hidden>
+        <label id="wOpenCashLabel" class="w-label" for="wOpenCash">Uang receh di kaleng sekarang</label>
+        <input id="wOpenCash" class="w-cash" type="text" inputmode="numeric" autocomplete="off" placeholder="Contoh: 100.000" />
+        <button id="wOpenBtn" class="w-big-btn" type="button">Buka warung</button>
+      </div>
     </section>
 
     <section id="wSell" hidden>
-      <div class="w-search">
+      <div id="wSearchBox" class="w-search">
         <input id="wSearch" type="search" inputmode="search" autocomplete="off" placeholder="Cari barang… (mis. indomie)" aria-label="Cari barang" />
         <button id="wSearchClear" class="w-clear" type="button" aria-label="Hapus pencarian" hidden>✕</button>
       </div>
       <h2 id="wListTitle" class="w-list-title">Paling sering</h2>
       <div id="wTiles" class="w-tiles"></div>
       <div id="wEmpty" class="w-empty" hidden></div>
+    </section>
+
+    <!-- Skin E: tab "Untung" -- angka dari GET /api/cashier/warung/untung -->
+    <section id="wUntung" class="w-untung" hidden aria-labelledby="wUntungTitle">
+      <div class="w-profit">
+        <small id="wUntungTitle">Untung hari ini</small>
+        <b id="wProfitToday">…</b>
+        <p id="wProfitCompare"></p>
+      </div>
+      <div class="w-card">
+        <div class="w-row"><span>Penjualan</span><b id="wRevenue">—</b></div>
+        <div class="w-row"><span>Modal barang yang terjual</span><b id="wModal">—</b></div>
+        <div class="w-row"><span>Biaya</span><b id="wBiaya">—</b></div>
+        <p class="w-note">Untung = penjualan − modal barang − biaya. Modal dihitung otomatis dari harga beli. Minus ditampilkan apa adanya.</p>
+      </div>
+      <div class="w-card">
+        <h2>7 hari terakhir</h2>
+        <div id="wWeek" class="w-week"></div>
+        <div class="w-row"><span>Total 7 hari</span><b id="wWeekTotal">—</b></div>
+      </div>
+      <div class="w-card">
+        <h2>Paling laku hari ini</h2>
+        <div id="wTopProducts" class="w-top-list"></div>
+      </div>
+      <button id="wCloseShopBtn" class="w-big-btn w-close-btn" type="button" hidden>Tutup warung</button>
     </section>
   </main>
 
@@ -79,6 +114,25 @@
     </div>
   </div>
 
+  <!-- Skin E: tutup warung = hitung uang di kaleng, lalu lihat untung -->
+  <div id="wCloseSheet" class="w-pay-screen" hidden role="dialog" aria-modal="true" aria-labelledby="wCloseTitle">
+    <div class="w-pay-inner">
+      <div class="w-sheet-head"><h2 id="wCloseTitle">Tutup warung</h2><button id="wCloseX" type="button" class="w-x" aria-label="Kembali">✕</button></div>
+      <div class="w-due"><small>Seharusnya ada di kaleng</small><b id="wExpected">…</b></div>
+      <div>
+        <small class="w-label">Hitung uangnya, lalu ketik di sini</small>
+        <input id="wCounted" class="w-cash" type="text" inputmode="numeric" autocomplete="off" placeholder="Uang di kaleng sekarang" aria-label="Uang di kaleng sekarang" />
+        <div class="w-change"><small id="wDiffLabel">Selisih</small><b id="wDiff">—</b></div>
+      </div>
+      <button id="wCloseFinish" class="w-big-btn" type="button" disabled>Tutup warung</button>
+    </div>
+  </div>
+
+  <nav id="wTabs" class="w-tabs" hidden aria-label="Menu utama">
+    <button type="button" data-tab="jual" aria-pressed="true"><span aria-hidden="true">🛒</span>Jual</button>
+    <button type="button" data-tab="untung" aria-pressed="false"><span aria-hidden="true">📈</span>Untung</button>
+  </nav>
+
   <div id="wDone" class="w-done" hidden role="status">
     <div class="w-done-check" aria-hidden="true">✓</div>
     <h2>Tersimpan</h2>
@@ -87,6 +141,6 @@
   </div>
 
   <div id="wToast" class="w-toast" role="status" aria-live="polite"></div>
-  <script src="/warung.js"></script>
+  <script src="/warung.js?v=20261002-skin-e-v1"></script>
 </body>
 </html>

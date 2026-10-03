@@ -8,6 +8,14 @@
 //   POST /api/cashier/sales     (penjualan -- stok, modal, laci, izin tetap dijaga server)
 // Absen dan buka laci TIDAK dibuat ulang di sini: tombol "Mulai jaga warung"
 // membawa ke Kasir lengkap, yang punya alur foto + lokasi + laci.
+//
+// Skin E (Jaga Sendiri -- DESAIN-SKIN-E-JAGA-SENDIRI.md), ditandai server
+// lewat cashier.store.ownerOperated: pemiliknya sendiri yang jaga, jadi
+//   - "Buka warung" langsung di sini (POST /api/cashier/drawer/open, server
+//     tidak mewajibkan absen untuk tenant ini; uang awal = sisa kemarin),
+//   - "Tutup warung" langsung di sini (GET /api/cashier/drawer/details untuk
+//     uang yang seharusnya ada, POST /api/cashier/drawer/close),
+//   - tab "Untung" (GET /api/cashier/warung/untung).
 (() => {
   const $ = id => document.getElementById(id);
   const storeCode = () => String(window.LEKER_STORE_CODE || '').toUpperCase();
@@ -22,10 +30,18 @@
     method: 'CASH',
     cash: null,
     canWrite: false,
-    busy: false
+    busy: false,
+    solo: false,
+    drawer: null,
+    lastClosing: null,
+    expected: null,
+    tab: 'jual'
   };
 
   const rupiah = value => `Rp${Math.round(Number(value) || 0).toLocaleString('id-ID')}`;
+  // Untung/selisih boleh minus -- tampilkan apa adanya (invariant #8), bukan abs().
+  const signed = value => { const number = Math.round(Number(value) || 0); return `${number < 0 ? '−' : ''}${rupiah(Math.abs(number))}`; };
+  const digitsOf = input => { const digits = input.value.replace(/\D/g, ''); input.value = digits ? Number(digits).toLocaleString('id-ID') : ''; return digits ? Number(digits) : null; };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const lineTotal = (product, qty) => Math.round(Number(product.price) * qty);
   const productById = id => state.products.find(product => Number(product.id) === Number(id));
@@ -123,7 +139,7 @@
 
   function renderCart() {
     const { count, total } = cartTotals();
-    $('wCartBar').hidden = count === 0 || !state.canWrite;
+    $('wCartBar').hidden = count === 0 || !state.canWrite || state.tab !== 'jual';
     $('wCartCount').textContent = count;
     $('wCartTotal').textContent = rupiah(total);
     $('wCartLines').innerHTML = [...state.cart].map(([id, qty]) => {
@@ -221,10 +237,165 @@
   function showGate(title, text, button, href) {
     $('wGate').hidden = false;
     $('wSell').hidden = true;
+    $('wGateBtn').hidden = false;
+    $('wOpenBox').hidden = true;
     $('wGateTitle').textContent = title;
     $('wGateText').textContent = text;
     $('wGateBtn').textContent = button;
     $('wGateBtn').href = href;
+  }
+
+  // Skin E: kotak cari pindah ke dalam pita atas (pola Shopee) dan hanya
+  // tampil saat layar Jual terbuka.
+  function syncSearch() {
+    const box = $('wSearchBox');
+    if (state.solo && box.parentElement?.id !== 'wTop') $('wTop').appendChild(box);
+    if (state.solo) box.hidden = $('wSell').hidden;
+  }
+
+  // ---- Skin E: Buka warung ----------------------------------------------------
+  function showOpenGate() {
+    showGate('Warung masih tutup', '', '', '#');
+    $('wGateBtn').hidden = true;
+    $('wOpenBox').hidden = false;
+    const hasYesterday = state.lastClosing !== null && state.lastClosing !== undefined;
+    $('wGateText').textContent = hasYesterday
+      ? `Uang di kaleng dari kemarin ${rupiah(state.lastClosing)}. Tinggal buka.`
+      : 'Pertama kali buka: berapa uang receh di kaleng sekarang?';
+    $('wOpenCashLabel').hidden = hasYesterday;
+    $('wOpenCash').hidden = hasYesterday;
+  }
+
+  async function openShop() {
+    if (state.busy) return;
+    const hasYesterday = state.lastClosing !== null && state.lastClosing !== undefined;
+    const amount = hasYesterday ? state.lastClosing : digitsOf($('wOpenCash'));
+    if (!hasYesterday && amount === null) return toast('Ketik dulu uang receh di kaleng (boleh 0).');
+    state.busy = true;
+    $('wOpenBtn').disabled = true;
+    try {
+      await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount: amount, shiftLabel: 'Buka warung' }) });
+      toast('Warung dibuka. Selamat berjualan!');
+      await load();
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      state.busy = false;
+      $('wOpenBtn').disabled = false;
+    }
+  }
+
+  // ---- Skin E: Tutup warung ---------------------------------------------------
+  function renderClose() {
+    const counted = state.counted;
+    const diffBox = $('wDiff').parentElement;
+    if (counted === null || counted === undefined || state.expected === null) {
+      $('wDiffLabel').textContent = 'Selisih';
+      $('wDiff').textContent = '—';
+      diffBox.classList.remove('short');
+    } else {
+      const diff = counted - state.expected;
+      $('wDiffLabel').textContent = diff === 0 ? 'Pas' : diff > 0 ? 'Uang lebih' : 'Uang kurang';
+      $('wDiff').textContent = diff === 0 ? '✓' : signed(diff);
+      diffBox.classList.toggle('short', diff < 0);
+    }
+    $('wCloseFinish').disabled = state.busy || counted === null || counted === undefined;
+    $('wCloseFinish').textContent = state.busy ? 'Menyimpan…' : 'Tutup warung';
+  }
+
+  async function openClose() {
+    $('wMoreMenu').hidden = true;
+    state.counted = null;
+    state.expected = null;
+    $('wCounted').value = '';
+    $('wExpected').textContent = '…';
+    openSheet('wCloseSheet');
+    renderClose();
+    try {
+      const payload = await api('/api/cashier/drawer/details');
+      state.expected = Number(payload.report?.totals?.expectedCash);
+      if (!Number.isFinite(state.expected)) state.expected = null;
+      $('wExpected').textContent = state.expected === null ? '—' : rupiah(state.expected);
+    } catch (error) {
+      $('wExpected').textContent = '—';
+      toast(error.message);
+    }
+    renderClose();
+    $('wCounted').focus();
+  }
+
+  async function closeShop() {
+    if (state.busy || state.counted === null || state.counted === undefined) return;
+    state.busy = true;
+    renderClose();
+    try {
+      await api('/api/cashier/drawer/close', { method: 'POST', body: JSON.stringify({ closingAmount: state.counted, depositAmount: 0, closingNote: 'Tutup warung (Jaga Sendiri)' }) });
+      closeSheet('wCloseSheet');
+      toast('Warung sudah tutup. Ini untung hari ini.');
+      await load();
+      showTab('untung');
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      state.busy = false;
+      renderClose();
+    }
+  }
+
+  // ---- Skin E: tab Untung -----------------------------------------------------
+  function showTab(tab) {
+    state.tab = state.solo ? tab : 'jual';
+    for (const button of document.querySelectorAll('#wTabs [data-tab]')) button.setAttribute('aria-pressed', String(button.dataset.tab === state.tab));
+    const untung = state.tab === 'untung';
+    $('wUntung').hidden = !untung;
+    if (untung) {
+      $('wGate').hidden = true;
+      $('wSell').hidden = true;
+      loadUntung();
+    } else if (state.drawer && state.canWrite) {
+      $('wSell').hidden = false;
+    } else {
+      load();
+    }
+    renderCart();
+    syncSearch();
+    window.scrollTo(0, 0);
+  }
+
+  function dayLabel(businessDate) {
+    const date = new Date(`${businessDate}T12:00:00Z`);
+    return ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][date.getUTCDay()];
+  }
+
+  async function loadUntung() {
+    $('wCloseShopBtn').hidden = !(state.drawer && state.canWrite);
+    try {
+      const data = await api('/api/cashier/warung/untung');
+      const today = Number(data.today?.netProfit) || 0;
+      const node = $('wProfitToday');
+      node.textContent = signed(today);
+      node.classList.toggle('neg', today < 0);
+      $('wUntungTitle').textContent = state.drawer ? 'Untung hari ini (sampai sekarang)' : 'Untung hari ini';
+      $('wProfitCompare').textContent = `Kemarin ${signed(data.yesterday?.netProfit)}`;
+      $('wRevenue').textContent = rupiah(data.today?.revenue);
+      $('wModal').textContent = rupiah(data.today?.modal);
+      $('wBiaya').textContent = rupiah(data.today?.biaya);
+      const days = data.week?.days || [];
+      const max = Math.max(1, ...days.map(day => Math.abs(Number(day.netProfit) || 0)));
+      $('wWeek').innerHTML = days.map(day => {
+        const value = Number(day.netProfit) || 0;
+        const height = Math.max(4, Math.round(Math.abs(value) / max * 100));
+        return `<div class="w-bar ${value < 0 ? 'neg' : ''}" title="${esc(day.businessDate)}: ${esc(signed(value))}"><i style="height:${height}%"></i><small>${dayLabel(day.businessDate)}</small></div>`;
+      }).join('');
+      $('wWeekTotal').textContent = signed(data.week?.total);
+      const top = data.topProducts || [];
+      $('wTopProducts').innerHTML = top.length
+        ? top.map((item, index) => `<div class="w-row"><span>${index + 1}. ${esc(item.name)}</span><b>${esc(item.quantity)}×</b></div>`).join('')
+        : '<p class="w-note">Belum ada penjualan hari ini.</p>';
+    } catch (error) {
+      $('wProfitToday').textContent = '—';
+      $('wProfitCompare').textContent = error.message;
+    }
   }
 
   async function load() {
@@ -239,7 +410,19 @@
       $('wStoreName').textContent = cashier.store?.storeName || window.MaxiSkin?.brand() || 'Warung';
       $('wWho').textContent = `Dijaga ${cashier.employeeName || cashier.username || 'kasir'}`;
       state.canWrite = Boolean(drawer.canWrite);
-      if (me.attendanceStatus !== 'in') {
+      state.drawer = drawer.drawer || null;
+      state.lastClosing = drawer.lastClosingAmount ?? null;
+      state.solo = Boolean(cashier.store?.ownerOperated);
+      document.documentElement.classList.toggle('w-solo', state.solo);
+      $('wTabs').hidden = !state.solo;
+      $('wCloseShop').hidden = !(state.solo && state.canWrite);
+      if (state.solo) {
+        const since = state.drawer?.openedAt ? new Date(state.drawer.openedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+        $('wWho').textContent = state.drawer ? `Buka${since ? ` sejak ${since}` : ''}` : 'Tutup';
+        if (state.tab === 'untung') { $('wGate').hidden = true; $('wSell').hidden = true; syncSearch(); return; }
+        if (!state.drawer) { showOpenGate(); syncSearch(); return; }
+      }
+      if (!state.solo && me.attendanceStatus !== 'in') {
         showGate('Belum absen', 'Absen dulu dengan foto, lalu buka laci. Setelah itu kembali ke sini untuk jualan.', 'Absen & buka warung', cashierPath('?lengkap=1'));
         return;
       }
@@ -262,6 +445,7 @@
       state.method = state.methods.find(item => item.isDefault)?.code || state.methods.find(item => item.code === 'CASH')?.code || state.methods[0]?.code || 'CASH';
       $('wGate').hidden = true;
       $('wSell').hidden = false;
+      syncSearch();
       renderTiles();
       renderCart();
     } catch (error) {
@@ -327,13 +511,28 @@
     if (!event.target.closest('#wMoreMenu, #wMoreBtn')) { $('wMoreMenu').hidden = true; $('wMoreBtn').setAttribute('aria-expanded', 'false'); }
   });
   $('wRefresh').addEventListener('click', () => { $('wMoreMenu').hidden = true; load(); });
+  $('wOpenBtn').addEventListener('click', openShop);
+  $('wOpenCash').addEventListener('input', () => digitsOf($('wOpenCash')));
+  $('wCloseShop').addEventListener('click', openClose);
+  $('wCloseShopBtn').addEventListener('click', openClose);
+  $('wCloseX').addEventListener('click', () => closeSheet('wCloseSheet'));
+  $('wCounted').addEventListener('input', () => { state.counted = digitsOf($('wCounted')); renderClose(); });
+  $('wCloseFinish').addEventListener('click', closeShop);
+  $('wTabs').addEventListener('click', event => {
+    const button = event.target.closest('[data-tab]');
+    if (button) showTab(button.dataset.tab);
+  });
   $('wLogout').addEventListener('click', async () => {
     try { await api('/api/cashier/logout', { method: 'POST' }); } catch {}
     try { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); } catch {}
     location.replace(cashierPath());
   });
   // Refresh saat kembali ke tab (bukan polling -- invariant #6).
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && $('wSell').hidden) load(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (state.tab === 'untung') loadUntung();
+    else if ($('wSell').hidden) load();
+  });
 
   load();
 })();

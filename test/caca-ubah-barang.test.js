@@ -190,7 +190,8 @@ test('yang ragu ditanyakan, yang tidak perlu diubah dikatakan, yang kembar ditol
 
     const asing = await siap([{ barang: 'sate ayam madura', harga_jual: '7rb' }]);
     assert.equal(asing.ok, false);
-    assert.match(asing.tanya, /tidak ketemu/);
+    assert.match(asing.tanya, /belum (ketemu|nemu) nih di Galeh\. Mungkin ada di gerai lain\?/, 'gerai yang dibuka disebut');
+    assert.doesNotMatch(asing.tanya, /tidak ketemu|tidak ditemukan/, 'bahasa tidak kaku');
 
     const sama = await siap([{ barang: 'Kopi Susu', harga_jual: '12rb' }]);
     assert.equal(sama.ok, false);
@@ -268,5 +269,38 @@ test('daftar barang ringkas: tanpa foto, jalur editor biasa tetap membawa foto',
     assert.equal(ringkas.body.products.find((p) => p.name === 'Kopi Susu').price, 12000);
     const penuh = await galeh.panggil('/api/admin/master/products/editor?store=IKAN01');
     assert.equal(penuh.body.products.find((p) => p.name === 'Kopi Susu').imageData, 'data:image/png;base64,AAAA');
+  } finally { galeh.db.close(); }
+});
+
+// Bos Cyo 2026-10-03: "kalo typo kasih rekomendasi dengan text contain terbanyak,
+// misal maksudnya es teh black curent atau milktea black curent ya bos?"
+test('salah ketik: rekomendasi dari kemiripan terbanyak, bukan sekadar "tidak ketemu"', async () => {
+  const galeh = await siapkanGalehh();
+  try {
+    const draft = await draftBarangBanyak(galeh, {
+      daftar_barang: [
+        { nama: 'Es Teh Black Curent', harga_jual: '6rb' },
+        { nama: 'Milktea Black Curent', harga_jual: '9rb' },
+        { nama: 'Kopi Susu', harga_jual: '12rb' }
+      ],
+      daftar_kategori: '', daftar_jenis: 'jualan'
+    });
+    for (let bagian = 0; bagian < 3; bagian += 1) await galeh.panggil('/api/caca/catat?store=IKAN01', { method: 'POST', body: { draft, bagian } });
+    const siap = (barang) => aksi().siapkan({ ubah_daftar: [{ barang, harga_jual: '7rb' }] }, jalurUna(galeh));
+
+    const dua = await siap('black curent');
+    assert.equal(dua.ok, false);
+    // Kata yang diketik ada di dua barang: keduanya ditawarkan, Bos yang memilih.
+    assert.match(dua.tanya, /"Es Teh Black Curent".*"Milktea Black Curent"|"Milktea Black Curent".*"Es Teh Black Curent"/);
+    assert.match(dua.tanya, /\?$/);
+
+    const salahEja = await siap('milk tea blackcurent');
+    assert.equal(salahEja.ok, true, salahEja.tanya);
+    assert.deepEqual(salahEja.draft.tabel.isi[0].slice(0, 2), ['Milktea Black Curent', 'Harga jual']);
+    assert.ok(salahEja.draft.dampak.some((d) => /Una membaca "milk tea blackcurent" sebagai "Milktea Black Curent"/.test(d)));
+
+    const sebagian = await siap('black currant jus');
+    assert.equal(sebagian.ok, false);
+    assert.match(sebagian.tanya, /Black Curent/, 'kandidat yang mengandung kata terbanyak disebut');
   } finally { galeh.db.close(); }
 });

@@ -22,7 +22,7 @@
 // sebelum "Ya" — dan bisa diperbaiki dengan menyebut tanggalnya.
 
 import { rupiah } from './caca-nominal.js';
-import { cocokkanSatu, teks, tanggalDari, TANGGAL } from './caca-aksi-dasar.js';
+import { cocokkanSatu, teks, tanggalDari, TANGGAL, BELUM_KETEMU } from './caca-aksi-dasar.js';
 import { uraikanNominal } from './caca-nominal.js';
 import { keSkala, tampilSkala } from './caca-hitung.js';
 
@@ -47,7 +47,7 @@ export function hargaPerSatuan(tertulis) {
     const skala = keSkala(normal);
     if (skala && skala > 0n) return { ok: true, teks: normal, skala };
   }
-  if (bulat.ok) return { ok: false, tanya: 'Harga per satuannya tidak boleh nol. Berapa yang benar?' };
+  if (bulat.ok) return { ok: false, tanya: 'Harga per satuannya nggak bisa nol nih. Berapa yang benar?' };
   return { ok: false, tanya: `Harga "${mentah}" belum kebaca. Tulis harga benar per satuannya ya, mis. 1200 atau 0,5.` };
 }
 
@@ -98,7 +98,7 @@ const hitungUlangHpp = Object.freeze({
     const cocok = cocokkanSatu(tertulis, bahanList, { label: 'bahan', namaDari: (b) => b.name });
     if (!cocok.ok) {
       const contoh = bahanList.slice(0, 8).map((b) => b.name).join(', ');
-      return { ok: false, tanya: /tidak ketemu\.$/.test(cocok.tanya) && contoh ? `${cocok.tanya} Yang bisa dikoreksi HPP-nya: ${contoh}${bahanList.length > 8 ? ', …' : ''}.` : cocok.tanya };
+      return { ok: false, tanya: BELUM_KETEMU.test(cocok.tanya) && contoh ? `${cocok.tanya} Yang bisa dikoreksi HPP-nya: ${contoh}${bahanList.length > 8 ? ', …' : ''}.` : cocok.tanya };
     }
     const bahan = cocok.nilai;
     const satuan = bahan.unitSymbol || bahan.unitCode || 'satuan';

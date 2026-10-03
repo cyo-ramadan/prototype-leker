@@ -22,7 +22,7 @@
 // barang tetap dicek langsung tepat sebelum tiap barang dibuat.
 
 import { rupiah } from './caca-nominal.js';
-import { normalkan, cocokkanSatu, rupiahDari, teks } from './caca-aksi-dasar.js';
+import { normalkan, cocokkanSatu, rupiahDari, teks, BELUM_KETEMU, kataBelumKetemu } from './caca-aksi-dasar.js';
 
 export const MAKS_BARIS_BARANG = 60;
 
@@ -291,9 +291,9 @@ const nonaktifkanBarang = Object.freeze({
     // dilihat; baris yang sudah nonaktif dilewati waktu diposting.
     const dariDraft = ctx.draftAsli?.muatan?.daftar;
     if (Array.isArray(dariDraft)) {
-      if (!dariDraft.length || dariDraft.length > MAKS_BARIS_BARANG) return { ok: false, tanya: 'Daftar barangnya tidak valid.' };
+      if (!dariDraft.length || dariDraft.length > MAKS_BARIS_BARANG) return { ok: false, tanya: 'Daftar barangnya kayaknya berubah. Minta Una menyusun ulang ya.' };
       for (const baris of dariDraft) {
-        if (!ANGKA_ID.test(String(baris?.id)) || typeof baris?.name !== 'string') return { ok: false, tanya: 'Daftar barangnya tidak valid.' };
+        if (!ANGKA_ID.test(String(baris?.id)) || typeof baris?.name !== 'string') return { ok: false, tanya: 'Daftar barangnya kayaknya berubah. Minta Una menyusun ulang ya.' };
         const kini = aktif.find((p) => p.id === Number(baris.id));
         if (kini && kini.name !== baris.name) return { ok: false, tanya: `Nama barang "${baris.name}" sudah berubah. Minta Una menyusun ulang ya.` };
       }
@@ -367,20 +367,62 @@ function jarakEdit(a, b) {
   return baris[b.length];
 }
 
-/** Barang yang namanya dekat (salah ketik); tepat satu → dipakai, beberapa → ditanyakan. */
-function cocokkanMirip(tertulis, daftar) {
-  const kunci = normalkan(tertulis);
-  const urut = daftar
-    .map((p) => ({ p, d: jarakEdit(kunci, normalkan(p.name)) }))
+const ringkasHuruf = (nama) => normalkan(nama).replace(/ /g, '');
+
+function trigram(teksRingkas) {
+  const unit = teksRingkas.length >= 3 ? 3 : 2;
+  const hasil = new Map();
+  for (let i = 0; i + unit <= teksRingkas.length; i += 1) {
+    const kunci = teksRingkas.slice(i, i + unit);
+    hasil.set(kunci, (hasil.get(kunci) ?? 0) + 1);
+  }
+  return hasil;
+}
+
+/** Kemiripan 0..1: irisan potongan huruf (tahan salah ketik dan spasi yang beda). */
+function kemiripan(tertulis, nama) {
+  const a = ringkasHuruf(tertulis);
+  const b = ringkasHuruf(nama);
+  if (!a || !b) return 0;
+  const ta = trigram(a);
+  const tb = trigram(b);
+  let irisan = 0;
+  for (const [kunci, n] of ta) irisan += Math.min(n, tb.get(kunci) ?? 0);
+  const dice = (2 * irisan) / (a.length + b.length - 2 * (a.length >= 3 && b.length >= 3 ? 2 : 1));
+  // Kata-kata yang diketik ada di nama (atau nyaris): "black curent" dalam "Milktea Black Curent".
+  const kata = normalkan(tertulis).split(' ').filter((k) => k.length >= 3);
+  const nyaris = (k) => b.includes(k) || normalkan(nama).split(' ').some((n) => n.length >= 4 && jarakEdit(k, n) <= 1);
+  const tutup = kata.length ? kata.filter(nyaris).length / kata.length : 0;
+  return Math.min(1, 0.6 * Math.max(0, dice) + 0.4 * tutup);
+}
+
+/**
+ * Barang yang namanya dekat (salah ketik). Tepat satu yang nyaris sama → dipakai
+ * dan DISEBUT di draft. Selain itu: rekomendasi berdasarkan kemiripan terbanyak
+ * ("maksudnya es teh black curent atau milktea black curent ya Bos?"), dan nama
+ * gerai disebut — "di Mandala" yang diucapkan belum tentu gerai yang sedang
+ * dibuka, dan itu sebab paling umum barang "tidak ada".
+ */
+function cocokkanMirip(tertulis, daftar, namaGerai = 'gerai ini') {
+  const kunci = ringkasHuruf(tertulis);
+  const jarak = daftar
+    .map((p) => ({ p, d: jarakEdit(kunci, ringkasHuruf(p.name)) }))
     .sort((x, y) => x.d - y.d);
   const batas = Math.max(2, Math.floor(kunci.length * 0.2));
-  const dekat = urut.filter((x) => x.d <= batas * 2).slice(0, 3);
-  if (urut[0] && urut[0].d <= batas && (!urut[1] || urut[1].d - urut[0].d >= 2)) {
-    return { ok: true, nilai: urut[0].p, dibetulkan: true };
+  if (jarak[0] && jarak[0].d <= batas && (!jarak[1] || jarak[1].d - jarak[0].d >= 2)) {
+    return { ok: true, nilai: jarak[0].p, dibetulkan: true };
   }
-  return dekat.length
-    ? { ok: false, tanya: `Barang "${tertulis}" tidak ketemu. Maksudnya ${dekat.map((x) => `"${x.p.name}"`).join(' atau ')}?` }
-    : { ok: false, tanya: `Barang "${tertulis}" tidak ketemu di gerai ini.` };
+  const saran = daftar
+    .map((p) => ({ p, skor: kemiripan(tertulis, p.name) }))
+    .filter((x) => x.skor >= 0.3)
+    .sort((x, y) => y.skor - x.skor)
+    .slice(0, 3);
+  if (saran.length) {
+    const nama = saran.map((x) => `"${x.p.name}"`);
+    const sebut = nama.length === 1 ? nama[0] : `${nama.slice(0, -1).join(', ')} atau ${nama.at(-1)}`;
+    return { ok: false, tanya: `Barang "${tertulis}" ${kataBelumKetemu(tertulis)} di ${namaGerai}. Maksudnya ${sebut} ya Bos?` };
+  }
+  return { ok: false, tanya: `Barang "${tertulis}" ${kataBelumKetemu(tertulis)} di ${namaGerai}. Mungkin ada di gerai lain? Pindah dulu lewat tombol ▾ di atas ya.` };
 }
 
 const skala = (rupiahBulat) => Math.round(Number(rupiahBulat || 0) * 1_000_000);
@@ -457,7 +499,7 @@ const ubahBarang = Object.freeze({
     // Konfirmasi (potongan mana pun): isi dibekukan di draft yang dilihat.
     const beku = ctx.draftAsli?.muatan;
     if (beku && Array.isArray(beku.daftar)) {
-      if (!bentukUbahValid(beku.daftar) || !Array.isArray(beku.catatan)) return { ok: false, tanya: 'Daftar perubahannya tidak valid. Minta Una menyusun ulang ya.' };
+      if (!bentukUbahValid(beku.daftar) || !Array.isArray(beku.catatan)) return { ok: false, tanya: 'Daftar perubahannya kayaknya berubah. Minta Una menyusun ulang ya.' };
       return { ok: true, draft: susunDraftUbah(beku.daftar, beku.catatan.map(String).slice(0, 20)) };
     }
 
@@ -477,10 +519,10 @@ const ubahBarang = Object.freeze({
     for (const baris of mentah) {
       const tertulis = teks(baris.barang, 100);
       let cocok = cocokkanSatu(tertulis, aktif, { label: 'barang', namaDari: (p) => p.name });
-      if (!cocok.ok && /tidak ketemu\.$/.test(cocok.tanya)) {
+      if (!cocok.ok && BELUM_KETEMU.test(cocok.tanya)) {
         const nonaktif = semua.find((p) => p.isActive === false && normalkan(p.name) === normalkan(tertulis));
         if (nonaktif) return { ok: false, tanya: `"${nonaktif.name}" sedang nonaktif. Aktifkan dulu di layar Data Barang, baru Una ubah ya.` };
-        cocok = cocokkanMirip(tertulis, aktif);
+        cocok = cocokkanMirip(tertulis, aktif, ctx.namaLingkup || 'gerai ini');
       }
       if (!cocok.ok) return cocok;
       const p = cocok.nilai;

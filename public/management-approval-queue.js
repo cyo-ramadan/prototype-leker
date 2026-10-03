@@ -86,6 +86,12 @@
     return groups;
   }
 
+  // Skin D (pemilik yang mengurus admin sendiri, DESAIN-SKIN-D-WARUNG.md §4c):
+  // kata tombol dalam bahasa pemilik. Tenant lain tetap memakai kata lama.
+  function word(classic, owner) {
+    return window.MaxiSkin?.skin?.() === 'd' ? owner : classic;
+  }
+
   function renderSingleCard(request) {
     return `
       <article class="admin-card approval-card" style="box-shadow:none;margin-bottom:10px">
@@ -94,8 +100,8 @@
         <div class="muted">${esc(request.payload?.note || '')}</div>
         ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? `<div class="muted" style="margin-top:8px">Stok dicek ulang saat disetujui. Kalau stok sudah berubah, pengajuan otomatis ditolak.</div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC + POSTING</button>
-          <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">Reject</button>
+          <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">${word('ACC + POSTING', 'Setujui')}</button>
+          <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">${word('Reject', 'Tolak')}</button>
         </div>
       </article>`;
   }
@@ -113,8 +119,8 @@
         </div>
         <div class="muted" style="margin-top:8px">Stok semua barang dicek ulang saat disetujui. Kalau ada satu saja yang berubah, seluruh pengajuan ditolak -- tidak ada yang tercatat sebagian.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="primary-btn" type="button" data-approval-session-acc="${esc(group.sessionId)}">ACC + POSTING SEMUA</button>
-          <button class="secondary-btn" type="button" data-approval-session-reject="${esc(group.sessionId)}">Reject Semua</button>
+          <button class="primary-btn" type="button" data-approval-session-acc="${esc(group.sessionId)}">${word('ACC + POSTING SEMUA', 'Setujui semua')}</button>
+          <button class="secondary-btn" type="button" data-approval-session-reject="${esc(group.sessionId)}">${word('Reject Semua', 'Tolak semua')}</button>
         </div>
       </article>`;
   }

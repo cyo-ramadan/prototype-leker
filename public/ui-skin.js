@@ -17,7 +17,7 @@
 // berikutnya langsung tampil benar tanpa kedip; server tetap dicek tiap
 // halaman dimuat (bukan polling -- invariant #6).
 (() => {
-  const SKIN_ASSET_VERSION = '20261002-skin-e-v1';
+  const SKIN_ASSET_VERSION = '20261003-skin-d-pemilik-v1';
   const SKIN_FONTS = {
     a: 'family=Plus+Jakarta+Sans:wght@400;600;700;800',
     b: 'family=Archivo:wdth,wght@62..125,400..900',

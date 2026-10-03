@@ -143,6 +143,22 @@
         <div class="hi-muted">Untung bersih = penjualan dikurangi modal barang yang terjual dan biaya. Angka minus ditampilkan apa adanya.</div></div>`;
   }
 
+  // Skin D: dua kata teknis terakhir di panel ini diganti bahasa pemilik.
+  const OWNER_WORDS = { 'Buka Workspace': 'Buka toko', Logout: 'Keluar' };
+  function ownerWords() {
+    if (window.MaxiSkin?.skin?.() !== 'd') return;
+    document.querySelectorAll('button, a').forEach(node => {
+      const text = node.textContent.trim();
+      if (OWNER_WORDS[text] && node.children.length === 0) node.textContent = OWNER_WORDS[text];
+    });
+  }
+  let wordsQueued = false;
+  new MutationObserver(() => {
+    if (wordsQueued) return;
+    wordsQueued = true;
+    requestAnimationFrame(() => { wordsQueued = false; ownerWords(); });
+  }).observe(document.documentElement, { subtree: true, childList: true });
+
   function maybeLoad() {
     const app = $('entityAdminApp');
     if (!app || app.classList.contains('hidden')) return;

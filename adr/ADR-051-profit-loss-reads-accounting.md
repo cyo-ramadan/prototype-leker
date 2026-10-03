@@ -98,7 +98,13 @@ hanya 2 dari ~40 akun kasir tertaut ke karyawan, dan akun yang tidak tertaut dil
 akun kasir tanpa tautan tetap dicatat sebagai piutang atas nama akun kasir itu (`counterparty_id = cashier:<id>`).
 Jurnal pengakuan/pelunasan yang gagal setelah faktanya tersimpan dicoba ulang oleh sinkron otomatis
 (`postPendingEmployeeDepositJournals`), idempoten lewat idempotency key jembatan. Catatan: piutang hanya terbentuk
-kalau kasir mengisi nominal Setoran saat tutup laci (di produksi 130 dari 131 laci tutup berisi setoran 0).
+kalau ada setoran saat tutup laci (di produksi 130 dari 131 laci tutup berisi setoran 0 -- penyebabnya dialog tutup
+laci versi foto tidak punya kolom setoran sama sekali).
+
+Setoran tidak lagi diisi kasir (Bos Cyo, 2026-10-03): kasir mengisi **Titip laci** (uang yang ditinggal di laci untuk
+shift berikutnya) dan server menghitung setoran = saldo kas fisik - titip laci (`src/drawer-deposit.js`). Isi setoran
+sendiri membuat sisa uang di laci tidak ikut dicek. `depositAmount` lama tetap diterima bila `leftInDrawerAmount`
+tidak dikirim; bila keduanya ada, titip laci menang.
 
 ## DOC-IMPACT
 

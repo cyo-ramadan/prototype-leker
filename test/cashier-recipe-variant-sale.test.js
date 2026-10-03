@@ -268,7 +268,7 @@ test('layar kasir menampilkan pilihan resep, mengirimnya saat penjualan, dan ver
   assert.match(orders, /recipeId: draftRecipeId\(line\)/);
   assert.match(orders, /\[data-draft-recipe\]/);
   assert.match(orders, /recipeVariants: live\?\.recipeVariants/);
-  assert.match(html, /cashier\.js\?v=20260930-varian-resep-v1/);
+  assert.match(html, /cashier\.js\?v=20261003-titip-laci-v1/);
   assert.match(html, /cashier-sales-orders\.js\?v=20260930-varian-resep-v1/);
   assert.match(policyUi, /variantLocked/);
 });

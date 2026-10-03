@@ -1,47 +1,47 @@
 /* Skin D · Mode Warung -- pilihan tenant ui_skin = D (src/tenant-policy.js).
-   Untuk kelontong/UMKM kecil: huruf besar (Figtree), tombol jempol, biru warung + kuning penanda, kontras tinggi untuk teras yang terang. Cara pakai barunya ada di warung.html dan warung-pemilik.js.
+   Arah "Plang Seng": papan nama seng berenamel biru (huruf krem, bingkai garis ganda, paku keling) untuk bilah atas dan angka untung; Barlow + Barlow Condensed; kuning = uang yang harus dilihat. Cara pakai barunya ada di warung.html, warung-admin.js, warung-pemilik.js. DESAIN-SKIN-D-WARUNG.md §3b.
    Hanya berlaku saat <html data-skin="d"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.
    Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */
 
 html[data-skin="d"] {
-  --skin-font: "Figtree", "Segoe UI", system-ui, sans-serif;
-  --bg: #f5f6f8;
-  --skin-page-bg: #f5f6f8;
+  --skin-font: "Barlow", "Figtree", "Segoe UI", system-ui, sans-serif;
+  --bg: #EDF0F5;
+  --skin-page-bg: #EDF0F5;
   --surface: #ffffff;
-  --ink: #111827;
-  --muted: #4b5563;
-  --line: #dfe3ea;
-  --brand: #1446c8;
-  --brand-2: #0f2f86;
-  --green: #0f8a4b;
-  --green-soft: #ddf5e7;
-  --amber: #b45309;
-  --shadow: 0 6px 18px rgba(17,24,39,.08);
-  --skin-card-shadow: 0 1px 2px rgba(17,24,39,.06);
-  --skin-top-bg: #1446c8;
-  --skin-top-ink: #ffffff;
-  --skin-top-muted: #c9d6ff;
-  --skin-top-line: #1446c8;
-  --skin-mark-bg: #ffc929;
-  --skin-mark-ink: #111827;
-  --skin-hero-bg: #1446c8;
-  --skin-hero-ink: #ffffff;
-  --skin-hero-muted: #d6e0ff;
-  --skin-primary: #1446c8;
+  --ink: #14213D;
+  --muted: #3D4A63;
+  --line: #D5DBE6;
+  --brand: #1C3F94;
+  --brand-2: #1C3F94;
+  --green: #0F6640;
+  --green-soft: #D8F0E3;
+  --amber: #7A4A00;
+  --shadow: none;
+  --skin-card-shadow: none;
+  --skin-top-bg: #1C3F94;
+  --skin-top-ink: #FFF5DC;
+  --skin-top-muted: #FFF5DC;
+  --skin-top-line: #1C3F94;
+  --skin-mark-bg: #FFC72C;
+  --skin-mark-ink: #14213D;
+  --skin-hero-bg: #1C3F94;
+  --skin-hero-ink: #FFF5DC;
+  --skin-hero-muted: #FFF5DC;
+  --skin-primary: #1C3F94;
   --skin-primary-ink: #ffffff;
-  --skin-active-bg: #111827;
-  --skin-active-ink: #ffffff;
+  --skin-active-bg: #1C3F94;
+  --skin-active-ink: #FFF5DC;
   --skin-input-bg: #ffffff;
-  --skin-chip-bg: #fff3c4;
-  --skin-focus: rgba(20,70,200,.20);
-  --skin-danger: #c81e1e;
-  --skin-danger-soft: #fde8e8;
-  --skin-danger-line: #f5b5b5;
-  --skin-warn: #92400e;
-  --skin-warn-soft: #fef3c7;
-  --skin-r-sm: 12px;
-  --skin-r: 14px;
-  --skin-r-lg: 18px;
+  --skin-chip-bg: #FFF3CC;
+  --skin-focus: rgba(28,63,148,.22);
+  --skin-danger: #A61B1B;
+  --skin-danger-soft: #FBE3E1;
+  --skin-danger-line: #F0B4AE;
+  --skin-warn: #6A4000;
+  --skin-warn-soft: #FFF3CC;
+  --skin-r-sm: 10px;
+  --skin-r: 12px;
+  --skin-r-lg: 14px;
   --skin-r-pill: 999px;
 }
 html[data-skin="d"] body { background: var(--skin-page-bg); color: var(--ink); font-family: var(--skin-font); }
@@ -96,16 +96,39 @@ html[data-skin="d"] .admin-top-actions > a, html[data-skin="d"] .admin-top-actio
   html[data-skin="d"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
 }
 
-html[data-skin="d"] body { font-size: 16.5px; }
-html[data-skin="d"] .brand { font-weight: 900; }
-html[data-skin="d"] .admin-link, html[data-skin="d"] .topbar .pill, html[data-skin="d"] .topbar .secondary-btn, html[data-skin="d"] .topbar .mini-btn {
-  background: rgba(255,255,255,.14); color: #ffffff; border-color: rgba(255,255,255,.3);
+html[data-skin="d"] {
+  --plate: "Barlow Condensed", "Barlow", system-ui, sans-serif; --cream: #FFF5DC; --plang: #1C3F94;
+  --plang-frame: inset 0 0 0 5px var(--plang), inset 0 0 0 7px var(--cream);
+  --plang-rivets:
+    radial-gradient(circle at 14px 14px, var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) 14px, var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at 14px calc(100% - 14px), var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px);
 }
+html[data-skin="d"] body { font-size: 16.5px; font-weight: 500; }
+/* Bilah atas = plang seng: bingkai garis ganda + paku keling, nama dengan huruf plang. */
+html[data-skin="d"] .topbar { margin: 8px 10px 0; border-radius: 14px; padding: 16px 22px; background: var(--plang-rivets), var(--plang); box-shadow: var(--plang-frame), 0 4px 0 rgba(20,33,61,.18); position: relative; }
+html[data-skin="d"] .brand { font-family: var(--plate); font-weight: 800; letter-spacing: .04em; font-size: 22px; }
+html[data-skin="d"] .brand small { font-family: var(--skin-font); letter-spacing: 0; font-size: 13px; font-weight: 600; }
+html[data-skin="d"] .admin-link, html[data-skin="d"] .topbar .pill, html[data-skin="d"] .topbar .secondary-btn, html[data-skin="d"] .topbar .mini-btn {
+  background: var(--cream); color: var(--plang); border-color: transparent;
+}
+html[data-skin="d"] h1, html[data-skin="d"] .th-greet h1 { font-family: var(--plate); font-weight: 800; letter-spacing: .01em; }
 html[data-skin="d"] .primary-btn { min-height: 54px; font-size: 17px; }
-html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total strong { font-size: 28px; }
+html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total strong { font-size: 28px; font-family: var(--plate); }
+html[data-skin="d"] .admin-card, html[data-skin="d"] .master-row { border-width: 2px; }
+/* Angka untung (Hari ini gerai & Panel Pemilik) = plang kedua; angkanya kuning. */
+html[data-skin="d"] .th-profit, html[data-skin="d"] .hi-profit { background: var(--plang-rivets), var(--plang); box-shadow: var(--plang-frame); color: var(--cream); border-radius: 14px; padding: 22px 26px; }
+html[data-skin="d"] .th-profit b, html[data-skin="d"] .hi-profit b { font-family: var(--plate); font-weight: 800; color: #FFC72C; letter-spacing: .01em; }
+html[data-skin="d"] .th-profit b.neg, html[data-skin="d"] .hi-profit b.neg { color: #FFC2B8; }
+html[data-skin="d"] .th-profit small, html[data-skin="d"] .hi-profit small, html[data-skin="d"] .th-profit p, html[data-skin="d"] .hi-profit p { opacity: 1; }
+html[data-skin="d"] .hi-profit p em { color: #FFC72C; }
+html[data-skin="d"] .th-refresh, html[data-skin="d"] .hi-refresh { background: var(--cream); color: var(--plang); border: 0; }
+html[data-skin="d"] .nav-group-btn { border-width: 2px; }
+html[data-skin="d"] .nav-group-btn span:not(.nav-group-icon):not(.nav-group-badge) { font-size: 14px; }
 /* Mode Warung: angka untung (warung-pemilik.js) langsung di atas, tanpa kalimat teknis. */
 html[data-skin="d"] #entityAdminApp .owner-heading .muted, html[data-skin="d"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
-html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }
+html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 28px; margin: 0; }
 /* Workspace Gerai untuk pemilik yang mengurus admin sendiri (DESAIN-SKIN-D-WARUNG.md §4c):
    buang yang bikin bingung -- link teknis di bilah atas (Owner/Customer/Kasir Login), judul
    "Workspace Gerai" + kalimat scope, hitungan barang/kategori, kartu "Scope gerai".

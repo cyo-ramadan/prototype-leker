@@ -183,7 +183,11 @@ test('tutup laci dengan setoran membuat piutang EMPLOYEE_DEPOSIT dan memotong sa
   }
 });
 
-test('setoran tanpa karyawan yang ditautkan ke akun kasir tidak membuat piutang apa pun (tidak menebak siapa yang ditagih)', async () => {
+// Kebijakan lama (2026-09-06): akun kasir tanpa tautan karyawan tidak membuat piutang
+// ("tidak menebak siapa yang ditagih"). Dibalik 2026-10-03 atas arahan Bos Cyo:
+// selama kasir belum menyetor, piutangnya harus terus bertambah -- tidak ada setoran
+// yang boleh lolos dari pembukuan. Piutang dicatat atas nama akun kasir itu.
+test('setoran dari akun kasir yang belum ditautkan ke karyawan tetap menjadi piutang atas nama akun kasir itu', async () => {
   const db = migratedDatabase();
   try {
     const cashier = await seedCashier(db, 'tanpatautan', 'Kasir Belum Ditautkan');
@@ -192,7 +196,11 @@ test('setoran tanpa karyawan yang ditautkan ke akun kasir tidak membuat piutang 
 
     const { status, body } = await closeDrawer(env, cashier.token, { closingAmount: 500000, depositAmount: 300000 });
     assert.equal(status, 200);
-    assert.equal(body.employeeDeposit, null);
+    assert.ok(body.employeeDeposit, 'piutang setoran terbentuk');
+    assert.equal(body.employeeDeposit.accounting.ok, true);
+    const row = db.prepare("SELECT counterparty_id, counterparty_name_snapshot FROM operational_receivables_payables WHERE source_type = 'EMPLOYEE_DEPOSIT'").get();
+    assert.equal(row.counterparty_id, `cashier:${cashier.id}`);
+    assert.ok(row.counterparty_name_snapshot);
   } finally {
     db.close();
   }

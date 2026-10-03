@@ -89,6 +89,17 @@ untuk Jenis Barang baru di gerai Akuntansi. Yang ditambahkan:
   `src/accounting-pos-bridge.js`) -- klasifikasi saja, nominal tidak disentuh, snapshot yang sudah
   terisi tidak diubah.
 
+## Tambahan 2026-10-03: setoran kasir (Piutang Karyawan)
+
+Bos Cyo: selama kasir belum menyetorkan uangnya, piutangnya harus terus bertambah. Jembatan sudah ada
+(tutup laci dengan setoran -> piutang `EMPLOYEE_DEPOSIT` -> jurnal Debit 1202 Piutang Karyawan / Kredit 1101 Kas;
+pelunasan disetujui -> Debit Kas / Kredit Piutang), tetapi di produksi tidak pernah menghasilkan piutang:
+hanya 2 dari ~40 akun kasir tertaut ke karyawan, dan akun yang tidak tertaut dilewati diam-diam. Sekarang
+akun kasir tanpa tautan tetap dicatat sebagai piutang atas nama akun kasir itu (`counterparty_id = cashier:<id>`).
+Jurnal pengakuan/pelunasan yang gagal setelah faktanya tersimpan dicoba ulang oleh sinkron otomatis
+(`postPendingEmployeeDepositJournals`), idempoten lewat idempotency key jembatan. Catatan: piutang hanya terbentuk
+kalau kasir mengisi nominal Setoran saat tutup laci (di produksi 130 dari 131 laci tutup berisi setoran 0).
+
 ## DOC-IMPACT
 
 Perbarui kalau: pemetaan subtype akun berubah, mesin POS dipensiunkan, cache dipasang untuk

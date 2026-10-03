@@ -86,23 +86,38 @@ lebih nyaman dengan pola yang sudah biasa mereka pakai).
 - Latar jenuh di area luas melelahkan mata (UX Movement); pengguna 40+ dan layar di bawah matahari
   butuh kontras lebih tinggi — target **7 : 1** (panduan aksesibilitas untuk lansia / AAA).
 
-## 6. Palet pastel (dihitung, bukan dikira-kira)
+## 6. Tampilan "Tenda Warung" (revisi 2026-10-03)
 
-Pastel untuk **latar dan kartu** (ramah, tidak kaku). **Teks dan angka selalu gelap.**
+Bos Cyo: *"skin e nya ga jelas banget, masih berantakan banget, engga eyecatching"* — lalu meminta
+skill `frontend-design` dipasang. Diagnosis versi pertama: latar krem (justru gaya bawaan AI yang
+paling umum), warna kartu bergilir **acak** per urutan (kelihatan berantakan), judul huruf kapital,
+tidak ada satu pun elemen yang khas warung.
 
-| Peran | Warna | Kontras |
+**Satu elemen berani, sisanya tenang:**
+- **Tenda bergaris hijau-putih dengan pinggir bergelombang** di atas papan nama warung — ciri yang
+  paling dikenali dari warung mana pun. Hanya di sini keberanian dipakai.
+- **Kartu barang = label toples:** putih, "tutup" pastel di atas. Warna tutup ditentukan **kategori
+  barang** (barang sejenis selalu sewarna), bukan urutan. Barang di keranjang: tutupnya hijau tua +
+  lencana jumlah kuning.
+- **Untung = nota:** kertas putih, garis putus di bawah judul, Penjualan − Modal − Biaya, garis
+  dobel, lalu **Untung** besar berwarna hijau; pinggir bawah sobek. Dibaca seperti nota warung.
+- **Huruf Baloo 2** (bulat, tebal, mirip tulisan papan warung dicat tangan) untuk semua teks.
+- Layar "Warung masih tutup" tanpa ikon minimarket; papan nama memberi titik abu-abu saat tutup,
+  hijau saat buka.
+
+| Peran | Warna | Kontras teks `#1B2420` |
 |---|---|---|
-| Latar halaman | krem `#FFF8EF` | teks `#1F2328` 14,99 |
-| Pita atas + kotak cari | persik `#FFD8C2` | teks 11,93 |
-| Kartu barang (bergilir) | mint `#D9F2E6` · persik `#FFE5D4` · lavender `#E8E3FA` · langit `#D9ECFA` · mentega `#FFF1BF` | teks 12,6–14,0 |
-| Tombol utama (Bayar, Buka/Tutup warung) | hijau tua `#0A5A48`, teks putih | 8,17 |
-| Angka untung | `#075A30` di krem / di mint | 7,93 / 7,08 |
-| Angka minus | `#921A11` di krem / di mint | 8,38 / 7,48 |
-| Teks pendamping | `#57534E` di krem / di putih | 7,24 / 7,63 |
+| Latar (sage pucat, bukan krem) | `#EAF2EE` | 13,97 |
+| Kartu / nota | `#FFFFFF` | — |
+| Tutup toples per kategori | mint `#C9EEDA` · persik `#FFD7C4` · lila `#E0D8FF` · langit `#CBE6FF` · mentega `#FFEFAE` | 11,7–13,8 |
+| Tombol utama & angka untung | hijau `#0A5C43` (putih di atasnya) | 8,0 |
+| Angka minus | `#9C1C12` di putih | 8,1 |
+| Teks pendamping | `#3F4C47` | ≥ 7 |
+| Garis tenda | hijau `#7FCBA4` + putih | (dekorasi, tanpa teks) |
 
-Aturan: tidak ada teks putih di atas pastel; angka uang selalu gelap; minus tetap minus (invariant #8).
-Huruf **Nunito** (bulat, ramah, tetap tegas di 600–900). Token: `scripts/generate-skin-css.py` (skin
-`e`, untuk layar lain) dan `public/warung.css` (`html[data-skin="e"]`, layar Jual/Untung).
+Aturan: tidak ada teks putih di atas pastel; tidak ada label huruf kapital; minus tetap minus.
+Token: `public/warung.css` (`html[data-skin="e"]`, layar Jual/Untung) dan
+`scripts/generate-skin-css.py` (skin `e`, layar lain).
 
 ## 7. Fase berikutnya (belum dibangun — jangan dijanjikan ke pembeli)
 
@@ -122,4 +137,5 @@ Huruf **Nunito** (bulat, ramah, tetap tegas di 600–900). Token: `scripts/gener
 - Penjualan, stok, modal, jurnal lewat jalur yang sama. Tidak ada tabel atau migration baru.
 - Auto Permit tetap tercatat siapa/kapan; koreksi tetap reversal (invariant #2).
 
+<!-- DOC-IMPACT: 2026-10-03 §6 diganti: tampilan "Tenda Warung" (tenda bergaris, label toples per kategori, nota untung, Baloo 2, latar sage). -->
 <!-- DOC-IMPACT: 2026-10-02 dokumen baru; skin E (Jaga Sendiri): ui_skin = E, aturan server ownerOperated (tanpa presensi, Auto Permit), endpoint /api/cashier/warung/untung, layar Buka/Tutup warung + tab Untung pastel. -->

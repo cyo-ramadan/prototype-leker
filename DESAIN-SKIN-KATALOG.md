@@ -96,9 +96,9 @@ dengan anaknya dan satu karyawan. Mata sudah butuh huruf besar. Detail: `DESAIN-
 | Harga grosir naik diam-diam | Jual tetap harga lama, rugi tanpa sadar |
 | Aplikasi kasir yang pernah dicoba | Menu banyak, istilah asing, ditinggal setelah seminggu |
 
-**Janji:** "Untungnya kelihatan. Uangnya aman." **Desain:** layar Jual satu layar (cari, paling
-sering, Bayar, kembalian besar), Panel Pemilik "Hari ini" (satu angka untung), biru warung + kuning,
-huruf Figtree besar. Absen + buka laci tetap (karena ada orang lain yang jaga).
+**Janji:** "Untungnya kelihatan. Uangnya aman." **Desain "Plang Seng":** papan nama seng berenamel biru (huruf krem, bingkai ganda, paku keling) di
+atas layar dan pada angka uang terpenting, huruf Barlow seperti rambu, kuning untuk uang yang harus dilihat.
+Layar Jual satu layar (cari, paling sering, Bayar, kembalian besar), Panel Pemilik "Hari ini". Absen + buka laci tetap (karena ada orang lain yang jaga).
 **Admin dikerjakan pemilik sendiri (2026-10-03):** Workspace Gerai dibuka di halaman **Hari ini**
 (untung, yang menunggu keputusan, laci), menu 6 tombol (Hari ini · Persetujuan · Penjualan · Barang ·
 Tim · Lainnya), "Lainnya" berupa daftar berkelompok berketerangan, istilah teknis diganti bahasa

@@ -22,7 +22,7 @@ import { hashCredential } from '../src/owner-auth.js';
 // form login.
 
 const readPublic = name => readFileSync(new URL(`../public/${name}`, import.meta.url), 'utf8');
-const authEntrySplit = readPublic('auth-entry-split.js');
+const staffLogin = readPublic('staff-login.js');
 const staffTabLock = readPublic('staff-tab-lock.js');
 const cashierJs = readPublic('cashier.js');
 
@@ -117,8 +117,8 @@ test('logout di satu sesi tidak ikut mematikan sesi lain dari akun yang sama', a
 });
 
 test('sesi karyawan tidak lagi ikut hilang saat tab ditutup -- token dan identitas dua-duanya di localStorage', () => {
-  assert.match(authEntrySplit, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
-  assert.match(authEntrySplit, /localStorage\.setItem\('lekerStaffSessionMeta'/);
+  assert.match(staffLogin, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
+  assert.match(staffLogin, /localStorage\.setItem\('lekerStaffSessionMeta'/);
   // Titik baca di setiap halaman staf ikut pindah, bukan cuma titik tulisnya.
   for (const name of ['staff-entry-guard.js', 'staff-auth-fetch.js', 'cashier.js', 'cashier-enhancements.js']) {
     assert.match(readPublic(name), /localStorage\.getItem\('lekerCashierToken'\)/, `${name} harus membaca token kasir dari localStorage`);
@@ -129,8 +129,8 @@ test('sesi karyawan tidak lagi ikut hilang saat tab ditutup -- token dan identit
 test('halaman login tidak tertinggal di history setelah login sukses -- tombol Back tidak balik ke form', () => {
   // Bos Cyo: "ke back ada pilihan login lagi". Penyebabnya location.href,
   // yang menambah entry baru dan menyisakan halaman login di riwayat.
-  assert.match(authEntrySplit, /location\.replace\(payload\.redirect \|\| '\/'\)/);
-  assert.doesNotMatch(authEntrySplit, /location\.href = payload\.redirect/, 'login sukses tidak boleh memakai location.href');
+  assert.match(staffLogin, /location\.replace\(payload\.redirect \|\| '\/'\)/);
+  assert.doesNotMatch(staffLogin, /location\.href = payload\.redirect/, 'login sukses tidak boleh memakai location.href');
 });
 
 test('login sukses tidak lagi ditahan oleh pengecekan "sesi lain masih aktif" -- Bos Cyo, 2026-09-22: ganti user cukup lewat Logout eksplisit, bukan penolakan di submit', () => {
@@ -140,10 +140,10 @@ test('login sukses tidak lagi ditahan oleh pengecekan "sesi lain masih aktif" --
   // apa juga bisa seperti itu" -- sesi yang berhasil login SELALU menang,
   // titik. Yang mencegah tab lama dari user sebelumnya tetap jalan sekarang
   // murni tugas staff-tab-lock.js (heartbeat/storage event), bukan submitLogin().
-  const submitBody = authEntrySplit.slice(authEntrySplit.indexOf('async function submitLogin'), authEntrySplit.indexOf('form.addEventListener'));
+  const submitBody = staffLogin.slice(staffLogin.indexOf('async function submitLogin'), staffLogin.indexOf('form.addEventListener'));
   assert.doesNotMatch(submitBody, /activeStaffLease\(/, 'submitLogin() tidak boleh lagi memanggil activeStaffLease()');
-  assert.doesNotMatch(authEntrySplit, /function activeStaffLease/, 'activeStaffLease() wajib sudah dihapus total, bukan cuma tidak dipanggil');
-  assert.doesNotMatch(authEntrySplit, /Masih ada sesi karyawan lain/);
+  assert.doesNotMatch(staffLogin, /function activeStaffLease/, 'activeStaffLease() wajib sudah dihapus total, bukan cuma tidak dipanggil');
+  assert.doesNotMatch(staffLogin, /Masih ada sesi karyawan lain/);
   assert.match(submitBody, /const identity = staffIdentity\(payload\)/, 'identitas tetap perlu dibaca untuk menulis meta/lease sesi baru');
 });
 
@@ -195,7 +195,7 @@ test('penulisan status sesi lintas-tab tidak pernah menggagalkan login yang suda
   // crypto.randomUUID -- localStorage penuh, mode privat, dsb) tidak pernah
   // menggagalkan location.reload()/location.replace() yang sebenarnya
   // berhak jalan karena login-nya sendiri sudah sukses di server.
-  for (const source of [cashierJs, authEntrySplit]) {
+  for (const source of [cashierJs, staffLogin]) {
     assert.match(source, /typeof crypto\.randomUUID === 'function'/, 'wajib mengecek dukungan crypto.randomUUID sebelum memakainya, bukan memanggilnya telanjang');
     // Titik pemakaian (login/handoff) wajib lewat randomId(), bukan lagi
     // langsung "= crypto.randomUUID()" -- pola telanjang yang tadinya bisa
@@ -212,12 +212,12 @@ test('penulisan status sesi lintas-tab tidak pernah menggagalkan login yang suda
   assert.ok(persistTryAt > -1 && persistCatchAt > persistTryAt, 'cashier.js: bookkeeping meta+lease wajib dibungkus try/catch');
   assert.ok(persistReloadAt > persistCatchAt, 'cashier.js: location.reload() wajib tetap jalan SESUDAH blok try/catch, bukan di dalamnya');
 
-  const submitBody = authEntrySplit.slice(authEntrySplit.indexOf('async function submitLogin'), authEntrySplit.indexOf('form.addEventListener'));
+  const submitBody = staffLogin.slice(staffLogin.indexOf('async function submitLogin'), staffLogin.indexOf('form.addEventListener'));
   const submitTryAt = submitBody.indexOf('try {');
   const submitCatchAt = submitBody.indexOf('} catch (storageError)');
   const submitReplaceAt = submitBody.lastIndexOf("location.replace(payload.redirect || '/');");
-  assert.ok(submitTryAt > -1 && submitCatchAt > submitTryAt, 'auth-entry-split.js: bookkeeping meta+lease wajib dibungkus try/catch');
-  assert.ok(submitReplaceAt > submitCatchAt, 'auth-entry-split.js: location.replace() wajib tetap jalan SESUDAH blok try/catch, bukan di dalamnya');
+  assert.ok(submitTryAt > -1 && submitCatchAt > submitTryAt, 'staff-login.js: bookkeeping meta+lease wajib dibungkus try/catch');
+  assert.ok(submitReplaceAt > submitCatchAt, 'staff-login.js: location.replace() wajib tetap jalan SESUDAH blok try/catch, bukan di dalamnya');
 });
 
 test('trigger "satu sesi per karyawan" benar-benar sudah tidak terpasang lagi di database', () => {

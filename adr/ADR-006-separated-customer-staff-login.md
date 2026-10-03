@@ -22,6 +22,16 @@ A single unified login form made customer identity and internal employee identit
 12. Periodic cashier network polling remains disabled. Manual refresh and focus/visibility refresh use the workspace snapshot.
 13. Legacy `POST /api/auth/login` remains temporarily available for backward compatibility but is not the canonical UI path.
 
+## Amendment 2026-10-03 — halaman login karyawan terpisah
+
+Keputusan Bos Cyo: login karyawan tidak lagi menjadi tab di jendela login halaman customer.
+
+- Karyawan (Owner, Entity Admin, Admin Gerai, Kasir) login di halaman sendiri, `/login` (`public/login.html`, `public/staff-login.js`), lewat `POST /api/auth/staff-login`. Server tetap menentukan pangkat; tidak ada perubahan API.
+- Jendela login di halaman customer jadi khusus Pelanggan (`POST /api/auth/customer-login`), dengan tautan "Karyawan? Login di sini" ke `/login`.
+- Semua redirect "belum login" (butir 10) sekarang menuju `/login`, bukan `/?login=staff`. Link lama `/?login=staff` diteruskan ke `/login` (membawa `staffBlocked`).
+- `/login` sengaja tanpa penjaga sesi (`staff-entry-guard.js`, `staff-tab-lock.js`): penjaga itulah yang melempar ke sini, memasangnya membuat loop. Sesi sah yang sudah ada tetap menang: halaman langsung meneruskan ke workspace-nya.
+- Butir 1 di atas (dua tab di halaman customer) dan butir 5-7, 9 (satu sesi per akun, trigger, satu tab) sudah digantikan lebih awal (lihat ADR/koreksi 2026-09-18 dan 2026-09-22); amendment ini hanya menggantikan butir 1 dan 10.
+
 ## Security and compatibility
 
 Staff role and branch scope remain server-derived. Browser tab locking is an additional UX/safety layer and does not replace server authorization. Existing staff sessions are intentionally invalidated once when migration 0011 applies; staff must login fresh afterward. Existing customer sessions and guest checkout are unaffected.
@@ -32,4 +42,4 @@ Migration `0011_staff_single_session.sql` deletes existing staff session rows an
 
 ## DOC-IMPACT
 
-REQUIRED — login boundaries, staff session concurrency, browser-tab concurrency, one-time staff session reset, and cashier bootstrap behavior materially changed.
+REQUIRED — login boundaries, staff session concurrency, browser-tab concurrency, one-time staff session reset, and cashier bootstrap behavior materially changed. 2026-10-03: login karyawan dipindah ke halaman `/login`; login halaman customer khusus pelanggan.

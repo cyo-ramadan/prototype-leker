@@ -923,18 +923,20 @@ Yang masih terbuka (bukan bagian ADR-051, ditemukan saat verifikasi produksi):
 ## Alat akuntan Una: celah yang diketahui (2026-10-03)
 
 Una kini bisa mencari transaksi yang belum berjurnal (`jembatan_masalah`), mengaudit HPP (`audit_hpp`),
-menyinkron ke Akuntansi (`sinkron_akuntansi`) dan melengkapi aturan jurnal yang kosong
-(`samakan_aturan_jurnal`) -- kontrak di `contracts/una-akuntan-tools-v1.md`. Yang BELUM ada alatnya
-(Una harus melaporkan, bukan menebak):
+menyinkron ke Akuntansi (`sinkron_akuntansi`), melengkapi aturan jurnal yang kosong (`samakan_aturan_jurnal`)
+dan membetulkan tipe/jenis/satuan barang (`betulkan_klasifikasi_barang`) -- kontrak di
+`contracts/una-akuntan-tools-v1.md`. Yang BELUM ada alatnya (Una harus melaporkan, bukan menebak):
 
-- Memasang Jenis Barang ke barang (`NEEDS_PRODUCT_KIND`; saat ini hanya 9 penjualan uji lama di G001).
-- Mengisi akun Persediaan/HPP per Jenis Barang (`NEEDS_ITEM_CATEGORY_MAPPING`).
-- Mengganti tipe/satuan barang yang salah (mis. MANDALA: 20 bahan bertipe Barang Jadi, Gula bersatuan pcs).
+- Mengisi akun Persediaan/HPP per Jenis Barang (`NEEDS_ITEM_CATEGORY_MAPPING`). Sengaja belum dibuat: dicek di
+  produksi tidak ada kasusnya (Jenis Barang baru otomatis dapat akun bawaan).
+- Jurnal selisih stok opname dan selisih uang laci (menunggu keputusan akun dari Bos Cyo).
 - Rekonsiliasi laba-dari-jurnal terhadap data operasional per hari (baru dihitung lewat `laba_rugi` + `jembatan_masalah`).
 
 Keadaan produksi saat dicatat: 18 transaksi aktif belum berjurnal (MANDALA 5 pengeluaran senilai Rp92.000
-karena kategori `operational` tanpa aturan jurnal; PENDEM 1 pembelian; G001/G002 data uji Agustus).
+karena kategori `operational` tanpa aturan jurnal; PENDEM 1 pembelian; G001/G002 data uji Agustus; 9 penjualan
+G001 `NEEDS_PRODUCT_KIND` cukup dicoba kirim ulang karena jembatan mengisi Jenis Barang kosong sendiri).
 Baris pengiriman lama milik transaksi yang dibatalkan (6 di BEJI/PENDEM) netral dan diabaikan.
+MANDALA: 20 bahan + 3 larutan bertipe Barang Jadi dan Gula bersatuan pcs -- usulan perbaikannya keluar dari `audit_hpp`.
 
 ## DOC-IMPACT
 

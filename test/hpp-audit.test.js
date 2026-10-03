@@ -145,14 +145,30 @@ test('olahan yang sudah sesuai resep (dalam 10%) tidak dikoreksi; bahan tanpa ha
   assert.deepEqual(waiting.needsPrice.map(item => [item.name, item.reason]).sort(), [['Gula', 'NOL_TANPA_BUKTI'], ['Larutan Gula', 'BAHAN_BELUM_ADA_HARGA']]);
 });
 
-test('tipe dan satuan yang mencurigakan hanya ditandai, tidak pernah diubah', () => {
+test('tipe dan satuan yang mencurigakan: usulan dengan perintah betulkan_klasifikasi_barang, selalu butuh konfirmasi', () => {
   const result = analyzeHpp({
-    products: [raw(1, 'Gula', 17.5, 'pcs', 'FINISHED_GOOD'), raw(3, 'Larutan', 5, 'ml', 'SEMI_FINISHED')],
+    products: [
+      raw(1, 'Gula', 17.5, 'pcs', 'FINISHED_GOOD'),
+      raw(3, 'Larutan', 5, 'ml', 'FINISHED_GOOD'), // olahan (punya resep) yang dipakai sebagai bahan, tapi bertipe Barang Jadi
+      raw(4, 'Es Gula', 0, 'pcs', 'FINISHED_GOOD') // dijual: bukan bahan, tidak boleh diusik
+    ],
     lines: [],
-    recipes: [{ recipeId: 'rl', outputId: 3, outputQty: 1, componentId: 1, qty: 1 }],
+    recipes: [
+      { recipeId: 'rl', outputId: 3, outputQty: 1, componentId: 1, qty: 1 },
+      { recipeId: 'rj', outputId: 4, outputQty: 1, componentId: 3, qty: 1 }
+    ],
     siblings: siblingGula, from: FROM
   });
-  assert.deepEqual(result.typeIssues.map(item => item.kind).sort(), ['SATUAN', 'TIPE']);
+  const tipe = result.typeIssues.filter(item => item.kind === 'TIPE');
+  assert.deepEqual(tipe.map(item => [item.items.map(i => i.name), item.command.parameter.kb_daftar]), [
+    [['Gula'], [{ barang: 'Gula', tipe: 'bahan baku' }]],
+    [['Larutan'], [{ barang: 'Larutan', tipe: 'setengah jadi' }]]
+  ]);
+  assert.ok(tipe.every(item => item.command.alat === 'betulkan_klasifikasi_barang' && item.needsConfirmation === true));
+  const satuan = result.typeIssues.find(item => item.kind === 'SATUAN');
+  assert.equal(satuan.commonUnit, 'g');
+  assert.deepEqual(satuan.command.parameter.kb_daftar, [{ barang: 'Gula', satuan: 'g' }]);
+  assert.match(satuan.message, /hanya mengganti label/);
 });
 
 test('acuan lintas gerai dihitung per gerai: satu gerai yang salah catat berkali-kali tetap hanya satu suara', () => {

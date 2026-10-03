@@ -147,6 +147,10 @@ export const PINTU_AKSI = Object.freeze([
   '/api/admin/hpp-recalculation',
   '/api/admin/accounting/accounts',
   '/api/admin/accounting/journals',
+  // Alat akuntan (contracts/una-akuntan-tools-v1.md): tombol Sinkron dan Aturan Jurnal.
+  // Cocok PERSIS / satu sub-path: bukan pintu ke seluruh Setting Akuntansi.
+  '/api/admin/accounting/bridge/sync$',
+  '/api/admin/settings/accounting/journal-rules',
   '/api/admin/operational-expenses',
   '/api/admin/hutang-piutang',
   '/api/entity-admin/accounts',

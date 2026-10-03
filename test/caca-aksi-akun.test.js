@@ -244,8 +244,11 @@ test('pintu: query boleh ikut, izin dinilai dari path; bootstrap hanya cocok per
   assert.equal(diterima[0].searchParams.get('asOf'), '2026-10-02');
   assert.equal((await jalur.baca('/api/admin/accounting')).ok, true);
   assert.equal((await jalur.baca('/api/admin/settings/accounting')).ok, true);
-  // Sub-path bootstrap yang tidak terdaftar tetap ditolak.
-  assert.equal((await jalur.kirim('POST', '/api/admin/settings/accounting/journal-rules', {})).ok, false);
+  // Sub-path bootstrap yang tidak terdaftar tetap ditolak. (journal-rules SENGAJA dibuka
+  // 2026-10-03 untuk alat samakan_aturan_jurnal; yang lain di bawah Setting Akuntansi tetap tertutup.)
+  assert.equal((await jalur.kirim('POST', '/api/admin/settings/accounting/transaction-categories', {})).ok, false);
+  assert.equal((await jalur.kirim('POST', '/api/admin/settings/accounting/item-categories', {})).ok, false);
+  assert.equal((await jalur.kirim('POST', '/api/admin/settings/accounting/choice-groups', {})).ok, false);
   assert.equal((await jalur.kirim('POST', '/api/admin/accounting/standardize-accounts', {})).ok, false);
 
   const geraiLain = jalur.jalurGerai('DERMO');

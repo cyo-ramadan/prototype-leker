@@ -35,6 +35,7 @@ Per gerai, **tanpa fan-out** (berat). Di lingkup entity, panggil gerai satu per 
 |---|---|---|---|
 | `sinkron_akuntansi` | gerai/entity | Mengirim semua yang belum berjurnal (tombol Sinkron) | `POST /api/admin/accounting/bridge/sync` |
 | `samakan_aturan_jurnal` | entity | Melengkapi aturan jurnal sebuah kategori dengan menyalin dari gerai yang beres (hanya menambah/mengaktifkan) | `POST/PATCH /api/admin/settings/accounting/journal-rules` |
+| `betulkan_klasifikasi_barang` | gerai (bertahap) | Membetulkan Tipe Barang / Jenis Barang / satuan dasar banyak barang sekaligus (layar Master Barang) | `PATCH /api/admin/master/products/editor/:id` |
 | `atur_cara_bayar` | semua | (ada) hubungkan cara bayar ke akun | `PATCH /api/admin/settings/business/payment-methods/:id` |
 | `hitung_ulang_hpp` | gerai | (ada) koreksi HPP bahan + hitung ulang penjualan sejak tanggal; jurnal koreksi otomatis | `POST /api/admin/hpp-recalculation[/preview]` |
 | `buat_jurnal` | semua | (ada) jurnal manual balance exact | `POST /api/admin/accounting/journals` |
@@ -77,6 +78,8 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
 2. **Bereskan setelan** sesuai `cause.alat`:
    - `NEEDS_MAPPING`/`NEEDS_TRANSACTION_MAPPING`/`NEEDS_FIXED_ACCOUNT`/`NEEDS_COMPONENT_ALLOCATION` → `samakan_aturan_jurnal` (kategori dari `cause.parameter`).
    - `NEEDS_PAYMENT_MAPPING` → `atur_cara_bayar`.
+   - `NEEDS_PRODUCT_KIND` → `sinkron_akuntansi` dulu (Jenis Barang kosong di transaksi lama diisi otomatis dari barangnya sekarang); kalau barangnya sendiri belum punya Jenis Barang → `betulkan_klasifikasi_barang` (jenis).
+   - `audit_hpp.typeIssues` (tipe/satuan mencurigakan) → `betulkan_klasifikasi_barang` memakai `command.parameter` yang sudah disiapkan. Kerjakan SEBELUM koreksi HPP. Selalu minta konfirmasi Bos Cyo dulu (`needsConfirmation`): ganti satuan hanya mengganti label, stok/HPP/resep tidak dikonversi.
    - `alat: null` → catat dan laporkan (lihat "Belum ada alat").
 3. **HPP**: baca `audit_hpp` (`from` = awal September, atau yang Bos Cyo sebut).
    - Terapkan `corrections` **berurutan dari `order` 1** lewat `hitung_ulang_hpp` (pratinjau → "Ya"). Bahan baku dulu, olahan sesudahnya: harga olahan dihitung dari harga bahan yang sudah benar. Setelah bahan dikoreksi, **baca ulang audit** sebelum olahan, karena usulan olahan ikut berubah.
@@ -90,23 +93,31 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
 
 | Gejala | Kenapa | Jalan manusia |
 |---|---|---|
-| `NEEDS_PRODUCT_KIND` | Tidak ada alat pasang Jenis Barang ke barang | Master Barang |
-| `NEEDS_ITEM_CATEGORY_MAPPING` / `*_INVENTORY_MAPPING` | Tidak ada alat isi akun Persediaan/HPP per Jenis Barang | Setting Akuntansi > Kategori Barang |
-| `typeIssues` TIPE/SATUAN (bahan bertipe Barang Jadi; satuan beda dari gerai lain) | Ganti tipe/satuan memengaruhi stok; butuh konfirmasi manusia | Master Barang (Ganti Satuan, dengan konfirmasi) |
+| `NEEDS_ITEM_CATEGORY_MAPPING` / `*_INVENTORY_MAPPING` | **Tidak ada kasusnya di produksi** (dicek 2026-10-03: nol Jenis Barang tanpa kategori akun; Jenis Barang baru otomatis dapat akun bawaan 1301/5101/4101). Alat sengaja belum dibuat | Setting Akuntansi > Kategori Barang |
 | Stok opname / selisih stok | Sengaja belum berjurnal: akun untung/rugi selisih stok menunggu keputusan Bos Cyo (`KNOWN_ISSUES`) | — |
 | Selisih uang laci saat tutup | Sengaja di luar sistem; akuntan jurnal manual | `buat_jurnal` bila diminta |
 | Jumlah stok yang salah catat (qty dalam kemasan) | Audit HPP hanya memperbaiki harga | Opname / Penyesuaian Stok |
+| Harga bahan tanpa bukti sama sekali (`needsPrice`) | Tidak boleh dikarang | Tanya Bos Cyo, lalu `hitung_ulang_hpp` |
 
 ## Batas yang sengaja
 
 - Tidak ada alat yang menghapus atau mengedit jurnal posted, aturan jurnal, atau transaksi.
+- `betulkan_klasifikasi_barang` tidak mengubah Jenis Barang kecuali disebut, tidak mengubah harga/nama, dan hanya mengirim konfirmasi ganti satuan untuk baris yang tampil di draft.
 - `samakan_aturan_jurnal` menolak menyalin aturan yang memakai pilihan akun (choice group) dan menolak menebak akun yang tidak ada di gerai tujuan.
 - `hitung_ulang_hpp` menerapkan satu harga benar sejak tanggal tertentu (bukan harga per hari). Kalau harga bahan sungguh berubah di tengah periode, mulai tanggal koreksi perlu dipilih dengan sadar.
 - Angka uji produksi 2026-10-03 (audit di data asli, hanya baca): MANDALA Air Mineral → Rp0,4375/ml (sama dengan hitungan manual `KOREKSI-HPP-2026-10-02.md`); GENENGAN Gula → ±Rp18,97/g; DERMO Adonan Leker → **berhenti dan bertanya** (bukti saling bertentangan).
 
+## Daftar izin jalur Una (jebakan nyata)
+
+Una hanya boleh memanggil jalur di `PINTU_AKSI` (`src/caca-chat.js`). Alat baru yang memakai jalur BARU wajib
+menambahkannya di sana, kalau tidak, di produksi gagal "Jalur ini tidak terdaftar untuk Una" sementara test
+dengan jalur palsu tetap hijau. Gelombang pertama alat ini sempat kena (bridge/sync dan journal-rules);
+sekarang dijaga test yang memakai `bangunJalurAksi` sungguhan (`test/caca-aksi-akuntan.test.js`,
+`test/caca-aksi-klasifikasi.test.js`). Jalur baca otomatis ikut dari `KATALOG`.
+
 ## Pengujian
 
-`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`.
+`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`.
 
 ## DOC-IMPACT
 

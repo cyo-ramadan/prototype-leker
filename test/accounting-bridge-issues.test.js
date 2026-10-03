@@ -127,8 +127,8 @@ test('daftar utang jurnal: sebab, alat pembereskan, belum-pernah-dicoba, dan yan
     assert.equal(byId[neverTried].amountRupiah, 25000);
     assert.equal(byId[neverTried].businessDate, '2026-09-02');
 
-    assert.equal(byId[noKind].cause.alat, null, 'belum ada alat Jenis Barang: perlu orang');
-    assert.match(byId[noKind].cause.langkah, /Master Barang/);
+    assert.equal(byId[noKind].cause.alat, 'sinkron_akuntansi', 'jembatan mengisi Jenis Barang kosong sendiri saat sinkron');
+    assert.match(byId[noKind].cause.langkah, /betulkan_klasifikasi_barang/);
 
     assert.equal(byId[alloc].cause.alat, 'samakan_aturan_jurnal');
     assert.deepEqual(byId[alloc].cause.parameter, { kategori: 'purchase_material' });

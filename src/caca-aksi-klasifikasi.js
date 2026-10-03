@@ -27,6 +27,24 @@ const ALIAS_TIPE = Object.freeze([
   [/jadi|jualan|finished|produk/, 'FINISHED_GOOD']
 ]);
 
+// 'Tipe "bahan baku": Gula, Teh Jasmine, Air Mineral.' (format blok INSTRUKSI-UNA-HPP-SEPTEMBER.md)
+const BARIS_TIPE = /^\s*(?:\d{1,3}\s*[.)]\s*)?tipe\s*["“']?([^"”':]{3,40})["”']?\s*:\s*(.+?)\s*\.?\s*$/i;
+
+/** Daftar barang per tipe, dibaca langsung dari teks pesan (cadangan bila tangkapan model kosong). */
+export function uraiDaftarTipe(teks) {
+  const daftar = [];
+  for (const baris of String(teks ?? '').split(/\r?\n/)) {
+    const cocok = baris.match(BARIS_TIPE);
+    if (!cocok) continue;
+    const tipe = cocok[1].trim();
+    for (const nama of cocok[2].split(',')) {
+      const barang = nama.trim().replace(/\.$/, '');
+      if (barang && barang.length <= 100) daftar.push({ barang, tipe });
+    }
+  }
+  return daftar;
+}
+
 function cariTipe(tertulis, daftarTipe) {
   const aktif = daftarTipe.filter((t) => t.isActive !== false);
   const kunci = normalkan(tertulis);
@@ -110,7 +128,10 @@ const betulkanKlasifikasi = Object.freeze({
       return { ok: true, draft: susunDraft(beku.daftar, beku.catatan.map(String).slice(0, 20), beku.sudahSesuai.map(String).slice(0, 60)) };
     }
 
-    const mentah = (Array.isArray(t?.kb_daftar) ? t.kb_daftar : []).filter((b) => teks(b?.barang, 100));
+    let mentah = (Array.isArray(t?.kb_daftar) ? t.kb_daftar : []).filter((b) => teks(b?.barang, 100));
+    // Teks yang ditempel lebih persis daripada tangkapan model untuk daftar panjang.
+    const dariPesan = uraiDaftarTipe(ctx.pesan);
+    if (dariPesan.length > mentah.length) mentah = dariPesan;
     if (!mentah.length) return { ok: false, tanya: 'Barang yang mana yang klasifikasinya mau dibetulkan, dan jadi apa?' };
     if (mentah.length > BATAS_KLASIFIKASI) return { ok: false, tanya: `Kebanyakan untuk sekali jalan (maks ${BATAS_KLASIFIKASI}). Bagi dua ya.` };
     if (mentah.some((b) => !teks(b.tipe, 60) && !teks(b.jenis, 60) && !teks(b.satuan, 30))) {

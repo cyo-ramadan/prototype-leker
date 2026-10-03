@@ -19,6 +19,8 @@ import { daftarApiUntukModel } from './caca-baca-katalog.js';
 import { hitungPeriode } from './caca-alat.js';
 import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
+import { uraiDaftarHpp } from './caca-aksi-hpp-banyak.js';
+import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
@@ -84,6 +86,21 @@ export function tanyaHalus(namaAlat, tanya) {
   // Kalimat terpisah: pertanyaannya bisa diawali nama orang/akun yang huruf
   // besarnya tidak boleh berubah.
   return `Dikit lagi ya Bos, biar catatan uangnya nggak meleset. ${teks}`;
+}
+
+/**
+ * Alat yang PASTI untuk pesan berbentuk daftar baku, tanpa bertanya ke model.
+ * Bos Cyo 2026-10-04: model Una adalah Gemini versi lite yang paling murah, jadi
+ * "toolnya yang harus pinter". Daftar tipe barang ('Tipe "bahan baku": A, B') dan
+ * daftar koreksi HPP (2+ baris "nama = harga" + kata HPP) dikenali kode; model
+ * tidak dipanggil sama sekali untuk memilih alat (lebih hemat juga).
+ * Mengembalikan nama alat atau null kalau bentuknya tidak pasti.
+ */
+export function alatPasti(pesan) {
+  const teks = String(pesan ?? '');
+  if (uraiDaftarTipe(teks).length > 0) return 'betulkan_klasifikasi_barang';
+  if (/\bhpp\b/i.test(teks) && uraiDaftarHpp(teks).daftar.length >= 2) return 'koreksi_hpp_banyak';
+  return null;
 }
 
 /** Langkah rencana dari model, dibersihkan; null kalau tidak layak (kurang dari 2). */
@@ -222,11 +239,14 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
   panggilModel = callStructured,
   jalurAksi = null
 } = {}) {
-  const pilihan = await panggilModel(env, {
-    system: promptPilihAlat(konteks),
-    content: [{ type: 'text', text: pesanDenganRiwayat(pertanyaan, konteks.riwayat) }],
-    schema: skemaPilihAlat()
-  });
+  const pasti = alatPasti(pertanyaan);
+  const pilihan = pasti
+    ? { ok: true, value: { alat: pasti } }
+    : await panggilModel(env, {
+      system: promptPilihAlat(konteks),
+      content: [{ type: 'text', text: pesanDenganRiwayat(pertanyaan, konteks.riwayat) }],
+      schema: skemaPilihAlat()
+    });
   if (!pilihan.ok) return { ok: false, status: pilihan.status, error: pilihan.error };
 
   const namaAlat = pilihan.value?.alat;
@@ -272,9 +292,11 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
       };
     }
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
+    // Pesan asli ikut dibawa: alat daftar panjang membaca barisnya langsung dari teks,
+    // karena model kadang mengembalikan daftar kosong untuk tempelan panjang.
     const disiapkan = await aksi.siapkan(pilihan.value, {
       ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
-      storeCode: konteks.storeCode
+      storeCode: konteks.storeCode, pesan: pertanyaan
     });
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya || disiapkan.error), belumLengkap: true };

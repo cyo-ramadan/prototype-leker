@@ -76,8 +76,21 @@ test('UI: tab Status Laci terpasang, masuk grup menu, tombol cek manual tanpa po
   assert.match(html, /data-entity-tab="drawerstatus"/);
   assert.match(html, /id="entityDrawerList"/);
   assert.match(html, /id="entityDrawerRefresh"/);
-  assert.match(html, /entity-drawer-status\.js\?v=20261003-status-laci-v1/);
+  assert.match(html, /entity-drawer-status\.js\?v=20261003-status-laci-v2/);
   assert.match(nav, /'stores', 'drawerstatus'/);
   assert.doesNotMatch(js, /setInterval/);
   assert.match(js, /openedBy/);
+});
+
+test('kartu Daftar Gerai: label "Aktif" diganti status laci OPEN/CLOSE dengan jam dan kasir, dimuat otomatis dan bisa dicek ulang', () => {
+  const html = readFileSync(new URL('../public/entity-admin.html', import.meta.url), 'utf8');
+  const adminJs = readFileSync(new URL('../public/entity-admin.js', import.meta.url), 'utf8');
+  const js = readFileSync(new URL('../public/entity-drawer-status.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(adminJs, /● Aktif/);
+  assert.match(adminJs, /entityDrawerBadge/);
+  assert.match(adminJs, /refreshEntityDrawerCards/);
+  assert.match(html, /id="entityDrawerCardsRefresh"/);
+  assert.match(js, /status-chip drw-open">OPEN/);
+  assert.match(js, /status-chip drw-closed">CLOSE/);
+  assert.match(js, /entry\.openedBy/);
 });

@@ -2,3 +2,5 @@
 .drw-row { align-items: center; }
 .drw-open { background: #e3f4e8; color: #1f6b35; font-weight: 800; }
 .drw-closed { background: #ececec; color: #55524d; font-weight: 800; }
+.drw-detail { font-size: 13px; color: var(--muted, #6b665e); }
+.owner-store-status { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

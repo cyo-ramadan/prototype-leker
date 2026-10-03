@@ -58,6 +58,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminIdentity').textContent = entityAdminState.entityAdmin?.displayName || entityAdminState.entityAdmin?.username || 'Entity Admin';
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
+  window.refreshEntityDrawerCards?.();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
 }
@@ -909,7 +910,7 @@ function renderEntityAdminStores() {
       <div class="owner-store-code">${entityAdminEscape(store.code)}</div>
       <h3>${entityAdminEscape(store.storeName)}</h3>
       ${store.address ? `<p>${entityAdminEscape(store.address)}</p>` : ''}
-      <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
+      <div class="owner-store-status">${window.entityDrawerBadge ? window.entityDrawerBadge(store, entityAdminState.drawers) : (store.isActive ? '' : '○ Nonaktif')}</div>
       <div class="owner-store-actions">
         <a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>
       </div>

@@ -48,6 +48,36 @@
     } catch (error) { status.textContent = error.message; }
   }
 
+  // ---- Kartu di tab Gerai: OPEN / CLOSE menggantikan label "Aktif" -------------
+  // Bos Cyo, 2026-10-03: "aku ga bukain satu2 buat ngeceknya ... aktif apa ga
+  // penting, hilangin aja, ganti open/close."
+  window.entityDrawerBadge = (store, drawers) => {
+    if (!store.isActive) return '<span class="status-chip">Nonaktif</span>';
+    if (!drawers) return '<span class="muted">Memuat status laci…</span>';
+    const entry = drawers.get(store.code);
+    if (!entry || entry.status === 'NEVER') return '<span class="status-chip">Laci belum pernah dibuka</span>';
+    if (entry.status === 'OPEN') {
+      return `<span class="status-chip drw-open">OPEN</span> <span class="drw-detail">sejak <b>${entityAdminEscape(stamp(entry.since))}</b> · ${entityAdminEscape(entry.openedBy || '—')}</span>`;
+    }
+    return `<span class="status-chip drw-closed">CLOSE</span> <span class="drw-detail">sejak <b>${entityAdminEscape(stamp(entry.since))}</b>${entry.lastOpenedBy ? ` · ${entityAdminEscape(entry.lastOpenedBy)}` : ''}</span>`;
+  };
+
+  window.refreshEntityDrawerCards = async () => {
+    const caller = anyEntityStoreCode();
+    const summary = el('entityDrawerCardsSummary');
+    if (!caller) return;
+    if (summary) summary.textContent = 'Memuat status laci…';
+    try {
+      const payload = await entityAdminApi(`/api/admin/entity-drawer-status?store=${encodeURIComponent(caller)}`);
+      entityAdminState.drawers = new Map(payload.stores.map(item => [item.code, item]));
+      if (summary) summary.innerHTML = `<b>${payload.openCount}</b> gerai sedang buka · dicek pukul <b>${entityAdminEscape(clock(new Date(payload.asOf)))}</b> WIB`;
+      renderEntityAdminStores();
+    } catch (error) {
+      if (summary) summary.textContent = error.message;
+    }
+  };
+  document.addEventListener('click', event => { if (event.target.closest('#entityDrawerCardsRefresh')) window.refreshEntityDrawerCards(); });
+
   let mounted = false;
   // Dipanggil switchEntityTab saat tab dibuka.
   window.loadEntityDrawerStatus = () => {

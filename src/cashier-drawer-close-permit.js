@@ -248,7 +248,7 @@ async function handleCashierClosePermit(request, env, pathname) {
     // langsung." Toggle store yang sama dipakai approval_requests -- gerai
     // yang sudah mengaktifkannya tidak perlu menunggu Admin klik ACC sama
     // sekali, laci langsung tertutup saat itu juga.
-    if (await isAutoPermitEnabled(db, cashier.store.id)) {
+    if (cashier.store.ownerOperated || await isAutoPermitEnabled(db, cashier.store.id)) {
       const outcome = await applyClosePermitApproval(db, cashier.store, created, {
         approverRole: 'AUTO_PERMIT', approverId: '', note: 'Auto Permit'
       });

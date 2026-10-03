@@ -54,19 +54,24 @@ test('Mode Warung menjual lewat jalur kasir yang sama dan tidak membuat ulang ab
   assert.match(ui, /'\/api\/cashier\/sales', \{ method: 'POST'/);
   assert.match(ui, /\/api\/cashier\/drawer/);
   assert.match(ui, /attendanceStatus !== 'in'/);
-  assert.doesNotMatch(ui, /\/api\/cashier\/drawer\/open|\/api\/staff\/attendance/);
+  // Absen tidak pernah dibuat ulang di sini. Buka laci langsung hanya untuk
+  // skin E (jaga sendiri, server yang menentukan lewat ownerOperated) --
+  // skin D tetap lewat Kasir lengkap.
+  assert.doesNotMatch(ui, /\/api\/staff\/attendance/);
+  assert.match(ui, /state\.solo = Boolean\(cashier\.store\?\.ownerOperated\)/);
+  assert.match(ui, /if \(!state\.drawer\) \{ showOpenGate\(\)/);
   // Cara bayar untuk pembeli saja: utang ke supplier & legacy tidak ditawarkan.
   assert.match(ui, /\['PAYABLE', 'NON_CASH'\]/);
   // Tanpa polling periodik (invariant #6).
   assert.doesNotMatch(ui, /setInterval/);
 });
 
-test('pintu masuk & layar Pemilik hanya aktif di skin D', () => {
+test('pintu masuk & layar Pemilik hanya aktif di skin D dan E', () => {
   const entry = read('public/warung-entry.js');
   const owner = read('public/warung-pemilik.js');
-  assert.match(entry, /MaxiSkin\?\.skin\?\.\(\) !== 'd'\) return/);
-  assert.match(owner, /MaxiSkin\?\.skin\?\.\(\) !== 'd'\) return unmount\(\)/);
+  assert.match(entry, /if \(skin !== 'd' && skin !== 'e'\) return/);
+  assert.match(owner, /if \(!\['d', 'e'\]\.includes\(window\.MaxiSkin\?\.skin\?\.\(\)\)\) return unmount\(\)/);
   assert.doesNotMatch(owner, /setInterval/);
-  assert.match(read('public/cashier.html'), /<script src="\/warung-entry\.js"><\/script>/);
-  assert.match(read('public/entity-admin.html'), /<script src="\/warung-pemilik\.js"><\/script>/);
+  assert.match(read('public/cashier.html'), /<script src="\/warung-entry\.js\?v=[^"]+"><\/script>/);
+  assert.match(read('public/entity-admin.html'), /<script src="\/warung-pemilik\.js\?v=[^"]+"><\/script>/);
 });

@@ -17,12 +17,13 @@
 // berikutnya langsung tampil benar tanpa kedip; server tetap dicek tiap
 // halaman dimuat (bukan polling -- invariant #6).
 (() => {
-  const SKIN_ASSET_VERSION = '20261003-skin-abcd-v2';
+  const SKIN_ASSET_VERSION = '20261002-skin-e-v1';
   const SKIN_FONTS = {
     a: 'family=Plus+Jakarta+Sans:wght@400;600;700;800',
     b: 'family=Archivo:wdth,wght@62..125,400..900',
     c: 'family=Nunito:wght@400;600;700;800;900',
-    d: 'family=Figtree:wght@400;500;600;700;800;900'
+    d: 'family=Figtree:wght@400;500;600;700;800;900',
+    e: 'family=Nunito:wght@600;700;800;900'
   };
   const normalizeSkin = value => (Object.prototype.hasOwnProperty.call(SKIN_FONTS, value) ? value : 'classic');
   const CACHE_PREFIX = 'maxiUiSkin:';

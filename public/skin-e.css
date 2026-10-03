@@ -1,0 +1,105 @@
+/* Skin E · Jaga Sendiri -- pilihan tenant ui_skin = E (src/tenant-policy.js).
+   Untuk warung TANPA karyawan (pemilik = kasir = admin): pastel lembut untuk permukaan, teks/angka gelap (kontras >= 7:1), tombol hijau tua. Cara pakai barunya (Buka/Tutup warung, tab Untung) ada di warung.html; aturan servernya di isOwnerOperatedChoice (src/tenant-policy.js). DESAIN-SKIN-E-JAGA-SENDIRI.md.
+   Hanya berlaku saat <html data-skin="e"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.
+   Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */
+
+html[data-skin="e"] {
+  --skin-font: "Nunito", "Figtree", "Segoe UI", system-ui, sans-serif;
+  --bg: #FFF8EF;
+  --skin-page-bg: #FFF8EF;
+  --surface: #ffffff;
+  --ink: #1F2328;
+  --muted: #57534E;
+  --line: #F0E2D3;
+  --brand: #0A5A48;
+  --brand-2: #075A30;
+  --green: #075A30;
+  --green-soft: #D9F2E6;
+  --amber: #6A4000;
+  --shadow: 0 6px 18px rgba(31,35,40,.06);
+  --skin-card-shadow: none;
+  --skin-top-bg: #FFD8C2;
+  --skin-top-ink: #1F2328;
+  --skin-top-muted: #3a3632;
+  --skin-top-line: #F5C9AE;
+  --skin-mark-bg: #0A5A48;
+  --skin-mark-ink: #ffffff;
+  --skin-hero-bg: #D9F2E6;
+  --skin-hero-ink: #1F2328;
+  --skin-hero-muted: #3a3632;
+  --skin-primary: #0A5A48;
+  --skin-primary-ink: #ffffff;
+  --skin-active-bg: #0A5A48;
+  --skin-active-ink: #ffffff;
+  --skin-input-bg: #ffffff;
+  --skin-chip-bg: #FFF1BF;
+  --skin-focus: rgba(10,90,72,.20);
+  --skin-danger: #921A11;
+  --skin-danger-soft: #FDE4E1;
+  --skin-danger-line: #F3B8B0;
+  --skin-warn: #6A4000;
+  --skin-warn-soft: #FFF1BF;
+  --skin-r-sm: 14px;
+  --skin-r: 18px;
+  --skin-r-lg: 22px;
+  --skin-r-pill: 999px;
+}
+html[data-skin="e"] body { background: var(--skin-page-bg); color: var(--ink); font-family: var(--skin-font); }
+html[data-skin="e"] button, html[data-skin="e"] input, html[data-skin="e"] select, html[data-skin="e"] textarea { font-family: inherit; }
+html[data-skin="e"] .topbar { background: var(--skin-top-bg); color: var(--skin-top-ink); border-bottom-color: var(--skin-top-line); backdrop-filter: none; }
+html[data-skin="e"] .brand small { color: var(--skin-top-muted); }
+html[data-skin="e"] .brand-mark { background: var(--skin-mark-bg); color: var(--skin-mark-ink); border-radius: var(--skin-r-sm); box-shadow: none; }
+html[data-skin="e"] .pill, html[data-skin="e"] .admin-link, html[data-skin="e"] .cashier-user-chip span { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="e"] .hero { background: var(--skin-hero-bg); color: var(--skin-hero-ink); border-radius: var(--skin-r-lg); }
+html[data-skin="e"] .hero p { color: var(--skin-hero-muted); }
+html[data-skin="e"] .hero::after { content: none; }
+html[data-skin="e"] .primary-btn { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r); box-shadow: none; }
+html[data-skin="e"] .ready-action, html[data-skin="e"] .action-ready { background: var(--green); }
+html[data-skin="e"] .secondary-btn, html[data-skin="e"] .mini-btn, html[data-skin="e"] .drawer-action-btn { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-sm); }
+html[data-skin="e"] .mini-btn.danger, html[data-skin="e"] .danger-btn { background: var(--skin-danger-soft); color: var(--skin-danger); border-color: var(--skin-danger-line); }
+html[data-skin="e"] .admin-tab, html[data-skin="e"] .category-btn { background: var(--surface); color: var(--muted); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="e"] .admin-tab.active, html[data-skin="e"] .category-btn.active { background: var(--skin-active-bg); color: var(--skin-active-ink); border-color: var(--skin-active-bg); }
+html[data-skin="e"] .category-group-btn { border-color: var(--brand); color: var(--brand); }
+html[data-skin="e"] .category-group-btn.active { background: var(--brand); color: var(--skin-primary-ink); }
+html[data-skin="e"] .admin-card, html[data-skin="e"] .admin-auth-card, html[data-skin="e"] .menu-card, html[data-skin="e"] .cashier-menu-panel,
+html[data-skin="e"] .cashier-draft-panel, html[data-skin="e"] .drawer-command-card, html[data-skin="e"] .order-card, html[data-skin="e"] .status-card,
+html[data-skin="e"] .stat, html[data-skin="e"] .cart-panel, html[data-skin="e"] .column, html[data-skin="e"] .admin-summary span {
+  background: var(--surface); border-color: var(--line); border-radius: var(--skin-r-lg); box-shadow: var(--skin-card-shadow);
+}
+html[data-skin="e"] .cart-drawer { border-radius: var(--skin-r-lg) 0 0 var(--skin-r-lg); }
+html[data-skin="e"] .cashier-menu-card, html[data-skin="e"] .cashier-draft-row, html[data-skin="e"] .master-row, html[data-skin="e"] .cart-item,
+html[data-skin="e"] .purchase-composer, html[data-skin="e"] .cashier-dialog-summary div { background: var(--surface); border-color: var(--line); border-radius: var(--skin-r); }
+html[data-skin="e"] .cashier-dialog { border-radius: var(--skin-r-lg); }
+html[data-skin="e"] .note-input, html[data-skin="e"] .text-input, html[data-skin="e"] textarea,
+html[data-skin="e"] .admin-field input, html[data-skin="e"] .admin-field select, html[data-skin="e"] .admin-field textarea {
+  background: var(--skin-input-bg); border-color: var(--line); border-radius: var(--skin-r-sm); color: var(--ink);
+}
+html[data-skin="e"] .note-input:focus, html[data-skin="e"] .text-input:focus, html[data-skin="e"] textarea:focus,
+html[data-skin="e"] .admin-field input:focus, html[data-skin="e"] .admin-field select:focus, html[data-skin="e"] .admin-field textarea:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px var(--skin-focus);
+}
+html[data-skin="e"] .cashier-add-btn, html[data-skin="e"] .add-btn, html[data-skin="e"] .menu-stepper-plus { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r-sm); }
+html[data-skin="e"] .menu-stepper, html[data-skin="e"] .qty-btn, html[data-skin="e"] .cart-close-btn { background: var(--skin-input-bg); border-color: var(--line); }
+html[data-skin="e"] .menu-card.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--skin-focus); }
+html[data-skin="e"] .selected-badge, html[data-skin="e"] .menu-card .category { background: var(--skin-chip-bg); color: var(--brand-2); }
+html[data-skin="e"] .price, html[data-skin="e"] .order-items b, html[data-skin="e"] .order-no { color: var(--brand-2); }
+html[data-skin="e"] .admin-eyebrow, html[data-skin="e"] .cart-kicker, html[data-skin="e"] .text-btn { color: var(--brand); }
+html[data-skin="e"] .badge, html[data-skin="e"] .master-count, html[data-skin="e"] .admin-toast,
+html[data-skin="e"] .purchase-detail-subtotal, html[data-skin="e"] .progress-step.active, html[data-skin="e"] .cart-handle-count { background: var(--skin-active-bg); color: var(--skin-active-ink); }
+html[data-skin="e"] .cart-handle.has-items { background: var(--skin-primary); border-color: var(--skin-primary); }
+html[data-skin="e"] .drawer-mode-badge.write, html[data-skin="e"] .cashier-lock-note.write { background: var(--green-soft); color: var(--green); }
+html[data-skin="e"] .cashier-lock-note, html[data-skin="e"] .drawer-mode-badge.occupied { background: var(--skin-warn-soft); color: var(--skin-warn); }
+html[data-skin="e"] .image-preview-wrap, html[data-skin="e"] .master-thumb, html[data-skin="e"] .cashier-menu-image { background: var(--skin-chip-bg); }
+html[data-skin="e"] .admin-top-actions > a, html[data-skin="e"] .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; border-radius: var(--skin-r-pill); line-height: 1.2; }
+@media (max-width: 620px) {
+  html[data-skin="e"] .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  html[data-skin="e"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+}
+
+html[data-skin="e"] body { font-size: 16.5px; font-weight: 600; }
+html[data-skin="e"] .brand { font-weight: 900; }
+html[data-skin="e"] .primary-btn { min-height: 54px; font-size: 17px; }
+html[data-skin="e"] .total-row strong, html[data-skin="e"] .cashier-draft-total strong { font-size: 28px; }
+html[data-skin="e"] .admin-card, html[data-skin="e"] .master-row { border-color: var(--line); }
+html[data-skin="e"] #entityAdminApp .owner-heading .muted, html[data-skin="e"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
+html[data-skin="e"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }

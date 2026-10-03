@@ -10,100 +10,10 @@ yang ditulis lewat jalur lain, tidak ada aturan keuangan yang berubah.
 
 ---
 
-## 0. Revisi 2 (2026-10-02) — pemiliknya jaga sendiri
-
-> **Bagian ini menggantikan §1–§4 di mana pun bertentangan.** Fakta baru dari Bos Cyo:
-> *"di skin d ini user kita nanti ga ada karyawan, jadi yang jadi kasir dan adminnya nanti dia."*
-> Plus dua masukan: riset dulu sebelum meniru Shopee, dan warna lembut/pastel supaya "kasir
-> engga kaku".
-
-### 0.1 Satu hari Bu Sri (sendirian)
-
-| Jam | Yang terjadi | Yang aplikasi lakukan |
-|---|---|---|
-| 06.00 | Buka rolling door, hitung uang receh di kaleng | **"Buka warung"**: satu ketukan. Uang awal diisi otomatis dari sisa kemarin; tinggal "Betul" atau ubah. Tanpa absen, tanpa foto, tanpa lokasi. |
-| 06.05–21.00 | Jualan sambil masak, ngurus anak, ditinggal sebentar | Layar **Jual** (sudah ada di fase 1). Tetap terbuka seharian. |
-| 10.00 | Ke grosir | Tab **Belanja**: daftar barang yang mau habis, catat harga beli baru. Harga beli = modal, otomatis. |
-| 14.00 | Jual rokok dengan harga lama, padahal grosir sudah naik | Kartu barang ditandai **"Di bawah modal"** saat dijual. |
-| 21.00 | Tutup | **"Tutup warung"**: hitung uang di kaleng → aplikasi bilang pas/lebih/kurang, lalu **satu angka besar: untung hari ini**, plus 3 barang yang mau habis. |
-| 21.05 | Ambil uang untuk dapur | Tombol **"Ambil untuk dapur"**: uang keluar dicatat, jadi untung tidak tercampur uang belanja rumah. |
-
-### 0.2 Pembeda (USP) baru
-
-USP lama "Uangnya aman walau ditinggal" **dibuang**. Tidak ada karyawan berarti tidak ada yang
-perlu diawasi; menjualnya justru tidak jujur.
-
-> **"Jualan seperti biasa. Malamnya tahu untung beneran — tanpa nyatet."**
-
-1. **Untung beneran, bukan omzet** — modal per barang dihitung otomatis dari harga beli
-   (mesinnya sudah ada). Pembeda terbesar, tetap dipertahankan.
-2. **Uang warung terpisah dari uang dapur** — "Ambil untuk dapur" dicatat, jadi Bu Sri akhirnya
-   tahu kenapa "uangnya nggak pernah kelihatan ada".
-3. **Tahu kapan belanja dan barang mana yang merugi** — barang mau habis + dijual di bawah modal.
-
-### 0.3 Yang dibuang (untuk tenant "jaga sendiri")
-
-| Dibuang | Kenapa |
-|---|---|
-| Absen (foto + lokasi) sebelum buka laci | Absen ke diri sendiri. Ini langkah paling menyebalkan di pagi hari. |
-| Izin/persetujuan (hapus transaksi, tutup laci) | Minta izin ke diri sendiri. Disetujui otomatis, tetap tercatat. |
-| Dua akun (kasir + pemilik) | Satu orang, satu login, semua kelihatan. |
-| Kata "laci", "presensi", "permit", "entity" | Diganti "Buka/Tutup warung", "uang di kaleng", "untung". |
-| Banyak gerai di layar utama | Warung satu pintu. Daftar gerai hanya kalau gerainya lebih dari satu. |
-
-### 0.4 Bentuk aplikasinya: satu login, tiga tombol bawah
-
-**Jual · Belanja · Untung** — bilah navigasi di bawah jempol (pola yang sudah dikenal dari
-aplikasi belanja/bank; Jakob's Law: orang betah dengan pola yang sudah biasa mereka pakai).
-
-- **Jual** — layar fase 1 (cari, paling sering, bayar, kembalian).
-- **Belanja** — barang mau habis, catat belanja grosir. (Fase 2; sampai jadi, tombol ini tidak
-  ditampilkan — prinsip "jujur".)
-- **Untung** — angka hari ini, kemarin, 7 hari; barang paling laku; barang di bawah modal.
-- Di atas: **"Buka warung"/"Tutup warung"** sebagai satu tombol status, bukan menu.
-
-### 0.5 Riset: ikut gaya Shopee atau tidak?
-
-Yang **diambil** dari Shopee: **pita warna di atas dengan kotak cari di dalamnya**, kartu barang
-bergrid, bilah bawah. Ini pola yang sudah ada di jempol puluhan juta orang Indonesia — tidak
-perlu diajari.
-
-Yang **tidak diambil**: latar oranye jenuh penuh dengan teks putih/merah di atasnya.
-- Putih di atas oranye Shopee kontrasnya **3,66 : 1**; merah di atas oranye **1,57 : 1**. Batas
-  minimum baca (WCAG AA) 4,5 : 1. Shopee aman karena teksnya pendek dan penggunanya scroll
-  sebentar; kasir dipandangi 15 jam sehari.
-- Latar warna jenuh di area luas bikin mata cepat lelah (UX Movement); Bu Sri sudah butuh huruf
-  besar dan sering dipakai di teras yang silau.
-
-### 0.6 Palet: pastel untuk permukaan, angka tetap tegas
-
-Kesimpulan riset: pastel cocok untuk **latar dan kartu** (terasa ramah, tidak kaku), tapi **teks
-dan angka harus gelap** — minimal 4,5 : 1, targetnya **7 : 1** untuk mata 40+ dan layar di bawah
-matahari. Semua angka di bawah sudah dihitung.
-
-| Peran | Warna | Kontras dengan teks/latarnya |
-|---|---|---|
-| Latar halaman | krem `#FFF8EF` | teks `#1F2328` = 14,99 |
-| Pita atas + kotak cari | persik `#FFD8C2` | teks = 11,93 |
-| Kartu barang (bergilir per kategori) | mint `#D9F2E6` · persik `#FFE5D4` · lavender `#E8E3FA` · langit `#D9ECFA` · mentega `#FFF1BF` | teks = 12,6–14,0 |
-| Tombol utama (Bayar, Buka warung) | hijau tua `#0A5A48`, teks putih | 8,17 |
-| Angka untung | `#075A30` di krem | 7,93 |
-| Angka minus | `#9B1B12` di krem | 7,79 |
-| Teks pendamping | `#57534E` di krem | 7,24 |
-
-Aturan: tidak ada teks di atas warna jenuh selain tombol utama; tidak ada teks putih di atas
-pastel; angka uang selalu warna gelap. Biru `#1446c8` fase 1 diganti palet ini.
-
-### 0.7 Yang perlu diputuskan Bos Cyo sebelum dibangun
-
-Perlu satu kebijakan tenant baru, misal **"Dijaga pemilik sendiri"** (default mati; hanya
-berlaku kalau dinyalakan, tidak menyentuh tenant lain):
-
-1. Lewati absen sebelum buka warung (sekarang server mewajibkannya).
-2. Izin disetujui otomatis (mesinnya sudah ada; tetap tercatat siapa/kapan).
-3. Satu login pemilik bisa langsung jualan dan lihat untung.
-
-Tidak ada aturan uang yang berubah: penjualan, modal, dan jurnal tetap lewat jalur yang sama.
+> **2026-10-02:** rancangan "pemilik jaga sendiri, tanpa karyawan" yang sempat ditulis di sini
+> dipindah jadi **skin E** (Bos Cyo: *"yang kusus ga ada karyawan dibuat skin e"*) —
+> `DESAIN-SKIN-E-JAGA-SENDIRI.md`. Skin D tetap untuk warung yang dijaga bergantian
+> (pemilik + anak/karyawan). Katalog semua skin: `DESAIN-SKIN-KATALOG.md`.
 
 ---
 
@@ -193,5 +103,5 @@ Kalimat iklannya: **"Untungnya kelihatan. Uangnya aman."**
 - Semua penjualan tetap lewat jalur kasir yang sama (laci aktif, stok, modal, izin).
 - Absen dan buka laci tetap memakai alur yang sudah ada (foto + lokasi), tidak dibuat ulang.
 
-<!-- DOC-IMPACT: 2026-10-02 revisi 2: pengguna skin D pemilik tunggal; USP, yang dibuang, Jual·Belanja·Untung, palet pastel + kontras; menunggu keputusan kebijakan "dijaga pemilik sendiri". -->
+<!-- DOC-IMPACT: 2026-10-02 revisi 2 (pemilik tunggal) dipindah ke skin E: DESAIN-SKIN-E-JAGA-SENDIRI.md. -->
 <!-- DOC-IMPACT: 2026-10-03 dokumen baru; menambah skin D (Mode Warung) di belakang pilihan tenant ui_skin = D. -->

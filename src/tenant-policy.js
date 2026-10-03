@@ -27,8 +27,24 @@ export const UI_SKIN_OPTIONS = Object.freeze([
   { value: 'C', label: 'C · Kabar Gerai' },
   // D bukan cuma tampilan: "Mode Warung" untuk kelontong/UMKM kecil --
   // kasir satu layar + layar Pemilik "Hari ini" (DESAIN-SKIN-D-WARUNG.md).
-  { value: 'D', label: 'D · Mode Warung' }
+  { value: 'D', label: 'D · Mode Warung' },
+  // Bos Cyo, 2026-10-02: "yang kusus ga ada karyawan dibuat skin e" -- E
+  // adalah Mode Warung untuk pemilik yang jaga sendiri
+  // (DESAIN-SKIN-E-JAGA-SENDIRI.md). Satu-satunya skin yang juga mengubah
+  // aturan server, lihat isOwnerOperatedChoice di bawah.
+  { value: 'E', label: 'E · Jaga Sendiri' }
 ]);
+
+// Tenant yang memilih skin E dijaga pemiliknya sendiri, tanpa karyawan:
+// buka laci tanpa presensi (presensi ke diri sendiri), pengajuan langsung
+// disetujui otomatis (izin ke diri sendiri, tetap tercatat AUTO_PERMIT), dan
+// login kasir boleh melihat untung gerainya. Aturan uang/jurnal tidak
+// berubah sama sekali. Sengaja satu pintu supaya kalau nanti dipisah jadi
+// saklar sendiri, cukup ubah fungsi ini.
+export const OWNER_OPERATED_SKIN_CHOICE = 'E';
+export function isOwnerOperatedChoice(choice) {
+  return choice === OWNER_OPERATED_SKIN_CHOICE;
+}
 
 export const TENANT_POLICY_DEFINITIONS = Object.freeze([
   {
@@ -42,7 +58,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     type: 'choice',
     options: UI_SKIN_OPTIONS,
     label: 'Tampilan (skin)',
-    description: '0 = tampilan sekarang. D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    description: '0 = tampilan sekarang. E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
     defaultValue: '0'
   }
 ]);

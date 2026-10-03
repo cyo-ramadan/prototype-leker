@@ -73,7 +73,7 @@ login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
 **Ingatan 5 chat (2026-10-03, Bos Cyo: "konteks una ditambahin jadi 5 chat masih
-relate")** — panel mengirim `riwayat` (5 pesan Bos terakhir beserta balasan Una dan
+relate"; lalu dinaikkan jadi 10 — lihat di bawah)** — panel mengirim `riwayat` (5 pesan Bos terakhir beserta balasan Una dan
 catatan seperti "Bos menyetujui draft itu", "Bos pindah membahas Beji") di tiap
 `/api/caca/tanya`; server membersihkannya (`src/caca-riwayat.js`) dan menaruhnya
 sebelum pesan sekarang di pemilihan alat dan di tiap langkah pembaca bebas.
@@ -128,6 +128,37 @@ yang berhasil mengisi dirinya sendiri; Galeh 41 hari nol barang). Yang dibangun:
   ditulis di draft. Sesudah barang jualan tanpa modal jadi, panel bertanya santai "dibikin sendiri atau
   beli jadi?" (kalimat tetap, tanpa AI) lalu menggiring ke resep. Alat uang (`ALAT_UANG` di
   `src/caca-agen.js`) tetap bertanya, diawali ajakan halus (`tanyaHalus`).
+
+**Koreksi HPP lewat Una + ingatan 10 obrolan (2026-10-03, Bos Cyo, setelah HPP Bubuk
+Matcha Genengan tercatat Rp1.899.004 per pcs dan Una menjawab pertanyaan lanjutan dengan
+kamus HPP)** —
+- **Salah pilih alat yang jadi akarnya:** aturan prompt "maksudnya … apa = jelaskan"
+  (dari tahap pendamping) membelokkan "maksudnya stok matcha tadi? kamu bisa ubah
+  hppnya?" ke kamus. Sekarang `jelaskan` HANYA untuk arti istilah/cara pakai yang berdiri
+  sendiri; pesan yang merujuk percakapan, menyebut barang/gerai/angka tertentu, atau
+  meminta tindakan bukan `jelaskan` (prompt di `src/caca-agen.js` + petunjuk alatnya;
+  dijaga test).
+- **Ingatan 10 obrolan** (`MAKS_PERCAKAPAN` 10 di server, `CACA_PESAN_NYAMBUNG` 10 di
+  panel, harus sama). Jawaban Una boleh 900 karakter (pesan Bos 400) dan panel ikut
+  menyimpan ringkasan isi tabel (maks 10 baris) di riwayat, karena nama yang dirujuk
+  "yang tadi" sering hanya ada di tabel. Angka di riwayat tetap bukan bukti. Biaya
+  tiap panggilan model naik; kalau terasa mahal turunkan angkanya di kedua tempat.
+- **Alat `hitung_ulang_hpp`** (`src/caca-aksi-hpp.js`): merangkai Hitung Ulang HPP yang
+  sudah ada (`src/hpp-recalculation.js`) — pratinjau → draft → "Ya"; tidak ada jalur tulis
+  baru (pintu `/api/admin/hpp-recalculation` ditambah ke `PINTU_AKSI`). Dua bentuk:
+  rekap ulang sejak tanggal (HPP penjualan sejak itu dihitung ulang + harga rata-rata
+  bahan dibetulkan) dan "hanya harga ke depan" (urgent; tanggal mulai = besok, jadi tak
+  ada penjualan yang ikut). Tanggal yang salah dicari KODE bila tidak disebut: tanggal
+  pertama saat HPP bahan di penjualan melenceng > 20% dari harga benar (yang < 20%
+  dilewati), tertulis di draft; tanggal dan cara DIBEKUKAN di `muatan` supaya "Ya"
+  mengonfirmasi persis yang tadi tampil. Tabel draft hanya sampai kemarin (penjualan
+  hari ini terus bergerak dan akan membuat draft "berubah"); hari ini tetap ikut
+  dihitung dan itu disebut di dampak. Harga benar WAJIB disebut (tidak ditebak, ditanya
+  dengan HPP tercatat sekarang); pecahan koma/titik diterima, nol ditolak. Hanya bahan
+  di daftar `/components` (dipakai produksi dadakan atau bahan baku) yang bisa
+  dikoreksi — selain itu Una menyebut bahan yang bisa. Hitung ulang kedua dengan harga
+  sama tidak menggandakan koreksi (409 "tidak ada yang berubah"). Test: `test/caca-hpp.test.js`
+  (migration asli).
 
 **Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
 — alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,

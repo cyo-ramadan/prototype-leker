@@ -15,8 +15,10 @@ const CACA_INGAT_GERAI = 'lekerCacaGerai';
 const CACA_SIMPANAN = 'lekerUnaPercakapan';
 const CACA_MAKS_SIMPAN = 80;
 
-const CACA_MAKS_RIWAYAT = 60;
-const CACA_PESAN_NYAMBUNG = 5;
+const CACA_MAKS_RIWAYAT = 120;
+// 10 pesan Bos yang masih nyambung (Bos Cyo 2026-10-03). Harus sama dengan
+// MAKS_PERCAKAPAN di src/caca-riwayat.js.
+const CACA_PESAN_NYAMBUNG = 10;
 
 const cacaState = {
   // Ingatan jangka pendek: {dari: 'saya'|'una'|'sistem', teks}. Dikirim 5 pesan
@@ -137,7 +139,8 @@ function cacaSidikLogin() {
 }
 
 function cacaCatatRiwayat(dari, teks) {
-  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  // Jawaban Una boleh lebih panjang (nama barang di tabelnya sering dirujuk lagi).
+  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, dari === 'una' ? 900 : 400);
   if (!bersih) return;
   cacaState.riwayat.push({ dari, teks: bersih });
   if (cacaState.riwayat.length > CACA_MAKS_RIWAYAT) cacaState.riwayat.splice(0, cacaState.riwayat.length - CACA_MAKS_RIWAYAT);
@@ -156,11 +159,28 @@ function cacaRiwayatUntukServer() {
   return cacaState.riwayat.slice(mulai);
 }
 
+// Isi tabel ikut diingat dalam bentuk ringkas: pertanyaan lanjutan seperti
+// "yang matcha tadi kenapa?" merujuk nama yang hanya tampil di tabel. Angkanya
+// tetap bukan bukti (server menjelaskan itu ke model), cuma pengingat rujukan.
+function cacaRingkasTabel(tabel, maks = 400) {
+  if (!tabel?.kolom?.length || !tabel.isi?.length) return '';
+  const baris = tabel.isi.slice(0, 10).map(r => r.map(sel => String(sel ?? '').trim()).filter(Boolean).join(' | '));
+  const lebih = tabel.isi.length > 10 ? ` (+${tabel.isi.length - 10} baris lain)` : '';
+  return `[Tabel: ${tabel.kolom.join(' | ')} → ${baris.join('; ')}${lebih}]`.slice(0, maks);
+}
+
+function cacaRingkasJawaban(payload) {
+  const teks = String(payload.jawaban || '').replace(/\s+/g, ' ').trim().slice(0, 480);
+  const tabel = cacaRingkasTabel(payload.tabel);
+  return tabel ? `${teks} ${tabel}` : teks;
+}
+
 function cacaRingkasDraft(draft) {
   const baris = Array.isArray(draft.baris)
     ? draft.baris.map(([label, nilai]) => `${label}: ${nilai}`).join('; ')
     : `Untuk: ${draft.keterangan}; Nominal: ${draft.nominal}; Ke: ${draft.pihak}; Tanggal: ${draft.tanggal}`;
-  return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris}`;
+  const tabel = cacaRingkasTabel(draft.tabel, 360);
+  return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris} ${tabel}`.replace(/\s+/g, ' ').trim();
 }
 
 function cacaSimpanPercakapan() {
@@ -562,6 +582,7 @@ function cacaIsiDraft(draft) {
     const tombol = draft.aksi === 'buat_jurnal' ? 'Ya, posting'
       : draft.aksi === 'buat_barang_banyak' ? `Ya, masukkan ${draft.muatan?.daftar?.length ?? 0} barang`
       : draft.aksi === 'nonaktifkan_barang' ? 'Ya, nonaktifkan'
+      : draft.aksi === 'hitung_ulang_hpp' ? 'Ya, koreksi HPP'
       : ['buat_barang', 'buat_resep'].includes(draft.aksi) ? 'Ya, buat'
         : ['atur_cara_bayar', 'pindah_saldo_akun'].includes(draft.aksi) ? 'Ya, jalankan'
         : 'Ya, catat';
@@ -994,7 +1015,7 @@ async function cacaKirimTeks(pertanyaan) {
     mengetik.remove();
     cacaCatatRiwayat('una', payload.perluKonfirmasi && payload.draft
       ? cacaRingkasDraft(payload.draft)
-      : `${payload.jawaban || ''}${payload.tabel ? ' [tabel ditampilkan]' : ''}`);
+      : cacaRingkasJawaban(payload));
     if (payload.perluKonfirmasi && payload.draft) {
       // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
       // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".

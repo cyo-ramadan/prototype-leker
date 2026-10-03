@@ -143,6 +143,8 @@ export const PINTU_AKSI = Object.freeze([
   '/api/admin/master/products/editor',
   '/api/admin/manufacturing/bootstrap',
   '/api/admin/manufacturing/recipes',
+  // Hitung Ulang HPP (alat hitung_ulang_hpp): pratinjau + terapkan, sama dengan tab-nya.
+  '/api/admin/hpp-recalculation',
   '/api/admin/accounting/accounts',
   '/api/admin/accounting/journals',
   '/api/admin/operational-expenses',

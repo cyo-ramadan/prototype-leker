@@ -316,7 +316,7 @@ export const ALAT_JELASKAN = Object.freeze({
   nama: 'jelaskan',
   lingkup: 'semua',
   baca: true,
-  petunjuk: 'MENJELASKAN istilah atau cara pakai aplikasi, mis. "HPP itu apa?", "jurnal itu apa?", "mulai dari mana?", "Una bisa apa aja?", "akun kasir bikinnya di mana?".',
+  petunjuk: 'MENJELASKAN arti istilah atau cara pakai aplikasi yang berdiri sendiri, mis. "HPP itu apa?", "jurnal itu apa?", "mulai dari mana?", "Una bisa apa aja?", "akun kasir bikinnya di mana?". BUKAN untuk pesan yang merujuk percakapan tadi, menyebut barang/gerai tertentu, atau meminta tindakan.',
   skema: {
     jelaskan_topik: { type: 'string', description: 'jelaskan: istilah atau hal yang ditanyakan, PERSIS seperti ditulis.' }
   },

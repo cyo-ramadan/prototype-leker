@@ -304,3 +304,42 @@ test('salah ketik: rekomendasi dari kemiripan terbanyak, bukan sekadar "tidak ke
     assert.match(sebagian.tanya, /Black Curent/, 'kandidat yang mengandung kata terbanyak disebut');
   } finally { galeh.db.close(); }
 });
+
+// Bos Cyo 2026-10-03: "coba cek harga jual es teh leci sama es teh black curant
+// sekarang brp?" dijawab "Lembarnya terlalu panjang". Sekarang dijawab kode.
+test('cek_barang: semua barang yang memuat nama itu, salah ketik dibaca, tanpa panggilan model kedua', async () => {
+  const galeh = await siapkanGalehh();
+  try {
+    const draft = await draftBarangBanyak(galeh, {
+      daftar_barang: [
+        { nama: 'Es Teh Leci Besar', harga_jual: '7rb', harga_beli: '2rb' },
+        { nama: 'Es Teh Leci Kecil', harga_jual: '5rb' },
+        { nama: 'Es Teh Black Curent Besar', harga_jual: '7rb' },
+        { nama: 'Kopi Susu', harga_jual: '12rb' }
+      ],
+      daftar_kategori: '', daftar_jenis: 'jualan'
+    });
+    for (let bagian = 0; bagian < 4; bagian += 1) await galeh.panggil('/api/caca/catat?store=IKAN01', { method: 'POST', body: { draft, bagian } });
+
+    let panggilan = 0;
+    const hasil = await jawabPertanyaan('coba cek harga jual es teh leci sama es teh black curant sekarang brp?', {
+      nama: 'Bos', peran: 'Entity Admin', lingkup: 'gerai', namaLingkup: 'Galeh', storeCode: 'IKAN01', storeName: 'Galeh', hariIni: '2026-10-03'
+    }, {
+      jalurAksi: jalurUna(galeh),
+      panggilModel: async () => { panggilan += 1; return { ok: true, value: { alat: 'cek_barang', cek_barang: ['es teh leci', 'es teh black curant'] } }; }
+    });
+    assert.equal(panggilan, 1, 'tidak ada panggilan model kedua');
+    assert.match(hasil.jawaban, /^Ini di Galeh:/);
+    assert.deepEqual(hasil.tabel.kolom, ['Barang', 'Harga jual', 'Harga beli', 'HPP', 'Stok']);
+    assert.deepEqual(hasil.tabel.isi.map((r) => [r[0], r[1], r[2]]), [
+      ['Es Teh Leci Besar', 'Rp7.000', 'Rp2.000'],
+      ['Es Teh Leci Kecil', 'Rp5.000', 'Rp0'],
+      ['Es Teh Black Curent Besar', 'Rp7.000', 'Rp0']
+    ]);
+    assert.match(hasil.jawaban, /"es teh black curant" belum persis ketemu, Una tampilkan yang paling mirip/);
+    assert.equal(hasil.draft, undefined, 'hanya membaca');
+
+    const asing = await cariAksi('cek_barang').siapkan({ cek_barang: ['sate madura'] }, jalurUna(galeh));
+    assert.match(asing.jawaban, /belum (ketemu|nemu) nih di Galeh/);
+  } finally { galeh.db.close(); }
+});

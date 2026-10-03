@@ -268,6 +268,9 @@ async function tanya(request, env, jalurUtama) {
     jejak: hasil.jejak ?? null,
     peringatan: hasil.peringatan ?? null,
     tawaran: hasil.tawaran ?? null,
+    rencana: hasil.rencana ?? null,
+    // Una balik bertanya / belum bisa: dipakai panel untuk menjeda rencana.
+    belumLengkap: Boolean(hasil.belumLengkap || hasil.ditolak),
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null

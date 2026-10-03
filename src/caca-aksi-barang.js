@@ -22,6 +22,7 @@
 // barang tetap dicek langsung tepat sebelum tiap barang dibuat.
 
 import { rupiah } from './caca-nominal.js';
+import { tampilSkala } from './caca-hitung.js';
 import { normalkan, cocokkanSatu, rupiahDari, teks, BELUM_KETEMU, kataBelumKetemu } from './caca-aksi-dasar.js';
 
 export const MAKS_BARIS_BARANG = 60;
@@ -579,4 +580,75 @@ const ubahBarang = Object.freeze({
   }
 });
 
-export const AKSI_BARANG = Object.freeze([barangBanyak, nonaktifkanBarang, ubahBarang]);
+// --- cek barang (harga jual, harga beli, HPP, stok) -----------------------
+//
+// Bos Cyo 2026-10-03: "coba cek harga jual es teh leci sama es teh black
+// curant sekarang brp?" dijawab "Lembarnya terlalu panjang" — pertanyaan
+// sesederhana itu lewat pembaca bebas yang membawa seluruh daftar barang ke
+// model. Alat ini menjawabnya dengan KODE: cocokkan nama (semua barang yang
+// namanya memuat kata itu, karena "es teh leci" bisa Besar dan Kecil), lalu
+// tampilkan angkanya apa adanya. Tidak ada panggilan model kedua.
+
+const rupiahPersis = (nilai) => `Rp${tampilSkala(BigInt(Math.round(Number(nilai || 0) * 1_000_000)))}`;
+const MAKS_CEK = 15;
+
+const cekBarang = Object.freeze({
+  nama: 'cek_barang',
+  lingkup: 'gerai',
+  baca: true,
+  petunjuk: 'MELIHAT harga jual, harga beli, HPP, dan stok barang TERTENTU yang disebut namanya, mis. "harga jual es teh leci sama es teh black curant berapa?", "HPP kopi susu berapa?". Lebih cepat dari baca_api untuk pertanyaan per barang.',
+  skema: {
+    cek_barang: { type: 'array', description: 'cek_barang: nama-nama barang PERSIS seperti disebut (tanpa nama gerai).', items: { type: 'string' } }
+  },
+
+  async siapkan(t, ctx) {
+    const nama = (Array.isArray(t?.cek_barang) ? t.cek_barang : []).map((n) => teks(n, 100)).filter(Boolean).slice(0, 10);
+    if (!nama.length) return { ok: false, tanya: 'Barang yang mana yang mau dicek?' };
+    const ref = await ctx.baca('/api/admin/master/products/editor?ringkas=1');
+    if (!ref.ok) return ref;
+    const aktif = (ref.data.products ?? []).filter((p) => p.isActive !== false);
+
+    const ketemu = [];
+    const catatan = [];
+    for (const tertulis of nama) {
+      const kunci = normalkan(tertulis);
+      let cocok = aktif.filter((p) => normalkan(p.name).includes(kunci));
+      if (!cocok.length) {
+        const mirip = cocokkanMirip(tertulis, aktif, ctx.namaLingkup || 'gerai ini');
+        if (mirip.ok) {
+          cocok = [mirip.nilai];
+        } else {
+          // Hanya membaca, jadi boleh lebih longgar dari ubah_barang: yang
+          // paling mirip langsung ditampilkan, dan itu dikatakan terang.
+          const dekat = aktif
+            .map((p) => ({ p, skor: kemiripan(tertulis, p.name) }))
+            .filter((x) => x.skor >= 0.55)
+            .sort((x, y) => y.skor - x.skor)
+            .slice(0, 3);
+          if (!dekat.length) { catatan.push(mirip.tanya); continue; }
+          cocok = dekat.map((x) => x.p);
+          catatan.push(`"${tertulis}" belum persis ketemu, Una tampilkan yang paling mirip.`);
+        }
+      }
+      for (const p of cocok) if (!ketemu.some((x) => x.id === p.id)) ketemu.push(p);
+    }
+    if (!ketemu.length) return { ok: true, jawaban: catatan.join(' ') };
+
+    const tampil = ketemu.slice(0, MAKS_CEK);
+    const stok = (p) => (p.stockQuantity == null ? '—' : `${rupiah(p.stockQuantity)} ${p.unitSymbol || ''}`.trim());
+    return {
+      ok: true,
+      jawaban: [
+        `Ini di ${ctx.namaLingkup || 'gerai ini'}:`,
+        ketemu.length > MAKS_CEK ? `(${ketemu.length} barang cocok, Una tampilkan ${MAKS_CEK} pertama — sebut lebih spesifik kalau perlu.)` : '',
+        ...catatan
+      ].filter(Boolean).join(' '),
+      tabel: {
+        kolom: ['Barang', 'Harga jual', 'Harga beli', 'HPP', 'Stok'],
+        isi: tampil.map((p) => [p.name, rupiahPersis(p.price), rupiahPersis(p.purchasePrice), rupiahPersis(p.averageCost), stok(p)])
+      }
+    };
+  }
+});
+
+export const AKSI_BARANG = Object.freeze([barangBanyak, nonaktifkanBarang, ubahBarang, cekBarang]);

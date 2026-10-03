@@ -182,6 +182,28 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
 - Harga beli yang diubah hanya Harga Beli di Master Barang; HPP (average cost) tidak ikut —
   Una mengarahkan ke koreksi HPP bila itu yang salah.
 
+**Rencana bertahap, cek barang, "mengetik…", gerai vs entity (2026-10-03, Bos Cyo):**
+- **Fakta yang dulu dijawab salah oleh model:** harga/nama/kategori barang ada di Data Barang
+  TIAP GERAI; entity hanya Kode Barang + foto. Una sempat menjawab "tidak punya akses master
+  entity" — prompt kini menyebut fakta ini, ada entri kamus `master_barang`, dan pesan
+  selesai `ubah_barang` menyebut gerainya. Una mengikuti gerai di judul panel (▾), BUKAN
+  workspace yang sedang terbuka (diverifikasi di produksi: ubahan Bos masuk ke Mandala).
+- **`cek_barang`** (baca, tanpa model kedua): harga jual/beli, HPP, stok untuk barang yang
+  disebut namanya; semua barang yang memuat kata itu (Besar/Kecil), dan karena hanya membaca,
+  yang paling mirip ditampilkan langsung (disebut terang). Lahir dari "cek harga es teh leci
+  …" yang gagal "Lembarnya terlalu panjang": pembaca bebas membawa seluruh daftar barang.
+  Katalog `barang` kini selalu `?ringkas=1` (kolom `tetap` di katalog); pesan MAX_TOKENS
+  penyedia AI tidak lagi bicara soal foto.
+- **"mengetik…" ala WhatsApp:** subjudul panel berganti "mengetik…" dan gelembung bertuliskan
+  "Una sedang mengetik…" (bukan tiga titik).
+- **Alat `rencana`:** perintah berurutan (2–5 langkah) ditulis model sebagai judul + perintah;
+  server TIDAK menjalankan apa pun. Panel mengirim tiap langkah sebagai pesan biasa (lewat
+  pilih-alat, draft, "Ya" yang sama), kartu menampilkan 1. … ✓ / 2. … (jalan) / 3. …. Draft →
+  menunggu "Ya" lalu lanjut sendiri; Una balik bertanya (`belumLengkap`) → berhenti, Bos
+  menjawab di chat lalu tekan "Lanjutkan ke langkah n"; putus (RTO) → "Ulangi langkah n".
+  Keadaan rencana disimpan di kartunya (`data-caca-rencana`), jadi bertahan pindah halaman
+  (langkah yang sedang jalan jadi "terputus").
+
 **Bahasa pertanyaan balik jangan kaku (2026-10-03):** "tidak ditemukan/tidak ketemu" diganti
 "belum ketemu nih"/"belum nemu nih" (`kataBelumKetemu` di `src/caca-aksi-dasar.js`, dipilih
 dari isi kalimat supaya pasti untuk tes tapi bervariasi); deteksi "belum ketemu" di kode

@@ -32,6 +32,7 @@ const TGL = 'YYYY-MM-DD';
  * @property {boolean} [tanpaFanOut] tidak bermakna lintas gerai (id/akun beda di tiap gerai) atau terlalu berat
  * @property {number} [batasLimit] batas baris per gerai saat dibaca lintas gerai
  * @property {boolean} [lintasGerai] satu panggilan sudah mencakup semua gerai entity
+ * @property {Record<string,string>} [tetap] parameter query yang selalu ikut (bukan pilihan model)
  * @property {string} ringkas apa isinya, kalimat untuk model
  */
 
@@ -59,7 +60,8 @@ export const KATALOG = Object.freeze([
 
   // --- barang, resep, stok --------------------------------------------------
   {
-    id: 'barang', path: '/api/admin/master/products/editor', lingkup: 'gerai',
+    // tetap: ringkas=1 — tanpa foto barang (satu foto bisa ratusan KB; Una tidak memakainya).
+    id: 'barang', path: '/api/admin/master/products/editor', lingkup: 'gerai', tetap: { ringkas: '1' },
     ringkas: 'Master barang gerai: nama, kategori, harga jual (price), harga beli (purchasePrice), HPP rata-rata (averageCost), harga beli terakhir, satuan, stok, aktif/nonaktif, resep terkait.'
   },
   {
@@ -328,6 +330,7 @@ export function bangunAlamat(api, pasangan = []) {
     return { ok: false, error: `API ${api.id} butuh parameter accountId.` };
   }
 
-  const query = new URLSearchParams(dipakai).toString();
+  // Parameter tetap dari katalog (bukan dari model), mis. ringkas=1.
+  const query = new URLSearchParams({ ...dipakai, ...(api.tetap ?? {}) }).toString();
   return { ok: true, alamat: query ? `${path}?${query}` : path, dipakai };
 }

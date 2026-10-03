@@ -121,7 +121,7 @@ export async function callStructured(env, {
 
   const finishReason = payload?.candidates?.[0]?.finishReason;
   if (finishReason === 'MAX_TOKENS') {
-    return { ok: false, status: 502, error: 'Lembarnya terlalu panjang buat sekali baca. Coba difoto per bagian.' };
+    return { ok: false, status: 502, error: 'Kepanjangan buat sekali proses nih. Kalau foto, coba difoto per bagian; kalau pertanyaan, coba lebih spesifik (mis. sebut 1-2 barang).' };
   }
   if (finishReason && finishReason !== 'STOP') {
     return { ok: false, status: 422, error: 'Una tidak bisa memproses gambar ini.' };

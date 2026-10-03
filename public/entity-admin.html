@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/entity-report-chart.css?v=20261002-grafik-gerai-v3" />
   <link rel="stylesheet" href="/entity-stock-matrix.css?v=20261002-stok-gerai-v2" />
   <link rel="stylesheet" href="/entity-store-report.css?v=20261002-laporan-gerai-v1" />
+  <link rel="stylesheet" href="/entity-drawer-status.css?v=20261003-status-laci-v2" />
   <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
   <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
   <script>window.MAXI_SKIN_PAGE = 'entity-admin';</script>
@@ -44,6 +45,7 @@
 
       <nav class="admin-tabs" aria-label="Menu Entity Admin">
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
+        <button class="admin-tab" data-entity-tab="drawerstatus" type="button">Status Laci</button>
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
         <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
@@ -57,7 +59,8 @@
 
       <section id="entityTab-stores" class="admin-section active">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
+          <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini. Tiap gerai menampilkan status laci (OPEN/CLOSE), jamnya, dan kasir yang membuka.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0"><button id="entityDrawerCardsRefresh" class="secondary-btn" type="button">Cek status laci</button><span id="entityDrawerCardsSummary" class="muted"></span></div>
           <div id="entityAdminStoreList" class="owner-store-grid"></div>
         </div>
       </section>
@@ -185,6 +188,17 @@
         </div>
       </section>
 
+      <section id="entityTab-drawerstatus" class="admin-section">
+        <div class="admin-card">
+          <div class="list-head"><div><h2>Status laci semua gerai</h2><div class="muted">Gerai mana yang laci kasirnya sedang dibuka, sejak jam berapa, dan siapa kasir yang membukanya. Data diambil saat tab dibuka atau tombol ditekan, tidak diperbarui sendiri.</div></div><button id="entityDrawerRefresh" class="secondary-btn" type="button">Cek sekarang</button></div>
+          <div id="entityDrawerSummary" class="admin-tip" style="margin:10px 0"></div>
+          <div id="entityDrawerStatus" class="muted"></div>
+        </div>
+        <div class="admin-card" style="margin-top:14px">
+          <div id="entityDrawerList"><div class="empty">Memuat…</div></div>
+        </div>
+      </section>
+
       <section id="entityTab-storereport" class="admin-section">
         <div class="admin-card">
           <div class="list-head"><div><h2>Laporan Gerai</h2><div class="muted">Klik satu gerai: tiap baris satu tanggal, kolomnya Omset, HPP, SO+, SO−, Gross Profit, Beban Lapak, Gaji, Beban Lainnya, dan Net Profit.</div></div></div>
@@ -284,13 +298,14 @@
 
   <div id="entityAdminToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<link rel="stylesheet" href="/caca-chat.css?v=20261002-una-dampingi-v1" />
-<script src="/caca-chat.js?v=20261002-una-santai-v1"></script>
+<link rel="stylesheet" href="/caca-chat.css?v=20261003-una-rencana-v1" />
+<script src="/caca-chat.js?v=20261003-una-rencana-v1"></script>
 <script src="/entity-admin.js?v=20261002-kartu-ringkas-v2"></script>
-<script src="/nav-groups.js?v=20261003-skin-d-pemilik-v1"></script>
+<script src="/nav-groups.js?v=20261003-skin-d-pemilik-v2"></script>
 <script src="/warung-pemilik.js?v=20261003-skin-d-pemilik-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261002-stok-gerai-v2"></script>
 <script src="/entity-store-report.js?v=20261002-laporan-gerai-v1"></script>
+<script src="/entity-drawer-status.js?v=20261003-status-laci-v2"></script>
 <script>
 (() => {
   const el = id => document.getElementById(id);

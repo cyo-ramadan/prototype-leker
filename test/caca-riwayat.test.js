@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bersihkanRiwayat, teksRiwayat, pesanDenganRiwayat, MAKS_PERCAKAPAN } from '../src/caca-riwayat.js';
+import { bersihkanRiwayat, teksRiwayat, pesanDenganRiwayat, MAKS_PERCAKAPAN, MAKS_ENTRI, MAKS_PANJANG_UNA } from '../src/caca-riwayat.js';
 import { jawabPertanyaan } from '../src/caca-agen.js';
 import { bacaBebas } from '../src/caca-baca.js';
 
@@ -14,14 +14,21 @@ function percakapan(jumlah) {
   return hasil;
 }
 
-test('hanya 5 pesan Bos terakhir yang nyambung, beserta balasan dan catatan di antaranya', () => {
-  const masuk = percakapan(8);
-  masuk.splice(13, 0, { dari: 'sistem', teks: 'Bos pindah membahas Beji.' });
+test('hanya 10 pesan Bos terakhir yang nyambung, beserta balasan dan catatan di antaranya', () => {
+  assert.equal(MAKS_PERCAKAPAN, 10);
+  const masuk = percakapan(14);
+  masuk.splice(23, 0, { dari: 'sistem', teks: 'Bos pindah membahas Beji.' });
   const hasil = bersihkanRiwayat(masuk);
   assert.equal(hasil.filter((e) => e.dari === 'saya').length, MAKS_PERCAKAPAN);
-  assert.equal(hasil[0].teks, 'pertanyaan 4');
-  assert.equal(hasil.at(-1).teks, 'jawaban 8');
+  assert.equal(hasil[0].teks, 'pertanyaan 5');
+  assert.equal(hasil.at(-1).teks, 'jawaban 14');
   assert.ok(hasil.some((e) => e.dari === 'sistem'));
+});
+
+test('10 obrolan lengkap beserta balasan tidak terpotong oleh batas jumlah baris', () => {
+  const hasil = bersihkanRiwayat(percakapan(10));
+  assert.equal(hasil.length, 20);
+  assert.equal(hasil[0].teks, 'pertanyaan 1');
 });
 
 test('riwayat dari browser dibersihkan: bentuk, peran liar, baris kosong, kontrol, panjang', () => {
@@ -31,14 +38,15 @@ test('riwayat dari browser dibersihkan: bentuk, peran liar, baris kosong, kontro
   ]);
   assert.equal(hasil.length, 2);
   assert.equal(hasil[0].teks, 'baris baru dan spasi');
-  assert.equal(hasil[1].teks.length, 400);
+  assert.equal(hasil[1].teks.length, MAKS_PANJANG_UNA, 'balasan Una boleh lebih panjang dari pesan Bos');
+  assert.equal(bersihkanRiwayat([{ dari: 'saya', teks: 'y'.repeat(2000) }])[0].teks.length, 400);
   assert.deepEqual(bersihkanRiwayat('bukan daftar'), []);
   assert.deepEqual(bersihkanRiwayat(undefined), []);
 });
 
 test('jumlah entri dibatasi walau browser mengirim ribuan baris', () => {
   const hasil = bersihkanRiwayat(Array.from({ length: 5000 }, () => ({ dari: 'una', teks: 'a' })));
-  assert.ok(hasil.length <= 14);
+  assert.ok(hasil.length <= MAKS_ENTRI);
 });
 
 test('teksRiwayat: kosong kalau belum ada; berlabel Bos/Una/Catatan dan berakhir "Pesan sekarang"', () => {

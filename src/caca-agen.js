@@ -22,6 +22,8 @@ import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup 
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
+export const ALAT_RENCANA = 'rencana';
+export const MAKS_LANGKAH_RENCANA = 5;
 
 // Satu skema untuk memilih alat SEKALIGUS menangkap isinya, bukan dua panggilan
 // terpisah. Memisahkannya terasa lebih rapi tapi menggandakan biaya tiap
@@ -38,7 +40,7 @@ function skemaPilihAlat() {
     properties: {
       alat: {
         type: 'string',
-        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_BACA_API, ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), 'tidak_ada'],
+        enum: [...ALAT_BACA.map((alat) => alat.nama), ALAT_BACA_API, ALAT_CATAT_PENGELUARAN, ...AKSI_TULIS.map((aksi) => aksi.nama), ALAT_RENCANA, 'tidak_ada'],
         description: 'Nama alat yang paling cocok, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
       },
       periode: { type: 'string', enum: [...PERIODE] },
@@ -47,6 +49,18 @@ function skemaPilihAlat() {
       ...TANGKAP_PENGELUARAN_SCHEMA.properties,
       ...SKEMA_AKSI,
       ...SKEMA_BACA_API,
+      rencana_langkah: {
+        type: 'array',
+        description: `rencana: ${MAKS_LANGKAH_RENCANA} langkah paling banyak, urut.`,
+        items: {
+          type: 'object',
+          required: ['judul', 'perintah'],
+          properties: {
+            judul: { type: 'string', description: 'Judul langkah, pendek dan santai, mis. "Baca daftar harga".' },
+            perintah: { type: 'string', description: 'Perintah lengkap untuk langkah itu, seperti diketik Bos ke Una.' }
+          }
+        }
+      },
       alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
     }
   };
@@ -57,15 +71,29 @@ function skemaPilihAlat() {
 // interogasi. Barang/resep tidak bertanya (detail kecil diisi bawaan).
 export const ALAT_UANG = Object.freeze(new Set([
   'catat_pengeluaran', 'buat_jurnal', 'catat_bea_gaji', 'catat_bea_lapak', 'bayar_lainnya',
-  'bayar_hutang', 'buat_uang_muka', 'pindah_saldo_akun'
+  'bayar_hutang', 'buat_uang_muka', 'pindah_saldo_akun', 'hitung_ulang_hpp'
 ]));
 
 export function tanyaHalus(namaAlat, tanya) {
   const teks = String(tanya ?? '').trim();
-  if (!ALAT_UANG.has(namaAlat) || !teks) return teks;
+  // Hanya pertanyaan yang diberi ajakan; pernyataan ("tidak ada yang perlu
+  // dikoreksi", "bahan tidak ketemu") dibiarkan apa adanya.
+  if (!ALAT_UANG.has(namaAlat) || !teks.endsWith('?')) return teks;
   // Kalimat terpisah: pertanyaannya bisa diawali nama orang/akun yang huruf
   // besarnya tidak boleh berubah.
   return `Dikit lagi ya Bos, biar catatan uangnya nggak meleset. ${teks}`;
+}
+
+/** Langkah rencana dari model, dibersihkan; null kalau tidak layak (kurang dari 2). */
+export function susunRencana(mentah) {
+  const langkah = (Array.isArray(mentah) ? mentah : [])
+    .map((l) => ({
+      judul: String(l?.judul ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      perintah: String(l?.perintah ?? '').replace(/\s+/g, ' ').trim().slice(0, 400)
+    }))
+    .filter((l) => l.judul && l.perintah)
+    .slice(0, MAKS_LANGKAH_RENCANA);
+  return langkah.length >= 2 ? langkah : null;
 }
 
 const SKEMA_JAWABAN = Object.freeze({
@@ -111,15 +139,32 @@ function promptPilihAlat(konteks) {
     '- Jangan menghitung tanggal sendiri. Sebut periodenya saja (hari_ini, kemarin, 7_hari_terakhir,',
     '  bulan_ini, bulan_lalu). Pakai "rentang" hanya kalau penanya menyebut tanggal tertentu.',
     '- Kalau tidak ada alat yang cocok, jawab "tidak_ada". Jangan memaksakan alat yang mirip.',
+    '- Fakta aplikasi: harga jual, harga beli, nama, kategori barang ada di Data Barang TIAP GERAI. Entity tidak',
+    '  menyimpan harga (hanya Kode Barang dan foto). Jadi "ubah di master" = ubah Data Barang gerai yang sedang dibuka;',
+    '  jangan bilang tidak punya akses ke master.',
+    '- Harga/HPP/stok barang tertentu yang disebut namanya = cek_barang (bukan baca_api).',
+    `- ${ALAT_RENCANA}: pilih ini HANYA kalau perintahnya berisi 2 pekerjaan atau lebih yang berurutan dan saling bergantung,`,
+    '  mis. "cek harga yang anomali, lalu ganti dengan harga normal". Tulis 2-5 langkah: judul pendek + perintah',
+    '  lengkap yang bisa dikerjakan sendiri (rujuk "hasil langkah sebelumnya" untuk data yang baru akan diketahui).',
+    '  Jangan mengarang angka: kalau butuh angka dari Bos (mis. harga normal), perintah langkahnya minta Una',
+    '  menanyakannya. Bukan untuk satu pertanyaan atau satu perintah tunggal.',
     '- Membuat barang/bahan/resep: tetap pilih alatnya walau detailnya kurang (kategori, satuan, harga beli, jumlah',
     '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
     '  Salin SEMUA barangnya; jangan diringkas, jangan dipilih sebagian.',
-    '- Pertanyaan "apa itu ...", "maksudnya ... apa", "caranya gimana", "mulai dari mana", "Una bisa apa" = jelaskan.',
-    '  Pertanyaan angka/data gerai (untung, stok, HPP barang tertentu) tetap pakai alat baca.',
+    '- jelaskan HANYA untuk pertanyaan arti istilah atau cara pakai aplikasi yang berdiri sendiri: "HPP itu apa?",',
+    '  "caranya gimana", "mulai dari mana", "Una bisa apa aja". BUKAN jelaskan: pesan yang merujuk percakapan ("tadi",',
+    '  "yang itu", "maksudnya ... tadi"), yang menyebut barang/gerai/angka tertentu, atau yang meminta tindakan',
+    '  (ubah, betulkan, koreksi, hapus). Rujukan: lengkapi dari percakapan sebelumnya lalu pilih alat data atau tindakan.',
+    '- Pertanyaan angka/data gerai (untung, stok, HPP barang tertentu) tetap pakai alat baca.',
+    '- Mengoreksi/mengubah HPP sebuah bahan yang salah atau tidak wajar, termasuk menghitung ulang HPP penjualan sejak',
+    '  tanggal yang salah = hitung_ulang_hpp. Salin nama bahan, harga benar per satuan, dan tanggal PERSIS seperti disebut.',
     '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu juga belum bisa mengubah atau',
-    '  menghapus data — satu-satunya pengecualian: menonaktifkan barang (nonaktifkan_barang), termasuk "batalkan',
-    '  barang yang barusan dibuat". Selain itu jawab "tidak_ada" dan sebutkan alasannya.',
+    '  menghapus data lain — pengecualiannya: mengubah barang (ubah_barang: harga jual, harga beli, nama, kategori),',
+    '  menonaktifkan barang (nonaktifkan_barang, termasuk "batalkan barang yang barusan dibuat"), dan koreksi HPP',
+    '  (hitung_ulang_hpp). Selain itu jawab "tidak_ada" dan sebutkan alasannya.',
+    '- Ganti harga/nama/kategori barang yang SUDAH ADA = ubah_barang, bukan buat_barang. Nama barang disalin tanpa',
+    '  nama gerai ("di mandala" itu gerai, bukan bagian nama). Salah ketik nama dibetulkan sistem, jangan ditanyakan.',
     '- Kalau yang dibayar memakai uang tunai/kas/laci, tetap pilih alatnya dan salin cara bayarnya apa adanya;',
     '  sistem yang akan menolaknya.',
     '- Isi hanya kolom milik alat yang dipilih. Kolom alat lain dikosongkan.',
@@ -181,6 +226,17 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
         ? `Una belum bisa bantu yang itu — ${pilihan.value.alasan_kosong}`
         : 'Una belum bisa menjawab yang itu.'
     };
+  }
+
+  if (namaAlat === ALAT_RENCANA) {
+    const langkah = susunRencana(pilihan.value?.rencana_langkah);
+    if (!langkah) {
+      return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa memecah perintah itu jadi langkah-langkah. Coba sebut satu per satu ya.', belumLengkap: true };
+    }
+    // Rencana tidak menjalankan apa pun di server: panel yang mengirim tiap
+    // langkah sebagai pesan biasa, jadi tiap langkah tetap lewat pilih-alat,
+    // draft, dan "Ya" yang sama — rencana tidak membuka jalan pintas.
+    return { ok: true, alat: namaAlat, rencana: langkah, jawaban: 'Siap, Una kerjakan bertahap ya.' };
   }
 
   if (namaAlat === ALAT_BACA_API) {

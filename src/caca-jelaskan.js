@@ -42,6 +42,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Una bisa mengerjakan bagian yang biasanya bikin malas:',
       '• Ngisi data: banyak barang sekaligus (ketik daftarnya atau foto papan menu), bahan, resep.',
+      '• Ngubah data: harga jual/beli, nama, dan kategori barang; koreksi HPP bahan yang salah catat.',
       '• Nyatet: biaya (gaji, sewa lapak, lain-lain), bayar hutang, uang muka ke supplier, jurnal.',
       '• Nanya apa aja: untung hari ini, stok tinggal berapa, barang yang HPP-nya kemahalan, dst.',
       '• Baca foto lembar rekap harian, jelasin istilah, dan batalin barang yang salah bikin.',
@@ -107,6 +108,17 @@ export const KAMUS = Object.freeze([
       'Tipe barang = perannya: Barang Jadi (dijual di kasir), Bahan (dibeli, dipakai resep), Setengah Jadi.',
       'Jenis barang = pengelompokan untuk pembukuan: menentukan akun Persediaan dan HPP-nya. Barang baru otomatis dapat jenis yang benar.',
       'Jadi pemilik cukup memikirkan tipe; jenis urusan pembukuan.'
+    ].join('\n'),
+    tawaran: [buka('products')]
+  },
+  {
+    id: 'master_barang',
+    judul: 'Master barang: gerai atau entity?',
+    kunci: ['master barang', 'data barang', 'kode barang', 'master entity', 'barang entity', 'harga di master'],
+    isi: [
+      'Harga jual, harga beli, nama, dan kategori barang disimpan di Data Barang TIAP GERAI — jadi harga Es Teh di Mandala bisa beda dengan di Dermo.',
+      'Entity cuma menyimpan Kode Barang dan foto, supaya barang yang sama bisa dipakai banyak gerai tanpa diketik ulang.',
+      'Kalau Bos minta Una ubah harga, yang diubah Data Barang gerai yang dipilih di judul chat Una (tombol ▾), bukan gerai yang sedang terbuka di workspace.'
     ].join('\n'),
     tawaran: [buka('products')]
   },
@@ -316,7 +328,7 @@ export const ALAT_JELASKAN = Object.freeze({
   nama: 'jelaskan',
   lingkup: 'semua',
   baca: true,
-  petunjuk: 'MENJELASKAN istilah atau cara pakai aplikasi, mis. "HPP itu apa?", "jurnal itu apa?", "mulai dari mana?", "Una bisa apa aja?", "akun kasir bikinnya di mana?".',
+  petunjuk: 'MENJELASKAN arti istilah atau cara pakai aplikasi yang berdiri sendiri, mis. "HPP itu apa?", "jurnal itu apa?", "mulai dari mana?", "Una bisa apa aja?", "akun kasir bikinnya di mana?". BUKAN untuk pesan yang merujuk percakapan tadi, menyebut barang/gerai tertentu, atau meminta tindakan.',
   skema: {
     jelaskan_topik: { type: 'string', description: 'jelaskan: istilah atau hal yang ditanyakan, PERSIS seperti ditulis.' }
   },

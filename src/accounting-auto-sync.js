@@ -1,6 +1,7 @@
 import { activePendingPosFacts, dispatchPosAccountingFact } from './accounting-pos-bridge.js';
 import { dispatchAdminAccountingFact, pendingAdminFacts } from './accounting-admin-bridge.js';
 import { postPendingHppCorrections } from './hpp-recalculation.js';
+import { postPendingEmployeeDepositJournals } from './employee-deposit-settlement.js';
 
 // Sinkron Akuntansi (Bos Cyo, 2026-10-02: "sinkron itu jadikan auto sinkron aja").
 // Satu mesin dipakai dua jalur:
@@ -50,6 +51,10 @@ export async function syncStoreAccounting(db, store, { limit = 50, cooldownMinut
     }
     for (const row of await postPendingHppCorrections(db, store.id, limit, { retryAfter: since })) {
       results.push({ factType: 'HPP_KOREKSI', factId: row.factId, status: row.status, code: '', journalId: null });
+    }
+    // Setoran kasir: piutang yang belum terjurnal / pelunasan disetujui yang belum terjurnal.
+    for (const row of await postPendingEmployeeDepositJournals(db, store.id, limit)) {
+      results.push({ factType: row.factType, factId: row.factId, status: row.status, code: '', journalId: null });
     }
   }
   return results;

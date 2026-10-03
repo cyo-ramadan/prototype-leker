@@ -58,6 +58,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminIdentity').textContent = entityAdminState.entityAdmin?.displayName || entityAdminState.entityAdmin?.username || 'Entity Admin';
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
+  window.refreshEntityDrawerCards?.();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
 }
@@ -72,6 +73,7 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-entityrecipes')?.classList.toggle('active', name === 'entityrecipes');
   entityAdminEl('entityTab-entitystock')?.classList.toggle('active', name === 'entitystock');
+  entityAdminEl('entityTab-drawerstatus')?.classList.toggle('active', name === 'drawerstatus');
   entityAdminEl('entityTab-storereport')?.classList.toggle('active', name === 'storereport');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
@@ -79,6 +81,7 @@ function switchEntityTab(name) {
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'entityrecipes') loadEntityRecipes().catch(error => entityAdminToast(error.message));
   if (name === 'entitystock') window.loadEntityStockMatrix?.();
+  if (name === 'drawerstatus') window.loadEntityDrawerStatus?.();
   if (name === 'storereport') window.loadEntityStoreReport?.();
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
@@ -907,7 +910,7 @@ function renderEntityAdminStores() {
       <div class="owner-store-code">${entityAdminEscape(store.code)}</div>
       <h3>${entityAdminEscape(store.storeName)}</h3>
       ${store.address ? `<p>${entityAdminEscape(store.address)}</p>` : ''}
-      <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
+      <div class="owner-store-status">${window.entityDrawerBadge ? window.entityDrawerBadge(store, entityAdminState.drawers) : (store.isActive ? '' : '○ Nonaktif')}</div>
       <div class="owner-store-actions">
         <a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>
       </div>

@@ -183,7 +183,11 @@ test('tutup laci dengan setoran membuat piutang EMPLOYEE_DEPOSIT dan memotong sa
   }
 });
 
-test('setoran tanpa karyawan yang ditautkan ke akun kasir tidak membuat piutang apa pun (tidak menebak siapa yang ditagih)', async () => {
+// Kebijakan lama (2026-09-06): akun kasir tanpa tautan karyawan tidak membuat piutang
+// ("tidak menebak siapa yang ditagih"). Dibalik 2026-10-03 atas arahan Bos Cyo:
+// selama kasir belum menyetor, piutangnya harus terus bertambah -- tidak ada setoran
+// yang boleh lolos dari pembukuan. Piutang dicatat atas nama akun kasir itu.
+test('setoran dari akun kasir yang belum ditautkan ke karyawan tetap menjadi piutang atas nama akun kasir itu', async () => {
   const db = migratedDatabase();
   try {
     const cashier = await seedCashier(db, 'tanpatautan', 'Kasir Belum Ditautkan');
@@ -192,7 +196,11 @@ test('setoran tanpa karyawan yang ditautkan ke akun kasir tidak membuat piutang 
 
     const { status, body } = await closeDrawer(env, cashier.token, { closingAmount: 500000, depositAmount: 300000 });
     assert.equal(status, 200);
-    assert.equal(body.employeeDeposit, null);
+    assert.ok(body.employeeDeposit, 'piutang setoran terbentuk');
+    assert.equal(body.employeeDeposit.accounting.ok, true);
+    const row = db.prepare("SELECT counterparty_id, counterparty_name_snapshot FROM operational_receivables_payables WHERE source_type = 'EMPLOYEE_DEPOSIT'").get();
+    assert.equal(row.counterparty_id, `cashier:${cashier.id}`);
+    assert.ok(row.counterparty_name_snapshot);
   } finally {
     db.close();
   }
@@ -434,10 +442,12 @@ test('Finance reject setoran wajib alasan dan tidak mengubah saldo', async () =>
   }
 });
 
-test('dialog tutup laci di kasir mengirim depositAmount ke server', () => {
+// Diperbarui 2026-10-03: kasir tidak lagi mengisi setoran; dialog mengirim Titip laci
+// dan server menghitung setoran (lihat tes UI di akhir file).
+test('dialog tutup laci di kasir mengirim Titip laci (bukan setoran) ke server', () => {
   const cashierUi = readFileSync(new URL('../public/cashier.js', import.meta.url), 'utf8');
-  assert.match(cashierUi, /id="dialogDepositAmount"/);
-  assert.match(cashierUi, /depositAmount: Number\(el\('dialogDepositAmount'\)\.value \|\| 0\)/);
+  assert.match(cashierUi, /id="dialogLeftAmount"/);
+  assert.match(cashierUi, /leftInDrawerAmount: Number\(el\('dialogLeftAmount'\)\.value\)/);
 });
 
 test('tab Riwayat Setoran Portal Staf memuat dan menampilkan data dari /api/cashier/employee-deposits', () => {
@@ -462,4 +472,55 @@ test('migration 0075 additive: tambah split drawer dan akun canonical tanpa meng
     migration,
     /(?:DROP TABLE|DELETE FROM|UPDATE)\s+(?:cash_drawer_sessions|operational_receivables_payables|operational_receivable_payable_payments)/i
   );
+});
+
+// Bos Cyo, 2026-10-03: kasir mengisi "Titip laci", setoran otomatis = saldo kas fisik
+// - titip laci. Contoh: laci 200rb, titip 100rb -> setoran 100rb. Kalau kasir mengisi
+// setoran sendiri, sisa uang di laci tidak ikut dicek -- makanya kolom setoran dihapus.
+test('tutup laci dengan titip laci: setoran dihitung otomatis dan modal shift berikutnya = titip laci', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = await seedCashier(db, 'titiplaci', 'Kasir Titip');
+    const env = { DB: new D1Database(db) };
+    await openDrawer(env, cashier.token, 50000);
+
+    const { status, body } = await closeDrawer(env, cashier.token, { closingAmount: 200000, leftInDrawerAmount: 100000 });
+    assert.equal(status, 200);
+    assert.ok(body.employeeDeposit, 'setoran Rp100.000 jadi piutang');
+    const drawer = db.prepare("SELECT closing_amount, deposit_amount FROM cash_drawer_sessions WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT 1").get();
+    assert.equal(drawer.closing_amount, 200000);
+    assert.equal(drawer.deposit_amount, 100000);
+    const receivable = db.prepare("SELECT original_amount FROM operational_receivables_payables WHERE source_type = 'EMPLOYEE_DEPOSIT'").get();
+    assert.equal(Number(receivable.original_amount), 100000 * 1_000_000);
+  } finally { db.close(); }
+});
+
+test('titip laci sama dengan saldo -> tidak ada setoran; titip laci lebih besar dari saldo ditolak; titip laci menang atas depositAmount lama', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = await seedCashier(db, 'titiplaci2', 'Kasir Titip Dua');
+    const env = { DB: new D1Database(db) };
+    await openDrawer(env, cashier.token, 50000);
+
+    const tooMuch = await closeDrawer(env, cashier.token, { closingAmount: 100000, leftInDrawerAmount: 150000 });
+    assert.equal(tooMuch.status, 400);
+    assert.match(tooMuch.body.error, /Titip laci/);
+
+    const { status, body } = await closeDrawer(env, cashier.token, { closingAmount: 100000, leftInDrawerAmount: 100000, depositAmount: 70000 });
+    assert.equal(status, 200);
+    assert.equal(body.employeeDeposit, null, 'semua ditinggal di laci -> setoran 0');
+    assert.equal(db.prepare("SELECT deposit_amount FROM cash_drawer_sessions WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT 1").get().deposit_amount, 0);
+  } finally { db.close(); }
+});
+
+test('UI tutup laci: kolom Setoran diganti Titip laci (wajib) di dialog biasa, dialog foto, dan dialog pengajuan', () => {
+  const photo = readFileSync(new URL('../public/cashier-live-photo.js', import.meta.url), 'utf8');
+  const cashierJs = readFileSync(new URL('../public/cashier.js', import.meta.url), 'utf8');
+  assert.match(photo, /leftInDrawerAmount/);
+  assert.match(photo, /Titip laci wajib diisi/);
+  assert.doesNotMatch(photo, /depositAmount/);
+  assert.match(cashierJs, /dialogLeftAmount/);
+  assert.match(cashierJs, /dialogPermitLeftAmount/);
+  assert.doesNotMatch(cashierJs, /dialogDepositAmount|dialogPermitDepositAmount/);
+  assert.match(readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8'), /cashier-live-photo\.js\?v=20261003-titip-laci-v1/);
 });

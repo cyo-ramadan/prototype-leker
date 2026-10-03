@@ -22,6 +22,7 @@ import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } f
 import { AKSI_BAYAR } from './caca-aksi-bayar.js';
 import { AKSI_AKUN } from './caca-aksi-akun.js';
 import { AKSI_BARANG } from './caca-aksi-barang.js';
+import { AKSI_HPP } from './caca-aksi-hpp.js';
 import { ALAT_JELASKAN } from './caca-jelaskan.js';
 
 export { normalkan, cocokkanSatu };
@@ -161,7 +162,7 @@ const resep = Object.freeze({
     for (const mentah of komponenMentah) {
       const cocok = cocokkanSatu(mentah?.barang, daftar, { ...opsi, label: 'bahan' });
       if (!cocok.ok) return cocok;
-      if (cocok.nilai.id === hasil.nilai.id) return { ok: false, tanya: `"${hasil.nilai.name}" tidak bisa jadi bahannya sendiri.` };
+      if (cocok.nilai.id === hasil.nilai.id) return { ok: false, tanya: `"${hasil.nilai.name}" nggak bisa jadi bahannya sendiri ya.` };
       if (komponen.some((k) => k.barang.id === cocok.nilai.id)) {
         return { ok: false, tanya: `"${cocok.nilai.name}" disebut dua kali. Totalnya berapa?` };
       }
@@ -336,7 +337,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_BAYAR, ...AKSI_AKUN, ALAT_JELASKAN]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_BAYAR, ...AKSI_AKUN, ALAT_JELASKAN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;

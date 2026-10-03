@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cariAksi, periksaUlangDraft } from '../src/caca-aksi.js';
 import { MAKS_BARIS_BARANG } from '../src/caca-aksi-barang.js';
-import { jawabPertanyaan } from '../src/caca-agen.js';
+import { jawabPertanyaan, susunRencana } from '../src/caca-agen.js';
+import { bangunAlamat, cariApi } from '../src/caca-baca-katalog.js';
 import { KAMUS, LAYAR, cariTopik, jelaskan } from '../src/caca-jelaskan.js';
 import { susunKesiapan, sapaanKesiapan } from '../src/caca-kesiapan.js';
 import { tangkapanDariMenu } from '../src/caca-baca-menu.js';
@@ -226,4 +227,48 @@ test('foto menu: tulisan kapital semua dirapikan, yang campuran dibiarkan', () =
   const t = tangkapanDariMenu({ barang: [{ nama: 'ES TEH MANIS', harga: '5', kategori: 'MINUMAN' }, { nama: 'Kopi ABC', harga: '8' }, { nama: '  ' }] });
   assert.deepEqual(t.daftar_barang.map((b) => [b.nama, b.kategori]), [['Es Teh Manis', 'Minuman'], ['Kopi ABC', '']]);
   assert.equal(t.daftar_jenis, 'jualan');
+});
+
+// Bos Cyo 2026-10-03: perintah berurutan ditulis dulu jadi langkah ✓ / … / ○,
+// dikerjakan satu per satu, dan bisa dilanjutkan dari langkah yang terputus.
+test('rencana: model menulis langkah, server tidak menjalankan apa pun', async () => {
+  const jalur = jalurPalsu();
+  const hasil = await jawabPertanyaan('cek harga yang anomali, lalu ganti dengan harga normal', {
+    nama: 'Bos', peran: 'Entity Admin', lingkup: 'gerai', namaLingkup: 'Gerai Contoh', storeCode: 'LAB01', storeName: 'Gerai Contoh', hariIni: '2026-10-03'
+  }, {
+    jalurAksi: jalur,
+    panggilModel: async () => ({ ok: true, value: { alat: 'rencana', rencana_langkah: [
+      { judul: 'Baca daftar harga', perintah: 'baca daftar harga jual semua barang di gerai ini' },
+      { judul: 'Pilih yang anomali', perintah: 'dari daftar tadi, barang mana yang harganya tidak wajar?' },
+      { judul: 'Ganti harga', perintah: 'ganti harga barang yang tidak wajar tadi ke harga normalnya; tanyakan ke Bos kalau belum jelas' }
+    ] } })
+  });
+  assert.equal(hasil.rencana.length, 3);
+  assert.equal(hasil.rencana[0].judul, 'Baca daftar harga');
+  assert.equal(jalur.terkirim.length, 0);
+  assert.equal(hasil.draft, undefined);
+});
+
+test('rencana: dibersihkan; kurang dari 2 langkah bukan rencana; maks 5', () => {
+  assert.equal(susunRencana([{ judul: 'a', perintah: 'b' }]), null);
+  assert.equal(susunRencana('bukan daftar'), null);
+  assert.equal(susunRencana([{ judul: '', perintah: 'x' }, { judul: 'y', perintah: '' }]), null);
+  const banyak = susunRencana(Array.from({ length: 9 }, (_, i) => ({ judul: ` L${i}\n `, perintah: `p${i}` })));
+  assert.equal(banyak.length, 5);
+  assert.equal(banyak[0].judul, 'L0');
+});
+
+test('prompt: fakta harga ada di gerai (bukan entity), cek_barang dan rencana disebut', async () => {
+  let sistem = '';
+  await jawabPertanyaan('halo', { nama: 'Bos', peran: 'Entity Admin', lingkup: 'gerai', namaLingkup: 'X', storeCode: 'X', storeName: 'X', hariIni: '2026-10-03' }, {
+    jalurAksi: jalurPalsu(), panggilModel: async (_env, p) => { sistem = p.system; return { ok: true, value: { alat: 'tidak_ada' } }; }
+  });
+  assert.match(sistem, /Entity tidak\n?\s*menyimpan harga|Entity tidak menyimpan harga/);
+  assert.match(sistem, /jangan bilang tidak punya akses ke master/);
+  assert.match(sistem, /= cek_barang/);
+  assert.match(sistem, /rencana: pilih ini HANYA/);
+});
+
+test('katalog barang selalu meminta daftar tanpa foto', () => {
+  assert.equal(bangunAlamat(cariApi('barang'), []).alamat, '/api/admin/master/products/editor?ringkas=1');
 });

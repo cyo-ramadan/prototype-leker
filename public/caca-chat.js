@@ -15,8 +15,10 @@ const CACA_INGAT_GERAI = 'lekerCacaGerai';
 const CACA_SIMPANAN = 'lekerUnaPercakapan';
 const CACA_MAKS_SIMPAN = 80;
 
-const CACA_MAKS_RIWAYAT = 60;
-const CACA_PESAN_NYAMBUNG = 5;
+const CACA_MAKS_RIWAYAT = 120;
+// 10 pesan Bos yang masih nyambung (Bos Cyo 2026-10-03). Harus sama dengan
+// MAKS_PERCAKAPAN di src/caca-riwayat.js.
+const CACA_PESAN_NYAMBUNG = 10;
 
 const cacaState = {
   // Ingatan jangka pendek: {dari: 'saya'|'una'|'sistem', teks}. Dikirim 5 pesan
@@ -137,7 +139,8 @@ function cacaSidikLogin() {
 }
 
 function cacaCatatRiwayat(dari, teks) {
-  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  // Jawaban Una boleh lebih panjang (nama barang di tabelnya sering dirujuk lagi).
+  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, dari === 'una' ? 900 : 400);
   if (!bersih) return;
   cacaState.riwayat.push({ dari, teks: bersih });
   if (cacaState.riwayat.length > CACA_MAKS_RIWAYAT) cacaState.riwayat.splice(0, cacaState.riwayat.length - CACA_MAKS_RIWAYAT);
@@ -156,11 +159,28 @@ function cacaRiwayatUntukServer() {
   return cacaState.riwayat.slice(mulai);
 }
 
+// Isi tabel ikut diingat dalam bentuk ringkas: pertanyaan lanjutan seperti
+// "yang matcha tadi kenapa?" merujuk nama yang hanya tampil di tabel. Angkanya
+// tetap bukan bukti (server menjelaskan itu ke model), cuma pengingat rujukan.
+function cacaRingkasTabel(tabel, maks = 400) {
+  if (!tabel?.kolom?.length || !tabel.isi?.length) return '';
+  const baris = tabel.isi.slice(0, 10).map(r => r.map(sel => String(sel ?? '').trim()).filter(Boolean).join(' | '));
+  const lebih = tabel.isi.length > 10 ? ` (+${tabel.isi.length - 10} baris lain)` : '';
+  return `[Tabel: ${tabel.kolom.join(' | ')} → ${baris.join('; ')}${lebih}]`.slice(0, maks);
+}
+
+function cacaRingkasJawaban(payload) {
+  const teks = String(payload.jawaban || '').replace(/\s+/g, ' ').trim().slice(0, 480);
+  const tabel = cacaRingkasTabel(payload.tabel);
+  return tabel ? `${teks} ${tabel}` : teks;
+}
+
 function cacaRingkasDraft(draft) {
   const baris = Array.isArray(draft.baris)
     ? draft.baris.map(([label, nilai]) => `${label}: ${nilai}`).join('; ')
     : `Untuk: ${draft.keterangan}; Nominal: ${draft.nominal}; Ke: ${draft.pihak}; Tanggal: ${draft.tanggal}`;
-  return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris}`;
+  const tabel = cacaRingkasTabel(draft.tabel, 360);
+  return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris} ${tabel}`.replace(/\s+/g, ' ').trim();
 }
 
 function cacaSimpanPercakapan() {
@@ -200,6 +220,17 @@ function cacaPulihkanPercakapan() {
   }
   wadah.innerHTML = simpanan.html;
   cacaState.riwayat = Array.isArray(simpanan.riwayat) ? simpanan.riwayat : [];
+  // Rencana yang sedang jalan saat halaman berganti: langkahnya dianggap
+  // terputus, supaya Bos bisa melanjutkan dari situ.
+  wadah.querySelectorAll('.caca-rencana').forEach(kartu => {
+    const rencana = cacaBacaRencana(kartu);
+    if (!rencana) return;
+    let berubah = false;
+    for (const l of rencana.langkah) {
+      if (l.status === 'jalan' || l.status === 'menunggu') { l.status = 'gagal'; l.alasan = 'terhenti karena pindah halaman'; berubah = true; }
+    }
+    if (berubah) cacaRenderRencana(kartu, rencana);
+  });
   wadah.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan)').forEach(kartu => {
     kartu.classList.add('kedaluwarsa');
     kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
@@ -323,14 +354,41 @@ function cacaTambahGelembung(dari, teks, catatan = '', { html = '' } = {}) {
   return gelembung;
 }
 
+// Seperti WhatsApp: selagi Una memproses, subjudul di kepala panel berganti
+// "mengetik…" dan gelembungnya bertuliskan "Una sedang mengetik…" (Bos Cyo
+// 2026-10-03), bukan tiga titik.
+let cacaJumlahMengetik = 0;
+
+function cacaSetStatusMengetik(aktif) {
+  const status = cacaEl('cacaStatus');
+  if (!status) return;
+  cacaJumlahMengetik = Math.max(0, cacaJumlahMengetik + (aktif ? 1 : -1));
+  if (cacaJumlahMengetik > 0) {
+    if (!status.dataset.asli) status.dataset.asli = status.textContent;
+    status.textContent = 'mengetik…';
+    status.classList.add('mengetik');
+  } else if (status.dataset.asli) {
+    status.textContent = status.dataset.asli;
+    delete status.dataset.asli;
+    status.classList.remove('mengetik');
+  }
+}
+
 function cacaTambahMengetik() {
   const wadah = cacaEl('cacaPercakapan');
   const gelembung = document.createElement('div');
   gelembung.className = 'caca-gelembung caca mengetik';
   gelembung.setAttribute('aria-label', 'Una sedang mengetik');
-  gelembung.innerHTML = '<span></span><span></span><span></span>';
+  gelembung.innerHTML = '<em class="caca-mengetik-teks">Una sedang mengetik…</em>';
   wadah.appendChild(gelembung);
   cacaGulirKeBawah();
+  cacaSetStatusMengetik(true);
+  const hapusAsli = gelembung.remove.bind(gelembung);
+  let sudah = false;
+  gelembung.remove = () => {
+    hapusAsli();
+    if (!sudah) { sudah = true; cacaSetStatusMengetik(false); }
+  };
   return gelembung;
 }
 
@@ -562,6 +620,8 @@ function cacaIsiDraft(draft) {
     const tombol = draft.aksi === 'buat_jurnal' ? 'Ya, posting'
       : draft.aksi === 'buat_barang_banyak' ? `Ya, masukkan ${draft.muatan?.daftar?.length ?? 0} barang`
       : draft.aksi === 'nonaktifkan_barang' ? 'Ya, nonaktifkan'
+      : draft.aksi === 'ubah_barang' ? 'Ya, ubah'
+      : draft.aksi === 'hitung_ulang_hpp' ? 'Ya, koreksi HPP'
       : ['buat_barang', 'buat_resep'].includes(draft.aksi) ? 'Ya, buat'
         : ['atur_cara_bayar', 'pindah_saldo_akun'].includes(draft.aksi) ? 'Ya, jalankan'
         : 'Ya, catat';
@@ -578,7 +638,7 @@ function cacaIsiDraft(draft) {
   };
 }
 
-function cacaTampilkanDraft(payload, scope) {
+function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
   const draft = payload.draft;
   const tampilan = cacaIsiDraft(draft);
   // Ketakutan nomor tiga pemilik baru: "takut salah terus rusak". Draft
@@ -597,6 +657,7 @@ function cacaTampilkanDraft(payload, scope) {
     </div>`;
   const gelembung = cacaTambahGelembung('caca', '', '', { html });
   const kartu = gelembung.querySelector('.caca-draft');
+  kartu._cacaSesudah = sesudah;
   const kunci = () => kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
 
   kartu.querySelector('[data-caca-batal]').addEventListener('click', () => {
@@ -605,6 +666,7 @@ function cacaTampilkanDraft(payload, scope) {
     cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.');
     cacaSimpanPercakapan();
     cacaTambahGelembung('caca', 'Oke, gajadi deh.');
+    kartu._cacaSesudah?.('batal');
   });
 
   // Gerai/lingkup diambil dari saat draft dibuat, bukan dari judul sekarang:
@@ -626,6 +688,7 @@ function cacaTampilkanDraft(payload, scope) {
       cacaSimpanPercakapan();
       cacaTambahGelembung('caca', hasil.jawaban);
       if (draft.aksi === 'buat_barang') cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
+      kartu._cacaSesudah?.('tercatat');
     } catch (error) {
       // Tombol dibuka lagi: yang gagal biasanya bisa diulang setelah sebabnya
       // dibereskan, dan menguncinya permanen memaksa mengetik ulang dari awal.
@@ -684,6 +747,8 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
   isiBar.style.width = '100%';
   kartu.classList.add('tercatat');
   const selesai = hasil.filter(Boolean);
+  // Rencana bertahap menunggu draft ini selesai sebelum lanjut ke langkah berikutnya.
+  setTimeout(() => kartu._cacaSesudah?.('tercatat'), 0);
   if (draft.aksi === 'buat_barang_banyak') {
     const dibuat = selesai.filter(h => h.hasil === 'dibuat');
     const sudahAda = selesai.filter(h => h.hasil === 'sudah_ada');
@@ -705,6 +770,17 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
     ].filter(Boolean).join('\n'));
     cacaTambahTawaran([...tawaran, ...(lanjut?.tawaran || [])]);
     cacaObrolanSesudahBarang(draft, dibuat.map(h => h.nama));
+    return;
+  }
+  if (draft.aksi === 'ubah_barang') {
+    const diubah = selesai.filter(h => h.hasil === 'diubah');
+    teks.textContent = `Selesai: ${diubah.length} barang diubah.`;
+    cacaCatatRiwayat('sistem', `Bos menyetujui; Una mengubah ${diubah.length} barang: ${diubah.map(h => h.nama).join(', ')}.`);
+    cacaSimpanPercakapan();
+    const gerai = cacaNamaScope(scope);
+    cacaTambahGelembung('caca', diubah.length === 1
+      ? `Beres, ${diubah[0].nama} di Data Barang ${gerai} sudah Una ubah. Langsung berlaku di kasir ${gerai}.`
+      : `Beres, ${diubah.length} barang di Data Barang ${gerai} sudah Una ubah. Langsung berlaku di kasir ${gerai}.`);
     return;
   }
   const dinonaktifkan = selesai.filter(h => h.hasil === 'dinonaktifkan');
@@ -978,6 +1054,46 @@ async function cacaKirimFotoMenu(file) {
   }
 }
 
+// Satu pesan ke Una (dipakai pesan biasa dan tiap langkah rencana).
+async function cacaTanyaServer(pertanyaan, scope, riwayat) {
+  return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
+    method: 'POST',
+    body: JSON.stringify({ pertanyaan, riwayat })
+  });
+}
+
+/**
+ * Menampilkan balasan Una. Mengembalikan jenisnya: 'draft' (menunggu "Ya"),
+ * 'tanya' (Una balik bertanya / belum bisa), 'rencana', atau 'jawab'.
+ * `sesudahDraft(status)` dipanggil saat draft dijalankan ('tercatat') atau
+ * dibatalkan ('batal') — dipakai rencana untuk lanjut ke langkah berikutnya.
+ */
+function cacaTampilkanBalasan(payload, scope, { sesudahDraft = null } = {}) {
+  cacaCatatRiwayat('una', payload.perluKonfirmasi && payload.draft
+    ? cacaRingkasDraft(payload.draft)
+    : `${cacaRingkasJawaban(payload)}${payload.rencana ? ` Rencana: ${payload.rencana.map((l, i) => `${i + 1}. ${l.judul}`).join('; ')}` : ''}`);
+  if (payload.perluKonfirmasi && payload.draft) {
+    // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
+    // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".
+    if (payload.sapaan) cacaTambahGelembung('caca', payload.sapaan);
+    cacaTampilkanDraft(payload, scope, { sesudah: sesudahDraft });
+    return 'draft';
+  }
+  // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
+  // asalnya, bukan diterima begitu saja karena keluar dari mulut Una.
+  const tabel = cacaRenderTabel(payload.tabel);
+  const peringatan = payload.peringatan ? `<p class="caca-peringatan">${cacaEscape(payload.peringatan)}</p>` : '';
+  if (tabel || peringatan) {
+    // Kalimatnya di atas tabel, bukan di bawahnya.
+    cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}${peringatan}` });
+  } else {
+    cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
+  }
+  cacaTambahTawaran(payload.tawaran);
+  if (payload.rencana) return 'rencana';
+  return payload.belumLengkap ? 'tanya' : 'jawab';
+}
+
 async function cacaKirimTeks(pertanyaan) {
   const riwayat = cacaRiwayatUntukServer();
   cacaTambahGelembung('saya', pertanyaan);
@@ -987,38 +1103,122 @@ async function cacaKirimTeks(pertanyaan) {
   const scope = cacaState.scope;
   const mengetik = cacaTambahMengetik();
   try {
-    const payload = await cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
-      method: 'POST',
-      body: JSON.stringify({ pertanyaan, riwayat })
-    });
+    const payload = await cacaTanyaServer(pertanyaan, scope, riwayat);
     mengetik.remove();
-    cacaCatatRiwayat('una', payload.perluKonfirmasi && payload.draft
-      ? cacaRingkasDraft(payload.draft)
-      : `${payload.jawaban || ''}${payload.tabel ? ' [tabel ditampilkan]' : ''}`);
-    if (payload.perluKonfirmasi && payload.draft) {
-      // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
-      // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".
-      if (payload.sapaan) cacaTambahGelembung('caca', payload.sapaan);
-      cacaTampilkanDraft(payload, scope);
-    } else {
-      // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
-      // asalnya, bukan diterima begitu saja karena keluar dari mulut Caca.
-      const tabel = cacaRenderTabel(payload.tabel);
-      const peringatan = payload.peringatan ? `<p class="caca-peringatan">${cacaEscape(payload.peringatan)}</p>` : '';
-      if (tabel) {
-        // Kalimatnya di atas tabel, bukan di bawahnya.
-        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}${peringatan}` });
-      } else if (peringatan) {
-        cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${peringatan}` });
-      } else {
-        cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
-      }
-      cacaTambahTawaran(payload.tawaran);
-    }
+    const jenis = cacaTampilkanBalasan(payload, scope);
+    if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
   } catch (error) {
     mengetik.remove();
     cacaTambahGelembung('caca', error.message);
   }
+}
+
+// --- rencana bertahap ----------------------------------------------------------
+//
+// Bos Cyo 2026-10-03: perintah berurutan ("cek harga yang anomali, lalu ganti
+// dengan harga normal") ditulis dulu sebagai langkah — 1. … ✓, 2. … (jalan),
+// 3. … — lalu dikerjakan satu per satu. Tiap langkah dikirim sebagai pesan
+// biasa, jadi tetap lewat pilih-alat, draft, dan "Ya" yang sama; rencana tidak
+// membuka jalan pintas. Kalau satu langkah putus (RTO, koneksi), langkah
+// sebelumnya tetap beres dan Bos bisa melanjutkan dari langkah itu. Keadaan
+// rencana disimpan di kartunya sendiri (data-caca-rencana), jadi tombol
+// "Lanjutkan" tetap bekerja sesudah pindah halaman.
+
+const CACA_STATUS_RENCANA = {
+  antri: { tanda: '', label: '' },
+  jalan: { tanda: '…', label: 'lagi dikerjakan' },
+  selesai: { tanda: '✓', label: '' },
+  menunggu: { tanda: '⏸', label: 'menunggu "Ya" dari Bos' },
+  tanya: { tanda: '?', label: 'menunggu jawaban Bos' },
+  batal: { tanda: '✕', label: 'dibatalkan' },
+  gagal: { tanda: '⚠', label: 'terputus' }
+};
+
+function cacaBacaRencana(kartu) {
+  try { return JSON.parse(kartu.dataset.cacaRencana || 'null'); } catch { return null; }
+}
+
+function cacaRenderRencana(kartu, rencana) {
+  kartu.dataset.cacaRencana = JSON.stringify(rencana);
+  // Tombol hanya muncul kalau rencana berhenti: ulangi langkah yang terputus,
+  // atau lanjut ke langkah sesudah yang menunggu jawaban/dibatalkan.
+  const henti = rencana.langkah.findIndex(l => ['tanya', 'batal', 'gagal'].includes(l.status));
+  let tombol = '';
+  if (henti >= 0 && rencana.langkah[henti].status === 'gagal') {
+    tombol = `<button type="button" class="secondary-btn" data-caca-rencana-lanjut="${henti}">Ulangi langkah ${henti + 1}</button>`;
+  } else if (henti >= 0 && henti + 1 < rencana.langkah.length) {
+    tombol = `<button type="button" class="secondary-btn" data-caca-rencana-lanjut="${henti + 1}">Lanjutkan ke langkah ${henti + 2}</button>`;
+  }
+  const selesaiSemua = rencana.langkah.every(l => l.status === 'selesai');
+  kartu.innerHTML = `
+    <div class="caca-rencana-judul">${selesaiSemua ? 'Rencana Una — beres ✓' : 'Rencana Una'}</div>
+    <ol>${rencana.langkah.map((l, i) => {
+      const st = CACA_STATUS_RENCANA[l.status] || CACA_STATUS_RENCANA.antri;
+      return `<li class="${cacaEscape(l.status)}"><span class="caca-rencana-teks">${i + 1}. ${cacaEscape(l.judul)}</span>${
+        st.tanda ? ` <span class="caca-rencana-tanda">${st.tanda}</span>` : ''}${
+        st.label ? ` <small>${cacaEscape(st.label)}</small>` : ''}${
+        l.status === 'gagal' && l.alasan ? `<small class="caca-rencana-alasan">${cacaEscape(l.alasan)}</small>` : ''}</li>`;
+    }).join('')}</ol>
+    ${tombol ? `<div class="caca-rencana-aksi">${tombol}</div>` : ''}`;
+  cacaSimpanPercakapan();
+}
+
+async function cacaMulaiRencana(langkah, scope) {
+  const gelembung = cacaTambahGelembung('caca', '', '', { html: '<div class="caca-rencana"></div>' });
+  const kartu = gelembung.querySelector('.caca-rencana');
+  cacaRenderRencana(kartu, { scope, langkah: langkah.map(l => ({ judul: l.judul, perintah: l.perintah, status: 'antri' })) });
+  await cacaJalankanRencana(kartu, 0);
+}
+
+async function cacaJalankanRencana(kartu, mulai) {
+  const rencana = cacaBacaRencana(kartu);
+  if (!rencana) return;
+  kartu.querySelector('.caca-rencana-aksi')?.remove();
+  for (let i = mulai; i < rencana.langkah.length; i += 1) {
+    const langkah = rencana.langkah[i];
+    langkah.status = 'jalan';
+    delete langkah.alasan;
+    cacaRenderRencana(kartu, rencana);
+    const riwayat = cacaRiwayatUntukServer();
+    cacaCatatRiwayat('saya', `(Langkah ${i + 1} dari rencana) ${langkah.perintah}`);
+    const mengetik = cacaTambahMengetik();
+    let payload;
+    try {
+      payload = await cacaTanyaServer(langkah.perintah, rencana.scope, riwayat);
+    } catch (error) {
+      mengetik.remove();
+      langkah.status = 'gagal';
+      langkah.alasan = error.message;
+      cacaRenderRencana(kartu, rencana);
+      cacaCatatRiwayat('sistem', `Langkah ${i + 1} terputus: ${error.message}`);
+      return;
+    }
+    mengetik.remove();
+    const jenis = cacaTampilkanBalasan({ ...payload, rencana: null }, rencana.scope, {
+      sesudahDraft: status => {
+        const kini = cacaBacaRencana(kartu);
+        if (!kini) return;
+        kini.langkah[i].status = status === 'tercatat' ? 'selesai' : 'batal';
+        cacaRenderRencana(kartu, kini);
+        if (status === 'tercatat') cacaJalankanRencana(kartu, i + 1);
+      }
+    });
+    if (jenis === 'draft') {
+      langkah.status = 'menunggu';
+      cacaRenderRencana(kartu, rencana);
+      return; // dilanjutkan oleh sesudahDraft
+    }
+    if (jenis === 'tanya') {
+      // Una butuh jawaban (mis. harga normal berapa). Bos menjawab di chat,
+      // lalu menekan "Lanjutkan" di kartu ini.
+      langkah.status = 'tanya';
+      cacaRenderRencana(kartu, rencana);
+      return;
+    }
+    langkah.status = 'selesai';
+    cacaRenderRencana(kartu, rencana);
+  }
+  cacaTambahGelembung('caca', 'Semua langkah beres, Bos hhe.');
 }
 
 // Kotak ketik tumbuh mengikuti isinya (daftar menu yang ditempel bisa
@@ -1215,6 +1415,20 @@ function initCacaPanel() {
   });
 
   cacaEl('cacaPercakapan')?.addEventListener('click', event => {
+    const lanjut = event.target.closest('[data-caca-rencana-lanjut]');
+    if (lanjut && !lanjut.disabled) {
+      const kartu = lanjut.closest('.caca-rencana');
+      if (kartu && !cacaState.sedangKirim) {
+        lanjut.disabled = true;
+        cacaState.sedangKirim = true;
+        cacaAturTombol();
+        cacaJalankanRencana(kartu, Number(lanjut.dataset.cacaRencanaLanjut) || 0).finally(() => {
+          cacaState.sedangKirim = false;
+          cacaAturTombol();
+        });
+      }
+      return;
+    }
     const tawaran = event.target.closest('[data-caca-tawaran]');
     if (tawaran && !tawaran.disabled) {
       cacaJalankanTawaran(tawaran);

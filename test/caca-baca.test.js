@@ -73,7 +73,7 @@ test('HPP di atas harga jual: baca → hitung oleh kode → jawab; angka dari ta
   assert.deepEqual(hasil.tabel.isi[0], ['Es Teh', '3.000', '3.500,5', '−500,5']);
   assert.equal(hasil.peringatan, null);
   assert.match(hasil.jejak, /dari barang · dihitung sistem/);
-  assert.deepEqual(jalur.dibaca, ['- /api/admin/master/products/editor']);
+  assert.deepEqual(jalur.dibaca, ['- /api/admin/master/products/editor?ringkas=1']);
 });
 
 test('langkah terakhir hanya boleh menjawab, dan model dibatasi tiga langkah', async () => {

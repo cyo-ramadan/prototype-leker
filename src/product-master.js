@@ -115,9 +115,9 @@ async function listActiveRecipes(db, storeId) {
   }));
 }
 
-async function listEditorProducts(db, storeId) {
+async function listEditorProducts(db, storeId, { withImages = true } = {}) {
   const rows = await db.prepare(`
-    SELECT p.id, p.name, p.purchase_price, p.price, p.category, p.emoji, p.image_data,
+    SELECT p.id, p.name, p.purchase_price, p.price, p.category, p.emoji, ${withImages ? 'p.image_data' : "'' AS image_data"},
            p.display_order, p.is_active, p.item_type_id, p.product_kind_id, p.base_unit_id,
            p.points_per_unit, p.recipe_link_enabled, p.linked_recipe_id, p.stock_tracking_enabled,
            p.average_cost, p.last_purchase_price, p.cost_updated_at, p.last_purchase_at,
@@ -168,13 +168,13 @@ async function listEditorProducts(db, storeId) {
   }));
 }
 
-async function editorPayload(db, store) {
+async function editorPayload(db, store, { withImages = true } = {}) {
   // Reference bootstrap may write missing defaults. Finish it before concurrent
   // reads so D1 never overlaps a bootstrap batch with the editor snapshot.
   const refs = await getManufacturingReferenceData(db, store.id);
   const [productKinds, products, recipes] = await Promise.all([
     listProductKinds(db, store.id),
-    listEditorProducts(db, store.id),
+    listEditorProducts(db, store.id, { withImages }),
     listActiveRecipes(db, store.id)
   ]);
   return { store, products, recipes, productKinds, ...refs };
@@ -301,7 +301,9 @@ export async function handleProductMasterApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
 
   if (request.method === 'GET' && pathname === '/api/admin/master/products/editor') {
-    return json(await editorPayload(env.DB, store));
+    // ?ringkas=1: tanpa foto barang (satu foto bisa ratusan KB; ratusan barang
+    // = puluhan MB). Dipakai pembaca yang cuma butuh nama dan harga (Una).
+    return json(await editorPayload(env.DB, store, { withImages: !wantsShortReply(request) }));
   }
 
   if (request.method === 'POST' && pathname === '/api/admin/master/products/editor') {

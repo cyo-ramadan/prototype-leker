@@ -99,7 +99,7 @@ const cekRekber = Object.freeze({
         jalur.baca(`/api/admin/accounting/balance-sheet?asOf=${ctx.hariIni}`)
       ]);
       if (!mutasi.ok || !neraca.ok) {
-        isi.push([g.storeName, '—', '—', `tidak terbaca: ${(mutasi.ok ? neraca : mutasi).error}`]);
+        isi.push([g.storeName, '—', '—', `belum kebaca: ${(mutasi.ok ? neraca : mutasi).error}`]);
         continue;
       }
       const saldoMutasi = (mutasi.data.sharedAccounts ?? []).reduce((jumlah, r) => jumlah + Number(r.storeBalance || 0), 0);
@@ -155,7 +155,7 @@ const aturCaraBayar = Object.freeze({
     const dilewati = [];
     for (const g of gerai.nilai) {
       const ref = await jalurUntuk(ctx, g).baca('/api/admin/settings/accounting');
-      if (!ref.ok) return { ok: false, tanya: `Pengaturan ${g.storeName} tidak terbaca: ${ref.error}` };
+      if (!ref.ok) return { ok: false, tanya: `Pengaturan ${g.storeName} belum kebaca nih: ${ref.error}` };
       const cara = (ref.data.paymentMethods ?? []).find((p) => normalkan(p.name) === normalkan(namaCara) || normalkan(p.code) === normalkan(namaCara));
       if (!cara) { dilewati.push(g.storeName); continue; }
 
@@ -170,7 +170,7 @@ const aturCaraBayar = Object.freeze({
         const akun = ctx.lingkup === 'entity'
           ? akunPersis(akunTertulis, akunAktif)
           : (cocokAkun(akunTertulis, akunAktif).nilai ?? null);
-        if (!akun) return { ok: false, tanya: `Akun "${akunTertulis}" tidak ketemu (persis) di ${g.storeName}.` };
+        if (!akun) return { ok: false, tanya: `Akun "${akunTertulis}" belum ketemu nih di ${g.storeName} (namanya harus persis).` };
         ubah.accountId = akun.accountId;
         akunBaru = { code: akun.accountCode, name: akun.accountName };
       }
@@ -265,7 +265,7 @@ const pindahSaldo = Object.freeze({
         jalur.baca('/api/admin/accounting'),
         jalur.baca(`/api/admin/accounting/balance-sheet?asOf=${ctx.hariIni}`)
       ]);
-      if (!buku.ok || !neraca.ok) return { ok: false, tanya: `Pembukuan ${g.storeName} tidak terbaca: ${(buku.ok ? neraca : buku).error}` };
+      if (!buku.ok || !neraca.ok) return { ok: false, tanya: `Pembukuan ${g.storeName} belum kebaca nih: ${(buku.ok ? neraca : buku).error}` };
 
       const semuaAkun = (buku.data.accounts ?? []).filter((a) => !a.isSystemManaged);
       const persis = ctx.lingkup === 'entity';
@@ -288,7 +288,7 @@ const pindahSaldo = Object.freeze({
         }
         const akunAktif = semuaAkun.filter((a) => a.isActive);
         tujuan = persis ? akunPersis(tujuanTertulis, akunAktif) : cocokAkun(tujuanTertulis, akunAktif).nilai;
-        if (!tujuan) return { ok: false, tanya: `Akun tujuan "${tujuanTertulis}" tidak ketemu (aktif) di ${g.storeName}.` };
+        if (!tujuan) return { ok: false, tanya: `Akun tujuan "${tujuanTertulis}" belum nemu nih di ${g.storeName} (yang aktif).` };
         if (tujuan.accountId === asal.accountId) return { ok: false, tanya: 'Akun asal dan tujuan sama.' };
         // Sama seperti peta ADR-047: tipe asal dan tujuan wajib sama, supaya
         // saldo tidak berpindah golongan (mis. aset jadi utang) diam-diam.
@@ -318,7 +318,7 @@ const pindahSaldo = Object.freeze({
     }
 
     if (!langkah.length) {
-      return { ok: false, tanya: `Tidak ada yang perlu dipindah: ${dilewati.length ? dilewati.join(', ') : 'akun itu tidak ditemukan'}.` };
+      return { ok: false, tanya: `Nggak ada yang perlu dipindah: ${dilewati.length ? dilewati.join(', ') : 'akunnya belum ketemu nih'}.` };
     }
     return {
       ok: true,

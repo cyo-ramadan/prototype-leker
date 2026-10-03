@@ -21,3 +21,8 @@
 .stk-u { color: #756f67; font-size: 12px; white-space: nowrap; }
 .stk-zero { color: #d03b3b; font-weight: 800; }
 .stk-none { color: #a8a39a; }
+
+/* Lihat HPP (Bos Cyo, 2026-10-03): kolom angka di tengah rata kanan, penanda janggal pakai .status-chip. */
+.stk-table.stk-hpp th:nth-child(n+2), .stk-table.stk-hpp td:nth-child(n+2) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stk-table.stk-hpp th:last-child, .stk-table.stk-hpp td:last-child { text-align: left; }
+.stk-hpp-bad { color: #b3362e; font-weight: 800; }

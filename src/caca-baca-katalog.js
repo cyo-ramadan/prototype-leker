@@ -104,7 +104,7 @@ export const KATALOG = Object.freeze([
   },
   {
     id: 'stok_entity', path: '/api/admin/entity-stock', lingkup: 'gerai', berat: true, lintasGerai: true,
-    ringkas: 'Saldo stok semua barang di SEMUA gerai entity sekaligus (satu panggilan, sudah per gerai).'
+    ringkas: 'Saldo stok semua barang di SEMUA gerai entity sekaligus (satu panggilan, sudah per gerai). Tiap sel juga membawa HPP rata-rata (averageCost, per satuan), acuan median lintas gerai (hppReference), dan penanda janggal (anomaly: NOL/TINGGI/RENDAH) — dipakai untuk membandingkan HPP antar gerai.'
   },
   {
     id: 'hpp_hitung_ulang', path: '/api/admin/hpp-recalculation', lingkup: 'gerai', berat: true, tanpaFanOut: true,

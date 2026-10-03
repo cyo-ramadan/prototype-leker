@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
 import { hashCredential } from '../src/owner-auth.js';
+import { scaledToDecimal, annotateHpp } from '../src/entity-stock.js';
 
 // Bos Cyo, 2026-10-02: "tambahkan di entity untuk bisa langsung cek stok semua
 // gerai, khususnya bahan. setiap stok bahan 1 baris, setiap gerai 1 kolom."
@@ -199,11 +200,96 @@ test('UI: tab Stok Gerai terpasang di Admin Entity dengan versi script/css yang 
   assert.match(html, /id="entityStockStoreBtn"/);
   assert.match(html, /id="entityStockXlsx"/);
   assert.match(html, /id="entityStockPdf"/);
-  assert.match(html, /entity-stock-matrix\.js\?v=20261002-stok-gerai-v2/);
-  assert.match(html, /entity-stock-matrix\.css\?v=20261002-stok-gerai-v2/);
+  assert.match(html, /entity-stock-matrix\.js\?v=20261003-lihat-hpp-v1/);
+  assert.match(html, /entity-stock-matrix\.css\?v=20261003-lihat-hpp-v1/);
   assert.match(html, /entity-admin\.js\?v=20261002-kartu-ringkas-v2/);
   const js = readFileSync(new URL('../public/entity-admin.js', import.meta.url), 'utf8');
   assert.match(js, /loadEntityStockMatrix/);
   const matrix = readFileSync(new URL('../public/entity-stock-matrix.js', import.meta.url), 'utf8');
   assert.doesNotMatch(matrix, /setInterval/, 'tanpa polling periodik (invariant #6)');
+});
+
+// ---- Lihat HPP (Bos Cyo, 2026-10-03) ----------------------------------------
+
+function setCost(db, productId, scaled) {
+  db.prepare('UPDATE products SET average_cost = ? WHERE id = ?').run(scaled, productId);
+}
+
+test('HPP: tiap sel membawa HPP sebagai teks desimal dari integer skala, tanpa pembulatan float', async () => {
+  const ctx = await setup();
+  try {
+    const { db } = ctx;
+    setCost(db, addProduct(db, 'KANTOR', { name: 'Uji Air', unit: 'ML', quantity: 1 }), 437500);
+    setCost(db, addProduct(db, 'PENDEM', { name: 'Uji Air', unit: 'ML', quantity: 1 }), 18966667);
+    setCost(db, addProduct(db, 'MANDALA', { name: 'Uji Air', unit: 'ML', quantity: 1 }), 1500000000);
+    const body = await (await call(ctx, { search: { stores: 'KANTOR,PENDEM,MANDALA' } })).json();
+    const air = body.rows[0];
+    assert.equal(air.byStore.KANTOR.averageCost, '0.4375');
+    assert.equal(air.byStore.PENDEM.averageCost, '18.966667');
+    assert.equal(air.byStore.MANDALA.averageCost, '1500');
+    assert.equal(air.hppReference, '18.966667', 'median dari tiga gerai');
+    assert.equal(air.byStore.MANDALA.anomaly, 'TINGGI');
+    assert.equal(air.byStore.KANTOR.anomaly, 'RENDAH');
+    assert.equal(air.byStore.PENDEM.anomaly, null);
+  } finally { ctx.db.close(); }
+});
+
+test('HPP: nol padahal gerai lain punya = NOL; acuan baru ada kalau minimal 3 gerai berharga', async () => {
+  const ctx = await setup();
+  try {
+    const { db } = ctx;
+    setCost(db, addProduct(db, 'KANTOR', { name: 'Uji Teh', unit: 'PCS', quantity: 1 }), 1500000000);
+    setCost(db, addProduct(db, 'PENDEM', { name: 'Uji Teh', unit: 'PCS', quantity: 1 }), 1550000000);
+    addProduct(db, 'MANDALA', { name: 'Uji Teh', unit: 'PCS', quantity: 1 });
+    const body = await (await call(ctx, { search: { stores: 'KANTOR,PENDEM,MANDALA' } })).json();
+    const teh = body.rows[0];
+    assert.equal(teh.byStore.MANDALA.averageCost, '0');
+    assert.equal(teh.byStore.MANDALA.anomaly, 'NOL');
+    assert.equal(teh.hppReference, null, 'dua gerai berharga belum cukup untuk acuan');
+    assert.equal(teh.byStore.KANTOR.anomaly, null);
+  } finally { ctx.db.close(); }
+});
+
+test('HPP: tidak ada penanda kalau semua gerai nol, atau satuan antar gerai berbeda', async () => {
+  const ctx = await setup();
+  try {
+    const { db } = ctx;
+    addProduct(db, 'KANTOR', { name: 'Uji Semua Nol', unit: 'PCS', quantity: 1 });
+    addProduct(db, 'PENDEM', { name: 'Uji Semua Nol', unit: 'PCS', quantity: 1 });
+    setCost(db, addProduct(db, 'KANTOR', { name: 'Uji Beda Satuan', unit: 'KG', quantity: 1 }), 18000000000);
+    setCost(db, addProduct(db, 'PENDEM', { name: 'Uji Beda Satuan', unit: 'PCS', quantity: 1 }), 18000000);
+    addProduct(db, 'MANDALA', { name: 'Uji Beda Satuan', unit: 'PCS', quantity: 1 });
+    const body = await (await call(ctx, { search: { stores: 'KANTOR,PENDEM,MANDALA' } })).json();
+    const byName = Object.fromEntries(body.rows.map(row => [row.name, row]));
+    assert.ok(Object.values(byName['Uji Semua Nol'].byStore).every(cell => cell.anomaly === null));
+    assert.equal(byName['Uji Beda Satuan'].uniformUnit, false);
+    assert.ok(Object.values(byName['Uji Beda Satuan'].byStore).every(cell => cell.anomaly === null && cell.averageCost !== undefined));
+    assert.equal(byName['Uji Beda Satuan'].hppReference, null);
+  } finally { ctx.db.close(); }
+});
+
+test('HPP: scaledToDecimal dan annotateHpp (median genap dibulatkan ke atas, tidak memakai float)', () => {
+  assert.equal(scaledToDecimal(0n), '0');
+  assert.equal(scaledToDecimal(1n), '0.000001');
+  assert.equal(scaledToDecimal(17500000n), '17.5');
+  assert.equal(scaledToDecimal(11315104n), '11.315104');
+  const cells = [{ scaled: 100n }, { scaled: 101n }, { scaled: 103n }, { scaled: 104n }];
+  assert.equal(annotateHpp(cells, true), 102n);
+  assert.ok(cells.every(cell => cell.anomaly === null));
+  const tigaKali = [{ scaled: 100n }, { scaled: 100n }, { scaled: 100n }, { scaled: 301n }];
+  annotateHpp(tigaKali, true);
+  assert.equal(tigaKali[3].anomaly, 'TINGGI');
+  const tepatTiga = [{ scaled: 100n }, { scaled: 100n }, { scaled: 100n }, { scaled: 300n }];
+  annotateHpp(tepatTiga, true);
+  assert.equal(tepatTiga[3].anomaly, null, 'persis 3x belum janggal (sama dengan audit HPP)');
+});
+
+test('UI: pilihan Lihat HPP terpasang, memakai data yang sama, tanpa polling', () => {
+  const html = readFileSync(new URL('../public/entity-admin.html', import.meta.url), 'utf8');
+  assert.match(html, /data-stock-view="STOK"/);
+  assert.match(html, /data-stock-view="HPP"[^>]*>Lihat HPP</);
+  const js = readFileSync(new URL('../public/entity-stock-matrix.js', import.meta.url), 'utf8');
+  assert.match(js, /renderHpp/);
+  assert.match(js, /hppReference/);
+  assert.doesNotMatch(js, /setInterval|setTimeout\([^)]*load/, 'tanpa polling periodik (invariant #6)');
 });

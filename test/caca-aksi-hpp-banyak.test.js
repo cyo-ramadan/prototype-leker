@@ -181,6 +181,13 @@ test('draft beku yang bentuknya rusak atau berisi angka aneh ditolak', async () 
   assert.equal(hasil.ok, false, 'harga hanya boleh digit dengan titik desimal');
 });
 
+test('koma desimal tiga digit dibaca desimal (4,664), titik tiga digit tetap dibaca ribuan (4.664 = 4664): format daftar di INSTRUKSI-UNA-HPP-SEPTEMBER.md memakai koma', async () => {
+  const koma = await aksi().siapkan({ kh_dari: '2026-09-21', kh_daftar: [{ bahan: 'Gula', harga: '4,664' }] }, ctxPalsu());
+  assert.equal(koma.draft.muatan.daftar[0].unitCost, '4.664');
+  const titik = await aksi().siapkan({ kh_dari: '2026-09-21', kh_daftar: [{ bahan: 'Gula', harga: '4.664' }] }, ctxPalsu());
+  assert.equal(titik.draft.muatan.daftar[0].unitCost, '4664', 'perilaku yang sama dengan hitung_ulang_hpp; makanya dokumen instruksi memakai koma');
+});
+
 test('jalur sungguhan mengizinkan semua jalur yang dipakai alat ini', async () => {
   const jalur = bangunJalurAksi(new Request('https://example.test/api/caca/catat'), {}, {
     storeCode: 'BEJI',

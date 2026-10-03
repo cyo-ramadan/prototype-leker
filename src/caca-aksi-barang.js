@@ -338,4 +338,203 @@ const nonaktifkanBarang = Object.freeze({
   }
 });
 
-export const AKSI_BARANG = Object.freeze([barangBanyak, nonaktifkanBarang]);
+// --- ubah barang (harga jual, harga beli, nama, kategori) -----------------
+//
+// Bos Cyo 2026-10-03: "jangankan koreksi hpp, ganti harga aja masa ga bisa.
+// kan uda bisa bikin barang, masak edit ga bisa". Lewat endpoint editor yang
+// sama dengan layar Data Barang (PATCH parsial: hanya isian yang disebut yang
+// berubah, sisanya — foto, poin, tipe, resep — tidak tersentuh).
+//
+// Salah ketik nama ("blackcurent") dibaca kode: kalau tepat satu barang yang
+// jaraknya dekat, dipakai dan DISEBUT di draft; kalau ragu, ditanyakan.
+// Isi draft dibekukan di muatan (id + nilai lama/baru), supaya potongan
+// berikutnya tidak menganggap draft "berubah" setelah potongan sebelumnya
+// sudah mengubah harganya.
+
+const MAKS_HARGA = 10_000_000;
+
+function jarakEdit(a, b) {
+  const baris = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let kiriAtas = baris[0];
+    baris[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const atas = baris[j];
+      baris[j] = Math.min(baris[j] + 1, baris[j - 1] + 1, kiriAtas + (a[i - 1] === b[j - 1] ? 0 : 1));
+      kiriAtas = atas;
+    }
+  }
+  return baris[b.length];
+}
+
+/** Barang yang namanya dekat (salah ketik); tepat satu → dipakai, beberapa → ditanyakan. */
+function cocokkanMirip(tertulis, daftar) {
+  const kunci = normalkan(tertulis);
+  const urut = daftar
+    .map((p) => ({ p, d: jarakEdit(kunci, normalkan(p.name)) }))
+    .sort((x, y) => x.d - y.d);
+  const batas = Math.max(2, Math.floor(kunci.length * 0.2));
+  const dekat = urut.filter((x) => x.d <= batas * 2).slice(0, 3);
+  if (urut[0] && urut[0].d <= batas && (!urut[1] || urut[1].d - urut[0].d >= 2)) {
+    return { ok: true, nilai: urut[0].p, dibetulkan: true };
+  }
+  return dekat.length
+    ? { ok: false, tanya: `Barang "${tertulis}" tidak ketemu. Maksudnya ${dekat.map((x) => `"${x.p.name}"`).join(' atau ')}?` }
+    : { ok: false, tanya: `Barang "${tertulis}" tidak ketemu di gerai ini.` };
+}
+
+const skala = (rupiahBulat) => Math.round(Number(rupiahBulat || 0) * 1_000_000);
+
+function tampilRupiah(nilai) {
+  return `Rp${rupiah(Math.round(Number(nilai) || 0))}`;
+}
+
+function susunDraftUbah(daftar, catatan) {
+  const isi = [];
+  for (const baris of daftar) {
+    const { perubahan, sebelum } = baris;
+    if ('name' in perubahan) isi.push([baris.name, 'Nama', sebelum.name ?? baris.name, perubahan.name]);
+    if ('price' in perubahan) isi.push([perubahan.name ?? baris.name, 'Harga jual', sebelum.price, tampilRupiah(perubahan.price)]);
+    if ('purchasePrice' in perubahan) isi.push([perubahan.name ?? baris.name, 'Harga beli', sebelum.purchasePrice, tampilRupiah(perubahan.purchasePrice)]);
+    if ('category' in perubahan) isi.push([perubahan.name ?? baris.name, 'Kategori', sebelum.category || '—', perubahan.category]);
+  }
+  const semua = daftar.flatMap((b) => Object.keys(b.perubahan));
+  const dampak = [
+    ...catatan,
+    ...(semua.includes('price') ? ['Harga jual baru berlaku di kasir untuk penjualan berikutnya; penjualan yang sudah tercatat tidak berubah.'] : []),
+    ...(semua.includes('purchasePrice') ? ['Yang berubah hanya Harga Beli di Master Barang. HPP (modal rata-rata) tidak ikut berubah — kalau HPP-nya yang salah, bilang "koreksi HPP".'] : []),
+    ...(semua.includes('name') ? ['Nama baru ikut tampil di kasir dan laporan; riwayat tetap tertaut ke barang yang sama.'] : []),
+    'Foto, poin, tipe, dan resep barang tidak disentuh. Salah ubah? Sebut nilai yang benar, Una ubah lagi.'
+  ];
+  return {
+    aksi: 'ubah_barang',
+    bertahap: true,
+    judul: `Una mau mengubah ${daftar.length} barang — dicek dulu ya:`,
+    baris: [['Jumlah', `${daftar.length} barang`]],
+    tabel: { kolom: ['Barang', 'Yang diubah', 'Sebelum', 'Sesudah'], isi },
+    dampak,
+    muatan: { daftar, catatan }
+  };
+}
+
+const BATAS_ISI_UBAH = 60;
+
+function bentukUbahValid(daftar) {
+  if (!Array.isArray(daftar) || !daftar.length || daftar.length > BATAS_ISI_UBAH) return false;
+  return daftar.every((b) => ANGKA_ID.test(String(b?.id)) && typeof b.name === 'string'
+    && b.perubahan && typeof b.perubahan === 'object' && b.sebelum && typeof b.sebelum === 'object'
+    && Object.keys(b.perubahan).length > 0
+    && Object.entries(b.perubahan).every(([kunci, nilai]) => (
+      (kunci === 'name' || kunci === 'category') ? typeof nilai === 'string' && nilai.trim()
+        : (kunci === 'price' || kunci === 'purchasePrice') ? Number.isInteger(nilai) && nilai >= 0 && nilai <= MAKS_HARGA
+          : false)));
+}
+
+const ubahBarang = Object.freeze({
+  nama: 'ubah_barang',
+  lingkup: 'gerai',
+  bertahap: true,
+  petunjuk: 'MENGUBAH barang yang sudah ada: harga jual, harga beli, nama, atau kategori — satu atau banyak, mis. "harga es teh blackcurant di mandala ganti jadi 7rb", "harga beli gula jadi 18rb", "ganti nama Kopi Susu jadi Kopi Susu Gula Aren". Bukan untuk membuat barang baru, bukan untuk HPP.',
+  skema: {
+    ubah_daftar: {
+      type: 'array',
+      description: 'ubah_barang: satu objek per barang yang diubah, hanya isian yang disebut.',
+      items: {
+        type: 'object',
+        required: ['barang'],
+        properties: {
+          barang: { type: 'string', description: 'Nama barang yang diubah PERSIS seperti disebut (tanpa nama gerai).' },
+          harga_jual: { type: 'string', description: 'Harga jual BARU PERSIS seperti disebut, mis. "7rb".' },
+          harga_beli: { type: 'string', description: 'Harga beli BARU PERSIS seperti disebut.' },
+          nama_baru: { type: 'string', description: 'Nama BARU barang, kalau diganti.' },
+          kategori: { type: 'string', description: 'Kategori BARU, kalau dipindah.' }
+        }
+      }
+    }
+  },
+
+  async siapkan(t, ctx) {
+    // Konfirmasi (potongan mana pun): isi dibekukan di draft yang dilihat.
+    const beku = ctx.draftAsli?.muatan;
+    if (beku && Array.isArray(beku.daftar)) {
+      if (!bentukUbahValid(beku.daftar) || !Array.isArray(beku.catatan)) return { ok: false, tanya: 'Daftar perubahannya tidak valid. Minta Una menyusun ulang ya.' };
+      return { ok: true, draft: susunDraftUbah(beku.daftar, beku.catatan.map(String).slice(0, 20)) };
+    }
+
+    const mentah = (Array.isArray(t?.ubah_daftar) ? t.ubah_daftar : []).filter((b) => teks(b?.barang, 100));
+    if (!mentah.length) return { ok: false, tanya: 'Barang yang mana yang mau diubah, dan jadi apa?' };
+    if (mentah.length > BATAS_ISI_UBAH) return { ok: false, tanya: `Kebanyakan untuk sekali ubah (maks ${BATAS_ISI_UBAH}). Bagi dua ya.` };
+
+    // Tanpa foto: satu foto barang bisa ratusan KB.
+    const ref = await ctx.baca('/api/admin/master/products/editor?ringkas=1');
+    if (!ref.ok) return ref;
+    const semua = ref.data.products ?? [];
+    const aktif = semua.filter((p) => p.isActive !== false);
+
+    const daftar = [];
+    const catatan = [];
+    const dipakai = new Set();
+    for (const baris of mentah) {
+      const tertulis = teks(baris.barang, 100);
+      let cocok = cocokkanSatu(tertulis, aktif, { label: 'barang', namaDari: (p) => p.name });
+      if (!cocok.ok && /tidak ketemu\.$/.test(cocok.tanya)) {
+        const nonaktif = semua.find((p) => p.isActive === false && normalkan(p.name) === normalkan(tertulis));
+        if (nonaktif) return { ok: false, tanya: `"${nonaktif.name}" sedang nonaktif. Aktifkan dulu di layar Data Barang, baru Una ubah ya.` };
+        cocok = cocokkanMirip(tertulis, aktif);
+      }
+      if (!cocok.ok) return cocok;
+      const p = cocok.nilai;
+      if (dipakai.has(p.id)) return { ok: false, tanya: `"${p.name}" disebut dua kali. Yang mana perubahannya?` };
+      dipakai.add(p.id);
+      if (cocok.dibetulkan) catatan.push(`Una membaca "${tertulis}" sebagai "${p.name}".`);
+
+      const perubahan = {};
+      const sebelum = {};
+      if (teks(baris.harga_jual, 40)) {
+        const jual = rupiahDari(baris.harga_jual, `Harga jual ${p.name}`, { bolehNol: true });
+        if (!jual.ok) return jual;
+        if (jual.nilai > MAKS_HARGA) return { ok: false, tanya: `Harga jual ${p.name} kebesaran — kelebihan nol? Tulis ulang ya.` };
+        if (skala(p.price) !== skala(jual.nilai)) { perubahan.price = jual.nilai; sebelum.price = tampilRupiah(p.price); }
+      }
+      if (teks(baris.harga_beli, 40)) {
+        const beli = rupiahDari(baris.harga_beli, `Harga beli ${p.name}`, { bolehNol: true });
+        if (!beli.ok) return beli;
+        if (beli.nilai > MAKS_HARGA) return { ok: false, tanya: `Harga beli ${p.name} kebesaran — kelebihan nol? Tulis ulang ya.` };
+        if (skala(p.purchasePrice) !== skala(beli.nilai)) { perubahan.purchasePrice = beli.nilai; sebelum.purchasePrice = tampilRupiah(p.purchasePrice); }
+      }
+      const namaBaru = teks(baris.nama_baru, 100);
+      if (namaBaru && namaBaru !== p.name) {
+        const kembar = semua.find((x) => x.id !== p.id && normalkan(x.name) === normalkan(namaBaru));
+        if (kembar) return { ok: false, tanya: `Sudah ada barang "${kembar.name}". Pakai nama lain?` };
+        perubahan.name = namaBaru;
+        sebelum.name = p.name;
+      }
+      const kategoriBaru = teks(baris.kategori, 60);
+      if (kategoriBaru && kategoriBaru !== p.category) { perubahan.category = kategoriBaru; sebelum.category = p.category || ''; }
+
+      if (!Object.keys(perubahan).length) {
+        const disebut = [teks(baris.harga_jual, 40) && 'harga jual', teks(baris.harga_beli, 40) && 'harga beli', namaBaru && 'nama', kategoriBaru && 'kategori'].filter(Boolean);
+        return { ok: false, tanya: disebut.length
+          ? `"${p.name}" sudah seperti itu (${disebut.join(', ')} sama), tidak ada yang perlu diubah.`
+          : `Mau diubah apanya dari "${p.name}"? Harga jual, harga beli, nama, atau kategori?` };
+      }
+      daftar.push({ id: Number(p.id), name: p.name, perubahan, sebelum });
+    }
+    return { ok: true, draft: susunDraftUbah(daftar, catatan) };
+  },
+
+  async postingBagian(draft, bagian, ctx) {
+    const baris = draft.muatan.daftar[bagian];
+    // PATCH parsial: hanya isian yang berubah dikirim, sisanya dibiarkan oleh
+    // endpoint editor. Nilainya mutlak, jadi diulang pun hasilnya sama.
+    const hasil = await ctx.kirim('PATCH', `/api/admin/master/products/editor/${Number(baris.id)}?ringkas=1`, baris.perubahan);
+    if (!hasil.ok) return hasil;
+    return { ok: true, hasil: 'diubah', nama: baris.perubahan.name ?? baris.name, id: baris.id };
+  },
+
+  posting() {
+    return { ok: false, status: 409, error: 'Draft ini dijalankan bertahap. Muat ulang halaman lalu minta Una menyusun ulang ya.' };
+  }
+});
+
+export const AKSI_BARANG = Object.freeze([barangBanyak, nonaktifkanBarang, ubahBarang]);

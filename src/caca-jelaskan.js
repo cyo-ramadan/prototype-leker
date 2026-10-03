@@ -42,6 +42,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Una bisa mengerjakan bagian yang biasanya bikin malas:',
       '• Ngisi data: banyak barang sekaligus (ketik daftarnya atau foto papan menu), bahan, resep.',
+      '• Ngubah data: harga jual/beli, nama, dan kategori barang; koreksi HPP bahan yang salah catat.',
       '• Nyatet: biaya (gaji, sewa lapak, lain-lain), bayar hutang, uang muka ke supplier, jurnal.',
       '• Nanya apa aja: untung hari ini, stok tinggal berapa, barang yang HPP-nya kemahalan, dst.',
       '• Baca foto lembar rekap harian, jelasin istilah, dan batalin barang yang salah bikin.',

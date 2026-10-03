@@ -160,6 +160,24 @@ kamus HPP)** —
   sama tidak menggandakan koreksi (409 "tidak ada yang berubah"). Test: `test/caca-hpp.test.js`
   (migration asli).
 
+**Una bisa mengubah barang (2026-10-03, Bos Cyo: "ganti harga aja masa ga bisa ... uda bisa
+bikin barang, masak edit ga bisa")** — alat `ubah_barang` (`src/caca-aksi-barang.js`):
+harga jual, harga beli, nama, kategori; satu atau banyak barang; lewat PATCH editor produk
+yang sama dengan layar Data Barang (parsial: hanya isian yang disebut dikirim, foto/poin/
+tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per barang.
+- Daftar barang dibaca lewat `GET /api/admin/master/products/editor?ringkas=1` (baru:
+  tanpa foto; foto bisa ratusan KB per barang). Layar biasa tetap membawa foto.
+- **Salah ketik nama dibaca kode** (jarak edit, hanya fungsi ini — `cocokkanSatu` yang
+  dipakai alat lain sengaja tidak dilonggarkan): tepat satu yang dekat → dipakai dan DISEBUT
+  di draft ("Una membaca 'x' sebagai 'Y'"); ragu → ditanyakan dengan kandidat. Barang
+  nonaktif tidak diubah diam-diam; nama kembar, nilai kebesaran, dan "tidak ada yang beda"
+  ditolak dengan penjelasan.
+- Isi draft DIBEKUKAN di `muatan` (id + nilai lama/baru): potongan berikutnya tidak menganggap
+  draft "berubah" setelah potongan sebelumnya mengubah harganya. Penjagaan wewenang tetap di
+  endpoint editor (hanya produk di gerai sesi; diuji dengan id produk gerai lain).
+- Harga beli yang diubah hanya Harga Beli di Master Barang; HPP (average cost) tidak ikut —
+  Una mengarahkan ke koreksi HPP bila itu yang salah.
+
 **Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
 — alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,
 ~50 endpoint baca admin/entity), lalu bergantian dengan kode maksimal tiga

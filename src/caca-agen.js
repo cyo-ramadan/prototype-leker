@@ -57,12 +57,14 @@ function skemaPilihAlat() {
 // interogasi. Barang/resep tidak bertanya (detail kecil diisi bawaan).
 export const ALAT_UANG = Object.freeze(new Set([
   'catat_pengeluaran', 'buat_jurnal', 'catat_bea_gaji', 'catat_bea_lapak', 'bayar_lainnya',
-  'bayar_hutang', 'buat_uang_muka', 'pindah_saldo_akun'
+  'bayar_hutang', 'buat_uang_muka', 'pindah_saldo_akun', 'hitung_ulang_hpp'
 ]));
 
 export function tanyaHalus(namaAlat, tanya) {
   const teks = String(tanya ?? '').trim();
-  if (!ALAT_UANG.has(namaAlat) || !teks) return teks;
+  // Hanya pertanyaan yang diberi ajakan; pernyataan ("tidak ada yang perlu
+  // dikoreksi", "bahan tidak ketemu") dibiarkan apa adanya.
+  if (!ALAT_UANG.has(namaAlat) || !teks.endsWith('?')) return teks;
   // Kalimat terpisah: pertanyaannya bisa diawali nama orang/akun yang huruf
   // besarnya tidak boleh berubah.
   return `Dikit lagi ya Bos, biar catatan uangnya nggak meleset. ${teks}`;
@@ -115,8 +117,13 @@ function promptPilihAlat(konteks) {
     '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
     '  Salin SEMUA barangnya; jangan diringkas, jangan dipilih sebagian.',
-    '- Pertanyaan "apa itu ...", "maksudnya ... apa", "caranya gimana", "mulai dari mana", "Una bisa apa" = jelaskan.',
-    '  Pertanyaan angka/data gerai (untung, stok, HPP barang tertentu) tetap pakai alat baca.',
+    '- jelaskan HANYA untuk pertanyaan arti istilah atau cara pakai aplikasi yang berdiri sendiri: "HPP itu apa?",',
+    '  "caranya gimana", "mulai dari mana", "Una bisa apa aja". BUKAN jelaskan: pesan yang merujuk percakapan ("tadi",',
+    '  "yang itu", "maksudnya ... tadi"), yang menyebut barang/gerai/angka tertentu, atau yang meminta tindakan',
+    '  (ubah, betulkan, koreksi, hapus). Rujukan: lengkapi dari percakapan sebelumnya lalu pilih alat data atau tindakan.',
+    '- Pertanyaan angka/data gerai (untung, stok, HPP barang tertentu) tetap pakai alat baca.',
+    '- Mengoreksi/mengubah HPP sebuah bahan yang salah atau tidak wajar, termasuk menghitung ulang HPP penjualan sejak',
+    '  tanggal yang salah = hitung_ulang_hpp. Salin nama bahan, harga benar per satuan, dan tanggal PERSIS seperti disebut.',
     '- Penjualan dan pembelian barang dicatat lewat kasir, bukan lewat kamu. Kamu juga belum bisa mengubah atau',
     '  menghapus data — satu-satunya pengecualian: menonaktifkan barang (nonaktifkan_barang), termasuk "batalkan',
     '  barang yang barusan dibuat". Selain itu jawab "tidak_ada" dan sebutkan alasannya.',

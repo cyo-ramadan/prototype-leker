@@ -11,9 +11,14 @@
 //     tak tepercaya: tidak ada tindakan yang lahir dari riwayat tanpa lewat
 //     draft dan tombol "Ya", yang diperiksa ulang di server.
 
-export const MAKS_PERCAKAPAN = 5;       // pesan Bos yang masih dianggap nyambung
-export const MAKS_ENTRI = 14;           // batas keras jumlah baris yang diterima
+// 10 pesan Bos (Bos Cyo 2026-10-03: obrolan terasa tidak nyambung dengan yang
+// tadi, "bikin ajalah 10 chat"). Sebelumnya 5.
+export const MAKS_PERCAKAPAN = 10;      // pesan Bos yang masih dianggap nyambung
+export const MAKS_ENTRI = 48;           // batas keras jumlah baris yang diterima
 export const MAKS_PANJANG_ENTRI = 400;
+// Jawaban Una boleh lebih panjang: nama barang/gerai yang disebut di tabel
+// (mis. "Bubuk Matcha") justru yang dirujuk lagi oleh "yang tadi".
+export const MAKS_PANJANG_UNA = 900;
 
 const PERAN = Object.freeze(['saya', 'una', 'sistem']);
 
@@ -31,7 +36,8 @@ export function bersihkanRiwayat(masuk) {
     if (!item || typeof item !== 'object') continue;
     if (!PERAN.includes(item.dari)) continue;
     // eslint-disable-next-line no-control-regex
-    const teks = String(item.teks ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAKS_PANJANG_ENTRI);
+    const batas = item.dari === 'una' ? MAKS_PANJANG_UNA : MAKS_PANJANG_ENTRI;
+    const teks = String(item.teks ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, batas);
     if (teks) entri.push({ dari: item.dari, teks });
   }
 

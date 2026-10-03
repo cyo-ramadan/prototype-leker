@@ -4,7 +4,13 @@
 // terus di dalamnya ada sub tombolnya ... jangan sampe calon customer
 // ketakutan dulu karna melihat tombol2 kebanyakan."
 //
-// Hanya aktif saat skin A/B/C (public/ui-skin.js, kebijakan tenant ui_skin);
+// Skin D (Bos Cyo 2026-10-03: "tenant punya karyawan cs, tapi admin masih
+// dikerjakan oleh owner, buang2 yang bikin owner tambah bingung") memakai
+// susunan sendiri (SKIN_GROUPS.d): halaman depan "Hari ini" (dirender
+// public/warung-admin.js), lalu hanya 4 tujuan yang dipakai pemilik warung
+// tiap hari; selebihnya masuk "Lainnya". Lihat DESAIN-SKIN-D-WARUNG.md §4c.
+//
+// Hanya aktif saat skin A/B/C/D/E (public/ui-skin.js, kebijakan tenant ui_skin);
 // skin 0 tetap memakai deretan tombol lama. Tombol asli TIDAK dipindah atau
 // dihapus: deretannya disembunyikan, lalu menu ini menekan tombol asli itu
 // (button.click()) -- jadi semua perilaku tab yang sudah ada tetap jalan, dan
@@ -41,6 +47,51 @@
     }
   };
 
+  // Susunan khusus per skin -- menimpa `groups` halaman di atas. `home: true`
+  // = tujuan tanpa tab asli ("Hari ini"): menyalakan kelas
+  // body.maxi-home-active, yang isinya diurus public/warung-admin.js.
+  const SKIN_GROUPS = {
+    d: {
+      'branch-admin': [
+        { id: 'today', icon: '🏠', label: 'Hari ini', home: true },
+        { id: 'decide', icon: '✅', label: 'Persetujuan', items: ['approvals'] },
+        { id: 'sales', icon: '🧾', label: 'Penjualan', items: ['transactions', 'drawers', 'labarugi', 'beaops'] },
+        { id: 'goods', icon: '📦', label: 'Barang', items: ['products', 'stock', 'categories', 'suppliers'] },
+        { id: 'team', icon: '👥', label: 'Tim', items: ['employees', 'cashiers', 'attendance-report'] },
+        // Lainnya = daftar berkelompok seperti menu Pengaturan, bukan 17 tombol
+        // bertumpuk. Tab baru dari sesi lain otomatis masuk "Fitur lain".
+        { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
+          { title: 'Toko & pelanggan', items: ['store', 'customers', 'customer-feedback', 'vouchers'] },
+          { title: 'Tim', items: ['manual-book', 'announcement', 'daily-task', 'cashier-raport', 'permit-report'] },
+          { title: 'Uang & pembukuan', items: ['hutangpiutang', 'costmasters', 'sharedaccounts', 'accountingWorkspaceTab', 'accountingSettingsTab'] },
+          { title: 'Lanjutan — jarang dipakai', items: ['manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] }
+        ] }
+      ],
+      'entity-admin': [
+        { id: 'stores', icon: '🏪', label: 'Gerai', items: ['stores', 'drawerstatus'] },
+        { id: 'reports', icon: '📈', label: 'Laporan', items: ['reports', 'storereport'] },
+        { id: 'team', icon: '👥', label: 'Karyawan', items: ['employees'] }
+      ]
+    }
+  };
+  // Keterangan satu baris di daftar "Lainnya" (skin D) -- supaya pemilik tahu
+  // isinya sebelum membuka.
+  const SKIN_HINTS = {
+    d: {
+      store: 'Nama, logo, titik lokasi absen', customers: 'Data pembeli langganan', 'customer-feedback': 'Masukan dari pembeli',
+      vouchers: 'Potongan harga', 'manual-book': 'Panduan kerja untuk kasir', announcement: 'Pesan untuk semua karyawan',
+      'daily-task': 'Daftar tugas kasir tiap hari', 'cashier-raport': 'Nilai kerja tiap kasir', 'permit-report': 'Riwayat izin & koreksi',
+      hutangpiutang: 'Utang ke supplier & pembayarannya', costmasters: 'Jenis biaya: listrik, sewa, dll.', sharedaccounts: 'Rekening bank & e-wallet toko',
+      accountingWorkspaceTab: 'Buku besar (untuk akuntan)', accountingSettingsTab: 'Pengaturan akun pembukuan',
+      manufacturing: 'Barang racikan dari bahan', warehouseSettingsTab: 'Pengaturan gudang', 'hpp-recalc': 'Hitung ulang modal barang'
+    }
+  };
+  const SKIN_LABELS = {
+    d: { drawers: 'Laci Kasir', beaops: 'Biaya Toko', labarugi: 'Untung Rugi', 'attendance-report': 'Absen', cashiers: 'Akun Kasir', store: 'Profil Toko' }
+  };
+  const currentSkin = () => window.MaxiSkin?.skin?.() || 'classic';
+  const groupsFor = () => SKIN_GROUPS[currentSkin()]?.[pageKey()] || page.groups;
+
   // Nama tombol dalam bahasa pemilik usaha (tombol asli tidak diubah).
   const LABELS = {
     store: 'Profil Toko', transactions: 'Riwayat Transaksi', drawers: 'Laci Kasir', approvals: 'Persetujuan',
@@ -68,6 +119,8 @@
   let observer = null;
   let lastClickedKey = null;
   let scheduled = false;
+  let homeActive = null; // null = belum diputuskan; diisi saat render pertama
+  let menuOpen = false;  // daftar "Lainnya" (grup bertanda `menu`) sedang terbuka
 
   function injectStyle() {
     if (document.getElementById('navGroupsStyle')) return;
@@ -87,6 +140,17 @@
       .nav-sub-btn{border:0;background:transparent;color:var(--ink);opacity:.75;padding:8px 12px;border-radius:999px;font:inherit;font-weight:800;font-size:13px;cursor:pointer}
       .nav-sub-btn[aria-current="true"]{opacity:1;background:var(--surface,#fff);box-shadow:0 1px 3px rgba(0,0,0,.10)}
       .nav-sub-count{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:6px;padding:0 5px;border-radius:999px;background:#e5484d;color:#fff;font-size:10.5px}
+      body.maxi-more-active .admin-section,body.maxi-more-active #maxiTodayHome{display:none!important}
+      .nav-menu{display:grid;gap:16px}
+      .nav-menu h3{margin:0 0 6px 4px;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+      .nav-menu-list{background:var(--surface,#fff);border:1px solid var(--line);border-radius:var(--skin-r-lg,16px);overflow:hidden}
+      .nav-menu-item{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 16px;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+      .nav-menu-item:first-child{border-top:0}
+      .nav-menu-item b{display:block;font-size:16px}
+      .nav-menu-item small{display:block;color:var(--muted);font-size:13.5px;margin-top:2px}
+      .nav-menu-item i{font-style:normal;font-size:22px;color:var(--muted)}
+      .nav-crumb{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+      .nav-crumb b{font-size:18px}
       @media (min-width:760px){.nav-groups-main{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}}
     `;
     document.head.appendChild(style);
@@ -95,7 +159,7 @@
   const source = () => document.querySelector(page.source);
   const cleanLabel = text => String(text || '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s*\d+\s*$/, '').trim();
   const countOf = text => { const match = String(text || '').match(/(\d+)\s*$/); return match ? Number(match[1]) : 0; };
-  const labelFor = (key, button) => (pageKey() === 'entity-admin' && ENTITY_LABELS[key]) || LABELS[key] || cleanLabel(button.textContent) || key;
+  const labelFor = (key, button) => SKIN_LABELS[currentSkin()]?.[key] || (pageKey() === 'entity-admin' && ENTITY_LABELS[key]) || LABELS[key] || cleanLabel(button.textContent) || key;
 
   function collect() {
     const container = source();
@@ -106,12 +170,25 @@
       if (!key || page.ignore.includes(key) || button.hidden || button.classList.contains('hidden')) return;
       items.set(key, button);
     });
-    const known = new Set(page.groups.flatMap(group => group.items));
-    const groups = page.groups
-      .map(group => ({ ...group, entries: group.items.filter(key => items.has(key)).map(key => ({ key, button: items.get(key) })) }))
-      .filter(group => group.entries.length);
-    const others = [...items.keys()].filter(key => !known.has(key)).map(key => ({ key, button: items.get(key) }));
-    if (others.length) groups.push({ id: 'others', icon: '➕', label: 'Lainnya', entries: others });
+    const layout = groupsFor();
+    const keysOf = group => group.items || (group.menu || []).flatMap(section => section.items);
+    const known = new Set(layout.flatMap(keysOf));
+    const entryOf = key => ({ key, button: items.get(key) });
+    const groups = layout
+      .map(group => ({
+        ...group,
+        entries: keysOf(group).filter(key => items.has(key)).map(entryOf),
+        sections: group.menu ? group.menu.map(section => ({ title: section.title, entries: section.items.filter(key => items.has(key)).map(entryOf) })).filter(section => section.entries.length) : null
+      }))
+      .filter(group => group.home || group.entries.length || group.menu);
+    const others = [...items.keys()].filter(key => !known.has(key)).map(entryOf);
+    const menuGroup = groups.find(group => group.menu);
+    if (others.length && menuGroup) {
+      menuGroup.entries.push(...others);
+      menuGroup.sections.push({ title: 'Fitur lain', entries: others });
+    } else if (others.length) {
+      groups.push({ id: 'others', icon: '➕', label: 'Lainnya', entries: others });
+    }
     return groups;
   }
 
@@ -137,8 +214,15 @@
       container.insertAdjacentElement('beforebegin', nav);
       nav.addEventListener('click', onClick);
     }
-    const current = activeKey(groups);
-    const currentGroup = groups.find(group => group.entries.some(entry => entry.key === current)) || groups[0];
+    const homeGroup = groups.find(group => group.home);
+    if (homeActive === null) homeActive = Boolean(homeGroup);
+    if (!homeGroup) homeActive = false;
+    const menuGroup = groups.find(group => group.menu);
+    if (!menuGroup) menuOpen = false;
+    document.body.classList.toggle('maxi-home-active', homeActive);
+    document.body.classList.toggle('maxi-more-active', menuOpen);
+    const current = homeActive || menuOpen ? null : activeKey(groups);
+    const currentGroup = homeActive ? homeGroup : menuOpen ? menuGroup : (groups.find(group => group.entries.some(entry => entry.key === current)) || groups.find(group => !group.home) || groups[0]);
     const esc = value => String(value).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
     const main = groups.map(group => {
       const pending = group.entries.reduce((sum, entry) => sum + countOf(entry.button.textContent), 0);
@@ -146,7 +230,16 @@
         <span class="nav-group-icon" aria-hidden="true">${group.icon}</span><span>${esc(group.label)}</span>
         ${pending ? `<span class="nav-group-badge">${pending}</span>` : ''}</button>`;
     }).join('');
-    const sub = currentGroup.entries.length > 1
+    const hints = SKIN_HINTS[currentSkin()] || {};
+    const menuList = () => `<div class="nav-menu">${currentGroup.sections.map(section => `<div><h3>${esc(section.title)}</h3><div class="nav-menu-list">${section.entries.map(entry =>
+      `<button type="button" class="nav-menu-item" data-nav-item="${esc(entry.key)}"><span><b>${esc(labelFor(entry.key, entry.button))}</b>${hints[entry.key] ? `<small>${esc(hints[entry.key])}</small>` : ''}</span><i aria-hidden="true">›</i></button>`).join('')}</div></div>`).join('')}</div>`;
+    const crumb = () => {
+      const entry = currentGroup.entries.find(item => item.key === current);
+      return `<div class="nav-crumb"><button type="button" class="secondary-btn" data-nav-group="${esc(currentGroup.id)}">‹ ${esc(currentGroup.label)}</button>${entry ? `<b>${esc(labelFor(entry.key, entry.button))}</b>` : ''}</div>`;
+    };
+    const sub = currentGroup.menu
+      ? (menuOpen ? menuList() : crumb())
+      : !currentGroup.home && currentGroup.entries.length > 1
       ? `<div class="nav-groups-sub">${currentGroup.entries.map(entry => {
         const count = countOf(entry.button.textContent);
         return `<button type="button" class="nav-sub-btn" data-nav-item="${esc(entry.key)}" aria-current="${entry.key === current}">${esc(labelFor(entry.key, entry.button))}${count ? `<span class="nav-sub-count">${count}</span>` : ''}</button>`;
@@ -167,23 +260,53 @@
     const entry = groups.flatMap(group => group.entries).find(item => item.key === key);
     if (!entry) return;
     lastClickedKey = key;
+    homeActive = false;
+    menuOpen = false;
     entry.button.click();
     schedule();
   }
 
+  function goHome() {
+    homeActive = true;
+    menuOpen = false;
+    window.scrollTo(0, 0);
+    schedule();
+    window.dispatchEvent(new CustomEvent('maxi-nav-home'));
+  }
+
+  // Dipakai halaman "Hari ini" (warung-admin.js) untuk melompat ke tab asli.
+  window.MaxiNav = {
+    open: key => { press(key); window.scrollTo(0, 0); },
+    home: goHome,
+    isHome: () => Boolean(homeActive)
+  };
+
   function onClick(event) {
     const item = event.target.closest('[data-nav-item]');
-    if (item) return press(item.dataset.navItem);
+    if (item) {
+      const fromMenu = Boolean(item.closest('.nav-menu'));
+      press(item.dataset.navItem);
+      if (fromMenu) window.scrollTo(0, 0);
+      return;
+    }
     const groupButton = event.target.closest('[data-nav-group]');
     if (!groupButton) return;
     const group = (collect() || []).find(candidate => candidate.id === groupButton.dataset.navGroup);
     if (!group) return;
+    if (group.home) return goHome();
+    if (group.menu) {
+      homeActive = false;
+      menuOpen = true;
+      window.scrollTo(0, 0);
+      return schedule();
+    }
     // Grup yang sedang terbuka tidak berpindah halaman; grup lain membuka isi pertamanya.
     if (groupButton.getAttribute('aria-current') === 'true' && group.entries.length > 1) return;
     press(group.entries[0].key);
   }
 
   function unmount() {
+    document.body.classList.remove('maxi-home-active', 'maxi-more-active');
     nav?.remove();
     nav = null;
     source()?.classList.remove('nav-grouped-source');

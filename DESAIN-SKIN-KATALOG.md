@@ -99,6 +99,10 @@ dengan anaknya dan satu karyawan. Mata sudah butuh huruf besar. Detail: `DESAIN-
 **Janji:** "Untungnya kelihatan. Uangnya aman." **Desain:** layar Jual satu layar (cari, paling
 sering, Bayar, kembalian besar), Panel Pemilik "Hari ini" (satu angka untung), biru warung + kuning,
 huruf Figtree besar. Absen + buka laci tetap (karena ada orang lain yang jaga).
+**Admin dikerjakan pemilik sendiri (2026-10-03):** Workspace Gerai dibuka di halaman **Hari ini**
+(untung, yang menunggu keputusan, laci), menu 6 tombol (Hari ini · Persetujuan · Penjualan · Barang ·
+Tim · Lainnya), "Lainnya" berupa daftar berkelompok berketerangan, istilah teknis diganti bahasa
+pemilik. Detail: `DESAIN-SKIN-D-WARUNG.md` §4c.
 **Cocok kalau:** warung kecil yang **punya** penjaga selain pemilik.
 
 ## E · Jaga Sendiri

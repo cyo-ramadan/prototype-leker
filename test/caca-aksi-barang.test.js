@@ -249,12 +249,12 @@ test('rencana: model menulis langkah, server tidak menjalankan apa pun', async (
   assert.equal(hasil.draft, undefined);
 });
 
-test('rencana: dibersihkan; kurang dari 2 langkah bukan rencana; maks 5', () => {
+test('rencana: dibersihkan; kurang dari 2 langkah bukan rencana; maks MAKS_LANGKAH_RENCANA (8)', () => {
   assert.equal(susunRencana([{ judul: 'a', perintah: 'b' }]), null);
   assert.equal(susunRencana('bukan daftar'), null);
   assert.equal(susunRencana([{ judul: '', perintah: 'x' }, { judul: 'y', perintah: '' }]), null);
-  const banyak = susunRencana(Array.from({ length: 9 }, (_, i) => ({ judul: ` L${i}\n `, perintah: `p${i}` })));
-  assert.equal(banyak.length, 5);
+  const banyak = susunRencana(Array.from({ length: 12 }, (_, i) => ({ judul: ` L${i}\n `, perintah: `p${i}` })));
+  assert.equal(banyak.length, 8);
   assert.equal(banyak[0].judul, 'L0');
 });
 

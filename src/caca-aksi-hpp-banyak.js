@@ -15,22 +15,28 @@
 //     olahan (larutan) sesudahnya; alat ini tidak mengubah urutan.
 //   - Tanggal mulai TIDAK dicari sendiri: harus disebut (satu tanggal untuk semua,
 //     atau per baris). Sengaja: koreksi massal tanpa tanggal yang jelas = tebakan massal.
-//   - Harga yang sama dengan yang tercatat dan tanpa penjualan terdampak dilewati.
+//   - Draft TIDAK menjalankan pratinjau per bahan. Versi pertama (2026-10-03) memanggil
+//     pratinjau untuk tiap bahan dalam satu permintaan: 17 bahan = puluhan kueri sekaligus,
+//     melewati batas kerja per permintaan paket Cloudflare gratis (alasan yang sama
+//     dengan buat_barang_banyak bertahap). Draft cukup satu bacaan daftar bahan; dampak
+//     per bahan dihitung saat bahan itu dijalankan (satu bahan per permintaan).
+//   - Bahan yang ternyata sudah benar (tidak ada penjualan yang berubah dan harga
+//     rata-ratanya sudah sama) dilewati otomatis, tidak menghentikan sisanya.
 
-import { rupiah } from './caca-nominal.js';
 import { cocokkanSatu, teks, tanggalDari, BELUM_KETEMU } from './caca-aksi-dasar.js';
 import { tampilSkala } from './caca-hitung.js';
 import { hargaPerSatuan } from './caca-aksi-hpp.js';
 
 const JALUR = '/api/admin/hpp-recalculation';
-export const BATAS_HPP_BANYAK = 30;
+export const BATAS_HPP_BANYAK = 60;
 const ANGKA_ID = /^\d{1,9}$/;
 const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 const HARGA = /^\d{1,12}(\.\d{1,6})?$/;
 const SKALA = /^\d{1,24}$/;
 
 const rupiahSkala = (skala) => `Rp${tampilSkala(BigInt(skala))}`;
-const selisih = (nilai) => `${nilai < 0 ? '−' : nilai > 0 ? '+' : ''}${rupiah(Math.abs(nilai))}`;
+// Jawaban Hitung Ulang HPP kalau tidak ada yang perlu diubah (src/hpp-recalculation.js).
+const SUDAH_SAMA = /^Tidak ada penjualan yang HPP-nya berubah/;
 
 function bentukValid(daftar) {
   if (!Array.isArray(daftar) || !daftar.length || daftar.length > BATAS_HPP_BANYAK) return false;
@@ -40,47 +46,32 @@ function bentukValid(daftar) {
     && typeof b.unitCost === 'string' && HARGA.test(b.unitCost)
     && typeof b.sebelumSkala === 'string' && SKALA.test(b.sebelumSkala)
     && typeof b.hargaSkala === 'string' && SKALA.test(b.hargaSkala)
-    && typeof b.from === 'string' && TANGGAL.test(b.from)
-    && Number.isInteger(b.jual) && b.jual >= 0
-    && Number.isFinite(b.selisihRupiah)
-    && typeof b.hanyaHarga === 'boolean');
+    && typeof b.from === 'string' && TANGGAL.test(b.from));
 }
 
-function susunDraft(daftar, sudahSesuai) {
-  const jual = daftar.reduce((jumlah, b) => jumlah + b.jual, 0);
-  const total = daftar.reduce((jumlah, b) => jumlah + b.selisihRupiah, 0);
+function susunDraft(daftar) {
   const tanggal = [...new Set(daftar.map((b) => b.from))].sort();
-  const hanyaHarga = daftar.filter((b) => b.hanyaHarga).length;
   return {
     aksi: 'koreksi_hpp_banyak',
     bertahap: true,
     judul: `Una mau mengoreksi HPP ${daftar.length} bahan — dicek dulu ya:`,
     baris: [
       ['Jumlah bahan', String(daftar.length)],
-      ['Mulai tanggal', tanggal.length === 1 ? tanggal[0] : `${tanggal[0]} s/d ${tanggal[tanggal.length - 1]} (per baris)`],
-      ['Penjualan terdampak (s/d kemarin)', String(jual)],
-      ['Selisih HPP total (s/d kemarin)', selisih(total)]
+      ['Mulai tanggal', tanggal.length === 1 ? tanggal[0] : `${tanggal[0]} s/d ${tanggal[tanggal.length - 1]} (per baris)`]
     ],
     tabel: {
-      kolom: ['Bahan', 'Sekarang', 'Harga benar', 'Jual', 'Selisih HPP'],
-      isi: daftar.map((b) => [b.name, `${rupiahSkala(b.sebelumSkala)}/${b.satuan}`, `${rupiahSkala(b.hargaSkala)}/${b.satuan}`, String(b.jual), b.hanyaHarga ? 'harga saja' : selisih(b.selisihRupiah)])
+      kolom: ['Bahan', 'Sekarang', 'Harga benar', 'Mulai'],
+      isi: daftar.map((b) => [b.name, `${rupiahSkala(b.sebelumSkala)}/${b.satuan}`, `${rupiahSkala(b.hargaSkala)}/${b.satuan}`, b.from])
     },
     dampak: [
-      'Dijalankan berurutan persis seperti daftar ini. Bahan baku harus di depan olahan (larutan) supaya harga olahan dihitung dari harga bahan yang sudah benar.',
-      'Hanya HPP yang berubah: stok, nominal pembelian, dan uang laci tidak disentuh.',
-      'Untung di tanggal-tanggal itu ikut berubah sebesar kebalikan selisih HPP.',
-      ...(hanyaHarga ? [`${hanyaHarga} bahan tidak punya penjualan terdampak: hanya harga rata-ratanya yang dibetulkan (supaya penjualan berikutnya benar).`] : []),
-      'Catatannya tersimpan permanen di Riwayat Hitung Ulang HPP; di gerai berpembukuan, jurnal koreksinya dibuat otomatis (jurnal lama tidak diedit).',
-      ...(sudahSesuai.length ? [`Sudah sesuai, dilewati: ${sudahSesuai.slice(0, 10).join(', ')}${sudahSesuai.length > 10 ? ', …' : ''}.`] : [])
+      'Dijalankan berurutan persis seperti daftar ini, satu bahan per langkah. Bahan baku harus di depan olahan (larutan) supaya harga olahan dihitung dari harga bahan yang sudah benar.',
+      'Penjualan sejak tanggal mulai dihitung ulang dengan harga benar. Jumlah penjualan dan selisih HPP tiap bahan tercatat di Riwayat Hitung Ulang HPP setelah dijalankan.',
+      'Hanya HPP yang berubah: stok, nominal pembelian, dan uang laci tidak disentuh. Untung di tanggal-tanggal itu ikut berubah sebesar kebalikan selisih HPP.',
+      'Bahan yang ternyata sudah benar dilewati otomatis.',
+      'Di gerai berpembukuan, jurnal koreksinya dibuat otomatis (jurnal lama tidak diedit).'
     ],
-    muatan: { daftar, sudahSesuai }
+    muatan: { daftar }
   };
-}
-
-async function pratinjau(ctx, { componentProductId, unitCost, from }) {
-  const hasil = await ctx.kirim('POST', `${JALUR}/preview`, { componentProductId, unitCost, from });
-  if (!hasil.ok) return hasil;
-  return { ok: true, ringkasan: hasil.data.summary };
 }
 
 const koreksiHppBanyak = Object.freeze({
@@ -107,13 +98,13 @@ const koreksiHppBanyak = Object.freeze({
 
   async siapkan(t, ctx) {
     // Konfirmasi (potongan mana pun): isi dibekukan di draft yang dilihat, tanpa
-    // pratinjau ulang -- penjualan baru tidak boleh menggeser yang sudah dikonfirmasi.
+    // membaca ulang -- yang dijalankan persis yang tadi dikonfirmasi.
     const beku = ctx.draftAsli?.muatan;
     if (beku && Array.isArray(beku.daftar)) {
-      if (!bentukValid(beku.daftar) || !Array.isArray(beku.sudahSesuai)) {
+      if (!bentukValid(beku.daftar)) {
         return { ok: false, tanya: 'Daftar koreksinya kayaknya berubah. Minta Una menyusun ulang ya.' };
       }
-      return { ok: true, draft: susunDraft(beku.daftar, beku.sudahSesuai.map(String).slice(0, 60)) };
+      return { ok: true, draft: susunDraft(beku.daftar) };
     }
 
     const mentah = (Array.isArray(t?.kh_daftar) ? t.kh_daftar : []).filter((b) => teks(b?.bahan, 100));
@@ -131,10 +122,10 @@ const koreksiHppBanyak = Object.freeze({
     if (!komponen.ok) return komponen;
     const bahanList = komponen.data.components ?? [];
 
-    const disusun = [];
+    const daftar = [];
     const dipakai = new Set();
-    // Semua nama dan harga diperiksa SEBELUM pratinjau pertama: satu salah ketik
-    // tidak boleh baru ketahuan setelah belasan permintaan.
+    // Semua nama, harga, dan tanggal diperiksa sebelum draft tampil: satu salah ketik
+    // tidak boleh baru ketahuan di tengah jalan.
     for (const baris of mentah) {
       const tertulis = teks(baris.bahan, 100);
       const cocok = cocokkanSatu(tertulis, bahanList, { label: 'bahan', namaDari: (b) => b.name });
@@ -158,41 +149,18 @@ const koreksiHppBanyak = Object.freeze({
       }
       if (!dari) return { ok: false, tanya: 'Koreksi dihitung ulang mulai tanggal berapa? Sebut satu tanggal untuk semua bahan, atau per bahan.' };
 
-      disusun.push({
-        bahan,
-        harga,
-        dari,
-        satuan: bahan.unitSymbol || bahan.unitCode || 'satuan',
-        // Hanya untuk ditampilkan: harga rata-rata tercatat dibulatkan ke skala 1.000.000.
-        sebelumSkala: BigInt(Math.max(0, Math.round(Number(bahan.averageCostRupiah || 0) * 1_000_000)))
-      });
-    }
-
-    const daftar = [];
-    const sudahSesuai = [];
-    for (const item of disusun) {
-      const hasil = await pratinjau(ctx, { componentProductId: item.bahan.productId, unitCost: item.harga.teks, from: item.dari });
-      if (!hasil.ok) return { ok: false, tanya: `${item.bahan.name}: ${hasil.error}` };
-      const s = hasil.ringkasan;
-      if (!s.lineCount && !s.averageCostOnly) { sudahSesuai.push(item.bahan.name); continue; }
-      const sampaiKemarin = (s.byDate ?? []).filter((hari) => hari.businessDate < ctx.hariIni);
       daftar.push({
-        componentProductId: Number(item.bahan.productId),
-        name: item.bahan.name,
-        satuan: item.satuan,
-        unitCost: item.harga.teks,
-        sebelumSkala: String(item.sebelumSkala),
-        hargaSkala: String(item.harga.skala),
-        from: item.dari,
-        jual: sampaiKemarin.reduce((jumlah, hari) => jumlah + hari.saleCount, 0),
-        selisihRupiah: sampaiKemarin.reduce((jumlah, hari) => jumlah + hari.deltaRupiah, 0),
-        hanyaHarga: Boolean(s.averageCostOnly)
+        componentProductId: Number(bahan.productId),
+        name: bahan.name,
+        satuan: bahan.unitSymbol || bahan.unitCode || 'satuan',
+        unitCost: harga.teks,
+        // Hanya untuk ditampilkan: harga rata-rata tercatat dibulatkan ke skala 1.000.000.
+        sebelumSkala: String(BigInt(Math.max(0, Math.round(Number(bahan.averageCostRupiah || 0) * 1_000_000)))),
+        hargaSkala: String(harga.skala),
+        from: dari
       });
     }
-    if (!daftar.length) {
-      return { ok: false, tanya: `Semua bahan itu HPP-nya sudah sesuai dan tidak ada penjualan yang beda (${sudahSesuai.slice(0, 8).join(', ')}). Tidak ada yang perlu dikoreksi.` };
-    }
-    return { ok: true, draft: susunDraft(daftar, sudahSesuai) };
+    return { ok: true, draft: susunDraft(daftar) };
   },
 
   async postingBagian(draft, bagian, ctx) {
@@ -201,7 +169,12 @@ const koreksiHppBanyak = Object.freeze({
     const hasil = await ctx.kirim('POST', JALUR, {
       componentProductId: baris.componentProductId, unitCost: baris.unitCost, from: baris.from, reason
     });
-    if (!hasil.ok) return hasil;
+    if (!hasil.ok) {
+      if (hasil.status === 409 && SUDAH_SAMA.test(String(hasil.error ?? ''))) {
+        return { ok: true, hasil: 'sudah_sesuai', nama: baris.name, id: baris.componentProductId };
+      }
+      return hasil;
+    }
     return { ok: true, hasil: 'dikoreksi', nama: baris.name, id: baris.componentProductId };
   },
 

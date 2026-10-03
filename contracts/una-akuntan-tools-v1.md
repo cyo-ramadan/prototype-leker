@@ -107,7 +107,8 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
 - `betulkan_klasifikasi_barang` tidak mengubah Jenis Barang kecuali disebut, tidak mengubah harga/nama, dan hanya mengirim konfirmasi ganti satuan untuk baris yang tampil di draft.
 - `samakan_aturan_jurnal` menolak menyalin aturan yang memakai pilihan akun (choice group) dan menolak menebak akun yang tidak ada di gerai tujuan.
 - `hitung_ulang_hpp` menerapkan satu harga benar sejak tanggal tertentu (bukan harga per hari). Kalau harga bahan sungguh berubah di tengah periode, mulai tanggal koreksi perlu dipilih dengan sadar.
-- `koreksi_hpp_banyak` maksimal 30 bahan per draft. Semua nama dan harga diperiksa sebelum pratinjau pertama; harga `4.664` (titik tiga digit) dibaca ribuan seperti `hitung_ulang_hpp`, jadi daftar siap tempel memakai koma desimal.
+- `koreksi_hpp_banyak` maksimal 60 bahan per draft. Draft hanya membaca daftar bahan sekali (TANPA pratinjau per bahan: versi pertama memanggil pratinjau tiap bahan dalam satu permintaan dan berisiko melewati batas kerja per permintaan paket Cloudflare gratis). Jumlah penjualan dan selisih HPP per bahan baru dihitung saat bahan itu dijalankan, dan tercatat di Riwayat Hitung Ulang HPP. Bahan yang ternyata sudah benar (Hitung Ulang HPP menjawab 409 "Tidak ada penjualan yang HPP-nya berubah...") dilewati, bukan menghentikan sisa daftar. Harga `4.664` (titik tiga digit) dibaca ribuan seperti `hitung_ulang_hpp`, jadi daftar siap tempel memakai koma desimal.
+- Perintah panjang (perbaikan 2026-10-03): pesan ke Una maks 8.000 huruf dan kelebihannya DITOLAK dengan pesan jelas (dulu kotak ketik memotong diam-diam di 4.000); tiap langkah rencana boleh 4.000 huruf (dulu 400, daftar koreksi buntung) dan maks 8 langkah; prompt pemilih alat mengarahkan daftar 2+ bahan ke `koreksi_hpp_banyak` dan tidak lagi menyuruh model menolak alat tulis selain ubah/nonaktifkan/hitung_ulang_hpp.
 - Angka uji produksi 2026-10-03 (audit di data asli, hanya baca): MANDALA Air Mineral → Rp0,4375/ml (sama dengan hitungan manual `KOREKSI-HPP-2026-10-02.md`); GENENGAN Gula → ±Rp18,97/g; DERMO Adonan Leker → **berhenti dan bertanya** (bukti saling bertentangan).
 
 ## Daftar izin jalur Una (jebakan nyata)
@@ -120,7 +121,7 @@ sekarang dijaga test yang memakai `bangunJalurAksi` sungguhan (`test/caca-aksi-a
 
 ## Pengujian
 
-`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`, `test/caca-aksi-hpp-banyak.test.js`, `test/entity-stock.test.js` (HPP lintas gerai).
+`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`, `test/caca-aksi-hpp-banyak.test.js`, `test/caca-perintah-panjang.test.js`, `test/entity-stock.test.js` (HPP lintas gerai).
 
 ## DOC-IMPACT
 

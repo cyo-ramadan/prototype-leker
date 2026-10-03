@@ -248,9 +248,14 @@ async function tanya(request, env, jalurUtama) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
 
-  // Cukup panjang untuk daftar menu yang ditempel sekaligus (isi barang massal).
-  const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, MAKS_PERTANYAAN);
+  // Cukup panjang untuk daftar menu atau daftar koreksi yang ditempel sekaligus.
+  // Kelebihan DITOLAK dengan jelas, bukan dipotong diam-diam: daftar yang buntung
+  // di tengah membuat Una mengerjakan sebagian tanpa ada yang sadar.
+  const pertanyaan = String(body.value?.pertanyaan ?? '').trim();
   if (!pertanyaan) return json({ error: 'Pertanyaannya kosong.' }, 400);
+  if (pertanyaan.length > MAKS_PERTANYAAN) {
+    return json({ error: `Pesannya kepanjangan (${pertanyaan.length.toLocaleString('id-ID')} huruf, maks ${MAKS_PERTANYAAN.toLocaleString('id-ID')}). Kirim per bagian, mis. satu gerai atau satu langkah sekali kirim.` }, 413);
+  }
 
   // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
   // memahami rujukan. Tidak ada tindakan yang lahir darinya tanpa draft + "Ya".
@@ -322,7 +327,7 @@ async function catatAksi(request, env, isi, jalurUtama) {
 
 // --- pendamping pengguna baru (UNA-PENDAMPING.md) ---------------------------
 
-const MAKS_PERTANYAAN = 4000;
+export const MAKS_PERTANYAAN = 8000;
 
 // Sapaan pertama Una: kondisi gerai + kerjaan yang ditawarkan. Tanpa mesin AI.
 async function kesiapan(request, env, jalurUtama) {

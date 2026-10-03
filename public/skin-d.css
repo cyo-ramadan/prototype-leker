@@ -106,3 +106,16 @@ html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total 
 /* Mode Warung: angka untung (warung-pemilik.js) langsung di atas, tanpa kalimat teknis. */
 html[data-skin="d"] #entityAdminApp .owner-heading .muted, html[data-skin="d"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
 html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }
+/* Workspace Gerai untuk pemilik yang mengurus admin sendiri (DESAIN-SKIN-D-WARUNG.md §4c):
+   buang yang bikin bingung -- link teknis di bilah atas (Owner/Customer/Kasir Login), judul
+   "Workspace Gerai" + kalimat scope, hitungan barang/kategori, kartu "Scope gerai".
+   Yang tersisa: "Lihat layar kasir" dan tombol keluar. Halaman depan = "Hari ini" (warung-admin.js). */
+html[data-skin="d"] .admin-top-actions > a:not(#cashierReadOnlyLink) { display: none; }
+html[data-skin="d"] #adminApp .admin-heading { display: none; }
+html[data-skin="d"] #tab-store .admin-tip { display: none; }
+/* Persetujuan: yang menunggu dulu, saklar "Setujui otomatis" ke paling bawah. */
+html[data-skin="d"] #tab-approvals.active { display: flex; flex-direction: column; }
+html[data-skin="d"] #tab-approvals > .admin-card:first-child { order: 9; margin-top: 14px; }
+html[data-skin="d"] #tab-drawers small:empty { display: none; }
+/* Menu pemilik: 6 tombol rata 3 x 2. */
+html[data-skin="d"] .nav-groups-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }

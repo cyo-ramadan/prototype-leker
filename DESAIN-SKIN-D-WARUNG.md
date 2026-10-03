@@ -85,6 +85,48 @@ Kalimat iklannya: **"Untungnya kelihatan. Uangnya aman."**
 - Kartu **"Butuh keputusan Anda"**: izin yang menunggu, langsung ke tombol setujui/tolak.
 - Daftar gerai: buka/tutup, untung hari ini per gerai.
 
+### 4c. Pemilik yang mengurus admin sendiri: Workspace Gerai "Hari ini" (2026-10-03)
+
+Bos Cyo: *"tenant punya karyawan cs, tapi admin masih dikerjakan oleh owner, buang2 yang bikin owner
+tambah bingung ... bener2 ala2 steve jobs. koreksi ui dan ux nya."*
+
+**Siapa:** Bu Sri (§1) punya kasir, tapi semua urusan admin (barang, harga, akun kasir, menyetujui
+pengajuan, cek laci) dia kerjakan sendiri dari HP, di sela jaga warung.
+
+**Yang dia lihat sebelumnya saat membuka Workspace Gerai** (dicek di layar 390 px):
+
+| Yang tampil | Kenapa membingungkan |
+|---|---|
+| 5 tombol di bilah atas: ← Owner, Customer, Kasir Login, Lihat Kasir (Read-only), Logout Admin | Tiga di antaranya untuk orang lain (pelanggan, kasir, pemilik platform) |
+| Judul "Workspace Gerai" + "Master dan transaksi di halaman ini mengikuti scope gerai aktif." | Bahasa sistem, bukan bahasa warung |
+| "20 barang aktif · 6 kategori · 0 customer" | Angka yang tidak membantu memutuskan apa pun |
+| Halaman pertama = formulir **Identitas gerai** + kartu "Scope gerai" | Pemilik membuka aplikasi bukan untuk mengganti nama toko |
+| 29 menu dalam 7 grup | Takut salah pencet; yang penting tenggelam |
+| "Auto Permit", "Approval Queue", "ACC + POSTING", "posting snapshot secara atomic", "ID drawer_…", "OPEN" | Istilah akuntan/programmer |
+
+**Yang dibangun (hanya skin D):**
+1. **Halaman depan "Hari ini"** (`public/warung-admin.js`): sapaan + nama toko → **untung bersih hari
+   ini** (dengan penjualan & kemarin) → **Butuh keputusan Anda** (pengajuan kasir, permintaan hapus
+   transaksi, permintaan tutup laci — masing-masing tombol *Putuskan*) → **Laci kasir** (siapa jaga,
+   sejak jam berapa, uang yang seharusnya ada) → tiga jalan pintas (Tambah barang, Cek stok, Untung rugi).
+   Hanya baca, endpoint yang sama dengan tab aslinya, tanpa polling.
+2. **Menu 6 tombol** (`public/nav-groups.js`, `SKIN_GROUPS.d`): Hari ini · Persetujuan · Penjualan
+   (Riwayat, Laci Kasir, Untung Rugi, Biaya Toko) · Barang (Daftar, Stok, Kategori, Supplier) · Tim
+   (Karyawan, Akun Kasir, Absen) · **Lainnya**.
+3. **Lainnya = daftar berkelompok** seperti menu Pengaturan HP, tiap baris dengan keterangan satu
+   kalimat: Toko & pelanggan · Tim · Uang & pembukuan · *Lanjutan — jarang dipakai*. Tab baru dari sesi
+   lain otomatis masuk "Fitur lain".
+4. **Dibuang dari pandangan** (CSS skin D): link Owner/Customer/Kasir Login, judul + kalimat scope,
+   hitungan barang/kategori, kartu "Scope gerai". Tersisa: *Lihat layar kasir* dan *Keluar*.
+5. **Bahasa pemilik**: Approval Queue → Pengajuan kasir; ACC + POSTING → Setujui; Reject → Tolak;
+   Auto Permit → Setujui otomatis (dipindah ke paling bawah); Permit Hapus Transaksi → Permintaan hapus
+   transaksi; laci "OPEN/CLOSED" → Buka/Tutup, "ID drawer_…" disembunyikan, "Modal" → Uang awal; kartu
+   permintaan tutup laci hanya muncul kalau ada yang menunggu. Panel Pemilik: "Buka Workspace" → Buka
+   toko, Logout → Keluar. Penggantian hanya pada teks yang tampil, tidak pada data yang dikirim.
+
+**Tidak berubah:** semua tab, tombol, dan aturan tetap ada dan bekerja sama (menu hanya menekan tab
+asli). Tenant 0/A/B/C/E tidak tersentuh.
+
 ## 5. Fase berikutnya (belum dibangun — jangan dijanjikan ke pembeli)
 
 | Ide | Kenapa kuat untuk warung | Butuh |
@@ -103,5 +145,6 @@ Kalimat iklannya: **"Untungnya kelihatan. Uangnya aman."**
 - Semua penjualan tetap lewat jalur kasir yang sama (laci aktif, stok, modal, izin).
 - Absen dan buka laci tetap memakai alur yang sudah ada (foto + lokasi), tidak dibuat ulang.
 
+<!-- DOC-IMPACT: 2026-10-03 §4c: Workspace Gerai skin D untuk pemilik yang mengurus admin sendiri (Hari ini, menu 6 tombol, Lainnya berkelompok, bahasa pemilik). -->
 <!-- DOC-IMPACT: 2026-10-02 revisi 2 (pemilik tunggal) dipindah ke skin E: DESAIN-SKIN-E-JAGA-SENDIRI.md. -->
 <!-- DOC-IMPACT: 2026-10-03 dokumen baru; menambah skin D (Mode Warung) di belakang pilihan tenant ui_skin = D. -->

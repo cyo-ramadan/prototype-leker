@@ -75,3 +75,22 @@ test('pintu masuk & layar Pemilik hanya aktif di skin D dan E', () => {
   assert.match(read('public/cashier.html'), /<script src="\/warung-entry\.js\?v=[^"]+"><\/script>/);
   assert.match(read('public/entity-admin.html'), /<script src="\/warung-pemilik\.js\?v=[^"]+"><\/script>/);
 });
+
+test('skin D Workspace Gerai: halaman "Hari ini", menu 6 tombol, Lainnya berkelompok -- hanya skin D', () => {
+  const nav = read('public/nav-groups.js');
+  assert.match(nav, /id: 'today', icon: '🏠', label: 'Hari ini', home: true/);
+  assert.match(nav, /title: 'Lanjutan — jarang dipakai'/);
+  // Tab baru dari sesi lain tidak hilang: masuk "Fitur lain".
+  assert.match(nav, /title: 'Fitur lain'/);
+  const home = read('public/warung-admin.js');
+  assert.match(home, /const isOn = \(\) => window\.MaxiSkin\?\.skin\?\.\(\) === 'd'/);
+  for (const path of ['/api/admin/reports/net-profit', '/api/management/approval-requests', '/api/admin/drawer/close-permits', '/api/admin/drawers']) assert.ok(home.includes(path), path);
+  assert.doesNotMatch(home, /setInterval/);
+  // Hanya teks tampil yang diganti -- isian form tidak pernah disentuh.
+  assert.match(home, /SKIP = new Set\(\['INPUT', 'TEXTAREA', 'SELECT'/);
+  assert.match(read('public/branch-admin.html'), /<script src="\/warung-admin\.js"><\/script>/);
+  const approvals = read('public/management-approval-queue.js');
+  assert.match(approvals, /window\.MaxiSkin\?\.skin\?\.\(\) === 'd' \? owner : classic/);
+  const css = read('public/skin-d.css');
+  assert.match(css, /html\[data-skin="d"\] \.admin-top-actions > a:not\(#cashierReadOnlyLink\) \{ display: none; \}/);
+});

@@ -110,6 +110,11 @@ export const KATALOG = Object.freeze([
     id: 'hpp_hitung_ulang', path: '/api/admin/hpp-recalculation', lingkup: 'gerai', berat: true, tanpaFanOut: true,
     ringkas: 'Status hitung ulang HPP barang gerai.'
   },
+  {
+    id: 'audit_hpp', path: '/api/admin/hpp-audit', lingkup: 'gerai', berat: true, tanpaFanOut: true,
+    param: { from: `tanggal mulai koreksi ${TGL} (bawaan: awal bulan lalu)` },
+    ringkas: 'Audit HPP gerai: bahan baku/olahan yang HPP-nya janggal dibanding bukti pembelian, resep, dan gerai lain; berisi daftar koreksi BERURUTAN (bahan dulu, olahan sesudahnya) beserta bukti dan perintah hitung_ulang_hpp-nya, plus bahan yang perlu ditanyakan harganya.'
+  },
 
   // --- hutang, piutang, bea, kas bersama -------------------------------------
   {
@@ -167,6 +172,10 @@ export const KATALOG = Object.freeze([
     id: 'neraca', path: '/api/admin/accounting/balance-sheet', lingkup: 'gerai',
     param: { asOf: `per tanggal ${TGL}` },
     ringkas: 'Neraca gerai per tanggal: aset, kewajiban, ekuitas.'
+  },
+  {
+    id: 'jembatan_masalah', path: '/api/admin/accounting/bridge/issues', lingkup: 'gerai', berat: true, tanpaFanOut: true,
+    ringkas: 'Transaksi gerai yang belum berjurnal (belum masuk Laporan Untung Rugi): jenis, tanggal, nominal, kode penyebab, dan alat yang membereskannya (cause.alat). Yang dibatalkan tidak dihitung. Baca ini dulu sebelum sinkron_akuntansi.'
   },
   {
     id: 'setting_akuntansi', path: '/api/admin/settings/accounting', lingkup: 'gerai',

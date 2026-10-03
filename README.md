@@ -321,6 +321,11 @@ Login:
 - `POST /api/auth/staff-login`
 - `POST /api/auth/login` — legacy compatibility only
 
+Alat akuntan Una (baca saja, per gerai; kontrak `contracts/una-akuntan-tools-v1.md`):
+
+- `GET /api/admin/accounting/bridge/issues` — transaksi aktif yang belum berjurnal, penyebab, dan alat pembereskannya
+- `GET /api/admin/hpp-audit` — HPP janggal + usulan koreksi berbukti dan berurutan (bahan baku dulu, olahan sesudahnya)
+
 Customer:
 
 - `POST /api/customer/register`
@@ -421,4 +426,4 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 
 ## DOC-IMPACT
 
-**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting, serta **kebijakan sesi karyawan yang berubah 2026-09-18**: banyak sesi per akun sekarang diizinkan (trigger satu-sesi dicabut migration `0102`), dan yang masih ditegakkan cuma "jangan pindah user dalam satu browser" lewat guard sisi klien. **2026-10-03**: login karyawan pindah ke halaman `/login`; login di halaman customer khusus pelanggan.
+**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting, serta **kebijakan sesi karyawan yang berubah 2026-09-18**: banyak sesi per akun sekarang diizinkan (trigger satu-sesi dicabut migration `0102`), dan yang masih ditegakkan cuma "jangan pindah user dalam satu browser" lewat guard sisi klien. **2026-10-03**: login karyawan pindah ke halaman `/login`; login di halaman customer khusus pelanggan; alat akuntan Una (`jembatan_masalah`, `audit_hpp`, `sinkron_akuntansi`, `samakan_aturan_jurnal`).

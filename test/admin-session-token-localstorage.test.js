@@ -24,6 +24,7 @@ const entityAdminHtml = read('entity-admin.html');
 const ownerCentralEntry = read('owner-central-entry.js');
 const staffEntryGuard = read('staff-entry-guard.js');
 const authEntrySplit = read('auth-entry-split.js');
+const staffLogin = read('staff-login.js');
 const adminMultistore = read('admin-multistore.js');
 const storeContext = read('store-context.js');
 const managementApprovalQueue = read('management-approval-queue.js');
@@ -69,10 +70,10 @@ test('Owner/Admin/Entity Admin bearer token and store-code marker live in localS
 // menjaga apa pun soal laci; lacinya tetap terbuka di server sementara
 // kasirnya dipaksa login ulang. Bos Cyo: "tab ketutup, terus buka lagi harus
 // login lagi ... user udah mulai risih."
-test('the actual login write site (auth-entry-split.js) puts EVERY staff role -- cashier included -- in localStorage', () => {
-  assert.match(authEntrySplit, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
-  assert.doesNotMatch(authEntrySplit, /payload\.role === 'CASHIER' \? sessionStorage/, 'kasir tidak boleh dikecualikan ke sessionStorage lagi');
-  assert.match(authEntrySplit, /if \(payload\.role === 'ADMIN'\) localStorage\.setItem\('lekerAdminStoreCode'/);
+test('the actual login write site (staff-login.js) puts EVERY staff role -- cashier included -- in localStorage', () => {
+  assert.match(staffLogin, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
+  assert.doesNotMatch(staffLogin, /payload\.role === 'CASHIER' \? sessionStorage/, 'kasir tidak boleh dikecualikan ke sessionStorage lagi');
+  assert.match(staffLogin, /if \(payload\.role === 'ADMIN'\) localStorage\.setItem\('lekerAdminStoreCode'/);
 });
 
 // KOREKSI 2026-09-18: guard ini berubah dari "satu TAB" jadi "satu USER"
@@ -84,7 +85,7 @@ test('the actual login write site (auth-entry-split.js) puts EVERY staff role --
 // aplikasi.
 test('the per-user guard blocks by redirecting only -- it must never strip a token that now belongs to the incoming user', () => {
   assert.doesNotMatch(staffTabLock, /removeItem\(tokenKey\)/, 'block() tidak boleh menghapus token siapa pun');
-  assert.match(staffTabLock, /function block\(\)[\s\S]*?location\.replace\('\/\?login=staff&staffBlocked=1'\)/);
+  assert.match(staffTabLock, /function block\(\)[\s\S]*?location\.replace\('\/login\?staffBlocked=1'\)/);
   assert.match(staffTabLock, /function leaseIsOtherUser\(lease\)/, 'keputusan blokir wajib berdasar identitas user, bukan kepemilikan tab');
   assert.match(staffTabLock, /lease\.staffId !== meta\.id \|\| lease\.role !== meta\.role/);
 });
@@ -106,11 +107,11 @@ test('a second tab with the SAME staff member is allowed through, and a legacy l
 //   justru hilang.
 test('only the customer token and the per-tab handoff marker stay in sessionStorage -- staff token and identity do not', () => {
   assert.match(authEntrySplit, /sessionStorage\.setItem\(`lekerCustomerToken:\$\{storeCode\}`, payload\.token\)/);
-  assert.match(authEntrySplit, /sessionStorage\.setItem\('lekerStaffHandoffId', handoffId\)/);
-  assert.match(authEntrySplit, /localStorage\.setItem\('lekerStaffSessionMeta'/);
+  assert.match(staffLogin, /sessionStorage\.setItem\('lekerStaffHandoffId', handoffId\)/);
+  assert.match(staffLogin, /localStorage\.setItem\('lekerStaffSessionMeta'/);
   assert.match(staffEntryGuard, /localStorage\.getItem\('lekerCashierToken'\)/);
   assert.match(staffTabLock, /localStorage\.getItem\('lekerStaffSessionMeta'\)/);
-  for (const [source, name] of [[authEntrySplit, 'auth-entry-split.js'], [staffEntryGuard, 'staff-entry-guard.js'], [staffTabLock, 'staff-tab-lock.js']]) {
+  for (const [source, name] of [[authEntrySplit, 'auth-entry-split.js'], [staffLogin, 'staff-login.js'], [staffEntryGuard, 'staff-entry-guard.js'], [staffTabLock, 'staff-tab-lock.js']]) {
     for (const key of ['lekerCashierToken', 'lekerStaffSessionMeta']) {
       const re = new RegExp(`sessionStorage\\.(get|set|remove)Item\\(['"]${key}['"]`);
       assert.doesNotMatch(source, re, `${name} must not touch ${key} via sessionStorage anymore`);
@@ -176,16 +177,16 @@ test('a single helper clears every staff session trace (token, identity, lease) 
 // ke halaman /?login=staff (mis. tombol Back browser setelah redirect
 // submitLogin()) SELALU menampilkan form login lagi, tidak pernah dicek
 // dulu apakah token yang valid masih ada di localStorage/sessionStorage.
-test('/?login=staff auto-redirects an already-authenticated staff session to its workspace instead of re-showing the login form', () => {
-  assert.match(authEntrySplit, /function existingStaffWorkspaceRedirect\(\)/);
-  assert.match(authEntrySplit, /localStorage\.getItem\('lekerOwnerToken'\)\) return '\/admin'/);
-  assert.match(authEntrySplit, /localStorage\.getItem\('lekerEntityAdminToken'\)\) return '\/entity-admin'/);
-  assert.match(authEntrySplit, /localStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
-  assert.match(authEntrySplit, /location\.replace\(existingRedirect\)/);
+test('/login auto-redirects an already-authenticated staff session to its workspace instead of re-showing the login form', () => {
+  assert.match(staffLogin, /function existingStaffWorkspaceRedirect\(\)/);
+  assert.match(staffLogin, /localStorage\.getItem\('lekerOwnerToken'\)\) return '\/admin'/);
+  assert.match(staffLogin, /localStorage\.getItem\('lekerEntityAdminToken'\)\) return '\/entity-admin'/);
+  assert.match(staffLogin, /localStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
+  assert.match(staffLogin, /location\.replace\(existingRedirect\)/);
   // staffBlocked=1 means the tab-lock deliberately just cleared this
   // session's token -- the redirect must not fire off a stale read in that
   // exact moment and must still fall through to the login form.
-  assert.match(authEntrySplit, /staffBlocked.*=== '1'/);
+  assert.match(staffLogin, /staffBlocked.*=== '1'/);
 });
 
 // Bos Cyo, 2026-09-21 then 2026-09-22 (final): "maunya ya sekali login baik
@@ -201,15 +202,14 @@ test('/?login=staff auto-redirects an already-authenticated staff session to its
 // Final: applyMode('STAFF') auto-redirects from EVERY entry point (URL and
 // manual tab click) whenever a valid session already exists in this
 // browser; the only way to become a different person is to Logout first.
-test('applyMode(\'STAFF\') auto-redirects an already-authenticated session from every entry point (URL and manual "Karyawan" tab click), matching persistent-session apps like Facebook/TikTok', () => {
-  const applyModeBody = authEntrySplit.slice(
-    authEntrySplit.indexOf('function applyMode(nextMode) {'),
-    authEntrySplit.indexOf('function staffIdentity(payload)')
-  );
-  assert.match(applyModeBody, /existingStaffWorkspaceRedirect\(\)/, 'the redirect check must run from inside applyMode so every path into STAFF mode is covered, not only the URL-gated block');
-  assert.match(applyModeBody, /location\.replace\(existingRedirect\)/);
-  assert.match(applyModeBody, /return;/, 'must bail out before touching the login form UI once redirected');
-  assert.match(authEntrySplit, /el\('entryStaffTab'\)\?\.addEventListener\('click', \(\) => applyMode\('STAFF'\)\)/, 'the manual tab click still funnels through applyMode, which now carries the redirect check');
+test('the redirect for an existing session runs at load, before the login form is bound -- and the customer page only forwards the old ?login=staff link to /login', () => {
+  const redirectAt = staffLogin.indexOf('location.replace(existingRedirect)');
+  const submitBindAt = staffLogin.indexOf("form.addEventListener('submit'");
+  assert.ok(redirectAt > -1 && submitBindAt > redirectAt, 'cek sesi yang sudah ada wajib jalan sebelum form login dipasang');
+  assert.match(staffLogin.slice(redirectAt, submitBindAt), /return;/, 'must bail out before touching the login form once redirected');
+  assert.match(authEntrySplit, /searchParams\.get\('login'\) === 'staff'/);
+  assert.match(authEntrySplit, /location\.replace\(blocked \? '\/login\?staffBlocked=1' : '\/login'\)/);
+  assert.doesNotMatch(authEntrySplit, /entryStaffTab|applyMode|staffTokenKey/, 'halaman customer tidak lagi punya mode/tab karyawan');
 });
 
 // Bos Cyo, 2026-09-22: a fresh, successful login must always win and become
@@ -221,8 +221,8 @@ test('applyMode(\'STAFF\') auto-redirects an already-authenticated session from 
 // someone is submitting credentials, taking over is exactly the intended
 // outcome, not something to reject.
 test('a successful staff login is never rejected for "sesi karyawan lain" -- it always becomes the new session', () => {
-  assert.doesNotMatch(authEntrySplit, /Masih ada sesi karyawan lain/, 'the old blocking message must be gone -- login always succeeds and takes over');
-  assert.doesNotMatch(authEntrySplit, /function activeStaffLease/, 'its only caller (the blocking check) is gone, so the helper must be removed too, not left dead');
+  assert.doesNotMatch(staffLogin, /Masih ada sesi karyawan lain/, 'the old blocking message must be gone -- login always succeeds and takes over');
+  assert.doesNotMatch(staffLogin, /function activeStaffLease/, 'its only caller (the blocking check) is gone, so the helper must be removed too, not left dead');
 });
 
 // Bos Cyo, 2026-09-17: Entity Admin landed on the bare /branch-admin entry

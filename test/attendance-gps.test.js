@@ -426,7 +426,7 @@ test('UI: kartu presensi staf + antrean Admin + tab Laporan Presensi + form titi
   assert.match(staffJs, /data-gps-fix/);
   assert.match(staffJs, /result\.gps\.notice/);
   assert.doesNotMatch(staffJs, /\b75\b.*meter|radius.*\b75\b/i, 'batas radius tidak boleh muncul di sisi karyawan');
-  assert.match(read('../public/staff.html'), /staff\.js\?v=20261001-gps-presensi-v1/);
+  assert.match(read('../public/staff.html'), /staff\.js\?v=20261003-login-karyawan-v1/);
 
   const adminCashiers = read('../public/admin-cashiers.js');
   assert.match(adminCashiers, /attendance-gps-permits/);

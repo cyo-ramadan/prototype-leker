@@ -244,6 +244,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-03 | Una | Una ingat 10 obrolan terakhir (dulu 5) dan pertanyaan lanjutan ("yang tadi kenapa?") tidak lagi salah dijawab dengan penjelasan istilah; Una bisa mengoreksi HPP bahan yang tercatat salah — pratinjau dulu, lalu "Ya" — baik menghitung ulang HPP penjualan sejak tanggal yang salah (tanggal dicari Una kalau tidak disebut) maupun hanya mengganti harga ke depan | UJI | Menjawab keberatan "angka HPP berantakan karena salah input" lewat chat tanpa perlu akuntan; jalurnya sama dengan fitur Hitung Ulang HPP yang sudah JUAL |
 | 2026-10-03 | Una | Una bisa mengubah barang yang sudah ada lewat chat: harga jual, harga beli, nama, kategori — satu atau banyak sekaligus ("harga es teh blackcurant jadi 7rb"); salah ketik nama dikenali dan disebutkan di kartu "dicek dulu"; barang tidak dihapus dan foto/resep tidak tersentuh | UJI | Melengkapi "bisa bikin barang": pemilik kini bisa merawat daftar harga lewat chat tanpa membuka layar Data Barang |
 | 2026-10-03 | Una | Una menulis rencana kerja untuk perintah berurutan ("cek harga yang aneh lalu ganti ke harga normal"): 1. … ✓ / 2. … / 3. …, dikerjakan satu per satu, berhenti untuk bertanya atau minta "Ya", dan bisa dilanjutkan dari langkah yang terputus; cek harga/HPP/stok barang tertentu langsung dijawab tabel; tulisan "mengetik…" seperti WhatsApp | UJI | Terasa seperti asisten yang benar-benar bekerja, bukan sekadar menjawab — bahan demo "pembukuan lewat chat" |
+| 2026-10-03 | UI/UX | Karyawan (Owner, Entity Admin, Admin Gerai, Kasir) kini punya halaman login sendiri, `/login`, yang otomatis mengenali pangkat dan membuka ruang kerja yang sesuai; login di halaman pelanggan khusus pelanggan sehingga pembeli tidak melihat pilihan karyawan | JUAL | Menjaga halaman pembeli bersih dan membuat pintu masuk tim jelas; §5 tidak perlu ditinjau |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -293,4 +294,4 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 
-<!-- DOC-IMPACT: 2026-10-01 dokumen baru; 2026-10-01 §8 diberi format wajib lintas sesi dan §10 keputusan sementara ditambahkan; 2026-10-02 §8 baris susulan Una + Una pendamping pemilik baru. Tidak mengubah perilaku sistem. -->
+<!-- DOC-IMPACT: 2026-10-01 dokumen baru; 2026-10-01 §8 diberi format wajib lintas sesi dan §10 keputusan sementara ditambahkan; 2026-10-02 §8 baris susulan Una + Una pendamping pemilik baru; 2026-10-03 §8 baris halaman login karyawan. Tidak mengubah perilaku sistem. -->

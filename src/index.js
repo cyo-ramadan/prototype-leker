@@ -450,7 +450,7 @@ async function handleApi(request, env, url) {
 // tidak pernah memicu redirect itu sama sekali -- alamat asli
 // (/s/:code/admin) di address bar browser tidak pernah berubah.
 export function assetRoute(pathname) {
-  const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
+  const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/login': '/login', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
   // 'warung' = Mode Warung (skin D, public/warung.html) -- DESAIN-SKIN-D-WARUNG.md.
   const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung))?\/?$/);

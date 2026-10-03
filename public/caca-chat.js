@@ -582,6 +582,7 @@ function cacaIsiDraft(draft) {
     const tombol = draft.aksi === 'buat_jurnal' ? 'Ya, posting'
       : draft.aksi === 'buat_barang_banyak' ? `Ya, masukkan ${draft.muatan?.daftar?.length ?? 0} barang`
       : draft.aksi === 'nonaktifkan_barang' ? 'Ya, nonaktifkan'
+      : draft.aksi === 'ubah_barang' ? 'Ya, ubah'
       : draft.aksi === 'hitung_ulang_hpp' ? 'Ya, koreksi HPP'
       : ['buat_barang', 'buat_resep'].includes(draft.aksi) ? 'Ya, buat'
         : ['atur_cara_bayar', 'pindah_saldo_akun'].includes(draft.aksi) ? 'Ya, jalankan'
@@ -726,6 +727,16 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
     ].filter(Boolean).join('\n'));
     cacaTambahTawaran([...tawaran, ...(lanjut?.tawaran || [])]);
     cacaObrolanSesudahBarang(draft, dibuat.map(h => h.nama));
+    return;
+  }
+  if (draft.aksi === 'ubah_barang') {
+    const diubah = selesai.filter(h => h.hasil === 'diubah');
+    teks.textContent = `Selesai: ${diubah.length} barang diubah.`;
+    cacaCatatRiwayat('sistem', `Bos menyetujui; Una mengubah ${diubah.length} barang: ${diubah.map(h => h.nama).join(', ')}.`);
+    cacaSimpanPercakapan();
+    cacaTambahGelembung('caca', diubah.length === 1
+      ? `Beres, ${diubah[0].nama} sudah Una ubah. Langsung berlaku di kasir.`
+      : `Beres, ${diubah.length} barang sudah Una ubah. Langsung berlaku di kasir.`);
     return;
   }
   const dinonaktifkan = selesai.filter(h => h.hasil === 'dinonaktifkan');

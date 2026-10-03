@@ -268,13 +268,27 @@ export function analyzeHpp({ products, lines, recipes, siblings, siblingLines = 
     });
   }
 
-  // --- 4: tipe/satuan yang mencurigakan (hanya ditandai) ---------------------
-  const wrongType = products.filter(product => componentIds.has(product.id) && !recipesByOutput.has(product.id) && product.typeCode === 'FINISHED_GOOD');
-  if (wrongType.length) {
+  // --- 4: tipe/satuan yang mencurigakan (usulan, selalu butuh konfirmasi) -----
+  const komando = daftar => ({ alat: 'betulkan_klasifikasi_barang', parameter: { kb_daftar: daftar } });
+  const wrongType = products.filter(product => componentIds.has(product.id) && product.typeCode === 'FINISHED_GOOD');
+  const wrongRaw = wrongType.filter(product => !recipesByOutput.has(product.id));
+  const wrongSemi = wrongType.filter(product => recipesByOutput.has(product.id));
+  const daftarTipe = (list, tipe) => list.map(product => ({ barang: product.name, tipe }));
+  const ringkasNama = list => `${list.slice(0, 4).map(product => product.name).join(', ')}${list.length > 4 ? ', ...' : ''}`;
+  if (wrongRaw.length) {
     typeIssues.push({
-      kind: 'TIPE', count: wrongType.length,
-      items: wrongType.map(product => ({ productId: product.id, name: product.name, unit: product.unit })),
-      message: `${wrongType.length} barang dipakai sebagai bahan di resep tetapi bertipe Barang Jadi (${wrongType.slice(0, 4).map(product => product.name).join(', ')}${wrongType.length > 4 ? ', ...' : ''}). Biasanya Bahan Baku. Betulkan di Master Barang; jangan ganti satuan tanpa konfirmasi karena stok ikut terdampak.`
+      kind: 'TIPE', count: wrongRaw.length, needsConfirmation: true,
+      items: wrongRaw.map(product => ({ productId: product.id, name: product.name, unit: product.unit })),
+      message: `${wrongRaw.length} barang dipakai sebagai bahan di resep tetapi bertipe Barang Jadi (${ringkasNama(wrongRaw)}). Biasanya Bahan Baku. Tipe dibetulkan lewat betulkan_klasifikasi_barang; satuan tidak diubah.`,
+      command: komando(daftarTipe(wrongRaw, 'bahan baku'))
+    });
+  }
+  if (wrongSemi.length) {
+    typeIssues.push({
+      kind: 'TIPE', count: wrongSemi.length, needsConfirmation: true,
+      items: wrongSemi.map(product => ({ productId: product.id, name: product.name, unit: product.unit })),
+      message: `${wrongSemi.length} barang olahan (punya resep dan dipakai sebagai bahan) bertipe Barang Jadi (${ringkasNama(wrongSemi)}). Biasanya Barang Setengah Jadi.`,
+      command: komando(daftarTipe(wrongSemi, 'setengah jadi'))
     });
   }
   for (const product of products) {
@@ -285,8 +299,9 @@ export function analyzeHpp({ products, lines, recipes, siblings, siblingLines = 
       const [commonUnit] = [...unitCount.entries()].sort((a, b) => b[1] - a[1])[0];
       if (commonUnit && commonUnit !== product.unit) {
         typeIssues.push({
-          productId: product.id, name: product.name, unit: product.unit, kind: 'SATUAN', count: 1,
-          message: `${product.name} bersatuan ${product.unit}, sedangkan gerai lain memakai ${commonUnit}. Harga per ${product.unit} mungkin tercatat dalam satuan yang salah.`
+          productId: product.id, name: product.name, unit: product.unit, kind: 'SATUAN', count: 1, commonUnit, needsConfirmation: true,
+          message: `${product.name} bersatuan ${product.unit}, sedangkan gerai lain memakai ${commonUnit}. Harga per ${product.unit} mungkin tercatat dalam satuan yang salah. Mengganti satuan hanya mengganti label (stok/HPP/resep tidak dikonversi): pastikan angkanya memang sudah dalam ${commonUnit}.`,
+          command: komando([{ barang: product.name, satuan: commonUnit }])
         });
       }
     }

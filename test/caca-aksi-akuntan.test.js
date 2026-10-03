@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AKSI_TULIS, cariAksi, bolehDiLingkup, periksaUlangDraft, SKEMA_AKSI } from '../src/caca-aksi.js';
 import { KATALOG } from '../src/caca-baca-katalog.js';
+import { bangunJalurAksi } from '../src/caca-chat.js';
 
 // Bos Cyo, 2026-10-03: Una harus bisa membereskan sendiri transaksi yang belum
 // berjurnal karena setelan, dengan alat yang sama dengan akuntan manusia.
@@ -218,4 +219,45 @@ test('draft disusun ulang persis sama saat konfirmasi; kalau datanya berubah, di
   const berubah = await periksaUlangDraft(draft, ctx);
   assert.equal(berubah.ok, false);
   assert.match(berubah.error, /berubah sejak draft/);
+});
+
+// --- daftar izin jalur Una (PINTU_AKSI) -----------------------------------------
+// Test di atas memakai jalur palsu, jadi tidak akan menangkap jalur yang belum
+// diizinkan. Bug nyata 2026-10-03: bridge/sync dan journal-rules lupa didaftarkan,
+// sehingga di produksi kedua alat gagal "Jalur ini tidak terdaftar untuk Una".
+
+function jalurSungguhan() {
+  const diterima = [];
+  const jalurUtama = async (request) => {
+    const url = new URL(request.url);
+    diterima.push([request.method, url.pathname]);
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  return { diterima, jalur: bangunJalurAksi(new Request('https://example.test/api/caca/catat'), {}, { storeCode: 'MANDALA', jalurUtama }) };
+}
+
+test('jalur sungguhan mengizinkan semua endpoint yang dipakai alat akuntan', async () => {
+  const { diterima, jalur } = jalurSungguhan();
+  const dipakai = [
+    ['baca', '/api/admin/accounting/bridge/issues'],
+    ['baca', '/api/admin/hpp-audit'],
+    ['baca', '/api/admin/settings/accounting'],
+    ['kirim', 'POST', '/api/admin/accounting/bridge/sync'],
+    ['kirim', 'POST', '/api/admin/settings/accounting/journal-rules'],
+    ['kirim', 'PATCH', '/api/admin/settings/accounting/journal-rules/man_r1']
+  ];
+  for (const [cara, ...sisanya] of dipakai) {
+    const hasil = cara === 'baca' ? await jalur.baca(sisanya[0]) : await jalur.kirim(sisanya[0], sisanya[1], {});
+    assert.equal(hasil.ok, true, `${sisanya.join(' ')} ditolak: ${hasil.error}`);
+  }
+  assert.equal(diterima.length, dipakai.length);
+});
+
+test('izin yang ditambahkan sempit: bukan pintu ke sub-path lain di bawahnya', async () => {
+  const { jalur } = jalurSungguhan();
+  for (const path of ['/api/admin/accounting/bridge/sync/semua', '/api/admin/accounting/bridge', '/api/admin/settings/accounting/transaction-categories', '/api/admin/settings/accounting/accounts']) {
+    const hasil = await jalur.kirim('POST', path, {});
+    assert.equal(hasil.ok, false, `${path} seharusnya tidak diizinkan`);
+    assert.match(hasil.error, /tidak terdaftar untuk Una/);
+  }
 });

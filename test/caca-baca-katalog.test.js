@@ -72,7 +72,7 @@ test('pintu: katalog membuka halaman bacanya saja, bukan sub-path tulis di bawah
     const path = api.path.replace(':id', '12');
     assert.equal((await jalur.baca(path)).ok, true, path);
   }
-  for (const liar of ['/api/admin/settings/accounting/journal-rules', '/api/admin/accounting/standardize-accounts', '/api/admin/stock/abc/movements', '/api/admin/stock/12/movements/x', '/api/cashier/sales', '/api/admin/bootstrap']) {
+  for (const liar of ['/api/admin/settings/accounting/transaction-categories', '/api/admin/accounting/standardize-accounts', '/api/admin/stock/abc/movements', '/api/admin/stock/12/movements/x', '/api/cashier/sales', '/api/admin/bootstrap']) {
     assert.equal((await jalur.baca(liar)).ok, false, liar);
   }
   assert.equal(dipanggil.length, KATALOG.length);

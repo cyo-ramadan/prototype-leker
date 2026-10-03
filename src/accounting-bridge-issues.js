@@ -52,13 +52,13 @@ const PENYEBAB = Object.freeze({
   },
   NEEDS_PRODUCT_KIND: {
     arti: 'Barang di transaksi belum punya Jenis Barang.',
-    alat: null,
-    langkah: 'Isi Jenis Barang di Master Barang, lalu sinkron_akuntansi. Kalau transaksinya data uji lama, tandai saja ke Bos Cyo.'
+    alat: SYNC,
+    langkah: 'Coba sinkron_akuntansi dulu: Jenis Barang yang kosong di transaksi lama diisi otomatis dari barangnya sekarang. Kalau sinkron tetap menolak, barangnya sendiri belum punya Jenis Barang: pasang lewat betulkan_klasifikasi_barang (jenis), lalu sinkron lagi.'
   },
   NEEDS_ITEM_CATEGORY_MAPPING: {
     arti: 'Jenis Barang belum dihubungkan ke akun Persediaan/HPP.',
     alat: null,
-    langkah: 'Setting Akuntansi > Kategori Barang: isi akun Persediaan dan HPP untuk Jenis Barang itu, lalu sinkron_akuntansi.'
+    langkah: 'Biasanya terisi otomatis (akun bawaan 1301/5101/4101). Kalau muncul, ada Jenis Barang yang kategori akunnya kosong: Setting Akuntansi > Kategori Barang. Belum ada alat Una untuk ini: laporkan ke Bos Cyo.'
   },
   NEEDS_COST_SNAPSHOT: {
     arti: 'HPP transaksi belum tercatat.',

@@ -154,7 +154,7 @@ test('the old dedicated /api/entity-admin/login endpoint is untouched -- unifica
 
 test('front-end unified login form recognizes ENTITY_ADMIN role and stores its token under the same key entity-admin.js reads', async () => {
   const [ui, entityAdminJs] = await Promise.all([
-    readFile(new URL('../public/auth-entry-split.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/staff-login.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/entity-admin.js', import.meta.url), 'utf8')
   ]);
   assert.match(ui, /payload\.role === 'ENTITY_ADMIN'/);

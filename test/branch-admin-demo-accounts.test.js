@@ -55,7 +55,7 @@ test('staff login recognizes ADMIN and creates branch-scoped admin session', asy
 
 test('browser stores admin session separately and branch workspace accepts it', async () => {
   const [entry, branchAuth] = await Promise.all([
-    read('public/auth-entry-split.js'),
+    read('public/staff-login.js'),
     read('public/branch-owner-auth.js')
   ]);
   assert.match(entry, /payload\.role === 'ADMIN'/);

@@ -30,24 +30,30 @@ test('customer login and customer master use explicit owner sharing scope', asyn
   assert.match(sharing, /bentrok antar gerai/);
 });
 
-test('main customer page exposes Pelanggan and Karyawan login tabs while keeping guest checkout', async () => {
-  const [html, split] = await Promise.all([
+test('main customer page login is customer-only and links to the separate staff login page', async () => {
+  const [html, split, staffHtml, staffJs] = await Promise.all([
     read('public/customer.html'),
-    read('public/auth-entry-split.js')
+    read('public/auth-entry-split.js'),
+    read('public/login.html'),
+    read('public/staff-login.js')
   ]);
   assert.match(html, /customer-login\.css/);
   assert.match(html, /auth-entry-split\.css/);
   assert.match(html, /customer-login\.js[\s\S]*auth-entry-split\.js/);
   assert.match(html, /Bisa beli tanpa login/);
-  assert.match(split, />Pelanggan<\/button>/);
-  assert.match(split, />Karyawan<\/button>/);
   assert.match(split, /\/api\/auth\/customer-login/);
-  assert.match(split, /\/api\/auth\/staff-login/);
-  assert.match(split, /lekerOwnerToken/);
-  assert.match(split, /lekerAdminToken/);
-  assert.match(split, /lekerAdminStoreCode/);
-  assert.match(split, /lekerCashierToken/);
   assert.match(split, /lekerCustomerToken:/);
+  assert.match(split, /href = '\/login'/);
+  assert.doesNotMatch(split, /\/api\/auth\/staff-login/);
+  assert.doesNotMatch(split, /lekerOwnerToken|lekerAdminToken|lekerCashierToken|lekerEntityAdminToken/);
+  assert.match(staffHtml, /Login Karyawan/);
+  assert.match(staffHtml, /staff-login\.js/);
+  assert.match(staffJs, /\/api\/auth\/staff-login/);
+  assert.match(staffJs, /lekerOwnerToken/);
+  assert.match(staffJs, /lekerAdminToken/);
+  assert.match(staffJs, /lekerAdminStoreCode/);
+  assert.match(staffJs, /lekerCashierToken/);
+  assert.match(staffJs, /lekerEntityAdminToken/);
 });
 
 test('separated login resolves staff rank and customer sharing scope server side', async () => {

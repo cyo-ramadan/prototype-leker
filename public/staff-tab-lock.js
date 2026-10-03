@@ -105,7 +105,7 @@
     if (blocked) return;
     blocked = true;
     sessionStorage.removeItem('lekerStaffHandoffId');
-    location.replace('/?login=staff&staffBlocked=1');
+    location.replace('/login?staffBlocked=1');
   }
 
   // Bos Cyo, 2026-09-22 (kasir Pendem): "berhasil login abis itu kepental

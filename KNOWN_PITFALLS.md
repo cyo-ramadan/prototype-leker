@@ -332,7 +332,7 @@ sebelumnya tidak pernah benar-benar ditulis permanen.
    login) sebelum jatuh ke default. Ini yang akhirnya menutup laporan kedua dan ketiga
    (`resolution_text: "sudah bisa login"`, 2026-08-29).
 
-**Jalur login yang benar sekarang** (`public/auth-entry-split.js` -> `POST
+**Jalur login yang benar sekarang** (sejak 2026-10-03: `public/staff-login.js` di halaman `/login`; sebelumnya `public/auth-entry-split.js` -> `POST
 /api/auth/staff-login` -> `src/unified-login.js`): sesudah login sukses, `lekerAdminStoreCode`
 di-set ke `sessionStorage` **sebelum** redirect ke `/s/<CODE>/admin` (bukan ke `/branch-admin`
 polos) -- jalur ini sudah dua lapis aman (prefix URL benar + fallback sesi). Yang **belum**

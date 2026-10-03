@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MAXI · Login Karyawan</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/admin.css?v=20261002-kartu-ringkas-v1" />
+</head>
+<body>
+<noscript><div style="padding:14px 16px;background:#fff4e5;color:#7a3e00;font:15px/1.4 system-ui,sans-serif;border-bottom:1px solid #f0c987"><b>JavaScript di browser ini mati.</b> Login tidak bisa tampil. Hidupkan di Setelan situs &gt; JavaScript, lalu muat ulang. Cek HP: <a href="/diagnostik">/diagnostik</a></div></noscript>
+<div class="app-shell">
+  <header class="topbar admin-topbar">
+    <div class="brand"><div class="brand-mark">M</div><div>MAXI<small>Login Karyawan</small></div></div>
+    <div class="admin-top-actions">
+      <a class="admin-link" href="/customer">Halaman Customer</a>
+    </div>
+  </header>
+
+  <main class="owner-shell">
+    <section class="admin-auth-card">
+      <div class="admin-eyebrow">Khusus karyawan</div>
+      <h1>Login Karyawan</h1>
+      <p class="muted">Owner, Entity Admin, Admin Gerai, dan Kasir masuk dari sini. Sistem otomatis mengenali pangkat dari akunmu dan membuka workspace yang sesuai.</p>
+      <form id="staffLoginForm">
+        <label class="admin-field">Username<input id="staffUsername" autocomplete="username" maxlength="40" required /></label>
+        <label class="admin-field">Password<input id="staffPassword" type="password" autocomplete="current-password" required /></label>
+        <button id="staffSubmit" class="primary-btn" type="submit">LOGIN KARYAWAN</button>
+        <div id="staffLoginMessage" class="admin-message" aria-live="polite"></div>
+      </form>
+      <p class="muted" style="margin-top:14px">Pelanggan? Login ada di <a href="/customer" style="color:var(--brand);font-weight:900">halaman customer</a>.</p>
+    </section>
+  </main>
+</div>
+<script src="/staff-login.js?v=20261003-login-karyawan-v1"></script>
+</body>
+</html>

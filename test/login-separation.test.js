@@ -5,18 +5,21 @@ import { readFile } from 'node:fs/promises';
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('customer and staff use separate login endpoints and staff resolves internal rank', async () => {
-  const [api, ui] = await Promise.all([
+  const [api, ui, staffUi] = await Promise.all([
     read('src/unified-login.js'),
-    read('public/auth-entry-split.js')
+    read('public/auth-entry-split.js'),
+    read('public/staff-login.js')
   ]);
   assert.match(api, /\/api\/auth\/customer-login/);
   assert.match(api, /\/api\/auth\/staff-login/);
   assert.match(api, /AMBIGUOUS_STAFF_LOGIN/);
-  assert.match(ui, />Pelanggan<\/button>/);
-  assert.match(ui, />Karyawan<\/button>/);
+  // Halaman customer: pelanggan saja. Karyawan punya halaman sendiri (/login).
   assert.match(ui, /\/api\/auth\/customer-login/);
-  assert.match(ui, /\/api\/auth\/staff-login/);
+  assert.doesNotMatch(ui, /\/api\/auth\/staff-login/);
+  assert.doesNotMatch(ui, />Karyawan<\/button>/);
   assert.doesNotMatch(ui, /Owner, Admin Gerai, Kasir, atau Pelanggan/);
+  assert.match(staffUi, /\/api\/auth\/staff-login/);
+  assert.doesNotMatch(staffUi, /\/api\/auth\/customer-login/);
 });
 
 // KOREKSI KEBIJAKAN 2026-09-18 (Bos Cyo: "user udah mulai risih"). Aturan
@@ -50,7 +53,7 @@ test('staff session policy: banyak sesi per akun boleh, pindah user dalam satu b
   // Guard antar tab tetap ada -- yang berubah dasarnya: identitas user, bukan
   // jumlah tab. Dan tetap tanpa network polling (invariant CLAUDE.md #6).
   assert.match(lock, /lekerStaffBrowserLease/);
-  assert.match(lock, /staffBlocked=1/);
+  assert.match(lock, /\/login\?staffBlocked=1/);
   assert.match(lock, /setInterval/);
   assert.match(lock, /leaseIsOtherUser/);
   assert.doesNotMatch(lock, /fetch\s*\(/);

@@ -28,5 +28,5 @@
         ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken'))
         : true;
 
-  if (!allowed) location.replace('/?login=staff');
+  if (!allowed) location.replace('/login');
 })();

@@ -325,6 +325,8 @@ Alat akuntan Una (baca saja, per gerai; kontrak `contracts/una-akuntan-tools-v1.
 
 - `GET /api/admin/accounting/bridge/issues` — transaksi aktif yang belum berjurnal, penyebab, dan alat pembereskannya
 - `GET /api/admin/hpp-audit` — HPP janggal + usulan koreksi berbukti dan berurutan (bahan baku dulu, olahan sesudahnya)
+- `GET /api/admin/entity-stock` — stok semua gerai; tiap sel kini juga membawa HPP rata-rata, acuan median lintas gerai, dan penanda janggal (layar "Lihat HPP" di panel Entity)
+- Alat tulis `koreksi_hpp_banyak` — koreksi HPP banyak bahan sekaligus lewat Hitung Ulang HPP; daftar siap tempel: `INSTRUKSI-UNA-HPP-SEPTEMBER.md`
 
 Customer:
 

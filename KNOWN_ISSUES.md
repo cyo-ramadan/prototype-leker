@@ -264,6 +264,8 @@ Approved and posted `CASH_FLOW` facts are delivered post-commit through `MAXI_AC
 
 The default `wh_opname` category contains labeled gain and loss rule rows. A future Warehouse-to-Accounting bridge must choose the correct branch from the actual signed adjustment and must never execute all four rows blindly. The two adjustment accounts require owner review before posting is enabled.
 
+**Decision 2026-10-03 (Bos Cyo):** negative adjustment (barang hilang) posts to **Beban Kehilangan Barang**; positive adjustment (barang bertambah) posts to **Pendapatan Penambahan Barang**. The bridge itself is still not built, so opname differences remain outside the journal-based Laporan Untung Rugi until it is. Cash-drawer difference at close is still undecided.
+
 ### Open: return taxonomy
 
 `wh_return` is registered but fail-closed. Supplier return, customer return, and internal return can have different Accounting meaning, so no default rule is invented yet.
@@ -929,7 +931,7 @@ dan membetulkan tipe/jenis/satuan barang (`betulkan_klasifikasi_barang`) -- kont
 
 - Mengisi akun Persediaan/HPP per Jenis Barang (`NEEDS_ITEM_CATEGORY_MAPPING`). Sengaja belum dibuat: dicek di
   produksi tidak ada kasusnya (Jenis Barang baru otomatis dapat akun bawaan).
-- Jurnal selisih stok opname dan selisih uang laci (menunggu keputusan akun dari Bos Cyo).
+- Jurnal selisih stok opname: akun sudah diputuskan Bos Cyo 2026-10-03 (kurang = Beban Kehilangan Barang, lebih = Pendapatan Penambahan Barang) tetapi jembatannya belum dibangun. Selisih uang laci: akun belum diputuskan.
 - Rekonsiliasi laba-dari-jurnal terhadap data operasional per hari (baru dihitung lewat `laba_rugi` + `jembatan_masalah`).
 
 Keadaan produksi saat dicatat: 18 transaksi aktif belum berjurnal (MANDALA 5 pengeluaran senilai Rp92.000

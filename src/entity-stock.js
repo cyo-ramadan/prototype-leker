@@ -14,14 +14,62 @@ import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 // "Bahan" = tipe barang yang bisa dikonsumsi produksi dan tidak dijual langsung
 // (Bahan, Bahan Setengah Jadi, dan tipe buatan sendiri yang sifatnya sama).
 //
+// HPP (Bos Cyo, 2026-10-03: "di tombol entity sudah ada info untuk melihat stok
+// keseluruhan. sekarang tambahkan pilihan lihat hpp"): tiap sel membawa HPP rata-rata
+// barangnya (teks desimal dari integer skala 1.000.000 -- tidak pernah float), dan tiap
+// baris membawa ACUAN lintas gerai = median HPP positif (minimal 3 gerai, satuan sama)
+// serta penanda sel janggal: NOL (HPP nol padahal gerai lain punya), TINGGI/RENDAH
+// (lebih dari 3x dari acuan). Hanya penanda baca; koreksinya lewat Hitung Ulang HPP.
+//
 // Pagar yang sama dengan Laporan Net Profit (invariant #5): hanya Owner / Entity
 // Admin yang boleh melihat banyak gerai; Admin Gerai hanya gerainya sendiri;
 // gerai di luar entity pemanggil ditolak. Hanya barang aktif; satu query untuk
 // seluruh gerai terpilih (tanpa query per gerai), dengan batas baris.
 
 const MAX_ROWS = 3000;
+const SCALE = 1_000_000n;
+// Sama dengan DRIFT_FACTOR di src/hpp-audit.js: HPP yang lebih dari 3x lipat di atas
+// atau di bawah acuan lintas gerai dianggap janggal.
+const ANOMALY_FACTOR = 3n;
+const MIN_REFERENCE_STORES = 3;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 const normalizeName = value => text(value, 160).toLowerCase().replace(/\s+/g, ' ');
+
+const toScaled = value => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? BigInt(Math.round(number)) : 0n;
+};
+
+/** 17500000n -> "17.5"; 0n -> "0". Teks desimal, maksimal 6 digit. */
+export function scaledToDecimal(scaled) {
+  const whole = scaled / SCALE;
+  const fraction = String(scaled % SCALE).padStart(6, '0').replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : String(whole);
+}
+
+function medianScaled(values) {
+  const sorted = [...values].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const mid = sorted.length >> 1;
+  if (sorted.length % 2) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid] + 1n) / 2n;
+}
+
+/** Acuan dan penanda janggal per sel; hanya bila satuan seragam. Mengubah `cells` di tempat. */
+export function annotateHpp(cells, uniformUnit) {
+  const positive = cells.map(cell => cell.scaled).filter(scaled => scaled > 0n);
+  const reference = uniformUnit && positive.length >= MIN_REFERENCE_STORES ? medianScaled(positive) : null;
+  for (const cell of cells) {
+    cell.anomaly = null;
+    if (!uniformUnit) continue;
+    if (cell.scaled === 0n) {
+      if (positive.length) cell.anomaly = 'NOL';
+    } else if (reference !== null) {
+      if (cell.scaled > reference * ANOMALY_FACTOR) cell.anomaly = 'TINGGI';
+      else if (cell.scaled * ANOMALY_FACTOR < reference) cell.anomaly = 'RENDAH';
+    }
+  }
+  return reference;
+}
 
 async function selectedStore(db, request) {
   const token = new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE;
@@ -34,7 +82,7 @@ export async function buildEntityStockMatrix(db, stores, { kind = 'BAHAN', query
   const placeholders = storeIds.map(() => '?').join(',');
   const bahanOnly = kind !== 'SEMUA';
   const rows = await db.prepare(`
-    SELECT p.id, p.store_id, p.name, p.product_master_id, p.stock_tracking_enabled,
+    SELECT p.id, p.store_id, p.name, p.product_master_id, p.stock_tracking_enabled, p.average_cost,
            COALESCE(t.track_stock, 1) AS type_track_stock, t.name AS item_type_name,
            u.symbol AS unit_symbol, b.quantity,
            m.code AS master_code
@@ -72,7 +120,8 @@ export async function buildEntityStockMatrix(db, stores, { kind = 'BAHAN', query
       name: row.name,
       unit,
       tracked,
-      quantity: tracked && row.quantity != null ? Number(row.quantity) : (tracked ? 0 : null)
+      quantity: tracked && row.quantity != null ? Number(row.quantity) : (tracked ? 0 : null),
+      scaled: toScaled(row.average_cost)
     };
   }
 
@@ -83,6 +132,11 @@ export async function buildEntityStockMatrix(db, stores, { kind = 'BAHAN', query
     const cells = Object.values(entry.cells);
     const uniformUnit = cells.every(cell => cell.unit === unit);
     const trackedCells = cells.filter(cell => cell.tracked);
+    const reference = annotateHpp(cells, uniformUnit);
+    for (const cell of cells) {
+      cell.averageCost = scaledToDecimal(cell.scaled);
+      delete cell.scaled;
+    }
     result.push({
       key: entry.key,
       name: entry.name,
@@ -91,6 +145,7 @@ export async function buildEntityStockMatrix(db, stores, { kind = 'BAHAN', query
       uniformUnit,
       byStore: entry.cells,
       total: uniformUnit ? trackedCells.reduce((sum, cell) => sum + cell.quantity, 0) : null,
+      hppReference: reference === null ? null : scaledToDecimal(reference),
       storesHolding: cells.length
     });
   }

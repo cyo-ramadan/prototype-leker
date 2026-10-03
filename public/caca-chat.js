@@ -792,6 +792,15 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
     cacaTambahGelembung('caca', `Beres, ${dibetulkan.length} barang di Data Barang ${gerai} sudah Una betulkan tipe/jenis/satuannya. Angka stok, HPP, dan resep tidak diubah.`);
     return;
   }
+  if (draft.aksi === 'koreksi_hpp_banyak') {
+    const dikoreksi = selesai.filter(h => h.hasil === 'dikoreksi');
+    teks.textContent = `Selesai: HPP ${dikoreksi.length} bahan dikoreksi.`;
+    cacaCatatRiwayat('sistem', `Bos menyetujui; Una mengoreksi HPP ${dikoreksi.length} bahan: ${dikoreksi.map(h => h.nama).join(', ')}.`);
+    cacaSimpanPercakapan();
+    const gerai = cacaNamaScope(scope);
+    cacaTambahGelembung('caca', `Beres, HPP ${dikoreksi.length} bahan di ${gerai} sudah Una koreksi dan penjualannya dihitung ulang. Jurnal koreksinya dibuat otomatis; kalau ada yang belum masuk pembukuan, minta Una Sinkron Akuntansi.`);
+    return;
+  }
   const dinonaktifkan = selesai.filter(h => h.hasil === 'dinonaktifkan');
   teks.textContent = `Selesai: ${dinonaktifkan.length} barang dinonaktifkan.`;
   cacaCatatRiwayat('sistem', `Bos menyetujui; Una menonaktifkan ${dinonaktifkan.length} barang: ${dinonaktifkan.map(h => h.nama).join(', ')}.`);

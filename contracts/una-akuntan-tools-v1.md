@@ -26,6 +26,7 @@ jalur tulis baru untuk pekerjaan ini: semuanya lewat alat di bawah.
 | `audit_hpp` | `GET /api/admin/hpp-audit?store=&from=` | HPP janggal + usulan harga berbukti, **berurutan** |
 | `setting_akuntansi` | `GET /api/admin/settings/accounting` | (sudah ada) cara bayar, kategori transaksi + aturan jurnal + `completeness`/`blockers` |
 | `laba_rugi` | `GET /api/admin/accounting/profit-loss` | (sudah ada) laba rugi **dari jurnal** — alat verifikasi akhir |
+| `stok_entity` | `GET /api/admin/entity-stock` | (sudah ada) stok semua gerai; sejak 2026-10-03 tiap sel juga membawa HPP (`averageCost`), acuan median lintas gerai (`hppReference`), dan penanda janggal (`anomaly` NOL/TINGGI/RENDAH) — layar "Lihat HPP" di tab Stok panel Entity memakai data yang sama |
 
 Per gerai, **tanpa fan-out** (berat). Di lingkup entity, panggil gerai satu per satu.
 
@@ -36,6 +37,7 @@ Per gerai, **tanpa fan-out** (berat). Di lingkup entity, panggil gerai satu per 
 | `sinkron_akuntansi` | gerai/entity | Mengirim semua yang belum berjurnal (tombol Sinkron) | `POST /api/admin/accounting/bridge/sync` |
 | `samakan_aturan_jurnal` | entity | Melengkapi aturan jurnal sebuah kategori dengan menyalin dari gerai yang beres (hanya menambah/mengaktifkan) | `POST/PATCH /api/admin/settings/accounting/journal-rules` |
 | `betulkan_klasifikasi_barang` | gerai (bertahap) | Membetulkan Tipe Barang / Jenis Barang / satuan dasar banyak barang sekaligus (layar Master Barang) | `PATCH /api/admin/master/products/editor/:id` |
+| `koreksi_hpp_banyak` | gerai (bertahap) | Mengoreksi HPP BANYAK bahan sekaligus dari satu daftar `bahan = harga benar` + tanggal mulai; satu draft, satu "Ya"; urutan daftar dijaga (bahan baku dulu, olahan di belakang). Tiap baris = satu Hitung Ulang HPP biasa | `POST /api/admin/hpp-recalculation[/preview]` + `GET .../components` |
 | `atur_cara_bayar` | semua | (ada) hubungkan cara bayar ke akun | `PATCH /api/admin/settings/business/payment-methods/:id` |
 | `hitung_ulang_hpp` | gerai | (ada) koreksi HPP bahan + hitung ulang penjualan sejak tanggal; jurnal koreksi otomatis | `POST /api/admin/hpp-recalculation[/preview]` |
 | `buat_jurnal` | semua | (ada) jurnal manual balance exact | `POST /api/admin/accounting/journals` |
@@ -82,7 +84,7 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
    - `audit_hpp.typeIssues` (tipe/satuan mencurigakan) → `betulkan_klasifikasi_barang` memakai `command.parameter` yang sudah disiapkan. Kerjakan SEBELUM koreksi HPP. Selalu minta konfirmasi Bos Cyo dulu (`needsConfirmation`): ganti satuan hanya mengganti label, stok/HPP/resep tidak dikonversi.
    - `alat: null` → catat dan laporkan (lihat "Belum ada alat").
 3. **HPP**: baca `audit_hpp` (`from` = awal September, atau yang Bos Cyo sebut).
-   - Terapkan `corrections` **berurutan dari `order` 1** lewat `hitung_ulang_hpp` (pratinjau → "Ya"). Bahan baku dulu, olahan sesudahnya: harga olahan dihitung dari harga bahan yang sudah benar. Setelah bahan dikoreksi, **baca ulang audit** sebelum olahan, karena usulan olahan ikut berubah.
+   - Terapkan `corrections` **berurutan dari `order` 1**. Satu bahan = `hitung_ulang_hpp` (pratinjau → "Ya"); dua bahan atau lebih = **`koreksi_hpp_banyak`** (satu draft untuk seluruh daftar, `kh_daftar` berurutan + `kh_dari`; tanggal mulai WAJIB disebut, tidak dicari sendiri). Daftar siap tempel per gerai ada di `INSTRUKSI-UNA-HPP-SEPTEMBER.md`. Bahan baku dulu, olahan sesudahnya: harga olahan dihitung dari harga bahan yang sudah benar. Setelah bahan dikoreksi, **baca ulang audit** sebelum olahan, karena usulan olahan ikut berubah.
    - `needsConfirmation: true` (usulan dari gerai lain / bahan belum pasti) → **tanyakan ke Bos Cyo dulu**, jangan langsung diterapkan.
    - `needsPrice` → tanyakan harga yang benar; jangan mengarang.
    - Koreksi mengubah laba harian yang sudah dilaporkan: sebutkan itu di ringkasan.
@@ -94,7 +96,7 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
 | Gejala | Kenapa | Jalan manusia |
 |---|---|---|
 | `NEEDS_ITEM_CATEGORY_MAPPING` / `*_INVENTORY_MAPPING` | **Tidak ada kasusnya di produksi** (dicek 2026-10-03: nol Jenis Barang tanpa kategori akun; Jenis Barang baru otomatis dapat akun bawaan 1301/5101/4101). Alat sengaja belum dibuat | Setting Akuntansi > Kategori Barang |
-| Stok opname / selisih stok | Sengaja belum berjurnal: akun untung/rugi selisih stok menunggu keputusan Bos Cyo (`KNOWN_ISSUES`) | — |
+| Stok opname / selisih stok | **Akun sudah diputuskan Bos Cyo 2026-10-03** (kurang = Beban Kehilangan Barang, lebih = Pendapatan Penambahan Barang), tetapi jembatan Warehouse→Akuntansi untuk opname **belum dibangun**, jadi belum berjurnal (`KNOWN_ISSUES`) | — |
 | Selisih uang laci saat tutup | Sengaja di luar sistem; akuntan jurnal manual | `buat_jurnal` bila diminta |
 | Jumlah stok yang salah catat (qty dalam kemasan) | Audit HPP hanya memperbaiki harga | Opname / Penyesuaian Stok |
 | Harga bahan tanpa bukti sama sekali (`needsPrice`) | Tidak boleh dikarang | Tanya Bos Cyo, lalu `hitung_ulang_hpp` |
@@ -105,6 +107,7 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
 - `betulkan_klasifikasi_barang` tidak mengubah Jenis Barang kecuali disebut, tidak mengubah harga/nama, dan hanya mengirim konfirmasi ganti satuan untuk baris yang tampil di draft.
 - `samakan_aturan_jurnal` menolak menyalin aturan yang memakai pilihan akun (choice group) dan menolak menebak akun yang tidak ada di gerai tujuan.
 - `hitung_ulang_hpp` menerapkan satu harga benar sejak tanggal tertentu (bukan harga per hari). Kalau harga bahan sungguh berubah di tengah periode, mulai tanggal koreksi perlu dipilih dengan sadar.
+- `koreksi_hpp_banyak` maksimal 30 bahan per draft. Semua nama dan harga diperiksa sebelum pratinjau pertama; harga `4.664` (titik tiga digit) dibaca ribuan seperti `hitung_ulang_hpp`, jadi daftar siap tempel memakai koma desimal.
 - Angka uji produksi 2026-10-03 (audit di data asli, hanya baca): MANDALA Air Mineral → Rp0,4375/ml (sama dengan hitungan manual `KOREKSI-HPP-2026-10-02.md`); GENENGAN Gula → ±Rp18,97/g; DERMO Adonan Leker → **berhenti dan bertanya** (bukti saling bertentangan).
 
 ## Daftar izin jalur Una (jebakan nyata)
@@ -117,7 +120,7 @@ sekarang dijaga test yang memakai `bangunJalurAksi` sungguhan (`test/caca-aksi-a
 
 ## Pengujian
 
-`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`.
+`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`, `test/caca-aksi-hpp-banyak.test.js`, `test/entity-stock.test.js` (HPP lintas gerai).
 
 ## DOC-IMPACT
 

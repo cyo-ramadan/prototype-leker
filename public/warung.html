@@ -7,11 +7,11 @@
   <title>MAXI · Jual</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&display=swap" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" />
-  <link rel="stylesheet" href="/warung.css?v=20261002-skin-e-v1" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="/warung.css?v=20261003-tenda-warung-v1" />
   <script src="/staff-tab-lock.js?v=20261003-login-karyawan-v1"></script>
   <script src="/store-context.js"></script>
-  <script src="/ui-skin.js?v=20261003-skin-d-pemilik-v1"></script>
+  <script src="/ui-skin.js?v=20261003-tenda-warung-v1"></script>
   <script src="/staff-auth-fetch.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
 </head>
 <body>
@@ -23,6 +23,7 @@
        dengan cara pakai pemilik tanpa karyawan: Buka/Tutup warung langsung di sini
        (tanpa absen), tab Jual · Untung di bawah, warna pastel. -->
   <header id="wTop" class="w-top">
+    <div class="w-awning" aria-hidden="true"></div>
     <div class="w-store">
       <span class="w-mark" aria-hidden="true">●</span>
       <div><strong id="wStoreName">Warung</strong><small id="wWho">Memuat…</small></div>
@@ -61,17 +62,17 @@
 
     <!-- Skin E: tab "Untung" -- angka dari GET /api/cashier/warung/untung -->
     <section id="wUntung" class="w-untung" hidden aria-labelledby="wUntungTitle">
-      <div class="w-profit">
-        <small id="wUntungTitle">Untung hari ini</small>
-        <b id="wProfitToday">…</b>
-        <p id="wProfitCompare"></p>
-      </div>
-      <div class="w-card">
+      <!-- Nota hari ini: dibaca dari atas ke bawah seperti nota warung -- penjualan,
+           dikurangi modal & biaya, garis dobel, lalu untung. -->
+      <article class="w-nota">
+        <header class="w-nota-head"><b>Nota hari ini</b><small id="wNotaDate"></small></header>
         <div class="w-row"><span>Penjualan</span><b id="wRevenue">—</b></div>
-        <div class="w-row"><span>Modal barang yang terjual</span><b id="wModal">—</b></div>
+        <div class="w-row"><span>Modal barang terjual</span><b id="wModal">—</b></div>
         <div class="w-row"><span>Biaya</span><b id="wBiaya">—</b></div>
-        <p class="w-note">Untung = penjualan − modal barang − biaya. Modal dihitung otomatis dari harga beli. Minus ditampilkan apa adanya.</p>
-      </div>
+        <div class="w-nota-total"><span id="wUntungTitle">Untung</span><b id="wProfitToday">…</b></div>
+        <p id="wProfitCompare" class="w-nota-foot"></p>
+      </article>
+      <p class="w-note">Modal dihitung otomatis dari harga beli. Kalau minus, ditulis minus.</p>
       <div class="w-card">
         <h2>7 hari terakhir</h2>
         <div id="wWeek" class="w-week"></div>
@@ -141,6 +142,6 @@
   </div>
 
   <div id="wToast" class="w-toast" role="status" aria-live="polite"></div>
-  <script src="/warung.js?v=20261002-skin-e-v1"></script>
+  <script src="/warung.js?v=20261003-tenda-warung-v1"></script>
 </body>
 </html>

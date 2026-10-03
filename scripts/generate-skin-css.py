@@ -162,15 +162,15 @@ html[data-skin="d"] #tab-drawers small:empty { display: none; }
 /* Menu pemilik: 6 tombol rata 3 x 2. */
 html[data-skin="d"] .nav-groups-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 """),
- 'e': dict(title='E · Jaga Sendiri', note='Untuk warung TANPA karyawan (pemilik = kasir = admin): pastel lembut untuk permukaan, teks/angka gelap (kontras >= 7:1), tombol hijau tua. Cara pakai barunya (Buka/Tutup warung, tab Untung) ada di warung.html; aturan servernya di isOwnerOperatedChoice (src/tenant-policy.js). DESAIN-SKIN-E-JAGA-SENDIRI.md.', tok={
-  '--skin-font': '"Nunito", "Figtree", "Segoe UI", system-ui, sans-serif',
-  '--bg': '#FFF8EF', '--skin-page-bg': '#FFF8EF', '--surface': '#ffffff', '--ink': '#1F2328', '--muted': '#57534E', '--line': '#F0E2D3',
-  '--brand': '#0A5A48', '--brand-2': '#075A30', '--green': '#075A30', '--green-soft': '#D9F2E6', '--amber': '#6A4000',
+ 'e': dict(title='E · Jaga Sendiri', note='Untuk warung TANPA karyawan (pemilik = kasir = admin): tenda warung hijau-putih, latar sage pucat, huruf Baloo 2, pastel untuk permukaan, teks/angka gelap (kontras >= 7:1), tombol hijau tua. Cara pakai barunya (Buka/Tutup warung, tab Untung) ada di warung.html; aturan servernya di isOwnerOperatedChoice (src/tenant-policy.js). DESAIN-SKIN-E-JAGA-SENDIRI.md.', tok={
+  '--skin-font': '"Baloo 2", "Figtree", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#EAF2EE', '--skin-page-bg': '#EAF2EE', '--surface': '#ffffff', '--ink': '#1B2420', '--muted': '#3F4C47', '--line': '#DCE7E1',
+  '--brand': '#0A5C43', '--brand-2': '#075A30', '--green': '#075A30', '--green-soft': '#D9F2E6', '--amber': '#6A4000',
   '--shadow': '0 6px 18px rgba(31,35,40,.06)', '--skin-card-shadow': 'none',
-  '--skin-top-bg': '#FFD8C2', '--skin-top-ink': '#1F2328', '--skin-top-muted': '#3a3632', '--skin-top-line': '#F5C9AE',
-  '--skin-mark-bg': '#0A5A48', '--skin-mark-ink': '#ffffff',
-  '--skin-hero-bg': '#D9F2E6', '--skin-hero-ink': '#1F2328', '--skin-hero-muted': '#3a3632',
-  '--skin-primary': '#0A5A48', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#0A5A48', '--skin-active-ink': '#ffffff',
+  '--skin-top-bg': '#C9EEDA', '--skin-top-ink': '#1B2420', '--skin-top-muted': '#3a3632', '--skin-top-line': '#B5E2CA',
+  '--skin-mark-bg': '#0A5C43', '--skin-mark-ink': '#ffffff',
+  '--skin-hero-bg': '#D9F2E6', '--skin-hero-ink': '#1B2420', '--skin-hero-muted': '#3a3632',
+  '--skin-primary': '#0A5C43', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#0A5C43', '--skin-active-ink': '#ffffff',
   '--skin-input-bg': '#ffffff', '--skin-chip-bg': '#FFF1BF', '--skin-focus': 'rgba(10,90,72,.20)',
   '--skin-danger': '#921A11', '--skin-danger-soft': '#FDE4E1', '--skin-danger-line': '#F3B8B0', '--skin-warn': '#6A4000', '--skin-warn-soft': '#FFF1BF',
   '--skin-r-sm': '14px', '--skin-r': '18px', '--skin-r-lg': '22px', '--skin-r-pill': '999px'}, extra=r"""

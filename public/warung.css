@@ -136,81 +136,126 @@ button { cursor: pointer; }
 }
 .w-toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---- Komponen skin E (dipakai hanya saat html.w-solo) ---------------------- */
+/* ---- Skin E "Jaga Sendiri" -- arah "Tenda Warung" (DESAIN-SKIN-E-JAGA-SENDIRI.md §6) ----
+   Satu elemen berani: tenda bergaris berpinggir gelombang di atas papan nama warung.
+   Selebihnya tenang: kartu barang = label toples (putih, tutup pastel sesuai KATEGORI,
+   bukan acak), Untung = nota kertas. Huruf Baloo 2 (seperti papan warung dicat tangan).
+   Kontras dihitung: tinta #1B2420 di semua pastel >= 11,7:1; tombol hijau #0A5C43 + putih
+   8,0:1; teks pendamping #3F4C47 >= 7:1. Tidak ada teks putih di atas pastel. */
+.w-awning { display: none; }
 .w-open-box { display: grid; gap: 10px; width: 100%; max-width: 480px; text-align: left; }
-.w-untung { display: grid; gap: 12px; }
-.w-profit { border-radius: 24px; padding: 20px; display: grid; gap: 4px; background: var(--ink); color: #fff; }
-.w-profit small { font-size: 15px; font-weight: 800; }
-.w-profit b { font-size: clamp(40px, 12vw, 58px); line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.w-profit p { margin: 0; font-size: 16px; font-weight: 700; }
-.w-card { background: var(--card); border-radius: 22px; padding: 14px 16px; display: grid; gap: 4px; }
-.w-card h2 { margin: 0 0 6px; font-size: 18px; }
-.w-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 16.5px; }
-.w-row:last-of-type { border-bottom: 0; }
+.w-untung { display: grid; gap: 14px; }
+.w-card { background: var(--card); border-radius: 20px; padding: 16px; display: grid; gap: 2px; }
+.w-card h2 { margin: 0 0 8px; font-size: 19px; }
+.w-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 17px; }
+.w-row:last-child { border-bottom: 0; }
 .w-row span { min-width: 0; overflow-wrap: anywhere; }
 .w-row b { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.w-note { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.w-note { margin: 0 4px; font-size: 14.5px; line-height: 1.45; color: var(--muted); }
+.w-nota { background: var(--card); padding: 18px 18px 26px; border-radius: 16px 16px 0 0; display: grid; }
+.w-nota-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 8px; border-bottom: 2px dashed var(--line); margin-bottom: 4px; }
+.w-nota-head b { font-size: 20px; }
+.w-nota-head small { color: var(--muted); font-size: 15px; }
+.w-nota-total { display: grid; gap: 2px; margin-top: 6px; padding-top: 10px; border-top: 4px double var(--ink); }
+.w-nota-total b { justify-self: end; }
+.w-nota-total span { font-size: 19px; font-weight: 800; }
+.w-nota-total b { font-size: clamp(34px, 10vw, 46px); line-height: 1.05; color: var(--green); font-variant-numeric: tabular-nums; }
+.w-nota-total b.neg { color: var(--red); }
+.w-nota-foot { margin: 6px 0 0; text-align: right; color: var(--muted); font-size: 15px; }
 .w-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 130px; padding: 4px 0 2px; }
 .w-bar { height: 100%; display: grid; grid-template-rows: 1fr auto; gap: 6px; align-items: end; justify-items: center; }
 .w-bar i { display: block; width: 100%; max-width: 34px; border-radius: 10px 10px 4px 4px; background: var(--green); }
+.w-bar:last-child i { background: var(--blue); }
 .w-bar.neg i { background: var(--red); border-radius: 4px 4px 10px 10px; }
-.w-bar small { font-size: 13px; font-weight: 800; color: var(--muted); }
+.w-bar small { font-size: 14px; font-weight: 700; color: var(--muted); }
 .w-close-btn { margin: 4px auto 0; }
 .w-tabs {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-  padding: 6px 10px calc(6px + var(--safe-b)); background: var(--card); border-top: 1px solid var(--line);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  padding: 8px 12px calc(8px + var(--safe-b)); background: var(--card); border-top: 1px solid var(--line);
 }
-.w-tabs button { display: grid; justify-items: center; gap: 2px; min-height: 58px; border: 0; border-radius: 16px; background: transparent; font-weight: 800; font-size: 15px; color: var(--muted); }
+.w-tabs button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; border: 0; border-radius: 16px; background: transparent; font-weight: 800; font-size: 17px; color: var(--muted); }
 .w-tabs button span { font-size: 22px; line-height: 1; }
 .w-tabs button[aria-pressed="true"] { background: var(--blue-soft); color: var(--ink); }
 html.w-solo .w-cartbar { bottom: calc(70px + var(--safe-b)); padding-bottom: 10px; }
 html.w-solo .w-main { padding-bottom: calc(190px + var(--safe-b)); }
 html.w-solo .w-toast { bottom: calc(170px + var(--safe-b)); }
 
-/* ---- Skin E "Jaga Sendiri": pastel untuk permukaan, teks/angka gelap -------
-   Bos Cyo 2026-10-02: "warna pastel, kalo soft kan keliatan ini kasir engga kaku."
-   Kontras dihitung (DESAIN-SKIN-E-JAGA-SENDIRI.md §6): teks #1F2328 di semua
-   pastel >= 11,9:1; tombol hijau tua #0A5A48 + putih 8,2:1; angka untung
-   #075A30 7,9:1; minus #921A11 7,8:1. Tidak ada teks putih di atas pastel. */
 html[data-skin="e"] {
-  --ink: #1F2328; --ink-2: #3a3632; --muted: #57534E; --line: #F0E2D3;
-  --bg: #FFF8EF; --card: #ffffff;
-  --blue: #0A5A48; --blue-2: #075A30; --blue-soft: #D9F2E6;
-  --yellow: #FFD8C2; --yellow-soft: #FFF1BF;
-  --green: #075A30; --green-soft: #D9F2E6; --red: #921A11;
-  --font: "Nunito", "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --ink: #1B2420; --ink-2: #2C3833; --muted: #3F4C47; --line: #DCE7E1;
+  --bg: #EAF2EE; --card: #ffffff;
+  --blue: #0A5C43; --blue-2: #0A5C43; --blue-soft: #C9EEDA;
+  --yellow: #FFEFAE; --yellow-soft: #FFF8D6;
+  --green: #0A5C43; --green-soft: #C9EEDA; --red: #9C1C12;
+  --lid-0: #C9EEDA; --lid-1: #FFD7C4; --lid-2: #E0D8FF; --lid-3: #CBE6FF; --lid-4: #FFEFAE;
+  --font: "Baloo 2", "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
-html[data-skin="e"] body { font-weight: 600; }
-/* Pola Shopee yang diambil: pita warna di atas dengan kotak cari di dalamnya --
-   tapi pitanya persik lembut dengan teks gelap, bukan oranye jenuh + teks putih. */
-html[data-skin="e"] .w-top { background: #FFD8C2; color: var(--ink); flex-wrap: wrap; border-radius: 0 0 24px 24px; padding-bottom: 12px; }
-html[data-skin="e"] .w-store small { opacity: 1; color: var(--ink-2); font-weight: 700; }
-html[data-skin="e"] .w-mark { color: var(--blue); }
-html[data-skin="e"] .w-more { background: rgba(255,255,255,.7); color: var(--ink); border-color: rgba(31,35,40,.12); }
-html[data-skin="e"] .w-top .w-search { position: static; flex: 1 0 100%; order: 3; background: transparent; padding: 4px 0 0; }
-html[data-skin="e"] .w-search input { border-color: transparent; background: #fff; }
-html[data-skin="e"] .w-search input:focus { border-color: var(--blue); }
-html[data-skin="e"] .w-clear { top: 13px; }
-html[data-skin="e"] .w-tile { box-shadow: none; }
-html[data-skin="e"] .w-tile:nth-child(5n+1) { background: #D9F2E6; }
-html[data-skin="e"] .w-tile:nth-child(5n+2) { background: #FFE5D4; }
-html[data-skin="e"] .w-tile:nth-child(5n+3) { background: #E8E3FA; }
-html[data-skin="e"] .w-tile:nth-child(5n+4) { background: #D9ECFA; }
-html[data-skin="e"] .w-tile:nth-child(5n+5) { background: #FFF1BF; }
-html[data-skin="e"] .w-tile span { color: var(--ink); }
-html[data-skin="e"] .w-tile.in-cart { border-color: var(--blue); background: #fff; }
-html[data-skin="e"] .w-tile i { background: var(--blue); color: #fff; }
-html[data-skin="e"] .w-pay span { background: #fff; color: var(--ink); }
-html[data-skin="e"] .w-due { background: #D9F2E6; color: var(--ink); }
-html[data-skin="e"] .w-due small { opacity: 1; color: var(--ink-2); }
-html[data-skin="e"] .w-change { background: #FFF1BF; border-color: #F2D98A; }
+html[data-skin="e"] body { font-size: 17.5px; font-weight: 500; line-height: 1.35; }
+
+/* Tenda: garis hijau-putih, pinggir bawah bergelombang. Papan nama di bawahnya. */
+html[data-skin="e"] .w-top { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 0 16px 12px; background: var(--bg); color: var(--ink); }
+html[data-skin="e"] .w-awning {
+  display: block; grid-column: 1 / -1; height: calc(30px + env(safe-area-inset-top, 0px)); margin: 0 -16px 6px; position: relative;
+  background: repeating-linear-gradient(90deg, #7FCBA4 0 28px, #FFFFFF 28px 56px);
+}
+html[data-skin="e"] .w-awning::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 14px;
+  background: radial-gradient(circle at 14px 0, #7FCBA4 13px, transparent 14px) 0 0 / 56px 14px repeat-x,
+              radial-gradient(circle at 42px 0, #FFFFFF 13px, transparent 14px) 0 0 / 56px 14px repeat-x;
+  filter: drop-shadow(0 2px 0 rgba(27,36,32,.10));
+}
+html[data-skin="e"] .w-store { padding-top: 6px; }
+html[data-skin="e"] .w-store strong { font-size: 26px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; white-space: normal; }
+html[data-skin="e"] .w-store small { opacity: 1; color: var(--muted); font-size: 15.5px; font-weight: 600; }
+html[data-skin="e"] .w-mark { width: 12px; height: 12px; border-radius: 50%; background: var(--green); color: transparent; font-size: 0; flex: 0 0 auto; }
+html.w-shut[data-skin="e"] .w-mark { background: #A9B5B0; }
+html[data-skin="e"] .w-more { background: var(--card); color: var(--ink); border: 1px solid var(--line); font-weight: 700; }
+html[data-skin="e"] .w-top .w-search { position: static; grid-column: 1 / -1; background: transparent; padding: 6px 0 0; }
+html[data-skin="e"] .w-search input { border: 2px solid transparent; background: var(--card); font-size: 18px; min-height: 56px; }
+html[data-skin="e"] .w-search input:focus { border-color: var(--green); box-shadow: 0 0 0 4px var(--blue-soft); }
+html[data-skin="e"] .w-clear { top: 14px; background: var(--bg); }
+html[data-skin="e"] .w-list-title { text-transform: none; letter-spacing: 0; font-size: 18px; color: var(--ink); margin: 0 2px 10px; }
+html[data-skin="e"] .w-main { padding-top: 6px; }
+
+/* Label toples: tutup pastel = kategori. Sama kategori, sama warna. */
+html[data-skin="e"] .w-tile { padding: 0; gap: 0; overflow: visible; min-height: 112px; border: 2px solid transparent; background: var(--card); box-shadow: none; border-radius: 18px; align-content: stretch; grid-template-rows: 14px 1fr auto; }
+html[data-skin="e"] .w-tile::before { content: ""; border-radius: 16px 16px 0 0; background: var(--lid-0); }
+html[data-skin="e"] .w-tile[data-lid="1"]::before { background: var(--lid-1); }
+html[data-skin="e"] .w-tile[data-lid="2"]::before { background: var(--lid-2); }
+html[data-skin="e"] .w-tile[data-lid="3"]::before { background: var(--lid-3); }
+html[data-skin="e"] .w-tile[data-lid="4"]::before { background: var(--lid-4); }
+html[data-skin="e"] .w-tile b { padding: 10px 14px 0; font-size: 17.5px; font-weight: 600; }
+html[data-skin="e"] .w-tile span { padding: 6px 14px 12px; color: var(--ink); font-size: 20px; font-weight: 800; }
+html[data-skin="e"] .w-tile.in-cart { border-color: var(--green); background: var(--card); }
+html[data-skin="e"] .w-tile.in-cart::before { background: var(--green); }
+html[data-skin="e"] .w-tile i { top: -10px; right: -6px; background: var(--yellow); color: var(--ink); border: 2px solid var(--green); }
+
+html[data-skin="e"] .w-cartbar { background: var(--card); backdrop-filter: none; box-shadow: none; border-top: 1px solid var(--line); }
+html[data-skin="e"] .w-cart-sum { border-color: var(--line); }
+html[data-skin="e"] .w-pay span { background: var(--yellow); color: var(--ink); }
+
+html[data-skin="e"] .w-pay-screen { background: var(--bg); }
+html[data-skin="e"] .w-due { background: var(--card); color: var(--ink); border: 2px solid var(--line); }
+html[data-skin="e"] .w-due small { opacity: 1; color: var(--muted); }
+html[data-skin="e"] .w-quick button, html[data-skin="e"] .w-cash, html[data-skin="e"] .w-method { border-color: var(--line); }
+html[data-skin="e"] .w-quick button[aria-pressed="true"] { border-color: var(--green); background: var(--blue-soft); color: var(--ink); }
+html[data-skin="e"] .w-change { background: var(--yellow-soft); border-color: #E8D27A; }
 html[data-skin="e"] .w-change.short { background: #FDE4E1; border-color: #F3B8B0; color: var(--red); }
-html[data-skin="e"] .w-profit { background: #D9F2E6; color: var(--ink); }
-html[data-skin="e"] .w-profit b { color: var(--green); }
-html[data-skin="e"] .w-profit b.neg { color: var(--red); }
-html[data-skin="e"] .w-profit p { color: var(--ink-2); }
-html[data-skin="e"] .w-card { border: 1px solid var(--line); }
-html[data-skin="e"] .w-done { background: #D9F2E6; color: var(--ink); }
-html[data-skin="e"] .w-done-check { background: var(--blue); color: #fff; }
-html[data-skin="e"] .w-done .w-big-btn { background: var(--blue); color: #fff; }
-html[data-skin="e"] .w-gate-icon { width: 96px; height: 96px; border-radius: 50%; background: #FFE5D4; display: grid; place-items: center; }
+
+html[data-skin="e"] .w-done { background: var(--bg); color: var(--ink); }
+html[data-skin="e"] .w-done-check { background: var(--green); color: #fff; }
+html[data-skin="e"] .w-done .w-big-btn { background: var(--green); color: #fff; }
+
+html[data-skin="e"] .w-gate-icon { display: none; }
+html[data-skin="e"] .w-gate { padding-top: 32px; }
+
+/* Nota: kertas dengan pinggir bawah sobek. */
+html[data-skin="e"] .w-nota { position: relative; margin-bottom: 12px; }
+html[data-skin="e"] .w-nota::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px;
+  background: linear-gradient(-45deg, transparent 8px, var(--card) 0) 0 0 / 16px 12px repeat-x,
+              linear-gradient(45deg, transparent 8px, var(--card) 0) 0 0 / 16px 12px repeat-x;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-skin="e"] .w-nota-total b { animation: nota-in .5s ease-out both; }
+  @keyframes nota-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}

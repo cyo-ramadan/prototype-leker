@@ -118,10 +118,9 @@ sampai jam 9 malam sambil masak dan ngurus anak. Tidak punya karyawan. Detail:
 | Harga grosir naik diam-diam | Dijual harga lama — rugi tanpa sadar |
 | Malam capek | Buku catatan berhenti di halaman 4 |
 
-**Janji:** "Jualan seperti biasa. Malamnya tahu untung beneran — tanpa nyatet." **Desain:** pastel
-lembut (krem, persik, mint, lavender) dengan teks/angka gelap berkontras ≥ 7:1, pita persik dengan
-kotak cari di dalamnya (pola Shopee tanpa oranye jenuh), tombol hijau tua, huruf Nunito.
-Buka/Tutup warung satu ketukan, tab **Jual · Untung**. **Aturan berubah:** tanpa absen, pengajuan
+**Janji:** "Jualan seperti biasa. Malamnya tahu untung beneran — tanpa nyatet." **Desain "Tenda Warung":** tenda bergaris hijau-putih di atas papan nama, kartu barang seperti label
+toples (tutup pastel sesuai kategori), untung ditampilkan sebagai nota, huruf Baloo 2, latar sage pucat;
+teks/angka gelap berkontras ≥ 7:1. Buka/Tutup warung satu ketukan, tab **Jual · Untung**. **Aturan berubah:** tanpa absen, pengajuan
 otomatis disetujui (tetap tercatat), login kasir bisa melihat untung.
 **Jangan dipilih** untuk tenant yang punya karyawan — pengawasan absen & izin jadi mati.
 

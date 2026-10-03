@@ -97,6 +97,15 @@
     return sorted.slice(0, 24);
   }
 
+  // Skin E: warna "tutup toples" mengikuti kategori barang (bukan urutan), supaya
+  // barang sejenis selalu berwarna sama.
+  function lidOf(product) {
+    const key = String(product.category || product.categoryName || '');
+    let hash = 0;
+    for (const char of key) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+    return key ? hash % 5 : 0;
+  }
+
   function renderTiles() {
     const query = $('wSearch').value.trim();
     $('wSearchClear').hidden = !query;
@@ -106,7 +115,7 @@
     const list = visibleProducts();
     $('wTiles').innerHTML = list.map(product => {
       const qty = state.cart.get(Number(product.id)) || 0;
-      return `<button type="button" class="w-tile ${qty ? 'in-cart' : ''}" data-add="${esc(product.id)}" aria-label="Tambah ${esc(product.name)}">
+      return `<button type="button" class="w-tile ${qty ? 'in-cart' : ''}" data-add="${esc(product.id)}" data-lid="${lidOf(product)}" aria-label="Tambah ${esc(product.name)}">
         <b>${esc(product.name)}</b><span>${rupiah(product.price)}</span>${qty ? `<i>${qty}</i>` : ''}</button>`;
     }).join('');
     const empty = $('wEmpty');
@@ -375,8 +384,9 @@
       const node = $('wProfitToday');
       node.textContent = signed(today);
       node.classList.toggle('neg', today < 0);
-      $('wUntungTitle').textContent = state.drawer ? 'Untung hari ini (sampai sekarang)' : 'Untung hari ini';
-      $('wProfitCompare').textContent = `Kemarin ${signed(data.yesterday?.netProfit)}`;
+      $('wUntungTitle').textContent = state.drawer ? 'Untung sampai sekarang' : 'Untung';
+      $('wProfitCompare').textContent = `Kemarin untung ${signed(data.yesterday?.netProfit)}`;
+      $('wNotaDate').textContent = new Date(`${data.today?.businessDate || ''}T12:00:00Z`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
       $('wRevenue').textContent = rupiah(data.today?.revenue);
       $('wModal').textContent = rupiah(data.today?.modal);
       $('wBiaya').textContent = rupiah(data.today?.biaya);
@@ -414,6 +424,7 @@
       state.lastClosing = drawer.lastClosingAmount ?? null;
       state.solo = Boolean(cashier.store?.ownerOperated);
       document.documentElement.classList.toggle('w-solo', state.solo);
+      document.documentElement.classList.toggle('w-shut', state.solo && !state.drawer);
       $('wTabs').hidden = !state.solo;
       $('wCloseShop').hidden = !(state.solo && state.canWrite);
       if (state.solo) {

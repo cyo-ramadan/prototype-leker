@@ -126,28 +126,51 @@ html[data-skin="c"] .cashier-menu-card.selected, html[data-skin="c"] .master-row
 html[data-skin="c"] .admin-heading h1, html[data-skin="c"] .cashier-header h1 { color: #0b3f37; }
 html[data-skin="c"] .hero { border-radius: 4px 22px 22px 22px; }
 """),
- 'd': dict(title='D · Mode Warung', note='Untuk kelontong/UMKM kecil: huruf besar (Figtree), tombol jempol, biru warung + kuning penanda, kontras tinggi untuk teras yang terang. Cara pakai barunya ada di warung.html dan warung-pemilik.js.', tok={
-  '--skin-font': '"Figtree", "Segoe UI", system-ui, sans-serif',
-  '--bg': '#f5f6f8', '--skin-page-bg': '#f5f6f8', '--surface': '#ffffff', '--ink': '#111827', '--muted': '#4b5563', '--line': '#dfe3ea',
-  '--brand': '#1446c8', '--brand-2': '#0f2f86', '--green': '#0f8a4b', '--green-soft': '#ddf5e7', '--amber': '#b45309',
-  '--shadow': '0 6px 18px rgba(17,24,39,.08)', '--skin-card-shadow': '0 1px 2px rgba(17,24,39,.06)',
-  '--skin-top-bg': '#1446c8', '--skin-top-ink': '#ffffff', '--skin-top-muted': '#c9d6ff', '--skin-top-line': '#1446c8',
-  '--skin-mark-bg': '#ffc929', '--skin-mark-ink': '#111827',
-  '--skin-hero-bg': '#1446c8', '--skin-hero-ink': '#ffffff', '--skin-hero-muted': '#d6e0ff',
-  '--skin-primary': '#1446c8', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#111827', '--skin-active-ink': '#ffffff',
-  '--skin-input-bg': '#ffffff', '--skin-chip-bg': '#fff3c4', '--skin-focus': 'rgba(20,70,200,.20)',
-  '--skin-danger': '#c81e1e', '--skin-danger-soft': '#fde8e8', '--skin-danger-line': '#f5b5b5', '--skin-warn': '#92400e', '--skin-warn-soft': '#fef3c7',
-  '--skin-r-sm': '12px', '--skin-r': '14px', '--skin-r-lg': '18px', '--skin-r-pill': '999px'}, extra=r"""
-html[data-skin="d"] body { font-size: 16.5px; }
-html[data-skin="d"] .brand { font-weight: 900; }
-html[data-skin="d"] .admin-link, html[data-skin="d"] .topbar .pill, html[data-skin="d"] .topbar .secondary-btn, html[data-skin="d"] .topbar .mini-btn {
-  background: rgba(255,255,255,.14); color: #ffffff; border-color: rgba(255,255,255,.3);
+ 'd': dict(title='D · Mode Warung', note='Arah "Plang Seng": papan nama seng berenamel biru (huruf krem, bingkai garis ganda, paku keling) untuk bilah atas dan angka untung; Barlow + Barlow Condensed; kuning = uang yang harus dilihat. Cara pakai barunya ada di warung.html, warung-admin.js, warung-pemilik.js. DESAIN-SKIN-D-WARUNG.md §3b.', tok={
+  '--skin-font': '"Barlow", "Figtree", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#EDF0F5', '--skin-page-bg': '#EDF0F5', '--surface': '#ffffff', '--ink': '#14213D', '--muted': '#3D4A63', '--line': '#D5DBE6',
+  '--brand': '#1C3F94', '--brand-2': '#1C3F94', '--green': '#0F6640', '--green-soft': '#D8F0E3', '--amber': '#7A4A00',
+  '--shadow': 'none', '--skin-card-shadow': 'none',
+  '--skin-top-bg': '#1C3F94', '--skin-top-ink': '#FFF5DC', '--skin-top-muted': '#FFF5DC', '--skin-top-line': '#1C3F94',
+  '--skin-mark-bg': '#FFC72C', '--skin-mark-ink': '#14213D',
+  '--skin-hero-bg': '#1C3F94', '--skin-hero-ink': '#FFF5DC', '--skin-hero-muted': '#FFF5DC',
+  '--skin-primary': '#1C3F94', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#1C3F94', '--skin-active-ink': '#FFF5DC',
+  '--skin-input-bg': '#ffffff', '--skin-chip-bg': '#FFF3CC', '--skin-focus': 'rgba(28,63,148,.22)',
+  '--skin-danger': '#A61B1B', '--skin-danger-soft': '#FBE3E1', '--skin-danger-line': '#F0B4AE', '--skin-warn': '#6A4000', '--skin-warn-soft': '#FFF3CC',
+  '--skin-r-sm': '10px', '--skin-r': '12px', '--skin-r-lg': '14px', '--skin-r-pill': '999px'}, extra=r"""
+html[data-skin="d"] {
+  --plate: "Barlow Condensed", "Barlow", system-ui, sans-serif; --cream: #FFF5DC; --plang: #1C3F94;
+  --plang-frame: inset 0 0 0 5px var(--plang), inset 0 0 0 7px var(--cream);
+  --plang-rivets:
+    radial-gradient(circle at 14px 14px, var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) 14px, var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at 14px calc(100% - 14px), var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px);
 }
+html[data-skin="d"] body { font-size: 16.5px; font-weight: 500; }
+/* Bilah atas = plang seng: bingkai garis ganda + paku keling, nama dengan huruf plang. */
+html[data-skin="d"] .topbar { margin: 8px 10px 0; border-radius: 14px; padding: 16px 22px; background: var(--plang-rivets), var(--plang); box-shadow: var(--plang-frame), 0 4px 0 rgba(20,33,61,.18); position: relative; }
+html[data-skin="d"] .brand { font-family: var(--plate); font-weight: 800; letter-spacing: .04em; font-size: 22px; }
+html[data-skin="d"] .brand small { font-family: var(--skin-font); letter-spacing: 0; font-size: 13px; font-weight: 600; }
+html[data-skin="d"] .admin-link, html[data-skin="d"] .topbar .pill, html[data-skin="d"] .topbar .secondary-btn, html[data-skin="d"] .topbar .mini-btn {
+  background: var(--cream); color: var(--plang); border-color: transparent;
+}
+html[data-skin="d"] h1, html[data-skin="d"] .th-greet h1 { font-family: var(--plate); font-weight: 800; letter-spacing: .01em; }
 html[data-skin="d"] .primary-btn { min-height: 54px; font-size: 17px; }
-html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total strong { font-size: 28px; }
+html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total strong { font-size: 28px; font-family: var(--plate); }
+html[data-skin="d"] .admin-card, html[data-skin="d"] .master-row { border-width: 2px; }
+/* Angka untung (Hari ini gerai & Panel Pemilik) = plang kedua; angkanya kuning. */
+html[data-skin="d"] .th-profit, html[data-skin="d"] .hi-profit { background: var(--plang-rivets), var(--plang); box-shadow: var(--plang-frame); color: var(--cream); border-radius: 14px; padding: 22px 26px; }
+html[data-skin="d"] .th-profit b, html[data-skin="d"] .hi-profit b { font-family: var(--plate); font-weight: 800; color: #FFC72C; letter-spacing: .01em; }
+html[data-skin="d"] .th-profit b.neg, html[data-skin="d"] .hi-profit b.neg { color: #FFC2B8; }
+html[data-skin="d"] .th-profit small, html[data-skin="d"] .hi-profit small, html[data-skin="d"] .th-profit p, html[data-skin="d"] .hi-profit p { opacity: 1; }
+html[data-skin="d"] .hi-profit p em { color: #FFC72C; }
+html[data-skin="d"] .th-refresh, html[data-skin="d"] .hi-refresh { background: var(--cream); color: var(--plang); border: 0; }
+html[data-skin="d"] .nav-group-btn { border-width: 2px; }
+html[data-skin="d"] .nav-group-btn span:not(.nav-group-icon):not(.nav-group-badge) { font-size: 14px; }
 /* Mode Warung: angka untung (warung-pemilik.js) langsung di atas, tanpa kalimat teknis. */
 html[data-skin="d"] #entityAdminApp .owner-heading .muted, html[data-skin="d"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
-html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }
+html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 28px; margin: 0; }
 /* Workspace Gerai untuk pemilik yang mengurus admin sendiri (DESAIN-SKIN-D-WARUNG.md §4c):
    buang yang bikin bingung -- link teknis di bilah atas (Owner/Customer/Kasir Login), judul
    "Workspace Gerai" + kalimat scope, hitungan barang/kategori, kartu "Scope gerai".
@@ -162,15 +185,15 @@ html[data-skin="d"] #tab-drawers small:empty { display: none; }
 /* Menu pemilik: 6 tombol rata 3 x 2. */
 html[data-skin="d"] .nav-groups-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 """),
- 'e': dict(title='E · Jaga Sendiri', note='Untuk warung TANPA karyawan (pemilik = kasir = admin): pastel lembut untuk permukaan, teks/angka gelap (kontras >= 7:1), tombol hijau tua. Cara pakai barunya (Buka/Tutup warung, tab Untung) ada di warung.html; aturan servernya di isOwnerOperatedChoice (src/tenant-policy.js). DESAIN-SKIN-E-JAGA-SENDIRI.md.', tok={
-  '--skin-font': '"Nunito", "Figtree", "Segoe UI", system-ui, sans-serif',
-  '--bg': '#FFF8EF', '--skin-page-bg': '#FFF8EF', '--surface': '#ffffff', '--ink': '#1F2328', '--muted': '#57534E', '--line': '#F0E2D3',
-  '--brand': '#0A5A48', '--brand-2': '#075A30', '--green': '#075A30', '--green-soft': '#D9F2E6', '--amber': '#6A4000',
+ 'e': dict(title='E · Jaga Sendiri', note='Untuk warung TANPA karyawan (pemilik = kasir = admin): tenda warung hijau-putih, latar sage pucat, huruf Baloo 2, pastel untuk permukaan, teks/angka gelap (kontras >= 7:1), tombol hijau tua. Cara pakai barunya (Buka/Tutup warung, tab Untung) ada di warung.html; aturan servernya di isOwnerOperatedChoice (src/tenant-policy.js). DESAIN-SKIN-E-JAGA-SENDIRI.md.', tok={
+  '--skin-font': '"Baloo 2", "Figtree", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#EAF2EE', '--skin-page-bg': '#EAF2EE', '--surface': '#ffffff', '--ink': '#1B2420', '--muted': '#3F4C47', '--line': '#DCE7E1',
+  '--brand': '#0A5C43', '--brand-2': '#075A30', '--green': '#075A30', '--green-soft': '#D9F2E6', '--amber': '#6A4000',
   '--shadow': '0 6px 18px rgba(31,35,40,.06)', '--skin-card-shadow': 'none',
-  '--skin-top-bg': '#FFD8C2', '--skin-top-ink': '#1F2328', '--skin-top-muted': '#3a3632', '--skin-top-line': '#F5C9AE',
-  '--skin-mark-bg': '#0A5A48', '--skin-mark-ink': '#ffffff',
-  '--skin-hero-bg': '#D9F2E6', '--skin-hero-ink': '#1F2328', '--skin-hero-muted': '#3a3632',
-  '--skin-primary': '#0A5A48', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#0A5A48', '--skin-active-ink': '#ffffff',
+  '--skin-top-bg': '#C9EEDA', '--skin-top-ink': '#1B2420', '--skin-top-muted': '#3a3632', '--skin-top-line': '#B5E2CA',
+  '--skin-mark-bg': '#0A5C43', '--skin-mark-ink': '#ffffff',
+  '--skin-hero-bg': '#D9F2E6', '--skin-hero-ink': '#1B2420', '--skin-hero-muted': '#3a3632',
+  '--skin-primary': '#0A5C43', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#0A5C43', '--skin-active-ink': '#ffffff',
   '--skin-input-bg': '#ffffff', '--skin-chip-bg': '#FFF1BF', '--skin-focus': 'rgba(10,90,72,.20)',
   '--skin-danger': '#921A11', '--skin-danger-soft': '#FDE4E1', '--skin-danger-line': '#F3B8B0', '--skin-warn': '#6A4000', '--skin-warn-soft': '#FFF1BF',
   '--skin-r-sm': '14px', '--skin-r': '18px', '--skin-r-lg': '22px', '--skin-r-pill': '999px'}, extra=r"""

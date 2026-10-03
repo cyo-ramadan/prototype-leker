@@ -66,6 +66,34 @@ Kalimat iklannya: **"Untungnya kelihatan. Uangnya aman."**
    Malam hari: satu angka untung yang besar.
 6. **Jujur.** Yang belum jadi tidak ditampilkan. Minus tetap minus.
 
+## 3b. Tampilan "Plang Seng" (2026-10-03)
+
+Bos Cyo: *"benerin juga untuk skin d, kamu bikin uniq juga ya"* (setelah skin E dirombak dengan skill
+`frontend-design`). D harus punya identitas sendiri, tidak boleh mirip E.
+
+- **Motif: papan nama seng berenamel** — plang biru yang dipaku di depan warung dan toko kelontong:
+  huruf krem, bingkai garis ganda, paku keling di empat sudut. E memakai tenda + toples + nota; D
+  memakai plang.
+- **Dipakai di tiga tempat saja** (satu elemen berani, sisanya tenang): papan nama di atas layar Jual
+  dan bilah atas halaman admin, kotak **Total belanja** di layar Bayar, dan kotak **Untung bersih hari
+  ini** (halaman Hari ini gerai & Panel Pemilik, angkanya kuning).
+- **Huruf Barlow + Barlow Condensed** — keluarga huruf rambu & plat nomor; Condensed untuk nama
+  warung, harga, dan angka uang.
+- Kartu barang putih dengan bingkai tipis, harga biru berhuruf plang; barang di keranjang berlatar biru
+  muda + lencana jumlah kuning. Kembalian tetap kuning (uang yang harus dilihat).
+- Label tanpa huruf kapital; ikon minimarket di layar gerbang dihapus.
+
+| Peran | Warna | Kontras |
+|---|---|---|
+| Plang (biru enamel) + huruf krem | `#1C3F94` + `#FFF5DC` | 8,8 |
+| Angka di plang (kuning) | `#FFC72C` di biru | 6,2 (huruf besar) |
+| Latar | `#EDF0F5` (abu kebiruan, bukan krem) | tinta `#14213D` 14,0 |
+| Harga & tombol | biru `#1C3F94` di putih | 9,6 |
+| Lencana / kembalian | tinta di kuning `#FFC72C` | 10,2 |
+| Teks pendamping | `#3D4A63` | 7,8 |
+
+Token: `public/warung.css` (`html[data-skin="d"]`) dan `scripts/generate-skin-css.py` (skin `d`).
+
 ## 4. Layar yang dibangun di fase 1 (skin D)
 
 ### 4a. Kasir: "Jual" (`/s/<kode>/warung`)
@@ -145,6 +173,7 @@ asli). Tenant 0/A/B/C/E tidak tersentuh.
 - Semua penjualan tetap lewat jalur kasir yang sama (laci aktif, stok, modal, izin).
 - Absen dan buka laci tetap memakai alur yang sudah ada (foto + lokasi), tidak dibuat ulang.
 
+<!-- DOC-IMPACT: 2026-10-03 §3b: tampilan "Plang Seng" (papan seng enamel biru, Barlow, kuning untuk uang). -->
 <!-- DOC-IMPACT: 2026-10-03 §4c: Workspace Gerai skin D untuk pemilik yang mengurus admin sendiri (Hari ini, menu 6 tombol, Lainnya berkelompok, bahasa pemilik). -->
 <!-- DOC-IMPACT: 2026-10-02 revisi 2 (pemilik tunggal) dipindah ke skin E: DESAIN-SKIN-E-JAGA-SENDIRI.md. -->
 <!-- DOC-IMPACT: 2026-10-03 dokumen baru; menambah skin D (Mode Warung) di belakang pilihan tenant ui_skin = D. -->

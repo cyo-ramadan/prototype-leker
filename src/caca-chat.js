@@ -66,7 +66,7 @@ async function bacaRekap(request, env) {
   // Invariant #5: gerai ditentukan dari sesi login yang sudah divalidasi, tidak
   // pernah dari tulisan "Cabang" di dalam gambar.
   const store = await selectedStore(env.DB, request);
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  if (!store) return json({ error: 'Gerainya belum ketemu nih.' }, 404);
 
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
@@ -229,7 +229,7 @@ async function lingkupPenyuruh(request, env) {
   const auth = await requireManagement(request, env.DB);
   if (!auth.ok) return { ok: false, response: auth.response };
   const store = await selectedStore(env.DB, request);
-  if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
+  if (!store) return { ok: false, response: json({ error: 'Gerainya belum ketemu nih.' }, 404) };
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
     return { ok: false, response: json({ error: 'Una baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
@@ -424,7 +424,7 @@ async function catat(request, env, jalurUtama) {
   if (!auth.ok) return auth.response;
 
   const store = await selectedStore(env.DB, request);
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  if (!store) return json({ error: 'Gerainya belum ketemu nih.' }, 404);
 
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {

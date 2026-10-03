@@ -162,7 +162,7 @@ const resep = Object.freeze({
     for (const mentah of komponenMentah) {
       const cocok = cocokkanSatu(mentah?.barang, daftar, { ...opsi, label: 'bahan' });
       if (!cocok.ok) return cocok;
-      if (cocok.nilai.id === hasil.nilai.id) return { ok: false, tanya: `"${hasil.nilai.name}" tidak bisa jadi bahannya sendiri.` };
+      if (cocok.nilai.id === hasil.nilai.id) return { ok: false, tanya: `"${hasil.nilai.name}" nggak bisa jadi bahannya sendiri ya.` };
       if (komponen.some((k) => k.barang.id === cocok.nilai.id)) {
         return { ok: false, tanya: `"${cocok.nilai.name}" disebut dua kali. Totalnya berapa?` };
       }

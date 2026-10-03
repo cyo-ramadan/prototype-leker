@@ -168,8 +168,12 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
 - Daftar barang dibaca lewat `GET /api/admin/master/products/editor?ringkas=1` (baru:
   tanpa foto; foto bisa ratusan KB per barang). Layar biasa tetap membawa foto.
 - **Salah ketik nama dibaca kode** (jarak edit, hanya fungsi ini — `cocokkanSatu` yang
-  dipakai alat lain sengaja tidak dilonggarkan): tepat satu yang dekat → dipakai dan DISEBUT
-  di draft ("Una membaca 'x' sebagai 'Y'"); ragu → ditanyakan dengan kandidat. Barang
+  dipakai alat lain sengaja tidak dilonggarkan): tepat satu yang nyaris sama → dipakai dan
+  DISEBUT di draft ("Una membaca 'x' sebagai 'Y'"); selain itu **rekomendasi dari
+  kemiripan terbanyak** (irisan potongan huruf + kata yang ada di nama; Bos Cyo 2026-10-03:
+  "maksudnya es teh black curent atau milktea black curent ya bos?"), maks 3, dan nama
+  gerai yang sedang dibuka disebut — sebab umum "barang tidak ada" adalah gerai yang
+  dibuka bukan yang diucapkan ("di Mandala" padahal panel di Dermo). Barang
   nonaktif tidak diubah diam-diam; nama kembar, nilai kebesaran, dan "tidak ada yang beda"
   ditolak dengan penjelasan.
 - Isi draft DIBEKUKAN di `muatan` (id + nilai lama/baru): potongan berikutnya tidak menganggap
@@ -177,6 +181,12 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   endpoint editor (hanya produk di gerai sesi; diuji dengan id produk gerai lain).
 - Harga beli yang diubah hanya Harga Beli di Master Barang; HPP (average cost) tidak ikut —
   Una mengarahkan ke koreksi HPP bila itu yang salah.
+
+**Bahasa pertanyaan balik jangan kaku (2026-10-03):** "tidak ditemukan/tidak ketemu" diganti
+"belum ketemu nih"/"belum nemu nih" (`kataBelumKetemu` di `src/caca-aksi-dasar.js`, dipilih
+dari isi kalimat supaya pasti untuk tes tapi bervariasi); deteksi "belum ketemu" di kode
+memakai `BELUM_KETEMU`, jangan membandingkan teks lama. Kalimat baru dari kode: nada
+santai, sebut gerai/angkanya, tawarkan jalan keluar.
 
 **Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
 — alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,

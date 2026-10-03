@@ -371,7 +371,7 @@ export async function bacaBebas({
         tabel: state.tabel ? { kolom: state.tabel.kolom, isi: state.tabel.isi } : null,
         jejak: `dari ${[...new Set(jejak)].join(' + ')}${state.tabel ? ' · dihitung sistem' : ''}${catatanTabel ? ` · ${catatanTabel}` : ''}`,
         peringatan: hilang.length
-          ? `Ada angka di jawaban yang tidak ketemu persis di data (${hilang.slice(0, 5).join(', ')}). Cek tabelnya ya.`
+          ? `Ada angka di jawaban yang belum ketemu persis di data (${hilang.slice(0, 5).join(', ')}). Cek tabelnya ya.`
           : null,
         data: {}
       };

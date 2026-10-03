@@ -144,13 +144,13 @@ test('tanpa harga benar: Una menyebut HPP tercatat sekarang dan bertanya, tidak 
   } finally { ctx.db.close(); }
 });
 
-test('bahan tidak ketemu: disebut bahan yang bisa dikoreksi', async () => {
+test('bahan belum ketemu: disebut bahan yang bisa dikoreksi', async () => {
   const ctx = await setup();
   try {
     await seedAnomali(ctx);
     const hasil = await ambilAksi().siapkan({ hpp_bahan: 'matcha', hpp_harga: '1' }, unaJalur(ctx));
     assert.equal(hasil.ok, false);
-    assert.match(hasil.tanya, /tidak ketemu\. Yang bisa dikoreksi HPP-nya: Adonan Leker/);
+    assert.match(hasil.tanya, /belum (ketemu|nemu) nih\. Yang bisa dikoreksi HPP-nya: Adonan Leker/);
     assert.equal(tanyaHalus('hitung_ulang_hpp', hasil.tanya), hasil.tanya, 'pernyataan tidak diberi ajakan');
   } finally { ctx.db.close(); }
 });

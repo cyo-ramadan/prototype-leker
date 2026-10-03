@@ -21,6 +21,7 @@ import { rupiah } from './caca-nominal.js';
 import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } from './caca-aksi-dasar.js';
 import { AKSI_BAYAR } from './caca-aksi-bayar.js';
 import { AKSI_AKUN } from './caca-aksi-akun.js';
+import { AKSI_AKUNTAN } from './caca-aksi-akuntan.js';
 import { AKSI_BARANG } from './caca-aksi-barang.js';
 import { AKSI_HPP } from './caca-aksi-hpp.js';
 import { ALAT_JELASKAN } from './caca-jelaskan.js';
@@ -337,7 +338,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_BAYAR, ...AKSI_AKUN, ALAT_JELASKAN]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ALAT_JELASKAN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;

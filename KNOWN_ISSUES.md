@@ -920,6 +920,22 @@ Yang masih terbuka (bukan bagian ADR-051, ditemukan saat verifikasi produksi):
   Ulang HPP** (ADR-052) di panel Admin Gerai. Belum dijalankan untuk DERMO/GENENGAN. Nominal
   pembelian yang salah (DERMO Rp1 milyar dan Rp100 juta) belum dikoreksi -- di luar Hitung Ulang HPP.
 
+## Alat akuntan Una: celah yang diketahui (2026-10-03)
+
+Una kini bisa mencari transaksi yang belum berjurnal (`jembatan_masalah`), mengaudit HPP (`audit_hpp`),
+menyinkron ke Akuntansi (`sinkron_akuntansi`) dan melengkapi aturan jurnal yang kosong
+(`samakan_aturan_jurnal`) -- kontrak di `contracts/una-akuntan-tools-v1.md`. Yang BELUM ada alatnya
+(Una harus melaporkan, bukan menebak):
+
+- Memasang Jenis Barang ke barang (`NEEDS_PRODUCT_KIND`; saat ini hanya 9 penjualan uji lama di G001).
+- Mengisi akun Persediaan/HPP per Jenis Barang (`NEEDS_ITEM_CATEGORY_MAPPING`).
+- Mengganti tipe/satuan barang yang salah (mis. MANDALA: 20 bahan bertipe Barang Jadi, Gula bersatuan pcs).
+- Rekonsiliasi laba-dari-jurnal terhadap data operasional per hari (baru dihitung lewat `laba_rugi` + `jembatan_masalah`).
+
+Keadaan produksi saat dicatat: 18 transaksi aktif belum berjurnal (MANDALA 5 pengeluaran senilai Rp92.000
+karena kategori `operational` tanpa aturan jurnal; PENDEM 1 pembelian; G001/G002 data uji Agustus).
+Baris pengiriman lama milik transaksi yang dibatalkan (6 di BEJI/PENDEM) netral dan diabaikan.
+
 ## DOC-IMPACT
 
 **REQUIRED** — Product Master/costing contracts, Accounting Settings/Warehouse Settings, Accounting Workspace/POS Bridge, configured Cashier payment/component inputs, Cash Flow bridge, audited Stock Adjustment, transaction correction permits/Raport, migrations through 0027, deployment evidence, button audit, and regression/live-smoke tests must describe the active implementation state. Also update when: the Hutang/Pembayaran flow above changes shape (new hutang sources such as kasir `expenses`, Accounting posting of admin payments, Laporan Cashflow built on `admin_payments`, piutang collection moved into the payment screen, or the Hutang Gaji vs operational_receivables_payables split is unified); or the "Penyesuaian Gaji" duplicate button in the Karyawan panel is removed in favor of the Bea Operasional path. Remaining major work includes fractional inventory quantity migration, Sale fulfillment migration, Production V2 editable execution, store-level negative-stock purchase policy, warehouse-level stock routing, Goods Flow valuation, Warehouse-to-Accounting posting semantics, return taxonomy, KPI scoring policy, and Payroll transaction implementations. Also update this section when the Uang Muka/Deposit flow above changes shape (new deposit categories, Deposit-funded void reversal, Accounting posting for Deposit realization, or the dead `cashier-procurement-ui.js` file is finally removed or activated). Also update when: the standard chart of accounts (ADR-047) changes — new standard accounts, new name aliases, another store allowed custom accounts, or the per-tenant custom stage begins. Also update when: the Entity Admin panel gains a creation UI or an entity-level consolidated accounting/sidak view (currently migration-seeded accounts only, single-store read/write reuse of `branch-admin.html`); the Workboard integration hold above is lifted or its storage-location/hierarchy decisions are made; the Auto Permit toggle's scope extends beyond `approval_requests` (e.g. to `transaction_void_permits`) or gains a per-request-type granularity; the presensi-before-drawer-open gate or the mandatory post-login presensi gate change shape; the `staff_attendance` shift-row shape grows the deferred detail columns (task counts, hours, pay); or the Detail Laci opening-note/Laci #N numbering changes shape; or the read-only saldo-awal-laci continuation is compared against Accounting's ledger cash balance instead of the previous drawer's `closing_amount`, or a mismatch-handling mechanism (permit, flag, or posting) is reintroduced for it; or the Master Karyawan layer grows its dependents — the Employee Payable/Receivable panel (with the manual-journal door closed on its control accounts), the Sidak role and its drawer-free cross-store Stock Adjustment path, Entity/Tenant-side employee panels, the "one person covers a subset of stores under one entity" assignment layer, or the Superadmin role once its level (entity-scoped vs platform-wide) is decided.

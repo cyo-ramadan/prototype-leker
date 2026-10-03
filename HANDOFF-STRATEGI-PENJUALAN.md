@@ -229,6 +229,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-02 | pengembangan | Laporan Gerai di Admin Entity: klik satu gerai, tampil per tanggal Omset, HPP, SO+, SO−, Gross Profit, Beban Lapak, Gaji, Beban Lainnya, Net Profit |
 | 2026-10-03 | pengembangan | Setoran kasir saat tutup laci kini selalu menjadi Piutang Karyawan di pembukuan, termasuk untuk akun kasir yang belum ditautkan ke karyawan; jurnal yang gagal dicoba ulang otomatis |
 | 2026-10-03 | pengembangan | Tutup laci: kasir mengisi "Titip laci" (uang yang ditinggal untuk shift berikutnya), setoran dihitung otomatis dari selisihnya |
+| 2026-10-03 | pengembangan | Status Laci di Admin Entity: gerai mana yang lacinya sedang OPEN/CLOSE, sejak jam berapa, dan kasir yang membukanya |
 | 2026-10-02 | UI/UX | Semua tenant: tulisan "Prototype"/"Leker" dan catatan developer hilang dari layar; merek satu tempat ("MAXI" sementara); fitur setengah jadi ("segera hadir") disembunyikan; halaman pelanggan bahasa F&B umum | JUAL | Kesan pertama tidak lagi "prototipe"; siap didemokan ke pemilik F&B mana pun |
 | 2026-10-02 | UI/UX | Pilihan tampilan per tenant 0/A/B/C (Tenang, Papan Siaga, Kabar Gerai) di Owner Console; semua tenant lama tetap 0, tenant Lab Tampilan (gerai LAB01) dipakai uji | UJI | Bahan memilih tampilan jualan; belum ada Ringkasan Pemilik |
 | 2026-10-02 | UI/UX | Kartu daftar ringkas (nama utuh, keterangan satu baris, status berwarna) di semua tenant; tab "Laporan" kosong dicabut | JUAL | Layar admin tidak lagi terlihat rusak di HP |

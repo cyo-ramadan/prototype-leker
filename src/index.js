@@ -18,6 +18,7 @@ import { handleAttendanceReportApi } from './attendance-report.js';
 import { handleEntityRecipeApi } from './entity-recipe.js';
 import { handleHppRecalculationApi } from './hpp-recalculation.js';
 import { handleEntityStockApi } from './entity-stock.js';
+import { handleEntityDrawerStatusApi } from './entity-drawer-status.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -282,6 +283,8 @@ async function handleApi(request, env, url) {
   if (hppRecalculationResponse) return hppRecalculationResponse;
   const entityStockResponse = await handleEntityStockApi(request, env, pathname);
   if (entityStockResponse) return entityStockResponse;
+  const entityDrawerStatusResponse = await handleEntityDrawerStatusApi(request, env, pathname);
+  if (entityDrawerStatusResponse) return entityDrawerStatusResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

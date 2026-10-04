@@ -92,7 +92,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Mau menyentuh | Baca |
 |---|---|
 | Apa pun | `README.md` |
-| **Mencari kode: "di mana X", "siapa memanggil Y", alur data** | Peta kode `graphify-out/` (skill `graphify`, query dulu sebelum grep). Peta = kode + migration, tanpa dokumen. Setelah mengubah kode, perbarui dengan `graphify update .` (gratis, tanpa token AI) lalu commit `graphify-out/` |
+| **Mencari kode: "di mana X", "siapa memanggil Y", alur data** | Peta kode `graphify-out/` (skill `graphify`, query dulu sebelum grep). Isinya kode + migration + judul-judul dokumen. Boleh `graphify update .` di lokal (gratis, tanpa token AI), tapi **jangan commit `graphify-out/` di PR fitur** (file 10 MB, bentrok antar-agen) -- penyegaran peta + `npm run peta:build` dikerjakan Hana di PR sendiri. Peta 3D untuk Owner: tombol di Owner Console |
 | Accounting / Inventory / approval | `KNOWN_PITFALLS.md` |
 | Status fitur yang belum kelar | `KNOWN_ISSUES.md` |
 | Alasan sebuah keputusan arsitektur | `adr/` (29 ADR) |

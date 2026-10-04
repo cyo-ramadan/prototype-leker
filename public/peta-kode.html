@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Peta Kode 3D</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root { --bg:#050a14; --panel:rgba(8,16,32,.78); --line:rgba(120,200,255,.22); --ink:#dff3ff; --mute:#8fb0c8; --glow:#38bdf8; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
+    body { -webkit-tap-highlight-color:transparent; }
+    #stage { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
+    #stage.drag { cursor:grabbing; }
+    #stage.pointer { cursor:pointer; }
+    .hud { position:fixed; z-index:2; pointer-events:none; }
+    .hud > * { pointer-events:auto; }
+    #top { left:0; right:0; top:0; padding:calc(10px + env(safe-area-inset-top,0px)) 14px 0; display:flex; flex-direction:column; gap:8px; }
+    .title-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .title { font-size:15px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--glow); text-shadow:0 0 14px rgba(56,189,248,.7); }
+    .meta { font-size:12px; color:var(--mute); }
+    .meta b { color:var(--ink); font-weight:600; }
+    .back { margin-left:auto; color:var(--mute); font-size:12px; text-decoration:none; border:1px solid var(--line); border-radius:999px; padding:5px 11px; background:var(--panel); }
+    .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .btn, #q { background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:8px 12px; font:inherit; font-size:13px; backdrop-filter:blur(8px); }
+    .btn { cursor:pointer; }
+    .btn[aria-pressed="true"] { border-color:var(--glow); box-shadow:0 0 14px rgba(56,189,248,.45); color:#fff; }
+    #q { width:min(240px,100%); }
+    #q::placeholder { color:#6e8aa2; }
+    #legend { display:flex; gap:6px; flex-wrap:wrap; }
+    .chip { display:inline-flex; align-items:center; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:5px 10px; font-size:12px; cursor:pointer; color:var(--ink); backdrop-filter:blur(8px); user-select:none; }
+    .chip i { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:0 0 8px currentColor; background:currentColor; }
+    .chip small { color:var(--mute); }
+    .chip.off { opacity:.38; }
+    #info { pointer-events:auto; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom,0px)); max-width:560px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; backdrop-filter:blur(10px); display:none; max-height:44vh; overflow:auto; }
+    #info.show { display:block; }
+    #info h2 { margin:0 0 4px; font-size:14px; word-break:break-all; }
+    #info .mod { display:inline-flex; align-items:center; gap:6px; font-size:12px; margin-bottom:8px; }
+    #info .mod i { width:9px; height:9px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+    #info p { margin:4px 0; font-size:12.5px; color:var(--mute); }
+    #info .row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    #info .link { background:rgba(56,189,248,.1); border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:12px; color:var(--ink); cursor:pointer; word-break:break-all; text-align:left; font-family:inherit; }
+    #info .x { position:absolute; right:10px; top:8px; background:none; border:0; color:var(--mute); font-size:20px; cursor:pointer; }
+    #msg { inset:0; display:none; align-items:center; justify-content:center; padding:24px; text-align:center; background:var(--bg); z-index:5; }
+    #msg.show { display:flex; }
+    #msg .card { max-width:360px; line-height:1.5; }
+    #msg a { color:var(--glow); }
+    @media (max-width:640px) {
+      .title { font-size:13px; }
+      #info { max-height:40vh; }
+      .meta .extra { display:none; }
+      #legend { flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
+      #legend::-webkit-scrollbar { display:none; }
+      .chip { flex:none; }
+      #q { flex:1 1 100%; width:100%; }
+      .btn { padding:7px 10px; font-size:12.5px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Peta kode 3D: tiap titik satu file, warna menunjukkan modulnya"></canvas>
+
+  <div id="top" class="hud">
+    <div class="title-row">
+      <span class="title">Peta Kode · Prototype Leker</span>
+      <a class="back" href="/owner">← Owner Console</a>
+    </div>
+    <div id="meta" class="meta">Memuat peta…</div>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Cari file, mis. cashier, jurnal" autocomplete="off" aria-label="Cari file" />
+      <button id="spin" class="btn" type="button" aria-pressed="true">⟳ Putar otomatis</button>
+      <button id="recent" class="btn" type="button" aria-pressed="false">✨ Baru diubah</button>
+      <button id="reset" class="btn" type="button">Reset</button>
+    </div>
+    <div id="legend" aria-label="Warna modul"></div>
+  </div>
+
+  <div id="info" class="hud" role="dialog" aria-live="polite"></div>
+  <div id="msg" class="hud"><div class="card" id="msgText"></div></div>
+
+  <script src="/peta-kode.js?v=20261004-peta-kode-v1"></script>
+</body>
+</html>

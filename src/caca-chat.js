@@ -140,6 +140,9 @@ export const PINTU_AKSI = Object.freeze([
   '/api/admin/settings/accounting$',
   '/api/admin/settings/business/payment-methods',
   '/api/entity-admin/stores',
+  // Owner di panel satu gerai: daftar gerai untuk mencari gerai acuan se-entity
+  // (samakan_aturan_jurnal). Hanya dibaca (GET); tidak ada alat yang menulis ke sini.
+  '/api/owner/stores$',
   '/api/admin/master/products/editor',
   '/api/admin/manufacturing/bootstrap',
   '/api/admin/manufacturing/recipes',

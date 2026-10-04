@@ -802,6 +802,15 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
     cacaTambahGelembung('caca', `Beres, HPP ${dikoreksi.length} bahan di ${gerai} sudah Una koreksi dan penjualannya dihitung ulang${sudahBenar.length ? ` (${sudahBenar.length} ternyata sudah benar, Una lewati)` : ''}. Rinciannya ada di Riwayat Hitung Ulang HPP. Jurnal koreksinya dibuat otomatis; kalau ada yang belum masuk pembukuan, minta Una Sinkron Akuntansi.`);
     return;
   }
+  if (draft.aksi === 'samakan_aturan_jurnal') {
+    // Tiap langkah membawa kalimat hasilnya sendiri (aturan ditambah / transaksi terjurnal).
+    const ringkas = selesai.map(h => h.nama).filter(Boolean);
+    teks.textContent = 'Selesai: aturan jurnal dilengkapi dan transaksi yang mandek dikirim ulang.';
+    cacaCatatRiwayat('sistem', `Bos menyetujui; Una menyambungkan jurnal. ${ringkas.join(' ')}`);
+    cacaSimpanPercakapan();
+    cacaTambahGelembung('caca', ['Beres, Bos! Jurnalnya sudah Una sambungkan:', ...ringkas].join('\n'));
+    return;
+  }
   const dinonaktifkan = selesai.filter(h => h.hasil === 'dinonaktifkan');
   teks.textContent = `Selesai: ${dinonaktifkan.length} barang dinonaktifkan.`;
   cacaCatatRiwayat('sistem', `Bos menyetujui; Una menonaktifkan ${dinonaktifkan.length} barang: ${dinonaktifkan.map(h => h.nama).join(', ')}.`);

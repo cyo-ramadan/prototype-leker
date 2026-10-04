@@ -254,6 +254,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-04 | Kasir | Isian angka Beli Bahan/Penjualan/Operasional: titik tidak bisa diketik, pemisah ribuan muncul otomatis, koma untuk pecahan — mencegah "1.500" terbaca 1,5 atau qty "1.000" gram terbaca 1 | JUAL | Data HPP tidak rusak karena salah ketik titik/koma; kasir baru langsung benar |
 | 2026-10-04 | Kasir / Una | Rentang harga beli wajar per barang: kasir melihat "wajar Rp…–Rp…" saat Beli Bahan, pembelian di luar rentang ditolak dengan pesan jelas; Una bisa mengatur rentang banyak barang sekaligus (harga benar ±25%) | JUAL | Salah ketik qty/harga tertahan sebelum merusak HPP dan laporan untung rugi |
 | 2026-10-04 | Admin Gerai | Isian "Harga beli wajar" (batas bawah/atas, tombol ±25% dari HPP) di Master Barang — setting manual yang sama dengan yang diisi Una | JUAL | Pemilik bisa mengatur/mengecek pengaman salah ketik tanpa lewat chat |
+| 2026-10-04 | Una | "Una, sambungkan jurnal" dari panel satu gerai: Una mencari transaksi yang mandek karena aturan jurnal kosong, menyalin aturan dari gerai lain yang sudah beres, lalu langsung mengirim ulang transaksinya ke pembukuan (tidak lagi menyuruh pemilik mengisi setelan sendiri) | JUAL | Laporan untung rugi lengkap tanpa pemilik paham Setting Akuntansi |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

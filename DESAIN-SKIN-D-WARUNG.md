@@ -172,7 +172,12 @@ asli). Tenant 0/A/B/C/E tidak tersentuh.
   berubah.
 - Semua penjualan tetap lewat jalur kasir yang sama (laci aktif, stok, modal, izin).
 - Absen dan buka laci tetap memakai alur yang sudah ada (foto + lokasi), tidak dibuat ulang.
+- Layar Mode Warung (`/s/<kode>/warung`, dipakai skin D dan E) mengecek skin ke server saat dimuat
+  dan setiap kali HP dibuka lagi. Kalau tenant sudah tidak memilih D/E, layar pulang sendiri ke Kasir
+  biasa. Sebelum 2026-10-04 pengecekan ini tidak ada, sehingga CS Mandala nyangkut di Mode Warung
+  setelah Owner mengganti skin ke 0.
 
+<!-- DOC-IMPACT: 2026-10-04 §6: Mode Warung pulang ke Kasir biasa bila skin tenant bukan D/E lagi. -->
 <!-- DOC-IMPACT: 2026-10-03 §3b: tampilan "Plang Seng" (papan seng enamel biru, Barlow, kuning untuk uang). -->
 <!-- DOC-IMPACT: 2026-10-03 §4c: Workspace Gerai skin D untuk pemilik yang mengurus admin sendiri (Hari ini, menu 6 tombol, Lainnya berkelompok, bahasa pemilik). -->
 <!-- DOC-IMPACT: 2026-10-02 revisi 2 (pemilik tunggal) dipindah ke skin E: DESAIN-SKIN-E-JAGA-SENDIRI.md. -->

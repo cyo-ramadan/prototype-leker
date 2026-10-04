@@ -94,3 +94,63 @@ test('skin D Workspace Gerai: halaman "Hari ini", menu 6 tombol, Lainnya berkelo
   const css = read('public/skin-d.css');
   assert.match(css, /html\[data-skin="d"\] \.admin-top-actions > a:not\(#cashierReadOnlyLink\) \{ display: none; \}/);
 });
+
+// Bos Cyo, 2026-10-04: CS Mandala nyangkut di Mode Warung setelah Owner mengganti skin
+// ke 0, padahal HP lain sudah ikut skin baru. Layar Warung wajib pulang ke Kasir biasa
+// begitu server bilang skinnya bukan D/E lagi -- saat dimuat dan saat HP dibuka lagi.
+async function jalankanLayarWarung(skinAwal, skinSesudahRefresh = skinAwal) {
+  const { runInNewContext } = await import('node:vm');
+  const pindah = [];
+  const listeners = { window: {}, document: {} };
+  const element = () => new Proxy({}, {
+    get(target, key) {
+      if (key in target) return target[key];
+      if (key === 'classList') return { add() {}, remove() {}, toggle() {} };
+      if (key === 'style' || key === 'dataset') return {};
+      if (key === 'hidden') return true;
+      if (key === 'value') return '';
+      if (key === 'addEventListener' || key === 'querySelectorAll') return () => [];
+      return () => {};
+    },
+    set(target, key, value) { target[key] = value; return true; }
+  });
+  let skin = skinAwal;
+  const MaxiSkin = {
+    skin: () => skin,
+    brand: () => 'MAXI',
+    ready: Promise.resolve(),
+    refresh: async () => { skin = skinSesudahRefresh; }
+  };
+  const context = {
+    window: { MaxiSkin, LEKER_STORE_CODE: 'MANDALA', lekerStorePath: page => `/s/MANDALA/${page}`, addEventListener: (type, fn) => { listeners.window[type] = fn; } },
+    document: { getElementById: element, addEventListener: (type, fn) => { listeners.document[type] = fn; }, documentElement: element(), visibilityState: 'visible' },
+    localStorage: { getItem: () => 'token-kasir', setItem() {}, removeItem() {} },
+    location: { replace: url => pindah.push(url), href: '/s/MANDALA/warung' },
+    fetch: () => new Promise(() => {}),
+    setTimeout, clearTimeout, URLSearchParams, Intl, Number, Math, String, JSON, Map, Promise, Boolean, Array, Object
+  };
+  context.window.document = context.document;
+  runInNewContext(read('public/warung.js'), context);
+  await new Promise(resolve => setImmediate(resolve));
+  return { pindah, listeners, ubahSkin: next => { skin = next; } };
+}
+
+test('Mode Warung pulang ke Kasir biasa saat skin tenant sudah bukan D/E (tidak nyangkut di skin lama)', async () => {
+  const lama = await jalankanLayarWarung('classic');
+  assert.deepEqual(lama.pindah, ['/s/MANDALA/cashier'], 'skin 0 -> langsung ke Kasir biasa');
+
+  const tetap = await jalankanLayarWarung('d');
+  assert.deepEqual(tetap.pindah, [], 'skin D tetap di Mode Warung');
+  const tetapE = await jalankanLayarWarung('e');
+  assert.deepEqual(tetapE.pindah, [], 'skin E tetap di Mode Warung');
+
+  // HP dibiarkan terbuka di Mode Warung, lalu Owner mengganti skin ke A: begitu HP dibuka
+  // lagi, skin dicek ulang ke server dan layar pulang.
+  const terbuka = await jalankanLayarWarung('d', 'a');
+  assert.deepEqual(terbuka.pindah, []);
+  terbuka.listeners.document.visibilitychange();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(terbuka.pindah, ['/s/MANDALA/cashier']);
+
+  assert.match(read('public/warung.html'), /\/warung\.js\?v=20261004-pulang-skin-v1/);
+});

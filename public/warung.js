@@ -538,12 +538,28 @@
     try { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); } catch {}
     location.replace(cashierPath());
   });
-  // Refresh saat kembali ke tab (bukan polling -- invariant #6).
+  // Layar ini hanya untuk skin D/E. Kalau Owner sudah mengganti tampilan tenant,
+  // HP yang sedang/terakhir membuka Mode Warung harus pulang ke Kasir biasa --
+  // tanpa ini CS nyangkut di skin lama (Bos Cyo, 2026-10-04: CS Mandala tidak bisa
+  // balik setelah skin diganti ke 0, sementara HP lain sudah ikut skin baru).
+  // Kalau server tidak terjangkau, skin terakhir yang tersimpan tetap dipakai.
+  function pulangKalauBukanSkinWarung() {
+    const skin = window.MaxiSkin?.skin?.();
+    if (!skin || ['d', 'e'].includes(skin)) return false;
+    location.replace(cashierPath());
+    return true;
+  }
+  window.addEventListener('maxi-skin-change', pulangKalauBukanSkinWarung);
+
+  // Refresh saat kembali ke tab (bukan polling -- invariant #6). Skin ikut dicek
+  // ulang, karena aplikasi di HP bisa terbuka berhari-hari tanpa dimuat ulang.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
+    Promise.resolve(window.MaxiSkin?.refresh?.()).then(pulangKalauBukanSkinWarung, () => {});
     if (state.tab === 'untung') loadUntung();
     else if ($('wSell').hidden) load();
   });
 
   load();
+  Promise.resolve(window.MaxiSkin?.ready).then(pulangKalauBukanSkinWarung, () => {});
 })();

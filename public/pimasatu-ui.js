@@ -13,8 +13,11 @@
     // (toggle mode's default, and the classic behaviour kasir already knows)
     // uses a plain text input (still numeric keyboard via inputmode) and
     // normalizes comma -> period ourselves instead of trusting the number input.
-    const priceInputAttrs = isToggleMode ? `type="text" inputmode="decimal"` : `type="number" min="0" step="any"`;
-    const pricePlaceholder = isToggleMode ? 'Terisi otomatis, boleh koma' : 'Terisi otomatis';
+    // Bos Cyo 2026-10-04: titik tidak boleh diketik (kasir tertukar titik/koma);
+    // ribuan diberi titik otomatis, koma = desimal (hanya harga per satuan Beli Bahan).
+    // Aturannya ada di public/angka-input.js (MAXIAngka); semua angka dibaca lewat angka().
+    const priceInputAttrs = isToggleMode ? `type="text" inputmode="decimal"` : `type="text" inputmode="numeric"`;
+    const pricePlaceholder = isToggleMode ? 'Terisi otomatis, pecahan pakai koma' : 'Terisi otomatis';
     // Toggle mode: harga per satuan (klasik, sudah biasa dipakai kasir) tetap
     // jadi default aktif. Kolom "Total belanja" ada di sampingnya, terkunci
     // sampai tombol hijau ditekan -- baru saat itu kolom total yang aktif dan
@@ -24,17 +27,24 @@
       <div class="field pimasatu-total-wrap">
         <label>Total belanja barang ini</label>
         <div class="pimasatu-total-row">
-          <input class="text-input pimasatu-total" type="number" min="0" step="1" placeholder="Isi total dibayar" disabled />
+          <input class="text-input pimasatu-total" type="text" inputmode="numeric" placeholder="Isi total dibayar" disabled />
           <button type="button" class="pimasatu-amount-toggle" title="Isi berdasar total belanja, bukan harga per satuan" style="background:var(--green,#168a45);color:#fff;border:0;border-radius:8px;width:34px;height:34px;font-weight:900;cursor:pointer;flex-shrink:0">⇄</button>
         </div>
       </div>` : '';
-    host.innerHTML = `<button type="button" class="pimasatu-toggle">＋ ${esc(openLabel)}</button><section class="pimasatu-composer hidden"><div class="field pimasatu-search-wrap"><label>${esc(itemLabel)}</label><input class="text-input pimasatu-search" autocomplete="off" placeholder="Cari dan pilih"/><div class="pimasatu-results hidden"></div></div><div class="pimasatu-input-row${isToggleMode ? ' has-total' : ''}"><div class="field"><label>Qty</label><input class="text-input pimasatu-qty" type="number" min="1" step="1" value="1"/></div><div class="field"><label>${esc(priceLabel)}</label><input class="text-input pimasatu-price" ${priceInputAttrs} placeholder="${esc(pricePlaceholder)}"/></div>${totalFieldHtml}</div><div class="muted pimasatu-hint">Pilih item untuk mengisi nominal.</div><button type="button" class="primary-btn pimasatu-add">＋ Masukkan</button></section><div class="pimasatu-detail-head"><strong>${esc(detailTitle)}</strong><span>Terbaru di atas</span></div><div class="pimasatu-lines"></div>`;
+    host.innerHTML = `<button type="button" class="pimasatu-toggle">＋ ${esc(openLabel)}</button><section class="pimasatu-composer hidden"><div class="field pimasatu-search-wrap"><label>${esc(itemLabel)}</label><input class="text-input pimasatu-search" autocomplete="off" placeholder="Cari dan pilih"/><div class="pimasatu-results hidden"></div></div><div class="pimasatu-input-row${isToggleMode ? ' has-total' : ''}"><div class="field"><label>Qty</label><input class="text-input pimasatu-qty" type="text" inputmode="numeric" value="1"/></div><div class="field"><label>${esc(priceLabel)}</label><input class="text-input pimasatu-price" ${priceInputAttrs} placeholder="${esc(pricePlaceholder)}"/></div>${totalFieldHtml}</div><div class="muted pimasatu-hint">Pilih item untuk mengisi nominal.</div><button type="button" class="primary-btn pimasatu-add">＋ Masukkan</button></section><div class="pimasatu-detail-head"><strong>${esc(detailTitle)}</strong><span>Terbaru di atas</span></div><div class="pimasatu-lines"></div>`;
     const composer = host.querySelector('.pimasatu-composer'), search = host.querySelector('.pimasatu-search'), results = host.querySelector('.pimasatu-results'), qty = host.querySelector('.pimasatu-qty'), price = host.querySelector('.pimasatu-price'), total = host.querySelector('.pimasatu-total'), amountToggle = host.querySelector('.pimasatu-amount-toggle'), hint = host.querySelector('.pimasatu-hint'), linesHost = host.querySelector('.pimasatu-lines'), toggle = host.querySelector('.pimasatu-toggle');
     price.readOnly = !priceEditable;
     if (!renderDetails) host.querySelector('.pimasatu-detail-head').classList.add('hidden');
     const money = value => new Intl.NumberFormat('id-ID', { style:'currency', currency:'IDR', maximumFractionDigits:0 }).format(Number(value) || 0);
     const unitMoney = value => new Intl.NumberFormat('id-ID', { style:'currency', currency:'IDR', maximumFractionDigits:4 }).format(Number(value) || 0);
-    const parseDecimal = raw => Number(String(raw).trim().replace(',', '.'));
+    const angkaApi = () => (typeof window !== 'undefined' && window.MAXIAngka) || null;
+    // Titik = ribuan, koma = desimal. Tanpa MAXIAngka (skrip belum termuat) tetap dibaca
+    // dengan aturan yang sama supaya "1.500" tidak pernah jadi 1,5.
+    const angka = raw => { const api = angkaApi(); if (api) return api.nilai(raw); const isi = String(raw ?? '').trim().replace(/\./g, ''); return isi && /^\d*(,\d*)?$/.test(isi) ? Number(isi.replace(',', '.')) : NaN; };
+    const tampilAngka = (value, desimal) => { const api = angkaApi(); return api ? api.tampil(value, { desimal }) : String(value ?? '').replace('.', ','); };
+    const pasangAngka = (input, desimal) => { const api = angkaApi(); if (api && input) api.pasang(input, { desimal, onTitik: onError }); };
+    const parseDecimal = angka;
+    pasangAngka(qty, false); pasangAngka(price, isToggleMode); pasangAngka(total, false);
     function lockStyle(field, locked) { field.disabled = locked; field.style.background = locked ? '#f3f4f6' : ''; field.style.color = locked ? '#9ca3af' : ''; }
     function applyActiveField() {
       if (!isToggleMode) return;
@@ -49,7 +59,7 @@
       hint.textContent = 'Pilih item untuk mengisi nominal.'; results.classList.add('hidden');
     }
     function renderResults() { const key = search.value.trim().toLowerCase(); const found = list().filter(item => !key || `${getLabel(item)} ${getMeta(item)}`.toLowerCase().includes(key)).slice(0,8); results.innerHTML = found.length ? found.map(item => `<button type="button" data-result="${esc(getId(item))}"><strong>${esc(getLabel(item))}</strong><span>${esc(getMeta(item))}</span></button>`).join('') : '<div class="pimasatu-empty">Tidak ditemukan.</div>'; results.classList.remove('hidden'); }
-    function renderLines() { if(!renderDetails){linesHost.classList.add('hidden');return;} linesHost.innerHTML = state.lines.length ? state.lines.map((line,index) => `<article class="pimasatu-line"><div><strong>${esc(line.label)}</strong><span>${esc(line.meta)}</span></div><label>Qty<input class="text-input" data-line-qty="${index}" type="number" min="1" step="1" value="${line.quantity}"/></label><div><strong>${money(line.quantity*line.unitAmount)}</strong>${isToggleMode ? `<small class="muted">${unitMoney(line.unitAmount)}/unit</small>` : ''}<button type="button" class="text-btn" data-remove="${index}">Hapus</button></div></article>`).join('') : '<div class="muted pimasatu-empty">Belum ada item.</div>'; linesHost.querySelectorAll('[data-remove]').forEach(button => button.onclick = () => { state.lines.splice(Number(button.dataset.remove),1); renderLines(); onLinesChange(state.lines.slice()); }); linesHost.querySelectorAll('[data-line-qty]').forEach(input => input.onchange = () => { const value=Number(input.value); if(value>0){state.lines[Number(input.dataset.lineQty)].quantity=value; renderLines(); onLinesChange(state.lines.slice());} }); }
+    function renderLines() { if(!renderDetails){linesHost.classList.add('hidden');return;} linesHost.innerHTML = state.lines.length ? state.lines.map((line,index) => `<article class="pimasatu-line"><div><strong>${esc(line.label)}</strong><span>${esc(line.meta)}</span></div><label>Qty<input class="text-input" data-line-qty="${index}" type="text" inputmode="numeric" value="${tampilAngka(line.quantity, false)}"/></label><div><strong>${money(line.quantity*line.unitAmount)}</strong>${isToggleMode ? `<small class="muted">${unitMoney(line.unitAmount)}/unit</small>` : ''}<button type="button" class="text-btn" data-remove="${index}">Hapus</button></div></article>`).join('') : '<div class="muted pimasatu-empty">Belum ada item.</div>'; linesHost.querySelectorAll('[data-remove]').forEach(button => button.onclick = () => { state.lines.splice(Number(button.dataset.remove),1); renderLines(); onLinesChange(state.lines.slice()); }); linesHost.querySelectorAll('[data-line-qty]').forEach(input => { pasangAngka(input, false); input.onchange = () => { const value=angka(input.value); if(Number.isSafeInteger(value)&&value>0){state.lines[Number(input.dataset.lineQty)].quantity=value; renderLines(); onLinesChange(state.lines.slice());} }; }); }
     toggle.onclick = () => setExpanded(true); search.onfocus = renderResults; search.oninput = () => { state.selectedId=null; price.value=''; if (total) total.value=''; renderResults(); };
     // Bos Cyo, 2026-09-21: dilaporkan dari Pendem dan Beji -- kasir sudah
     // masukin barang (kelihatan di Detail), tapi tetap muncul toast "wajib
@@ -75,7 +85,7 @@
       const button=event.target.closest('[data-result]'); if(!button)return;
       const item=list().find(candidate=>String(getId(candidate))===String(button.dataset.result));
       state.selectedId=getId(item); search.value=getLabel(item);
-      price.value=String(Number(getDefaultAmount(item))||'');
+      price.value=Number(getDefaultAmount(item)) ? tampilAngka(Number(getDefaultAmount(item)), isToggleMode) : '';
       if (total) total.value = '';
       state.activeField = 'perUnit'; applyActiveField();
       hint.textContent=getMeta(item);
@@ -83,17 +93,17 @@
     };
     host.querySelector('.pimasatu-add').onclick = () => {
       const item=list().find(candidate=>String(getId(candidate))===String(state.selectedId));
-      const quantity=Number(qty.value);
+      const quantity=angka(qty.value);
       if(!item)return onError('Pilih item dari hasil pencarian.');
-      if(!(quantity>0))return onError('Qty wajib lebih dari 0.');
+      if(!(Number.isSafeInteger(quantity)&&quantity>0))return onError('Qty wajib bilangan bulat lebih dari 0 (titik ribuan otomatis, jangan diketik).');
       if(renderDetails&&state.lines.some(line=>String(line.id)===String(getId(item))))return onError('Item sudah ada di detail.');
       let line;
       if (isToggleMode && state.activeField === 'total') {
-        const enteredTotal = Number(total.value);
+        const enteredTotal = angka(total.value);
         if(!Number.isSafeInteger(enteredTotal)||enteredTotal<=0)return onError('Total belanja wajib bilangan bulat lebih dari 0.');
         line = { id:getId(item), item, label:getLabel(item), meta:getMeta(item), quantity, unitAmount: enteredTotal / quantity };
       } else {
-        const unitAmount = isToggleMode ? parseDecimal(price.value) : Number(price.value);
+        const unitAmount = angka(price.value);
         const amountValid = isToggleMode ? (Number.isFinite(unitAmount) && unitAmount >= 0) : (Number.isSafeInteger(unitAmount) && unitAmount >= 0);
         if(!amountValid)return onError('Nominal tidak valid.');
         line = { id:getId(item), item, label:getLabel(item), meta:getMeta(item), quantity, unitAmount };
@@ -105,5 +115,5 @@
     renderLines(); setExpanded(initialExpanded); applyActiveField();
     return { getLines:()=>state.lines.slice(), clear:()=>{state.lines=[];reset();renderLines();}, open:()=>setExpanded(true) };
   }
-  window.MAXIPimasatu = { version:'1.4.0', create };
+  window.MAXIPimasatu = { version:'1.5.0', create };
 })();

@@ -23,6 +23,19 @@ Adapter wajib menyediakan `host`, `items`, identity/label mapper, default nomina
 - Inventory semantics;
 - API transport dan persistence transaksi.
 
+## Aturan isian angka (2026-10-04, versi 1.5.0)
+
+Keputusan Bos Cyo: kasir tertukar titik dan koma sehingga HPP kacau. Qty, harga, dan total
+di PIMASATU memakai `public/angka-input.js` (`window.MAXIAngka`):
+
+- Titik tidak bisa diketik; titik yang terlihat selalu pemisah ribuan buatan program.
+- Koma = desimal, hanya di harga per satuan mode `toggle` (Beli Bahan). Qty dan total hanya bulat.
+- Tempelan bertitik dibaca ribuan (`1.500` = 1500), jadi `1.500` tidak pernah jadi 1,5 dan qty
+  `1.000` gram tidak pernah jadi 1 gram.
+- Halaman yang memuat PIMASATU wajib memuat `angka-input.js` lebih dulu. Tanpa itu PIMASATU tetap
+  membaca dengan aturan yang sama (titik dibuang, koma = desimal), hanya tanpa format otomatis.
+- Belum dipasang di isian angka di luar PIMASATU (produksi, penyesuaian stok, opname).
+
 ## DOC-IMPACT
 
 REQUIRED — PIMASATU ditegaskan sebagai kontrak UI/UX item composer saja, tanpa transaction/module ownership.

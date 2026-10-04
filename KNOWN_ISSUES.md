@@ -283,7 +283,9 @@ Approved and posted `CASH_FLOW` facts are delivered post-commit through `MAXI_AC
 
 The default `wh_opname` category contains labeled gain and loss rule rows. A future Warehouse-to-Accounting bridge must choose the correct branch from the actual signed adjustment and must never execute all four rows blindly. The two adjustment accounts require owner review before posting is enabled.
 
-**Decision 2026-10-03 (Bos Cyo):** negative adjustment (barang hilang) posts to **Beban Kehilangan Barang**; positive adjustment (barang bertambah) posts to **Pendapatan Penambahan Barang**. The bridge itself is still not built, so opname differences remain outside the journal-based Laporan Untung Rugi until it is. Cash-drawer difference at close is still undecided.
+**Decision 2026-10-03 (Bos Cyo):** negative adjustment (barang hilang) posts to **Beban Kehilangan Barang**; positive adjustment (barang bertambah) posts to **Pendapatan Penambahan Barang**. Cash-drawer difference at close is still undecided.
+
+**Built 2026-10-04:** Penyesuaian Stok / stok opname kasir yang di-ACC sejak 4 Okt 2026 00.00 WIB dijurnal otomatis lewat jembatan admin (`STOCK_ADJUSTMENT` di `src/accounting-admin-bridge.js`, ikut sinkron otomatis): kurang = Debit **6103 Beban Susut Persediaan** (akun standar yang berfungsi sebagai Beban Kehilangan Barang) / Kredit Persediaan Jenis Barang; lebih = Debit Persediaan / Kredit **4201 Pendapatan Koreksi Stok** (= Pendapatan Penambahan Barang). Nilai = snapshot HPP pengajuan. SO sebelum tanggal itu sengaja tidak dijurnal dan tidak ditulis ke akun penyesuaian (keputusan Bos Cyo). Kategori `wh_opname` milik modul Warehouse belum dipakai.
 
 ### Open: return taxonomy
 
@@ -968,7 +970,7 @@ dan membetulkan tipe/jenis/satuan barang (`betulkan_klasifikasi_barang`) -- kont
 
 - Mengisi akun Persediaan/HPP per Jenis Barang (`NEEDS_ITEM_CATEGORY_MAPPING`). Sengaja belum dibuat: dicek di
   produksi tidak ada kasusnya (Jenis Barang baru otomatis dapat akun bawaan).
-- Jurnal selisih stok opname: akun sudah diputuskan Bos Cyo 2026-10-03 (kurang = Beban Kehilangan Barang, lebih = Pendapatan Penambahan Barang) tetapi jembatannya belum dibangun. Selisih uang laci: akun belum diputuskan.
+- Jurnal selisih stok opname: aktif sejak 4 Okt 2026 (kurang = 6103 Beban Susut Persediaan, lebih = 4201 Pendapatan Koreksi Stok); SO sebelumnya tidak dijurnal. Selisih uang laci: akun belum diputuskan.
 - Rekonsiliasi laba-dari-jurnal terhadap data operasional per hari (baru dihitung lewat `laba_rugi` + `jembatan_masalah`).
 
 Keadaan produksi saat dicatat: 18 transaksi aktif belum berjurnal (MANDALA 5 pengeluaran senilai Rp92.000

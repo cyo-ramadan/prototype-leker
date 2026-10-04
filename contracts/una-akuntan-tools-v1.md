@@ -97,7 +97,7 @@ Urutan ini penting; langkah berikutnya bergantung pada yang sebelumnya.
 | Gejala | Kenapa | Jalan manusia |
 |---|---|---|
 | `NEEDS_ITEM_CATEGORY_MAPPING` / `*_INVENTORY_MAPPING` | **Tidak ada kasusnya di produksi** (dicek 2026-10-03: nol Jenis Barang tanpa kategori akun; Jenis Barang baru otomatis dapat akun bawaan 1301/5101/4101). Alat sengaja belum dibuat | Setting Akuntansi > Kategori Barang |
-| Stok opname / selisih stok | **Akun sudah diputuskan Bos Cyo 2026-10-03** (kurang = Beban Kehilangan Barang, lebih = Pendapatan Penambahan Barang), tetapi jembatan Warehouse→Akuntansi untuk opname **belum dibangun**, jadi belum berjurnal (`KNOWN_ISSUES`) | — |
+| Stok opname / selisih stok | **Berjurnal otomatis sejak 4 Okt 2026** (kurang = 6103 Beban Susut Persediaan, lebih = 4201 Pendapatan Koreksi Stok), ikut `sinkron_akuntansi`; SO sebelumnya sengaja tidak dijurnal (`KNOWN_ISSUES`) | `sinkron_akuntansi` |
 | Selisih uang laci saat tutup | Sengaja di luar sistem; akuntan jurnal manual | `buat_jurnal` bila diminta |
 | Jumlah stok yang salah catat (qty dalam kemasan) | Audit HPP hanya memperbaiki harga | Opname / Penyesuaian Stok |
 | Harga bahan tanpa bukti sama sekali (`needsPrice`) | Tidak boleh dikarang | Tanya Bos Cyo, lalu `hitung_ulang_hpp` |

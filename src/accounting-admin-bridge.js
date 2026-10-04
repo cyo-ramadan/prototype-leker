@@ -271,8 +271,66 @@ async function buildUangMuka(db, depositId) {
   };
 }
 
+// Stok opname / Penyesuaian Stok yang sudah di-ACC (Bos Cyo, 2026-10-04: "so+- itu
+// dihubungkan jurnal sekarang ... yang kemarin ditiadakan aja dari akuntansi").
+//   stok kurang (OUT): Debit 6103 Beban Susut Persediaan / Kredit Persediaan
+//   stok lebih  (IN) : Debit Persediaan / Kredit 4201 Pendapatan Koreksi Stok
+// Nilai = snapshot HPP saat pengajuan (totalCostSnapshotScaled), sama dengan kolom
+// SO+/SO- di Laporan Untung Rugi. Akun Persediaan ikut Jenis Barang (item_categories),
+// cadangan 1301. Hanya SO yang di-ACC mulai SO_JURNAL_MULAI; SO sebelumnya sengaja
+// tidak dijurnal dan tidak ditulis ke akun penyesuaian mana pun.
+export const SO_JURNAL_MULAI = '2026-10-03T17:00:00.000Z'; // 4 Okt 2026 00.00 WIB
+const SO_AKUN_RUGI = '6103';
+const SO_AKUN_LABA = '4201';
+
+async function accountIdByCode(db, storeId, code) {
+  const row = await db.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = ? AND code = ? AND is_active = 1 LIMIT 1`).bind(storeId, code).first();
+  return row?.id || null;
+}
+
+async function buildStockAdjustment(db, requestId) {
+  const row = await db.prepare(`
+    SELECT id, store_id, request_type, posting_status, posted_at, payload_json
+    FROM approval_requests WHERE id = ? LIMIT 1
+  `).bind(requestId).first();
+  if (!row || row.request_type !== 'GOODS_FLOW' || row.posting_status !== 'posted') return { skip: true };
+  let payload;
+  try { payload = JSON.parse(row.payload_json || '{}'); } catch { return { skip: true }; }
+  if (payload.purpose !== 'STOCK_ADJUSTMENT' || !row.posted_at || row.posted_at < SO_JURNAL_MULAI) return { skip: true };
+  const amountScaled = Number(payload.totalCostSnapshotScaled);
+  if (!Number.isSafeInteger(amountScaled) || amountScaled <= 0) return { skip: true };
+  const isLoss = payload.direction === 'OUT';
+  if (!isLoss && payload.direction !== 'IN') return { skip: true };
+  const base = { storeId: row.store_id, categoryCode: isLoss ? 'stock_adjustment_loss' : 'stock_adjustment_gain' };
+
+  const kind = await db.prepare(`
+    SELECT c.inventory_account_id
+    FROM products p
+    JOIN item_categories c ON c.product_kind_id = p.product_kind_id AND c.store_id = p.store_id AND c.is_active = 1
+    JOIN chart_of_accounts a ON a.id = c.inventory_account_id AND a.store_id = c.store_id AND a.is_active = 1
+    WHERE p.id = ? AND p.store_id = ? LIMIT 1
+  `).bind(Number(payload.productId), row.store_id).first();
+  const inventoryAccountId = kind?.inventory_account_id || await accountIdByCode(db, row.store_id, '1301');
+  if (!inventoryAccountId) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', 'Akun Persediaan (1301) belum aktif.') };
+  const counterCode = isLoss ? SO_AKUN_RUGI : SO_AKUN_LABA;
+  const counterAccountId = await accountIdByCode(db, row.store_id, counterCode);
+  if (!counterAccountId) {
+    return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', isLoss ? 'Akun 6103 Beban Susut Persediaan belum aktif.' : 'Akun 4201 Pendapatan Koreksi Stok belum aktif.') };
+  }
+  const item = `${text(payload.productName, 120)} ${payload.quantity ?? ''} ${text(payload.unitSymbol, 20)}`.trim();
+  return {
+    ...base,
+    businessDate: getJakartaBusinessDate(new Date(row.posted_at)),
+    description: `${isLoss ? 'Stok opname kurang' : 'Stok opname lebih'} · ${item}`,
+    lines: isLoss
+      ? twoLines(counterAccountId, inventoryAccountId, amountScaled, `Kehilangan barang · ${item}`, `Persediaan berkurang · ${item}`)
+      : twoLines(inventoryAccountId, counterAccountId, amountScaled, `Persediaan bertambah · ${item}`, `Penambahan barang · ${item}`)
+  };
+}
+
 const BUILDERS = Object.freeze({
   BEA: buildBea,
+  STOCK_ADJUSTMENT: buildStockAdjustment,
   GAJI_PRESENSI: buildGajiPresensi,
   BAYAR_HUTANG: buildBayarHutang,
   UANG_MUKA: buildUangMuka
@@ -302,6 +360,14 @@ const ADMIN_BACKLOG_SQL = `
   WHERE a.store_id = ? AND a.kind = 'HUTANG' AND a.voided_at IS NULL
     AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = a.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'BAYAR_HUTANG' AND d.fact_id = a.id AND d.status = 'POSTED')
   UNION ALL
+  SELECT 'STOCK_ADJUSTMENT', q.id, q.posted_at
+  FROM approval_requests q
+  WHERE q.store_id = ? AND q.request_type = 'GOODS_FLOW' AND q.posting_status = 'posted'
+    AND q.posted_at >= '${SO_JURNAL_MULAI}'
+    AND json_extract(q.payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'
+    AND COALESCE(json_extract(q.payload_json, '$.totalCostSnapshotScaled'), 0) > 0
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = q.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'STOCK_ADJUSTMENT' AND d.fact_id = q.id AND d.status = 'POSTED')
+  UNION ALL
   SELECT 'UANG_MUKA', r.id, r.created_at
   FROM operational_receivables_payables r
   WHERE r.store_id = ? AND r.source_type LIKE 'DEPOSIT_%' AND r.funding_method <> ''
@@ -313,12 +379,12 @@ export async function pendingAdminFacts(db, storeId, limit = 50) {
   const rows = await db.prepare(`
     SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_SQL})
     ORDER BY created_at, fact_type, fact_id LIMIT ?
-  `).bind(storeId, storeId, storeId, storeId, safeLimit).all();
+  `).bind(storeId, storeId, storeId, storeId, storeId, safeLimit).all();
   return rows.results ?? [];
 }
 
 export async function countPendingAdminFacts(db, storeId) {
-  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId).first();
+  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId, storeId).first();
   return Number(row?.count || 0);
 }
 

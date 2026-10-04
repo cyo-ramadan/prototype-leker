@@ -113,6 +113,39 @@ test('admin: GET menampilkan rentang; POST menolak batas terbalik, barang gerai 
   } finally { db.close(); }
 });
 
+test('admin: batas bawah DAN atas kosong = rentang barang itu dihapus (barang kembali tanpa batas)', async () => {
+  const { db, env } = await setup();
+  try {
+    const options = await (await kasir(env, '/api/cashier/purchases/options')).json();
+    const [a, b] = options.products.map((p) => p.productId);
+    await admin(env, 'POST', { items: [{ productId: a, min: '1', max: '2' }, { productId: b, min: '3', max: '4' }] });
+    const hapus = await (await admin(env, 'POST', { items: [{ productId: a, min: '', max: '' }] })).json();
+    assert.deepEqual([hapus.saved, hapus.removed], [0, 1]);
+    const list = await (await admin(env, 'GET')).json();
+    assert.deepEqual(list.items.map((i) => i.productId), [b], 'hanya barang yang dikosongkan yang hilang rentangnya');
+    assert.equal((await admin(env, 'POST', { items: [{ productId: b, min: '3', max: '' }] })).status, 400, 'satu sisi kosong tetap ditolak, bukan dianggap hapus');
+  } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-10-04: "di settingan manusia udah ada, yang aku minta agar si una bisa
+// kerjakan itu". Versi Karen (min/max di kolom products, 2 Sep) tidak pernah digabung ke
+// main; yang live adalah satu tempat simpan dengan dua pintu: isian Master Barang + Una.
+test('Master Barang punya isian harga beli wajar yang menulis ke tempat simpan yang sama dengan alat Una', () => {
+  const ui = readFileSync(new URL('../public/admin-product-policy.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+  const una = readFileSync(new URL('../src/caca-aksi-rentang.js', import.meta.url), 'utf8');
+  assert.match(ui, /id="productRangeMin"/);
+  assert.match(ui, /id="productRangeMax"/);
+  assert.match(ui, /api\('\/api\/admin\/purchase-price-ranges', \{\s*method: 'POST'/, 'isian manusia menyimpan lewat endpoint rentang');
+  assert.match(una, /const JALUR = '\/api\/admin\/purchase-price-ranges'/, 'alat Una memakai endpoint yang sama');
+  assert.match(ui, /MAXIAngka\?\.pasang\(input, \{ desimal: true/, 'aturan isian sama dengan kasir: titik tidak bisa diketik, koma desimal');
+  assert.match(ui, /\(hpp \* BigInt\(angka\) \+ 50n\) \/ 100n/, '±25% dari HPP dihitung integer skala, bukan float');
+  const angka = html.indexOf('/angka-input.js');
+  const policy = html.indexOf('/admin-product-policy.js?v=20261004-harga-beli-wajar-v1');
+  assert.ok(angka > -1 && policy > angka, 'angka-input.js dimuat sebelum admin-product-policy.js (dan versinya dibump)');
+  assert.doesNotMatch(ui, /min_purchase_price_scaled|minPurchasePrice/, 'tidak memakai kolom versi Karen yang tidak pernah live');
+});
+
 // ---- Alat Una -----------------------------------------------------------------
 
 const BLOK = `Una, atur rentang harga beli MANDALA, boleh selisih 25% dari harga benar:

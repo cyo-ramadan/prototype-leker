@@ -10,7 +10,8 @@
     editingProductKindId: '',
     loadingEditor: null,
     loadingAccounting: null,
-    loadingCatalog: null
+    loadingCatalog: null,
+    ranges: new Map()
   };
 
   async function api(path, options = {}) {
@@ -92,6 +93,92 @@
           </label>
         </div>`);
     }
+    mountPurchaseRangeFields();
+  }
+
+  // Harga beli wajar (Bos Cyo, 2026-10-04: "di settingan manusia udah ada, yang aku minta
+  // agar si una bisa kerjakan itu"). Satu tempat simpan dengan alat Una
+  // atur_rentang_harga_beli: dua-duanya menulis lewat /api/admin/purchase-price-ranges.
+  // Pembelian kasir yang harga per satuannya di luar rentang ditolak server dengan pesan
+  // yang menyebut harga wajarnya. Kosong dua-duanya = barang tanpa batas.
+  // Aturan isian sama dengan kasir: titik tidak bisa diketik (ribuan otomatis), koma = desimal.
+  const SKALA = 1000000n;
+  function teksSkala(scaled) {
+    if (scaled == null || scaled === '') return '';
+    const n = BigInt(scaled);
+    const pecahan = (n % SKALA).toString().padStart(6, '0').replace(/0+$/, '');
+    const teks = `${n / SKALA}${pecahan ? `,${pecahan}` : ''}`;
+    return window.MAXIAngka ? window.MAXIAngka.rapikan(teks, { desimal: true }) : teks;
+  }
+  // "1.500,25" -> "1500.25": titik = ribuan, koma = desimal (titik tidak bisa diketik di isian ini).
+  const isianKeDesimal = teks => String(teks ?? '').trim().replace(/\s+/g, '').replace(/\./g, '').replace(',', '.');
+
+  function mountPurchaseRangeFields() {
+    const anchor = el('productLastPurchasePrice')?.closest('.admin-grid');
+    if (!anchor || el('productRangeMin')) return;
+    anchor.insertAdjacentHTML('afterend', `
+      <div id="productPurchaseRange" style="margin:0 0 12px">
+        <div class="admin-grid two compact">
+          <label class="admin-field">Harga beli wajar · batas bawah<input id="productRangeMin" placeholder="kosong = tanpa batas" /></label>
+          <label class="admin-field">Harga beli wajar · batas atas<input id="productRangeMax" placeholder="kosong = tanpa batas" /></label>
+        </div>
+        <div class="field-note"><span id="productRangeNote">Per satuan dasar.</span> Pembelian kasir di luar rentang ini ditolak, supaya salah ketik qty/harga tidak merusak HPP. Bisa juga diisi lewat Una: "atur rentang harga beli".
+          <button id="productRangeFromHpp" class="mini-btn" type="button">Isi ±25% dari HPP</button></div>
+      </div>`);
+    const pasang = input => window.MAXIAngka?.pasang(input, { desimal: true, onTitik: toast });
+    pasang(el('productRangeMin'));
+    pasang(el('productRangeMax'));
+    el('productRangeFromHpp').addEventListener('click', isiRangeDariHpp);
+  }
+
+  function renderRangeFields(product) {
+    if (!el('productRangeMin')) return;
+    const range = product?.id ? state.ranges.get(Number(product.id)) : null;
+    el('productRangeMin').value = range ? teksSkala(range.minScaled) : '';
+    el('productRangeMax').value = range ? teksSkala(range.maxScaled) : '';
+    el('productRangeNote').textContent = `Per ${product?.unitSymbol || 'satuan dasar'}.`;
+    el('productRangeFromHpp').disabled = !(product?.averageCostScaled && BigInt(product.averageCostScaled) > 0n);
+  }
+
+  function isiRangeDariHpp() {
+    const product = productById(el('productId')?.value || state.activeProductId);
+    const hpp = product?.averageCostScaled ? BigInt(product.averageCostScaled) : 0n;
+    if (hpp <= 0n) { toast('HPP barang ini masih 0 — isi batasnya manual.'); return; }
+    const persen = angka => (hpp * BigInt(angka) + 50n) / 100n; // integer skala, half-up
+    el('productRangeMin').value = teksSkala(persen(75) || 1n);
+    el('productRangeMax').value = teksSkala(persen(125));
+    toast('Terisi ±25% dari HPP sekarang. Pastikan HPP-nya memang benar, lalu Simpan.');
+  }
+
+  function bacaRangeInput(productId) {
+    if (!el('productRangeMin')) return { berubah: false };
+    const min = isianKeDesimal(el('productRangeMin').value);
+    const max = isianKeDesimal(el('productRangeMax').value);
+    if (Boolean(min) !== Boolean(max)) throw new Error('Harga beli wajar: isi batas bawah DAN batas atas, atau kosongkan dua-duanya.');
+    const lama = productId ? state.ranges.get(Number(productId)) : null;
+    const lamaMin = lama ? isianKeDesimal(teksSkala(lama.minScaled)) : '';
+    const lamaMax = lama ? isianKeDesimal(teksSkala(lama.maxScaled)) : '';
+    return { min, max, berubah: min !== lamaMin || max !== lamaMax };
+  }
+
+  async function loadRanges() {
+    try {
+      const payload = await api('/api/admin/purchase-price-ranges');
+      state.ranges = new Map((payload.items || []).map(item => [Number(item.productId), item]));
+    } catch (error) {
+      console.error('admin-product-policy: harga beli wajar gagal dimuat', error);
+      state.ranges = new Map();
+    }
+  }
+
+  async function simpanRange(productId, input) {
+    if (!input.berubah || !productId) return '';
+    await api('/api/admin/purchase-price-ranges', {
+      method: 'POST',
+      body: JSON.stringify({ items: [{ productId, min: input.min, max: input.max }] })
+    });
+    await loadRanges();
+    return input.min ? ' · harga beli wajar tersimpan' : ' · harga beli wajar dihapus';
   }
 
   // Kode Barang (ADR-043): field ini muncul di form Master Barang yang sama
@@ -310,6 +397,7 @@
     renderRecipeNote();
     renderProductKinds();
     renderProductCodeFields(product);
+    renderRangeFields(product);
   }
 
   function renderRecipeNote() {
@@ -404,7 +492,9 @@
       const recipe = product.linkedRecipeId ? 'resep linked' : 'tanpa resep';
       const kind = product.productKindName || 'jenis belum ditentukan';
       const latestPurchase = product.lastPurchaseAt ? product.lastPurchasePrice : product.purchasePrice;
-      meta.textContent = `${product.itemTypeName || 'Tanpa tipe'} · ${kind} · ${product.unitSymbol || '-'} · Poin ${product.pointsPerUnit} · ${stock} · Harga beli ${cost(product.purchasePrice)} · HPP ${cost(product.averageCost)} · Beli terakhir ${cost(latestPurchase)} · ${recipe}`;
+      const range = state.ranges.get(productId);
+      const wajar = range ? ` · Wajar ${range.min}–${range.max}` : '';
+      meta.textContent = `${product.itemTypeName || 'Tanpa tipe'} · ${kind} · ${product.unitSymbol || '-'} · Poin ${product.pointsPerUnit} · ${stock} · Harga beli ${cost(product.purchasePrice)} · HPP ${cost(product.averageCost)} · Beli terakhir ${cost(latestPurchase)}${wajar} · ${recipe}`;
       if (button.dataset.productMasterBound !== '1') {
         button.dataset.productMasterBound = '1';
         button.addEventListener('click', () => setTimeout(() => selectProduct(productId), 0));
@@ -425,8 +515,8 @@
 
   async function loadEditor(force = false) {
     if (state.loadingEditor && !force) return state.loadingEditor;
-    state.loadingEditor = api('/api/admin/master/products/editor')
-      .then(payload => {
+    state.loadingEditor = Promise.all([api('/api/admin/master/products/editor'), loadRanges()])
+      .then(([payload]) => {
         state.editor = payload;
         const productId = Number(el('productId')?.value || state.activeProductId || 0);
         renderEditorFields(productById(productId) || null);
@@ -451,6 +541,7 @@
       const productId = Number(el('productId')?.value || 0);
       const category = el('productCategoryNew')?.value.trim() || el('productCategory').value;
       if (!category) throw new Error('Pilih kategori, atau ketik Kategori baru.');
+      const rangeInput = bacaRangeInput(productId);
       const payload = {
         name: el('productName').value,
         purchasePrice: Number(String(el('productPurchasePrice').value).trim().replace(',', '.')),
@@ -478,6 +569,14 @@
         body: JSON.stringify(payload)
       });
       state.editor = response.editor;
+      // Barang sudah tersimpan; kalau rentang gagal, barangnya tetap tersimpan dan pesannya
+      // bilang begitu (bukan seolah semuanya gagal).
+      let rangeNote = '';
+      try {
+        rangeNote = await simpanRange(productId || Number(response.id) || 0, rangeInput);
+      } catch (error) {
+        rangeNote = ` · TAPI harga beli wajar gagal disimpan: ${error.message}`;
+      }
       if (typeof window.refreshData === 'function') await window.refreshData();
       if (typeof window.resetProductForm === 'function') window.resetProductForm();
       resetExtendedForm();
@@ -488,7 +587,7 @@
       // cuma di-log (bukan toast lagi, supaya tidak menimpa toast sukses
       // yang baru saja tampil), tapi tetap tidak ditelan diam-diam total.
       if (typeof loadCatalog === 'function') loadCatalog(true).catch(error => console.error('admin-product-policy: post-save catalog refresh failed', error));
-      toast(productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.');
+      toast((productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.') + rangeNote);
     } catch (error) {
       toast(error.message);
     }

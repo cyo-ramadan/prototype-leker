@@ -11,6 +11,8 @@ Dibuat 2026-10-04 oleh Hana atas permintaan Bos Cyo: "untuk barang2 sekarang amb
 
 Tidak diberi rentang: bahan yang belum punya harga sama sekali (menunggu harga dari Bos Cyo) dan larutan/olahan (tidak dibeli).
 
+Rentang yang sama juga bisa dilihat dan diubah manual di **Master Barang** (isian "Harga beli wajar · batas bawah/atas", ada tombol "Isi ±25% dari HPP"). Una dan isian manual menulis ke tempat yang sama, jadi hasil Una langsung terlihat di Master Barang dan sebaliknya. Kosongkan dua batas lalu Simpan = barang kembali tanpa batas.
+
 ## BEJI
 
 ```

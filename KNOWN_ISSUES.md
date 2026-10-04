@@ -166,6 +166,8 @@ Current behavior:
 - Beli Bahan selects products from the active store Product Master database and requires explicit Qty per line;
 - Pengeluaran Operasional stores explicit Qty, default `1`, as customer-behaviour metadata while its amount remains the total expense value;
 - operational Qty alone never posts stock.
+- **Harga beli wajar (2026-10-04, migration 0135):** satu rentang per barang per gerai di `product_purchase_price_ranges`, diisi lewat isian "Harga beli wajar" di Master Barang **atau** alat Una `atur_rentang_harga_beli` — dua pintu, satu endpoint (`/api/admin/purchase-price-ranges`). Pembelian kasir di luar rentang ditolak server. Kosongkan dua batas = hapus rentang.
+- **Kolom yatim versi Karen:** migration `0062_price_range_warning_guardrail.sql` dari branch `karen/price-range-warning-guardrail` (2 Sep, tidak pernah digabung ke `main`) sudah ter-apply ke D1 produksi karena push branch fitur ikut menjalankan migration. Akibatnya `products.min/max_purchase_price_scaled`, `products.min/max_average_cost_scaled`, `stores.purchase_price_warning_enabled`, tabel `product_average_cost_alerts`, dan tiga trigger-nya **ada di produksi tetapi tidak dipakai kode apa pun** (dicek 2026-10-04: semua kosong/0). File migration-nya tidak ada di `main`. Jangan membangun fitur baru di atas kolom itu; pakai `product_purchase_price_ranges`. Membuangnya butuh migration tersendiri setelah impact assessment.
 
 ## Accounting Settings and Warehouse Settings
 

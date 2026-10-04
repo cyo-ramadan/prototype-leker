@@ -44,7 +44,7 @@ Routes utama:
 - `/cashier` — workspace Kasir setelah login Karyawan.
 - `/admin` — Owner Console setelah login Karyawan.
 - `/s/<KODE>/admin` — workspace Admin Gerai setelah login Karyawan.
-- `/produk/` — landing page penjualan (statis, tanpa login). Isinya dijaga `test/landing-page-claims.test.js`; konteks di `HANDOFF-STRATEGI-PENJUALAN.md` §10.
+- `/produk/` — landing page penjualan (statis, tanpa login). Alamat utama (`/`) di domain jualan (`ownertenang.biz.id`, `ownertenang.id`, termasuk `www.`) membuka halaman ini; host lain tetap `index.html` (lihat `marketingAssetPath` di `src/index.js`, tes `test/marketing-host-root.test.js`). Isinya dijaga `test/landing-page-claims.test.js`; konteks di `HANDOFF-STRATEGI-PENJUALAN.md` §10.
 
 Login dipisah jadi dua halaman (sebelumnya dua tab di satu jendela di halaman customer):
 

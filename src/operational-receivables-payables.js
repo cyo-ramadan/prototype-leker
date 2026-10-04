@@ -275,6 +275,7 @@ function mapPayment(row) {
     reviewedAt: row.reviewed_at || null,
     rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
+    hasPhoto: Boolean(row.has_photo ?? row.proof_photo),
   };
 }
 
@@ -298,12 +299,16 @@ export async function addOperationalPayment(
   }
 
   const paymentId = newId('ORPP');
+  // Setoran karyawan (EMPLOYEE_DEPOSIT) SELALU menunggu ACC Admin -- tidak ada ACC
+  // otomatis/Auto Permit di sini (Bos Cyo, 2026-10-04: "yang ini ga boleh auto acc
+  // harus klik dari admin"). Saldo piutang hanya menghitung yang 'approved'.
   const approvalStatus = isEmployeeDeposit ? 'pending_approval' : 'approved';
+  const photo = input?.proofPhoto?.bytes ? input.proofPhoto : null;
   await db.prepare(`
     INSERT INTO operational_receivable_payable_payments (
       id, receivable_payable_id, store_id, entity_id, amount,
-      approval_status, proof_reference, note, submitted_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      approval_status, proof_reference, note, submitted_by, proof_photo, proof_photo_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     paymentId,
     parent.id,
@@ -313,11 +318,15 @@ export async function addOperationalPayment(
     approvalStatus,
     proofReference,
     text(input?.note, 300),
-    text(input?.submittedBy, 180)
+    text(input?.submittedBy, 180),
+    photo ? photo.bytes : null,
+    photo ? photo.type : null
   ).run();
 
   const payment = await db.prepare(`
-    SELECT * FROM operational_receivable_payable_payments
+    SELECT id, receivable_payable_id, amount, approval_status, proof_reference, note, submitted_by,
+           reviewed_by, reviewed_at, rejection_reason, created_at, proof_photo IS NOT NULL AS has_photo
+    FROM operational_receivable_payable_payments
     WHERE id = ? AND store_id = ? LIMIT 1
   `).bind(paymentId, storeId).first();
   return {

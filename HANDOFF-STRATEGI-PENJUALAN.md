@@ -255,6 +255,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-04 | Kasir / Una | Rentang harga beli wajar per barang: kasir melihat "wajar Rp…–Rp…" saat Beli Bahan, pembelian di luar rentang ditolak dengan pesan jelas; Una bisa mengatur rentang banyak barang sekaligus (harga benar ±25%) | JUAL | Salah ketik qty/harga tertahan sebelum merusak HPP dan laporan untung rugi |
 | 2026-10-04 | Admin Gerai | Isian "Harga beli wajar" (batas bawah/atas, tombol ±25% dari HPP) di Master Barang — setting manual yang sama dengan yang diisi Una | JUAL | Pemilik bisa mengatur/mengecek pengaman salah ketik tanpa lewat chat |
 | 2026-10-04 | Una | "Una, sambungkan jurnal" dari panel satu gerai: Una mencari transaksi yang mandek karena aturan jurnal kosong, menyalin aturan dari gerai lain yang sudah beres, lalu langsung mengirim ulang transaksinya ke pembukuan (tidak lagi menyuruh pemilik mengisi setelan sendiri) | JUAL | Laporan untung rugi lengkap tanpa pemilik paham Setting Akuntansi |
+| 2026-10-04 | Portal Staf / Admin Gerai | Setoran CS: CS kirim foto bukti transfer di Riwayat Setoran, piutang CS baru berkurang setelah Admin klik ACC di tab baru "Setoran CS" (antrean + foto, sisa piutang per CS, riwayat); tidak ada ACC otomatis | JUAL | Uang setoran laci terlacak sampai rekening, tanpa catatan manual |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

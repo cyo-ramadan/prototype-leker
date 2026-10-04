@@ -3,6 +3,7 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
 import { requireCashier } from './cashier-auth.js';
 import { newId } from './ikan-ids.js';
+import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { rupiahToScaled, scaledToRupiah } from './ikan-money.js';
 import {
   postEmployeeDepositRecognitionJournal,
@@ -26,6 +27,16 @@ import {
 // Nominal boleh dicicil -- satu piutang bisa dilunasi lewat beberapa entry
 // setoran terpisah, dan entry yang di-ACC boleh melebihi sisa saldo (saldo
 // jadi negatif, itu bukan bug, invariant #8 CLAUDE.md).
+//
+// 2026-10-04, Bos Cyo: "bisa mengurangi piutang cs dengan cara cs itu transfer kirim
+// poto bukti, habis itu kalo admin acc baru berkurang, yang ini ga boleh auto acc harus
+// klik dari admin. historinya di portal cs harusnya bisa diliat di riwayat setoran.
+// panel admin pun punya sendiri untuk ngecek dan validasi itu." Maka:
+//   - kiriman setoran WAJIB foto bukti transfer (multipart, migration 0136), keterangan
+//     teks opsional;
+//   - selalu pending_approval sampai Admin klik ACC (tidak ada Auto Permit di sini);
+//   - Portal Staf: riwayat setoran + foto; Admin: tab Setoran CS (antrean, sisa piutang
+//     per CS, riwayat) lewat /api/admin/employee-deposits/overview.
 
 const text = (value, max = 300) => String(value ?? '').trim().slice(0, max);
 
@@ -195,22 +206,35 @@ function mapPayment(row) {
     reviewedBy: row.reviewed_by,
     reviewedAt: row.reviewed_at || null,
     rejectionReason: row.rejection_reason,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    hasPhoto: Boolean(row.has_photo)
   };
+}
+
+// Kolom setoran TANPA isi foto: foto (s.d. 800 KB) hanya diambil lewat endpoint fotonya
+// sendiri, bukan ikut dimuat setiap kali daftar dibuka.
+const KOLOM_SETORAN = `p.id, p.receivable_payable_id, p.amount, p.approval_status, p.proof_reference, p.note,
+  p.submitted_by, p.reviewed_by, p.reviewed_at, p.rejection_reason, p.created_at, p.proof_photo IS NOT NULL AS has_photo`;
+
+function photoResponse(row) {
+  if (!row || !row.proof_photo) return json({ error: 'Foto bukti setoran tidak ditemukan.' }, 404);
+  return new Response(row.proof_photo, {
+    headers: { 'Content-Type': row.proof_photo_type || 'image/jpeg', 'Cache-Control': 'private, max-age=86400' }
+  });
 }
 
 async function listPaymentsFor(db, receivablePayableId, storeId) {
   const rows = await db.prepare(`
-    SELECT * FROM operational_receivable_payable_payments
-    WHERE receivable_payable_id = ? AND store_id = ?
-    ORDER BY created_at DESC
+    SELECT ${KOLOM_SETORAN} FROM operational_receivable_payable_payments p
+    WHERE p.receivable_payable_id = ? AND p.store_id = ?
+    ORDER BY p.created_at DESC
   `).bind(receivablePayableId, storeId).all();
   return (rows.results ?? []).map(mapPayment);
 }
 
 async function listPendingDepositPayments(db, storeId) {
   const rows = await db.prepare(`
-    SELECT p.*, r.counterparty_name_snapshot, r.original_amount
+    SELECT ${KOLOM_SETORAN}, r.counterparty_name_snapshot, r.original_amount, r.transaction_date
     FROM operational_receivable_payable_payments p
     JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
     WHERE p.store_id = ? AND p.approval_status = 'pending_approval' AND r.source_type = 'EMPLOYEE_DEPOSIT'
@@ -218,13 +242,58 @@ async function listPendingDepositPayments(db, storeId) {
   `).bind(storeId).all();
   return (rows.results ?? []).map(row => ({
     ...mapPayment(row),
-    employeeName: row.counterparty_name_snapshot
+    employeeName: row.counterparty_name_snapshot,
+    depositDate: row.transaction_date || null
   }));
+}
+
+// Tab Setoran CS di panel Admin: antrean ACC, sisa piutang per CS, dan riwayat keputusan.
+async function depositOverview(db, storeId) {
+  const [pending, history, balances] = await Promise.all([
+    listPendingDepositPayments(db, storeId),
+    db.prepare(`
+      SELECT ${KOLOM_SETORAN}, r.counterparty_name_snapshot, r.transaction_date
+      FROM operational_receivable_payable_payments p
+      JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+      WHERE p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND p.approval_status IN ('approved', 'rejected')
+      ORDER BY COALESCE(p.reviewed_at, p.created_at) DESC
+      LIMIT 50
+    `).bind(storeId).all(),
+    db.prepare(`
+      SELECT r.counterparty_id, MAX(r.counterparty_name_snapshot) AS name, COUNT(*) AS jumlah,
+             SUM(r.original_amount) AS original_amount,
+             SUM(COALESCE((SELECT SUM(p.amount) FROM operational_receivable_payable_payments p
+                           WHERE p.receivable_payable_id = r.id AND p.store_id = r.store_id AND p.approval_status = 'approved'), 0)) AS paid_amount,
+             SUM(COALESCE((SELECT SUM(p.amount) FROM operational_receivable_payable_payments p
+                           WHERE p.receivable_payable_id = r.id AND p.store_id = r.store_id AND p.approval_status = 'pending_approval'), 0)) AS pending_amount
+      FROM operational_receivables_payables r
+      WHERE r.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT'
+      GROUP BY r.counterparty_id
+      ORDER BY name COLLATE NOCASE
+    `).bind(storeId).all()
+  ]);
+  return {
+    pending,
+    history: (history.results ?? []).map(row => ({ ...mapPayment(row), employeeName: row.counterparty_name_snapshot, depositDate: row.transaction_date || null })),
+    // Saldo boleh negatif (setoran lebih) -- tidak di-abs (invariant #8).
+    balances: (balances.results ?? []).map(row => {
+      const original = scaledToRupiah(Number(row.original_amount || 0));
+      const paid = scaledToRupiah(Number(row.paid_amount || 0));
+      return {
+        employeeName: row.name,
+        receivableCount: Number(row.jumlah || 0),
+        originalAmountRupiah: original,
+        paidAmountRupiah: paid,
+        pendingAmountRupiah: scaledToRupiah(Number(row.pending_amount || 0)),
+        balanceRupiah: original - paid
+      };
+    })
+  };
 }
 
 async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId, rejectionReason }) {
   const payment = await db.prepare(`
-    SELECT p.*, r.transaction_date, r.source_type
+    SELECT p.id, p.amount, p.approval_status, p.reviewed_at, r.transaction_date, r.source_type
     FROM operational_receivable_payable_payments p
     JOIN operational_receivables_payables r
       ON r.id = p.receivable_payable_id
@@ -293,6 +362,21 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
     if (!auth.ok) return auth.response;
     const cashier = auth.cashier;
 
+    // Foto bukti setoran milik akun ini sendiri; setoran CS lain tidak bisa diintip lewat tebak id.
+    const ownPhotoMatch = pathname.match(/^\/api\/cashier\/employee-deposits\/payments\/([^/]+)\/photo$/);
+    if (request.method === 'GET' && ownPhotoMatch) {
+      const holder = await currentAccountHolder(db, cashier.store.id, cashier.id);
+      if (!holder) return json({ error: 'Foto bukti setoran tidak ditemukan.' }, 404);
+      const row = await db.prepare(`
+        SELECT p.proof_photo, p.proof_photo_type
+        FROM operational_receivable_payable_payments p
+        JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+        WHERE p.id = ? AND p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND r.counterparty_id = ?
+        LIMIT 1
+      `).bind(decodeURIComponent(ownPhotoMatch[1]), cashier.store.id, holder.employee_id).first();
+      return photoResponse(row);
+    }
+
     if (request.method === 'GET' && pathname === '/api/cashier/employee-deposits') {
       const items = await listOwnEmployeeDeposits(db, cashier.store.id, cashier.id);
       const withPayments = await Promise.all(items.map(async item => ({
@@ -309,16 +393,24 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
       if (!owned.some(item => item.id === receivableId)) {
         return json({ error: 'Piutang setoran ini bukan milik akun ini.' }, 403);
       }
-      const body = await readJson(request);
-      if (!body.ok) return json({ error: 'Payload setoran tidak valid.' }, 400);
-      const proofReference = text(body.value?.proofReference, 500);
-      if (!proofReference) return json({ error: 'Bukti transfer wajib disertakan.' }, 400);
+      // Bukti = FOTO bukti transfer (wajib). Kiriman lama tanpa foto (JSON) ditolak
+      // dengan pesan yang menyuruh memuat ulang halaman.
+      if (!isMultipartRequest(request)) {
+        return json({ error: 'Bukti setoran sekarang wajib foto bukti transfer. Muat ulang Portal Staf, lalu kirim lagi dengan foto.', code: 'EMPLOYEE_DEPOSIT_PHOTO_REQUIRED' }, 400);
+      }
+      const form = await request.formData();
+      const photo = await readLivePhoto(form, 'photo');
+      if (!photo.ok) {
+        return json({ error: photo.status === 400 ? 'Foto bukti transfer wajib dilampirkan.' : photo.error, code: 'EMPLOYEE_DEPOSIT_PHOTO_REQUIRED' }, photo.status);
+      }
+      const keterangan = text(form.get('proofReference'), 300);
       try {
         const result = await addOperationalPayment(db, receivableId, {
-          amountRupiah: body.value?.amountRupiah,
-          proofReference,
-          note: body.value?.note,
-          submittedBy: cashier.id
+          amountRupiah: Number(String(form.get('amountRupiah') ?? '').trim()),
+          proofReference: keterangan ? `Foto bukti transfer · ${keterangan}` : 'Foto bukti transfer',
+          note: form.get('note'),
+          submittedBy: cashier.id,
+          proofPhoto: { bytes: photo.bytes, type: photo.type }
         }, { storeId: cashier.store.id });
         return json(result, 201);
       } catch (error) {
@@ -329,7 +421,7 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
     return json({ error: 'Route setoran karyawan tidak ditemukan.' }, 404);
   }
 
-  if (pathname === '/api/admin/employee-deposits/pending' || pathname.startsWith('/api/admin/employee-deposits/payments/')) {
+  if (pathname.startsWith('/api/admin/employee-deposits/')) {
     const auth = await requireManagement(request, db, env);
     if (!auth.ok) return auth.response;
     const store = await selectedStore(db, request);
@@ -338,6 +430,22 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
 
     if (request.method === 'GET' && pathname === '/api/admin/employee-deposits/pending') {
       return json({ store, payments: await listPendingDepositPayments(db, store.id) });
+    }
+
+    if (request.method === 'GET' && pathname === '/api/admin/employee-deposits/overview') {
+      return json({ store, ...(await depositOverview(db, store.id)) });
+    }
+
+    const photoMatch = pathname.match(/^\/api\/admin\/employee-deposits\/payments\/([^/]+)\/photo$/);
+    if (request.method === 'GET' && photoMatch) {
+      const row = await db.prepare(`
+        SELECT p.proof_photo, p.proof_photo_type
+        FROM operational_receivable_payable_payments p
+        JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+        WHERE p.id = ? AND p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT'
+        LIMIT 1
+      `).bind(decodeURIComponent(photoMatch[1]), store.id).first();
+      return photoResponse(row);
     }
 
     const reviewMatch = pathname.match(/^\/api\/admin\/employee-deposits\/payments\/([^/]+)$/);

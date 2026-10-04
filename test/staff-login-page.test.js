@@ -56,7 +56,8 @@ test('file JS lama yang diedit sudah dibump ?v= di setiap HTML yang memuatnya', 
     const html = pub(file);
     for (const name of edited) {
       for (const match of html.matchAll(new RegExp(`/${name}\\.js\\?v=([^"']+)`, 'g'))) {
-        assert.equal(match[1], V, `${file}: ${name}.js belum dibump ke ${V}`);
+        // Boleh lebih baru dari V (fitur sesudahnya ikut membump), asal tidak mundur.
+        assert.ok(match[1] >= V, `${file}: ${name}.js belum dibump ke ${V} (sekarang ${match[1]})`);
       }
     }
   }

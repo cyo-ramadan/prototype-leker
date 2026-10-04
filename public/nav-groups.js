@@ -28,7 +28,7 @@
         { id: 'goods', icon: '📦', label: 'Barang', items: ['products', 'categories', 'suppliers', 'stock', 'costmasters', 'manufacturing', 'hpp-recalc', 'warehouseSettingsTab'] },
         { id: 'team', icon: '👥', label: 'Tim', items: ['employees', 'cashiers', 'manual-book', 'announcement', 'daily-task'] },
         { id: 'reports', icon: '📈', label: 'Laporan', items: ['labarugi', 'attendance-report', 'permit-report', 'cashier-raport', 'reports'] },
-        { id: 'money', icon: '💰', label: 'Keuangan', items: ['accountingWorkspaceTab', 'accountingSettingsTab', 'sharedaccounts', 'hutangpiutang', 'beaops'] },
+        { id: 'money', icon: '💰', label: 'Keuangan', items: ['setoran-cs', 'accountingWorkspaceTab', 'accountingSettingsTab', 'sharedaccounts', 'hutangpiutang', 'beaops'] },
         { id: 'customers', icon: '💬', label: 'Pelanggan', items: ['customers', 'customer-feedback', 'vouchers'] }
       ]
     },
@@ -54,7 +54,7 @@
     d: {
       'branch-admin': [
         { id: 'today', icon: '🏠', label: 'Hari ini', home: true },
-        { id: 'decide', icon: '✅', label: 'Persetujuan', items: ['approvals'] },
+        { id: 'decide', icon: '✅', label: 'Persetujuan', items: ['approvals', 'setoran-cs'] },
         { id: 'sales', icon: '🧾', label: 'Penjualan', items: ['transactions', 'drawers', 'labarugi', 'beaops'] },
         { id: 'goods', icon: '📦', label: 'Barang', items: ['products', 'stock', 'categories', 'suppliers'] },
         { id: 'team', icon: '👥', label: 'Tim', items: ['employees', 'cashiers', 'attendance-report'] },
@@ -100,7 +100,7 @@
     employees: 'Karyawan', cashiers: 'Akun Kasir', 'manual-book': 'Buku Panduan', announcement: 'Pengumuman', 'daily-task': 'Tugas Harian',
     reports: 'Laporan', labarugi: 'Untung Rugi', 'attendance-report': 'Presensi', 'permit-report': 'Izin & Koreksi', 'cashier-raport': 'Raport Kasir',
     accountingWorkspaceTab: 'Pembukuan', accountingSettingsTab: 'Pengaturan Pembukuan', sharedaccounts: 'Rekening Bersama',
-    hutangpiutang: 'Hutang & Pembayaran', beaops: 'Biaya Operasional',
+    hutangpiutang: 'Hutang & Pembayaran', beaops: 'Biaya Operasional', 'setoran-cs': 'Setoran CS',
     customers: 'Pelanggan', 'customer-feedback': 'Kotak Saran', vouchers: 'Voucher',
     storereport: 'Laporan per Gerai', drawerstatus: 'Status Laci', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
     ledger: 'Buku Usaha'

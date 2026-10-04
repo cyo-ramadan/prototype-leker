@@ -1,5 +1,6 @@
 import { reversePostedPosAccountingFact } from './accounting-pos-reversal.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
+import { reverseHppCorrectionsOfVoidedSales } from './hpp-recalculation.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const hold = (code, detail) => ({ ok: false, status: 'HOLD', code, detail });
@@ -483,5 +484,11 @@ export async function executeTransactionCorrection(db, store, permit, actor, now
     occurredAt: now,
     reason: permit.reason
   });
+  // Koreksi Hitung Ulang HPP milik penjualan ini ikut dibalik; kalau gagal di sini,
+  // sinkron Akuntansi berikutnya mencoba lagi.
+  if (permit.subjectType === 'SALE' && accounting.ok) {
+    try { await reverseHppCorrectionsOfVoidedSales(db, store.id, { saleId: permit.subjectId }); }
+    catch (error) { console.warn('pembalik koreksi HPP gagal', permit.subjectId, error?.message); }
+  }
   return { ok: true, duplicate: Boolean(operational.duplicate), accounting };
 }

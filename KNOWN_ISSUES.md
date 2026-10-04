@@ -155,8 +155,14 @@ Production V1 remains recipe + batch driven until this separate contract/migrati
   bukan harga koreksi → Average Cost Adonan Leker naik lagi Rp1 → Rp97,24 sejak 2 Okt 19.38 (HPP DERMO
   kebesaran lagi). Pembalik sekarang memakai snapshot + koreksi untuk produksi itu. Membatalkan transaksi hari
   lalu juga membuang cache laporan hari itu.
-- **Data yang masih perlu dibereskan:** (1) Hitung Ulang HPP Adonan Leker DERMO = Rp1 mulai 2026-10-02 supaya
-  penjualan 2–3 Okt dan Average Cost kembali benar; (2) tiga Beli Bahan Adonan Leker 30-09 salah ketik
+- **Bug jurnal (dibetulkan 2026-10-04):** gerai Akuntansi membaca untung rugi dari jurnal (ADR-051), dan jurnal
+  koreksi HPP milik 5 penjualan batal tadi tidak ikut dibalik → saldo HPP DERMO di buku −Rp52,5 juta (untung palsu
+  Rp54.568.255 tetap ada di laporan resmi walau mesin lama sudah dibetulkan). Sekarang pembatalan penjualan membalik
+  jurnal koreksi HPP-nya, dan sinkron Akuntansi menyapu yang terlanjur (`reverseHppCorrectionsOfVoidedSales`). Lima
+  jurnal DERMO itu terbalik sendiri saat laporan/Akuntansi DERMO dibuka sesudah deploy.
+- **Data yang masih perlu dibereskan:** (1) ~~Hitung Ulang HPP Adonan Leker DERMO = Rp1 mulai 2026-10-02~~ SUDAH
+  dijalankan 2026-10-04 12.18 WIB lewat Una (21 penjualan, −Rp23,1 juta, 21 jurnal koreksi POSTED, Average Cost
+  Adonan Leker = Rp1); (2) tiga Beli Bahan Adonan Leker 30-09 salah ketik
   (qty 1 Rp100.000; qty 1.000 Rp1.000.000.000; qty 1.000 Rp100.000.000, dibayar Modal Leker) SUDAH berjurnal
   (Debit 1301 Persediaan Bahan / Kredit 3101 Modal) dan tidak bisa dibatalkan lewat permit karena stok/HPP sudah
   bergerak sesudahnya. Keputusan Bos Cyo 2026-10-04: dibetulkan lewat Akuntansi (jurnal koreksi/pembalik), bukan

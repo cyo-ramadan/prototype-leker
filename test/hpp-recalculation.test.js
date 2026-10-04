@@ -309,3 +309,61 @@ test('UI: tab Hitung Ulang HPP di Admin Gerai, pratinjau dulu baru terapkan, men
   assert.match(js, /Pratinjau dulu sebelum menerapkan/);
   assert.match(html, /admin-hpp-recalc\.js\?v=20261002-hitung-ulang-hpp-v2/);
 });
+
+// Bos Cyo, 2026-10-04: untung DERMO masih palsu walau laporan mesin lama sudah dibetulkan.
+// Gerai Akuntansi membaca untung rugi dari jurnal (ADR-051): penjualan yang HPP-nya sudah
+// dikoreksi lalu dibatalkan meninggalkan jurnal koreksi yang tidak ikut dibalik, jadi HPP
+// terpotong dua kali (DERMO: 5 penjualan, -Rp54,6 juta, saldo HPP minus).
+const hppKoreksiNet = db => Number(db.prepare(`
+  SELECT COALESCE(SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_scaled ELSE -l.amount_scaled END), 0) AS net
+  FROM accounting_journal_lines l
+  JOIN accounting_journal_headers h ON h.id = l.journal_id
+  JOIN chart_of_accounts a ON a.id = l.account_id
+  WHERE a.code = '5101' AND h.source_system LIKE 'LEKER_HPP_KOREKSI%'`).get().net);
+
+test('gerai Akuntansi: penjualan dibatalkan sesudah HPP-nya dikoreksi -> jurnal koreksinya dibalik exact (sinkron menyapu yang terlanjur)', async () => {
+  const ctx = await setup();
+  try {
+    const tetap = seedDadakanSale(ctx, { price: 2000, createdAt: '2026-09-30T05:00:00.000Z', journalPosted: true });
+    const batal = seedDadakanSale(ctx, { price: 10000, createdAt: '2026-09-30T06:00:00.000Z', journalPosted: true });
+    assert.equal((await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'Leker barang titipan' })).status, 201);
+    const koreksiBatal = -(10000 * 1092 * SCALE - 10000 * SCALE);
+    const koreksiTetap = -(2000 * 1092 * SCALE - 2000 * SCALE);
+    assert.equal(hppKoreksiNet(ctx.db), koreksiBatal + koreksiTetap);
+
+    // Pembatalan yang terjadi sebelum perbaikan ini (kasus DERMO): jurnal koreksinya masih berdiri.
+    ctx.db.prepare(`UPDATE sales SET voided_at = '2026-10-02T12:03:00.000Z' WHERE id = ?`).run(batal);
+    const sync = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
+    assert.deepEqual(sync.results.filter(row => row.factType === 'HPP_KOREKSI_VOID').map(row => row.status), ['REVERSED']);
+    assert.equal(hppKoreksiNet(ctx.db), koreksiTetap, 'koreksi penjualan batal netral; koreksi penjualan yang tetap tidak tersentuh');
+
+    const pembalik = ctx.db.prepare(`SELECT business_date, reversal_of_journal_id FROM accounting_journal_headers WHERE source_system = 'LEKER_HPP_KOREKSI_VOID'`).all();
+    assert.equal(pembalik.length, 1);
+    assert.equal(pembalik[0].business_date, '2026-10-02', 'bertanggal hari pembatalan, seperti pembalik penjualannya');
+    assert.ok(pembalik[0].reversal_of_journal_id, 'tercatat sebagai pembalik jurnal koreksi (jurnal asli tidak diedit)');
+
+    const lagi = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
+    assert.equal(lagi.results.filter(row => row.factType === 'HPP_KOREKSI_VOID').length, 0, 'tidak dibalik dua kali');
+    assert.ok(tetap);
+  } finally { ctx.db.close(); }
+});
+
+test('gerai Akuntansi: koreksi HPP milik penjualan yang sudah dibatalkan sebelum jurnal koreksinya sempat masuk tidak diposting sama sekali', async () => {
+  const ctx = await setup();
+  try {
+    const sale = seedDadakanSale(ctx, { price: 5000, createdAt: '2026-09-16T05:00:00.000Z' });
+    assert.equal((await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'Leker barang titipan' })).status, 201);
+    ctx.db.prepare(`UPDATE sales SET voided_at = '2026-09-17T05:00:00.000Z' WHERE id = ?`).run(sale);
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status)
+      VALUES ('delivery_void_late', 'store_kantor', 'POS', 'SALE', ?, 'sale', 'POSTED')`).run(sale);
+    await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {});
+    assert.equal(hppKoreksiNet(ctx.db), 0);
+    assert.equal(ctx.db.prepare("SELECT COUNT(*) AS n FROM accounting_journal_headers WHERE source_system LIKE 'LEKER_HPP_KOREKSI%'").get().n, 0);
+  } finally { ctx.db.close(); }
+});
+
+test('pembatalan penjualan yang di-ACC langsung membalik jurnal koreksi HPP-nya', () => {
+  const executor = readFileSync(new URL('../src/transaction-correction-executor.js', import.meta.url), 'utf8');
+  assert.match(executor, /permit\.subjectType === 'SALE' && accounting\.ok/);
+  assert.match(executor, /reverseHppCorrectionsOfVoidedSales\(db, store\.id, \{ saleId: permit\.subjectId \}\)/);
+});

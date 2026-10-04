@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MAXI — Gerai jalan. Kas jujur. Anda tenang.</title>
+<title>OwnerTenang — Gerai jalan. Kas jujur. Anda tenang.</title>
 <meta name="description" content="Untuk pemilik gerai F&B: kasir, laci kas, absen foto + lokasi, izin yang wajib Anda setujui, stok & HPP dari resep, dan untung bersih tiap gerai — dipantau dari satu HP." />
 <meta property="og:title" content="Gerai jalan. Kas jujur. Anda tenang." />
 <meta property="og:description" content="Kasir + absen foto & lokasi + izin wajib persetujuan pemilik + untung bersih tiap gerai, untuk pemilik gerai F&B." />
@@ -176,7 +176,7 @@
 
 <header class="top">
   <div class="wrap">
-    <a class="logo" href="#"><i aria-hidden="true"></i><span data-brand-logo>MAXI</span></a>
+    <a class="logo" href="#"><i aria-hidden="true"></i><span data-brand-logo>OwnerTenang</span></a>
     <nav class="links" aria-label="Bagian halaman">
       <a href="#janji">Cara kerja</a>
       <a href="#sehari">Sehari bersama kami</a>
@@ -374,7 +374,7 @@
 
 <footer>
   <div class="wrap">
-    <span>© <span data-year>2026</span> <span data-brand>MAXI</span></span>
+    <span>© <span data-year>2026</span> <span data-brand>OwnerTenang</span></span>
     <span><a href="#privasi">Data &amp; privasi</a></span>
   </div>
 </footer>
@@ -386,15 +386,15 @@
   // WA_NUMBER format internasional tanpa "+" atau spasi, mis. '6281234567890'.
   // Selama kosong, tombol hanya menggulir ke bagian "Cara mulai".
   const LANDING = {
-    BRAND: 'MAXI',
-    WA_NUMBER: '',
+    BRAND: 'OwnerTenang',
+    WA_NUMBER: '6285860070439',
     WA_TEXT: 'Halo, saya ingin demo aplikasi kontrol gerai. Saya punya ... gerai.'
   };
 
   document.querySelectorAll('[data-brand]').forEach(el => { el.textContent = LANDING.BRAND; });
   document.querySelectorAll('[data-brand-logo]').forEach(el => { el.textContent = LANDING.BRAND; });
   document.querySelectorAll('[data-year]').forEach(el => { el.textContent = String(new Date().getFullYear()); });
-  document.title = document.title.replace(/^MAXI/, LANDING.BRAND);
+  document.title = document.title.replace(/^OwnerTenang/, LANDING.BRAND);
   if (LANDING.WA_NUMBER) {
     const href = 'https://wa.me/' + LANDING.WA_NUMBER + '?text=' + encodeURIComponent(LANDING.WA_TEXT);
     document.querySelectorAll('[data-wa]').forEach(el => {

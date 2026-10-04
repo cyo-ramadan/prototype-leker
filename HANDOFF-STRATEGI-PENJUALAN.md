@@ -218,6 +218,8 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-01 | pengembangan | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | JUAL | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
 | 2026-10-01 | pengembangan | Halaman diagnostik perangkat | INTERNAL | Mengurangi beban dukungan "tidak bisa login" |
 | 2026-10-01 | strategi | Landing page penjualan di `/produk/` (hanya fitur Paket Kontrol; tombol "Minta demo lewat WhatsApp") | INTERNAL | Belum dibagikan: nomor WhatsApp, nama merek, dan izin memakai angka Leker masih menunggu Bos Cyo |
+| 2026-10-02 | strategi | Merek landing page diganti jadi OwnerTenang; domain ownertenang.biz.id dibeli (belum tersambung) | INTERNAL | Nomor WhatsApp dan izin angka Leker masih menunggu Bos Cyo |
+| 2026-10-04 | strategi | Nomor WhatsApp demo dipasang di landing page; alamat utama domain ownertenang.biz.id/.id diarahkan ke landing page (kode siap; domain harus dipasang sebagai Custom domain di Cloudflare) | INTERNAL | Landing page bisa dibagikan setelah domain terbukti terbuka dan izin angka Leker ada |
 | 2026-10-01 | pengembangan | Resep produksi diisi sekali di tingkat perusahaan lalu diterapkan ke banyak gerai sekaligus (termasuk menu dengan dua resep) | UJI | Mengurangi kerja pasang resep per gerai bagi pemilik banyak gerai; belum dicoba di gerai nyata |
 | 2026-10-01 | pengembangan | Grafik perbandingan gerai di laporan perusahaan: untung/rugi (hijau/merah), omset, untung kotor, beban, HPP, margin, urut dari terbesar | JUAL | Pemilik langsung melihat gerai mana yang untung dan mana yang rugi dalam satu layar; §5 perlu ditinjau: beban yang hanya dibuat di Akuntansi belum ikut angka laporan ini |
 | 2026-10-02 | pengembangan | Laporan Untung Rugi gerai yang memakai Akuntansi kini dibaca dari pembukuan (beban yang dicatat di Akuntansi ikut mengurang), beban dirinci per nama akun, ada peringatan bila ada transaksi belum masuk pembukuan; grafik perbandingan gerai batangnya satu arah, untung/rugi dibedakan warna | JUAL | Satu angka untung-rugi yang sama di laporan pemilik dan di pembukuan; §5 perlu ditinjau: HPP DERMO dan GENENGAN masih tidak wajar (data biaya bahan), jangan didemokan dengan dua gerai itu |
@@ -282,8 +284,10 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Harga hipotesis** *(menunggu)*: Rp149rb/gerai/bulan (Kontrol), Rp249rb (+Pembukuan).
   Pembanding: Majoo Rp249rb–999rb, Moka Rp299rb–799rb, Pawoon Rp299rb per outlet/bulan;
   aplikasi absensi terpisah Rp5rb–12rb/karyawan/bulan.
-- **Nama/domain** *(menunggu)*: kandidat OwnerTenang (pilihan Hana), PantauGerai, GeraiJujur;
-  ketersediaan domain belum dicek.
+- **Nama/domain** *(diputuskan 2026-10-02)*: merek **OwnerTenang**; domain **ownertenang.biz.id**
+  dibeli di Exabytes (Rp3.000/tahun, jatuh tempo 02/10/2027). Beli **ownertenang.id** setelah
+  ada 10 pelanggan berbayar. Rencana subdomain: halaman jualan di domain utama, aplikasi di
+  `app.`, bantuan di `bantuan.`. Halaman pesan pelanggan gerai tetap bermerek gerai masing-masing.
 - **Wajib sebelum demo ke orang luar**: lihat `HANDOFF-UIUX-SIAP-JUAL.md` T1–T5 (bersih kesan
   prototype, saklar paket, Ringkasan Pemilik, pemilik tahu permit menunggu, tenant demo).
 - **Urutan kanal**: jual langsung lewat jaringan Bos Cyo → pemilik kemitraan → konten

@@ -4,6 +4,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getOpenDrawer } from './cashier-drawer.js';
 import { createEmployeeDepositReceivable } from './employee-deposit-settlement.js';
+import { optionalMoney, resolveDrawerDeposit } from './drawer-deposit.js';
 
 // Bos Cyo, 2026-09-19: "kasih tombol kasir bisa permit tutup laci kasir
 // sebelumnya karna sudah waktu dia untuk jaga. nanti admin acc kan akhirnya
@@ -224,10 +225,14 @@ async function handleCashierClosePermit(request, env, pathname) {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload pengajuan tidak valid.' }, 400);
     const closingAmount = money(body.value?.closingAmount);
-    const depositAmount = money(body.value?.depositAmount ?? 0);
     if (closingAmount === null) return json({ error: 'Saldo akhir laci wajib berupa angka valid.' }, 400);
-    if (depositAmount === null) return json({ error: 'Setoran wajib berupa angka valid.' }, 400);
-    if (depositAmount > closingAmount) return json({ error: 'Setoran tidak boleh lebih besar dari saldo akhir laci.' }, 400);
+    const resolved = resolveDrawerDeposit({
+      closingAmount,
+      leftInDrawer: optionalMoney(body.value?.leftInDrawerAmount, money),
+      depositFallback: money(body.value?.depositAmount ?? 0)
+    });
+    if (!resolved.ok) return json({ error: resolved.error }, 400);
+    const depositAmount = resolved.depositAmount;
     if (depositAmount > 0 && !Number.isSafeInteger(depositAmount * 1_000_000)) {
       return json({ error: 'Nominal setoran terlalu besar untuk precision Accounting.' }, 400);
     }
@@ -248,7 +253,7 @@ async function handleCashierClosePermit(request, env, pathname) {
     // langsung." Toggle store yang sama dipakai approval_requests -- gerai
     // yang sudah mengaktifkannya tidak perlu menunggu Admin klik ACC sama
     // sekali, laci langsung tertutup saat itu juga.
-    if (await isAutoPermitEnabled(db, cashier.store.id)) {
+    if (cashier.store.ownerOperated || await isAutoPermitEnabled(db, cashier.store.id)) {
       const outcome = await applyClosePermitApproval(db, cashier.store, created, {
         approverRole: 'AUTO_PERMIT', approverId: '', note: 'Auto Permit'
       });

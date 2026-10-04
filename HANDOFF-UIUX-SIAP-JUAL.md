@@ -26,9 +26,12 @@ Konteks strategi lengkap: `HANDOFF-STRATEGI-PENJUALAN.md` (baca §1, §4, §5, �
 
 ## 1. Sasaran pembeli (supaya keputusan UI konsisten)
 
-- **Utama**: pemilik **3–10 gerai minuman/booth kecil**, 1–2 karyawan per gerai, pemilik
+- **Koreksi Bos Cyo 2026-10-01: "targetnya fnb ya, bukan cuma leker".** Sasaran = pemilik usaha
+  **F&B** secara umum (kedai kopi, warung/rumah makan kecil, bakery, booth minuman, jajanan),
+  bukan hanya Leker atau booth minuman. Teks, contoh isian, dan data demo harus umum F&B.
+- **Utama**: pemilik **3–10 gerai F&B kecil** (semula ditulis "minuman/booth"), 1–2 karyawan per gerai, pemilik
   jarang di lokasi, akrab HP dan WhatsApp, **tidak paham akuntansi**.
-- **Pengali**: pemilik usaha kemitraan/franchise minuman (satu deal = banyak gerai mitra).
+- **Pengali**: pemilik usaha kemitraan/franchise F&B (satu deal = banyak gerai mitra).
 - Pesan jual: **"Gerai jalan, kas jujur, karyawan terpantau — tanpa Anda harus datang."**
 - Paket yang dijual dulu: **Paket Kontrol Gerai** (kasir, laci, presensi foto+GPS, permit
   ACC pemilik, stok+HPP dari resep, untung-rugi sederhana, gaji dari presensi, laporan
@@ -146,4 +149,125 @@ memutuskan kapan demo, iklan, atau halaman depan boleh jalan — tanpa harus mem
 1. Nama merek + domain (mempengaruhi T1 dan landing).
 2. Harga paket (tidak menghalangi T1–T6).
 
-<!-- DOC-IMPACT: 2026-10-01 dokumen baru; tidak mengubah perilaku sistem. -->
+## 7. Progres (diisi sesi UI/UX)
+
+### 2026-10-01 — Tenant Lab Tampilan + saklar skin per tenant (permintaan Bos Cyo)
+
+Bos Cyo minta semua perubahan UI/UX **tidak langsung kena semua tenant**: dikerjakan dan
+dipilih dulu di satu tenant laboratorium, baru diterapkan ke semua.
+
+- **Tenant baru** `TEN-LAB-TAMPILAN` "Lab Tampilan" (migration 0132): entity
+  `ENT-LAB-TAMPILAN`, satu gerai kosong `LAB01` "Gerai Contoh", login pemilik (Entity Admin)
+  `lab_pemilik` — password **tidak** ada di repo, sudah diserahkan ke Bos Cyo. Kasir dibuat
+  dari Workspace Gerai seperti biasa.
+- **Saklar**: kebijakan tenant `ui_skin_siap_jual` (`src/tenant-policy.js`), muncul otomatis di
+  Owner Console → Tenant → Kebijakan. Default **OFF** untuk semua tenant; hanya Lab yang ON.
+- **Cara kerja**: `GET /api/ui-profile?store=` / `?entity=` (`src/ui-profile.js`) menjawab skin
+  dan merek; `public/ui-skin.js` dimuat di kasir, portal staf, workspace gerai, panel pemilik
+  (entity-admin), dan halaman pelanggan. Owner Console (pemilik platform, lintas tenant) sengaja
+  tidak ikut skin.
+- **Koreksi Bos Cyo (2026-10-01, sesudahnya)**: *"yang tadi diminta dari handoff itu kerjakan
+  ke semua tenant, perintah sehabis itu baru untuk tenant khusus ini."* Jadi:
+  - **T1–T6 di handoff ini berlaku untuk SEMUA tenant (universal)** — tidak di belakang saklar,
+    dan **tidak** ada pengecualian merek untuk Leker (koreksi Bos Cyo: "jangan leker doank, itu
+    dikerjakan buat universal"). T1 sudah: judul & header tanpa "Prototype"/"Leker", satu merek
+    untuk semua dari `PRODUCT_BRAND_NAME` ("MAXI", `src/ui-profile.js`), teks khas Leker di
+    halaman pelanggan jadi umum ("Pilih menu", "Belum ada menu yang dipilih"), contoh isian
+    Owner Console generik, catatan developer diganti bahasa pemilik (Karen/canonical/stale/
+    snapshot/PROVISIONAL/legacy/Renderer), catatan ADR-030 & poin "belum diaktifkan" dihapus,
+    tombol "Cari Lanjutan" disembunyikan. Tes `test/ui-skin-tenant-toggle.test.js` menolak
+    kata-kata itu kembali. Pengecualian sadar: halaman menu `dermo.html` milik satu gerai Leker.
+  - **Saklar `ui_skin_siap_jual` hanya untuk desain "jualan" baru** (permintaan Bos Cyo
+    berikutnya) yang diuji di tenant Lab Tampilan sebelum dipilih untuk semua tenant. Desain itu
+    selalu di belakang saklar: HTML pakai `data-skin-hide` / `data-skin-only` / `data-skin-text`
+    / `data-skin-placeholder`, CSS pakai `html[data-skin="siap-jual"]`, teks JS pakai
+    `window.MaxiSkin?.pick(teksLama, teksBaru)`. Yang sudah di belakang saklar: label "Panel Pemilik" di
+    panel Entity Admin. Calon skin (A Tenang, B Papan Siaga, C Kabar Gerai) + alasan jualannya
+    sedang dipilih Bos Cyo — lihat §8.
+- **Belum**: cek layar HP sungguhan, T2–T6.
+
+## 8. Desain "jualan" (khusus tenant Lab, belum untuk umum)
+
+Disusun 2026-10-01 dari sudut pandang penjual: pembeli = pemilik 3–10 gerai F&B (kopi, makanan, minuman, bakery) yang
+jarang di lokasi; takutnya kas kurang, titip absen, struk dihapus, bahan bocor, hitung gaji.
+Empat momen yang memenangkan demo: (1) Ringkasan semua gerai < 30 detik, (2) kasir minta
+hapus → pemilik Setujui/Tolak dari HP, (3) foto absen + lokasi sebagai "bukti kerja jujur",
+(4) kasir tiga ketukan. Enam aturan desain: ringkasan dulu; masalah membawa tombolnya; bahasa
+pemilik (bukan HPP/permit/saldo kas); warna = status; navigasi di jangkauan jempol (4 tujuan:
+Ringkasan, Persetujuan, Karyawan, Laporan); minus tetap tampil.
+
+Tiga calon skin: **A Tenang** (hijau landing page, kartu rapi), **B Papan Siaga** (atas
+grafit, sudut tegas, huruf rapat & angka besar), **C Kabar Gerai** (atas hijau toska ala WhatsApp,
+kartu berbentuk gelembung).
+
+**2026-10-01, Bos Cyo: "bikin aja ketiga2nya. nanti ada tombol a b dan c dan 0. 0 itu yang
+skr."** Sudah dibangun:
+- Saklar ON/OFF diganti pilihan kebijakan tenant `ui_skin` = `0`/`A`/`B`/`C` (Owner Console →
+  Tenant → Kebijakan → "Tampilan (skin)"). Default `0` untuk semua tenant; Lab mulai di `A`
+  (migration 0133). Baris lama `ui_skin_siap_jual` dari 0132 tidak dibaca lagi.
+- `/api/ui-profile` menjawab `skin: classic|a|b|c`; `public/ui-skin.js` memasang
+  `<html data-skin="a|b|c">`, memuat `/skin-<kode>.css` + hurufnya (Plus Jakarta Sans / Archivo /
+  Nunito). Pilihan `0` tidak memuat apa pun.
+- `public/skin-a.css`, `skin-b.css`, `skin-c.css` dibangkitkan dari **satu kerangka selektor yang
+  sama** (beda hanya token + sedikit aturan khas) — menimpa topbar, merek, tombol, tab, kartu,
+  isian, kartu menu, laci, keranjang, hero pelanggan. Tes menolak selektor yang bocor keluar
+  `html[data-skin="<kode>"]`.
+- Dicek di layar 390 px lewat server lokal: halaman pelanggan, Workspace Gerai, kasir (layar
+  presensi), Owner Console pemilih skin.
+
+**Batasnya (jujur):** ini lapisan *tampilan* di atas layar yang ada — warna, huruf, bentuk. Bagian
+mockup yang butuh layar baru belum ada di skin mana pun: Ringkasan Pemilik (T3, berlaku untuk semua
+tenant), umpan "Kabar" ala chat (C), tabel status semua gerai (B), dan navigasi 4 tujuan di bawah
+layar. B sengaja tidak gelap penuh: banyak kartu lama berwarna putih tertanam di kode, jadi latar
+gelap penuh akan meninggalkan pulau putih; gelapnya ada di bagian atas/tombol utama.
+
+### 2026-10-02 — Kartu ringkas, menu berkelompok, landing page baru (permintaan Bos Cyo)
+
+- **Kartu daftar (semua tenant):** akar masalah "nama terpotong & keterangan satu kata per baris"
+  adalah grid HP `50px | isi` yang dipakai juga oleh kartu tanpa foto. `public/list-cards.css`
+  (dimuat sesudah `admin.css`/`cashier-master-panels.css`) mengganti jadi flex: isi memakai lebar
+  penuh, nama + keterangan mengalir satu baris dengan pemisah titik, status jadi penanda berwarna
+  (`.status-chip ok|warn|bad|off`). Dipakai di daftar tenant/entity (Owner), karyawan, akun,
+  rekening, jurnal (Entity).
+- **Menu berkelompok (hanya skin A/B/C):** `public/nav-groups.js` menyembunyikan deretan tab lama
+  dan menampilkan 7 tombol (Workspace Gerai: Toko, Transaksi, Barang, Tim, Laporan, Keuangan,
+  Pelanggan) / 6 tombol (Panel Pemilik) dengan sub-tombol di dalamnya. Tombol asli tetap ada dan
+  ditekan lewat `click()`; tab baru dari sesi lain otomatis masuk "Lainnya" — **daftarkan di `GROUPS`
+  di file itu**. Skin 0 tidak berubah.
+- **Sisa kesan prototype dibersihkan (semua tenant):** tab "Laporan" kosong ("Coming next") di
+  Workspace Gerai dicabut; label "Structure level 0/0.5/1" diganti bahasa pemilik.
+- **Susulan (semua tenant):** kartu gerai (Owner Console & tab Gerai Panel Pemilik) dari 6 baris jadi
+  3 ([kode] Nama · status / entity / tombol kecil, "Alamat belum diisi" tidak ditampilkan); kartu
+  persetujuan (Approval Queue) ringkas dengan penanda "Menunggu". **Sengaja tidak disentuh** karena
+  sudah diatur khusus Bos Cyo: kartu transaksi/stok Kasir, Detail Laci + tombol Salin, laporan &
+  grafik & stok Entity, warna kuning presensi, tata letak Setting Akuntansi, kartu antrean pesanan Kasir.
+- **Landing page `/produk/` dirombak:** satu janji ("Gerai jalan. Kas jujur. Anda tenang."), satu
+  gambar (HP dengan kejadian gerai), tiga janji, "Sehari bersama kami", F&B umum, satu ajakan.
+  Tetap patuh `test/landing-page-claims.test.js` (hanya fitur berstatus JUAL).
+
+### 2026-10-03 — Skin D "Mode Warung" (cara pakai baru, bukan hanya tampilan)
+
+Konsep, USP, dan fase berikutnya: **`DESAIN-SKIN-D-WARUNG.md`**. Ringkasnya:
+- Pilihan `ui_skin = D`. Kasir tenant D yang sudah absen & memegang laci langsung masuk
+  **`/s/<kode>/warung`** (`public/warung.{html,css,js}`): cari / "paling sering" → keranjang →
+  Bayar → uang diterima → kembalian besar → "Tersimpan". Penjualan lewat `/api/cashier/sales`
+  yang sama. Absen & buka laci tetap di Kasir lengkap (`public/warung-entry.js` memberi tombol
+  pulang ke Mode Warung).
+- Panel Pemilik tenant D: blok **"Hari ini"** (`public/warung-pemilik.js`) — untung bersih hari ini
+  semua gerai + kemarin, pengajuan menunggu per gerai, laci buka/tutup per gerai.
+- `public/skin-*.css` sekarang dibangkitkan oleh `scripts/generate-skin-css.py` (ubah token di
+  sana, jangan sunting CSS hasilnya).
+
+### 2026-10-02 — Skin E "Jaga Sendiri" + katalog catatan per skin
+
+Bos Cyo: *"yang kusus ga ada karyawan dibuat skin e"*. Konsep, persona (Bu Rina), riset warna:
+**`DESAIN-SKIN-E-JAGA-SENDIRI.md`**. Catatan persona + masalah + janji untuk SEMUA skin:
+**`DESAIN-SKIN-KATALOG.md`**.
+- Pilihan `ui_skin = E` → `data-skin="e"` (pastel, Nunito; `scripts/generate-skin-css.py` +
+  `public/warung.css`).
+- Satu-satunya skin yang mengubah aturan server (`isOwnerOperatedChoice`, `src/tenant-policy.js` →
+  `cashier.store.ownerOperated`): buka laci tanpa presensi, pengajuan selalu Auto Permit,
+  `GET /api/cashier/warung/untung` untuk login kasir.
+- Layar `/s/<kode>/warung` di tenant E: Buka/Tutup warung langsung di layar, tab Jual · Untung.
+
+<!-- DOC-IMPACT: 2026-10-01 dokumen baru; §7 ditambah: tenant Lab Tampilan + saklar skin per tenant (ui_skin_siap_jual). -->

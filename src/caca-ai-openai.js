@@ -148,7 +148,7 @@ export async function callStructured(env, {
 
   const pilihan = payload?.choices?.[0];
   if (pilihan?.finish_reason === 'length') {
-    return { ok: false, status: 502, error: 'Lembarnya terlalu panjang buat sekali baca. Coba difoto per bagian.' };
+    return { ok: false, status: 502, error: 'Kepanjangan buat sekali proses nih. Kalau foto, coba difoto per bagian; kalau pertanyaan, coba lebih spesifik (mis. sebut 1-2 barang).' };
   }
   if (pilihan?.message?.refusal) {
     return { ok: false, status: 422, error: 'Una tidak bisa memproses permintaan ini.' };

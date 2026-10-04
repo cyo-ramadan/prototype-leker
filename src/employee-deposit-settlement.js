@@ -41,15 +41,32 @@ function actorFrom(auth) {
   return { role: 'LEGACY_PIN', id: '' };
 }
 
+// Pemegang setoran: karyawan yang akun kasirnya tertaut (Master Karyawan). Kalau
+// akun kasir belum ditautkan ke siapa pun, setoran TETAP dicatat sebagai piutang
+// atas nama akun kasir itu (Bos Cyo, 2026-10-03: "selama CS belum setorin uang itu
+// piutangnya terus nambah") -- sebelumnya dilewati diam-diam, sehingga di produksi
+// 38 dari 40 akun kasir tidak pernah menimbulkan piutang. Penanda `cashier:<id>`
+// dipakai sebagai counterparty_id supaya daftar milik akun itu tetap bisa dicari.
 async function currentAccountHolder(db, storeId, cashierId) {
-  const row = await db.prepare(`
+  const linked = await db.prepare(`
     SELECT l.employee_id, l.entity_id, e.full_name
     FROM employee_account_links l
     JOIN employees e ON e.id = l.employee_id
     WHERE l.account_type = 'CASHIER' AND l.account_id = ? AND l.store_id = ? AND l.effective_to IS NULL
     LIMIT 1
   `).bind(cashierId, storeId).first();
-  return row || null;
+  if (linked) return linked;
+  const account = await db.prepare(`
+    SELECT c.employee_name, c.username, s.entity_id
+    FROM cashiers c JOIN stores s ON s.id = c.store_id
+    WHERE c.id = ? AND c.store_id = ? LIMIT 1
+  `).bind(cashierId, storeId).first();
+  if (!account?.entity_id) return null;
+  return {
+    employee_id: `cashier:${cashierId}`,
+    entity_id: account.entity_id,
+    full_name: text(account.employee_name || account.username || 'Kasir', 120)
+  };
 }
 
 async function accountingStore(db, storeId) {
@@ -118,6 +135,45 @@ export async function createEmployeeDepositReceivable(db, { storeId, cashierId, 
     accounting = accountingFailure(error, 'EMPLOYEE_DEPOSIT_RECOGNITION_POST_FAILED');
   }
   return { ...item, accounting };
+}
+
+// Jurnal setoran yang gagal terposting setelah fakta operasionalnya tersimpan
+// (pengakuan piutang saat tutup laci, pelunasan saat disetujui) dicoba ulang di
+// sini; idempotency key di jembatan menjamin tidak ada jurnal ganda. Dipanggil
+// sinkron Akuntansi otomatis -- hanya gerai Akuntansi.
+export async function postPendingEmployeeDepositJournals(db, storeId, limit = 25) {
+  const store = await accountingStore(db, storeId);
+  if (String(store.edition || '').toUpperCase() !== 'ACCOUNTING') return [];
+  const results = [];
+  const receivables = await db.prepare(`
+    SELECT r.id, r.original_amount, r.transaction_date, r.created_at
+    FROM operational_receivables_payables r
+    WHERE r.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT'
+      AND NOT EXISTS (SELECT 1 FROM accounting_journal_headers h WHERE h.store_id = r.store_id AND h.source_system = 'EMPLOYEE_DEPOSIT' AND h.source_reference_id = r.id)
+    ORDER BY r.created_at LIMIT ?
+  `).bind(storeId, limit).all();
+  for (const row of receivables.results ?? []) {
+    const posted = await postEmployeeDepositRecognitionJournal(db, store, {
+      receivableId: row.id, businessDate: row.transaction_date, amountScaled: Number(row.original_amount), occurredAt: row.created_at
+    });
+    results.push({ factType: 'SETORAN_PIUTANG', factId: row.id, status: posted.ok ? 'POSTED' : 'FAILED' });
+  }
+  const payments = await db.prepare(`
+    SELECT p.id, p.amount, p.reviewed_at
+    FROM operational_receivable_payable_payments p
+    JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+    WHERE p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND p.approval_status = 'approved'
+      AND NOT EXISTS (SELECT 1 FROM accounting_journal_headers h WHERE h.store_id = p.store_id AND h.source_system = 'EMPLOYEE_DEPOSIT' AND h.source_reference_id = p.id)
+    ORDER BY p.created_at LIMIT ?
+  `).bind(storeId, limit).all();
+  for (const row of payments.results ?? []) {
+    const reviewedAt = row.reviewed_at || new Date().toISOString();
+    const posted = await postEmployeeDepositSettlementJournal(db, store, {
+      paymentId: row.id, businessDate: reviewedAt.slice(0, 10), amountScaled: Number(row.amount), occurredAt: reviewedAt
+    });
+    results.push({ factType: 'SETORAN_PELUNASAN', factId: row.id, status: posted.ok ? 'POSTED' : 'FAILED' });
+  }
+  return results;
 }
 
 export async function listOwnEmployeeDeposits(db, storeId, cashierId) {

@@ -30,7 +30,8 @@ test('branch admin menu contains cashier data accounting report and drawer detai
   assert.match(adminDrawerUi, /Laporan/);
   assert.match(adminDrawerUi, /Detail Laci/);
   assert.match(adminDrawerUi, /\/api\/admin\/drawers/);
-  assert.match(adminDrawerUi, /Coming next/);
+  // Tab Laporan kosong dicabut -- T1 handoff UI/UX.
+  assert.doesNotMatch(adminDrawerUi, /Coming next/);
 });
 
 // 2026-09-15, Bos Cyo: "koneksi akuntansi itu ga butuh sepertinya, kalo

@@ -20,6 +20,13 @@
 import { rupiah } from './caca-nominal.js';
 import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } from './caca-aksi-dasar.js';
 import { AKSI_BAYAR } from './caca-aksi-bayar.js';
+import { AKSI_AKUN } from './caca-aksi-akun.js';
+import { AKSI_AKUNTAN } from './caca-aksi-akuntan.js';
+import { AKSI_KLASIFIKASI } from './caca-aksi-klasifikasi.js';
+import { AKSI_BARANG } from './caca-aksi-barang.js';
+import { AKSI_HPP } from './caca-aksi-hpp.js';
+import { AKSI_HPP_BANYAK } from './caca-aksi-hpp-banyak.js';
+import { ALAT_JELASKAN } from './caca-jelaskan.js';
 
 export { normalkan, cocokkanSatu };
 
@@ -40,18 +47,19 @@ const barang = Object.freeze({
   },
 
   async siapkan(t, ctx) {
+    // Bos Cyo 2026-10-02: yang penting cuma nama, harga jual, harga beli; detail
+    // lain diisi yang dasar, JANGAN ditanyakan. Yang benar-benar tidak bisa
+    // ditebak hanya nama dan harga jual. Kategori dan harga beli yang tidak
+    // disebut diisi bawaan — tapi ditulis terang di draft, bukan diam-diam;
+    // modal yang kosong ditanyakan santai SESUDAH barangnya jadi (panel).
     const nama = teks(t?.barang_nama, 100);
     if (!nama) return { ok: false, tanya: 'Nama barangnya apa?' };
-    const kategori = teks(t?.barang_kategori, 60);
-    if (!kategori) return { ok: false, tanya: `"${nama}" masuk kategori apa?` };
+    const kategori = teks(t?.barang_kategori, 60) || 'Menu';
     if (!teks(t?.barang_harga_jual, 40)) return { ok: false, tanya: `Harga jual "${nama}" berapa?` };
     const jual = rupiahDari(t.barang_harga_jual, 'Harga jual', { bolehNol: true });
     if (!jual.ok) return jual;
-    // Harga beli ikut menentukan HPP awal, jadi tidak diisi diam-diam dengan 0.
-    if (!teks(t?.barang_harga_beli, 40)) {
-      return { ok: false, tanya: `Harga beli (modal) "${nama}" berapa? Tulis 0 kalau barangnya dibuat sendiri lewat resep.` };
-    }
-    const beli = rupiahDari(t.barang_harga_beli, 'Harga beli', { bolehNol: true });
+    const tanpaHargaBeli = !teks(t?.barang_harga_beli, 40);
+    const beli = tanpaHargaBeli ? { ok: true, nilai: 0 } : rupiahDari(t.barang_harga_beli, 'Harga beli', { bolehNol: true });
     if (!beli.ok) return beli;
 
     const ref = await ctx.baca(`/api/admin/manufacturing/bootstrap`);
@@ -93,6 +101,8 @@ const barang = Object.freeze({
         ],
         dampak: [
           `Barang baru di ${ctx.namaLingkup}, langsung aktif.`,
+          ...(teks(t?.barang_kategori, 60) ? [] : ['Kategorinya Una taruh di "Menu" — bisa dipindah nanti.']),
+          ...(tanpaHargaBeli ? ['Harga beli belum disebut, diisi 0: modalnya menyusul dari resep atau pembelian pertama.'] : []),
           'Stok awalnya 0 — stok bertambah lewat pembelian atau produksi.',
           'Foto, poin, dan tipe barang bisa dilengkapi nanti di Master Barang.'
         ],
@@ -102,7 +112,7 @@ const barang = Object.freeze({
   },
 
   async posting(draft, ctx) {
-    const hasil = await ctx.kirim('POST', '/api/admin/master/products/editor', draft.muatan);
+    const hasil = await ctx.kirim('POST', '/api/admin/master/products/editor?ringkas=1', draft.muatan);
     if (!hasil.ok) return hasil;
     return { ok: true, jawaban: `Sudah Una buat: barang "${draft.muatan.name}".` };
   }
@@ -145,16 +155,17 @@ const resep = Object.freeze({
 
     const hasil = cocokkanSatu(t.resep_hasil, daftar, opsi);
     if (!hasil.ok) return hasil;
+    // Hasil yang tidak disebut = 1 (takaran untuk satu porsi), tertulis di draft.
     const qtyHasil = teks(t?.resep_hasil_qty, 20)
       ? jumlahBulat(t.resep_hasil_qty, `Jumlah hasil ${hasil.nilai.name}`)
-      : { ok: false, tanya: `Satu kali produksi menghasilkan berapa ${hasil.nilai.unitSymbol || ''} ${hasil.nilai.name}?`.replace(/\s+/g, ' ') };
+      : { ok: true, nilai: 1 };
     if (!qtyHasil.ok) return qtyHasil;
 
     const komponen = [];
     for (const mentah of komponenMentah) {
       const cocok = cocokkanSatu(mentah?.barang, daftar, { ...opsi, label: 'bahan' });
       if (!cocok.ok) return cocok;
-      if (cocok.nilai.id === hasil.nilai.id) return { ok: false, tanya: `"${hasil.nilai.name}" tidak bisa jadi bahannya sendiri.` };
+      if (cocok.nilai.id === hasil.nilai.id) return { ok: false, tanya: `"${hasil.nilai.name}" nggak bisa jadi bahannya sendiri ya.` };
       if (komponen.some((k) => k.barang.id === cocok.nilai.id)) {
         return { ok: false, tanya: `"${cocok.nilai.name}" disebut dua kali. Totalnya berapa?` };
       }
@@ -184,6 +195,7 @@ const resep = Object.freeze({
           isi: komponen.map((k) => [k.barang.name, `${k.qty} ${satuan(k.barang)}`.trim()])
         },
         dampak: [
+          ...(teks(t?.resep_hasil_qty, 20) ? [] : [`Jumlah hasil tidak disebut, Una anggap takarannya untuk 1 ${satuan(hasil.nilai) || ''} ${hasil.nilai.name}.`.replace(/\s+/g, ' ')]),
           diganti
             ? `Resep aktif ${hasil.nilai.name}${varian ? ` varian ${varian}` : ''} (revisi ${diganti.revision}) diarsipkan dan diganti yang ini.`
             : `Resep pertama untuk ${hasil.nilai.name}${varian ? ` varian ${varian}` : ''}.`,
@@ -328,7 +340,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BAYAR]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ALAT_JELASKAN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;
@@ -353,8 +365,12 @@ export function daftarAksiUntukModel(lingkup) {
  */
 export async function periksaUlangDraft(draft, ctx) {
   const aksi = cariAksi(draft?.aksi);
-  if (!aksi) return { ok: false, status: 400, error: 'Jenis draft ini tidak dikenal.' };
-  const disusun = await aksi.siapkan(draft.tangkapan, { ...ctx, referensi: draft?.muatan?.sourceReferenceId });
+  // Alat baca tidak punya draft untuk dikonfirmasi; tidak ada yang boleh
+  // "diposting" lewat namanya.
+  if (!aksi || aksi.baca) return { ok: false, status: 400, error: 'Jenis draft ini tidak dikenal.' };
+  // draftAsli dipakai alat bertahap (caca-aksi-barang.js): potongan yang sudah
+  // diposting tidak boleh membuat potongan berikutnya dianggap "berubah".
+  const disusun = await aksi.siapkan(draft.tangkapan, { ...ctx, referensi: draft?.muatan?.sourceReferenceId, draftAsli: draft });
   if (!disusun.ok) return { ok: false, status: 409, error: disusun.tanya || disusun.error };
   const { tangkapan: _abaikan, ...dilihat } = draft;
   if (JSON.stringify(disusun.draft) !== JSON.stringify(dilihat)) {

@@ -26,7 +26,7 @@ penjualan dan jurnalnya immutable (invariant #2), jadi perbaikannya harus berupa
 4. Laporan: mesin fakta POS menjumlahkan selisih ke HPP per tanggal penjualan (cache tanggal itu
    dibuang). Gerai Akuntansi menerima **jurnal koreksi per penjualan** (Debit Persediaan bahan /
    Kredit HPP barang terjual bila HPP terlalu besar; kebalikannya bila terlalu kecil), hanya
-   setelah jurnal penjualannya POSTED; sisanya diposting lewat tombol sinkron Akuntansi.
+   setelah jurnal penjualannya POSTED; sisanya diposting otomatis saat panel Akuntansi atau Laporan Untung Rugi dibuka (lihat ADR-051 tambahan 2026-10-02), atau lewat tombol sinkron.
    Dicatat di `accounting_bridge_deliveries` (fakta `HPP_KOREKSI`), tanpa foreign key dari
    tabel koreksi ke jurnal (invariant #4).
 5. Produksi **manual (stok)** yang memakai bahan itu tidak ikut dihitung ulang; jumlahnya

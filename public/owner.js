@@ -88,7 +88,7 @@ function renderOwnerStores() {
     <article class="owner-store-card ${store.isActive ? '' : 'inactive'}">
       <div class="owner-store-code">${ownerEscape(store.code)}</div>
       <h3>${ownerEscape(store.storeName)}</h3>
-      <p>${ownerEscape(store.address || 'Alamat belum diisi')}</p>
+      ${store.address ? `<p>${ownerEscape(store.address)}</p>` : ''}
       <p class="muted">${store.entityName ? `Entity: ${ownerEscape(store.entityName)}` : 'Entity belum ditentukan'}</p>
       <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
       <div class="owner-store-actions">
@@ -108,18 +108,33 @@ function renderOwnerStoreEntityOptions() {
   ).join('')}`;
 }
 
+// Status sebagai penanda berwarna (public/list-cards.css .status-chip), bukan
+// kata ACTIVE polos -- Bos Cyo 2026-10-02: kartu dibuat ringkas & enak dilihat.
+const OWNER_STATUS_CHIP = { ACTIVE: ['ok', 'Aktif'], INACTIVE: ['off', 'Nonaktif'], ARCHIVED: ['off', 'Diarsipkan'], SUSPENDED: ['bad', 'Ditangguhkan'] };
+function ownerStatusChip(status) {
+  const [tone, label] = OWNER_STATUS_CHIP[String(status || '').toUpperCase()] || ['off', status || '-'];
+  return `<span class="status-chip ${tone}">${ownerEscape(label)}</span>`;
+}
+
 function renderOwnerTenants() {
   ownerEl('ownerTenantCount').textContent = ownerState.tenants.length;
   ownerEl('ownerTenantList').innerHTML = ownerState.tenants.length ? ownerState.tenants.map(tenant => `
     <div class="master-row">
-      <div class="master-main"><strong>${ownerEscape(tenant.name)}</strong><div class="master-meta">${ownerEscape(tenant.status)}</div></div>
+      <div class="master-main"><strong>${ownerEscape(tenant.name)}</strong>${ownerStatusChip(tenant.status)}</div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-toggle-tenant-policy="${ownerEscape(tenant.id)}">${ownerState.expandedTenantPolicyId === tenant.id ? 'Tutup kebijakan' : 'Kebijakan'}</button>
       </div>
     </div>
     ${ownerState.expandedTenantPolicyId === tenant.id ? `
     <div class="master-row" style="background:#f8f9fb;display:block">
-      ${ownerState.tenantPolicySettings.length ? ownerState.tenantPolicySettings.map(setting => `
+      ${ownerState.tenantPolicySettings.length ? ownerState.tenantPolicySettings.map(setting => setting.type === 'choice' ? `
+        <div style="margin-bottom:12px">
+          <b>${ownerEscape(setting.label)}</b>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">
+            ${(setting.options || []).map(option => `<button type="button" class="${option.value === setting.value ? 'primary-btn' : 'secondary-btn'}" style="width:auto;padding:8px 14px;font-size:13px" data-tenant-policy-choice="${ownerEscape(setting.key)}" data-tenant-policy-tenant="${ownerEscape(tenant.id)}" data-tenant-policy-value="${ownerEscape(option.value)}" aria-pressed="${option.value === setting.value}">${ownerEscape(option.label)}</button>`).join('')}
+          </div>
+          <span class="muted" style="font-size:12px">${ownerEscape(setting.description)}</span>
+        </div>` : `
         <label class="admin-check" style="justify-content:flex-start;align-items:flex-start;gap:8px;display:flex;margin-bottom:10px">
           <input type="checkbox" data-tenant-policy-key="${ownerEscape(setting.key)}" data-tenant-policy-tenant="${ownerEscape(tenant.id)}" ${setting.value ? 'checked' : ''} />
           <span><b>${ownerEscape(setting.label)}</b><br><span class="muted" style="font-size:12px">${ownerEscape(setting.description)}</span></span>
@@ -127,6 +142,9 @@ function renderOwnerTenants() {
     </div>` : ''}`).join('') : '<div class="empty">Belum ada tenant.</div>';
   document.querySelectorAll('[data-toggle-tenant-policy]').forEach(button => {
     button.onclick = () => toggleTenantPolicyPanel(button.dataset.toggleTenantPolicy);
+  });
+  document.querySelectorAll('[data-tenant-policy-choice]').forEach(button => {
+    button.onclick = () => saveTenantPolicySetting(button.dataset.tenantPolicyTenant, button.dataset.tenantPolicyChoice, button.dataset.tenantPolicyValue);
   });
   document.querySelectorAll('[data-tenant-policy-key]').forEach(input => {
     input.onchange = () => saveTenantPolicySetting(input.dataset.tenantPolicyTenant, input.dataset.tenantPolicyKey, input.checked);
@@ -179,7 +197,7 @@ function renderOwnerEntities() {
   ownerEl('ownerEntityCount').textContent = ownerState.entities.length;
   ownerEl('ownerEntityList').innerHTML = ownerState.entities.length ? ownerState.entities.map(entity => `
     <div class="master-row">
-      <div class="master-main"><strong>${ownerEscape(entity.name)}</strong><div class="master-meta">${entity.tenantName ? ownerEscape(entity.tenantName) : 'Belum tertaut tenant'} · ${ownerEscape(entity.status)}</div></div>
+      <div class="master-main"><strong>${ownerEscape(entity.name)}</strong>${ownerStatusChip(entity.status)}<div class="master-meta">${entity.tenantName ? `Tenant ${ownerEscape(entity.tenantName)}` : 'Belum tertaut tenant'}</div></div>
     </div>`).join('') : '<div class="empty">Belum ada entity.</div>';
   renderOwnerStoreEntityOptions();
 }
@@ -226,7 +244,7 @@ function renderCustomerSharing() {
       <div class="master-main">
         <strong>${ownerEscape(group.name)}</strong>
         <div class="master-meta">${group.stores.length ? group.stores.map(store => ownerEscape(store.code)).join(' ↔ ') : 'Tidak ada gerai'}</div>
-        <div class="master-meta">${group.isActive ? 'Berbagi pelanggan aktif' : 'Nonaktif'}</div>
+        <span class="status-chip ${group.isActive ? 'ok' : 'off'}">${group.isActive ? 'Berbagi aktif' : 'Nonaktif'}</span>
       </div>
       <div class="master-actions">
         ${group.isActive ? `<button class="mini-btn" type="button" data-edit-sharing="${ownerEscape(group.id)}">Edit</button><button class="mini-btn danger" type="button" data-disable-sharing="${ownerEscape(group.id)}">Matikan</button>` : ''}

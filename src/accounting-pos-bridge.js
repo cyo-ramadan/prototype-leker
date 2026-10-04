@@ -69,6 +69,22 @@ export async function listOperationalAccountingComponents(db, storeId) {
   }));
 }
 
+// Transaksi lama dibuat sebelum barangnya punya Jenis Barang, sehingga snapshot
+// Jenis Barang di baris transaksinya kosong dan jurnalnya nyangkut selamanya
+// (NEEDS_PRODUCT_KIND). Isi snapshot yang kosong dari Jenis Barang barang itu
+// SEKARANG -- hanya klasifikasi, tidak menyentuh nominal. Dipanggil sebelum
+// fakta dibaca; baris yang sudah punya snapshot tidak diubah.
+async function healItemKindSnapshot(db, table, parentColumn, storeId, factId) {
+  await db.prepare(`
+    UPDATE ${table}
+    SET product_kind_id = (SELECT p.product_kind_id FROM products p WHERE p.id = ${table}.product_id AND p.store_id = ${table}.store_id),
+        product_kind_code = (SELECT k.code FROM products p JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id WHERE p.id = ${table}.product_id AND p.store_id = ${table}.store_id),
+        product_kind_name = (SELECT k.name FROM products p JOIN product_kinds k ON k.id = p.product_kind_id AND k.store_id = p.store_id WHERE p.id = ${table}.product_id AND p.store_id = ${table}.store_id)
+    WHERE ${parentColumn} = ? AND store_id = ? AND product_kind_id IS NULL
+      AND EXISTS (SELECT 1 FROM products p WHERE p.id = ${table}.product_id AND p.store_id = ${table}.store_id AND p.product_kind_id IS NOT NULL)
+  `).bind(factId, storeId).run();
+}
+
 async function loadSaleFact(db, storeId, factId) {
   const header = await db.prepare(`
     SELECT id, total_amount, payment_method, created_at, note
@@ -77,6 +93,7 @@ async function loadSaleFact(db, storeId, factId) {
     LIMIT 1
   `).bind(factId, storeId).first();
   if (!header) return null;
+  await healItemKindSnapshot(db, 'sale_items', 'sale_id', storeId, factId);
   const rows = await db.prepare(`
     SELECT product_kind_id, product_kind_code, product_kind_name, line_total, line_cogs
     FROM sale_items
@@ -108,6 +125,7 @@ async function loadPurchaseFact(db, storeId, factId) {
     LIMIT 1
   `).bind(factId, storeId).first();
   if (!header) return null;
+  await healItemKindSnapshot(db, 'purchase_items', 'purchase_id', storeId, factId);
   const rows = await db.prepare(`
     SELECT product_kind_id, product_kind_code, product_kind_name, line_total
     FROM purchase_items

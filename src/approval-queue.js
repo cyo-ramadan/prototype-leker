@@ -193,7 +193,9 @@ async function handleCashierApprovalQueue(request, env, pathname) {
     `).bind(id, auth.cashier.store.id, drawerAuth.drawer.id, auth.cashier.id, requestType, payloadJson, now, now).run();
 
     const settings = await getApprovalSettings(env.DB, auth.cashier.store.id);
-    if (!settings.autoPermitEnabled) return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
+    // Skin E (jaga sendiri): yang mengajukan dan yang menyetujui orang yang
+    // sama, jadi selalu Auto Permit -- tetap tercatat approverRole AUTO_PERMIT.
+    if (!settings.autoPermitEnabled && !auth.cashier.store.ownerOperated) return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
 
     const created = await getRequest(env.DB, id);
     const outcome = await applyAccDecision(env, created, {

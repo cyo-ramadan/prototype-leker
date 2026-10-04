@@ -5,7 +5,7 @@ import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-a
 import { listPayrollAdjustments, createPayrollAdjustment, voidPayrollAdjustment } from './payroll-adjustments.js';
 import { activateEntityBackupCashier } from './entity-backup-cashiers.js';
 import { getJakartaBusinessDate } from './time.js';
-import { resolveTenantId, getTenantPolicySetting, ATTENDANCE_SCHEDULE_GATE_KEY } from './tenant-policy.js';
+import { resolveTenantId, getTenantPolicySetting, getTenantPolicyChoice, isOwnerOperatedChoice, ATTENDANCE_SCHEDULE_GATE_KEY, UI_SKIN_KEY } from './tenant-policy.js';
 
 // Identitas pemanggil requireManagement (Owner/Admin Gerai/Entity Admin/Agent
 // token) diringkas ke {role, id} generik -- dipakai sebagai jejak audit
@@ -200,6 +200,9 @@ function mapCashier(row, schedule = []) {
 async function attachAttendanceScheduleGate(db, cashier, entityId) {
   const tenantId = await resolveTenantId(db, entityId);
   cashier.store.attendanceScheduleGateEnabled = await getTenantPolicySetting(db, tenantId, ATTENDANCE_SCHEDULE_GATE_KEY);
+  // Skin E (jaga sendiri) -- dibaca endpoint buka laci, Auto Permit, dan
+  // /api/cashier/warung/untung. Lihat isOwnerOperatedChoice.
+  cashier.store.ownerOperated = isOwnerOperatedChoice(await getTenantPolicyChoice(db, tenantId, UI_SKIN_KEY));
   return cashier;
 }
 

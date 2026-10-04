@@ -17,6 +17,9 @@ import { handlePermitReportApi } from './permit-report.js';
 import { handleAttendanceReportApi } from './attendance-report.js';
 import { handleEntityRecipeApi } from './entity-recipe.js';
 import { handleHppRecalculationApi } from './hpp-recalculation.js';
+import { handleHppAuditApi } from './hpp-audit.js';
+import { handleEntityStockApi } from './entity-stock.js';
+import { handleEntityDrawerStatusApi } from './entity-drawer-status.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
 import { handleCashierTrackedSaleApi } from './cashier-sales-tracking.js';
 import { handleCashierPurchaseApi } from './cashier-purchase.js';
@@ -46,6 +49,7 @@ import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
 import { handleAccountingPosBridgeApi } from './accounting-pos-bridge.js';
+import { handleAccountingBridgeIssuesApi } from './accounting-bridge-issues.js';
 import { attachAccountingBridgeToCommittedResponse } from './accounting-pos-bridge-response.js';
 import { attachAdminAccountingToCommittedResponse } from './accounting-admin-bridge.js';
 import { handleBusinessSettingsApi } from './business-settings.js';
@@ -72,6 +76,8 @@ import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
 import { handleCostMasterApi } from './cost-master.js';
 import { handleDebuggerApi } from './debugger-control-plane.js';
+import { handleUiProfileApi } from './ui-profile.js';
+import { handleWarungUntungApi } from './warung-untung.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -219,6 +225,8 @@ async function handleApi(request, env, url) {
 
   const debuggerResponse = await handleDebuggerApi(request, env, pathname);
   if (debuggerResponse) return debuggerResponse;
+  const uiProfileResponse = await handleUiProfileApi(request, env, pathname);
+  if (uiProfileResponse) return uiProfileResponse;
   const unifiedLoginResponse = await handleUnifiedLoginApi(request, env, pathname);
   if (unifiedLoginResponse) return unifiedLoginResponse;
   const costMasterResponse = await handleCostMasterApi(request, env, pathname);
@@ -273,8 +281,14 @@ async function handleApi(request, env, url) {
   if (attendanceReportResponse) return attendanceReportResponse;
   const entityRecipeResponse = await handleEntityRecipeApi(request, env, pathname);
   if (entityRecipeResponse) return entityRecipeResponse;
+  const hppAuditResponse = await handleHppAuditApi(request, env, pathname);
+  if (hppAuditResponse) return hppAuditResponse;
   const hppRecalculationResponse = await handleHppRecalculationApi(request, env, pathname);
   if (hppRecalculationResponse) return hppRecalculationResponse;
+  const entityStockResponse = await handleEntityStockApi(request, env, pathname);
+  if (entityStockResponse) return entityStockResponse;
+  const entityDrawerStatusResponse = await handleEntityDrawerStatusApi(request, env, pathname);
+  if (entityDrawerStatusResponse) return entityDrawerStatusResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);
@@ -299,6 +313,8 @@ async function handleApi(request, env, url) {
   if (accountingWorkspaceResponse) return accountingWorkspaceResponse;
   const accountingReconciliationGuard = await handleAccountingReconciliationGuardApi(request, env, pathname);
   if (accountingReconciliationGuard) return accountingReconciliationGuard;
+  const accountingBridgeIssuesResponse = await handleAccountingBridgeIssuesApi(request, env, pathname);
+  if (accountingBridgeIssuesResponse) return accountingBridgeIssuesResponse;
   const accountingBridgeResponse = await handleAccountingPosBridgeApi(request, env, pathname);
   if (accountingBridgeResponse) return accountingBridgeResponse;
   const businessSettingsResponse = await handleBusinessSettingsApi(request, env, pathname);
@@ -385,6 +401,8 @@ async function handleApi(request, env, url) {
     }
     return purchaseResponse;
   }
+  const warungUntungResponse = await handleWarungUntungApi(request, env, pathname);
+  if (warungUntungResponse) return warungUntungResponse;
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;
   const cashierOrdersResponse = await handleCashierOrders(request, env, pathname);
@@ -438,9 +456,10 @@ async function handleApi(request, env, url) {
 // tidak pernah memicu redirect itu sama sekali -- alamat asli
 // (/s/:code/admin) di address bar browser tidak pernah berubah.
 export function assetRoute(pathname) {
-  const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
+  const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/login': '/login', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
-  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin))?\/?$/);
+  // 'warung' = Mode Warung (skin D, public/warung.html) -- DESAIN-SKIN-D-WARUNG.md.
+  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
     if (page === 'admin') return '/branch-admin';

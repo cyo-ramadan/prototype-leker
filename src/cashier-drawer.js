@@ -4,6 +4,7 @@ import { requireCashier, latestAttendanceStatus } from './cashier-auth.js';
 import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { createEmployeeDepositReceivable } from './employee-deposit-settlement.js';
+import { optionalMoney, resolveDrawerDeposit } from './drawer-deposit.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const money = value => {
@@ -155,8 +156,10 @@ export async function handleCashierDrawerApi(request, env, pathname) {
       return json({ error: `Laci sudah dibuka oleh ${existing.cashierName}.`, code: 'DRAWER_ALREADY_OPEN', drawer: existing }, 409);
     }
     // Bos Cyo 2026-09-04: cuma kasir yang sudah presensi masuk yang boleh
-    // buka laci dan jadi penanggung jawabnya.
-    if (await latestAttendanceStatus(db, cashier.id) !== 'in') {
+    // buka laci dan jadi penanggung jawabnya. Kecuali tenant skin E (Bos Cyo
+    // 2026-10-02): pemiliknya jaga sendiri, presensi ke diri sendiri tidak
+    // menjaga apa-apa.
+    if (!cashier.store.ownerOperated && await latestAttendanceStatus(db, cashier.id) !== 'in') {
       return json({ error: 'Presensi masuk dulu sebelum buka laci.', code: 'PRESENSI_REQUIRED' }, 403);
     }
     const body = await readJson(request);
@@ -194,13 +197,15 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (!ownership.ok) return ownership.response;
 
     let closingAmount;
-    let depositAmount;
+    let depositRaw;
+    let leftRaw;
     let closingNote = '';
     let photo = null;
     if (isMultipartRequest(request)) {
       const form = await request.formData();
       closingAmount = money(form.get('closingAmount'));
-      depositAmount = money(form.get('depositAmount') ?? 0);
+      depositRaw = form.get('depositAmount') ?? 0;
+      leftRaw = form.get('leftInDrawerAmount');
       closingNote = text(form.get('closingNote'), 500);
       photo = await readLivePhoto(form, 'photo');
       if (!photo.ok) return json({ error: photo.error }, photo.status);
@@ -208,14 +213,18 @@ export async function handleCashierDrawerApi(request, env, pathname) {
       const body = await readJson(request);
       if (!body.ok) return json({ error: 'Payload tutup laci tidak valid.' }, 400);
       closingAmount = money(body.value?.closingAmount);
-      depositAmount = money(body.value?.depositAmount ?? 0);
+      depositRaw = body.value?.depositAmount ?? 0;
+      leftRaw = body.value?.leftInDrawerAmount;
       closingNote = text(body.value?.closingNote, 500);
     }
     if (closingAmount === null) return json({ error: 'Saldo akhir laci wajib berupa angka valid.' }, 400);
-    if (depositAmount === null) return json({ error: 'Setoran wajib berupa angka valid.' }, 400);
-    if (depositAmount > closingAmount) {
-      return json({ error: 'Setoran tidak boleh lebih besar dari saldo akhir laci.' }, 400);
-    }
+    const resolved = resolveDrawerDeposit({
+      closingAmount,
+      leftInDrawer: optionalMoney(leftRaw, money),
+      depositFallback: money(depositRaw)
+    });
+    if (!resolved.ok) return json({ error: resolved.error }, 400);
+    const depositAmount = resolved.depositAmount;
     if (depositAmount > 0 && !Number.isSafeInteger(depositAmount * 1_000_000)) {
       return json({ error: 'Nominal setoran terlalu besar untuk precision Accounting.' }, 400);
     }

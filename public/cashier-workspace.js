@@ -28,7 +28,7 @@
   window.refreshCashierWorkspace = applyWorkspace;
 
   showLogin = function showCentralStaffLogin() {
-    location.replace('/?login=staff');
+    location.replace('/login');
   };
 
   openDashboard = async function openCashierWorkspace() {

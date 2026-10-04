@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MAXI Leker · Owner</title>
+  <title>MAXI · Owner</title>
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/admin.css?v=20261002-kartu-ringkas-v1" />
+  <link rel="stylesheet" href="/list-cards.css?v=20261002-kartu-ringkas-v2" />
   <link rel="stylesheet" href="/owner.css" />
-  <script src="/staff-entry-guard.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
-  <script src="/staff-tab-lock.js?v=20260922-randomuuid-fallback-v1"></script>
+  <script src="/staff-entry-guard.js?v=20261003-login-karyawan-v1"></script>
+  <script src="/staff-tab-lock.js?v=20261003-login-karyawan-v1"></script>
 </head>
 <body>
 <div class="app-shell">
   <header class="topbar admin-topbar">
-    <div class="brand"><div class="brand-mark">O</div><div>MAXI LEKER<small>Owner Console</small></div></div>
+    <div class="brand"><div class="brand-mark">O</div><div>MAXI<small>Owner Console</small></div></div>
     <div class="admin-top-actions">
       <a class="admin-link" href="/customer">Customer</a>
       <a class="admin-link" href="/cashier">Kasir</a>
@@ -34,17 +35,17 @@
 
     <section id="ownerApp" class="hidden">
       <div class="owner-heading">
-        <div><div class="admin-eyebrow">Structure level 1</div><h1>Gerai</h1><p class="muted">Gerai berada di atas seluruh master dan transaksi.</p></div>
+        <div><div class="admin-eyebrow">Semua usaha</div><h1>Gerai</h1><p class="muted">Gerai berada di atas seluruh master dan transaksi.</p></div>
         <div id="ownerIdentity" class="owner-chip"></div>
       </div>
 
       <section class="admin-card" style="margin-bottom:18px">
-        <div class="list-head"><div><h2>Structure level 0 · Tenant &amp; Entity</h2><div class="muted">Tenant = pelanggan MAXI yang berlangganan. Entity (Badan Usaha) = pemilik buku &amp; stok sendiri, bisa lebih dari satu gerai. Gerai baru boleh dikaitkan ke sebuah Entity di bawah.</div></div></div>
+        <div class="list-head"><div><h2>Tenant &amp; Entity</h2><div class="muted">Tenant = pelanggan MAXI yang berlangganan. Entity (Badan Usaha) = pemilik buku &amp; stok sendiri, bisa lebih dari satu gerai. Gerai baru boleh dikaitkan ke sebuah Entity di bawah.</div></div></div>
         <div class="admin-grid two" style="margin-top:14px">
           <div class="admin-card" style="box-shadow:none">
             <form id="tenantCreateForm">
               <h3>Buat tenant</h3>
-              <label class="admin-field">Nama tenant<input id="ownerTenantName" maxlength="80" placeholder="Contoh: PT Maxi Leker" required /></label>
+              <label class="admin-field">Nama tenant<input id="ownerTenantName" maxlength="80" placeholder="Contoh: PT Usaha Maju Bersama" required /></label>
               <button class="primary-btn" type="submit">＋ Buat Tenant</button>
             </form>
             <div class="list-head" style="margin-top:14px"><h3>Daftar tenant</h3><span id="ownerTenantCount" class="master-count">0</span></div>
@@ -53,10 +54,10 @@
           <div class="admin-card" style="box-shadow:none">
             <form id="entityCreateForm">
               <h3>Buat entity</h3>
-              <label class="admin-field">Nama entity<input id="ownerEntityName" maxlength="80" placeholder="Contoh: CV Leker Malang Raya" required /></label>
+              <label class="admin-field">Nama entity<input id="ownerEntityName" maxlength="80" placeholder="Contoh: CV Maju Malang Raya" required /></label>
               <label class="admin-field">Tenant pemilik<select id="ownerEntityTenant" required></select></label>
               <button class="primary-btn" type="submit">＋ Buat Entity</button>
-              <p class="field-note">Entity belum bisa dipindah tenant dari panel ini -- pemindahan (merge) tetap operasi tersendiri per ADR-030.</p>
+              <p class="field-note">Entity belum bisa dipindah ke tenant lain dari panel ini.</p>
             </form>
             <div class="list-head" style="margin-top:14px"><h3>Daftar entity</h3><span id="ownerEntityCount" class="master-count">0</span></div>
             <div id="ownerEntityList" class="master-list"></div>
@@ -68,7 +69,7 @@
         <form id="storeCreateForm" class="admin-card owner-create-card">
           <h2>Create gerai</h2>
           <label class="admin-field">Kode gerai<input id="ownerStoreCode" maxlength="16" placeholder="Contoh: G003" required /></label>
-          <label class="admin-field">Nama gerai<input id="ownerStoreName" maxlength="80" placeholder="MAXI Leker Gerai 3" required /></label>
+          <label class="admin-field">Nama gerai<input id="ownerStoreName" maxlength="80" placeholder="Contoh: Gerai Sawojajar" required /></label>
           <label class="admin-field">Alamat<textarea id="ownerStoreAddress" rows="3" maxlength="180"></textarea></label>
           <label class="admin-field">Entity (Badan Usaha) <span class="muted">optional</span><select id="ownerStoreEntity"><option value="">Belum ditentukan</option></select></label>
           <button class="primary-btn" type="submit">＋ CREATE GERAI</button>
@@ -90,7 +91,7 @@
             <label class="admin-field">Nama grup<input id="customerSharingName" maxlength="80" placeholder="Contoh: Area Tulungagung" required /></label>
             <div class="admin-field"><label>Gerai yang berbagi pelanggan</label><div id="customerSharingStores" class="master-list"></div></div>
             <button class="primary-btn" type="submit">Simpan Berbagi Pelanggan</button>
-            <p class="field-note">Username pelanggan yang bentrok antar gerai akan ditolak. Infrastruktur poin sudah disiapkan, tetapi rumus earn/redeem belum diaktifkan sampai aturan poin ditentukan.</p>
+            <p class="field-note">Username pelanggan yang bentrok antar gerai akan ditolak.</p>
           </form>
           <div class="admin-card" style="box-shadow:none">
             <div class="list-head"><h3>Grup aktif</h3><span id="customerSharingCount" class="master-count">0</span></div>
@@ -102,9 +103,9 @@
   </main>
   <div id="ownerToast" class="admin-toast" aria-live="polite"></div>
 </div>
-<script src="/owner.js?v=20260924-kebijakan-tenant-v1"></script>
-<script src="/owner-central-entry.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
-<script src="/management-approval-queue.js?v=20260919-stock-adjustment-satu-sesi-v1"></script>
+<script src="/owner.js?v=20261002-kartu-ringkas-v2"></script>
+<script src="/owner-central-entry.js?v=20261003-login-karyawan-v1"></script>
+<script src="/management-approval-queue.js?v=20261003-skin-d-pemilik-v1"></script>
 <script src="/management-transaction-void-permits.js"></script>
 <script src="/management-customer-feedback.js?v=20260816-admin-delivery-identity-v2"></script>
 </body>

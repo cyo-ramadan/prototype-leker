@@ -68,7 +68,7 @@ async function setup() {
 
 // Satu penjualan Leker dadakan: harga = jumlah adonan (1 adonan = Rp1), tapi
 // HPP tercatat memakai harga adonan yang salah.
-function seedDadakanSale(ctx, { price, createdAt, voided = false, journalPosted = false }) {
+function seedDadakanSale(ctx, { price, createdAt, voided = false, journalPosted = false, componentKind = KIND }) {
   const { db, adonan, leker } = ctx;
   const saleId = nextId('sale');
   const runId = nextId('run');
@@ -82,7 +82,7 @@ function seedDadakanSale(ctx, { price, createdAt, voided = false, journalPosted 
   db.prepare(`INSERT INTO production_run_components (id, production_run_id, store_id, component_product_id, component_product_name, component_unit_id, component_unit_symbol,
       quantity_per_batch, total_quantity, unit_cost_snapshot_scaled, total_cost_snapshot_scaled, component_product_kind_id)
     VALUES (?, ?, 'store_kantor', ?, 'Adonan Leker', 'unit_kantor_rp', 'Rp', ?, ?, ?, ?, ?)`)
-    .run(nextId('comp'), runId, adonan, price, price, WRONG_COST, wrongCost, KIND);
+    .run(nextId('comp'), runId, adonan, price, price, WRONG_COST, wrongCost, componentKind);
   db.prepare(`INSERT INTO sale_items (id, sale_id, store_id, product_id, product_name, unit_price, quantity, line_total, unit_cost_snapshot, line_cogs, production_run_id, product_kind_id)
     VALUES (?, ?, 'store_kantor', ?, 'Leker Keju', ?, 1, ?, ?, ?, ?, ?)`)
     .run(nextId('item'), saleId, leker, price, price, wrongCost, wrongCost, runId, KIND);
@@ -182,6 +182,87 @@ test('gerai Akuntansi: jurnal koreksi Debit Persediaan bahan / Kredit HPP untuk 
   } finally { ctx.db.close(); }
 });
 
+test('gerai Akuntansi: snapshot produksi lama tanpa Jenis Barang bahan tetap bisa dijurnal (pakai Jenis Barang bahan sekarang), termasuk baris lama yang sudah tersimpan kosong', async () => {
+  const ctx = await setup();
+  try {
+    // Kasus produksi nyata DERMO: component_product_kind_id kosong di snapshot.
+    seedDadakanSale(ctx, { price: 2000, createdAt: '2026-09-15T05:00:00.000Z', journalPosted: true, componentKind: null });
+    const legacy = seedDadakanSale(ctx, { price: 5000, createdAt: '2026-09-16T05:00:00.000Z', componentKind: null });
+
+    const res = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'Leker barang titipan' });
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.deepEqual(body.journals.map(item => item.status), ['POSTED'], 'tidak lagi macet NEEDS_CONFIGURATION');
+    assert.equal(ctx.db.prepare("SELECT component_kind_id FROM hpp_recalculation_lines LIMIT 1").get().component_kind_id, KIND);
+
+    // Baris yang terlanjur tersimpan dengan kind kosong (sebelum perbaikan) diselamatkan saat sinkron.
+    ctx.db.prepare('UPDATE hpp_recalculation_lines SET component_kind_id = NULL WHERE sale_id = ?').run(legacy);
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status)
+      VALUES ('delivery_legacy', 'store_kantor', 'POS', 'SALE', ?, 'sale', 'POSTED')`).run(legacy);
+    const sync = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
+    assert.equal(sync.results.filter(row => row.factType === 'HPP_KOREKSI' && row.status === 'POSTED').length, 1);
+    assert.equal(ctx.db.prepare("SELECT COUNT(*) AS n FROM accounting_journal_headers WHERE source_reference_id LIKE 'HPP_KOREKSI:%'").get().n, 2);
+  } finally { ctx.db.close(); }
+});
+
+test('sinkron otomatis: membuka Laporan Untung Rugi memposting koreksi yang tertunda tanpa tombol sinkron; yang baru gagal tidak dicoba ulang sebelum jeda', async () => {
+  const ctx = await setup();
+  try {
+    const pending = seedDadakanSale(ctx, { price: 5000, createdAt: '2026-09-16T05:00:00.000Z' });
+    assert.equal((await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'Leker barang titipan' })).status, 201);
+    const koreksi = () => ctx.db.prepare("SELECT COUNT(*) AS n FROM accounting_journal_headers WHERE source_reference_id LIKE 'HPP_KOREKSI:%'").get().n;
+    assert.equal(koreksi(), 0, 'jurnal penjualan belum masuk -> koreksi menunggu');
+
+    // Jurnal penjualan masuk belakangan; cukup buka laporan.
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status)
+      VALUES ('delivery_auto', 'store_kantor', 'POS', 'SALE', ?, 'sale', 'POSTED')`).run(pending);
+    // Seolah koreksi ini baru saja gagal dicoba: jalur otomatis menunggu jeda.
+    ctx.db.prepare(`INSERT INTO accounting_bridge_deliveries (id, store_id, producer_module, fact_type, fact_id, transaction_category_code, status, last_attempt_at)
+      SELECT 'delivery_hpp_recent', 'store_kantor', 'ADMIN', 'HPP_KOREKSI', recalculation_id || ':' || sale_id, 'hpp_koreksi', 'NEEDS_CONFIGURATION', ? FROM hpp_recalculation_lines LIMIT 1`)
+      .run(new Date().toISOString());
+    const report = () => call(ctx, 'GET', '/api/admin/reports/net-profit?from=2026-09-16&to=2026-09-16&stores=KANTOR');
+    assert.equal((await report()).status, 200);
+    assert.equal(koreksi(), 0, 'baru dicoba < 15 menit lalu -> dilewati');
+
+    ctx.db.prepare("UPDATE accounting_bridge_deliveries SET last_attempt_at = '2026-01-01T00:00:00.000Z' WHERE id = 'delivery_hpp_recent'").run();
+    assert.equal((await report()).status, 200);
+    assert.equal(koreksi(), 1, 'sesudah jeda, koreksi masuk otomatis saat laporan dibuka');
+
+    // Tombol sinkron manual tetap mencoba semuanya (tanpa jeda) dan tidak memposting dua kali.
+    const sync = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();
+    assert.equal(sync.results.filter(row => row.factType === 'HPP_KOREKSI').length, 0);
+    assert.equal(koreksi(), 1);
+  } finally { ctx.db.close(); }
+});
+
+test('bahan baku yang harga rata-ratanya salah catat (tidak dipakai produksi dadakan) bisa dibetulkan: tanpa baris penjualan, hanya harga rata-rata, tercatat riwayatnya', async () => {
+  const ctx = await setup();
+  try {
+    // "Air Mineral" salah catat pembelian: qty 2 (maksudnya 32.000 ml) -> harga rata-rata 8.000/ml.
+    const air = addProduct(ctx.db, 'Air Mineral', 'unit_kantor_rp', 8000 * SCALE);
+    ctx.db.prepare("UPDATE products SET item_type_id = 'item_type_store_kantor_raw' WHERE id = ?").run(air);
+    const list = await (await call(ctx, 'GET', '/api/admin/hpp-recalculation/components')).json();
+    const found = list.components.find(item => item.productId === air);
+    assert.ok(found, 'bahan baku biasa ikut daftar');
+    assert.equal(found.usedInSales, false);
+
+    const preview = await (await call(ctx, 'POST', '/api/admin/hpp-recalculation/preview', { componentProductId: air, unitCost: '0,5', from: '2026-09-01' })).json();
+    assert.equal(preview.summary.lineCount, 0);
+    assert.equal(preview.summary.averageCostOnly, true);
+    assert.equal(preview.summary.previousAverageCostRupiah, 8000);
+    assert.equal(preview.summary.newAverageCostRupiah, 0.5);
+
+    const res = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: air, unitCost: '0,5', from: '2026-09-01', reason: 'Salah catat pembelian: 2 seharusnya 32.000 ml' });
+    assert.equal(res.status, 201);
+    assert.equal(ctx.db.prepare('SELECT average_cost FROM products WHERE id = ?').get(air).average_cost, SCALE / 2);
+    const header = ctx.db.prepare('SELECT line_count, previous_average_cost_scaled, unit_cost_scaled FROM hpp_recalculations').get();
+    assert.deepEqual([Number(header.line_count), Number(header.previous_average_cost_scaled), Number(header.unit_cost_scaled)], [0, 8000 * SCALE, SCALE / 2]);
+
+    const again = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: air, unitCost: '0,5', from: '2026-09-01', reason: 'ulang sama persis' });
+    assert.equal(again.status, 409, 'harga sudah sama -> tidak ada yang dikerjakan');
+  } finally { ctx.db.close(); }
+});
+
 test('validasi: bahan gerai lain ditolak, harga harus angka, tanpa login ditolak, daftar bahan hanya yang dipakai produksi dadakan', async () => {
   const ctx = await setup();
   try {
@@ -205,5 +286,5 @@ test('UI: tab Hitung Ulang HPP di Admin Gerai, pratinjau dulu baru terapkan, men
   assert.match(js, /\/api\/admin\/hpp-recalculation\/preview/);
   assert.match(js, /Hanya HPP yang berubah/);
   assert.match(js, /Pratinjau dulu sebelum menerapkan/);
-  assert.match(html, /admin-hpp-recalc\.js\?v=20261002-hitung-ulang-hpp-v1/);
+  assert.match(html, /admin-hpp-recalc\.js\?v=20261002-hitung-ulang-hpp-v2/);
 });

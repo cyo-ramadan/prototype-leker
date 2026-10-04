@@ -30,7 +30,7 @@
           <form id="branchForm" class="admin-card sticky-form">
             <h2>Tambah gerai</h2>
             <label class="admin-field">Kode gerai<input id="branchCode" maxlength="16" placeholder="Contoh: MLG01" required /></label>
-            <label class="admin-field">Nama gerai<input id="branchName" maxlength="80" placeholder="MAXI Leker Dinoyo" required /></label>
+            <label class="admin-field">Nama gerai<input id="branchName" maxlength="80" placeholder="Contoh: Gerai Dinoyo" required /></label>
             <label class="admin-field">Alamat<textarea id="branchAddress" rows="3" maxlength="180"></textarea></label>
             <button class="primary-btn" type="submit">Tambah gerai</button>
           </form>

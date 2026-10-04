@@ -58,6 +58,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminIdentity').textContent = entityAdminState.entityAdmin?.displayName || entityAdminState.entityAdmin?.username || 'Entity Admin';
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
+  window.refreshEntityDrawerCards?.();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
 }
@@ -71,11 +72,17 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-sharedaccounts')?.classList.toggle('active', name === 'sharedaccounts');
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-entityrecipes')?.classList.toggle('active', name === 'entityrecipes');
+  entityAdminEl('entityTab-entitystock')?.classList.toggle('active', name === 'entitystock');
+  entityAdminEl('entityTab-drawerstatus')?.classList.toggle('active', name === 'drawerstatus');
+  entityAdminEl('entityTab-storereport')?.classList.toggle('active', name === 'storereport');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
   if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'entityrecipes') loadEntityRecipes().catch(error => entityAdminToast(error.message));
+  if (name === 'entitystock') window.loadEntityStockMatrix?.();
+  if (name === 'drawerstatus') window.loadEntityDrawerStatus?.();
+  if (name === 'storereport') window.loadEntityStoreReport?.();
   if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
   if (name === 'reports') renderEntityReportStoreChecklist();
 }
@@ -114,7 +121,7 @@ function renderEntitySharedAccounts() {
     <div class="master-row contact-row ${account.isActive ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(account.name)}</strong>
-        <div class="master-meta">${account.isActive ? 'Aktif' : 'Nonaktif'}</div>
+        <span class="status-chip ${account.isActive ? 'ok' : 'off'}">${account.isActive ? 'Aktif' : 'Nonaktif'}</span>
       </div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-view-shared-account="${entityAdminEscape(account.id)}">Rincian</button>
@@ -472,7 +479,8 @@ function renderEntityEmployees() {
     <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(employee.fullName)}</strong>
-        <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `Direkrut ${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</div>
+        <span class="status-chip ${employee.status === 'ACTIVE' ? 'ok' : 'off'}">${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</span>
+        <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
         <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
@@ -636,8 +644,12 @@ function renderEntityReportChart() {
   const legend = metric.kind === 'polar'
     ? `<div class="ent-viz-legend"><span><i style="background:var(--viz-good)"></i>\u25b2 Untung</span><span><i style="background:var(--viz-bad)"></i>\u25bc Rugi</span></div>` : '';
 
-  const unposted = Object.entries(payload.unposted || {}).map(([code, info]) =>
-    `<div class="admin-tip" style="margin:0 0 8px"><b>${entityAdminEscape(code)}</b>: ${info.count} transaksi belum masuk pembukuan, jadi angkanya bisa kurang.</div>`).join('');
+  // Satu baris ringkas, bukan satu kotak per gerai (Bos Cyo, 2026-10-02: tujuh
+  // kotak peringatan menutupi grafik di layar HP).
+  const unpostedEntries = Object.entries(payload.unposted || {}).filter(([, info]) => info.count > 0);
+  const unposted = unpostedEntries.length
+    ? `<div class="admin-tip" style="margin:0 0 8px">Belum masuk pembukuan (angka gerai ini bisa kurang): ${unpostedEntries.map(([code, info]) => `<b>${entityAdminEscape(code)}</b> ${info.count}`).join(' \u00b7 ')}</div>`
+    : '';
   wrap.innerHTML = `${unposted}<div class="ent-viz-summary">${entityAdminEscape(metric.hint)}<br>${summary} \u00b7 ${entityAdminEscape(payload.from)} s/d ${entityAdminEscape(payload.to)}</div>${legend}
     <div class="ent-viz-rows" role="list">${rows.map((row, index) => {
       const value = row.v;
@@ -735,7 +747,8 @@ function renderEntityAccounts() {
     <div class="master-row contact-row ${account.isActive ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(account.accountCode)} · ${entityAdminEscape(account.accountName)}</strong>
-        <div class="master-meta">${entityAdminEscape(ENTITY_ACCOUNT_TYPE_LABEL[account.accountType] || account.accountType)}${account.subtype ? ` · ${entityAdminEscape(account.subtype)}` : ''} · ${account.isActive ? 'Aktif' : 'Nonaktif'}</div>
+        ${account.isActive ? '' : '<span class="status-chip off">Nonaktif</span>'}
+        <div class="master-meta">${entityAdminEscape(ENTITY_ACCOUNT_TYPE_LABEL[account.accountType] || account.accountType)}${account.subtype ? ` · ${entityAdminEscape(account.subtype)}` : ''}</div>
       </div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-edit-entity-account="${entityAdminEscape(account.accountId)}">Edit</button>
@@ -868,7 +881,9 @@ function renderEntityJournals() {
     <div class="master-row contact-row">
       <div class="master-main">
         <strong>${entityAdminEscape(journal.journalNumber)}</strong>
-        <div class="master-meta">${entityAdminEscape(journal.businessDate)} · ${entityAdminEscape(journal.description)}${journal.isReversal ? ' · reversal' : ''}</div>
+        ${journal.isReversal ? '<span class="status-chip warn">Pembalik</span>' : ''}
+        <div class="master-meta">${entityAdminEscape(journal.businessDate)}</div>
+        <div class="master-meta">${entityAdminEscape(journal.description)}</div>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada jurnal di buku Entity ini.</div>';
 }
@@ -884,6 +899,8 @@ async function loadEntityAdminData() {
   const payload = await entityAdminApi('/api/entity-admin/stores');
   entityAdminState.entityAdmin = payload.entityAdmin;
   entityAdminState.stores = payload.stores || [];
+  // Skin tampilan ikut tenant pemilik entity ini (public/ui-skin.js).
+  window.MaxiSkin?.useEntity(payload.entityAdmin?.entityId);
 }
 
 function renderEntityAdminStores() {
@@ -892,8 +909,8 @@ function renderEntityAdminStores() {
     <article class="owner-store-card ${store.isActive ? '' : 'inactive'}">
       <div class="owner-store-code">${entityAdminEscape(store.code)}</div>
       <h3>${entityAdminEscape(store.storeName)}</h3>
-      <p>${entityAdminEscape(store.address || 'Alamat belum diisi')}</p>
-      <div class="owner-store-status">${store.isActive ? '● Aktif' : '○ Nonaktif'}</div>
+      ${store.address ? `<p>${entityAdminEscape(store.address)}</p>` : ''}
+      <div class="owner-store-status">${window.entityDrawerBadge ? window.entityDrawerBadge(store, entityAdminState.drawers) : (store.isActive ? '' : '○ Nonaktif')}</div>
       <div class="owner-store-actions">
         <a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>
       </div>

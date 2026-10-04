@@ -4,6 +4,7 @@ import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { countUnsyncedPosFacts } from './accounting-pos-bridge.js';
 import { countPendingAdminFacts } from './accounting-admin-bridge.js';
+import { autoSyncAccounting } from './accounting-auto-sync.js';
 
 // ADR-051 (2026-10-02): mesin fakta POS di file ini tetap berdiri sendiri
 // untuk gerai LITE/FLEXIBLE. Gerai ACCOUNTING dibaca dari jurnal (lihat
@@ -529,6 +530,10 @@ export async function handleNetProfitReportApi(request, env, pathname) {
     selected.push(store);
   }
   if (!selected.length) return json({ from, to, stores: [], rows: [] });
+
+  // Transaksi yang belum masuk pembukuan disinkronkan otomatis dulu (gerai
+  // Akuntansi saja), supaya laporan tidak menunggu tombol sinkron ditekan.
+  await autoSyncAccounting(db, selected);
 
   const { dates, netProfitByKey, breakdownByKey, sourceByStore } = await getNetProfitReport(db, {
     storeIds: selected.map(store => store.id),

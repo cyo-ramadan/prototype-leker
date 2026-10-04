@@ -1,0 +1,106 @@
+/* Skin C · Kabar Gerai -- pilihan tenant ui_skin = C (src/tenant-policy.js).
+   Akrab seperti WhatsApp: atas hijau toska, latar krem chat, kartu berbentuk gelembung, huruf Nunito.
+   Hanya berlaku saat <html data-skin="c"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.
+   Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */
+
+html[data-skin="c"] {
+  --skin-font: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --bg: #ece5dd;
+  --skin-page-bg: #ece5dd;
+  --surface: #ffffff;
+  --ink: #1b1f1d;
+  --muted: #5f6662;
+  --line: #ddd5cb;
+  --brand: #0b6e5f;
+  --brand-2: #0b6e5f;
+  --green: #128c4a;
+  --green-soft: #dcf8c6;
+  --amber: #b9770e;
+  --shadow: 0 1px 2px rgba(0,0,0,.10);
+  --skin-card-shadow: 0 1px 1.5px rgba(0,0,0,.10);
+  --skin-top-bg: #0b6e5f;
+  --skin-top-ink: #ffffff;
+  --skin-top-muted: #c9ebe4;
+  --skin-top-line: #0b6e5f;
+  --skin-mark-bg: #ffffff;
+  --skin-mark-ink: #0b6e5f;
+  --skin-hero-bg: #0b6e5f;
+  --skin-hero-ink: #ffffff;
+  --skin-hero-muted: #c9ebe4;
+  --skin-primary: #0b6e5f;
+  --skin-primary-ink: #ffffff;
+  --skin-active-bg: #0b6e5f;
+  --skin-active-ink: #ffffff;
+  --skin-input-bg: #ffffff;
+  --skin-chip-bg: #dcf8c6;
+  --skin-focus: rgba(11,110,95,.18);
+  --skin-danger: #c0392b;
+  --skin-danger-soft: #fdecea;
+  --skin-danger-line: #f2c4be;
+  --skin-warn: #8a5a0a;
+  --skin-warn-soft: #fff3d6;
+  --skin-r-sm: 18px;
+  --skin-r: 4px 16px 16px 16px;
+  --skin-r-lg: 4px 18px 18px 18px;
+  --skin-r-pill: 999px;
+}
+html[data-skin="c"] body { background: var(--skin-page-bg); color: var(--ink); font-family: var(--skin-font); }
+html[data-skin="c"] button, html[data-skin="c"] input, html[data-skin="c"] select, html[data-skin="c"] textarea { font-family: inherit; }
+html[data-skin="c"] .topbar { background: var(--skin-top-bg); color: var(--skin-top-ink); border-bottom-color: var(--skin-top-line); backdrop-filter: none; }
+html[data-skin="c"] .brand small { color: var(--skin-top-muted); }
+html[data-skin="c"] .brand-mark { background: var(--skin-mark-bg); color: var(--skin-mark-ink); border-radius: var(--skin-r-sm); box-shadow: none; }
+html[data-skin="c"] .pill, html[data-skin="c"] .admin-link, html[data-skin="c"] .cashier-user-chip span { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="c"] .hero { background: var(--skin-hero-bg); color: var(--skin-hero-ink); border-radius: var(--skin-r-lg); }
+html[data-skin="c"] .hero p { color: var(--skin-hero-muted); }
+html[data-skin="c"] .hero::after { content: none; }
+html[data-skin="c"] .primary-btn { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r); box-shadow: none; }
+html[data-skin="c"] .ready-action, html[data-skin="c"] .action-ready { background: var(--green); }
+html[data-skin="c"] .secondary-btn, html[data-skin="c"] .mini-btn, html[data-skin="c"] .drawer-action-btn { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-sm); }
+html[data-skin="c"] .mini-btn.danger, html[data-skin="c"] .danger-btn { background: var(--skin-danger-soft); color: var(--skin-danger); border-color: var(--skin-danger-line); }
+html[data-skin="c"] .admin-tab, html[data-skin="c"] .category-btn { background: var(--surface); color: var(--muted); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="c"] .admin-tab.active, html[data-skin="c"] .category-btn.active { background: var(--skin-active-bg); color: var(--skin-active-ink); border-color: var(--skin-active-bg); }
+html[data-skin="c"] .category-group-btn { border-color: var(--brand); color: var(--brand); }
+html[data-skin="c"] .category-group-btn.active { background: var(--brand); color: var(--skin-primary-ink); }
+html[data-skin="c"] .admin-card, html[data-skin="c"] .admin-auth-card, html[data-skin="c"] .menu-card, html[data-skin="c"] .cashier-menu-panel,
+html[data-skin="c"] .cashier-draft-panel, html[data-skin="c"] .drawer-command-card, html[data-skin="c"] .order-card, html[data-skin="c"] .status-card,
+html[data-skin="c"] .stat, html[data-skin="c"] .cart-panel, html[data-skin="c"] .column, html[data-skin="c"] .admin-summary span {
+  background: var(--surface); border-color: var(--line); border-radius: var(--skin-r-lg); box-shadow: var(--skin-card-shadow);
+}
+html[data-skin="c"] .cart-drawer { border-radius: var(--skin-r-lg) 0 0 var(--skin-r-lg); }
+html[data-skin="c"] .cashier-menu-card, html[data-skin="c"] .cashier-draft-row, html[data-skin="c"] .master-row, html[data-skin="c"] .cart-item,
+html[data-skin="c"] .purchase-composer, html[data-skin="c"] .cashier-dialog-summary div { background: var(--surface); border-color: var(--line); border-radius: var(--skin-r); }
+html[data-skin="c"] .cashier-dialog { border-radius: var(--skin-r-lg); }
+html[data-skin="c"] .note-input, html[data-skin="c"] .text-input, html[data-skin="c"] textarea,
+html[data-skin="c"] .admin-field input, html[data-skin="c"] .admin-field select, html[data-skin="c"] .admin-field textarea {
+  background: var(--skin-input-bg); border-color: var(--line); border-radius: var(--skin-r-sm); color: var(--ink);
+}
+html[data-skin="c"] .note-input:focus, html[data-skin="c"] .text-input:focus, html[data-skin="c"] textarea:focus,
+html[data-skin="c"] .admin-field input:focus, html[data-skin="c"] .admin-field select:focus, html[data-skin="c"] .admin-field textarea:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px var(--skin-focus);
+}
+html[data-skin="c"] .cashier-add-btn, html[data-skin="c"] .add-btn, html[data-skin="c"] .menu-stepper-plus { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r-sm); }
+html[data-skin="c"] .menu-stepper, html[data-skin="c"] .qty-btn, html[data-skin="c"] .cart-close-btn { background: var(--skin-input-bg); border-color: var(--line); }
+html[data-skin="c"] .menu-card.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--skin-focus); }
+html[data-skin="c"] .selected-badge, html[data-skin="c"] .menu-card .category { background: var(--skin-chip-bg); color: var(--brand-2); }
+html[data-skin="c"] .price, html[data-skin="c"] .order-items b, html[data-skin="c"] .order-no { color: var(--brand-2); }
+html[data-skin="c"] .admin-eyebrow, html[data-skin="c"] .cart-kicker, html[data-skin="c"] .text-btn { color: var(--brand); }
+html[data-skin="c"] .badge, html[data-skin="c"] .master-count, html[data-skin="c"] .admin-toast,
+html[data-skin="c"] .purchase-detail-subtotal, html[data-skin="c"] .progress-step.active, html[data-skin="c"] .cart-handle-count { background: var(--skin-active-bg); color: var(--skin-active-ink); }
+html[data-skin="c"] .cart-handle.has-items { background: var(--skin-primary); border-color: var(--skin-primary); }
+html[data-skin="c"] .drawer-mode-badge.write, html[data-skin="c"] .cashier-lock-note.write { background: var(--green-soft); color: var(--green); }
+html[data-skin="c"] .cashier-lock-note, html[data-skin="c"] .drawer-mode-badge.occupied { background: var(--skin-warn-soft); color: var(--skin-warn); }
+html[data-skin="c"] .image-preview-wrap, html[data-skin="c"] .master-thumb, html[data-skin="c"] .cashier-menu-image { background: var(--skin-chip-bg); }
+html[data-skin="c"] .admin-top-actions > a, html[data-skin="c"] .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; border-radius: var(--skin-r-pill); line-height: 1.2; }
+@media (max-width: 620px) {
+  html[data-skin="c"] .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  html[data-skin="c"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+}
+
+html[data-skin="c"] .brand-mark { border-radius: 50%; }
+html[data-skin="c"] .admin-link, html[data-skin="c"] .topbar .pill, html[data-skin="c"] .topbar .secondary-btn, html[data-skin="c"] .topbar .mini-btn {
+  background: rgba(255,255,255,.14); color: #ffffff; border-color: rgba(255,255,255,.28);
+}
+html[data-skin="c"] .primary-btn, html[data-skin="c"] .secondary-btn, html[data-skin="c"] .mini-btn, html[data-skin="c"] .drawer-action-btn { border-radius: 999px; }
+html[data-skin="c"] .cashier-menu-card.selected, html[data-skin="c"] .master-row:hover { background: #dcf8c6; }
+html[data-skin="c"] .admin-heading h1, html[data-skin="c"] .cashier-header h1 { color: #0b3f37; }
+html[data-skin="c"] .hero { border-radius: 4px 22px 22px 22px; }

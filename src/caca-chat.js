@@ -14,6 +14,12 @@ import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-re
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
+import { gayaJawaban, gayaSelesai, bumbui } from './caca-gaya.js';
+import { periksaKesiapan, sapaanKesiapan } from './caca-kesiapan.js';
+import { jelaskan } from './caca-jelaskan.js';
+import { MENU_SCHEMA, MENU_SYSTEM_PROMPT, tangkapanDariMenu } from './caca-baca-menu.js';
+import { bersihkanRiwayat } from './caca-riwayat.js';
+import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 
@@ -60,7 +66,7 @@ async function bacaRekap(request, env) {
   // Invariant #5: gerai ditentukan dari sesi login yang sudah divalidasi, tidak
   // pernah dari tulisan "Cabang" di dalam gambar.
   const store = await selectedStore(env.DB, request);
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  if (!store) return json({ error: 'Gerainya belum ketemu nih.' }, 404);
 
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
@@ -117,12 +123,34 @@ function konteksPenyuruh(auth, store) {
 // masuk utama — termasuk jembatan Akuntansi (ADR-046): Bea yang dicatat Una
 // tidak pernah dijurnal, padahal yang dicatat lewat layar dijurnal. Lewat
 // pintu utama, apa pun yang dipasang di sana untuk layar ikut berlaku untuk Una.
+// Entri yang diakhiri "$" hanya cocok persis (tanpa sub-path): dipakai untuk
+// halaman bootstrap yang sub-path-nya justru jalur tulis lain.
+// Jalur baca bebas diambil dari katalog (caca-baca-katalog.js), bukan ditulis
+// dua kali: katalog yang menentukan apa yang boleh dibaca Una.
+// Sengaja cocok PERSIS (atau pola untuk ":id"), bukan awalan: katalog hanya
+// membuka halaman bacanya, bukan sub-path tulis di bawahnya.
+const PINTU_BACA = Object.freeze([...new Set(KATALOG.map((api) => (api.path.includes(':id')
+  ? `^${api.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(':id', '\\d{1,9}')}$`
+  : `${api.path}$`)))]);
+
 export const PINTU_AKSI = Object.freeze([
+  ...PINTU_BACA,
+  '/api/admin/accounting$',
+  '/api/admin/accounting/balance-sheet',
+  '/api/admin/settings/accounting$',
+  '/api/admin/settings/business/payment-methods',
+  '/api/entity-admin/stores',
   '/api/admin/master/products/editor',
   '/api/admin/manufacturing/bootstrap',
   '/api/admin/manufacturing/recipes',
+  // Hitung Ulang HPP (alat hitung_ulang_hpp): pratinjau + terapkan, sama dengan tab-nya.
+  '/api/admin/hpp-recalculation',
   '/api/admin/accounting/accounts',
   '/api/admin/accounting/journals',
+  // Alat akuntan (contracts/una-akuntan-tools-v1.md): tombol Sinkron dan Aturan Jurnal.
+  // Cocok PERSIS / satu sub-path: bukan pintu ke seluruh Setting Akuntansi.
+  '/api/admin/accounting/bridge/sync$',
+  '/api/admin/settings/accounting/journal-rules',
   '/api/admin/operational-expenses',
   '/api/admin/hutang-piutang',
   '/api/entity-admin/accounts',
@@ -130,26 +158,40 @@ export const PINTU_AKSI = Object.freeze([
 ]);
 
 function pintuDiizinkan(pathname, pintu) {
-  return pintu.some((awalan) => pathname === awalan || pathname.startsWith(`${awalan}/`));
+  return pintu.some((awalan) => {
+    if (awalan.startsWith('^')) return new RegExp(awalan).test(pathname);
+    return awalan.endsWith('$')
+      ? pathname === awalan.slice(0, -1)
+      : pathname === awalan || pathname.startsWith(`${awalan}/`);
+  });
 }
 
 export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pintu = PINTU_AKSI } = {}) {
-  async function panggil(method, pathname, body) {
+  async function panggil(method, alamat, body) {
+    // Query (mis. ?asOf=) boleh ikut, tapi izinnya dinilai dari path saja.
+    const url = new URL(alamat, 'https://leker.internal');
+    const pathname = url.pathname;
     if (!pintuDiizinkan(pathname, pintu)) return { ok: false, status: 500, error: 'Jalur ini tidak terdaftar untuk Una.' };
     if (!jalurUtama) return { ok: false, status: 500, error: 'Jalur utama belum tersambung.' };
 
-    const url = new URL(pathname, 'https://leker.internal');
     // Gerai selalu dari sesi panel, tidak pernah dari kalimat (invariant #5).
     if (storeCode) url.searchParams.set('store', storeCode);
     const headers = new Headers(request.headers);
     headers.delete('content-length');
     if (body) headers.set('content-type', 'application/json');
 
-    const response = await jalurUtama(new Request(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined
-    }));
+    let response;
+    try {
+      response = await jalurUtama(new Request(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      }));
+    } catch (error) {
+      // Satu jalur yang meledak (mis. batas kueri per permintaan di Cloudflare)
+      // tidak boleh menjatuhkan seluruh percakapan; dilaporkan sebagai gagal baca.
+      return { ok: false, status: 500, error: `pembacaan gagal: ${String(error?.message ?? error).slice(0, 120)}` };
+    }
     if (!response) return { ok: false, status: 502, error: 'Jalur tidak menjawab.' };
     const data = await response.json().catch(() => null);
     if (!response.ok) return { ok: false, status: response.status, error: data?.error || `Ditolak (${response.status}).` };
@@ -157,7 +199,11 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
   }
   return {
     baca: (pathname) => panggil('GET', pathname),
-    kirim: (method, pathname, body) => panggil(method, pathname, body)
+    kirim: (method, pathname, body) => panggil(method, pathname, body),
+    // Lingkup entity menjalankan satu perintah ke banyak gerai. Tiap gerai
+    // tetap lewat requireManagement endpointnya sendiri, jadi gerai di luar
+    // entity si penyuruh ditolak di sana, bukan dipercaya dari sini.
+    jalurGerai: (kode) => bangunJalurAksi(request, env, { storeCode: kode, jalurUtama, pintu })
   };
 }
 
@@ -187,7 +233,7 @@ async function lingkupPenyuruh(request, env) {
   const auth = await requireManagement(request, env.DB);
   if (!auth.ok) return { ok: false, response: auth.response };
   const store = await selectedStore(env.DB, request);
-  if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
+  if (!store) return { ok: false, response: json({ error: 'Gerainya belum ketemu nih.' }, 404) };
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
     return { ok: false, response: json({ error: 'Una baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
@@ -202,30 +248,49 @@ async function tanya(request, env, jalurUtama) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
 
-  const pertanyaan = String(body.value?.pertanyaan ?? '').trim().slice(0, 500);
+  // Cukup panjang untuk daftar menu atau daftar koreksi yang ditempel sekaligus.
+  // Kelebihan DITOLAK dengan jelas, bukan dipotong diam-diam: daftar yang buntung
+  // di tengah membuat Una mengerjakan sebagian tanpa ada yang sadar.
+  const pertanyaan = String(body.value?.pertanyaan ?? '').trim();
   if (!pertanyaan) return json({ error: 'Pertanyaannya kosong.' }, 400);
+  if (pertanyaan.length > MAKS_PERTANYAAN) {
+    return json({ error: `Pesannya kepanjangan (${pertanyaan.length.toLocaleString('id-ID')} huruf, maks ${MAKS_PERTANYAAN.toLocaleString('id-ID')}). Kirim per bagian, mis. satu gerai atau satu langkah sekali kirim.` }, 413);
+  }
 
-  const hasil = await jawabPertanyaan(pertanyaan, lingkup.konteks, {
+  // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
+  // memahami rujukan. Tidak ada tindakan yang lahir darinya tanpa draft + "Ya".
+  const konteks = { ...lingkup.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat) };
+  const hasil = await jawabPertanyaan(pertanyaan, konteks, {
     request,
     env,
     jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama })
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
+  const gaya = gayaJawaban(hasil);
   return json({
-    jawaban: hasil.jawaban ?? null,
+    jawaban: gaya.jawaban,
+    sapaan: gaya.sapaan,
     alat: hasil.alat,
     periode: hasil.periode ?? null,
+    tabel: hasil.tabel ?? null,
+    jejak: hasil.jejak ?? null,
+    peringatan: hasil.peringatan ?? null,
+    tawaran: hasil.tawaran ?? null,
+    rencana: hasil.rencana ?? null,
+    // Una balik bertanya / belum bisa: dipakai panel untuk menjeda rencana.
+    belumLengkap: Boolean(hasil.belumLengkap || hasil.ditolak),
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }
 
-async function catatAksi(request, env, draft, jalurUtama) {
+async function catatAksi(request, env, isi, jalurUtama) {
   const lingkup = await lingkupPenyuruh(request, env);
   if (!lingkup.ok) return lingkup.response;
 
+  const draft = isi.draft;
   const aksi = cariAksi(draft.aksi);
   if (!bolehDiLingkup(aksi, lingkup.konteks.lingkup)) {
     return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Una menyusun ulang ya.' }, 409);
@@ -236,13 +301,125 @@ async function catatAksi(request, env, draft, jalurUtama) {
     ...jalur,
     hariIni: lingkup.konteks.hariIni,
     namaLingkup: lingkup.konteks.namaLingkup,
-    lingkup: lingkup.konteks.lingkup
+    lingkup: lingkup.konteks.lingkup,
+    storeCode: lingkup.storeCode
   });
   if (!diperiksa.ok) return json({ error: diperiksa.error }, diperiksa.status);
 
-  const hasil = await aksi.posting(diperiksa.draft, jalur);
+  // Draft bertahap (isi barang massal, batalkan barang): satu baris per
+  // permintaan, panel yang mengulang. Draftnya tetap diperiksa ulang utuh di
+  // setiap potongan, jadi tidak ada baris yang lolos tanpa dicek.
+  if (aksi.bertahap) {
+    const jumlah = diperiksa.draft.muatan.daftar.length;
+    const bagian = isi.bagian;
+    if (!Number.isInteger(bagian) || bagian < 0 || bagian >= jumlah) {
+      return json({ error: 'Urutan barisnya tidak valid. Muat ulang halaman lalu coba lagi ya.' }, 400);
+    }
+    const hasil = await aksi.postingBagian(diperiksa.draft, bagian, { ...jalur, lingkup: lingkup.konteks.lingkup });
+    if (!hasil.ok) return json({ error: hasil.error, bagian }, hasil.status ?? 502);
+    return json({ tercatat: true, bagian, jumlah, hasil: hasil.hasil, nama: hasil.nama, id: hasil.id ?? null, selesai: bagian === jumlah - 1 });
+  }
+
+  const hasil = await aksi.posting(diperiksa.draft, { ...jalur, lingkup: lingkup.konteks.lingkup });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
-  return json({ tercatat: true, draft: diperiksa.draft, jawaban: hasil.jawaban });
+  return json({ tercatat: true, draft: diperiksa.draft, jawaban: gayaSelesai(hasil.jawaban) });
+}
+
+// --- pendamping pengguna baru (UNA-PENDAMPING.md) ---------------------------
+
+export const MAKS_PERTANYAAN = 8000;
+
+// Sapaan pertama Una: kondisi gerai + kerjaan yang ditawarkan. Tanpa mesin AI.
+async function kesiapan(request, env, jalurUtama) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+  if (lingkup.konteks.lingkup === 'entity') {
+    return json({ lingkup: 'entity', kesiapan: null, sapaan: null });
+  }
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
+  const hasil = await periksaKesiapan(jalur);
+  return json({
+    lingkup: 'gerai',
+    store: { code: lingkup.store.code, storeName: lingkup.store.storeName },
+    kesiapan: hasil,
+    sapaan: bumbui(sapaanKesiapan(hasil, lingkup.store.storeName), hasil.siapJualan ? ['beres'] : [])
+  });
+}
+
+function ctxAksi(jalur, lingkup) {
+  return {
+    ...jalur,
+    hariIni: lingkup.konteks.hariIni,
+    namaLingkup: lingkup.konteks.namaLingkup,
+    lingkup: lingkup.konteks.lingkup,
+    storeCode: lingkup.storeCode
+  };
+}
+
+// Draft yang disusun tanpa mesin AI karena isinya sudah terstruktur di panel
+// (mis. tombol "batalkan yang barusan" membawa id barang yang tadi dibuat).
+// Hanya menyusun draft; menyimpan tetap lewat /api/caca/catat + periksa ulang.
+const SIAPKAN_LANGSUNG = Object.freeze(['nonaktifkan_barang']);
+
+async function siapkanLangsung(request, env, jalurUtama) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+  const aksi = SIAPKAN_LANGSUNG.includes(body.value?.aksi) ? cariAksi(body.value.aksi) : null;
+  if (!aksi) return json({ error: 'Jenis draft ini tidak bisa disusun langsung.' }, 400);
+  if (!bolehDiLingkup(aksi, lingkup.konteks.lingkup)) return json({ error: 'Pilih gerainya dulu lewat tombol ▾ di atas.' }, 409);
+
+  const tangkapan = body.value?.tangkapan && typeof body.value.tangkapan === 'object' ? body.value.tangkapan : {};
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
+  const disiapkan = await aksi.siapkan(tangkapan, ctxAksi(jalur, lingkup));
+  if (!disiapkan.ok) return json({ jawaban: bumbui(disiapkan.tanya || disiapkan.error, ['tanya']), draft: null, perluKonfirmasi: false });
+  return json({ jawaban: null, draft: { ...disiapkan.draft, tangkapan }, perluKonfirmasi: true });
+}
+
+// Foto papan menu/daftar harga → draft isi barang massal.
+async function bacaMenu(request, env, jalurUtama) {
+  const lingkup = await lingkupPenyuruh(request, env);
+  if (!lingkup.ok) return lingkup.response;
+  if (lingkup.konteks.lingkup === 'entity') {
+    return json({ error: 'Daftar menu diisi per gerai. Pilih gerainya dulu lewat tombol ▾ di atas.' }, 409);
+  }
+  const body = await readJson(request);
+  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+  const masalahGambar = validateImage(body.value?.gambar);
+  if (masalahGambar) return json({ error: masalahGambar }, 400);
+
+  const bacaan = await callStructured(env, {
+    system: MENU_SYSTEM_PROMPT,
+    content: [
+      { type: 'image', mediaType: body.value.gambar.media_type, data: body.value.gambar.data },
+      { type: 'text', text: 'Salin daftar menu/harga di foto ini apa adanya.' }
+    ],
+    schema: MENU_SCHEMA
+  });
+  if (!bacaan.ok) return json({ error: bacaan.error }, bacaan.status);
+
+  const tangkapan = tangkapanDariMenu(bacaan.value);
+  if (bacaan.value?.bukan_menu || !tangkapan.daftar_barang.length) {
+    return json({
+      jawaban: bumbui('Una nggak nemu daftar menu atau harga di foto itu. Coba foto lebih dekat dan lurus, atau ketik aja daftarnya.', ['tanya']),
+      draft: null,
+      perluKonfirmasi: false
+    });
+  }
+
+  const aksi = cariAksi('buat_barang_banyak');
+  const jalur = bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama });
+  const disiapkan = await aksi.siapkan(tangkapan, ctxAksi(jalur, lingkup));
+  if (!disiapkan.ok) return json({ jawaban: bumbui(disiapkan.tanya || disiapkan.error, ['tanya']), draft: null, perluKonfirmasi: false });
+  const hasil = { draft: { ...disiapkan.draft, tangkapan } };
+  return json({
+    jawaban: null,
+    sapaan: gayaJawaban(hasil).sapaan,
+    draft: hasil.draft,
+    perluKonfirmasi: true,
+    terbaca: tangkapan.daftar_barang.length
+  });
 }
 
 // Konfirmasi tidak memanggil model sama sekali — orang menekan tombol, dan yang
@@ -259,7 +436,7 @@ async function catat(request, env, jalurUtama) {
   if (!auth.ok) return auth.response;
 
   const store = await selectedStore(env.DB, request);
-  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+  if (!store) return json({ error: 'Gerainya belum ketemu nih.' }, 404);
 
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
@@ -291,7 +468,7 @@ async function catat(request, env, jalurUtama) {
   return json({
     tercatat: true,
     draft: diperiksaUlang.draft,
-    jawaban: `Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`
+    jawaban: gayaSelesai(`Sudah Una catat: ${diperiksaUlang.draft.keterangan}, hutang ke ${diperiksaUlang.draft.pihak}.`)
   });
 }
 
@@ -329,8 +506,28 @@ export async function handleCacaApi(request, env, pathname, { jalurUtama } = {})
     // resep, jurnal) atau draft pengeluaran yang lebih dulu ada.
     const salinan = request.clone();
     const body = await readJson(salinan);
-    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value.draft, jalurUtama);
+    if (body.ok && cariAksi(body.value?.draft?.aksi)) return catatAksi(request, env, body.value, jalurUtama);
     return catat(request, env, jalurUtama);
+  }
+
+  if (request.method === 'GET' && pathname === '/api/caca/kesiapan') {
+    return kesiapan(request, env, jalurUtama);
+  }
+
+  if (request.method === 'GET' && pathname === '/api/caca/jelaskan') {
+    if (!(await ownerFromRequest(request, env.DB)) && !(await entityAdminFromRequest(request, env.DB))) {
+      return json({ error: 'Login Owner atau Entity Admin diperlukan.' }, 401);
+    }
+    const hasil = jelaskan(new URL(request.url).searchParams.get('topik'));
+    return json({ ...hasil, jawaban: bumbui(hasil.jawaban, hasil.dikenal ? [] : ['tanya']) });
+  }
+
+  if (request.method === 'POST' && pathname === '/api/caca/siapkan') {
+    return siapkanLangsung(request, env, jalurUtama);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/caca/baca-menu') {
+    return bacaMenu(request, env, jalurUtama);
   }
 
   return json({ error: 'Route Una tidak ditemukan.' }, 404);

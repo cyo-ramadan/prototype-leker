@@ -7,6 +7,20 @@ import { uraikanNominal } from './caca-nominal.js';
 
 export const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 
+// --- bahasa yang tidak kaku ------------------------------------------------
+
+// Bos Cyo 2026-10-03: "tidak ditemukan" terdengar kaku; "belum ketemu nih" /
+// "belum nemu nih" lebih enak. Dipilih dari isi kalimatnya (bukan acak) supaya
+// hasilnya pasti untuk tes dan tetap bervariasi antar kalimat.
+export function kataBelumKetemu(kunci = '') {
+  let hash = 0;
+  for (const huruf of String(kunci)) hash = (hash * 31 + huruf.charCodeAt(0)) | 0;
+  return ['belum ketemu nih', 'belum nemu nih'][Math.abs(hash) % 2];
+}
+
+/** Apakah pertanyaan balik ini kabar "belum ketemu" (dari cocokkanSatu)? */
+export const BELUM_KETEMU = /belum (ketemu|nemu) nih\.$/;
+
 // --- pencocokan nama ------------------------------------------------------
 
 export function normalkan(teks) {
@@ -40,7 +54,7 @@ export function cocokkanSatu(tertulis, daftar, { label, namaDari, kunciLain = ()
     const contoh = mirip.slice(0, 5).map((item) => `"${namaDari(item)}"`).join(', ');
     return { ok: false, tanya: `"${tertulis}" cocok dengan beberapa ${label}: ${contoh}. Yang mana ya?` };
   }
-  return { ok: false, tanya: `${label[0].toUpperCase()}${label.slice(1)} "${tertulis}" tidak ketemu.` };
+  return { ok: false, tanya: `${label[0].toUpperCase()}${label.slice(1)} "${tertulis}" ${kataBelumKetemu(tertulis)}.` };
 }
 
 export function jumlahBulat(teks, label) {
@@ -58,7 +72,7 @@ export function rupiahDari(teks, label, { bolehNol = false } = {}) {
   if (bolehNol && /^(rp\.?)?\s*(0+|nol)$/i.test(String(teks ?? '').trim())) return { ok: true, nilai: 0 };
   const hasil = uraikanNominal(teks);
   if (!hasil.ok) return { ok: false, tanya: `${label}: ${hasil.tanya}` };
-  if (hasil.nilai < 0 || (!bolehNol && hasil.nilai === 0)) return { ok: false, tanya: `${label} tidak boleh ${hasil.nilai < 0 ? 'minus' : 'nol'}.` };
+  if (hasil.nilai < 0 || (!bolehNol && hasil.nilai === 0)) return { ok: false, tanya: `${label} nggak bisa ${hasil.nilai < 0 ? 'minus' : 'nol'} nih. Berapa yang benar?` };
   return { ok: true, nilai: hasil.nilai };
 }
 

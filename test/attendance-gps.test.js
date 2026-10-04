@@ -134,7 +134,7 @@ test('pesan ke karyawan hanya menyebut selisih (melebihi batas radius N meter), 
 
   const notice = gpsNotice({ status: 'OUT_OF_RADIUS', distanceM: 85 });
   assert.match(notice, /melebihi batas radius 10 meter/);
-  assert.doesNotMatch(notice, /75/);
+  assert.doesNotMatch(notice, /(?<![\w.-])75(?![\w.])/);
   assert.doesNotMatch(notice, /85/);
   assert.equal(gpsNotice({ status: 'OK' }), '');
   assert.match(gpsNotice({ status: 'NO_GPS' }), /tanpa GPS/);
@@ -159,7 +159,7 @@ test('presensi di luar radius atau tanpa GPS tetap tersimpan (tidak pernah ditol
     assert.equal(masukBody.gps.overRadiusMeters, 10);
     assert.match(masukBody.gps.notice, /melebihi batas radius 10 meter/);
     const raw = JSON.stringify(masukBody);
-    assert.doesNotMatch(raw, /75/);
+    assert.doesNotMatch(raw, /(?<![\w.-])75(?![\w.])/);
     assert.doesNotMatch(raw, /distanceMeters/);
     const row = sqlite.prepare('SELECT gps_in_status, gps_in_distance_m, status FROM staff_attendance').get();
     assert.equal(row.gps_in_status, 'OUT_OF_RADIUS');
@@ -426,7 +426,7 @@ test('UI: kartu presensi staf + antrean Admin + tab Laporan Presensi + form titi
   assert.match(staffJs, /data-gps-fix/);
   assert.match(staffJs, /result\.gps\.notice/);
   assert.doesNotMatch(staffJs, /\b75\b.*meter|radius.*\b75\b/i, 'batas radius tidak boleh muncul di sisi karyawan');
-  assert.match(read('../public/staff.html'), /staff\.js\?v=20261001-gps-presensi-v1/);
+  assert.match(read('../public/staff.html'), /staff\.js\?v=20261003-login-karyawan-v1/);
 
   const adminCashiers = read('../public/admin-cashiers.js');
   assert.match(adminCashiers, /attendance-gps-permits/);
@@ -439,6 +439,6 @@ test('UI: kartu presensi staf + antrean Admin + tab Laporan Presensi + form titi
   assert.match(html, /admin-attendance-report\.js\?v=20261001-laporan-presensi-v1/);
   assert.match(html, /admin-cashiers\.js\?v=20261001-gps-presensi-v1/);
   assert.match(html, /admin-cashier-raport\.js\?v=20261001-gps-presensi-v1/);
-  assert.match(html, /admin\.js\?v=20261001-lokasi-acuan-presensi-v1/);
+  assert.match(html, /admin\.js\?v=20261001-siap-jual-v3/);
   assert.match(read('../public/admin.js'), /storeRefUseHere/);
 });

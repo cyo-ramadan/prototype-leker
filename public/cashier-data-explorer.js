@@ -141,7 +141,7 @@
             <input id="cashierDataSearch" class="text-input" type="search" value="${escapeHtml(state.q)}" placeholder="Tanggal, kasir, nama, deskripsi, dsb" />
           </div>
           <button id="cashierDataSearchBtn" class="cashier-tx-btn cashier-tx-btn-primary" type="button" style="align-self:flex-end">Cari</button>
-          <button id="cashierDataSearchAdvancedBtn" class="mini-btn" type="button" style="align-self:flex-end">🔍 Cari Lanjutan</button>
+          <button id="cashierDataSearchAdvancedBtn" class="mini-btn" type="button" style="align-self:flex-end" hidden>🔍 Cari Lanjutan</button>
         </div>
       </div>`;
   }
@@ -171,7 +171,8 @@
     });
     // Placeholder entry point only -- the actual per-field AND/OR search
     // builder is a separate, not-yet-designed feature. Just the button for now.
-    el('cashierDataSearchAdvancedBtn').addEventListener('click', () => toast('Cari Lanjutan segera hadir.'));
+    // Disembunyikan (atribut hidden) sampai fiturnya jadi -- HANDOFF-UIUX-SIAP-JUAL
+    // T1: fitur belum jadi disembunyikan, bukan diumumkan ke pengguna.
   }
 
   function sortIndicator(key) {

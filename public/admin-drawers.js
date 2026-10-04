@@ -18,8 +18,10 @@
   // itu juga sudah dilepas di sana.
   const tabs = document.querySelector('.admin-tabs');
   if (tabs) {
+    // Tab "Laporan" yang masih kosong (cuma pengumuman "nanti") dicabut 2026-10-02 -- HANDOFF-UIUX-
+    // SIAP-JUAL T1: fitur yang belum jadi disembunyikan, bukan diumumkan.
+    // Laporan yang sungguhan ada di tab Laporan Untung Rugi / Presensi / Permit.
     const additions = [
-      ['reports', '📈 Laporan'],
       ['drawers', '📚 Detail Laci']
     ];
     for (const [key, label] of additions) {
@@ -37,9 +39,6 @@
   if (app && !el('tab-drawers')) {
     const toast = el('adminToast');
     const sections = `
-      <section id="tab-reports" class="admin-section">
-        <div class="admin-card admin-placeholder"><div class="admin-placeholder-inner"><div class="admin-eyebrow">Coming next</div><h2>Laporan</h2><p class="muted">Menu laporan disiapkan kosong dulu. Detail operasional shift tersedia lewat Detail Laci.</p></div></div>
-      </section>
       <section id="tab-drawers" class="admin-section">
         <div class="admin-card">
           <div class="list-head"><div><h2>Pengajuan Tutup Laci Sebelumnya</h2><div class="muted">Kasir gantian jaga mengajukan tutup paksa laci kasir sebelumnya yang masih terbuka -- ACC di sini yang benar-benar menutup lacinya. Tidak diputuskan dalam 24 jam sejak diajukan akan otomatis Tolak.</div></div><span id="adminClosePermitCount" class="master-count">0</span></div>
@@ -161,7 +160,7 @@
       const payload = await request(`/api/admin/drawers/${encodeURIComponent(id)}`);
       window.openAdminDetailModal({
         head: `<div class="admin-eyebrow">Rincian Laci</div><h2>Gerai ${esc(payload.store?.code || window.LEKER_STORE_CODE || '')}</h2>`,
-        body: window.MAXIDrawerReport?.render(payload.report) || '<div class="empty">Renderer detail belum tersedia.</div>'
+        body: window.MAXIDrawerReport?.render(payload.report) || '<div class="empty">Detail laci belum bisa ditampilkan. Muat ulang halaman.</div>'
       });
     } catch (error) {
       window.openAdminDetailModal({
@@ -171,7 +170,7 @@
     }
   }
 
-  ['reports','drawers'].forEach(tab => {
+  ['drawers'].forEach(tab => {
     document.querySelector(`[data-tab="${tab}"]`)?.addEventListener('click', () => switchTab(tab));
   });
 

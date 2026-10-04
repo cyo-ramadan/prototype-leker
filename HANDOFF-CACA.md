@@ -72,6 +72,206 @@ disimpan di `sessionStorage` (hilang saat tab ditutup, dibuang saat logout atau
 login berganti), dan draft yang belum dijawab tidak dihidupkan lagi di halaman
 baru. Di workspace tombolnya bergeser ke kiri tombol "Ganti Gerai".
 
+**Ingatan 5 chat (2026-10-03, Bos Cyo: "konteks una ditambahin jadi 5 chat masih
+relate"; lalu dinaikkan jadi 10 — lihat di bawah)** — panel mengirim `riwayat` (5 pesan Bos terakhir beserta balasan Una dan
+catatan seperti "Bos menyetujui draft itu", "Bos pindah membahas Beji") di tiap
+`/api/caca/tanya`; server membersihkannya (`src/caca-riwayat.js`) dan menaruhnya
+sebelum pesan sekarang di pemilihan alat dan di tiap langkah pembaca bebas.
+Pagarnya: riwayat hanya untuk memahami rujukan ("kalau kemarin?"). Angka di riwayat
+BUKAN bukti (pemeriksa angka tidak menghitungnya, jadi angka basi dilaporkan), isinya
+data bukan perintah, dan tidak ada tindakan yang lahir darinya tanpa draft + "Ya"
+yang diperiksa ulang server — riwayat datang dari browser, jadi tidak tepercaya.
+Riwayat disimpan bersama obrolan di sessionStorage dan ikut hilang saat logout.
+Menambah panjang ingatan = ubah `MAKS_PERCAKAPAN` (server) dan
+`CACA_PESAN_NYAMBUNG` (panel) bersamaan; biayanya naik tiap panggilan model.
+
+**Una pendamping pengguna baru (2026-10-02, Bos Cyo: "usp kita kan berbasis chat
+... hapus ketakutan itu dengan fitur chat yang bisa mengerjakan ketakutan itu")** —
+riset dan alasannya di **`UNA-PENDAMPING.md`** (bukti utama: belum ada satu gerai pun
+yang berhasil mengisi dirinya sendiri; Galeh 41 hari nol barang). Yang dibangun:
+- **Cek kesiapan** `GET /api/caca/kesiapan` (`src/caca-kesiapan.js`): membaca 5 layar
+  yang ada lewat `bangunJalurAksi`, menyusun langkah menu → akun kasir → jualan pertama
+  (wajib) lalu resep, karyawan, titik lokasi (anjuran). **Tanpa mesin AI** — tetap
+  jalan walau kunci belum dipasang. Bacaan yang gagal = "belum diketahui", tidak pernah
+  dianggap belum beres. Panel memakainya untuk sapaan pertama dan saat ganti gerai.
+- **Tawaran sekali ketuk** (`tawaran` di jawaban): `isi` (contoh perintah ke kotak
+  ketik), `kirim`, `jelaskan`, `foto_menu`, `buka` (klik tab Workspace Gerai; dari
+  Panel Pemilik lewat `/s/:kode/admin#una-buka=<tab>`), `batalkan`.
+- **Isi barang massal** `buat_barang_banyak` (`src/caca-aksi-barang.js`): maks 60
+  baris; default kategori/satuan/harga beli ditulis terang di dampak; baris tanpa
+  harga atau satuan dilewati dan disebut (bukan diisi 0); harga singkat ("5") dibaca
+  ribuan HANYA kalau semua harga ditulis begitu, dan itu ditulis di draft. Pertanyaan
+  kini sampai 4.000 karakter (daftar ditempel), kotak ketik jadi textarea.
+- **Draft bertahap** (`bertahap: true`): `/api/caca/catat` menerima `{draft, bagian}`
+  dan memposting SATU baris; panel mengulang dengan hitungan "12 dari 40" dan tombol
+  "Lanjutkan" kalau berhenti di tengah. Draft diperiksa ulang utuh di setiap potongan;
+  pembagian "sudah ada" diambil dari draft (`ctx.draftAsli`) supaya barang potongan
+  sebelumnya tidak membuat draft dianggap berubah, dan keberadaan barang dicek lagi
+  tepat sebelum dibuat (klik ganda = `sudah_ada`, tidak kembar). Editor barang
+  menerima `?ringkas=1` supaya balasan tiap barang tidak membawa seluruh isi editor.
+- **Foto daftar menu** `POST /api/caca/baca-menu` (`src/caca-baca-menu.js`): lampiran
+  foto kini memilih "Daftar menu / harga" atau "Lembar rekap" (bawaan mengikuti
+  kesiapan). Model hanya menyalin nama/harga/judul kelompok; kode menyusun draft yang
+  sama dengan jalur ketik. Tulisan kapital semua dirapikan dan terlihat di draft.
+- **Kamus & peta aplikasi** `jelaskan` (`src/caca-jelaskan.js`), juga
+  `GET /api/caca/jelaskan?topik=`: isi ditulis tangan, dicocokkan kode — model tidak
+  mengarang definisi. Menambah topik = tambah entri `KAMUS`; test memastikan setiap
+  tawaran menunjuk layar/topik yang ada.
+- **Batalkan yang barusan** `nonaktifkan_barang`: menonaktifkan (bukan menghapus)
+  lewat `POST /api/caca/siapkan` (draft tanpa AI dari id barang yang tadi dibuat;
+  hanya aksi di `SIAPKAN_LANGSUNG`) lalu draft + "Ya", bertahap.
+- Sengaja **tidak** lewat chat: akun kasir (PIN tidak boleh lewat mesin AI pihak
+  ketiga) — Una membukakan layarnya.
+- Test ujung ke ujung: `test/caca-pendamping.test.js` (migration asli, gerai IKAN01).
+- **Koreksi Bos Cyo (sesudahnya): yang bukan uang tidak bertanya.** Barang/bahan/resep cukup nama +
+  harga jual; kategori, satuan (pcs), harga beli (0), dan jumlah hasil resep (1) diisi bawaan dan
+  ditulis di draft. Sesudah barang jualan tanpa modal jadi, panel bertanya santai "dibikin sendiri atau
+  beli jadi?" (kalimat tetap, tanpa AI) lalu menggiring ke resep. Alat uang (`ALAT_UANG` di
+  `src/caca-agen.js`) tetap bertanya, diawali ajakan halus (`tanyaHalus`).
+
+**Koreksi HPP lewat Una + ingatan 10 obrolan (2026-10-03, Bos Cyo, setelah HPP Bubuk
+Matcha Genengan tercatat Rp1.899.004 per pcs dan Una menjawab pertanyaan lanjutan dengan
+kamus HPP)** —
+- **Salah pilih alat yang jadi akarnya:** aturan prompt "maksudnya … apa = jelaskan"
+  (dari tahap pendamping) membelokkan "maksudnya stok matcha tadi? kamu bisa ubah
+  hppnya?" ke kamus. Sekarang `jelaskan` HANYA untuk arti istilah/cara pakai yang berdiri
+  sendiri; pesan yang merujuk percakapan, menyebut barang/gerai/angka tertentu, atau
+  meminta tindakan bukan `jelaskan` (prompt di `src/caca-agen.js` + petunjuk alatnya;
+  dijaga test).
+- **Ingatan 10 obrolan** (`MAKS_PERCAKAPAN` 10 di server, `CACA_PESAN_NYAMBUNG` 10 di
+  panel, harus sama). Jawaban Una boleh 900 karakter (pesan Bos 400) dan panel ikut
+  menyimpan ringkasan isi tabel (maks 10 baris) di riwayat, karena nama yang dirujuk
+  "yang tadi" sering hanya ada di tabel. Angka di riwayat tetap bukan bukti. Biaya
+  tiap panggilan model naik; kalau terasa mahal turunkan angkanya di kedua tempat.
+- **Alat `hitung_ulang_hpp`** (`src/caca-aksi-hpp.js`): merangkai Hitung Ulang HPP yang
+  sudah ada (`src/hpp-recalculation.js`) — pratinjau → draft → "Ya"; tidak ada jalur tulis
+  baru (pintu `/api/admin/hpp-recalculation` ditambah ke `PINTU_AKSI`). Dua bentuk:
+  rekap ulang sejak tanggal (HPP penjualan sejak itu dihitung ulang + harga rata-rata
+  bahan dibetulkan) dan "hanya harga ke depan" (urgent; tanggal mulai = besok, jadi tak
+  ada penjualan yang ikut). Tanggal yang salah dicari KODE bila tidak disebut: tanggal
+  pertama saat HPP bahan di penjualan melenceng > 20% dari harga benar (yang < 20%
+  dilewati), tertulis di draft; tanggal dan cara DIBEKUKAN di `muatan` supaya "Ya"
+  mengonfirmasi persis yang tadi tampil. Tabel draft hanya sampai kemarin (penjualan
+  hari ini terus bergerak dan akan membuat draft "berubah"); hari ini tetap ikut
+  dihitung dan itu disebut di dampak. Harga benar WAJIB disebut (tidak ditebak, ditanya
+  dengan HPP tercatat sekarang); pecahan koma/titik diterima, nol ditolak. Hanya bahan
+  di daftar `/components` (dipakai produksi dadakan atau bahan baku) yang bisa
+  dikoreksi — selain itu Una menyebut bahan yang bisa. Hitung ulang kedua dengan harga
+  sama tidak menggandakan koreksi (409 "tidak ada yang berubah"). Test: `test/caca-hpp.test.js`
+  (migration asli).
+
+**Una bisa mengubah barang (2026-10-03, Bos Cyo: "ganti harga aja masa ga bisa ... uda bisa
+bikin barang, masak edit ga bisa")** — alat `ubah_barang` (`src/caca-aksi-barang.js`):
+harga jual, harga beli, nama, kategori; satu atau banyak barang; lewat PATCH editor produk
+yang sama dengan layar Data Barang (parsial: hanya isian yang disebut dikirim, foto/poin/
+tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per barang.
+- Daftar barang dibaca lewat `GET /api/admin/master/products/editor?ringkas=1` (baru:
+  tanpa foto; foto bisa ratusan KB per barang). Layar biasa tetap membawa foto.
+- **Salah ketik nama dibaca kode** (jarak edit, hanya fungsi ini — `cocokkanSatu` yang
+  dipakai alat lain sengaja tidak dilonggarkan): tepat satu yang nyaris sama → dipakai dan
+  DISEBUT di draft ("Una membaca 'x' sebagai 'Y'"); selain itu **rekomendasi dari
+  kemiripan terbanyak** (irisan potongan huruf + kata yang ada di nama; Bos Cyo 2026-10-03:
+  "maksudnya es teh black curent atau milktea black curent ya bos?"), maks 3, dan nama
+  gerai yang sedang dibuka disebut — sebab umum "barang tidak ada" adalah gerai yang
+  dibuka bukan yang diucapkan ("di Mandala" padahal panel di Dermo). Barang
+  nonaktif tidak diubah diam-diam; nama kembar, nilai kebesaran, dan "tidak ada yang beda"
+  ditolak dengan penjelasan.
+- Isi draft DIBEKUKAN di `muatan` (id + nilai lama/baru): potongan berikutnya tidak menganggap
+  draft "berubah" setelah potongan sebelumnya mengubah harganya. Penjagaan wewenang tetap di
+  endpoint editor (hanya produk di gerai sesi; diuji dengan id produk gerai lain).
+- Harga beli yang diubah hanya Harga Beli di Master Barang; HPP (average cost) tidak ikut —
+  Una mengarahkan ke koreksi HPP bila itu yang salah.
+
+**Rencana bertahap, cek barang, "mengetik…", gerai vs entity (2026-10-03, Bos Cyo):**
+- **Fakta yang dulu dijawab salah oleh model:** harga/nama/kategori barang ada di Data Barang
+  TIAP GERAI; entity hanya Kode Barang + foto. Una sempat menjawab "tidak punya akses master
+  entity" — prompt kini menyebut fakta ini, ada entri kamus `master_barang`, dan pesan
+  selesai `ubah_barang` menyebut gerainya. Una mengikuti gerai di judul panel (▾), BUKAN
+  workspace yang sedang terbuka (diverifikasi di produksi: ubahan Bos masuk ke Mandala).
+- **`cek_barang`** (baca, tanpa model kedua): harga jual/beli, HPP, stok untuk barang yang
+  disebut namanya; semua barang yang memuat kata itu (Besar/Kecil), dan karena hanya membaca,
+  yang paling mirip ditampilkan langsung (disebut terang). Lahir dari "cek harga es teh leci
+  …" yang gagal "Lembarnya terlalu panjang": pembaca bebas membawa seluruh daftar barang.
+  Katalog `barang` kini selalu `?ringkas=1` (kolom `tetap` di katalog); pesan MAX_TOKENS
+  penyedia AI tidak lagi bicara soal foto.
+- **"mengetik…" ala WhatsApp:** subjudul panel berganti "mengetik…" dan gelembung bertuliskan
+  "Una sedang mengetik…" (bukan tiga titik).
+- **Alat `rencana`:** perintah berurutan (2–5 langkah) ditulis model sebagai judul + perintah;
+  server TIDAK menjalankan apa pun. Panel mengirim tiap langkah sebagai pesan biasa (lewat
+  pilih-alat, draft, "Ya" yang sama), kartu menampilkan 1. … ✓ / 2. … (jalan) / 3. …. Draft →
+  menunggu "Ya" lalu lanjut sendiri; Una balik bertanya (`belumLengkap`) → berhenti, Bos
+  menjawab di chat lalu tekan "Lanjutkan ke langkah n"; putus (RTO) → "Ulangi langkah n".
+  Keadaan rencana disimpan di kartunya (`data-caca-rencana`), jadi bertahan pindah halaman
+  (langkah yang sedang jalan jadi "terputus").
+
+**Bahasa pertanyaan balik jangan kaku (2026-10-03):** "tidak ditemukan/tidak ketemu" diganti
+"belum ketemu nih"/"belum nemu nih" (`kataBelumKetemu` di `src/caca-aksi-dasar.js`, dipilih
+dari isi kalimat supaya pasti untuk tes tapi bervariasi); deteksi "belum ketemu" di kode
+memakai `BELUM_KETEMU`, jangan membandingkan teks lama. Kalimat baru dari kode: nada
+santai, sebut gerai/angkanya, tawarkan jalan keluar.
+
+**Una baca bebas (2026-10-02, Bos Cyo: "untuk read kasihlah dia semua akses")**
+— alat `baca_api`: model memilih API dari katalog (`src/caca-baca-katalog.js`,
+~50 endpoint baca admin/entity), lalu bergantian dengan kode maksimal tiga
+langkah (`src/caca-baca.js`): baca → hitung/baca lagi → jawab. Hal-hal yang
+tidak boleh dilonggarkan:
+- **Model tidak pernah menghitung.** Saring/urut/jumlah/banding/kolom turunan
+  dikerjakan `src/caca-hitung.js` (BigInt skala 1.000.000, half-up, tanpa
+  float). Tabel di layar dari kode; angka di jawaban yang tidak ada di data
+  dilaporkan (`peringatan`).
+- **Semua hasil lewat `src/caca-baca-aman.js`** sebelum ke penyedia AI: rahasia
+  (sandi, PIN, token, hash) dibuang, gambar/data besar dibuang, kontak dan
+  identitas pribadi disamarkan. Berlaku untuk SEMUA endpoint, jadi keamanan tidak
+  bergantung pada menyaring satu per satu.
+- **Parameter per API ditulis tangan di katalog; tidak ada parameter gerai.**
+  (Pitfall "parameter daftar gerai di query string tidak ikut terkunci".)
+  `test/caca-baca-katalog.test.js` menjaga ini dan memastikan setiap path
+  katalog ada di kode. Menambah API baca = tambah satu baris di katalog.
+- **Pintu**: katalog hanya membuka halaman baca PERSIS, bukan sub-path tulis.
+- **Kuota**: maks 24 pembacaan dan 3 langkah per pertanyaan. Di lingkup entity
+  ("semua gerai", Bos Cyo 2026-10-02) API per gerai dibaca ke semua gerai dan
+  digabung dengan kolom `_gerai`; API `berat` (mis. `transaksi`) tetap lintas
+  gerai tapi barisnya dibatasi `batasLimit` per gerai. API yang tidak bermakna
+  lintas gerai (`tanpaFanOut`: id/akun beda per gerai) ditolak dengan alasan, dan
+  `stok_entity` satu panggilan lintas gerai. Alat baca lama (`laba_periode`,
+  `stok_sisa`) di lingkup entity dijalankan lewat pembaca ini. Periode ("kemarin")
+  selalu dihitung kode dan menimpa tanggal tulisan model. Pitfall kuota baca D1
+  harian (2026-09-29).
+- **Batas per permintaan (dikoreksi 2026-10-02 dari dokumentasi Cloudflare).**
+  Akun terindikasi Workers gratis (D1 menyentuh "free tier daily row read
+  limit"). Batasnya **bukan** 50 kueri D1: paket gratis membatasi 50 subrequest
+  *eksternal* dan **1.000 panggilan ke layanan Cloudflare (termasuk D1)** per
+  permintaan, plus **10 ms CPU**. Yang lebih mungkin kena adalah CPU (mengurai
+  JSON besar berkali-kali), bukan jumlah kueri. Kalau satu jalur meledak,
+  pembacaan berhenti, gerai yang tidak terbaca disebut di jawaban (bukan 500).
+  Kerja tulis banyak baris sengaja dipecah per permintaan (draft bertahap).
+- Skema pilih-alat sudah besar; bila penyedia menolak ("too many states"),
+  pesan alasannya sekarang tampil (400 soal skema) — sederhanakan skema, jangan
+  tambah isian.
+- Data Bos Cyo sendiri boleh lewat jalur gratis Gemini untuk uji coba; data
+  tenant lain wajib jalur berbayar (ADR-044).
+
+**Gaya bicara Una (2026-10-02, Bos Cyo: "jangan kaku")** — santai, sesekali
+"peh" (logat Tulungagung) kalau kerjaannya agak berat, kadang "wkwk/ckck/hhe".
+Kalimat dari kode dibumbui di batas API lewat `src/caca-gaya.js` (acak,
+peluang sebagian), jawaban model lewat `GAYA_UNTUK_MODEL` di prompt. **Isi
+draft tidak boleh dibumbui**: draft dicocokkan ulang huruf per huruf saat "Ya";
+untuk draft berat bumbunya jadi `sapaan` terpisah di luar kartu.
+
+**Alat akun (2026-10-02)** — `src/caca-aksi-akun.js`: `cek_rekening_bersama`
+(baca saja: mutasi Rekening Bersama vs akun 1103 per gerai), `atur_cara_bayar`
+(akun, tautan Rekber, nama, aktif/nonaktif), `pindah_saldo_akun` (jurnal resmi
+dua sisi dengan nominal skala persis, opsional menonaktifkan akun asal; juga
+"nonaktifkan saja" untuk akun bersaldo nol). Prinsip Bos Cyo: yang dikerjakan
+Una harus sudah punya jalurnya di sistem — semuanya merangkai endpoint layar
+yang ada, tidak ada endpoint baru. Di lingkup "semua gerai" perintah dijalankan
+ke tiap gerai entity (`jalurGerai`), pencocokan akun/cara bayar per gerai wajib
+PERSIS (bukan "mengandung") supaya satu kalimat tidak memilih akun berbeda di
+tiap gerai, dan hasil tiap gerai dilaporkan sendiri-sendiri. Akun di gerai
+standar (ADR-047) tetap terkunci — draft menyebutnya, tidak dipaksa. Alat
+baca ditandai `baca: true`: menjawab langsung tanpa draft dan tidak bisa
+"diposting" lewat /api/caca/catat.
+
 **Alat tulis tahap ketiga (2026-10-01): semua transaksi admin gerai yang
 tidak menyentuh kas/laci** — `src/caca-aksi-bayar.js`: Bea Gaji, Bea Lapak,
 Pembayaran Lainnya, pelunasan hutang, Uang Muka/Deposit. Cara bayar hanya
@@ -109,7 +309,8 @@ panggilan AI untuk menangkap kalimat, sisanya kode. Yang perlu diketahui:
 - Semua tulisan lewat endpoint layar yang sama (`PINTU_AKSI` di
   `src/caca-chat.js`) dengan kredensial penyuruh. Menambah alat tulis baru =
   tambah entri di `AKSI_TULIS` dan, kalau endpoint-nya baru, di `PINTU_AKSI`.
-- Belum ada: mengubah/menghapus barang atau resep, jurnal balik, jurnal gerai.
+- Belum ada: mengubah/menghapus barang atau resep, jurnal balik. (Jurnal gerai
+  sudah ada sejak 2026-10-01; menonaktifkan barang sejak 2026-10-02.)
 
 **Lokasi server menentukan apakah Gemini mau menjawab.** 2026-09-30 Caca
 mati dengan `400 FAILED_PRECONDITION: User location is not supported for the

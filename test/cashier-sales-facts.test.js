@@ -95,6 +95,11 @@ test('Accounting reads the committed sale snapshots instead of current Product M
               }
               throw new Error(`Unexpected first() query: ${sql}`);
             },
+            async run() {
+              // Satu-satunya tulisan yang dibolehkan: pemulihan snapshot Jenis Barang yang KOSONG.
+              if (/^\s*UPDATE sale_items/.test(sql)) return { success: true };
+              throw new Error(`Unexpected run() query: ${sql}`);
+            },
             async all() {
               if (/FROM sale_items/.test(sql)) {
                 return {
@@ -124,6 +129,12 @@ test('Accounting reads the committed sale snapshots instead of current Product M
   assert.notEqual(fact.itemLines[0].productKindCode, currentProductMaster.productKindCode);
   assert.notEqual(fact.itemLines[0].productKindName, currentProductMaster.productKindName);
   assert.notEqual(fact.itemLines[0].lineCogsScaled, currentProductMaster.averageCostScaled);
-  assert.equal(queries.some(({ sql }) => /FROM products\b/.test(sql)), false);
-  assert.equal(queries.some(({ sql }) => /FROM product_kinds\b/.test(sql)), false);
+  // Fakta dibaca dari snapshot. Pengecualian tunggal: UPDATE yang hanya mengisi snapshot
+  // Jenis Barang yang kosong (product_kind_id IS NULL) -- snapshot terisi tidak pernah ditimpa.
+  const reads = queries.filter(({ sql }) => !/^\s*UPDATE sale_items/.test(sql));
+  assert.equal(reads.some(({ sql }) => /FROM products\b/.test(sql)), false);
+  assert.equal(reads.some(({ sql }) => /FROM product_kinds\b/.test(sql)), false);
+  const heal = queries.filter(({ sql }) => /^\s*UPDATE sale_items/.test(sql));
+  assert.equal(heal.length, 1);
+  assert.match(heal[0].sql, /product_kind_id IS NULL/);
 });

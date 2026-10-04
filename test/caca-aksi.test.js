@@ -79,12 +79,23 @@ test('barang baru: nominal diurai kode, satuan dicocokkan, draft memuat muatan p
   });
 });
 
-test('barang baru: harga beli tidak diisi 0 diam-diam', async () => {
+// Bos Cyo 2026-10-02: yang penting nama + harga; detail lain diisi yang dasar,
+// tidak ditanyakan — tapi tetap ditulis terang di draft, bukan diam-diam.
+test('barang baru: harga beli dan kategori yang tidak disebut diisi bawaan, tertulis di draft', async () => {
   const hasil = await cariAksi('buat_barang').siapkan({
-    barang_nama: 'Leker Tiramisu', barang_kategori: 'Leker', barang_harga_jual: '15rb'
+    barang_nama: 'Leker Tiramisu', barang_harga_jual: '15rb'
   }, jalurPalsu());
-  assert.equal(hasil.ok, false);
-  assert.match(hasil.tanya, /Harga beli/);
+  assert.equal(hasil.ok, true);
+  assert.deepEqual(hasil.draft.muatan, { name: 'Leker Tiramisu', category: 'Menu', price: 15000, purchasePrice: 0, baseUnitId: 'u_pcs' });
+  const dampak = hasil.draft.dampak.join('\n');
+  assert.match(dampak, /Harga beli belum disebut, diisi 0/);
+  assert.match(dampak, /"Menu"/);
+});
+
+test('barang baru: nama dan harga jual tetap wajib', async () => {
+  const tanpaHarga = await cariAksi('buat_barang').siapkan({ barang_nama: 'Leker Tiramisu' }, jalurPalsu());
+  assert.equal(tanpaHarga.ok, false);
+  assert.match(tanpaHarga.tanya, /Harga jual/);
 });
 
 test('barang baru: nama yang sudah ada ditolak, tidak dibuat kembar', async () => {
@@ -133,8 +144,17 @@ test('resep: bahan ambigu, bahan kembar, dan qty pecahan ditanyakan', async () =
   const pecahan = await aksi.siapkan({ ...dasar, resep_komponen: [{ barang: 'telur', qty: '1,5' }] }, jalurPalsu());
   assert.equal(pecahan.ok, false);
 
+  // Jumlah hasil yang tidak disebut tidak ditanyakan: dianggap 1 dan ditulis di draft.
   const tanpaQtyHasil = await aksi.siapkan({ resep_hasil: 'Leker Coklat', resep_komponen: [{ barang: 'telur', qty: '2' }] }, jalurPalsu());
-  assert.match(tanpaQtyHasil.tanya, /menghasilkan berapa/);
+  assert.equal(tanpaQtyHasil.ok, true);
+  assert.equal(tanpaQtyHasil.draft.muatan.outputQuantity, 1);
+  assert.ok(tanpaQtyHasil.draft.dampak.some((d) => /Una anggap takarannya untuk 1/.test(d)));
+});
+
+test('pertanyaan soal uang diajukan dengan ajakan halus; selain uang tidak ditambahi', async () => {
+  const { tanyaHalus } = await import('../src/caca-agen.js');
+  assert.equal(tanyaHalus('catat_bea_gaji', 'Pak Eddy gajinya berapa?'), 'Dikit lagi ya Bos, biar catatan uangnya nggak meleset. Pak Eddy gajinya berapa?');
+  assert.equal(tanyaHalus('buat_barang', 'Harga jual "Kopi" berapa?'), 'Harga jual "Kopi" berapa?');
 });
 
 // --- jurnal -----------------------------------------------------------------
@@ -230,7 +250,10 @@ test('agen: jurnal ikut buku yang dibuka; barang tetap per gerai', async () => {
   assert.match(barangDiEntity.jawaban, /per gerai/);
 
   const bacaDiEntity = await draftDariAgen('untung?', { alat: 'laba_periode', periode: 'hari_ini' }, KONTEKS_ENTITY, jalurPalsu());
-  assert.match(bacaDiEntity.jawaban, /baru bisa membuat jurnal/);
+  // Dulu ditolak ("baru bisa membuat jurnal"); sekarang dibaca ke semua gerai lewat pembaca bebas.
+  // Jalur palsu di tes ini tidak punya daftar gerai, jadi yang dilaporkan: daftar gerai tak terbaca.
+  assert.doesNotMatch(bacaDiEntity.jawaban, /baru bisa membuat jurnal/);
+  assert.match(bacaDiEntity.jawaban, /daftar gerai tidak terbaca/);
 });
 
 test('jurnal gerai diposting ke buku gerai, jurnal entity ke buku entity', async () => {

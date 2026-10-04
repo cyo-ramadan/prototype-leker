@@ -38,21 +38,22 @@ G002 pada tahap awal pernah dibuat sebagai copy fixture G001. Migration `0010_cu
 
 Routes utama:
 
-- `/` atau `/customer` — halaman customer sekaligus entry login.
+- `/` atau `/customer` — halaman customer; login di sini khusus **Pelanggan**.
+- `/login` — halaman login khusus **Karyawan** (Owner, Entity Admin, Admin Gerai, Kasir).
 - `/s/<KODE>/customer` — customer pada gerai tertentu.
 - `/cashier` — workspace Kasir setelah login Karyawan.
 - `/admin` — Owner Console setelah login Karyawan.
 - `/s/<KODE>/admin` — workspace Admin Gerai setelah login Karyawan.
 - `/produk/` — landing page penjualan (statis, tanpa login). Isinya dijaga `test/landing-page-claims.test.js`; konteks di `HANDOFF-STRATEGI-PENJUALAN.md` §10.
 
-Entry login mempunyai dua tab saja:
+Login dipisah jadi dua halaman (sebelumnya dua tab di satu jendela di halaman customer):
 
-- **Pelanggan** — hanya mencari akun pelanggan pada gerai/customer-sharing scope yang authorized.
-- **Karyawan** — hanya mencari akun internal dan server menentukan pangkat `OWNER`, `ADMIN`, atau `CASHIER`.
+- **Pelanggan** (`/customer`, jendela Login) — hanya mencari akun pelanggan pada gerai/customer-sharing scope yang authorized.
+- **Karyawan** (`/login`) — hanya mencari akun internal dan server menentukan pangkat `OWNER`, `ENTITY_ADMIN`, `ADMIN`, atau `CASHIER`.
 
 Guest tetap dapat checkout tanpa login. Customer dan Karyawan menggunakan session namespace terpisah sehingga halaman customer dan satu workspace karyawan boleh aktif bersamaan pada tab berbeda.
 
-Login internal langsung melalui `/cashier`, `/admin`, atau workspace gerai tidak menjadi entry utama. Jika tidak ada session yang sesuai, browser diarahkan ke `/?login=staff`.
+Login internal langsung melalui `/cashier`, `/admin`, atau workspace gerai tidak menjadi entry utama. Jika tidak ada session yang sesuai, browser diarahkan ke `/login`. Link lama `/?login=staff` masih diteruskan ke `/login`.
 
 Legacy `POST /api/auth/login` dipertahankan sementara untuk backward compatibility, tetapi UI baru menggunakan endpoint terpisah supaya akun pelanggan tidak bercampur dengan akun internal.
 
@@ -320,6 +321,13 @@ Login:
 - `POST /api/auth/staff-login`
 - `POST /api/auth/login` — legacy compatibility only
 
+Alat akuntan Una (baca saja, per gerai; kontrak `contracts/una-akuntan-tools-v1.md`):
+
+- `GET /api/admin/accounting/bridge/issues` — transaksi aktif yang belum berjurnal, penyebab, dan alat pembereskannya
+- `GET /api/admin/hpp-audit` — HPP janggal + usulan koreksi berbukti dan berurutan (bahan baku dulu, olahan sesudahnya)
+- `GET /api/admin/entity-stock` — stok semua gerai; tiap sel kini juga membawa HPP rata-rata, acuan median lintas gerai, dan penanda janggal (layar "Lihat HPP" di panel Entity)
+- Alat tulis `koreksi_hpp_banyak` — koreksi HPP banyak bahan sekaligus lewat Hitung Ulang HPP; daftar siap tempel: `INSTRUKSI-UNA-HPP-SEPTEMBER.md`
+
 Customer:
 
 - `POST /api/customer/register`
@@ -420,4 +428,4 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 
 ## DOC-IMPACT
 
-**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting, serta **kebijakan sesi karyawan yang berubah 2026-09-18**: banyak sesi per akun sekarang diizinkan (trigger satu-sesi dicabut migration `0102`), dan yang masih ditegakkan cuma "jangan pindah user dalam satu browser" lewat guard sisi klien.
+**REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting, serta **kebijakan sesi karyawan yang berubah 2026-09-18**: banyak sesi per akun sekarang diizinkan (trigger satu-sesi dicabut migration `0102`), dan yang masih ditegakkan cuma "jangan pindah user dalam satu browser" lewat guard sisi klien. **2026-10-03**: login karyawan pindah ke halaman `/login`; login di halaman customer khusus pelanggan; alat akuntan Una (`jembatan_masalah`, `audit_hpp`, `sinkron_akuntansi`, `samakan_aturan_jurnal`, `betulkan_klasifikasi_barang`).

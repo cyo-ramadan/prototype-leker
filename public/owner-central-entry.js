@@ -1,6 +1,6 @@
 (() => {
   showOwnerLogin = function showCentralStaffEntry() {
-    location.replace('/?login=staff');
+    location.replace('/login');
   };
 
   ownerEl('ownerLogoutBtn')?.addEventListener('click', async event => {
@@ -18,6 +18,6 @@
     window.lekerClearStaffSession?.();
     localStorage.removeItem('lekerOwnerToken');
     localStorage.removeItem('lekerStaffSessionMeta');
-    location.href = '/?login=staff';
+    location.href = '/login';
   }, true);
 })();

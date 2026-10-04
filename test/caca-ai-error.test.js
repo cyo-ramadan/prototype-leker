@@ -137,3 +137,18 @@ test('kode status penyedia yang bukan satu token tidak ditampilkan', () => {
   const pesan = jelaskanPenolakan(500, { error: { status: 'isi permintaan: gas 22rb' } }, KUNCI);
   assert.equal(pesan, 'Mesin AI menolak permintaan (500).');
 });
+
+// Penolakan skema menyebut isi skema kita sendiri, bukan isi permintaan pelanggan.
+test('400 karena skema terlalu rumit: alasannya diteruskan supaya bisa diperbaiki', () => {
+  const pesan = jelaskanPenolakan(400, {
+    error: { message: 'The specified schema produces a constraint that has too many states for serving. Try simplifying.', status: 'INVALID_ARGUMENT' }
+  }, KUNCI);
+  assert.match(pesan, /\(400, INVALID_ARGUMENT\)/);
+  assert.match(pesan, /masalah di sisi program/);
+  assert.match(pesan, /too many states/);
+});
+
+test('400 yang bukan soal skema atau akun tetap menyembunyikan isinya', () => {
+  const pesan = jelaskanPenolakan(400, { error: { message: 'Invalid value at contents[0]: rahasia isi pelanggan', status: 'INVALID_ARGUMENT' } }, KUNCI);
+  assert.equal(pesan, 'Mesin AI menolak permintaan (400, INVALID_ARGUMENT).');
+});

@@ -1,0 +1,144 @@
+/* Skin D · Mode Warung -- pilihan tenant ui_skin = D (src/tenant-policy.js).
+   Arah "Plang Seng": papan nama seng berenamel biru (huruf krem, bingkai garis ganda, paku keling) untuk bilah atas dan angka untung; Barlow + Barlow Condensed; kuning = uang yang harus dilihat. Cara pakai barunya ada di warung.html, warung-admin.js, warung-pemilik.js. DESAIN-SKIN-D-WARUNG.md §3b.
+   Hanya berlaku saat <html data-skin="d"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.
+   Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */
+
+html[data-skin="d"] {
+  --skin-font: "Barlow", "Figtree", "Segoe UI", system-ui, sans-serif;
+  --bg: #EDF0F5;
+  --skin-page-bg: #EDF0F5;
+  --surface: #ffffff;
+  --ink: #14213D;
+  --muted: #3D4A63;
+  --line: #D5DBE6;
+  --brand: #1C3F94;
+  --brand-2: #1C3F94;
+  --green: #0F6640;
+  --green-soft: #D8F0E3;
+  --amber: #7A4A00;
+  --shadow: none;
+  --skin-card-shadow: none;
+  --skin-top-bg: #1C3F94;
+  --skin-top-ink: #FFF5DC;
+  --skin-top-muted: #FFF5DC;
+  --skin-top-line: #1C3F94;
+  --skin-mark-bg: #FFC72C;
+  --skin-mark-ink: #14213D;
+  --skin-hero-bg: #1C3F94;
+  --skin-hero-ink: #FFF5DC;
+  --skin-hero-muted: #FFF5DC;
+  --skin-primary: #1C3F94;
+  --skin-primary-ink: #ffffff;
+  --skin-active-bg: #1C3F94;
+  --skin-active-ink: #FFF5DC;
+  --skin-input-bg: #ffffff;
+  --skin-chip-bg: #FFF3CC;
+  --skin-focus: rgba(28,63,148,.22);
+  --skin-danger: #A61B1B;
+  --skin-danger-soft: #FBE3E1;
+  --skin-danger-line: #F0B4AE;
+  --skin-warn: #6A4000;
+  --skin-warn-soft: #FFF3CC;
+  --skin-r-sm: 10px;
+  --skin-r: 12px;
+  --skin-r-lg: 14px;
+  --skin-r-pill: 999px;
+}
+html[data-skin="d"] body { background: var(--skin-page-bg); color: var(--ink); font-family: var(--skin-font); }
+html[data-skin="d"] button, html[data-skin="d"] input, html[data-skin="d"] select, html[data-skin="d"] textarea { font-family: inherit; }
+html[data-skin="d"] .topbar { background: var(--skin-top-bg); color: var(--skin-top-ink); border-bottom-color: var(--skin-top-line); backdrop-filter: none; }
+html[data-skin="d"] .brand small { color: var(--skin-top-muted); }
+html[data-skin="d"] .brand-mark { background: var(--skin-mark-bg); color: var(--skin-mark-ink); border-radius: var(--skin-r-sm); box-shadow: none; }
+html[data-skin="d"] .pill, html[data-skin="d"] .admin-link, html[data-skin="d"] .cashier-user-chip span { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="d"] .hero { background: var(--skin-hero-bg); color: var(--skin-hero-ink); border-radius: var(--skin-r-lg); }
+html[data-skin="d"] .hero p { color: var(--skin-hero-muted); }
+html[data-skin="d"] .hero::after { content: none; }
+html[data-skin="d"] .primary-btn { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r); box-shadow: none; }
+html[data-skin="d"] .ready-action, html[data-skin="d"] .action-ready { background: var(--green); }
+html[data-skin="d"] .secondary-btn, html[data-skin="d"] .mini-btn, html[data-skin="d"] .drawer-action-btn { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-sm); }
+html[data-skin="d"] .mini-btn.danger, html[data-skin="d"] .danger-btn { background: var(--skin-danger-soft); color: var(--skin-danger); border-color: var(--skin-danger-line); }
+html[data-skin="d"] .admin-tab, html[data-skin="d"] .category-btn { background: var(--surface); color: var(--muted); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="d"] .admin-tab.active, html[data-skin="d"] .category-btn.active { background: var(--skin-active-bg); color: var(--skin-active-ink); border-color: var(--skin-active-bg); }
+html[data-skin="d"] .category-group-btn { border-color: var(--brand); color: var(--brand); }
+html[data-skin="d"] .category-group-btn.active { background: var(--brand); color: var(--skin-primary-ink); }
+html[data-skin="d"] .admin-card, html[data-skin="d"] .admin-auth-card, html[data-skin="d"] .menu-card, html[data-skin="d"] .cashier-menu-panel,
+html[data-skin="d"] .cashier-draft-panel, html[data-skin="d"] .drawer-command-card, html[data-skin="d"] .order-card, html[data-skin="d"] .status-card,
+html[data-skin="d"] .stat, html[data-skin="d"] .cart-panel, html[data-skin="d"] .column, html[data-skin="d"] .admin-summary span {
+  background: var(--surface); border-color: var(--line); border-radius: var(--skin-r-lg); box-shadow: var(--skin-card-shadow);
+}
+html[data-skin="d"] .cart-drawer { border-radius: var(--skin-r-lg) 0 0 var(--skin-r-lg); }
+html[data-skin="d"] .cashier-menu-card, html[data-skin="d"] .cashier-draft-row, html[data-skin="d"] .master-row, html[data-skin="d"] .cart-item,
+html[data-skin="d"] .purchase-composer, html[data-skin="d"] .cashier-dialog-summary div { background: var(--surface); border-color: var(--line); border-radius: var(--skin-r); }
+html[data-skin="d"] .cashier-dialog { border-radius: var(--skin-r-lg); }
+html[data-skin="d"] .note-input, html[data-skin="d"] .text-input, html[data-skin="d"] textarea,
+html[data-skin="d"] .admin-field input, html[data-skin="d"] .admin-field select, html[data-skin="d"] .admin-field textarea {
+  background: var(--skin-input-bg); border-color: var(--line); border-radius: var(--skin-r-sm); color: var(--ink);
+}
+html[data-skin="d"] .note-input:focus, html[data-skin="d"] .text-input:focus, html[data-skin="d"] textarea:focus,
+html[data-skin="d"] .admin-field input:focus, html[data-skin="d"] .admin-field select:focus, html[data-skin="d"] .admin-field textarea:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px var(--skin-focus);
+}
+html[data-skin="d"] .cashier-add-btn, html[data-skin="d"] .add-btn, html[data-skin="d"] .menu-stepper-plus { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r-sm); }
+html[data-skin="d"] .menu-stepper, html[data-skin="d"] .qty-btn, html[data-skin="d"] .cart-close-btn { background: var(--skin-input-bg); border-color: var(--line); }
+html[data-skin="d"] .menu-card.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--skin-focus); }
+html[data-skin="d"] .selected-badge, html[data-skin="d"] .menu-card .category { background: var(--skin-chip-bg); color: var(--brand-2); }
+html[data-skin="d"] .price, html[data-skin="d"] .order-items b, html[data-skin="d"] .order-no { color: var(--brand-2); }
+html[data-skin="d"] .admin-eyebrow, html[data-skin="d"] .cart-kicker, html[data-skin="d"] .text-btn { color: var(--brand); }
+html[data-skin="d"] .badge, html[data-skin="d"] .master-count, html[data-skin="d"] .admin-toast,
+html[data-skin="d"] .purchase-detail-subtotal, html[data-skin="d"] .progress-step.active, html[data-skin="d"] .cart-handle-count { background: var(--skin-active-bg); color: var(--skin-active-ink); }
+html[data-skin="d"] .cart-handle.has-items { background: var(--skin-primary); border-color: var(--skin-primary); }
+html[data-skin="d"] .drawer-mode-badge.write, html[data-skin="d"] .cashier-lock-note.write { background: var(--green-soft); color: var(--green); }
+html[data-skin="d"] .cashier-lock-note, html[data-skin="d"] .drawer-mode-badge.occupied { background: var(--skin-warn-soft); color: var(--skin-warn); }
+html[data-skin="d"] .image-preview-wrap, html[data-skin="d"] .master-thumb, html[data-skin="d"] .cashier-menu-image { background: var(--skin-chip-bg); }
+html[data-skin="d"] .admin-top-actions > a, html[data-skin="d"] .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; border-radius: var(--skin-r-pill); line-height: 1.2; }
+@media (max-width: 620px) {
+  html[data-skin="d"] .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  html[data-skin="d"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+}
+
+html[data-skin="d"] {
+  --plate: "Barlow Condensed", "Barlow", system-ui, sans-serif; --cream: #FFF5DC; --plang: #1C3F94;
+  --plang-frame: inset 0 0 0 5px var(--plang), inset 0 0 0 7px var(--cream);
+  --plang-rivets:
+    radial-gradient(circle at 14px 14px, var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) 14px, var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at 14px calc(100% - 14px), var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 14px) calc(100% - 14px), var(--cream) 0 3px, rgba(0,0,0,.25) 3.5px, transparent 4.5px);
+}
+html[data-skin="d"] body { font-size: 16.5px; font-weight: 500; }
+/* Bilah atas = plang seng: bingkai garis ganda + paku keling, nama dengan huruf plang. */
+html[data-skin="d"] .topbar { margin: 8px 10px 0; border-radius: 14px; padding: 16px 22px; background: var(--plang-rivets), var(--plang); box-shadow: var(--plang-frame), 0 4px 0 rgba(20,33,61,.18); position: relative; }
+html[data-skin="d"] .brand { font-family: var(--plate); font-weight: 800; letter-spacing: .04em; font-size: 22px; }
+html[data-skin="d"] .brand small { font-family: var(--skin-font); letter-spacing: 0; font-size: 13px; font-weight: 600; }
+html[data-skin="d"] .admin-link, html[data-skin="d"] .topbar .pill, html[data-skin="d"] .topbar .secondary-btn, html[data-skin="d"] .topbar .mini-btn {
+  background: var(--cream); color: var(--plang); border-color: transparent;
+}
+html[data-skin="d"] h1, html[data-skin="d"] .th-greet h1 { font-family: var(--plate); font-weight: 800; letter-spacing: .01em; }
+html[data-skin="d"] .primary-btn { min-height: 54px; font-size: 17px; }
+html[data-skin="d"] .total-row strong, html[data-skin="d"] .cashier-draft-total strong { font-size: 28px; font-family: var(--plate); }
+html[data-skin="d"] .admin-card, html[data-skin="d"] .master-row { border-width: 2px; }
+/* Angka untung (Hari ini gerai & Panel Pemilik) = plang kedua; angkanya kuning. */
+html[data-skin="d"] .th-profit, html[data-skin="d"] .hi-profit { background: var(--plang-rivets), var(--plang); box-shadow: var(--plang-frame); color: var(--cream); border-radius: 14px; padding: 22px 26px; }
+html[data-skin="d"] .th-profit b, html[data-skin="d"] .hi-profit b { font-family: var(--plate); font-weight: 800; color: #FFC72C; letter-spacing: .01em; }
+html[data-skin="d"] .th-profit b.neg, html[data-skin="d"] .hi-profit b.neg { color: #FFC2B8; }
+html[data-skin="d"] .th-profit small, html[data-skin="d"] .hi-profit small, html[data-skin="d"] .th-profit p, html[data-skin="d"] .hi-profit p { opacity: 1; }
+html[data-skin="d"] .hi-profit p em { color: #FFC72C; }
+html[data-skin="d"] .th-refresh, html[data-skin="d"] .hi-refresh { background: var(--cream); color: var(--plang); border: 0; }
+html[data-skin="d"] .nav-group-btn { border-width: 2px; }
+html[data-skin="d"] .nav-group-btn span:not(.nav-group-icon):not(.nav-group-badge) { font-size: 14px; }
+/* Mode Warung: angka untung (warung-pemilik.js) langsung di atas, tanpa kalimat teknis. */
+html[data-skin="d"] #entityAdminApp .owner-heading .muted, html[data-skin="d"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
+html[data-skin="d"] #entityAdminApp .owner-heading h1 { font-size: 28px; margin: 0; }
+/* Workspace Gerai untuk pemilik yang mengurus admin sendiri (DESAIN-SKIN-D-WARUNG.md §4c):
+   buang yang bikin bingung -- link teknis di bilah atas (Owner/Customer/Kasir Login), judul
+   "Workspace Gerai" + kalimat scope, hitungan barang/kategori, kartu "Scope gerai".
+   Yang tersisa: "Lihat layar kasir" dan tombol keluar. Halaman depan = "Hari ini" (warung-admin.js). */
+html[data-skin="d"] .admin-top-actions > a:not(#cashierReadOnlyLink) { display: none; }
+html[data-skin="d"] #adminApp .admin-heading { display: none; }
+html[data-skin="d"] #tab-store .admin-tip { display: none; }
+/* Persetujuan: yang menunggu dulu, saklar "Setujui otomatis" ke paling bawah. */
+html[data-skin="d"] #tab-approvals.active { display: flex; flex-direction: column; }
+html[data-skin="d"] #tab-approvals > .admin-card:first-child { order: 9; margin-top: 14px; }
+html[data-skin="d"] #tab-drawers small:empty { display: none; }
+/* Menu pemilik: 6 tombol rata 3 x 2. */
+html[data-skin="d"] .nav-groups-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }

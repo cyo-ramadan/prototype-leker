@@ -268,7 +268,7 @@ function changeQty(menuId, delta, pulseHandle = false) {
 
 function renderCart() {
   if (!state.cart.length) {
-    el('cartList').innerHTML = `<div class="empty">Belum ada leker yang dipilih.</div>`;
+    el('cartList').innerHTML = `<div class="empty">Belum ada menu yang dipilih.</div>`;
   } else {
     el('cartList').innerHTML = state.cart.map(item => {
       const menu = state.menu.find(menuItem => menuItem.id === item.menuId);
@@ -419,13 +419,13 @@ function showStatus(order) {
   if (order.status === 'NEW') {
     el('statusIcon').textContent = '🧾';
     el('statusTitle').textContent = 'Pesanan diterima';
-    el('statusText').textContent = 'Kasir sudah menerima order. Customer boleh meninggalkan booth sementara.';
+    el('statusText').textContent = 'Kasir sudah menerima order. Pesanan Anda sedang disiapkan.';
   }
   if (order.status === 'PREPARING') {
     el('stepPrep').classList.add('active');
     el('statusIcon').textContent = '🥞';
     el('statusTitle').textContent = 'Lagi dibuat';
-    el('statusText').textContent = 'Tim sedang menyiapkan leker. Nomor pesanan ini tetap tersimpan meskipun browser direfresh.';
+    el('statusText').textContent = 'Tim sedang menyiapkan pesanan Anda. Nomor pesanan ini tetap tersimpan meskipun browser direfresh.';
   }
   if (order.status === 'READY') {
     el('stepPrep').classList.add('active');

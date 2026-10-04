@@ -421,7 +421,8 @@
   color: #54656f;
 }
 
-.caca-ketik input:not([type="file"]) {
+.caca-ketik input:not([type="file"]),
+.caca-ketik textarea {
   flex: 1 1 auto;
   min-width: 0;
   padding: 10px 14px;
@@ -433,8 +434,22 @@
   font-size: 0.92rem;
 }
 
-.caca-ketik input:focus {
+/* Kotak ketik bisa banyak baris (daftar menu yang ditempel); tingginya diatur
+   cacaAturTinggiKetik(), batasnya 140px lalu bergulir. */
+.caca-ketik textarea {
+  resize: none;
+  line-height: 1.35;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.caca-ketik input:focus,
+.caca-ketik textarea:focus {
   outline: 2px solid var(--green-soft);
+}
+
+.caca-ketik {
+  align-items: flex-end;
 }
 
 .caca-kirim {
@@ -641,4 +656,257 @@
   .caca-di-workspace .caca-fab {
     right: 80px;
   }
+}
+
+/* Angka di jawaban yang tidak ditemukan persis di data: dilaporkan, bukan didiamkan. */
+.caca-peringatan {
+  margin: 8px 0 0;
+  padding: 6px 9px;
+  border-left: 3px solid var(--amber);
+  border-radius: 6px;
+  background: #fdf5e6;
+  font-size: 0.8rem;
+}
+
+/* --- pendamping pengguna baru (UNA-PENDAMPING.md) ------------------------ */
+
+/* Pilihan isi foto: daftar menu atau lembar rekap. */
+.caca-mode-foto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 4px 0 2px;
+}
+
+.caca-mode-foto button {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.caca-mode-foto button[aria-pressed="true"] {
+  border-color: var(--green);
+  background: var(--green-soft);
+  font-weight: 700;
+}
+
+/* Kartu kesiapan gerai di sapaan pertama. */
+.caca-siap {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  font-size: 0.86rem;
+}
+
+.caca-siap-kepala {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.caca-siap-kepala span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.caca-siap-bar,
+.caca-kemajuan-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.caca-siap-bar span,
+.caca-kemajuan-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--green);
+  transition: width 0.25s ease;
+}
+
+.caca-siap ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.caca-siap li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  line-height: 1.35;
+}
+
+.caca-siap li small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.caca-siap li em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.caca-siap-tanda {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.caca-siap li.beres .caca-siap-tanda {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+
+.caca-siap li.beres strong {
+  color: var(--muted);
+}
+
+.caca-siap li.berikutnya .caca-siap-tanda {
+  border-color: var(--amber);
+}
+
+.caca-siap li.berikutnya strong {
+  color: var(--ink);
+}
+
+/* Draft bertahap: hitungan "12 dari 40" berjalan di dalam kartu draft. */
+.caca-kemajuan {
+  margin-top: 10px;
+}
+
+.caca-kemajuan-teks {
+  margin: 5px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.caca-draft [data-caca-lanjut] {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.caca-draft-tenang {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.caca-saran button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* "mengetik…" ala WhatsApp: di subjudul kepala panel dan di gelembung. */
+.caca-subjudul.mengetik {
+  color: var(--green);
+  font-style: italic;
+}
+
+.caca-mengetik-teks {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.caca-gelembung.mengetik {
+  padding: 8px 12px;
+}
+
+/* Rencana bertahap: 1. … ✓ / 2. … (jalan) / 3. … */
+.caca-rencana {
+  min-width: 220px;
+  font-size: 0.9rem;
+}
+
+.caca-rencana-judul {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.caca-rencana ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.caca-rencana li {
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.caca-rencana li.selesai,
+.caca-rencana li.jalan,
+.caca-rencana li.menunggu,
+.caca-rencana li.tanya {
+  color: var(--ink);
+}
+
+.caca-rencana li.selesai .caca-rencana-tanda {
+  color: var(--green);
+  font-weight: 900;
+}
+
+.caca-rencana li.jalan .caca-rencana-tanda {
+  animation: caca-titik 1.2s infinite ease-in-out;
+  display: inline-block;
+  font-weight: 900;
+}
+
+.caca-rencana li.gagal .caca-rencana-tanda,
+.caca-rencana li.tanya .caca-rencana-tanda,
+.caca-rencana li.menunggu .caca-rencana-tanda {
+  color: var(--amber);
+  font-weight: 900;
+}
+
+.caca-rencana li small {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.caca-rencana-alasan {
+  display: block;
+  margin-left: 14px !important;
+}
+
+.caca-rencana-aksi {
+  margin-top: 10px;
+}
+
+.caca-rencana-aksi button {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 0.88rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caca-rencana li.jalan .caca-rencana-tanda { animation: none; }
 }

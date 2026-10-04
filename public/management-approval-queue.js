@@ -86,16 +86,22 @@
     return groups;
   }
 
+  // Skin D (pemilik yang mengurus admin sendiri, DESAIN-SKIN-D-WARUNG.md §4c):
+  // kata tombol dalam bahasa pemilik. Tenant lain tetap memakai kata lama.
+  function word(classic, owner) {
+    return window.MaxiSkin?.skin?.() === 'd' ? owner : classic;
+  }
+
   function renderSingleCard(request) {
     return `
-      <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-        <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="master-count">pending</span></div>
+      <article class="admin-card approval-card" style="box-shadow:none;margin-bottom:10px">
+        <div class="list-head"><div><strong>${esc(requestLabel(request))}</strong><div class="muted">${esc(request.cashierName || request.cashierId)} · ${esc(request.storeId)}</div></div><span class="status-chip warn">Menunggu</span></div>
         <p>${payloadSummary(request)}</p>
         <div class="muted">${esc(request.payload?.note || '')}</div>
-        ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? '<div class="muted" style="margin-top:8px">ACC akan re-check stok aktual terhadap snapshot. Jika stok sudah berubah, request otomatis ditolak sebagai stale.</div>' : ''}
+        ${request.requestType === 'GOODS_FLOW' && request.payload?.purpose === 'STOCK_ADJUSTMENT' ? `<div class="muted" style="margin-top:8px">Stok dicek ulang saat disetujui. Kalau stok sudah berubah, pengajuan otomatis ditolak.</div>` : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">ACC + POSTING</button>
-          <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">Reject</button>
+          <button class="primary-btn" type="button" data-approval-acc="${esc(request.id)}">${word('ACC + POSTING', 'Setujui')}</button>
+          <button class="secondary-btn" type="button" data-approval-reject="${esc(request.id)}">${word('Reject', 'Tolak')}</button>
         </div>
       </article>`;
   }
@@ -104,17 +110,17 @@
     const first = group.items[0];
     const detailId = `approvalGroupDetail-${esc(group.sessionId)}`;
     return `
-      <article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-        <div class="list-head"><div><strong>STOCK ADJUSTMENT · ${group.items.length} barang</strong><div class="muted">${esc(first.cashierName || first.cashierId)} · ${esc(first.storeId)}</div></div><span class="master-count">pending</span></div>
+      <article class="admin-card approval-card" style="box-shadow:none;margin-bottom:10px">
+        <div class="list-head"><div><strong>Penyesuaian stok · ${group.items.length} barang</strong><div class="muted">${esc(first.cashierName || first.cashierId)} · ${esc(first.storeId)}</div></div><span class="status-chip warn">Menunggu</span></div>
         <p>${group.items.length} barang diajukan sebagai satu Stock Opname. ACC/Reject di bawah berlaku untuk semuanya sekaligus.</p>
         <button class="secondary-btn" type="button" data-approval-group-toggle="${esc(group.sessionId)}">Detail</button>
         <div id="${detailId}" class="muted" style="margin-top:10px;display:none">
           ${group.items.map(item => `<div style="padding:6px 0;border-top:1px solid #edf0f4">${payloadSummary(item)}${item.payload?.note ? `<div class="muted">${esc(item.payload.note)}</div>` : ''}</div>`).join('')}
         </div>
-        <div class="muted" style="margin-top:8px">ACC akan re-check stok aktual semua barang terhadap snapshot. Kalau ada satu saja yang berubah, seluruh sesi ini ditolak otomatis sebagai stale -- tidak ada yang diposting sebagian.</div>
+        <div class="muted" style="margin-top:8px">Stok semua barang dicek ulang saat disetujui. Kalau ada satu saja yang berubah, seluruh pengajuan ditolak -- tidak ada yang tercatat sebagian.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="primary-btn" type="button" data-approval-session-acc="${esc(group.sessionId)}">ACC + POSTING SEMUA</button>
-          <button class="secondary-btn" type="button" data-approval-session-reject="${esc(group.sessionId)}">Reject Semua</button>
+          <button class="primary-btn" type="button" data-approval-session-acc="${esc(group.sessionId)}">${word('ACC + POSTING SEMUA', 'Setujui semua')}</button>
+          <button class="secondary-btn" type="button" data-approval-session-reject="${esc(group.sessionId)}">${word('Reject Semua', 'Tolak semua')}</button>
         </div>
       </article>`;
   }
@@ -258,7 +264,7 @@
     if (!app || document.getElementById('ownerApprovalQueue')) return;
     app.insertAdjacentHTML('beforeend', `
       <section id="ownerApprovalQueue" class="admin-card" style="margin-top:18px">
-        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Owner dapat mereview pending approval seluruh gerai. Penyesuaian Stok memakai snapshot dan stale guard sebelum posting.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
+        <div class="list-head"><div><h2>Approval Queue</h2><div class="muted">Semua permintaan persetujuan dari seluruh gerai. Penyesuaian stok dicek ulang sebelum dicatat.</div></div><button id="managementApprovalRefresh" class="secondary-btn" type="button">↻ Refresh</button></div>
         <div id="managementApprovalList" class="master-list" style="margin-top:14px"></div>
       </section>`);
     document.getElementById('managementApprovalRefresh')?.addEventListener('click', loadQueue);

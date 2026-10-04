@@ -3,7 +3,7 @@ import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
-import { defaultProductKindForItemType, listProductKinds, resolveProductKind } from './product-kinds.js';
+import { defaultProductKindForItemType, ensureItemCategoryForKind, listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
 const COST_SCALE = 1_000_000;
@@ -60,6 +60,7 @@ async function selectedStore(db, request) {
 }
 
 const productCodeText = value => String(value ?? '').trim().slice(0, 40);
+const wantsShortReply = request => new URL(request.url).searchParams.get('ringkas') === '1';
 
 function actorFrom(auth) {
   if (auth.owner) return { role: 'OWNER', id: auth.owner.id };
@@ -114,9 +115,9 @@ async function listActiveRecipes(db, storeId) {
   }));
 }
 
-async function listEditorProducts(db, storeId) {
+async function listEditorProducts(db, storeId, { withImages = true } = {}) {
   const rows = await db.prepare(`
-    SELECT p.id, p.name, p.purchase_price, p.price, p.category, p.emoji, p.image_data,
+    SELECT p.id, p.name, p.purchase_price, p.price, p.category, p.emoji, ${withImages ? 'p.image_data' : "'' AS image_data"},
            p.display_order, p.is_active, p.item_type_id, p.product_kind_id, p.base_unit_id,
            p.points_per_unit, p.recipe_link_enabled, p.linked_recipe_id, p.stock_tracking_enabled,
            p.average_cost, p.last_purchase_price, p.cost_updated_at, p.last_purchase_at,
@@ -167,13 +168,13 @@ async function listEditorProducts(db, storeId) {
   }));
 }
 
-async function editorPayload(db, store) {
+async function editorPayload(db, store, { withImages = true } = {}) {
   // Reference bootstrap may write missing defaults. Finish it before concurrent
   // reads so D1 never overlaps a bootstrap batch with the editor snapshot.
   const refs = await getManufacturingReferenceData(db, store.id);
   const [productKinds, products, recipes] = await Promise.all([
     listProductKinds(db, store.id),
-    listEditorProducts(db, store.id),
+    listEditorProducts(db, store.id, { withImages }),
     listActiveRecipes(db, store.id)
   ]);
   return { store, products, recipes, productKinds, ...refs };
@@ -300,7 +301,9 @@ export async function handleProductMasterApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
 
   if (request.method === 'GET' && pathname === '/api/admin/master/products/editor') {
-    return json(await editorPayload(env.DB, store));
+    // ?ringkas=1: tanpa foto barang (satu foto bisa ratusan KB; ratusan barang
+    // = puluhan MB). Dipakai pembaca yang cuma butuh nama dan harga (Una).
+    return json(await editorPayload(env.DB, store, { withImages: !wantsShortReply(request) }));
   }
 
   if (request.method === 'POST' && pathname === '/api/admin/master/products/editor') {
@@ -336,14 +339,17 @@ export async function handleProductMasterApi(request, env, pathname) {
           id, store_id, name, purchase_price, price, category, emoji, image_data,
           display_order, is_active, item_type_id, product_kind_id, base_unit_id,
           points_per_unit, recipe_link_enabled, linked_recipe_id, stock_tracking_enabled,
-          product_master_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          product_master_id, average_cost
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         id, store.id, normalized.name, normalized.purchasePrice, normalized.price,
         normalized.category, normalized.emoji, normalized.productImage, Number(order?.next_order ?? 1),
         normalized.isActive, normalized.itemTypeId, normalized.productKindId, normalized.baseUnitId,
         normalized.pointsPerUnit, normalized.recipeLinkEnabled,
-        normalized.linkedRecipeId, normalized.stockTrackingEnabled, productMasterId
+        normalized.linkedRecipeId, normalized.stockTrackingEnabled, productMasterId,
+        // HPP sementara = Harga Beli yang diisi (0 bila kosong); pembelian
+        // pertama menggantikannya lewat Average Cost.
+        normalized.purchasePrice
       )
     ];
     if (normalized.stockTrackingEnabled) {
@@ -353,6 +359,11 @@ export async function handleProductMasterApi(request, env, pathname) {
       `).bind(store.id, id));
     }
     await env.DB.batch(statements);
+    await ensureItemCategoryForKind(env.DB, store.id, normalized.productKindId);
+    // ?ringkas=1: pemanggil yang membuat banyak barang berturut-turut (Una)
+    // tidak butuh seluruh isi editor -- termasuk foto semua barang -- di tiap
+    // balasan. Layar Data Barang tetap menerima payload lengkap seperti biasa.
+    if (wantsShortReply(request)) return json({ ok: true, id }, 201);
     return json({ ok: true, id, editor: await editorPayload(env.DB, store) }, 201);
   }
 
@@ -445,6 +456,8 @@ export async function handleProductMasterApi(request, env, pathname) {
     ));
   }
   await env.DB.batch(statements);
+  await ensureItemCategoryForKind(env.DB, store.id, normalized.productKindId);
+  if (wantsShortReply(request)) return json({ ok: true, id: productId });
   return json({ ok: true, id: productId, editor: await editorPayload(env.DB, store) });
 }
 

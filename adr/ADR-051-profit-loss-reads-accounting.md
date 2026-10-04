@@ -60,7 +60,53 @@ penjualan tanpa Jenis Barang (DERMO, TLEKUNG, G001).
 - Bea/gaji yang dicatat sebelum 0123 sudah ikut jurnal kalau memang dikirim jembatan; yang
   tertinggal disinkronkan, jadi hutang lama yang dilunasi tidak lagi membuat saldo Utang minus.
 
+## Tambahan 2026-10-02: sinkron otomatis
+
+Bos Cyo: "sinkron itu jadikan auto sinkron aja". Langkah sinkron (fakta POS, fakta admin,
+koreksi Hitung Ulang HPP) kini satu mesin, `src/accounting-auto-sync.js`, dipakai tombol manual
+dan jalur otomatis. Jalur otomatis berjalan lazy -- tanpa cron dan tanpa polling (invariant #6):
+saat panel Akuntansi dibuka dan saat Laporan Untung Rugi dibaca, hanya untuk gerai
+`edition = 'ACCOUNTING'`, maksimal 25 fakta per jenis per gerai per permintaan. Fakta yang sudah
+dicoba dalam 15 menit terakhir dan masih gagal (mis. `NEEDS_CONFIGURATION`) dilewati supaya
+membuka laporan tidak mengulang kerja yang pasti gagal dan tidak menguras kuota D1. Kegagalan
+sinkron tidak pernah menggagalkan laporan. Tombol sinkron manual tetap ada dan mencoba semuanya.
+
+## Tambahan 2026-10-02: default Jenis Barang terkunci di awal
+
+Bos Cyo: setiap barang baru langsung masuk Jenis Barang yang tertaut ke akun Persediaan dan HPP;
+HPP sementara = Harga Beli yang diisi (0 bila kosong); mengubahnya urusan Setting Akuntansi nanti.
+Yang sudah ada sebelumnya: barang tanpa pilihan jenis otomatis dapat Jenis Barang bawaan
+(`defaultProductKindForItemType`) dan trigger migration membuatkan Item Category (akun 1301/5101/4101)
+untuk Jenis Barang baru di gerai Akuntansi. Yang ditambahkan:
+- `ensureItemCategoryForKind` (`src/product-kinds.js`): jaring pengaman saat Jenis Barang dibuat dan
+  saat barang disimpan -- jenis yang dibuat sebelum trigger ada / sebelum gerai pindah ke Akuntansi
+  dilengkapi akunnya. Gerai non-Akuntansi tidak disentuh.
+- Barang baru: `average_cost` = Harga Beli yang diisi (pembelian pertama menggantikannya lewat
+  Average Cost).
+- Akar masalah `NEEDS_PRODUCT_KIND` di produksi: baris transaksi lama (60 penjualan, 10 pembelian)
+  punya snapshot Jenis Barang kosong karena dibuat sebelum barangnya punya jenis. Saat sinkron,
+  snapshot yang kosong diisi dari Jenis Barang barang itu sekarang (`healItemKindSnapshot` di
+  `src/accounting-pos-bridge.js`) -- klasifikasi saja, nominal tidak disentuh, snapshot yang sudah
+  terisi tidak diubah.
+
+## Tambahan 2026-10-03: setoran kasir (Piutang Karyawan)
+
+Bos Cyo: selama kasir belum menyetorkan uangnya, piutangnya harus terus bertambah. Jembatan sudah ada
+(tutup laci dengan setoran -> piutang `EMPLOYEE_DEPOSIT` -> jurnal Debit 1202 Piutang Karyawan / Kredit 1101 Kas;
+pelunasan disetujui -> Debit Kas / Kredit Piutang), tetapi di produksi tidak pernah menghasilkan piutang:
+hanya 2 dari ~40 akun kasir tertaut ke karyawan, dan akun yang tidak tertaut dilewati diam-diam. Sekarang
+akun kasir tanpa tautan tetap dicatat sebagai piutang atas nama akun kasir itu (`counterparty_id = cashier:<id>`).
+Jurnal pengakuan/pelunasan yang gagal setelah faktanya tersimpan dicoba ulang oleh sinkron otomatis
+(`postPendingEmployeeDepositJournals`), idempoten lewat idempotency key jembatan. Catatan: piutang hanya terbentuk
+kalau ada setoran saat tutup laci (di produksi 130 dari 131 laci tutup berisi setoran 0 -- penyebabnya dialog tutup
+laci versi foto tidak punya kolom setoran sama sekali).
+
+Setoran tidak lagi diisi kasir (Bos Cyo, 2026-10-03): kasir mengisi **Titip laci** (uang yang ditinggal di laci untuk
+shift berikutnya) dan server menghitung setoran = saldo kas fisik - titip laci (`src/drawer-deposit.js`). Isi setoran
+sendiri membuat sisa uang di laci tidak ikut dicek. `depositAmount` lama tetap diterima bila `leftInDrawerAmount`
+tidak dikirim; bila keduanya ada, titip laci menang.
+
 ## DOC-IMPACT
 
 Perbarui kalau: pemetaan subtype akun berubah, mesin POS dipensiunkan, cache dipasang untuk
-sumber jurnal, atau jenis fakta admin baru ditambahkan ke backlog sinkron.
+sumber jurnal, atau jenis fakta admin baru ditambahkan ke backlog sinkron, atau pemicu/jeda sinkron otomatis berubah.

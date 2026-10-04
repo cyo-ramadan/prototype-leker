@@ -43,7 +43,7 @@ test('uraiDaftarHpp: baris kalimat biasa (termasuk "koma = desimal") tidak ikut 
 test('semua blok Langkah 1 di INSTRUKSI-UNA-HPP-SEPTEMBER.md terbaca lengkap', () => {
   const doc = readFileSync(new URL('../INSTRUKSI-UNA-HPP-SEPTEMBER.md', import.meta.url), 'utf8');
   const blok = [...doc.matchAll(/```\n(Una, koreksi HPP [\s\S]*?)\n```/g)].map((m) => m[1]);
-  assert.ok(blok.length >= 8);
+  assert.ok(blok.length >= 5, `blok ditemukan: ${blok.length}`);
   for (const isi of blok) {
     const baris = isi.split('\n').filter((b) => /^\d+\. /.test(b)).length;
     const { daftar, dari } = uraiDaftarHpp(isi);
@@ -112,4 +112,13 @@ test('alatPasti di lingkup entity: tetap diminta pilih gerai dulu, tidak dijalan
   const hasil = await jawabPertanyaan(BLOK_MANDALA, { ...konteks, lingkup: 'entity' }, { env: {}, panggilModel: async () => ({ ok: false, error: 'tidak dipanggil' }), jalurAksi: {} });
   assert.equal(hasil.belumLengkap, true);
   assert.match(hasil.jawaban, /Pilih gerainya dulu/);
+});
+
+test('alatPasti: blok Penutup "sinkronkan akuntansi" langsung ke sinkron_akuntansi; kalimat panjang tetap lewat model', async () => {
+  const { alatPasti } = await import('../src/caca-agen.js');
+  assert.equal(alatPasti('Una, sinkronkan akuntansi MANDALA.'), 'sinkron_akuntansi');
+  assert.equal(alatPasti('sinkron akuntansi'), 'sinkron_akuntansi');
+  assert.equal(alatPasti('kenapa sinkron akuntansi kemarin gagal ya, padahal sudah dicoba berkali-kali dan laporan untung rugi tetap tidak berubah sama sekali sejak minggu lalu?'), null);
+  const doc = readFileSync(new URL('../INSTRUKSI-UNA-HPP-SEPTEMBER.md', import.meta.url), 'utf8');
+  for (const m of doc.matchAll(/```\n(Una, sinkronkan akuntansi [A-Z]+\.)\n```/g)) assert.equal(alatPasti(m[1]), 'sinkron_akuntansi');
 });

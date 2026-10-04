@@ -100,6 +100,8 @@ export function alatPasti(pesan) {
   const teks = String(pesan ?? '');
   if (uraiDaftarTipe(teks).length > 0) return 'betulkan_klasifikasi_barang';
   if (/\bhpp\b/i.test(teks) && uraiDaftarHpp(teks).daftar.length >= 2) return 'koreksi_hpp_banyak';
+  // Blok Penutup: "Una, sinkronkan akuntansi MANDALA." (pendek, satu perintah).
+  if (teks.length <= 120 && /^\s*(una[,\s]+)?(tolong\s+)?sinkron(kan|isasi)?\s+akuntansi\b/i.test(teks)) return 'sinkron_akuntansi';
   return null;
 }
 

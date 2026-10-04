@@ -38,6 +38,7 @@ Per gerai, **tanpa fan-out** (berat). Di lingkup entity, panggil gerai satu per 
 | `samakan_aturan_jurnal` | entity | Melengkapi aturan jurnal sebuah kategori dengan menyalin dari gerai yang beres (hanya menambah/mengaktifkan) | `POST/PATCH /api/admin/settings/accounting/journal-rules` |
 | `betulkan_klasifikasi_barang` | gerai (bertahap) | Membetulkan Tipe Barang / Jenis Barang / satuan dasar banyak barang sekaligus (layar Master Barang) | `PATCH /api/admin/master/products/editor/:id` |
 | `koreksi_hpp_banyak` | gerai (bertahap) | Mengoreksi HPP BANYAK bahan sekaligus dari satu daftar `bahan = harga benar` + tanggal mulai; satu draft, satu "Ya"; urutan daftar dijaga (bahan baku dulu, olahan di belakang). Tiap baris = satu Hitung Ulang HPP biasa | `POST /api/admin/hpp-recalculation[/preview]` + `GET .../components` |
+| `atur_rentang_harga_beli` | gerai | Mengatur rentang harga beli wajar per satuan banyak barang (harga acuan ± persen, bawaan 25%, atau batas ditulis langsung). Pembelian kasir di luar rentang ditolak server | `POST /api/admin/purchase-price-ranges` (migration 0135) |
 | `atur_cara_bayar` | semua | (ada) hubungkan cara bayar ke akun | `PATCH /api/admin/settings/business/payment-methods/:id` |
 | `hitung_ulang_hpp` | gerai | (ada) koreksi HPP bahan + hitung ulang penjualan sejak tanggal; jurnal koreksi otomatis | `POST /api/admin/hpp-recalculation[/preview]` |
 | `buat_jurnal` | semua | (ada) jurnal manual balance exact | `POST /api/admin/accounting/journals` |
@@ -122,7 +123,7 @@ sekarang dijaga test yang memakai `bangunJalurAksi` sungguhan (`test/caca-aksi-a
 
 ## Pengujian
 
-`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`, `test/caca-aksi-hpp-banyak.test.js`, `test/caca-perintah-panjang.test.js`, `test/caca-daftar-dari-pesan.test.js`, `test/entity-stock.test.js` (HPP lintas gerai).
+`test/accounting-bridge-issues.test.js`, `test/hpp-audit.test.js`, `test/caca-aksi-akuntan.test.js`, `test/caca-aksi-klasifikasi.test.js`, `test/caca-aksi-hpp-banyak.test.js`, `test/caca-perintah-panjang.test.js`, `test/caca-daftar-dari-pesan.test.js`, `test/purchase-price-ranges.test.js`, `test/entity-stock.test.js` (HPP lintas gerai).
 
 ## DOC-IMPACT
 

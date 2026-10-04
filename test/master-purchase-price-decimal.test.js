@@ -92,7 +92,7 @@ test('Pembelian (Beli Bahan) defaults to the classic harga-per-satuan field with
   const purchaseBlockStart = cashierPaymentMethods.indexOf("host: byId('purchasePimasatu')");
   const operationalBlockStart = cashierPaymentMethods.indexOf("host: byId('operationalPimasatu')");
   assert.ok(purchaseBlockStart > -1 && operationalBlockStart > -1);
-  const purchaseBlock = cashierPaymentMethods.slice(purchaseBlockStart, purchaseBlockStart + 600);
+  const purchaseBlock = cashierPaymentMethods.slice(purchaseBlockStart, cashierPaymentMethods.indexOf('onLinesChange', purchaseBlockStart));
   const operationalBlock = cashierPaymentMethods.slice(operationalBlockStart, operationalBlockStart + 600);
   assert.match(purchaseBlock, /amountMode:\s*'toggle'/, 'Beli Bahan must offer the harga-per-satuan/total toggle');
   assert.doesNotMatch(operationalBlock, /amountMode:\s*'toggle'/, 'Pengeluaran Operasional keeps its existing single-field entry');

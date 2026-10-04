@@ -21,6 +21,7 @@ import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 import { uraiDaftarHpp } from './caca-aksi-hpp-banyak.js';
 import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
+import { uraiDaftarRentang } from './caca-aksi-rentang.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
@@ -99,6 +100,7 @@ export function tanyaHalus(namaAlat, tanya) {
 export function alatPasti(pesan) {
   const teks = String(pesan ?? '');
   if (uraiDaftarTipe(teks).length > 0) return 'betulkan_klasifikasi_barang';
+  if (/rentang harga beli/i.test(teks) && uraiDaftarRentang(teks).daftar.length >= 1) return 'atur_rentang_harga_beli';
   if (/\bhpp\b/i.test(teks) && uraiDaftarHpp(teks).daftar.length >= 2) return 'koreksi_hpp_banyak';
   // Blok Penutup: "Una, sinkronkan akuntansi MANDALA." (pendek, satu perintah).
   if (teks.length <= 120 && /^\s*(una[,\s]+)?(tolong\s+)?sinkron(kan|isasi)?\s+akuntansi\b/i.test(teks)) return 'sinkron_akuntansi';

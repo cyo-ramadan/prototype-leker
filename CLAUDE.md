@@ -92,6 +92,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | Mau menyentuh | Baca |
 |---|---|
 | Apa pun | `README.md` |
+| **Mencari kode: "di mana X", "siapa memanggil Y", alur data** | Peta kode `graphify-out/` (skill `graphify`, query dulu sebelum grep). Peta = kode + migration, tanpa dokumen. Setelah mengubah kode, perbarui dengan `graphify update .` (gratis, tanpa token AI) lalu commit `graphify-out/` |
 | Accounting / Inventory / approval | `KNOWN_PITFALLS.md` |
 | Status fitur yang belum kelar | `KNOWN_ISSUES.md` |
 | Alasan sebuah keputusan arsitektur | `adr/` (29 ADR) |

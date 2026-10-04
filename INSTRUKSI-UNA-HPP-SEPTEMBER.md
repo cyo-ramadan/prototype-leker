@@ -15,7 +15,7 @@ Sudah dikerjakan sebelum pembaruan ini (terbukti di data): **BEJI** Lid Sealer (
 
 Kalau Una berhenti di tengah (mis. satu bahan ditolak), tombol "Lanjutkan dari ..." muncul; bahan yang sudah jalan tidak diulang.
 
-Kirim **satu blok per pesan** (Langkah 0, lalu Langkah 1, lalu Penutup), tempel apa adanya. Blok-blok ini dikenali langsung oleh sistem, bukan ditebak AI. Satu pesan maksimal 8.000 huruf; kalau lebih, Una menolak dengan jelas dan tidak mengerjakan sebagian.
+Kirim **satu blok per pesan** (Langkah 0, lalu Langkah 1, lalu Penutup), tempel apa adanya. Sejak 2026-10-04 ketik bebas juga dikenali, mis. `koreksi hpp mandala mulai 28 september: air mineral 0,4375, gula 17,67, teh vanilla 1,5rb` — tetap cek tabel draftnya sebelum menekan Ya. Blok-blok ini dikenali langsung oleh sistem, bukan ditebak AI. Satu pesan maksimal 8.000 huruf; kalau lebih, Una menolak dengan jelas dan tidak mengerjakan sebagian.
 
 ## Dasar angka
 

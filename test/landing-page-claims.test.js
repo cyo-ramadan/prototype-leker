@@ -37,3 +37,9 @@ test('brand and WhatsApp number live in one config block', () => {
   assert.match(html, /const LANDING = \{[\s\S]*BRAND:[\s\S]*WA_NUMBER:[\s\S]*\};/);
   assert.ok(html.includes('data-wa'), 'CTA buttons must be wired through data-wa');
 });
+
+test('WhatsApp number, once set, is in international format (wa.me rejects a leading 0)', () => {
+  const number = html.match(/WA_NUMBER:\s*'([^']*)'/)?.[1];
+  assert.notEqual(number, undefined);
+  if (number) assert.match(number, /^62\d{8,13}$/);
+});

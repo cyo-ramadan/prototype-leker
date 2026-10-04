@@ -1,4 +1,5 @@
 import { reversePostedPosAccountingFact } from './accounting-pos-reversal.js';
+import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const hold = (code, detail) => ({ ok: false, status: 'HOLD', code, detail });
@@ -30,8 +31,14 @@ async function loadGeneratedProductionMirror(db, storeId, saleId) {
   `).bind(saleId, storeId).all();
   const runs = [];
   for (const { production_run_id: runId } of linked.results ?? []) {
+    // Nilai produksi = snapshot + koreksi Hitung Ulang HPP untuk produksi ini. Tanpa
+    // koreksinya, bahan dikembalikan dengan harga lama yang salah dan Average Cost
+    // bahan ikut rusak lagi (DERMO 2-10-2026: Adonan Leker Rp1 -> Rp97,24 sesudah 5
+    // penjualan yang sudah dikoreksi dibatalkan).
     const run = await db.prepare(`
-      SELECT id, output_product_name, total_output_quantity, requested_sale_quantity, hpp_total_scaled, status
+      SELECT id, output_product_name, total_output_quantity, requested_sale_quantity, status,
+             hpp_total_scaled + COALESCE((SELECT SUM(l.delta_scaled) FROM hpp_recalculation_lines l
+                                          WHERE l.production_run_id = production_runs.id AND l.store_id = production_runs.store_id), 0) AS hpp_total_scaled
       FROM production_runs
       WHERE id = ? AND store_id = ? AND mode = 'AUTO_DADAKAN'
       LIMIT 1
@@ -50,7 +57,9 @@ async function loadGeneratedProductionMirror(db, storeId, saleId) {
     }
     const movements = await db.prepare(`
       SELECT sm.product_id, sm.product_name, sm.unit_id, sm.unit_symbol, sm.direction, sm.quantity, sm.source_type,
-             c.total_cost_snapshot_scaled
+             c.total_cost_snapshot_scaled + COALESCE((SELECT SUM(l.delta_scaled) FROM hpp_recalculation_lines l
+                                                     WHERE l.production_run_id = sm.source_id AND l.store_id = sm.store_id
+                                                       AND l.component_product_id = sm.product_id), 0) AS total_cost_snapshot_scaled
       FROM stock_movements sm
       LEFT JOIN production_run_components c
         ON c.production_run_id = sm.source_id AND c.store_id = sm.store_id AND c.component_product_id = sm.product_id
@@ -457,6 +466,15 @@ export async function executeTransactionCorrection(db, store, permit, actor, now
   else if (permit.subjectType === 'EXPENSE') operational = await executeExpenseCorrection(db, store.id, permit, actor, now);
   else return fail('CORRECTION_SUBJECT_UNSUPPORTED', 'Jenis transaksi belum mendukung correction.');
   if (!operational.ok) return operational;
+
+  // Laporan untung rugi hari yang sudah lewat disimpan di cache harian; transaksi
+  // yang dibatalkan mengubah hari aslinya, jadi cache hari itu dibuang.
+  if (!operational.duplicate) {
+    const table = { SALE: 'sales', PURCHASE: 'purchases', EXPENSE: 'expenses' }[permit.subjectType];
+    const subject = await db.prepare(`SELECT date(created_at, '+7 hours') AS business_date FROM ${table} WHERE id = ? AND store_id = ?`)
+      .bind(permit.subjectId, store.id).first();
+    if (subject?.business_date) await invalidateDailyProfitSnapshot(db, store.id, subject.business_date);
+  }
 
   const accounting = await reversePostedPosAccountingFact(db, store, {
     factType: permit.subjectType,

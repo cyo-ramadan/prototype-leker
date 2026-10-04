@@ -209,11 +209,17 @@ async function computeFactsForDates(db, storeIds, dates) {
     `, [...storeIds, ...dates]),
     // Hitung Ulang HPP (src/hpp-recalculation.js): selisih HPP per tanggal
     // penjualan, dijumlahkan ke HPP snapshot -- snapshot lama tidak ditulis ulang.
+    // Koreksi milik penjualan yang SESUDAHNYA dibatalkan tidak dihitung: HPP
+    // penjualannya sudah keluar dari laporan (query HPP di atas), jadi koreksinya
+    // harus ikut keluar. Kejadian nyata DERMO 30-09-2026: 5 penjualan dikoreksi
+    // pagi 2 Okt lalu dibatalkan malamnya -> HPP minus ±Rp54,6 juta, untung palsu.
     sumByStoreDate(db, `
-      SELECT store_id, business_date, COALESCE(SUM(delta_scaled), 0) AS value
-      FROM hpp_recalculation_lines
-      WHERE store_id IN (${storePh}) AND business_date IN (${datePh})
-      GROUP BY store_id, business_date
+      SELECT l.store_id AS store_id, l.business_date AS business_date, COALESCE(SUM(l.delta_scaled), 0) AS value
+      FROM hpp_recalculation_lines l
+      LEFT JOIN sales s ON s.id = l.sale_id AND s.store_id = l.store_id
+      WHERE l.store_id IN (${storePh}) AND l.business_date IN (${datePh})
+        AND (s.id IS NULL OR s.voided_at IS NULL)
+      GROUP BY l.store_id, l.business_date
     `, [...storeIds, ...dates])
   ]);
 

@@ -197,6 +197,38 @@ test('hapus penjualan dadakan membalik penuh: bahan kembali, hasil produksi dita
   }
 });
 
+// Kejadian nyata DERMO 2-10-2026: HPP Adonan Leker dikoreksi (Hitung Ulang HPP) jadi Rp1,
+// lalu 5 penjualan yang sudah dikoreksi dibatalkan. Bahan dikembalikan dengan harga lama
+// yang salah (snapshot, Rp1.092) sehingga Average Cost adonan naik lagi Rp1 -> Rp97,24.
+// Pembalik sekarang memakai snapshot + koreksi untuk produksi itu.
+test('hapus penjualan dadakan yang HPP bahannya sudah dikoreksi: bahan kembali dengan harga KOREKSI, bukan snapshot lama', async () => {
+  const sqlite = freshDatabase();
+  const db = new D1Database(sqlite);
+  try {
+    const fixture = dadakanFixture(sqlite);
+    await postDadakanSale(db, fixture, { saleId: 'sale_dikoreksi', quantity: 3 });
+    const run = sqlite.prepare(`SELECT id FROM production_runs WHERE sale_id = 'sale_dikoreksi'`).get();
+    const item = sqlite.prepare(`SELECT id FROM sale_items WHERE sale_id = 'sale_dikoreksi'`).get();
+
+    // Hitung Ulang HPP bahan A: harga benar Rp1 (dicatat Rp2). 6 unit dipakai -> selisih -Rp6.
+    const benar = 1_000_000;
+    sqlite.prepare(`INSERT INTO hpp_recalculations (id, store_id, component_product_id, component_product_name, unit_cost_scaled, effective_from, reason, created_at)
+      VALUES ('recalc_a', ?, ?, 'Bahan A', ?, '2026-09-24', 'uji', '2026-09-24T11:00:00.000Z')`).run(fixture.storeId, fixture.componentAId, benar);
+    sqlite.prepare(`INSERT INTO hpp_recalculation_lines (id, recalculation_id, store_id, business_date, sale_id, sale_item_id, production_run_id, component_product_id, quantity, old_cost_scaled, new_cost_scaled, delta_scaled)
+      VALUES ('recalc_a_1', 'recalc_a', ?, '2026-09-24', 'sale_dikoreksi', ?, ?, ?, 6, ?, ?, ?)`)
+      .run(fixture.storeId, item.id, run.id, fixture.componentAId, 6 * COMPONENT_A_COST, 6 * benar, 6 * benar - 6 * COMPONENT_A_COST);
+    sqlite.prepare(`UPDATE products SET average_cost = ? WHERE id = ? AND store_id = ?`).run(benar, fixture.componentAId, fixture.storeId);
+
+    const result = await executeTransactionCorrection(db, fixture.store, approvedPermit(sqlite, fixture, 'sale_dikoreksi'), actor, '2026-09-24T12:00:00.000Z');
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const a = stockState(sqlite, fixture, fixture.componentAId);
+    assert.equal(a.quantity, 100);
+    assert.equal(a.averageCost, benar, 'harga rata-rata bahan tetap Rp1; dulu jadi Rp1,06 karena 6 unit kembali dengan harga lama Rp2');
+  } finally {
+    sqlite.close();
+  }
+});
+
 test('Retry Eksekusi aman diulang: pembalik produksi tidak diterapkan dua kali', async () => {
   const sqlite = freshDatabase();
   const db = new D1Database(sqlite);

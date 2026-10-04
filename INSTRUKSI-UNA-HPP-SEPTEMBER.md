@@ -1,19 +1,21 @@
 # Instruksi Una: membetulkan HPP mulai September 2026
 
-Dibuat 2026-10-03 oleh Hana atas permintaan Bos Cyo. Angka dihitung dari data produksi (hanya dibaca) pada 2026-10-03 siang, memakai alat `audit_hpp` yang sama dengan yang dimiliki Una.
+Dibuat 2026-10-03 oleh Hana atas permintaan Bos Cyo; **diperbarui 2026-10-04 pagi** dengan data produksi setelah closing (hanya dibaca), memakai alat `audit_hpp` yang sama dengan yang dimiliki Una.
+
+Sudah dikerjakan sebelum pembaruan ini (terbukti di data): **BEJI** Lid Sealer (koreksi HPP, 451 baris penjualan) dan **MANDALA** Langkah 0 (tipe barang sudah benar semua). BEJI tidak punya koreksi tersisa selain Bubuk Rasa Orange (menunggu harga dari Bos Cyo).
 
 ## Cara pakai (untuk Bos Cyo)
 
 1. Buka panel Una. **Pilih gerainya dulu** di pengalih lingkup (bukan "Buku entity"): alat koreksi HPP hanya bekerja per gerai.
 2. Kalau gerai itu punya blok **Langkah 0** (membetulkan tipe barang), tempel itu dulu. Una menampilkan draft, cek, tekan **Ya**. Ini wajib duluan: bahan yang tercatat sebagai Barang Jadi tidak muncul di daftar yang boleh dikoreksi HPP-nya.
 3. Tempel blok **Langkah 1** gerai itu. Una menampilkan **satu draft** berisi semua bahan (tabel: HPP sekarang, harga benar, tanggal mulai). Cek, tekan **Ya** satu kali. Una menjalankannya berurutan sambil menunjukkan kemajuan; jumlah penjualan dan selisih HPP tiap bahan tercatat di Riwayat Hitung Ulang HPP. Bahan yang ternyata sudah benar dilewati otomatis.
-4. Ulangi untuk gerai berikutnya, lalu tempel blok **Penutup** untuk tiap gerai.
+4. Tempel blok **Penutup** gerai itu (sinkronkan akuntansi), lalu lanjut ke gerai berikutnya.
 
-**Penting:** harga memakai **koma** sebagai desimal (`4,664` = Rp4 lebih sedikit, bukan empat ribu). Jangan diganti titik: `4.664` dibaca Una sebagai empat ribu enam ratus enam puluh empat (pemisah ribuan).
+**Penting:** harga memakai **koma** sebagai desimal (`4,664` = empat rupiah enam puluh enam sen). Jangan diganti titik: `4.664` dibaca Una sebagai empat ribu enam ratus enam puluh empat (pemisah ribuan).
 
 Kalau Una berhenti di tengah (mis. satu bahan ditolak), tombol "Lanjutkan dari ..." muncul; bahan yang sudah jalan tidak diulang.
 
-Kirim **satu blok per pesan** (Langkah 0, lalu Langkah 1, lalu Penutup). Satu pesan maksimal 8.000 huruf; kalau lebih, Una menolak dengan jelas dan tidak mengerjakan sebagian.
+Kirim **satu blok per pesan** (Langkah 0, lalu Langkah 1, lalu Penutup), tempel apa adanya. Blok-blok ini dikenali langsung oleh sistem, bukan ditebak AI. Satu pesan maksimal 8.000 huruf; kalau lebih, Una menolak dengan jelas dan tidak mengerjakan sebagian.
 
 ## Dasar angka
 
@@ -24,33 +26,15 @@ Kirim **satu blok per pesan** (Langkah 0, lalu Langkah 1, lalu Penutup). Satu pe
 
 | Gerai | Mulai | Jumlah bahan | Perlu tipe dibetulkan dulu |
 |---|---|---|---|
-| BEJI | 2026-09-21 | 1 | tidak |
 | SUGIONO | 2026-09-21 | 6 | ya (Langkah 0) |
 | TLEKUNG | 2026-09-19 | 14 | ya (Langkah 0) |
 | GENENGAN | 2026-09-22 | 5 | ya (Langkah 0) |
 | DERMO | 2026-09-13 | 17 | tidak |
 | PENDEM | 2026-09-01 | 12 | tidak |
-| MANDALA | 2026-09-28 | 8 | ya (Langkah 0) |
-| KALIURANG | 2026-09-29 | 15 | tidak |
+| MANDALA | 2026-09-28 | 8 | tidak |
+| KALIURANG | 2026-09-29 | 16 | tidak |
 
 NGIJO belum punya satu pun transaksi, jadi tidak ada yang perlu dihitung ulang; harga bahannya baru perlu diisi saat gerai itu mulai jalan.
-
-## BEJI
-
-**Langkah 1 — koreksi HPP** (1 bahan):
-
-```
-Una, koreksi HPP BEJI mulai 2026-09-21 pakai koreksi_hpp_banyak, satu draft untuk semua. Urutan harus persis begini (bahan baku dulu, larutan di belakang). Harga per satuan, koma = desimal (jangan diubah jadi titik):
-1. Lid Sealer = 39,5 per lbr
-```
-
-**Penutup:**
-
-```
-Una, sinkronkan akuntansi BEJI, lalu cek jembatan_masalah dan audit_hpp BEJI mulai 2026-09-21. Laporkan sisa yang belum beres.
-```
-
-Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Orange.
 
 ## SUGIONO
 
@@ -76,7 +60,7 @@ Una, koreksi HPP SUGIONO mulai 2026-09-21 pakai koreksi_hpp_banyak, satu draft u
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi SUGIONO, lalu cek jembatan_masalah dan audit_hpp SUGIONO mulai 2026-09-21. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi SUGIONO.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Rasa Capucino, Bubuk Rasa Orange, Bahan Pentol Rangu.
@@ -113,7 +97,7 @@ Una, koreksi HPP TLEKUNG mulai 2026-09-19 pakai koreksi_hpp_banyak, satu draft u
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi TLEKUNG, lalu cek jembatan_masalah dan audit_hpp TLEKUNG mulai 2026-09-19. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi TLEKUNG.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Rasa Capucino, Bubuk Rasa Orange, Bahan Pentol Rangu.
@@ -141,7 +125,7 @@ Una, koreksi HPP GENENGAN mulai 2026-09-22 pakai koreksi_hpp_banyak, satu draft 
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi GENENGAN, lalu cek jembatan_masalah dan audit_hpp GENENGAN mulai 2026-09-22. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi GENENGAN.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Rasa Capucino, Bubuk Rasa Orange, Bahan Pentol Rangu.
@@ -174,7 +158,7 @@ Una, koreksi HPP DERMO mulai 2026-09-13 pakai koreksi_hpp_banyak, satu draft unt
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi DERMO, lalu cek jembatan_masalah dan audit_hpp DERMO mulai 2026-09-13. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi DERMO.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Rasa Capucino, Bubuk Rasa Orange, Adonan Leker.
@@ -202,20 +186,12 @@ Una, koreksi HPP PENDEM mulai 2026-09-01 pakai koreksi_hpp_banyak, satu draft un
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi PENDEM, lalu cek jembatan_masalah dan audit_hpp PENDEM mulai 2026-09-01. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi PENDEM.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Rasa Orange.
 
 ## MANDALA
-
-**Langkah 0 — tipe barang** (tempel dulu, tekan Ya):
-
-```
-Una, di MANDALA: betulkan Tipe Barang dulu pakai betulkan_klasifikasi_barang. Jenis Barang jangan diubah, satuan jangan diubah.
-Tipe "bahan baku": Bubuk Rasa Milktea, Bubuk Rasa Thaitea, Bubuk Rasa Capucino, Bubuk Rasa Coklat, Bubuk Rasa Black Curent, Bubuk Rasa Lemon Honey, Bubuk Rasa Leci, Bubuk Rasa Orange, Bubuk Rasa Apel, Bubuk Rasa Mangga, Teh Jasmine, Air Mineral, Susu Kental Manis, Cup Poci 160z, Sedotan, Lid Sealer, Bubuk Rasa Matcha, Teh Vanilla, Gula, Bahan Pentol Kecil Rangu.
-Tipe "setengah jadi": Larutan Teh Poci Vanilla, Larutan Gula, Larutan Teh Poci Jasmine.
-```
 
 **Langkah 1 — koreksi HPP** (8 bahan):
 
@@ -234,14 +210,14 @@ Una, koreksi HPP MANDALA mulai 2026-09-28 pakai koreksi_hpp_banyak, satu draft u
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi MANDALA, lalu cek jembatan_masalah dan audit_hpp MANDALA mulai 2026-09-28. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi MANDALA.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Capucino, Bubuk Rasa Orange, Bahan Pentol Kecil Rangu.
 
 ## KALIURANG
 
-**Langkah 1 — koreksi HPP** (15 bahan):
+**Langkah 1 — koreksi HPP** (16 bahan):
 
 ```
 Una, koreksi HPP KALIURANG mulai 2026-09-29 pakai koreksi_hpp_banyak, satu draft untuk semua. Urutan harus persis begini (bahan baku dulu, larutan di belakang). Harga per satuan, koma = desimal (jangan diubah jadi titik):
@@ -254,18 +230,19 @@ Una, koreksi HPP KALIURANG mulai 2026-09-29 pakai koreksi_hpp_banyak, satu draft
 7. Bubuk Rasa Matcha = 3000 per pcs
 8. Bubuk Rasa Milktea = 1500 per pcs
 9. Cup Poci 160z = 775 per pcs
-10. Sedotan = 52,1 per pcs
-11. Teh Jasmine = 1500 per pcs
-12. Teh Vanilla = 1500 per pcs
-13. Larutan Gula = 8,968747 per ml
-14. Larutan Teh Poci Jasmine = 4,337499 per ml
-15. Larutan Teh Poci Vanilla = 4,337499 per ml
+10. Gula = 17,476785 per g
+11. Sedotan = 52,1 per pcs
+12. Teh Jasmine = 1500 per pcs
+13. Teh Vanilla = 1500 per pcs
+14. Larutan Gula = 8,957143 per ml
+15. Larutan Teh Poci Jasmine = 4,333321 per ml
+16. Larutan Teh Poci Vanilla = 4,333321 per ml
 ```
 
 **Penutup:**
 
 ```
-Una, sinkronkan akuntansi KALIURANG, lalu cek jembatan_masalah dan audit_hpp KALIURANG mulai 2026-09-29. Laporkan sisa yang belum beres.
+Una, sinkronkan akuntansi KALIURANG.
 ```
 
 Belum bisa dikoreksi (tidak ada bukti harga sama sekali, tunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Rasa Capucino, Bubuk Rasa Orange.
@@ -276,9 +253,9 @@ Bahan di bawah ini HPP-nya nol di gerai-gerai yang disebut, dipakai resep, dan *
 
 | Bahan | Satuan | Gerai yang terdampak | Harga benar |
 |---|---|---|---|
-| Bubuk Rasa Orange | pcs | BEJI, SUGIONO, TLEKUNG, GENENGAN, DERMO, PENDEM, MANDALA, KALIURANG | _isi_ |
 | Bubuk Rasa Thaitea | pcs | SUGIONO, TLEKUNG, GENENGAN, DERMO, PENDEM, KALIURANG | _isi_ |
 | Bubuk Rasa Capucino | pcs | SUGIONO, TLEKUNG, GENENGAN, DERMO, MANDALA, KALIURANG | _isi_ |
+| Bubuk Rasa Orange | pcs | SUGIONO, TLEKUNG, GENENGAN, DERMO, PENDEM, MANDALA, KALIURANG | _isi_ |
 | Bahan Pentol Rangu | pcs / Rp | SUGIONO, TLEKUNG, GENENGAN | _isi_ |
 | Adonan Leker | pcs / Rp | DERMO | _isi_ |
 | Bahan Pentol Kecil Rangu | pcs / Rp | MANDALA | _isi_ |

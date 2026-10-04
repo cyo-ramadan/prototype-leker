@@ -34,6 +34,27 @@ const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 const HARGA = /^\d{1,12}(\.\d{1,6})?$/;
 const SKALA = /^\d{1,24}$/;
 
+// "6. Larutan Gula = 11,315104 per ml" / "Gula: 17,5" / "Teh Jasmine = Rp1.500/pcs".
+const BARIS_HPP = /^\s*(?:\d{1,3}\s*[.)]\s*)?(.+?)\s*[=:]\s*(?:rp\.?\s*)?(\d[\d.,]*)\s*(?:(?:\/|per\s+)\s*[a-z]+)?\s*\.?\s*$/i;
+const TANGGAL_MULAI = /mulai\s+(?:tanggal\s+|tgl\.?\s+)?(\d{4}-\d{2}-\d{2})/i;
+
+/**
+ * Daftar "bahan = harga" dan tanggal mulai, dibaca langsung dari teks pesan Bos.
+ * Dipakai bila model mengembalikan daftar kosong/lebih pendek dari yang ditempel
+ * (kejadian 2026-10-04: blok 8 bahan MANDALA dijawab "Bahan apa saja ...?").
+ */
+export function uraiDaftarHpp(teks) {
+  const daftar = [];
+  for (const baris of String(teks ?? '').split(/\r?\n/)) {
+    const cocok = baris.match(BARIS_HPP);
+    if (!cocok) continue;
+    const bahan = cocok[1].replace(/^[-*•]\s*/, '').trim();
+    if (!bahan || bahan.length > 100 || /harga per satuan|desimal/i.test(bahan)) continue;
+    daftar.push({ bahan, harga: cocok[2].replace(/[.,]$/, '') });
+  }
+  return { daftar, dari: String(teks ?? '').match(TANGGAL_MULAI)?.[1] ?? null };
+}
+
 const rupiahSkala = (skala) => `Rp${tampilSkala(BigInt(skala))}`;
 // Jawaban Hitung Ulang HPP kalau tidak ada yang perlu diubah (src/hpp-recalculation.js).
 const SUDAH_SAMA = /^Tidak ada penjualan yang HPP-nya berubah/;
@@ -107,7 +128,12 @@ const koreksiHppBanyak = Object.freeze({
       return { ok: true, draft: susunDraft(beku.daftar) };
     }
 
-    const mentah = (Array.isArray(t?.kh_daftar) ? t.kh_daftar : []).filter((b) => teks(b?.bahan, 100));
+    let mentah = (Array.isArray(t?.kh_daftar) ? t.kh_daftar : []).filter((b) => teks(b?.bahan, 100));
+    const dariPesan = uraiDaftarHpp(ctx.pesan);
+    // Teks yang ditempel Bos adalah sumber paling persis: kalau berisi daftar yang lebih
+    // lengkap dari tangkapan model, daftar dari teks yang dipakai (urutan dan angka apa adanya).
+    if (dariPesan.daftar.length > mentah.length) mentah = dariPesan.daftar;
+    if (!teks(t?.kh_dari, 10) && dariPesan.dari) t = { ...t, kh_dari: dariPesan.dari };
     if (mentah.length < 1) return { ok: false, tanya: 'Bahan apa saja yang HPP-nya mau dikoreksi, dan harga benarnya berapa per satuan?' };
     if (mentah.length > BATAS_HPP_BANYAK) return { ok: false, tanya: `Kebanyakan untuk sekali jalan (maks ${BATAS_HPP_BANYAK} bahan). Bagi jadi dua daftar, bahan baku dulu.` };
 

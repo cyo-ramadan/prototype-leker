@@ -98,11 +98,18 @@ export function tanyaHalus(namaAlat, tanya) {
  * tidak dipanggil sama sekali untuk memilih alat (lebih hemat juga).
  * Mengembalikan nama alat atau null kalau bentuknya tidak pasti.
  */
+const SAMBUNG_JURNAL = /\b(sambung\w*|konek\w*|betul\w*|bener\w*|perbaik\w*|samakan|lengkapi|salin)\b[^.\n?]{0,40}\bjurnal\b|\baturan\s+jurnal\b[^.\n?]{0,40}\b(kosong|belum|samakan|salin|lengkapi|betul\w*|bener\w*)\b/i;
+
 export function alatPasti(pesan) {
   const teks = String(pesan ?? '');
   if (uraiDaftarTipe(teks).length > 0) return 'betulkan_klasifikasi_barang';
   if (/rentang harga beli/i.test(teks) && uraiDaftarRentang(teks).daftar.length >= 1) return 'atur_rentang_harga_beli';
   if (/\bhpp\b/i.test(teks) && uraiDaftarHpp(teks).daftar.length >= 2) return 'koreksi_hpp_banyak';
+  // Bos Cyo, 2026-10-04: "una masih belum bisa ngonekin jurnal". Perintah pendek yang
+  // jelas meminta menyambungkan/membetulkan jurnal atau aturan jurnal tidak boleh
+  // dijawab model "Bos perlu ..." — langsung ke alatnya. Pertanyaan ("kenapa belum
+  // tersambung?") tidak cocok pola ini dan tetap ke model.
+  if (teks.length <= 200 && SAMBUNG_JURNAL.test(teks)) return 'samakan_aturan_jurnal';
   // Blok Penutup: "Una, sinkronkan akuntansi MANDALA." (pendek, satu perintah).
   if (teks.length <= 120 && /^\s*(una[,\s]+)?(tolong\s+)?sinkron(kan|isasi)?\s+akuntansi\b/i.test(teks)) return 'sinkron_akuntansi';
   return null;

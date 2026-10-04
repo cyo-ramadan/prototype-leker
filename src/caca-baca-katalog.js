@@ -175,7 +175,7 @@ export const KATALOG = Object.freeze([
   },
   {
     id: 'jembatan_masalah', path: '/api/admin/accounting/bridge/issues', lingkup: 'gerai', berat: true, tanpaFanOut: true,
-    ringkas: 'Transaksi gerai yang belum berjurnal (belum masuk Laporan Untung Rugi): jenis, tanggal, nominal, kode penyebab, dan alat yang membereskannya (cause.alat). Yang dibatalkan tidak dihitung. Baca ini dulu sebelum sinkron_akuntansi.'
+    ringkas: 'Transaksi gerai yang belum berjurnal (belum masuk Laporan Untung Rugi): jenis, tanggal, nominal, kode penyebab, dan alat yang membereskannya (cause.alat). Yang dibatalkan tidak dihitung. Baca ini dulu sebelum sinkron_akuntansi. Kalau cause.alat adalah alat Una (mis. samakan_aturan_jurnal), Una yang mengerjakannya: tawarkan "suruh Una sambungkan jurnal", jangan menyuruh Bos mengisi setelan sendiri.'
   },
   {
     id: 'setting_akuntansi', path: '/api/admin/settings/accounting', lingkup: 'gerai',

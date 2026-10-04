@@ -33,22 +33,22 @@ const PENYEBAB = Object.freeze({
   NEEDS_MAPPING: {
     arti: 'Aturan jurnal untuk jenis transaksi ini kosong atau belum punya satu Debit dan satu Kredit aktif.',
     alat: 'samakan_aturan_jurnal',
-    langkah: 'Salin aturan jurnal kategori ini dari gerai yang sudah beres, lalu sinkron_akuntansi.'
+    langkah: 'Una bisa membereskan sendiri: suruh Una "sambungkan jurnal" (aturan disalin dari gerai yang sudah beres, lalu transaksi yang mandek langsung dikirim ulang).'
   },
   NEEDS_TRANSACTION_MAPPING: {
     arti: 'Jenis transaksi ini belum punya kategori transaksi akuntansi.',
     alat: 'samakan_aturan_jurnal',
-    langkah: 'Salin kategori dan aturan jurnalnya dari gerai yang sudah beres, lalu sinkron_akuntansi.'
+    langkah: 'Kategori transaksinya belum ada: buat dulu di Setting Akuntansi > Kategori Transaksi, lalu suruh Una "sambungkan jurnal".'
   },
   NEEDS_FIXED_ACCOUNT: {
     arti: 'Salah satu baris aturan jurnal belum menunjuk akun tetap.',
     alat: 'samakan_aturan_jurnal',
-    langkah: 'Salin aturan jurnal kategori ini dari gerai yang sudah beres, lalu sinkron_akuntansi.'
+    langkah: 'Una bisa membereskan sendiri: suruh Una "sambungkan jurnal" (aturan disalin dari gerai yang sudah beres, lalu transaksi yang mandek langsung dikirim ulang).'
   },
   NEEDS_COMPONENT_ALLOCATION: {
     arti: 'Aturan jurnal punya beberapa akun tetap tetapi nominal tiap akun tidak dibagi.',
     alat: 'samakan_aturan_jurnal',
-    langkah: 'Samakan aturan kategori ini dengan gerai yang sudah beres, lalu sinkron_akuntansi (coba sinkron dulu: setelan standar baru mungkin sudah memperbaikinya).'
+    langkah: 'Coba sinkron_akuntansi dulu (setelan standar baru mungkin sudah memperbaikinya). Kalau masih mandek, suruh Una "sambungkan jurnal".'
   },
   NEEDS_PRODUCT_KIND: {
     arti: 'Barang di transaksi belum punya Jenis Barang.',

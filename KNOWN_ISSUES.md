@@ -166,7 +166,13 @@ Production V1 remains recipe + batch driven until this separate contract/migrati
   (qty 1 Rp100.000; qty 1.000 Rp1.000.000.000; qty 1.000 Rp100.000.000, dibayar Modal Leker) SUDAH berjurnal
   (Debit 1301 Persediaan Bahan / Kredit 3101 Modal) dan tidak bisa dibatalkan lewat permit karena stok/HPP sudah
   bergerak sesudahnya. Keputusan Bos Cyo 2026-10-04: dibetulkan lewat Akuntansi (jurnal koreksi/pembalik), bukan
-  menghapus transaksi.
+  menghapus transaksi. **SUDAH dijalankan 2026-10-04** lewat jurnal manual (Debit 3101 Modal / Kredit 1301 Persediaan
+  Bahan, bertanggal 2026-09-30, referensi `KOREKSI-SALAH-KETIK:<purchase id>`): JRN-000361 Rp999.999.000,
+  JRN-000362 Rp99.999.000, JRN-000363 Rp99.999 -- stok tiap pembelian tetap dinilai Rp1/satuan. Bos Cyo: "engga ada
+  uang sungguhan di leker". Hasil terverifikasi di D1: Persediaan Bahan DERMO Rp1.101.438.549 → Rp1.340.550, Modal
+  Rp1.102.286.000 → Rp2.188.001; HPP Rp2.021.200 vs Penjualan Rp2.171.000. Belum disentuh: Beli Adonan Leker
+  14-09 (qty 1 Rp10.000) dan 18-09 (qty 1 Rp186.000) berpola sama; Bubuk Rasa Apel DERMO 30.000 × Rp850 = Rp25,5 juta
+  di stok tanpa pembelian (kemungkinan salah satuan, belum berjurnal).
 
 ## Product Master, Jenis Barang, Purchase Qty, and Operational Qty
 

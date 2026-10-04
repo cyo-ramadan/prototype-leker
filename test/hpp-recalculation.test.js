@@ -150,6 +150,27 @@ test('terapkan: hanya HPP yang berubah -- untung Leker jadi nol, snapshot lama, 
   } finally { ctx.db.close(); }
 });
 
+// Kejadian nyata DERMO 30-09-2026: penjualan dikoreksi pagi 2 Okt lalu dibatalkan malamnya.
+// HPP penjualan batal keluar dari laporan, tapi koreksinya tertinggal -> HPP minus ±Rp54,6 juta
+// dan untung palsu. Koreksi milik penjualan batal sekarang ikut keluar.
+test('laporan: koreksi HPP milik penjualan yang sesudahnya dibatalkan tidak dihitung (tidak ada HPP minus / untung palsu)', async () => {
+  const ctx = await setup();
+  try {
+    ctx.db.prepare("UPDATE stores SET edition = 'FLEXIBLE' WHERE id = 'store_kantor'").run();
+    seedDadakanSale(ctx, { price: 2000, createdAt: '2026-09-30T05:00:00.000Z' });
+    const batal = seedDadakanSale(ctx, { price: 10000, createdAt: '2026-09-30T06:00:00.000Z' });
+    const res = await call(ctx, 'POST', '/api/admin/hpp-recalculation', { componentProductId: ctx.adonan, unitCost: '1', from: '2026-09-01', reason: 'uji koreksi lalu batal' });
+    assert.equal(res.status, 201);
+    ctx.db.prepare(`UPDATE sales SET voided_at = '2026-10-02T12:03:00.000Z' WHERE id = ?`).run(batal);
+
+    const report = await getNetProfitReport(ctx.d1, { storeIds: ['store_kantor'], from: '2026-09-30', to: '2026-09-30', today: '2026-10-04' });
+    const day = report.breakdownByKey.get('store_kantor::2026-09-30');
+    assert.equal(day.revenue, 2000, 'penjualan batal tidak dihitung');
+    assert.equal(day.hpp, 2000, 'HPP = penjualan yang tersisa saja (dulu: 2000 - 10000*1091 = minus jutaan)');
+    assert.equal(day.netProfit, 0);
+  } finally { ctx.db.close(); }
+});
+
 test('gerai Akuntansi: jurnal koreksi Debit Persediaan bahan / Kredit HPP untuk penjualan yang jurnalnya sudah masuk; yang belum masuk menunggu tombol sinkron', async () => {
   const ctx = await setup();
   try {

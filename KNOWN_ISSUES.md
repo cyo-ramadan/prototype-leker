@@ -145,6 +145,21 @@ Bos Cyo defined the next Production interaction:
 
 Production V1 remains recipe + batch driven until this separate contract/migration is implemented.
 
+## Untung DERMO membengkak 30-09-2026 (diselidiki 2026-10-04)
+
+- **Bug laporan (dibetulkan):** koreksi Hitung Ulang HPP milik penjualan yang SESUDAHNYA dibatalkan tetap
+  dijumlahkan, padahal HPP penjualannya sudah keluar dari laporan. DERMO: 5 penjualan "Leker Nutella + Pisang"
+  dikoreksi 2 Okt pagi, dibatalkan 2 Okt 19.03 → HPP 30-09 minus ±Rp54,6 juta (untung palsu). Laporan
+  sekarang membuang koreksi milik penjualan batal.
+- **Bug pembalik (dibetulkan):** membatalkan penjualan dadakan mengembalikan bahan dengan harga snapshot lama,
+  bukan harga koreksi → Average Cost Adonan Leker naik lagi Rp1 → Rp97,24 sejak 2 Okt 19.38 (HPP DERMO
+  kebesaran lagi). Pembalik sekarang memakai snapshot + koreksi untuk produksi itu. Membatalkan transaksi hari
+  lalu juga membuang cache laporan hari itu.
+- **Data yang masih perlu dibereskan:** (1) Hitung Ulang HPP Adonan Leker DERMO = Rp1 mulai 2026-10-02 supaya
+  penjualan 2–3 Okt dan Average Cost kembali benar; (2) tiga Beli Bahan Adonan Leker 30-09 salah ketik
+  (qty 1 Rp100.000; qty 1.000 Rp1.000.000.000; qty 1.000 Rp100.000.000, dibayar Modal Leker, belum berjurnal)
+  tidak bisa dibatalkan lewat permit karena stok/HPP sudah bergerak sesudahnya — perlu keputusan Bos Cyo.
+
 ## Product Master, Jenis Barang, Purchase Qty, and Operational Qty
 
 Current behavior is governed by:

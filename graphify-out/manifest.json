@@ -1566,8 +1566,8 @@
     "semantic_hash": "f901330eaba0bbffe4e497bdfe6ef7c0"
   },
   "src/accounting-auto-sync.js": {
-    "mtime": 1791125970.906073,
-    "seen": 1791130595.0630283,
+    "mtime": 1791153201.7990117,
+    "seen": 1791153272.9242315,
     "ast_hash": "7ff4be25b05e8ae8d47d915ecf2e69c2",
     "semantic_hash": "7ff4be25b05e8ae8d47d915ecf2e69c2"
   },
@@ -2142,8 +2142,8 @@
     "semantic_hash": "6bc86c9a5a79f35691186a3f70bbbb32"
   },
   "src/hpp-recalculation.js": {
-    "mtime": 1791126023.25665,
-    "seen": 1791130595.0630984,
+    "mtime": 1791153201.7990117,
+    "seen": 1791153272.924331,
     "ast_hash": "ff608a086e9cf09e95d4238c65524c8f",
     "semantic_hash": "ff608a086e9cf09e95d4238c65524c8f"
   },
@@ -2220,10 +2220,10 @@
     "semantic_hash": "2fbc9b8fbee52fdb2bf07c1c2fe50ee6"
   },
   "src/index.js": {
-    "mtime": 1791074784.717786,
-    "seen": 1791130595.0631068,
-    "ast_hash": "4b794cb1e4a3e78252bbaa380ad53eff",
-    "semantic_hash": "4b794cb1e4a3e78252bbaa380ad53eff"
+    "mtime": 1791153201.7990117,
+    "seen": 1791153272.924344,
+    "ast_hash": "fbe439b58d8784db8ec9320330be66a5",
+    "semantic_hash": ""
   },
   "src/live-photo.js": {
     "mtime": 1789545769.9040082,
@@ -2436,8 +2436,8 @@
     "semantic_hash": "5d320b84bd28173c56210940eefc62c9"
   },
   "src/transaction-correction-executor.js": {
-    "mtime": 1791125970.9082813,
-    "seen": 1791130595.0631306,
+    "mtime": 1791153201.7990117,
+    "seen": 1791153272.9243796,
     "ast_hash": "bdce2a63deded5b22e344e5f1ea50027",
     "semantic_hash": "bdce2a63deded5b22e344e5f1ea50027"
   },
@@ -3432,8 +3432,8 @@
     "semantic_hash": "a049248185e77cb36da1e9a4847ae051"
   },
   "test/hpp-recalculation.test.js": {
-    "mtime": 1791125954.9223087,
-    "seen": 1791130595.063291,
+    "mtime": 1791153201.8030117,
+    "seen": 1791153272.9245741,
     "ast_hash": "055737fc0a4be397f650b5ff4858c366",
     "semantic_hash": "055737fc0a4be397f650b5ff4858c366"
   },
@@ -3474,10 +3474,10 @@
     "semantic_hash": "d7529ca4e519ffbe537eb35012a3f4f5"
   },
   "test/landing-page-claims.test.js": {
-    "mtime": 1791003600.3511329,
-    "seen": 1791130595.0632968,
-    "ast_hash": "a70a4a0bbea017e3f97fdfd4ccd6a155",
-    "semantic_hash": "a70a4a0bbea017e3f97fdfd4ccd6a155"
+    "mtime": 1791153201.8030117,
+    "seen": 1791153272.9245865,
+    "ast_hash": "516b8b58bee6fe0c132e41812db50d61",
+    "semantic_hash": ""
   },
   "test/ledger-entity-backfill.test.js": {
     "mtime": 1791003600.351311,
@@ -3964,5 +3964,1079 @@
     "seen": 1791130595.0633523,
     "ast_hash": "29f3370e53d00deda0d0ad0ce05355e1",
     "semantic_hash": "29f3370e53d00deda0d0ad0ce05355e1"
+  },
+  "test/marketing-host-root.test.js": {
+    "mtime": 1791153201.8030117,
+    "seen": 1791153272.924602,
+    "ast_hash": "eb9ad44260ec86507b2a578034f62e5b",
+    "semantic_hash": ""
+  },
+  ".agents/skills/frontend-design/LICENSE.txt": {
+    "mtime": 1791021652.362943,
+    "seen": 1791153272.9247146,
+    "ast_hash": "2ee41112a44fe7014dce33e26468ba93",
+    "semantic_hash": ""
+  },
+  ".agents/skills/frontend-design/SKILL.md": {
+    "mtime": 1791021652.3631477,
+    "seen": 1791153272.9247155,
+    "ast_hash": "7d6df6b2e98e38f8b86046325dc6afd0",
+    "semantic_hash": ""
+  },
+  ".claude/skills/agent-task-brief/SKILL.md": {
+    "mtime": 1789545769.8647032,
+    "seen": 1791153272.9247162,
+    "ast_hash": "704da82dd5c2f1bb1b671dee1da626ab",
+    "semantic_hash": ""
+  },
+  ".claude/skills/akses-workboard-hana/SKILL.md": {
+    "mtime": 1789545769.8647032,
+    "seen": 1791153272.924717,
+    "ast_hash": "1b0dcdaabe1882319774ffb2b562e0d4",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/SKILL.md": {
+    "mtime": 1791069039.5791636,
+    "seen": 1791153272.924718,
+    "ast_hash": "a93e8ad64464faa2abc9a0d42aeb0cab",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/add-watch.md": {
+    "mtime": 1791069039.5848389,
+    "seen": 1791153272.9247189,
+    "ast_hash": "c1f65eb4102ad515149303c7f296b718",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/exports.md": {
+    "mtime": 1791069039.585068,
+    "seen": 1791153272.9247196,
+    "ast_hash": "9da2a2152e60a22f07f05fed5158f287",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/extraction-spec.md": {
+    "mtime": 1791069039.585211,
+    "seen": 1791153272.9247203,
+    "ast_hash": "42fef56a01698118f7fd722acdadea34",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/github-and-merge.md": {
+    "mtime": 1791069039.5853872,
+    "seen": 1791153272.9247212,
+    "ast_hash": "cde13df085e4c492aeb7ba298a996d0d",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/hooks.md": {
+    "mtime": 1791069039.5857835,
+    "seen": 1791153272.924722,
+    "ast_hash": "3f545db6ce646650bb9de588f5512a27",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/query.md": {
+    "mtime": 1791069039.5861988,
+    "seen": 1791153272.9247227,
+    "ast_hash": "3c46f8ad006874260614ed8657d02307",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/transcribe.md": {
+    "mtime": 1791069039.5864797,
+    "seen": 1791153272.9247234,
+    "ast_hash": "67b6a5fa6c0974e18f60db9f8932fbd8",
+    "semantic_hash": ""
+  },
+  ".claude/skills/graphify/references/update.md": {
+    "mtime": 1791069039.5867202,
+    "seen": 1791153272.9247243,
+    "ast_hash": "9378bd03d56baaf78bd738ab3848f142",
+    "semantic_hash": ""
+  },
+  ".claude/skills/hana-cara-kerja/SKILL.md": {
+    "mtime": 1789545769.8647032,
+    "seen": 1791153272.924725,
+    "ast_hash": "0a05613886880ac18da7ff4dc2ef3754",
+    "semantic_hash": ""
+  },
+  ".claude/skills/jalur-akses-leker/SKILL.md": {
+    "mtime": 1789545769.8647032,
+    "seen": 1791153272.9247258,
+    "ast_hash": "a0ff58f713e13e651af0dbd6548efa4f",
+    "semantic_hash": ""
+  },
+  ".claude/skills/strategi-penjualan-ownertenang/SKILL.md": {
+    "mtime": 1791153201.7510116,
+    "seen": 1791153272.9247265,
+    "ast_hash": "6994e2d895dda9e06d2547dc88b898a5",
+    "semantic_hash": ""
+  },
+  ".claude/skills/strategi-penjualan-ownertenang/references/konten-dan-pesan.md": {
+    "mtime": 1791153201.7572103,
+    "seen": 1791153272.9247274,
+    "ast_hash": "f977e86386dcd593452305fcd4356dd3",
+    "semantic_hash": ""
+  },
+  ".github/workflows/agent-bus-deploy.yml": {
+    "mtime": 1789545769.8656113,
+    "seen": 1791153272.9247284,
+    "ast_hash": "3ca97c3e130fc5ed7b8f806bda6366d0",
+    "semantic_hash": ""
+  },
+  ".github/workflows/ci-deploy.yml": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247293,
+    "ast_hash": "482f24d5dcb9dacd28f01c338bc60953",
+    "semantic_hash": ""
+  },
+  "ACCOUNTING_POSTING_COVERAGE_AUDIT_20260818.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.92473,
+    "ast_hash": "476b1609bbd6ae9a19c13b594f5783d6",
+    "semantic_hash": ""
+  },
+  "ACCOUNTING_SCHEMA_RECONCILIATION_AUDIT_20260817.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247308,
+    "ast_hash": "f7dcd23912a351cd870eab24005e6545",
+    "semantic_hash": ""
+  },
+  "AUDIT-setting-transaksi-barang-produksi.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247496,
+    "ast_hash": "d27e00cd74e3e04903604bf9b19815d2",
+    "semantic_hash": ""
+  },
+  "AUDIT-setting-transaksi-lainnya.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247503,
+    "ast_hash": "34b9d34adc153b8bec879efe824e1791",
+    "semantic_hash": ""
+  },
+  "AUDIT-setting-transaksi-pembayaran-biaya.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.924751,
+    "ast_hash": "892b4703e04f6e4c0ae11adad3b64a01",
+    "semantic_hash": ""
+  },
+  "AUDIT-tenancy-fase3-accounting.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247518,
+    "ast_hash": "fc49f277b7de895c8e73c421d425b7e7",
+    "semantic_hash": ""
+  },
+  "AUDIT-tenancy-fase3-admin-reporting.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247527,
+    "ast_hash": "e3eef7eaf214433860c93e3bc9ea29a2",
+    "semantic_hash": ""
+  },
+  "AUDIT-tenancy-fase3-operasional.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247534,
+    "ast_hash": "dd2a98c525a28cbdfccf7e4553236abc",
+    "semantic_hash": ""
+  },
+  "AUDIT-tenancy-fase3-warehouse.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247541,
+    "ast_hash": "92b7bbdc31abb567c3e160f6b5103742",
+    "semantic_hash": ""
+  },
+  "BUTTON_AUDIT.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247549,
+    "ast_hash": "e65f5176dde6c90d0c6f8d5e0ac1ebc2",
+    "semantic_hash": ""
+  },
+  "CHANGELOG.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247556,
+    "ast_hash": "49e34fedc0d5eebad2c3f41e2eee5b5e",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1791153201.7572103,
+    "seen": 1791153272.9247568,
+    "ast_hash": "e0672b3053402bb33facf84e2107662d",
+    "semantic_hash": ""
+  },
+  "DESAIN-SKIN-D-WARUNG.md": {
+    "mtime": 1791125692.9539828,
+    "seen": 1791153272.9247575,
+    "ast_hash": "f7c1cbdc9dba3d8ebe72c7e5259ed635",
+    "semantic_hash": ""
+  },
+  "DESAIN-SKIN-E-JAGA-SENDIRI.md": {
+    "mtime": 1791021652.3631477,
+    "seen": 1791153272.9247582,
+    "ast_hash": "a88655603a8148f781d104c5c983b274",
+    "semantic_hash": ""
+  },
+  "DESAIN-SKIN-KATALOG.md": {
+    "mtime": 1791021652.3631477,
+    "seen": 1791153272.9247591,
+    "ast_hash": "7ddb115f177429de3c55cbc44d11f309",
+    "semantic_hash": ""
+  },
+  "HANDOFF-CACA.md": {
+    "mtime": 1791011814.8370626,
+    "seen": 1791153272.92476,
+    "ast_hash": "d536e2aa73ef25522ed8d448fa09ecbe",
+    "semantic_hash": ""
+  },
+  "HANDOFF-HANA-PEMBUKUAN.md": {
+    "mtime": 1790530556.2522597,
+    "seen": 1791153272.9247608,
+    "ast_hash": "0c77ef05d1be7d95227e4250938bc1f9",
+    "semantic_hash": ""
+  },
+  "HANDOFF-STRATEGI-PENJUALAN.md": {
+    "mtime": 1791153201.7572103,
+    "seen": 1791153272.9247615,
+    "ast_hash": "3fd9dea8c90cabf50b5773efcc36258f",
+    "semantic_hash": ""
+  },
+  "HANDOFF-UIUX-SIAP-JUAL.md": {
+    "mtime": 1790994168.1756651,
+    "seen": 1791153272.9247622,
+    "ast_hash": "5df88ca554ef358212996325ab00d664",
+    "semantic_hash": ""
+  },
+  "HANDOFF-anjungan-tap-kartu-v1.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247637,
+    "ast_hash": "79be97b8261c86f1d7f4225c2e7205ea",
+    "semantic_hash": ""
+  },
+  "HANDOFF-business-settings-implementation.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247644,
+    "ast_hash": "6712a0a564948ff342d82902aa212637",
+    "semantic_hash": ""
+  },
+  "HANDOFF-choice-groups-implementation.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.924765,
+    "ast_hash": "383e5f138fb8070bea3b90a80e5da3f6",
+    "semantic_hash": ""
+  },
+  "HANDOFF-game-module-foundation-v1.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.924766,
+    "ast_hash": "df9d535873c2e225777e2c214179d65f",
+    "semantic_hash": ""
+  },
+  "HANDOFF-tenancy-implementation.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247668,
+    "ast_hash": "67aa39f38f1edde7846068d6ae805afa",
+    "semantic_hash": ""
+  },
+  "INSTRUKSI-UNA-HPP-SEPTEMBER.md": {
+    "mtime": 1791075714.5328395,
+    "seen": 1791153272.9247675,
+    "ast_hash": "6a594ec287590b747059abb83dc3f97f",
+    "semantic_hash": ""
+  },
+  "INSTRUKSI-UNA-RENTANG-HARGA-BELI.md": {
+    "mtime": 1791076332.7256076,
+    "seen": 1791153272.9247682,
+    "ast_hash": "fc7c6bf0dede9ba5afa0dda7c3ab2ef2",
+    "semantic_hash": ""
+  },
+  "KNOWN_ISSUES.md": {
+    "mtime": 1791153201.7572103,
+    "seen": 1791153272.924769,
+    "ast_hash": "bb2a3de3f3ff380c86d8368370ad2adc",
+    "semantic_hash": ""
+  },
+  "KNOWN_PITFALLS.md": {
+    "mtime": 1791019708.1807005,
+    "seen": 1791153272.92477,
+    "ast_hash": "bb0a732a92e8f3d350a880531343c665",
+    "semantic_hash": ""
+  },
+  "KOREKSI-HPP-2026-10-02.md": {
+    "mtime": 1790915913.1862688,
+    "seen": 1791153272.9247708,
+    "ast_hash": "ce4a15a31e07bd53914825bdab155c39",
+    "semantic_hash": ""
+  },
+  "MODULE_CATALOG.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247715,
+    "ast_hash": "e83f1a26c5002f9851e091dfe7b05907",
+    "semantic_hash": ""
+  },
+  "MODULE_OWNERSHIP.md": {
+    "mtime": 1790584069.0224974,
+    "seen": 1791153272.9247723,
+    "ast_hash": "4036bd71b592656b8f7d52511485cda6",
+    "semantic_hash": ""
+  },
+  "OPERATIONAL_ACCOUNTING_BOUNDARY_AUDIT_20260817.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247732,
+    "ast_hash": "30839db7065cbf54da2e68b044afaf46",
+    "semantic_hash": ""
+  },
+  "POS_MODULE_INDEPENDENCE.md": {
+    "mtime": 1791116268.561229,
+    "seen": 1791153272.924774,
+    "ast_hash": "29d668d84301a7bea80d251cce9fe1df",
+    "semantic_hash": ""
+  },
+  "PREFLIGHT_STOCK_ADJUSTMENT_PILATU_20260819.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247746,
+    "ast_hash": "502bff5b2db87efb060496c666466417",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1791153201.7572103,
+    "seen": 1791153272.9247754,
+    "ast_hash": "be238b5ec3e5b1d0635c14b489c9cc28",
+    "semantic_hash": ""
+  },
+  "RUNBOOK.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247758,
+    "ast_hash": "6b8c32cbb7f662afd2796439d7d4a1ab",
+    "semantic_hash": ""
+  },
+  "STORE_ONBOARDING_RUNBOOK.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247768,
+    "ast_hash": "7dff51a1c283be6090fafeb5457a4246",
+    "semantic_hash": ""
+  },
+  "UNA-PENDAMPING.md": {
+    "mtime": 1790994168.179665,
+    "seen": 1791153272.9247775,
+    "ast_hash": "fa45e49829a71838ac01cf80cf38872c",
+    "semantic_hash": ""
+  },
+  "WAREHOUSE_POS_LINKAGE_MAP.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.9247782,
+    "ast_hash": "88740937a94bd8234f8bbb5f61700d5d",
+    "semantic_hash": ""
+  },
+  "WORKBOARD_MIGRATION_QUEUE.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.924779,
+    "ast_hash": "ef343226378b390566d4dcda584b4316",
+    "semantic_hash": ""
+  },
+  "adr/ADR-001-owner-branch-drawer-hierarchy.md": {
+    "mtime": 1789545769.8656507,
+    "seen": 1791153272.92478,
+    "ast_hash": "e4ec5095ff5ac82de087668a8a530315",
+    "semantic_hash": ""
+  },
+  "adr/ADR-002-customer-first-entry-and-optional-identity.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247808,
+    "ast_hash": "69e66497bcac1954621ba091c0cc47de",
+    "semantic_hash": ""
+  },
+  "adr/ADR-003-branch-admin-drawer-and-customer-sharing.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924782,
+    "ast_hash": "b85e9df10018d42dacd59e75191ed45f",
+    "semantic_hash": ""
+  },
+  "adr/ADR-004-store-admin-role-and-demo-accounts.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924783,
+    "ast_hash": "27a35bbe22ac6fa23e6fbcb6bc2fe53d",
+    "semantic_hash": ""
+  },
+  "adr/ADR-005-customer-approval-and-order-identity.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247842,
+    "ast_hash": "3a2b5075efc0b8a364ff5a0445453fdf",
+    "semantic_hash": ""
+  },
+  "adr/ADR-006-separated-customer-staff-login.md": {
+    "mtime": 1791019708.179515,
+    "seen": 1791153272.9247854,
+    "ast_hash": "2a7a4d30782a57247ac8ef4199dad1ec",
+    "semantic_hash": ""
+  },
+  "adr/ADR-007-cashier-sales-entry-and-order-lifecycle.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247868,
+    "ast_hash": "30f99364ac4de51f6c69e4caea273891",
+    "semantic_hash": ""
+  },
+  "adr/ADR-008-drawer-bound-sales-order-drafts.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247878,
+    "ast_hash": "3d1f741424c28529181d61021e90caf1",
+    "semantic_hash": ""
+  },
+  "adr/ADR-009-approval-queue-and-drawer-action-bar.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247887,
+    "ast_hash": "9f7c8ffc47f2fbb49822d856217f6de6",
+    "semantic_hash": ""
+  },
+  "adr/ADR-010-operational-posting-v1.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247897,
+    "ast_hash": "83d67a5a5e986aabbd24840b3b6db15d",
+    "semantic_hash": ""
+  },
+  "adr/ADR-011-live-photo-staff-portal.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924791,
+    "ast_hash": "c00a321db64fbe92d764d885e5ec1774",
+    "semantic_hash": ""
+  },
+  "adr/ADR-012-manufacturing-master-and-accounting-boundary.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924792,
+    "ast_hash": "0a1a2c672fd32de5df2171f2f266bbef",
+    "semantic_hash": ""
+  },
+  "adr/ADR-013-master-stock-production-points.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924793,
+    "ast_hash": "435664d3a6886ad45ccb1d534cdfb6c4",
+    "semantic_hash": ""
+  },
+  "adr/ADR-014-product-master-accounting-reference.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247942,
+    "ast_hash": "e4f03c2e1feac813c6d8479685eab5ac",
+    "semantic_hash": ""
+  },
+  "adr/ADR-015-product-kind-moving-average-costing-and-sale-fulfillment-boundary.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247952,
+    "ast_hash": "c5184af566c8da9e0ab086fdf12c4697",
+    "semantic_hash": ""
+  },
+  "adr/ADR-016-accounting-rule-registry-and-warehouse-registration.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924796,
+    "ast_hash": "2296100debf394772fb357d9f80d70b4",
+    "semantic_hash": ""
+  },
+  "adr/ADR-017-accounting-work-vs-settings-ownership.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247973,
+    "ast_hash": "2cc07388fdc827be8a41e5dd533ef760",
+    "semantic_hash": ""
+  },
+  "adr/ADR-018-accounting-composition-host-and-pos-bridge.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247983,
+    "ast_hash": "302938bbf93c12688943a9b0b493fea9",
+    "semantic_hash": ""
+  },
+  "adr/ADR-019-six-decimal-accounting-precision-and-system-adjustment.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9247994,
+    "ast_hash": "baa67b2bb7e1e39ea7597af0214cec62",
+    "semantic_hash": ""
+  },
+  "adr/ADR-020-audited-stock-adjustment-and-stale-snapshot-guard.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248004,
+    "ast_hash": "2a25b3f448fd3acf8c3f986380c71e8b",
+    "semantic_hash": ""
+  },
+  "adr/ADR-021-accounting-flow-counterpart-presets-and-warehouse-routing-boundary.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248018,
+    "ast_hash": "e2d35f49a2f589ae974d8c305510ce48",
+    "semantic_hash": ""
+  },
+  "adr/ADR-022-transaction-correction-permits-and-staff-raport-facts.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248028,
+    "ast_hash": "11385b97111cc03620adea0a6e5a4e05",
+    "semantic_hash": ""
+  },
+  "adr/ADR-023-cashier-configured-payment-and-cash-flow-accounting.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248042,
+    "ast_hash": "c3b77c5aa76c3fa134d6568e706016a5",
+    "semantic_hash": ""
+  },
+  "adr/ADR-024-master-purchase-price-and-transaction-cost-separation.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248054,
+    "ast_hash": "d0ac4167c1a57d24c475e6df34b87332",
+    "semantic_hash": ""
+  },
+  "adr/ADR-025-simple-product-master-and-capability-profiles.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248064,
+    "ast_hash": "3e7d9ecdfaf4bba9fc6c78efbeebe727",
+    "semantic_hash": ""
+  },
+  "adr/ADR-026-customer-feedback-and-private-evaluation.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248073,
+    "ast_hash": "99155984b700a708646839becca33cd9",
+    "semantic_hash": ""
+  },
+  "adr/ADR-027-pimasatu-and-cost-master.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248087,
+    "ast_hash": "f5ab250be246c3cfb217a673f0cc407a",
+    "semantic_hash": ""
+  },
+  "adr/ADR-028-debugger-control-plane.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248097,
+    "ast_hash": "06738a5789764e91b5e47ff8c22bd278",
+    "semantic_hash": ""
+  },
+  "adr/ADR-029-operational-accounting-boundary.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248106,
+    "ast_hash": "93b68c7e41b094f895c16efd96c464af",
+    "semantic_hash": ""
+  },
+  "adr/ADR-030-multi-entity-tenancy-and-accounting-consolidation.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924812,
+    "ast_hash": "57ac58164b2438a1e635a4ed54ab947d",
+    "semantic_hash": ""
+  },
+  "adr/ADR-031-accounting-settings-stays-and-shows-its-consequences.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248133,
+    "ast_hash": "54a4ecbc3de41498735f7173bcb32e0d",
+    "semantic_hash": ""
+  },
+  "adr/ADR-032-warehouse-accounting-semantics.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248142,
+    "ast_hash": "5b12edd03d123906cf07016e89caa986",
+    "semantic_hash": ""
+  },
+  "adr/ADR-033-accounting-choice-groups.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248154,
+    "ast_hash": "b5d361eeb90a1362c63ff33b99392844",
+    "semantic_hash": ""
+  },
+  "adr/ADR-034-business-settings-pos-core-boundary.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248164,
+    "ast_hash": "9d200b386108ceb9aec154c10ea78ec3",
+    "semantic_hash": ""
+  },
+  "adr/ADR-035-flexible-production-execution-and-accounting-transfer.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924818,
+    "ast_hash": "b84396ea0b8557776a4fe7b879a2caa3",
+    "semantic_hash": ""
+  },
+  "adr/ADR-036-warehouse-as-optional-module.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.924819,
+    "ast_hash": "ea006e905bc36293fb7759565e9ee866",
+    "semantic_hash": ""
+  },
+  "adr/ADR-037-manufacture-costing-authority.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248202,
+    "ast_hash": "9594ff347df7607257597a7aca773406",
+    "semantic_hash": ""
+  },
+  "adr/ADR-038-setting-transaksi-variable-reference-module.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248216,
+    "ast_hash": "71a98b1bd2160f5c1667ded51800bb2c",
+    "semantic_hash": ""
+  },
+  "adr/ADR-040-module-platform-and-tenant-composition.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248228,
+    "ast_hash": "21b8e1268a5bebd6ad584d0b44183511",
+    "semantic_hash": ""
+  },
+  "adr/ADR-041-approval-queue-auto-permit-toggle.md": {
+    "mtime": 1790327146.5701087,
+    "seen": 1791153272.924824,
+    "ast_hash": "2e4a6d9f17cd8ef93dbc62b931e51d4a",
+    "semantic_hash": ""
+  },
+  "adr/ADR-042-game-module-and-reward-boundary.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248254,
+    "ast_hash": "b43042232fdd88298fd6228d3b75cea5",
+    "semantic_hash": ""
+  },
+  "adr/ADR-043-entity-master-store-usage-product-employee.md": {
+    "mtime": 1789656714.0939121,
+    "seen": 1791153272.9248266,
+    "ast_hash": "dd99ea3027313ad14ad88e918752d4b7",
+    "semantic_hash": ""
+  },
+  "adr/ADR-044-whatsapp-intake-dan-ai-draft-entry.md": {
+    "mtime": 1790668323.546646,
+    "seen": 1791153272.9248276,
+    "ast_hash": "bdffcd30f7454e867e34c53ba0c5bb77",
+    "semantic_hash": ""
+  },
+  "adr/ADR-045-caca-operator-data-lewat-api.md": {
+    "mtime": 1790668323.546646,
+    "seen": 1791153272.924829,
+    "ast_hash": "998b7729d0fa9a5bdb968d4d5bd88558",
+    "semantic_hash": ""
+  },
+  "adr/ADR-045-entity-shared-accounts.md": {
+    "mtime": 1789993289.9472158,
+    "seen": 1791153272.9248302,
+    "ast_hash": "4a1cc9e010fc3eb3c942cf60970ddfea",
+    "semantic_hash": ""
+  },
+  "adr/ADR-046-admin-facts-connected-to-accounting.md": {
+    "mtime": 1790530192.938309,
+    "seen": 1791153272.9248314,
+    "ast_hash": "e05419594f04ab5679f798989094c46b",
+    "semantic_hash": ""
+  },
+  "adr/ADR-047-standard-chart-of-accounts.md": {
+    "mtime": 1790530192.9249434,
+    "seen": 1791153272.9248328,
+    "ast_hash": "9f8326be2283088ef3f94e06d05681f5",
+    "semantic_hash": ""
+  },
+  "adr/ADR-048-order-status-push-not-polling.md": {
+    "mtime": 1790537633.1198816,
+    "seen": 1791153272.9248338,
+    "ast_hash": "fd5aebd4e524f0ea81a008afc73f46af",
+    "semantic_hash": ""
+  },
+  "adr/ADR-049-recurring-and-split-expense-journals.md": {
+    "mtime": 1790561258.9871273,
+    "seen": 1791153272.924835,
+    "ast_hash": "89d8a273d5a996e630a41d2d84b6d21c",
+    "semantic_hash": ""
+  },
+  "adr/ADR-050-entity-recipe-templates.md": {
+    "mtime": 1790842095.9726548,
+    "seen": 1791153272.9248366,
+    "ast_hash": "51580f65230f8a95852cfd72833c1b56",
+    "semantic_hash": ""
+  },
+  "adr/ADR-051-profit-loss-reads-accounting.md": {
+    "mtime": 1791153201.7572103,
+    "seen": 1791153272.9248376,
+    "ast_hash": "641dfc4f0a5e19fcf5d6b41d27e7008f",
+    "semantic_hash": ""
+  },
+  "adr/ADR-052-hpp-recalculation.md": {
+    "mtime": 1790915603.2796543,
+    "seen": 1791153272.924839,
+    "ast_hash": "9da67d88313f1478753e7bbd5881630e",
+    "semantic_hash": ""
+  },
+  "agent-bridge/README.md": {
+    "mtime": 1789545769.8697772,
+    "seen": 1791153272.9248402,
+    "ast_hash": "e6d00524277a1824cf71a53ca3555781",
+    "semantic_hash": ""
+  },
+  "agent-bus/CLAIM-PROMPT.md": {
+    "mtime": 1789545769.873053,
+    "seen": 1791153272.9248412,
+    "ast_hash": "bbccafee8df0c265fab9fe1eee652b2a",
+    "semantic_hash": ""
+  },
+  "agent-bus/README.md": {
+    "mtime": 1789545769.873723,
+    "seen": 1791153272.9248426,
+    "ast_hash": "873f8ddcafb6f681243e81846f617486",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-bridge-seam-v1.md": {
+    "mtime": 1789545769.873723,
+    "seen": 1791153272.9248683,
+    "ast_hash": "a32af26c20b9f901358d8bc83c3d2d46",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-cash-flow-bridge-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248695,
+    "ast_hash": "c898e0445621f9024250837fe9be9de3",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-choice-groups-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248705,
+    "ast_hash": "48e0781116e72b2ac087d37a42fcdcef",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-flow-presets-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924871,
+    "ast_hash": "b60cd7b1b8bb24c67f2bc08e5707a4de",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-pos-bridge-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924872,
+    "ast_hash": "7bde84246bd561057fc4dacb53e9fbc8",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-settings-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248724,
+    "ast_hash": "59948d8ccc6f04613b79b89f8d0a7416",
+    "semantic_hash": ""
+  },
+  "contracts/accounting-workspace-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924873,
+    "ast_hash": "7832b91bfc0f9c3e0d04b4065f395a29",
+    "semantic_hash": ""
+  },
+  "contracts/admin-transaction-explorer-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924874,
+    "ast_hash": "c23d544cd5d66af604787a89ec948f33",
+    "semantic_hash": ""
+  },
+  "contracts/agent-recruitment-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248745,
+    "ast_hash": "3ffef76aede4a922ed1a8e8878222cb2",
+    "semantic_hash": ""
+  },
+  "contracts/agent-task-board-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248753,
+    "ast_hash": "b47431a9ab8530d7594388455a1ace99",
+    "semantic_hash": ""
+  },
+  "contracts/attendance-correction-permit-v1.md": {
+    "mtime": 1790840599.8947976,
+    "seen": 1791153272.924876,
+    "ast_hash": "d67752e937b02b2358fcfbad86a713d7",
+    "semantic_hash": ""
+  },
+  "contracts/attendance-gps-v1.md": {
+    "mtime": 1790840599.8760188,
+    "seen": 1791153272.9248767,
+    "ast_hash": "30c4cbc0d2b61e81b351966bd8ddec1a",
+    "semantic_hash": ""
+  },
+  "contracts/cashier-transaction-composition-v1.md": {
+    "mtime": 1789995890.5341067,
+    "seen": 1791153272.9248774,
+    "ast_hash": "01a3dd82fb6d1ac889f9dafdc743ba9a",
+    "semantic_hash": ""
+  },
+  "contracts/category-hierarchy-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248781,
+    "ast_hash": "7bc5877503c40a55c068b48fe6d242c0",
+    "semantic_hash": ""
+  },
+  "contracts/category-hierarchy-v2.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248788,
+    "ast_hash": "1fc7ed2a26879beec82e905ce83f5e17",
+    "semantic_hash": ""
+  },
+  "contracts/customer-feedback-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248793,
+    "ast_hash": "e722a1f57fec1afaaf21155cf70eec10",
+    "semantic_hash": ""
+  },
+  "contracts/debugger-control-plane-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.92488,
+    "ast_hash": "e90af626c6abedb9d5a64faaf3103a35",
+    "semantic_hash": ""
+  },
+  "contracts/game-module-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924881,
+    "ast_hash": "ebfdfc66e7860f039c596d8358bf0770",
+    "semantic_hash": ""
+  },
+  "contracts/live-photo-staff-portal-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248815,
+    "ast_hash": "fa6306d73d93ba92a961d9fd4324f5c0",
+    "semantic_hash": ""
+  },
+  "contracts/manufacturing-master-v1.md": {
+    "mtime": 1790842535.5959013,
+    "seen": 1791153272.9248822,
+    "ast_hash": "f41717269b9f22812a791fa86283d9c9",
+    "semantic_hash": ""
+  },
+  "contracts/module-contract-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924883,
+    "ast_hash": "8ed41ae0d66ca24f813b7a2c0d792ceb",
+    "semantic_hash": ""
+  },
+  "contracts/operational-posting-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248836,
+    "ast_hash": "ad8dbf9dafd9a8e91344d558ad766452",
+    "semantic_hash": ""
+  },
+  "contracts/pimasatu-ui-v1.md": {
+    "mtime": 1791074629.360916,
+    "seen": 1791153272.9248843,
+    "ast_hash": "83ad791c733ae18d854bbe5751dc762c",
+    "semantic_hash": ""
+  },
+  "contracts/product-master-accounting-reference-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924885,
+    "ast_hash": "0cd9bb7b6c86d50638f03aae9fc76747",
+    "semantic_hash": ""
+  },
+  "contracts/product-master-accounting-reference-v2.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248857,
+    "ast_hash": "fc8cd168797bb38961e0c9e717840d3e",
+    "semantic_hash": ""
+  },
+  "contracts/product-master-accounting-reference-v3.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248862,
+    "ast_hash": "e07fc87ae538d8f5a38fdbfb02df7a39",
+    "semantic_hash": ""
+  },
+  "contracts/product-master-accounting-reference-v4.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924887,
+    "ast_hash": "89850cfc22408aef50f37b010564ec39",
+    "semantic_hash": ""
+  },
+  "contracts/product-master-accounting-reference-v5.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248881,
+    "ast_hash": "5730245ba4aea128735c827d6a13250e",
+    "semantic_hash": ""
+  },
+  "contracts/staff-raport-facts-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248886,
+    "ast_hash": "9f6921c1112fd617c2b81903ea30452c",
+    "semantic_hash": ""
+  },
+  "contracts/stock-adjustment-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248893,
+    "ast_hash": "220825ad077df4d391a8039b15c36935",
+    "semantic_hash": ""
+  },
+  "contracts/stock-adjustment-v2.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.92489,
+    "ast_hash": "df9a02ac144c96ad0843e9aa65380b5f",
+    "semantic_hash": ""
+  },
+  "contracts/stock-production-points-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.924891,
+    "ast_hash": "a2692175b46d469275515e874daddd53",
+    "semantic_hash": ""
+  },
+  "contracts/stock-production-points-v2.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248917,
+    "ast_hash": "cc117e38ee45e1acad90752e47eea164",
+    "semantic_hash": ""
+  },
+  "contracts/stock-production-points-v3.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248922,
+    "ast_hash": "01c5002bc0182f56708f8a92dc6ec2ff",
+    "semantic_hash": ""
+  },
+  "contracts/transaction-void-permit-v1.md": {
+    "mtime": 1790250566.2818882,
+    "seen": 1791153272.924893,
+    "ast_hash": "b53a646a5b9d8628abd52a0ccf53bb4c",
+    "semantic_hash": ""
+  },
+  "contracts/una-akuntan-tools-v1.md": {
+    "mtime": 1791111057.6363099,
+    "seen": 1791153272.9248936,
+    "ast_hash": "5523fd782c3079ce4ad025fe61472497",
+    "semantic_hash": ""
+  },
+  "contracts/warehouse-settings-v1.md": {
+    "mtime": 1789545769.874273,
+    "seen": 1791153272.9248946,
+    "ast_hash": "c3c9b8e3cb1ca0a706dffa85498c6f46",
+    "semantic_hash": ""
+  },
+  "public/admin.html": {
+    "mtime": 1791019995.4549532,
+    "seen": 1791153272.924895,
+    "ast_hash": "c0c6415a91b4cd204ae68dacc9aa62e5",
+    "semantic_hash": ""
+  },
+  "public/branch-admin.html": {
+    "mtime": 1791115762.6282153,
+    "seen": 1791153272.9248958,
+    "ast_hash": "01c5d7daf6b7aaff212df4b5b53c5e1f",
+    "semantic_hash": ""
+  },
+  "public/cashier.html": {
+    "mtime": 1791115762.6293871,
+    "seen": 1791153272.9248962,
+    "ast_hash": "71ccd990201f790659222534a36ee921",
+    "semantic_hash": ""
+  },
+  "public/customer.html": {
+    "mtime": 1791021652.3631477,
+    "seen": 1791153272.924897,
+    "ast_hash": "809fda22f55298e770ff2e819c063ae2",
+    "semantic_hash": ""
+  },
+  "public/dermo.html": {
+    "mtime": 1791019195.8307924,
+    "seen": 1791153272.924898,
+    "ast_hash": "ace70c8f517ce2cab0906b99e1e8313b",
+    "semantic_hash": ""
+  },
+  "public/diagnostik.html": {
+    "mtime": 1791019195.830963,
+    "seen": 1791153272.9248986,
+    "ast_hash": "99a72ddf5a15a3f3530116a0b2dd65da",
+    "semantic_hash": ""
+  },
+  "public/entity-admin.html": {
+    "mtime": 1791077774.2824452,
+    "seen": 1791153272.9248993,
+    "ast_hash": "0392ef2e97365bff256afc4d1cb642d4",
+    "semantic_hash": ""
+  },
+  "public/game.html": {
+    "mtime": 1791019195.8312829,
+    "seen": 1791153272.9248998,
+    "ast_hash": "f8a6d56457041467ac7a38ad5e7381da",
+    "semantic_hash": ""
+  },
+  "public/ikan/index.html": {
+    "mtime": 1789545769.8955748,
+    "seen": 1791153272.9249005,
+    "ast_hash": "55433e5343c8de54323b6695bf007a2e",
+    "semantic_hash": ""
+  },
+  "public/index.html": {
+    "mtime": 1791019195.831418,
+    "seen": 1791153272.9249015,
+    "ast_hash": "8eadf839e78aebc28eacf85c82234f62",
+    "semantic_hash": ""
+  },
+  "public/login.html": {
+    "mtime": 1791019784.5572445,
+    "seen": 1791153272.924902,
+    "ast_hash": "8a61f4fc3d20899f750f843ec02c0268",
+    "semantic_hash": ""
+  },
+  "public/owner.html": {
+    "mtime": 1791019995.4551644,
+    "seen": 1791153272.9249027,
+    "ast_hash": "c0c6415a91b4cd204ae68dacc9aa62e5",
+    "semantic_hash": ""
+  },
+  "public/produk/index.html": {
+    "mtime": 1791153201.7990117,
+    "seen": 1791153272.9249032,
+    "ast_hash": "05381b377b3d45cf7f3c897dd9ed166d",
+    "semantic_hash": ""
+  },
+  "public/staff.html": {
+    "mtime": 1791115674.982725,
+    "seen": 1791153272.9249039,
+    "ast_hash": "763a97acd1200f934485ae7b800196ed",
+    "semantic_hash": ""
+  },
+  "public/warung.html": {
+    "mtime": 1791125692.9544573,
+    "seen": 1791153272.9249046,
+    "ast_hash": "5c3b86c36eba0d4c2bc703221ba78d53",
+    "semantic_hash": ""
+  },
+  "website-wedding/README.md": {
+    "mtime": 1789545769.9260843,
+    "seen": 1791153272.9249053,
+    "ast_hash": "b9e24c6ea29e300675e4424bb8dd5629",
+    "semantic_hash": ""
+  },
+  "website-wedding/artikel/cara-menghitung-porsi-gubukan-wedding/index.html": {
+    "mtime": 1789545769.9263346,
+    "seen": 1791153272.924906,
+    "ast_hash": "57f347bb5601866164a00af8cc7c4a77",
+    "semantic_hash": ""
+  },
+  "website-wedding/artikel/harga-booth-jajanan-pernikahan-malang/index.html": {
+    "mtime": 1789545769.9263346,
+    "seen": 1791153272.9249067,
+    "ast_hash": "7a21291b38e3dbf356315db8fd6a57e7",
+    "semantic_hash": ""
+  },
+  "website-wedding/artikel/ide-gubukan-pernikahan-unik-malang/index.html": {
+    "mtime": 1789545769.9263346,
+    "seen": 1791153272.9249072,
+    "ast_hash": "35d0933ff793a2c6bcecaa86b74ef8e2",
+    "semantic_hash": ""
+  },
+  "website-wedding/artikel/index.html": {
+    "mtime": 1789545769.9263346,
+    "seen": 1791153272.924908,
+    "ast_hash": "1550fa8d1445e54ba3b6ba4ac2cd59a0",
+    "semantic_hash": ""
+  },
+  "website-wedding/index.html": {
+    "mtime": 1789545769.9284253,
+    "seen": 1791153272.9249089,
+    "ast_hash": "f223a03eface6a9d8fe5ffcb61323fd3",
+    "semantic_hash": ""
+  },
+  "website-wedding/robots.txt": {
+    "mtime": 1789545769.9284253,
+    "seen": 1791153272.9249094,
+    "ast_hash": "91d0ad0036538a14053ce787a8c180d4",
+    "semantic_hash": ""
+  },
+  "public/default-product.svg": {
+    "mtime": 1789545769.888008,
+    "seen": 1791153272.92491,
+    "ast_hash": "0389d62c74c62912603579d045c5d941",
+    "semantic_hash": ""
+  },
+  "public/roda-puter-tea-icons.webp": {
+    "mtime": 1789545769.896008,
+    "seen": 1791153272.9249108,
+    "ast_hash": "d76b9b114771264714dcc3e14dd03dfa",
+    "semantic_hash": ""
+  },
+  "website-wedding/assets/hero-wedding.webp": {
+    "mtime": 1789545769.9263346,
+    "seen": 1791153272.9249115,
+    "ast_hash": "a3ba595263a073705072c4dc61474af8",
+    "semantic_hash": ""
+  },
+  "website-wedding/assets/leker-closeup.webp": {
+    "mtime": 1789545769.9284253,
+    "seen": 1791153272.9249122,
+    "ast_hash": "1d4e4885fe4aef1abfdde4712bbe6080",
+    "semantic_hash": ""
+  },
+  "website-wedding/assets/pentol-wedding.webp": {
+    "mtime": 1789545769.9284253,
+    "seen": 1791153272.9249132,
+    "ast_hash": "00a8df824cda4d7649673981e20eac6d",
+    "semantic_hash": ""
   }
 }

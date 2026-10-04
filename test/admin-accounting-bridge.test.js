@@ -352,3 +352,40 @@ test('Presensi keluar yang mencatat gaji langsung ikut dijurnal lewat jalur resp
     assert.deepEqual(accountBalances(db, pendem.id), { 2102: -30000, 6102: 30000 });
   } finally { db.close(); }
 });
+
+// Bos Cyo, 2026-10-04: "so+- itu dihubungkan jurnal sekarang, gpp deh biarin aja yang
+// kemarin2 engga masuk jurnal ... yang kemarin ditiadakan aja dari akuntansi".
+test('Stok opname yang di-ACC sejak 4 Okt dijurnal otomatis (kurang = Beban Susut, lebih = Pendapatan Koreksi Stok); SO lama tidak', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const { syncStoreAccounting } = await import('../src/accounting-auto-sync.js');
+    const product = db.prepare(`SELECT id, name FROM products WHERE store_id = ? ORDER BY id LIMIT 1`).get(pendem.id);
+    db.exec('PRAGMA foreign_keys = OFF;');
+    const so = (id, direction, value, postedAt) => db.prepare(`
+      INSERT INTO approval_requests (id, store_id, drawer_session_id, cashier_id, request_type, approval_status, posting_status, payload_json, created_at, updated_at, posted_at)
+      VALUES (?, ?, 'laci_so', 'kasir_so', 'GOODS_FLOW', 'approved', 'posted', ?, ?, ?, ?)
+    `).run(id, pendem.id, JSON.stringify({
+      purpose: 'STOCK_ADJUSTMENT', productId: product.id, productName: product.name, unitSymbol: 'pcs',
+      direction, quantity: 2, totalCostSnapshotScaled: value * SCALE
+    }), postedAt, postedAt, postedAt);
+    so('so_kurang', 'OUT', 3000, '2026-10-04T05:00:00.000Z');
+    so('so_lebih', 'IN', 1200, '2026-10-04T06:00:00.000Z');
+    so('so_lama', 'OUT', 99999, '2026-10-02T05:00:00.000Z');
+    db.exec('PRAGMA foreign_keys = ON;');
+
+    const hasil = await syncStoreAccounting(env.DB, { id: pendem.id, code: 'PENDEM' });
+    const soHasil = hasil.filter(r => r.factType === 'STOCK_ADJUSTMENT');
+    assert.deepEqual(soHasil.map(r => [r.factId, r.status]).sort(), [['so_kurang', 'POSTED'], ['so_lebih', 'POSTED']], 'SO sebelum 4 Okt tidak ikut');
+
+    const saldo = accountBalances(db, pendem.id);
+    assert.equal(saldo['6103'], 3000, 'stok kurang = Beban Susut Persediaan');
+    assert.equal(saldo['4201'], -1200, 'stok lebih = Pendapatan Koreksi Stok (sisi kredit)');
+    const persediaan = Object.entries(saldo).filter(([code]) => code.startsWith('13')).reduce((n, [, v]) => n + v, 0);
+    assert.equal(persediaan, 1200 - 3000, 'Persediaan berkurang 3.000 dan bertambah 1.200');
+    const tanggal = db.prepare(`SELECT business_date FROM accounting_journal_headers WHERE source_reference_id = 'STOCK_ADJUSTMENT:so_kurang'`).get();
+    assert.equal(tanggal.business_date, '2026-10-04');
+
+    const ulang = await syncStoreAccounting(env.DB, { id: pendem.id, code: 'PENDEM' });
+    assert.equal(ulang.filter(r => r.factType === 'STOCK_ADJUSTMENT').length, 0, 'tidak dijurnal dua kali');
+  } finally { db.close(); }
+});

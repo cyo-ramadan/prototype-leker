@@ -1,7 +1,8 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { parseRupiahAmountToScaled, postAccountingJournal } from './accounting-ledger.js';
+import { getAccountingJournal, parseRupiahAmountToScaled, postAccountingJournal } from './accounting-ledger.js';
+import { getJakartaBusinessDate } from './time.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 
 // Hitung Ulang HPP (Bos Cyo, 2026-10-02): "kalo leker itu harganya 2000 maka
@@ -242,6 +243,7 @@ export async function postPendingHppCorrections(db, storeId, limit = 100, { retr
     JOIN hpp_recalculations h ON h.id = l.recalculation_id
     WHERE l.store_id = ?
       AND EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = l.store_id AND d.producer_module = 'POS' AND d.fact_type = 'SALE' AND d.fact_id = l.sale_id AND d.status = 'POSTED')
+      AND NOT EXISTS (SELECT 1 FROM sales s WHERE s.id = l.sale_id AND s.store_id = l.store_id AND s.voided_at IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = l.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'HPP_KOREKSI' AND d.fact_id = l.recalculation_id || ':' || l.sale_id
                         AND (d.status = 'POSTED' OR (? IS NOT NULL AND d.last_attempt_at > ?)))
     GROUP BY l.recalculation_id, l.sale_id
@@ -304,6 +306,62 @@ export async function postPendingHppCorrections(db, storeId, limit = 100, { retr
       await saveDelivery(db, storeId, factId, 'FAILED', null, posted.code || 'ACCOUNTING_POST_FAILED', text(posted.error, 500));
       results.push({ factId, status: 'FAILED' });
     }
+  }
+  return results;
+}
+
+// Penjualan yang dibatalkan SESUDAH HPP-nya dikoreksi (Bos Cyo, 2026-10-04: DERMO).
+// Pembatalan membalik jurnal penjualan dengan HPP lama, tapi jurnal koreksinya tetap
+// berdiri -- HPP jadi terpotong dua kali dan untung di laporan (yang dibaca dari
+// jurnal, ADR-051) membengkak. Jurnal koreksi milik penjualan batal dibalik exact
+// (invariant #2: tidak diedit), bertanggal hari pembatalan seperti pembalik penjualannya.
+// Dipanggil saat pembatalan di-ACC dan oleh sinkron Akuntansi (menyapu yang tertinggal).
+export async function reverseHppCorrectionsOfVoidedSales(db, storeId, { saleId = null, limit = 100 } = {}) {
+  if (!(await isAccountingStore(db, storeId))) return [];
+  const rows = await db.prepare(`
+    SELECT d.fact_id, d.journal_id, s.voided_at
+    FROM accounting_bridge_deliveries d
+    JOIN sales s ON s.store_id = d.store_id AND s.id = substr(d.fact_id, instr(d.fact_id, ':') + 1)
+    WHERE d.store_id = ? AND d.producer_module = 'ADMIN' AND d.fact_type = 'HPP_KOREKSI' AND d.status = 'POSTED'
+      AND d.journal_id IS NOT NULL AND s.voided_at IS NOT NULL
+      AND (? IS NULL OR s.id = ?)
+      -- Lewat indeks sumber jurnal (store_id, source_system, source_reference_id); mencari
+      -- reversal_of_journal_id tidak berindeks dan membaca puluhan ribu baris tiap sinkron.
+      AND NOT EXISTS (SELECT 1 FROM accounting_journal_headers r WHERE r.store_id = d.store_id
+                        AND r.source_system = ? AND r.source_reference_id = 'VOID:${FACT_TYPE}:' || d.fact_id)
+    ORDER BY s.voided_at
+    LIMIT ?
+  `).bind(storeId, saleId, saleId, `${SOURCE_SYSTEM}_VOID`, Math.max(1, Math.min(200, Number(limit) || 100))).all();
+
+  const results = [];
+  for (const row of rows.results ?? []) {
+    const original = await getAccountingJournal(db, storeId, row.journal_id);
+    if (!original) { results.push({ factId: row.fact_id, status: 'FAILED' }); continue; }
+    const voidedAt = new Date(row.voided_at);
+    let posted;
+    try {
+      posted = await postAccountingJournal(db, { id: storeId }, {
+        businessDate: getJakartaBusinessDate(voidedAt),
+        occurredAt: voidedAt.toISOString(),
+        sourceSystem: `${SOURCE_SYSTEM}_VOID`,
+        sourceReferenceId: `VOID:${FACT_TYPE}:${row.fact_id}`,
+        correlationId: row.fact_id.slice(row.fact_id.indexOf(':') + 1),
+        idempotencyKey: `${SOURCE_SYSTEM}_VOID:${row.fact_id}`,
+        description: `Pembalik ${original.description} · penjualan dibatalkan`.slice(0, 300),
+        reversalOfJournalId: original.journalId,
+        journalLines: original.lines.map(line => ({
+          accountId: line.accountId,
+          side: line.side === 'DEBIT' ? 'CREDIT' : 'DEBIT',
+          amountScaled: line.amountScaled,
+          description: `Pembalik · ${line.description || original.description}`.slice(0, 240)
+        }))
+      });
+    } catch (error) {
+      console.warn('pembalik koreksi HPP gagal', row.fact_id, error?.message);
+      results.push({ factId: row.fact_id, status: 'FAILED' });
+      continue;
+    }
+    results.push({ factId: row.fact_id, status: posted.ok ? 'REVERSED' : 'FAILED', journalId: posted.journal?.journalId || null });
   }
   return results;
 }

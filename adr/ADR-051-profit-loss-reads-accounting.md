@@ -106,6 +106,15 @@ shift berikutnya) dan server menghitung setoran = saldo kas fisik - titip laci (
 sendiri membuat sisa uang di laci tidak ikut dicek. `depositAmount` lama tetap diterima bila `leftInDrawerAmount`
 tidak dikirim; bila keduanya ada, titip laci menang.
 
+## Tambahan 2026-10-04: koreksi HPP milik penjualan yang dibatalkan
+
+Membatalkan penjualan membalik jurnal penjualannya dengan HPP lama, tetapi jurnal koreksi Hitung Ulang HPP
+(ADR-052) milik penjualan itu tetap berdiri -- HPP terpotong dua kali (DERMO: 5 penjualan, Rp54.568.255,
+saldo HPP di buku minus). Sekarang jurnal koreksi milik penjualan batal dibalik exact (jurnal pembalik
+`LEKER_HPP_KOREKSI_VOID`, bertanggal hari pembatalan; jurnal asli tidak diedit) saat pembatalan di-ACC, dan
+sinkron Akuntansi menyapu yang tertinggal. Koreksi yang belum sempat dijurnal saat penjualannya dibatalkan
+tidak diposting sama sekali.
+
 ## DOC-IMPACT
 
 Perbarui kalau: pemetaan subtype akun berubah, mesin POS dipensiunkan, cache dipasang untuk

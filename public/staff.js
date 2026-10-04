@@ -320,39 +320,133 @@
     catch (error) { const target = el('staffAnnouncementList'); if (target) target.innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; }
   }
 
-  const approvalLabel = { pending_approval: 'Menunggu ACC', approved: 'Sudah disetor', rejected: 'Ditolak' };
+  // Riwayat Setoran (Bos Cyo, 2026-10-04): "cs itu transfer kirim poto bukti, habis itu
+  // kalo admin acc baru berkurang ... historinya di portal cs harusnya bisa diliat di
+  // riwayat setoran." Satu kartu per setoran laci (tanggal tutup laci) dengan form kirim
+  // nominal + FOTO bukti transfer; di bawahnya riwayat semua kiriman, status, dan fotonya.
+  // Piutang hanya berkurang oleh kiriman yang sudah di-ACC Admin (tidak ada ACC otomatis).
+  const approvalLabel = { pending_approval: 'Menunggu ACC Admin', approved: 'Sudah di-ACC', rejected: 'Ditolak' };
+  const approvalColor = { pending_approval: '#8b5d00', approved: '#2f9e44', rejected: '#a4133c' };
+  const MAKS_FOTO_SETORAN = 780 * 1024; // server menerima maks 800 KB
+  let depositPhotoUrls = [];
+
+  // Foto kamera HP biasanya 2-5 MB (iPhone: HEIC): diperkecil ke JPEG dulu di HP.
+  async function kecilkanFotoSetoran(file) {
+    if (!file || !/^image\//.test(file.type || '')) throw new Error('Pilih foto bukti transfer (JPG/PNG).');
+    if (file.size <= MAKS_FOTO_SETORAN && /^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const gambar = new Image();
+        gambar.onload = () => resolve(gambar);
+        gambar.onerror = () => reject(new Error('Foto tidak bisa dibaca. Coba foto ulang.'));
+        gambar.src = url;
+      });
+      for (const [maks, kualitas] of [[1600, 0.8], [1280, 0.7], [1024, 0.6], [800, 0.5]]) {
+        const skala = Math.min(1, maks / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * skala));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * skala));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', kualitas));
+        if (blob && blob.size <= MAKS_FOTO_SETORAN) return new File([blob], 'bukti-setoran.jpg', { type: 'image/jpeg' });
+      }
+      throw new Error('Foto terlalu besar. Coba foto ulang lebih dekat ke bukti transfernya.');
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  const tanggalLaci = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`)) : '';
+  const fotoSetoran = payment => payment.hasPhoto
+    ? `<img class="attendance-thumb" data-deposit-photo="${escapeHtml(payment.id)}" alt="Foto bukti setoran" loading="lazy" style="cursor:zoom-in" />`
+    : '';
+  const pendingSetoran = item => (item.payments || []).filter(p => p.approvalStatus === 'pending_approval').reduce((n, p) => n + Number(p.amountRupiah || 0), 0);
+
+  function kartuSetoran(item) {
+    const menunggu = pendingSetoran(item);
+    const sisaKirim = Number(item.balanceRupiah || 0) - menunggu;
+    const lunas = Number(item.balanceRupiah || 0) <= 0;
+    return `
+      <div class="staff-card" style="margin-bottom:12px">
+        <div class="muted">Setoran laci ${escapeHtml(tanggalLaci(item.transactionDate))} · ${money(item.originalAmountRupiah)}</div>
+        <h2 style="margin:5px 0">${lunas ? 'Lunas' : `Sisa ${money(item.balanceRupiah)}`}</h2>
+        ${menunggu ? `<div class="muted">${money(menunggu)} sedang menunggu ACC Admin.</div>` : ''}
+        ${lunas ? '' : `
+        <div class="field" style="margin-top:10px"><label>Nominal yang ditransfer</label><input class="text-input deposit-amount" inputmode="numeric" value="${sisaKirim > 0 ? escapeHtml(window.MAXIAngka ? window.MAXIAngka.tampil(sisaKirim) : String(sisaKirim)) : ''}" /></div>
+        <div class="field"><label>Foto bukti transfer (wajib)</label><input class="text-input deposit-photo" type="file" accept="image/*" /></div>
+        <div class="field"><label>Keterangan (opsional)</label><input class="text-input deposit-proof" type="text" maxlength="200" placeholder="mis. transfer BCA jam 21.10" /></div>
+        <button type="button" class="secondary-btn deposit-submit" data-receivable-id="${escapeHtml(item.id)}">Kirim Bukti Setoran</button>`}
+      </div>`;
+  }
+
+  function barisRiwayatSetoran(payment) {
+    const warna = approvalColor[payment.approvalStatus] || '#555';
+    return `
+      <div class="attendance-row">
+        <div><strong>${money(payment.amountRupiah)}</strong>
+          <div class="muted">Dikirim ${escapeHtml(dateTime(payment.createdAt))} · setoran laci ${escapeHtml(tanggalLaci(payment.tanggalLaci))}</div>
+          <div class="muted">${escapeHtml(payment.proofReference || '')}${payment.rejectionReason ? ` · Alasan ditolak: ${escapeHtml(payment.rejectionReason)}` : ''}${payment.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(payment.reviewedAt))}` : ''}</div>
+        </div>
+        <div class="attendance-row-photos" style="align-items:center">${fotoSetoran(payment)}<span style="font-weight:900;color:${warna}">${escapeHtml(approvalLabel[payment.approvalStatus] || payment.approvalStatus)}</span></div>
+      </div>`;
+  }
+
+  async function loadDepositPhotoThumbs() {
+    depositPhotoUrls.forEach(url => URL.revokeObjectURL(url));
+    depositPhotoUrls = [];
+    await Promise.all([...document.querySelectorAll('[data-deposit-photo]')].map(async img => {
+      try {
+        const response = await fetch(`/api/cashier/employee-deposits/payments/${encodeURIComponent(img.dataset.depositPhoto)}/photo`);
+        if (!response.ok) return;
+        const url = URL.createObjectURL(await response.blob());
+        depositPhotoUrls.push(url);
+        img.src = url;
+        img.onclick = () => window.open(url, '_blank');
+      } catch {}
+    }));
+  }
+
   function renderDeposits() {
     const target = el('staffDepositList'); if (!target) return;
     const items = deposits || [];
-    if (!items.length) { target.innerHTML = '<div class="staff-empty">Belum ada data setoran.</div>'; return; }
-    target.innerHTML = items.map(item => `
-      <div class="staff-card" style="margin-bottom:12px">
-        <div class="muted">Sisa piutang setoran</div>
-        <h2 style="margin:5px 0">${money(item.balanceRupiah)}</h2>
-        <div class="attendance-list">${(item.payments || []).map(payment => `
-          <div class="attendance-row">
-            <div><strong>${money(payment.amountRupiah)}</strong><div class="muted">${escapeHtml(payment.proofReference)}${payment.rejectionReason ? ` · Ditolak: ${escapeHtml(payment.rejectionReason)}` : ''}</div></div>
-            <span>${escapeHtml(approvalLabel[payment.approvalStatus] || payment.approvalStatus)}</span>
-          </div>`).join('') || '<div class="muted">Belum ada entry setoran untuk piutang ini.</div>'}</div>
-        <div class="field" style="margin-top:10px"><label>Nominal disetor</label><input class="text-input deposit-amount" type="number" min="1" step="1" /></div>
-        <div class="field"><label>Referensi/bukti transfer</label><input class="text-input deposit-proof" type="text" placeholder="mis. nomor referensi transfer bank" /></div>
-        <button type="button" class="secondary-btn deposit-submit" data-receivable-id="${escapeHtml(item.id)}">Kirim Bukti Setoran</button>
-      </div>`).join('');
+    if (!items.length) { target.innerHTML = '<div class="staff-empty">Belum ada setoran. Setoran muncul di sini setiap kali Anda tutup laci dan ada uang yang harus disetor.</div>'; return; }
+    const totalSisa = items.reduce((n, item) => n + Number(item.balanceRupiah || 0), 0);
+    const totalMenunggu = items.reduce((n, item) => n + pendingSetoran(item), 0);
+    const riwayat = items
+      .flatMap(item => (item.payments || []).map(payment => ({ ...payment, tanggalLaci: item.transactionDate })))
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const terbuka = items.filter(item => Number(item.balanceRupiah || 0) > 0);
+    target.className = '';
+    target.innerHTML = `
+      <div class="staff-metric-grid" style="margin-bottom:14px">
+        <div class="staff-card" style="margin:0"><div class="muted">Sisa piutang setoran</div><h2 style="margin:5px 0">${money(totalSisa)}</h2></div>
+        <div class="staff-card" style="margin:0"><div class="muted">Menunggu ACC Admin</div><h2 style="margin:5px 0">${money(totalMenunggu)}</h2></div>
+        <div class="staff-card" style="margin:0"><div class="muted">Cara setor</div><div>Transfer dulu, lalu kirim foto bukti transfernya di kartu setoran laci. Piutang berkurang setelah Admin klik ACC.</div></div>
+      </div>
+      ${terbuka.map(kartuSetoran).join('') || '<div class="staff-empty" style="margin-bottom:12px">Semua setoran sudah lunas. 👍</div>'}
+      <h3 style="margin:18px 0 8px">Riwayat kiriman setoran</h3>
+      <div class="attendance-list">${riwayat.map(barisRiwayatSetoran).join('') || '<div class="muted">Belum ada kiriman setoran.</div>'}</div>`;
+    target.querySelectorAll('.deposit-amount').forEach(input => window.MAXIAngka?.pasang(input, { desimal: false }));
     target.querySelectorAll('.deposit-submit').forEach(button => {
       button.addEventListener('click', async () => {
         const card = button.closest('.staff-card');
-        const amountRupiah = Number(card.querySelector('.deposit-amount').value);
-        const proofReference = card.querySelector('.deposit-proof').value.trim();
-        if (!amountRupiah || !proofReference) { toastStaff('Nominal dan referensi bukti wajib diisi.'); return; }
+        const isian = card.querySelector('.deposit-amount').value;
+        const amountRupiah = window.MAXIAngka ? window.MAXIAngka.nilai(isian) : Number(String(isian).replace(/\D/g, ''));
+        const file = card.querySelector('.deposit-photo').files?.[0];
+        if (!Number.isSafeInteger(amountRupiah) || amountRupiah <= 0) { toastStaff('Isi nominal yang ditransfer (angka bulat).'); return; }
+        if (!file) { toastStaff('Foto bukti transfer wajib dilampirkan.'); return; }
+        button.disabled = true;
         try {
-          await staffApi(`/api/cashier/employee-deposits/${encodeURIComponent(button.dataset.receivableId)}/payments`, {
-            method: 'POST', body: JSON.stringify({ amountRupiah, proofReference })
-          });
+          const form = new FormData();
+          form.set('amountRupiah', String(amountRupiah));
+          form.set('proofReference', card.querySelector('.deposit-proof').value.trim());
+          form.set('photo', await kecilkanFotoSetoran(file));
+          await staffApi(`/api/cashier/employee-deposits/${encodeURIComponent(button.dataset.receivableId)}/payments`, { method: 'POST', body: form });
           await loadDeposits();
-          toastStaff('Bukti setoran terkirim, menunggu ACC Admin/Finance.');
-        } catch (error) { toastStaff(error.message); }
+          toastStaff('Bukti setoran terkirim, menunggu ACC Admin. Piutang berkurang setelah di-ACC.');
+        } catch (error) { toastStaff(error.message); button.disabled = false; }
       });
     });
+    loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
   async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; renderDeposits(); } catch (error) { el('staffDepositList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }

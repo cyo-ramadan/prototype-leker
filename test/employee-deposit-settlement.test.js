@@ -85,14 +85,24 @@ async function ownerToken(db) {
   return token;
 }
 
-function request(pathname, { token, method = 'GET', body, store } = {}) {
+function request(pathname, { token, method = 'GET', body, store, form } = {}) {
   const url = new URL(`https://example.test${pathname}`);
   if (store) url.searchParams.set('store', store);
   return new Request(url, {
     method,
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined
+    body: form ?? (body ? JSON.stringify(body) : undefined)
   });
+}
+
+// Bos Cyo, 2026-10-04: setoran dibuktikan dengan FOTO bukti transfer (multipart).
+const FOTO_BUKTI = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+function setoranForm(amountRupiah, keterangan = '', { foto = true } = {}) {
+  const form = new FormData();
+  form.set('amountRupiah', String(amountRupiah));
+  if (keterangan) form.set('proofReference', keterangan);
+  if (foto) form.set('photo', new File([FOTO_BUKTI], 'bukti.png', { type: 'image/png' }));
+  return form;
 }
 
 async function openDrawer(env, token, openingAmount = 100000) {
@@ -248,7 +258,7 @@ test('setoran tidak boleh melebihi saldo akhir laci', async () => {
   }
 });
 
-test('entry bukti setoran wajib proofReference, masuk pending_approval, dan tidak langsung mengurangi saldo', async () => {
+test('entry bukti setoran wajib FOTO, masuk pending_approval, dan tidak langsung mengurangi saldo', async () => {
   const db = migratedDatabase();
   try {
     const cashier = await seedCashier(db, 'entrysetoran', 'Budi');
@@ -262,12 +272,19 @@ test('entry bukti setoran wajib proofReference, masuk pending_approval, dan tida
       request(`/api/cashier/employee-deposits/${receivableId}/payments`, { token: cashier.token, method: 'POST', body: { amountRupiah: 450000 } }),
       env, `/api/cashier/employee-deposits/${receivableId}/payments`
     );
-    assert.equal(noProofRes.status, 400);
+    assert.equal(noProofRes.status, 400, 'kiriman lama tanpa foto (JSON) ditolak');
+    assert.equal((await noProofRes.json()).code, 'EMPLOYEE_DEPOSIT_PHOTO_REQUIRED');
+    const tanpaFoto = await handleEmployeeDepositApi(
+      request(`/api/cashier/employee-deposits/${receivableId}/payments`, { token: cashier.token, method: 'POST', form: setoranForm(450000, 'transfer', { foto: false }) }),
+      env, `/api/cashier/employee-deposits/${receivableId}/payments`
+    );
+    assert.equal(tanpaFoto.status, 400);
+    assert.match((await tanpaFoto.json()).error, /Foto bukti transfer wajib/);
 
     const submitRes = await handleEmployeeDepositApi(
       request(`/api/cashier/employee-deposits/${receivableId}/payments`, {
         token: cashier.token, method: 'POST',
-        body: { amountRupiah: 450000, proofReference: 'transfer://bukti-001' }
+        form: setoranForm(450000, 'transfer://bukti-001')
       }),
       env, `/api/cashier/employee-deposits/${receivableId}/payments`
     );
@@ -289,6 +306,66 @@ test('entry bukti setoran wajib proofReference, masuk pending_approval, dan tida
   }
 });
 
+test('foto bukti tersimpan; hanya pemilik setoran dan Admin yang bisa melihatnya; ACC tetap manual', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = await seedCashier(db, 'fotosetoran', 'Sari');
+    linkEmployeeToCashier(db, cashier.id, 'Sari');
+    const lain = await seedCashier(db, 'fotolain', 'Dewi');
+    linkEmployeeToCashier(db, lain.id, 'Dewi');
+    const env = { DB: new D1Database(db) };
+    await openDrawer(env, cashier.token, 0);
+    const { body: closeBody } = await closeDrawer(env, cashier.token, { closingAmount: 300000, leftInDrawerAmount: 0 });
+    const receivableId = closeBody.employeeDeposit.id;
+
+    const kirim = await handleEmployeeDepositApi(
+      request(`/api/cashier/employee-deposits/${receivableId}/payments`, { token: cashier.token, method: 'POST', form: setoranForm(300000, 'BCA 04/10') }),
+      env, `/api/cashier/employee-deposits/${receivableId}/payments`
+    );
+    assert.equal(kirim.status, 201);
+    const { payment } = await kirim.json();
+    assert.equal(payment.approvalStatus, 'pending_approval', 'tidak ada ACC otomatis');
+    assert.equal(payment.hasPhoto, true);
+    assert.equal(payment.proofReference, 'Foto bukti transfer · BCA 04/10');
+
+    const fotoPath = `/api/cashier/employee-deposits/payments/${payment.id}/photo`;
+    const fotoSendiri = await handleEmployeeDepositApi(request(fotoPath, { token: cashier.token }), env, fotoPath);
+    assert.equal(fotoSendiri.status, 200);
+    assert.equal(fotoSendiri.headers.get('content-type'), 'image/png');
+    assert.deepEqual(new Uint8Array(await fotoSendiri.arrayBuffer()), FOTO_BUKTI);
+    const fotoOrangLain = await handleEmployeeDepositApi(request(fotoPath, { token: lain.token }), env, fotoPath);
+    assert.equal(fotoOrangLain.status, 404, 'CS lain tidak bisa mengintip foto setoran orang lain');
+
+    const owner = await ownerToken(db);
+    const adminFoto = `/api/admin/employee-deposits/payments/${payment.id}/photo`;
+    assert.equal((await handleEmployeeDepositApi(request(adminFoto, { token: owner, store: STORE_CODE }), env, adminFoto)).status, 200);
+
+    // Daftar riwayat tidak memuat isi foto (hanya penanda hasPhoto).
+    const daftar = await (await handleEmployeeDepositApi(request('/api/cashier/employee-deposits', { token: cashier.token }), env, '/api/cashier/employee-deposits')).json();
+    assert.equal(daftar.items[0].payments[0].hasPhoto, true);
+    assert.equal('proof_photo' in daftar.items[0].payments[0], false);
+    assert.equal(daftar.items[0].balanceRupiah, 300000, 'belum di-ACC, piutang belum berkurang');
+
+    // Tab Setoran CS di Admin: antrean, sisa piutang per CS, riwayat.
+    const overviewPath = '/api/admin/employee-deposits/overview';
+    const sebelum = await (await handleEmployeeDepositApi(request(overviewPath, { token: owner, store: STORE_CODE }), env, overviewPath)).json();
+    assert.equal(sebelum.pending.length, 1);
+    assert.equal(sebelum.pending[0].employeeName, 'Sari');
+    assert.equal(sebelum.pending[0].hasPhoto, true);
+    assert.deepEqual(sebelum.balances.map((b) => [b.employeeName, b.balanceRupiah, b.pendingAmountRupiah]), [['Sari', 300000, 300000]]);
+    assert.equal(sebelum.history.length, 0);
+
+    const acc = `/api/admin/employee-deposits/payments/${payment.id}`;
+    assert.equal((await handleEmployeeDepositApi(request(acc, { token: owner, method: 'PATCH', store: STORE_CODE, body: { action: 'APPROVE' } }), env, acc)).status, 200);
+    const sesudah = await (await handleEmployeeDepositApi(request(overviewPath, { token: owner, store: STORE_CODE }), env, overviewPath)).json();
+    assert.equal(sesudah.pending.length, 0);
+    assert.deepEqual(sesudah.balances.map((b) => [b.employeeName, b.balanceRupiah, b.pendingAmountRupiah]), [['Sari', 0, 0]]);
+    assert.deepEqual(sesudah.history.map((h) => [h.employeeName, h.approvalStatus, h.amountRupiah]), [['Sari', 'approved', 300000]]);
+  } finally {
+    db.close();
+  }
+});
+
 test('kasir lain tidak bisa submit bukti setoran untuk piutang milik kasir lain', async () => {
   const db = migratedDatabase();
   try {
@@ -303,7 +380,7 @@ test('kasir lain tidak bisa submit bukti setoran untuk piutang milik kasir lain'
     const res = await handleEmployeeDepositApi(
       request(`/api/cashier/employee-deposits/${receivableId}/payments`, {
         token: cashierB.token, method: 'POST',
-        body: { amountRupiah: 200000, proofReference: 'transfer://curi' }
+        form: setoranForm(200000, 'transfer://curi')
       }),
       env, `/api/cashier/employee-deposits/${receivableId}/payments`
     );
@@ -327,7 +404,7 @@ test('Finance ACC mengurangi saldo bertahap (cicilan), dan boleh melebihi sisa s
     async function submit(amount, ref) {
       const res = await handleEmployeeDepositApi(
         request(`/api/cashier/employee-deposits/${receivableId}/payments`, {
-          token: cashier.token, method: 'POST', body: { amountRupiah: amount, proofReference: ref }
+          token: cashier.token, method: 'POST', form: setoranForm(amount, ref)
         }),
         env, `/api/cashier/employee-deposits/${receivableId}/payments`
       );
@@ -411,7 +488,7 @@ test('Finance reject setoran wajib alasan dan tidak mengubah saldo', async () =>
 
     const submitRes = await handleEmployeeDepositApi(
       request(`/api/cashier/employee-deposits/${receivableId}/payments`, {
-        token: cashier.token, method: 'POST', body: { amountRupiah: 200000, proofReference: 'transfer://buram' }
+        token: cashier.token, method: 'POST', form: setoranForm(200000, 'transfer://buram')
       }),
       env, `/api/cashier/employee-deposits/${receivableId}/payments`
     );
@@ -450,18 +527,39 @@ test('dialog tutup laci di kasir mengirim Titip laci (bukan setoran) ke server',
   assert.match(cashierUi, /leftInDrawerAmount: Number\(el\('dialogLeftAmount'\)\.value\)/);
 });
 
-test('tab Riwayat Setoran Portal Staf memuat dan menampilkan data dari /api/cashier/employee-deposits', () => {
+test('tab Riwayat Setoran Portal Staf: kirim nominal + FOTO bukti (multipart), riwayat dengan foto', () => {
   const staffUi = readFileSync(new URL('../public/staff.js', import.meta.url), 'utf8');
+  const staffHtml = readFileSync(new URL('../public/staff.html', import.meta.url), 'utf8');
   assert.match(staffUi, /staffApi\('\/api\/cashier\/employee-deposits'\)/);
   assert.match(staffUi, /deposit-submit/);
   assert.match(staffUi, /employee-deposits\/\$\{encodeURIComponent\(button\.dataset\.receivableId\)\}\/payments/);
+  assert.match(staffUi, /type="file" accept="image\/\*"/, 'foto bukti transfer diambil dari kamera/galeri');
+  assert.match(staffUi, /form\.set\('photo'/, 'dikirim sebagai multipart dengan foto');
+  assert.match(staffUi, /\/api\/cashier\/employee-deposits\/payments\/\$\{encodeURIComponent\(img\.dataset\.depositPhoto\)\}\/photo/);
+  assert.match(staffHtml, /\/staff\.js\?v=20261004-setoran-foto-v1/, 'versi staff.js dibump supaya browser lama ikut ambil');
 });
 
-test('panel Admin Karyawan menampilkan antrean setoran menunggu ACC dan bisa ACC/Tolak', () => {
-  const adminUi = readFileSync(new URL('../public/admin-employees.js', import.meta.url), 'utf8');
-  assert.match(adminUi, /\/api\/admin\/employee-deposits\/pending/);
+test('panel Admin punya tab sendiri "Setoran CS": antrean dengan foto, ACC/Tolak manual, sisa piutang, riwayat', () => {
+  const adminUi = readFileSync(new URL('../public/admin-employee-deposits.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+  const nav = readFileSync(new URL('../public/nav-groups.js', import.meta.url), 'utf8');
+  const pkg = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
+  assert.match(adminUi, /\/api\/admin\/employee-deposits\/overview/);
   assert.match(adminUi, /data-approve-payment/);
   assert.match(adminUi, /data-reject-payment/);
+  assert.match(adminUi, /\/api\/admin\/employee-deposits\/payments\/\$\{encodeURIComponent\(img\.dataset\.depositPhoto\)\}\/photo/);
+  assert.match(html, /<script src="\/admin-employee-deposits\.js/);
+  assert.match(nav, /'setoran-cs'/, 'tab didaftarkan ke grupnya di nav-groups.js');
+  assert.match(pkg, /public\/admin-employee-deposits\.js/, 'file baru masuk script check');
+  const karyawan = readFileSync(new URL('../public/admin-employees.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(karyawan, /depositPendingList/, 'antrean pindah ke tab Setoran CS, tidak dobel di tab Karyawan');
+});
+
+test('migration 0136 hanya menambah kolom foto bukti setoran', () => {
+  const migration = readFileSync(new URL('../migrations/0136_employee_deposit_proof_photo.sql', import.meta.url), 'utf8');
+  assert.match(migration, /ALTER TABLE operational_receivable_payable_payments ADD COLUMN proof_photo BLOB/);
+  assert.match(migration, /ALTER TABLE operational_receivable_payable_payments ADD COLUMN proof_photo_type TEXT/);
+  assert.doesNotMatch(migration, /DROP|DELETE|UPDATE/i);
 });
 
 test('migration 0075 additive: tambah split drawer dan akun canonical tanpa mengubah fakta operasional lama', () => {

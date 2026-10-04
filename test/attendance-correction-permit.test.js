@@ -304,6 +304,7 @@ test('tampilan: Portal Staf punya dialog pengajuan, panel Admin punya antrean AC
   assert.match(admin, /\/api\/admin\/attendance-correction-permits/);
   assert.match(admin, /data-acc-correction/);
   assert.match(admin, /row\.correction/, 'riwayat presensi Admin menampilkan alasan koreksi');
-  assert.match(read('../public/staff.html'), /staff\.js\?v=20261003-login-karyawan-v1/);
+  // Versi boleh lebih baru (fitur sesudahnya ikut membump staff.js), asal tidak mundur.
+  assert.ok((read('../public/staff.html').match(/staff\.js\?v=([^"']+)/)?.[1] ?? '') >= '20261003-login-karyawan-v1');
   assert.match(read('../public/branch-admin.html'), /admin-cashiers\.js\?v=20261001-gps-presensi-v1/);
 });

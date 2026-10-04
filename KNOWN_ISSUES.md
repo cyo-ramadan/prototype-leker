@@ -317,7 +317,25 @@ The old helper remains only for operational fact kinds that have not yet migrate
 
 ## Portal Staf
 
-Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Setoran dan Riwayat Gaji remain isolated empty portal sections until their own versioned data contracts are implemented.
+Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Gaji dijelaskan di bagian Akun Gaji.
+
+### Active: setoran CS ke piutang CS dengan foto bukti + ACC manual Admin (2026-10-04)
+
+Bos Cyo: "bisa mengurangi piutang cs dengan cara cs itu transfer kirim poto bukti, habis itu kalo
+admin acc baru berkurang, yang ini ga boleh auto acc harus klik dari admin. historinya di portal cs
+harusnya bisa diliat di riwayat setoran. panel admin pun punya sendiri untuk ngecek dan validasi itu."
+
+- Piutang CS (`operational_receivables_payables`, `EMPLOYEE_DEPOSIT`) lahir saat tutup laci (setoran =
+  saldo kas − titip laci), satu baris per tutup laci.
+- Portal Staf > **Riwayat Setoran**: total sisa piutang, yang menunggu ACC, satu kartu per setoran laci
+  (nominal + **foto bukti transfer wajib** + keterangan opsional), dan riwayat semua kiriman dengan foto
+  dan status. Foto diperkecil di HP ke JPEG ≤ 780 KB (server menerima maks 800 KB, migration 0136).
+- Server menolak kiriman tanpa foto (`EMPLOYEE_DEPOSIT_PHOTO_REQUIRED`). Kiriman selalu
+  `pending_approval`; saldo piutang hanya menghitung yang `approved`. Tidak ada Auto Permit/ACC otomatis.
+- Panel Admin Gerai > **💵 Setoran CS** (grup Keuangan; skin D: Persetujuan): antrean menunggu ACC dengan
+  foto (klik = perbesar), ACC (konfirmasi) / Tolak (alasan wajib, terlihat CS), sisa piutang per CS, dan
+  50 keputusan terakhir. Antrean lama di tab Karyawan dipindah ke sini.
+- Foto hanya bisa dibuka pemilik setoran sendiri dan Admin gerai itu; daftar tidak memuat isi foto.
 
 ### Active: presensi wajib sebelum buka laci, tiga state login kasir (2026-09-04)
 

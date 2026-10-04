@@ -491,11 +491,33 @@ async function handleAsset(request, env, pathname) {
   return response;
 }
 
+// 2026-10-04, Bos Cyo: domain jualan (ownertenang.biz.id, kelak ownertenang.id)
+// harus membuka landing page /produk/ di alamat utamanya, sementara alamat
+// utama gerai lain tetap memakai public/index.html seperti biasa. Alamat "/"
+// dulu dilayani file statis langsung (run_worker_first hanya /api/*), jadi
+// Worker tidak pernah melihat host-nya; "/" kini ikut run_worker_first dan
+// hanya host di bawah ini yang dialihkan, sisanya diteruskan apa adanya.
+const MARKETING_HOSTS = new Set([
+  'ownertenang.biz.id', 'www.ownertenang.biz.id',
+  'ownertenang.id', 'www.ownertenang.id'
+]);
+
+export function marketingAssetPath(hostname, pathname) {
+  return pathname === '/' && MARKETING_HOSTS.has(String(hostname || '').toLowerCase()) ? '/produk/' : null;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     try {
       if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
+      if (url.pathname === '/') {
+        const marketing = marketingAssetPath(url.hostname, url.pathname);
+        if (!marketing) return await env.ASSETS.fetch(request);
+        const assetUrl = new URL(request.url);
+        assetUrl.pathname = marketing;
+        return await env.ASSETS.fetch(new Request(assetUrl, request));
+      }
       return await handleAsset(request, env, url.pathname);
     } catch (error) {
       console.error('prototype-leker request failed', error);

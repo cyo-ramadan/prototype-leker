@@ -159,6 +159,7 @@ async function listEditorProducts(db, storeId, { withImages = true } = {}) {
     stockTrackingEnabled: Boolean(row.stock_tracking_enabled),
     stockQuantity: row.stock_quantity == null ? null : Number(row.stock_quantity),
     averageCost: costFromScaled(row.average_cost),
+    averageCostScaled: row.average_cost == null ? null : String(row.average_cost),
     lastPurchasePrice: costFromScaled(row.last_purchase_price),
     costUpdatedAt: row.cost_updated_at || null,
     lastPurchaseAt: row.last_purchase_at || null,

@@ -14,6 +14,11 @@ import { parseRupiahAmountToScaled } from './accounting-ledger.js';
 //   GET  /api/admin/purchase-price-ranges?store=<gerai>
 //   POST /api/admin/purchase-price-ranges?store=<gerai>
 //        { items: [{ productId, min, max, basis? }] }   -- angka desimal sebagai teks
+//        min DAN max kosong = rentang barang itu dihapus (barang kembali tanpa batas).
+//
+// Satu tempat simpan, dua pintu (Bos Cyo, 2026-10-04: "di settingan manusia udah ada,
+// yang aku minta agar si una bisa kerjakan itu"): isian "Harga beli wajar" di Master
+// Barang dan alat Una atur_rentang_harga_beli sama-sama menulis lewat endpoint ini.
 //
 // Uang = integer skala 1.000.000 per satuan dasar (invariant #1).
 
@@ -123,8 +128,14 @@ export async function handlePurchasePriceRangesApi(request, env, pathname) {
   const now = new Date().toISOString();
   const actor = actorFrom(auth);
   const statements = [];
+  let removed = 0;
   for (const item of raw) {
     const productId = Number(item.productId);
+    if (!text(item.min, 40) && !text(item.max, 40)) {
+      statements.push(db.prepare('DELETE FROM product_purchase_price_ranges WHERE store_id = ? AND product_id = ?').bind(store.id, productId));
+      removed += 1;
+      continue;
+    }
     const min = scaledOrNull(item.min);
     const max = scaledOrNull(item.max);
     const basis = scaledOrNull(item.basis);
@@ -141,5 +152,5 @@ export async function handlePurchasePriceRangesApi(request, env, pathname) {
     `).bind(store.id, productId, min, max, basis ?? null, actor.role, actor.id, now));
   }
   await db.batch(statements);
-  return json({ ok: true, saved: statements.length });
+  return json({ ok: true, saved: statements.length - removed, removed });
 }

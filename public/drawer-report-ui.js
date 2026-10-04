@@ -111,8 +111,10 @@
       ['Arus Kas Masuk (Plus)', totals.operationalCashIn],
       ['Arus Kas Keluar (Minus)', totals.operationalCashOut],
       ['Ekspektasi Di Laci', totals.expectedCash],
-      ['Saldo Pulang', drawer.closingAmount],
-      ['Selisih Kas', totals.cashDifference]
+      ['Uang di laci saat tutup (hitung fisik)', drawer.closingAmount],
+      ['Taruh uang laci (modal shift berikutnya)', totals.leftInDrawerAmount],
+      ['Setoran (dibawa CS, jadi piutang setoran)', totals.depositAmount],
+      ...(totals.cashDifference ? [['Lebih (+) / kurang (−) dari ekspektasi', totals.cashDifference]] : [])
     ]), '');
 
     lines.push('----- CATATAN TAMBAHAN -----', '');
@@ -230,8 +232,10 @@
         ['Arus Kas Masuk (Plus)', totals.operationalCashIn],
         ['Arus Kas Keluar (Minus)', totals.operationalCashOut],
         ['Ekspektasi Di Laci', totals.expectedCash],
-        ['Saldo Pulang', drawer.closingAmount],
-        ['Selisih Kas', totals.cashDifference]
+        ['Uang di laci saat tutup (hitung fisik)', drawer.closingAmount],
+        ['Taruh uang laci (modal shift berikutnya)', totals.leftInDrawerAmount],
+        ['Setoran (dibawa CS, jadi piutang setoran)', totals.depositAmount],
+        ...(totals.cashDifference ? [['Lebih (+) / kurang (−) dari ekspektasi', totals.cashDifference]] : [])
       ]))}
 
       <div class="drawer-report-divider">CATATAN TAMBAHAN</div>

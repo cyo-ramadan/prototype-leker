@@ -316,6 +316,13 @@ test('Riwayat Gaji per nama orang menggabungkan akrual presensi + Bea Gaji manua
     assert.equal(ledgerPayload.hutangGajiBalanceRupiah, 50000);
     const stores = ledgerPayload.entries.map(entry => entry.storeCode).sort();
     assert.deepEqual(stores, ['DERMO', 'PENDEM']);
+    // Bos Cyo, 2026-10-04: gaji dari kerja diberi keterangan jam datang dan pulang.
+    const dariKerja = ledgerPayload.entries.find(entry => entry.storeCode === 'PENDEM');
+    const manual = ledgerPayload.entries.find(entry => entry.storeCode === 'DERMO');
+    assert.ok(dariKerja.checkInAt && dariKerja.checkOutAt, 'akrual presensi membawa jam datang & pulang');
+    assert.ok(new Date(dariKerja.checkOutAt) > new Date(dariKerja.checkInAt));
+    assert.equal(manual.checkInAt, null);
+    assert.equal(manual.checkOutAt, null);
   } finally { db.close(); }
 });
 

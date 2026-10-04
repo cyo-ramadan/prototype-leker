@@ -27,6 +27,7 @@
       <nav class="staff-nav" aria-label="Portal Staf">
         <button class="active" type="button" data-staff-tab="attendance">📸 Presensi</button>
         <button type="button" data-staff-tab="kpi">📊 Raport / KPI</button>
+        <button type="button" data-staff-tab="setor">💸 Setor Uang</button>
         <button type="button" data-staff-tab="deposits">💵 Riwayat Setoran</button>
         <button type="button" data-staff-tab="payroll">🧾 Riwayat Gaji</button>
         <button type="button" data-staff-tab="dailytask">🗒️ Daily Task</button>
@@ -39,7 +40,8 @@
           <div class="staff-card"><h2>Riwayat Presensi</h2><div id="attendanceList" class="attendance-list"><div class="muted">Memuat...</div></div></div>
         </section>
         <section id="staffPanelKpi" class="staff-panel"><div id="staffKpiList"><div class="staff-empty">Memuat fakta Raport...</div></div></section>
-        <section id="staffPanelDeposits" class="staff-panel"><div class="staff-card"><h2>Riwayat Setoran</h2><p class="muted">Uang setoran laci ditransfer, lalu kirim foto bukti transfernya di sini. Sisa piutang baru berkurang setelah Admin klik ACC.</p><div id="staffDepositList" class="staff-empty">Memuat...</div></div></section>
+        <section id="staffPanelSetor" class="staff-panel"><div class="staff-card"><h2>Setor Uang</h2><p class="muted">Transfer setoran laci, lalu kirim foto bukti transfernya di sini. Piutang setoranmu baru berkurang setelah Admin klik ACC.</p></div><div id="staffSetorForm"><div class="staff-empty">Memuat...</div></div></section>
+        <section id="staffPanelDeposits" class="staff-panel"><div class="staff-card"><h2>Riwayat Setoran</h2><p class="muted">Catatan setoran laci dan transfer yang sudah dikirim. Untuk mengirim bukti transfer baru, buka tombol Setor Uang.</p><div id="staffDepositList" class="staff-empty">Memuat...</div></div></section>
         <section id="staffPanelPayroll" class="staff-panel"><div class="staff-card"><h2>Riwayat Gaji</h2><div id="staffPayrollList" class="staff-empty">Memuat...</div></div></section>
         <section id="staffPanelDailytask" class="staff-panel"><div class="staff-card"><h2>Daily Task</h2><p class="muted" id="dailyTaskDate"></p><div id="staffDailyTaskList" class="attendance-list"><div class="muted">Memuat...</div></div></div></section>
         <section id="staffPanelManualbook" class="staff-panel"><div class="staff-card"><h2>Manual Book -- Entity</h2><div id="staffManualBookEntity" class="staff-empty">Memuat...</div></div><div class="staff-card"><h2>Manual Book -- Gerai Ini</h2><div id="staffManualBookStore" class="staff-empty">Memuat...</div></div></section>
@@ -50,6 +52,6 @@
 </div>
 <script src="/camera-snapshot-modal.js"></script>
 <script src="/angka-input.js?v=20261004-titik-otomatis-v1"></script>
-<script src="/staff.js?v=20261004-setoran-foto-v1"></script>
+<script src="/staff.js?v=20261004-setor-uang-v2"></script>
 </body>
 </html>

@@ -207,6 +207,8 @@ export function buildPayroll(attendanceRows, jobDetail, scheduleByDay = new Map(
       return {
         attendanceId: row.id,
         date: getJakartaBusinessDate(new Date(row.checkIn.at)),
+        checkInAt: row.checkIn.at,
+        checkOutAt: row.checkOut.at,
         paymentType,
         hoursWorked: paymentType === 'JAM'
           ? Math.round(((new Date(row.checkOut.at).getTime() - new Date(row.checkIn.at).getTime()) / 3600000) * 100) / 100

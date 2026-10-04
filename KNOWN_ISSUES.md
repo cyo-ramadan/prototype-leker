@@ -345,10 +345,17 @@ admin acc baru berkurang, yang ini ga boleh auto acc harus klik dari admin. hist
 harusnya bisa diliat di riwayat setoran. panel admin pun punya sendiri untuk ngecek dan validasi itu."
 
 - Piutang CS (`operational_receivables_payables`, `EMPLOYEE_DEPOSIT`) lahir saat tutup laci (setoran =
-  saldo kas − titip laci), satu baris per tutup laci.
-- Portal Staf > **Riwayat Setoran**: total sisa piutang, yang menunggu ACC, satu kartu per setoran laci
-  (nominal + **foto bukti transfer wajib** + keterangan opsional), dan riwayat semua kiriman dengan foto
-  dan status. Foto diperkecil di HP ke JPEG ≤ 780 KB (server menerima maks 800 KB, migration 0136).
+  uang di laci − taruh uang laci), satu baris per tutup laci, dan **langsung dijurnal** (Dr 1202 Piutang
+  Karyawan / Cr Kas) pada saat laci ditutup.
+- Istilah (Bos Cyo, 2026-10-04): kasir mengisi **Uang di laci sekarang** dan **Taruh uang laci**; **Setoran**
+  terhitung langsung di dialog. Kata "Titip laci" dan "Selisih Kas" dihapus; baris lebih/kurang dari
+  ekspektasi di Detail Laci hanya muncul kalau memang ada angkanya.
+- Portal Staf punya dua tab terpisah (2026-10-04): **Setor Uang** (form entri: pilih setoran bila lebih dari
+  satu terbuka, nominal, **foto bukti transfer wajib**, keterangan opsional) dan **Riwayat Setoran** (data
+  saja, gaya Riwayat Gaji: sisa piutang, kelompok per tanggal, "Tutup laci jam HH:MM", transfer + status +
+  foto). Foto diperkecil di HP ke JPEG ≤ 780 KB (server menerima maks 800 KB, migration 0136).
+- Riwayat Gaji (Portal Staf + panel Karyawan) memberi keterangan jam datang–pulang pada gaji yang berasal
+  dari presensi (`checkInAt`/`checkOutAt`); Bea Gaji manual tidak punya jam.
 - Server menolak kiriman tanpa foto (`EMPLOYEE_DEPOSIT_PHOTO_REQUIRED`). Kiriman selalu
   `pending_approval`; saldo piutang hanya menghitung yang `approved`. Tidak ada Auto Permit/ACC otomatis.
 - Panel Admin Gerai > **💵 Setoran CS** (grup Keuangan; skin D: Persetujuan): antrean menunggu ACC dengan

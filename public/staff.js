@@ -230,7 +230,7 @@
     if (!payrollRows.length && !adjustmentRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
-    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule });
+    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule, checkInAt: row.checkInAt, checkOutAt: row.checkOutAt });
     for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: row.amountRupiah, reason: row.reason, voided: row.voided, voidReason: row.voidReason });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
     const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
@@ -242,7 +242,7 @@
           <div class="attendance-list">${cards.map(card => `
             <div class="attendance-row" style="${card.voided ? 'opacity:.6' : ''}">
               <div><strong>${card.kind === 'adjustment' ? escapeHtml(card.reason) : (card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`)}</strong>
-                ${card.kind === 'adjustment' ? `<div class="muted">Penyesuaian dari Admin${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''}</div>` : `<div class="muted">Dari presensi${card.withinSchedule === false ? ' · <span style="color:#c2255c">Di luar jadwal, tidak dihitung</span>' : ''}</div>`}</div>
+                ${card.kind === 'adjustment' ? `<div class="muted">Penyesuaian dari Admin${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''}</div>` : `<div class="muted">Dari presensi · Datang ${card.checkInAt ? escapeHtml(clockTime(card.checkInAt)) : '-'} · Pulang ${card.checkOutAt ? escapeHtml(clockTime(card.checkOutAt)) : '-'}${card.withinSchedule === false ? ' · <span style="color:#c2255c">Di luar jadwal, tidak dihitung</span>' : ''}</div>`}</div>
               <span style="${card.amountRupiah < 0 ? 'color:#c2255c' : ''}">${card.amountRupiah < 0 ? '-' : ''}${money(Math.abs(card.amountRupiah))}</span>
             </div>`).join('')}</div></div>`;
       }).join('')}`;
@@ -320,15 +320,21 @@
     catch (error) { const target = el('staffAnnouncementList'); if (target) target.innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; }
   }
 
-  // Riwayat Setoran (Bos Cyo, 2026-10-04): "cs itu transfer kirim poto bukti, habis itu
-  // kalo admin acc baru berkurang ... historinya di portal cs harusnya bisa diliat di
-  // riwayat setoran." Satu kartu per setoran laci (tanggal tutup laci) dengan form kirim
-  // nominal + FOTO bukti transfer; di bawahnya riwayat semua kiriman, status, dan fotonya.
-  // Piutang hanya berkurang oleh kiriman yang sudah di-ACC Admin (tidak ada ACC otomatis).
+  // Setoran CS (Bos Cyo, 2026-10-04): dua layar terpisah.
+  //   - "Setor Uang" = tempat ENTRI: transfer dulu, lalu kirim nominal + FOTO bukti transfer.
+  //   - "Riwayat Setoran" = hanya DATA, tampilannya sama dengan Riwayat Gaji: kartu Total,
+  //     lalu kelompok per tanggal berisi setoran dari tutup laci (piutang bertambah) dan
+  //     kiriman transfer (piutang berkurang setelah di-ACC Admin, tidak ada ACC otomatis).
   const approvalLabel = { pending_approval: 'Menunggu ACC Admin', approved: 'Sudah di-ACC', rejected: 'Ditolak' };
   const approvalColor = { pending_approval: '#8b5d00', approved: '#2f9e44', rejected: '#a4133c' };
   const MAKS_FOTO_SETORAN = 780 * 1024; // server menerima maks 800 KB
   let depositPhotoUrls = [];
+
+  // Waktu dari database kadang "YYYY-MM-DD HH:MM:SS" (UTC tanpa zona): jadikan ISO UTC.
+  const utcIso = value => { const text = String(value || ''); return /[zZ]|[+-]\d\d:?\d\d$/.test(text) || text.includes('T') ? text : `${text.replace(' ', 'T')}Z`; };
+  const jakartaDate = value => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(utcIso(value)));
+  const jakartaClock = value => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(utcIso(value)));
+  const tanggalPanjang = value => new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`));
 
   // Foto kamera HP biasanya 2-5 MB (iPhone: HEIC): diperkecil ke JPEG dulu di HP.
   async function kecilkanFotoSetoran(file) {
@@ -355,41 +361,69 @@
     } finally { URL.revokeObjectURL(url); }
   }
 
-  const tanggalLaci = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`)) : '';
-  const fotoSetoran = payment => payment.hasPhoto
-    ? `<img class="attendance-thumb" data-deposit-photo="${escapeHtml(payment.id)}" alt="Foto bukti setoran" loading="lazy" style="cursor:zoom-in" />`
-    : '';
   const pendingSetoran = item => (item.payments || []).filter(p => p.approvalStatus === 'pending_approval').reduce((n, p) => n + Number(p.amountRupiah || 0), 0);
+  const fotoSetoran = payment => payment.hasPhoto
+    ? `<img class="attendance-thumb" data-deposit-photo="${escapeHtml(payment.id)}" alt="Foto bukti transfer" loading="lazy" style="cursor:zoom-in" />`
+    : '';
 
-  function kartuSetoran(item) {
-    const menunggu = pendingSetoran(item);
-    const sisaKirim = Number(item.balanceRupiah || 0) - menunggu;
-    const lunas = Number(item.balanceRupiah || 0) <= 0;
-    return `
-      <div class="staff-card" style="margin-bottom:12px">
-        <div class="muted">Setoran laci ${escapeHtml(tanggalLaci(item.transactionDate))} · ${money(item.originalAmountRupiah)}</div>
-        <h2 style="margin:5px 0">${lunas ? 'Lunas' : `Sisa ${money(item.balanceRupiah)}`}</h2>
-        ${menunggu ? `<div class="muted">${money(menunggu)} sedang menunggu ACC Admin.</div>` : ''}
-        ${lunas ? '' : `
-        <div class="field" style="margin-top:10px"><label>Nominal yang ditransfer</label><input class="text-input deposit-amount" inputmode="numeric" value="${sisaKirim > 0 ? escapeHtml(window.MAXIAngka ? window.MAXIAngka.tampil(sisaKirim) : String(sisaKirim)) : ''}" /></div>
-        <div class="field"><label>Foto bukti transfer (wajib)</label><input class="text-input deposit-photo" type="file" accept="image/*" /></div>
-        <div class="field"><label>Keterangan (opsional)</label><input class="text-input deposit-proof" type="text" maxlength="200" placeholder="mis. transfer BCA jam 21.10" /></div>
-        <button type="button" class="secondary-btn deposit-submit" data-receivable-id="${escapeHtml(item.id)}">Kirim Bukti Setoran</button>`}
+  // --- Setor Uang (entri) ---------------------------------------------------
+  function renderSetorForm() {
+    const target = el('staffSetorForm'); if (!target) return;
+    const items = deposits || [];
+    const terbuka = items
+      .map(item => ({ item, bisaDikirim: Number(item.balanceRupiah || 0) - pendingSetoran(item) }))
+      .filter(row => row.bisaDikirim > 0)
+      .sort((a, b) => String(a.item.transactionDate).localeCompare(String(b.item.transactionDate)));
+    const totalSisa = items.reduce((n, item) => n + Math.max(0, Number(item.balanceRupiah || 0)), 0);
+    const totalMenunggu = items.reduce((n, item) => n + pendingSetoran(item), 0);
+    const ringkasan = `
+      <div class="staff-metric-grid" style="margin-bottom:14px">
+        <div class="staff-card" style="margin:0"><div class="muted">Yang harus disetor</div><h2 style="margin:5px 0">${money(totalSisa)}</h2></div>
+        <div class="staff-card" style="margin:0"><div class="muted">Sudah dikirim, menunggu ACC Admin</div><h2 style="margin:5px 0">${money(totalMenunggu)}</h2></div>
+        <div class="staff-card" style="margin:0"><div class="muted">Caranya</div><div>1. Transfer ke rekening yang ditentukan kantor. 2. Foto bukti transfernya. 3. Isi di bawah lalu kirim. Piutangmu berkurang setelah Admin klik ACC.</div></div>
       </div>`;
+    if (!items.length) { target.innerHTML = `${ringkasan}<div class="staff-empty">Belum ada setoran. Setoran muncul otomatis setiap kali kamu tutup laci dan ada uang yang dibawa pulang.</div>`; return; }
+    if (!terbuka.length) { target.innerHTML = `${ringkasan}<div class="staff-empty">Tidak ada yang perlu ditransfer sekarang. 👍${totalMenunggu ? ' Kiriman sebelumnya masih menunggu ACC Admin.' : ''}</div>`; return; }
+    const opsi = terbuka.map(({ item, bisaDikirim }) => `<option value="${escapeHtml(item.id)}" data-sisa="${bisaDikirim}">Setoran laci ${escapeHtml(tanggalPanjang(jakartaDate(item.createdAt || item.transactionDate)))} · sisa ${money(bisaDikirim)}</option>`).join('');
+    target.innerHTML = `${ringkasan}
+      <div class="staff-card">
+        <h2 style="margin-top:0">Kirim bukti transfer</h2>
+        ${terbuka.length > 1 ? `<div class="field"><label>Untuk setoran yang mana</label><select id="setorPilih" class="text-input">${opsi}</select></div>` : `<input type="hidden" id="setorPilih" value="${escapeHtml(terbuka[0].item.id)}" data-sisa="${terbuka[0].bisaDikirim}" /><div class="muted" style="margin-bottom:8px">Setoran laci ${escapeHtml(tanggalPanjang(jakartaDate(terbuka[0].item.createdAt || terbuka[0].item.transactionDate)))}</div>`}
+        <div class="field"><label>Nominal yang ditransfer</label><input id="setorNominal" class="text-input" inputmode="numeric" /></div>
+        <div class="field"><label>Foto bukti transfer <span class="field-note">wajib</span></label><input id="setorFoto" class="text-input" type="file" accept="image/*" /></div>
+        <div class="field"><label>Keterangan <span class="field-note">opsional</span></label><input id="setorKeterangan" class="text-input" type="text" maxlength="200" placeholder="mis. transfer BCA jam 21.10" /></div>
+        <button type="button" class="primary-btn" id="setorKirim">Kirim Bukti Transfer</button>
+      </div>`;
+    const pilih = el('setorPilih');
+    const nominal = el('setorNominal');
+    window.MAXIAngka?.pasang(nominal, { desimal: false });
+    const isiNominal = () => {
+      const sisa = Number(pilih.tagName === 'SELECT' ? pilih.selectedOptions[0].dataset.sisa : pilih.dataset.sisa);
+      nominal.value = window.MAXIAngka ? window.MAXIAngka.tampil(sisa) : String(sisa);
+    };
+    isiNominal();
+    if (pilih.tagName === 'SELECT') pilih.addEventListener('change', isiNominal);
+    el('setorKirim').addEventListener('click', async () => {
+      const amountRupiah = window.MAXIAngka ? window.MAXIAngka.nilai(nominal.value) : Number(String(nominal.value).replace(/\D/g, ''));
+      const file = el('setorFoto').files?.[0];
+      if (!Number.isSafeInteger(amountRupiah) || amountRupiah <= 0) { toastStaff('Isi nominal yang ditransfer (angka bulat).'); return; }
+      if (!file) { toastStaff('Foto bukti transfer wajib dilampirkan.'); return; }
+      const tombol = el('setorKirim');
+      tombol.disabled = true;
+      try {
+        const form = new FormData();
+        form.set('amountRupiah', String(amountRupiah));
+        form.set('proofReference', el('setorKeterangan').value.trim());
+        form.set('photo', await kecilkanFotoSetoran(file));
+        await staffApi(`/api/cashier/employee-deposits/${encodeURIComponent(pilih.value)}/payments`, { method: 'POST', body: form });
+        await loadDeposits();
+        document.querySelector('[data-staff-tab="deposits"]')?.click();
+        toastStaff('Bukti transfer terkirim, menunggu ACC Admin. Piutang berkurang setelah di-ACC.');
+      } catch (error) { toastStaff(error.message); tombol.disabled = false; }
+    });
   }
 
-  function barisRiwayatSetoran(payment) {
-    const warna = approvalColor[payment.approvalStatus] || '#555';
-    return `
-      <div class="attendance-row">
-        <div><strong>${money(payment.amountRupiah)}</strong>
-          <div class="muted">Dikirim ${escapeHtml(dateTime(payment.createdAt))} · setoran laci ${escapeHtml(tanggalLaci(payment.tanggalLaci))}</div>
-          <div class="muted">${escapeHtml(payment.proofReference || '')}${payment.rejectionReason ? ` · Alasan ditolak: ${escapeHtml(payment.rejectionReason)}` : ''}${payment.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(payment.reviewedAt))}` : ''}</div>
-        </div>
-        <div class="attendance-row-photos" style="align-items:center">${fotoSetoran(payment)}<span style="font-weight:900;color:${warna}">${escapeHtml(approvalLabel[payment.approvalStatus] || payment.approvalStatus)}</span></div>
-      </div>`;
-  }
-
+  // --- Riwayat Setoran (data saja, gaya Riwayat Gaji) ------------------------
   async function loadDepositPhotoThumbs() {
     depositPhotoUrls.forEach(url => URL.revokeObjectURL(url));
     depositPhotoUrls = [];
@@ -408,48 +442,46 @@
   function renderDeposits() {
     const target = el('staffDepositList'); if (!target) return;
     const items = deposits || [];
-    if (!items.length) { target.innerHTML = '<div class="staff-empty">Belum ada setoran. Setoran muncul di sini setiap kali Anda tutup laci dan ada uang yang harus disetor.</div>'; return; }
+    if (!items.length) { target.className = 'staff-empty'; target.innerHTML = 'Belum ada riwayat setoran.'; return; }
+    target.className = '';
+    const cardsByDate = new Map();
+    const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
+    for (const item of items) {
+      const sumber = item.createdAt || item.transactionDate;
+      pushCard(jakartaDate(sumber), { kind: 'laci', at: utcIso(sumber), amountRupiah: Number(item.originalAmountRupiah || 0) });
+      for (const payment of item.payments || []) {
+        pushCard(jakartaDate(payment.createdAt), { kind: 'transfer', at: utcIso(payment.createdAt), amountRupiah: Number(payment.amountRupiah || 0), payment });
+      }
+    }
+    const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
     const totalSisa = items.reduce((n, item) => n + Number(item.balanceRupiah || 0), 0);
     const totalMenunggu = items.reduce((n, item) => n + pendingSetoran(item), 0);
-    const riwayat = items
-      .flatMap(item => (item.payments || []).map(payment => ({ ...payment, tanggalLaci: item.transactionDate })))
-      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    const terbuka = items.filter(item => Number(item.balanceRupiah || 0) > 0);
-    target.className = '';
     target.innerHTML = `
-      <div class="staff-metric-grid" style="margin-bottom:14px">
-        <div class="staff-card" style="margin:0"><div class="muted">Sisa piutang setoran</div><h2 style="margin:5px 0">${money(totalSisa)}</h2></div>
-        <div class="staff-card" style="margin:0"><div class="muted">Menunggu ACC Admin</div><h2 style="margin:5px 0">${money(totalMenunggu)}</h2></div>
-        <div class="staff-card" style="margin:0"><div class="muted">Cara setor</div><div>Transfer dulu, lalu kirim foto bukti transfernya di kartu setoran laci. Piutang berkurang setelah Admin klik ACC.</div></div>
-      </div>
-      ${terbuka.map(kartuSetoran).join('') || '<div class="staff-empty" style="margin-bottom:12px">Semua setoran sudah lunas. 👍</div>'}
-      <h3 style="margin:18px 0 8px">Riwayat kiriman setoran</h3>
-      <div class="attendance-list">${riwayat.map(barisRiwayatSetoran).join('') || '<div class="muted">Belum ada kiriman setoran.</div>'}</div>`;
-    target.querySelectorAll('.deposit-amount').forEach(input => window.MAXIAngka?.pasang(input, { desimal: false }));
-    target.querySelectorAll('.deposit-submit').forEach(button => {
-      button.addEventListener('click', async () => {
-        const card = button.closest('.staff-card');
-        const isian = card.querySelector('.deposit-amount').value;
-        const amountRupiah = window.MAXIAngka ? window.MAXIAngka.nilai(isian) : Number(String(isian).replace(/\D/g, ''));
-        const file = card.querySelector('.deposit-photo').files?.[0];
-        if (!Number.isSafeInteger(amountRupiah) || amountRupiah <= 0) { toastStaff('Isi nominal yang ditransfer (angka bulat).'); return; }
-        if (!file) { toastStaff('Foto bukti transfer wajib dilampirkan.'); return; }
-        button.disabled = true;
-        try {
-          const form = new FormData();
-          form.set('amountRupiah', String(amountRupiah));
-          form.set('proofReference', card.querySelector('.deposit-proof').value.trim());
-          form.set('photo', await kecilkanFotoSetoran(file));
-          await staffApi(`/api/cashier/employee-deposits/${encodeURIComponent(button.dataset.receivableId)}/payments`, { method: 'POST', body: form });
-          await loadDeposits();
-          toastStaff('Bukti setoran terkirim, menunggu ACC Admin. Piutang berkurang setelah di-ACC.');
-        } catch (error) { toastStaff(error.message); button.disabled = false; }
-      });
-    });
+      <div class="staff-card" style="margin-bottom:12px"><div class="muted">Sisa piutang setoran</div><h2 style="margin:5px 0">${money(totalSisa)}</h2>${totalMenunggu ? `<div class="muted">${money(totalMenunggu)} sedang menunggu ACC Admin</div>` : ''}</div>
+      ${dates.map(date => {
+        const cards = cardsByDate.get(date).sort((a, b) => (a.at < b.at ? 1 : -1));
+        return `<div style="margin-bottom:10px"><div class="muted" style="margin-bottom:4px">${escapeHtml(date)}</div>
+          <div class="attendance-list">${cards.map(card => {
+            if (card.kind === 'laci') {
+              return `<div class="attendance-row">
+                <div><strong>Setoran dari tutup laci</strong><div class="muted">Tutup laci jam ${escapeHtml(jakartaClock(card.at))} · uang yang dibawa pulang</div></div>
+                <span>${money(card.amountRupiah)}</span></div>`;
+            }
+            const p = card.payment;
+            const warna = approvalColor[p.approvalStatus] || '#555';
+            const redup = p.approvalStatus === 'rejected' ? 'opacity:.6' : '';
+            const catatan = p.proofReference && p.proofReference !== 'Foto bukti transfer' ? ` · ${escapeHtml(p.proofReference.replace(/^Foto bukti transfer · /, ''))}` : '';
+            return `<div class="attendance-row" style="${redup}">
+              <div><strong>Transfer setoran</strong>
+                <div class="muted">Dikirim jam ${escapeHtml(jakartaClock(card.at))}${catatan}${p.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(utcIso(p.reviewedAt)))}` : ''}</div>
+                <div class="muted"><span style="font-weight:800;color:${warna}">${escapeHtml(approvalLabel[p.approvalStatus] || p.approvalStatus)}</span>${p.rejectionReason ? ` · <span style="color:#c2255c">Alasan ditolak: ${escapeHtml(p.rejectionReason)}</span>` : ''}</div></div>
+              <div class="attendance-row-photos" style="align-items:center">${fotoSetoran(p)}<span style="color:${p.approvalStatus === 'approved' ? '#2f9e44' : '#555'}">−${money(card.amountRupiah)}</span></div></div>`;
+          }).join('')}</div></div>`;
+      }).join('')}`;
     loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
-  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; renderDeposits(); } catch (error) { el('staffDepositList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
+  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
   async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }

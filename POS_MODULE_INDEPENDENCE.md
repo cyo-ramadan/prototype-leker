@@ -166,7 +166,24 @@ Perlu trigger setara sebelum gerai baru manapun (termasuk `IKAN01`) aman dibuat.
 Task papan (`maxi-agent-bus`, `project='ikan'`) yang menjalankan bagian ini
 ditulis 2026-08-22, urutannya tercatat di task masing-masing.
 
+## Koreksi visi — 2026-10-04 (Bos Cyo): pembukuan selalu jalan, pelanggan membeli tampilannya
+
+Bagian di atas ("Accounting bisa dicabut") **dikoreksi arahnya**. Keputusan Bos Cyo:
+
+- **Accounting selalu bekerja diam-diam di semua gerai.** Pelanggan SaaS boleh merasa sistemnya
+  "tanpa akuntansi" — yang mereka beli adalah skin/tampilan (0/A/B/C/D/E), bukan ada-tidaknya pembukuan.
+  Setiap fakta POS/Admin tetap diterjemahkan menjadi jurnal oleh Accounting (invariant #4 tidak berubah).
+- Arah laporan: **Laporan Untung Rugi bersumber dari Accounting** untuk gerai edisi ACCOUNTING; kesalahan
+  data (mis. salah ketik Beli Bahan) dibetulkan lewat Accounting (jurnal pembalik), bukan menyunting fakta.
+- Stok opname SO+/SO− masuk jurnal **mulai 2026-10-04 ke depan** saja; SO lama tidak dijurnal dan tidak
+  ditulis ke akun "modal penyesuaian".
+- Redesain resep/manufaktur (komponen ditulis di dalam barang, mode "Barang Titipan") **DITAHAN** — belum
+  diputuskan; jangan dikerjakan sebelum Bos Cyo kembali membahasnya.
+- Dua pengaman tetap berlaku sebelum mencabut apa pun dari sisi pelanggan: (1) POS tidak boleh tergantung
+  pada Setting Akuntansi untuk bisa jalan; (2) Accounting tidak boleh mengubah fakta operasional.
+
 ## DOC-IMPACT
 
 Perbarui tabel status setiap kali ada fase `ADR-034`/`ADR-036`/`ADR-037` yang mendarat,
 dan setiap kali salah satu dari lima keputusan di atas dijawab Bos Cyo.
+Perbarui juga bagian "Koreksi visi" bila arah Accounting-tersembunyi atau redesain resep diputuskan.

@@ -10,6 +10,9 @@ function mapDrawer(row) {
     cashierUsername: row.username,
     openingAmount: number(row.opening_amount),
     closingAmount: row.closing_amount == null ? null : number(row.closing_amount),
+    // Setoran = uang di laci - taruh uang laci (Bos Cyo, 2026-10-04).
+    depositAmount: row.closing_amount == null ? null : number(row.deposit_amount),
+    leftInDrawerAmount: row.closing_amount == null ? null : number(row.closing_amount) - number(row.deposit_amount),
     incentiveAmount: number(row.incentive_amount),
     shiftLabel: row.shift_label || '',
     openingNote: row.opening_note || '',
@@ -22,7 +25,7 @@ function mapDrawer(row) {
 
 export async function listStoreDrawers(db, storeId, limit = 100) {
   const rows = await db.prepare(`
-    SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
+    SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount, d.deposit_amount,
            d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
@@ -36,7 +39,7 @@ export async function listStoreDrawers(db, storeId, limit = 100) {
 
 export async function getStoreDrawer(db, storeId, drawerId) {
   const row = await db.prepare(`
-    SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
+    SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount, d.deposit_amount,
            d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
            d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
@@ -276,6 +279,8 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       realCashRevenue,
       expectedCash,
       closingAmount: drawer.closingAmount,
+      depositAmount: drawer.depositAmount,
+      leftInDrawerAmount: drawer.leftInDrawerAmount,
       cashDifference: drawer.closingAmount == null ? null : drawer.closingAmount - expectedCash
     }
   };

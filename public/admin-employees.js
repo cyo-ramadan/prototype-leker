@@ -129,8 +129,12 @@
   // berjalan/bonus), merah mengurangi (potongan/pinalti); saldo total di
   // atas adalah saldo Hutang Gaji orang ini sekarang.
   const rupiahLedger = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+  const clockWib = value => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value));
   function sourceLabel(entry) {
-    if (entry.sourceType === 'ATTENDANCE') return 'dari presensi';
+    // Gaji dari kerja: sebut jam datang dan pulang (Bos Cyo, 2026-10-04).
+    if (entry.sourceType === 'ATTENDANCE') {
+      return `dari presensi · datang ${entry.checkInAt ? clockWib(entry.checkInAt) : '-'} · pulang ${entry.checkOutAt ? clockWib(entry.checkOutAt) : '-'}`;
+    }
     return 'dari Bea Gaji (Operasional)';
   }
   function ledgerCardHtml(entry) {

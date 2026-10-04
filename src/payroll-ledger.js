@@ -110,7 +110,11 @@ function mapLedgerRow(row) {
     createdByRole: row.created_by_role || '',
     createdAt: row.created_at,
     voided: Boolean(row.voided_at),
-    voidReason: row.void_reason || ''
+    voidReason: row.void_reason || '',
+    // Jam datang/pulang sesi presensi asal gaji (Bos Cyo, 2026-10-04: gaji dari kerja
+    // diberi keterangan jam datang dan pulangnya). null untuk Bea Gaji manual.
+    checkInAt: row.check_in_at || null,
+    checkOutAt: row.check_out_at || null
   };
 }
 
@@ -124,9 +128,12 @@ function mapLedgerRow(row) {
 // mengelompokkan per tanggal jadi kartu-kartu.
 export async function listLedgerForEmployee(db, employeeId) {
   const rows = await db.prepare(`
-    SELECT l.*, s.code AS store_code
+    SELECT l.*, s.code AS store_code,
+           CASE WHEN l.source_type = 'ATTENDANCE' THEN a.created_at END AS check_in_at,
+           CASE WHEN l.source_type = 'ATTENDANCE' THEN a.check_out_at END AS check_out_at
     FROM payroll_ledger_entries l
     JOIN stores s ON s.id = l.store_id
+    LEFT JOIN staff_attendance a ON l.source_type = 'ATTENDANCE' AND a.id = l.source_id
     WHERE l.employee_id = ?
     ORDER BY l.business_date DESC, l.created_at DESC
   `).bind(employeeId).all();

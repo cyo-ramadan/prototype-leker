@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleCashierDrawerApi } from '../src/cashier-drawer.js';
 import { handleEmployeeDepositApi } from '../src/employee-deposit-settlement.js';
+import { buildDrawerReport } from '../src/drawer-report.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 // 2026-09-06, Bos Cyo: sisa setoran laci yang belum diserahkan ke kantor jadi
@@ -521,22 +522,27 @@ test('Finance reject setoran wajib alasan dan tidak mengubah saldo', async () =>
 
 // Diperbarui 2026-10-03: kasir tidak lagi mengisi setoran; dialog mengirim Titip laci
 // dan server menghitung setoran (lihat tes UI di akhir file).
-test('dialog tutup laci di kasir mengirim Titip laci (bukan setoran) ke server', () => {
+test('dialog tutup laci di kasir mengirim Taruh uang laci (bukan setoran) ke server', () => {
   const cashierUi = readFileSync(new URL('../public/cashier.js', import.meta.url), 'utf8');
   assert.match(cashierUi, /id="dialogLeftAmount"/);
   assert.match(cashierUi, /leftInDrawerAmount: Number\(el\('dialogLeftAmount'\)\.value\)/);
 });
 
-test('tab Riwayat Setoran Portal Staf: kirim nominal + FOTO bukti (multipart), riwayat dengan foto', () => {
+test('Portal Staf: tab Setor Uang (nominal + FOTO bukti multipart) terpisah dari Riwayat Setoran yang hanya data', () => {
   const staffUi = readFileSync(new URL('../public/staff.js', import.meta.url), 'utf8');
   const staffHtml = readFileSync(new URL('../public/staff.html', import.meta.url), 'utf8');
   assert.match(staffUi, /staffApi\('\/api\/cashier\/employee-deposits'\)/);
-  assert.match(staffUi, /deposit-submit/);
-  assert.match(staffUi, /employee-deposits\/\$\{encodeURIComponent\(button\.dataset\.receivableId\)\}\/payments/);
+  assert.match(staffUi, /id="setorKirim"/);
+  assert.match(staffUi, /employee-deposits\/\$\{encodeURIComponent\(pilih\.value\)\}\/payments/);
   assert.match(staffUi, /type="file" accept="image\/\*"/, 'foto bukti transfer diambil dari kamera/galeri');
   assert.match(staffUi, /form\.set\('photo'/, 'dikirim sebagai multipart dengan foto');
   assert.match(staffUi, /\/api\/cashier\/employee-deposits\/payments\/\$\{encodeURIComponent\(img\.dataset\.depositPhoto\)\}\/photo/);
-  assert.match(staffHtml, /\/staff\.js\?v=20261004-setoran-foto-v1/, 'versi staff.js dibump supaya browser lama ikut ambil');
+  assert.match(staffHtml, /\/staff\.js\?v=20261004-setor-uang-v2/, 'versi staff.js dibump supaya browser lama ikut ambil');
+  assert.match(staffHtml, /data-staff-tab="setor"/, 'Setor Uang punya tombol sendiri');
+  assert.match(staffHtml, /id="staffPanelSetor"/);
+  assert.match(staffUi, /function renderSetorForm/);
+  assert.match(staffUi, /function renderDeposits/);
+  assert.match(staffUi, /Tutup laci jam/, 'riwayat setoran menampilkan jam tutup laci');
 });
 
 test('panel Admin punya tab sendiri "Setoran CS": antrean dengan foto, ACC/Tolak manual, sisa piutang, riwayat', () => {
@@ -602,7 +608,7 @@ test('titip laci sama dengan saldo -> tidak ada setoran; titip laci lebih besar 
 
     const tooMuch = await closeDrawer(env, cashier.token, { closingAmount: 100000, leftInDrawerAmount: 150000 });
     assert.equal(tooMuch.status, 400);
-    assert.match(tooMuch.body.error, /Titip laci/);
+    assert.match(tooMuch.body.error, /Taruh uang laci/);
 
     const { status, body } = await closeDrawer(env, cashier.token, { closingAmount: 100000, leftInDrawerAmount: 100000, depositAmount: 70000 });
     assert.equal(status, 200);
@@ -611,14 +617,62 @@ test('titip laci sama dengan saldo -> tidak ada setoran; titip laci lebih besar 
   } finally { db.close(); }
 });
 
-test('UI tutup laci: kolom Setoran diganti Titip laci (wajib) di dialog biasa, dialog foto, dan dialog pengajuan', () => {
+test('UI tutup laci: kolom Taruh uang laci (wajib) + pratinjau Setoran di dialog biasa, dialog foto, dan dialog pengajuan', () => {
   const photo = readFileSync(new URL('../public/cashier-live-photo.js', import.meta.url), 'utf8');
   const cashierJs = readFileSync(new URL('../public/cashier.js', import.meta.url), 'utf8');
   assert.match(photo, /leftInDrawerAmount/);
-  assert.match(photo, /Titip laci wajib diisi/);
+  assert.match(photo, /Taruh uang laci wajib diisi/);
+  assert.match(photo, /dialogDepositPreview/);
+  assert.doesNotMatch(photo, /Selisih/);
   assert.doesNotMatch(photo, /depositAmount/);
   assert.match(cashierJs, /dialogLeftAmount/);
   assert.match(cashierJs, /dialogPermitLeftAmount/);
   assert.doesNotMatch(cashierJs, /dialogDepositAmount|dialogPermitDepositAmount/);
-  assert.match(readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8'), /cashier-live-photo\.js\?v=20261003-titip-laci-v1/);
+  assert.match(readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8'), /cashier-live-photo\.js\?v=20261004-setoran-laci-v1/);
+});
+
+// Bos Cyo, 2026-10-04: Detail Laci tidak lagi bicara "Selisih" untuk uang yang dibawa CS.
+// Uang di laci = Taruh uang laci + Setoran, dan Setoran langsung jadi piutang di jurnal.
+test('Detail Laci memuat Taruh uang laci + Setoran, dan setoran langsung terjurnal sebagai piutang saat laci ditutup', async () => {
+  const db = migratedDatabase();
+  try {
+    const cashier = await seedCashier(db, 'detaillaci', 'Kasir Detail');
+    const env = { DB: new D1Database(db) };
+    await openDrawer(env, cashier.token, 50000);
+    const { status, body } = await closeDrawer(env, cashier.token, { closingAmount: 200000, leftInDrawerAmount: 120000 });
+    assert.equal(status, 200);
+    const drawerId = db.prepare("SELECT id FROM cash_drawer_sessions WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT 1").get().id;
+
+    const report = await buildDrawerReport(env.DB, STORE_ID, drawerId);
+    assert.equal(report.totals.closingAmount, 200000);
+    assert.equal(report.totals.leftInDrawerAmount, 120000);
+    assert.equal(report.totals.depositAmount, 80000);
+    assert.equal(report.totals.leftInDrawerAmount + report.totals.depositAmount, report.totals.closingAmount);
+
+    const lines = db.prepare(`
+      SELECT l.side, l.amount_scaled, a.code
+      FROM accounting_journal_lines l
+      JOIN accounting_journal_headers h ON h.id = l.journal_id AND h.store_id = l.store_id
+      JOIN chart_of_accounts a ON a.id = l.account_id AND a.store_id = l.store_id
+      WHERE h.source_system = 'EMPLOYEE_DEPOSIT' AND h.source_reference_id = ?
+      ORDER BY l.line_number
+    `).all(body.employeeDeposit.id);
+    assert.deepEqual(lines.map(row => ({ ...row })), [
+      { side: 'DEBIT', amount_scaled: 80000 * 1_000_000, code: '1202' },
+      { side: 'CREDIT', amount_scaled: 80000 * 1_000_000, code: '1101' }
+    ]);
+  } finally { db.close(); }
+});
+
+test('UI Detail Laci: baris "Selisih Kas" diganti Taruh uang laci + Setoran; baris lebih/kurang hanya muncul bila ada angkanya', () => {
+  const ui = readFileSync(new URL('../public/drawer-report-ui.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(ui, /'Selisih Kas'/);
+  assert.match(ui, /Taruh uang laci \(modal shift berikutnya\)/);
+  assert.match(ui, /Setoran \(dibawa CS, jadi piutang setoran\)/);
+  assert.match(ui, /totals\.cashDifference \?/, 'baris lebih/kurang disembunyikan saat 0');
+  const branchAdmin = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+  const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
+  assert.match(branchAdmin, /drawer-report-ui\.js\?v=20261004-setoran-laci-v1/);
+  assert.match(cashierHtml, /drawer-report-ui\.js\?v=20261004-setoran-laci-v1/);
+  assert.match(branchAdmin, /admin-employees\.js\?v=20261004-setoran-jam-v1/);
 });

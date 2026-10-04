@@ -157,8 +157,10 @@ Production V1 remains recipe + batch driven until this separate contract/migrati
   lalu juga membuang cache laporan hari itu.
 - **Data yang masih perlu dibereskan:** (1) Hitung Ulang HPP Adonan Leker DERMO = Rp1 mulai 2026-10-02 supaya
   penjualan 2–3 Okt dan Average Cost kembali benar; (2) tiga Beli Bahan Adonan Leker 30-09 salah ketik
-  (qty 1 Rp100.000; qty 1.000 Rp1.000.000.000; qty 1.000 Rp100.000.000, dibayar Modal Leker, belum berjurnal)
-  tidak bisa dibatalkan lewat permit karena stok/HPP sudah bergerak sesudahnya — perlu keputusan Bos Cyo.
+  (qty 1 Rp100.000; qty 1.000 Rp1.000.000.000; qty 1.000 Rp100.000.000, dibayar Modal Leker) SUDAH berjurnal
+  (Debit 1301 Persediaan Bahan / Kredit 3101 Modal) dan tidak bisa dibatalkan lewat permit karena stok/HPP sudah
+  bergerak sesudahnya. Keputusan Bos Cyo 2026-10-04: dibetulkan lewat Akuntansi (jurnal koreksi/pembalik), bukan
+  menghapus transaksi.
 
 ## Product Master, Jenis Barang, Purchase Qty, and Operational Qty
 

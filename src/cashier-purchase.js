@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { loadPurchasePriceRanges, purchaseRangeViolation, rupiahSkala } from './purchase-price-ranges.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { buildTransactionAccountingSnapshot } from './accounting-reference.js';
@@ -79,7 +80,7 @@ export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) 
   }));
 }
 
-function normalizeItems(options, requested) {
+function normalizeItems(options, requested, ranges = new Map()) {
   if (!Array.isArray(requested) || !requested.length || requested.length > 50) return { ok: false, error: 'Pembelian wajib memiliki 1–50 baris barang.' };
   const byId = new Map(options.map(item => [item.productId, item]));
   const seen = new Set();
@@ -94,6 +95,10 @@ function normalizeItems(options, requested) {
     const unitCostScaled = scaledUnitCost(lineTotal, quantity);
     if (unitCostScaled === null) return { ok: false, error: 'Nilai biaya per unit terlalu besar untuk skala HPP.' };
     if (!Number.isSafeInteger(totalAmount + lineTotal)) return { ok: false, error: 'Total pembelian terlalu besar.' };
+    // Rentang harga beli wajar (migration 0135): salah ketik qty/harga ditolak sebelum
+    // harga rata-rata ikut rusak.
+    const violation = purchaseRangeViolation({ ...option, unitCostScaled, quantity, lineTotal }, ranges.get(productId));
+    if (violation) return { ok: false, error: violation, code: 'PURCHASE_PRICE_OUT_OF_RANGE', productId };
     seen.add(productId);
     totalAmount += lineTotal;
     items.push({ ...option, quantity, lineTotal, unitCostScaled });
@@ -177,11 +182,12 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
       // (Admin), bukan pembelian barang kasir.
       const deposits = (await listOpenDeposits(env.DB, cashier.store.id))
         .filter(deposit => deposit.sourceType === 'DEPOSIT_BAHAN_BAKU');
-      return json({
-        warehouseEnabled,
-        products: await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled),
-        deposits
+      const ranges = await loadPurchasePriceRanges(env.DB, cashier.store.id);
+      const products = (await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled)).map(product => {
+        const range = ranges.get(product.productId);
+        return range ? { ...product, priceRange: { min: rupiahSkala(range.minScaled), max: rupiahSkala(range.maxScaled) } } : product;
       });
+      return json({ warehouseEnabled, products, deposits });
     } catch (error) {
       console.error('cashier purchase options failed', { storeId: cashier.store.id, error });
       return json({ error: 'Master Barang pembelian gagal dimuat.', code: 'PURCHASE_OPTIONS_UNAVAILABLE' }, 500);
@@ -194,8 +200,9 @@ export async function handleCashierPurchaseApi(request, env, pathname) {
   if (!body.ok) return json({ error: 'Payload pembelian tidak valid.' }, 400);
   const warehouseEnabled = await storeWarehouseEnabled(env.DB, cashier.store.id);
   const options = await listPurchaseOptions(env.DB, cashier.store.id, warehouseEnabled);
-  const normalized = normalizeItems(options, body.value?.items);
-  if (!normalized.ok) return json({ error: normalized.error }, 400);
+  const ranges = await loadPurchasePriceRanges(env.DB, cashier.store.id);
+  const normalized = normalizeItems(options, body.value?.items, ranges);
+  if (!normalized.ok) return json({ error: normalized.error, ...(normalized.code ? { code: normalized.code, productId: normalized.productId } : {}) }, 400);
   const supplierId = text(body.value?.supplierId, 120) || null;
   const note = text(body.value?.note, 500);
   const resolvedPayment = await resolvePosPaymentMethod(env.DB, cashier.store.id, body.value?.paymentMethod, 'CASH');

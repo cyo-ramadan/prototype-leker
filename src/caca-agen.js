@@ -21,6 +21,8 @@ import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
 import { uraiDaftarHpp } from './caca-aksi-hpp-banyak.js';
 import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
+import { uraiDaftarRentang } from './caca-aksi-rentang.js';
+import { terjemahkanPesan } from './caca-terjemah.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
@@ -99,6 +101,7 @@ export function tanyaHalus(namaAlat, tanya) {
 export function alatPasti(pesan) {
   const teks = String(pesan ?? '');
   if (uraiDaftarTipe(teks).length > 0) return 'betulkan_klasifikasi_barang';
+  if (/rentang harga beli/i.test(teks) && uraiDaftarRentang(teks).daftar.length >= 1) return 'atur_rentang_harga_beli';
   if (/\bhpp\b/i.test(teks) && uraiDaftarHpp(teks).daftar.length >= 2) return 'koreksi_hpp_banyak';
   // Blok Penutup: "Una, sinkronkan akuntansi MANDALA." (pendek, satu perintah).
   if (teks.length <= 120 && /^\s*(una[,\s]+)?(tolong\s+)?sinkron(kan|isasi)?\s+akuntansi\b/i.test(teks)) return 'sinkron_akuntansi';
@@ -241,12 +244,16 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
   panggilModel = callStructured,
   jalurAksi = null
 } = {}) {
-  const pasti = alatPasti(pertanyaan);
+  // Bahasa chat -> format baku dulu (tanggal, daftar satu baris, tipe barang), dikerjakan
+  // kode karena model lite tidak andal di bagian ini (src/caca-terjemah.js). Pesan baku
+  // dipakai untuk memilih alat dan dibaca alat; pertanyaan asli tetap untuk menyusun jawaban.
+  const pesanBaku = terjemahkanPesan(pertanyaan, konteks.hariIni).teks;
+  const pasti = alatPasti(pesanBaku);
   const pilihan = pasti
     ? { ok: true, value: { alat: pasti } }
     : await panggilModel(env, {
       system: promptPilihAlat(konteks),
-      content: [{ type: 'text', text: pesanDenganRiwayat(pertanyaan, konteks.riwayat) }],
+      content: [{ type: 'text', text: pesanDenganRiwayat(pesanBaku, konteks.riwayat) }],
       schema: skemaPilihAlat()
     });
   if (!pilihan.ok) return { ok: false, status: pilihan.status, error: pilihan.error };
@@ -298,7 +305,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, {
     // karena model kadang mengembalikan daftar kosong untuk tempelan panjang.
     const disiapkan = await aksi.siapkan(pilihan.value, {
       ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
-      storeCode: konteks.storeCode, pesan: pertanyaan
+      storeCode: konteks.storeCode, pesan: pesanBaku
     });
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya || disiapkan.error), belumLengkap: true };

@@ -18,6 +18,7 @@ import { handleAttendanceReportApi } from './attendance-report.js';
 import { handleEntityRecipeApi } from './entity-recipe.js';
 import { handleHppRecalculationApi } from './hpp-recalculation.js';
 import { handleHppAuditApi } from './hpp-audit.js';
+import { handlePurchasePriceRangesApi } from './purchase-price-ranges.js';
 import { handleEntityStockApi } from './entity-stock.js';
 import { handleEntityDrawerStatusApi } from './entity-drawer-status.js';
 import { handleCashierWorkspaceApi } from './cashier-workspace.js';
@@ -281,6 +282,8 @@ async function handleApi(request, env, url) {
   if (attendanceReportResponse) return attendanceReportResponse;
   const entityRecipeResponse = await handleEntityRecipeApi(request, env, pathname);
   if (entityRecipeResponse) return entityRecipeResponse;
+  const purchasePriceRangesResponse = await handlePurchasePriceRangesApi(request, env, pathname);
+  if (purchasePriceRangesResponse) return purchasePriceRangesResponse;
   const hppAuditResponse = await handleHppAuditApi(request, env, pathname);
   if (hppAuditResponse) return hppAuditResponse;
   const hppRecalculationResponse = await handleHppRecalculationApi(request, env, pathname);

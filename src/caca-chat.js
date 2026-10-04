@@ -151,6 +151,8 @@ export const PINTU_AKSI = Object.freeze([
   // Cocok PERSIS / satu sub-path: bukan pintu ke seluruh Setting Akuntansi.
   '/api/admin/accounting/bridge/sync$',
   '/api/admin/settings/accounting/journal-rules',
+  // Rentang harga beli wajar (alat atur_rentang_harga_beli, migration 0135).
+  '/api/admin/purchase-price-ranges$',
   '/api/admin/operational-expenses',
   '/api/admin/hutang-piutang',
   '/api/entity-admin/accounts',

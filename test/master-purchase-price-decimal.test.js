@@ -92,7 +92,7 @@ test('Pembelian (Beli Bahan) defaults to the classic harga-per-satuan field with
   const purchaseBlockStart = cashierPaymentMethods.indexOf("host: byId('purchasePimasatu')");
   const operationalBlockStart = cashierPaymentMethods.indexOf("host: byId('operationalPimasatu')");
   assert.ok(purchaseBlockStart > -1 && operationalBlockStart > -1);
-  const purchaseBlock = cashierPaymentMethods.slice(purchaseBlockStart, purchaseBlockStart + 600);
+  const purchaseBlock = cashierPaymentMethods.slice(purchaseBlockStart, cashierPaymentMethods.indexOf('onLinesChange', purchaseBlockStart));
   const operationalBlock = cashierPaymentMethods.slice(operationalBlockStart, operationalBlockStart + 600);
   assert.match(purchaseBlock, /amountMode:\s*'toggle'/, 'Beli Bahan must offer the harga-per-satuan/total toggle');
   assert.doesNotMatch(operationalBlock, /amountMode:\s*'toggle'/, 'Pengeluaran Operasional keeps its existing single-field entry');
@@ -117,7 +117,7 @@ test('pimasatu toggle mode defaults to harga-per-satuan (comma-decimal capable),
   const { qty, price, total, results, add, errors, getAddedLine } = await mountPimasatu({ amountMode: 'toggle' });
 
   results.fire('click', { target: { closest: () => ({ dataset: { result: '1' } }) } });
-  assert.equal(price.value, '0.5', 'per-unit field must prefill from the Master Barang reference price, matching the classic behaviour kasir already knows');
+  assert.equal(price.value, '0,5', 'per-unit field must prefill from the Master Barang reference price, shown with a comma decimal (Bos Cyo 2026-10-04: a typed/shown dot is always a thousands separator)');
   assert.equal(total.disabled, true, 'total field must start locked');
   assert.equal(price.disabled, false, 'per-unit field must start active');
 

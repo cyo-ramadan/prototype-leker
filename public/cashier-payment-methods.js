@@ -252,7 +252,9 @@
         items: products,
         getId: item => item.productId,
         getLabel: item => item.productName,
-        getMeta: item => [item.productKindName, item.unitSymbol].filter(Boolean).join(' · '),
+        // Rentang harga beli wajar (Bos Cyo 2026-10-04): ditampilkan supaya kasir tahu
+        // sebelum menyimpan; server menolak pembelian di luar rentang.
+        getMeta: item => [item.productKindName, item.unitSymbol, item.priceRange ? `wajar ${item.priceRange.min}–${item.priceRange.max}/${item.unitSymbol || 'satuan'}` : ''].filter(Boolean).join(' · '),
         getDefaultAmount: item => item.purchasePrice,
         itemLabel: 'Barang / bahan',
         priceLabel: 'Harga beli / unit',

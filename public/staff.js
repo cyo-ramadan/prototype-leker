@@ -4,6 +4,7 @@
   const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
   let portal = null;
   let deposits = null;
+  let depositManual = { rupiah: 0, entries: [] };
   async function staffApi(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -442,7 +443,8 @@
   function renderDeposits() {
     const target = el('staffDepositList'); if (!target) return;
     const items = deposits || [];
-    if (!items.length) { target.className = 'staff-empty'; target.innerHTML = 'Belum ada riwayat setoran.'; return; }
+    const manualEntries = depositManual.entries || [];
+    if (!items.length && !manualEntries.length) { target.className = 'staff-empty'; target.innerHTML = 'Belum ada riwayat setoran.'; return; }
     target.className = '';
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
@@ -453,8 +455,10 @@
         pushCard(jakartaDate(payment.createdAt), { kind: 'transfer', at: utcIso(payment.createdAt), amountRupiah: Number(payment.amountRupiah || 0), payment });
       }
     }
+    // Penyesuaian dari jurnal Akuntansi (atas nama karyawan ini): + menambah piutang, - mengurangi.
+    for (const entry of manualEntries) pushCard(entry.businessDate, { kind: 'jurnal', at: `${entry.businessDate}T00:00:00.000Z`, entry });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
-    const totalSisa = items.reduce((n, item) => n + Number(item.balanceRupiah || 0), 0);
+    const totalSisa = items.reduce((n, item) => n + Number(item.balanceRupiah || 0), 0) + Number(depositManual.rupiah || 0);
     const totalMenunggu = items.reduce((n, item) => n + pendingSetoran(item), 0);
     target.innerHTML = `
       <div class="staff-card" style="margin-bottom:12px"><div class="muted">Sisa piutang setoran</div><h2 style="margin:5px 0">${money(totalSisa)}</h2>${totalMenunggu ? `<div class="muted">${money(totalMenunggu)} sedang menunggu ACC Admin</div>` : ''}</div>
@@ -466,6 +470,12 @@
               return `<div class="attendance-row">
                 <div><strong>Setoran dari tutup laci</strong><div class="muted">Tutup laci jam ${escapeHtml(jakartaClock(card.at))} · uang yang dibawa pulang</div></div>
                 <span>${money(card.amountRupiah)}</span></div>`;
+            }
+            if (card.kind === 'jurnal') {
+              const e = card.entry; const rupiah = Number(e.signedScaled || 0) / 1000000;
+              return `<div class="attendance-row">
+                <div><strong>Penyesuaian dari Akuntansi</strong><div class="muted">Jurnal ${escapeHtml(e.journalNumber || '')}${e.description ? ` · ${escapeHtml(e.description)}` : ''}</div></div>
+                <span>${rupiah < 0 ? '−' : '+'}${money(Math.abs(rupiah))}</span></div>`;
             }
             const p = card.payment;
             const warna = approvalColor[p.approvalStatus] || '#555';
@@ -481,7 +491,7 @@
     loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
-  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
+  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
   async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }

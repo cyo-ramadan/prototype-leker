@@ -97,7 +97,7 @@
       <article class="master-row">
         <div class="master-main">
           <strong>${escapeHtml(row.employeeName)}</strong>
-          <div class="master-meta">${row.receivableCount} setoran laci · total ${money(row.originalAmountRupiah)} · sudah di-ACC ${money(row.paidAmountRupiah)}${row.pendingAmountRupiah ? ` · menunggu ACC ${money(row.pendingAmountRupiah)}` : ''}</div>
+          <div class="master-meta">${row.receivableCount} setoran laci · total ${money(row.originalAmountRupiah)} · sudah di-ACC ${money(row.paidAmountRupiah)}${row.pendingAmountRupiah ? ` · menunggu ACC ${money(row.pendingAmountRupiah)}` : ''}${row.manualAdjustmentRupiah ? ` · penyesuaian Akuntansi ${row.manualAdjustmentRupiah > 0 ? '+' : '−'}${money(Math.abs(row.manualAdjustmentRupiah))}` : ''}</div>
         </div>
         <span class="status-chip ${row.balanceRupiah > 0 ? 'warn' : 'ok'}">${row.balanceRupiah > 0 ? `Sisa ${money(row.balanceRupiah)}` : row.balanceRupiah < 0 ? `Lebih ${money(-row.balanceRupiah)}` : 'Lunas'}</span>
       </article>`).join('') : '<div class="empty">Belum ada piutang setoran di gerai ini.</div>';

@@ -204,6 +204,37 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   Keadaan rencana disimpan di kartunya (`data-caca-rencana`), jadi bertahan pindah halaman
   (langkah yang sedang jalan jadi "terputus").
 
+**Mode agen berputar (2026-10-05, Bos Cyo: "rangka mesin setara Claude Code, hanya di lingkungan tenant"):**
+- **Masalahnya bukan batas konteks Gemini** (keluarga Flash-Lite menerima sekitar 1 juta token), tapi Una dulu
+  sekali tembak: pilih satu alat, jalan, selesai. Sekarang `jawabPertanyaan`
+  (`src/caca-agen.js`) berputar: model memilih SATU alat per putaran, mengisi `judul_langkah`
+  dan `lanjut`. `lanjut=true` → hasil alat dijadikan "catatan kerja" (`teksPengamatan`, maks
+  2.500 huruf/langkah) dan model memilih langkah berikutnya sambil membacanya; alat `selesai`
+  menulis `jawaban_akhir`. `lanjut` kosong/false → perilaku persis seperti dulu (semua test
+  lama tidak diubah).
+- **Pagar tetap:** tiap putaran memilih dari daftar alat yang sama, alat tulis berhenti di
+  draft + "Ya" (diperiksa ulang server). Angka di `jawaban_akhir` diperiksa `angkaTanpaBukti`
+  terhadap catatan kerja + pesan Bos: meleset → model diminta memperbaiki sekali, masih
+  meleset → `peringatan`. `selesai` TANPA catatan kerja (menjawab dari ingatan) yang
+  menyebut angka ≥3 digit ditolak dengan kalimat jujur. Riwayat tetap bukan bukti angka.
+- **Lintas permintaan:** maks `MAKS_PUTARAN`=4 pilih-alat per permintaan (batas subrequest
+  Cloudflare). Belum tuntas → `{lanjutkan:true, kerja}`; panel mengirim ulang otomatis sampai 3x
+  ("Una lagi ngerjain langkah n…"), sesudah itu tombol "Lanjutkan kerjaan". Total maks
+  `MAKS_LANGKAH_KERJA`=12 langkah per perintah. Catatan kerja dibawa browser =
+  data tak tepercaya (`bersihkanKerja`: bentuk, panjang, jumlah) — paling jauh membuat Una
+  salah paham, tidak bisa melewati draft + "Ya". Tanpa tabel D1 baru (tanpa migration).
+- **Draft di tengah kerjaan:** `lanjutSesudahYa` → sesudah Bos menekan "Ya", panel menambah
+  langkah `persetujuan` (isi = catatan sistem hasil simpan) lalu Una melanjutkan. "Batal" =
+  berhenti. Una bertanya di tengah kerjaan (`belumLengkap` + kerja) → pesan Bos berikutnya
+  dikirim bersama catatan kerja (`cacaState.kerjaTertunda`), jadi Una lanjut, bukan mulai lagi.
+  Lanjutan tidak memakai `alatPasti`.
+- Panel menulis langkahnya ala agen: 1. … ✓ 2. … ⏸ (menunggu "Ya") di atas jawaban.
+  Prompt memuat contoh percakapan (`ATURAN_PUTARAN`) — model lite lebih nurut dengan contoh.
+- **Graphify bukan untuk Una:** itu peta KODE untuk agen pengembang; Una bekerja di DATA
+  tenant lewat endpoint yang sama dengan layar. "Peta" milik Una = katalog API baca + daftar
+  alat; dengan mode berputar dia bisa menelusuri hubungan data sendiri (barang → resep → HPP).
+  Test: `test/caca-agen-putar.test.js`.
+
 **Bahasa pertanyaan balik jangan kaku (2026-10-03):** "tidak ditemukan/tidak ketemu" diganti
 "belum ketemu nih"/"belum nemu nih" (`kataBelumKetemu` di `src/caca-aksi-dasar.js`, dipilih
 dari isi kalimat supaya pasti untuk tes tapi bervariasi); deteksi "belum ketemu" di kode

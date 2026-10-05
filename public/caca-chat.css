@@ -910,3 +910,27 @@
 @media (prefers-reduced-motion: reduce) {
   .caca-rencana li.jalan .caca-rencana-tanda { animation: none; }
 }
+
+/* Mode agen berputar: langkah yang sudah dijalankan Una (1. … ✓ 2. … ⏸). */
+.caca-kerja {
+  margin: 0 0 8px;
+  padding: 0 0 0 18px;
+  display: grid;
+  gap: 3px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.caca-kerja li.selesai .caca-rencana-tanda {
+  color: var(--green);
+  font-weight: 900;
+}
+
+.caca-kerja li.menunggu .caca-rencana-tanda {
+  color: var(--amber);
+  font-weight: 900;
+}
+
+.caca-kerja-lanjut {
+  margin-top: 8px;
+}

@@ -160,6 +160,8 @@ const ATURAN_PUTARAN = [
   '  yang sama. Nama barang/bahan untuk alat berikutnya disalin PERSIS dari catatan kerja.',
   `- ${ALAT_SELESAI}: pilih kalau catatan kerja sudah cukup; tulis jawaban_akhir 1-4 kalimat, SEMUA angka dari catatan kerja.`,
   '  Tanpa catatan kerja, "selesai" hanya untuk salam, terima kasih, atau obrolan ringan — pertanyaan data tetap pakai alat.',
+  '- Kalau catatan kerja bilang belum bisa membaca/menyimpulkan, JANGAN menyimpulkan "aman"/"tidak ada": bilang terus',
+  '  terang Una belum berhasil, atau coba alat lain yang lebih cocok.',
   '- Butuh angka/keputusan dari Bos yang tidak ada di catatan (mis. harga normal): jangan mengarang. Pilih "selesai"',
   '  dan tanyakan di jawaban_akhir (akhiri dengan "?"), sebut barangnya.',
   '- Alat yang mengubah data selalu jadi draft yang menunggu "Ya". Kalau perintah Bos masih punya pekerjaan SESUDAH',
@@ -212,6 +214,8 @@ function promptPilihAlat(konteks) {
     '  menyimpan harga (hanya Kode Barang dan foto). Jadi "ubah di master" = ubah Data Barang gerai yang sedang dibuka;',
     '  jangan bilang tidak punya akses ke master.',
     '- Harga/HPP/stok barang tertentu yang disebut namanya = cek_barang (bukan baca_api).',
+    '- Mencari harga yang janggal/anomali, barang yang dijual rugi/di bawah harga beli atau HPP = cek_harga_janggal',
+    '  (bukan baca_api).',
     `- ${ALAT_RENCANA}: pilih ini HANYA kalau perintahnya berisi 2 pekerjaan BERBEDA atau lebih yang masing-masing bisa`,
     '  dikerjakan sendiri, mis. "bikin 3 barang ini, lalu koreksi HPP gula, lalu atur cara bayar QRIS". Kalau langkah',
     '  berikutnya cuma menunggu HASIL BACA langkah sebelumnya (cek dulu lalu ubah), kerjakan berputar (lanjut=true).',
@@ -495,8 +499,24 @@ function isiPilihAlat(pesanBaku, konteks, kerja) {
   return blok ? `${pesan}\n\n${blok}\nPilih langkah berikutnya (atau "${ALAT_SELESAI}" kalau sudah cukup).` : pesan;
 }
 
+const GAGAL_BACA = /^(Una belum bisa|Una belum berhasil|GAGAL|pembacaan gagal)/i;
+
+// Model kadang tidak mengisi judul_langkah; daftar langkah tetap harus terbaca
+// bahasa manusia, bukan nama alat.
+const JUDUL_BAWAAN = Object.freeze({
+  cek_barang: 'Cek harga barang',
+  cek_harga_janggal: 'Cari harga yang janggal',
+  baca_api: 'Baca data gerai',
+  ubah_barang: 'Siapkan perubahan barang',
+  buat_barang: 'Siapkan barang baru',
+  buat_barang_banyak: 'Siapkan daftar barang baru',
+  hitung_ulang_hpp: 'Siapkan koreksi HPP',
+  koreksi_hpp_banyak: 'Siapkan koreksi HPP',
+  jelaskan: 'Cari penjelasan'
+});
+
 function judulDari(v, namaAlat) {
-  return bersihTeks(v?.judul_langkah, 100).replace(/\s+/g, ' ') || namaAlat;
+  return bersihTeks(v?.judul_langkah, 100).replace(/\s+/g, ' ') || JUDUL_BAWAAN[namaAlat] || namaAlat;
 }
 
 // Angka di jawaban akhir harus ada di catatan kerja atau di pesan Bos sendiri —
@@ -505,6 +525,17 @@ async function selesaikan(v, { pertanyaan, pesanBaku, konteks, kerja, tabel, env
   let jawaban = bersihTeks(v?.jawaban_akhir, 2000);
   if (!jawaban) {
     jawaban = kerja.length ? 'Una belum bisa menyimpulkan dari data yang ada.' : 'Siap, Bos.';
+  }
+  // Semua bacaan gagal / tidak menyimpulkan apa pun: kesimpulan "aman" dari situ
+  // adalah karangan (uji langsung 2026-10-05). Jawab terus terang saja.
+  if (kerja.length && kerja.every((k) => GAGAL_BACA.test(k.hasil))) {
+    return {
+      ok: true,
+      alat: kerja[kerja.length - 1].alat,
+      jawaban: 'Una belum berhasil membaca/menyimpulkan datanya, jadi Una belum bisa bilang aman atau tidak. Coba tanya lebih spesifik ya, Bos.',
+      belumLengkap: true,
+      kerja
+    };
   }
   const bukti = [pertanyaan, pesanBaku, konteks.hariIni, ...kerja.map((k) => k.hasil)].join('\n');
   let hilang = angkaTanpaBukti(jawaban, bukti);

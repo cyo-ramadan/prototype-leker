@@ -243,6 +243,13 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   tinggi tidak lagi dihitung dari posisi bilah tab (ikut bergeser saat halaman tergulir).
   Layar lebar: tetap maks 640px. HP (≤560px): penuh layar mengikuti `visualViewport`, jadi
   kepala panel tetap terlihat saat keyboard muncul; isi chat `overscroll-behavior: contain`.
+- **`cek_harga_janggal` (baca, dihitung kode):** lahir dari uji langsung di Testing Una —
+  "barang mana yang harga jualnya di bawah harga beli?" lewat `baca_api` dijawab "semua
+  aman" padahal ada 2 (daftar 46 barang terlalu besar, model lite tidak menyusun saringan).
+  Menandai: jual < beli, jual < HPP (skala 1e6 BigInt), barang jual berharga 0, dan harga
+  ≥5x / ≤1/5 median sekategori (salah ketik nol). Ditambah pagar di `selesai`: kalau semua
+  catatan kerja berisi gagal/"belum bisa menyimpulkan", kesimpulan model diganti kalimat
+  jujur. `judul_langkah` kosong diisi `JUDUL_BAWAAN`, bukan nama alat.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat

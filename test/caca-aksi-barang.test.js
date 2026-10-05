@@ -272,3 +272,29 @@ test('prompt: fakta harga ada di gerai (bukan entity), cek_barang dan rencana di
 test('katalog barang selalu meminta daftar tanpa foto', () => {
   assert.equal(bangunAlamat(cariApi('barang'), []).alamat, '/api/admin/master/products/editor?ringkas=1');
 });
+
+test('cek_harga_janggal: jual di bawah beli/HPP, harga 0, dan salah ketik nol dihitung kode', async () => {
+  const { cariHargaJanggal } = await import('../src/caca-aksi-barang.js');
+  const p = (id, name, price, purchasePrice, extra = {}) => ({ id, name, price, purchasePrice, averageCost: 0, averageCostScaled: '0', category: 'Minuman', isActive: true, productKindCode: 'FINISHED_GOOD', ...extra });
+  const hasil = cariHargaJanggal([
+    p(1, 'Es Teh Leci', 7000, 3000),
+    p(2, 'Es Teh Black currant', 70000, 3000),
+    p(3, 'Es Teh Manis', 6000, 2000),
+    p(4, 'Es Jeruk', 8000, 2500),
+    p(5, 'Susu Kental Manis', 999, 1500, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
+    p(6, 'Teh Vanilla', 1499, 1500, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
+    p(7, 'Kopi Susu', 0, 4000),
+    p(8, 'Roti', 5000, 1000, { averageCost: 6000, averageCostScaled: '6000000000', category: 'Makanan' }),
+    p(9, 'Gula', 0, 17, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
+    p(10, 'Nonaktif', 1, 99999, { isActive: false })
+  ]);
+  const nama = Object.fromEntries(hasil.map((h) => [h.produk.name, h.alasan.join('; ')]));
+  assert.match(nama['Susu Kental Manis'], /di bawah harga beli/);
+  assert.match(nama['Teh Vanilla'], /di bawah harga beli/, 'selisih Rp1 tetap ketahuan (tanpa float)');
+  assert.match(nama['Es Teh Black currant'], /lebih mahal dari barang sekategori/);
+  assert.match(nama['Kopi Susu'], /masih 0/);
+  assert.match(nama.Roti, /di bawah HPP/);
+  assert.equal(nama.Gula, undefined, 'bahan baku tanpa harga jual itu wajar');
+  assert.equal(nama.Nonaktif, undefined);
+  assert.equal(nama['Es Teh Leci'], undefined);
+});

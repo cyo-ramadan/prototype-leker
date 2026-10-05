@@ -254,3 +254,29 @@ test('Master Barang menanyakan konfirmasi saat server menjawab RANGE_TOO_WIDE (t
   assert.match(ui, /error\.code !== 'RANGE_TOO_WIDE' \|\| !window\.confirm\(/);
   assert.match(ui, /confirmWide: true/);
 });
+
+// Penahan lonjakan HPP (5 Okt 2026): barang tanpa rentang ditolak kalau harga per satuan >3x atau <1/3x HPP sekarang.
+test('kasir: barang tanpa rentang ditolak PURCHASE_PRICE_JUMP kalau harga per satuan menjauh >3x dari HPP; rentang Admin didahulukan', async () => {
+  const { db, env, pendem } = await setup();
+  try {
+    const options = await (await kasir(env, '/api/cashier/purchases/options')).json();
+    const gula = options.products[0];
+    db.prepare('UPDATE products SET average_cost = 18000000 WHERE id = ?').run(gula.productId);
+    const sebelum = db.prepare('SELECT COUNT(*) AS n FROM purchases WHERE store_id = ?').get(pendem.id).n;
+
+    const salahKetik = await kasir(env, '/api/cashier/purchases', { paymentMethod: 'CASH', items: [{ productId: gula.productId, quantity: 2, lineTotal: 36000 }] });
+    assert.equal(salahKetik.status, 400);
+    const body = await salahKetik.json();
+    assert.equal(body.code, 'PURCHASE_PRICE_JUMP');
+    assert.match(body.error, /jauh dari HPP sekarang Rp18 per/);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM purchases WHERE store_id = ?').get(pendem.id).n, sebelum, 'tidak ada yang tertulis');
+
+    const benar = await kasir(env, '/api/cashier/purchases', { paymentMethod: 'CASH', items: [{ productId: gula.productId, quantity: 2000, lineTotal: 36000 }] });
+    assert.equal(benar.status, 201, JSON.stringify(await benar.clone().json()));
+
+    // Rentang dari Admin yang (dengan sengaja, dikonfirmasi) lebar menang atas penahan HPP.
+    await admin(env, 'POST', { items: [{ productId: gula.productId, min: '13', max: '20000' }], confirmWide: true });
+    const lewatRentang = await kasir(env, '/api/cashier/purchases', { paymentMethod: 'CASH', items: [{ productId: gula.productId, quantity: 1, lineTotal: 19000 }] });
+    assert.equal(lewatRentang.status, 201);
+  } finally { db.close(); }
+});

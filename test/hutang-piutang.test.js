@@ -315,14 +315,15 @@ test('Pembelian kasir dengan cara bayar "Jadi Hutang" otomatis jadi Hutang Pembe
     }), env, pathname);
     const options = await (await kasir('/api/cashier/purchases/options')).json();
     const productId = options.products[0].productId;
-    const buy = async (lineTotal, supplierId) => {
-      const response = await kasir('/api/cashier/purchases', { paymentMethod: 'PIUTANG_POCI', supplierId, items: [{ productId, quantity: 1, lineTotal }] });
+    // qty dipilih supaya harga per satuan tetap wajar (penahan lonjakan HPP, 2026-10-05); yang diuji nominal hutangnya.
+    const buy = async (lineTotal, supplierId, quantity = 1) => {
+      const response = await kasir('/api/cashier/purchases', { paymentMethod: 'PIUTANG_POCI', supplierId, items: [{ productId, quantity, lineTotal }] });
       assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
       return (await response.json()).id;
     };
 
     // Belum ditandai -> tidak jadi hutang.
-    const oldPurchase = await buy(75000, azis);
+    const oldPurchase = await buy(75000, azis, 3);
     assert.equal((await summary(env, token)).totals.hutangRupiah, 0);
 
     // Admin menandai "Jadi Hutang" -> pembelian lama ikut ditarik.

@@ -17,6 +17,7 @@ import { handlePermitReportApi } from './permit-report.js';
 import { handleAttendanceReportApi } from './attendance-report.js';
 import { handleEntityRecipeApi } from './entity-recipe.js';
 import { handleHppRecalculationApi } from './hpp-recalculation.js';
+import { handleStockAdjustmentCorrectionApi } from './stock-adjustment-correction.js';
 import { handleHppAuditApi } from './hpp-audit.js';
 import { handlePurchasePriceRangesApi } from './purchase-price-ranges.js';
 import { handleEntityStockApi } from './entity-stock.js';
@@ -298,6 +299,8 @@ async function handleApiRouted(request, env, url) {
   if (purchasePriceRangesResponse) return purchasePriceRangesResponse;
   const hppAuditResponse = await handleHppAuditApi(request, env, pathname);
   if (hppAuditResponse) return hppAuditResponse;
+  const stockAdjustmentCorrectionResponse = await handleStockAdjustmentCorrectionApi(request, env, pathname);
+  if (stockAdjustmentCorrectionResponse) return stockAdjustmentCorrectionResponse;
   const hppRecalculationResponse = await handleHppRecalculationApi(request, env, pathname);
   if (hppRecalculationResponse) return hppRecalculationResponse;
   const entityStockResponse = await handleEntityStockApi(request, env, pathname);

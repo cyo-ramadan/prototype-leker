@@ -170,16 +170,19 @@ async function computeFactsForDates(db, storeIds, dates) {
     // dibaca. Tetap satu query (dua ekspresi SUM(CASE) dalam satu SELECT),
     // bukan dua query terpisah.
     sumByStoreDate(db, `
-      SELECT store_id, ${JAKARTA_BUSINESS_DATE_SQL.replace('created_at', 'posted_at')} AS business_date,
-             COALESCE(SUM(CASE WHEN json_extract(payload_json, '$.direction') = 'IN'
-                                THEN json_extract(payload_json, '$.totalCostSnapshotScaled') ELSE 0 END), 0) AS gain_value,
-             COALESCE(SUM(CASE WHEN json_extract(payload_json, '$.direction') = 'OUT'
-                                THEN json_extract(payload_json, '$.totalCostSnapshotScaled') ELSE 0 END), 0) AS loss_value
-      FROM approval_requests
-      WHERE request_type = 'GOODS_FLOW' AND posting_status = 'posted'
-        AND json_extract(payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'
-        AND store_id IN (${storePh}) AND ${JAKARTA_BUSINESS_DATE_SQL.replace('created_at', 'posted_at')} IN (${datePh})
-      GROUP BY store_id, business_date
+      -- Koreksi Nilai SO (stock_adjustment_value_corrections, 2026-10-05): nilai terkoreksi
+      -- menggantikan snapshot; snapshot aslinya tidak ditulis ulang.
+      SELECT a.store_id, ${JAKARTA_BUSINESS_DATE_SQL.replace('created_at', 'a.posted_at')} AS business_date,
+             COALESCE(SUM(CASE WHEN json_extract(a.payload_json, '$.direction') = 'IN'
+                                THEN COALESCE(c.corrected_value_scaled, json_extract(a.payload_json, '$.totalCostSnapshotScaled')) ELSE 0 END), 0) AS gain_value,
+             COALESCE(SUM(CASE WHEN json_extract(a.payload_json, '$.direction') = 'OUT'
+                                THEN COALESCE(c.corrected_value_scaled, json_extract(a.payload_json, '$.totalCostSnapshotScaled')) ELSE 0 END), 0) AS loss_value
+      FROM approval_requests a
+      LEFT JOIN stock_adjustment_value_corrections c ON c.approval_request_id = a.id
+      WHERE a.request_type = 'GOODS_FLOW' AND a.posting_status = 'posted'
+        AND json_extract(a.payload_json, '$.purpose') = 'STOCK_ADJUSTMENT'
+        AND a.store_id IN (${storePh}) AND ${JAKARTA_BUSINESS_DATE_SQL.replace('created_at', 'a.posted_at')} IN (${datePh})
+      GROUP BY a.store_id, business_date
     `, [...storeIds, ...dates]),
     // Bea Operasional yang dicatat dari panel Admin (Bea Gaji/Lapak/Lainnya,
     // migration 0100), DIRINCI PER KATEGORI (Bos Cyo: laporan lama melebur

@@ -5,8 +5,12 @@
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
   const state = { filter: 'ALL', transactions: [], nextCursor: null, hasMore: false };
 
-  async function api(path) {
-    const response = await fetch(path, { cache: 'no-store' });
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      cache: 'no-store',
+      ...options,
+      headers: { ...(options.headers || {}), ...(options.body ? { 'Content-Type': 'application/json' } : {}) }
+    });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `Request gagal (${response.status})`);
     return payload;
@@ -228,11 +232,65 @@
       <div class="admin-tip" style="margin-top:12px"><b>HPP total</b> ${decimalMoney(detail.hppTotal)} · <b>HPP/unit</b> ${decimalMoney(detail.hppPerUnit)}</div>`;
   }
 
+  // Koreksi Nilai SO (Bos Cyo, 2026-10-05): SO yang dinilai dengan HPP yang sedang rusak dibetulkan
+  // lewat jalur resmi -- catatan koreksi baru + jurnal pembalik selisih. SO aslinya tidak diubah.
+  const SKALA = 1000000n;
+  function rupiahSkala(scaled) {
+    if (scaled == null || scaled === '') return '-';
+    const n = BigInt(scaled);
+    const pecahan = (n % SKALA).toString().padStart(6, '0').replace(/0+$/, '');
+    return `Rp${(n / SKALA).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}${pecahan ? `,${pecahan}` : ''}`;
+  }
+
+  function stockAdjustmentItems(detail) {
+    if (Array.isArray(detail.items)) return detail.items;
+    if (detail.payload?.purpose !== 'STOCK_ADJUSTMENT') return null;
+    const p = detail.payload;
+    return [{
+      approvalRequestId: detail.id, productName: p.productName, unitSymbol: p.unitSymbol, direction: p.direction,
+      quantity: p.quantity, currentQuantitySnapshot: p.currentQuantitySnapshot, targetQuantity: p.targetQuantity,
+      unitCostSnapshotScaled: p.unitCostSnapshotScaled, valueSnapshotScaled: p.totalCostSnapshotScaled, postingStatus: detail.postingStatus
+    }];
+  }
+
+  function renderStockAdjustmentDetail(items) {
+    return `<div class="master-list">${items.map(item => `
+      <article class="master-row" style="align-items:flex-start">
+        <div class="master-main">
+          <strong>${esc(item.productName)} · ${item.direction === 'IN' ? 'SO+' : 'SO−'} ${esc(String(item.quantity ?? ''))} ${esc(item.unitSymbol || '')}</strong>
+          <div class="master-meta">Stok ${esc(String(item.currentQuantitySnapshot ?? '-'))} → ${esc(String(item.targetQuantity ?? '-'))} ${esc(item.unitSymbol || '')}</div>
+          <div class="master-meta">Nilai tercatat ${rupiahSkala(item.valueSnapshotScaled)} (HPP ${rupiahSkala(item.unitCostSnapshotScaled)}/${esc(item.unitSymbol || 'satuan')})</div>
+        </div>
+        ${item.postingStatus === 'posted' ? `<div class="master-actions"><button class="admin-tx-btn" type="button" data-so-correct="${esc(item.approvalRequestId)}" data-so-name="${esc(item.productName)}" data-so-unit="${esc(item.unitSymbol || '')}">Koreksi nilai</button></div>` : ''}
+      </article>`).join('')}</div>`;
+  }
+
+  async function correctStockAdjustmentValue(button) {
+    const id = button.dataset.soCorrect;
+    const unitCost = window.prompt(`Harga per ${button.dataset.soUnit || 'satuan'} yang BENAR untuk ${button.dataset.soName} (koma untuk desimal, mis. 18 atau 0,4375):`);
+    if (unitCost == null || !unitCost.trim()) return;
+    const body = { unitCost: unitCost.trim().replace(/\./g, '').replace(',', '.') };
+    try {
+      const { preview } = await api(`/api/admin/stock-adjustments/${encodeURIComponent(id)}/value-correction/preview`, { method: 'POST', body: JSON.stringify(body) });
+      const reason = window.prompt(`${preview.label} ${preview.productName} ${preview.quantity} ${preview.unitSymbol} (${preview.businessDate})\nNilai tercatat ${preview.originalValue} → nilai benar ${preview.correctedValue}\nSelisih ${preview.delta} akan dibukukan sebagai jurnal pembalik. SO aslinya tidak diubah.\n\nTulis alasan koreksi (minimal 5 huruf):`);
+      if (reason == null) return;
+      const result = await api(`/api/admin/stock-adjustments/${encodeURIComponent(id)}/value-correction`, { method: 'POST', body: JSON.stringify({ ...body, reason }) });
+      window.alert(`Koreksi tersimpan. Jurnal: ${result.journal?.status || '-'}${result.journal?.error ? ` (${result.journal.error})` : ''}`);
+      button.disabled = true;
+      button.textContent = 'Sudah dikoreksi';
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
   function renderDetail(detail) {
+    const soItems = detail.kind === 'GOODS_FLOW' ? stockAdjustmentItems(detail) : null;
     const content = detail.kind === 'SALE'
       ? renderSaleDetail(detail)
       : detail.kind === 'PRODUCTION'
         ? renderProductionDetail(detail)
+        : soItems
+          ? renderStockAdjustmentDetail(soItems)
         : `<div class="admin-tip"><pre style="white-space:pre-wrap;margin:0;font-size:12px">${esc(JSON.stringify(detail.payload || {
             description: detail.description,
             amount: detail.amount,
@@ -246,6 +304,7 @@
       head: `<div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div>`,
       body: content
     });
+    document.querySelectorAll('[data-so-correct]').forEach(button => button.addEventListener('click', () => correctStockAdjustmentValue(button)));
   }
 
   mount();

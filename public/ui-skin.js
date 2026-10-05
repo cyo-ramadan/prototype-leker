@@ -17,7 +17,7 @@
 // berikutnya langsung tampil benar tanpa kedip; server tetap dicek tiap
 // halaman dimuat (bukan polling -- invariant #6).
 (() => {
-  const SKIN_ASSET_VERSION = '20261003-plang-seng-v1';
+  const SKIN_ASSET_VERSION = '20261005-ownertenang-v1';
   const SKIN_FONTS = {
     a: 'family=Plus+Jakarta+Sans:wght@400;600;700;800',
     b: 'family=Archivo:wdth,wght@62..125,400..900',
@@ -111,10 +111,14 @@
   function apply() {
     injectStyle();
     setRootSkin();
-    // Merek berlaku untuk semua tenant (bukan bagian saklar skin).
-    document.title = state.brandName
-      ? originalTitle.replace(/\bMAXI\b/, state.brandName)
-      : originalTitle;
+    // Merek berlaku untuk semua tenant (bukan bagian saklar skin) -- kecuali
+    // halaman pesan pelanggan: pembeli melihat nama gerai, bukan merek
+    // aplikasi (HANDOFF-STRATEGI-PENJUALAN.md §10).
+    if (window.MAXI_SKIN_PAGE !== 'customer') {
+      document.title = state.brandName
+        ? originalTitle.replace(/\bMAXI\b/, state.brandName)
+        : originalTitle;
+    }
     applyDom();
   }
 

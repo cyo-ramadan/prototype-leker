@@ -20,10 +20,11 @@ const SKIN_BY_CHOICE = Object.freeze({ A: 'a', B: 'b', C: 'c', D: 'd', E: 'e' })
 
 // Satu-satunya tempat nama merek, sama untuk SEMUA tenant (Bos Cyo
 // 2026-10-01: handoff UI/UX "dikerjakan buat universal", bukan khusus
-// Leker). Nama produk final belum diputuskan (kandidat: OwnerTenang /
-// PantauGerai / GeraiJujur) -- ganti di sini saja; teks bawaan HTML ikut
-// memakai "MAXI" sebagai nilai awal sebelum server menjawab.
-export const PRODUCT_BRAND_NAME = 'MAXI';
+// Leker). Bos Cyo 2026-10-05: "ganti merek ownertenang" -- merek final
+// OwnerTenang (HANDOFF-STRATEGI-PENJUALAN.md §10). Teks bawaan HTML masih
+// "MAXI" sebagai nilai awal sebelum server menjawab; public/ui-skin.js
+// menggantinya. Halaman pesan pelanggan TIDAK ikut (tetap bermerek gerai).
+export const PRODUCT_BRAND_NAME = 'OwnerTenang';
 
 async function tenantIdForContext(db, { storeCode, entityId }) {
   if (storeCode) {

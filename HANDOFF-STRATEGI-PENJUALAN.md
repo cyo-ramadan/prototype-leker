@@ -261,6 +261,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-04 | Portal Staf / Admin Gerai | Setoran CS: CS kirim foto bukti transfer di Riwayat Setoran, piutang CS baru berkurang setelah Admin klik ACC di tab baru "Setoran CS" (antrean + foto, sisa piutang per CS, riwayat); tidak ada ACC otomatis | JUAL | Uang setoran laci terlacak sampai rekening, tanpa catatan manual |
 | 2026-10-04 | Kasir / Portal Staf / Admin Gerai | Tutup laci memakai bahasa yang jelas: "Uang di laci sekarang" + "Taruh uang laci" → "Setoran" langsung terhitung dan tercatat sebagai piutang setoran (masuk pembukuan saat itu juga); Portal Staf punya tab "Setor Uang" sendiri (foto bukti wajib) dan "Riwayat Setoran" yang hanya berisi data; Riwayat Gaji menampilkan jam datang–pulang | JUAL | CS paham berapa yang harus dibawa/disetor tanpa istilah akuntansi; uang setoran terlacak dari laci sampai rekening |
 | 2026-10-05 | Semua peran | Login karyawan dibuat satu pintu ala Facebook: kalau sudah masuk, layar menawarkan "Lanjutkan sebagai <nama>" atau "Masuk dengan akun lain"; satu browser tetap satu akun di semua tab sampai logout; tombol Back sampai mau keluar bertanya dulu "Keluar dari aplikasi?"; tab di Workspace Gerai/panel Entity bisa dibuka di tab baru | JUAL | Karyawan tidak lagi terlempar ke halaman salah atau harus login ulang; berpindah akun jelas dan aman |
+| 2026-10-05 | UI/UX | Merek di dalam aplikasi jadi **OwnerTenang** (judul tab, bilah atas kasir/admin/portal staf); halaman pesan pelanggan tidak memakai merek aplikasi. Landing page: angka bukti diperbarui (14 gerai, 38 akun karyawan, 1.800+ penjualan, 540 barang) dan harga tampil (Rp149rb/gerai/bulan, Rp249rb dengan pembukuan otomatis) | INTERNAL | Landing page siap dibagikan begitu domain ownertenang.biz.id tersambung di Cloudflare |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -289,10 +290,13 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
   presensi/permit, multi-gerai. Pembukuan lengkap = paket naik kelas.
 - **Disembunyikan untuk tenant baru**: asisten AI Caca/Una, Game/Roda Puter, poin pelanggan,
   pendaftaran akun pelanggan, menu akuntansi lengkap.
-- **Harga hipotesis** *(menunggu)*: Rp149rb/gerai/bulan (Kontrol), Rp249rb (+Pembukuan).
+- **Harga** *(diputuskan Bos Cyo 2026-10-05: "harga ikut usulan")*: **Rp149rb/gerai/bulan** (Paket
+  Kontrol Gerai), **Rp249rb/gerai/bulan** (+ pembukuan otomatis lengkap). Sudah tampil di landing page.
   Pembanding: Majoo Rp249rb–999rb, Moka Rp299rb–799rb, Pawoon Rp299rb per outlet/bulan;
   aplikasi absensi terpisah Rp5rb–12rb/karyawan/bulan.
-- **Nama/domain** *(diputuskan 2026-10-02)*: merek **OwnerTenang**; domain **ownertenang.biz.id**
+- **Nama/domain** *(diputuskan 2026-10-02)*: merek **OwnerTenang** — 2026-10-05 merek di dalam
+  aplikasi (judul tab, bilah atas kasir/admin/portal staf) juga diganti dari "MAXI" ke OwnerTenang,
+  kecuali halaman pesan pelanggan yang tetap bermerek gerai; domain **ownertenang.biz.id**
   dibeli di Exabytes (Rp3.000/tahun, jatuh tempo 02/10/2027). Beli **ownertenang.id** setelah
   ada 10 pelanggan berbayar. Rencana subdomain: halaman jualan di domain utama, aplikasi di
   `app.`, bantuan di `bantuan.`. Halaman pesan pelanggan gerai tetap bermerek gerai masing-masing.
@@ -303,7 +307,9 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
   depan siap → iklan Meta paling akhir.
 - **Landing page** ada di `/produk/` pada alamat aplikasi sekarang. Yang wajib diisi sebelum
   dibagikan: nomor WhatsApp, nama merek (satu blok pengaturan di bagian bawah halaman), dan
-  persetujuan Bos Cyo memakai angka Leker (14 gerai, 37 akun, 1.200+ penjualan, 540 barang).
+  persetujuan Bos Cyo memakai angka Leker. **2026-10-05: izin diberikan** ("boleh pakai angka
+  leker"); angka dicek ulang ke produksi hari itu: 14 gerai aktif, 38 akun karyawan, 1.911 penjualan
+  (ditulis "1.800+" karena sebagian kemungkinan uji), 540 barang. Nama "Leker" tetap tidak ditulis.
   Halaman hanya boleh menjanjikan fitur berstatus `JUAL`; tes otomatis menolak kata seperti
   AI/Caca, game, poin, offline, jurnal, prototype. **Pindah ke domain sendiri**: begitu domain
   dibeli, pasang sebagai Custom Domain di Cloudflare dan arahkan halaman utama domain itu ke

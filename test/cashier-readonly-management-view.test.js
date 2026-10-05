@@ -192,8 +192,8 @@ test('public/cashier-workspace.js exposes state.readOnly distinctly from state.c
   assert.match(source, /state\.readOnly = Boolean\(payload\.readOnly\)/);
 });
 
-test('openDrawerBtn (no drawer open) is disabled by state.readOnly, not state.canWrite -- a real cashier who has not opened a drawer yet is also canWrite=false and must stay able to click it', async () => {
+test('openDrawerBtn (no drawer open) tetap bisa diklik di Mode Lihat -- Bos Cyo 2026-10-05: boleh dicoba, server yang menolak saat simpan', async () => {
   const source = await read('public/cashier.js');
-  assert.match(source, /el\('openDrawerBtn'\)\.disabled = Boolean\(state\.readOnly\)/);
+  assert.match(source, /el\('openDrawerBtn'\)\.disabled = false;/);
+  assert.doesNotMatch(source, /el\('openDrawerBtn'\)\.disabled = Boolean\(state\.readOnly\)/);
 });
-

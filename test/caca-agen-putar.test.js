@@ -158,3 +158,15 @@ test('pengamatan memuat jawaban + tabel, dan dipotong kalau kepanjangan', () => 
   const panjang = teksPengamatan({ data: { isi: 'x'.repeat(10000) } });
   assert.ok(panjang.length <= MAKS_PANJANG_PENGAMATAN);
 });
+
+test('satu putaran per permintaan (panel): langkah pertama langsung dibalas supaya bisa dicentang', async () => {
+  const { panggilModel, panggilan } = modelPalsu(
+    pilih('laba_periode', { periode: 'kemarin', lanjut: true, judul_langkah: 'Cek untung kemarin' })
+  );
+  const hasil = await jawabPertanyaan('untung kemarin, terus bandingkan', konteks, {
+    env: {}, panggilModel, jalankan: async () => ({ ok: true, data: { untung: 539000 } }), maksPutaran: 1
+  });
+  assert.equal(panggilan.length, 1);
+  assert.equal(hasil.lanjutkan, true);
+  assert.equal(hasil.kerja[0].judul, 'Cek untung kemarin');
+});

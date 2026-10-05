@@ -934,3 +934,156 @@
 .caca-kerja-lanjut {
   margin-top: 8px;
 }
+
+/* --- HP: penuh layar seperti WhatsApp (Bos Cyo 2026-10-05) ----------------
+   Tinggi + posisi atas diatur JS dari visualViewport, jadi kepala panel (nama
+   gerai + tombol ▾) tidak terdorong keluar layar saat keyboard muncul. */
+@media (max-width: 560px) {
+  .caca-melayang {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .caca-kepala {
+    flex: 0 0 auto;
+  }
+}
+
+/* Isi chat bergulir sendiri; halaman di belakangnya tidak ikut tergulir. */
+.caca-percakapan {
+  overscroll-behavior: contain;
+}
+
+/* --- kartu "Una lagi kerja" ala agen ------------------------------------- */
+.caca-gelembung.caca-live {
+  min-width: min(280px, 82%);
+  font-style: normal;
+  border-left: 3px solid var(--brand);
+}
+
+.caca-live-kepala {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.86rem;
+}
+
+.caca-live-waktu {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.caca-live-putar {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--brand);
+  animation: caca-live-putar 0.8s linear infinite;
+}
+
+@keyframes caca-live-putar {
+  to { transform: rotate(360deg); }
+}
+
+.caca-live-langkah {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.84rem;
+}
+
+.caca-live-langkah li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  line-height: 1.35;
+  animation: caca-live-masuk 0.25s ease-out;
+}
+
+.caca-live-langkah li.selesai {
+  color: var(--muted);
+}
+
+.caca-live-langkah li.jalan {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.caca-live-tanda {
+  flex: 0 0 18px;
+  text-align: center;
+  color: var(--green);
+  font-weight: 900;
+}
+
+.caca-live-langkah li.jalan .caca-live-tanda {
+  display: inline-flex;
+  gap: 2px;
+  justify-content: center;
+}
+
+.caca-live-langkah li.jalan .caca-live-tanda i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: caca-titik 1.2s infinite ease-in-out;
+}
+
+.caca-live-langkah li.jalan .caca-live-tanda i:nth-child(2) { animation-delay: 0.15s; }
+.caca-live-langkah li.jalan .caca-live-tanda i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes caca-live-masuk {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caca-live-putar,
+  .caca-live-langkah li,
+  .caca-live-langkah li.jalan .caca-live-tanda i {
+    animation: none;
+  }
+}
+
+/* Kartu kerja memakai kelas `mengetik` (supaya tidak ikut tersimpan), jadi gaya
+   titik-titik lama di span-nya dinetralkan di sini. */
+.caca-gelembung.mengetik.caca-live {
+  display: block;
+  padding: 8px 11px 9px;
+}
+
+.caca-gelembung.mengetik.caca-live span {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  animation: none;
+}
+
+.caca-gelembung.mengetik.caca-live .caca-live-putar {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  animation: caca-live-putar 0.8s linear infinite;
+}
+
+.caca-gelembung.mengetik.caca-live .caca-live-tanda {
+  flex: 0 0 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caca-gelembung.mengetik.caca-live .caca-live-putar { animation: none; }
+}

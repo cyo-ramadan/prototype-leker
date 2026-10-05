@@ -271,7 +271,8 @@ async function tanya(request, env, jalurUtama) {
     jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama }),
     // Catatan kerja dari putaran sebelumnya (mode agen berputar). Data tak
     // tepercaya seperti riwayat: dibersihkan di jawabPertanyaan.
-    kerja: body.value?.kerja
+    kerja: body.value?.kerja,
+    maksPutaran: body.value?.satuLangkah === true ? 1 : undefined
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 

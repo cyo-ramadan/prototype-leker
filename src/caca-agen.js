@@ -162,8 +162,9 @@ const ATURAN_PUTARAN = [
   '  Tanpa catatan kerja, "selesai" hanya untuk salam, terima kasih, atau obrolan ringan — pertanyaan data tetap pakai alat.',
   '- Butuh angka/keputusan dari Bos yang tidak ada di catatan (mis. harga normal): jangan mengarang. Pilih "selesai"',
   '  dan tanyakan di jawaban_akhir (akhiri dengan "?"), sebut barangnya.',
-  '- Alat yang mengubah data selalu jadi draft yang menunggu "Ya". Kalau sesudah draft itu masih ada langkah lain,',
-  '  isi lanjut=true; setelah Bos menyetujui, hasilnya masuk catatan kerja dan kamu lanjut dari sana.',
+  '- Alat yang mengubah data selalu jadi draft yang menunggu "Ya". Kalau perintah Bos masih punya pekerjaan SESUDAH',
+  '  perubahan itu ("abis itu", "lalu", "terus cek lagi"), WAJIB isi lanjut=true pada alat ubahnya; setelah Bos',
+  '  menyetujui, hasilnya masuk catatan kerja (langkah "persetujuan") dan kamu lanjut dari sana.',
   '- Langkah yang bergantung pada hasil baca: kerjakan bertahap sendiri (lanjut=true), bukan "rencana".',
   '',
   'Contoh:',
@@ -174,6 +175,10 @@ const ATURAN_PUTARAN = [
   '  Bos: "barang mana yang HPP-nya di atas harga jual? betulin harganya"',
   '    putaran 1 -> baca_api (barang + HPP), judul "Cari barang yang rugi", lanjut=true',
   '    putaran 2 (catatan: 2 barang, tanpa harga baru dari Bos) -> selesai: "Ada 2 yang rugi: ... Harga jual barunya mau berapa, Bos?"',
+  '  Bos: "cek harga kopi susu, kalau di bawah 10rb naikin jadi 12rb, abis itu cek lagi harganya"',
+  '    putaran 1 -> cek_barang ["kopi susu"], lanjut=true',
+  '    putaran 2 -> ubah_barang [...], lanjut=true (masih ada "cek lagi" sesudah Bos bilang "Ya")',
+  '    sesudah "Ya" (catatan: persetujuan) -> cek_barang ["Kopi Susu"], lanjut=false',
   '  Bos: "makasih Una" -> selesai: "Sama-sama Bos!"'
 ].join('\n');
 
@@ -565,8 +570,13 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
   const kerja = bersihkanKerja(opsi.kerja);
   const lanjutan = kerja.length > 0;
   let tabel = null;
+  // Panel meminta satu putaran per permintaan supaya tiap langkah langsung
+  // terlihat jalan (✓ satu per satu); pemanggil lain tetap boleh sampai MAKS_PUTARAN.
+  const maksPutaran = Number.isInteger(opsi.maksPutaran) && opsi.maksPutaran > 0
+    ? Math.min(opsi.maksPutaran, MAKS_PUTARAN)
+    : MAKS_PUTARAN;
 
-  for (let putaran = 0; putaran < MAKS_PUTARAN; putaran += 1) {
+  for (let putaran = 0; putaran < maksPutaran; putaran += 1) {
     if (kerja.length >= MAKS_LANGKAH_KERJA) {
       return {
         ok: true,

@@ -41,7 +41,7 @@ test('cashier loads canonical transaction inputs before enhancement scripts and 
   ordered(
     cashierHtml,
     '/cashier-workspace.js',
-    '/cashier-payment-methods.js?v=20261004-rentang-harga-v1',
+    '/cashier-payment-methods.js?v=20261005-kas-default-v1',
     '/cashier-enhancements.js?v='
   );
   assert.match(cashierHtml, /data-cashier-payment-methods="1"/);
@@ -68,7 +68,7 @@ test('committed transaction writes use one canonical fact transport instead of l
   assert.match(inputUi, /async function canonicalFactPost/);
   assert.match(inputUi, /canonicalFactPost\('\/api\/cashier\/purchases'/);
   assert.match(inputUi, /canonicalFactPost\('\/api\/cashier\/expenses'/);
-  assert.match(inputUi, /path === '\/api\/cashier\/sales'[\s\S]*return canonicalFactPost\(path, payload\)/);
+  assert.match(inputUi, /path === '\/api\/cashier\/sales'[\s\S]*(?:return|await) canonicalFactPost\(path, payload\)/);
 });
 
 // Bos Cyo, 2026-09-19: "katanya semua gerai ga bisa entry penjualan" --

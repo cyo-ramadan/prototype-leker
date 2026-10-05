@@ -25,8 +25,10 @@ import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 export const MAKS_LANGKAH = 3;
 export const MAKS_BACA = 24;
 export const MAKS_GERAI_SEKALIGUS = 12;
-export const BATAS_LANGSUNG = 7000;
-const MAKS_TEKS_KE_MODEL = 14000;
+// Dilonggarkan 2026-10-05 (dulu 7.000 / 14.000): daftar barang satu gerai (±45 ribu
+// huruf) kini terbaca utuh, bukan cuma bentuknya.
+export const BATAS_LANGSUNG = 60000;
+const MAKS_TEKS_KE_MODEL = 150000;
 
 const POLA_BATAS = /(too many|subrequest|exceeded|limit)/i;
 

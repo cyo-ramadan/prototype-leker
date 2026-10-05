@@ -24,6 +24,7 @@ import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
 import { uraiDaftarRentang } from './caca-aksi-rentang.js';
 import { terjemahkanPesan } from './caca-terjemah.js';
 import { uraikanNominal } from './caca-nominal.js';
+import { teksContoh } from './caca-contoh.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
@@ -151,8 +152,8 @@ function kalimatKonteks(konteks) {
   ].join('\n');
 }
 
-// Cara kerja bertahap + contoh. Model lite jauh lebih nurut dengan contoh
-// percakapan daripada aturan saja.
+// Cara kerja bertahap. Contoh percakapannya dipilih per pesan dari
+// perpustakaan contoh (src/caca-contoh.js), bukan ditempel semua.
 const ATURAN_PUTARAN = [
   '- Kamu bekerja BERPUTAR seperti agen: tiap putaran pilih SATU alat dan isi judul_langkah. Isi lanjut=true kalau',
   '  sesudah alat itu kamu masih perlu MELIHAT hasilnya untuk langkah berikutnya (mis. cek harga dulu, baru diubah;',
@@ -168,24 +169,10 @@ const ATURAN_PUTARAN = [
   '- Alat yang mengubah data selalu jadi draft yang menunggu "Ya". Kalau perintah Bos masih punya pekerjaan SESUDAH',
   '  perubahan itu ("abis itu", "lalu", "terus cek lagi"), WAJIB isi lanjut=true pada alat ubahnya; setelah Bos',
   '  menyetujui, hasilnya masuk catatan kerja (langkah "persetujuan") dan kamu lanjut dari sana.',
-  '- Langkah yang bergantung pada hasil baca: kerjakan bertahap sendiri (lanjut=true), bukan "rencana".',
-  '',
-  'Contoh:',
-  '  Bos: "harga es teh di sini berapa? kalau masih 5rb naikin jadi 6rb"',
-  '    putaran 1 -> cek_barang ["es teh"], judul "Cek harga Es Teh", lanjut=true',
-  '    putaran 2 (catatan: Es Teh Manis | 5.000 | ...) -> ubah_barang [{barang:"Es Teh Manis", harga_jual:"6rb"}], lanjut=false',
-  '    (kalau catatan bilang harganya sudah 6.000 -> selesai: "Es Teh Manis sudah 6.000, nggak Una ubah ya Bos.")',
-  '  Bos: "barang mana yang HPP-nya di atas harga jual? betulin harganya"',
-  '    putaran 1 -> baca_api (barang + HPP), judul "Cari barang yang rugi", lanjut=true',
-  '    putaran 2 (catatan: 2 barang, tanpa harga baru dari Bos) -> selesai: "Ada 2 yang rugi: ... Harga jual barunya mau berapa, Bos?"',
-  '  Bos: "cek harga kopi susu, kalau di bawah 10rb naikin jadi 12rb, abis itu cek lagi harganya"',
-  '    putaran 1 -> cek_barang ["kopi susu"], lanjut=true',
-  '    putaran 2 -> ubah_barang [...], lanjut=true (masih ada "cek lagi" sesudah Bos bilang "Ya")',
-  '    sesudah "Ya" (catatan: persetujuan) -> cek_barang ["Kopi Susu"], lanjut=false',
-  '  Bos: "makasih Una" -> selesai: "Sama-sama Bos!"'
+  '- Langkah yang bergantung pada hasil baca: kerjakan bertahap sendiri (lanjut=true), bukan "rencana".'
 ].join('\n');
 
-function promptPilihAlat(konteks) {
+function promptPilihAlat(konteks, pesan = '') {
   const diGerai = konteks.lingkup !== 'entity';
   return [
     'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok',
@@ -261,6 +248,8 @@ function promptPilihAlat(konteks) {
     '  jangan dilengkapi, jangan ditebak — pencocokannya dikerjakan sistem.',
     '',
     TANGKAP_PENGELUARAN_PROMPT,
+    '',
+    teksContoh(pesan),
     '',
     'Daftar API untuk alat baca_api:',
     daftarApiUntukModel()
@@ -447,9 +436,9 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
 
 export const MAKS_PUTARAN = 4;            // pilih-alat per permintaan (batas subrequest)
 export const MAKS_LANGKAH_KERJA = 12;     // langkah total satu perintah, lintas permintaan
-export const MAKS_PANJANG_PENGAMATAN = 2500;
-export const MAKS_TOTAL_KERJA = 16000;
-const MAKS_BARIS_PENGAMATAN = 40;
+export const MAKS_PANJANG_PENGAMATAN = 12000;
+export const MAKS_TOTAL_KERJA = 80000;
+const MAKS_BARIS_PENGAMATAN = 200;
 
 const bersihTeks = (nilai, batas) => String(nilai ?? '')
   // eslint-disable-next-line no-control-regex
@@ -666,7 +655,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
     const pilihan = pasti
       ? { ok: true, value: { alat: pasti } }
       : await panggilModel(env, {
-        system: promptPilihAlat(konteks),
+        system: promptPilihAlat(konteks, pesanBaku),
         content: [{ type: 'text', text: isiPilihAlat(pesanBaku, konteks, kerja) }],
         schema: skemaPilihAlat()
       });

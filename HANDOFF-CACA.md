@@ -255,6 +255,18 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   diganti pertanyaan — uji langsung: "cek anomali terus betulin" dibuatkan harga jual =
   harga beli. `buat_barang_banyak` yang semua barangnya sudah ada + berharga dialihkan
   (`alihkan`) ke `ubah_barang` (sekali saja). Rencana di tengah kerjaan → pertanyaan ke Bos.
+- **Batas ingatan & huruf dilonggarkan (2026-10-05, Bos Cyo: "batasan 10 chat terakhir dan batasan
+  huruf ga perlu, buang aja"):** batas jumlah obrolan DIBUANG — riwayat kini anggaran huruf total
+  (`MAKS_TOTAL_RIWAYAT` 60 ribu, terlama dilepas dulu; per entri 4.000). Pesan maks 50.000 huruf
+  (dulu 8.000). Pembaca bebas melihat data utuh sampai 60 ribu huruf (dulu 7.000 — daftar barang satu
+  gerai kini terbaca utuh). Catatan kerja 12 ribu/langkah, 80 ribu total. Yang tersisa adalah
+  pagar keamanan/biaya: riwayat & catatan datang dari browser, tiap huruf dibayar di tiap panggilan,
+  dan model kecil makin linglung kalau disuapi berlebihan.
+- **Perpustakaan contoh percakapan (`src/caca-contoh.js`):** ±35 contoh "pesan Bos → langkah Una".
+  Kode memilih maks 4 yang paling mirip (kata + potongan huruf) dan hanya itu yang masuk prompt
+  pilih-alat; contoh statis di `ATURAN_PUTARAN` dihapus. Disimpan di kode, bukan D1: pengetahuan
+  produk yang sama untuk semua tenant, lewat review + test (`test/caca-contoh.test.js` memastikan
+  nama alat di contoh masih ada). Tiap temuan uji langsung sebaiknya jadi satu contoh baru.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat

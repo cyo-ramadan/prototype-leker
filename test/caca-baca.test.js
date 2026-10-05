@@ -18,7 +18,8 @@ function modelBertahap(...balasan) {
 const langkah = (nilai) => ({ ok: true, value: nilai });
 
 function produkBanyak() {
-  const baris = Array.from({ length: 300 }, (_, i) => ({
+  // Cukup banyak untuk melewati BATAS_LANGSUNG (60 ribu huruf) supaya jalur "datanya besar" teruji.
+  const baris = Array.from({ length: 700 }, (_, i) => ({
     id: i + 1, name: `Barang ${i + 1}`, category: 'Leker', price: 10000, averageCost: 7000,
     imageData: 'data:image/png;base64,AAAAAAAA', isActive: true
   }));
@@ -60,10 +61,10 @@ test('HPP di atas harga jual: baca → hitung oleh kode → jawab; angka dari ta
 
   assert.equal(hasil.ok, true);
   assert.equal(panggilan.length, 2);
-  // Model hanya melihat BENTUK data yang besar, bukan 300 baris dan bukan gambarnya.
+  // Model hanya melihat BENTUK data yang besar, bukan 700 baris dan bukan gambarnya.
   const dilihat = panggilan[0].content[0].text;
   assert.match(dilihat, /datanya besar/);
-  assert.match(dilihat, /daftar "products": 300 baris/);
+  assert.match(dilihat, /daftar "products": 700 baris/);
   assert.equal(dilihat.includes('base64'), false);
   assert.ok(dilihat.length < 6000);
   // Langkah kedua melihat hasil hitung dari kode.

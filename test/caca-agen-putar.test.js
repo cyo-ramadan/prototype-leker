@@ -179,3 +179,14 @@ test('semua bacaan gagal: Una tidak boleh menyimpulkan "aman"', async () => {
   assert.doesNotMatch(hasil.jawaban, /aman!/);
   assert.match(hasil.jawaban, /belum berhasil/);
 });
+
+test('rencana di tengah kerjaan diganti pertanyaan ke Bos, bukan dijalankan', async () => {
+  const { panggilModel } = modelPalsu(pilih('rencana', { rencana_langkah: [] }));
+  const hasil = await jawabPertanyaan('cek harga anomali terus betulin', konteks, {
+    env: {}, panggilModel, kerja: [{ alat: 'cek_harga_janggal', judul: 'Cari', hasil: 'Teh Vanilla | Rp1.499 | Rp1.500' }]
+  });
+  assert.equal(hasil.rencana, undefined);
+  assert.equal(hasil.belumLengkap, true);
+  assert.match(hasil.jawaban, /Mau diubah jadi berapa/);
+  assert.equal(hasil.kerja.length, 1, 'catatan kerja tetap dibawa supaya jawaban Bos melanjutkan');
+});

@@ -631,6 +631,19 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
     if (v.alat === ALAT_SELESAI) {
       return selesaikan(v, { pertanyaan, pesanBaku, konteks, kerja, tabel, env, panggilModel });
     }
+    // Di tengah kerjaan, "rencana" tidak pernah tepat (uji langsung 2026-10-05:
+    // sesudah menemukan harga janggal, model memilih rencana alih-alih menanyakan
+    // harga barunya). Yang dibutuhkan biasanya keputusan Bos, jadi tanyakan.
+    if (v.alat === ALAT_RENCANA && kerja.length) {
+      return {
+        ok: true,
+        alat: kerja[kerja.length - 1].alat,
+        jawaban: 'Hasilnya di atas ya, Bos. Mau diubah jadi berapa? Sebut per barang, mis. "Susu Kental Manis 2rb, Teh Vanilla 2rb" — nanti Una siapkan drafnya.',
+        tabel,
+        belumLengkap: true,
+        kerja
+      };
+    }
 
     // Rencana dan "tidak ada" tidak pernah diamati; alat selebihnya diamati kalau
     // model bilang masih perlu melihat hasilnya.

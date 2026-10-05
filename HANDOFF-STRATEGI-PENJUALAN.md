@@ -319,6 +319,19 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
   dibeli, pasang sebagai Custom Domain di Cloudflare dan arahkan halaman utama domain itu ke
   landing page — keputusan teknisnya (Worker statis terpisah vs. aturan per alamat di Worker
   utama) diambil sesi pengembangan saat itu, tanpa mengubah isi halaman.
+- **Dua landing page, dua segmen** *(diputuskan 2026-10-05)*: `/produk/` untuk pemilik 2–10 gerai F&B yang
+  dijaga karyawan; `/produk/kemitraan/` untuk pemilik kemitraan/franchise (pilot 1–3 gerai mitra). Warung
+  kecil/tanpa karyawan belum dibuatkan halaman (fiturnya UJI). Keduanya wajib **interaktif** (mockup yang bisa
+  disentuh, kalkulator kebocoran/biaya, simulasi). Video pendek direkam dari **akun demo** saja.
+  Prompt untuk agen pembuatnya: `PROMPT-LANDING-PAGE-AHLI.md`; paket pesan WA/skrip demo/naskah video:
+  `PAKET-JUALAN-MINGGU-1.md`. Hasil agen dipasang Hana: tes kata terlarang untuk halaman kemitraan
+  ditambah, dan pengecualian Una (di bawah) diterapkan di tes.
+- **Una = USP kedua, berlabel uji** *(diputuskan 2026-10-05, atas permintaan Bos Cyo)*: Una boleh tampil di
+  landing page dan video sebagai *pendamping pemilik baru* (isi menu dari daftar/foto papan menu, ubah harga
+  lewat chat, cari harga janggal), **wajib** berlabel "Baru · sedang kami uji bersama pemilik pertama" dan
+  selalu memperlihatkan langkah draft → "Ya" dari pemilik. Janji utama tetap kontrol gerai. **Syarat naik jadi
+  USP penuh (JUAL)**: minimal 3 pemilik di luar lingkaran Bos Cyo menyiapkan menu lewat Una tanpa bantuan tim,
+  dan selama 2 minggu tidak ada perubahan Una yang salah lolos ke laporan.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 

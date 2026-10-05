@@ -25,6 +25,8 @@ Skill ini hanya menyimpan *cara berpikir*; angka dan status selalu diambil dari 
 | `SEMBUNYI`, `INTERNAL` | Jangan disebut ke calon pembeli. |
 | Tidak ada di tabel | Anggap belum ada. Tanyakan ke Bos Cyo. |
 
+**Pengecualian Una (keputusan Bos Cyo 2026-10-05):** walau sebagian besar kemampuan Una masih `UJI`, Una boleh tampil di landing page dan video sebagai **USP kedua** — *pendamping pemilik baru* — dengan dua syarat: selalu berlabel "Baru · sedang kami uji bersama pemilik pertama", dan selalu memperlihatkan langkah draft → "Ya" dari pemilik (Una membantu, pemilik yang memutuskan). Jangan klaim Una tidak pernah salah, menggantikan akuntan, atau bekerja tanpa persetujuan. Syarat naik jadi USP penuh ada di §10 dokumen strategi. Untuk membuat landing page/video dengan agen lain, pakai `PROMPT-LANDING-PAGE-AHLI.md`.
+
 Kelemahan yang harus dijawab **jujur**, bukan disembunyikan, kalau ditanya: butuh internet (belum ada mode offline), belum ada pembayaran QRIS/e-wallet yang terhubung, belum bisa daftar sendiri (tim yang menyiapkan gerai), belum ada skor KPI karyawan (hanya fakta), belum teruji dijual ke orang asing. Alasan: pembeli yang tahu batasnya sejak awal tidak kecewa nanti, dan kejujuran ini sendiri jadi pembeda.
 
 ## Posisi dan pembeli

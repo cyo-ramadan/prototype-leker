@@ -8,7 +8,7 @@ import { handleOperationalReceivablesPayablesApi } from './operational-receivabl
 import { listOrders, listProducts, getOrder } from './db-multistore.js';
 import { createOrder, changeOrderStatus, resetOrders } from './orders-multistore.js';
 import { getPublicStore, handleAdminApi } from './admin-multistore.js';
-import { handleAdminCashierApi, handleCashierAuthApi, requireCashier } from './cashier-auth.js';
+import { handleAdminCashierApi, handleCashierAuthApi, requireCashier, rejectManagementWriteInCashierMode } from './cashier-auth.js';
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleDrawerClosePermitApi } from './cashier-drawer-close-permit.js';
 import { handleAttendanceCorrectionPermitApi } from './attendance-correction-permit.js';
@@ -217,7 +217,16 @@ async function handleIkanApi(request, env, pathname) {
   return null;
 }
 
+// Mode Lihat (Bos Cyo, 2026-10-05): Owner/Entity Admin/Admin Gerai boleh membuka SEMUA layar kasir,
+// tapi setiap permintaan TULIS ke route kasir ditolak 403 CASHIER_READ_ONLY_MODE. Pembungkus tunggal
+// di sini menutup semua route tulis kasir sekaligus (juga yang ditambah kelak) tanpa menyentuh
+// handler-nya; biaya untuk kasir sungguhan nol (hanya cek status respons).
 async function handleApi(request, env, url) {
+  const response = await handleApiRouted(request, env, url);
+  return rejectManagementWriteInCashierMode(request, env, url.pathname, response);
+}
+
+async function handleApiRouted(request, env, url) {
   const { pathname } = url;
 
   if (pathname.startsWith('/api/ikan/')) {

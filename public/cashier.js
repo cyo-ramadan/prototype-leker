@@ -390,7 +390,7 @@ function renderDrawer() {
   if (!drawer) {
     el('drawerTitle').textContent = 'Laci belum dibuka';
     el('drawerStatusText').textContent = state.readOnly
-      ? 'Mode lihat -- tidak bisa membuka laci dari sini.'
+      ? 'Mode Lihat -- semua menu boleh dicoba, tapi menyimpan data selalu ditolak.'
       : 'Buka laci untuk mulai mencatat transaksi gerai.';
     badge.textContent = 'READ ONLY';
     // Bos Cyo, 2026-09-17: cabang ini tadinya selalu enabled -- masuk akal
@@ -400,15 +400,15 @@ function renderDrawer() {
     // dia tetap harus boleh klik. readOnly cuma true untuk pengunjung
     // Owner/Admin Gerai/Entity Admin yang memang tidak pernah boleh menulis
     // apa pun status lacinya (lihat requireCashierOrReadOnlyManagement).
-    el('openDrawerBtn').disabled = Boolean(state.readOnly);
+    el('openDrawerBtn').disabled = false; // Mode Lihat: tetap bisa dicoba, server yang menolak saat simpan
     el('openDrawerBtn').textContent = '🔓 Buka Laci';
     el('openDrawerBtn').classList.remove('hidden');
     el('closeDrawerBtn').classList.add('hidden');
   } else if (state.canWrite) {
-    el('drawerTitle').textContent = `Laci aktif · ${drawer.cashierName}`;
+    el('drawerTitle').textContent = state.readOnly ? `Laci ${drawer.cashierName} (Mode Lihat)` : `Laci aktif · ${drawer.cashierName}`;
     el('drawerStatusText').textContent = `Dibuka ${formatDateTime(drawer.openedAt)} · Saldo awal ${rupiah(drawer.openingAmount)}`;
-    badge.textContent = 'WRITE MODE';
-    badge.classList.add('write');
+    badge.textContent = state.readOnly ? 'MODE LIHAT' : 'WRITE MODE';
+    badge.classList.add(state.readOnly ? 'occupied' : 'write');
     el('openDrawerBtn').classList.add('hidden');
     el('closeDrawerBtn').classList.remove('hidden');
   } else {
@@ -452,12 +452,14 @@ function renderDrawer() {
   }
   el('drawerDetailsBtn').disabled = !drawer;
   el('reportsBtn').disabled = !drawer;
-  el('cashierWriteLockNote').textContent = state.canWrite
+  el('cashierWriteLockNote').textContent = state.readOnly
+    ? `${state.cashier.employeeName}: semua menu boleh dicoba, tapi tombol simpan/kirim selalu ditolak dan tidak ada data yang tersimpan.`
+    : state.canWrite
     ? `Write mode aktif atas nama ${state.cashier.employeeName}. Semua transaksi tercatat ke ${state.cashier.store.code}.`
     : drawer
       ? `Read-only. Laci sedang dipegang ${drawer.cashierName}.`
       : 'Buka laci untuk mengaktifkan write mode.';
-  el('cashierWriteLockNote').classList.toggle('write', state.canWrite);
+  el('cashierWriteLockNote').classList.toggle('write', state.canWrite && !state.readOnly);
 }
 
 async function loadOrders() {
@@ -864,7 +866,6 @@ async function submitDialog(event) {
 function openDrawerDialog() {
   const drawer = state.drawer;
   if (drawer && !state.canWrite) {
-    if (state.readOnly) return;
     return requestOpenOccupiedDrawer(drawer);
   }
   const hasPrevious = state.lastClosingAmount != null;

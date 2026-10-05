@@ -4,7 +4,12 @@
     state.cashier = payload.cashier || state.cashier;
     state.orders = payload.orders || [];
     state.drawer = payload.drawer || null;
-    state.canWrite = Boolean(payload.canWrite);
+    state.readOnly = Boolean(payload.readOnly);
+    // Mode Lihat (Bos Cyo, 2026-10-05): Owner/Entity Admin/Admin Gerai boleh mencoba SEMUA fungsi
+    // kasir supaya tahu apa yang dikerjakan CS; tombol tidak dimatikan di tengah alur. Penolakan
+    // terjadi di server saat simpan/kirim (403 CASHIER_READ_ONLY_MODE), jadi tampilan menganggap
+    // pengunjung "boleh coba". Server tetap mengembalikan canWrite=false untuk mereka.
+    state.canWrite = Boolean(payload.canWrite) || state.readOnly;
     // Distinct from canWrite: a real cashier with no drawer open yet is
     // also canWrite=false (they just haven't opened one), and must still
     // see "Buka Laci" enabled -- readOnly is the actual "never able to

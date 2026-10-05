@@ -268,7 +268,10 @@ async function tanya(request, env, jalurUtama) {
   const hasil = await jawabPertanyaan(pertanyaan, konteks, {
     request,
     env,
-    jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama })
+    jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama }),
+    // Catatan kerja dari putaran sebelumnya (mode agen berputar). Data tak
+    // tepercaya seperti riwayat: dibersihkan di jawabPertanyaan.
+    kerja: body.value?.kerja
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
@@ -287,6 +290,9 @@ async function tanya(request, env, jalurUtama) {
     belumLengkap: Boolean(hasil.belumLengkap || hasil.ditolak),
     draft: hasil.draft ?? null,
     perluKonfirmasi: Boolean(hasil.perluKonfirmasi),
+    kerja: hasil.kerja ?? null,
+    lanjutkan: Boolean(hasil.lanjutkan),
+    lanjutSesudahYa: Boolean(hasil.lanjutSesudahYa),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }

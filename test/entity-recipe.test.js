@@ -300,5 +300,5 @@ test('UI Entity Admin: panel Resep Produksi Entity terpasang dengan pratinjau + 
   assert.match(js, /\/preview/);
   assert.match(js, /\/apply/);
   assert.match(js, /data-entity-recipe-apply/);
-  assert.match(html, /entity-admin\.js\?v=20261002-kartu-ringkas-v2/);
+  assert.ok(String(html.match(/\/entity-admin\.js\?v=([\w-]+)/)?.[1] || '') >= '20261002-kartu-ringkas-v2', 'versi entity-admin.js tidak boleh lebih lama dari 20261002-kartu-ringkas-v2');
 });

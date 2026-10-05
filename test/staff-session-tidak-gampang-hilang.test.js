@@ -117,7 +117,7 @@ test('logout di satu sesi tidak ikut mematikan sesi lain dari akun yang sama', a
 });
 
 test('sesi karyawan tidak lagi ikut hilang saat tab ditutup -- token dan identitas dua-duanya di localStorage', () => {
-  assert.match(staffLogin, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
+  assert.match(staffLogin, /localStorage\.setItem\(TOKEN_KEY\[payload\.role\], payload\.token\)/);
   assert.match(staffLogin, /localStorage\.setItem\('lekerStaffSessionMeta'/);
   // Titik baca di setiap halaman staf ikut pindah, bukan cuma titik tulisnya.
   for (const name of ['staff-entry-guard.js', 'staff-auth-fetch.js', 'cashier.js', 'cashier-enhancements.js']) {

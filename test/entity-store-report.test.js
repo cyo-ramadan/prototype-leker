@@ -19,7 +19,7 @@ test('tab Laporan Gerai terpasang dengan versi file yang dibump', () => {
   assert.match(html, /id="entityStoreReportTable"/);
   assert.match(html, /entity-store-report\.js\?v=20261002-laporan-gerai-v1/);
   assert.match(html, /entity-store-report\.css\?v=20261002-laporan-gerai-v1/);
-  assert.match(html, /entity-admin\.js\?v=20261002-kartu-ringkas-v2/);
+  assert.ok(String(html.match(/\/entity-admin\.js\?v=([\w-]+)/)?.[1] || '') >= '20261002-kartu-ringkas-v2', 'versi entity-admin.js tidak boleh lebih lama dari 20261002-kartu-ringkas-v2');
   assert.match(adminJs, /loadEntityStoreReport/);
 });
 

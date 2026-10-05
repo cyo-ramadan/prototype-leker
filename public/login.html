@@ -2,36 +2,55 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ee" />
   <title>MAXI · Login Karyawan</title>
-  <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/admin.css?v=20261002-kartu-ringkas-v1" />
+  <link rel="stylesheet" href="/login.css?v=20261005-login-fb-v2" />
 </head>
 <body>
-<noscript><div style="padding:14px 16px;background:#fff4e5;color:#7a3e00;font:15px/1.4 system-ui,sans-serif;border-bottom:1px solid #f0c987"><b>JavaScript di browser ini mati.</b> Login tidak bisa tampil. Hidupkan di Setelan situs &gt; JavaScript, lalu muat ulang. Cek HP: <a href="/diagnostik">/diagnostik</a></div></noscript>
-<div class="app-shell">
-  <header class="topbar admin-topbar">
-    <div class="brand"><div class="brand-mark">M</div><div>MAXI<small>Login Karyawan</small></div></div>
-    <div class="admin-top-actions">
-      <a class="admin-link" href="/customer">Halaman Customer</a>
-    </div>
-  </header>
+<noscript><div class="noscript"><b>JavaScript di browser ini mati.</b> Login tidak bisa tampil. Hidupkan di Setelan situs &gt; JavaScript, lalu muat ulang. Cek HP: <a href="/diagnostik">/diagnostik</a></div></noscript>
+<main class="login-page">
+  <section class="login-hero" aria-hidden="true">
+    <div class="login-logo">MAXI</div>
+    <p class="login-tagline">Kasir, stok, gaji, dan pembukuan gerai dalam satu tempat.</p>
+  </section>
 
-  <main class="owner-shell">
-    <section class="admin-auth-card">
-      <div class="admin-eyebrow">Khusus karyawan</div>
-      <h1>Login Karyawan</h1>
-      <p class="muted">Owner, Entity Admin, Admin Gerai, dan Kasir masuk dari sini. Sistem otomatis mengenali pangkat dari akunmu dan membuka workspace yang sesuai.</p>
-      <form id="staffLoginForm">
-        <label class="admin-field">Username<input id="staffUsername" autocomplete="username" maxlength="40" required /></label>
-        <label class="admin-field">Password<input id="staffPassword" type="password" autocomplete="current-password" required /></label>
-        <button id="staffSubmit" class="primary-btn" type="submit">LOGIN KARYAWAN</button>
-        <div id="staffLoginMessage" class="admin-message" aria-live="polite"></div>
+  <section class="login-panel">
+    <!-- Satu kartu tetap; isinya berganti (memuat / lanjutkan / form) tanpa mengubah ukuran
+         halaman, supaya tampilan tidak "lari-lari" (Bos Cyo, 2026-10-05). -->
+    <div class="login-card" id="loginCard" data-state="loading">
+      <div class="login-loading" id="loginLoading" aria-live="polite">Memeriksa sesi…</div>
+
+      <div class="login-continue" id="loginContinue" hidden>
+        <p class="login-card-title">Masuk sebagai</p>
+        <div class="account-chip">
+          <span class="account-avatar" id="accountAvatar">?</span>
+          <span class="account-text"><strong id="accountName">Karyawan</strong><small id="accountRole"></small></span>
+        </div>
+        <a class="login-primary" id="continueLink" href="/">Lanjutkan</a>
+        <button class="login-secondary" id="switchAccountBtn" type="button">Bukan Anda? Masuk dengan akun lain</button>
+        <p class="login-note">Akun ini tetap masuk di semua tab browser ini sampai Anda keluar (logout).</p>
+      </div>
+
+      <form class="login-form" id="staffLoginForm" hidden novalidate>
+        <p class="login-card-title">Login Karyawan</p>
+        <label class="login-field"><span>Username</span><input id="staffUsername" name="username" autocomplete="username" maxlength="40" autocapitalize="none" spellcheck="false" required /></label>
+        <label class="login-field"><span>Password</span>
+          <span class="login-password">
+            <input id="staffPassword" name="password" type="password" autocomplete="current-password" required />
+            <button type="button" class="login-eye" id="togglePassword" aria-label="Tampilkan password" aria-pressed="false">Lihat</button>
+          </span>
+        </label>
+        <div class="login-message" id="staffLoginMessage" role="alert" aria-live="polite"></div>
+        <button class="login-primary" id="staffSubmit" type="submit">Masuk</button>
+        <p class="login-note">Owner, Entity Admin, Admin Gerai, dan Kasir masuk dari sini. Halaman kerja dibuka sesuai akun.</p>
       </form>
-      <p class="muted" style="margin-top:14px">Pelanggan? Login ada di <a href="/customer" style="color:var(--brand);font-weight:900">halaman customer</a>.</p>
-    </section>
-  </main>
-</div>
-<script src="/staff-login.js?v=20261003-login-karyawan-v1"></script>
+    </div>
+
+    <div class="login-divider"><span>atau</span></div>
+    <a class="login-outline" href="/customer">Ke halaman pelanggan</a>
+  </section>
+</main>
+<script src="/staff-login.js?v=20261005-login-fb-v1"></script>
 </body>
 </html>

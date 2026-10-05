@@ -11,8 +11,10 @@
   // the redirect-back-to-its-own-store guard below.
   const token = ownerToken || entityAdminToken || adminToken;
 
+  // Bos Cyo, 2026-10-05: dulu tanpa sesi dilempar ke halaman pelanggan, jadi Back/sesi habis
+  // berakhir di halaman customer dan harus cari jalan login lagi. Satu pintu: /login.
   if (!token) {
-    location.replace(`/s/${encodeURIComponent(currentStoreCode)}/customer`);
+    location.replace('/login');
     return;
   }
 
@@ -58,7 +60,7 @@
       localStorage.removeItem(isOwner ? 'lekerOwnerToken' : isEntityAdmin ? 'lekerEntityAdminToken' : 'lekerAdminToken');
       if (!isOwner && !isEntityAdmin) localStorage.removeItem('lekerAdminStoreCode');
       localStorage.removeItem('lekerAdminPin');
-      location.replace(isOwner ? '/admin' : isEntityAdmin ? '/entity-admin' : `/s/${encodeURIComponent(currentStoreCode)}/customer`);
+      location.replace(isOwner ? '/admin' : isEntityAdmin ? '/entity-admin' : '/login');
     }
     return response;
   };
@@ -92,13 +94,13 @@
     localStorage.removeItem('lekerAdminToken');
     localStorage.removeItem('lekerAdminStoreCode');
     localStorage.removeItem('lekerAdminPin');
-    location.href = `/s/${encodeURIComponent(currentStoreCode)}/customer`;
+    location.href = '/login';
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     const authBtn = document.getElementById('authBtn');
     if (authBtn) authBtn.addEventListener('click', () => {
-      location.href = isOwner ? '/admin' : isEntityAdmin ? '/entity-admin' : `/s/${encodeURIComponent(currentStoreCode)}/customer`;
+      location.href = isOwner ? '/admin' : isEntityAdmin ? '/entity-admin' : '/login';
     }, { capture: true });
 
     const legacyLock = document.getElementById('logoutBtn');

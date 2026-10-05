@@ -889,6 +889,13 @@ function renderEntityJournals() {
 }
 
 function showEntityAdminLogin() {
+  // Bos Cyo, 2026-10-05: "habis klik login masih nyangkut ke login entity". Form login di
+  // halaman ini muncul setiap token Entity basi tertinggal di browser. Satu pintu: /login.
+  window.cacaSetTampil?.(false);
+  location.replace('/login');
+}
+
+function showLegacyEntityAdminLogin() {
   entityAdminEl('entityAdminLoginView').classList.remove('hidden');
   entityAdminEl('entityAdminApp').classList.add('hidden');
   entityAdminEl('entityAdminLogoutBtn').classList.add('hidden');

@@ -190,3 +190,10 @@ test('rencana di tengah kerjaan diganti pertanyaan ke Bos, bukan dijalankan', as
   assert.match(hasil.jawaban, /Mau diubah jadi berapa/);
   assert.equal(hasil.kerja.length, 1, 'catatan kerja tetap dibawa supaya jawaban Bos melanjutkan');
 });
+
+test('nominal dari ucapan Bos dikenali (rb, titik ribuan, Rp, angka singkat)', async () => {
+  const { nominalDariBos } = await import('../src/caca-agen.js');
+  const n = nominalDariBos(['Susu Kental Manis 2rb, Teh Vanilla 2.500', 'naikin jadi 8', 'Rp 12.000']);
+  for (const v of [2000, 2500, 8000, 12000]) assert.ok(n.has(v), `${v} dikenali`);
+  assert.equal(n.has(1500), false);
+});

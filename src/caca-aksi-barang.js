@@ -181,6 +181,18 @@ const barangBanyak = Object.freeze({
     const baru = urai.baris.filter((b) => !adaDiGerai.has(normalkan(b.name)));
     const sudahAda = urai.baris.filter((b) => adaDiGerai.has(normalkan(b.name))).map((b) => b.name);
 
+    // Semua barang di daftar ternyata SUDAH ADA dan ada harganya: maksud Bos
+    // hampir pasti mengganti harga, bukan membuat barang (uji langsung
+    // 2026-10-05: "Susu Kental Manis 2rb, Teh Vanilla 2rb" sesudah Una
+    // menemukan harga janggal). Dialihkan ke ubah_barang, yang tetap membuat
+    // draft sebelum/sesudah + "Ya".
+    if (!baru.length && sudahAda.length && !Array.isArray(dariDraft)) {
+      const ubah = t.daftar_barang
+        .filter((b) => adaDiGerai.has(normalkan(teks(b?.nama, 100))) && (teks(b?.harga_jual, 30) || teks(b?.harga_beli, 30)))
+        .map((b) => ({ barang: teks(b.nama, 100), harga_jual: teks(b.harga_jual, 30) || undefined, harga_beli: teks(b.harga_beli, 30) || undefined }));
+      if (ubah.length) return { ok: false, alihkan: { alat: 'ubah_barang', tangkapan: { ubah_daftar: ubah } } };
+    }
+
     if (!baru.length) {
       const alasan = [
         sudahAda.length ? `sudah ada di gerai: ${sudahAda.slice(0, 8).join(', ')}` : '',

@@ -234,6 +234,43 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   tenant lewat endpoint yang sama dengan layar. "Peta" milik Una = katalog API baca + daftar
   alat; dengan mode berputar dia bisa menelusuri hubungan data sendiri (barang → resep → HPP).
   Test: `test/caca-agen-putar.test.js`.
+- **Tampilan kerja (2026-10-05, Bos Cyo: "visualnya kaya claude agent"):** panel mengirim
+  `satuLangkah:true` → server satu putaran per permintaan, jadi kartu "Una lagi kerja"
+  (`cacaTambahKerjaLive`) mencentang tiap langkah begitu selesai, dengan stopwatch di
+  browser (bukan polling server). Panel lanjut otomatis sampai 11 kali (server tetap
+  membatasi 12 langkah).
+- **Ukuran panel (Bos Cyo: "ukurannya berubah2", "di HP tombol ganti gerai ga keliatan"):**
+  tinggi tidak lagi dihitung dari posisi bilah tab (ikut bergeser saat halaman tergulir).
+  Layar lebar: tetap maks 640px. HP (≤560px): penuh layar mengikuti `visualViewport`, jadi
+  kepala panel tetap terlihat saat keyboard muncul; isi chat `overscroll-behavior: contain`.
+- **`cek_harga_janggal` (baca, dihitung kode):** lahir dari uji langsung di Testing Una —
+  "barang mana yang harga jualnya di bawah harga beli?" lewat `baca_api` dijawab "semua
+  aman" padahal ada 2 (daftar 46 barang terlalu besar, model lite tidak menyusun saringan).
+  Menandai: jual < beli, jual < HPP (skala 1e6 BigInt), barang jual berharga 0, dan harga
+  ≥5x / ≤1/5 median sekategori (salah ketik nol). Ditambah pagar di `selesai`: kalau semua
+  catatan kerja berisi gagal/"belum bisa menyimpulkan", kesimpulan model diganti kalimat
+  jujur. `judul_langkah` kosong diisi `JUDUL_BAWAAN`, bukan nama alat.
+- **Harga baru wajib dari Bos (kode, bukan prompt saja):** draft `ubah_barang` yang harga
+  barunya tidak pernah diucapkan Bos (pesan sekarang + pesan Bos di riwayat, `nominalDariBos`)
+  diganti pertanyaan — uji langsung: "cek anomali terus betulin" dibuatkan harga jual =
+  harga beli. `buat_barang_banyak` yang semua barangnya sudah ada + berharga dialihkan
+  (`alihkan`) ke `ubah_barang` (sekali saja). Rencana di tengah kerjaan → pertanyaan ke Bos.
+- **Batas ingatan & huruf dilonggarkan (2026-10-05, Bos Cyo: "batasan 10 chat terakhir dan batasan
+  huruf ga perlu, buang aja"):** batas jumlah obrolan DIBUANG — riwayat kini anggaran huruf total
+  (`MAKS_TOTAL_RIWAYAT` 60 ribu, terlama dilepas dulu; per entri 4.000). Pesan maks 50.000 huruf
+  (dulu 8.000). Pembaca bebas melihat data utuh sampai 60 ribu huruf (dulu 7.000 — daftar barang satu
+  gerai kini terbaca utuh). Catatan kerja 12 ribu/langkah, 80 ribu total. Yang tersisa adalah
+  pagar keamanan/biaya: riwayat & catatan datang dari browser, tiap huruf dibayar di tiap panggilan,
+  dan model kecil makin linglung kalau disuapi berlebihan.
+- **Perpustakaan contoh percakapan (`src/caca-contoh.js`):** ±35 contoh "pesan Bos → langkah Una".
+  Kode memilih maks 4 yang paling mirip (kata + potongan huruf) dan hanya itu yang masuk prompt
+  pilih-alat; contoh statis di `ATURAN_PUTARAN` dihapus. Disimpan di kode, bukan D1: pengetahuan
+  produk yang sama untuk semua tenant, lewat review + test (`test/caca-contoh.test.js` memastikan
+  nama alat di contoh masih ada). Tiap temuan uji langsung sebaiknya jadi satu contoh baru.
+- **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
+  untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
+  lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat
+  penjualan/pembelian di sana; uji ubah master/draft saja.
 
 **Bahasa pertanyaan balik jangan kaku (2026-10-03):** "tidak ditemukan/tidak ketemu" diganti
 "belum ketemu nih"/"belum nemu nih" (`kataBelumKetemu` di `src/caca-aksi-dasar.js`, dipilih

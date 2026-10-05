@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bersihkanRiwayat, teksRiwayat, pesanDenganRiwayat, MAKS_PERCAKAPAN, MAKS_ENTRI, MAKS_PANJANG_UNA } from '../src/caca-riwayat.js';
+import { bersihkanRiwayat, teksRiwayat, pesanDenganRiwayat, MAKS_TOTAL_RIWAYAT, MAKS_ENTRI, MAKS_PANJANG_UNA, MAKS_PANJANG_ENTRI } from '../src/caca-riwayat.js';
 import { jawabPertanyaan } from '../src/caca-agen.js';
 import { bacaBebas } from '../src/caca-baca.js';
 
@@ -14,21 +14,24 @@ function percakapan(jumlah) {
   return hasil;
 }
 
-test('hanya 10 pesan Bos terakhir yang nyambung, beserta balasan dan catatan di antaranya', () => {
-  assert.equal(MAKS_PERCAKAPAN, 10);
-  const masuk = percakapan(14);
+// Bos Cyo 2026-10-05: batas "10 chat terakhir" dibuang — seluruh obrolan sesi
+// ikut, hanya dibatasi anggaran huruf total.
+test('tidak ada batas jumlah obrolan: 40 obrolan pendek ikut semua', () => {
+  const masuk = percakapan(40);
   masuk.splice(23, 0, { dari: 'sistem', teks: 'Bos pindah membahas Beji.' });
   const hasil = bersihkanRiwayat(masuk);
-  assert.equal(hasil.filter((e) => e.dari === 'saya').length, MAKS_PERCAKAPAN);
-  assert.equal(hasil[0].teks, 'pertanyaan 5');
-  assert.equal(hasil.at(-1).teks, 'jawaban 14');
+  assert.equal(hasil.filter((e) => e.dari === 'saya').length, 40);
+  assert.equal(hasil[0].teks, 'pertanyaan 1');
   assert.ok(hasil.some((e) => e.dari === 'sistem'));
 });
 
-test('10 obrolan lengkap beserta balasan tidak terpotong oleh batas jumlah baris', () => {
-  const hasil = bersihkanRiwayat(percakapan(10));
-  assert.equal(hasil.length, 20);
-  assert.equal(hasil[0].teks, 'pertanyaan 1');
+test('anggaran huruf habis: yang terlama dilepas, yang terbaru tetap', () => {
+  const panjang = Array.from({ length: 40 }, (_, i) => ({ dari: i % 2 ? 'una' : 'saya', teks: `${i} ${'x'.repeat(3000)}` }));
+  const hasil = bersihkanRiwayat(panjang);
+  const total = hasil.reduce((n, e) => n + e.teks.length, 0);
+  assert.ok(total <= MAKS_TOTAL_RIWAYAT);
+  assert.match(hasil.at(-1).teks, /^39 /);
+  assert.ok(hasil.length < 40);
 });
 
 test('riwayat dari browser dibersihkan: bentuk, peran liar, baris kosong, kontrol, panjang', () => {
@@ -38,8 +41,9 @@ test('riwayat dari browser dibersihkan: bentuk, peran liar, baris kosong, kontro
   ]);
   assert.equal(hasil.length, 2);
   assert.equal(hasil[0].teks, 'baris baru dan spasi');
-  assert.equal(hasil[1].teks.length, MAKS_PANJANG_UNA, 'balasan Una boleh lebih panjang dari pesan Bos');
-  assert.equal(bersihkanRiwayat([{ dari: 'saya', teks: 'y'.repeat(2000) }])[0].teks.length, 400);
+  assert.equal(hasil[1].teks.length, 2000, 'balasan panjang tidak lagi dipotong 900');
+  assert.equal(bersihkanRiwayat([{ dari: 'una', teks: 'x'.repeat(9000) }])[0].teks.length, MAKS_PANJANG_UNA);
+  assert.equal(bersihkanRiwayat([{ dari: 'saya', teks: 'y'.repeat(9000) }])[0].teks.length, MAKS_PANJANG_ENTRI);
   assert.deepEqual(bersihkanRiwayat('bukan daftar'), []);
   assert.deepEqual(bersihkanRiwayat(undefined), []);
 });

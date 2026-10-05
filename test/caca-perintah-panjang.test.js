@@ -59,7 +59,7 @@ test('rencana: perintah langkah yang memuat daftar 17 baris tidak terpotong, bar
 });
 
 test('pesan: batas 8000 huruf, dan kotak ketik tidak lagi memotong tempelan diam-diam', () => {
-  assert.equal(MAKS_PERTANYAAN, 8000);
+  assert.equal(MAKS_PERTANYAAN, 50000);
   const panel = readFileSync(new URL('../public/caca-chat.js', import.meta.url), 'utf8');
   assert.doesNotMatch(panel, /id="cacaPertanyaan"[^>]*maxlength/, 'tanpa maxlength: kelebihan ditolak server dengan pesan jelas');
   const server = readFileSync(new URL('../src/caca-chat.js', import.meta.url), 'utf8');

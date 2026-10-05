@@ -381,6 +381,25 @@
     });
   }
 
+  // Piutang/hutang wajib bernama (migration 0138). Jenis isian ikut aturan server (`rules` dari party-options).
+  function partyKindFor(accountId) {
+    const account = (state.bootstrap?.accounts || []).find(item => item.accountId === accountId);
+    return account ? (state.partyOptions?.rules?.[account.accountCode] || '') : '';
+  }
+
+  function partyFieldHtml(line) {
+    const kind = partyKindFor(line.accountId);
+    if (!kind) return '';
+    const options = state.partyOptions || { employees: [], suppliers: [] };
+    const pick = (rows, placeholder) => `<select class="acct-select" data-line-party-id><option value="">${placeholder}</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === line.partyId ? 'selected' : ''}>${esc(row.name)}</option>`).join('')}</select>`;
+    const nameInput = placeholder => `<input class="acct-input" data-line-party-name maxlength="120" value="${esc(line.partyName || '')}" placeholder="${placeholder}" />`;
+    let body;
+    if (kind === 'EMPLOYEE') body = pick(options.employees, 'Pilih karyawan…');
+    else if (kind === 'SUPPLIER') body = `${pick(options.suppliers, 'Pilih pemasok…')}<div style="margin-top:4px">${nameInput('…atau tulis nama kalau pemasok belum terdaftar')}</div>`;
+    else body = nameInput('Nama pihak (wajib)');
+    return `<div class="acct-line-party" style="grid-column:1/-1"><div class="acct-line-head">Atas nama (wajib untuk piutang/hutang)</div>${body}</div>`;
+  }
+
   function journalLineHtml(line) {
     return `<div class="acct-journal-line" data-journal-line="${esc(line.key)}">
       <div class="acct-line-account"><div class="acct-line-head">Akun</div><select class="acct-select" data-line-account>${accountOptions(line.accountId)}</select></div>
@@ -388,6 +407,7 @@
       <div><div class="acct-line-head">Kredit (Rp)</div><input class="acct-input" data-line-credit type="number" min="0" step="0.000001" value="${esc(line.credit)}" placeholder="0" /></div>
       <div class="acct-line-desc"><div class="acct-line-head">Keterangan baris</div><input class="acct-input" data-line-desc value="${esc(line.description)}" /></div>
       <button class="acct-btn danger" data-remove-line type="button" ${state.journalLines.length <= 2 ? 'disabled' : ''}>×</button>
+      ${partyFieldHtml(line)}
     </div>`;
   }
 
@@ -410,10 +430,20 @@
   }
 
   function renderJournalCreate(host) {
+    if (!state.partyOptions && !state.partyOptionsLoading) {
+      state.partyOptionsLoading = true;
+      api('/api/admin/accounting/party-options')
+        .then(options => { state.partyOptions = options; })
+        .catch(() => { state.partyOptions = { employees: [], suppliers: [], rules: {} }; toast('Daftar nama karyawan/pemasok gagal dimuat'); })
+        .finally(() => { state.partyOptionsLoading = false; if (state.view === 'journal-create') renderJournalCreate(host); });
+    }
     const totals = journalTotals();
-    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buat Jurnal</h2><p>Jurnal manual wajib balance exact. Nominal menerima sampai 6 desimal; digit selebihnya dibulatkan half-up oleh server. Auto Penyesuaian Rp100 hanya berlaku untuk jurnal sistem.</p></div></div>
+    // Render ulang (ganti akun / daftar nama selesai dimuat) tidak boleh menghapus isian header yang sudah diketik.
+    const draftDate = el('acctJournalDate')?.value || state.bootstrap.currentBusinessDate;
+    const draftDescription = el('acctJournalDescription')?.value || '';
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buat Jurnal</h2><p>Jurnal manual wajib balance exact. Nominal menerima sampai 6 desimal; digit selebihnya dibulatkan half-up oleh server. Auto Penyesuaian Rp100 hanya berlaku untuk jurnal sistem. Baris pada akun piutang &amp; hutang (1201, 1202, 2101, 2102, 2103) wajib menyebut nama pihaknya.</p></div></div>
       <form id="acctJournalForm" class="acct-card">
-        <div class="acct-grid" style="grid-template-columns:180px minmax(0,1fr)"><label class="acct-field"><span>Tanggal</span><input id="acctJournalDate" class="acct-input" type="date" value="${esc(state.bootstrap.currentBusinessDate)}" required /></label><label class="acct-field"><span>Keterangan Jurnal</span><input id="acctJournalDescription" class="acct-input" maxlength="300" placeholder="Contoh: Setoran modal tambahan" required /></label></div>
+        <div class="acct-grid" style="grid-template-columns:180px minmax(0,1fr)"><label class="acct-field"><span>Tanggal</span><input id="acctJournalDate" class="acct-input" type="date" value="${esc(draftDate)}" required /></label><label class="acct-field"><span>Keterangan Jurnal</span><input id="acctJournalDescription" class="acct-input" maxlength="300" value="${esc(draftDescription)}" placeholder="Contoh: Setoran modal tambahan" required /></label></div>
         <h3 style="margin-top:14px">Baris Jurnal</h3><div id="acctJournalLines" class="acct-journal-lines">${state.journalLines.map(journalLineHtml).join('')}</div>
         <button id="acctAddJournalLine" class="acct-btn" type="button" style="margin-top:9px">＋ Tambah Baris</button>
         <div class="acct-total"><div><small>Total Debit</small><b id="acctDebitTotal">${rpExact(totals.debitExact)}</b></div><div><small>Total Kredit</small><b id="acctCreditTotal" class="${totals.balanced ? 'balanced' : 'unbalanced'}">${rpExact(totals.creditExact)}</b></div></div>
@@ -428,7 +458,13 @@
     host.querySelectorAll('[data-journal-line]').forEach(row => {
       const line = state.journalLines.find(item => item.key === row.dataset.journalLine);
       if (!line) return;
-      row.querySelector('[data-line-account]').addEventListener('change', event => { line.accountId = event.target.value; });
+      row.querySelector('[data-line-account]').addEventListener('change', event => {
+        const before = partyKindFor(line.accountId);
+        line.accountId = event.target.value;
+        if (before !== partyKindFor(line.accountId)) { line.partyId = ''; line.partyName = ''; renderJournalCreate(host); }
+      });
+      row.querySelector('[data-line-party-id]')?.addEventListener('change', event => { line.partyId = event.target.value; });
+      row.querySelector('[data-line-party-name]')?.addEventListener('input', event => { line.partyName = event.target.value; });
       row.querySelector('[data-line-debit]').addEventListener('input', event => { line.debit = event.target.value; if ((inputToScaled(event.target.value) || 0n) > 0n) { line.credit = ''; row.querySelector('[data-line-credit]').value = ''; } refreshJournalTotals(); });
       row.querySelector('[data-line-credit]').addEventListener('input', event => { line.credit = event.target.value; if ((inputToScaled(event.target.value) || 0n) > 0n) { line.debit = ''; row.querySelector('[data-line-debit]').value = ''; } refreshJournalTotals(); });
       row.querySelector('[data-line-desc]').addEventListener('input', event => { line.description = event.target.value; });
@@ -452,8 +488,21 @@
       const debit = inputToScaled(line.debit);
       const credit = inputToScaled(line.credit);
       if (!line.accountId) return toast('Semua baris jurnal wajib memilih akun');
-      if (debit && debit > 0n) journalLines.push({ accountId: line.accountId, side: 'DEBIT', amountExact: String(line.debit).replace(',', '.'), description: line.description });
-      else if (credit && credit > 0n) journalLines.push({ accountId: line.accountId, side: 'CREDIT', amountExact: String(line.credit).replace(',', '.'), description: line.description });
+      const kind = partyKindFor(line.accountId);
+      let party;
+      if (kind === 'EMPLOYEE') {
+        if (!line.partyId) return toast('Piutang/hutang karyawan wajib memilih nama karyawan');
+        party = { employeeId: line.partyId };
+      } else if (kind === 'SUPPLIER') {
+        if (!line.partyId && String(line.partyName || '').trim().length < 2) return toast('Hutang usaha wajib memilih pemasok atau menulis namanya');
+        party = line.partyId ? { supplierId: line.partyId } : { name: line.partyName };
+      } else if (kind) {
+        if (String(line.partyName || '').trim().length < 2) return toast('Piutang/hutang wajib diisi nama pihaknya');
+        party = { name: line.partyName };
+      }
+      const extra = party ? { party } : {};
+      if (debit && debit > 0n) journalLines.push({ accountId: line.accountId, side: 'DEBIT', amountExact: String(line.debit).replace(',', '.'), description: line.description, ...extra });
+      else if (credit && credit > 0n) journalLines.push({ accountId: line.accountId, side: 'CREDIT', amountExact: String(line.credit).replace(',', '.'), description: line.description, ...extra });
       else return toast('Setiap baris wajib memiliki Debit atau Kredit');
     }
     try {
@@ -471,6 +520,23 @@
       <div class="acct-card"><div class="acct-filters"><label class="acct-field"><span>Dari</span><input id="acctJournalFrom" class="acct-input" type="date" value="${esc(p.from)}" /></label><label class="acct-field"><span>Sampai</span><input id="acctJournalTo" class="acct-input" type="date" value="${esc(p.to)}" /></label><button id="acctLoadJournals" class="acct-btn primary" type="button">Tampilkan</button></div><div id="acctJournalList"></div></div></div>`;
     el('acctLoadJournals').addEventListener('click', loadJournals);
     renderJournalList(state.bootstrap.recentJournals || []);
+    host.firstElementChild.insertAdjacentHTML('beforeend', `<div class="acct-card" style="margin-top:12px"><div class="acct-head"><div><h3>Cek Sinkron Piutang &amp; Hutang</h3><p>Membandingkan saldo buku besar dengan saldo per nama. Selisih "belum bernama" berarti ada jurnal yang tidak menyebut siapa pihaknya.</p></div><button id="acctPartyCheck" class="acct-btn" type="button">Cek Sekarang</button></div><div id="acctPartyResult"></div></div>`);
+    el('acctPartyCheck').addEventListener('click', loadPartyReconciliation);
+  }
+
+  async function loadPartyReconciliation() {
+    const box = el('acctPartyResult');
+    box.innerHTML = '<p>Memeriksa…</p>';
+    try {
+      const data = await api('/api/admin/accounting/party-reconciliation');
+      const rp = value => `Rp${integerFormat.format(value)}`;
+      const rows = data.accounts.map(account => `<tr><td>${esc(account.accountCode)} ${esc(account.accountName)}</td><td>${rp(account.glBalanceRupiah)}</td><td>${rp(account.namedRupiah)}</td><td>${rp(account.setoranRupiah)}</td><td><b>${rp(account.unnamedRupiah)}</b> ${account.inSync ? '<span class="acct-chip">Sinkron</span>' : '<span class="acct-chip inactive">Belum bernama</span>'}</td></tr>`).join('');
+      const unnamed = data.accounts.flatMap(account => account.unnamedItems.map(item => `<tr><td>${esc(account.accountCode)}</td><td>${esc(item.businessDate)}</td><td>${esc(item.journalNumber)}</td><td>${esc(item.sourceSystem)}</td><td>${esc(item.description)}</td><td>${item.side === 'DEBIT' ? 'D' : 'K'} ${rp(item.amountScaled / 1000000)}</td></tr>`)).join('');
+      const setoran = data.setoran
+        ? `<p style="margin-top:8px">Setoran CS: saldo per karyawan ${rp(data.setoran.operationalRupiah)} · tercatat di buku ${rp(data.setoran.ledgerRupiah)} · ${data.setoran.inSync ? 'sama' : `<b>selisih ${rp(data.setoran.differenceRupiah)} (ada setoran yang belum terjurnal)</b>`}</p>`
+        : '';
+      box.innerHTML = `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Akun</th><th>Saldo buku</th><th>Bernama</th><th>Setoran CS</th><th>Belum bernama</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Belum ada akun piutang/hutang aktif.</td></tr>'}</tbody></table></div>${setoran}${unnamed ? `<h4 style="margin-top:10px">Jurnal belum bernama</h4><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Akun</th><th>Tanggal</th><th>No.</th><th>Sumber</th><th>Keterangan</th><th>Nominal</th></tr></thead><tbody>${unnamed}</tbody></table></div>` : ''}`;
+    } catch (error) { box.innerHTML = `<p>${esc(error.message)}</p>`; }
   }
 
   async function loadJournals() {

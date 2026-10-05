@@ -15,10 +15,12 @@ const CACA_INGAT_GERAI = 'lekerCacaGerai';
 const CACA_SIMPANAN = 'lekerUnaPercakapan';
 const CACA_MAKS_SIMPAN = 80;
 
-const CACA_MAKS_RIWAYAT = 120;
-// 10 pesan Bos yang masih nyambung (Bos Cyo 2026-10-03). Harus sama dengan
-// MAKS_PERCAKAPAN di src/caca-riwayat.js.
-const CACA_PESAN_NYAMBUNG = 10;
+// Bos Cyo 2026-10-05: batas "10 chat terakhir" dibuang. Seluruh obrolan sesi
+// dikirim sampai anggaran huruf yang sama dengan server (MAKS_TOTAL_RIWAYAT di
+// src/caca-riwayat.js); server tetap membersihkan dan memotongnya sendiri.
+const CACA_MAKS_RIWAYAT = 400;
+const CACA_ANGGARAN_RIWAYAT = 60000;
+const CACA_PANJANG_ENTRI = 4000;
 
 const cacaState = {
   // Ingatan jangka pendek: {dari: 'saya'|'una'|'sistem', teks}. Dikirim 5 pesan
@@ -141,21 +143,21 @@ function cacaSidikLogin() {
 
 function cacaCatatRiwayat(dari, teks) {
   // Jawaban Una boleh lebih panjang (nama barang di tabelnya sering dirujuk lagi).
-  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, dari === 'una' ? 900 : 400);
+  const bersih = String(teks ?? '').replace(/\s+/g, ' ').trim().slice(0, CACA_PANJANG_ENTRI);
   if (!bersih) return;
   cacaState.riwayat.push({ dari, teks: bersih });
   if (cacaState.riwayat.length > CACA_MAKS_RIWAYAT) cacaState.riwayat.splice(0, cacaState.riwayat.length - CACA_MAKS_RIWAYAT);
 }
 
-// Dari belakang sampai 5 pesan Bos terkumpul; dipanggil SEBELUM pesan sekarang
+// Dari belakang sampai anggaran huruf habis; dipanggil SEBELUM pesan sekarang
 // dicatat, supaya pesan sekarang tidak terkirim dua kali.
 function cacaRiwayatUntukServer() {
-  let pesanBos = 0;
-  let mulai = 0;
+  let total = 0;
+  let mulai = cacaState.riwayat.length;
   for (let i = cacaState.riwayat.length - 1; i >= 0; i -= 1) {
-    if (cacaState.riwayat[i].dari !== 'saya') continue;
-    pesanBos += 1;
-    if (pesanBos === CACA_PESAN_NYAMBUNG) { mulai = i; break; }
+    total += cacaState.riwayat[i].teks.length;
+    if (total > CACA_ANGGARAN_RIWAYAT) break;
+    mulai = i;
   }
   return cacaState.riwayat.slice(mulai);
 }
@@ -163,15 +165,15 @@ function cacaRiwayatUntukServer() {
 // Isi tabel ikut diingat dalam bentuk ringkas: pertanyaan lanjutan seperti
 // "yang matcha tadi kenapa?" merujuk nama yang hanya tampil di tabel. Angkanya
 // tetap bukan bukti (server menjelaskan itu ke model), cuma pengingat rujukan.
-function cacaRingkasTabel(tabel, maks = 400) {
+function cacaRingkasTabel(tabel, maks = 2500) {
   if (!tabel?.kolom?.length || !tabel.isi?.length) return '';
-  const baris = tabel.isi.slice(0, 10).map(r => r.map(sel => String(sel ?? '').trim()).filter(Boolean).join(' | '));
-  const lebih = tabel.isi.length > 10 ? ` (+${tabel.isi.length - 10} baris lain)` : '';
+  const baris = tabel.isi.slice(0, 40).map(r => r.map(sel => String(sel ?? '').trim()).filter(Boolean).join(' | '));
+  const lebih = tabel.isi.length > 40 ? ` (+${tabel.isi.length - 40} baris lain)` : '';
   return `[Tabel: ${tabel.kolom.join(' | ')} → ${baris.join('; ')}${lebih}]`.slice(0, maks);
 }
 
 function cacaRingkasJawaban(payload) {
-  const teks = String(payload.jawaban || '').replace(/\s+/g, ' ').trim().slice(0, 480);
+  const teks = String(payload.jawaban || '').replace(/\s+/g, ' ').trim().slice(0, 1500);
   const tabel = cacaRingkasTabel(payload.tabel);
   return tabel ? `${teks} ${tabel}` : teks;
 }
@@ -180,7 +182,7 @@ function cacaRingkasDraft(draft) {
   const baris = Array.isArray(draft.baris)
     ? draft.baris.map(([label, nilai]) => `${label}: ${nilai}`).join('; ')
     : `Untuk: ${draft.keterangan}; Nominal: ${draft.nominal}; Ke: ${draft.pihak}; Tanggal: ${draft.tanggal}`;
-  const tabel = cacaRingkasTabel(draft.tabel, 360);
+  const tabel = cacaRingkasTabel(draft.tabel, 2000);
   return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris} ${tabel}`.replace(/\s+/g, ' ').trim();
 }
 
@@ -1087,7 +1089,9 @@ async function cacaKirimFotoMenu(file) {
 async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
   return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
     method: 'POST',
-    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja } : { pertanyaan, riwayat })
+    // satuLangkah: server mengerjakan satu putaran lalu membalas, supaya kartu
+    // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
+    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja, satuLangkah: true } : { pertanyaan, riwayat, satuLangkah: true })
   });
 }
 
@@ -1098,17 +1102,53 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
 // membalas `lanjutkan` + catatan kerja dan panel mengirim ulang (permintaan baru =
 // jatah kerja Cloudflare baru). Draft tetap berhenti menunggu "Ya"; sesudah
 // disetujui, Una melanjutkan dari catatan yang sama.
-const CACA_MAKS_LANJUT_OTOMATIS = 3;
+// Server juga membatasi 12 langkah per perintah; ini batas sisi panel.
+const CACA_MAKS_LANJUT_OTOMATIS = 11;
 
 async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik) {
+  if (kerja?.length) mengetik?.aturLangkah?.(kerja, 'Lanjut ke langkah berikutnya…');
   let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja);
   for (let i = 0; i < CACA_MAKS_LANJUT_OTOMATIS && payload.lanjutkan && payload.kerja?.length; i += 1) {
-    const teks = mengetik?.querySelector('.caca-mengetik-teks');
-    const terakhir = payload.kerja[payload.kerja.length - 1];
-    if (teks) teks.textContent = `Una lagi ngerjain langkah ${payload.kerja.length + 1}… (barusan: ${terakhir.judul || terakhir.alat})`;
+    mengetik?.aturLangkah?.(payload.kerja, 'Mikirin langkah berikutnya…');
     payload = await cacaTanyaServer(pertanyaan, scope, riwayat, payload.kerja);
   }
   return payload;
+}
+
+// Kartu "Una lagi kerja" ala agen: langkah yang sudah beres dicentang satu per
+// satu, langkah yang sedang jalan berputar, dan stopwatch-nya jalan (hitungan di
+// browser saja, tidak bertanya ke server). Kelas `mengetik` membuatnya tidak ikut
+// tersimpan dan diperlakukan sama dengan gelembung "mengetik" lama.
+function cacaTambahKerjaLive(awal = 'Memahami perintah Bos…') {
+  const wadah = cacaEl('cacaPercakapan');
+  const gelembung = document.createElement('div');
+  gelembung.className = 'caca-gelembung caca lebar mengetik caca-live';
+  gelembung.setAttribute('aria-live', 'polite');
+  gelembung.innerHTML = `
+    <div class="caca-live-kepala"><span class="caca-live-putar" aria-hidden="true"></span><strong>Una lagi kerja</strong><span class="caca-live-waktu">0 dtk</span></div>
+    <ol class="caca-live-langkah"></ol>`;
+  wadah.appendChild(gelembung);
+  cacaSetStatusMengetik(true);
+  const mulai = Date.now();
+  const waktu = gelembung.querySelector('.caca-live-waktu');
+  const jam = setInterval(() => { waktu.textContent = `${Math.round((Date.now() - mulai) / 1000)} dtk`; }, 1000);
+  gelembung.aturLangkah = (kerja = [], sedang = awal) => {
+    gelembung.querySelector('.caca-live-langkah').innerHTML = [
+      ...kerja.map(k => `<li class="selesai"><span class="caca-live-tanda">✓</span><span>${cacaEscape(k.judul || k.alat)}</span></li>`),
+      `<li class="jalan"><span class="caca-live-tanda"><i></i><i></i><i></i></span><span>${cacaEscape(sedang)}</span></li>`
+    ].join('');
+    cacaGulirKeBawah();
+  };
+  gelembung.aturLangkah([], awal);
+  const hapusAsli = gelembung.remove.bind(gelembung);
+  let sudah = false;
+  gelembung.remove = () => {
+    clearInterval(jam);
+    hapusAsli();
+    if (!sudah) { sudah = true; cacaSetStatusMengetik(false); }
+  };
+  cacaGulirKeBawah();
+  return gelembung;
 }
 
 // Langkah yang sudah dijalankan Una, ditulis seperti agen: 1. … ✓ 2. … ⏸
@@ -1136,7 +1176,7 @@ function cacaTombolLanjutKerja(gelembung, pertanyaan, scope, kerja) {
 
 async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
   const riwayat = cacaRiwayatUntukServer();
-  const mengetik = cacaTambahMengetik();
+  const mengetik = cacaTambahKerjaLive('Lanjut ke langkah berikutnya…');
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik);
     mengetik.remove();
@@ -1215,7 +1255,7 @@ async function cacaKirimTeks(pertanyaan) {
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
   const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;
   cacaState.kerjaTertunda = null;
-  const mengetik = cacaTambahMengetik();
+  const mengetik = cacaTambahKerjaLive();
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik);
     mengetik.remove();
@@ -1295,7 +1335,7 @@ async function cacaJalankanRencana(kartu, mulai) {
     cacaRenderRencana(kartu, rencana);
     const riwayat = cacaRiwayatUntukServer();
     cacaCatatRiwayat('saya', `(Langkah ${i + 1} dari rencana) ${langkah.perintah}`);
-    const mengetik = cacaTambahMengetik();
+    const mengetik = cacaTambahKerjaLive(langkah.judul);
     let payload;
     try {
       payload = await cacaTanyaSampaiTuntas(langkah.perintah, rencana.scope, riwayat, null, mengetik);
@@ -1411,20 +1451,27 @@ function cacaTutupPanel() {
   cacaEl('cacaFab')?.setAttribute('aria-expanded', 'false');
 }
 
-// Panel tidak boleh menutupi tab bar. Kalau menutupi, Bos Cyo harus menutup
-// Caca dulu tiap kali mau pindah tab — persis kebalikan dari maksudnya menemani
-// sambil kerja. Tinggi tab bar berubah-ubah (di layar sempit dia membungkus
-// jadi beberapa baris), jadi batasnya diukur dari posisi aslinya, bukan ditebak
-// dengan angka tetap di CSS. Tingginya dibuat tetap (bukan cuma batas atas)
-// supaya kotak ketik selalu di dasar panel, seperti aplikasi chat.
+// Bos Cyo 2026-10-05: "ukurannya engga konsisten, berubah2" dan "di hp tombol
+// ganti gerai kadang ga keliatan". Dulu tinggi dihitung dari posisi bilah tab
+// halaman — yang ikut bergeser kalau halamannya tergulir — jadi tiap kali dibuka
+// ukurannya beda. Sekarang:
+//   - layar lebar: ukuran tetap (maks 640px), hanya menyusut kalau jendela pendek;
+//   - HP: penuh layar seperti WhatsApp, mengikuti bagian layar yang benar-benar
+//     terlihat (visualViewport), jadi saat keyboard muncul kepala panel (nama
+//     gerai + tombol ▾) tetap di atas dan hanya isi chat yang bergulir.
+const CACA_LEBAR_HP = 560;
+
 function cacaAturTinggiPanel() {
   const panel = cacaEl('cacaPanel');
   if (!panel || panel.classList.contains('hidden')) return;
-  const tabBar = document.querySelector('.admin-tabs');
-  const batasAtas = tabBar ? tabBar.getBoundingClientRect().bottom + 12 : 80;
-  const jarakBawah = window.innerWidth <= 560 ? 76 : 84;
-  const tinggi = Math.min(640, Math.max(260, window.innerHeight - batasAtas - jarakBawah));
-  panel.style.height = `${tinggi}px`;
+  const vv = window.visualViewport;
+  if (window.innerWidth <= CACA_LEBAR_HP) {
+    panel.style.top = `${Math.round(vv ? vv.offsetTop : 0)}px`;
+    panel.style.height = `${Math.round(vv ? vv.height : window.innerHeight)}px`;
+    return;
+  }
+  panel.style.top = '';
+  panel.style.height = `${Math.min(640, Math.max(320, window.innerHeight - 120))}px`;
 }
 
 function cacaBukaPanel() {
@@ -1570,6 +1617,8 @@ function initCacaPanel() {
     }
   });
   window.addEventListener('resize', cacaAturTinggiPanel);
+  window.visualViewport?.addEventListener('resize', cacaAturTinggiPanel);
+  window.visualViewport?.addEventListener('scroll', cacaAturTinggiPanel);
 }
 
 window.cacaSetTampil = cacaSetTampil;

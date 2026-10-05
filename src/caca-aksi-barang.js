@@ -181,6 +181,18 @@ const barangBanyak = Object.freeze({
     const baru = urai.baris.filter((b) => !adaDiGerai.has(normalkan(b.name)));
     const sudahAda = urai.baris.filter((b) => adaDiGerai.has(normalkan(b.name))).map((b) => b.name);
 
+    // Semua barang di daftar ternyata SUDAH ADA dan ada harganya: maksud Bos
+    // hampir pasti mengganti harga, bukan membuat barang (uji langsung
+    // 2026-10-05: "Susu Kental Manis 2rb, Teh Vanilla 2rb" sesudah Una
+    // menemukan harga janggal). Dialihkan ke ubah_barang, yang tetap membuat
+    // draft sebelum/sesudah + "Ya".
+    if (!baru.length && sudahAda.length && !Array.isArray(dariDraft)) {
+      const ubah = t.daftar_barang
+        .filter((b) => adaDiGerai.has(normalkan(teks(b?.nama, 100))) && (teks(b?.harga_jual, 30) || teks(b?.harga_beli, 30)))
+        .map((b) => ({ barang: teks(b.nama, 100), harga_jual: teks(b.harga_jual, 30) || undefined, harga_beli: teks(b.harga_beli, 30) || undefined }));
+      if (ubah.length) return { ok: false, alihkan: { alat: 'ubah_barang', tangkapan: { ubah_daftar: ubah } } };
+    }
+
     if (!baru.length) {
       const alasan = [
         sudahAda.length ? `sudah ada di gerai: ${sudahAda.slice(0, 8).join(', ')}` : '',
@@ -651,4 +663,89 @@ const cekBarang = Object.freeze({
   }
 });
 
-export const AKSI_BARANG = Object.freeze([barangBanyak, nonaktifkanBarang, ubahBarang, cekBarang]);
+// --- cek_harga_janggal: mencari harga yang anomali, dihitung kode ----------------
+//
+// Uji langsung 2026-10-05 di gerai Testing Una: "barang mana yang harga jualnya di
+// bawah harga beli?" lewat baca_api dijawab "semua aman" padahal ada 2 barang —
+// daftar 46 barang terlalu besar untuk dilihat utuh dan model lite tidak menyusun
+// saringannya. Pertanyaan anomali harga itu sering (Bos Cyo: "cek harga2 yang
+// anomali, lalu ganti harganya dengan harga normal"), jadi saringannya dikerjakan
+// kode. Uang dibandingkan dalam skala 1e6 (BigInt), bukan float.
+
+const skalaBig = (rupiahAngka) => BigInt(Math.round(Number(rupiahAngka || 0) * 1_000_000));
+const KALI_JANGGAL = 5n;          // 5x lipat dari median sekategori = curiga salah ketik nol
+const MIN_SEKATEGORI = 3;
+const MAKS_JANGGAL = 40;
+
+function median(nilai) {
+  const urut = [...nilai].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return urut[Math.floor((urut.length - 1) / 2)];
+}
+
+/** Daftar {produk, alasan[]} untuk barang aktif yang harganya janggal. */
+export function cariHargaJanggal(produk) {
+  const aktif = (Array.isArray(produk) ? produk : []).filter((p) => p && p.isActive !== false);
+  const hasil = new Map();
+  const tandai = (p, alasan) => {
+    if (!hasil.has(p.id)) hasil.set(p.id, { produk: p, alasan: [] });
+    hasil.get(p.id).alasan.push(alasan);
+  };
+
+  const perKategori = new Map();
+  for (const p of aktif) {
+    const jual = skalaBig(p.price);
+    const beli = skalaBig(p.purchasePrice);
+    let hpp = 0n;
+    try { hpp = p.averageCostScaled != null ? BigInt(String(p.averageCostScaled)) : skalaBig(p.averageCost); } catch { hpp = skalaBig(p.averageCost); }
+    const bahan = p.productKindCode === 'RAW_MATERIAL';
+    if (jual > 0n && beli > 0n && jual < beli) tandai(p, 'harga jual di bawah harga beli');
+    if (jual > 0n && hpp > 0n && jual < hpp) tandai(p, 'harga jual di bawah HPP');
+    if (!bahan && jual === 0n) tandai(p, 'harga jual masih 0');
+    // Bahan dihargai per gram/ml/pcs, jadi dibandingkan dengan menu sekategori
+    // pasti tampak "murah" (uji langsung: gula Rp18/gram ikut ditandai). Hanya
+    // barang non-bahan dengan satuan sama yang dibandingkan.
+    if (jual > 0n && !bahan) {
+      const kunci = `${normalkan(p.category || '')}|${p.unitSymbol || p.baseUnitId || ''}`;
+      if (!perKategori.has(kunci)) perKategori.set(kunci, []);
+      perKategori.get(kunci).push({ p, jual });
+    }
+  }
+  for (const daftar of perKategori.values()) {
+    if (daftar.length < MIN_SEKATEGORI) continue;
+    const tengah = median(daftar.map((x) => x.jual));
+    for (const { p, jual } of daftar) {
+      if (jual >= tengah * KALI_JANGGAL) tandai(p, `jauh lebih mahal dari barang sekategori (umumnya ${tampilRupiah(Number(tengah / 1_000_000n))})`);
+      else if (jual * KALI_JANGGAL <= tengah) tandai(p, `jauh lebih murah dari barang sekategori (umumnya ${tampilRupiah(Number(tengah / 1_000_000n))})`);
+    }
+  }
+  return [...hasil.values()];
+}
+
+const cekHargaJanggal = Object.freeze({
+  nama: 'cek_harga_janggal',
+  lingkup: 'gerai',
+  baca: true,
+  petunjuk: 'MENCARI barang yang harganya janggal/anomali di gerai ini: harga jual di bawah harga beli atau HPP, harga jual masih 0, atau harga jauh beda dari barang sekategori (salah ketik nol). Untuk "cek harga yang anomali", "barang mana yang rugi/dijual di bawah modal", "harga jual di bawah harga beli". Dihitung sistem.',
+  skema: {},
+
+  async siapkan(_t, ctx) {
+    const ref = await ctx.baca('/api/admin/master/products/editor?ringkas=1');
+    if (!ref.ok) return ref;
+    const janggal = cariHargaJanggal(ref.data.products ?? []);
+    const gerai = ctx.namaLingkup || 'gerai ini';
+    if (!janggal.length) {
+      return { ok: true, jawaban: `Una sudah cek semua barang aktif di ${gerai}: tidak ada harga jual di bawah harga beli/HPP, tidak ada yang 0, dan tidak ada yang jauh beda dari barang sekategori.` };
+    }
+    const tampil = janggal.slice(0, MAKS_JANGGAL);
+    return {
+      ok: true,
+      jawaban: `Ada ${janggal.length} barang dengan harga janggal di ${gerai}${janggal.length > MAKS_JANGGAL ? ` (Una tampilkan ${MAKS_JANGGAL} pertama)` : ''}:`,
+      tabel: {
+        kolom: ['Barang', 'Harga jual', 'Harga beli', 'HPP', 'Kenapa janggal'],
+        isi: tampil.map(({ produk: p, alasan }) => [p.name, rupiahPersis(p.price), rupiahPersis(p.purchasePrice), rupiahPersis(p.averageCost), alasan.join('; ')])
+      }
+    };
+  }
+});
+
+export const AKSI_BARANG = Object.freeze([barangBanyak, nonaktifkanBarang, ubahBarang, cekBarang, cekHargaJanggal]);

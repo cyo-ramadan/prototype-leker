@@ -23,6 +23,8 @@ import { uraiDaftarHpp } from './caca-aksi-hpp-banyak.js';
 import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
 import { uraiDaftarRentang } from './caca-aksi-rentang.js';
 import { terjemahkanPesan } from './caca-terjemah.js';
+import { uraikanNominal } from './caca-nominal.js';
+import { teksContoh } from './caca-contoh.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
@@ -150,8 +152,8 @@ function kalimatKonteks(konteks) {
   ].join('\n');
 }
 
-// Cara kerja bertahap + contoh. Model lite jauh lebih nurut dengan contoh
-// percakapan daripada aturan saja.
+// Cara kerja bertahap. Contoh percakapannya dipilih per pesan dari
+// perpustakaan contoh (src/caca-contoh.js), bukan ditempel semua.
 const ATURAN_PUTARAN = [
   '- Kamu bekerja BERPUTAR seperti agen: tiap putaran pilih SATU alat dan isi judul_langkah. Isi lanjut=true kalau',
   '  sesudah alat itu kamu masih perlu MELIHAT hasilnya untuk langkah berikutnya (mis. cek harga dulu, baru diubah;',
@@ -160,24 +162,17 @@ const ATURAN_PUTARAN = [
   '  yang sama. Nama barang/bahan untuk alat berikutnya disalin PERSIS dari catatan kerja.',
   `- ${ALAT_SELESAI}: pilih kalau catatan kerja sudah cukup; tulis jawaban_akhir 1-4 kalimat, SEMUA angka dari catatan kerja.`,
   '  Tanpa catatan kerja, "selesai" hanya untuk salam, terima kasih, atau obrolan ringan — pertanyaan data tetap pakai alat.',
+  '- Kalau catatan kerja bilang belum bisa membaca/menyimpulkan, JANGAN menyimpulkan "aman"/"tidak ada": bilang terus',
+  '  terang Una belum berhasil, atau coba alat lain yang lebih cocok.',
   '- Butuh angka/keputusan dari Bos yang tidak ada di catatan (mis. harga normal): jangan mengarang. Pilih "selesai"',
   '  dan tanyakan di jawaban_akhir (akhiri dengan "?"), sebut barangnya.',
-  '- Alat yang mengubah data selalu jadi draft yang menunggu "Ya". Kalau sesudah draft itu masih ada langkah lain,',
-  '  isi lanjut=true; setelah Bos menyetujui, hasilnya masuk catatan kerja dan kamu lanjut dari sana.',
-  '- Langkah yang bergantung pada hasil baca: kerjakan bertahap sendiri (lanjut=true), bukan "rencana".',
-  '',
-  'Contoh:',
-  '  Bos: "harga es teh di sini berapa? kalau masih 5rb naikin jadi 6rb"',
-  '    putaran 1 -> cek_barang ["es teh"], judul "Cek harga Es Teh", lanjut=true',
-  '    putaran 2 (catatan: Es Teh Manis | 5.000 | ...) -> ubah_barang [{barang:"Es Teh Manis", harga_jual:"6rb"}], lanjut=false',
-  '    (kalau catatan bilang harganya sudah 6.000 -> selesai: "Es Teh Manis sudah 6.000, nggak Una ubah ya Bos.")',
-  '  Bos: "barang mana yang HPP-nya di atas harga jual? betulin harganya"',
-  '    putaran 1 -> baca_api (barang + HPP), judul "Cari barang yang rugi", lanjut=true',
-  '    putaran 2 (catatan: 2 barang, tanpa harga baru dari Bos) -> selesai: "Ada 2 yang rugi: ... Harga jual barunya mau berapa, Bos?"',
-  '  Bos: "makasih Una" -> selesai: "Sama-sama Bos!"'
+  '- Alat yang mengubah data selalu jadi draft yang menunggu "Ya". Kalau perintah Bos masih punya pekerjaan SESUDAH',
+  '  perubahan itu ("abis itu", "lalu", "terus cek lagi"), WAJIB isi lanjut=true pada alat ubahnya; setelah Bos',
+  '  menyetujui, hasilnya masuk catatan kerja (langkah "persetujuan") dan kamu lanjut dari sana.',
+  '- Langkah yang bergantung pada hasil baca: kerjakan bertahap sendiri (lanjut=true), bukan "rencana".'
 ].join('\n');
 
-function promptPilihAlat(konteks) {
+function promptPilihAlat(konteks, pesan = '') {
   const diGerai = konteks.lingkup !== 'entity';
   return [
     'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok',
@@ -207,6 +202,8 @@ function promptPilihAlat(konteks) {
     '  menyimpan harga (hanya Kode Barang dan foto). Jadi "ubah di master" = ubah Data Barang gerai yang sedang dibuka;',
     '  jangan bilang tidak punya akses ke master.',
     '- Harga/HPP/stok barang tertentu yang disebut namanya = cek_barang (bukan baca_api).',
+    '- Mencari harga yang janggal/anomali, barang yang dijual rugi/di bawah harga beli atau HPP = cek_harga_janggal',
+    '  (bukan baca_api).',
     `- ${ALAT_RENCANA}: pilih ini HANYA kalau perintahnya berisi 2 pekerjaan BERBEDA atau lebih yang masing-masing bisa`,
     '  dikerjakan sendiri, mis. "bikin 3 barang ini, lalu koreksi HPP gula, lalu atur cara bayar QRIS". Kalau langkah',
     '  berikutnya cuma menunggu HASIL BACA langkah sebelumnya (cek dulu lalu ubah), kerjakan berputar (lanjut=true).',
@@ -239,6 +236,9 @@ function promptPilihAlat(konteks) {
     '  ubah_barang, nonaktifkan_barang, hitung_ulang_hpp, koreksi_hpp_banyak, betulkan_klasifikasi_barang,',
     '  sinkron_akuntansi, samakan_aturan_jurnal, atur_cara_bayar). Kalau tidak ada alat yang cocok, jawab "tidak_ada"',
     '  dan sebutkan alasannya.',
+    '- Jangan pernah mengarang harga jual baru (termasuk menyamakannya dengan harga beli/HPP). Harga baru hanya dari Bos;',
+    '  kalau belum disebut, tanyakan dulu.',
+    '- Daftar "nama harga" untuk barang yang SUDAH ADA (muncul di catatan kerja/percakapan) = ubah_barang.',
     '- Ganti harga/nama/kategori barang yang SUDAH ADA = ubah_barang, bukan buat_barang. Nama barang disalin tanpa',
     '  nama gerai ("di mandala" itu gerai, bukan bagian nama). Salah ketik nama dibetulkan sistem, jangan ditanyakan.',
     '- Kalau yang dibayar memakai uang tunai/kas/laci, tetap pilih alatnya dan salin cara bayarnya apa adanya;',
@@ -248,6 +248,8 @@ function promptPilihAlat(konteks) {
     '  jangan dilengkapi, jangan ditebak — pencocokannya dikerjakan sistem.',
     '',
     TANGKAP_PENGELUARAN_PROMPT,
+    '',
+    teksContoh(pesan),
     '',
     'Daftar API untuk alat baca_api:',
     daftarApiUntukModel()
@@ -278,13 +280,14 @@ function promptSusunJawaban(konteks) {
  * hasilnya di putaran berikutnya, jadi alat baca lama tidak perlu menyusun
  * kalimat (data mentahnya yang dicatat).
  */
-async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, {
-  request,
-  env,
-  jalankan = jalankanAlat,
-  panggilModel = callStructured,
-  jalurAksi = null
-} = {}, { amati = false } = {}) {
+async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {}, { amati = false } = {}) {
+  const {
+    request,
+    env,
+    jalankan = jalankanAlat,
+    panggilModel = callStructured,
+    jalurAksi = null
+  } = opsi;
   const namaAlat = pilihan.value?.alat;
   if (!namaAlat || namaAlat === 'tidak_ada') {
     return {
@@ -334,6 +337,13 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, {
       ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
       storeCode: konteks.storeCode, pesan: pesanBaku
     });
+    // Alat bisa menyatakan maksudnya ternyata alat lain (mis. daftar "barang baru"
+    // yang semuanya sudah ada = ganti harga). Dialihkan sekali saja.
+    if (!disiapkan.ok && disiapkan.alihkan && !pilihan.dialihkan && cariAksi(disiapkan.alihkan.alat)) {
+      return jalankanPilihan(pertanyaan, pesanBaku, {
+        ok: true, dialihkan: true, value: { ...pilihan.value, alat: disiapkan.alihkan.alat, ...disiapkan.alihkan.tangkapan }
+      }, konteks, opsi, { amati });
+    }
     if (!disiapkan.ok) {
       return { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya || disiapkan.error), belumLengkap: true };
     }
@@ -426,9 +436,9 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, {
 
 export const MAKS_PUTARAN = 4;            // pilih-alat per permintaan (batas subrequest)
 export const MAKS_LANGKAH_KERJA = 12;     // langkah total satu perintah, lintas permintaan
-export const MAKS_PANJANG_PENGAMATAN = 2500;
-export const MAKS_TOTAL_KERJA = 16000;
-const MAKS_BARIS_PENGAMATAN = 40;
+export const MAKS_PANJANG_PENGAMATAN = 12000;
+export const MAKS_TOTAL_KERJA = 80000;
+const MAKS_BARIS_PENGAMATAN = 200;
 
 const bersihTeks = (nilai, batas) => String(nilai ?? '')
   // eslint-disable-next-line no-control-regex
@@ -490,8 +500,57 @@ function isiPilihAlat(pesanBaku, konteks, kerja) {
   return blok ? `${pesan}\n\n${blok}\nPilih langkah berikutnya (atau "${ALAT_SELESAI}" kalau sudah cukup).` : pesan;
 }
 
+const GAGAL_BACA = /^(Una belum bisa|Una belum berhasil|GAGAL|pembacaan gagal)/i;
+
+/** Semua nominal yang pernah diucapkan Bos (pesan sekarang + pesan Bos di riwayat). */
+export function nominalDariBos(teksDaftar) {
+  const nilai = new Set();
+  for (const teks of teksDaftar) {
+    for (const m of String(teks ?? '').matchAll(/(?:rp\.?\s*)?\d[\d.,]*\s*(?:rb|ribu|k|jt|juta)?(?![\w])/gi)) {
+      const hasil = uraikanNominal(m[0]);
+      if (!hasil.ok) continue;
+      nilai.add(hasil.nilai);
+      // "naikin jadi 8" di daftar harga sering berarti 8rb (aturan ribuan ubah_barang).
+      if (hasil.nilai > 0 && hasil.nilai < 1000) nilai.add(hasil.nilai * 1000);
+    }
+  }
+  return nilai;
+}
+
+// Harga baru di draft ubah_barang wajib pernah diucapkan Bos. Uji langsung
+// 2026-10-05: diminta "cek harga anomali terus betulin", model menyodorkan harga
+// jual = harga beli (Rp1.500) tanpa pernah ditanyakan. Draft seperti itu diganti
+// pertanyaan; catatan kerja tetap dibawa supaya jawaban Bos melanjutkan.
+function hargaKarangan(draft, teksBos) {
+  if (draft?.aksi !== 'ubah_barang') return [];
+  const disebut = nominalDariBos(teksBos);
+  const karangan = [];
+  for (const baris of draft.muatan?.daftar ?? []) {
+    for (const kunci of ['price', 'purchasePrice']) {
+      const nilai = baris.perubahan?.[kunci];
+      if (nilai == null) continue;
+      if (!disebut.has(Number(nilai))) karangan.push(baris.name);
+    }
+  }
+  return [...new Set(karangan)];
+}
+
+// Model kadang tidak mengisi judul_langkah; daftar langkah tetap harus terbaca
+// bahasa manusia, bukan nama alat.
+const JUDUL_BAWAAN = Object.freeze({
+  cek_barang: 'Cek harga barang',
+  cek_harga_janggal: 'Cari harga yang janggal',
+  baca_api: 'Baca data gerai',
+  ubah_barang: 'Siapkan perubahan barang',
+  buat_barang: 'Siapkan barang baru',
+  buat_barang_banyak: 'Siapkan daftar barang baru',
+  hitung_ulang_hpp: 'Siapkan koreksi HPP',
+  koreksi_hpp_banyak: 'Siapkan koreksi HPP',
+  jelaskan: 'Cari penjelasan'
+});
+
 function judulDari(v, namaAlat) {
-  return bersihTeks(v?.judul_langkah, 100).replace(/\s+/g, ' ') || namaAlat;
+  return bersihTeks(v?.judul_langkah, 100).replace(/\s+/g, ' ') || JUDUL_BAWAAN[namaAlat] || namaAlat;
 }
 
 // Angka di jawaban akhir harus ada di catatan kerja atau di pesan Bos sendiri —
@@ -500,6 +559,17 @@ async function selesaikan(v, { pertanyaan, pesanBaku, konteks, kerja, tabel, env
   let jawaban = bersihTeks(v?.jawaban_akhir, 2000);
   if (!jawaban) {
     jawaban = kerja.length ? 'Una belum bisa menyimpulkan dari data yang ada.' : 'Siap, Bos.';
+  }
+  // Semua bacaan gagal / tidak menyimpulkan apa pun: kesimpulan "aman" dari situ
+  // adalah karangan (uji langsung 2026-10-05). Jawab terus terang saja.
+  if (kerja.length && kerja.every((k) => GAGAL_BACA.test(k.hasil))) {
+    return {
+      ok: true,
+      alat: kerja[kerja.length - 1].alat,
+      jawaban: 'Una belum berhasil membaca/menyimpulkan datanya, jadi Una belum bisa bilang aman atau tidak. Coba tanya lebih spesifik ya, Bos.',
+      belumLengkap: true,
+      kerja
+    };
   }
   const bukti = [pertanyaan, pesanBaku, konteks.hariIni, ...kerja.map((k) => k.hasil)].join('\n');
   let hilang = angkaTanpaBukti(jawaban, bukti);
@@ -565,8 +635,13 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
   const kerja = bersihkanKerja(opsi.kerja);
   const lanjutan = kerja.length > 0;
   let tabel = null;
+  // Panel meminta satu putaran per permintaan supaya tiap langkah langsung
+  // terlihat jalan (✓ satu per satu); pemanggil lain tetap boleh sampai MAKS_PUTARAN.
+  const maksPutaran = Number.isInteger(opsi.maksPutaran) && opsi.maksPutaran > 0
+    ? Math.min(opsi.maksPutaran, MAKS_PUTARAN)
+    : MAKS_PUTARAN;
 
-  for (let putaran = 0; putaran < MAKS_PUTARAN; putaran += 1) {
+  for (let putaran = 0; putaran < maksPutaran; putaran += 1) {
     if (kerja.length >= MAKS_LANGKAH_KERJA) {
       return {
         ok: true,
@@ -580,7 +655,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
     const pilihan = pasti
       ? { ok: true, value: { alat: pasti } }
       : await panggilModel(env, {
-        system: promptPilihAlat(konteks),
+        system: promptPilihAlat(konteks, pesanBaku),
         content: [{ type: 'text', text: isiPilihAlat(pesanBaku, konteks, kerja) }],
         schema: skemaPilihAlat()
       });
@@ -589,6 +664,19 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
 
     if (v.alat === ALAT_SELESAI) {
       return selesaikan(v, { pertanyaan, pesanBaku, konteks, kerja, tabel, env, panggilModel });
+    }
+    // Di tengah kerjaan, "rencana" tidak pernah tepat (uji langsung 2026-10-05:
+    // sesudah menemukan harga janggal, model memilih rencana alih-alih menanyakan
+    // harga barunya). Yang dibutuhkan biasanya keputusan Bos, jadi tanyakan.
+    if (v.alat === ALAT_RENCANA && kerja.length) {
+      return {
+        ok: true,
+        alat: kerja[kerja.length - 1].alat,
+        jawaban: 'Hasilnya di atas ya, Bos. Mau diubah jadi berapa? Sebut per barang, mis. "Susu Kental Manis 2rb, Teh Vanilla 2rb" — nanti Una siapkan drafnya.',
+        tabel,
+        belumLengkap: true,
+        kerja
+      };
     }
 
     // Rencana dan "tidak ada" tidak pernah diamati; alat selebihnya diamati kalau
@@ -599,6 +687,19 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
       : pertanyaan;
     const hasil = await jalankanPilihan(pertanyaanLangkah, pesanBaku, pilihan, konteks, opsi, { amati });
     if (!hasil.ok) return hasil;
+
+    const teksBos = [pertanyaan, ...(konteks.riwayat ?? []).filter((r) => r.dari === 'saya').map((r) => r.teks)];
+    const karangan = hasil.draft ? hargaKarangan(hasil.draft, teksBos) : [];
+    if (karangan.length) {
+      return {
+        ok: true,
+        alat: hasil.alat,
+        jawaban: `Harga baru untuk ${karangan.join(', ')} belum Bos sebut, jadi Una tanya dulu ya: mau jadi berapa? Sebut per barang, mis. "${karangan[0]} 2rb".`,
+        tabel,
+        belumLengkap: true,
+        kerja: kerja.length ? kerja : null
+      };
+    }
 
     const bisaDiamati = amati && hasil.alat && !hasil.draft && !hasil.belumLengkap && !hasil.ditolak && !hasil.rencana;
     if (!bisaDiamati) {

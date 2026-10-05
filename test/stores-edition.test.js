@@ -7,6 +7,7 @@ const migrationDir = new URL('../migrations/', import.meta.url);
 const EDITION_MIGRATION = '0045_stores_edition.sql';
 const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   '0081_kpm_stores_from_pendem_template.sql',
+  '0137_kpm_testinguna_from_mandala_template.sql',
   '0083_dermo_leker_catalog_and_recipes.sql',
   // These Dermo visual/photo migrations require the canonical Dermo products
   // created by 0083. They only mutate store-scoped master data, so exclude

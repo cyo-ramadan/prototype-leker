@@ -1,4 +1,4 @@
-// Ingatan jangka pendek Una: 5 chat terakhir tetap nyambung (Bos Cyo 2026-10-02).
+// Ingatan Una: seluruh obrolan sesi tetap nyambung (Bos Cyo 2026-10-02, 2026-10-05).
 //
 // Gunanya satu: memahami rujukan. "Kalau kemarin?" setelah "untung hari ini
 // berapa?", atau "yang di Dermo?" setelah menanyakan stok. Yang TIDAK boleh
@@ -11,44 +11,48 @@
 //     tak tepercaya: tidak ada tindakan yang lahir dari riwayat tanpa lewat
 //     draft dan tombol "Ya", yang diperiksa ulang di server.
 
-// 10 pesan Bos (Bos Cyo 2026-10-03: obrolan terasa tidak nyambung dengan yang
-// tadi, "bikin ajalah 10 chat"). Sebelumnya 5.
-export const MAKS_PERCAKAPAN = 10;      // pesan Bos yang masih dianggap nyambung
-export const MAKS_ENTRI = 48;           // batas keras jumlah baris yang diterima
-export const MAKS_PANJANG_ENTRI = 400;
-// Jawaban Una boleh lebih panjang: nama barang/gerai yang disebut di tabel
-// (mis. "Bubuk Matcha") justru yang dirujuk lagi oleh "yang tadi".
-export const MAKS_PANJANG_UNA = 900;
+// Bos Cyo 2026-10-05: "batasan 10 chat terakhir, dan batasan huruf itu ga perlu
+// ya? buang aja kalo ga perlu". Batas jumlah obrolan DIBUANG: seluruh obrolan sesi
+// ikut, sampai anggaran huruf total. Yang tersisa hanya pagar keamanan, karena
+// riwayat datang dari browser (bisa dikirimi apa saja) dan tiap huruf dibayar
+// di setiap panggilan model:
+//   - anggaran total ~60 ribu huruf (±15 ribu token) — yang terlama dilepas dulu;
+//     model kecil juga makin "linglung" kalau disuapi terlalu banyak;
+//   - panjang per entri dibatasi longgar supaya satu tempelan raksasa tidak
+//     menghabiskan seluruh anggaran.
+export const MAKS_TOTAL_RIWAYAT = 60000;
+export const MAKS_ENTRI = 400;          // batas keras jumlah baris yang diterima
+export const MAKS_PANJANG_ENTRI = 4000;
+export const MAKS_PANJANG_UNA = 4000;
 
 const PERAN = Object.freeze(['saya', 'una', 'sistem']);
 
 /**
- * Membersihkan riwayat kiriman browser: bentuk, panjang, jumlah. Hanya
- * MAKS_PERCAKAPAN pesan Bos terakhir (beserta balasan dan catatan di antaranya)
- * yang dipertahankan.
+ * Membersihkan riwayat kiriman browser: bentuk dan panjang. Yang terbaru
+ * dipertahankan sampai anggaran MAKS_TOTAL_RIWAYAT habis.
  *
  * @returns {{dari:'saya'|'una'|'sistem', teks:string}[]}
  */
 export function bersihkanRiwayat(masuk) {
   if (!Array.isArray(masuk)) return [];
   const entri = [];
-  for (const item of masuk.slice(-MAKS_ENTRI * 2)) {
+  for (const item of masuk.slice(-MAKS_ENTRI)) {
     if (!item || typeof item !== 'object') continue;
     if (!PERAN.includes(item.dari)) continue;
-    // eslint-disable-next-line no-control-regex
     const batas = item.dari === 'una' ? MAKS_PANJANG_UNA : MAKS_PANJANG_ENTRI;
+    // eslint-disable-next-line no-control-regex
     const teks = String(item.teks ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, batas);
     if (teks) entri.push({ dari: item.dari, teks });
   }
 
-  let ditemukan = 0;
-  let mulai = 0;
+  let total = 0;
+  let mulai = entri.length;
   for (let i = entri.length - 1; i >= 0; i -= 1) {
-    if (entri[i].dari !== 'saya') continue;
-    ditemukan += 1;
-    if (ditemukan === MAKS_PERCAKAPAN) { mulai = i; break; }
+    total += entri[i].teks.length;
+    if (total > MAKS_TOTAL_RIWAYAT) break;
+    mulai = i;
   }
-  return entri.slice(mulai).slice(-MAKS_ENTRI);
+  return entri.slice(mulai);
 }
 
 const LABEL = Object.freeze({ saya: 'Bos', una: 'Una', sistem: 'Catatan' });

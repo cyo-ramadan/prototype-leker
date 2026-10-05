@@ -17,6 +17,7 @@ import {
   splitEligibility,
   updateRecurringSchedule
 } from './accounting-journal-schedules.js';
+import { getPartyReconciliation, listPartyOptions, partyEntryStatements, prepareJournalParties } from './accounting-party-ledger.js';
 import {
   ACCOUNT_TYPES,
   createAccountingAccount,
@@ -109,9 +110,20 @@ async function updateAccount(request, env, store, accountId) {
   return resultResponse(await updateAccountingAccount(env.DB, store, accountId, body.value));
 }
 
-async function createManualJournal(request, env, store) {
+function actorFrom(auth) {
+  if (auth.owner) return { role: 'OWNER', id: auth.owner.id };
+  if (auth.entityAdmin) return { role: 'ENTITY_ADMIN', id: auth.entityAdmin.id };
+  if (auth.admin) return { role: 'ADMIN', id: auth.admin.id };
+  return { role: 'LEGACY_PIN', id: '' };
+}
+
+async function createManualJournal(request, env, store, auth) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload jurnal tidak valid.' }, 400);
+  // Piutang/hutang wajib bernama (migration 0138): tolak sebelum apa pun diposting.
+  const prepared = await prepareJournalParties(env.DB, store, body.value?.journalLines);
+  if (!prepared.ok) return resultResponse(prepared);
+  const actor = actorFrom(auth);
   const sourceReferenceId = text(body.value?.sourceReferenceId, 180) || `manual_${crypto.randomUUID()}`;
   const command = {
     businessDate: body.value?.businessDate,
@@ -121,7 +133,8 @@ async function createManualJournal(request, env, store) {
     correlationId: text(body.value?.correlationId, 180) || sourceReferenceId,
     idempotencyKey: `MANUAL:${store.id}:${sourceReferenceId}`,
     description: body.value?.description,
-    journalLines: body.value?.journalLines
+    journalLines: body.value?.journalLines,
+    extraStatements: details => partyEntryStatements(env.DB, store, details, prepared.parties, actor)
   };
   const result = await postAccountingJournal(env.DB, store, command);
   return resultResponse(result, result?.duplicate ? 200 : 201);
@@ -150,6 +163,13 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
     return updateAccount(request, env, store, decodeURIComponent(accountMatch[1]));
   }
 
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/party-options') {
+    return json(await listPartyOptions(env.DB, store));
+  }
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/party-reconciliation') {
+    return json(await getPartyReconciliation(env.DB, store));
+  }
+
   if (pathname === '/api/admin/accounting/journals') {
     if (request.method === 'GET') {
       return json({
@@ -160,7 +180,7 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
         })
       });
     }
-    if (request.method === 'POST') return createManualJournal(request, env, store);
+    if (request.method === 'POST') return createManualJournal(request, env, store, ctx.auth);
   }
   const journalMatch = pathname.match(/^\/api\/admin\/accounting\/journals\/([^/]+)$/);
   if (request.method === 'GET' && journalMatch) {

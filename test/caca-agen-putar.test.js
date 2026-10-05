@@ -158,3 +158,42 @@ test('pengamatan memuat jawaban + tabel, dan dipotong kalau kepanjangan', () => 
   const panjang = teksPengamatan({ data: { isi: 'x'.repeat(10000) } });
   assert.ok(panjang.length <= MAKS_PANJANG_PENGAMATAN);
 });
+
+test('satu putaran per permintaan (panel): langkah pertama langsung dibalas supaya bisa dicentang', async () => {
+  const { panggilModel, panggilan } = modelPalsu(
+    pilih('laba_periode', { periode: 'kemarin', lanjut: true, judul_langkah: 'Cek untung kemarin' })
+  );
+  const hasil = await jawabPertanyaan('untung kemarin, terus bandingkan', konteks, {
+    env: {}, panggilModel, jalankan: async () => ({ ok: true, data: { untung: 539000 } }), maksPutaran: 1
+  });
+  assert.equal(panggilan.length, 1);
+  assert.equal(hasil.lanjutkan, true);
+  assert.equal(hasil.kerja[0].judul, 'Cek untung kemarin');
+});
+
+test('semua bacaan gagal: Una tidak boleh menyimpulkan "aman"', async () => {
+  const { panggilModel } = modelPalsu(pilih('selesai', { jawaban_akhir: 'Tidak ada barang yang rugi, semua aman!' }));
+  const hasil = await jawabPertanyaan('barang mana yang rugi?', konteks, {
+    env: {}, panggilModel, kerja: [{ alat: 'baca_api', judul: 'Cek', hasil: 'Una belum bisa menyimpulkan dari data yang ada.' }]
+  });
+  assert.doesNotMatch(hasil.jawaban, /aman!/);
+  assert.match(hasil.jawaban, /belum berhasil/);
+});
+
+test('rencana di tengah kerjaan diganti pertanyaan ke Bos, bukan dijalankan', async () => {
+  const { panggilModel } = modelPalsu(pilih('rencana', { rencana_langkah: [] }));
+  const hasil = await jawabPertanyaan('cek harga anomali terus betulin', konteks, {
+    env: {}, panggilModel, kerja: [{ alat: 'cek_harga_janggal', judul: 'Cari', hasil: 'Teh Vanilla | Rp1.499 | Rp1.500' }]
+  });
+  assert.equal(hasil.rencana, undefined);
+  assert.equal(hasil.belumLengkap, true);
+  assert.match(hasil.jawaban, /Mau diubah jadi berapa/);
+  assert.equal(hasil.kerja.length, 1, 'catatan kerja tetap dibawa supaya jawaban Bos melanjutkan');
+});
+
+test('nominal dari ucapan Bos dikenali (rb, titik ribuan, Rp, angka singkat)', async () => {
+  const { nominalDariBos } = await import('../src/caca-agen.js');
+  const n = nominalDariBos(['Susu Kental Manis 2rb, Teh Vanilla 2.500', 'naikin jadi 8', 'Rp 12.000']);
+  for (const v of [2000, 2500, 8000, 12000]) assert.ok(n.has(v), `${v} dikenali`);
+  assert.equal(n.has(1500), false);
+});

@@ -105,9 +105,14 @@ test('isi massal bahan: tipe Bahan, harga jual 0, satuan yang tidak disebut jadi
 
 test('isi massal: daftar kosong atau semuanya sudah ada → ditanyakan, bukan draft kosong', async () => {
   assert.match((await siapkan({ daftar_barang: [] })).tanya, /Daftar barangnya mana/);
-  const semuaAda = await siapkan({ daftar_barang: [{ nama: 'es teh', harga_jual: '5rb' }] });
+  // Tanpa harga: tidak ada yang bisa dibuat, ditanyakan.
+  const semuaAda = await siapkan({ daftar_barang: [{ nama: 'es teh' }] });
   assert.equal(semuaAda.ok, false);
-  assert.match(semuaAda.tanya, /sudah ada di gerai: es teh/);
+  assert.match(semuaAda.tanya, /Belum ada barang yang bisa Una buat/);
+  // Dengan harga: maksudnya ganti harga barang yang sudah ada (uji langsung 2026-10-05).
+  const gantiHarga = await siapkan({ daftar_barang: [{ nama: 'es teh', harga_jual: '5rb' }] });
+  assert.equal(gantiHarga.ok, false);
+  assert.deepEqual(gantiHarga.alihkan, { alat: 'ubah_barang', tangkapan: { ubah_daftar: [{ barang: 'es teh', harga_jual: '5rb', harga_beli: undefined }] } });
 });
 
 test(`isi massal: maksimal ${MAKS_BARIS_BARANG} baris, sisanya disebut`, async () => {

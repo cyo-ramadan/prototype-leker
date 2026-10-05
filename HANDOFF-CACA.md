@@ -250,6 +250,11 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   ≥5x / ≤1/5 median sekategori (salah ketik nol). Ditambah pagar di `selesai`: kalau semua
   catatan kerja berisi gagal/"belum bisa menyimpulkan", kesimpulan model diganti kalimat
   jujur. `judul_langkah` kosong diisi `JUDUL_BAWAAN`, bukan nama alat.
+- **Harga baru wajib dari Bos (kode, bukan prompt saja):** draft `ubah_barang` yang harga
+  barunya tidak pernah diucapkan Bos (pesan sekarang + pesan Bos di riwayat, `nominalDariBos`)
+  diganti pertanyaan — uji langsung: "cek anomali terus betulin" dibuatkan harga jual =
+  harga beli. `buat_barang_banyak` yang semua barangnya sudah ada + berharga dialihkan
+  (`alihkan`) ke `ubah_barang` (sekali saja). Rencana di tengah kerjaan → pertanyaan ke Bos.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat

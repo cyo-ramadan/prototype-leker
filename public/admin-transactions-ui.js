@@ -141,6 +141,15 @@
     return ref.syncStatus === 'NOT_CONNECTED' ? 'Menunggu koneksi Accounting' : (ref.syncStatus || '-');
   }
 
+  // Qty pembelian di kartu (Bos Cyo, 2026-10-05): "Gula 1.000 g", maksimal 3 barang lalu "+N barang".
+  function purchaseItemsLine(transaction) {
+    const items = Array.isArray(transaction.purchaseItems) ? transaction.purchaseItems : [];
+    if (!items.length) return '';
+    const shown = items.slice(0, 3).map(item => `${esc(item.productName)} ${new Intl.NumberFormat('id-ID').format(Number(item.quantity) || 0)} ${esc(item.unitSymbol)}`.trim());
+    const more = items.length > 3 ? ` · +${items.length - 3} barang` : '';
+    return `<div class="master-meta"><b>Dibeli:</b> ${shown.join(' · ')}${more}</div>`;
+  }
+
   function renderTransactions() {
     const target = document.getElementById('adminTransactionsList');
     target.innerHTML = state.transactions.length ? state.transactions.map(transaction => `
@@ -148,6 +157,7 @@
         <div class="master-main">
           <div class="master-meta">${esc(transaction.kind)} · ${dateTime(transaction.occurredAt)} · ${esc(statusLabel(transaction))}</div>
           <strong>${esc(transaction.description || transaction.kind)}</strong>
+          ${purchaseItemsLine(transaction)}
           <div class="master-prices"><span>${transaction.cashierName ? `PIC ${esc(transaction.cashierName)}` : 'System'}</span><span>${money(transaction.amount)}</span></div>
           <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentMethod)}` : ''}</div>
           <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>

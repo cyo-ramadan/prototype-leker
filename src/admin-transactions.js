@@ -119,6 +119,32 @@ async function loadDadakanSaleIds(db, storeId, rows) {
   return found;
 }
 
+// Kartu Pembelian di daftar dulu cuma menampilkan deskripsi + total, tanpa qty
+// (Bos Cyo, 2026-10-05: "di kartu pembelian kenapa engga ada qty yang dibelinya").
+// Rinciannya ada di purchase_items; hanya halaman yang terlihat yang dibaca
+// (pola sama dengan loadDadakanSaleIds), lewat indeks purchase_id.
+async function loadPurchaseItemsByPurchase(db, storeId, rows) {
+  const ids = rows.filter(row => row.kind === 'PURCHASE').map(row => row.id);
+  const byPurchase = new Map();
+  for (let start = 0; start < ids.length; start += 90) {
+    const chunk = ids.slice(start, start + 90);
+    const result = await db.prepare(`
+      SELECT purchase_id, product_name, unit_symbol, quantity, line_total
+      FROM purchase_items
+      WHERE purchase_id IN (${chunk.map(() => '?').join(', ')}) AND store_id = ?
+      ORDER BY product_name COLLATE NOCASE, product_id
+    `).bind(...chunk, storeId).all();
+    for (const row of result.results ?? []) {
+      if (!byPurchase.has(row.purchase_id)) byPurchase.set(row.purchase_id, []);
+      byPurchase.get(row.purchase_id).push({
+        productName: row.product_name, unitSymbol: row.unit_symbol || '',
+        quantity: Number(row.quantity || 0), lineTotal: Number(row.line_total || 0)
+      });
+    }
+  }
+  return byPurchase;
+}
+
 async function loadPosDeliveryMap(db, storeId, rows) {
   const refs = rows.filter(row => POS_ACCOUNTING_FACT_KINDS.has(row.kind)).map(row => ({ factType: row.kind, factId: row.id }));
   const map = new Map();
@@ -225,10 +251,14 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
   const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);
   const dadakanSaleIds = await loadDadakanSaleIds(db, storeId, visibleRows);
-  const normalized = visibleRows.map(row => normalizeRow(
-    dadakanSaleIds.has(row.id) && row.kind === 'SALE' ? { ...row, description: `${row.description} · +Produksi Dadakan` } : row,
-    deliveryMap
-  ));
+  const purchaseItems = await loadPurchaseItemsByPurchase(db, storeId, visibleRows);
+  const normalized = visibleRows.map(row => {
+    const transaction = normalizeRow(
+      dadakanSaleIds.has(row.id) && row.kind === 'SALE' ? { ...row, description: `${row.description} · +Produksi Dadakan` } : row,
+      deliveryMap
+    );
+    return row.kind === 'PURCHASE' ? { ...transaction, purchaseItems: purchaseItems.get(row.id) || [] } : transaction;
+  });
   // Cursor must key off the raw, ungrouped rows -- grouping only changes how
   // many list entries this page renders as, never where the SQL keyset
   // pagination actually left off.

@@ -503,6 +503,11 @@ export async function postAccountingJournal(db, store, command) {
       store.id
     ));
   });
+  // Statement tambahan milik pemanggil (mis. sub-buku nama pihak, migration 0138) ikut batch yang sama
+  // supaya jurnal dan labelnya tersimpan atomik.
+  if (typeof command?.extraStatements === 'function') {
+    statements.push(...command.extraStatements({ journalId, businessDate, lines: checked.lines }));
+  }
   try {
     await db.batch(statements);
   } catch (error) {

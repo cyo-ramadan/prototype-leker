@@ -234,6 +234,19 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   tenant lewat endpoint yang sama dengan layar. "Peta" milik Una = katalog API baca + daftar
   alat; dengan mode berputar dia bisa menelusuri hubungan data sendiri (barang → resep → HPP).
   Test: `test/caca-agen-putar.test.js`.
+- **Tampilan kerja (2026-10-05, Bos Cyo: "visualnya kaya claude agent"):** panel mengirim
+  `satuLangkah:true` → server satu putaran per permintaan, jadi kartu "Una lagi kerja"
+  (`cacaTambahKerjaLive`) mencentang tiap langkah begitu selesai, dengan stopwatch di
+  browser (bukan polling server). Panel lanjut otomatis sampai 11 kali (server tetap
+  membatasi 12 langkah).
+- **Ukuran panel (Bos Cyo: "ukurannya berubah2", "di HP tombol ganti gerai ga keliatan"):**
+  tinggi tidak lagi dihitung dari posisi bilah tab (ikut bergeser saat halaman tergulir).
+  Layar lebar: tetap maks 640px. HP (≤560px): penuh layar mengikuti `visualViewport`, jadi
+  kepala panel tetap terlihat saat keyboard muncul; isi chat `overscroll-behavior: contain`.
+- **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
+  untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
+  lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat
+  penjualan/pembelian di sana; uji ubah master/draft saja.
 
 **Bahasa pertanyaan balik jangan kaku (2026-10-03):** "tidak ditemukan/tidak ketemu" diganti
 "belum ketemu nih"/"belum nemu nih" (`kataBelumKetemu` di `src/caca-aksi-dasar.js`, dipilih

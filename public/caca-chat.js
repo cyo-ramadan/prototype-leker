@@ -1087,7 +1087,9 @@ async function cacaKirimFotoMenu(file) {
 async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
   return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
     method: 'POST',
-    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja } : { pertanyaan, riwayat })
+    // satuLangkah: server mengerjakan satu putaran lalu membalas, supaya kartu
+    // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
+    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja, satuLangkah: true } : { pertanyaan, riwayat, satuLangkah: true })
   });
 }
 
@@ -1098,17 +1100,53 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
 // membalas `lanjutkan` + catatan kerja dan panel mengirim ulang (permintaan baru =
 // jatah kerja Cloudflare baru). Draft tetap berhenti menunggu "Ya"; sesudah
 // disetujui, Una melanjutkan dari catatan yang sama.
-const CACA_MAKS_LANJUT_OTOMATIS = 3;
+// Server juga membatasi 12 langkah per perintah; ini batas sisi panel.
+const CACA_MAKS_LANJUT_OTOMATIS = 11;
 
 async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik) {
+  if (kerja?.length) mengetik?.aturLangkah?.(kerja, 'Lanjut ke langkah berikutnya…');
   let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja);
   for (let i = 0; i < CACA_MAKS_LANJUT_OTOMATIS && payload.lanjutkan && payload.kerja?.length; i += 1) {
-    const teks = mengetik?.querySelector('.caca-mengetik-teks');
-    const terakhir = payload.kerja[payload.kerja.length - 1];
-    if (teks) teks.textContent = `Una lagi ngerjain langkah ${payload.kerja.length + 1}… (barusan: ${terakhir.judul || terakhir.alat})`;
+    mengetik?.aturLangkah?.(payload.kerja, 'Mikirin langkah berikutnya…');
     payload = await cacaTanyaServer(pertanyaan, scope, riwayat, payload.kerja);
   }
   return payload;
+}
+
+// Kartu "Una lagi kerja" ala agen: langkah yang sudah beres dicentang satu per
+// satu, langkah yang sedang jalan berputar, dan stopwatch-nya jalan (hitungan di
+// browser saja, tidak bertanya ke server). Kelas `mengetik` membuatnya tidak ikut
+// tersimpan dan diperlakukan sama dengan gelembung "mengetik" lama.
+function cacaTambahKerjaLive(awal = 'Memahami perintah Bos…') {
+  const wadah = cacaEl('cacaPercakapan');
+  const gelembung = document.createElement('div');
+  gelembung.className = 'caca-gelembung caca lebar mengetik caca-live';
+  gelembung.setAttribute('aria-live', 'polite');
+  gelembung.innerHTML = `
+    <div class="caca-live-kepala"><span class="caca-live-putar" aria-hidden="true"></span><strong>Una lagi kerja</strong><span class="caca-live-waktu">0 dtk</span></div>
+    <ol class="caca-live-langkah"></ol>`;
+  wadah.appendChild(gelembung);
+  cacaSetStatusMengetik(true);
+  const mulai = Date.now();
+  const waktu = gelembung.querySelector('.caca-live-waktu');
+  const jam = setInterval(() => { waktu.textContent = `${Math.round((Date.now() - mulai) / 1000)} dtk`; }, 1000);
+  gelembung.aturLangkah = (kerja = [], sedang = awal) => {
+    gelembung.querySelector('.caca-live-langkah').innerHTML = [
+      ...kerja.map(k => `<li class="selesai"><span class="caca-live-tanda">✓</span><span>${cacaEscape(k.judul || k.alat)}</span></li>`),
+      `<li class="jalan"><span class="caca-live-tanda"><i></i><i></i><i></i></span><span>${cacaEscape(sedang)}</span></li>`
+    ].join('');
+    cacaGulirKeBawah();
+  };
+  gelembung.aturLangkah([], awal);
+  const hapusAsli = gelembung.remove.bind(gelembung);
+  let sudah = false;
+  gelembung.remove = () => {
+    clearInterval(jam);
+    hapusAsli();
+    if (!sudah) { sudah = true; cacaSetStatusMengetik(false); }
+  };
+  cacaGulirKeBawah();
+  return gelembung;
 }
 
 // Langkah yang sudah dijalankan Una, ditulis seperti agen: 1. … ✓ 2. … ⏸
@@ -1136,7 +1174,7 @@ function cacaTombolLanjutKerja(gelembung, pertanyaan, scope, kerja) {
 
 async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
   const riwayat = cacaRiwayatUntukServer();
-  const mengetik = cacaTambahMengetik();
+  const mengetik = cacaTambahKerjaLive('Lanjut ke langkah berikutnya…');
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik);
     mengetik.remove();
@@ -1215,7 +1253,7 @@ async function cacaKirimTeks(pertanyaan) {
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
   const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;
   cacaState.kerjaTertunda = null;
-  const mengetik = cacaTambahMengetik();
+  const mengetik = cacaTambahKerjaLive();
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik);
     mengetik.remove();
@@ -1295,7 +1333,7 @@ async function cacaJalankanRencana(kartu, mulai) {
     cacaRenderRencana(kartu, rencana);
     const riwayat = cacaRiwayatUntukServer();
     cacaCatatRiwayat('saya', `(Langkah ${i + 1} dari rencana) ${langkah.perintah}`);
-    const mengetik = cacaTambahMengetik();
+    const mengetik = cacaTambahKerjaLive(langkah.judul);
     let payload;
     try {
       payload = await cacaTanyaSampaiTuntas(langkah.perintah, rencana.scope, riwayat, null, mengetik);
@@ -1411,20 +1449,27 @@ function cacaTutupPanel() {
   cacaEl('cacaFab')?.setAttribute('aria-expanded', 'false');
 }
 
-// Panel tidak boleh menutupi tab bar. Kalau menutupi, Bos Cyo harus menutup
-// Caca dulu tiap kali mau pindah tab — persis kebalikan dari maksudnya menemani
-// sambil kerja. Tinggi tab bar berubah-ubah (di layar sempit dia membungkus
-// jadi beberapa baris), jadi batasnya diukur dari posisi aslinya, bukan ditebak
-// dengan angka tetap di CSS. Tingginya dibuat tetap (bukan cuma batas atas)
-// supaya kotak ketik selalu di dasar panel, seperti aplikasi chat.
+// Bos Cyo 2026-10-05: "ukurannya engga konsisten, berubah2" dan "di hp tombol
+// ganti gerai kadang ga keliatan". Dulu tinggi dihitung dari posisi bilah tab
+// halaman — yang ikut bergeser kalau halamannya tergulir — jadi tiap kali dibuka
+// ukurannya beda. Sekarang:
+//   - layar lebar: ukuran tetap (maks 640px), hanya menyusut kalau jendela pendek;
+//   - HP: penuh layar seperti WhatsApp, mengikuti bagian layar yang benar-benar
+//     terlihat (visualViewport), jadi saat keyboard muncul kepala panel (nama
+//     gerai + tombol ▾) tetap di atas dan hanya isi chat yang bergulir.
+const CACA_LEBAR_HP = 560;
+
 function cacaAturTinggiPanel() {
   const panel = cacaEl('cacaPanel');
   if (!panel || panel.classList.contains('hidden')) return;
-  const tabBar = document.querySelector('.admin-tabs');
-  const batasAtas = tabBar ? tabBar.getBoundingClientRect().bottom + 12 : 80;
-  const jarakBawah = window.innerWidth <= 560 ? 76 : 84;
-  const tinggi = Math.min(640, Math.max(260, window.innerHeight - batasAtas - jarakBawah));
-  panel.style.height = `${tinggi}px`;
+  const vv = window.visualViewport;
+  if (window.innerWidth <= CACA_LEBAR_HP) {
+    panel.style.top = `${Math.round(vv ? vv.offsetTop : 0)}px`;
+    panel.style.height = `${Math.round(vv ? vv.height : window.innerHeight)}px`;
+    return;
+  }
+  panel.style.top = '';
+  panel.style.height = `${Math.min(640, Math.max(320, window.innerHeight - 120))}px`;
 }
 
 function cacaBukaPanel() {
@@ -1570,6 +1615,8 @@ function initCacaPanel() {
     }
   });
   window.addEventListener('resize', cacaAturTinggiPanel);
+  window.visualViewport?.addEventListener('resize', cacaAturTinggiPanel);
+  window.visualViewport?.addEventListener('scroll', cacaAturTinggiPanel);
 }
 
 window.cacaSetTampil = cacaSetTampil;

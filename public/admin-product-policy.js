@@ -173,10 +173,17 @@
 
   async function simpanRange(productId, input) {
     if (!input.berubah || !productId) return '';
-    await api('/api/admin/purchase-price-ranges', {
+    const kirim = confirmWide => api('/api/admin/purchase-price-ranges', {
       method: 'POST',
-      body: JSON.stringify({ items: [{ productId, min: input.min, max: input.max }] })
+      body: JSON.stringify({ items: [{ productId, min: input.min, max: input.max }], ...(confirmWide ? { confirmWide: true } : {}) })
     });
+    try {
+      await kirim(false);
+    } catch (error) {
+      // Batas jauh dari harga acuan/HPP (mis. salah satuan atau kelebihan nol): tanya dulu, jangan diam-diam.
+      if (error.code !== 'RANGE_TOO_WIDE' || !window.confirm(`${error.message}\n\nTetap simpan batas ini?`)) throw error;
+      await kirim(true);
+    }
     await loadRanges();
     return input.min ? ' · harga beli wajar tersimpan' : ' · harga beli wajar dihapus';
   }

@@ -141,7 +141,7 @@ test('Master Barang punya isian harga beli wajar yang menulis ke tempat simpan y
   assert.match(ui, /MAXIAngka\?\.pasang\(input, \{ desimal: true/, 'aturan isian sama dengan kasir: titik tidak bisa diketik, koma desimal');
   assert.match(ui, /\(hpp \* BigInt\(angka\) \+ 50n\) \/ 100n/, '±25% dari HPP dihitung integer skala, bukan float');
   const angka = html.indexOf('/angka-input.js');
-  const policy = html.indexOf('/admin-product-policy.js?v=20261004-harga-beli-wajar-v1');
+  const policy = html.indexOf('/admin-product-policy.js?v=20261005-range-pagar-v1');
   assert.ok(angka > -1 && policy > angka, 'angka-input.js dimuat sebelum admin-product-policy.js (dan versinya dibump)');
   assert.doesNotMatch(ui, /min_purchase_price_scaled|minPurchasePrice/, 'tidak memakai kolom versi Karen yang tidak pernah live');
 });
@@ -215,4 +215,42 @@ test('semua blok di INSTRUKSI-UNA-RENTANG-HARGA-BELI.md dikenali kode: alat, per
     assert.equal(daftar.length, isi.split('\n').filter((b) => /^\d+\. /.test(b)).length, isi.split('\n')[0]);
     assert.ok(daftar.every((b) => b.harga && !b.min), 'blok memakai harga acuan, bukan rentang langsung');
   }
+});
+
+// Mandala, 5 Okt 2026: akun admin mengetik batas atas Gula Rp40.000 per gram (harga wajar sekitar Rp18),
+// pembelian salah ketik "2 g Rp36.000" lolos, HPP melonjak 1.000x dan SO+ membuat untung palsu ±Rp36 juta.
+test('admin: batas yang menjauh lebih dari 3x dari acuan/HPP ditolak 409 RANGE_TOO_WIDE kecuali dikonfirmasi; tanpa penulisan', async () => {
+  const { db, env } = await setup();
+  try {
+    const options = await (await kasir(env, '/api/cashier/purchases/options')).json();
+    const id = options.products[0].productId;
+    const pendem = db.prepare(`SELECT id FROM stores WHERE code = 'PENDEM'`).get();
+    const jumlah = () => db.prepare('SELECT COUNT(*) AS n FROM product_purchase_price_ranges WHERE store_id = ?').get(pendem.id).n;
+
+    // dengan acuan: batas atas 40.000 untuk acuan 17,5 => ditolak
+    const longgar = await admin(env, 'POST', { items: [{ productId: id, min: '13.25', max: '40000', basis: '17.5' }] });
+    assert.equal(longgar.status, 409);
+    const body = await longgar.json();
+    assert.equal(body.code, 'RANGE_TOO_WIDE');
+    assert.match(body.error, /jauh dari harga acuan/);
+    assert.equal(jumlah(), 0, 'ditolak sebelum menulis apa pun');
+
+    // tanpa acuan, memakai HPP sekarang (barang punya HPP 18)
+    db.prepare('UPDATE products SET average_cost = 18000000 WHERE id = ?').run(id);
+    assert.equal((await admin(env, 'POST', { items: [{ productId: id, min: '13.25', max: '40000' }] })).status, 409);
+    assert.equal((await admin(env, 'POST', { items: [{ productId: id, min: '1', max: '30' }] })).status, 409, 'batas bawah di bawah sepertiga acuan juga ditolak');
+
+    // ±25% (cara Una) dan batas wajar lolos tanpa konfirmasi
+    assert.equal((await admin(env, 'POST', { items: [{ productId: id, min: '13.5', max: '22.5' }] })).status, 200);
+
+    // konfirmasi eksplisit membolehkan
+    assert.equal((await admin(env, 'POST', { items: [{ productId: id, min: '13.5', max: '40000' }], confirmWide: true })).status, 200);
+    assert.equal(jumlah(), 1);
+  } finally { db.close(); }
+});
+
+test('Master Barang menanyakan konfirmasi saat server menjawab RANGE_TOO_WIDE (tidak diam-diam)', () => {
+  const ui = readFileSync(new URL('../public/admin-product-policy.js', import.meta.url), 'utf8');
+  assert.match(ui, /error\.code !== 'RANGE_TOO_WIDE' \|\| !window\.confirm\(/);
+  assert.match(ui, /confirmWide: true/);
 });

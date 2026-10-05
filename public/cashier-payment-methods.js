@@ -7,10 +7,22 @@
 
   function defaultCode() {
     const list = methods();
-    return list.find(item => item.isDefault)?.code
-      || list.find(item => item.code === 'CASH')?.code
+    // Bos Cyo, 2026-10-05: default cara bayar untuk Penjualan, Beli Bahan, dan Pengeluaran = Kas.
+    return list.find(item => item.code === 'CASH')?.code
+      || list.find(item => item.isDefault)?.code
       || list[0]?.code
       || '';
+  }
+
+  // Pilihan cara bayar tidak boleh "menempel" ke transaksi berikutnya (mis. sekali pilih Bank,
+  // penjualan sesudahnya ikut Bank): setelah transaksi tersimpan, kembali ke Kas.
+  function resetSalePaymentToDefault() {
+    const code = defaultCode();
+    if (!code) return;
+    for (const id of ['salePaymentMethod', 'saleDialogPaymentMethod']) {
+      const select = byId(id);
+      if (select) select.value = code;
+    }
   }
 
   function methodOptions(selectedCode = '') {
@@ -131,7 +143,7 @@
     if (!note) return;
     let field = byId('saleDialogPaymentField');
     let select = byId('saleDialogPaymentMethod');
-    const previous = select?.value || byId('salePaymentMethod')?.value || defaultCode();
+    const previous = select?.value || defaultCode(); // dialog baru selalu mulai dari Kas
     if (!field) {
       field = document.createElement('div');
       field.id = 'saleDialogPaymentField';
@@ -376,18 +388,22 @@
     api = async function cashierPaymentAwareApi(path, options = {}) {
       const method = String(options.method || 'GET').toUpperCase();
       if (path === '/api/cashier/sales' && method === 'POST' && options.body) {
+        let payload;
         try {
-          const payload = JSON.parse(options.body);
-          payload.paymentMethod = byId('saleDialogPaymentMethod')?.value
-            || byId('salePaymentMethod')?.value
-            || payload.paymentMethod
-            || defaultCode()
-            || 'CASH';
-          return canonicalFactPost(path, payload);
+          payload = JSON.parse(options.body);
         } catch (error) {
           if (error instanceof SyntaxError) return baseApi(path, options);
           throw error;
         }
+        payload.paymentMethod = byId('saleDialogPaymentMethod')?.value
+          || byId('salePaymentMethod')?.value
+          || payload.paymentMethod
+          || defaultCode()
+          || 'CASH';
+        // Pengiriman di LUAR try: error dari server tidak boleh memicu kirim ulang lewat baseApi.
+        const posted = await canonicalFactPost(path, payload);
+        resetSalePaymentToDefault();
+        return posted;
       }
       return baseApi(path, options);
     };

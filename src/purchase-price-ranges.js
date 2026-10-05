@@ -125,6 +125,14 @@ export async function handlePurchasePriceRangesApi(request, env, pathname) {
   const names = new Map((found.results ?? []).map(row => [Number(row.id), row.name]));
   if (names.size !== ids.length) return json({ error: 'Ada barang yang bukan milik gerai ini.' }, 400);
 
+  // Pagar batas yang terlalu longgar (Mandala, 5 Okt 2026): batas atas Gula diketik Rp40.000 per gram
+  // padahal harga wajar sekitar Rp18, lalu pembelian salah ketik "2 g Rp36.000" lolos dan HPP melonjak
+  // 1.000x. Batas yang menjauh lebih dari 3x dari harga acuan (acuan yang dikirim, kalau tidak ada: HPP
+  // sekarang) ditolak kecuali dikonfirmasi eksplisit (confirmWide). Alat Una (acuan ±25%) tidak pernah kena.
+  const costRows = await db.prepare(`SELECT id, average_cost FROM products WHERE store_id = ? AND id IN (${ids.map(() => '?').join(',')})`).bind(store.id, ...ids).all();
+  const averageCost = new Map((costRows.results ?? []).map(row => [Number(row.id), BigInt(Math.round(Number(row.average_cost || 0)))]));
+  const confirmWide = body.value?.confirmWide === true;
+
   const now = new Date().toISOString();
   const actor = actorFrom(auth);
   const statements = [];
@@ -142,6 +150,14 @@ export async function handlePurchasePriceRangesApi(request, env, pathname) {
     if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max)) return json({ error: `${names.get(productId)}: batas bawah dan atas wajib angka lebih dari 0.` }, 400);
     if (max < min) return json({ error: `${names.get(productId)}: batas atas lebih kecil dari batas bawah.` }, 400);
     if (Number.isNaN(basis)) return json({ error: `${names.get(productId)}: harga acuan tidak valid.` }, 400);
+    const reference = basis != null ? BigInt(basis) : (averageCost.get(productId) ?? 0n);
+    if (!confirmWide && reference > 0n && (BigInt(max) > reference * 3n || BigInt(min) * 3n < reference)) {
+      return json({
+        error: `${names.get(productId)}: batas ${rupiahSkala(BigInt(min))}–${rupiahSkala(BigInt(max))} per satuan jauh dari harga acuan ${rupiahSkala(reference)} (lebih dari 3 kali lipat atau kurang dari sepertiganya). `
+          + 'Cek lagi: satuan dasar barang ini (mis. per gram, bukan per kilo) dan jumlah nolnya. Kalau memang benar, konfirmasi dulu.',
+        code: 'RANGE_TOO_WIDE', productId
+      }, 409);
+    }
     statements.push(db.prepare(`
       INSERT INTO product_purchase_price_ranges (store_id, product_id, min_unit_cost_scaled, max_unit_cost_scaled, basis_unit_cost_scaled, updated_by_role, updated_by_id, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)

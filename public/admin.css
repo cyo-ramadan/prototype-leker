@@ -81,3 +81,12 @@
   .admin-tabs > * { flex:1 1 46%; justify-content:center; }
   .admin-master-menu-toggle { width:100%; }
 }
+
+/* Header Workspace Gerai di HP (Bos Cyo, 2026-10-05: "susun jadi lebih tertata"): merek di baris
+   atas, tombol-tombol satu baris kecil di bawahnya -- sama seperti skin A-E, supaya skin 0 tidak
+   menumpuk tombol di kolom kanan. */
+@media (max-width: 620px) {
+  .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+  .admin-top-actions > a, .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; line-height: 1.2; }
+}

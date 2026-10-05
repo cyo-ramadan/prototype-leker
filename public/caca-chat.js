@@ -24,6 +24,7 @@ const cacaState = {
   // Ingatan jangka pendek: {dari: 'saya'|'una'|'sistem', teks}. Dikirim 5 pesan
   // Bos terakhir supaya "kalau kemarin?" nyambung; server membersihkannya lagi.
   riwayat: [],
+  kerjaTertunda: null,
   scope: '',
   stores: [],
   entityName: '',
@@ -1083,11 +1084,90 @@ async function cacaKirimFotoMenu(file) {
 }
 
 // Satu pesan ke Una (dipakai pesan biasa dan tiap langkah rencana).
-async function cacaTanyaServer(pertanyaan, scope, riwayat) {
+async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
   return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
     method: 'POST',
-    body: JSON.stringify({ pertanyaan, riwayat })
+    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja } : { pertanyaan, riwayat })
   });
+}
+
+// --- mode agen berputar -------------------------------------------------------
+//
+// Una boleh melihat hasil alatnya lalu memutuskan langkah berikutnya sendiri.
+// Satu permintaan ke server memuat beberapa putaran; kalau belum tuntas, server
+// membalas `lanjutkan` + catatan kerja dan panel mengirim ulang (permintaan baru =
+// jatah kerja Cloudflare baru). Draft tetap berhenti menunggu "Ya"; sesudah
+// disetujui, Una melanjutkan dari catatan yang sama.
+const CACA_MAKS_LANJUT_OTOMATIS = 3;
+
+async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik) {
+  let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja);
+  for (let i = 0; i < CACA_MAKS_LANJUT_OTOMATIS && payload.lanjutkan && payload.kerja?.length; i += 1) {
+    const teks = mengetik?.querySelector('.caca-mengetik-teks');
+    const terakhir = payload.kerja[payload.kerja.length - 1];
+    if (teks) teks.textContent = `Una lagi ngerjain langkah ${payload.kerja.length + 1}… (barusan: ${terakhir.judul || terakhir.alat})`;
+    payload = await cacaTanyaServer(pertanyaan, scope, riwayat, payload.kerja);
+  }
+  return payload;
+}
+
+// Langkah yang sudah dijalankan Una, ditulis seperti agen: 1. … ✓ 2. … ⏸
+function cacaHtmlKerja(payload) {
+  const kerja = Array.isArray(payload.kerja) ? payload.kerja : [];
+  if (!kerja.length) return '';
+  const menunggu = payload.perluKonfirmasi && payload.lanjutSesudahYa;
+  return `<ol class="caca-kerja">${kerja.map((k, i) => {
+    const tunggu = menunggu && i === kerja.length - 1;
+    return `<li class="${tunggu ? 'menunggu' : 'selesai'}">${cacaEscape(k.judul || k.alat)} <span class="caca-rencana-tanda">${tunggu ? '⏸' : '✓'}</span></li>`;
+  }).join('')}</ol>`;
+}
+
+function cacaTombolLanjutKerja(gelembung, pertanyaan, scope, kerja) {
+  const tombol = document.createElement('button');
+  tombol.type = 'button';
+  tombol.className = 'secondary-btn caca-kerja-lanjut';
+  tombol.textContent = 'Lanjutkan kerjaan';
+  tombol.addEventListener('click', () => {
+    tombol.remove();
+    cacaLanjutkanKerja(pertanyaan, scope, kerja);
+  });
+  gelembung?.appendChild(tombol);
+}
+
+async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
+  const riwayat = cacaRiwayatUntukServer();
+  const mengetik = cacaTambahMengetik();
+  try {
+    const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik);
+    mengetik.remove();
+    cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
+  } catch (error) {
+    mengetik.remove();
+    const gelembung = cacaTambahGelembung('caca', `Kerjaannya terputus: ${error.message}`);
+    cacaTombolLanjutKerja(gelembung, pertanyaan, scope, kerja);
+  }
+}
+
+// Balasan pesan biasa: langkah kerja, lanjut sesudah "Ya", tombol lanjut.
+function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
+  cacaState.kerjaTertunda = null;
+  const jenis = cacaTampilkanBalasan(payload, scope, {
+    sesudahDraft: payload.lanjutSesudahYa && payload.kerja?.length ? status => {
+      if (status !== 'tercatat') return;
+      const catatan = [...cacaState.riwayat].reverse().find(r => r.dari === 'sistem');
+      const kerja = [...payload.kerja, { alat: 'persetujuan', judul: 'Bos setuju, sudah disimpan', hasil: catatan?.teks || 'Draft disetujui dan sudah dijalankan.' }];
+      cacaLanjutkanKerja(pertanyaan, scope, kerja);
+    } : null
+  });
+  if (payload.lanjutkan && payload.kerja?.length) {
+    const gelembung = cacaEl('cacaPercakapan')?.lastElementChild;
+    cacaTombolLanjutKerja(gelembung, pertanyaan, scope, payload.kerja);
+  } else if (jenis === 'tanya' && payload.kerja?.length) {
+    // Una bertanya di tengah kerjaan (mis. harga normal berapa): pesan Bos
+    // berikutnya dikirim bersama catatan kerja supaya Una lanjut, bukan mulai lagi.
+    cacaState.kerjaTertunda = { kerja: payload.kerja, scope };
+  }
+  return jenis;
 }
 
 /**
@@ -1104,6 +1184,8 @@ function cacaTampilkanBalasan(payload, scope, { sesudahDraft = null } = {}) {
     // Pengantar santai (mis. "Peh, banyak juga ini") selalu di luar kartu
     // draft — isi draft dicocokkan ulang huruf per huruf saat "Ya".
     if (payload.sapaan) cacaTambahGelembung('caca', payload.sapaan);
+    const kerja = cacaHtmlKerja(payload);
+    if (kerja) cacaTambahGelembung('caca', '', '', { html: kerja });
     cacaTampilkanDraft(payload, scope, { sesudah: sesudahDraft });
     return 'draft';
   }
@@ -1111,9 +1193,10 @@ function cacaTampilkanBalasan(payload, scope, { sesudahDraft = null } = {}) {
   // asalnya, bukan diterima begitu saja karena keluar dari mulut Una.
   const tabel = cacaRenderTabel(payload.tabel);
   const peringatan = payload.peringatan ? `<p class="caca-peringatan">${cacaEscape(payload.peringatan)}</p>` : '';
-  if (tabel || peringatan) {
-    // Kalimatnya di atas tabel, bukan di bawahnya.
-    cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `<p>${cacaEscape(payload.jawaban)}</p>${tabel}${peringatan}` });
+  const kerja = cacaHtmlKerja(payload);
+  if (tabel || peringatan || kerja) {
+    // Langkah kerja di atas, kalimatnya sesudahnya, tabel paling bawah.
+    cacaTambahGelembung('caca', '', cacaJejakAlat(payload), { html: `${kerja}<p>${cacaEscape(payload.jawaban)}</p>${tabel}${peringatan}` });
   } else {
     cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
   }
@@ -1129,11 +1212,14 @@ async function cacaKirimTeks(pertanyaan) {
   if (!cacaCekGerai({ bolehEntity: true })) return;
 
   const scope = cacaState.scope;
+  // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
+  const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;
+  cacaState.kerjaTertunda = null;
   const mengetik = cacaTambahMengetik();
   try {
-    const payload = await cacaTanyaServer(pertanyaan, scope, riwayat);
+    const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik);
     mengetik.remove();
-    const jenis = cacaTampilkanBalasan(payload, scope);
+    const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
   } catch (error) {
     mengetik.remove();
@@ -1212,7 +1298,7 @@ async function cacaJalankanRencana(kartu, mulai) {
     const mengetik = cacaTambahMengetik();
     let payload;
     try {
-      payload = await cacaTanyaServer(langkah.perintah, rencana.scope, riwayat);
+      payload = await cacaTanyaSampaiTuntas(langkah.perintah, rencana.scope, riwayat, null, mengetik);
     } catch (error) {
       mengetik.remove();
       langkah.status = 'gagal';
@@ -1303,6 +1389,7 @@ function cacaLupakan() {
   const wadah = cacaEl('cacaPercakapan');
   if (wadah) wadah.innerHTML = '';
   cacaState.riwayat = [];
+  cacaState.kerjaTertunda = null;
   cacaState.siapDipakai = false;
 }
 

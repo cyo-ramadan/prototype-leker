@@ -76,8 +76,23 @@ export async function listPurchaseOptions(db, storeId, warehouseEnabled = null) 
     unitSymbol: row.unit_symbol || '', productKindId: row.product_kind_id || null,
     productKindCode: row.product_kind_code || '', productKindName: row.product_kind_name || '',
     purchasePrice: costFromScaled(row.purchase_price),
-    averageCost: costFromScaled(row.average_cost), lastPurchasePrice: costFromScaled(row.last_purchase_price)
+    averageCost: costFromScaled(row.average_cost), lastPurchasePrice: costFromScaled(row.last_purchase_price),
+    averageCostScaled: String(Math.max(0, Math.round(Number(row.average_cost) || 0)))
   }));
+}
+
+export const HPP_JUMP_FACTOR = 3n;
+
+/** null kalau harga per satuan masih dalam 1/3x..3x HPP sekarang (atau HPP belum ada). */
+export function hppJumpViolation({ productName, unitSymbol, averageCostScaled, unitCostScaled, quantity, lineTotal }) {
+  const average = BigInt(averageCostScaled || 0);
+  if (average <= 0n) return null;
+  const harga = BigInt(unitCostScaled);
+  if (harga <= average * HPP_JUMP_FACTOR && harga * HPP_JUMP_FACTOR >= average) return null;
+  const satuan = unitSymbol || 'satuan';
+  return `Harga beli ${productName} ${rupiahSkala(harga)} per ${satuan} jauh dari HPP sekarang ${rupiahSkala(average)} per ${satuan} (lebih dari 3 kali lipat atau kurang dari sepertiganya). `
+    + `Yang diketik: qty ${quantity} ${satuan}, total Rp${String(lineTotal).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}. `
+    + 'Cek lagi qty dalam satuan dasar (mis. 2.000 g, bukan 2). Kalau harganya memang berubah, minta Admin mengatur Harga beli wajar barang ini dulu.';
 }
 
 function normalizeItems(options, requested, ranges = new Map()) {
@@ -99,6 +114,10 @@ function normalizeItems(options, requested, ranges = new Map()) {
     // harga rata-rata ikut rusak.
     const violation = purchaseRangeViolation({ ...option, unitCostScaled, quantity, lineTotal }, ranges.get(productId));
     if (violation) return { ok: false, error: violation, code: 'PURCHASE_PRICE_OUT_OF_RANGE', productId };
+    // Penahan lonjakan HPP untuk barang TANPA rentang (Mandala, 5 Okt 2026: "Gula 2 g Rp36.000"
+    // melonjakkan HPP 1.000x). Rentang yang diatur Admin selalu didahulukan.
+    const jump = ranges.get(productId) ? null : hppJumpViolation({ ...option, unitCostScaled, quantity, lineTotal });
+    if (jump) return { ok: false, error: jump, code: 'PURCHASE_PRICE_JUMP', productId };
     seen.add(productId);
     totalAmount += lineTotal;
     items.push({ ...option, quantity, lineTotal, unitCostScaled });

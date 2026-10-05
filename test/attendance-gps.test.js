@@ -9,7 +9,7 @@ import { handlePermitReportApi } from '../src/permit-report.js';
 import { handleAdminApi } from '../src/admin-multistore.js';
 import { handleStaffPortalApi } from '../src/staff-portal.js';
 import { getCashierRaportFacts } from '../src/staff-raport.js';
-import { getJakartaDayOfWeek, jakartaWallClockToUtc } from '../src/time.js';
+import { jakartaWallClockToUtc } from '../src/time.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 // Bos Cyo, 2026-10-01: presensi dinilai terhadap GPS acuan gerai (radius 75 m).
@@ -63,10 +63,16 @@ async function seedCashier(db, storeId, username) {
     INSERT INTO cashier_sessions (token_hash, cashier_id, created_at, expires_at)
     VALUES (?, ?, '2026-09-24T00:00:00.000Z', '2099-01-01T00:00:00.000Z')
   `).run(await hashCredential(token), id);
-  db.prepare(`
-    INSERT INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
-    VALUES ('CASHIER', ?, ?, 0, '09:00', '18:00')
-  `).run(id, getJakartaDayOfWeek(jakartaWallClockToUtc(BUSINESS_DATE, '12:00')));
+  // Tes ini menguji GPS, bukan jadwal. Presensi memakai jam sungguhan saat tes jalan, dan sesi yang
+  // lewat jam selesai shift ditutup otomatis (forceCloseOverdueSessions) -- dulu shift 09.00-18.00
+  // membuat tes merah setiap kali dijalankan sesudah 18.00 WIB. Shift sampai 23.59 di semua hari;
+  // jam mulai tetap 09.00 (dipakai tes laporan untuk presensi tepat waktu).
+  for (let day = 0; day < 7; day += 1) {
+    db.prepare(`
+      INSERT OR IGNORE INTO account_shift_schedule (account_type, account_id, day_of_week, is_day_off, shift_start, shift_end)
+      VALUES ('CASHIER', ?, ?, 0, '09:00', '23:59')
+    `).run(id, day);
+  }
   return { id, token };
 }
 

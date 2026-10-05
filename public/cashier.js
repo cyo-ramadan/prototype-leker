@@ -234,6 +234,12 @@ function clearSession() {
 }
 
 function showLogin() {
+  // Bos Cyo, 2026-10-05: login karyawan hanya satu pintu, /login. Form login lama di halaman
+  // ini membuat dua jalur login yang tidak sinkron (lihat catatan 2026-09-22 di bawah).
+  location.replace('/login');
+}
+
+function showLegacyCashierLogin() {
   el('cashierLoginView').classList.remove('hidden');
   el('cashierDashboard').classList.add('hidden');
   el('cashierTopActions').classList.add('hidden');

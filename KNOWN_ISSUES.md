@@ -344,6 +344,30 @@ The old helper remains only for operational fact kinds that have not yet migrate
 
 Live-photo attendance is active for authenticated cashier/employee sessions. The shared staff read model also supplies personal Raport/KPI facts. Riwayat Gaji dijelaskan di bagian Akun Gaji.
 
+### Active: login karyawan satu pintu + satu akun per browser (2026-10-05)
+
+Bos Cyo: "habis klik login masih nyangkut ke login entity kadang juga engga ... kalo terlanjur masuk ke
+entity engga bisa login karyawan lain ... misal di back back in terus nyampe ke halaman customer, terus
+harus login lagi ... dibikin bener layaknya login facebook ... kalo di back sampe mau keluar kasih dulu
+tulisan apakah anda mau keluar ... kenapa tombolnya engga bisa dibuka new tab ... pertahankan walaupun
+ber-tab-tab tetap login di satu id sebelum adanya logout."
+
+- **Akar masalah:** token tiap peran (Owner/Entity/Admin/Kasir) disimpan terpisah dan tidak pernah saling
+  dibersihkan; `/login` dulu melempar otomatis ke peran "tertinggi" yang tokennya ada, termasuk token Entity
+  basi, sehingga orang tersangkut di form Login Entity Admin. Halaman Entity/Kasir punya form login sendiri,
+  dan Admin Gerai tanpa sesi dilempar ke halaman pelanggan.
+- **Sekarang:** login baru membuang semua token karyawan lain (satu browser = satu akun). `/login` yang menemukan
+  sesi menampilkan "Masuk sebagai <nama>" (Lanjutkan) atau "Masuk dengan akun lain" (logout semua dulu), tidak
+  lagi melempar diam-diam. Semua halaman kerja tanpa sesi / sesi habis -> `/login` (form login Kasir dan Entity
+  lama tidak dipakai lagi). Sesi tetap sama di semua tab sampai logout.
+- **Tombol Back** (`public/staff-back-guard.js`): dari halaman kerja pertama di tab, Back memunculkan "Keluar dari
+  aplikasi?" (Tetap di sini / Keluar, tanpa logout). Berpindah antar halaman kerja tidak dijaga.
+- **Tab bisa dibuka di tab baru** (`public/tab-tautan.js`, Workspace Gerai + panel Entity): pindah tab menulis
+  `#tab=<nama>` di alamat; Ctrl/Cmd/Shift+klik, klik tengah, atau tekan lama (HP) -> tab baru; alamat dengan
+  `#tab=` membuka tab itu. Sesi ikut karena disimpan bersama di browser.
+- Halaman login baru: `public/login.html` + `public/login.css` (kartu tinggi tetap 430 px, dua kolom di layar lebar,
+  tombol Lihat/Sembunyi password).
+
 ### Active: setoran CS ke piutang CS dengan foto bukti + ACC manual Admin (2026-10-04)
 
 Bos Cyo: "bisa mengurangi piutang cs dengan cara cs itu transfer kirim poto bukti, habis itu kalo

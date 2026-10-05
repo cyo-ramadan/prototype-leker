@@ -3,6 +3,9 @@
   const isCashier = pathname === '/cashier' || /\/cashier\/?$/.test(pathname);
   const isStaffPortal = pathname === '/staff' || /\/staff\/?$/.test(pathname);
   const isOwner = pathname === '/admin' || pathname === '/owner';
+  // Bos Cyo, 2026-10-05: dulu /entity-admin lolos tanpa sesi dan menampilkan form login
+  // Entity sendiri ("nyangkut ke login entity"). Sekarang sama seperti halaman lain -> /login.
+  const isEntityAdmin = pathname === '/entity-admin' || pathname === '/entity-admin/';
   // The page declares what it is (window.LEKER_PAGE_CONTEXT, set in <head>
   // before this guard runs). Deriving it from the URL alone silently missed
   // /branch-admin -- reachable directly, carrying no /s/:code prefix and not
@@ -24,9 +27,14 @@
       || (isReadOnlyPreview && Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken')))
     : isOwner
       ? Boolean(localStorage.getItem('lekerOwnerToken'))
-      : isBranchAdmin
-        ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken'))
-        : true;
+      : isEntityAdmin
+        ? Boolean(localStorage.getItem('lekerEntityAdminToken'))
+        : isBranchAdmin
+          ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken'))
+          : true;
 
-  if (!allowed) location.replace('/login');
+  if (!allowed) {
+    window.lekerRedirecting = true;
+    location.replace('/login');
+  }
 })();

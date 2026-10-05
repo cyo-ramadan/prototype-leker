@@ -202,7 +202,7 @@ test('UI: tab Stok Gerai terpasang di Admin Entity dengan versi script/css yang 
   assert.match(html, /id="entityStockPdf"/);
   assert.match(html, /entity-stock-matrix\.js\?v=20261003-lihat-hpp-v1/);
   assert.match(html, /entity-stock-matrix\.css\?v=20261003-lihat-hpp-v1/);
-  assert.match(html, /entity-admin\.js\?v=20261002-kartu-ringkas-v2/);
+  assert.ok(String(html.match(/\/entity-admin\.js\?v=([\w-]+)/)?.[1] || '') >= '20261002-kartu-ringkas-v2', 'versi entity-admin.js tidak boleh lebih lama dari 20261002-kartu-ringkas-v2');
   const js = readFileSync(new URL('../public/entity-admin.js', import.meta.url), 'utf8');
   assert.match(js, /loadEntityStockMatrix/);
   const matrix = readFileSync(new URL('../public/entity-stock-matrix.js', import.meta.url), 'utf8');

@@ -104,6 +104,7 @@
   function block() {
     if (blocked) return;
     blocked = true;
+    window.lekerRedirecting = true;
     sessionStorage.removeItem('lekerStaffHandoffId');
     location.replace('/login?staffBlocked=1');
   }

@@ -71,7 +71,7 @@ test('Owner/Admin/Entity Admin bearer token and store-code marker live in localS
 // kasirnya dipaksa login ulang. Bos Cyo: "tab ketutup, terus buka lagi harus
 // login lagi ... user udah mulai risih."
 test('the actual login write site (staff-login.js) puts EVERY staff role -- cashier included -- in localStorage', () => {
-  assert.match(staffLogin, /localStorage\.setItem\(staffTokenKey\(payload\.role\), payload\.token\)/);
+  assert.match(staffLogin, /localStorage\.setItem\(TOKEN_KEY\[payload\.role\], payload\.token\)/);
   assert.doesNotMatch(staffLogin, /payload\.role === 'CASHIER' \? sessionStorage/, 'kasir tidak boleh dikecualikan ke sessionStorage lagi');
   assert.match(staffLogin, /if \(payload\.role === 'ADMIN'\) localStorage\.setItem\('lekerAdminStoreCode'/);
 });
@@ -172,41 +172,30 @@ test('a single helper clears every staff session trace (token, identity, lease) 
   }
 });
 
-// Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga
-// sengaja ke back back malah ada menu loginnya lagi". Sebelum ini, kembali
-// ke halaman /?login=staff (mis. tombol Back browser setelah redirect
-// submitLogin()) SELALU menampilkan form login lagi, tidak pernah dicek
-// dulu apakah token yang valid masih ada di localStorage/sessionStorage.
-test('/login auto-redirects an already-authenticated staff session to its workspace instead of re-showing the login form', () => {
-  assert.match(staffLogin, /function existingStaffWorkspaceRedirect\(\)/);
-  assert.match(staffLogin, /localStorage\.getItem\('lekerOwnerToken'\)\) return '\/admin'/);
-  assert.match(staffLogin, /localStorage\.getItem\('lekerEntityAdminToken'\)\) return '\/entity-admin'/);
-  assert.match(staffLogin, /localStorage\.getItem\('lekerCashierToken'\)\) return '\/cashier'/);
-  assert.match(staffLogin, /location\.replace\(existingRedirect\)/);
-  // staffBlocked=1 means the tab-lock deliberately just cleared this
-  // session's token -- the redirect must not fire off a stale read in that
-  // exact moment and must still fall through to the login form.
-  assert.match(staffLogin, /staffBlocked.*=== '1'/);
+// Bos Cyo, 2026-09-17: "jangan sampe orang yang uda berhasil login, dia ga sengaja ke back
+// back malah ada menu loginnya lagi" -> 2026-09-22: /login dulu otomatis melempar ke workspace
+// sesi yang tersimpan. KOREKSI 2026-10-05 (Bos Cyo): "habis klik login masih nyangkut ke login
+// entity kadang juga engga ... kalo terlanjur masuk ke entity engga bisa login karyawan lain ...
+// dibikin bener layaknya login facebook". Lemparan otomatis itu memilih peran dari token apa pun
+// yang tertinggal (termasuk token Entity basi), jadi sekarang /login menampilkan pemilih akun:
+// "Masuk sebagai <nama>" (Lanjutkan, tanpa password) atau "Masuk dengan akun lain" (logout dulu).
+// Sesi tetap satu untuk semua tab sampai logout -- form tidak muncul selama sesi masih ada.
+test('/login dengan sesi tersimpan menampilkan "Lanjutkan sebagai" + "akun lain", bukan form dan bukan lemparan diam-diam', () => {
+  assert.match(staffLogin, /function currentSession\(\)/);
+  assert.match(staffLogin, /if \(session\) showContinue\(session\);\s*else show\('form'\);/);
+  assert.match(staffLogin, /el\('continueLink'\)\.href = session\.href/);
+  assert.match(staffLogin, /function logoutEverywhere\(\)/);
+  assert.match(staffLogin, /switchAccountBtn[\s\S]*?await logoutEverywhere\(\);[\s\S]*?show\('form'\)/);
+  assert.doesNotMatch(staffLogin, /function existingStaffWorkspaceRedirect\(\)/, 'lemparan otomatis berdasar token tertinggal sudah diganti pemilih akun');
 });
 
-// Bos Cyo, 2026-09-21 then 2026-09-22 (final): "maunya ya sekali login baik
-// di tab manapun ya tetap dia yang login sebelum logout. kalo hp dibuat
-// gantian, ya harus di logout in dulu... coba cek di facebook, tiktok dsb
-// apa juga bisa seperti itu." An in-between same-day hotfix scoped the
-// redirect back to the /?login=staff URL only, out of a (wrong) assumption
-// that showing someone else's still-valid session before a manual tab click
-// was unsafe -- Bos Cyo confirmed that is exactly how mainstream apps work
-// and is the intended behavior; the actual defect behind kasir Pendem's
-// stuck relogin loop was traced to public/cashier.js's own dedicated login
-// form never writing lekerStaffSessionMeta/lease at all (fixed separately).
-// Final: applyMode('STAFF') auto-redirects from EVERY entry point (URL and
-// manual tab click) whenever a valid session already exists in this
-// browser; the only way to become a different person is to Logout first.
-test('the redirect for an existing session runs at load, before the login form is bound -- and the customer page only forwards the old ?login=staff link to /login', () => {
-  const redirectAt = staffLogin.indexOf('location.replace(existingRedirect)');
-  const submitBindAt = staffLogin.indexOf("form.addEventListener('submit'");
-  assert.ok(redirectAt > -1 && submitBindAt > redirectAt, 'cek sesi yang sudah ada wajib jalan sebelum form login dipasang');
-  assert.match(staffLogin.slice(redirectAt, submitBindAt), /return;/, 'must bail out before touching the login form once redirected');
+test('login baru membuang SEMUA token karyawan lain dulu -- satu browser satu akun, tidak ada token basi yang bisa menyetir', () => {
+  const clearAt = staffLogin.indexOf('clearAllStaff();\n      try {');
+  const writeAt = staffLogin.indexOf('localStorage.setItem(TOKEN_KEY[payload.role], payload.token)');
+  assert.ok(clearAt > -1 && writeAt > clearAt, 'token lama dibuang sebelum token baru ditulis');
+  for (const key of ['lekerOwnerToken', 'lekerEntityAdminToken', 'lekerAdminToken', 'lekerCashierToken', 'lekerStaffSessionMeta']) {
+    assert.match(staffLogin, new RegExp(`STAFF_KEYS = \\[[^\\]]*'${key}'`), `${key} ikut dibersihkan`);
+  }
   assert.match(authEntrySplit, /searchParams\.get\('login'\) === 'staff'/);
   assert.match(authEntrySplit, /location\.replace\(blocked \? '\/login\?staffBlocked=1' : '\/login'\)/);
   assert.doesNotMatch(authEntrySplit, /entryStaffTab|applyMode|staffTokenKey/, 'halaman customer tidak lagi punya mode/tab karyawan');

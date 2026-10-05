@@ -71,5 +71,5 @@ test('Laporan Entity punya grafik perbandingan gerai dengan tombol Untung Bersih
   assert.match(css, /--viz-bad/);
   assert.match(html, /id="entityReportChart"/);
   assert.match(html, /entity-report-chart\.css\?v=20261002-grafik-gerai-v3/);
-  assert.match(html, /entity-admin\.js\?v=20261002-kartu-ringkas-v2/);
+  assert.ok(String(html.match(/\/entity-admin\.js\?v=([\w-]+)/)?.[1] || '') >= '20261002-kartu-ringkas-v2', 'versi entity-admin.js tidak boleh lebih lama dari 20261002-kartu-ringkas-v2');
 });

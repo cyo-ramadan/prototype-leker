@@ -88,7 +88,7 @@ test('skin D Workspace Gerai: halaman "Hari ini", menu 6 tombol, Lainnya berkelo
   assert.doesNotMatch(home, /setInterval/);
   // Hanya teks tampil yang diganti -- isian form tidak pernah disentuh.
   assert.match(home, /SKIP = new Set\(\['INPUT', 'TEXTAREA', 'SELECT'/);
-  assert.match(read('public/branch-admin.html'), /<script src="\/warung-admin\.js"><\/script>/);
+  assert.match(read('public/branch-admin.html'), /<script src="\/warung-admin\.js\?v=[^"]+"><\/script>/);
   const approvals = read('public/management-approval-queue.js');
   assert.match(approvals, /window\.MaxiSkin\?\.skin\?\.\(\) === 'd' \? owner : classic/);
   const css = read('public/skin-d.css');

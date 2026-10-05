@@ -105,6 +105,15 @@ Belum diberi rentang (menunggu harga dari Bos Cyo): Bubuk Rasa Thaitea, Bubuk Ra
 
 ## MANDALA
 
+**Langkah 0 (wajib, 2026-10-05):** satuan Gula di Mandala masih **pcs**, semua gerai lain sudah gram. Rentang di bawah dihitung per gram, jadi betulkan satuannya dulu, di panel Una gerai Mandala:
+
+```
+Una, betulkan satuan Gula MANDALA jadi gram:
+1. Gula = satuan gram
+```
+
+Ini hanya ganti label (aturan Bos Cyo untuk salah-pasang-satuan): stok 1.000 dan HPP Rp18 yang sudah ada tetap, tidak dikonversi. Una akan menampilkan peringatan histori stok dulu; baca lalu **Ya**. Pembelian lama yang diketik "1 pcs" (maksudnya 1 kg) tetap apa adanya dan perlu dikoreksi lewat jalur koreksi transaksi, bukan lewat ganti satuan.
+
 ```
 Una, atur rentang harga beli MANDALA, boleh selisih 25% dari harga benar:
 1. Air Mineral = 0,4375 per ml
@@ -118,7 +127,7 @@ Una, atur rentang harga beli MANDALA, boleh selisih 25% dari harga benar:
 9. Bubuk Rasa Milktea = 1500 per pcs
 10. Bubuk Rasa Thaitea = 2500 per pcs
 11. Cup Poci 160z = 662 per pcs
-12. Gula = 17,67 per pcs
+12. Gula = 17,67 per g
 13. Lid Sealer = 39,5 per pcs
 14. Sedotan = 52,1 per pcs
 15. Susu Kental Manis = 1664 per pcs

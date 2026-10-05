@@ -9,6 +9,7 @@ import {
   postEmployeeDepositRecognitionJournal,
   postEmployeeDepositSettlementJournal,
 } from './accounting-employee-deposit-bridge.js';
+import { manualReceivableByEmployee, scaledToSignedRupiah } from './accounting-party-ledger.js';
 import {
   addOperationalPayment,
   getOperationalReceivablePayable,
@@ -249,7 +250,7 @@ async function listPendingDepositPayments(db, storeId) {
 
 // Tab Setoran CS di panel Admin: antrean ACC, sisa piutang per CS, dan riwayat keputusan.
 async function depositOverview(db, storeId) {
-  const [pending, history, balances] = await Promise.all([
+  const [pending, history, balances, manual] = await Promise.all([
     listPendingDepositPayments(db, storeId),
     db.prepare(`
       SELECT ${KOLOM_SETORAN}, r.counterparty_name_snapshot, r.transaction_date
@@ -270,25 +271,56 @@ async function depositOverview(db, storeId) {
       WHERE r.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT'
       GROUP BY r.counterparty_id
       ORDER BY name COLLATE NOCASE
-    `).bind(storeId).all()
+    `).bind(storeId).all(),
+    manualReceivableByEmployee(db, storeId)
   ]);
   return {
     pending,
     history: (history.results ?? []).map(row => ({ ...mapPayment(row), employeeName: row.counterparty_name_snapshot, depositDate: row.transaction_date || null })),
     // Saldo boleh negatif (setoran lebih) -- tidak di-abs (invariant #8).
-    balances: (balances.results ?? []).map(row => {
-      const original = scaledToRupiah(Number(row.original_amount || 0));
-      const paid = scaledToRupiah(Number(row.paid_amount || 0));
-      return {
-        employeeName: row.name,
-        receivableCount: Number(row.jumlah || 0),
-        originalAmountRupiah: original,
-        paidAmountRupiah: paid,
-        pendingAmountRupiah: scaledToRupiah(Number(row.pending_amount || 0)),
-        balanceRupiah: original - paid
-      };
-    })
+    // Jurnal manual Akuntansi pada Piutang Karyawan (wajib bernama, migration 0138) ikut dihitung
+    // sebagai `manualAdjustmentRupiah` supaya saldo per orang sama dengan buku.
+    balances: mergeBalances(balances.results ?? [], manual)
   };
+}
+
+function mergeBalances(rows, manual) {
+  const seen = new Set();
+  const merged = rows.map(row => {
+    const original = scaledToRupiah(Number(row.original_amount || 0));
+    const paid = scaledToRupiah(Number(row.paid_amount || 0));
+    const adjustment = manual.get(row.counterparty_id);
+    seen.add(row.counterparty_id);
+    const manualAdjustmentRupiah = adjustment ? scaledToSignedRupiah(adjustment.netScaled) : 0;
+    return {
+      employeeId: row.counterparty_id,
+      employeeName: row.name,
+      receivableCount: Number(row.jumlah || 0),
+      originalAmountRupiah: original,
+      paidAmountRupiah: paid,
+      pendingAmountRupiah: scaledToRupiah(Number(row.pending_amount || 0)),
+      manualAdjustmentRupiah,
+      manualEntries: adjustment?.entries ?? [],
+      balanceRupiah: original - paid + manualAdjustmentRupiah
+    };
+  });
+  // Karyawan yang hanya punya jurnal manual (belum pernah setor / belum ada piutang laci).
+  for (const [employeeId, adjustment] of manual) {
+    if (seen.has(employeeId)) continue;
+    const manualAdjustmentRupiah = scaledToSignedRupiah(adjustment.netScaled);
+    merged.push({
+      employeeId,
+      employeeName: adjustment.name,
+      receivableCount: 0,
+      originalAmountRupiah: 0,
+      paidAmountRupiah: 0,
+      pendingAmountRupiah: 0,
+      manualAdjustmentRupiah,
+      manualEntries: adjustment.entries,
+      balanceRupiah: manualAdjustmentRupiah
+    });
+  }
+  return merged.sort((a, b) => String(a.employeeName).localeCompare(String(b.employeeName), 'id'));
 }
 
 async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId, rejectionReason }) {
@@ -383,7 +415,15 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
         ...item,
         payments: await listPaymentsFor(db, item.id, cashier.store.id)
       })));
-      return json({ items: withPayments });
+      const holder = await currentAccountHolder(db, cashier.store.id, cashier.id);
+      const manual = holder ? (await manualReceivableByEmployee(db, cashier.store.id)).get(holder.employee_id) : null;
+      return json({
+        items: withPayments,
+        // Mutasi dari jurnal Akuntansi (mis. potongan/penyesuaian oleh akuntan), supaya total di
+        // Riwayat Setoran sama dengan buku. Negatif = mengurangi piutang.
+        manualAdjustmentRupiah: manual ? scaledToSignedRupiah(manual.netScaled) : 0,
+        manualEntries: manual?.entries ?? []
+      });
     }
 
     const submitMatch = pathname.match(/^\/api\/cashier\/employee-deposits\/([^/]+)\/payments$/);

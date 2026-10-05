@@ -339,7 +339,10 @@ async function catatAksi(request, env, isi, jalurUtama) {
 
 // --- pendamping pengguna baru (UNA-PENDAMPING.md) ---------------------------
 
-export const MAKS_PERTANYAAN = 8000;
+// Bos Cyo 2026-10-05: batas huruf dilonggarkan (dulu 8.000). Tetap ada batas
+// keras supaya satu tempelan raksasa tidak menghabiskan biaya model; alat daftar
+// panjang tetap memecah sendiri per bagian.
+export const MAKS_PERTANYAAN = 50000;
 
 // Sapaan pertama Una: kondisi gerai + kerjaan yang ditawarkan. Tanpa mesin AI.
 async function kesiapan(request, env, jalurUtama) {

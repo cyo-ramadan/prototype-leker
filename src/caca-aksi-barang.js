@@ -689,8 +689,11 @@ export function cariHargaJanggal(produk) {
     if (jual > 0n && beli > 0n && jual < beli) tandai(p, 'harga jual di bawah harga beli');
     if (jual > 0n && hpp > 0n && jual < hpp) tandai(p, 'harga jual di bawah HPP');
     if (!bahan && jual === 0n) tandai(p, 'harga jual masih 0');
-    if (jual > 0n) {
-      const kunci = normalkan(p.category || '');
+    // Bahan dihargai per gram/ml/pcs, jadi dibandingkan dengan menu sekategori
+    // pasti tampak "murah" (uji langsung: gula Rp18/gram ikut ditandai). Hanya
+    // barang non-bahan dengan satuan sama yang dibandingkan.
+    if (jual > 0n && !bahan) {
+      const kunci = `${normalkan(p.category || '')}|${p.unitSymbol || p.baseUnitId || ''}`;
       if (!perKategori.has(kunci)) perKategori.set(kunci, []);
       perKategori.get(kunci).push({ p, jual });
     }

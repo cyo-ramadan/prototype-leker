@@ -286,6 +286,9 @@ test('cek_harga_janggal: jual di bawah beli/HPP, harga 0, dan salah ketik nol di
     p(7, 'Kopi Susu', 0, 4000),
     p(8, 'Roti', 5000, 1000, { averageCost: 6000, averageCostScaled: '6000000000', category: 'Makanan' }),
     p(9, 'Gula', 0, 17, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
+    p(11, 'Gula Pasir', 18, 18, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
+    p(12, 'Cup', 1000, 1000, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
+    p(13, 'Sedotan', 59, 59, { category: 'Bahan Baku', productKindCode: 'RAW_MATERIAL' }),
     p(10, 'Nonaktif', 1, 99999, { isActive: false })
   ]);
   const nama = Object.fromEntries(hasil.map((h) => [h.produk.name, h.alasan.join('; ')]));
@@ -295,6 +298,8 @@ test('cek_harga_janggal: jual di bawah beli/HPP, harga 0, dan salah ketik nol di
   assert.match(nama['Kopi Susu'], /masih 0/);
   assert.match(nama.Roti, /di bawah HPP/);
   assert.equal(nama.Gula, undefined, 'bahan baku tanpa harga jual itu wajar');
+  assert.equal(nama['Gula Pasir'], undefined, 'bahan per gram tidak dibandingkan dengan bahan per pcs');
+  assert.equal(nama.Sedotan, undefined);
   assert.equal(nama.Nonaktif, undefined);
   assert.equal(nama['Es Teh Leci'], undefined);
 });

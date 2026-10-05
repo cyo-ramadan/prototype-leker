@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OwnerTenang untuk kemitraan — satu layar untuk semua gerai mitra</title>
+<meta name="description" content="Untuk pemilik usaha kemitraan dan franchise F&B: bandingkan semua gerai mitra di satu layar, temukan modal bahan yang janggal, terapkan absen dan izin yang seragam. Data tiap mitra terpisah." />
+<meta property="og:title" content="Satu layar untuk semua gerai mitra." />
+<meta property="og:description" content="Data tiap mitra terpisah. Standar yang sama. Bicarakan pilot di 1–3 gerai mitra." />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#13211b" />
+<style>
+  /* OwnerTenang — halaman kemitraan. Satu elemen berani: papan perbandingan gerai
+     mitra yang bisa disentuh (hijau untung, merah rugi, penanda modal janggal).
+     Warna = status, huruf bawaan perangkat, sama dengan halaman utama. */
+  :root{
+    --ink:#13211b; --ink-2:#3a4a42; --muted:#55645d; --line:#dde4df;
+    --paper:#ffffff; --wash:#eef3f0;
+    --calm:#0e6b4c; --calm-soft:#dcefe5;
+    --wait:#8a5a00; --wait-soft:#fff0c4;
+    --alert:#b4302a; --alert-soft:#fbe5e2;
+    --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--paper);line-height:1.55;-webkit-font-smoothing:antialiased;font-size:17px}
+  a{color:inherit}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+  @media(min-width:600px){.wrap{padding:0 24px}}
+  h1,h2,h3{margin:0;line-height:1.08;letter-spacing:-.03em;font-weight:800;text-wrap:balance}
+  h1{font-size:clamp(38px,8.4vw,68px);letter-spacing:-.045em}
+  h2{font-size:clamp(28px,5.2vw,44px)}
+  h3{font-size:clamp(19px,2.4vw,22px);letter-spacing:-.015em}
+  p{margin:0}
+  .lead{font-size:clamp(18px,2.3vw,21px);color:var(--ink-2);max-width:640px;line-height:1.5}
+  .muted{color:var(--muted)}
+  .num{font-variant-numeric:tabular-nums}
+  :focus-visible{outline:3px solid var(--calm);outline-offset:3px}
+  [hidden]{display:none!important}
+
+  header.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  header.top .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:12px}
+  .logo{font-weight:800;font-size:19px;letter-spacing:-.02em;text-decoration:none;display:inline-flex;align-items:center;gap:9px}
+  .logo svg{width:24px;height:24px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:14px 24px;border-radius:14px;font:inherit;font-weight:700;font-size:17px;text-decoration:none;border:0;cursor:pointer}
+  .btn:active{transform:scale(.98)}
+  .btn-wa{background:var(--ink);color:#fff}
+  .btn-sm{min-height:44px;padding:8px 16px;font-size:15px;border-radius:12px}
+
+  .hero{padding:48px 0 64px}
+  .hero .lead{margin-top:18px}
+  .cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+
+  /* papan perbandingan gerai mitra */
+  .board{margin-top:44px;border:2px solid var(--ink);border-radius:22px;padding:18px;background:var(--paper)}
+  .board-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:baseline;margin-bottom:14px}
+  .board-head b{font-size:18px}
+  .rows{display:grid;gap:8px}
+  .orow{display:grid;grid-template-columns:1fr auto;grid-template-areas:'nm val' 'tr tr';gap:6px 10px;align-items:center;width:100%;background:transparent;border:0;border-radius:12px;padding:8px;font:inherit;text-align:left;cursor:pointer;color:inherit;min-height:44px}
+  .orow:hover,.orow[aria-expanded="true"]{background:var(--wash)}
+  .orow .nm{grid-area:nm;font-weight:700;font-size:15px}
+  .orow .track{grid-area:tr}
+  .orow .val{grid-area:val}
+  @media(min-width:760px){.orow{grid-template-columns:minmax(150px,1fr) 2fr auto;grid-template-areas:'nm tr val'}}
+  .orow .nm small{display:block;font-weight:500;color:var(--muted);font-size:13px}
+  .track{height:14px;position:relative}
+  .track i{position:absolute;top:0;height:14px;border-radius:7px}
+  .track .pos{left:50%;background:var(--calm)}
+  .track .neg{right:50%;background:var(--alert)}
+  .track::before{content:"";position:absolute;left:50%;top:-4px;bottom:-4px;width:2px;background:var(--line)}
+  .orow .val{font-weight:800;font-size:15px;min-width:92px;text-align:right}
+  .val.neg{color:var(--alert)} .val.pos{color:var(--calm)}
+  .flag{display:inline-block;white-space:nowrap;margin-left:6px;background:var(--wait-soft);color:var(--wait);font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px}
+  .odetail{background:var(--wash);border-radius:12px;padding:12px 14px;font-size:15px;color:var(--ink-2);display:grid;gap:4px}
+  .odetail b{color:var(--ink)}
+
+  section{padding:84px 0}
+  section.wash{background:var(--wash)}
+  .head{max-width:760px;margin:0 0 36px}
+  .head .lead{margin-top:14px}
+
+  .pains{display:grid;gap:0;border-top:2px solid var(--ink)}
+  .pain{display:grid;gap:8px;padding:24px 0;border-bottom:1px solid var(--line)}
+  @media(min-width:860px){.pain{grid-template-columns:1fr 1.2fr;gap:40px}}
+  .pain h3{font-size:clamp(22px,3vw,28px)}
+  .pain p{color:var(--ink-2)}
+
+  .calc{display:grid;gap:22px}
+  @media(min-width:860px){.calc{grid-template-columns:1fr 1fr;gap:40px;align-items:start}}
+  .field{display:grid;gap:10px;margin-bottom:18px}
+  .field label{font-weight:700}
+  input[type=range]{width:100%;accent-color:var(--calm);height:44px}
+  .count{font-size:40px;font-weight:800;letter-spacing:-.03em}
+  .toggle{display:flex;gap:8px;flex-wrap:wrap}
+  .toggle button{min-height:48px;padding:8px 16px;border-radius:12px;border:2px solid var(--line);background:#fff;font:inherit;font-weight:700;cursor:pointer}
+  .toggle button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+  .verdict{background:#fff;border:2px solid var(--ink);border-radius:20px;padding:22px;display:grid;gap:12px}
+  .verdict .big{font-size:clamp(32px,6vw,46px);font-weight:800;letter-spacing:-.03em;line-height:1.05}
+  .note{font-size:14px;color:var(--muted)}
+
+  .badge-new{display:inline-block;background:var(--wait-soft);color:var(--wait);font-weight:800;font-size:14px;padding:6px 12px;border-radius:999px;margin-right:8px}
+  .una-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:18px;color:var(--ink-2)}
+
+  .steps{list-style:none;margin:0;padding:0;display:grid;gap:12px;counter-reset:s}
+  @media(min-width:860px){.steps{grid-template-columns:repeat(3,1fr)}}
+  .steps li{background:#fff;border-radius:18px;padding:22px 20px;display:grid;gap:6px;align-content:start;counter-increment:s}
+  .steps li::before{content:counter(s);width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800}
+  .steps p{color:var(--ink-2);font-size:16px}
+
+  .faq{max-width:780px}
+  details{border-bottom:1px solid var(--line)}
+  summary{cursor:pointer;font-weight:700;font-size:18px;padding:20px 0;list-style:none;display:flex;justify-content:space-between;gap:16px;min-height:44px}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";font-weight:500;font-size:26px;line-height:1;color:var(--muted)}
+  details[open] summary::after{content:"−"}
+  details p{color:var(--ink-2);padding:0 0 20px;max-width:680px}
+
+  .final{background:var(--ink);color:#fff;border-radius:28px;padding:56px 22px;text-align:center}
+  .final .lead{color:#c9d5cf;margin:16px auto 24px}
+  .final .btn-wa{background:#fff;color:var(--ink)}
+  footer{padding:32px 0 110px;font-size:15px;color:var(--muted)}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
+  .sticky-cta{position:fixed;left:16px;right:16px;bottom:14px;z-index:30;display:flex}
+  .sticky-cta .btn{flex:1;box-shadow:0 14px 30px -10px rgba(19,33,27,.55)}
+  @media(min-width:900px){.sticky-cta{display:none}footer{padding-bottom:32px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="/produk/"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="#0e6b4c"/><path d="M7 12.5l3.2 3.2L17.5 8" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-brand>OwnerTenang</span></a>
+    <a class="btn btn-wa btn-sm" data-wa href="#pilot">Bicarakan pilot</a>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <h1>Satu layar untuk semua gerai mitra.</h1>
+      <p class="lead">Data tiap mitra terpisah. Standar yang sama. Untuk pemilik usaha kemitraan dan franchise F&amp;B yang gerainya tersebar dan tidak bisa didatangi satu per satu.</p>
+      <div class="cta-row"><a class="btn btn-wa" data-wa href="#pilot">Bicarakan pilot di 1–3 gerai mitra</a></div>
+
+      <!-- Papan perbandingan: ketuk gerai untuk melihat sebabnya -->
+      <div class="board" id="board">
+        <div class="board-head"><b>Untung bersih minggu ini, per gerai mitra</b><span class="muted">Contoh data. Ketuk gerai untuk melihat sebabnya.</span></div>
+        <div class="rows" id="rows">
+          <button type="button" class="orow" aria-expanded="false" data-i="0"><span class="nm">Mitra Sukun<small>Malang</small></span><span class="track"><i class="pos" style="width:42%"></i></span><span class="val pos num">Rp4,2 jt</span></button>
+          <div class="odetail" hidden><p><b>Sehat.</b> Modal bahan wajar, laci tanpa selisih, semua karyawan absen di lokasi.</p></div>
+          <button type="button" class="orow" aria-expanded="false" data-i="1"><span class="nm">Mitra Kepanjen<small>Kab. Malang</small></span><span class="track"><i class="pos" style="width:30%"></i></span><span class="val pos num">Rp3,0 jt</span></button>
+          <div class="odetail" hidden><p><b>Sehat.</b> Dua izin hapus struk minggu ini, keduanya disetujui dengan alasan jelas.</p></div>
+          <button type="button" class="orow" aria-expanded="false" data-i="2"><span class="nm">Mitra Batu<small>Kota Batu</small><span class="flag">modal janggal</span></span><span class="track"><i class="pos" style="width:9%"></i></span><span class="val pos num">Rp0,9 jt</span></button>
+          <div class="odetail" hidden><p><b>Modal bahan janggal.</b> Gula tercatat Rp22.000/kg, gerai lain Rp16.000/kg. Penjualan mirip Mitra Kepanjen, untungnya sepertiga.</p></div>
+          <button type="button" class="orow" aria-expanded="false" data-i="3"><span class="nm">Mitra Blitar<small>Blitar</small><span class="flag">perlu dilihat</span></span><span class="track"><i class="neg" style="width:12%"></i></span><span class="val neg num">−Rp1,2 jt</span></button>
+          <div class="odetail" hidden><p><b>Rugi minggu ini.</b> Laci kurang di 4 dari 7 hari, 6 izin hapus struk, 3 absen di luar lokasi. Semuanya tercatat siapa dan kapan.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="wash">
+    <div class="wrap">
+      <div class="head"><h2>Masalah yang hanya dimiliki pemilik kemitraan.</h2></div>
+      <div class="pains">
+        <div class="pain"><h3>Mitra jauh, laporan tidak seragam.</h3><p>Ada yang kirim foto nota, ada yang kirim rekap tulisan tangan. Di sini semua gerai mitra mencatat dengan cara yang sama, dan Anda melihat semuanya di satu layar.</p></div>
+        <div class="pain"><h3>Sulit tahu gerai mana yang bocor.</h3><p>Grafik perbandingan gerai menunjukkan untung bersih tiap gerai: hijau untung, merah rugi. Modal bahan antar gerai dibandingkan, yang janggal diberi penanda.</p></div>
+        <div class="pain"><h3>Standar yang ditulis tidak selalu dijalankan.</h3><p>Absen foto dan lokasi, izin hapus struk, dan tutup laci berjalan dengan aturan yang sama di semua gerai. Setoran tercatat dengan foto bukti transfer.</p></div>
+        <div class="pain"><h3>Mitra khawatir datanya dilihat mitra lain.</h3><p>Data tiap mitra dipisahkan. Mitra hanya melihat gerainya sendiri, Anda melihat semuanya.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="biaya">
+    <div class="wrap">
+      <div class="head"><h2>Hitung biaya untuk jaringan mitra Anda.</h2><p class="lead">Per gerai, per bulan. Tanpa biaya mesin.</p></div>
+      <div class="calc">
+        <div>
+          <div class="field">
+            <label for="outlets">Jumlah gerai mitra</label>
+            <span class="count num" id="outletsOut">10</span>
+            <input type="range" id="outlets" min="1" max="100" value="10" />
+          </div>
+          <div class="field">
+            <span style="font-weight:700">Paket</span>
+            <div class="toggle" id="plan">
+              <button type="button" data-price="149000" aria-pressed="true">Kontrol Gerai</button>
+              <button type="button" data-price="249000" aria-pressed="false">+ Pembukuan otomatis</button>
+            </div>
+          </div>
+        </div>
+        <div class="verdict" aria-live="polite">
+          <p class="muted">Biaya per bulan</p>
+          <p class="big num" id="costTotal">Rp1.490.000</p>
+          <p class="num" id="costRule">10 gerai × Rp149.000</p>
+          <p class="note">Harga daftar. Untuk jaringan besar, bahas skema pilot dulu lewat WhatsApp.</p>
+          <a class="btn btn-wa" data-wa id="costCta" href="#pilot">Bahas angka ini lewat WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wash" style="padding:56px 0">
+    <div class="wrap">
+      <p class="una-line"><span class="badge-new">Baru · sedang kami uji</span>Una, pendamping chat kami, membantu mitra baru menyiapkan menu dari foto papan menu. Mitra memeriksa draft-nya dulu sebelum disimpan.</p>
+    </div>
+  </section>
+
+  <section id="pilot">
+    <div class="wrap">
+      <div class="head"><h2>Mulai dari pilot kecil.</h2><p class="lead">Coba di 1–3 gerai mitra dulu. Kalau angkanya meyakinkan, lanjutkan ke gerai lain.</p></div>
+      <ol class="steps">
+        <li><h3>Bicara 15 menit</h3><p>Ceritakan jumlah gerai mitra dan cara Anda memantau sekarang.</p></li>
+        <li><h3>Siapkan 1–3 gerai</h3><p>Kami siapkan menu, resep, karyawan, dan akun mitra bersama Anda.</p></li>
+        <li><h3>Bandingkan</h3><p>Setelah berjalan, Anda melihat untung, laci, dan absen gerai pilot berdampingan.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="wash" id="faq">
+    <div class="wrap">
+      <div class="head" style="margin-bottom:16px"><h2>Tanya jawab</h2></div>
+      <div class="faq">
+        <details><summary>Apakah bisa menagih royalti atau biaya mitra otomatis?</summary><p>Belum. Aplikasi ini untuk memantau operasional dan untung gerai mitra. Penagihan royalti tetap dilakukan seperti biasa.</p></details>
+        <details><summary>Apakah mitra bisa melihat data gerai lain?</summary><p>Tidak. Data tiap mitra dipisahkan. Hanya Anda sebagai pemilik jaringan yang melihat semua gerai.</p></details>
+        <details><summary>Bisa terima QRIS atau e-wallet?</summary><p>Cara bayar bisa dicatat, tetapi belum ada QRIS yang terhubung langsung ke aplikasi.</p></details>
+        <details><summary>Kalau internet di gerai mitra mati?</summary><p>Aplikasi ini butuh internet untuk mencatat transaksi. Sampaikan kondisi sinyal gerai mitra saat kita bicara, supaya kami menilai kecocokannya dengan jujur.</p></details>
+        <details><summary>Siapa yang menyiapkan gerai mitra?</summary><p>Kami bersama Anda. Belum ada pendaftaran mandiri, jadi setiap gerai didampingi sampai jalan.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:56px">
+    <div class="wrap">
+      <div class="final">
+        <h2>Bicarakan pilot di 1–3 gerai mitra.</h2>
+        <p class="lead">Satu layar untuk semua gerai mitra. Data tiap mitra terpisah. Standar yang sama.</p>
+        <a class="btn btn-wa" data-wa href="#pilot">Bicarakan pilot lewat WhatsApp</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© <span data-year>2026</span> <span data-brand>OwnerTenang</span></span>
+    <span><a href="/produk/">Untuk pemilik 2–10 gerai</a></span>
+  </div>
+</footer>
+
+<div class="sticky-cta"><a class="btn btn-wa" data-wa href="#pilot">Bicarakan pilot</a></div>
+
+<script>
+  // Papan gerai: buka/tutup sebabnya
+  document.querySelectorAll('.orow').forEach(row => row.addEventListener('click', () => {
+    const open = row.getAttribute('aria-expanded') === 'true';
+    row.setAttribute('aria-expanded', String(!open));
+    row.nextElementSibling.hidden = open;
+  }));
+  // Kalkulator biaya
+  (function () {
+    const range = document.getElementById('outlets');
+    let price = 149000;
+    const rp = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+    function calc() {
+      const n = Number(range.value);
+      document.getElementById('outletsOut').textContent = n;
+      document.getElementById('costTotal').textContent = rp(n * price);
+      document.getElementById('costRule').textContent = n + ' gerai × ' + rp(price);
+      const cta = document.getElementById('costCta');
+      cta.dataset.waExtra = '(kira-kira ' + n + ' gerai), paket ' + (price === 149000 ? 'Kontrol Gerai' : 'Kontrol Gerai + pembukuan otomatis') + '.';
+      if (window.applyWa) applyWa(cta);
+    }
+    range.addEventListener('input', calc);
+    document.querySelectorAll('#plan [data-price]').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#plan [data-price]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      price = Number(b.dataset.price); calc();
+    }));
+    window.addEventListener('load', calc);
+  })();
+</script>
+<script>
+  // Satu-satunya tempat yang perlu diubah saat merek, domain, atau nomor WhatsApp diputuskan.
+  const LANDING = {
+    BRAND: 'OwnerTenang',
+    WA_NUMBER: '6285860070439',
+    WA_TEXT: 'Halo, saya pemilik usaha kemitraan dan ingin membahas pilot pemantauan gerai mitra. Jumlah gerai mitra saya ...'
+  };
+  function waHref(extra) {
+    return 'https://wa.me/' + LANDING.WA_NUMBER + '?text=' + encodeURIComponent(LANDING.WA_TEXT + (extra ? ' ' + extra : ''));
+  }
+  function applyWa(el) { el.href = waHref(el.dataset.waExtra); el.target = '_blank'; el.rel = 'noopener'; }
+  document.querySelectorAll('[data-brand]').forEach(el => { el.textContent = LANDING.BRAND; });
+  document.querySelectorAll('[data-year]').forEach(el => { el.textContent = String(new Date().getFullYear()); });
+  document.querySelectorAll('[data-wa]').forEach(applyWa);
+</script>
+</body>
+</html>

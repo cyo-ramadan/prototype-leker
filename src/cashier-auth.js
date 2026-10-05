@@ -221,9 +221,70 @@ export async function requireCashier(request, db) {
       AND c.is_active = 1 AND s.is_active = 1
     LIMIT 1
   `).bind(tokenHash, now).first();
-  if (!row) return { ok: false, response: json({ error: 'Session kasir tidak valid atau sudah habis.', code: 'CASHIER_SESSION_EXPIRED' }, 401) };
+  if (!row) {
+    // Mode Lihat (Bos Cyo, 2026-10-05): token Owner/Entity Admin/Admin Gerai boleh MEMBACA semua
+    // layar kasir (GET /api/cashier/*) sebagai "pengunjung" tanpa akun kasir. Menulis tidak pernah
+    // lewat sini: POST/PATCH/PUT/DELETE tetap 401 dari sini lalu diganti jadi 403
+    // CASHIER_READ_ONLY_MODE oleh rejectManagementWriteInCashierMode (src/index.js).
+    const viewer = await managementViewerForRead(request, db);
+    if (viewer) return { ok: true, cashier: viewer, tokenHash: null, readOnly: true };
+    return { ok: false, response: json({ error: 'Session kasir tidak valid atau sudah habis.', code: 'CASHIER_SESSION_EXPIRED' }, 401) };
+  }
   const cashier = await attachAttendanceScheduleGate(db, mapCashier(row), row.entity_id);
   return { ok: true, cashier, tokenHash };
+}
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const MANAGEMENT_ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin Gerai', ENTITY_ADMIN: 'Entity Admin' };
+
+export const CASHIER_READ_ONLY_MODE_CODE = 'CASHIER_READ_ONLY_MODE';
+
+export function cashierReadOnlyModeMessage(authType) {
+  const role = MANAGEMENT_ROLE_LABEL[authType] || 'Manajemen';
+  return `Mode Lihat: Anda masuk sebagai ${role}, bukan kasir. Data tidak disimpan.`;
+}
+
+function viewerCashierFrom(management, store) {
+  const viewerName = management.owner?.displayName || management.entityAdmin?.displayName || management.admin?.displayName || 'Manajemen';
+  return {
+    id: `readonly:${management.authType}`,
+    username: '',
+    employeeName: `${viewerName} (Mode Lihat)`,
+    isActive: true,
+    store: { id: store.id, code: store.code, storeName: store.storeName }
+  };
+}
+
+async function managementViewerForRead(request, db) {
+  const url = new URL(request.url);
+  if (!READ_METHODS.has(request.method) || !url.pathname.startsWith('/api/cashier/')) return null;
+  if (!bearerToken(request)) return null;
+  const management = await requireManagement(request, db);
+  if (!management.ok) return null;
+  const store = await resolveStore(db, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
+  return store ? viewerCashierFrom(management, store) : null;
+}
+
+// Pembungkus pusat untuk SEMUA route tulis kasir (sekarang dan nanti): kalau sebuah route menjawab
+// 401 "login kasir" untuk permintaan TULIS dan tokennya ternyata token manajemen yang sah, jawabannya
+// diganti 403 CASHIER_READ_ONLY_MODE dengan pesan yang jelas. Tidak ada satu pun baris ditulis,
+// karena route-nya sudah menolak sebelum menulis apa pun. Kasir sungguhan tidak pernah melewati
+// jalur ini (requireCashier-nya lolos, tidak ada 401).
+const NOT_A_CASHIER_CODES = new Set(['CASHIER_LOGIN_REQUIRED', 'CASHIER_SESSION_EXPIRED', 'RODA_PUTER_CASHIER_REQUIRED']);
+
+export async function rejectManagementWriteInCashierMode(request, env, pathname, response) {
+  if ((response.status !== 401 && response.status !== 403) || READ_METHODS.has(request.method)) return response;
+  if (/^\/api\/cashier\/(login|logout)$/.test(pathname)) return response;
+  // 401 pada route tulis /api/cashier/* berarti "bukan kasir"; selain itu (mis. 403 dari modul dengan
+  // kode sendiri seperti RODA_PUTER_CASHIER_REQUIRED) hanya kode "bukan kasir" yang dihitung.
+  if (!(response.status === 401 && pathname.startsWith('/api/cashier/'))) {
+    let code = '';
+    try { code = (await response.clone().json())?.code || ''; } catch { return response; }
+    if (!NOT_A_CASHIER_CODES.has(code)) return response;
+  }
+  const management = await requireManagement(request, env.DB, env);
+  if (!management.ok) return response;
+  return json({ error: cashierReadOnlyModeMessage(management.authType), code: CASHIER_READ_ONLY_MODE_CODE, readOnly: true }, 403);
 }
 
 // Bos Cyo, 2026-09-17: "harusnya liat persis banget halaman kasir, tapi
@@ -239,7 +300,7 @@ export async function requireCashier(request, db) {
 export async function requireCashierOrReadOnlyManagement(request, env) {
   const db = env.DB;
   const cashierAuth = await requireCashier(request, db);
-  if (cashierAuth.ok) return { ok: true, cashier: cashierAuth.cashier, readOnly: false };
+  if (cashierAuth.ok) return { ok: true, cashier: cashierAuth.cashier, readOnly: Boolean(cashierAuth.readOnly) };
 
   const management = await requireManagement(request, db, env);
   // A specific management failure (mis. Entity Admin di luar entity-nya)
@@ -251,18 +312,7 @@ export async function requireCashierOrReadOnlyManagement(request, env) {
   const store = await resolveStore(db, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
   if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
 
-  const viewerName = management.owner?.displayName || management.entityAdmin?.displayName || management.admin?.displayName || 'Manajemen';
-  return {
-    ok: true,
-    readOnly: true,
-    cashier: {
-      id: `readonly:${management.authType}`,
-      username: '',
-      employeeName: `${viewerName} (Mode Lihat)`,
-      isActive: true,
-      store: { id: store.id, code: store.code, storeName: store.storeName }
-    }
-  };
+  return { ok: true, readOnly: true, cashier: viewerCashierFrom(management, store) };
 }
 
 export async function handleCashierAuthApi(request, env, pathname) {

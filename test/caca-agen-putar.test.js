@@ -170,3 +170,12 @@ test('satu putaran per permintaan (panel): langkah pertama langsung dibalas supa
   assert.equal(hasil.lanjutkan, true);
   assert.equal(hasil.kerja[0].judul, 'Cek untung kemarin');
 });
+
+test('semua bacaan gagal: Una tidak boleh menyimpulkan "aman"', async () => {
+  const { panggilModel } = modelPalsu(pilih('selesai', { jawaban_akhir: 'Tidak ada barang yang rugi, semua aman!' }));
+  const hasil = await jawabPertanyaan('barang mana yang rugi?', konteks, {
+    env: {}, panggilModel, kerja: [{ alat: 'baca_api', judul: 'Cek', hasil: 'Una belum bisa menyimpulkan dari data yang ada.' }]
+  });
+  assert.doesNotMatch(hasil.jawaban, /aman!/);
+  assert.match(hasil.jawaban, /belum berhasil/);
+});

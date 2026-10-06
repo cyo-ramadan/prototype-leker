@@ -161,3 +161,22 @@ test('front-end unified login form recognizes ENTITY_ADMIN role and stores its t
   assert.match(ui, /'lekerEntityAdminToken'/);
   assert.match(entityAdminJs, /localStorage\.getItem\('lekerEntityAdminToken'\)/);
 });
+
+// Bos Cyo, 2026-10-06: akun Entity Admin untuk tenant Harilibur (ENT-G001) dibuat lewat migration 0141.
+test('migration 0141 membuat Entity Admin Harilibur di ENT-G001 (hash saja, tanpa password di repo)', async () => {
+  const db = migratedDatabase();
+  try {
+    const row = db.prepare(`SELECT entity_id, username, is_active, length(password_hash) AS len, password_hash FROM entity_admins WHERE username = 'entityadmin_harilibur'`).get();
+    assert.ok(row, 'akun harus ada');
+    assert.equal(row.entity_id, 'ENT-G001');
+    assert.equal(row.is_active, 1);
+    assert.match(row.password_hash, /^[0-9a-f]{64}$/);
+    assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM entity_admins WHERE entity_id = 'ENT-G001'`).get().n, 1);
+    // Migration dijalankan ulang tidak membuat akun ganda dan tidak menimpa hash yang sudah ada.
+    db.prepare(`UPDATE entity_admins SET password_hash = ? WHERE username = 'entityadmin_harilibur'`).run('f'.repeat(64));
+    db.exec(readFileSync(new URL('../migrations/0141_harilibur_entity_admin.sql', import.meta.url), 'utf8'));
+    const again = db.prepare(`SELECT COUNT(*) AS n, MAX(password_hash) AS h FROM entity_admins WHERE username = 'entityadmin_harilibur'`).get();
+    assert.equal(again.n, 1);
+    assert.equal(again.h, 'f'.repeat(64));
+  } finally { db.close(); }
+});

@@ -88,6 +88,8 @@ button { cursor: pointer; }
 .r-gate-art { width: 64px; height: 96px; fill: var(--plum-soft); stroke: var(--plum-2); stroke-width: 2; }
 .r-gate h1 { font: italic 700 28px/1.15 var(--serif); color: var(--plum); margin: 14px 0 8px; }
 .r-gate p { color: var(--muted); margin: 0 auto 22px; max-width: 360px; }
+.r-open { max-width: 360px; margin: 0 auto; text-align: left; display: grid; gap: 12px; }
+.r-open .r-btn { border: 0; font-size: 16px; cursor: pointer; }
 .r-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 54px; padding: 0 26px; border-radius: 999px; background: var(--plum); color: #fff; font-weight: 800; text-decoration: none; }
 
 /* ---- Beranda ------------------------------------------------------------- */

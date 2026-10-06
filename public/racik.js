@@ -26,6 +26,17 @@
   const DRAFTS_KEY = () => `maxiRacikDrafts:${storeCode()}`;
   const LAST_KEY = () => `maxiRacikLast:${storeCode()}`;
   const NOTA_KEY = () => `maxiRacikNota:${storeCode()}`;
+  // Pemilik/Admin yang masuk dari tombol "Jual" di Panel Pemilik (sesi kasir
+  // "Pemilik", POST /api/management/racik/kasir-pemilik). Keluar = kembali ke
+  // panel, bukan ke halaman login kasir.
+  const OWNER_KEY = 'maxiRacikPemilik';
+  const ownerMode = () => { try { return localStorage.getItem(OWNER_KEY) === storeCode(); } catch { return false; } };
+  const ownerReturn = () => {
+    let path = '';
+    try { path = localStorage.getItem('maxiRacikPemilikKembali') || ''; } catch {}
+    return /^\/[^/]/.test(path) ? path : '/entity-admin';
+  };
+  const exitPath = () => (ownerMode() ? ownerReturn() : cashierPath());
   const MAX_QTY = 100000;
   const MAX_PRICE = 100000000;
   const STEPS = ['pesanan', 'racik', 'bayar', 'nota'];
@@ -85,7 +96,7 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (response.status === 401) {
-      location.replace(cashierPath());
+      location.replace(exitPath());
       throw new Error('Sesi habis, silakan masuk lagi.');
     }
     if (!response.ok) throw new Error(payload.error || 'Gagal memuat data. Coba lagi.');
@@ -643,14 +654,51 @@
     $('rGateText').textContent = text;
     $('rGateBtn').textContent = button;
     $('rGateBtn').href = href;
+    $('rGateBtn').hidden = false;
+    $('rOpenBox').hidden = true;
+  }
+
+  // Skin F: siapa pun yang login (kasir, pemilik, admin) langsung buka laci
+  // di sini, tanpa absen (server: cashier.store.attendanceOptional).
+  function showOpenGate(lastClosing) {
+    const hasLast = lastClosing !== null && lastClosing !== undefined;
+    showGate('Laci belum dibuka', hasLast
+      ? `Uang di laci dari penutupan terakhir ${rupiah(lastClosing)}. Tinggal buka.`
+      : 'Pertama kali buka: berapa uang di laci sekarang? (boleh 0)', '', '#');
+    $('rGateBtn').hidden = true;
+    $('rOpenBox').hidden = false;
+    $('rOpenCashLabel').hidden = hasLast;
+    $('rOpenCash').hidden = hasLast;
+    state.lastClosing = hasLast ? lastClosing : null;
+  }
+
+  async function openDrawer() {
+    if (state.busy) return;
+    const amount = state.lastClosing ?? digits($('rOpenCash').value);
+    if (amount === null || amount === undefined) return toast('Ketik dulu uang di laci sekarang (boleh 0).');
+    state.busy = true;
+    $('rOpenBtn').disabled = true;
+    try {
+      await api('/api/cashier/drawer/open', { method: 'POST', body: JSON.stringify({ openingAmount: amount, shiftLabel: 'Racik' }) });
+      toast('Laci dibuka. Selamat meracik!');
+      await load();
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      state.busy = false;
+      $('rOpenBtn').disabled = false;
+    }
   }
 
   async function load() {
     if (!localStorage.getItem('lekerCashierToken')) {
-      location.replace(cashierPath());
+      location.replace(exitPath());
       return;
     }
     $('rFullCashier').href = cashierPath('?lengkap=1');
+    $('rOwnerPanel').hidden = !ownerMode();
+    $('rOwnerPanel').href = ownerReturn();
+    $('rLogout').textContent = ownerMode() ? 'Selesai jualan (kembali ke panel)' : 'Keluar';
     try {
       const [me, drawer] = await Promise.all([api('/api/cashier/me'), api('/api/cashier/drawer')]);
       const cashier = me.cashier || drawer.cashier || {};
@@ -659,8 +707,13 @@
       $('rStoreName').textContent = state.storeName;
       $('rWho').textContent = state.cashierName ? `Diracik ${state.cashierName}` : '';
       state.canWrite = Boolean(drawer.canWrite);
-      if (me.attendanceStatus !== 'in') {
+      const attendanceOptional = Boolean(cashier.store?.attendanceOptional);
+      if (!attendanceOptional && me.attendanceStatus !== 'in') {
         showGate('Belum absen', 'Absen dulu dengan foto, lalu buka laci. Setelah itu kembali ke sini untuk meracik.', 'Absen & buka toko', cashierPath('?lengkap=1'));
+        return;
+      }
+      if (!drawer.drawer && attendanceOptional) {
+        showOpenGate(drawer.lastClosingAmount ?? null);
         return;
       }
       if (!drawer.drawer) {
@@ -820,12 +873,21 @@
   document.addEventListener('click', event => {
     if (!event.target.closest('#rMoreMenu, #rMoreBtn')) { $('rMoreMenu').hidden = true; $('rMoreBtn').setAttribute('aria-expanded', 'false'); }
   });
+  $('rOpenBtn').addEventListener('click', openDrawer);
+  $('rOpenCash').addEventListener('input', () => { const value = digits($('rOpenCash').value); $('rOpenCash').value = value === null ? '' : value.toLocaleString('id-ID'); });
   $('rRefresh').addEventListener('click', () => { $('rMoreMenu').hidden = true; load(); });
   $('rLogout').addEventListener('click', async () => {
     if (state.draft) saveDraft();
+    const backToPanel = ownerMode();
+    const panelPath = ownerReturn();
     try { await api('/api/cashier/logout', { method: 'POST' }); } catch {}
-    try { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); } catch {}
-    location.replace(cashierPath());
+    try {
+      localStorage.removeItem('lekerCashierToken');
+      // Mode pemilik: sesi Pemilik di panel tetap jalan, jangan hapus identitasnya.
+      if (backToPanel) localStorage.removeItem(OWNER_KEY);
+      else localStorage.removeItem('lekerStaffSessionMeta');
+    } catch {}
+    location.replace(backToPanel ? panelPath : cashierPath());
   });
 
   // Layar ini hanya untuk skin F. Kalau Owner mengganti tampilan tenant, HP

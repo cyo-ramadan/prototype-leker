@@ -55,6 +55,13 @@ export const RACIK_SKIN_CHOICE = 'F';
 export function isRacikChoice(choice) {
   return choice === RACIK_SKIN_CHOICE;
 }
+// Bos Cyo, 2026-10-06 (skin F): "admin/owner/kasir untuk saat ini samakan,
+// boleh langsung jual dan buka laci" -- buka laci (dan ajukan tutup laci)
+// tidak menunggu presensi. Skin E sudah begitu lewat isOwnerOperatedChoice;
+// F hanya melepas syarat presensi, pengajuan tetap menunggu keputusan.
+export function isAttendanceOptionalChoice(choice) {
+  return choice === OWNER_OPERATED_SKIN_CHOICE || choice === RACIK_SKIN_CHOICE;
+}
 export function isOwnerOperatedChoice(choice) {
   return choice === OWNER_OPERATED_SKIN_CHOICE;
 }

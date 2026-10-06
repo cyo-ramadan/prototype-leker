@@ -5,7 +5,7 @@ import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-a
 import { listPayrollAdjustments, createPayrollAdjustment, voidPayrollAdjustment } from './payroll-adjustments.js';
 import { activateEntityBackupCashier } from './entity-backup-cashiers.js';
 import { getJakartaBusinessDate } from './time.js';
-import { resolveTenantId, getTenantPolicySetting, getTenantPolicyChoice, isOwnerOperatedChoice, isRacikChoice, ATTENDANCE_SCHEDULE_GATE_KEY, UI_SKIN_KEY } from './tenant-policy.js';
+import { resolveTenantId, getTenantPolicySetting, getTenantPolicyChoice, isOwnerOperatedChoice, isRacikChoice, isAttendanceOptionalChoice, ATTENDANCE_SCHEDULE_GATE_KEY, UI_SKIN_KEY } from './tenant-policy.js';
 
 // Identitas pemanggil requireManagement (Owner/Admin Gerai/Entity Admin/Agent
 // token) diringkas ke {role, id} generik -- dipakai sebagai jejak audit
@@ -206,6 +206,8 @@ async function attachAttendanceScheduleGate(db, cashier, entityId) {
   cashier.store.ownerOperated = isOwnerOperatedChoice(skinChoice);
   // Skin F (racik parfum): kasir boleh mengubah harga jual per transaksi.
   cashier.store.priceOverrideAllowed = isRacikChoice(skinChoice);
+  // Skin E/F: buka laci tanpa menunggu presensi (isAttendanceOptionalChoice).
+  cashier.store.attendanceOptional = isAttendanceOptionalChoice(skinChoice);
   return cashier;
 }
 

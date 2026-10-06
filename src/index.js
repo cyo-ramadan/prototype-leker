@@ -82,6 +82,7 @@ import { handleCostMasterApi } from './cost-master.js';
 import { handleDebuggerApi } from './debugger-control-plane.js';
 import { handleUiProfileApi } from './ui-profile.js';
 import { handleWarungUntungApi } from './warung-untung.js';
+import { handleRacikKasirPemilikApi } from './racik-kasir-pemilik.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -426,6 +427,8 @@ async function handleApiRouted(request, env, url) {
   }
   const warungUntungResponse = await handleWarungUntungApi(request, env, pathname);
   if (warungUntungResponse) return warungUntungResponse;
+  const racikKasirPemilikResponse = await handleRacikKasirPemilikApi(request, env, pathname);
+  if (racikKasirPemilikResponse) return racikKasirPemilikResponse;
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;
   const cashierOrdersResponse = await handleCashierOrders(request, env, pathname);

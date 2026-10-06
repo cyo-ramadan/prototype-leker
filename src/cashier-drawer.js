@@ -159,7 +159,9 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     // buka laci dan jadi penanggung jawabnya. Kecuali tenant skin E (Bos Cyo
     // 2026-10-02): pemiliknya jaga sendiri, presensi ke diri sendiri tidak
     // menjaga apa-apa.
-    if (!cashier.store.ownerOperated && await latestAttendanceStatus(db, cashier.id) !== 'in') {
+    // Skin F (Bos Cyo 2026-10-06): pemilik/admin/kasir disamakan, langsung
+    // buka laci -- lihat isAttendanceOptionalChoice.
+    if (!cashier.store.ownerOperated && !cashier.store.attendanceOptional && await latestAttendanceStatus(db, cashier.id) !== 'in') {
       return json({ error: 'Presensi masuk dulu sebelum buka laci.', code: 'PRESENSI_REQUIRED' }, 403);
     }
     const body = await readJson(request);

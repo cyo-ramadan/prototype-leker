@@ -18,7 +18,7 @@ lapisan warna/bentuk; D/E menambah layar Mode Warung di atasnya). Detail teknis:
 | **C · Kabar Gerai** | Pemilik yang hidup di WhatsApp | Tampilan | "Gerai Anda mengabari seperti teman, bukan seperti laporan." |
 | **D · Mode Warung** | Warung/UMKM kecil, dijaga bergantian (ada anak/karyawan) | Tampilan + cara pakai | "Untungnya kelihatan. Uangnya aman." |
 | **E · Jaga Sendiri** | Warung tanpa karyawan — pemilik = kasir = admin | Tampilan + cara pakai + **aturan** | "Jualan seperti biasa. Malamnya tahu untung beneran — tanpa nyatet." |
-| **F · Racik Parfum** | Toko parfum racikan — tiap botol takarannya beda per pelanggan | Tampilan + cara pakai + **aturan** (harga jual boleh diubah, tercatat) | "Racikan tiap pelanggan teringat, bahan dan modalnya terhitung pas." |
+| **F · Racik Parfum** | Toko parfum racikan — tiap botol takarannya beda per pelanggan | Tampilan + cara pakai + **aturan** (harga jual boleh diubah & tercatat; tanpa absen; pemilik bisa jual langsung) | "Racikan tiap pelanggan teringat, bahan dan modalnya terhitung pas." |
 
 ---
 

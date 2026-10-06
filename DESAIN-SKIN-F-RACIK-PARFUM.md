@@ -70,6 +70,25 @@ Akun kasir dibuat seperti biasa. Absen & buka laci tetap lewat Kasir lengkap (sk
 
 **Una** tetap ada untuk pemilik di Panel Pemilik dan Workspace Gerai (dicoba lokal 2026-10-06).
 
+## Pemilik, Admin, dan kasir disamakan (2026-10-06)
+
+Bos Cyo: *"di skin itu admin/owner/kasir untuk saat ini samakan, boleh langsung jual dan buka laci. di
+entity kasih tombol jual barang dan beli bahan juga operasionalnya"*.
+
+- **Tanpa absen.** Tenant skin F tidak menunggu presensi untuk buka laci atau mengajukan tutup laci
+  (`isAttendanceOptionalChoice`, flag `cashier.store.attendanceOptional`). Laci dibuka langsung di layar
+  Racik (uang awal = sisa penutupan terakhir). Pengajuan (hapus transaksi dsb.) tetap menunggu keputusan --
+  ini beda dari skin E yang juga menyetujui otomatis.
+- **Tombol kerja di Panel Pemilik dan Workspace Gerai:** per gerai **Jual** (layar Racik), **Beli bahan**,
+  **Biaya operasional** (Kasir lengkap, dialognya terbuka otomatis).
+- **Tanpa model transaksi kedua.** Pemilik/Admin tidak menulis lewat token manajemen. Tombol itu memanggil
+  `POST /api/management/racik/kasir-pemilik?store=`, yang membuat (sekali) akun kasir *"Nama (Pemilik)"*
+  milik orang itu di gerai itu dan memberi sesi kasir 12 jam. Semua transaksi tercatat atas nama orangnya
+  dengan aturan kasir yang sama (laci satu pemegang, stok, HPP, Accounting). Password akun ini acak dan tidak
+  pernah dibagikan; token agen ditolak; hanya tenant skin F. "Selesai jualan" kembali ke panel asal.
+- Batas: kalau laci sedang dipegang kasir lain, Pemilik tetap harus menunggu laci itu ditutup (satu laci
+  satu penanggung jawab).
+
 ## Batas
 
 - Draft & racikan terakhir hanya di HP/tablet yang dipakai; ganti perangkat = tidak terbawa.
@@ -84,4 +103,4 @@ node scripts/demo-toko-parfum-lokal.mjs   # bahan, aroma, resep, kasir fiktif "N
 # buka /s/PARFUM01/racik dengan localStorage lekerCashierToken = demo-racik-lokal
 ```
 
-<!-- DOC-IMPACT: 2026-10-06 dokumen baru; 2026-10-06 tab Bahan & Aroma (isian wajib minimal, default otomatis); skin F Racik Parfum: alur, jalur API, aturan ubah harga, persiapan pemilik, batas. -->
+<!-- DOC-IMPACT: 2026-10-06 dokumen baru; 2026-10-06 pemilik/admin/kasir disamakan (tanpa absen, tombol Jual/Beli bahan/Biaya di panel); 2026-10-06 tab Bahan & Aroma (isian wajib minimal, default otomatis); skin F Racik Parfum: alur, jalur API, aturan ubah harga, persiapan pemilik, batas. -->

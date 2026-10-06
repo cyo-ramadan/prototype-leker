@@ -212,7 +212,7 @@ async function handleCashierClosePermit(request, env, pathname) {
     }
     // Sama seperti buka laci normal -- yang mengajukan wajib sudah presensi
     // masuk, supaya jelas dia memang datang buat gantian jaga, bukan asal klik.
-    if (await latestAttendanceStatus(db, cashier.id) !== 'in') {
+    if (!cashier.store.attendanceOptional && await latestAttendanceStatus(db, cashier.id) !== 'in') {
       return json({ error: 'Presensi masuk dulu sebelum mengajukan tutup laci sebelumnya.', code: 'PRESENSI_REQUIRED' }, 403);
     }
     // Pengajuan lama yang sudah lebih dari 24 jam kadaluarsa dulu di sini --

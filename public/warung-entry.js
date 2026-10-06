@@ -27,13 +27,36 @@
     document.body.appendChild(link);
   }
 
+  // Skin F: tombol "Beli bahan" / "Biaya operasional" di Panel Pemilik membuka
+  // Kasir lengkap dengan ?aksi=beli|biaya -- tekan tombol aslinya begitu siap
+  // (tombol Pengeluaran baru aktif setelah laci terbaca). Tanpa polling:
+  // menunggu perubahan DOM, berhenti sendiri setelah 20 detik.
+  function openRequestedAction() {
+    const id = { beli: 'purchaseBtn', biaya: 'expenseBtn' }[params.get('aksi')];
+    if (!id) return;
+    const tryClick = () => {
+      const button = document.getElementById(id);
+      // Tombol Pengeluaran baru aktif setelah laci terbaca -- tanda halaman
+      // siap. Beli Bahan selalu aktif, jadi ikut menunggu tanda yang sama.
+      const ready = document.getElementById('expenseBtn');
+      if (!button || button.disabled || button.offsetParent === null || !ready || ready.disabled) return false;
+      button.click();
+      return true;
+    };
+    if (tryClick()) return;
+    const observer = new MutationObserver(() => { if (tryClick()) observer.disconnect(); });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'class', 'hidden', 'style'] });
+    setTimeout(() => observer.disconnect(), 20000);
+  }
+
   async function check() {
     const skin = window.MaxiSkin?.skin?.();
     if (skin !== 'd' && skin !== 'e' && skin !== 'f') return;
     if (!localStorage.getItem('lekerCashierToken')) return;
     addReturnButton();
-    if (params.get('lengkap') === '1') return;
-    if (skin === 'e') { location.replace(warungPath()); return; }
+    if (params.get('lengkap') === '1') { openRequestedAction(); return; }
+    // Skin F (Bos Cyo 2026-10-06): tanpa absen, laci dibuka langsung di layar Racik.
+    if (skin === 'e' || skin === 'f') { location.replace(warungPath()); return; }
     try {
       const [me, drawer] = await Promise.all([
         fetch('/api/cashier/me', { cache: 'no-store' }).then(response => (response.ok ? response.json() : null)),

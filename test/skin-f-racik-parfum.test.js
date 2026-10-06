@@ -7,6 +7,8 @@ import { validateDirectLines } from '../src/cashier-sales-tracking.js';
 import { hashCredential } from '../src/owner-auth.js';
 import { UI_SKIN_KEY, setTenantPolicySetting, isRacikChoice, isOwnerOperatedChoice } from '../src/tenant-policy.js';
 import { resolveUiProfile } from '../src/ui-profile.js';
+import { handleCashierDrawerApi } from '../src/cashier-drawer.js';
+import { handleRacikKasirPemilikApi } from '../src/racik-kasir-pemilik.js';
 
 // Skin F "Racik Parfum" (Bos Cyo 2026-10-06) -- DESAIN-SKIN-F-RACIK-PARFUM.md.
 // Aturan server yang berubah cuma satu: kasir boleh mengubah harga jual, dan
@@ -139,7 +141,7 @@ test('layar Racik: /s/<kode>/racik, hanya jalur kasir yang sudah ada, tanpa poll
   const js = readFileSync(new URL('../public/racik.js', import.meta.url), 'utf8');
   const endpoints = new Set([...js.matchAll(/'(\/api\/[^'?]+)'/g)].map(match => match[1]));
   assert.deepEqual([...endpoints].sort(), [
-    '/api/cashier/drawer', '/api/cashier/logout', '/api/cashier/me', '/api/cashier/menu',
+    '/api/cashier/drawer', '/api/cashier/drawer/open', '/api/cashier/logout', '/api/cashier/me', '/api/cashier/menu',
     '/api/cashier/production', '/api/cashier/production/options', '/api/cashier/sales', '/api/cashier/workspace'
   ]);
   // Botol sudah diproduksi -> dijual dari stok, bahan tidak terpotong dua kali.
@@ -181,4 +183,77 @@ test('skin F Workspace Gerai: tab "Bahan & Aroma" -- sedikit isian wajib, sisany
   const nav = readFileSync(new URL('../public/nav-groups.js', import.meta.url), 'utf8');
   assert.match(nav, /items: \['racikbahan', \.\.\.group\.items\]/);
   assert.match(nav, /racikbahan: 'Bahan & Aroma'/);
+});
+
+const post = (pathname, token, body) => new Request(`https://example.test${pathname}`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify(body || {})
+});
+
+test('skin F: kasir langsung buka laci tanpa absen; tenant 0 tetap wajib absen', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    const cashier = await seedCashier(db, 'store_001', 'racikbuka');
+    const open = () => handleCashierDrawerApi(post('/api/cashier/drawer/open', cashier.token, { openingAmount: 50000 }), env, '/api/cashier/drawer/open');
+    assert.equal((await open()).status, 403);
+    await setTenantPolicySetting(env.DB, tenantOf(db, 'store_001'), UI_SKIN_KEY, 'F', { role: 'OWNER', id: 'test' });
+    const opened = await open();
+    assert.equal(opened.status, 201);
+    assert.equal((await opened.json()).canWrite, true);
+  } finally {
+    db.close();
+  }
+});
+
+test('skin F: Pemilik dapat sesi kasir "Pemilik" miliknya sendiri; tenant lain & gerai entity lain ditolak', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    db.prepare(`INSERT INTO entity_admin_sessions (token_hash, entity_admin_id, created_at, expires_at) VALUES (?, 'entity_admin_parfum_pemilik', '2026-10-06T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`)
+      .run(await hashCredential('parfum-owner-token'));
+    const call = store => handleRacikKasirPemilikApi(post(`/api/management/racik/kasir-pemilik?store=${store}`, 'parfum-owner-token'), env, '/api/management/racik/kasir-pemilik');
+
+    const first = await call('PARFUM01');
+    assert.equal(first.status, 201);
+    const a = await first.json();
+    assert.ok(a.token);
+    const second = await (await call('PARFUM01')).json();
+    assert.equal(second.cashierId, a.cashierId, 'akun kasir Pemilik dipakai ulang');
+    assert.notEqual(second.token, a.token);
+
+    // Token itu sesi kasir sungguhan di gerai PARFUM01, tanpa absen.
+    const auth = await requireCashier(new Request('https://example.test/api/cashier/me', { headers: { Authorization: `Bearer ${a.token}` } }), env.DB);
+    assert.equal(auth.cashier.store.code, 'PARFUM01');
+    assert.equal(auth.cashier.store.attendanceOptional, true);
+    assert.match(auth.cashier.employeeName, /\(Pemilik\)$/);
+    // Akun ini tidak bisa dipakai login kasir biasa (password acak tak pernah dibagikan).
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cashiers WHERE id = ?').get(a.cashierId).n, 1);
+
+    assert.equal((await call('LAB01')).status, 403, 'gerai di luar entity pemilik');
+
+    // Tenant bukan skin F: endpoint menolak.
+    await setTenantPolicySetting(env.DB, 'TEN-PARFUM', UI_SKIN_KEY, '0', { role: 'OWNER', id: 'test' });
+    const refused = await call('PARFUM01');
+    assert.equal(refused.status, 403);
+    assert.equal((await refused.json()).code, 'RACIK_ONLY');
+  } finally {
+    db.close();
+  }
+});
+
+test('Panel Pemilik & Workspace Gerai skin F: tombol Jual / Beli bahan / Biaya operasional', () => {
+  const js = readFileSync(new URL('../public/racik-pemilik.js', import.meta.url), 'utf8');
+  assert.match(js, /data-rp-go="jual"/);
+  assert.match(js, /data-rp-go="beli"/);
+  assert.match(js, /data-rp-go="biaya"/);
+  assert.match(js, /\/api\/management\/racik\/kasir-pemilik/);
+  assert.doesNotMatch(js, /setInterval/);
+  for (const page of ['entity-admin.html', 'branch-admin.html']) {
+    assert.match(readFileSync(new URL(`../public/${page}`, import.meta.url), 'utf8'), /<script src="\/racik-pemilik\.js\?v=[^"]+"><\/script>/);
+  }
+  const entry = readFileSync(new URL('../public/warung-entry.js', import.meta.url), 'utf8');
+  assert.match(entry, /beli: 'purchaseBtn', biaya: 'expenseBtn'/);
+  assert.match(readFileSync(new URL('../public/cashier-presensi-gate.js', import.meta.url), 'utf8'), /attendanceOptional/);
 });

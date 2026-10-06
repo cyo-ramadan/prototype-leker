@@ -7,7 +7,7 @@
   <title>Racik</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500;1,9..144,700&family=Manrope:wght@500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="/racik.css?v=20261006-racik-v1" />
+  <link rel="stylesheet" href="/racik.css?v=20261006-langsung-jual-v1" />
   <script src="/staff-tab-lock.js?v=20261005-login-satu-pintu-v1"></script>
   <script src="/staff-back-guard.js?v=20261005-login-satu-pintu-v1"></script>
   <script src="/store-context.js"></script>
@@ -27,7 +27,8 @@
     </button>
     <button id="rMoreBtn" class="r-more" type="button" aria-haspopup="menu" aria-expanded="false">Lainnya</button>
     <nav id="rMoreMenu" class="r-menu" role="menu" hidden>
-      <a role="menuitem" id="rFullCashier" href="#">Kasir lengkap<small>Absen, belanja bahan, biaya, tutup laci</small></a>
+      <a role="menuitem" id="rOwnerPanel" href="/entity-admin" hidden>Panel Pemilik<small>Kembali ke laporan &amp; pengaturan</small></a>
+      <a role="menuitem" id="rFullCashier" href="#">Kasir lengkap<small>Belanja bahan, biaya, tutup laci</small></a>
       <button role="menuitem" id="rRefresh" type="button">Muat ulang aroma &amp; bahan</button>
       <button role="menuitem" id="rLogout" type="button">Keluar</button>
     </nav>
@@ -46,6 +47,11 @@
       <h1 id="rGateTitle">Toko belum dibuka</h1>
       <p id="rGateText">Absen dulu, lalu buka laci. Setelah itu kembali ke sini untuk meracik.</p>
       <a id="rGateBtn" class="r-btn" href="#">Buka Kasir lengkap</a>
+      <div id="rOpenBox" class="r-open" hidden>
+        <label id="rOpenCashLabel" class="r-label" for="rOpenCash">Uang di laci sekarang</label>
+        <input id="rOpenCash" class="r-input" type="text" inputmode="numeric" autocomplete="off" placeholder="mis. 100.000" />
+        <button id="rOpenBtn" class="r-btn" type="button">Buka laci &amp; mulai jualan</button>
+      </div>
     </section>
 
     <!-- Beranda: racikan baru + draft yang belum selesai -->
@@ -147,6 +153,6 @@
   </div>
 
   <div id="rToast" class="r-toast" role="status" aria-live="polite"></div>
-  <script src="/racik.js?v=20261006-racik-v1"></script>
+  <script src="/racik.js?v=20261006-langsung-jual-v1"></script>
 </body>
 </html>

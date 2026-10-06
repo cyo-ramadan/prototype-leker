@@ -65,7 +65,9 @@
     } catch {
       attendanceStatus = 'out';
     }
-    if (attendanceStatus === 'in') {
+    // Skin E/F (cashier.store.attendanceOptional dari server): pemilik/admin/
+    // kasir disamakan, Kasir lengkap tidak ditahan di gerbang foto datang.
+    if (attendanceStatus === 'in' || state.cashier?.store?.attendanceOptional) {
       await proceedToDashboard();
       return;
     }

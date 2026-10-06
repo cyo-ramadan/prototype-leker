@@ -86,7 +86,7 @@ test('Owner panel lists the skin choice (default 0) and rejects unknown options'
     const skin = leker.find(item => item.key === UI_SKIN_KEY);
     assert.equal(skin?.type, 'choice');
     assert.equal(skin?.value, '0');
-    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C', 'D', 'E']);
+    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C', 'D', 'E', 'F']);
 
     const owner = db.prepare('SELECT id FROM owner_accounts ORDER BY id LIMIT 1').get();
     db.prepare(`INSERT INTO owner_sessions (token_hash, owner_id, created_at, expires_at) VALUES (?, ?, '2026-10-01T00:00:00Z', '2099-01-01T00:00:00Z')`)

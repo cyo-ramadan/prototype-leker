@@ -16,7 +16,7 @@ import { UI_SKIN_KEY, getTenantPolicyChoice, resolveTenantId } from './tenant-po
 export const UI_SKIN_CLASSIC = 'classic';
 // Pilihan Owner (0/A/B/C) -> kode skin yang dipakai halaman (<html data-skin>
 // dan file /skin-<kode>.css). 0 = tampilan sekarang, tanpa data-skin.
-const SKIN_BY_CHOICE = Object.freeze({ A: 'a', B: 'b', C: 'c', D: 'd', E: 'e' });
+const SKIN_BY_CHOICE = Object.freeze({ A: 'a', B: 'b', C: 'c', D: 'd', E: 'e', F: 'f' });
 
 // Satu-satunya tempat nama merek, sama untuk SEMUA tenant (Bos Cyo
 // 2026-10-01: handoff UI/UX "dikerjakan buat universal", bukan khusus

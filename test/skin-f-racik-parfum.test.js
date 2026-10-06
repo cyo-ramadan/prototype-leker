@@ -117,3 +117,44 @@ test('skin F dipetakan ke data-skin "f"; bukan jaga sendiri', async () => {
     db.close();
   }
 });
+
+test('migration 0140: tenant baru Toko Parfum langsung memakai skin F', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    assert.equal((await resolveUiProfile(env.DB, { storeCode: 'PARFUM01' })).skin, 'f');
+    const admin = db.prepare(`SELECT entity_id, is_active FROM entity_admins WHERE username = 'parfum_pemilik'`).get();
+    assert.equal(admin.entity_id, 'ENT-PARFUM');
+    assert.equal(admin.is_active, 1);
+    assert.equal(db.prepare(`SELECT tenant_id FROM entity_tenancy WHERE entity_id = 'ENT-PARFUM' AND effective_to IS NULL`).get().tenant_id, 'TEN-PARFUM');
+  } finally {
+    db.close();
+  }
+});
+
+test('layar Racik: /s/<kode>/racik, hanya jalur kasir yang sudah ada, tanpa polling', async () => {
+  const { assetRoute } = await import('../src/index.js');
+  assert.equal(assetRoute('/s/PARFUM01/racik'), '/racik');
+  assert.equal(assetRoute('/s/PARFUM01/racik/'), '/racik');
+  const js = readFileSync(new URL('../public/racik.js', import.meta.url), 'utf8');
+  const endpoints = new Set([...js.matchAll(/'(\/api\/[^'?]+)'/g)].map(match => match[1]));
+  assert.deepEqual([...endpoints].sort(), [
+    '/api/cashier/drawer', '/api/cashier/logout', '/api/cashier/me', '/api/cashier/menu',
+    '/api/cashier/production', '/api/cashier/production/options', '/api/cashier/sales', '/api/cashier/workspace'
+  ]);
+  // Botol sudah diproduksi -> dijual dari stok, bahan tidak terpotong dua kali.
+  assert.match(js, /productionMode: 'STOCK'/);
+  assert.doesNotMatch(js, /setInterval/);
+  // Draft & racikan terakhir di HP/tablet ini, per gerai.
+  assert.match(js, /maxiRacikDrafts:\$\{storeCode\(\)\}/);
+  assert.match(js, /maxiRacikLast:\$\{storeCode\(\)\}/);
+  // Gagal bayar setelah botol diracik: draft tetap ada di tahap "diracik".
+  assert.match(js, /draft\.stage = 'diracik'/);
+  const css = readFileSync(new URL('../public/racik.css', import.meta.url), 'utf8');
+  assert.match(css, /@media print/);
+  assert.match(css, /size: 58mm auto/);
+  const html = readFileSync(new URL('../public/racik.html', import.meta.url), 'utf8');
+  assert.match(html, /<script src="\/racik\.js\?v=[^"]+"><\/script>/);
+  assert.match(readFileSync(new URL('../public/ui-skin.js', import.meta.url), 'utf8'), /\bf: 'family=Fraunces/);
+  assert.match(readFileSync(new URL('../package.json', import.meta.url), 'utf8'), /node --check public\/racik\.js/);
+});

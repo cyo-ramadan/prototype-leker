@@ -397,10 +397,14 @@ export async function listManualProductionOptionsV2(db, storeId) {
     }]
   }));
 
+  // stockQuantity: sisa stok bahan untuk peringatan "bahan kurang" di layar
+  // Racik (skin F). Hanya jumlah, tanpa harga modal -- layar kasir tidak
+  // menampilkan modal ke karyawan. Boleh minus (invariant #8).
   const materialRows = await db.prepare(`
-    SELECT p.id, p.name, u.symbol AS unit_symbol
+    SELECT p.id, p.name, u.symbol AS unit_symbol, b.quantity AS stock_quantity
     FROM products p
     LEFT JOIN units u ON u.id = p.base_unit_id AND u.store_id = p.store_id
+    LEFT JOIN inventory_stock_balances b ON b.store_id = p.store_id AND b.product_id = p.id
     LEFT JOIN item_types t ON t.id = p.item_type_id AND t.store_id = p.store_id
     WHERE p.store_id = ? AND p.is_active = 1
       AND (? = 0 OR (p.stock_tracking_enabled = 1 AND COALESCE(t.track_stock, 1) = 1))
@@ -413,7 +417,8 @@ export async function listManualProductionOptionsV2(db, storeId) {
     materials: (materialRows.results ?? []).map(row => ({
       productId: Number(row.id),
       productName: row.name,
-      unitSymbol: row.unit_symbol || ''
+      unitSymbol: row.unit_symbol || '',
+      stockQuantity: row.stock_quantity === null || row.stock_quantity === undefined ? null : Number(row.stock_quantity)
     }))
   };
 }

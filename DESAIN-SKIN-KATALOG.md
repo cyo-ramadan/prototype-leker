@@ -18,6 +18,7 @@ lapisan warna/bentuk; D/E menambah layar Mode Warung di atasnya). Detail teknis:
 | **C · Kabar Gerai** | Pemilik yang hidup di WhatsApp | Tampilan | "Gerai Anda mengabari seperti teman, bukan seperti laporan." |
 | **D · Mode Warung** | Warung/UMKM kecil, dijaga bergantian (ada anak/karyawan) | Tampilan + cara pakai | "Untungnya kelihatan. Uangnya aman." |
 | **E · Jaga Sendiri** | Warung tanpa karyawan — pemilik = kasir = admin | Tampilan + cara pakai + **aturan** | "Jualan seperti biasa. Malamnya tahu untung beneran — tanpa nyatet." |
+| **F · Racik Parfum** | Toko parfum racikan — tiap botol takarannya beda per pelanggan | Tampilan + cara pakai + **aturan** (harga jual boleh diubah, tercatat) | "Racikan tiap pelanggan teringat, bahan dan modalnya terhitung pas." |
 
 ---
 
@@ -124,4 +125,22 @@ teks/angka gelap berkontras ≥ 7:1. Buka/Tutup warung satu ketukan, tab **Jual 
 otomatis disetujui (tetap tercatat), login kasir bisa melihat untung.
 **Jangan dipilih** untuk tenant yang punya karyawan — pengawasan absen & izin jadi mati.
 
-<!-- DOC-IMPACT: 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. -->
+## F · Racik Parfum
+
+**Orangnya:** pemilik toko parfum racikan dengan satu-dua karyawan. Kulakan bibit, alkohol, fixative,
+botol; setiap botol diracik di depan pembeli. "Bubble Gum" Kiki tidak sama dengan "Bubble Gum" pembeli lain.
+
+| Yang terjadi | Yang dia rasakan |
+|---|---|
+| Takaran diubah sesuai selera pembeli | Stok bibit di catatan tidak pernah cocok |
+| Pembeli lama datang lagi "seperti kemarin" | Takarannya lupa, pembeli kecewa |
+| Harga ditawar / bibit premium ditambah | Harga di kasir tidak bisa diubah, akhirnya dicatat manual |
+| Lagi meracik, pembeli lain datang | Racikan setengah jadi hilang dari layar |
+
+**Janji:** "Racikan tiap pelanggan teringat, bahan dan modalnya terhitung pas." **Desain "Meja Atelier":**
+kertas gading, tinta plum, aksen kuningan, nama aroma huruf Fraunces miring; botol kaca yang terisi lapisan
+warna tiap bahan saat takaran diubah. Alur **Pesanan → Racik → Bayar → Nota**; draft & racikan terakhir per
+pelanggan di HP/tablet itu. **Aturan berubah:** kasir boleh mengubah harga jual, tercatat di penjualan.
+Detail: `DESAIN-SKIN-F-RACIK-PARFUM.md`.
+
+<!-- DOC-IMPACT: 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->

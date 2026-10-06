@@ -66,10 +66,11 @@ test('Mode Warung menjual lewat jalur kasir yang sama dan tidak membuat ulang ab
   assert.doesNotMatch(ui, /setInterval/);
 });
 
-test('pintu masuk & layar Pemilik hanya aktif di skin D dan E', () => {
+test('pintu masuk aktif di skin D, E, dan F (Racik); layar Pemilik hanya D dan E', () => {
   const entry = read('public/warung-entry.js');
   const owner = read('public/warung-pemilik.js');
-  assert.match(entry, /if \(skin !== 'd' && skin !== 'e'\) return/);
+  assert.match(entry, /if \(skin !== 'd' && skin !== 'e' && skin !== 'f'\) return/);
+  assert.match(entry, /=== 'f' \? 'racik' : 'warung'/);
   assert.match(owner, /if \(!\['d', 'e'\]\.includes\(window\.MaxiSkin\?\.skin\?\.\(\)\)\) return unmount\(\)/);
   assert.doesNotMatch(owner, /setInterval/);
   assert.match(read('public/cashier.html'), /<script src="\/warung-entry\.js\?v=[^"]+"><\/script>/);

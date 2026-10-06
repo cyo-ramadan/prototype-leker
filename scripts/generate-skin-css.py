@@ -1,4 +1,4 @@
-# Pembangkit public/skin-{a,b,c,d,e}.css dari satu kerangka selektor (HANDOFF-UIUX-SIAP-JUAL.md §8).
+# Pembangkit public/skin-{a,b,c,d,e,f}.css dari satu kerangka selektor (HANDOFF-UIUX-SIAP-JUAL.md §8).
 # Pakai: python3 scripts/generate-skin-css.py public  -- ubah token di SKINS, jangan sunting CSS hasilnya.
 COMMON = r"""
 html[data-skin="{s}"] {{
@@ -204,6 +204,21 @@ html[data-skin="e"] .total-row strong, html[data-skin="e"] .cashier-draft-total 
 html[data-skin="e"] .admin-card, html[data-skin="e"] .master-row { border-color: var(--line); }
 html[data-skin="e"] #entityAdminApp .owner-heading .muted, html[data-skin="e"] #entityAdminApp .owner-heading .admin-eyebrow { display: none; }
 html[data-skin="e"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin: 0; }
+"""),
+ 'f': dict(title='F · Racik Parfum', note='Untuk toko parfum racikan: kertas gading, tinta plum tua, aksen kuningan, huruf Fraunces (judul) + Manrope (teks/angka). Layar utamanya public/racik.html (Pesanan -> Racik -> Bayar -> Nota); file ini hanya mewarnai halaman lain (Kasir lengkap, Workspace Gerai, Panel Pemilik) supaya senada. Aturan servernya di isRacikChoice (src/tenant-policy.js). DESAIN-SKIN-F-RACIK-PARFUM.md.', tok={
+  '--skin-font': '"Manrope", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#F6EFE6', '--skin-page-bg': '#F6EFE6', '--surface': '#FFFCF7', '--ink': '#2A1828', '--muted': '#5E4A5A', '--line': '#E6D8CC',
+  '--brand': '#6B2D5C', '--brand-2': '#4A1A42', '--green': '#1E6B4E', '--green-soft': '#E1F2EA', '--amber': '#7A4A00',
+  '--shadow': '0 10px 30px -18px rgba(74,26,66,.35)', '--skin-card-shadow': '0 1px 0 rgba(74,26,66,.05)',
+  '--skin-top-bg': '#4A1A42', '--skin-top-ink': '#FBF3F8', '--skin-top-muted': '#E9D3E2', '--skin-top-line': '#4A1A42',
+  '--skin-mark-bg': '#B8894F', '--skin-mark-ink': '#2A1828',
+  '--skin-hero-bg': '#4A1A42', '--skin-hero-ink': '#FBF3F8', '--skin-hero-muted': '#E9D3E2',
+  '--skin-primary': '#4A1A42', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#4A1A42', '--skin-active-ink': '#ffffff',
+  '--skin-input-bg': '#FFFCF7', '--skin-chip-bg': '#F1E3EC', '--skin-focus': 'rgba(107,45,92,.16)',
+  '--skin-danger': '#8E1B2C', '--skin-danger-soft': '#FBE3E6', '--skin-danger-line': '#F0B9C2', '--skin-warn': '#7A4A00', '--skin-warn-soft': '#FCEFD6',
+  '--skin-r-sm': '12px', '--skin-r': '16px', '--skin-r-lg': '22px', '--skin-r-pill': '999px'}, extra=r"""
+html[data-skin="f"] .brand, html[data-skin="f"] .admin-card h2, html[data-skin="f"] .owner-heading h1, html[data-skin="f"] .hero h1 { font-family: "Fraunces", Georgia, serif; font-style: italic; }
+html[data-skin="f"] .primary-btn { min-height: 50px; }
 """),
 }
 

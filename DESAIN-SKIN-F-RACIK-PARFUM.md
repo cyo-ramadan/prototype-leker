@@ -47,12 +47,28 @@ Harga harus rupiah bulat 0–100 juta.
 Daftar bahan untuk layar Racik ikut membawa **sisa stok** (bukan modal — modal tidak ditampilkan ke
 karyawan).
 
-## Yang disiapkan pemilik di Workspace Gerai
+## Yang disiapkan pemilik: tab "Bahan & Aroma" (Workspace Gerai → Barang)
 
-- Bahan (Jenis "Bahan"): bibit per aroma, alkohol, fixative, botol — satuan ml/pcs, dengan harga beli.
-- Aroma (Jenis "Barang Jadi"): satu barang per aroma **per ukuran** ("Bubble Gum 50 ml"), harga daftar,
-  dan **resep standar ACTIVE** (takaran bulat). Aroma tanpa resep tidak muncul di layar Racik.
-- Akun kasir. Absen & buka laci tetap lewat Kasir lengkap (skin F bukan Jaga Sendiri).
+Bos Cyo, 2026-10-06: *"entry2 barangnya jangan dibuat ribet, sedikitin yang wajib, yang opsi kasi default
+langsung aja tanpa ngisi"*. Satu layar (`public/racik-admin.js`, hanya skin F) menggantikan tiga langkah
+lama (Data Barang → Peran & Satuan → Resep):
+
+| Isian | Wajib | Default bila tidak diisi |
+|---|---|---|
+| Bahan: nama | ya | — |
+| Bahan: satuan | tidak | ml (pilihan ml / gram / pcs) |
+| Bahan: harga beli per satuan | tidak | 0 (modal sebenarnya terisi saat belanja dicatat) |
+| Aroma: nama & ukuran | ya | — |
+| Aroma: harga jual | ya | — |
+| Aroma: resep standar (bahan + takaran) | ya, min. 1 bahan | — |
+| Kategori, peran barang, satuan aroma, qty hasil | — | "Bahan"/"Parfum", Bahan/Barang Jadi, pcs, 1 botol |
+
+"Ubah resep" membuat revisi resep baru (resep lama diarsipkan, riwayat produksi tetap). Nama & harga aroma
+diubah di Daftar Barang. Endpoint yang dipakai sama dengan tab aslinya (`POST /api/admin/products`,
+`PATCH /api/admin/manufacturing/products/:id`, `POST /api/admin/manufacturing/recipes`).
+Akun kasir dibuat seperti biasa. Absen & buka laci tetap lewat Kasir lengkap (skin F bukan Jaga Sendiri).
+
+**Una** tetap ada untuk pemilik di Panel Pemilik dan Workspace Gerai (dicoba lokal 2026-10-06).
 
 ## Batas
 
@@ -68,4 +84,4 @@ node scripts/demo-toko-parfum-lokal.mjs   # bahan, aroma, resep, kasir fiktif "N
 # buka /s/PARFUM01/racik dengan localStorage lekerCashierToken = demo-racik-lokal
 ```
 
-<!-- DOC-IMPACT: 2026-10-06 dokumen baru; skin F Racik Parfum: alur, jalur API, aturan ubah harga, persiapan pemilik, batas. -->
+<!-- DOC-IMPACT: 2026-10-06 dokumen baru; 2026-10-06 tab Bahan & Aroma (isian wajib minimal, default otomatis); skin F Racik Parfum: alur, jalur API, aturan ubah harga, persiapan pemilik, batas. -->

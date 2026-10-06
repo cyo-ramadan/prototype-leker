@@ -158,3 +158,27 @@ test('layar Racik: /s/<kode>/racik, hanya jalur kasir yang sudah ada, tanpa poll
   assert.match(readFileSync(new URL('../public/ui-skin.js', import.meta.url), 'utf8'), /\bf: 'family=Fraunces/);
   assert.match(readFileSync(new URL('../package.json', import.meta.url), 'utf8'), /node --check public\/racik\.js/);
 });
+
+test('skin F Workspace Gerai: tab "Bahan & Aroma" -- sedikit isian wajib, sisanya default, endpoint lama', () => {
+  const js = readFileSync(new URL('../public/racik-admin.js', import.meta.url), 'utf8');
+  assert.match(js, /const isOn = \(\) => window\.MaxiSkin\?\.skin\?\.\(\) === 'f'/);
+  const endpoints = new Set([...js.matchAll(/'(\/api\/[^'?]+)'/g)].map(match => match[1]));
+  assert.deepEqual([...endpoints].sort(), [
+    '/api/admin/bootstrap', '/api/admin/manufacturing/bootstrap', '/api/admin/manufacturing/recipes', '/api/admin/products'
+  ]);
+  assert.match(js, /\/api\/admin\/manufacturing\/products\/\$\{created\.id\}/);
+  // Default yang tidak perlu diisi pemilik.
+  assert.match(js, /unit: 'ML'/);
+  assert.match(js, /category: 'Bahan'/);
+  assert.match(js, /category: 'Parfum'/);
+  assert.match(js, /outputQuantity: 1/);
+  assert.match(js, /digits\(\$\('rbMaterialCost'\)\.value\) \?\? 0/);
+  assert.doesNotMatch(js, /setInterval/);
+  const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
+  assert.match(html, /<script src="\/racik-admin\.js\?v=[^"]+"><\/script>/);
+  // Una tetap ada di Workspace Gerai.
+  assert.match(html, /<script src="\/caca-chat\.js\?v=[^"]+"><\/script>/);
+  const nav = readFileSync(new URL('../public/nav-groups.js', import.meta.url), 'utf8');
+  assert.match(nav, /items: \['racikbahan', \.\.\.group\.items\]/);
+  assert.match(nav, /racikbahan: 'Bahan & Aroma'/);
+});

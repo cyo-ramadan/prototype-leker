@@ -81,7 +81,7 @@
         ${foto(payment)}
         <div class="master-main">
           <strong>${escapeHtml(payment.employeeName)} · ${money(payment.amountRupiah)}</strong>
-          <div class="master-meta">Setoran laci ${escapeHtml(tanggal(payment.depositDate))} · dikirim ${escapeHtml(dateTime(payment.createdAt))}${payment.proofReference ? ` · ${escapeHtml(payment.proofReference)}` : ''}</div>
+          <div class="master-meta">Setoran laci ${escapeHtml(tanggal(payment.depositDate))} · dikirim ${escapeHtml(dateTime(payment.createdAt))}${payment.sharedAccountName ? ` · ke ${escapeHtml(payment.sharedAccountName)}` : ' · ke Kas'}${payment.proofReference ? ` · ${escapeHtml(payment.proofReference)}` : ''}</div>
         </div>
         <div class="master-actions">
           <button class="mini-btn" type="button" data-approve-payment="${escapeHtml(payment.id)}" data-nama="${escapeHtml(payment.employeeName)}" data-nominal="${escapeHtml(money(payment.amountRupiah))}">ACC</button>

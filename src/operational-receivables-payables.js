@@ -307,8 +307,8 @@ export async function addOperationalPayment(
   await db.prepare(`
     INSERT INTO operational_receivable_payable_payments (
       id, receivable_payable_id, store_id, entity_id, amount,
-      approval_status, proof_reference, note, submitted_by, proof_photo, proof_photo_type
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      approval_status, proof_reference, note, submitted_by, proof_photo, proof_photo_type, shared_account_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     paymentId,
     parent.id,
@@ -320,7 +320,9 @@ export async function addOperationalPayment(
     text(input?.note, 300),
     text(input?.submittedBy, 180),
     photo ? photo.bytes : null,
-    photo ? photo.type : null
+    photo ? photo.type : null,
+    // Setoran CS ke Rekening Bersama (migration 0139): tujuan dicatat saat kirim, efeknya saat ACC.
+    isEmployeeDeposit ? (text(input?.sharedAccountId, 80) || null) : null
   ).run();
 
   const payment = await db.prepare(`

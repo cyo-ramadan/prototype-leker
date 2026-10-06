@@ -82,6 +82,46 @@ export async function savePaymentMethod(db, store, body, id = null) {
   return json({ ok: true, id: nextId }, 201);
 }
 
+// Bos Cyo, 2026-10-06: "sekarang setiap gerai aktifkan rekening bersama, dan masukkan rekening
+// bersama itu pilihan pembayaran baik di pemasukan maupun pengeluaran". Satu klik dari Entity Admin:
+// tiap gerai aktif di entity itu dapat satu cara bayar yang ditandai ke Rekening Bersama ini
+// (shared_account_id -> saldo bagian gerai ikut bergerak saat jual/beli/bayar) dan ke akun 1103
+// Rekening Bersama (account_id -> jurnal Akuntansi). Idempotent: cara bayar yang sudah ada cuma
+// diaktifkan lagi, tidak dibuat dobel. Cara bayar default (Kas) tidak diubah.
+export async function activateSharedAccountPaymentMethods(db, { entityId, sharedAccount }) {
+  const stores = await db.prepare(`
+    SELECT id, code, store_name FROM stores WHERE entity_id = ? AND is_active = 1 ORDER BY code
+  `).bind(entityId).all();
+  const results = [];
+  for (const store of stores.results ?? []) {
+    const account = await db.prepare(`
+      SELECT id FROM chart_of_accounts WHERE store_id = ? AND code = '1103' AND type = 'ASSET' AND is_active = 1 LIMIT 1
+    `).bind(store.id).first();
+    const existing = await db.prepare(`
+      SELECT id, code, is_active, account_id FROM payment_methods WHERE store_id = ? AND shared_account_id = ?
+      ORDER BY is_active DESC, created_at LIMIT 1
+    `).bind(store.id, sharedAccount.id).first();
+    if (existing) {
+      await db.prepare(`
+        UPDATE payment_methods SET is_active = 1, account_id = COALESCE(account_id, ?), updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND store_id = ?
+      `).bind(account?.id || null, existing.id, store.id).run();
+      results.push({ storeCode: store.code, storeName: store.store_name, status: Number(existing.is_active) ? 'SUDAH_AKTIF' : 'DIAKTIFKAN', code: existing.code, accountLinked: Boolean(existing.account_id || account) });
+      continue;
+    }
+    let code = 'REKBER';
+    let name = text(sharedAccount.name, 80) || 'Rekening Bersama';
+    for (let n = 2; await db.prepare(`SELECT 1 FROM payment_methods WHERE store_id = ? AND code = ?`).bind(store.id, code).first(); n += 1) code = `REKBER_${n}`;
+    if (await db.prepare(`SELECT 1 FROM payment_methods WHERE store_id = ? AND name = ?`).bind(store.id, name).first()) name = text(`${name} (${code})`, 80);
+    await db.prepare(`
+      INSERT INTO payment_methods (id, store_id, code, name, account_id, shared_account_id, is_active, is_default, creates_payable)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 0, 0)
+    `).bind(`payment_${store.id}_${crypto.randomUUID()}`, store.id, code, name, account?.id || null, sharedAccount.id).run();
+    results.push({ storeCode: store.code, storeName: store.store_name, status: 'DIBUAT', code, accountLinked: Boolean(account) });
+  }
+  return results;
+}
+
 export async function handleBusinessSettingsApi(request, env, pathname) {
   if (!pathname.startsWith('/api/admin/settings/business')) return null;
   const ctx = await managementContext(request, env);

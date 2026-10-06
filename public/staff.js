@@ -5,6 +5,7 @@
   let portal = null;
   let deposits = null;
   let depositManual = { rupiah: 0, entries: [] };
+  let depositTarget = null;
   async function staffApi(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -381,7 +382,7 @@
       <div class="staff-metric-grid" style="margin-bottom:14px">
         <div class="staff-card" style="margin:0"><div class="muted">Yang harus disetor</div><h2 style="margin:5px 0">${money(totalSisa)}</h2></div>
         <div class="staff-card" style="margin:0"><div class="muted">Sudah dikirim, menunggu ACC Admin</div><h2 style="margin:5px 0">${money(totalMenunggu)}</h2></div>
-        <div class="staff-card" style="margin:0"><div class="muted">Caranya</div><div>1. Transfer ke rekening yang ditentukan kantor. 2. Foto bukti transfernya. 3. Isi di bawah lalu kirim. Piutangmu berkurang setelah Admin klik ACC.</div></div>
+        <div class="staff-card" style="margin:0"><div class="muted">Caranya</div><div>1. Transfer ke ${depositTarget?.name ? `<strong>${escapeHtml(depositTarget.name)}</strong>` : 'rekening yang ditentukan kantor'}. 2. Foto bukti transfernya. 3. Isi di bawah lalu kirim. Piutangmu berkurang setelah Admin klik ACC.</div></div>
       </div>`;
     if (!items.length) { target.innerHTML = `${ringkasan}<div class="staff-empty">Belum ada setoran. Setoran muncul otomatis setiap kali kamu tutup laci dan ada uang yang dibawa pulang.</div>`; return; }
     if (!terbuka.length) { target.innerHTML = `${ringkasan}<div class="staff-empty">Tidak ada yang perlu ditransfer sekarang. 👍${totalMenunggu ? ' Kiriman sebelumnya masih menunggu ACC Admin.' : ''}</div>`; return; }
@@ -482,7 +483,7 @@
             const redup = p.approvalStatus === 'rejected' ? 'opacity:.6' : '';
             const catatan = p.proofReference && p.proofReference !== 'Foto bukti transfer' ? ` · ${escapeHtml(p.proofReference.replace(/^Foto bukti transfer · /, ''))}` : '';
             return `<div class="attendance-row" style="${redup}">
-              <div><strong>Transfer setoran</strong>
+              <div><strong>${p.usedForAdminPayment ? 'Dipakai membayar (oleh Admin)' : p.sharedAccountName ? `Transfer setoran ke ${escapeHtml(p.sharedAccountName)}` : 'Transfer setoran'}</strong>
                 <div class="muted">Dikirim jam ${escapeHtml(jakartaClock(card.at))}${catatan}${p.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(utcIso(p.reviewedAt)))}` : ''}</div>
                 <div class="muted"><span style="font-weight:800;color:${warna}">${escapeHtml(approvalLabel[p.approvalStatus] || p.approvalStatus)}</span>${p.rejectionReason ? ` · <span style="color:#c2255c">Alasan ditolak: ${escapeHtml(p.rejectionReason)}</span>` : ''}</div></div>
               <div class="attendance-row-photos" style="align-items:center">${fotoSetoran(p)}<span style="color:${p.approvalStatus === 'approved' ? '#2f9e44' : '#555'}">−${money(card.amountRupiah)}</span></div></div>`;
@@ -491,7 +492,7 @@
     loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
-  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
+  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
   async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }

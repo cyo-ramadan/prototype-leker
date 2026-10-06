@@ -103,6 +103,47 @@ function accountingFailure(error, fallbackCode) {
   };
 }
 
+// Bos Cyo, 2026-10-06: "ketika cs mau setoran itu nanti setornya ke rekening bersama.
+// piutang kredit, rekber debet." Tujuan setoran = Rekening Bersama aktif milik entity gerai
+// (yang dibuat paling awal kalau ada lebih dari satu). Gerai tanpa Rekening Bersama tetap
+// memakai Kas seperti sebelumnya.
+export async function depositTargetSharedAccount(db, storeId) {
+  return db.prepare(`
+    SELECT sa.id, sa.name
+    FROM entity_shared_accounts sa
+    JOIN stores s ON s.entity_id = sa.entity_id
+    WHERE s.id = ? AND sa.is_active = 1
+    ORDER BY sa.created_at, sa.name COLLATE NOCASE
+    LIMIT 1
+  `).bind(storeId).first();
+}
+
+// Baris IN Rekening Bersama untuk satu setoran yang di-ACC. Ditulis lewat INSERT ... SELECT
+// yang hanya cocok kalau setoran itu memang sudah approved dan belum punya baris ledger,
+// sehingga ACC ganda / percobaan ulang tidak pernah menulis dua kali.
+function sharedLedgerForApprovedDeposit(db, { ledgerId, paymentId, storeId, reviewerId, now }) {
+  return [
+    db.prepare(`
+      INSERT INTO entity_shared_account_ledger (
+        id, shared_account_id, entity_id, store_id, direction, amount, source_type, source_kind,
+        source_id, note, created_by_role, created_by_id, created_at
+      )
+      SELECT ?, sa.id, sa.entity_id, p.store_id, 'IN', p.amount / 1000000, 'EXPENSE', 'SETORAN_CS',
+             p.id, 'Setoran CS · ' || COALESCE(r.counterparty_name_snapshot, ''), 'ADMIN', ?, ?
+      FROM operational_receivable_payable_payments p
+      JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+      JOIN entity_shared_accounts sa ON sa.id = p.shared_account_id
+      WHERE p.id = ? AND p.store_id = ? AND p.approval_status = 'approved'
+        AND p.shared_account_id IS NOT NULL AND p.shared_ledger_id IS NULL
+    `).bind(ledgerId, reviewerId, now, paymentId, storeId),
+    db.prepare(`
+      UPDATE operational_receivable_payable_payments SET shared_ledger_id = ?
+      WHERE id = ? AND store_id = ? AND shared_ledger_id IS NULL
+        AND EXISTS (SELECT 1 FROM entity_shared_account_ledger l WHERE l.id = ?)
+    `).bind(ledgerId, paymentId, storeId, ledgerId)
+  ];
+}
+
 // Dipanggil dari src/cashier-drawer.js tepat setelah tutup laci sukses dengan
 // depositAmount > 0. Kalau akun kasir itu belum ditautkan ke karyawan mana pun
 // (Master Karyawan belum dipakai di gerai ini), sengaja TIDAK membuat piutang
@@ -171,17 +212,21 @@ export async function postPendingEmployeeDepositJournals(db, storeId, limit = 25
     results.push({ factType: 'SETORAN_PIUTANG', factId: row.id, status: posted.ok ? 'POSTED' : 'FAILED' });
   }
   const payments = await db.prepare(`
-    SELECT p.id, p.amount, p.reviewed_at
+    SELECT p.id, p.amount, p.reviewed_at, p.shared_account_id
     FROM operational_receivable_payable_payments p
     JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
     WHERE p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND p.approval_status = 'approved'
+      -- Setoran yang dipakai membayar hutang dari layar Pembayaran Hutang dijurnal oleh pembayaran
+      -- itu sendiri (Dr Utang / Cr 1202), bukan sebagai setoran masuk Kas/Rekening Bersama.
+      AND p.admin_payment_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM accounting_journal_headers h WHERE h.store_id = p.store_id AND h.source_system = 'EMPLOYEE_DEPOSIT' AND h.source_reference_id = p.id)
     ORDER BY p.created_at LIMIT ?
   `).bind(storeId, limit).all();
   for (const row of payments.results ?? []) {
     const reviewedAt = row.reviewed_at || new Date().toISOString();
     const posted = await postEmployeeDepositSettlementJournal(db, store, {
-      paymentId: row.id, businessDate: reviewedAt.slice(0, 10), amountScaled: Number(row.amount), occurredAt: reviewedAt
+      paymentId: row.id, businessDate: reviewedAt.slice(0, 10), amountScaled: Number(row.amount), occurredAt: reviewedAt,
+      viaSharedAccount: Boolean(row.shared_account_id)
     });
     results.push({ factType: 'SETORAN_PELUNASAN', factId: row.id, status: posted.ok ? 'POSTED' : 'FAILED' });
   }
@@ -208,14 +253,19 @@ function mapPayment(row) {
     reviewedAt: row.reviewed_at || null,
     rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
-    hasPhoto: Boolean(row.has_photo)
+    hasPhoto: Boolean(row.has_photo),
+    // Tujuan setoran (Rekening Bersama) dan penanda setoran yang dipakai membayar hutang (admin).
+    sharedAccountName: row.shared_account_name || null,
+    usedForAdminPayment: Boolean(row.admin_payment_id)
   };
 }
 
 // Kolom setoran TANPA isi foto: foto (s.d. 800 KB) hanya diambil lewat endpoint fotonya
 // sendiri, bukan ikut dimuat setiap kali daftar dibuka.
 const KOLOM_SETORAN = `p.id, p.receivable_payable_id, p.amount, p.approval_status, p.proof_reference, p.note,
-  p.submitted_by, p.reviewed_by, p.reviewed_at, p.rejection_reason, p.created_at, p.proof_photo IS NOT NULL AS has_photo`;
+  p.submitted_by, p.reviewed_by, p.reviewed_at, p.rejection_reason, p.created_at, p.proof_photo IS NOT NULL AS has_photo,
+  p.shared_account_id, p.admin_payment_id,
+  (SELECT sa.name FROM entity_shared_accounts sa WHERE sa.id = p.shared_account_id) AS shared_account_name`;
 
 function photoResponse(row) {
   if (!row || !row.proof_photo) return json({ error: 'Foto bukti setoran tidak ditemukan.' }, 404);
@@ -325,7 +375,8 @@ function mergeBalances(rows, manual) {
 
 async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId, rejectionReason }) {
   const payment = await db.prepare(`
-    SELECT p.id, p.amount, p.approval_status, p.reviewed_at, r.transaction_date, r.source_type
+    SELECT p.id, p.amount, p.approval_status, p.reviewed_at, p.shared_account_id, p.shared_ledger_id,
+           r.transaction_date, r.source_type
     FROM operational_receivable_payable_payments p
     JOIN operational_receivables_payables r
       ON r.id = p.receivable_payable_id
@@ -342,16 +393,25 @@ async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId
   const now = new Date().toISOString();
   if (action === 'APPROVE') {
     let reviewedAt = payment.reviewed_at || now;
+    const ledgerStatements = payment.shared_account_id && !payment.shared_ledger_id
+      ? sharedLedgerForApprovedDeposit(db, { ledgerId: `shared_ledger_${crypto.randomUUID()}`, paymentId, storeId, reviewerId, now })
+      : [];
     if (!retryApprovedPosting) {
-      const update = await db.prepare(`
-        UPDATE operational_receivable_payable_payments
-        SET approval_status = 'approved', reviewed_by = ?, reviewed_at = ?
-        WHERE id = ? AND store_id = ? AND approval_status = 'pending_approval'
-      `).bind(reviewerId, now, paymentId, storeId).run();
-      if (!update.success || Number(update.meta?.changes ?? 0) !== 1) {
+      // ACC + baris Rekening Bersama dalam satu batch: keduanya terjadi, atau tidak sama sekali.
+      const [update] = await db.batch([
+        db.prepare(`
+          UPDATE operational_receivable_payable_payments
+          SET approval_status = 'approved', reviewed_by = ?, reviewed_at = ?
+          WHERE id = ? AND store_id = ? AND approval_status = 'pending_approval'
+        `).bind(reviewerId, now, paymentId, storeId),
+        ...ledgerStatements
+      ]);
+      if (!update?.success || Number(update.meta?.changes ?? 0) !== 1) {
         return { ok: false, status: 409, error: 'PAYMENT_ALREADY_REVIEWED' };
       }
       reviewedAt = now;
+    } else if (ledgerStatements.length) {
+      await db.batch(ledgerStatements);
     }
 
     let accounting;
@@ -363,7 +423,8 @@ async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId
           paymentId,
           businessDate: reviewedAt.slice(0, 10),
           amountScaled: Number(payment.amount),
-          occurredAt: reviewedAt
+          occurredAt: reviewedAt,
+          viaSharedAccount: Boolean(payment.shared_account_id)
         }
       );
     } catch (error) {
@@ -417,8 +478,10 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
       })));
       const holder = await currentAccountHolder(db, cashier.store.id, cashier.id);
       const manual = holder ? (await manualReceivableByEmployee(db, cashier.store.id)).get(holder.employee_id) : null;
+      const target = await depositTargetSharedAccount(db, cashier.store.id);
       return json({
         items: withPayments,
+        depositTarget: target ? { sharedAccountId: target.id, name: target.name } : null,
         // Mutasi dari jurnal Akuntansi (mis. potongan/penyesuaian oleh akuntan), supaya total di
         // Riwayat Setoran sama dengan buku. Negatif = mengurangi piutang.
         manualAdjustmentRupiah: manual ? scaledToSignedRupiah(manual.netScaled) : 0,
@@ -445,7 +508,9 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
       }
       const keterangan = text(form.get('proofReference'), 300);
       try {
+        const target = await depositTargetSharedAccount(db, cashier.store.id);
         const result = await addOperationalPayment(db, receivableId, {
+          sharedAccountId: target?.id || null,
           amountRupiah: Number(String(form.get('amountRupiah') ?? '').trim()),
           proofReference: keterangan ? `Foto bukti transfer · ${keterangan}` : 'Foto bukti transfer',
           note: form.get('note'),

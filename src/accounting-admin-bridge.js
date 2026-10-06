@@ -201,12 +201,21 @@ async function buildGajiPresensi(db, entryId) {
 
 async function buildBayarHutang(db, paymentId) {
   const row = await db.prepare(`
-    SELECT id, store_id, kind, hutang_account, counterparty_name, amount, payment_method, business_date, voided_at
-    FROM admin_payments WHERE id = ? LIMIT 1
+    SELECT ap.id, ap.store_id, ap.kind, ap.hutang_account, ap.counterparty_name, ap.amount, ap.payment_method,
+           ap.business_date, ap.voided_at, dep.source_type AS deposit_source_type,
+           dep.counterparty_name_snapshot AS deposit_holder
+    FROM admin_payments ap
+    LEFT JOIN operational_receivables_payables dep ON dep.id = ap.deposit_id AND dep.store_id = ap.store_id
+    WHERE ap.id = ? LIMIT 1
   `).bind(paymentId).first();
   if (!row || row.kind !== 'HUTANG') return { skip: true };
   const base = { storeId: row.store_id, categoryCode: HUTANG_CATEGORY[row.hutang_account] || 'purchase_material' };
-  const creditAccountId = await settlementAccountId(db, row.store_id, row.payment_method);
+  // Dibayar dari uang setoran yang dipegang CS (Bos Cyo, 2026-10-06): kreditnya Piutang Karyawan
+  // CS itu, bukan Uang Muka.
+  const fromSetoran = row.payment_method === 'DEPOSIT' && row.deposit_source_type === 'EMPLOYEE_DEPOSIT';
+  const creditAccountId = fromSetoran
+    ? await accountIdByCode(db, row.store_id, '1202')
+    : await settlementAccountId(db, row.store_id, row.payment_method);
   if (!creditAccountId) return { ...base, failure: needs('NEEDS_PAYMENT_MAPPING', `Cara bayar ${METHOD_LABEL[row.payment_method] || row.payment_method} belum punya akun.`) };
   const totalScaled = rupiahToScaled(row.amount);
   if (!totalScaled || totalScaled <= 0) return { ...base, failure: failed('AMOUNT_INVALID', 'Nominal pembayaran tidak valid.') };
@@ -245,7 +254,7 @@ async function buildBayarHutang(db, paymentId) {
     description: `Pelunasan hutang${who ? ` · ${who}` : ''}`,
     lines: [
       ...[...debits].map(([accountId, amountScaled]) => ({ accountId, side: 'DEBIT', amountScaled, description: `Utang berkurang${who ? ` · ${who}` : ''}` })),
-      { accountId: creditAccountId, side: 'CREDIT', amountScaled: totalScaled, description: `Dibayar · ${METHOD_LABEL[row.payment_method] || row.payment_method}` }
+      { accountId: creditAccountId, side: 'CREDIT', amountScaled: totalScaled, description: fromSetoran ? `Dibayar dari setoran CS · ${text(row.deposit_holder, 120)}` : `Dibayar · ${METHOD_LABEL[row.payment_method] || row.payment_method}` }
     ]
   };
 }

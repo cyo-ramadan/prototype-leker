@@ -539,7 +539,63 @@ function renderEntityEmployees() {
         <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
         <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
       </div>
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-employee-ledger="setoran" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Setoran</button>
+        <button class="mini-btn" type="button" data-employee-ledger="gaji" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Hutang Gaji</button>
+      </div>
     </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
+  document.querySelectorAll('[data-employee-ledger]').forEach(button => {
+    button.onclick = () => openEmployeeLedger(button.dataset.employeeId, button.dataset.employeeLedger, '');
+  });
+}
+
+// Bos Cyo, 2026-10-06: riwayat setoran / hutang gaji satu karyawan dari SEMUA akun kerja yang
+// tertaut (bisa beda gerai), dengan filter akun. Data dari /api/entity-admin/employees/:id/ledger.
+function employeeLedgerDialog() {
+  let dialog = entityAdminEl('entityEmployeeLedgerDialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'entityEmployeeLedgerDialog';
+  dialog.className = 'admin-card';
+  dialog.style.cssText = 'width:min(720px,calc(100vw - 28px));max-height:86vh;overflow:auto;padding:18px;border:1px solid var(--line)';
+  document.body.appendChild(dialog);
+  return dialog;
+}
+
+async function openEmployeeLedger(employeeId, kind, accountId) {
+  const dialog = employeeLedgerDialog();
+  if (!dialog.open) dialog.showModal();
+  dialog.innerHTML = '<div class="muted">Memuat riwayat…</div>';
+  try {
+    const params = new URLSearchParams({ kind });
+    if (accountId) params.set('account', accountId);
+    const data = await entityAdminApi(`/api/entity-admin/employees/${encodeURIComponent(employeeId)}/ledger?${params}`);
+    const isGaji = data.kind === 'gaji';
+    const title = isGaji ? 'Riwayat Hutang Gaji' : 'Riwayat Setoran';
+    const balanceLabel = isGaji
+      ? (data.balanceRupiah >= 0 ? 'Hutang gaji yang belum dibayar' : 'Gaji lebih bayar')
+      : (data.balanceRupiah >= 0 ? 'Setoran yang masih dipegang' : 'Setoran lebih');
+    const options = [`<option value="">Semua akun (${data.accounts.length})</option>`, ...data.accounts.map(account =>
+      `<option value="${entityAdminEscape(account.accountId)}" ${account.accountId === data.selectedAccountId ? 'selected' : ''}>${entityAdminEscape(account.username)} @${entityAdminEscape(account.storeCode)}</option>`)].join('');
+    const statusChip = entry => entry.status === 'PENDING' ? ' <span class="status-chip warn">menunggu ACC</span>' : entry.status === 'REJECTED' ? ' <span class="status-chip off">ditolak</span>' : '';
+    const rows = data.entries.map(entry => `
+      <div class="master-row contact-row ${entry.status === 'REJECTED' ? 'inactive' : ''}">
+        <div class="master-main"><strong>${entityAdminEscape(entry.label)}</strong>${statusChip(entry)}
+          <div class="master-meta">${entityAdminEscape(entry.businessDate || '')} · ${entityAdminEscape(entry.storeCode || '-')}${entry.accountUsername ? ` · akun ${entityAdminEscape(entry.accountUsername)}` : ''}${entry.note ? ` · ${entityAdminEscape(entry.note)}` : ''}</div></div>
+        <div style="text-align:right"><strong>${entry.amountRupiah < 0 ? '−' : '+'}Rp${entityReportRupiah(Math.abs(entry.amountRupiah))}</strong><div class="master-meta">saldo Rp${entityReportRupiah(entry.balanceRupiah)}</div></div>
+      </div>`).join('') || '<div class="empty">Belum ada mutasi.</div>';
+    dialog.innerHTML = `
+      <div class="list-head"><div><h2 style="margin:0">${title} · ${entityAdminEscape(data.employee.fullName)}</h2>
+        <div class="muted">${balanceLabel}: <strong>Rp${entityReportRupiah(Math.abs(data.balanceRupiah))}</strong>${data.pendingRupiah ? ` · menunggu ACC Rp${entityReportRupiah(data.pendingRupiah)}` : ''}</div></div>
+        <button class="secondary-btn" type="button" data-ledger-close>Tutup</button></div>
+      <label class="admin-field" style="margin:10px 0">Akun kerja<select class="text-input" data-ledger-account>${options}</select>
+        <span class="field-note">Mutasi yang tidak menempel ke satu akun (mis. jurnal Akuntansi, pembayaran gaji per orang) hanya tampil di "Semua akun".</span></label>
+      <div class="master-list">${rows}</div>`;
+    dialog.querySelector('[data-ledger-close]').onclick = () => dialog.close();
+    dialog.querySelector('[data-ledger-account]').onchange = event => openEmployeeLedger(employeeId, kind, event.target.value);
+  } catch (error) {
+    dialog.innerHTML = `<div class="staff-message">${entityAdminEscape(error.message)}</div><button class="secondary-btn" type="button" onclick="this.closest('dialog').close()">Tutup</button>`;
+  }
 }
 
 // --- Laporan Net Profit Harian ---------------------------------------------

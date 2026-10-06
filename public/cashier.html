@@ -12,12 +12,12 @@
   <link rel="stylesheet" href="/drawer-report.css?v=20260928-tombol-salin-v1" />
   <link rel="stylesheet" href="/cashier-master-panels.css?v=20260914-fix-thumbless-grid-v1" />
   <link rel="stylesheet" href="/list-cards.css?v=20261002-kartu-ringkas-v2" />
-  <script src="/staff-entry-guard.js?v=20261005-login-satu-pintu-v1"></script>
+  <script src="/staff-entry-guard.js?v=20261006-portal-lihat-v1"></script>
   <script src="/staff-tab-lock.js?v=20261005-login-satu-pintu-v1"></script>
   <script src="/staff-back-guard.js?v=20261005-login-satu-pintu-v1"></script>
   <script src="/store-context.js"></script>
   <script src="/ui-skin.js?v=20261005-ownertenang-v1"></script>
-  <script src="/staff-auth-fetch.js?v=20260918-sesi-tidak-gampang-hilang-v1"></script>
+  <script src="/staff-auth-fetch.js?v=20261006-portal-lihat-v1"></script>
 </head>
 <body>
 <noscript><div style="padding:14px 16px;background:#fff4e5;color:#7a3e00;font:15px/1.4 system-ui,sans-serif;border-bottom:1px solid #f0c987"><b>JavaScript di browser ini mati.</b> Aplikasi tidak bisa menampilkan menu atau login. Hidupkan di Setelan situs &gt; JavaScript, lalu muat ulang. Cek HP: <a href="/diagnostik">/diagnostik</a></div></noscript>
@@ -27,6 +27,11 @@
     <div id="cashierTopActions" class="cashier-user-chip hidden">
       <span id="cashierIdentity">Kasir</span>
       <a id="portalStafLink" class="secondary-btn" href="/staff" style="text-decoration:none;color:inherit">Portal Staf</a>
+      <span id="cashierViewerBack" class="hidden">
+        <a id="backToBranchAdmin" class="secondary-btn" href="/branch-admin" style="text-decoration:none;color:inherit">← Admin Gerai</a>
+        <a id="backToEntityAdmin" class="secondary-btn hidden" href="/entity-admin" style="text-decoration:none;color:inherit">← Entity Admin</a>
+        <a id="backToOwner" class="secondary-btn hidden" href="/owner" style="text-decoration:none;color:inherit">← Owner</a>
+      </span>
       <button id="logoutBtn" class="secondary-btn" type="button">Logout</button>
     </div>
   </header>
@@ -130,7 +135,7 @@
 <script src="/angka-input.js?v=20261004-titik-otomatis-v1"></script>
 <script src="/pimasatu-ui.js?v=1.9.0-titik-otomatis"></script>
 <script src="/menu-category-filter.js?v=20260915-subkategori-v1"></script>
-<script src="/cashier.js?v=20261005-mode-lihat-v1"></script>
+<script src="/cashier.js?v=20261006-mode-lihat-kembali-v1"></script>
 <script src="/cashier-pimasatu-adapters.js?v=1"></script>
 <script src="/camera-snapshot-modal.js"></script>
 <script src="/cashier-live-photo.js?v=20261004-setoran-laci-v1"></script>

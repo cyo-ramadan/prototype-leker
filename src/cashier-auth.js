@@ -257,12 +257,64 @@ function viewerCashierFrom(management, store) {
 
 async function managementViewerForRead(request, db) {
   const url = new URL(request.url);
-  if (!READ_METHODS.has(request.method) || !url.pathname.startsWith('/api/cashier/')) return null;
+  if (!READ_METHODS.has(request.method)) return null;
+  if (!url.pathname.startsWith('/api/cashier/') && !url.pathname.startsWith('/api/staff/')) return null;
   if (!bearerToken(request)) return null;
   const management = await requireManagement(request, db);
   if (!management.ok) return null;
   const store = await resolveStore(db, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
-  return store ? viewerCashierFrom(management, store) : null;
+  if (!store) return null;
+  // Portal Staf Mode Lihat (Bos Cyo, 2026-10-06: "Entity admin ketika buka portal staf dari kasir
+  // bisa melihat seluruh portal staf dari username akun tersebut dan ada pilihan filternya").
+  // ?account= memilih akun kasir yang mau dilihat. Akun itu WAJIB milik gerai ?store= -- dan
+  // ?store= sendiri sudah dikunci requireManagement ke wewenang pemanggil -- jadi tidak ada jalan
+  // mengintip akun gerai lain. Tetap hanya untuk BACA (READ_METHODS di atas).
+  const accountId = String(url.searchParams.get('account') || '').trim().slice(0, 120);
+  if (accountId) {
+    const row = await db.prepare(`
+      SELECT c.id, c.username, c.employee_name, c.is_active, c.is_entity_backup,
+             s.id AS store_id, s.code AS store_code, s.store_name, s.entity_id
+      FROM cashiers c JOIN stores s ON s.id = c.store_id
+      WHERE c.id = ? AND c.store_id = ?
+      LIMIT 1
+    `).bind(accountId, store.id).first();
+    if (!row) return null;
+    return attachAttendanceScheduleGate(db, mapCashier(row), row.entity_id);
+  }
+  return viewerCashierFrom(management, store);
+}
+
+// Daftar akun yang boleh dilihat di Portal Staf Mode Lihat: Admin Gerai = gerainya sendiri,
+// Entity Admin = semua gerai entity-nya, Owner = entity gerai ?store=.
+export async function listStaffViewerAccounts(request, db, env) {
+  const management = await requireManagement(request, db, env);
+  if (!management.ok) return { ok: false, response: management.response };
+  const url = new URL(request.url);
+  const store = await resolveStore(db, url.searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
+  if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
+  const rows = management.admin
+    ? await db.prepare(`
+        SELECT c.id, c.username, c.employee_name, c.is_active, s.code AS store_code, s.store_name
+        FROM cashiers c JOIN stores s ON s.id = c.store_id
+        WHERE c.store_id = ? ORDER BY c.is_active DESC, c.employee_name COLLATE NOCASE
+      `).bind(store.id).all()
+    : await db.prepare(`
+        SELECT c.id, c.username, c.employee_name, c.is_active, s.code AS store_code, s.store_name
+        FROM cashiers c JOIN stores s ON s.id = c.store_id
+        WHERE s.entity_id = ? AND s.is_active = 1
+        ORDER BY s.code, c.is_active DESC, c.employee_name COLLATE NOCASE
+      `).bind(management.entityAdmin?.entityId || store.entityId || '').all();
+  return {
+    ok: true,
+    accounts: (rows.results ?? []).map(row => ({
+      id: row.id,
+      username: row.username,
+      employeeName: row.employee_name,
+      isActive: Boolean(row.is_active),
+      storeCode: row.store_code,
+      storeName: row.store_name
+    }))
+  };
 }
 
 // Pembungkus pusat untuk SEMUA route tulis kasir (sekarang dan nanti): kalau sebuah route menjawab

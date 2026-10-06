@@ -1,5 +1,5 @@
 import { json } from './http.js';
-import { requireCashier, latestAttendanceStatus, loadJobDetail, loadSchedule } from './cashier-auth.js';
+import { requireCashier, latestAttendanceStatus, loadJobDetail, loadSchedule, listStaffViewerAccounts } from './cashier-auth.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { getCashierRaportFacts } from './staff-raport.js';
 // Bos Cyo, 2026-09-24: logika presensi+payroll dipindah ke modul bersama
@@ -24,6 +24,10 @@ const coord = value => {
 
 export async function handleStaffPortalApi(request, env, pathname) {
   if (!pathname.startsWith('/api/staff/')) return null;
+  if (request.method === 'GET' && pathname === '/api/staff/viewer-accounts') {
+    const result = await listStaffViewerAccounts(request, env.DB, env);
+    return result.ok ? json({ accounts: result.accounts }) : result.response;
+  }
   const auth = await requireCashier(request, env.DB);
   if (!auth.ok) return auth.response;
 

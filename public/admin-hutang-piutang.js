@@ -63,18 +63,24 @@
     });
   }
 
-  function paymentMethodOptions({ withDeposits = true } = {}) {
+  // Bos Cyo, 2026-10-06: Rekening Bersama jadi cara bayar utama (hutang gaji juga dibayar pakai
+  // Rekening Bersama) -- ditaruh paling atas supaya terpilih otomatis. "Potong dari setoran CS"
+  // hanya untuk pelunasan hutang: uang setoran yang dipegang CS dipakai langsung membayar.
+  function paymentMethodOptions({ withDeposits = true, withSetoran = false } = {}) {
     return [
-      '<option value="KAS">Tunai / Kas Admin</option>',
-      '<option value="BANK">Transfer Bank</option>',
       ...(snapshot.sharedAccounts || []).map(account =>
         `<option value="REKBER:${escapeHtml(account.id)}">Rekening Bersama ${escapeHtml(account.name)} (bagian gerai ini ${rupiah(account.storeBalance)})</option>`),
+      '<option value="KAS">Tunai / Kas Admin</option>',
+      '<option value="BANK">Transfer Bank</option>',
+      ...(withSetoran ? snapshot.setoranHolders || [] : []).map(holder =>
+        `<option value="SETORAN:${escapeHtml(holder.employeeId)}">Potong dari setoran CS · ${escapeHtml(holder.name)} (dipegang ${rupiah(holder.balanceRupiah)})</option>`),
       ...(withDeposits ? snapshot.deposits || [] : []).map(deposit =>
         `<option value="DEPOSIT:${escapeHtml(deposit.id)}">Deposit ${escapeHtml(deposit.categoryLabel)} · ${escapeHtml(deposit.counterpartyName)} (sisa ${rupiah(deposit.balanceRupiah)})</option>`)
     ].join('');
   }
 
   function paymentMethodPayload(value) {
+    if (String(value).startsWith('SETORAN:')) return { paymentMethod: 'SETORAN', setoranEmployeeId: value.slice(8) };
     if (String(value).startsWith('REKBER:')) return { paymentMethod: 'REKBER', sharedAccountId: value.slice(7) };
     if (String(value).startsWith('DEPOSIT:')) return { paymentMethod: 'DEPOSIT', depositId: value.slice(8) };
     return { paymentMethod: value };
@@ -129,7 +135,7 @@
             <label class="admin-field">Nominal (Rp)<input id="hpPayAmount" type="number" step="1" min="1" required /><span class="field-note">boleh cicil; lebih = kelebihan bayar</span></label>
             <label class="admin-field">Tanggal bayar<input id="hpPayDate" type="date" required value="${escapeHtml(snapshot.today || '')}" /></label>
           </div>
-          <label class="admin-field">Cara bayar<select id="hpPayMethod">${paymentMethodOptions()}</select><span class="field-note">Rekening Bersama = saldo bagian gerai ini di rekening itu benar-benar berkurang</span></label>
+          <label class="admin-field">Cara bayar<select id="hpPayMethod">${paymentMethodOptions({ withSetoran: true })}</select><span class="field-note">Rekening Bersama = saldo bagian gerai ini di rekening itu benar-benar berkurang. Potong dari setoran CS = uang setoran yang dipegang CS dipakai langsung membayar (piutang CS itu berkurang).</span></label>
           <label class="admin-field">Catatan <span class="field-note">opsional</span><input id="hpPayNote" maxlength="300" /></label>
           <button class="primary-btn" type="submit" ${accounts.length ? '' : 'disabled'}>Simpan Pembayaran</button>
         </form>
@@ -194,7 +200,7 @@
           ...paymentMethodPayload(el('hpPayMethod').value)
         })
       });
-      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts, deposits: payload.deposits });
+      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts, deposits: payload.deposits, setoranHolders: payload.setoranHolders || snapshot.setoranHolders });
       snapshot.payments = [payload.payment, ...(snapshot.payments || [])];
       render();
       toast('Pembayaran hutang tersimpan');
@@ -209,7 +215,7 @@
         method: 'POST',
         body: JSON.stringify({ reason })
       });
-      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts, deposits: payload.deposits });
+      Object.assign(snapshot, { persons: payload.persons, totals: payload.totals, sharedAccounts: payload.sharedAccounts, deposits: payload.deposits, setoranHolders: payload.setoranHolders || snapshot.setoranHolders });
       snapshot.payments = (snapshot.payments || []).map(item => item.id === id ? payload.payment : item);
       render();
       toast('Pembayaran dibatalkan');

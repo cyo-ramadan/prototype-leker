@@ -28,12 +28,15 @@ async function employeeDepositAccounts(db, storeId) {
   const rows = await db.prepare(`
     SELECT id, code, name, type, COALESCE(subtype, '') AS subtype, is_active
     FROM chart_of_accounts
-    WHERE store_id = ? AND code IN ('1101', '1202')
+    WHERE store_id = ? AND code IN ('1101', '1103', '1202')
     ORDER BY code
   `).bind(storeId).all();
   const accounts = rows.results ?? [];
   return {
     cash: exactAccount(accounts, CASH_ACCOUNT),
+    // Rekening Bersama (ADR-047 kode seragam 1103). Cukup kode + Aset + aktif: namanya boleh
+    // disesuaikan gerai, kodenya yang dikunci standardisasi akun.
+    sharedAccount: accounts.find(row => row.code === '1103' && row.type === 'ASSET' && Number(row.is_active) === 1) || null,
     employeeReceivable: exactAccount(accounts, EMPLOYEE_RECEIVABLE_ACCOUNT)
   };
 }
@@ -78,9 +81,18 @@ async function postEmployeeDepositJournal(db, store, {
       error: 'Akun Kas atau Piutang Karyawan tidak tersedia sesuai kontrak.'
     };
   }
+  if ((debit === 'sharedAccount' || credit === 'sharedAccount') && !accounts.sharedAccount) {
+    return {
+      ok: false,
+      status: 409,
+      code: 'EMPLOYEE_DEPOSIT_SHARED_ACCOUNT_MISSING',
+      error: 'Akun 1103 Rekening Bersama belum aktif di gerai ini.'
+    };
+  }
 
   const accountByName = {
     cash: accounts.cash,
+    sharedAccount: accounts.sharedAccount,
     employeeReceivable: accounts.employeeReceivable
   };
   const idempotencyKey = `EMPLOYEE_DEPOSIT_${event}:${storeId}:${normalizedReferenceId}`;
@@ -98,7 +110,7 @@ async function postEmployeeDepositJournal(db, store, {
         accountId: accountByName[debit].id,
         side: 'DEBIT',
         amountScaled: normalizedAmount,
-        description: recognition ? 'Piutang Karyawan dari tutup laci' : 'Kas dari setoran karyawan'
+        description: recognition ? 'Piutang Karyawan dari tutup laci' : debit === 'sharedAccount' ? 'Setoran karyawan masuk Rekening Bersama' : 'Kas dari setoran karyawan'
       },
       {
         accountId: accountByName[credit].id,
@@ -127,11 +139,14 @@ export function postEmployeeDepositRecognitionJournal(db, store, {
   });
 }
 
+// viaSharedAccount (migration 0139, Bos Cyo 2026-10-06): setoran yang dikirim ke Rekening
+// Bersama -> Dr 1103 Rekening Bersama / Cr 1202. Kiriman lama tanpa tujuan tetap Dr 1101 Kas.
 export function postEmployeeDepositSettlementJournal(db, store, {
   paymentId,
   businessDate,
   amountScaled,
-  occurredAt = ''
+  occurredAt = '',
+  viaSharedAccount = false
 } = {}) {
   return postEmployeeDepositJournal(db, store, {
     referenceId: paymentId,
@@ -139,7 +154,7 @@ export function postEmployeeDepositSettlementJournal(db, store, {
     amountScaled,
     occurredAt,
     event: 'SETTLEMENT',
-    debit: 'cash',
+    debit: viaSharedAccount ? 'sharedAccount' : 'cash',
     credit: 'employeeReceivable'
   });
 }

@@ -183,6 +183,16 @@ export async function manualReceivableByEmployee(db, storeId) {
   return byEmployee;
 }
 
+// Jurnal yang sub-bukunya hidup di setoran CS (Operasional): pengakuan & pelunasan setoran, dan
+// pembayaran hutang yang memakai uang setoran CS (Dr Utang / Cr 1202, migration 0139) beserta
+// pembatalannya. Semuanya tercermin di saldo setoran per karyawan.
+function isSetoranJournal(row) {
+  if (row.source_system === 'EMPLOYEE_DEPOSIT') return true;
+  const ref = String(row.source_reference_id || '');
+  return (row.source_system === 'LEKER_ADMIN' && ref.startsWith('BAYAR_HUTANG:'))
+    || (row.source_system === 'LEKER_ADMIN_VOID' && ref.startsWith('VOID:BAYAR_HUTANG:'));
+}
+
 export const scaledToSignedRupiah = scaled => Number(scaled) / ACCOUNTING_AMOUNT_SCALE;
 
 // Pemeriksaan sinkron: untuk tiap akun piutang/hutang bernama, pecah saldo buku besar menjadi
@@ -202,7 +212,7 @@ export async function getPartyReconciliation(db, store, { listLimit = 50 } = {})
   for (const account of accounts.results ?? []) {
     const normalSign = account.type === 'ASSET' ? 1 : -1;
     const lines = await db.prepare(`
-      SELECT h.id AS journal_id, h.journal_number, h.business_date, h.source_system, h.description,
+      SELECT h.id AS journal_id, h.journal_number, h.business_date, h.source_system, h.source_reference_id, h.description,
              l.id AS line_id, l.side, l.amount_scaled,
              p.party_name
       FROM accounting_journal_lines l
@@ -224,7 +234,7 @@ export async function getPartyReconciliation(db, store, { listLimit = 50 } = {})
       if (row.party_name) {
         namedScaled += signed;
         byParty.set(row.party_name, (byParty.get(row.party_name) || 0) + signed);
-      } else if (row.source_system === 'EMPLOYEE_DEPOSIT' && account.code === '1202') {
+      } else if (account.code === '1202' && isSetoranJournal(row)) {
         setoranScaled += signed;
       } else {
         unnamedScaled += signed;

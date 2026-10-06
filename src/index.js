@@ -482,7 +482,8 @@ export function assetRoute(pathname) {
   const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/login': '/login', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
   // 'warung' = Mode Warung (skin D, public/warung.html) -- DESAIN-SKIN-D-WARUNG.md.
-  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung))?\/?$/);
+  // 'racik' = layar Racik Parfum (skin F, public/racik.html) -- DESAIN-SKIN-F-RACIK-PARFUM.md.
+  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung|racik))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
     if (page === 'admin') return '/branch-admin';

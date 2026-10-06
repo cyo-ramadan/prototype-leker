@@ -33,7 +33,24 @@ function isOrderNumberConflict(error) {
   return message.includes('unique') || message.includes('constraint');
 }
 
-export function validateDirectLines(products, requested) {
+const MAX_OVERRIDE_UNIT_PRICE = 100_000_000;
+const rupiah = value => `Rp${Number(value).toLocaleString('id-ID')}`;
+
+// Skin F (Racik Parfum): setiap racikan unik, jadi kasir boleh mengubah harga
+// jual satuan. Hanya bila server menyetujui (allowPriceOverride dari
+// cashier.store.priceOverrideAllowed); di gerai lain unitPrice dari klien
+// diabaikan dan harga tetap dari katalog. Perubahan dicatat di note baris
+// supaya pemilik bisa melihat harga daftar vs harga jual.
+function overrideUnitPrice(item, allowPriceOverride) {
+  if (!allowPriceOverride || item?.unitPrice === undefined || item?.unitPrice === null || item?.unitPrice === '') return { ok: true, value: null };
+  const value = Number(item.unitPrice);
+  if (!Number.isInteger(value) || value < 0 || value > MAX_OVERRIDE_UNIT_PRICE) {
+    return { ok: false, error: 'Harga jual harus rupiah bulat, tidak negatif.' };
+  }
+  return { ok: true, value };
+}
+
+export function validateDirectLines(products, requested, { allowPriceOverride = false } = {}) {
   if (!Array.isArray(requested) || !requested.length) return { ok: false, error: 'Draft penjualan masih kosong.' };
   const productMap = new Map(products.map(item => [Number(item.id), item]));
   const lines = [];
@@ -51,10 +68,15 @@ export function validateDirectLines(products, requested) {
     // derived back from that exact lineTotal (not the raw catalog price) so
     // the stored snapshot always multiplies back to the recorded total.
     const catalogPrice = Number(product.price);
-    const lineTotal = Math.round(catalogPrice * quantity);
+    const override = overrideUnitPrice(item, allowPriceOverride);
+    if (!override.ok) return { ok: false, error: override.error };
+    const catalogUnit = Math.round(catalogPrice);
+    const priceChanged = override.value !== null && override.value !== catalogUnit;
+    const lineTotal = priceChanged ? override.value * quantity : Math.round(catalogPrice * quantity);
     total += lineTotal;
     lines.push({
-      productId, productName: product.name, unitPrice: Math.round(lineTotal / quantity), quantity, lineTotal, note: '',
+      productId, productName: product.name, unitPrice: Math.round(lineTotal / quantity), quantity, lineTotal,
+      note: priceChanged ? `Harga daftar ${rupiah(catalogUnit)} → dijual ${rupiah(override.value)}` : '',
       productionMode: lineProductionMode(item), chosenRecipeId: lineChosenRecipeId(item)
     });
   }
@@ -264,7 +286,9 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   }
 
   const products = await listProducts(env.DB, storeId);
-  const validated = validateDirectLines(products, body.value?.items);
+  const validated = validateDirectLines(products, body.value?.items, {
+    allowPriceOverride: auth.cashier.store?.priceOverrideAllowed === true
+  });
   if (!validated.ok) return json({ error: validated.error }, 400);
 
   const customerResolution = await resolveDirectCustomer(env.DB, storeId, body.value?.customerId);
@@ -275,7 +299,8 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
 
   const businessDate = getJakartaBusinessDate();
   const customerName = customerResolution.customer?.customer_name || text(body.value?.customerName, 100) || 'Walk-in';
-  const note = text(body.value?.note, 500);
+  const priceNotes = validated.lines.filter(line => line.note).map(line => `${line.productName}: ${line.note}`);
+  const note = [text(body.value?.note, 500), ...priceNotes].filter(Boolean).join(' · ').slice(0, 1000);
   const orderId = `ord_${crypto.randomUUID()}`;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {

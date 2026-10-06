@@ -102,6 +102,7 @@ async function init() {
     try {
       const payload = await api('/api/cashier/me');
       state.cashier = payload.cashier;
+      state.viewerMode = Boolean(payload.readOnly);
       await openDashboard();
       return;
     } catch (error) {
@@ -256,9 +257,27 @@ async function openDashboard() {
   el('cashierIdentity').textContent = `${cashier.employeeName} · ${cashier.store.code}`;
   el('cashierStoreLabel').textContent = `${cashier.store.code} · ${cashier.store.storeName}`;
   el('openKioskLink').href = `/s/${encodeURIComponent(cashier.store.code)}/customer`;
+  renderViewerNavigation(cashier);
   await Promise.all([loadMenu(), loadDrawer(), loadOrders()]);
   renderDraft();
   startPolling();
+}
+
+// Bos Cyo, 2026-10-06: "ketika aku masukke halaman kasir lewat entity admin, aku ga bisa balik lagi
+// ke entity admin". Mode Lihat (Owner/Entity Admin/Admin Gerai tanpa akun kasir): tombol Logout
+// diganti tombol kembali -- Logout di sini menghapus sesi kasir, bukan sesi admin, jadi tidak ada
+// artinya. Portal Staf dibuka dalam Mode Lihat juga (gerai yang sama).
+function renderViewerNavigation(cashier) {
+  const viewer = Boolean(state.viewerMode);
+  el('cashierViewerBack')?.classList.toggle('hidden', !viewer);
+  el('logoutBtn')?.classList.toggle('hidden', viewer);
+  if (!viewer) return;
+  const code = encodeURIComponent(cashier.store.code);
+  el('backToBranchAdmin').href = `/branch-admin?store=${code}`;
+  el('backToEntityAdmin').classList.toggle('hidden', !localStorage.getItem('lekerEntityAdminToken'));
+  el('backToOwner').classList.toggle('hidden', !localStorage.getItem('lekerOwnerToken'));
+  if (el('portalStafLink')) el('portalStafLink').href = `/staff?readonly=1&store=${code}`;
+  ['backToBranchAdmin', 'backToEntityAdmin', 'backToOwner'].forEach(id => el(id)?.addEventListener('click', () => window.lekerPrepareStaffHandoff?.()));
 }
 
 async function loadMenu() {

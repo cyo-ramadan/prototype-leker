@@ -6,6 +6,12 @@
   let deposits = null;
   let depositManual = { rupiah: 0, entries: [] };
   let depositTarget = null;
+  // Mode Lihat (Bos Cyo, 2026-10-06): Entity Admin/Admin Gerai melihat Portal Staf milik akun yang
+  // dipilih (?readonly=1&store=&account=). Semua tetap bisa dibaca; tombol yang menyimpan disembunyikan
+  // dan server menolak penyimpanan apa pun dari token manajemen.
+  const pageParams = new URLSearchParams(location.search);
+  const viewerMode = pageParams.get('readonly') === '1' && !localStorage.getItem('lekerCashierToken');
+  const viewerAccount = pageParams.get('account') || '';
   async function staffApi(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -371,6 +377,7 @@
   // --- Setor Uang (entri) ---------------------------------------------------
   function renderSetorForm() {
     const target = el('staffSetorForm'); if (!target) return;
+    if (viewerMode) { target.innerHTML = '<div class="staff-empty">Mode Lihat: kirim setoran hanya bisa dari akun CS itu sendiri. Riwayatnya ada di tab Riwayat Setoran.</div>'; return; }
     const items = deposits || [];
     const terbuka = items
       .map(item => ({ item, bisaDikirim: Number(item.balanceRupiah || 0) - pendingSetoran(item) }))
@@ -493,7 +500,7 @@
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
   async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
-  async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
+  async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401 && !viewerMode) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }
   async function submitAttendance(type, blob, geo) {
@@ -531,12 +538,48 @@
         const tab = button.dataset.staffTab;
         document.querySelectorAll('[data-staff-tab]').forEach(item => item.classList.toggle('active', item === button));
         document.querySelectorAll('.staff-panel').forEach(panel => panel.classList.toggle('active', panel.id === `staffPanel${tab[0].toUpperCase()}${tab.slice(1)}`));
-        if (tab === 'attendance') startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in');
+        if (tab === 'attendance' && !viewerMode) startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in');
       });
     });
   }
-  el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
-  el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
-  el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); });
+  async function setupViewer() {
+    el('staffLogoutBtn').classList.add('hidden');
+    el('attendanceToggleBtn').classList.add('hidden');
+    const bar = document.createElement('div');
+    bar.className = 'staff-card';
+    bar.innerHTML = `<div class="muted">Mode Lihat · data tidak bisa diubah dari sini</div>
+      <div class="field" style="margin:8px 0 0"><label>Lihat Portal Staf akun</label><select id="staffViewerAccount" class="text-input"><option value="">Memuat daftar akun…</option></select></div>`;
+    document.querySelector('.staff-hero').after(bar);
+    try {
+      const { accounts } = await staffApi('/api/staff/viewer-accounts');
+      const select = el('staffViewerAccount');
+      const groups = new Map();
+      for (const account of accounts) {
+        const key = `${account.storeCode} · ${account.storeName}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(account);
+      }
+      select.innerHTML = `<option value="">Pilih akun…</option>${[...groups].map(([label, rows]) => `<optgroup label="${escapeHtml(label)}">${rows.map(row => `<option value="${escapeHtml(row.id)}" data-store="${escapeHtml(row.storeCode)}" ${row.id === viewerAccount ? 'selected' : ''}>${escapeHtml(row.employeeName || row.username)} (${escapeHtml(row.username)})${row.isActive ? '' : ' · nonaktif'}</option>`).join('')}</optgroup>`).join('')}`;
+      select.addEventListener('change', () => {
+        const option = select.selectedOptions[0];
+        if (!option?.value) return;
+        window.lekerPrepareStaffHandoff?.();
+        location.assign(`/staff?readonly=1&store=${encodeURIComponent(option.dataset.store)}&account=${encodeURIComponent(option.value)}`);
+      });
+    } catch (error) { el('staffViewerAccount').innerHTML = `<option value="">${escapeHtml(error.message)}</option>`; }
+  }
+
+  if (viewerMode) {
+    el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign(`/cashier?readonly=1${pageParams.get('store') ? `&store=${encodeURIComponent(pageParams.get('store'))}` : ''}`); });
+    setupViewer();
+    if (!viewerAccount) {
+      el('attendanceList').innerHTML = '<div class="staff-empty">Pilih akun di atas untuk melihat Portal Staf-nya.</div>';
+      return;
+    }
+  } else {
+    el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
+    el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
+    el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); });
+  }
   bindTabs(); loadPortal(); loadDeposits(); loadDailyTasks(); loadManualBook(); loadAnnouncements();
 })();

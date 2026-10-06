@@ -377,7 +377,6 @@
   // --- Setor Uang (entri) ---------------------------------------------------
   function renderSetorForm() {
     const target = el('staffSetorForm'); if (!target) return;
-    if (viewerMode) { target.innerHTML = '<div class="staff-empty">Mode Lihat: kirim setoran hanya bisa dari akun CS itu sendiri. Riwayatnya ada di tab Riwayat Setoran.</div>'; return; }
     const items = deposits || [];
     const terbuka = items
       .map(item => ({ item, bisaDikirim: Number(item.balanceRupiah || 0) - pendingSetoran(item) }))
@@ -538,16 +537,26 @@
         const tab = button.dataset.staffTab;
         document.querySelectorAll('[data-staff-tab]').forEach(item => item.classList.toggle('active', item === button));
         document.querySelectorAll('.staff-panel').forEach(panel => panel.classList.toggle('active', panel.id === `staffPanel${tab[0].toUpperCase()}${tab.slice(1)}`));
-        if (tab === 'attendance' && !viewerMode) startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in');
+        if (tab === 'attendance') startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in');
       });
     });
   }
   async function setupViewer() {
     el('staffLogoutBtn').classList.add('hidden');
-    el('attendanceToggleBtn').classList.add('hidden');
+    const store = pageParams.get('store') || '';
+    const storeQuery = store ? `?store=${encodeURIComponent(store)}` : '';
+    // Tombol kembali ke panel asal (Logout tidak ada artinya di Mode Lihat).
+    const chip = el('staffLogoutBtn').parentElement;
+    const back = [
+      ['/branch-admin' + storeQuery, '← Admin Gerai', true],
+      ['/entity-admin', '← Entity Admin', Boolean(localStorage.getItem('lekerEntityAdminToken'))],
+      ['/owner', '← Owner', Boolean(localStorage.getItem('lekerOwnerToken'))]
+    ].filter(item => item[2]).map(([href, label]) => `<a class="secondary-btn" href="${href}" style="text-decoration:none;color:inherit" data-viewer-back>${label}</a>`).join('');
+    el('staffLogoutBtn').insertAdjacentHTML('beforebegin', back);
+    chip.querySelectorAll('[data-viewer-back]').forEach(link => link.addEventListener('click', () => window.lekerPrepareStaffHandoff?.()));
     const bar = document.createElement('div');
     bar.className = 'staff-card';
-    bar.innerHTML = `<div class="muted">Mode Lihat · data tidak bisa diubah dari sini</div>
+    bar.innerHTML = `<div class="muted">Mode Lihat · semua tombol bisa dicoba seperti karyawan, tapi data tidak akan disimpan</div>
       <div class="field" style="margin:8px 0 0"><label>Lihat Portal Staf akun</label><select id="staffViewerAccount" class="text-input"><option value="">Memuat daftar akun…</option></select></div>`;
     document.querySelector('.staff-hero').after(bar);
     try {
@@ -571,6 +580,7 @@
 
   if (viewerMode) {
     el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign(`/cashier?readonly=1${pageParams.get('store') ? `&store=${encodeURIComponent(pageParams.get('store'))}` : ''}`); });
+    el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
     setupViewer();
     if (!viewerAccount) {
       el('attendanceList').innerHTML = '<div class="staff-empty">Pilih akun di atas untuk melihat Portal Staf-nya.</div>';

@@ -173,5 +173,5 @@ test('tampilan Mode Lihat: tombol tidak dimatikan di tengah alur, tulisan jelas,
   assert.doesNotMatch(cashier, /disabled = Boolean\(state\.readOnly\)/);
   const html = read('public/cashier.html');
   assert.match(html, /cashier\.js\?v=20261006-mode-lihat-kembali-v1/);
-  assert.match(html, /cashier-workspace\.js\?v=20261005-mode-lihat-v1/);
+  assert.match(html, /cashier-workspace\.js\?v=20261006-mode-lihat-kembali-v2/);
 });

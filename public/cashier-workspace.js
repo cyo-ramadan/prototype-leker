@@ -46,6 +46,10 @@
     el('cashierStoreLabel').textContent = `${cashier.store.code} · ${cashier.store.storeName}`;
     el('openKioskLink').href = `/s/${encodeURIComponent(cashier.store.code)}/customer`;
     await applyWorkspace({ includeMenu: true });
+    // Mode Lihat: openDashboard di sini MENIMPA versi di cashier.js, jadi tombol kembali harus
+    // dipasang dari sini (state.readOnly dari server = pengunjung manajemen tanpa akun kasir).
+    state.viewerMode = Boolean(state.readOnly);
+    renderViewerNavigation(cashier);
     startPolling();
   };
 

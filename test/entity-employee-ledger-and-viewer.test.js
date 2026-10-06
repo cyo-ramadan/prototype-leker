@@ -125,6 +125,10 @@ test('Halaman kasir & Portal Staf Mode Lihat punya tombol kembali dan pilihan ak
   assert.match(cashierHtml, /id="backToEntityAdmin"/);
   assert.match(cashierHtml, /id="backToBranchAdmin"/);
   assert.match(read('cashier.js'), /function renderViewerNavigation/);
+  // cashier-workspace.js MENIMPA openDashboard milik cashier.js -- tombol kembali harus dipasang dari
+  // override-nya (bug 2026-10-06: dipasang hanya di versi lama, jadi tidak pernah muncul).
+  assert.match(read('cashier-workspace.js'), /renderViewerNavigation\(cashier\)/);
+  assert.doesNotMatch(read('staff.js'), /attendanceToggleBtn'\)\.classList\.add\('hidden'\)/, 'Portal Staf Mode Lihat menampilkan semua tombol seperti karyawan');
   assert.match(read('cashier.js'), /\/staff\?readonly=1&store=/);
   const staff = read('staff.js');
   assert.match(staff, /\/api\/staff\/viewer-accounts/);

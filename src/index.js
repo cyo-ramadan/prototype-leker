@@ -39,7 +39,7 @@ import { handleCacaApi } from './caca-chat.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
-import { handleEmployeeDepositApi } from './employee-deposit-settlement.js';
+import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
 import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
 import { handleAdminProductClassificationApi } from './admin-product-classification.js';
@@ -273,6 +273,8 @@ async function handleApiRouted(request, env, url) {
   // handleEntityAdminApi karena alasan yang sama.
   const employeeLedgerResponse = await handleEmployeeLedgerViewApi(request, env, pathname);
   if (employeeLedgerResponse) return employeeLedgerResponse;
+  const entityDepositQueueResponse = await handleEntityDepositQueueApi(request, env, pathname);
+  if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
   if (entityAdminResponse) return entityAdminResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);

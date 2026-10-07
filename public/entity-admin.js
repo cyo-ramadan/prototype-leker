@@ -58,6 +58,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminIdentity').textContent = entityAdminState.entityAdmin?.displayName || entityAdminState.entityAdmin?.username || 'Entity Admin';
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
+  window.refreshEntitySetoranBadge?.();
   window.refreshEntityDrawerCards?.();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
@@ -70,6 +71,7 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
   entityAdminEl('entityTab-sharedaccounts')?.classList.toggle('active', name === 'sharedaccounts');
+  entityAdminEl('entityTab-setorancs')?.classList.toggle('active', name === 'setorancs');
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-entityrecipes')?.classList.toggle('active', name === 'entityrecipes');
   entityAdminEl('entityTab-entitystock')?.classList.toggle('active', name === 'entitystock');
@@ -77,6 +79,7 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-storereport')?.classList.toggle('active', name === 'storereport');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
+  if (name === 'setorancs') window.loadEntitySetoranCs?.();
   if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
   if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
   if (name === 'entityrecipes') loadEntityRecipes().catch(error => entityAdminToast(error.message));

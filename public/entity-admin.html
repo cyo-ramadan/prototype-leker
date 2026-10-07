@@ -51,6 +51,7 @@
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
         <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
+        <button class="admin-tab" data-entity-tab="setorancs" type="button">💵 Setoran CS</button>
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
         <button class="admin-tab" data-entity-tab="entityrecipes" type="button">Resep Produksi</button>
         <button class="admin-tab" data-entity-tab="entitystock" type="button">Stok Gerai</button>
@@ -116,6 +117,17 @@
         <div class="admin-card list-card" style="margin-top:16px">
           <div class="list-head"><h2>Riwayat jurnal Entity</h2><span id="entityJournalCount" class="master-count">0</span></div>
           <div id="entityJournalList" class="master-list"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-setorancs" class="admin-section">
+        <div class="admin-card list-card">
+          <div class="list-head">
+            <div><h2>Setoran CS menunggu ACC</h2><div class="muted">Semua gerai di entity ini. Cocokkan <b>nominal</b>, <b>jam:menit</b>, dan <b>foto bukti transfer</b> dengan mutasi rekening, lalu ACC. ACC mengurangi piutang CS; Tolak wajib alasan dan piutang tidak berubah. Tidak ada yang di-ACC otomatis.</div></div>
+            <span id="entitySetoranCsCount" class="master-count">0</span>
+          </div>
+          <button id="entitySetoranCsRefresh" class="secondary-btn" type="button" style="margin-bottom:10px">↻ Muat ulang</button>
+          <div id="entitySetoranCsList" class="master-list"></div>
         </div>
       </section>
 
@@ -306,8 +318,9 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261005-una-ui-v1" />
 <script src="/caca-chat.js?v=20261005-una-ingatan-v1"></script>
-<script src="/entity-admin.js?v=20261006-karyawan-riwayat-v1"></script>
-<script src="/nav-groups.js?v=20261006-bahan-aroma-v1"></script>
+<script src="/entity-admin.js?v=20261007-setoran-cs-v1"></script>
+<script src="/entity-setoran-cs.js"></script>
+<script src="/nav-groups.js?v=20261007-setoran-cs-v1"></script>
 <script src="/warung-pemilik.js?v=20261003-skin-d-pemilik-v1"></script>
 <script src="/racik-pemilik.js?v=20261006-langsung-jual-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261003-lihat-hpp-v1"></script>

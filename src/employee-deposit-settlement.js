@@ -1,6 +1,6 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { requireManagement } from './owner-auth.js';
+import { entityAdminFromRequest, requireManagement } from './owner-auth.js';
 import { requireCashier } from './cashier-auth.js';
 import { newId } from './ikan-ids.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
@@ -445,6 +445,36 @@ async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId
     return { ok: true };
   }
   return { ok: false, status: 400, error: 'ACTION_INVALID' };
+}
+
+// Antrean ACC setoran CS untuk Entity Admin: semua setoran yang menunggu di SEMUA gerai entity-nya
+// (Bos Cyo, 2026-10-07: "kalo dari sisi entity ketika tombol di klik maka keluarin semua list yang
+// perlu di-ACC"). Yang diperiksa: nominal, jam:menit, foto. ACC/Tolak memakai route per-gerai yang
+// sudah ada (/api/admin/employee-deposits/payments/:id?store=KODE), yang sudah menerima Entity Admin
+// dan menolak gerai di luar entity-nya.
+export async function handleEntityDepositQueueApi(request, env, pathname) {
+  if (pathname !== '/api/entity-admin/employee-deposits/pending') return null;
+  if (request.method !== 'GET') return json({ error: 'Method tidak didukung.' }, 405);
+  const entityAdmin = await entityAdminFromRequest(request, env.DB);
+  if (!entityAdmin) return json({ error: 'Login Entity Admin diperlukan.', code: 'ENTITY_ADMIN_REQUIRED' }, 401);
+  const rows = await env.DB.prepare(`
+    SELECT ${KOLOM_SETORAN}, r.counterparty_name_snapshot, r.transaction_date, s.code AS store_code, s.store_name
+    FROM operational_receivable_payable_payments p
+    JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+    JOIN stores s ON s.id = p.store_id
+    WHERE s.entity_id = ? AND p.approval_status = 'pending_approval' AND r.source_type = 'EMPLOYEE_DEPOSIT'
+    ORDER BY p.created_at ASC
+    LIMIT 200
+  `).bind(entityAdmin.entityId).all();
+  return json({
+    payments: (rows.results ?? []).map(row => ({
+      ...mapPayment(row),
+      employeeName: row.counterparty_name_snapshot,
+      depositDate: row.transaction_date || null,
+      storeCode: row.store_code,
+      storeName: row.store_name
+    }))
+  });
 }
 
 export async function handleEmployeeDepositApi(request, env, pathname) {

@@ -7,7 +7,8 @@
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[char]));
   const money = value => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
-  const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '';
+  // Jam:menit persis (WIB) -- dicocokkan Admin dengan mutasi rekening (Bos Cyo, 2026-10-07).
+  const dateTime = value => value ? `${new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Jakarta' }).format(new Date(value))} WIB` : '';
   const tanggal = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`)) : '';
   const STATUS = { pending_approval: ['Menunggu ACC', 'warn'], approved: ['Di-ACC', 'ok'], rejected: ['Ditolak', 'bad'] };
   let photoUrls = [];
@@ -68,7 +69,19 @@
         </div>
       </section>`);
     el('setoranRefresh').addEventListener('click', load);
+    refreshTabBadge();
   }
+
+  // Lencana jumlah antrean pada tombol tab (angka di belakang teks dibaca menu pengelompokan,
+  // public/nav-groups.js). Dimuat saat panel dibuka dan saat tab browser kembali aktif, tanpa timer.
+  function setTabBadge(count) {
+    const tab = document.querySelector('[data-tab="setoran-cs"]');
+    if (tab) tab.textContent = `💵 Setoran CS${count ? ` ${count}` : ''}`;
+  }
+  async function refreshTabBadge() {
+    try { setTabBadge(((await request(`/api/admin/employee-deposits/pending${storeQuery()}`)).payments || []).length); } catch {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshTabBadge(); });
 
   const foto = payment => payment.hasPhoto
     ? `<img class="setoran-foto" data-deposit-photo="${escapeHtml(payment.id)}" alt="Foto bukti transfer" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line, #e5ddd3);cursor:zoom-in;background:var(--soft, #f4efe9)" />`
@@ -76,15 +89,17 @@
 
   function renderPending(payments) {
     el('setoranPendingCount').textContent = payments.length;
+    setTabBadge(payments.length);
     el('setoranPendingList').innerHTML = payments.length ? payments.map(payment => `
       <article class="master-row">
         ${foto(payment)}
         <div class="master-main">
-          <strong>${escapeHtml(payment.employeeName)} · ${money(payment.amountRupiah)}</strong>
-          <div class="master-meta">Setoran laci ${escapeHtml(tanggal(payment.depositDate))} · dikirim ${escapeHtml(dateTime(payment.createdAt))}${payment.sharedAccountName ? ` · ke ${escapeHtml(payment.sharedAccountName)}` : ' · ke Kas'}${payment.proofReference ? ` · ${escapeHtml(payment.proofReference)}` : ''}</div>
+          <strong style="font-size:1.15em">${money(payment.amountRupiah)}</strong> <span class="muted">· ${escapeHtml(payment.employeeName)}</span>
+          <div class="master-meta"><b>Dikirim ${escapeHtml(dateTime(payment.createdAt))}</b></div>
+          <div class="master-meta">Setoran laci ${escapeHtml(tanggal(payment.depositDate))}${payment.sharedAccountName ? ` · ke ${escapeHtml(payment.sharedAccountName)}` : ' · ke Kas'}${payment.proofReference ? ` · ${escapeHtml(payment.proofReference)}` : ''}</div>
         </div>
         <div class="master-actions">
-          <button class="mini-btn" type="button" data-approve-payment="${escapeHtml(payment.id)}" data-nama="${escapeHtml(payment.employeeName)}" data-nominal="${escapeHtml(money(payment.amountRupiah))}">ACC</button>
+          <button class="mini-btn" type="button" data-approve-payment="${escapeHtml(payment.id)}" data-nama="${escapeHtml(payment.employeeName)}" data-nominal="${escapeHtml(money(payment.amountRupiah))}" data-waktu="${escapeHtml(dateTime(payment.createdAt))}">ACC</button>
           <button class="mini-btn danger" type="button" data-reject-payment="${escapeHtml(payment.id)}">Tolak</button>
         </div>
       </article>`).join('') : '<div class="empty">Tidak ada setoran yang menunggu ACC.</div>';
@@ -147,7 +162,7 @@
     const paymentId = action === 'APPROVE' ? button.dataset.approvePayment : button.dataset.rejectPayment;
     let rejectionReason;
     if (action === 'APPROVE') {
-      if (!window.confirm(`ACC setoran ${button.dataset.nominal} dari ${button.dataset.nama}?\nPastikan uangnya sudah masuk rekening. Piutang CS langsung berkurang.`)) return;
+      if (!window.confirm(`ACC setoran ${button.dataset.nominal} dari ${button.dataset.nama}, dikirim ${button.dataset.waktu}?\nPastikan nominal, jam:menit, dan foto cocok dengan mutasi rekening. Piutang CS langsung berkurang.`)) return;
     } else {
       rejectionReason = window.prompt('Alasan penolakan (wajib, terlihat oleh CS):', '') ?? '';
       if (!rejectionReason.trim()) return toast('Alasan penolakan wajib diisi.');

@@ -33,6 +33,10 @@
     await api('/api/staff/attendance', { method: 'POST', body: form });
   }
 
+  // Presensi tidak menghalangi Portal Staf (setor uang, gaji, riwayat): jalur yang sama dengan
+  // tombol Portal Staf di bilah atas, hanya dibuat kelihatan di layar presensi (Bos Cyo, 2026-10-07).
+  document.getElementById('cashierGatePortalLink')?.addEventListener('click', () => window.lekerPrepareStaffHandoff?.());
+
   button.addEventListener('click', () => {
     message.textContent = '';
     window.CameraSnapshotModal.open({

@@ -131,15 +131,43 @@
     if (changed) window.dispatchEvent(new CustomEvent('maxi-skin-change', { detail: { ...state } }));
   }
 
-  async function refresh() {
-    const ctx = context();
-    if (!ctx) { setState({ skin: 'classic' }, null); return state; }
-    try {
-      const response = await fetch(`/api/ui-profile?${ctx.query}`, { cache: 'no-store' });
-      if (response.ok) setState(await response.json(), ctx);
-    } catch {}
-    return state;
+  // Satu permintaan pada satu waktu: pemanggil lain (mis. layar Warung/Racik yang memanggil
+  // refresh() sendiri saat tab kembali aktif) ikut menunggu hasil yang sama.
+  let inflight = null;
+  let lastRefreshAt = 0;
+  function refresh() {
+    if (inflight) return inflight;
+    inflight = (async () => {
+      const ctx = context();
+      if (!ctx) { setState({ skin: 'classic' }, null); return state; }
+      try {
+        const response = await fetch(`/api/ui-profile?${ctx.query}`, { cache: 'no-store' });
+        if (response.ok) {
+          setState(await response.json(), ctx);
+          lastRefreshAt = Date.now();
+        }
+      } catch {}
+      return state;
+    })().finally(() => { inflight = null; });
+    return inflight;
   }
+
+  // Skin yang diganti Owner harus sampai ke HP yang sudah terbuka -- CS sering membiarkan
+  // aplikasi terbuka berhari-hari atau menghidupkannya dari "riwayat halaman" (bfcache), jadi
+  // pengecekan ke server tidak boleh hanya terjadi saat halaman dimuat. Bukan polling
+  // (invariant #6): hanya saat tab kembali tampil, halaman dipulihkan dari riwayat, atau
+  // koneksi kembali. Kalau server tadi tidak terjangkau (jaringan HP bermasalah), skin tersimpan
+  // tetap dipakai dan dicoba lagi pada kesempatan berikutnya -- bukan dianggap sudah benar.
+  const REFRESH_GAP_MS = 15000;
+  function refreshOnReturn(force) {
+    if (document.visibilityState === 'hidden') return;
+    if (!force && Date.now() - lastRefreshAt < REFRESH_GAP_MS) return;
+    refresh();
+  }
+  document.addEventListener('visibilitychange', () => refreshOnReturn(false));
+  window.addEventListener('focus', () => refreshOnReturn(false));
+  window.addEventListener('pageshow', event => refreshOnReturn(Boolean(event.persisted)));
+  window.addEventListener('online', () => refreshOnReturn(true));
 
   // Terapkan cache SEKARANG (sinkron) supaya tidak berkedip.
   const initialCtx = context();

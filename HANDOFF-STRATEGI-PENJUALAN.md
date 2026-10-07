@@ -349,6 +349,15 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Halaman & video (2026-10-06)**: `/produk/` (pemilik 2–10 gerai, interaktif: coba jadi pemilik,
   kalkulator kebocoran, simulasi Una) dan `/produk/kemitraan/` (pilot 1–3 gerai mitra, kalkulator biaya);
   video 9:16 nomor 1, 2, 4 di `pemasaran/video/`. Ringkasan, daftar klaim, cara rekam ulang: `pemasaran/README.md`.
+- **Alamat aplikasi = `app.ownertenang.biz.id`** *(diputuskan 2026-10-07, atas permintaan Bos Cyo — alamat
+  `…workers.dev` bertuliskan "prototype" dan membuat calon pelanggan ragu)*. Tidak butuh domain baru:
+  subdomain gratis di bawah `ownertenang.biz.id`. Dipasang sebagai Custom domain kedua pada Worker yang sama;
+  **tidak ada perubahan kode** (server tidak memeriksa nama host/asal). Alamat lama **tetap hidup** supaya 14 gerai
+  yang sudah memakainya tidak terputus; tiap pengguna cukup login ulang saat pindah (sesi tersimpan per alamat).
+  Nama Worker (`prototype-leker-v2`) tidak diganti — tidak terlihat pengguna setelah alamat baru dipakai, dan
+  mengganti nama memutus integrasi Git. Gerai baru langsung memakai alamat baru; gerai lama pindah bertahap.
+  Sisa tulisan "MAXI" di judul halaman aplikasi (kasir, admin, login) = pekerjaan sesi UI/UX agar seragam "OwnerTenang".
+  Aplikasi di `app.` sebaiknya tidak diindeks Google (bagian fondasi SEO, `PLAN-SEO-KONTEN.md` S1).
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 

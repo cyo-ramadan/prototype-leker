@@ -32,7 +32,13 @@ export const UI_SKIN_OPTIONS = Object.freeze([
   // adalah Mode Warung untuk pemilik yang jaga sendiri
   // (DESAIN-SKIN-E-JAGA-SENDIRI.md). Satu-satunya skin yang juga mengubah
   // aturan server, lihat isOwnerOperatedChoice di bawah.
-  { value: 'E', label: 'E · Jaga Sendiri' }
+  { value: 'E', label: 'E · Jaga Sendiri' },
+  // Bos Cyo, 2026-10-06: customer parfum racikan -- "setiap penjualannya itu
+  // resepnya selalu ga sama". F = layar Racik (Pesanan -> Racik -> Bayar ->
+  // Nota) di atas produksi + penjualan yang sudah ada (DESAIN-SKIN-F-RACIK-PARFUM.md).
+  // Satu-satunya aturan server yang ikut berubah: kasir boleh mengubah harga
+  // jual per transaksi, dan perubahannya tercatat (isRacikChoice di bawah).
+  { value: 'F', label: 'F · Racik Parfum' }
 ]);
 
 // Tenant yang memilih skin E dijaga pemiliknya sendiri, tanpa karyawan:
@@ -42,6 +48,20 @@ export const UI_SKIN_OPTIONS = Object.freeze([
 // berubah sama sekali. Sengaja satu pintu supaya kalau nanti dipisah jadi
 // saklar sendiri, cukup ubah fungsi ini.
 export const OWNER_OPERATED_SKIN_CHOICE = 'E';
+// Skin F (racik parfum): harga jual boleh diubah kasir saat transaksi. Harga
+// daftar tetap dari Master Barang; perubahannya dicatat di keterangan
+// penjualan (src/cashier-sales-tracking.js validateDirectLines).
+export const RACIK_SKIN_CHOICE = 'F';
+export function isRacikChoice(choice) {
+  return choice === RACIK_SKIN_CHOICE;
+}
+// Bos Cyo, 2026-10-06 (skin F): "admin/owner/kasir untuk saat ini samakan,
+// boleh langsung jual dan buka laci" -- buka laci (dan ajukan tutup laci)
+// tidak menunggu presensi. Skin E sudah begitu lewat isOwnerOperatedChoice;
+// F hanya melepas syarat presensi, pengajuan tetap menunggu keputusan.
+export function isAttendanceOptionalChoice(choice) {
+  return choice === OWNER_OPERATED_SKIN_CHOICE || choice === RACIK_SKIN_CHOICE;
+}
 export function isOwnerOperatedChoice(choice) {
   return choice === OWNER_OPERATED_SKIN_CHOICE;
 }
@@ -58,7 +78,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     type: 'choice',
     options: UI_SKIN_OPTIONS,
     label: 'Tampilan (skin)',
-    description: '0 = tampilan sekarang. E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    description: '0 = tampilan sekarang. F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
     defaultValue: '0'
   }
 ]);

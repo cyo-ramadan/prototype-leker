@@ -537,7 +537,7 @@ test('Portal Staf: tab Setor Uang (nominal + FOTO bukti multipart) terpisah dari
   assert.match(staffUi, /type="file" accept="image\/\*"/, 'foto bukti transfer diambil dari kamera/galeri');
   assert.match(staffUi, /form\.set\('photo'/, 'dikirim sebagai multipart dengan foto');
   assert.match(staffUi, /\/api\/cashier\/employee-deposits\/payments\/\$\{encodeURIComponent\(img\.dataset\.depositPhoto\)\}\/photo/);
-  assert.match(staffHtml, /\/staff\.js\?v=20261005-setor-jurnal-v1/, 'versi staff.js dibump supaya browser lama ikut ambil');
+  assert.match(staffHtml, /\/staff\.js\?v=20261006-portal-lihat-v2/, 'versi staff.js dibump supaya browser lama ikut ambil');
   assert.match(staffHtml, /data-staff-tab="setor"/, 'Setor Uang punya tombol sendiri');
   assert.match(staffHtml, /id="staffPanelSetor"/);
   assert.match(staffUi, /function renderSetorForm/);

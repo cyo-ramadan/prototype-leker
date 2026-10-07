@@ -38,6 +38,7 @@ import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleCacaApi } from './caca-chat.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
+import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleEmployeeDepositApi } from './employee-deposit-settlement.js';
 import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
@@ -81,6 +82,7 @@ import { handleCostMasterApi } from './cost-master.js';
 import { handleDebuggerApi } from './debugger-control-plane.js';
 import { handleUiProfileApi } from './ui-profile.js';
 import { handleWarungUntungApi } from './warung-untung.js';
+import { handleRacikKasirPemilikApi } from './racik-kasir-pemilik.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -267,6 +269,10 @@ async function handleApiRouted(request, env, url) {
   // fallback always won the dispatch before entity-accounting ever ran.
   const entityAccountingResponse = await handleEntityAccountingApi(request, env, pathname);
   if (entityAccountingResponse) return entityAccountingResponse;
+  // Riwayat setoran / hutang gaji per karyawan lintas akun (2026-10-06) -- juga di depan
+  // handleEntityAdminApi karena alasan yang sama.
+  const employeeLedgerResponse = await handleEmployeeLedgerViewApi(request, env, pathname);
+  if (employeeLedgerResponse) return employeeLedgerResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
   if (entityAdminResponse) return entityAdminResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
@@ -421,6 +427,8 @@ async function handleApiRouted(request, env, url) {
   }
   const warungUntungResponse = await handleWarungUntungApi(request, env, pathname);
   if (warungUntungResponse) return warungUntungResponse;
+  const racikKasirPemilikResponse = await handleRacikKasirPemilikApi(request, env, pathname);
+  if (racikKasirPemilikResponse) return racikKasirPemilikResponse;
   const cashierDrawerResponse = await handleCashierDrawerApi(request, env, pathname);
   if (cashierDrawerResponse) return cashierDrawerResponse;
   const cashierOrdersResponse = await handleCashierOrders(request, env, pathname);
@@ -477,7 +485,8 @@ export function assetRoute(pathname) {
   const direct = { '/': '/customer', '/customer': '/customer', '/cashier': '/cashier', '/staff': '/staff', '/login': '/login', '/admin': '/owner', '/owner': '/owner', '/entity-admin': '/entity-admin' };
   if (direct[pathname]) return direct[pathname];
   // 'warung' = Mode Warung (skin D, public/warung.html) -- DESAIN-SKIN-D-WARUNG.md.
-  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung))?\/?$/);
+  // 'racik' = layar Racik Parfum (skin F, public/racik.html) -- DESAIN-SKIN-F-RACIK-PARFUM.md.
+  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung|racik))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
     if (page === 'admin') return '/branch-admin';

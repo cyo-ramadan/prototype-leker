@@ -270,6 +270,12 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-05 | Una | Una kerja bertahap seperti agen: perintah rumit ("cek harga yang janggal lalu benerin") dikerjakan sendiri langkah demi langkah — baca data, lihat hasilnya, putuskan langkah berikutnya — dengan daftar 1. ✓ 2. ✓ yang terlihat, berhenti hanya untuk minta "Ya" atau menanyakan angka yang tidak ada di data; angka di jawabannya dicek otomatis ke data | UJI | Bahan pesan "cukup ngobrol, Una yang kerjain"; tunggu terbukti di gerai sungguhan sebelum dijanjikan |
 | 2026-10-05 | Una | Panel Una: saat diberi perintah muncul kartu "Una lagi kerja" yang mencentang tiap langkah satu per satu plus hitungan detik; ukuran panel tetap (tidak berubah-ubah), dan di HP panel jadi penuh layar dengan nama gerai + tombol ganti gerai selalu terlihat | UJI | Bahan demo "kelihatan Una sedang bekerja"; tunggu dicoba di HP sungguhan |
 | 2026-10-05 | Una | Una ingat seluruh obrolan dalam satu sesi (bukan cuma 10 chat terakhir), menerima pesan/tempelan jauh lebih panjang, dan membaca daftar barang satu gerai utuh; tiap perintah dibantu contoh kerja yang paling mirip dari perpustakaan contoh | UJI | Memperkuat "ngobrol nyambung terus"; belum diukur di pemakaian harian |
+| 2026-10-06 | Rekening Bersama / Setoran CS / Hutang | Rekening Bersama bisa dipasang sekali klik sebagai cara bayar di semua gerai (jual, beli bahan, pengeluaran); setoran CS masuk ke Rekening Bersama (saldo gerai naik + jurnal); hutang gaji dibayar dari Rekening Bersama atau langsung dipotong dari uang setoran yang dipegang CS; mutasi Rekening Bersama per gerai bisa dibuka di Entity Admin | JUAL | Uang setoran tidak lagi "hilang" di Kas; pemilik melihat siapa memegang uang dan ke mana uangnya pergi |
+| 2026-10-06 | strategi / UI/UX | Landing page baru: `/produk/` interaktif (coba jadi pemilik 30 detik, kalkulator kebocoran, simulasi Una berlabel uji, harga) dan `/produk/kemitraan/` (papan perbandingan gerai mitra, kalkulator biaya, ajakan pilot 1–3 gerai); 3 video 9:16 (absen merah, hapus struk ditolak, untung semua gerai) di `pemasaran/video/`. Halaman "Hari ini" skin D kini benar menghitung permintaan hapus struk & pengajuan kasir yang menunggu | INTERNAL | Siap dibagikan begitu domain ownertenang.biz.id tersambung; Una tetap UJI (berlabel) |
+| 2026-10-06 | Entity Admin / Kasir / Portal Staf | Mode Lihat kasir punya tombol kembali ke Admin Gerai/Entity Admin/Owner; Portal Staf bisa dibuka Mode Lihat oleh Entity Admin/Admin dengan pilihan akun (semua tab terbaca, menyimpan ditolak); tab Karyawan Entity Admin punya Riwayat Setoran & Riwayat Hutang Gaji per orang lintas semua akun kerja/gerai yang tertaut, dengan filter per akun | JUAL | Pemilik bisa memeriksa satu orang dari semua gerai di satu tempat, tanpa pinjam akun karyawan |
+| 2026-10-06 | UI/UX / Kasir | Skin F "Racik Parfum" untuk toko parfum racikan: kasir memilih pelanggan dan aroma, resep standar (atau racikan terakhir pelanggan itu) muncul, takaran bisa diubah per botol, racikan yang ditinggal tersimpan sebagai draft di HP/tablet, harga jual boleh diubah dan perubahannya tercatat, nota bisa dicetak; bahan terpotong sesuai takaran sebenarnya dan modal per botol ikut takaran itu | UJI | Membuka segmen baru di luar F&B (toko parfum isi ulang/racik); baru satu calon pelanggan, belum dicoba di toko nyata |
+| 2026-10-06 | UI/UX / Workspace Gerai | Skin F: tab "Bahan & Aroma" -- pemilik toko parfum cukup mengisi nama bahan, atau nama aroma + harga + takaran resep; kategori, jenis barang, satuan, dan jumlah hasil terisi otomatis. Una tetap tersedia untuk pemilik | UJI | Mempercepat persiapan toko parfum baru dari tiga layar jadi satu; belum dicoba pemilik nyata |
+| 2026-10-06 | Kasir / Panel Pemilik | Skin F: pemilik, admin, dan kasir disamakan -- langsung jual dan buka laci tanpa absen; Panel Pemilik dan Workspace Gerai punya tombol Jual, Beli bahan, Biaya operasional per gerai (transaksi tercatat atas nama pemilik) | UJI | Cocok untuk toko kecil yang pemiliknya ikut jaga; pengawasan absen karyawan mati di skin ini |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -296,7 +302,11 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Paket pertama — Paket Kontrol Gerai**: kasir+laci, presensi foto+GPS+radius, permit ACC
   pemilik, stok+HPP dari resep, untung-rugi sederhana, gaji dari presensi, laporan
   presensi/permit, multi-gerai. Pembukuan lengkap = paket naik kelas.
-- **Disembunyikan untuk tenant baru**: asisten AI Caca/Una, Game/Roda Puter, poin pelanggan,
+- **Una (2026-10-05, Bos Cyo: "Tampilkan + aktifkan")**: Una ternyata sudah aktif untuk pemilik
+  (Owner/Entity Admin) di SEMUA tenant -- sembunyi per tenant tidak pernah dipasang. Una boleh tampil di
+  landing page dan video **hanya berlabel "Baru · sedang kami uji"** dan selalu dengan langkah draft →
+  "Ya" dari pemilik (dijaga `test/landing-page-claims.test.js`). Statusnya di §8 tetap UJI.
+- **Disembunyikan untuk tenant baru**: Game/Roda Puter, poin pelanggan,
   pendaftaran akun pelanggan, menu akuntansi lengkap.
 - **Harga** *(diputuskan Bos Cyo 2026-10-05: "harga ikut usulan")*: **Rp149rb/gerai/bulan** (Paket
   Kontrol Gerai), **Rp249rb/gerai/bulan** (+ pembukuan otomatis lengkap). Sudah tampil di landing page.
@@ -336,6 +346,9 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
   selalu memperlihatkan langkah draft → "Ya" dari pemilik. Janji utama tetap kontrol gerai. **Syarat naik jadi
   USP penuh (JUAL)**: minimal 3 pemilik di luar lingkaran Bos Cyo menyiapkan menu lewat Una tanpa bantuan tim,
   dan selama 2 minggu tidak ada perubahan Una yang salah lolos ke laporan.
+- **Halaman & video (2026-10-06)**: `/produk/` (pemilik 2–10 gerai, interaktif: coba jadi pemilik,
+  kalkulator kebocoran, simulasi Una) dan `/produk/kemitraan/` (pilot 1–3 gerai mitra, kalkulator biaya);
+  video 9:16 nomor 1, 2, 4 di `pemasaran/video/`. Ringkasan, daftar klaim, cara rekam ulang: `pemasaran/README.md`.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 

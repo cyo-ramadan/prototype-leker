@@ -144,10 +144,13 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   me-referensikannya (server live tidak berarti browser lama ikut ambil versi baru — lihat
   `KNOWN_PITFALLS.md` "File JS lama yang diubah tapi query `?v=` tidak dibump"). File baru aman
   tanpa ini karena browser belum pernah menyimpan apa pun di URL-nya.
-- **Skin tampilan per tenant (0/A/B/C/D/E)** -- `HANDOFF-UIUX-SIAP-JUAL.md` §8; persona & alasan tiap skin
+- **Skin tampilan per tenant (0/A/B/C/D/E/F)** -- `HANDOFF-UIUX-SIAP-JUAL.md` §8; persona & alasan tiap skin
   di `DESAIN-SKIN-KATALOG.md`. D ("Mode Warung") dan E ("Jaga Sendiri") juga punya layar sendiri
   (`public/warung*.js`, `DESAIN-SKIN-D-WARUNG.md`, `DESAIN-SKIN-E-JAGA-SENDIRI.md`); **E juga mengubah
-  aturan server** (tanpa presensi, Auto Permit -- `isOwnerOperatedChoice`). CSS skin dibangkitkan
+  aturan server** (tanpa presensi, Auto Permit -- `isOwnerOperatedChoice`). F ("Racik Parfum") punya layar
+  `public/racik.*` di atas produksi + penjualan yang sudah ada, kasirnya boleh mengubah harga jual, buka laci tanpa
+  absen, dan Pemilik/Admin bisa jual lewat akun kasir "Pemilik" otomatis (`isRacikChoice`,
+  `isAttendanceOptionalChoice`, `src/racik-kasir-pemilik.js`, `DESAIN-SKIN-F-RACIK-PARFUM.md`). CSS skin dibangkitkan
   `scripts/generate-skin-css.py`. Fitur baru cukup
   dibangun sekali di layar biasa (skin 0); A/B/C hanya lapisan CSS di atasnya, jadi fiturnya ikut
   muncul otomatis. Supaya tampilannya juga ikut berubah: pakai kelas yang sudah ada

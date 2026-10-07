@@ -66,10 +66,11 @@ test('Mode Warung menjual lewat jalur kasir yang sama dan tidak membuat ulang ab
   assert.doesNotMatch(ui, /setInterval/);
 });
 
-test('pintu masuk & layar Pemilik hanya aktif di skin D dan E', () => {
+test('pintu masuk aktif di skin D, E, dan F (Racik); layar Pemilik hanya D dan E', () => {
   const entry = read('public/warung-entry.js');
   const owner = read('public/warung-pemilik.js');
-  assert.match(entry, /if \(skin !== 'd' && skin !== 'e'\) return/);
+  assert.match(entry, /if \(skin !== 'd' && skin !== 'e' && skin !== 'f'\) return/);
+  assert.match(entry, /=== 'f' \? 'racik' : 'warung'/);
   assert.match(owner, /if \(!\['d', 'e'\]\.includes\(window\.MaxiSkin\?\.skin\?\.\(\)\)\) return unmount\(\)/);
   assert.doesNotMatch(owner, /setInterval/);
   assert.match(read('public/cashier.html'), /<script src="\/warung-entry\.js\?v=[^"]+"><\/script>/);
@@ -88,7 +89,7 @@ test('skin D Workspace Gerai: halaman "Hari ini", menu 6 tombol, Lainnya berkelo
   assert.doesNotMatch(home, /setInterval/);
   // Hanya teks tampil yang diganti -- isian form tidak pernah disentuh.
   assert.match(home, /SKIP = new Set\(\['INPUT', 'TEXTAREA', 'SELECT'/);
-  assert.match(read('public/branch-admin.html'), /<script src="\/warung-admin\.js"><\/script>/);
+  assert.match(read('public/branch-admin.html'), /<script src="\/warung-admin\.js\?v=[^"]+"><\/script>/);
   const approvals = read('public/management-approval-queue.js');
   assert.match(approvals, /window\.MaxiSkin\?\.skin\?\.\(\) === 'd' \? owner : classic/);
   const css = read('public/skin-d.css');

@@ -74,6 +74,13 @@
       ]
     }
   };
+  // Skin F (Racik Parfum): "Bahan & Aroma" (public/racik-admin.js) jadi pintu
+  // pertama grup Barang -- satu layar pengganti Data Barang + Resep & Satuan.
+  SKIN_GROUPS.f = {
+    'branch-admin': PAGES['branch-admin'].groups.map(group => (group.id === 'goods'
+      ? { ...group, items: ['racikbahan', ...group.items] }
+      : group))
+  };
   // Keterangan satu baris di daftar "Lainnya" (skin D) -- supaya pemilik tahu
   // isinya sebelum membuka.
   const SKIN_HINTS = {
@@ -103,7 +110,7 @@
     hutangpiutang: 'Hutang & Pembayaran', beaops: 'Biaya Operasional', 'setoran-cs': 'Setoran CS',
     customers: 'Pelanggan', 'customer-feedback': 'Kotak Saran', vouchers: 'Voucher',
     storereport: 'Laporan per Gerai', drawerstatus: 'Status Laci', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
-    ledger: 'Buku Usaha'
+    ledger: 'Buku Usaha', racikbahan: 'Bahan & Aroma'
   };
   const ENTITY_LABELS = { stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama' };
 

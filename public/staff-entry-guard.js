@@ -20,7 +20,8 @@
   // "Kasir Login" biasa (bare /cashier) tetap PERSIS seperti sebelumnya,
   // tidak ikut melonggar cuma karena kebetulan ada token Owner/Entity
   // Admin/Admin Gerai nganggur di localStorage.
-  const isReadOnlyPreview = isCashier && new URLSearchParams(location.search).get('readonly') === '1';
+  // 2026-10-06: Portal Staf juga punya Mode Lihat (?readonly=1&account=...) untuk Entity Admin/Admin.
+  const isReadOnlyPreview = (isCashier || isStaffPortal) && new URLSearchParams(location.search).get('readonly') === '1';
 
   const allowed = (isCashier || isStaffPortal)
     ? Boolean(localStorage.getItem('lekerCashierToken'))

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#4A1A42" />
+  <title>Racik</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500;1,9..144,700&family=Manrope:wght@500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="/racik.css?v=20261006-langsung-jual-v1" />
+  <script src="/staff-tab-lock.js?v=20261005-login-satu-pintu-v1"></script>
+  <script src="/staff-back-guard.js?v=20261005-login-satu-pintu-v1"></script>
+  <script src="/store-context.js"></script>
+  <script src="/ui-skin.js?v=20261006-racik-v1"></script>
+  <script src="/staff-auth-fetch.js?v=20261006-portal-lihat-v1"></script>
+</head>
+<body>
+  <!-- Layar Racik (skin F, Racik Parfum) -- DESAIN-SKIN-F-RACIK-PARFUM.md.
+       Pesanan -> Racik -> Bayar -> Nota. TIDAK ada model transaksi baru:
+         "Selesai" = POST /api/cashier/production (1 botol, takaran hasil edit)
+                   + POST /api/cashier/sales (botol itu dijual, harga boleh diubah).
+       Draft dan "racikan terakhir per pelanggan" disimpan di HP/tablet ini saja. -->
+  <header class="r-top">
+    <button id="rHome" class="r-brand" type="button" aria-label="Ke daftar racikan">
+      <span class="r-mono" aria-hidden="true">R</span>
+      <span><strong id="rStoreName">Racik</strong><small id="rWho">Memuat…</small></span>
+    </button>
+    <button id="rMoreBtn" class="r-more" type="button" aria-haspopup="menu" aria-expanded="false">Lainnya</button>
+    <nav id="rMoreMenu" class="r-menu" role="menu" hidden>
+      <a role="menuitem" id="rOwnerPanel" href="/entity-admin" hidden>Panel Pemilik<small>Kembali ke laporan &amp; pengaturan</small></a>
+      <a role="menuitem" id="rFullCashier" href="#">Kasir lengkap<small>Belanja bahan, biaya, tutup laci</small></a>
+      <button role="menuitem" id="rRefresh" type="button">Muat ulang aroma &amp; bahan</button>
+      <button role="menuitem" id="rLogout" type="button">Keluar</button>
+    </nav>
+  </header>
+
+  <ol id="rSteps" class="r-steps" hidden aria-label="Langkah">
+    <li data-step="pesanan"><i>1</i>Pesanan</li>
+    <li data-step="racik"><i>2</i>Racik</li>
+    <li data-step="bayar"><i>3</i>Bayar</li>
+    <li data-step="nota"><i>4</i>Nota</li>
+  </ol>
+
+  <main class="r-main">
+    <section id="rGate" class="r-gate" hidden>
+      <svg class="r-gate-art" viewBox="0 0 64 96" aria-hidden="true"><path d="M24 4h16v12l8 8c6 6 10 14 10 24v36a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8V48c0-10 4-18 10-24l8-8z"/></svg>
+      <h1 id="rGateTitle">Toko belum dibuka</h1>
+      <p id="rGateText">Absen dulu, lalu buka laci. Setelah itu kembali ke sini untuk meracik.</p>
+      <a id="rGateBtn" class="r-btn" href="#">Buka Kasir lengkap</a>
+      <div id="rOpenBox" class="r-open" hidden>
+        <label id="rOpenCashLabel" class="r-label" for="rOpenCash">Uang di laci sekarang</label>
+        <input id="rOpenCash" class="r-input" type="text" inputmode="numeric" autocomplete="off" placeholder="mis. 100.000" />
+        <button id="rOpenBtn" class="r-btn" type="button">Buka laci &amp; mulai jualan</button>
+      </div>
+    </section>
+
+    <!-- Beranda: racikan baru + draft yang belum selesai -->
+    <section id="rHomeView" hidden>
+      <button id="rNew" class="r-new" type="button">
+        <span class="r-new-plus" aria-hidden="true">+</span>
+        <span><b>Racikan baru</b><small>Pelanggan, aroma, lalu takar bahannya</small></span>
+      </button>
+      <h2 class="r-h2">Racikan belum selesai</h2>
+      <div id="rDrafts" class="r-drafts"></div>
+      <p id="rDraftsEmpty" class="r-empty" hidden>Belum ada. Racikan yang ditinggal di tengah jalan akan tersimpan di sini, di HP/tablet ini.</p>
+    </section>
+
+    <!-- 1 · Pesanan -->
+    <section id="rPesanan" class="r-view" hidden>
+      <label class="r-label" for="rCustomer">Untuk siapa?</label>
+      <input id="rCustomer" class="r-input" type="text" autocomplete="off" list="rCustomerList" maxlength="100" placeholder="Nama pelanggan, mis. Kiki" />
+      <datalist id="rCustomerList"></datalist>
+      <label class="r-label" for="rSearch">Aroma</label>
+      <input id="rSearch" class="r-input" type="search" autocomplete="off" placeholder="Cari aroma… (mis. bubble gum)" />
+      <div id="rAromas" class="r-aromas"></div>
+      <p id="rAromasEmpty" class="r-empty" hidden></p>
+    </section>
+
+    <!-- 2 · Racik -->
+    <section id="rRacik" class="r-view" hidden>
+      <div class="r-bench">
+        <svg id="rBottle" class="r-bottle" viewBox="0 0 120 180" role="img" aria-labelledby="rFillText">
+          <defs>
+            <clipPath id="rFlask"><path d="M42 22h36v18c18 8 30 26 30 48v68a14 14 0 0 1-14 14H26a14 14 0 0 1-14-14V88c0-22 12-40 30-48z"/></clipPath>
+          </defs>
+          <rect x="46" y="2" width="28" height="20" rx="5" class="r-cap"/>
+          <g clip-path="url(#rFlask)"><rect x="0" y="0" width="120" height="180" class="r-glass"/><g id="rLayers"></g></g>
+          <path d="M42 22h36v18c18 8 30 26 30 48v68a14 14 0 0 1-14 14H26a14 14 0 0 1-14-14V88c0-22 12-40 30-48z" class="r-outline"/>
+          <line id="rBrim" x1="12" x2="108" class="r-brim"/>
+        </svg>
+        <div class="r-bench-text">
+          <small id="rForWho"></small>
+          <h2 id="rAromaName" class="r-aroma-name"></h2>
+          <p id="rFillText" class="r-fill"></p>
+          <p id="rFromText" class="r-from"></p>
+        </div>
+      </div>
+      <div id="rWarn" class="r-warn" hidden></div>
+      <ul id="rLines" class="r-lines"></ul>
+      <button id="rAddLine" class="r-ghost" type="button">+ Tambah bahan</button>
+      <button id="rReset" class="r-link" type="button">Kembalikan ke resep standar</button>
+    </section>
+
+    <!-- 3 · Bayar -->
+    <section id="rBayar" class="r-view" hidden>
+      <article class="r-ticket">
+        <small id="rPayFor"></small>
+        <h2 id="rPayAroma" class="r-aroma-name"></h2>
+        <p id="rPayFormula" class="r-formula"></p>
+      </article>
+      <label class="r-label" for="rPrice">Harga jual</label>
+      <div class="r-price">
+        <span aria-hidden="true">Rp</span>
+        <input id="rPrice" type="text" inputmode="numeric" autocomplete="off" aria-describedby="rPriceNote" />
+      </div>
+      <p id="rPriceNote" class="r-hint"></p>
+      <div id="rMethods" class="r-methods"></div>
+      <div id="rCashBox">
+        <span class="r-label">Uang diterima</span>
+        <div id="rQuick" class="r-quick"></div>
+        <input id="rCash" class="r-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Ketik jumlah lain" aria-label="Uang diterima" />
+        <div class="r-change"><small id="rChangeLabel">Kembalian</small><b id="rChange">—</b></div>
+      </div>
+    </section>
+
+    <!-- 4 · Nota (ini juga yang dicetak) -->
+    <section id="rNota" class="r-view" hidden>
+      <article id="rReceipt" class="r-receipt" aria-label="Nota"></article>
+      <label class="r-check"><input id="rShowFormula" type="checkbox" checked /> Cantumkan takaran di nota</label>
+    </section>
+  </main>
+
+  <!-- Bilah aksi selalu di bawah jempol -->
+  <div id="rBar" class="r-bar" hidden>
+    <button id="rBack" class="r-back" type="button">← Simpan draft</button>
+    <button id="rNext" class="r-next" type="button">Lanjut</button>
+  </div>
+
+  <div id="rPicker" class="r-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="rPickerTitle">
+    <div class="r-sheet-card">
+      <div class="r-sheet-head"><h2 id="rPickerTitle">Tambah bahan</h2><button id="rPickerClose" type="button" class="r-x" aria-label="Tutup">✕</button></div>
+      <input id="rPickerSearch" class="r-input" type="search" autocomplete="off" placeholder="Cari bahan… (mis. alkohol, bibit vanila)" />
+      <div id="rPickerList" class="r-picker-list"></div>
+    </div>
+  </div>
+
+  <div id="rChoice" class="r-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="rChoiceTitle">
+    <div class="r-sheet-card">
+      <div class="r-sheet-head"><h2 id="rChoiceTitle">Mulai dari mana?</h2><button id="rChoiceClose" type="button" class="r-x" aria-label="Tutup">✕</button></div>
+      <button id="rUseLast" class="r-option" type="button"><b>Racikan terakhir</b><small id="rUseLastText"></small></button>
+      <button id="rUseStandard" class="r-option" type="button"><b>Resep standar</b><small>Takaran bawaan aroma ini</small></button>
+    </div>
+  </div>
+
+  <div id="rToast" class="r-toast" role="status" aria-live="polite"></div>
+  <script src="/racik.js?v=20261006-langsung-jual-v1"></script>
+</body>
+</html>

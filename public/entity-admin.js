@@ -125,12 +125,54 @@ function renderEntitySharedAccounts() {
       </div>
       <div class="master-actions">
         <button class="mini-btn" type="button" data-view-shared-account="${entityAdminEscape(account.id)}">Rincian</button>
+        ${account.isActive ? `<button class="mini-btn" type="button" data-activate-shared-account="${entityAdminEscape(account.id)}">Pasang di semua gerai</button>` : ''}
         <button class="mini-btn" type="button" data-toggle-shared-account="${entityAdminEscape(account.id)}">${account.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada Rekening Bersama di entity ini.</div>';
 
   document.querySelectorAll('[data-view-shared-account]').forEach(button => button.onclick = () => viewEntitySharedAccount(button.dataset.viewSharedAccount));
   document.querySelectorAll('[data-toggle-shared-account]').forEach(button => button.onclick = () => toggleEntitySharedAccount(button.dataset.toggleSharedAccount));
+  document.querySelectorAll('[data-activate-shared-account]').forEach(button => button.onclick = () => activateEntitySharedAccount(button.dataset.activateSharedAccount));
+}
+
+// Bos Cyo, 2026-10-06: Rekening Bersama jadi cara bayar di semua gerai (jual, beli bahan,
+// pengeluaran). Aman diklik berulang -- gerai yang sudah punya cuma dipastikan aktif.
+async function activateEntitySharedAccount(id) {
+  const account = (entityAdminState.sharedAccounts || []).find(item => item.id === id);
+  if (!account || !confirm(`Pasang "${account.name}" sebagai cara bayar di semua gerai entity ini?`)) return;
+  try {
+    const result = await entityAdminApi(`/api/entity/shared-accounts/${encodeURIComponent(id)}/activate-stores?store=${encodeURIComponent(anyEntityStoreCode())}`, { method: 'POST', body: '{}' });
+    const label = { DIBUAT: 'dibuat', DIAKTIFKAN: 'diaktifkan lagi', SUDAH_AKTIF: 'sudah aktif' };
+    const missing = result.stores.filter(row => !row.accountLinked).map(row => row.storeCode);
+    alert(`${account.name}:\n${result.stores.map(row => `${row.storeCode}: ${label[row.status] || row.status}`).join('\n')}${missing.length ? `\n\nBelum tersambung ke akun 1103 Rekening Bersama: ${missing.join(', ')}` : ''}`);
+  } catch (error) { entityAdminToast(error.message); }
+}
+
+const SHARED_LEDGER_SOURCE_LABEL = { SALE: 'Penjualan', PURCHASE: 'Beli bahan', EXPENSE: 'Pengeluaran/pembayaran', TRANSFER: 'Transfer antar gerai', GOODS_FLOW: 'Arus Barang' };
+const SHARED_LEDGER_KIND_LABEL = { SETORAN_CS: 'Setoran CS' };
+
+// Mutasi per gerai: dibuka hanya kalau diklik, 10 baris dulu, sisanya lewat "Muat lagi".
+async function loadEntitySharedLedger(accountId, storeId, host, offset = 0) {
+  const button = host.querySelector('[data-shared-ledger-more]');
+  if (button) button.disabled = true;
+  try {
+    const payload = await entityAdminApi(`/api/entity/shared-accounts/${encodeURIComponent(accountId)}/ledger?store=${encodeURIComponent(anyEntityStoreCode())}&storeId=${encodeURIComponent(storeId)}&limit=10&offset=${offset}`);
+    button?.remove();
+    const rows = payload.entries.map(entry => `
+      <div class="master-row contact-row">
+        <div class="master-main"><strong>${entityAdminEscape(SHARED_LEDGER_KIND_LABEL[entry.sourceKind] || SHARED_LEDGER_SOURCE_LABEL[entry.sourceType] || entry.sourceType)}</strong>
+          <div class="master-meta">${entityAdminEscape(new Date(entry.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }))}${entry.note ? ` · ${entityAdminEscape(entry.note)}` : ''}</div></div>
+        <span class="status-chip ${entry.direction === 'IN' ? 'ok' : 'warn'}">${entry.direction === 'IN' ? '+' : '−'}Rp${entityReportRupiah(entry.amount)}</span>
+      </div>`).join('');
+    host.insertAdjacentHTML('beforeend', rows || (offset ? '' : '<div class="empty">Belum ada mutasi.</div>'));
+    if (payload.hasMore) {
+      host.insertAdjacentHTML('beforeend', `<button class="mini-btn" type="button" data-shared-ledger-more>Muat lagi</button>`);
+      host.querySelector('[data-shared-ledger-more]').onclick = () => loadEntitySharedLedger(accountId, storeId, host, payload.nextOffset);
+    }
+  } catch (error) {
+    if (button) button.disabled = false;
+    entityAdminToast(error.message);
+  }
 }
 
 async function toggleEntitySharedAccount(id) {
@@ -154,7 +196,9 @@ async function viewEntitySharedAccount(id) {
       <div class="master-row contact-row">
         <div class="master-main"><strong>${entityAdminEscape(row.storeCode)} · ${entityAdminEscape(row.storeName)}</strong></div>
         <div class="master-meta">Rp${entityReportRupiah(row.balance)}</div>
-      </div>`).join('') || '<div class="empty">Belum ada gerai dengan saldo di rekening ini.</div>';
+        <div class="master-actions"><button class="mini-btn" type="button" data-shared-ledger-toggle="${entityAdminEscape(row.storeId)}">Lihat mutasi</button></div>
+      </div>
+      <div data-shared-ledger-host="${entityAdminEscape(row.storeId)}" style="display:none;margin:0 0 10px 12px"></div>`).join('') || '<div class="empty">Belum ada gerai dengan saldo di rekening ini.</div>';
     const inTransitRows = view.inTransit.transfers.map(transfer => `
       <div class="master-row contact-row">
         <div class="master-main"><strong>${entityAdminEscape(transfer.fromStoreCode)} &rarr; ${entityAdminEscape(transfer.toStoreCode)}</strong><div class="master-meta">${entityAdminEscape(transfer.reason || '-')}</div></div>
@@ -166,6 +210,18 @@ async function viewEntitySharedAccount(id) {
       <div style="margin-bottom:14px">${breakdownRows}</div>
       <h3>Sedang transfer (in transit) -- total Rp${entityReportRupiah(view.inTransit.total)}</h3>
       <div>${inTransitRows}</div>`;
+    entityAdminEl('entitySharedAccountViewBody').querySelectorAll('[data-shared-ledger-toggle]').forEach(button => {
+      button.onclick = () => {
+        const host = entityAdminEl('entitySharedAccountViewBody').querySelector(`[data-shared-ledger-host="${CSS.escape(button.dataset.sharedLedgerToggle)}"]`);
+        const open = host.style.display === 'none';
+        host.style.display = open ? '' : 'none';
+        button.textContent = open ? 'Tutup mutasi' : 'Lihat mutasi';
+        if (open && !host.dataset.loaded) {
+          host.dataset.loaded = '1';
+          loadEntitySharedLedger(view.account.id, button.dataset.sharedLedgerToggle, host);
+        }
+      };
+    });
     card.style.display = '';
   } catch (error) { entityAdminToast(error.message); }
 }
@@ -483,7 +539,63 @@ function renderEntityEmployees() {
         <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
         <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
       </div>
+      <div class="master-actions">
+        <button class="mini-btn" type="button" data-employee-ledger="setoran" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Setoran</button>
+        <button class="mini-btn" type="button" data-employee-ledger="gaji" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Hutang Gaji</button>
+      </div>
     </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
+  document.querySelectorAll('[data-employee-ledger]').forEach(button => {
+    button.onclick = () => openEmployeeLedger(button.dataset.employeeId, button.dataset.employeeLedger, '');
+  });
+}
+
+// Bos Cyo, 2026-10-06: riwayat setoran / hutang gaji satu karyawan dari SEMUA akun kerja yang
+// tertaut (bisa beda gerai), dengan filter akun. Data dari /api/entity-admin/employees/:id/ledger.
+function employeeLedgerDialog() {
+  let dialog = entityAdminEl('entityEmployeeLedgerDialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'entityEmployeeLedgerDialog';
+  dialog.className = 'admin-card';
+  dialog.style.cssText = 'width:min(720px,calc(100vw - 28px));max-height:86vh;overflow:auto;padding:18px;border:1px solid var(--line)';
+  document.body.appendChild(dialog);
+  return dialog;
+}
+
+async function openEmployeeLedger(employeeId, kind, accountId) {
+  const dialog = employeeLedgerDialog();
+  if (!dialog.open) dialog.showModal();
+  dialog.innerHTML = '<div class="muted">Memuat riwayat…</div>';
+  try {
+    const params = new URLSearchParams({ kind });
+    if (accountId) params.set('account', accountId);
+    const data = await entityAdminApi(`/api/entity-admin/employees/${encodeURIComponent(employeeId)}/ledger?${params}`);
+    const isGaji = data.kind === 'gaji';
+    const title = isGaji ? 'Riwayat Hutang Gaji' : 'Riwayat Setoran';
+    const balanceLabel = isGaji
+      ? (data.balanceRupiah >= 0 ? 'Hutang gaji yang belum dibayar' : 'Gaji lebih bayar')
+      : (data.balanceRupiah >= 0 ? 'Setoran yang masih dipegang' : 'Setoran lebih');
+    const options = [`<option value="">Semua akun (${data.accounts.length})</option>`, ...data.accounts.map(account =>
+      `<option value="${entityAdminEscape(account.accountId)}" ${account.accountId === data.selectedAccountId ? 'selected' : ''}>${entityAdminEscape(account.username)} @${entityAdminEscape(account.storeCode)}</option>`)].join('');
+    const statusChip = entry => entry.status === 'PENDING' ? ' <span class="status-chip warn">menunggu ACC</span>' : entry.status === 'REJECTED' ? ' <span class="status-chip off">ditolak</span>' : '';
+    const rows = data.entries.map(entry => `
+      <div class="master-row contact-row ${entry.status === 'REJECTED' ? 'inactive' : ''}">
+        <div class="master-main"><strong>${entityAdminEscape(entry.label)}</strong>${statusChip(entry)}
+          <div class="master-meta">${entityAdminEscape(entry.businessDate || '')} · ${entityAdminEscape(entry.storeCode || '-')}${entry.accountUsername ? ` · akun ${entityAdminEscape(entry.accountUsername)}` : ''}${entry.note ? ` · ${entityAdminEscape(entry.note)}` : ''}</div></div>
+        <div style="text-align:right"><strong>${entry.amountRupiah < 0 ? '−' : '+'}Rp${entityReportRupiah(Math.abs(entry.amountRupiah))}</strong><div class="master-meta">saldo Rp${entityReportRupiah(entry.balanceRupiah)}</div></div>
+      </div>`).join('') || '<div class="empty">Belum ada mutasi.</div>';
+    dialog.innerHTML = `
+      <div class="list-head"><div><h2 style="margin:0">${title} · ${entityAdminEscape(data.employee.fullName)}</h2>
+        <div class="muted">${balanceLabel}: <strong>Rp${entityReportRupiah(Math.abs(data.balanceRupiah))}</strong>${data.pendingRupiah ? ` · menunggu ACC Rp${entityReportRupiah(data.pendingRupiah)}` : ''}</div></div>
+        <button class="secondary-btn" type="button" data-ledger-close>Tutup</button></div>
+      <label class="admin-field" style="margin:10px 0">Akun kerja<select class="text-input" data-ledger-account>${options}</select>
+        <span class="field-note">Mutasi yang tidak menempel ke satu akun (mis. jurnal Akuntansi, pembayaran gaji per orang) hanya tampil di "Semua akun".</span></label>
+      <div class="master-list">${rows}</div>`;
+    dialog.querySelector('[data-ledger-close]').onclick = () => dialog.close();
+    dialog.querySelector('[data-ledger-account]').onchange = event => openEmployeeLedger(employeeId, kind, event.target.value);
+  } catch (error) {
+    dialog.innerHTML = `<div class="staff-message">${entityAdminEscape(error.message)}</div><button class="secondary-btn" type="button" onclick="this.closest('dialog').close()">Tutup</button>`;
+  }
 }
 
 // --- Laporan Net Profit Harian ---------------------------------------------

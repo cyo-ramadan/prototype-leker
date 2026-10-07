@@ -32,6 +32,15 @@
     const body = Object.prototype.hasOwnProperty.call(init, 'body') ? init.body : null;
     if (body instanceof FormData) headers.delete('Content-Type');
 
+    // Portal Staf Mode Lihat (2026-10-06): gerai dan akun yang sedang dilihat ikut di setiap panggilan
+    // API, supaya server tahu akun mana yang dibaca. Hanya kalau belum ada di URL panggilannya.
+    if (!request && isReadOnlyPreview && !localStorage.getItem('lekerCashierToken')) {
+      const page = new URLSearchParams(location.search);
+      for (const key of ['store', 'account']) {
+        if (page.get(key) && !url.searchParams.has(key)) url.searchParams.set(key, page.get(key));
+      }
+    }
+
     const nextInit = { ...init, headers };
     return request
       ? originalFetch(new Request(request, nextInit))

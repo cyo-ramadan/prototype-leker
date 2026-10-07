@@ -5,6 +5,13 @@
   let portal = null;
   let deposits = null;
   let depositManual = { rupiah: 0, entries: [] };
+  let depositTarget = null;
+  // Mode Lihat (Bos Cyo, 2026-10-06): Entity Admin/Admin Gerai melihat Portal Staf milik akun yang
+  // dipilih (?readonly=1&store=&account=). Semua tetap bisa dibaca; tombol yang menyimpan disembunyikan
+  // dan server menolak penyimpanan apa pun dari token manajemen.
+  const pageParams = new URLSearchParams(location.search);
+  const viewerMode = pageParams.get('readonly') === '1' && !localStorage.getItem('lekerCashierToken');
+  const viewerAccount = pageParams.get('account') || '';
   async function staffApi(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -381,7 +388,7 @@
       <div class="staff-metric-grid" style="margin-bottom:14px">
         <div class="staff-card" style="margin:0"><div class="muted">Yang harus disetor</div><h2 style="margin:5px 0">${money(totalSisa)}</h2></div>
         <div class="staff-card" style="margin:0"><div class="muted">Sudah dikirim, menunggu ACC Admin</div><h2 style="margin:5px 0">${money(totalMenunggu)}</h2></div>
-        <div class="staff-card" style="margin:0"><div class="muted">Caranya</div><div>1. Transfer ke rekening yang ditentukan kantor. 2. Foto bukti transfernya. 3. Isi di bawah lalu kirim. Piutangmu berkurang setelah Admin klik ACC.</div></div>
+        <div class="staff-card" style="margin:0"><div class="muted">Caranya</div><div>1. Transfer ke ${depositTarget?.name ? `<strong>${escapeHtml(depositTarget.name)}</strong>` : 'rekening yang ditentukan kantor'}. 2. Foto bukti transfernya. 3. Isi di bawah lalu kirim. Piutangmu berkurang setelah Admin klik ACC.</div></div>
       </div>`;
     if (!items.length) { target.innerHTML = `${ringkasan}<div class="staff-empty">Belum ada setoran. Setoran muncul otomatis setiap kali kamu tutup laci dan ada uang yang dibawa pulang.</div>`; return; }
     if (!terbuka.length) { target.innerHTML = `${ringkasan}<div class="staff-empty">Tidak ada yang perlu ditransfer sekarang. 👍${totalMenunggu ? ' Kiriman sebelumnya masih menunggu ACC Admin.' : ''}</div>`; return; }
@@ -482,7 +489,7 @@
             const redup = p.approvalStatus === 'rejected' ? 'opacity:.6' : '';
             const catatan = p.proofReference && p.proofReference !== 'Foto bukti transfer' ? ` · ${escapeHtml(p.proofReference.replace(/^Foto bukti transfer · /, ''))}` : '';
             return `<div class="attendance-row" style="${redup}">
-              <div><strong>Transfer setoran</strong>
+              <div><strong>${p.usedForAdminPayment ? 'Dipakai membayar (oleh Admin)' : p.sharedAccountName ? `Transfer setoran ke ${escapeHtml(p.sharedAccountName)}` : 'Transfer setoran'}</strong>
                 <div class="muted">Dikirim jam ${escapeHtml(jakartaClock(card.at))}${catatan}${p.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(utcIso(p.reviewedAt)))}` : ''}</div>
                 <div class="muted"><span style="font-weight:800;color:${warna}">${escapeHtml(approvalLabel[p.approvalStatus] || p.approvalStatus)}</span>${p.rejectionReason ? ` · <span style="color:#c2255c">Alasan ditolak: ${escapeHtml(p.rejectionReason)}</span>` : ''}</div></div>
               <div class="attendance-row-photos" style="align-items:center">${fotoSetoran(p)}<span style="color:${p.approvalStatus === 'approved' ? '#2f9e44' : '#555'}">−${money(card.amountRupiah)}</span></div></div>`;
@@ -491,8 +498,8 @@
     loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
-  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
-  async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
+  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
+  async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401 && !viewerMode) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }
   async function submitAttendance(type, blob, geo) {
@@ -534,8 +541,55 @@
       });
     });
   }
-  el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
-  el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
-  el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); });
+  async function setupViewer() {
+    el('staffLogoutBtn').classList.add('hidden');
+    const store = pageParams.get('store') || '';
+    const storeQuery = store ? `?store=${encodeURIComponent(store)}` : '';
+    // Tombol kembali ke panel asal (Logout tidak ada artinya di Mode Lihat).
+    const chip = el('staffLogoutBtn').parentElement;
+    const back = [
+      ['/branch-admin' + storeQuery, '← Admin Gerai', true],
+      ['/entity-admin', '← Entity Admin', Boolean(localStorage.getItem('lekerEntityAdminToken'))],
+      ['/owner', '← Owner', Boolean(localStorage.getItem('lekerOwnerToken'))]
+    ].filter(item => item[2]).map(([href, label]) => `<a class="secondary-btn" href="${href}" style="text-decoration:none;color:inherit" data-viewer-back>${label}</a>`).join('');
+    el('staffLogoutBtn').insertAdjacentHTML('beforebegin', back);
+    chip.querySelectorAll('[data-viewer-back]').forEach(link => link.addEventListener('click', () => window.lekerPrepareStaffHandoff?.()));
+    const bar = document.createElement('div');
+    bar.className = 'staff-card';
+    bar.innerHTML = `<div class="muted">Mode Lihat · semua tombol bisa dicoba seperti karyawan, tapi data tidak akan disimpan</div>
+      <div class="field" style="margin:8px 0 0"><label>Lihat Portal Staf akun</label><select id="staffViewerAccount" class="text-input"><option value="">Memuat daftar akun…</option></select></div>`;
+    document.querySelector('.staff-hero').after(bar);
+    try {
+      const { accounts } = await staffApi('/api/staff/viewer-accounts');
+      const select = el('staffViewerAccount');
+      const groups = new Map();
+      for (const account of accounts) {
+        const key = `${account.storeCode} · ${account.storeName}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(account);
+      }
+      select.innerHTML = `<option value="">Pilih akun…</option>${[...groups].map(([label, rows]) => `<optgroup label="${escapeHtml(label)}">${rows.map(row => `<option value="${escapeHtml(row.id)}" data-store="${escapeHtml(row.storeCode)}" ${row.id === viewerAccount ? 'selected' : ''}>${escapeHtml(row.employeeName || row.username)} (${escapeHtml(row.username)})${row.isActive ? '' : ' · nonaktif'}</option>`).join('')}</optgroup>`).join('')}`;
+      select.addEventListener('change', () => {
+        const option = select.selectedOptions[0];
+        if (!option?.value) return;
+        window.lekerPrepareStaffHandoff?.();
+        location.assign(`/staff?readonly=1&store=${encodeURIComponent(option.dataset.store)}&account=${encodeURIComponent(option.value)}`);
+      });
+    } catch (error) { el('staffViewerAccount').innerHTML = `<option value="">${escapeHtml(error.message)}</option>`; }
+  }
+
+  if (viewerMode) {
+    el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign(`/cashier?readonly=1${pageParams.get('store') ? `&store=${encodeURIComponent(pageParams.get('store'))}` : ''}`); });
+    el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
+    setupViewer();
+    if (!viewerAccount) {
+      el('attendanceList').innerHTML = '<div class="staff-empty">Pilih akun di atas untuk melihat Portal Staf-nya.</div>';
+      return;
+    }
+  } else {
+    el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
+    el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
+    el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); });
+  }
   bindTabs(); loadPortal(); loadDeposits(); loadDailyTasks(); loadManualBook(); loadAnnouncements();
 })();

@@ -332,6 +332,40 @@ async function resolvePaymentMethod(db, store, paymentMethod, sharedAccountId, d
   return { method, sharedAccount: null, deposit: null };
 }
 
+// Bos Cyo, 2026-10-06: "sediakan juga di jalur akuntansi hutang gaji bisa dibayar pake yang
+// lain misalkan piutang dari cs yang bawa setoran itu". Uang setoran yang masih dipegang CS
+// dipakai langsung membayar hutang (mis. gaji karyawan lain): piutang setoran CS itu berkurang,
+// hutangnya berkurang, jurnalnya Dr Utang / Cr 1202 Piutang Karyawan. Tidak ada uang yang lewat
+// Kas atau Rekening Bersama.
+//
+// Saldo per CS = setoran laci - setoran yang sudah di-ACC/dipakai (sama dengan tab Setoran CS).
+export async function listSetoranHolders(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT r.id, r.counterparty_id, r.counterparty_name_snapshot AS name, r.original_amount, r.entity_id, r.created_at,
+           COALESCE((SELECT SUM(p.amount) FROM operational_receivable_payable_payments p
+                     WHERE p.receivable_payable_id = r.id AND p.store_id = r.store_id AND p.approval_status = 'approved'), 0) AS paid
+    FROM operational_receivables_payables r
+    WHERE r.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT'
+    ORDER BY r.created_at, r.id
+  `).bind(storeId).all();
+  const holders = new Map();
+  for (const row of rows.results ?? []) {
+    const balanceScaled = Number(row.original_amount || 0) - Number(row.paid || 0);
+    const holder = holders.get(row.counterparty_id) || { employeeId: row.counterparty_id, name: row.name, balanceScaled: 0, receivables: [] };
+    holder.balanceScaled += balanceScaled;
+    holder.receivables.push({ id: row.id, entityId: row.entity_id, balanceScaled });
+    holders.set(row.counterparty_id, holder);
+  }
+  return [...holders.values()]
+    .map(holder => ({ ...holder, balanceRupiah: Math.floor(holder.balanceScaled / SCALE) }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), 'id'));
+}
+
+function publicSetoranHolders(holders) {
+  return holders.filter(holder => holder.balanceScaled > 0)
+    .map(holder => ({ employeeId: holder.employeeId, name: holder.name, balanceRupiah: holder.balanceRupiah }));
+}
+
 // Satu baris penarikan Deposit -- persis pola FIFO di payHutang, cuma
 // tabelnya (dan arahnya) sama: operational_receivable_payable_payments
 // tidak peduli PAYABLE/RECEIVABLE, tinggal ditandai admin_payment_id yang
@@ -359,7 +393,7 @@ function sharedLedgerStatement(db, { ledgerId, sharedAccount, store, direction, 
 
 // ----------------------------------------------------------- pembayaran ---
 
-export async function payHutang(db, { store, actor, accountKey, amountRupiah, paymentMethod, sharedAccountId, depositId, businessDate, note }) {
+export async function payHutang(db, { store, actor, accountKey, amountRupiah, paymentMethod, sharedAccountId, depositId, setoranEmployeeId, businessDate, note }) {
   const amount = amountInput(amountRupiah);
   if (!amount) throw domainError('Nominal bayar harus bilangan bulat rupiah lebih dari nol.', 'AMOUNT_INVALID');
   const summary = await buildHutangPiutangSummary(db, store.id);
@@ -372,12 +406,41 @@ export async function payHutang(db, { store, actor, accountKey, amountRupiah, pa
   if (!account) throw domainError('Hutang yang dipilih tidak ditemukan di gerai ini.', 'HUTANG_ACCOUNT_NOT_FOUND', 404);
   if (!account.payableByAdmin) throw domainError('Jenis ini tidak dilunasi dari layar Pembayaran Hutang (mis. piutang setoran laci punya alurnya sendiri).', 'HUTANG_ACCOUNT_NOT_PAYABLE', 409);
 
-  const { method, sharedAccount, deposit } = await resolvePaymentMethod(db, store, paymentMethod, sharedAccountId, depositId);
+  const viaSetoran = text(paymentMethod, 20).toUpperCase() === 'SETORAN';
+  let setoranHolder = null;
+  let method;
+  let sharedAccount = null;
+  let deposit = null;
+  if (viaSetoran) {
+    const holderId = text(setoranEmployeeId, 180);
+    if (!holderId) throw domainError('Pilih CS yang setorannya dipakai membayar.', 'SETORAN_HOLDER_REQUIRED');
+    setoranHolder = (await listSetoranHolders(db, store.id)).find(holder => holder.employeeId === holderId) || null;
+    if (!setoranHolder || setoranHolder.balanceScaled <= 0) throw domainError('CS ini tidak sedang memegang uang setoran.', 'SETORAN_HOLDER_EMPTY');
+    // Tidak bisa membayar lebih dari uang yang benar-benar dipegang CS itu.
+    if (amount * SCALE > setoranHolder.balanceScaled) throw domainError(`Nominal melebihi uang setoran yang dipegang ${setoranHolder.name}.`, 'SETORAN_AMOUNT_EXCEEDS_BALANCE');
+    method = 'DEPOSIT';
+  } else {
+    ({ method, sharedAccount, deposit } = await resolvePaymentMethod(db, store, paymentMethod, sharedAccountId, depositId));
+  }
   if (deposit && amount > deposit.balanceRupiah) throw domainError('Nominal melebihi saldo Deposit yang tersisa.', 'DEPOSIT_AMOUNT_EXCEEDS_BALANCE');
   const date = businessDateInput(businessDate) || getJakartaBusinessDate();
   const now = new Date().toISOString();
   const paymentId = `admpay_${crypto.randomUUID()}`;
-  const methodLabel = sharedAccount ? `Rekening Bersama ${sharedAccount.name}` : deposit ? depositMethodLabel(deposit) : PAYMENT_METHOD_LABELS[method];
+  const methodLabel = setoranHolder ? `Setoran CS ${setoranHolder.name}` : sharedAccount ? `Rekening Bersama ${sharedAccount.name}` : deposit ? depositMethodLabel(deposit) : PAYMENT_METHOD_LABELS[method];
+  // Setoran: admin_payments.deposit_id wajib terisi untuk cara bayar DEPOSIT (CHECK migration 0122) --
+  // diisi piutang setoran tertua yang ikut dipakai; rincian penarikannya ada di baris ORP-payment.
+  const setoranDraws = [];
+  if (setoranHolder) {
+    let remaining = amount * SCALE;
+    for (const receivable of setoranHolder.receivables) {
+      if (remaining <= 0) break;
+      if (receivable.balanceScaled <= 0) continue;
+      const take = Math.min(remaining, receivable.balanceScaled);
+      setoranDraws.push({ receivable, amountScaled: take });
+      remaining -= take;
+    }
+  }
+  const depositIdForRow = deposit?.id || setoranDraws[0]?.receivable.id || null;
   const noteText = text(note, 300);
   const statements = [];
 
@@ -398,9 +461,21 @@ export async function payHutang(db, { store, actor, accountKey, amountRupiah, pa
     ) VALUES (?, ?, ?, 'HUTANG', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     paymentId, store.id, store.entityId || null, account.account, person.counterpartyType, person.counterpartyId,
-    person.counterpartyName, amount, method, sharedAccount?.id || null, sharedLedgerId, deposit?.id || null, date, noteText,
+    person.counterpartyName, amount, method, sharedAccount?.id || null, sharedLedgerId, depositIdForRow, date, noteText,
     actor.role, actor.id, now
   ));
+  for (const draw of setoranDraws) {
+    statements.push(db.prepare(`
+      INSERT INTO operational_receivable_payable_payments (
+        id, receivable_payable_id, store_id, entity_id, amount, approval_status,
+        proof_reference, note, submitted_by, reviewed_by, reviewed_at, admin_payment_id
+      ) VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?, ?, ?)
+    `).bind(
+      newId('ORPP'), draw.receivable.id, store.id, draw.receivable.entityId, draw.amountScaled,
+      `Dipakai membayar ${account.label} · ${person.counterpartyName}`,
+      noteText, `${actor.role}:${actor.id}`, `${actor.role}:${actor.id}`, now, paymentId
+    ));
+  }
 
   const amountScaled = amount * SCALE;
   if (deposit) {
@@ -588,6 +663,8 @@ function mapPayment(row) {
     paymentMethod: row.payment_method,
     paymentMethodLabel: row.payment_method === 'REKBER'
       ? `Rekening Bersama ${row.shared_account_name || ''}`.trim()
+      : row.payment_method === 'DEPOSIT' && row.deposit_source_type === 'EMPLOYEE_DEPOSIT'
+        ? `Setoran CS ${row.deposit_counterparty_name || ''}`.trim()
       : row.payment_method === 'DEPOSIT'
         ? `Deposit ${depositLabel(row.deposit_source_type)} (${row.deposit_counterparty_name || ''})`.trim()
         : PAYMENT_METHOD_LABELS[row.payment_method],
@@ -806,11 +883,12 @@ export async function handleHutangPiutangApi(request, env, pathname) {
     }
 
     if (request.method === 'GET' && pathname === '/api/admin/hutang-piutang') {
-      const [summary, sharedAccounts, payments, deposits] = await Promise.all([
+      const [summary, sharedAccounts, payments, deposits, setoranHolders] = await Promise.all([
         buildHutangPiutangSummary(db, store.id),
         listSharedAccountsForPayment(db, store),
         listPayments(db, store.id, { limit: 100 }),
-        listOpenDeposits(db, store.id)
+        listOpenDeposits(db, store.id),
+        listSetoranHolders(db, store.id)
       ]);
       return json({
         store,
@@ -818,6 +896,7 @@ export async function handleHutangPiutangApi(request, env, pathname) {
         ...publicSummary(summary),
         sharedAccounts,
         deposits,
+        setoranHolders: publicSetoranHolders(setoranHolders),
         paymentMethods: Object.entries(PAYMENT_METHOD_LABELS).map(([code, label]) => ({ code, label })),
         payments
       });
@@ -833,12 +912,14 @@ export async function handleHutangPiutangApi(request, env, pathname) {
         paymentMethod: body.value?.paymentMethod,
         sharedAccountId: body.value?.sharedAccountId,
         depositId: body.value?.depositId,
+        setoranEmployeeId: body.value?.setoranEmployeeId,
         businessDate: body.value?.businessDate,
         note: body.value?.note
       });
       return json({
         ok: true, payment, ...publicSummary(await buildHutangPiutangSummary(db, store.id)),
-        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id)
+        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id),
+        setoranHolders: publicSetoranHolders(await listSetoranHolders(db, store.id))
       }, 201);
     }
 
@@ -905,7 +986,8 @@ export async function handleHutangPiutangApi(request, env, pathname) {
       });
       return json({
         ok: true, payment, ...publicSummary(await buildHutangPiutangSummary(db, store.id)),
-        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id)
+        sharedAccounts: await listSharedAccountsForPayment(db, store), deposits: await listOpenDeposits(db, store.id),
+        setoranHolders: publicSetoranHolders(await listSetoranHolders(db, store.id))
       });
     }
 

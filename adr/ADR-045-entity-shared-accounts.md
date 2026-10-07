@@ -151,6 +151,39 @@ real Accounting journal posting for GOODS_FLOW is untouched.
   `src/operational-posting.js`) -- one ACC either moves both the physical
   stock and the shared-account balance, or moves neither.
 
+## Addendum, 2026-10-06 -- Rekening Bersama sebagai cara bayar + setoran CS
+
+Bos Cyo (verbatim): "sekarang setiap gerai aktifkan rekening bersama, dan masukkan rekening
+bersama itu pilihan pembayaran baik di pemasukan maupun pengeluaran. termasuk ketikka cs mau
+setoran itu nanti setornya ke rekening bersama. piutang kredit, rekber debet. hutang2 gaji juga
+dibayar pakerekber. tapi sediakan juga di jalur akuntansi hutang gaji bisa dibayar pake yang lain
+misalkan piutang dari cs yang bawa setoran itu".
+
+- **Pasang di semua gerai** (`POST /api/entity/shared-accounts/:id/activate-stores`, tombol di
+  Entity Admin): tiap gerai aktif di entity dapat satu `payment_methods` (kode `REKBER`) yang
+  ditandai `shared_account_id` (point 5 di atas, ledger ikut bergerak) **dan** `account_id` = akun
+  1103 Rekening Bersama gerai itu (jurnal Akuntansi). Idempotent. Logikanya tinggal di
+  `src/business-settings.js` (pemilik payment method), bukan di modul ini, supaya modul ini tetap
+  tidak menyentuh `chart_of_accounts`. Cakupan tetap point 5: Penjualan/Beli Bahan/Pengeluaran
+  kasir; Arus Kas (point 6) tetap di luar.
+- **Setoran CS ke Rekening Bersama**: kiriman setoran mencatat tujuan (`operational_receivable_payable_payments.shared_account_id`,
+  migration 0139). Saat Admin ACC, dalam satu batch: status approved + baris IN ledger untuk gerai
+  itu (`source_type='EXPENSE'`, `source_kind='SETORAN_CS'`) + `shared_ledger_id`. Jurnalnya
+  Dr 1103 / Cr 1202. Kiriman lama tanpa tujuan tetap Dr 1101 Kas.
+- **source_kind**: CHECK `source_type` tidak dilebarkan (tabel ini sekarang dirujuk banyak FK;
+  rebuild di D1 produksi berisiko). Baris dari Admin memakai `EXPENSE` (preseden
+  `src/hutang-piutang.js`, termasuk arah IN untuk pembatalan) dan rinciannya di `source_kind`.
+  Perhitungan saldo tidak membaca `source_kind`.
+- **Bayar hutang dari setoran CS** (`paymentMethod: 'SETORAN'` di Pembayaran Hutang): uang yang
+  dipegang CS dipakai langsung membayar. Disimpan sebagai `admin_payments.payment_method='DEPOSIT'`
+  dengan `deposit_id` = piutang setoran tertua yang dipakai; penarikan FIFO di
+  `operational_receivable_payable_payments` (bertanda `admin_payment_id`, ikut dibalik `voidPayment`).
+  Jurnal `BAYAR_HUTANG`: Dr Utang / Cr 1202. Tidak boleh melebihi uang yang dipegang CS. Penarikan
+  ini dikecualikan dari jurnal ulang setoran (`postPendingEmployeeDepositJournals`).
+- Rekening Bersama ditaruh paling atas di pilihan cara bayar Pembayaran Hutang (default terpilih).
+
+Tests: `test/rekening-bersama-setoran.test.js`.
+
 ## Consequences
 
 - No existing table's meaning changes. No existing store's default composition

@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
+import { activateSharedAccountPaymentMethods } from './business-settings.js';
 
 // Bos Cyo, 2026-09-20: "central account shared per entity" -- Rekening
 // Bersama (mis. "Rekening Maxi Malang", atau akun informal seperti "Rekening
@@ -251,6 +252,54 @@ async function handleEntitySettingsRoutes(request, env, pathname, scope) {
     const account = await getAccount(env.DB, decodeURIComponent(viewMatch[1]));
     if (!account || account.entityId !== scope.entityId) return json({ error: 'Rekening Bersama tidak ditemukan.' }, 404);
     return json(await entityAccountView(env.DB, account));
+  }
+
+  const activateMatch = pathname.match(/^\/api\/entity\/shared-accounts\/([^/]+)\/activate-stores$/);
+  if (request.method === 'POST' && activateMatch) {
+    const account = await getAccount(env.DB, decodeURIComponent(activateMatch[1]));
+    if (!account || account.entityId !== scope.entityId) return json({ error: 'Rekening Bersama tidak ditemukan.' }, 404);
+    if (!account.isActive) return json({ error: 'Rekening Bersama ini nonaktif.' }, 400);
+    return json({ ok: true, stores: await activateSharedAccountPaymentMethods(env.DB, { entityId: scope.entityId, sharedAccount: account }) });
+  }
+
+  // Mutasi per gerai (Bos Cyo, 2026-10-06): dibuka lewat klik, 10 baris dulu, lalu "muat lagi".
+  // Gerai dari query WAJIB dicek satu entity dengan pemanggil -- ?storeId= bukan ?store=, jadi tidak
+  // ikut terkunci requireManagement (KNOWN_PITFALLS "parameter daftar gerai").
+  const ledgerMatch = pathname.match(/^\/api\/entity\/shared-accounts\/([^/]+)\/ledger$/);
+  if (request.method === 'GET' && ledgerMatch) {
+    const account = await getAccount(env.DB, decodeURIComponent(ledgerMatch[1]));
+    if (!account || account.entityId !== scope.entityId) return json({ error: 'Rekening Bersama tidak ditemukan.' }, 404);
+    const url = new URL(request.url);
+    const storeId = text(url.searchParams.get('storeId'), 120);
+    const store = storeId
+      ? await env.DB.prepare(`SELECT id FROM stores WHERE id = ? AND entity_id = ?`).bind(storeId, scope.entityId).first()
+      : null;
+    if (!store) return json({ error: 'Gerai tidak ditemukan di entity ini.' }, 404);
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 10, 1), 50);
+    const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
+    const rows = await env.DB.prepare(`
+      SELECT id, direction, amount, source_type, source_kind, source_id, note, created_by_role, created_at
+      FROM entity_shared_account_ledger
+      WHERE shared_account_id = ? AND store_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ? OFFSET ?
+    `).bind(account.id, store.id, limit + 1, offset).all();
+    const list = rows.results || [];
+    return json({
+      entries: list.slice(0, limit).map(row => ({
+        id: row.id,
+        direction: row.direction,
+        amount: Number(row.amount),
+        sourceType: row.source_type,
+        sourceKind: row.source_kind || '',
+        sourceId: row.source_id,
+        note: row.note || '',
+        createdByRole: row.created_by_role || '',
+        createdAt: row.created_at
+      })),
+      hasMore: list.length > limit,
+      nextOffset: offset + Math.min(list.length, limit)
+    });
   }
 
   const patchMatch = pathname.match(/^\/api\/entity\/shared-accounts\/([^/]+)$/);

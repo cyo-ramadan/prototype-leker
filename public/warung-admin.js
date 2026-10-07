@@ -41,7 +41,11 @@
 
   async function get(path) {
     const separator = path.includes('?') ? '&' : '?';
-    const response = await fetch(`${path}${separator}store=${encodeURIComponent(storeCode())}`, { cache: 'no-store' });
+    // /api/admin/* diberi token oleh branch-owner-auth.js, tapi /api/management/*
+    // tidak -- tanpa header ini pengajuan & permintaan hapus selalu 401 dan
+    // "Butuh keputusan" salah menulis "tidak ada" (ketemu 2026-10-06).
+    const token = localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken') || '';
+    const response = await fetch(`${path}${separator}store=${encodeURIComponent(storeCode())}`, { cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || 'Gagal memuat.');
     return payload;
@@ -67,7 +71,9 @@
       .th-card h2{margin:0 0 4px;font-size:18px}
       .th-need{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;border-radius:var(--skin-r,14px);background:var(--skin-warn-soft,#fef3c7);margin-top:8px}
       .th-need span{font-weight:700;min-width:0}
-      .th-need button{flex:0 0 auto}
+      .th-need{flex-wrap:wrap}
+      .th-need span{flex:1 1 160px}
+      .th-need button{flex:0 0 auto;width:auto;min-height:44px;padding:8px 18px}
       .th-ok{color:var(--green);font-weight:800;margin-top:6px}
       .th-line{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
       .th-line:first-of-type{border-top:0}
@@ -206,6 +212,11 @@
     [/^ID drawer_[0-9a-f-]+(?: · Shift )?/, ''],
     [/ · Pulang -$/, ' · masih jaga'],
     [/^Modal Rp/, 'Uang awal Rp'],
+    [/^PERMIT HAPUS · /, 'Minta hapus · '],
+    [/^pending_approval$/, 'Menunggu Anda'],
+    [/^rejected$/, 'Ditolak'],
+    [/^approved · EXECUTED.*$/, 'Disetujui'],
+    [/^Ref \S+ · ?/, ''],
     [/ · OPEN$/, ' · Buka'],
     [/ · CLOSED$/, ' · Tutup']
   ];

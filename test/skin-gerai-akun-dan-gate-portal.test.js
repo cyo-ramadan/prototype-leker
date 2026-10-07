@@ -74,16 +74,6 @@ test('pindah skin Warung/Racik saat Kasir terbuka langsung berlaku, dan tombol p
   assert.match(entry, /getElementById\('warungReturnBtn'\)\?\.remove\(\)/);
 });
 
-test('layar presensi menyediakan jalan ke Portal Staf tanpa presensi (setor uang)', () => {
-  const html = read('public/cashier.html');
-  const gateStart = html.indexOf('id="cashierPresensiGate"');
-  const gateEnd = html.indexOf('id="cashierDashboard"');
-  const gate = html.slice(gateStart, gateEnd);
-  assert.match(gate, /id="cashierGatePortalLink"[^>]*href="\/staff"/);
-  assert.match(gate, /tanpa presensi/);
-  assert.match(read('public/cashier-presensi-gate.js'), /cashierGatePortalLink[\s\S]*lekerPrepareStaffHandoff/);
-});
-
 test('Portal Staf tidak meminta presensi: setor uang bisa dikirim walau belum presensi', () => {
   const deposits = read('src/employee-deposit-settlement.js');
   const submit = deposits.slice(deposits.indexOf('const submitMatch'), deposits.indexOf('return json(result, 201)'));
@@ -104,5 +94,5 @@ test('file JS lama yang diubah mem-bump ?v= di semua HTML yang memuatnya', () =>
   }
   const cashier = read('public/cashier.html');
   assert.ok(cashier.includes('/warung-entry.js?v=20261007-skin-segar-v1'));
-  assert.ok(cashier.includes('/cashier-presensi-gate.js?v=20261007-gate-portal-staf-v1'));
+  assert.ok(cashier.includes('/cashier-presensi-gate.js?v=20261007-gate-kembali-v1'));
 });

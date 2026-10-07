@@ -278,6 +278,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-06 | Kasir / Panel Pemilik | Skin F: pemilik, admin, dan kasir disamakan -- langsung jual dan buka laci tanpa absen; Panel Pemilik dan Workspace Gerai punya tombol Jual, Beli bahan, Biaya operasional per gerai (transaksi tercatat atas nama pemilik) | UJI | Cocok untuk toko kecil yang pemiliknya ikut jaga; pengawasan absen karyawan mati di skin ini |
 | 2026-10-07 | Kasir / Tampilan | Pergantian skin oleh Owner kini sampai ke HP kasir yang masih terbuka (dicek ulang saat aplikasi dibuka kembali, bukan terus-menerus), dan halaman Kasir memakai skin gerai milik akun yang login -- bukan gerai tebakan dari alamat. |
 | 2026-10-07 | Kasir / Login / Portal Staf | Setelah login, kasir langsung mendarat di Portal Staf -- tidak wajib presensi dulu, dan setor uang bisa dikirim walau belum presensi. Entry lain (buka laci, jual, beli, biaya) tetap tertahan sampai presensi masuk. Skin E/F (tanpa presensi) tetap langsung ke Kasir. |
+| 2026-10-07 | Setoran CS / Entity Admin / Admin Gerai | Entity Admin punya tab "Setoran CS" (lencana jumlah antrean): semua setoran CS yang menunggu ACC di seluruh gerai ditampilkan dengan nominal, jam:menit (WIB), dan foto bukti transfer, lalu bisa di-ACC atau ditolak langsung dari sana. Tab Setoran CS di Admin Gerai juga diberi lencana antrean dan jam:menit persis. Tidak ada ACC otomatis. |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---

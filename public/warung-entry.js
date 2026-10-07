@@ -66,7 +66,15 @@
     } catch {}
   }
 
-  const start = () => Promise.resolve(window.MaxiSkin?.ready).then(check, check);
+  // Skin yang diganti Owner SAAT Kasir terbuka (ui-skin.js mengecek ulang tiap tab kembali aktif)
+  // juga harus langsung berlaku: pindah ke Warung/Racik, atau tombol pulangnya hilang.
+  function onSkinChange() {
+    // Skin diganti Owner ke yang bukan Warung/Racik: tombol pulangnya ikut hilang.
+    if (!['d', 'e', 'f'].includes(window.MaxiSkin?.skin?.())) document.getElementById('warungReturnBtn')?.remove();
+    return check();
+  }
+  const start = () => Promise.resolve(window.MaxiSkin?.ready).then(check, check)
+    .then(() => window.addEventListener('maxi-skin-change', onSkinChange));
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })();

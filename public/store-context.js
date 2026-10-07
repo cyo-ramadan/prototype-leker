@@ -19,7 +19,23 @@
     : '';
   const selected = pathStore || adminSessionStore || localStorage.getItem(rememberedKey) || 'G001';
 
-  window.LEKER_STORE_CODE = selected;
+  // Halaman kerja kasir (Kasir, Mode Warung, Racik) yang dibuka tanpa /s/:kode -- login selalu
+  // mengarahkan ke "/cashier" polos -- dulu jatuh ke gerai terakhir yang pernah dibuka di
+  // browser itu, atau G001. Akibatnya skin & alamat Mode Warung CS Mandala diambil dari tenant
+  // gerai lain (Bos Cyo, 2026-10-07: CS "nyantol" di skin lama). Untuk akun kasir yang sedang
+  // masuk, gerai milik AKUN-nyalah yang berlaku, bukan tebakan dari alamat.
+  const isCashierWorkPage = /^\/(?:s\/[^/]+\/)?(?:cashier|warung|racik)\/?$/.test(location.pathname);
+  let sessionStaffStore = '';
+  if (isCashierWorkPage) {
+    try {
+      if (localStorage.getItem('lekerCashierToken')) {
+        const meta = JSON.parse(localStorage.getItem('lekerStaffSessionMeta') || 'null');
+        if (meta?.role === 'CASHIER') sessionStaffStore = String(meta.storeCode || '').trim().toUpperCase();
+      }
+    } catch { /* penyimpanan tidak terbaca: pakai gerai dari alamat */ }
+  }
+
+  window.LEKER_STORE_CODE = sessionStaffStore || selected;
   // A bare "/" or "/customer" load (no /s/:code prefix -- bookmark, home-screen
   // shortcut, app reopen) has no path to read the store from. Remember the last
   // /s/:code page the browser actually visited so those entry points land back

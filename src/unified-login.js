@@ -3,6 +3,7 @@ import { resolveCustomerScope } from './customer-sharing.js';
 import { hashCredential } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { findEmployeeSessionConflict } from './employee-master.js';
+import { UI_SKIN_KEY, getTenantPolicyChoice, isAttendanceOptionalChoice, resolveTenantId } from './tenant-policy.js';
 
 const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
@@ -175,6 +176,23 @@ function staffSessionSpec(match) {
   return { table: 'cashier_sessions', idColumn: 'cashier_id', mapped: cashier, redirect: '/cashier', payloadKey: 'cashier' };
 }
 
+// Bos Cyo, 2026-10-07: "ketika login dia landing di portal staff (ga wajib harus presensi dulu) tapi
+// tetep dia ga bisa entry apapun sebelum dia presensi, hanya setor uang saja yang bisa". Kasir mendarat
+// di Portal Staf (presensi, setor uang, gaji); layar Kasir tetap menahan entry sampai presensi masuk,
+// dan server menolak buka laci tanpa presensi. Skin E/F tidak memakai presensi sama sekali -- mereka
+// langsung ke Kasir (yang meneruskan ke Warung/Racik) seperti sebelumnya. Gagal membaca kebijakan =
+// jalur lama (/cashier), karena itu yang selalu aman.
+async function cashierLandingPath(db, storeId) {
+  try {
+    const store = await db.prepare(`SELECT entity_id FROM stores WHERE id = ?`).bind(storeId).first();
+    const tenantId = await resolveTenantId(db, store?.entity_id);
+    const skinChoice = await getTenantPolicyChoice(db, tenantId, UI_SKIN_KEY);
+    return isAttendanceOptionalChoice(skinChoice) ? '/cashier' : '/staff';
+  } catch {
+    return '/cashier';
+  }
+}
+
 // Bos Cyo, 2026-09-18: "mau login juga kadang risih ada permintaan, mau pakai
 // sesi ini, padahal terakhir masih login. user udah mulai risih."
 //
@@ -229,6 +247,7 @@ async function createStaffSession(db, match) {
   }
 
   const spec = staffSessionSpec(match);
+  if (match.role === 'CASHIER') spec.redirect = await cashierLandingPath(db, match.row.store_id);
   await db.prepare(`DELETE FROM ${spec.table} WHERE expires_at <= ?`).bind(session.now).run();
   const tokenHash = await hashCredential(session.token);
   await db.prepare(`INSERT INTO ${spec.table} (token_hash, ${spec.idColumn}, created_at, expires_at) VALUES (?, ?, ?, ?)`)

@@ -5,6 +5,8 @@ import { getJakartaBusinessDate } from './time.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 import { newId } from './ikan-ids.js';
 import { getDepositForStore, listOpenDeposits, createDeposit, depositLabel } from './operational-deposits.js';
+import { accountingStoreIds, bukuPerOrang, saldoMenurutBuku } from './accounting-party-ledger.js';
+import { syncPeopleFacts } from './accounting-auto-sync.js';
 
 // Bos Cyo, 2026-09-26: "bea operasional itu kita bikin tombol kusus untuk
 // membuat hutang ... lalu kita bikin tombol lagi di sisi admin misal kita
@@ -190,7 +192,7 @@ async function loadGajiAccounts(db, storeId) {
     entryCount: Number(row.entry_count || 0),
     lastDate: row.last_date
   });
-  return [
+  const accounts = [
     ...(linked.results ?? []).map(row => map(row, { employeeId: row.employee_id, employeeName: row.full_name, unlinked: false })),
     ...(unlinked.results ?? []).map(row => map(row, {
       employeeId: null,
@@ -199,6 +201,46 @@ async function loadGajiAccounts(db, storeId) {
       unlinked: true
     }))
   ];
+
+  // ADR-054: sisa Hutang Gaji per orang = buku Akuntansi, termasuk koreksi akuntan (jurnal pada
+  // Hutang Gaji atas nama orang itu). Orang yang hanya punya koreksi akuntan ikut muncul. Fakta gaji
+  // yang belum terjurnal disambungkan dulu.
+  await syncPeopleFacts(db, [storeId]);
+  const [buku, accountingStores] = await Promise.all([
+    bukuPerOrang(db, { storeIds: [storeId], accountCode: '2102' }),
+    accountingStoreIds(db, [storeId])
+  ]);
+  const holderOf = gaji => gaji.employeeId
+    || (String(gaji.accountKey || '').startsWith('CASHIER:') ? `cashier:${gaji.accountKey.slice('CASHIER:'.length)}` : null);
+  const applyBook = (gaji, entry) => {
+    const saldo = saldoMenurutBuku({ operationalByStore: new Map([[storeId, gaji.balanceScaled]]), buku: entry, accountingStores });
+    gaji.adjustmentScaled = entry ? entry.netScaled : 0;
+    gaji.balanceScaled = saldo.balanceScaled;
+    gaji.belumMasukBukuScaled = saldo.belumMasukBukuScaled;
+    return gaji;
+  };
+  const seen = new Set();
+  for (const gaji of accounts) {
+    const holderId = holderOf(gaji);
+    if (holderId) seen.add(holderId);
+    applyBook(gaji, holderId ? buku.get(holderId) : null);
+  }
+  for (const [holderId, entry] of buku) {
+    if (seen.has(holderId) || (entry.bookScaled === 0 && entry.netScaled === 0)) continue;
+    const isAccount = holderId.startsWith('cashier:');
+    accounts.push(applyBook({
+      employeeId: isAccount ? null : holderId,
+      accountKey: isAccount ? `CASHIER:${holderId.slice('cashier:'.length)}` : undefined,
+      employeeName: isAccount ? `${entry.name} (akun kasir, belum ditautkan ke Master Karyawan)` : entry.name,
+      unlinked: isAccount,
+      createdScaled: 0,
+      paidScaled: 0,
+      balanceScaled: 0,
+      entryCount: 0,
+      lastDate: null
+    }, entry));
+  }
+  return accounts;
 }
 
 // Rekap per orang: satu orang bisa punya beberapa "akun" Hutang/Piutang
@@ -232,6 +274,8 @@ export async function buildHutangPiutangSummary(db, storeId) {
     account.createdScaled += gaji.createdScaled;
     account.paidScaled += gaji.paidScaled;
     account.balanceScaled += gaji.balanceScaled;
+    account.adjustmentScaled = (account.adjustmentScaled || 0) + (gaji.adjustmentScaled || 0);
+    account.belumMasukBukuScaled = (account.belumMasukBukuScaled || 0) + (gaji.belumMasukBukuScaled || 0);
     account.lastDate = gaji.lastDate;
     account.entryCount = gaji.entryCount;
   }
@@ -253,6 +297,8 @@ export async function buildHutangPiutangSummary(db, storeId) {
       createdRupiah: rupiah(account.createdScaled),
       paidRupiah: rupiah(account.paidScaled),
       balanceRupiah: rupiah(account.balanceScaled),
+      adjustmentRupiah: rupiah(account.adjustmentScaled || 0),
+      belumMasukBukuRupiah: rupiah(account.belumMasukBukuScaled || 0),
       payableByAdmin: account.balanceType === 'PAYABLE' && PAYABLE_BY_ADMIN.has(account.account) && !account.unlinked,
       unlinked: Boolean(account.unlinked),
       items: account.items.map(item => ({

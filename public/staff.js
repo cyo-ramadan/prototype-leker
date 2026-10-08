@@ -235,11 +235,14 @@
     const target = el('staffPayrollList'); if (!target) return;
     const payrollRows = portal?.payroll || [];
     const adjustmentRows = portal?.payrollAdjustments || [];
-    if (!payrollRows.length && !adjustmentRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
+    const journalRows = portal?.accountingPayrollAdjustments || [];
+    if (!payrollRows.length && !adjustmentRows.length && !journalRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
     for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule, checkInAt: row.checkInAt, checkOutAt: row.checkOutAt });
     for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: row.amountRupiah, reason: row.reason, voided: row.voided, voidReason: row.voidReason });
+    // Koreksi dari Akuntansi (jurnal pada Hutang Gaji atas nama karyawan ini, ADR-054).
+    for (const row of journalRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: row.description || 'Penyesuaian gaji', source: `Penyesuaian dari Akuntansi · Jurnal ${row.journalNumber}` });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
     const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
     target.innerHTML = `
@@ -250,7 +253,7 @@
           <div class="attendance-list">${cards.map(card => `
             <div class="attendance-row" style="${card.voided ? 'opacity:.6' : ''}">
               <div><strong>${card.kind === 'adjustment' ? escapeHtml(card.reason) : (card.paymentType === 'SESI' ? 'Per sesi' : `Per jam${card.hoursWorked != null ? ` · ${card.hoursWorked} jam` : ''}`)}</strong>
-                ${card.kind === 'adjustment' ? `<div class="muted">Penyesuaian dari Admin${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''}</div>` : `<div class="muted">Dari presensi · Datang ${card.checkInAt ? escapeHtml(clockTime(card.checkInAt)) : '-'} · Pulang ${card.checkOutAt ? escapeHtml(clockTime(card.checkOutAt)) : '-'}${card.withinSchedule === false ? ' · <span style="color:#c2255c">Di luar jadwal, tidak dihitung</span>' : ''}</div>`}</div>
+                ${card.kind === 'adjustment' ? `<div class="muted">${escapeHtml(card.source || 'Penyesuaian dari Admin')}${card.voided ? ` · <span style="color:#c2255c">Dibatalkan: ${escapeHtml(card.voidReason)}</span>` : ''}</div>` : `<div class="muted">Dari presensi · Datang ${card.checkInAt ? escapeHtml(clockTime(card.checkInAt)) : '-'} · Pulang ${card.checkOutAt ? escapeHtml(clockTime(card.checkOutAt)) : '-'}${card.withinSchedule === false ? ' · <span style="color:#c2255c">Di luar jadwal, tidak dihitung</span>' : ''}</div>`}</div>
               <span style="${card.amountRupiah < 0 ? 'color:#c2255c' : ''}">${card.amountRupiah < 0 ? '-' : ''}${money(Math.abs(card.amountRupiah))}</span>
             </div>`).join('')}</div></div>`;
       }).join('')}`;
@@ -520,10 +523,14 @@
     // Penyesuaian dari jurnal Akuntansi (atas nama karyawan ini): + menambah piutang, - mengurangi.
     for (const entry of manualEntries) pushCard(entry.businessDate, { kind: 'jurnal', at: `${entry.businessDate}T00:00:00.000Z`, entry });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
-    const totalSisa = items.reduce((n, item) => n + Number(item.balanceRupiah || 0), 0) + Number(depositManual.rupiah || 0);
+    // Total = saldo menurut buku Akuntansi (ADR-054); server lama tanpa saldoBuku -> hitung dari kartu.
+    const totalSisa = depositManual.saldoBuku != null
+      ? Number(depositManual.saldoBuku)
+      : items.reduce((n, item) => n + Number(item.balanceRupiah || 0), 0) + Number(depositManual.rupiah || 0);
     const totalMenunggu = items.reduce((n, item) => n + pendingSetoran(item), 0);
+    const belumMasukBuku = Number(depositManual.belumMasukBuku || 0);
     target.innerHTML = `
-      <div class="staff-card" style="margin-bottom:12px"><div class="muted">Sisa piutang setoran</div><h2 style="margin:5px 0">${money(totalSisa)}</h2>${totalMenunggu ? `<div class="muted">${money(totalMenunggu)} sedang menunggu ACC Admin</div>` : ''}</div>
+      <div class="staff-card" style="margin-bottom:12px"><div class="muted">Sisa piutang setoran</div><h2 style="margin:5px 0">${money(totalSisa)}</h2>${totalMenunggu ? `<div class="muted">${money(totalMenunggu)} sedang menunggu ACC Admin</div>` : ''}${belumMasukBuku ? `<div class="muted">${money(Math.abs(belumMasukBuku))} belum masuk pembukuan, Admin perlu menyambungkannya</div>` : ''}</div>
       ${dates.map(date => {
         const cards = cardsByDate.get(date).sort((a, b) => (a.at < b.at ? 1 : -1));
         return `<div style="margin-bottom:10px"><div class="muted" style="margin-bottom:4px">${escapeHtml(date)}</div>
@@ -553,7 +560,7 @@
     loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
-  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [] }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
+  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [], saldoBuku: payload.saldoBukuRupiah ?? null, belumMasukBuku: payload.belumMasukBukuRupiah || 0 }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
   async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401 && !viewerMode) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }

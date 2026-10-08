@@ -140,9 +140,39 @@ function twoLines(debitAccountId, creditAccountId, amountScaled, debitLabel, cre
   ];
 }
 
+// ADR-054: baris jurnal pada akun Hutang/Piutang bernama membawa "atas nama siapa", supaya
+// saldo per orang (Riwayat Gaji, Hutang Piutang) dibaca dari buku. counterparty dari fakta
+// operasional: EMPLOYEE -> id karyawan, SUPPLIER -> id pemasok, OTHER -> nama saja.
+function partyOf(type, id, name) {
+  const cleanName = text(name, 120);
+  if (cleanName.length < 2) return null;
+  const kind = text(type, 20).toUpperCase();
+  if (kind === 'EMPLOYEE' && id) return { type: 'EMPLOYEE', employeeId: id, name: cleanName };
+  if (kind === 'SUPPLIER' && id) return { type: 'SUPPLIER', supplierId: id, name: cleanName };
+  return { type: 'OTHER', name: cleanName };
+}
+
+async function employeeParty(db, employeeId) {
+  if (!employeeId) return null;
+  const row = await db.prepare('SELECT full_name FROM employees WHERE id = ? LIMIT 1').bind(employeeId).first();
+  return partyOf('EMPLOYEE', employeeId, row?.full_name);
+}
+
+// Pemegang akun kasir yang belum ditautkan ke Master Karyawan: `cashier:<id>`, konvensi yang sama
+// dengan piutang setoran (accounting-party-ledger.js).
+async function accountHolderParty(db, accountType, accountId) {
+  if (accountType !== 'CASHIER' || !accountId) return null;
+  const row = await db.prepare('SELECT employee_name, username FROM cashiers WHERE id = ? LIMIT 1').bind(accountId).first();
+  return partyOf('EMPLOYEE', `cashier:${accountId}`, row?.employee_name || row?.username);
+}
+
+function withParty(lines, accountId, party) {
+  return party ? lines.map(line => (line.accountId === accountId ? { ...line, party } : line)) : lines;
+}
+
 async function buildBea(db, expenseId) {
   const row = await db.prepare(`
-    SELECT id, store_id, category, description, amount, business_date, settlement, payment_method, voided_at
+    SELECT id, store_id, category, employee_id, description, amount, business_date, settlement, payment_method, voided_at
     FROM admin_operational_expenses WHERE id = ? LIMIT 1
   `).bind(expenseId).first();
   if (!row) return { skip: true };
@@ -168,20 +198,33 @@ async function buildBea(db, expenseId) {
   const amountScaled = rupiahToScaled(row.amount);
   if (!amountScaled) return { ...base, failure: failed('AMOUNT_INVALID', 'Nominal Bea tidak valid.') };
   const label = BEA_LABEL[row.category];
+  const lines = twoLines(
+    accounts.debitAccountId, creditAccountId, amountScaled, label,
+    settledNow ? `Dibayar · ${METHOD_LABEL[row.payment_method] || row.payment_method}` : `Utang · ${label}`
+  );
+  // Utang yang lahir dari Bea dicatat atas nama orangnya: Bea Gaji -> karyawan, Bea Lapak/Lainnya
+  // -> pihak yang dihutangi (piutang/hutang operasionalnya).
+  let party = null;
+  if (!settledNow && row.category === 'BEA_GAJI') party = await employeeParty(db, row.employee_id);
+  if (!settledNow && row.category !== 'BEA_GAJI') {
+    const payable = await db.prepare(`
+      SELECT counterparty_type, counterparty_id, counterparty_name_snapshot
+      FROM operational_receivables_payables WHERE store_id = ? AND source_type = ? AND source_id = ? LIMIT 1
+    `).bind(row.store_id, row.category, row.id).first();
+    if (payable) party = partyOf(payable.counterparty_type, payable.counterparty_id, payable.counterparty_name_snapshot);
+  }
   return {
     ...base,
     businessDate: row.business_date,
     description: `${label} · ${text(row.description, 200)}`,
-    lines: twoLines(
-      accounts.debitAccountId, creditAccountId, amountScaled, label,
-      settledNow ? `Dibayar · ${METHOD_LABEL[row.payment_method] || row.payment_method}` : `Utang · ${label}`
-    )
+    lines: withParty(lines, creditAccountId, party)
   };
 }
 
 async function buildGajiPresensi(db, entryId) {
   const row = await db.prepare(`
-    SELECT id, store_id, business_date, entry_type, beban_gaji_delta_scaled, description, voided_at
+    SELECT id, store_id, business_date, entry_type, beban_gaji_delta_scaled, description, voided_at,
+           employee_id, account_type, account_id
     FROM payroll_ledger_entries WHERE id = ? LIMIT 1
   `).bind(entryId).first();
   if (!row || row.entry_type !== 'ACCRUAL' || row.voided_at) return { skip: true };
@@ -191,19 +234,25 @@ async function buildGajiPresensi(db, entryId) {
   const accounts = await categoryAccounts(db, row.store_id, 'admin_gaji');
   if (!accounts) return { ...base, failure: needs('NEEDS_TRANSACTION_MAPPING', 'Jenis transaksi admin_gaji belum aktif di Setting Akuntansi.') };
   if (!accounts.debitAccountId || !accounts.creditAccountId) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', 'Akun Beban Gaji / Utang Gaji belum aktif.') };
+  const party = row.employee_id
+    ? await employeeParty(db, row.employee_id)
+    : await accountHolderParty(db, row.account_type, row.account_id);
   return {
     ...base,
     businessDate: row.business_date,
     description: text(row.description, 200) || 'Gaji presensi',
-    lines: twoLines(accounts.debitAccountId, accounts.creditAccountId, amountScaled, 'Beban Gaji presensi', 'Utang Gaji')
+    lines: withParty(
+      twoLines(accounts.debitAccountId, accounts.creditAccountId, amountScaled, 'Beban Gaji presensi', 'Utang Gaji'),
+      accounts.creditAccountId, party
+    )
   };
 }
 
 async function buildBayarHutang(db, paymentId) {
   const row = await db.prepare(`
-    SELECT ap.id, ap.store_id, ap.kind, ap.hutang_account, ap.counterparty_name, ap.amount, ap.payment_method,
-           ap.business_date, ap.voided_at, dep.source_type AS deposit_source_type,
-           dep.counterparty_name_snapshot AS deposit_holder
+    SELECT ap.id, ap.store_id, ap.kind, ap.hutang_account, ap.counterparty_type, ap.counterparty_id, ap.counterparty_name,
+           ap.amount, ap.payment_method, ap.business_date, ap.voided_at, dep.source_type AS deposit_source_type,
+           dep.counterparty_id AS deposit_holder_id, dep.counterparty_name_snapshot AS deposit_holder
     FROM admin_payments ap
     LEFT JOIN operational_receivables_payables dep ON dep.id = ap.deposit_id AND dep.store_id = ap.store_id
     WHERE ap.id = ? LIMIT 1
@@ -248,13 +297,23 @@ async function buildBayarHutang(db, paymentId) {
   }
 
   const who = text(row.counterparty_name, 120);
+  // Utang yang dilunasi milik pihak yang dibayar; kalau dibayar dari setoran CS, Piutang Karyawan
+  // yang berkurang milik CS pemegang setoran itu.
+  const creditor = partyOf(row.counterparty_type, row.counterparty_id, row.counterparty_name);
+  const holder = fromSetoran ? partyOf('EMPLOYEE', row.deposit_holder_id, row.deposit_holder) : null;
   return {
     ...base,
     businessDate: row.business_date,
     description: `Pelunasan hutang${who ? ` · ${who}` : ''}`,
     lines: [
-      ...[...debits].map(([accountId, amountScaled]) => ({ accountId, side: 'DEBIT', amountScaled, description: `Utang berkurang${who ? ` · ${who}` : ''}` })),
-      { accountId: creditAccountId, side: 'CREDIT', amountScaled: totalScaled, description: fromSetoran ? `Dibayar dari setoran CS · ${text(row.deposit_holder, 120)}` : `Dibayar · ${METHOD_LABEL[row.payment_method] || row.payment_method}` }
+      ...[...debits].map(([accountId, amountScaled]) => ({
+        accountId, side: 'DEBIT', amountScaled, description: `Utang berkurang${who ? ` · ${who}` : ''}`, party: creditor
+      })),
+      {
+        accountId: creditAccountId, side: 'CREDIT', amountScaled: totalScaled,
+        description: fromSetoran ? `Dibayar dari setoran CS · ${text(row.deposit_holder, 120)}` : `Dibayar · ${METHOD_LABEL[row.payment_method] || row.payment_method}`,
+        party: holder
+      }
     ]
   };
 }
@@ -397,6 +456,29 @@ export async function countPendingAdminFacts(db, storeId) {
   return Number(row?.count || 0);
 }
 
+// ADR-054: fakta admin yang sudah dibatalkan di Operasional tetapi jurnal aslinya masih POSTED dan
+// belum ada pembaliknya. Normalnya pembalik dibuat saat pembatalan (attachAdminAccountingToCommittedResponse);
+// daftar ini menangkap yang terlewat supaya saldo per orang di buku ikut batal.
+export async function pendingAdminReversals(db, storeId, limit = 25) {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25));
+  const rows = await db.prepare(`
+    SELECT d.fact_type, d.fact_id FROM accounting_bridge_deliveries d
+    WHERE d.store_id = ? AND d.producer_module = 'ADMIN' AND d.status = 'POSTED' AND d.journal_id IS NOT NULL
+      AND d.fact_type IN ('BEA', 'BAYAR_HUTANG')
+      AND (
+        (d.fact_type = 'BEA' AND EXISTS (SELECT 1 FROM admin_operational_expenses e WHERE e.id = d.fact_id AND e.voided_at IS NOT NULL))
+        OR (d.fact_type = 'BAYAR_HUTANG' AND EXISTS (SELECT 1 FROM admin_payments a WHERE a.id = d.fact_id AND a.voided_at IS NOT NULL))
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM accounting_bridge_deliveries v
+        WHERE v.store_id = d.store_id AND v.producer_module = 'ADMIN' AND v.fact_type = d.fact_type || '_VOID'
+          AND v.fact_id = d.fact_id AND v.status = 'POSTED'
+      )
+    ORDER BY d.updated_at LIMIT ?
+  `).bind(storeId, safeLimit).all();
+  return rows.results ?? [];
+}
+
 // ------------------------------------------------------------- dispatch ---
 
 export async function dispatchAdminAccountingFact(db, factType, factId) {
@@ -427,7 +509,8 @@ export async function dispatchAdminAccountingFact(db, factType, factId) {
       correlationId: id,
       idempotencyKey: `${SOURCE_SYSTEM}:${type}:${id}`,
       description: built.description,
-      journalLines: built.lines
+      journalLines: built.lines,
+      lineParties: built.lines.map(line => line.party || null)
     });
   } catch (error) {
     const value = failed('ACCOUNTING_POST_FAILED', text(error?.message || error, 500));

@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { pasangJurnalWajib } from './gerai-jurnal-wajib.js';
 import { listStores, normalizeStoreCode, resolveStore } from './stores.js';
 import { secureTokenEqual } from './debugger-control-plane.js';
 import { TENANT_POLICY_DEFINITIONS, listTenantPolicySettings, setTenantPolicySetting } from './tenant-policy.js';
@@ -521,6 +522,8 @@ export async function handleOwnerApi(request, env, pathname) {
       INSERT INTO stores (id, code, store_name, address, logo_data, is_active, entity_id)
       VALUES (?, ?, ?, ?, '', 1, ?)
     `).bind(id, code, storeName, address, entityId).run();
+    // ADR-054: akun & aturan jurnal wajib terpasang sejak gerai lahir.
+    await pasangJurnalWajib(db, id);
     return json({ ok: true, store: await resolveStore(db, id, { includeInactive: true }) }, 201);
   }
 

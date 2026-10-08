@@ -122,11 +122,21 @@ test('mutasi manual 1202 masuk saldo setoran karyawan (panel Admin) dan pilihan 
       ], { sourceReferenceId: `ref_${side}` }));
       assert.equal(res.status, 201, await res.clone().text());
     }
+    // ADR-054: saldo = buku. Setoran laci yang jurnalnya tidak bisa dibuat (akun Kas nonaktif) tidak
+    // diam-diam dijumlahkan -- tampil sebagai "belum masuk pembukuan".
+    db.prepare(`UPDATE chart_of_accounts SET is_active = 0 WHERE store_id = 'store_pendem' AND code = '1101'`).run();
+    const sebelum = (await (await call(env, '/api/admin/employee-deposits/overview')).json()).balances.find(row => row.employeeName === 'Sari');
+    assert.equal(sebelum.balanceRupiah, 20000);
+    assert.equal(sebelum.belumMasukBukuRupiah, 100000);
+
+    // Setelan dibetulkan: membuka panel menyambungkan setoran itu ke buku dengan sendirinya.
+    db.prepare(`UPDATE chart_of_accounts SET is_active = 1 WHERE store_id = 'store_pendem' AND code = '1101'`).run();
     const overview = await (await call(env, '/api/admin/employee-deposits/overview')).json();
     const sari = overview.balances.find(row => row.employeeName === 'Sari');
     assert.equal(sari.originalAmountRupiah, 100000);
-    assert.equal(sari.manualAdjustmentRupiah, 20000);
+    assert.equal(sari.manualAdjustmentRupiah, 20000, 'jurnal setoran otomatis yang kini bernama tidak terhitung dua kali');
     assert.equal(sari.balanceRupiah, 120000);
+    assert.equal(sari.belumMasukBukuRupiah, 0);
     assert.equal(sari.manualEntries.length, 2);
   } finally { db.close(); }
 });

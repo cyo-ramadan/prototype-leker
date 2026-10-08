@@ -383,6 +383,71 @@ export async function getAccountingJournal(db, storeId, journalId) {
   };
 }
 
+// ADR-054 (Bos Cyo, 2026-10-08): "output program wajib masuk akuntansi, data akuntansi itulah yang
+// ditampilkan di semua data tentang keuangan". Supaya saldo per orang (Hutang Gaji, Piutang setoran)
+// bisa dibaca dari buku, baris jurnal pada akun bernama membawa label "atas nama siapa"
+// (accounting_party_entries, migration 0138). Label hanya MENAMBAH keterangan pada baris jurnal --
+// jurnal posted tidak diubah (invariant #2) -- dan ditulis dalam batch yang sama dengan jurnalnya.
+// parties sejajar dengan lines; null = baris itu tanpa label.
+const PARTY_TYPES = new Set(['EMPLOYEE', 'SUPPLIER', 'OTHER']);
+
+function normalizeParty(party) {
+  if (!party || typeof party !== 'object') return null;
+  const type = text(party.type, 20).toUpperCase();
+  const name = text(party.name, 120);
+  if (!PARTY_TYPES.has(type) || name.length < 2) return null;
+  return {
+    type,
+    employeeId: text(party.employeeId, 180) || null,
+    supplierId: text(party.supplierId, 180) || null,
+    name
+  };
+}
+
+export function journalPartyStatements(db, { storeId, entityId = null, journalId, businessDate, lines }, parties, actor = {}) {
+  const statements = [];
+  lines.forEach((line, index) => {
+    const party = normalizeParty(parties?.[index]);
+    if (!party) return;
+    const lineId = `${journalId}:L${String(index + 1).padStart(3, '0')}`;
+    statements.push(db.prepare(`
+      INSERT INTO accounting_party_entries (
+        id, store_id, entity_id, journal_id, journal_line_id, account_id, account_code,
+        party_type, employee_id, supplier_id, party_name, side, amount_scaled,
+        business_date, description, created_by_role, created_by_id, created_at
+      ) VALUES (?, ?, COALESCE(?, (SELECT entity_id FROM stores WHERE id = ?)), ?, ?, ?,
+                (SELECT code FROM chart_of_accounts WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      `party_${lineId}`, storeId, entityId, storeId, journalId, lineId, line.accountId, line.accountId,
+      party.type, party.employeeId, party.supplierId, party.name, line.side, line.amountScaled,
+      businessDate, text(line.description, 240), text(actor.role, 40), text(actor.id, 180), new Date().toISOString()
+    ));
+  });
+  return statements;
+}
+
+// Jurnal pembalik mewarisi nama dari baris jurnal aslinya (baris yang dibalik persis), supaya
+// pembatalan gaji/setoran ikut mengurangi saldo orang yang sama tanpa tiap pemanggil mengingatnya.
+async function inheritedReversalParties(db, storeId, original, lines) {
+  const rows = await db.prepare(`
+    SELECT journal_line_id, party_type, employee_id, supplier_id, party_name
+    FROM accounting_party_entries WHERE store_id = ? AND journal_id = ?
+  `).bind(storeId, original.journalId).all();
+  const byLine = new Map((rows.results ?? []).map(row => [row.journal_line_id, row]));
+  if (!byLine.size) return [];
+  return lines.map((line, index) => {
+    const source = original.lines[index];
+    const label = source ? byLine.get(source.journalLineId) : null;
+    const reversed = label
+      && source.accountId === line.accountId
+      && source.amountScaled === line.amountScaled
+      && source.side !== line.side;
+    return reversed
+      ? { type: label.party_type, employeeId: label.employee_id, supplierId: label.supplier_id, name: label.party_name }
+      : null;
+  });
+}
+
 export async function postAccountingJournal(db, store, command) {
   const businessDate = validateBusinessDate(command?.businessDate);
   const sourceSystem = text(command?.sourceSystem, 60).toUpperCase();
@@ -453,9 +518,13 @@ export async function postAccountingJournal(db, store, command) {
   const occurredAt = text(command?.occurredAt, 40) || new Date().toISOString();
   const postedAt = new Date().toISOString();
   const reversalOfJournalId = text(command?.reversalOfJournalId, 180) || null;
+  let lineParties = Array.isArray(command?.lineParties) ? command.lineParties : [];
   if (reversalOfJournalId) {
     const original = await getAccountingJournal(db, store.id, reversalOfJournalId);
     if (!original) return { ok: false, status: 400, code: 'REVERSAL_SOURCE_NOT_FOUND', error: 'Jurnal sumber reversal tidak ditemukan.' };
+    if (!lineParties.some(Boolean) && typeof command?.extraStatements !== 'function') {
+      lineParties = await inheritedReversalParties(db, store.id, original, checked.lines);
+    }
     checked.lines.forEach((line, index) => {
       const sourceLine = original.lines[index];
       const exactCopy = sourceLine
@@ -503,6 +572,11 @@ export async function postAccountingJournal(db, store, command) {
       store.id
     ));
   });
+  if (lineParties.some(Boolean)) {
+    statements.push(...journalPartyStatements(db, {
+      storeId: store.id, entityId: store.entityId ?? null, journalId, businessDate, lines: checked.lines
+    }, lineParties, { role: 'SYSTEM', id: sourceSystem }));
+  }
   // Statement tambahan milik pemanggil (mis. sub-buku nama pihak, migration 0138) ikut batch yang sama
   // supaya jurnal dan labelnya tersimpan atomik.
   if (typeof command?.extraStatements === 'function') {

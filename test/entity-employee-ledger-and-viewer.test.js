@@ -64,6 +64,12 @@ async function setup() {
            ('acc_2', NULL, 'CASHIER', 'kasir_sari_o', ?, '2026-10-05', 'ACCRUAL', 30000000000, 30000000000, 'ATTENDANCE', 'att_2', 'Presensi'),
            ('pay_1', 'emp_sari', NULL, NULL, 'store_pendem', '2026-10-06', 'PAYMENT', -60000000000, 0, 'BEA_OPERASIONAL', 'admpay_x', 'Pelunasan')
   `).run(other.id);
+  // Pelunasan gaji selalu lahir bersama baris pembayarannya (src/hutang-piutang.js) -- itu yang dijurnal
+  // ke buku (ADR-054: saldo per orang dibaca dari buku).
+  db.prepare(`
+    INSERT INTO admin_payments (id, store_id, entity_id, kind, hutang_account, counterparty_type, counterparty_id, counterparty_name, amount, payment_method, business_date, note, created_by_role, created_by_id, created_at)
+    VALUES ('admpay_x', 'store_pendem', 'ENT-KPM', 'HUTANG', 'GAJI', 'EMPLOYEE', 'emp_sari', 'Sari', 60000, 'KAS', '2026-10-06', '', 'ADMIN', 'admin', '2026-10-06T03:00:00.000Z')
+  `).run();
   return { db, env: { DB: new D1Database(db) }, other };
 }
 

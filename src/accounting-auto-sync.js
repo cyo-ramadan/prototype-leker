@@ -1,5 +1,5 @@
 import { activePendingPosFacts, dispatchPosAccountingFact } from './accounting-pos-bridge.js';
-import { dispatchAdminAccountingFact, pendingAdminFacts } from './accounting-admin-bridge.js';
+import { dispatchAdminAccountingFact, pendingAdminFacts, pendingAdminReversals, reverseAdminAccountingFact } from './accounting-admin-bridge.js';
 import { postPendingHppCorrections, reverseHppCorrectionsOfVoidedSales } from './hpp-recalculation.js';
 import { postPendingEmployeeDepositJournals } from './employee-deposit-settlement.js';
 
@@ -78,6 +78,42 @@ export async function autoSyncAccounting(db, stores, { now = new Date() } = {}) 
       results.push(...await syncStoreAccounting(db, store, { limit: AUTO_SYNC_LIMIT, cooldownMinutes: AUTO_SYNC_COOLDOWN_MINUTES, now }));
     } catch (error) {
       console.warn('auto-sync akuntansi gagal', store.code, error?.message);
+    }
+  }
+  return results;
+}
+
+// ADR-054: riwayat & saldo per orang (gaji, setoran) dibaca dari buku. Sebelum dibaca, fakta gaji/
+// setoran/pelunasan yang belum terjurnal di gerai itu disambungkan dulu -- lazy saat riwayat dibuka,
+// tanpa cron/polling, dengan cooldown yang sama supaya yang macet karena setelan tidak diulang terus.
+// Tidak pernah menggagalkan pembacanya.
+export async function syncPeopleFacts(db, storeIds, { now = new Date() } = {}) {
+  const ids = [...new Set((storeIds || []).filter(Boolean))];
+  if (!ids.length) return [];
+  const since = new Date(now.getTime() - AUTO_SYNC_COOLDOWN_MINUTES * 60_000).toISOString();
+  const editions = await db.prepare(`SELECT id FROM stores WHERE edition = 'ACCOUNTING' AND id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+  const results = [];
+  for (const { id: storeId } of editions.results ?? []) {
+    try {
+      const adminRows = (await pendingAdminFacts(db, storeId, AUTO_SYNC_LIMIT))
+        .filter(row => ['GAJI_PRESENSI', 'BEA', 'BAYAR_HUTANG'].includes(row.fact_type));
+      const adminSkip = await recentlyAttempted(db, storeId, 'ADMIN', adminRows, since);
+      for (const row of adminRows) {
+        if (adminSkip.has(`${row.fact_type}:${row.fact_id}`)) continue;
+        const result = await dispatchAdminAccountingFact(db, row.fact_type, row.fact_id);
+        results.push({ factType: row.fact_type, factId: row.fact_id, status: result.status });
+      }
+      // Fakta yang sudah dibatalkan tapi jurnalnya belum dibalik (pembatalan lewat jalur yang tidak
+      // memicu jembatan, atau pembalik yang gagal): dibalik sekarang supaya buku ikut batal.
+      for (const row of await pendingAdminReversals(db, storeId, AUTO_SYNC_LIMIT)) {
+        const result = await reverseAdminAccountingFact(db, row.fact_type, row.fact_id, 'Sinkron pembatalan');
+        results.push({ factType: `${row.fact_type}_VOID`, factId: row.fact_id, status: result.status });
+      }
+      for (const row of await postPendingEmployeeDepositJournals(db, storeId, AUTO_SYNC_LIMIT)) {
+        results.push({ factType: row.factType, factId: row.factId, status: row.status });
+      }
+    } catch (error) {
+      console.warn('sinkron fakta per orang gagal', storeId, error?.message);
     }
   }
   return results;

@@ -103,6 +103,7 @@ function mapLedgerRow(row) {
     storeCode: row.store_code || '',
     businessDate: row.business_date,
     hutangGajiDeltaRupiah: Number(row.hutang_gaji_delta_scaled) / WAGE_SCALE,
+    hutangGajiDeltaScaled: Number(row.hutang_gaji_delta_scaled),
     bebanGajiDeltaRupiah: Number(row.beban_gaji_delta_scaled) / WAGE_SCALE,
     sourceType: row.source_type,
     sourceId: row.source_id,

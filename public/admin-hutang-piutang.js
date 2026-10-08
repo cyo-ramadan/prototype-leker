@@ -353,7 +353,7 @@
             </summary>
             ${person.accounts.map(account => `
               <div style="margin:10px 0 0 12px">
-                <b>${escapeHtml(account.label)}</b> — dibuat ${rupiah(account.createdRupiah)} · dibayar ${rupiah(account.paidRupiah)} · <b>sisa ${rupiah(account.balanceRupiah)}</b>
+                <b>${escapeHtml(account.label)}</b> — dibuat ${rupiah(account.createdRupiah)} · dibayar ${rupiah(account.paidRupiah)}${account.adjustmentRupiah ? ` · penyesuaian Akuntansi ${account.adjustmentRupiah > 0 ? '+' : '−'}${rupiah(Math.abs(account.adjustmentRupiah))}` : ''} · <b>sisa ${rupiah(account.balanceRupiah)}</b>${account.belumMasukBukuRupiah ? ` <span class="muted">· ⚠ ${rupiah(Math.abs(account.belumMasukBukuRupiah))} belum masuk pembukuan</span>` : ''}
                 ${account.items.length ? `<ul style="margin:4px 0 0;padding-left:18px">${account.items.map(item => `
                   <li class="muted">${escapeHtml(item.transactionDate)} · ${escapeHtml(item.description || '-')} · ${rupiah(item.originalRupiah)}${item.sourceVoided ? ' (sumber dibatalkan)' : ''} · dibayar ${rupiah(item.paidRupiah)} · sisa ${rupiah(item.balanceRupiah)}</li>`).join('')}</ul>` : ''}
               </div>`).join('')}

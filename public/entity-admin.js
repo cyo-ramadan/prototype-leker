@@ -589,7 +589,7 @@ async function openEmployeeLedger(employeeId, kind, accountId) {
       </div>`).join('') || '<div class="empty">Belum ada mutasi.</div>';
     dialog.innerHTML = `
       <div class="list-head"><div><h2 style="margin:0">${title} · ${entityAdminEscape(data.employee.fullName)}</h2>
-        <div class="muted">${balanceLabel}: <strong>Rp${entityReportRupiah(Math.abs(data.balanceRupiah))}</strong>${data.pendingRupiah ? ` · menunggu ACC Rp${entityReportRupiah(data.pendingRupiah)}` : ''}</div></div>
+        <div class="muted">${balanceLabel}: <strong>Rp${entityReportRupiah(Math.abs(data.balanceRupiah))}</strong>${data.pendingRupiah ? ` · menunggu ACC Rp${entityReportRupiah(data.pendingRupiah)}` : ''}${data.belumMasukBukuRupiah ? ` · ⚠ Rp${entityReportRupiah(Math.abs(data.belumMasukBukuRupiah))} belum masuk pembukuan` : ''}</div></div>
         <button class="secondary-btn" type="button" data-ledger-close>Tutup</button></div>
       <label class="admin-field" style="margin:10px 0">Akun kerja<select class="text-input" data-ledger-account>${options}</select>
         <span class="field-note">Mutasi yang tidak menempel ke satu akun (mis. jurnal Akuntansi, pembayaran gaji per orang) hanya tampil di "Semua akun".</span></label>

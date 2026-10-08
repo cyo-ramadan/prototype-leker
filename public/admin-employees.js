@@ -135,6 +135,7 @@
     if (entry.sourceType === 'ATTENDANCE') {
       return `dari presensi · datang ${entry.checkInAt ? clockWib(entry.checkInAt) : '-'} · pulang ${entry.checkOutAt ? clockWib(entry.checkOutAt) : '-'}`;
     }
+    if (entry.sourceType === 'AKUNTANSI') return `Penyesuaian dari Akuntansi · Jurnal ${escapeHtml(entry.journalNumber || '')}`;
     return 'dari Bea Gaji (Operasional)';
   }
   function ledgerCardHtml(entry) {
@@ -166,7 +167,7 @@
     try {
       const payload = await request(`/api/admin/employees/${encodeURIComponent(employeeId)}/payroll-ledger${storeQuery()}`);
       window.openAdminDetailModal({
-        head: `<div><h3 style="margin:0">Riwayat Gaji</h3><div class="master-meta">${escapeHtml(payload.employee?.fullName || '')} · Saldo Hutang Gaji: <b>${rupiahLedger(payload.hutangGajiBalanceRupiah)}</b></div></div>`,
+        head: `<div><h3 style="margin:0">Riwayat Gaji</h3><div class="master-meta">${escapeHtml(payload.employee?.fullName || '')} · Saldo Hutang Gaji: <b>${rupiahLedger(payload.hutangGajiBalanceRupiah)}</b>${payload.belumMasukBukuRupiah ? ` · ⚠ ${rupiahLedger(Math.abs(payload.belumMasukBukuRupiah))} belum masuk pembukuan` : ''}</div></div>`,
         body: `<div>${ledgerByDateHtml(payload.entries || [])}</div>`
       });
     } catch (error) { toast(error.message); }

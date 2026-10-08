@@ -50,6 +50,39 @@ Contoh tampilan ini spesifikasi, bukan data live:
 
 Tidak ada progress persen, estimasi token, atau klaim “selesai” hasil tebakan.
 
+
+## 2A. Arahan visual Bos Cyo — 2026-10-08
+
+Bos Cyo memberi referensi gambar kantor dengan sudut atas miring, meja kerja, area meeting, dan karakter kecil; meminta versi lebih bagus dan paling ringan. Bos Cyo akan menentukan roster agent serta karakter/pet belakangan. Arahan ini menjadi kebutuhan inti visual, bukan bonus opsional. “Pet” di sini karakter di kantor aplikasi; bukan otomatis ChatGPT Work Pet.
+
+**Keputusan Karen:** kantor 2D isometrik memakai Canvas 2D dan sprite atlas; tidak memakai engine 3D, video background, atau simulasi fisika. Layer lantai/furnitur dirender sekali dan dipakai ulang. UI kartu/detail tetap HTML agar teks jelas dan mudah diakses. Area visual: meja laptop, kantin/pantry, papan task, ruang meeting, dan area istirahat. Meeting baru dianimasikan sebagai kolaborasi nyata bila ada event yang membuktikannya; tidak mengarang rapat.
+
+| Keadaan/event | Perilaku karakter | Makna yang ditampilkan |
+|---|---|---|
+| Idle terkonfirmasi | Setelah jeda 20–40 detik boleh ke kantin, duduk, atau istirahat | Dekorasi idle; tidak berarti agent sungguhan makan |
+| Job/tool mulai | Prioritas tertinggi: hentikan idle dan pindah menuju meja laptop | Label WORKING berubah segera; animasi tidak menunda data |
+| Penulisan task teramati berhasil | Pergi ke papan, tampilkan ikon catatan | Hanya jika ada bukti event create/update task; tidak dipicu sekadar nama tool yang ambigu |
+| Menulis task gagal | Ikon gagal pada kartu/timeline | Tidak menempel task sukses di papan |
+| Menunggu approval/user | Tetap dekat meja dengan balon permintaan | Balon dapat diklik untuk detail; tidak menyetujui otomatis |
+| Turn selesai, sesi masih hidup | Berhenti mengetik; kemudian kembali idle | Tidak menyimpulkan task DONE |
+| Task selesai berdasarkan status canonical | Animasi singkat selesai, lalu idle bila runtime juga idle | Status task dan runtime tetap terpisah |
+| Data hilang/crash | Hentikan animasi kerja, redup/indikator sesuai bukti | Tidak berjalan ke kantin seolah idle |
+
+Aturan konflik animasi: telemetry hilang/crash dan kebutuhan perhatian mengalahkan dekorasi; aktivitas kerja terbaru membatalkan jalan-jalan. Event create/update task yang terjadi saat tool lain masih aktif cukup memunculkan ikon papan, tidak memaksa karakter bolak-balik. Perjalanan maksimal sekitar 1 detik, rute grid sederhana dihitung hanya saat tujuan berubah; hindari collision simulation. Tidak ada event penting yang ditahan menunggu animasi selesai. “Berjalan” dan “makan” selalu ilustrasi status, bukan telemetry tindakan fisik.
+
+Arah art: satu ruangan dengan zona jelas, furnitur proporsional, warna hangat netral dengan aksen warna tiap agent, garis rapi, label terbaca, minim clutter. Efek bayangan statis; hindari glow/partikel terus-menerus. Pada HP tampilkan ringkasan/kartu dulu dengan office opsional; zoom/pan hanya jika dibutuhkan.
+
+Budget visual usulan, belum benchmark:
+- 30 FPS maksimum saat karakter bergerak, turun 10–15 FPS saat idle; requestAnimationFrame dijeda saat tab tersembunyi dan render on-demand saat tidak ada perubahan.
+- Maksimum awal 12 karakter bergerak; sisanya tetap ada di daftar dan menjadi sprite statis bila perlu. Jangan menghilangkan sesi dari hitungan.
+- Sprite atlas terkompresi total target <= 1 MB, initial transfer tampilan <= 2 MB terkompresi; target resource gabungan mengikuti §8.
+- Batasi device pixel ratio maksimum 1.5–2 setelah uji keterbacaan; sediakan mode hemat dengan semua animasi off.
+- Jika kandidat Pixel Agents melampaui budget atau sulit mengikuti state canonical, pilih renderer Canvas sederhana. Tidak perlu mempertahankan dependency demi tampilan referensi.
+
+**Roster dan karakter:** schema konfigurasi berisi agent_id, display_name, role_label, sprite_id, warna aksen, meja pilihan, dan optional companion_sprite_id. Nama, karakter, serta jumlah belum diputuskan; gunakan placeholder berlabel saat prototype. Asset dipisahkan dari identity/session dan bisa diganti tanpa coding ulang. Gunakan asset berlisensi sesuai atau gambar buatan khusus; sprite final menunggu arahan Bos Cyo. Image generation bisa dipakai nanti untuk desain karakter, lalu export atlas teroptimasi; tidak memanggil image/model API saat aplikasi berjalan.
+
+Kriteria tambahan: perubahan status kerja langsung terlihat walau avatar di kantin; event task sukses/gagal tidak tertukar; tab tersembunyi tidak menjalankan loop animasi aktif; mode hemat menampilkan informasi yang sama; agent disconnected tidak tampak bekerja; 12 karakter diuji dengan profiling perangkat nyata.
+
 ## 3. Batas sumber data
 
 | Sumber | Bisa diandalkan untuk | Batas |

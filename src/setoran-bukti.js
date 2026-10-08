@@ -4,7 +4,7 @@
 // dan kedepannya aku pingin ini nanti langsung auto cek valid ... bikin pondasinya saja."
 //
 // Tiga bagian di sini, sengaja dipisah dari alur ACC (src/employee-deposit-settlement.js):
-//   1. Penyimpanan foto: R2 (binding BUKTI_FOTO) bila terpasang, kalau belum tetap BLOB di D1
+//   1. Penyimpanan foto: R2 (binding R2_BUCKET, bucket bukti-setoran) bila terpasang, kalau belum tetap BLOB di D1
 //      seperti sebelumnya. Membaca selalu mencoba keduanya, jadi foto lama tidak pernah hilang.
 //   2. Baca otomatis isi foto (tanggal, jam:menit, nominal, bank, referensi) lewat lapisan AI yang
 //      sama dengan Una (ADR-044, src/caca-ai-client.js). Hasilnya disimpan per sidik foto supaya
@@ -19,7 +19,7 @@ export const BUKTI_SOURCE = Object.freeze({ OTOMATIS: 'OTOMATIS', MANUAL: 'MANUA
 // --- 1. Penyimpanan foto ------------------------------------------------------
 
 export function r2Bucket(env) {
-  const bucket = env?.BUKTI_FOTO;
+  const bucket = env?.R2_BUCKET;
   return bucket && typeof bucket.put === 'function' && typeof bucket.get === 'function' ? bucket : null;
 }
 

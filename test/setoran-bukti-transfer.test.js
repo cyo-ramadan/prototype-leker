@@ -93,18 +93,18 @@ function fakeR2() {
 test('storage foto: R2 bila terpasang, D1 bila belum / R2 gagal; foto lama di D1 tetap terbaca', async () => {
   const bytes = new Uint8Array([9, 8, 7]).buffer;
   const r2 = fakeR2();
-  const keR2 = await simpanFotoBukti({ BUKTI_FOTO: r2 }, { storeId: 'store_pendem', bytes, type: 'image/jpeg' });
+  const keR2 = await simpanFotoBukti({ R2_BUCKET: r2 }, { storeId: 'store_pendem', bytes, type: 'image/jpeg' });
   assert.match(keR2.key, /^setoran\/store_pendem\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]+\.jpg$/);
   assert.equal(keR2.bytes, null);
-  const dibaca = await bacaFotoBukti({ BUKTI_FOTO: r2 }, { proof_photo_key: keR2.key });
+  const dibaca = await bacaFotoBukti({ R2_BUCKET: r2 }, { proof_photo_key: keR2.key });
   assert.deepEqual([...dibaca.body], [9, 8, 7]);
 
   const keD1 = await simpanFotoBukti({}, { storeId: 'store_pendem', bytes, type: 'image/jpeg' });
   assert.equal(keD1.key, null);
   assert.equal(keD1.bytes, bytes);
   const rusak = { put: async () => { throw new Error('R2 down'); }, get: async () => null };
-  assert.equal((await simpanFotoBukti({ BUKTI_FOTO: rusak }, { storeId: 'x', bytes, type: 'image/jpeg' })).bytes, bytes, 'R2 gagal jatuh ke D1');
-  const lama = await bacaFotoBukti({ BUKTI_FOTO: r2 }, { proof_photo: new Uint8Array([1]), proof_photo_type: 'image/jpeg' });
+  assert.equal((await simpanFotoBukti({ R2_BUCKET: rusak }, { storeId: 'x', bytes, type: 'image/jpeg' })).bytes, bytes, 'R2 gagal jatuh ke D1');
+  const lama = await bacaFotoBukti({ R2_BUCKET: r2 }, { proof_photo: new Uint8Array([1]), proof_photo_type: 'image/jpeg' });
   assert.deepEqual([...lama.body], [1]);
   assert.equal(await bacaFotoBukti({}, { proof_photo: null }), null);
 });
@@ -160,7 +160,7 @@ function mockGemini(jawaban) {
 test('alur penuh: baca foto -> kirim setoran -> asal OTOMATIS/MANUAL tersimpan -> foto di R2 -> ACC menandai dicek Admin', async () => {
   const db = await setup();
   const r2 = fakeR2();
-  const env = { DB: new D1Database(db), GEMINI_API_KEY: 'uji', BUKTI_FOTO: r2 };
+  const env = { DB: new D1Database(db), GEMINI_API_KEY: 'uji', R2_BUCKET: r2 };
   // Waktu transfer harus "masa lalu dekat" relatif jam sekarang (validasi 60 hari).
   const sekarang = new Date(Date.now() - 30 * 60 * 1000);
   const wib = new Date(sekarang.getTime() + 7 * 3600 * 1000).toISOString();
@@ -251,4 +251,11 @@ test('foto dibuka di halaman yang sama (bukan tab baru), Portal Staf mengisi wak
   assert.match(staff, /form\.set\('photo', fotoSiap \|\| await kecilkanFotoSetoran\(file\)\)/, 'foto yang dikirim = foto yang dibaca');
   assert.match(read('public/admin-employee-deposits.js'), /terbaca otomatis' : 'diisi manual'/);
   assert.match(read('public/entity-setoran-cs.js'), /Nominal di foto/);
+});
+
+test('binding R2 foto bukti dideklarasikan di wrangler.jsonc (bukan hanya dashboard) dan dipakai kodenya', () => {
+  const config = read('wrangler.jsonc');
+  assert.match(config, /"r2_buckets":\s*\[\s*\{\s*"binding":\s*"R2_BUCKET",\s*"bucket_name":\s*"bukti-setoran"\s*\}\s*\]/);
+  assert.match(read('src/setoran-bukti.js'), /env\?\.R2_BUCKET/);
+  assert.doesNotMatch(read('src/setoran-bukti.js'), /BUKTI_FOTO/);
 });

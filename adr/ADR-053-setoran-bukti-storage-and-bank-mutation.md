@@ -14,16 +14,17 @@ Fakta saat keputusan dibuat (dicek langsung, bukan dugaan):
   bisa dibuka" berasal dari cara membukanya: `window.open(blob:)` ke tab baru, yang gagal di banyak HP
   (aplikasi layar utama, browser bawaan WhatsApp). Diganti penampil di halaman yang sama
   (`public/foto-lihat.js`).
-- R2 belum diaktifkan di akun Cloudflare (`r2_buckets_list` -> 403 "Please enable R2 through the
-  Cloudflare Dashboard"). Mengaktifkannya harus lewat dashboard oleh pemilik akun.
+- R2 semula belum aktif di akun Cloudflare (`r2_buckets_list` -> 403). Bos Cyo mengaktifkannya dan
+  membuat bucket `bukti-setoran` pada 2026-10-08.
 
 ## Keputusan
 
-1. **Storage**: `src/setoran-bukti.js` menyimpan ke R2 (binding `BUKTI_FOTO`) bila terpasang, dan
-   jatuh ke BLOB D1 bila belum ada atau R2 gagal. Membaca mencoba kunci R2 lalu BLOB D1, jadi foto
-   lama tidak pernah hilang. Binding BELUM ditambahkan ke `wrangler.jsonc`: menambah binding ke bucket
-   yang belum ada menggagalkan deploy. Setelah R2 aktif: buat bucket `leker-bukti-foto`, tambah
-   `"r2_buckets": [{ "binding": "BUKTI_FOTO", "bucket_name": "leker-bukti-foto" }]`.
+1. **Storage**: `src/setoran-bukti.js` menyimpan ke R2 (binding `R2_BUCKET`, bucket `bukti-setoran`,
+   dibuat Bos Cyo 2026-10-08) bila terpasang, dan jatuh ke BLOB D1 bila binding tidak ada atau R2
+   gagal. Membaca mencoba kunci R2 lalu BLOB D1, jadi foto lama tidak pernah hilang. Binding
+   dideklarasikan di `wrangler.jsonc` (`r2_buckets`), karena Workers Git Integration menjalankan
+   `wrangler deploy` dari file itu dan binding yang hanya ditambah lewat dashboard terhapus di
+   deploy berikutnya. Tanpa API secret key: Worker memakai binding langsung.
 2. **Ukuran foto**: diperkecil di HP sebelum dikirim, sisi panjang maks 1920 px (layar HP biasa),
    JPEG, maks 800 KB.
 3. **Baca otomatis**: Portal Staf mengirim foto ke `/api/cashier/employee-deposits/read-proof`; isi

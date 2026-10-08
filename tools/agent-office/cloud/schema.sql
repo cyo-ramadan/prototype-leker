@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS device_snapshots (device TEXT PRIMARY KEY, received INTEGER NOT NULL, data TEXT NOT NULL);

@@ -1,12 +1,27 @@
 # HANDOFF — MAXI Agent Monitor & Virtual Office
 
-**Status:** DESIGN v2 — proposal siap ditinjau; implementasi belum dimulai.
+**Status:** MVP v0.1 telah diimplementasikan di branch PR #466; integrasi laptop/Claude Code nyata belum diverifikasi. Desain v2 tetap menjadi target, dengan batas MVP di bagian hasil implementasi.
 **Requested by:** Bos Cyo.
 **Prepared/revised by:** Karen (ChatGPT), atas permintaan langsung Bos Cyo.
 **Date:** 2026-10-08.
 **Repository:** cyo-ramadan/prototype-leker.
 **Scope sesi:** membaca, mengevaluasi, mematangkan, dan mendokumentasikan desain sebelum coding.
 **Aturan pembacaan:** desain v2 di bawah menggantikan rekomendasi v1 yang bertentangan. Brief asli dipertahankan di lampiran sebagai provenance, bukan kontrak aktif.
+
+## Hasil implementasi Karen — 2026-10-08
+
+Instruksi lanjutan Bos Cyo: “ya uda rancang aja dan buatin langsung”. Karen (`karen22.1`) membangun tooling lokal terisolasi di `tools/agent-office/`, tanpa mengubah source POS, migration, atau deploy config.
+
+- Dibuat: kantor Canvas 2D, demo offline `preview.html`, kartu/timeline, karakter editable, collector HTTP/SSE, SQLite lokal, hooks Claude Code, installer/uninstaller aditif, serta process wrapper.
+- Gerakan tersedia: kerja di laptop, idle ke pantry, event task sukses ke papan, menunggu approval, telemetry terputus.
+- Bukti: 1.631 tes root lulus (termasuk 11 tes tooling); root check dan check tooling lulus. Browser Chromium: desktop + 390px mobile, edit profil, mode hemat, HTTP/SSE dua sesi fixture, disconnect, dan file preview offline lulus tanpa page error atau horizontal overflow.
+- Batas: belum diuji dengan sesi Claude Code nyata/Windows/laptop Bos Cyo. Workboard/Agent Bus/GitHub live adapter, collision warning, external sprite upload, dan benchmark 30 menit belum dibuat/dijalankan. Fixture bukan bukti dua agent AI sungguhan.
+- Rencana memakai sprite atlas diperbarui untuk MVP: karakter/furnitur procedural Canvas, tanpa asset network atau dependency runtime. Node memakai SQLite bawaan (minimum 22.13).
+- Producer v0.1 best-effort, tanpa durable retry queue; event saat collector mati bisa hilang. Freshness tetap terlihat, tidak direkonstruksi.
+- Panduan install, batas akses, dan uninstall: `tools/agent-office/README.md`. Bukti rinci: `tools/agent-office/IMPLEMENTATION.md`.
+- Koordinasi: sesi terdaftar; konektor tidak menyediakan create task. Tidak membuat klaim/report papan fiktif; jalur GitHub-only sesuai CLAIM-PROMPT.
+
+Bagian desain di bawah mencatat target semula; pernyataan “belum implementasi” di histori desain/arsip dibaca sebagai keadaan saat desain ditulis, bukan status MVP terkini.
 
 ## 1. Keputusan desain dan koreksi utama
 

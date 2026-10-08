@@ -24,5 +24,14 @@
       "database_id": "6977b54c-afce-4275-a0ad-d28e7d942e19",
       "migrations_dir": "migrations"
     }
+  ],
+  // Foto bukti transfer setoran CS (ADR-053, src/setoran-bukti.js). Bucket dibuat Bos Cyo
+  // 2026-10-08. Binding WAJIB ada di sini: Workers Git Integration menjalankan `wrangler deploy`
+  // dari file ini, jadi binding yang hanya ditambah lewat dashboard hilang di deploy berikutnya.
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "bukti-setoran"
+    }
   ]
 }

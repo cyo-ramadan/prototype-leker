@@ -188,7 +188,7 @@ Skill yang dipakai pada sesi desain: Library untuk pencarian awal, Plugin Manage
 
 ## 7A. Mesin agent, model alternatif, dan handoff Hana
 
-Arahan tambahan Bos Cyo: Claude Code boleh menjadi integrasi acuan; handoff pelaksanaan berikutnya ditujukan kepada Hana yang memakai Claude Code. Bos Cyo ingin kemungkinan memakai mesin Claude Code dengan model lain seperti DeepSeek. Sesi ini menyiapkan handoff; belum men-trigger Hana atau memasang konfigurasi.
+Arahan terakhir Bos Cyo: Karen tetap menjadi pelaksana selama mampu mengerjakan. Handoff ke Hana hanya bila ada ketidakcocokan kemampuan atau akses yang benar-benar terbukti, bukan otomatis karena integrasi acuannya Claude Code. Karen dapat merancang dan mengimplementasikan adapter; verifikasi sesi nyata di laptop membutuhkan akses ke runtime tersebut. Bos Cyo juga ingin kemungkinan memakai mesin Claude Code dengan model lain seperti DeepSeek. Belum men-trigger Hana atau memasang konfigurasi.
 
 Pisahkan tiga identitas:
 - persona/agent: nama yang nanti ditentukan Bos Cyo;
@@ -204,7 +204,7 @@ Riset 2026-10-08:
 
 Rekomendasi Karen: pertahankan Hana/Claude Code + Claude sebagai baseline. Uji profil Claude Code + DeepSeek terpisah jika Bos Cyo ingin mempertahankan mesin Claude Code. Untuk sering berpindah banyak provider, pertimbangkan OpenCode pada tahap adapter berikutnya. Tidak menimpa konfigurasi global Hana dan tidak membuat fallback diam-diam ke provider berbayar lain.
 
-Handoff yang harus dijalankan Hana setelah desain masuk tahap implementasi:
+Checklist implementasi Karen; handoff parsial kepada Hana hanya untuk langkah yang terbukti tidak dapat dijalankan Karen:
 1. Verifikasi CLI/OS yang benar-benar digunakan, capabilities hooks, dan file konfigurasi existing.
 2. Uji baseline dua sesi dan telemetry sebelum mengganti model.
 3. Buat profil terminal terisolasi untuk DeepSeek bila dipilih; credential dimasukkan melalui jalur lokal aman, tidak lewat chat/repo.

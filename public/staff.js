@@ -336,6 +336,7 @@
   const approvalLabel = { pending_approval: 'Menunggu ACC Admin', approved: 'Sudah di-ACC', rejected: 'Ditolak' };
   const approvalColor = { pending_approval: '#8b5d00', approved: '#2f9e44', rejected: '#a4133c' };
   const MAKS_FOTO_SETORAN = 780 * 1024; // server menerima maks 800 KB
+  const SISI_FOTO_SETORAN = 1920;
   let depositPhotoUrls = [];
 
   // Waktu dari database kadang "YYYY-MM-DD HH:MM:SS" (UTC tanpa zona): jadikan ISO UTC.
@@ -347,7 +348,6 @@
   // Foto kamera HP biasanya 2-5 MB (iPhone: HEIC): diperkecil ke JPEG dulu di HP.
   async function kecilkanFotoSetoran(file) {
     if (!file || !/^image\//.test(file.type || '')) throw new Error('Pilih foto bukti transfer (JPG/PNG).');
-    if (file.size <= MAKS_FOTO_SETORAN && /^image\/(jpeg|png|webp)$/.test(file.type)) return file;
     const url = URL.createObjectURL(file);
     try {
       const img = await new Promise((resolve, reject) => {
@@ -356,7 +356,11 @@
         gambar.onerror = () => reject(new Error('Foto tidak bisa dibaca. Coba foto ulang.'));
         gambar.src = url;
       });
-      for (const [maks, kualitas] of [[1600, 0.8], [1280, 0.7], [1024, 0.6], [800, 0.5]]) {
+      // Ukuran layar HP biasa (sisi panjang maks 1920 px, Bos Cyo 2026-10-08) -- tulisan bukti transfer
+      // tetap terbaca, tapi foto kamera 12 MP tidak disimpan utuh.
+      const sisiPanjang = Math.max(img.naturalWidth, img.naturalHeight);
+      if (sisiPanjang <= SISI_FOTO_SETORAN && file.size <= MAKS_FOTO_SETORAN && /^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+      for (const [maks, kualitas] of [[SISI_FOTO_SETORAN, 0.85], [1600, 0.8], [1280, 0.7], [1024, 0.6], [800, 0.5]]) {
         const skala = Math.min(1, maks / Math.max(img.naturalWidth, img.naturalHeight));
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(img.naturalWidth * skala));
@@ -399,6 +403,9 @@
         ${terbuka.length > 1 ? `<div class="field"><label>Untuk setoran yang mana</label><select id="setorPilih" class="text-input">${opsi}</select></div>` : `<input type="hidden" id="setorPilih" value="${escapeHtml(terbuka[0].item.id)}" data-sisa="${terbuka[0].bisaDikirim}" /><div class="muted" style="margin-bottom:8px">Setoran laci ${escapeHtml(tanggalPanjang(jakartaDate(terbuka[0].item.createdAt || terbuka[0].item.transactionDate)))}</div>`}
         <div class="field"><label>Nominal yang ditransfer</label><input id="setorNominal" class="text-input" inputmode="numeric" /></div>
         <div class="field"><label>Foto bukti transfer <span class="field-note">wajib</span></label><input id="setorFoto" class="text-input" type="file" accept="image/*" /></div>
+        <div class="field"><label>Waktu transfer <span class="field-note">wajib · terisi otomatis dari foto</span></label>
+          <div style="display:flex;gap:8px"><input id="setorTanggal" class="text-input" type="date" style="flex:1" /><input id="setorJam" class="text-input" type="time" style="flex:1" /></div>
+          <div id="setorBacaInfo" class="muted" style="margin-top:6px;font-size:13px"></div></div>
         <div class="field"><label>Keterangan <span class="field-note">opsional</span></label><input id="setorKeterangan" class="text-input" type="text" maxlength="200" placeholder="mis. transfer BCA jam 21.10" /></div>
         <button type="button" class="primary-btn" id="setorKirim">Kirim Bukti Transfer</button>
       </div>`;
@@ -411,18 +418,66 @@
     };
     isiNominal();
     if (pilih.tagName === 'SELECT') pilih.addEventListener('change', isiNominal);
+
+    // Baca otomatis foto bukti (Bos Cyo, 2026-10-08): tanggal & jam:menit transfer terisi sendiri.
+    // CS tetap boleh mengubahnya -- server mencatatnya "diisi manual" kalau beda dari bacaan.
+    // Foto yang sudah diperkecil disimpan, supaya yang dikirim persis foto yang dibaca.
+    let fotoSiap = null;
+    let bacaanFoto = null;
+    const tanggalInput = el('setorTanggal');
+    const jamInput = el('setorJam');
+    const info = el('setorBacaInfo');
+    const tandaiAsal = () => {
+      if (!bacaanFoto?.tanggal) return;
+      const sama = tanggalInput.value === bacaanFoto.tanggal && jamInput.value === bacaanFoto.jam;
+      info.textContent = sama ? 'Terbaca otomatis dari foto.' : 'Diubah manual -- laporan akan menandai "diisi manual".';
+    };
+    tanggalInput.addEventListener('input', tandaiAsal);
+    jamInput.addEventListener('input', tandaiAsal);
+    el('setorFoto').addEventListener('change', async () => {
+      fotoSiap = null;
+      bacaanFoto = null;
+      const file = el('setorFoto').files?.[0];
+      if (!file) { info.textContent = ''; return; }
+      try {
+        fotoSiap = await kecilkanFotoSetoran(file);
+      } catch (error) { info.textContent = error.message; return; }
+      info.textContent = 'Membaca foto…';
+      try {
+        const form = new FormData();
+        form.set('photo', fotoSiap);
+        const { bacaan } = await staffApi('/api/cashier/employee-deposits/read-proof', { method: 'POST', body: form });
+        bacaanFoto = bacaan;
+        if (bacaan?.tanggal && bacaan?.jam) {
+          tanggalInput.value = bacaan.tanggal;
+          jamInput.value = bacaan.jam;
+          const nominalKetik = window.MAXIAngka ? window.MAXIAngka.nilai(nominal.value) : Number(String(nominal.value).replace(/\D/g, ''));
+          const beda = bacaan.nominalRupiah && bacaan.nominalRupiah !== nominalKetik ? ` Nominal di foto ${money(bacaan.nominalRupiah)} -- cek lagi nominal yang diisi.` : '';
+          info.textContent = `Terbaca otomatis dari foto${bacaan.bank ? ` (${bacaan.bank})` : ''}.${beda}`;
+        } else {
+          info.textContent = bacaan?.adalahBuktiTransfer === false
+            ? 'Foto ini sepertinya bukan bukti transfer. Pilih foto yang benar, atau isi waktunya manual.'
+            : 'Waktu transfer tidak terbaca dari foto -- isi manual ya.';
+        }
+      } catch {
+        info.textContent = 'Foto belum bisa dibaca otomatis -- isi tanggal dan jam transfer manual ya.';
+      }
+    });
     el('setorKirim').addEventListener('click', async () => {
       const amountRupiah = window.MAXIAngka ? window.MAXIAngka.nilai(nominal.value) : Number(String(nominal.value).replace(/\D/g, ''));
       const file = el('setorFoto').files?.[0];
       if (!Number.isSafeInteger(amountRupiah) || amountRupiah <= 0) { toastStaff('Isi nominal yang ditransfer (angka bulat).'); return; }
       if (!file) { toastStaff('Foto bukti transfer wajib dilampirkan.'); return; }
+      if (!tanggalInput.value || !jamInput.value) { toastStaff('Isi tanggal dan jam transfer (lihat di bukti transfer).'); return; }
       const tombol = el('setorKirim');
       tombol.disabled = true;
       try {
         const form = new FormData();
         form.set('amountRupiah', String(amountRupiah));
         form.set('proofReference', el('setorKeterangan').value.trim());
-        form.set('photo', await kecilkanFotoSetoran(file));
+        form.set('photo', fotoSiap || await kecilkanFotoSetoran(file));
+        form.set('transferDate', tanggalInput.value);
+        form.set('transferTime', jamInput.value);
         await staffApi(`/api/cashier/employee-deposits/${encodeURIComponent(pilih.value)}/payments`, { method: 'POST', body: form });
         await loadDeposits();
         document.querySelector('[data-staff-tab="deposits"]')?.click();
@@ -442,7 +497,7 @@
         const url = URL.createObjectURL(await response.blob());
         depositPhotoUrls.push(url);
         img.src = url;
-        img.onclick = () => window.open(url, '_blank');
+        img.onclick = () => window.MAXIFotoLihat ? window.MAXIFotoLihat.buka(url, 'Foto bukti transfer') : window.open(url, '_blank');
       } catch {}
     }));
   }
@@ -490,7 +545,7 @@
             const catatan = p.proofReference && p.proofReference !== 'Foto bukti transfer' ? ` · ${escapeHtml(p.proofReference.replace(/^Foto bukti transfer · /, ''))}` : '';
             return `<div class="attendance-row" style="${redup}">
               <div><strong>${p.usedForAdminPayment ? 'Dipakai membayar (oleh Admin)' : p.sharedAccountName ? `Transfer setoran ke ${escapeHtml(p.sharedAccountName)}` : 'Transfer setoran'}</strong>
-                <div class="muted">Dikirim jam ${escapeHtml(jakartaClock(card.at))}${catatan}${p.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(utcIso(p.reviewedAt)))}` : ''}</div>
+                <div class="muted">${p.transferAt ? `Transfer ${escapeHtml(jakartaClock(p.transferAt))} (${p.transferAtSource === 'OTOMATIS' ? 'terbaca otomatis' : 'diisi manual'}) · ` : ''}Dikirim jam ${escapeHtml(jakartaClock(card.at))}${catatan}${p.reviewedAt ? ` · diputuskan ${escapeHtml(dateTime(utcIso(p.reviewedAt)))}` : ''}</div>
                 <div class="muted"><span style="font-weight:800;color:${warna}">${escapeHtml(approvalLabel[p.approvalStatus] || p.approvalStatus)}</span>${p.rejectionReason ? ` · <span style="color:#c2255c">Alasan ditolak: ${escapeHtml(p.rejectionReason)}</span>` : ''}</div></div>
               <div class="attendance-row-photos" style="align-items:center">${fotoSetoran(p)}<span style="color:${p.approvalStatus === 'approved' ? '#2f9e44' : '#555'}">−${money(card.amountRupiah)}</span></div></div>`;
           }).join('')}</div></div>`;

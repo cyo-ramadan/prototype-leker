@@ -83,6 +83,19 @@
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshTabBadge(); });
 
+  // Waktu transfer menurut bukti + asalnya (migration 0142), dan peringatan bila nominal yang terbaca
+  // dari foto beda dengan nominal yang diketik CS.
+  function buktiInfo(payment) {
+    const read = payment.proofRead || {};
+    const waktu = payment.transferAt
+      ? `<b>Transfer ${escapeHtml(dateTime(payment.transferAt))}</b> <span class="status-chip ${payment.transferAtSource === 'OTOMATIS' ? 'ok' : 'warn'}">${payment.transferAtSource === 'OTOMATIS' ? 'terbaca otomatis' : 'diisi manual'}</span>`
+      : '<span class="muted">Waktu transfer tidak diisi (kiriman lama)</span>';
+    const nominalBeda = read.nominalRupiah && Number(read.nominalRupiah) !== Number(payment.amountRupiah)
+      ? ` <span class="status-chip bad">Nominal di foto ${money(read.nominalRupiah)}</span>` : '';
+    const detail = [read.bank, read.referensi ? `ref ${read.referensi}` : '', read.penerima ? `ke ${read.penerima}` : ''].filter(Boolean).map(escapeHtml).join(' · ');
+    return `<div class="master-meta">${waktu}${nominalBeda}</div>${detail ? `<div class="master-meta">${detail}</div>` : ''}`;
+  }
+
   const foto = payment => payment.hasPhoto
     ? `<img class="setoran-foto" data-deposit-photo="${escapeHtml(payment.id)}" alt="Foto bukti transfer" loading="lazy" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line, #e5ddd3);cursor:zoom-in;background:var(--soft, #f4efe9)" />`
     : '<span class="status-chip warn">Tanpa foto</span>';
@@ -95,11 +108,12 @@
         ${foto(payment)}
         <div class="master-main">
           <strong style="font-size:1.15em">${money(payment.amountRupiah)}</strong> <span class="muted">· ${escapeHtml(payment.employeeName)}</span>
-          <div class="master-meta"><b>Dikirim ${escapeHtml(dateTime(payment.createdAt))}</b></div>
+          ${buktiInfo(payment)}
+          <div class="master-meta">Dikirim ${escapeHtml(dateTime(payment.createdAt))}</div>
           <div class="master-meta">Setoran laci ${escapeHtml(tanggal(payment.depositDate))}${payment.sharedAccountName ? ` · ke ${escapeHtml(payment.sharedAccountName)}` : ' · ke Kas'}${payment.proofReference ? ` · ${escapeHtml(payment.proofReference)}` : ''}</div>
         </div>
         <div class="master-actions">
-          <button class="mini-btn" type="button" data-approve-payment="${escapeHtml(payment.id)}" data-nama="${escapeHtml(payment.employeeName)}" data-nominal="${escapeHtml(money(payment.amountRupiah))}" data-waktu="${escapeHtml(dateTime(payment.createdAt))}">ACC</button>
+          <button class="mini-btn" type="button" data-approve-payment="${escapeHtml(payment.id)}" data-nama="${escapeHtml(payment.employeeName)}" data-nominal="${escapeHtml(money(payment.amountRupiah))}" data-waktu="${escapeHtml(dateTime(payment.transferAt || payment.createdAt))}">ACC</button>
           <button class="mini-btn danger" type="button" data-reject-payment="${escapeHtml(payment.id)}">Tolak</button>
         </div>
       </article>`).join('') : '<div class="empty">Tidak ada setoran yang menunggu ACC.</div>';
@@ -126,6 +140,7 @@
         ${foto(payment)}
         <div class="master-main">
           <strong>${escapeHtml(payment.employeeName)} · ${money(payment.amountRupiah)}</strong>
+          ${buktiInfo(payment)}
           <div class="master-meta">Setoran laci ${escapeHtml(tanggal(payment.depositDate))} · dikirim ${escapeHtml(dateTime(payment.createdAt))} · diputuskan ${escapeHtml(dateTime(payment.reviewedAt))}${payment.rejectionReason ? ` · alasan: ${escapeHtml(payment.rejectionReason)}` : ''}</div>
         </div>
         <span class="status-chip ${chip}">${escapeHtml(label)}</span>
@@ -143,7 +158,7 @@
         const url = URL.createObjectURL(await response.blob());
         photoUrls.push(url);
         img.src = url;
-        img.onclick = () => window.open(url, '_blank');
+        img.onclick = () => window.MAXIFotoLihat ? window.MAXIFotoLihat.buka(url, 'Foto bukti transfer') : window.open(url, '_blank');
       } catch {}
     }));
   }
@@ -162,7 +177,7 @@
     const paymentId = action === 'APPROVE' ? button.dataset.approvePayment : button.dataset.rejectPayment;
     let rejectionReason;
     if (action === 'APPROVE') {
-      if (!window.confirm(`ACC setoran ${button.dataset.nominal} dari ${button.dataset.nama}, dikirim ${button.dataset.waktu}?\nPastikan nominal, jam:menit, dan foto cocok dengan mutasi rekening. Piutang CS langsung berkurang.`)) return;
+      if (!window.confirm(`ACC setoran ${button.dataset.nominal} dari ${button.dataset.nama}, transfer ${button.dataset.waktu}?\nPastikan nominal, jam:menit, dan foto cocok dengan mutasi rekening. Piutang CS langsung berkurang.`)) return;
     } else {
       rejectionReason = window.prompt('Alasan penolakan (wajib, terlihat oleh CS):', '') ?? '';
       if (!rejectionReason.trim()) return toast('Alasan penolakan wajib diisi.');

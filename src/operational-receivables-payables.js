@@ -304,11 +304,14 @@ export async function addOperationalPayment(
   // harus klik dari admin"). Saldo piutang hanya menghitung yang 'approved'.
   const approvalStatus = isEmployeeDeposit ? 'pending_approval' : 'approved';
   const photo = input?.proofPhoto?.bytes ? input.proofPhoto : null;
+  // Foto di R2 (migration 0142): yang disimpan di baris ini hanya kuncinya.
+  const photoKey = isEmployeeDeposit ? (text(input?.proofPhotoKey, 300) || null) : null;
   await db.prepare(`
     INSERT INTO operational_receivable_payable_payments (
       id, receivable_payable_id, store_id, entity_id, amount,
-      approval_status, proof_reference, note, submitted_by, proof_photo, proof_photo_type, shared_account_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      approval_status, proof_reference, note, submitted_by, proof_photo, proof_photo_type, shared_account_id,
+      proof_photo_key
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     paymentId,
     parent.id,
@@ -320,14 +323,16 @@ export async function addOperationalPayment(
     text(input?.note, 300),
     text(input?.submittedBy, 180),
     photo ? photo.bytes : null,
-    photo ? photo.type : null,
+    photo ? photo.type : (photoKey ? text(input?.proofPhotoType, 60) || 'image/jpeg' : null),
     // Setoran CS ke Rekening Bersama (migration 0139): tujuan dicatat saat kirim, efeknya saat ACC.
-    isEmployeeDeposit ? (text(input?.sharedAccountId, 80) || null) : null
+    isEmployeeDeposit ? (text(input?.sharedAccountId, 80) || null) : null,
+    photoKey
   ).run();
 
   const payment = await db.prepare(`
     SELECT id, receivable_payable_id, amount, approval_status, proof_reference, note, submitted_by,
-           reviewed_by, reviewed_at, rejection_reason, created_at, proof_photo IS NOT NULL AS has_photo
+           reviewed_by, reviewed_at, rejection_reason, created_at,
+           (proof_photo IS NOT NULL OR proof_photo_key IS NOT NULL) AS has_photo
     FROM operational_receivable_payable_payments
     WHERE id = ? AND store_id = ? LIMIT 1
   `).bind(paymentId, storeId).first();

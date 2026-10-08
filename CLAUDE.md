@@ -107,6 +107,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | **Mau cek ada yang perlu Hana jawab/kerjakan di Workboard (MAXI Workboard, D1 `maxi-workboard-prototype`)** | Pakai skill `akses-workboard-hana` (`.claude/skills/`) — dua tabel terpisah (`issues` dan `tasks`) yang dua-duanya wajib dicek, jangan cuma yang datang lewat @mention |
 | **Mau menulis/menilai apa pun yang dibaca calon pembeli (landing page, konten, pesan WA, iklan, harga) atau membahas strategi jual** | Pakai skill `strategi-penjualan-ownertenang` (`.claude/skills/`) — aturan janji berdasar status di `HANDOFF-STRATEGI-PENJUALAN.md` §8, posisi, segmen F&B, template konten & jawaban keberatan |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
+| Mesin Agen: agen OpenCode dengan model non-Anthropic + router yang turun ke model cadangan saat limit | `mesin-agen/README.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 
 ## Deploy

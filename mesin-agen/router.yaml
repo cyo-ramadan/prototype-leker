@@ -1,0 +1,51 @@
+# Router model untuk Mesin Agen (LiteLLM proxy). Dibaca oleh `mulai.sh` / `mulai.ps1`.
+#
+# Cara kerjanya (diminta Bos Cyo 2026-10-08): mesin selalu minta ke model "mesin" (paling
+# pintar). Kalau model itu kena limit, router langsung pindah ke cadangan berikutnya sesuai
+# urutan di `fallbacks`, dst. Model yang kena limit diistirahatkan `cooldown_time` detik;
+# sesudah itu dicoba lagi duluan -- begitu limitnya pulih, mesin otomatis balik ke yang pintar.
+#
+# Mengganti model cukup di sini: ubah baris `model:` (nama model di OpenRouter, lihat
+# https://openrouter.ai/models). Kunci API TIDAK pernah ditulis di file ini -- dibaca dari
+# file `.env` di komputer Bos Cyo (`os.environ/...`), dan `.env` tidak ikut ke GitHub.
+#
+# Urutan bawaan: dari yang paling pintar untuk ngoding, makin ke bawah makin ringan/murah.
+# Diuji 2026-10-08 dengan server tiruan (lihat README "Bukti router"): pindah saat limit,
+# lanjut ke cadangan berikutnya kalau cadangan pertama juga limit, dan balik ke "mesin"
+# sesudah masa istirahat lewat.
+
+model_list:
+  - model_name: mesin                 # urutan 1 -- paling pintar
+    litellm_params:
+      model: openrouter/openai/gpt-5
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: cadangan-1            # urutan 2
+    litellm_params:
+      model: openrouter/google/gemini-2.5-pro
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: cadangan-2            # urutan 3
+    litellm_params:
+      model: openrouter/moonshotai/kimi-k2
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: cadangan-3            # urutan 4
+    litellm_params:
+      model: openrouter/z-ai/glm-4.6
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: cadangan-4            # urutan 5 -- paling ringan, juga dipakai untuk kerja kecil (judul sesi)
+    litellm_params:
+      model: openrouter/qwen/qwen3-coder
+      api_key: os.environ/OPENROUTER_API_KEY
+
+router_settings:
+  fallbacks:
+    - mesin: [cadangan-1, cadangan-2, cadangan-3, cadangan-4]
+  allowed_fails: 0        # satu kali kena limit langsung diistirahatkan (tidak ditembak terus)
+  cooldown_time: 300      # detik; sesudah 5 menit model pintar dicoba lagi duluan
+  num_retries: 0          # jangan ulang ke model yang sama -- langsung ke cadangan
+
+litellm_settings:
+  drop_params: true       # tiap model punya pilihan berbeda; yang tidak didukung dibuang, bukan error
+
+general_settings:
+  # Kunci lokal antara mesin dan router; dibuat acak oleh skrip mulai setiap kali jalan.
+  master_key: os.environ/LITELLM_MASTER_KEY

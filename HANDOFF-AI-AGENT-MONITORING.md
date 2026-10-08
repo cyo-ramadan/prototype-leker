@@ -185,6 +185,35 @@ Untuk Claude hooks, pilih command handler deterministik yang hanya mengirim meta
 
 Skill yang dipakai pada sesi desain: Library untuk pencarian awal, Plugin Management untuk discovery kebutuhan koneksi. Tidak ada plugin baru yang diinstal.
 
+
+## 7A. Mesin agent, model alternatif, dan handoff Hana
+
+Arahan tambahan Bos Cyo: Claude Code boleh menjadi integrasi acuan; handoff pelaksanaan berikutnya ditujukan kepada Hana yang memakai Claude Code. Bos Cyo ingin kemungkinan memakai mesin Claude Code dengan model lain seperti DeepSeek. Sesi ini menyiapkan handoff; belum men-trigger Hana atau memasang konfigurasi.
+
+Pisahkan tiga identitas:
+- persona/agent: nama yang nanti ditentukan Bos Cyo;
+- harness: Claude Code / OpenCode / CLI lain;
+- provider + model: Anthropic/Claude, DeepSeek/model yang tersedia, dll.
+
+Tambahkan harness_name, harness_version, configured_provider, configured_model, observed_model (nullable), model_evidence_source pada session metadata. Model yang dikonfigurasi tidak selalu sama dengan model yang benar-benar merespons; bila ada mapping provider, tampilkan asal buktinya.
+
+Riset 2026-10-08:
+- DeepSeek mendokumentasikan penggunaan Claude Code melalui endpoint berformat Anthropic: https://api.deepseek.com/anthropic . Setup mengarahkan base URL, credential DeepSeek dan model mapping. Sumber: https://api-docs.deepseek.com/quick_start/agent_integrations/claude_code/ .
+- Anthropic menyatakan routing Claude Code ke model non-Claude melalui gateway tidak didukung oleh Anthropic. Karena itu “tersedia panduan dari DeepSeek” tidak sama dengan jaminan seluruh fitur Claude Code kompatibel. Sumber: https://code.claude.com/docs/en/llm-gateway .
+- OpenCode adalah alternatif harness multi-provider dan mendokumentasikan DeepSeek; bukan komponen wajib untuk memakai DeepSeek pada Claude Code. Sumber: https://opencode.ai/docs/providers/ .
+
+Rekomendasi Karen: pertahankan Hana/Claude Code + Claude sebagai baseline. Uji profil Claude Code + DeepSeek terpisah jika Bos Cyo ingin mempertahankan mesin Claude Code. Untuk sering berpindah banyak provider, pertimbangkan OpenCode pada tahap adapter berikutnya. Tidak menimpa konfigurasi global Hana dan tidak membuat fallback diam-diam ke provider berbayar lain.
+
+Handoff yang harus dijalankan Hana setelah desain masuk tahap implementasi:
+1. Verifikasi CLI/OS yang benar-benar digunakan, capabilities hooks, dan file konfigurasi existing.
+2. Uji baseline dua sesi dan telemetry sebelum mengganti model.
+3. Buat profil terminal terisolasi untuk DeepSeek bila dipilih; credential dimasukkan melalui jalur lokal aman, tidak lewat chat/repo.
+4. Uji tool calls baca/edit/test, streaming, permission wait, context compaction dan subagent jika dipakai, cancellation, serta model/provider yang benar-benar melayani request.
+5. Buktikan hooks monitor tetap berfungsi pada profil alternatif. Ini hipotesis karena harness sama, belum hasil uji.
+6. Catat biaya API provider terpisah dari langganan chat; jangan menganggap langganan chat mencakup API DeepSeek.
+7. Jika menggunakan OpenCode, implementasikan adapter event khusus; jangan menganggap dukungan Pixel Agents otomatis tersedia.
+8. Laporkan kompatibilitas per fitur, batasan, version pin dan rollback, tanpa klaim kesetaraan kecerdasan/performa antar-model.
+
 ## 8. Security, biaya, dan operasional
 
 - Bind 127.0.0.1; tidak membuka dashboard ke internet/LAN secara default.

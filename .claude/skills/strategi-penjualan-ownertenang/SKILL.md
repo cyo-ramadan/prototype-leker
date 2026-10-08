@@ -48,6 +48,8 @@ Hana tidak tahu dan tidak boleh mengira-ngira: harga final, nomor WhatsApp, targ
 
 Template naskah video, pesan WhatsApp, dan jawaban keberatan ada di `references/konten-dan-pesan.md` — baca saat menulis konten atau membalas calon pembeli.
 
+Alur kerja SEO (artikel) dan iklan + landing page — gerbang, langkah, persetujuan Bos Cyo, cara mengukur, laporan mingguan — ada di `pemasaran/WORKFLOW-SEO-IKLAN.md`. Ikuti itu sebelum menulis artikel atau materi iklan.
+
 ## Kanal dan ukuran berhasil
 
 Urutan (alasan: mulai dari yang murah dan paling cepat belajar): jual langsung lewat jaringan Bos Cyo → pemilik kemitraan/franchise → konten TikTok/Reels organik → Google Search setelah domain aktif → iklan Meta paling akhir.

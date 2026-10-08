@@ -1,0 +1,75 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Router MAXI (pindah model otomatis)",
+      "options": {
+        "baseURL": "http://127.0.0.1:{env:MESIN_ROUTER_PORT}/v1",
+        "apiKey": "{env:LITELLM_MASTER_KEY}"
+      },
+      "models": {
+        "mesin": {
+          "name": "Mesin (paling pintar, otomatis turun saat limit)",
+          "limit": { "context": 128000, "output": 16000 }
+        },
+        "cadangan-4": {
+          "name": "Cadangan ringan (kerja kecil)",
+          "limit": { "context": 128000, "output": 8000 }
+        }
+      }
+    }
+  },
+  "model": "router/mesin",
+  "small_model": "router/cadangan-4",
+  "instructions": ["mesin-agen/PERAN.md"],
+  "mcp": {
+    "agent-bus": {
+      "type": "remote",
+      "url": "{env:MAXI_AGENT_BUS_URL}",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:MAXI_AGENT_BUS_TOKEN}"
+      }
+    }
+  },
+  "permission": {
+    "edit": "allow",
+    "webfetch": "allow",
+    "bash": {
+      "*": "ask",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "git add *": "allow",
+      "git commit *": "allow",
+      "git switch *": "allow",
+      "git checkout -b *": "allow",
+      "git fetch*": "allow",
+      "git pull*": "allow",
+      "git branch*": "allow",
+      "git config user.*": "allow",
+      "git push -u origin mesin/*": "allow",
+      "npm test*": "allow",
+      "npm run check*": "allow",
+      "npm ci*": "allow",
+      "node *": "allow",
+      "ls*": "allow",
+      "cat *": "allow",
+      "grep *": "allow",
+      "rg *": "allow",
+      "git push *main*": "deny",
+      "git push *--force*": "deny",
+      "git push -f*": "deny",
+      "git reset --hard*": "deny",
+      "npm run deploy*": "deny",
+      "npm run db:*": "deny",
+      "npx wrangler*": "deny",
+      "wrangler *": "deny",
+      "rm -rf *": "deny",
+      "cat *.env*": "deny",
+      "cat .env*": "deny"
+    }
+  }
+}

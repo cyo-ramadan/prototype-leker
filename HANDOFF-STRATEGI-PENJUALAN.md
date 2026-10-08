@@ -341,6 +341,10 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Halaman & video (2026-10-06)**: `/produk/` (pemilik 2–10 gerai, interaktif: coba jadi pemilik,
   kalkulator kebocoran, simulasi Una) dan `/produk/kemitraan/` (pilot 1–3 gerai mitra, kalkulator biaya);
   video 9:16 nomor 1, 2, 4 di `pemasaran/video/`. Ringkasan, daftar klaim, cara rekam ulang: `pemasaran/README.md`.
+- **Workflow SEO & iklan** *(2026-10-08, Bos Cyo: "bikin dulu workflow nya")*: `pemasaran/WORKFLOW-SEO-IKLAN.md`.
+  Usulan Hana yang menunggu persetujuan: situs jualan dipisah dari aplikasi POS (statis, tanpa database);
+  setiap tombol WhatsApp membawa kode sumber; Google Search sebelum Meta; uang iklan baru naik setelah
+  ada pembayar dari iklan.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 

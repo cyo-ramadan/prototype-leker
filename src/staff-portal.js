@@ -10,6 +10,7 @@ import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarnin
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
 import { recordAttendanceAccrual } from './payroll-ledger.js';
+import { AKUN_HUTANG_GAJI, riwayatDariBuku } from './riwayat-dari-buku.js';
 import { expirePermitsForClosedSessions, listOwnCorrectionPermits } from './attendance-correction-permit.js';
 import { listOwnGpsPermits } from './attendance-gps-permit.js';
 import { evaluateGps, storeReference, gpsNotice, overRadiusMeters } from './attendance-gps.js';
@@ -21,6 +22,29 @@ const coord = value => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
+
+// Jurnal Akuntansi pada Hutang Gaji (di luar fakta presensi/Bea) atas nama pemilik akun ini:
+// karyawan yang tertaut sekarang, dan akun kasir ini sendiri sebelum ditautkan.
+async function accountingPayrollAdjustments(db, cashier) {
+  if (!cashier?.id || !cashier.store?.id) return [];
+  const [store, link] = await Promise.all([
+    db.prepare('SELECT entity_id FROM stores WHERE id = ? LIMIT 1').bind(cashier.store.id).first(),
+    db.prepare(`
+      SELECT employee_id FROM employee_account_links
+      WHERE account_type = 'CASHIER' AND account_id = ? AND effective_to IS NULL LIMIT 1
+    `).bind(cashier.id).first()
+  ]);
+  if (!store?.entity_id) return [];
+  const holderIds = [...(link?.employee_id ? [link.employee_id] : []), `cashier:${cashier.id}`];
+  const buku = await riwayatDariBuku(db, { entityId: store.entity_id, accountCode: AKUN_HUTANG_GAJI, holderIds, sinkron: false });
+  return buku.penyesuaian.map(entry => ({
+    journalNumber: entry.journalNumber,
+    businessDate: entry.businessDate,
+    storeCode: entry.storeCode,
+    amountRupiah: entry.amountRupiah,
+    description: entry.description
+  }));
+}
 
 export async function handleStaffPortalApi(request, env, pathname) {
   if (!pathname.startsWith('/api/staff/')) return null;
@@ -47,6 +71,8 @@ export async function handleStaffPortalApi(request, env, pathname) {
       // gaji karyawan sendiri -- entry Admin (Penyesuaian Gaji) wajib ikut
       // kelihatan di sini juga, bukan cuma di panel Admin.
       payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id }),
+      // ADR-054: koreksi akuntan pada Hutang Gaji atas nama pemilik akun ini ikut tampil.
+      accountingPayrollAdjustments: await accountingPayrollAdjustments(env.DB, auth.cashier),
       attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id),
       attendanceGpsPermits: await listOwnGpsPermits(env.DB, auth.cashier.id)
     });

@@ -242,7 +242,8 @@ test('foto dibuka di halaman yang sama (bukan tab baru), Portal Staf mengisi wak
   }
   for (const [page, script] of [['staff', 'staff.js'], ['branch-admin', 'admin-employee-deposits.js'], ['entity-admin', 'entity-setoran-cs.js']]) {
     const html = read(`public/${page}.html`);
-    assert.ok(html.indexOf('/foto-lihat.js') !== -1 && html.indexOf('/foto-lihat.js') < html.indexOf(`/${script}?v=20261008-bukti-transfer-v1`), page);
+    const at = html.indexOf(`/${script}?v=`);
+    assert.ok(at !== -1 && html.indexOf('/foto-lihat.js') !== -1 && html.indexOf('/foto-lihat.js') < at, page);
   }
   const staff = read('public/staff.js');
   assert.match(staff, /const SISI_FOTO_SETORAN = 1920;/);

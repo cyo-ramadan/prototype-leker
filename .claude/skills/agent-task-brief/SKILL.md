@@ -70,6 +70,17 @@ yang memposting jurnal; isolasi `store_id` server-side; tanpa polling periodik; 
 ulang migration yang sudah applied; saldo negatif bukan bug; jangan minta token plaintext.
 Kalau task menyentuh salah satunya, **tulis ulang invariant persisnya di `forbidden`**.
 
+**a2. Fitur yang menyentuh uang wajib menyebut akun, jurnal, dan "atas nama siapa" di brief-nya (ADR-054).**
+Bos Cyo, 2026-10-08: "ketika dia minta fitur baru nah kita wajib memikirkan akun dan mekanisme jurnal
+apa yang nanti jalan di fitur itu waktu pengerjaan kodingnya." Tulis di `instructions`: fakta apa yang
+dikirim ke Accounting, Jenis Transaksi + akun Debit/Kredit-nya, dan bila menyentuh akun bernama
+(1201/1202/2101/2102/2103) pihak mana yang diisi lewat `lineParties`. Tulis juga di `acceptance`:
+"`test/buku-atas-nama-otomatis.test.js` tetap hijau tanpa menambah pengecualian baru" -- tes itu gagal
+bila ada modul baru memposting jurnal tanpa nama. Angka uang per orang yang ditampilkan dibaca dari
+buku (`src/riwayat-dari-buku.js`), bukan dihitung ulang dari tabel operasional. Kalau fitur butuh akun
+atau aturan jurnal baru untuk setiap gerai, tambahkan ke `pasangJurnalWajib` (`src/gerai-jurnal-wajib.js`)
+DAN migration pelengkap untuk gerai lama.
+
 **b. Area akuntansi / inventory-costing / approval → paksa baca `KNOWN_PITFALLS.md` dulu,**
 sebutkan eksplisit di brief. 21 pitfall di sana adalah daftar kerusakan yang sudah pernah kejadian.
 

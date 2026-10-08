@@ -41,6 +41,26 @@ async function employeeDepositAccounts(db, storeId) {
   };
 }
 
+// ADR-054: baris Piutang Karyawan membawa nama CS pemegang setoran, supaya Riwayat Setoran per
+// orang bisa dibaca dari buku. Pemegang = counterparty piutang setoran (id karyawan, atau
+// `cashier:<id>` untuk akun kasir yang belum ditautkan).
+async function depositHolder(db, storeId, event, referenceId) {
+  const row = event === 'RECOGNITION'
+    ? await db.prepare(`
+        SELECT counterparty_id, counterparty_name_snapshot AS name
+        FROM operational_receivables_payables WHERE id = ? AND store_id = ? LIMIT 1
+      `).bind(referenceId, storeId).first()
+    : await db.prepare(`
+        SELECT r.counterparty_id, r.counterparty_name_snapshot AS name
+        FROM operational_receivable_payable_payments p
+        JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
+        WHERE p.id = ? AND p.store_id = ? LIMIT 1
+      `).bind(referenceId, storeId).first();
+  const name = String(row?.name || '').trim();
+  if (!row?.counterparty_id || name.length < 2) return null;
+  return { type: 'EMPLOYEE', employeeId: row.counterparty_id, name };
+}
+
 async function postEmployeeDepositJournal(db, store, {
   referenceId,
   businessDate,
@@ -97,6 +117,7 @@ async function postEmployeeDepositJournal(db, store, {
   };
   const idempotencyKey = `EMPLOYEE_DEPOSIT_${event}:${storeId}:${normalizedReferenceId}`;
   const recognition = event === 'RECOGNITION';
+  const holder = await depositHolder(db, storeId, event, normalizedReferenceId);
   return postAccountingJournal(db, { id: storeId }, {
     businessDate,
     occurredAt,
@@ -118,7 +139,8 @@ async function postEmployeeDepositJournal(db, store, {
         amountScaled: normalizedAmount,
         description: recognition ? 'Kas yang masih dipegang karyawan' : 'Pelunasan Piutang Karyawan'
       }
-    ]
+    ],
+    lineParties: [debit, credit].map(key => (key === 'employeeReceivable' ? holder : null))
   });
 }
 

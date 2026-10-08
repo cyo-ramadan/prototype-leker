@@ -1,5 +1,6 @@
 import { json } from './http.js';
 import { entityAdminFromRequest } from './owner-auth.js';
+import { AKUN_HUTANG_GAJI, AKUN_PIUTANG_KARYAWAN, operasionalPerGerai, riwayatDariBuku } from './riwayat-dari-buku.js';
 
 // Bos Cyo, 2026-10-06: "didalam tombol karyawan entity admin itu tambahin untuk cek saldo
 // piutang/setoran dari karyawan tersebut, terlihat jika satu karyawan tadi tertaut dengan 2 atau
@@ -9,8 +10,9 @@ import { entityAdminFromRequest } from './owner-auth.js';
 //
 // Read-only, lintas gerai dalam SATU entity (entity Entity Admin pemanggil). Sumber data:
 //   Setoran : operational_receivables_payables EMPLOYEE_DEPOSIT (+ pembayaran/ACC-nya) atas nama
-//             karyawan ini, atau atas nama akun kasirnya sebelum ditautkan (`cashier:<id>`), plus
-//             jurnal manual Piutang Karyawan yang menyebut namanya (accounting_party_entries).
+//             karyawan ini, atau atas nama akun kasirnya sebelum ditautkan (`cashier:<id>`).
+//   Keduanya ditambah jurnal Akuntansi di luar fakta operasional yang menyebut namanya, dan saldonya
+//   saldo menurut buku (ADR-054, src/riwayat-dari-buku.js).
 //             Akun asal setoran = kasir pemegang laci (cash_drawer_sessions.cashier_id).
 //   Gaji    : payroll_ledger_entries milik karyawan ini atau akun-akun tertautnya.
 // Saldo dihitung berurutan waktu; boleh negatif (invariant #8).
@@ -43,7 +45,7 @@ function inList(values) {
 async function setoranEntries(db, employeeId, entityId, accounts) {
   const holderIds = [employeeId, ...accounts.map(account => `cashier:${account.accountId}`)];
   const receivables = await db.prepare(`
-    SELECT r.id, r.original_amount, r.transaction_date, r.created_at, s.code AS store_code, d.cashier_id
+    SELECT r.id, r.store_id, r.original_amount, r.transaction_date, r.created_at, s.code AS store_code, d.cashier_id
     FROM operational_receivables_payables r
     JOIN stores s ON s.id = r.store_id
     LEFT JOIN cash_drawer_sessions d ON d.id = r.source_id AND d.store_id = r.store_id
@@ -55,12 +57,13 @@ async function setoranEntries(db, employeeId, entityId, accounts) {
     businessDate: row.transaction_date,
     kind: 'SETORAN_LACI',
     label: 'Setoran dari tutup laci',
+    storeId: row.store_id,
     storeCode: row.store_code,
     accountId: row.cashier_id || null,
     amountScaled: Number(row.original_amount),
     status: 'POSTED'
   }));
-  const accountByReceivable = new Map(list.map(row => [row.id, { storeCode: row.store_code, accountId: row.cashier_id || null }]));
+  const accountByReceivable = new Map(list.map(row => [row.id, { storeId: row.store_id, storeCode: row.store_code, accountId: row.cashier_id || null }]));
   const ids = [...accountByReceivable.keys()];
   for (let offset = 0; offset < ids.length; offset += 80) {
     const chunk = ids.slice(offset, offset + 80);
@@ -80,6 +83,7 @@ async function setoranEntries(db, employeeId, entityId, accounts) {
         label: row.admin_payment_id
           ? 'Dipakai membayar (oleh Admin)'
           : row.shared_account_name ? `Transfer setoran ke ${row.shared_account_name}` : 'Transfer setoran',
+        storeId: origin.storeId || null,
         storeCode: origin.storeCode || '',
         accountId: origin.accountId || null,
         amountScaled: -Number(row.amount),
@@ -88,33 +92,13 @@ async function setoranEntries(db, employeeId, entityId, accounts) {
       });
     }
   }
-  const manual = await db.prepare(`
-    SELECT e.side, e.amount_scaled, e.business_date, e.created_at, e.description, h.journal_number, s.code AS store_code
-    FROM accounting_party_entries e
-    JOIN accounting_journal_headers h ON h.id = e.journal_id
-    JOIN stores s ON s.id = e.store_id
-    WHERE s.entity_id = ? AND e.account_code = '1202' AND e.employee_id IN (${inList(holderIds)}) AND h.journal_status = 'POSTED'
-  `).bind(entityId, ...holderIds).all();
-  for (const row of manual.results ?? []) {
-    entries.push({
-      at: row.created_at || `${row.business_date}T00:00:00.000Z`,
-      businessDate: row.business_date,
-      kind: 'JURNAL_AKUNTANSI',
-      label: `Penyesuaian dari Akuntansi · Jurnal ${row.journal_number}`,
-      storeCode: row.store_code,
-      accountId: null,
-      amountScaled: (row.side === 'DEBIT' ? 1 : -1) * Number(row.amount_scaled),
-      status: 'POSTED',
-      note: row.description || ''
-    });
-  }
   return entries;
 }
 
 async function gajiEntries(db, employeeId, entityId, accounts) {
   const accountIds = accounts.map(account => account.accountId);
   const rows = await db.prepare(`
-    SELECT p.entry_type, p.account_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
+    SELECT p.entry_type, p.account_id, p.store_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
     FROM payroll_ledger_entries p
     JOIN stores s ON s.id = p.store_id
     WHERE s.entity_id = ? AND p.voided_at IS NULL AND p.hutang_gaji_delta_scaled <> 0
@@ -126,6 +110,7 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
     businessDate: row.business_date,
     kind: row.entry_type,
     label: label[row.entry_type] || row.entry_type,
+    storeId: row.store_id,
     storeCode: row.store_code,
     accountId: row.account_id || null,
     amountScaled: Number(row.hutang_gaji_delta_scaled),
@@ -138,9 +123,33 @@ export async function buildEmployeeLedger(db, { employeeId, entityId, kind, acco
   const employee = await db.prepare(`SELECT id, full_name FROM employees WHERE id = ? AND entity_id = ?`).bind(employeeId, entityId).first();
   if (!employee) return null;
   const accounts = await linkedAccounts(db, employee.id, entityId);
-  let entries = kind === 'gaji'
+  const operational = kind === 'gaji'
     ? await gajiEntries(db, employee.id, entityId, accounts)
     : await setoranEntries(db, employee.id, entityId, accounts);
+  // ADR-054: saldo = buku Akuntansi; jurnal di luar fakta operasional (jurnal akuntan, dst.) atas
+  // nama orang ini -- termasuk akun kasirnya sebelum ditautkan -- tampil sebagai penyesuaian.
+  const buku = await riwayatDariBuku(db, {
+    entityId,
+    accountCode: kind === 'gaji' ? AKUN_HUTANG_GAJI : AKUN_PIUTANG_KARYAWAN,
+    holderIds: [employee.id, ...accounts.map(account => `cashier:${account.accountId}`)],
+    operationalByStore: operasionalPerGerai(operational.map(entry => ({ storeId: entry.storeId, amountScaled: entry.amountScaled, aktif: entry.status === 'POSTED' }))),
+    syncStoreIds: operational.map(entry => entry.storeId)
+  });
+  let entries = [
+    ...operational,
+    ...buku.penyesuaian.map(entry => ({
+      at: entry.createdAt || `${entry.businessDate}T00:00:00.000Z`,
+      businessDate: entry.businessDate,
+      kind: 'JURNAL_AKUNTANSI',
+      label: `Penyesuaian dari Akuntansi · Jurnal ${entry.journalNumber}`,
+      storeId: entry.storeId,
+      storeCode: entry.storeCode,
+      accountId: null,
+      amountScaled: entry.amountScaled,
+      status: 'POSTED',
+      note: entry.description
+    }))
+  ];
   // Filter akun: mutasi yang tidak bisa ditempelkan ke satu akun (mis. jurnal manual, pembayaran
   // gaji per orang) hanya tampil di "Semua akun".
   if (accountId) entries = entries.filter(entry => entry.accountId === accountId);
@@ -171,7 +180,9 @@ export async function buildEmployeeLedger(db, { employeeId, entityId, kind, acco
     kind: kind === 'gaji' ? 'gaji' : 'setoran',
     accounts,
     selectedAccountId: accountId || null,
-    balanceRupiah: rupiah(balance),
+    // Saldo semua akun = buku Akuntansi; saat difilter satu akun, jumlah mutasi akun itu.
+    balanceRupiah: accountId ? rupiah(balance) : buku.balanceRupiah,
+    belumMasukBukuRupiah: buku.belumMasukBukuRupiah,
     pendingRupiah: rupiah(pending),
     entries: withBalance.reverse()
   };

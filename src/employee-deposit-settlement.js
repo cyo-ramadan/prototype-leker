@@ -9,7 +9,8 @@ import {
   postEmployeeDepositRecognitionJournal,
   postEmployeeDepositSettlementJournal,
 } from './accounting-employee-deposit-bridge.js';
-import { manualReceivableByEmployee, scaledToSignedRupiah } from './accounting-party-ledger.js';
+import { accountingStoreIds, manualReceivableByEmployee, saldoMenurutBuku, scaledToSignedRupiah } from './accounting-party-ledger.js';
+import { syncPeopleFacts } from './accounting-auto-sync.js';
 import {
   ambilBacaan,
   bacaBuktiTransfer,
@@ -324,7 +325,9 @@ async function listPendingDepositPayments(db, storeId) {
 
 // Tab Setoran CS di panel Admin: antrean ACC, sisa piutang per CS, dan riwayat keputusan.
 async function depositOverview(db, storeId) {
-  const [pending, history, balances, manual] = await Promise.all([
+  // ADR-054: saldo dibaca dari buku -- setoran yang belum terjurnal disambungkan dulu.
+  await syncPeopleFacts(db, [storeId]);
+  const [pending, history, balances, manual, accountingStores] = await Promise.all([
     listPendingDepositPayments(db, storeId),
     db.prepare(`
       SELECT ${KOLOM_SETORAN}, r.counterparty_name_snapshot, r.transaction_date
@@ -346,19 +349,28 @@ async function depositOverview(db, storeId) {
       GROUP BY r.counterparty_id
       ORDER BY name COLLATE NOCASE
     `).bind(storeId).all(),
-    manualReceivableByEmployee(db, storeId)
+    manualReceivableByEmployee(db, storeId),
+    accountingStoreIds(db, [storeId])
   ]);
   return {
     pending,
     history: (history.results ?? []).map(row => ({ ...mapPayment(row), employeeName: row.counterparty_name_snapshot, depositDate: row.transaction_date || null })),
     // Saldo boleh negatif (setoran lebih) -- tidak di-abs (invariant #8).
-    // Jurnal manual Akuntansi pada Piutang Karyawan (wajib bernama, migration 0138) ikut dihitung
-    // sebagai `manualAdjustmentRupiah` supaya saldo per orang sama dengan buku.
-    balances: mergeBalances(balances.results ?? [], manual)
+    // Saldo per orang = buku Akuntansi (ADR-054). Jurnal manual Akuntansi pada Piutang Karyawan
+    // (wajib bernama, migration 0138) tampil sebagai `manualAdjustmentRupiah`; setoran yang jurnalnya
+    // belum ada tampil sebagai `belumMasukBukuRupiah`, tidak diam-diam dijumlahkan.
+    balances: mergeBalances(balances.results ?? [], manual, storeId, accountingStores)
   };
 }
 
-function mergeBalances(rows, manual) {
+function bookBalance(storeId, operationalScaled, buku, accountingStores) {
+  const { balanceScaled, belumMasukBukuScaled } = saldoMenurutBuku({
+    operationalByStore: new Map([[storeId, operationalScaled]]), buku, accountingStores
+  });
+  return { balanceRupiah: scaledToSignedRupiah(balanceScaled), belumMasukBukuRupiah: scaledToSignedRupiah(belumMasukBukuScaled) };
+}
+
+function mergeBalances(rows, manual, storeId, accountingStores) {
   const seen = new Set();
   const merged = rows.map(row => {
     const original = scaledToRupiah(Number(row.original_amount || 0));
@@ -366,6 +378,7 @@ function mergeBalances(rows, manual) {
     const adjustment = manual.get(row.counterparty_id);
     seen.add(row.counterparty_id);
     const manualAdjustmentRupiah = adjustment ? scaledToSignedRupiah(adjustment.netScaled) : 0;
+    const operationalScaled = Number(row.original_amount || 0) - Number(row.paid_amount || 0);
     return {
       employeeId: row.counterparty_id,
       employeeName: row.name,
@@ -375,7 +388,7 @@ function mergeBalances(rows, manual) {
       pendingAmountRupiah: scaledToRupiah(Number(row.pending_amount || 0)),
       manualAdjustmentRupiah,
       manualEntries: adjustment?.entries ?? [],
-      balanceRupiah: original - paid + manualAdjustmentRupiah
+      ...bookBalance(storeId, operationalScaled, adjustment, accountingStores)
     };
   });
   // Karyawan yang hanya punya jurnal manual (belum pernah setor / belum ada piutang laci).
@@ -391,7 +404,7 @@ function mergeBalances(rows, manual) {
       pendingAmountRupiah: 0,
       manualAdjustmentRupiah,
       manualEntries: adjustment.entries,
-      balanceRupiah: manualAdjustmentRupiah
+      ...bookBalance(storeId, 0, adjustment, accountingStores)
     });
   }
   return merged.sort((a, b) => String(a.employeeName).localeCompare(String(b.employeeName), 'id'));
@@ -532,15 +545,26 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
         payments: await listPaymentsFor(db, item.id, cashier.store.id)
       })));
       const holder = await currentAccountHolder(db, cashier.store.id, cashier.id);
+      if (holder) await syncPeopleFacts(db, [cashier.store.id]);
       const manual = holder ? (await manualReceivableByEmployee(db, cashier.store.id)).get(holder.employee_id) : null;
       const target = await depositTargetSharedAccount(db, cashier.store.id);
+      const operational = holder ? await db.prepare(`
+        SELECT COALESCE(SUM(r.original_amount), 0)
+             - COALESCE(SUM((SELECT COALESCE(SUM(p.amount), 0) FROM operational_receivable_payable_payments p
+                             WHERE p.receivable_payable_id = r.id AND p.store_id = r.store_id AND p.approval_status = 'approved')), 0) AS saldo
+        FROM operational_receivables_payables r
+        WHERE r.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND r.counterparty_id = ?
+      `).bind(cashier.store.id, holder.employee_id).first() : null;
+      const saldo = bookBalance(cashier.store.id, Number(operational?.saldo || 0), manual, await accountingStoreIds(db, [cashier.store.id]));
       return json({
         items: withPayments,
         depositTarget: target ? { sharedAccountId: target.id, name: target.name } : null,
-        // Mutasi dari jurnal Akuntansi (mis. potongan/penyesuaian oleh akuntan), supaya total di
-        // Riwayat Setoran sama dengan buku. Negatif = mengurangi piutang.
+        // Mutasi dari jurnal Akuntansi (mis. potongan/penyesuaian oleh akuntan). Negatif = mengurangi piutang.
         manualAdjustmentRupiah: manual ? scaledToSignedRupiah(manual.netScaled) : 0,
-        manualEntries: manual?.entries ?? []
+        manualEntries: manual?.entries ?? [],
+        // Total Riwayat Setoran = saldo menurut buku Akuntansi (ADR-054).
+        saldoBukuRupiah: saldo.balanceRupiah,
+        belumMasukBukuRupiah: saldo.belumMasukBukuRupiah
       });
     }
 

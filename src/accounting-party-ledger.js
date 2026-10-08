@@ -10,7 +10,7 @@
 // diubah (invariant #2). Ditulis dalam batch yang sama dengan jurnalnya, jadi tidak mungkin ada
 // jurnal manual tanpa nama yang lolos lewat jalur ini.
 
-import { ACCOUNTING_AMOUNT_SCALE } from './accounting-ledger.js';
+import { ACCOUNTING_AMOUNT_SCALE, journalPartyStatements } from './accounting-ledger.js';
 
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 
@@ -106,26 +106,12 @@ export async function prepareJournalParties(db, store, journalLines) {
 }
 
 // Statement INSERT sub-buku, dipasang ke batch posting jurnal (lihat `extraStatements` di
-// postAccountingJournal) supaya jurnal dan namanya tersimpan atomik.
+// postAccountingJournal) supaya jurnal dan namanya tersimpan atomik. SQL-nya satu dengan label
+// jurnal otomatis (journalPartyStatements, ADR-054).
 export function partyEntryStatements(db, store, { journalId, businessDate, lines }, parties, actor = {}) {
-  const statements = [];
-  lines.forEach((line, index) => {
-    const party = parties[index];
-    if (!party) return;
-    const lineId = `${journalId}:L${String(index + 1).padStart(3, '0')}`;
-    statements.push(db.prepare(`
-      INSERT INTO accounting_party_entries (
-        id, store_id, entity_id, journal_id, journal_line_id, account_id, account_code,
-        party_type, employee_id, supplier_id, party_name, side, amount_scaled,
-        business_date, description, created_by_role, created_by_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, (SELECT code FROM chart_of_accounts WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      `party_${lineId}`, store.id, store.entityId ?? null, journalId, lineId, line.accountId, line.accountId,
-      party.type, party.employeeId, party.supplierId, party.name, line.side, line.amountScaled,
-      businessDate, text(line.description, 240), actor.role || '', actor.id || '', new Date().toISOString()
-    ));
-  });
-  return statements;
+  return journalPartyStatements(db, {
+    storeId: store.id, entityId: store.entityId ?? null, journalId, businessDate, lines
+  }, parties, actor);
 }
 
 // Pilihan nama untuk form jurnal manual: karyawan entity, pemegang akun kasir yang belum ditautkan
@@ -153,34 +139,100 @@ export async function listPartyOptions(db, store) {
   };
 }
 
-// Mutasi manual (jurnal Akuntansi) pada Piutang Karyawan 1202, dikelompokkan per karyawan.
-// Positif = karyawan makin berhutang ke perusahaan (Debit 1202); negatif = berkurang (Kredit 1202).
-export async function manualReceivableByEmployee(db, storeId) {
+// Jurnal otomatis yang rinciannya hidup di Operasional (setoran CS, gaji presensi, Bea, pelunasan
+// hutang oleh Admin) beserta pembaliknya. Riwayat per orang menampilkan rincian ini dari fakta
+// operasionalnya (jam kerja, foto, status ACC); jurnal di luar daftar ini -- jurnal manual akuntan,
+// Una, dst. -- tampil sebagai "Penyesuaian dari Akuntansi".
+export const OPERATIONAL_MIRROR_SOURCES = Object.freeze(['EMPLOYEE_DEPOSIT', 'LEKER_ADMIN', 'LEKER_ADMIN_VOID']);
+
+// Buku per orang (ADR-054): semua baris jurnal POSTED bernama pada satu akun, dikelompokkan per
+// pemegang (id karyawan atau `cashier:<id>`). Nilai bertanda dalam sisi normal akun: Piutang (1xxx)
+// = Debit-Kredit, Hutang (2xxx) = Kredit-Debit. Hasil per orang:
+//   bookScaled       : saldo menurut buku -- angka yang ditampilkan;
+//   mirrorScaled     : bagian dari jurnal otomatis fakta operasional (pembanding sub-buku Operasional);
+//   netScaled/entries: penyesuaian dari Akuntansi (di luar fakta operasional), dengan rinciannya.
+export async function bukuPerOrang(db, { storeIds, accountCode }) {
+  const ids = [...new Set((storeIds || []).filter(Boolean))];
+  const byEmployee = new Map();
+  if (!ids.length) return byEmployee;
+  const sign = String(accountCode).startsWith('1') ? 1 : -1;
   const rows = await db.prepare(`
     SELECT e.employee_id, e.party_name AS name, h.journal_number, e.journal_id, e.business_date, e.side,
-           e.amount_scaled, e.description
+           e.amount_scaled, e.description, e.store_id, h.source_system, e.created_at
     FROM accounting_party_entries e
     JOIN accounting_journal_headers h ON h.id = e.journal_id
-    WHERE e.store_id = ? AND e.account_code = '1202' AND e.employee_id IS NOT NULL AND h.journal_status = 'POSTED'
+    WHERE e.store_id IN (${ids.map(() => '?').join(',')}) AND e.account_code = ?
+      AND e.employee_id IS NOT NULL AND h.journal_status = 'POSTED'
     ORDER BY e.business_date DESC, h.journal_number DESC
-  `).bind(storeId).all();
-  const byEmployee = new Map();
+  `).bind(...ids, accountCode).all();
   for (const row of rows.results ?? []) {
-    const signed = (row.side === 'DEBIT' ? 1 : -1) * Number(row.amount_scaled);
-    const entry = byEmployee.get(row.employee_id) || { employeeId: row.employee_id, name: row.name, netScaled: 0, entries: [] };
-    entry.netScaled += signed;
-    entry.entries.push({
-      journalId: row.journal_id,
-      journalNumber: row.journal_number,
-      businessDate: row.business_date,
-      side: row.side,
-      amountScaled: Number(row.amount_scaled),
-      signedScaled: signed,
-      description: row.description || ''
-    });
+    const signed = (row.side === 'DEBIT' ? 1 : -1) * sign * Number(row.amount_scaled);
+    const entry = byEmployee.get(row.employee_id)
+      || { employeeId: row.employee_id, name: row.name, bookScaled: 0, mirrorScaled: 0, netScaled: 0, entries: [], byStore: new Map() };
+    const perStore = entry.byStore.get(row.store_id) || { bookScaled: 0, mirrorScaled: 0 };
+    entry.bookScaled += signed;
+    perStore.bookScaled += signed;
+    entry.byStore.set(row.store_id, perStore);
+    if (OPERATIONAL_MIRROR_SOURCES.includes(row.source_system)) {
+      entry.mirrorScaled += signed;
+      perStore.mirrorScaled += signed;
+    } else {
+      entry.netScaled += signed;
+      entry.entries.push({
+        journalId: row.journal_id,
+        journalNumber: row.journal_number,
+        businessDate: row.business_date,
+        createdAt: row.created_at,
+        storeId: row.store_id,
+        side: row.side,
+        amountScaled: Number(row.amount_scaled),
+        signedScaled: signed,
+        description: row.description || ''
+      });
+    }
     byEmployee.set(row.employee_id, entry);
   }
   return byEmployee;
+}
+
+// Saldo yang ditampilkan untuk satu orang (ADR-054). Gerai berAkuntansi: saldo menurut buku.
+// Gerai tanpa Akuntansi (edisi LITE, tidak ada jurnal): saldo fakta operasional. belumMasukBuku =
+// fakta operasional di gerai berAkuntansi yang jurnalnya belum ada (tertahan Setting Akuntansi) --
+// ditampilkan sebagai peringatan, tidak diam-diam dijumlahkan.
+//   operationalByStore: Map(storeId -> saldo fakta operasional, scaled)
+//   buku              : satu entri dari bukuPerOrang (boleh kosong)
+//   accountingStores  : Set storeId edisi ACCOUNTING
+export function saldoMenurutBuku({ operationalByStore = new Map(), buku = null, accountingStores = new Set() }) {
+  const stores = new Set([...operationalByStore.keys(), ...(buku?.byStore?.keys() ?? [])]);
+  let balanceScaled = 0;
+  let belumMasukBukuScaled = 0;
+  for (const storeId of stores) {
+    const operational = Number(operationalByStore.get(storeId) || 0);
+    const book = buku?.byStore?.get(storeId) || { bookScaled: 0, mirrorScaled: 0 };
+    if (accountingStores.has(storeId)) {
+      balanceScaled += book.bookScaled;
+      belumMasukBukuScaled += operational - book.mirrorScaled;
+    } else {
+      balanceScaled += operational + (book.bookScaled - book.mirrorScaled);
+    }
+  }
+  return { balanceScaled, belumMasukBukuScaled };
+}
+
+export async function accountingStoreIds(db, storeIds) {
+  const ids = [...new Set((storeIds || []).filter(Boolean))];
+  if (!ids.length) return new Set();
+  const rows = await db.prepare(`
+    SELECT id FROM stores WHERE id IN (${ids.map(() => '?').join(',')}) AND edition = 'ACCOUNTING'
+  `).bind(...ids).all();
+  return new Set((rows.results ?? []).map(row => row.id));
+}
+
+// Penyesuaian dari Akuntansi pada Piutang Karyawan 1202 per karyawan (dulu: semua jurnal bernama,
+// karena hanya jurnal manual yang bernama). Sejak jurnal setoran otomatis juga bernama (ADR-054),
+// jurnal otomatis dipisah ke mirrorScaled supaya tidak terhitung dua kali dengan fakta setoran.
+export function manualReceivableByEmployee(db, storeId) {
+  return bukuPerOrang(db, { storeIds: [storeId], accountCode: '1202' });
 }
 
 // Jurnal yang sub-bukunya hidup di setoran CS (Operasional): pengakuan & pelunasan setoran, dan
@@ -231,11 +283,13 @@ export async function getPartyReconciliation(db, store, { listLimit = 50 } = {})
     for (const row of lines.results ?? []) {
       const signed = (row.side === 'DEBIT' ? 1 : -1) * normalSign * Number(row.amount_scaled);
       glScaled += signed;
-      if (row.party_name) {
-        namedScaled += signed;
-        byParty.set(row.party_name, (byParty.get(row.party_name) || 0) + signed);
-      } else if (account.code === '1202' && isSetoranJournal(row)) {
+      // Sejak ADR-054 jurnal setoran otomatis juga bernama; tetap dihitung di kelompok setoran supaya
+      // pencocokan dengan sub-buku Operasional di bawah tetap utuh.
+      if (row.party_name) byParty.set(row.party_name, (byParty.get(row.party_name) || 0) + signed);
+      if (account.code === '1202' && isSetoranJournal(row)) {
         setoranScaled += signed;
+      } else if (row.party_name) {
+        namedScaled += signed;
       } else {
         unnamedScaled += signed;
         if (unnamedItems.length < listLimit) {

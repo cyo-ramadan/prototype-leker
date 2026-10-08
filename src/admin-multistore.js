@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { pasangJurnalWajib } from './gerai-jurnal-wajib.js';
 import { DEFAULT_STORE_CODE, listStores, normalizeStoreCode, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
 
@@ -164,6 +165,7 @@ export async function handleAdminApi(request, env, pathname) {
     if (duplicate) return json({ error: 'Kode gerai sudah dipakai.' }, 409);
     const id = `store_${crypto.randomUUID()}`;
     await db.prepare(`INSERT INTO stores (id, code, store_name, address, logo_data, is_active) VALUES (?, ?, ?, ?, ?, 1)`).bind(id, code, storeName, address, logo).run();
+    await pasangJurnalWajib(db, id);
     return json({ ok: true, store: await resolveStore(db, id, { includeInactive: true }) }, 201);
   }
 

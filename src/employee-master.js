@@ -2,6 +2,7 @@ import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
 import { listLedgerForEmployee } from './payroll-ledger.js';
+import { AKUN_HUTANG_GAJI, operasionalPerGerai, riwayatDariBuku } from './riwayat-dari-buku.js';
 
 // Master Karyawan (migration 0072). Pemisahan "orang" dari "akun login":
 // employees menyimpan manusianya (milik Entity), employee_account_links
@@ -337,8 +338,36 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
     const id = decodeURIComponent(ledgerMatch[1]);
     const employee = await db.prepare('SELECT id, full_name FROM employees WHERE id = ? AND entity_id = ?').bind(id, store.entityId).first();
     if (!employee) return json({ error: 'Karyawan tidak ditemukan di entity gerai ini.' }, 404);
-    const { entries, hutangGajiBalanceRupiah } = await listLedgerForEmployee(db, id);
-    return json({ employee: { id: employee.id, fullName: employee.full_name }, entries, hutangGajiBalanceRupiah });
+    const { entries } = await listLedgerForEmployee(db, id);
+    // ADR-054: saldo Hutang Gaji = buku Akuntansi; jurnal akuntan pada Hutang Gaji atas nama orang
+    // ini ikut tampil sebagai kartu "Penyesuaian dari Akuntansi".
+    const buku = await riwayatDariBuku(db, {
+      entityId: store.entityId,
+      accountCode: AKUN_HUTANG_GAJI,
+      holderIds: [id],
+      operationalByStore: operasionalPerGerai(entries.map(entry => ({ storeId: entry.storeId, amountScaled: entry.hutangGajiDeltaScaled, aktif: !entry.voided }))),
+      syncStoreIds: entries.map(entry => entry.storeId)
+    });
+    const penyesuaian = buku.penyesuaian.map(entry => ({
+      id: `jurnal:${entry.journalId}`,
+      entryType: 'AKUNTANSI',
+      storeId: entry.storeId,
+      storeCode: entry.storeCode,
+      businessDate: entry.businessDate,
+      hutangGajiDeltaRupiah: entry.amountRupiah,
+      hutangGajiDeltaScaled: entry.amountScaled,
+      sourceType: 'AKUNTANSI',
+      journalNumber: entry.journalNumber,
+      description: entry.description || 'Penyesuaian dari Akuntansi',
+      createdAt: entry.createdAt,
+      voided: false
+    }));
+    return json({
+      employee: { id: employee.id, fullName: employee.full_name },
+      entries: [...entries, ...penyesuaian].sort((a, b) => String(b.businessDate).localeCompare(String(a.businessDate))),
+      hutangGajiBalanceRupiah: buku.balanceRupiah,
+      belumMasukBukuRupiah: buku.belumMasukBukuRupiah
+    });
   }
 
   const employeeMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)$/);

@@ -14,6 +14,19 @@
   const tanggal = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(`${String(value).slice(0, 10)}T00:00:00`)) : '';
   let photoUrls = [];
 
+  // Waktu transfer menurut bukti + asalnya (migration 0142), dan peringatan bila nominal yang terbaca
+  // dari foto beda dengan nominal yang diketik CS.
+  function buktiInfo(payment) {
+    const read = payment.proofRead || {};
+    const jam = payment.transferAt
+      ? `<b>Transfer ${esc(waktu(payment.transferAt))}</b> <span class="status-chip ${payment.transferAtSource === 'OTOMATIS' ? 'ok' : 'warn'}">${payment.transferAtSource === 'OTOMATIS' ? 'terbaca otomatis' : 'diisi manual'}</span>`
+      : '<span class="muted">Waktu transfer tidak diisi (kiriman lama)</span>';
+    const nominalBeda = read.nominalRupiah && Number(read.nominalRupiah) !== Number(payment.amountRupiah)
+      ? ` <span class="status-chip bad">Nominal di foto ${money(read.nominalRupiah)}</span>` : '';
+    const detail = [read.bank, read.referensi ? `ref ${read.referensi}` : '', read.penerima ? `ke ${read.penerima}` : ''].filter(Boolean).map(esc).join(' · ');
+    return `<div class="master-meta">${jam}${nominalBeda}</div>${detail ? `<div class="master-meta">${detail}</div>` : ''}`;
+  }
+
   function tokenHeader() {
     const token = (typeof entityAdminState !== 'undefined' && entityAdminState.token) || localStorage.getItem('lekerEntityAdminToken') || '';
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -38,7 +51,7 @@
         const url = URL.createObjectURL(await response.blob());
         photoUrls.push(url);
         img.src = url;
-        img.onclick = () => window.open(url, '_blank');
+        img.onclick = () => window.MAXIFotoLihat ? window.MAXIFotoLihat.buka(url, 'Foto bukti transfer') : window.open(url, '_blank');
       } catch {}
     }));
   }
@@ -53,11 +66,12 @@
           : '<span class="status-chip warn">Tanpa foto</span>'}
         <div class="master-main">
           <strong style="font-size:1.15em">${esc(money(payment.amountRupiah))}</strong> <span class="muted">· ${esc(payment.employeeName)} · ${esc(payment.storeCode)}</span>
-          <div class="master-meta"><b>Dikirim ${esc(waktu(payment.createdAt))}</b></div>
+          ${buktiInfo(payment)}
+          <div class="master-meta">Dikirim ${esc(waktu(payment.createdAt))}</div>
           <div class="master-meta">Setoran laci ${esc(tanggal(payment.depositDate))}${payment.sharedAccountName ? ` · ke ${esc(payment.sharedAccountName)}` : ' · ke Kas'}${payment.proofReference ? ` · ${esc(payment.proofReference)}` : ''}</div>
         </div>
         <div class="master-actions">
-          <button class="mini-btn" type="button" data-approve="${esc(payment.id)}" data-store="${esc(payment.storeCode)}" data-info="${esc(`${money(payment.amountRupiah)} dari ${payment.employeeName} (${payment.storeCode}), dikirim ${waktu(payment.createdAt)}`)}">ACC</button>
+          <button class="mini-btn" type="button" data-approve="${esc(payment.id)}" data-store="${esc(payment.storeCode)}" data-info="${esc(`${money(payment.amountRupiah)} dari ${payment.employeeName} (${payment.storeCode}), transfer ${waktu(payment.transferAt || payment.createdAt)}`)}">ACC</button>
           <button class="mini-btn danger" type="button" data-reject="${esc(payment.id)}" data-store="${esc(payment.storeCode)}">Tolak</button>
         </div>
       </article>`).join('') : '<div class="empty">Tidak ada setoran yang menunggu ACC di gerai mana pun.</div>';

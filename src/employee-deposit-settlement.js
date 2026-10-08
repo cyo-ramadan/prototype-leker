@@ -11,6 +11,15 @@ import {
 } from './accounting-employee-deposit-bridge.js';
 import { manualReceivableByEmployee, scaledToSignedRupiah } from './accounting-party-ledger.js';
 import {
+  ambilBacaan,
+  bacaBuktiTransfer,
+  bacaFotoBukti,
+  sidikFoto,
+  simpanBacaan,
+  simpanFotoBukti,
+  tetapkanWaktuTransfer
+} from './setoran-bukti.js';
+import {
   addOperationalPayment,
   getOperationalReceivablePayable,
   listOperationalReceivablesPayables,
@@ -256,21 +265,36 @@ function mapPayment(row) {
     hasPhoto: Boolean(row.has_photo),
     // Tujuan setoran (Rekening Bersama) dan penanda setoran yang dipakai membayar hutang (admin).
     sharedAccountName: row.shared_account_name || null,
-    usedForAdminPayment: Boolean(row.admin_payment_id)
+    usedForAdminPayment: Boolean(row.admin_payment_id),
+    // Waktu transfer menurut bukti (migration 0142) dan asalnya: OTOMATIS = terbaca dari foto dan
+    // tidak diubah CS; MANUAL = diisi/diubah CS; '' = kiriman lama.
+    transferAt: row.transfer_at || null,
+    transferAtSource: row.transfer_at_source || '',
+    proofRead: parseJson(row.proof_read_json),
+    verificationStatus: row.verification_status || 'BELUM_DICEK'
   };
+}
+
+function parseJson(value) {
+  if (!value) return null;
+  try { return JSON.parse(value); } catch { return null; }
 }
 
 // Kolom setoran TANPA isi foto: foto (s.d. 800 KB) hanya diambil lewat endpoint fotonya
 // sendiri, bukan ikut dimuat setiap kali daftar dibuka.
 const KOLOM_SETORAN = `p.id, p.receivable_payable_id, p.amount, p.approval_status, p.proof_reference, p.note,
-  p.submitted_by, p.reviewed_by, p.reviewed_at, p.rejection_reason, p.created_at, p.proof_photo IS NOT NULL AS has_photo,
+  p.submitted_by, p.reviewed_by, p.reviewed_at, p.rejection_reason, p.created_at,
+  (p.proof_photo IS NOT NULL OR p.proof_photo_key IS NOT NULL) AS has_photo,
+  p.transfer_at, p.transfer_at_source, p.proof_read_json, p.verification_status,
   p.shared_account_id, p.admin_payment_id,
   (SELECT sa.name FROM entity_shared_accounts sa WHERE sa.id = p.shared_account_id) AS shared_account_name`;
 
-function photoResponse(row) {
-  if (!row || !row.proof_photo) return json({ error: 'Foto bukti setoran tidak ditemukan.' }, 404);
-  return new Response(row.proof_photo, {
-    headers: { 'Content-Type': row.proof_photo_type || 'image/jpeg', 'Cache-Control': 'private, max-age=86400' }
+// Foto dari R2 (kunci) atau BLOB D1 (foto lama / R2 belum terpasang) -- src/setoran-bukti.js.
+async function photoResponse(env, row) {
+  const foto = await bacaFotoBukti(env, row);
+  if (!foto) return json({ error: 'Foto bukti setoran tidak ditemukan.' }, 404);
+  return new Response(foto.body, {
+    headers: { 'Content-Type': foto.type, 'Cache-Control': 'private, max-age=86400' }
   });
 }
 
@@ -401,9 +425,10 @@ async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId
       const [update] = await db.batch([
         db.prepare(`
           UPDATE operational_receivable_payable_payments
-          SET approval_status = 'approved', reviewed_by = ?, reviewed_at = ?
+          SET approval_status = 'approved', reviewed_by = ?, reviewed_at = ?,
+              verification_status = 'DICEK_ADMIN', verification_provider = 'ADMIN', verified_at = ?
           WHERE id = ? AND store_id = ? AND approval_status = 'pending_approval'
-        `).bind(reviewerId, now, paymentId, storeId),
+        `).bind(reviewerId, now, now, paymentId, storeId),
         ...ledgerStatements
       ]);
       if (!update?.success || Number(update.meta?.changes ?? 0) !== 1) {
@@ -491,13 +516,13 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
       const holder = await currentAccountHolder(db, cashier.store.id, cashier.id);
       if (!holder) return json({ error: 'Foto bukti setoran tidak ditemukan.' }, 404);
       const row = await db.prepare(`
-        SELECT p.proof_photo, p.proof_photo_type
+        SELECT p.proof_photo, p.proof_photo_type, p.proof_photo_key
         FROM operational_receivable_payable_payments p
         JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
         WHERE p.id = ? AND p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND r.counterparty_id = ?
         LIMIT 1
       `).bind(decodeURIComponent(ownPhotoMatch[1]), cashier.store.id, holder.employee_id).first();
-      return photoResponse(row);
+      return photoResponse(env, row);
     }
 
     if (request.method === 'GET' && pathname === '/api/cashier/employee-deposits') {
@@ -517,6 +542,20 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
         manualAdjustmentRupiah: manual ? scaledToSignedRupiah(manual.netScaled) : 0,
         manualEntries: manual?.entries ?? []
       });
+    }
+
+    // Baca otomatis foto bukti transfer SEBELUM dikirim: Portal Staf mengisi tanggal & jam:menit
+    // transfer (dan memperingatkan bila nominal beda). Hasil disimpan per sidik foto; saat setoran
+    // dikirim dengan foto yang sama, server sendiri yang menilai OTOMATIS atau MANUAL.
+    if (request.method === 'POST' && pathname === '/api/cashier/employee-deposits/read-proof') {
+      if (!isMultipartRequest(request)) return json({ error: 'Foto wajib dikirim sebagai multipart/form-data.' }, 415);
+      const form = await request.formData();
+      const photo = await readLivePhoto(form, 'photo');
+      if (!photo.ok) return json({ error: photo.error }, photo.status);
+      const hasil = await bacaBuktiTransfer(env, { bytes: photo.bytes, type: photo.type });
+      if (!hasil.ok) return json({ error: hasil.error, code: 'PROOF_READ_FAILED' }, hasil.status);
+      await simpanBacaan(db, { photoSha256: await sidikFoto(photo.bytes), storeId: cashier.store.id, cashierId: cashier.id, bacaan: hasil.bacaan });
+      return json({ bacaan: hasil.bacaan });
     }
 
     const submitMatch = pathname.match(/^\/api\/cashier\/employee-deposits\/([^/]+)\/payments$/);
@@ -539,15 +578,25 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
       const keterangan = text(form.get('proofReference'), 300);
       try {
         const target = await depositTargetSharedAccount(db, cashier.store.id);
+        const bacaan = await ambilBacaan(db, { photoSha256: await sidikFoto(photo.bytes), cashierId: cashier.id });
+        const waktu = tetapkanWaktuTransfer({ tanggal: form.get('transferDate'), jam: form.get('transferTime') }, bacaan);
+        const foto = await simpanFotoBukti(env, { storeId: cashier.store.id, bytes: photo.bytes, type: photo.type });
         const result = await addOperationalPayment(db, receivableId, {
           sharedAccountId: target?.id || null,
           amountRupiah: Number(String(form.get('amountRupiah') ?? '').trim()),
           proofReference: keterangan ? `Foto bukti transfer · ${keterangan}` : 'Foto bukti transfer',
           note: form.get('note'),
           submittedBy: cashier.id,
-          proofPhoto: { bytes: photo.bytes, type: photo.type }
+          proofPhoto: foto.bytes ? { bytes: foto.bytes, type: foto.type } : null,
+          proofPhotoKey: foto.key,
+          proofPhotoType: foto.type
         }, { storeId: cashier.store.id });
-        return json(result, 201);
+        await db.prepare(`
+          UPDATE operational_receivable_payable_payments
+          SET transfer_at = ?, transfer_at_source = ?, proof_read_json = ?
+          WHERE id = ? AND store_id = ?
+        `).bind(waktu.transferAt, waktu.source, bacaan ? JSON.stringify(bacaan) : null, result.payment.id, cashier.store.id).run();
+        return json({ ...result, transferAt: waktu.transferAt, transferAtSource: waktu.source }, 201);
       } catch (error) {
         return json({ error: error.code || 'SUBMIT_FAILED' }, error.status || 400);
       }
@@ -574,13 +623,13 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
     const photoMatch = pathname.match(/^\/api\/admin\/employee-deposits\/payments\/([^/]+)\/photo$/);
     if (request.method === 'GET' && photoMatch) {
       const row = await db.prepare(`
-        SELECT p.proof_photo, p.proof_photo_type
+        SELECT p.proof_photo, p.proof_photo_type, p.proof_photo_key
         FROM operational_receivable_payable_payments p
         JOIN operational_receivables_payables r ON r.id = p.receivable_payable_id AND r.store_id = p.store_id
         WHERE p.id = ? AND p.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT'
         LIMIT 1
       `).bind(decodeURIComponent(photoMatch[1]), store.id).first();
-      return photoResponse(row);
+      return photoResponse(env, row);
     }
 
     const reviewMatch = pathname.match(/^\/api\/admin\/employee-deposits\/payments\/([^/]+)$/);

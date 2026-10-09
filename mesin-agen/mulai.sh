@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Jalankan Mesin Agen (Mac/Linux): router model + OpenCode, dari folder repo.
-#   bash mesin-agen/mulai.sh            -> layar kerja interaktif
-#   bash mesin-agen/mulai.sh run "..."  -> satu perintah lalu selesai
+#   bash mesin-agen/mulai.sh             -> layar kerja di browser (bawaan)
+#   bash mesin-agen/mulai.sh terminal    -> layar kerja di terminal
+#   bash mesin-agen/mulai.sh run "..."   -> satu perintah lalu selesai
 set -euo pipefail
 
 LITELLM_VERSI=1.104.2
@@ -48,6 +49,16 @@ for _ in $(seq 1 60); do
   fi
   sleep 1
 done
+
+# Tanpa argumen: buka layar kerja di browser. "terminal": layar kerja di terminal.
+if [[ $# -eq 0 ]]; then
+  MESIN_WEB_PORT="${MESIN_WEB_PORT:-4096}"
+  echo "Layar Mesin dibuka di browser: http://127.0.0.1:${MESIN_WEB_PORT}"
+  echo "Biarkan jendela ini terbuka selama Mesin dipakai. Tutup jendela ini untuk mematikan Mesin."
+  set -- web --hostname 127.0.0.1 --port "$MESIN_WEB_PORT"
+elif [[ "$1" == "terminal" ]]; then
+  shift
+fi
 
 export OPENCODE_CONFIG="$MESIN_DIR/opencode/opencode.json"
 export OPENCODE_CONFIG_DIR="$MESIN_DIR/opencode"

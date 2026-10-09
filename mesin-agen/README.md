@@ -48,9 +48,14 @@ Yang perlu ada di komputer: **Git**, **Node.js 22**, **Python 3.10+**.
    - Mac/Linux: `bash mesin-agen/mulai.sh`
    - Windows: `powershell -ExecutionPolicy Bypass -File mesin-agen\mulai.ps1`
 
-   Pertama kali, skrip memasang router (beberapa menit). Sesudahnya muncul layar kerja OpenCode;
-   tulis perintah seperti ke Hana, misalnya "ambil satu tugas Karen yang OPEN di papan tugas dan
-   kerjakan".
+   Pertama kali, skrip memasang router (beberapa menit). Sesudahnya **browser terbuka sendiri** ke
+   layar obrolan Mesin (`http://127.0.0.1:4096`): kotak ketik, daftar sesi lama di kiri, pilihan model.
+   Pertama kali klik **Add project** lalu pilih folder repo. Tulis perintah seperti ke Hana, misalnya
+   "ambil satu tugas Karen yang OPEN di papan tugas dan kerjakan". Mau layar terminal saja:
+   tambahkan `terminal` di akhir perintah.
+
+   Pemasangan di laptop Bos Cyo dikerjakan Eskor mengikuti `mesin-agen/HANDOFF-ESKOR.md`, termasuk
+   ikon satu klik di Desktop.
 4. Lihat status mesin dari terminal lain: `node mesin-agen/status.mjs`.
 
 Satu perintah tanpa layar kerja: `bash mesin-agen/mulai.sh run "perintahnya" < /dev/null`
@@ -82,9 +87,9 @@ server tiruan yang bisa dibuat "kena limit" (jawaban 429), dan masa istirahat di
 
 Juga diuji lewat OpenCode 1.18.35 sungguhan: model pintar limit -> jawaban dari cadangan; aturan
 `CLAUDE.md`, `PERAN.md`, dan daftar skill ikut terkirim ke model; file detak tertulis; skrip
-`mulai.sh` memasang router, menyalakan, dan mematikannya lagi. Yang **belum** bisa diuji dari sini:
+`mulai.sh` memasang router, menyalakan, dan mematikannya lagi. 2026-10-09: layar browser (`opencode web`) diuji dengan model tiruan: buka proyek, kirim pesan, jawaban dan judul sesi muncul. Yang **belum** bisa diuji dari sini:
 panggilan sungguhan ke OpenRouter dan ke papan tugas (jaringan sesi cloud menolak keduanya), dan
 `mulai.ps1` (tidak ada PowerShell). Itu dicek saat pertama kali dijalankan di komputer.
 
-DOC-IMPACT: dokumen baru; terkait `mesin-agen/*`, `test/mesin-agen.test.js`, `agent-bus/CLAIM-PROMPT.md`
+DOC-IMPACT: 2026-10-09 layar browser jadi bawaan + handoff Eskor; dokumen baru; terkait `mesin-agen/*`, `test/mesin-agen.test.js`, `agent-bus/CLAIM-PROMPT.md`
 (jalur implementer yang diikuti Mesin), `HANDOFF-AI-AGENT-MONITORING.md` (detak untuk Agent Office).

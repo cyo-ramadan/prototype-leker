@@ -23,7 +23,7 @@
 
 import { rupiah } from './caca-nominal.js';
 import { tampilSkala } from './caca-hitung.js';
-import { normalkan, cocokkanSatu, rupiahDari, teks, BELUM_KETEMU, kataBelumKetemu } from './caca-aksi-dasar.js';
+import { normalkan, cocokkanSatu, rupiahDari, teks, BELUM_KETEMU, kataBelumKetemu, uraiPesanBarang } from './caca-aksi-dasar.js';
 
 export const MAKS_BARIS_BARANG = 60;
 
@@ -506,6 +506,21 @@ const ubahBarang = Object.freeze({
         }
       }
     }
+  },
+
+  // Koreksi sesudah barang buatan Una tercatat ("namanya ganti es mega mendung",
+  // "harga jualnya harusnya 25rb"): panel membawa barang itu sebagai tugas revisi.
+  // Hanya dipakai saat revisi (ada `revisiDari` berisi SATU barang); di luar itu
+  // isian model dibiarkan apa adanya.
+  isiDariPesan(t, pesan, { revisiDari = null } = {}) {
+    const daftar = Array.isArray(revisiDari?.ubah_daftar) ? revisiDari.ubah_daftar : null;
+    if (!daftar || daftar.length !== 1) return revisiDari ? {} : t;
+    const u = uraiPesanBarang(pesan);
+    const ubah = {};
+    if (u.barang_harga_jual) ubah.harga_jual = u.barang_harga_jual;
+    if (u.barang_harga_beli) ubah.harga_beli = u.barang_harga_beli;
+    if (u.barang_nama) ubah.nama_baru = u.barang_nama;
+    return Object.keys(ubah).length ? { ubah_daftar: [{ barang: daftar[0].barang, ...ubah }] } : {};
   },
 
   async siapkan(t, ctx) {

@@ -284,6 +284,15 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
 - **Draft terbuka bisa dikoreksi (2026-10-09, layar Bos "eh salah harga belinya harusnya 100"):** panel
   membawa draft yang belum "Ya" sebagai tugas tertunda `revisi`; koreksi menimpa isian (isian berlabel dari
   kalimat menang), draft lama ditandai "diganti". `uraiPesanBarang` paham kata sisipan ("harusnya", "jadi").
+- **Lanjutan layar Bos 2026-10-09 (pizza hot):** (1) `jangkarRencana`: langkah rencana yang kehilangan angka
+  diberi potongan kalimat asli Bos ("persisnya kata Bos: …"); (2) `cariDiRiwayat`: sebelum bertanya kolom
+  `kurang`, kode membaca pesan Bos sebelumnya yang menyebut barang yang sama; (3) **Una ngambek**
+  (`terapkanNgambek`, `src/caca-tertunda.js`): balasan MENTOK yang sama berturut-turut (pertanyaan sama /
+  "Una belum bisa…") diganti kalimat bertingkat "maaf kurang ngerti" → "rada lola" → "udah lah ngambek" →
+  "#$@^##^" → chat ditutup 60 detik (hitung mundur di panel), lalu mulai dari awal; jawaban data yang sama
+  tidak dihitung; (4) draft lain kedaluwarsa begitu satu disetujui; (5) barang yang barusan tercatat bisa
+  dikoreksi lewat chat → `ubah_barang` (tugas revisi `tercatat`, `ubah_barang.isiDariPesan`). Pembaca kalimat
+  barang (`uraiPesanBarang`) pindah ke `src/caca-aksi-dasar.js`.
 - **Panduan melatih Una:** `UNA-MESIN-DAN-LATIHAN.md` + skill `latih-una` + uji live `scripts/uji-una.mjs`
   (skenario di `una-latih/skenario/`). Bos Cyo 2026-10-09: model & level mikir dikunci termurah.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala

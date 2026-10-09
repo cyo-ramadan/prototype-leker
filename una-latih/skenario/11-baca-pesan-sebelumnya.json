@@ -1,0 +1,15 @@
+{
+  "nama": "Una membaca ulang pesan sebelumnya (layar Bos: 'coba baca sebelumnya')",
+  "pesan": [
+    "catat ya, pizza hot harga jual 25000 harga beli 10000",
+    "bikin barang pizza hot"
+  ],
+  "harapan": {
+    "alat": "buat_barang",
+    "draft": {
+      "name": "pizza hot",
+      "price": 25000,
+      "purchasePrice": 10000
+    }
+  }
+}

@@ -70,7 +70,7 @@ test('bingung → Una menjelaskan ulang tugasnya; batal → tugas dilepas; tanpa
   const bingung = await jawabPertanyaan('ga jelas lu', KONTEKS, { env: {}, panggilModel: m.panggilModel, jalurAksi: jalur, tertunda });
   assert.match(bingung.jawaban, /tutup cup manual/);
   assert.match(bingung.jawaban, /Harga jual "tutup cup manual" berapa/);
-  assert.deepEqual(bingung.tertunda, { ...tertunda, revisi: false });
+  assert.deepEqual(bingung.tertunda, { ...tertunda, revisi: false, tercatat: false });
   const batal = await jawabPertanyaan('gajadi deh', KONTEKS, { env: {}, panggilModel: m.panggilModel, jalurAksi: jalur, tertunda });
   assert.equal(batal.tertunda, null);
   assert.equal(m.panggilan.length, 0);

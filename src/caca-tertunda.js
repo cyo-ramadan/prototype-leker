@@ -52,7 +52,7 @@ export function bersihkanTertunda(masuk, kolomAlat) {
   const kurang = kolom.includes(masuk.kurang) ? masuk.kurang : null;
   const tanya = String(masuk.tanya ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
   // revisi = draft yang masih terbuka (menunggu "Ya"); pesan berikutnya bisa koreksi atasnya.
-  return { alat, tangkapan, tanya, kurang, revisi: masuk.revisi === true };
+  return { alat, tangkapan, tanya, kurang, revisi: masuk.revisi === true, tercatat: masuk.tercatat === true };
 }
 
 export const mintaBatal = (pesan) => BATAL.test(String(pesan ?? ''));
@@ -114,7 +114,8 @@ export function teksTertunda(t) {
   if (!t) return '';
   return [
     `TUGAS YANG SEDANG UNA KERJAKAN: alat ${t.alat}. Isian sejauh ini: ${JSON.stringify(t.tangkapan)}.`,
-    t.revisi ? 'Draftnya sudah ditunjukkan dan masih menunggu "Ya" dari Bos (BELUM tersimpan). Pesan koreksi = ubah isian draft ini.' : '',
+    t.revisi && t.tercatat ? 'Barang ini BARU SAJA disimpan atas persetujuan Bos. Koreksi nama/harga = alat ini untuk barang itu.' : '',
+    t.revisi && !t.tercatat ? 'Draftnya sudah ditunjukkan dan masih menunggu "Ya" dari Bos (BELUM tersimpan). Pesan koreksi = ubah isian draft ini.' : '',
     t.tanya ? `Una tadi bertanya: "${t.tanya}"` : '',
     'Kalau pesan Bos menjawab pertanyaan itu atau melengkapi isian, pilih alat yang sama dan isi SEMUA kolomnya',
     '(isian sejauh ini + jawaban Bos). Pilih alat lain hanya kalau Bos jelas memberi perintah baru.',
@@ -138,4 +139,73 @@ export function jelaskanTertunda(t) {
     t.tanya ? `Yang masih kurang: ${t.tanya}` : 'Tinggal Bos lengkapi sedikit lagi.',
     'Atau bilang "batal" kalau nggak jadi.'
   ].join(' ');
+}
+
+// --- Una ngambek (Bos Cyo 2026-10-09) --------------------------------------------
+//
+// "aku paling engga suka ada chat yang sama dan berulang, ga kena vibes chat sama
+// manusianya" + "berlaku ketika jawaban una selalu 'una belum bisa yang itu' beberapa
+// kali". Kalau balasan Una SAMA dengan balasan Una sebelumnya (pertanyaan yang sama,
+// atau sama-sama "Una belum bisa ..."), kalimat kakunya diganti yang makin lama makin
+// "ngambek"; di tingkat terakhir chat ditutup sebentar. Hitungannya dari riwayat
+// obrolan (balasan Una berturut-turut yang sama/ngambek), jadi berlaku untuk semua alat.
+
+export const DETIK_NGAMBEK = 60;
+export const TINGKAT_KUNCI = 5;
+const TANDA_NGAMBEK = /Una kurang ngerti|ngambek/i;
+const TANDA_KUNCI = /tutup dulu/i;
+
+/** Kunci pembanding balasan: semua "Una belum bisa ..." dianggap satu jenis. */
+export function kunciBalasan(teks) {
+  const t = String(teks ?? '').toLowerCase();
+  if (/^\s*una belum bisa/.test(t)) return 'belum-bisa';
+  return t.replace(/hhe|hehe|\s+|[^a-z0-9]/g, '');
+}
+
+function apaYangKurang(t, jawaban) {
+  if (!t) return /^\s*una belum bisa/i.test(String(jawaban)) ? 'maksud Bos' : 'yang Bos maksud';
+  const label = LABEL_KOLOM[t.kurang] ?? null;
+  const nama = typeof t.tangkapan?.barang_nama === 'string' ? t.tangkapan.barang_nama : '';
+  if (label) return `${label}${nama ? ` "${nama}"` : ''}${/harga|isi/.test(label) ? ' berapa' : ''}`;
+  return String(t.tanya || jawaban || 'yang Una tanyakan tadi').replace(/\?+\s*$/, '');
+}
+
+export function kalimatNgambek(tingkat, apa) {
+  if (tingkat <= 1) return `Maaf 🙏 Una kurang ngerti... Una bener-bener belum tau ${apa} nih 😅 Boleh diperjelas ya, Bos?`;
+  if (tingkat === 2) return `Aduh, Una bener-bener nggak ngerti 😣 Una tau Una rada lola, tolong infonya yang jelas ya: ${apa}. Una ngambek lho 😤`;
+  if (tingkat === 3) return `Udah lah, Una ngambek 😤 sampai Bos kasih info yang jelas: ${apa}.`;
+  if (tingkat === 4) return 'ga jelas .... #$@^##^ 😤 Una ngambek.';
+  return `Una lagi ngambek beneran 😤🙄 Chat-nya Una tutup dulu ${DETIK_NGAMBEK} detik ya. Habis itu kasih info yang jelas: ${apa}.`;
+}
+
+/**
+ * Tingkat ngambek = berapa balasan Una berturut-turut (dari belakang riwayat) yang sama
+ * dengan balasan ini atau sudah berupa kalimat ngambek. Berhenti di kalimat "tutup dulu"
+ * (sesudah dikunci, mulai lagi dari awal).
+ */
+export function tingkatUlang(jawaban, riwayat) {
+  const kunci = kunciBalasan(jawaban);
+  if (!kunci) return 0;
+  let tingkat = 0;
+  const balasanUna = (Array.isArray(riwayat) ? riwayat : []).filter((r) => r.dari === 'una');
+  for (let i = balasanUna.length - 1; i >= 0; i -= 1) {
+    const teks = balasanUna[i].teks;
+    if (TANDA_KUNCI.test(teks) && TANDA_NGAMBEK.test(teks)) break;
+    if (kunciBalasan(teks) === kunci || TANDA_NGAMBEK.test(teks)) tingkat += 1;
+    else break;
+  }
+  return tingkat;
+}
+
+/** Dipanggil sesudah Una menyusun balasan. Draft, tabel, dan penjelasan tidak diubah. */
+export function terapkanNgambek(hasil, riwayat) {
+  if (!hasil?.ok || hasil.draft || hasil.tabel || hasil.penjelasan || hasil.lanjutkan || !hasil.jawaban) return hasil;
+  // Hanya balasan yang MENTOK (Una bertanya / belum bisa). Jawaban data yang kebetulan
+  // sama karena Bos bertanya dua kali ("untung hari ini?") bukan alasan ngambek.
+  const mentok = hasil.belumLengkap || hasil.ditolak || !hasil.alat || /^\s*una belum bisa/i.test(hasil.jawaban);
+  if (!mentok) return hasil;
+  const tingkat = tingkatUlang(hasil.jawaban, riwayat);
+  if (tingkat < 1) return hasil;
+  const jawaban = kalimatNgambek(tingkat, apaYangKurang(hasil.tertunda, hasil.jawaban));
+  return tingkat >= TINGKAT_KUNCI ? { ...hasil, jawaban, ngambek: { detik: DETIK_NGAMBEK } } : { ...hasil, jawaban };
 }

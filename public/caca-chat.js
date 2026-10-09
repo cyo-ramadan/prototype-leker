@@ -28,6 +28,7 @@ const cacaState = {
   riwayat: [],
   kerjaTertunda: null,
   tertunda: null,
+  ngambekSampai: 0,
   scope: '',
   stores: [],
   entityName: '',
@@ -642,6 +643,25 @@ function cacaIsiDraft(draft) {
   };
 }
 
+// Bos Cyo 2026-10-09: "ketika sudah di acc satu pencatatan maka draft catatan lainnya
+// bakal kadaluarsa". Draft lain yang masih terbuka dimatikan begitu satu disetujui,
+// supaya tidak ada draft basi yang bisa di-"Ya" belakangan.
+function cacaKadaluarsakanDraftLain(kecuali) {
+  const terbuka = cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)') ?? [];
+  for (const kartu of terbuka) {
+    if (kartu === kecuali) continue;
+    kartu.classList.add('kedaluwarsa');
+    kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    if (!kartu.querySelector('.caca-draft-catatan')) {
+      const catatan = document.createElement('p');
+      catatan.className = 'caca-draft-catatan';
+      catatan.textContent = 'Kedaluwarsa — ada catatan lain yang barusan disetujui. Minta Una susun ulang kalau masih perlu.';
+      kartu.appendChild(catatan);
+    }
+  }
+  cacaSimpanPercakapan();
+}
+
 // Draft hasil koreksi menggantikan draft yang masih terbuka di atasnya: tombolnya
 // dimatikan supaya tidak ada dua draft untuk hal yang sama yang bisa di-"Ya".
 function cacaGantiDraftLama() {
@@ -707,10 +727,18 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
         body: JSON.stringify({ draft })
       });
       kartu.classList.add('tercatat');
+      cacaKadaluarsakanDraftLain(kartu);
       cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
       cacaSimpanPercakapan();
       cacaTambahGelembung('caca', hasil.jawaban);
-      if (draft.aksi === 'buat_barang') cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
+      if (draft.aksi === 'buat_barang') {
+        // Barang yang barusan tercatat masih bisa dikoreksi lewat chat ("namanya ganti …",
+        // "harganya harusnya …") — dibawa sebagai tugas revisi untuk ubah_barang.
+        if (draft.muatan?.name) {
+          cacaState.tertunda = { alat: 'ubah_barang', tangkapan: { ubah_daftar: [{ barang: draft.muatan.name }] }, tanya: '', kurang: null, revisi: true, tercatat: true };
+        }
+        cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
+      }
       kartu._cacaSesudah?.('tercatat');
     } catch (error) {
       // Tombol dibuka lagi: yang gagal biasanya bisa diulang setelah sebabnya
@@ -769,6 +797,7 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
 
   isiBar.style.width = '100%';
   kartu.classList.add('tercatat');
+  cacaKadaluarsakanDraftLain(kartu);
   const selesai = hasil.filter(Boolean);
   // Rencana bertahap menunggu draft ini selesai sebelum lanjut ke langkah berikutnya.
   setTimeout(() => kartu._cacaSesudah?.('tercatat'), 0);
@@ -1039,7 +1068,38 @@ function cacaBuangLampiran({ terkirim = false } = {}) {
 function cacaAturTombol() {
   const ada = Boolean(cacaState.lampiran) || Boolean(cacaEl('cacaPertanyaan')?.value.trim());
   const tombol = cacaEl('cacaTanyaKirim');
-  if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim);
+  if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim && !cacaSedangNgambek());
+}
+
+// --- Una ngambek ------------------------------------------------------------
+// Bos Cyo 2026-10-09: kalau Una terpaksa mengulang balasan yang sama berkali-kali,
+// di tingkat terakhir "chat ga bisa dipakai beberapa saat, tunggu sampai una engga
+// ngambek". Server menentukan kapan (src/caca-tertunda.js); panel menutup kotak ketik
+// dengan hitung mundur (jam browser saja, tidak bertanya ke server).
+function cacaSedangNgambek() {
+  return Number(cacaState.ngambekSampai || 0) > Date.now();
+}
+
+function cacaMulaiNgambek(detik) {
+  const kotak = cacaEl('cacaPertanyaan');
+  cacaState.ngambekSampai = Date.now() + Math.max(5, Math.min(Number(detik) || 60, 300)) * 1000;
+  const asli = kotak?.getAttribute('placeholder') || 'Ketik pesan';
+  if (kotak) { kotak.disabled = true; kotak.dataset.placeholderAsli = asli; }
+  const jalan = () => {
+    const sisa = Math.ceil((cacaState.ngambekSampai - Date.now()) / 1000);
+    if (sisa <= 0) {
+      clearInterval(jam);
+      cacaState.ngambekSampai = 0;
+      if (kotak) { kotak.disabled = false; kotak.setAttribute('placeholder', kotak.dataset.placeholderAsli || 'Ketik pesan'); }
+      cacaTambahGelembung('caca', 'Oke deh, Una udah nggak ngambek 😌 Yuk lanjut, kasih infonya yang jelas ya.');
+      cacaAturTombol();
+      return;
+    }
+    if (kotak) kotak.setAttribute('placeholder', `Una lagi ngambek 😤 tunggu ${sisa} detik…`);
+  };
+  const jam = setInterval(jalan, 1000);
+  jalan();
+  cacaAturTombol();
 }
 
 function cacaCekGerai({ bolehEntity = false } = {}) {
@@ -1229,6 +1289,7 @@ function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
     } : null
   });
   if (payload.revisi && payload.draft) cacaGantiDraftLama();
+  if (payload.ngambek) cacaMulaiNgambek(payload.ngambek.detik);
   if (payload.lanjutkan && payload.kerja?.length) {
     const gelembung = cacaEl('cacaPercakapan')?.lastElementChild;
     cacaTombolLanjutKerja(gelembung, pertanyaan, scope, payload.kerja);
@@ -1427,7 +1488,7 @@ function cacaAturTinggiKetik() {
 
 async function cacaKirim(event) {
   event?.preventDefault();
-  if (cacaState.sedangKirim || !cacaState.siap) return;
+  if (cacaState.sedangKirim || !cacaState.siap || cacaSedangNgambek()) return;
   const input = cacaEl('cacaPertanyaan');
   const teks = input.value.trim();
   if (!cacaState.lampiran && !teks) return;

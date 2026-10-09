@@ -4,8 +4,8 @@ const headers={'cache-control':'no-store','x-content-type-options':'nosniff','re
 const json=(v,status=200,extra={})=>new Response(JSON.stringify(v),{status,headers:{...headers,'content-type':'application/json',...extra}});
 export function sanitizeSnapshot(input,now=Date.now()){
  if(!input||!Array.isArray(input.sessions)||!Array.isArray(input.events)||input.sessions.length>200)throw Error('Invalid snapshot');
- const fields=['id','agent_id','name','role','project','branch','task','task_id','tool','file','harness','provider','model','runtime','task_status','activity','source','evidence','task_source','character','color'];
- const times=['started_at','last_seen','last_activity','last_order','last_process','last_hook','board_until'];
+ const fields=['id','agent_id','name','role','project','branch','task','task_id','tool','file','harness','provider','model','runtime','task_status','activity','source','evidence','task_source','character','color','office_action'];
+ const times=['started_at','last_seen','last_activity','last_order','last_process','last_hook','board_until','claim_until'];
  const sessions=input.sessions.map(s=>{const out={};for(const k of fields)if(typeof s[k]==='string')out[k]=s[k].replace(/[\u0000-\u001f]/g,' ').slice(0,240);if(!/^[\w.:/-]{1,160}$/.test(out.id||'')||!/^[\w.:/-]{1,160}$/.test(out.agent_id||''))throw Error('Invalid session');for(const k of times)if(Number.isFinite(s[k]))out[k]=Math.min(now+5000,Math.max(now-7*86400000,s[k]));out.process_observed=s.process_observed===true;out.restored=s.restored===true;return out;});
  const events=input.events.slice(0,60).map(e=>({...cleanEvent(e,Number.isFinite(e.received_at)?Math.min(now,e.received_at):now),name:typeof e.name==='string'?e.name.slice(0,100):''}));
  return {sessions,events};
@@ -24,5 +24,5 @@ export default {async fetch(request,env){const url=new URL(request.url),path=url
  if(path==='/api/login'&&request.method==='POST'){const text=await request.text();if(text.length>2048)return json({error:'Invalid login'},400);let token;try{token=JSON.parse(text).token;}catch{}if(!env.VIEWER_TOKEN||token!==env.VIEWER_TOKEN)return json({error:'Access denied'},401);return json({ok:true},200,{'set-cookie':`office=${env.VIEWER_TOKEN}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400`});}
  if(path==='/api/sync'&&request.method==='POST'){if(!env.PRODUCER_TOKEN||request.headers.get('Authorization')!==`Bearer ${env.PRODUCER_TOKEN}`)return json({error:'Access denied'},401);return env.ROOM.getByName('office').fetch(request);}
  if(path.startsWith('/api/')){const cookie=(request.headers.get('Cookie')||'').split('; ').find(x=>x.startsWith('office='))?.slice(7);if(!env.VIEWER_TOKEN||cookie!==env.VIEWER_TOKEN)return json({error:'Buka launcher pribadi untuk live'},401);if(['/api/snapshot','/api/ws'].includes(path)&&request.method==='GET')return env.ROOM.getByName('office').fetch(request);if(path==='/api/profile')return json({error:'Edit tampilan di collector lokal, lalu sinkronkan'},409);return json({error:'Unknown route'},404);}
- const asset=STATIC[path==='/'?'/index.html':path];if(!asset||request.method!=='GET')return json({error:'Not found'},404);return new Response(asset.body,{headers:{...headers,'content-type':asset.type}});
+ const asset=STATIC[path==='/'?'/index.html':path];if(!asset||request.method!=='GET')return json({error:'Not found'},404);return new Response(asset.base64?Uint8Array.from(atob(asset.body),c=>c.charCodeAt(0)):asset.body,{headers:{...headers,'content-type':asset.type}});
 }};

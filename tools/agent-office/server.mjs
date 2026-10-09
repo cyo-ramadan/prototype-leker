@@ -28,9 +28,9 @@ export async function startServer({home=dataHome(),port,quiet=false}={}){
     if(path==='/api/profile'&&req.method==='POST'){const b=await body();store.profile(b.session_id,b);broadcast();return json(200,{ok:true});}
     return json(404,{error:'Unknown route'});
    }
-   const files={'/':'index.html','/app.js':'app.js','/office.js':'office.js','/style.css':'style.css'};
+   const files={'/':'index.html','/app.js':'app.js','/office.js':'office.js','/roster.js':'roster.js','/assets/karen.webp':'assets/karen.webp','/assets/hana.webp':'assets/hana.webp','/assets/elle.webp':'assets/elle.webp','/style.css':'style.css'};
    if(req.method!=='GET'||!files[path]){res.writeHead(404).end();return;}
-   res.setHeader('content-type',path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html');res.end(readFileSync(new URL(files[path],web)));
+   res.setHeader('content-type',path.endsWith('.webp')?'image/webp':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html');res.end(readFileSync(new URL(files[path],web)));
   }catch(e){json(e.message==='Payload too large'?413:400,{error:e.message==='Session identity mismatch'?'Session identity mismatch':'Invalid request'});}
  });
  function broadcast(){const snapshot=store.snapshot();relay.send(snapshot);const message=`data: ${JSON.stringify(snapshot)}\n\n`;for(const res of clients){if(res.writableLength>262144){res.destroy();clients.delete(res);}else res.write(message);}}

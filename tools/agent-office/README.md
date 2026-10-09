@@ -144,3 +144,17 @@ Cloud deployment awal: `c9f47d4220594f94a2ed032cf8dc9544`, health HTTP 200. Root
 **DOC-IMPACT:** REQUIRED — cloud operation, pairing, security, bounded metadata sync, honest coverage and deploy checkpoint.
 
 Cloud browser QA: public demo empat avatar, mobile 390px tanpa horizontal overflow, unauthorized snapshot/sync 401, cross-origin login 403; authenticated WebSocket dua sesi fixture ter-push dan kemudian dibersihkan, metadata raw secret dibuang, 0 page errors. Ini bukti transport dan UI, bukan sesi Claude laptop Bos Cyo. Paket private v0.2 disiapkan untuk pemasangan lokal; Node harus tersedia di laptop. Publikasi source menggunakan branch fitur/PR #466; tidak mempromosikan perubahan POS ke main.
+
+## Roster Bos Cyo — 9 Oktober 2026
+
+Karakter resmi memakai ilustrasi yang dibuat bersama Bos Cyo: Karen lavender, Hana outfit kantor tanpa kacamata, Elle berkacamata dengan gaya tour guide. Tiga aset WebP di `web/assets/` dioptimalkan dari artwork yang disetujui; ini ilustrasi yang bergerak di Canvas, bukan sprite directional sembilan state. Tidak ada image generation atau panggilan model ketika aplikasi dijalankan.
+
+Arahan final: **Hana** menangani pembuatan task, strategi, dan pemantauan agent; bekerja di papan dengan gestur menulis, keliling meja ketika action `inspection_start` dilaporkan. **Elle** pendamping Bos Cyo untuk tanya-jawab ringan, berkantor di resepsionis. **Karen** pelaksana tugas; success event `task_claimed` ke papan sementara, lalu laptop. Nama Karen/Hana/Elle (termasuk varian nama sesi) memilih visual sesuai roster; agent lain tetap memakai fallback. Ini aturan tampilan, tidak mengubah permission, tugas, atau role repository lain.
+
+Demo memuat ketiga karakter, pemilih karakter serta aksi Claim/Papan/Keliling/Kerja/Kantin. Semua demo event berlabel SIMULATED. Mode live tidak membuat sesi Karen/Hana/Elle fiktif; karakter hanya muncul ketika sesi sungguhan terdeteksi. Hook mengenali success `board_claim_task`, `board_create_task` dan `board_update_open_task` (termasuk prefiks MCP); tool start/failure tidak memicu claim/write sukses. Tool result belum mengintegrasikan status Workboard/D1 secara authoritative. Inspection perlu event khusus yang dilaporkan; tidak ditebak dari model.
+
+Idle bergerak ringan, bergantian ke kantin dan garden break dalam kantor. Elle sesekali berjalan dekat resepsionis, lalu kembali. Aktivitas idle adalah dekorasi dan tidak mengubah status menjadi WORKING. Tab tersembunyi menjeda animasi; mode hemat meniadakan loop gerakan; kehilangan koneksi membekukan gerakan. Aset yang sama dipakai di cloud, collector lokal, dan preview HTML offline.
+
+**DOC-IMPACT:** REQUIRED — koreksi peran Elle atas arahan langsung Bos Cyo, roster visual dan batas evidence animasi.
+
+Roster deployment: Worker `8ea4cfc7b18f4858b78231c71f9f4eff` pada 9 Oktober 2026. Tooling tests: 16 passed. Browser lokal: tiga portrait termuat, Hana Tour/Karen Claim bekerja, viewport mobile 390px tanpa horizontal overflow, preview offline memuat aset tanpa server, 0 page errors. Total tiga WebP sekitar 54 KB. Belum ada pengujian agent nyata di laptop Bos Cyo. Untuk collector laptop yang sudah terpasang, gunakan paket karakter terbaru agar hook/profile lokal ikut diperbarui.

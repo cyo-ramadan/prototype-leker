@@ -103,3 +103,19 @@ test('tugas tertunda dari browser dibersihkan: alat liar, kolom liar, ukuran', (
   assert.deepEqual(gabungTangkapan({ a: '1', b: '' }, { a: '2', b: '3' }, ['a', 'b'], { lengkapi: true }), { a: '1', b: '3' });
   assert.deepEqual(gabungTangkapan({ a: '1' }, { a: '2' }, ['a']), { a: '2' });
 });
+
+test('kalimat Bos dibaca kode: model lupa nama & harga, draft tetap lengkap (dan lolos periksa "Ya")', async () => {
+  const { uraiPesanBarang, periksaUlangDraft } = await import('../src/caca-aksi.js');
+  assert.deepEqual(uraiPesanBarang('bikin barang namanya tutup cup manual, harganya 12rb dapet 50 pcs. jual nya sama dengan harga beli'),
+    { barang_nama: 'tutup cup manual', barang_isi: '50', barang_harga_beli: '12rb', barang_jual_sama_beli: true });
+  assert.deepEqual(uraiPesanBarang('5000'), {});
+  // Model hanya memilih alat, tanpa isian — persis pesan pertama di layar Bos.
+  const m = model(pilih('buat_barang', {}));
+  const hasil = await jawabPertanyaan('bikin barang namanya tutup cup manual, harganya 12rb dapet 50 pcs. jual nya sama dengan harga beli', KONTEKS, { env: {}, panggilModel: m.panggilModel, jalurAksi: jalur });
+  assert.equal(hasil.perluKonfirmasi, true, hasil.jawaban);
+  assert.equal(hasil.draft.muatan.name, 'tutup cup manual');
+  assert.equal(hasil.draft.muatan.purchasePrice, 240);
+  assert.equal(hasil.draft.muatan.price, 240);
+  const diperiksa = await periksaUlangDraft(hasil.draft, { ...jalur, namaLingkup: 'Mandala', lingkup: 'gerai' });
+  assert.equal(diperiksa.ok, true, diperiksa.error);
+});

@@ -356,6 +356,9 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
       };
     }
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
+    // Isian berlabel yang jelas tertulis di kalimat Bos dibaca kode dulu (model lite
+    // sering lupa menyalinnya), supaya ikut tangkapan draft.
+    if (aksi.isiDariPesan) pilihan = { ...pilihan, value: aksi.isiDariPesan(pilihan.value ?? {}, pesanBaku) };
     // Pesan asli ikut dibawa: alat daftar panjang membaca barisnya langsung dari teks,
     // karena model kadang mengembalikan daftar kosong untuk tempelan panjang.
     const disiapkan = await aksi.siapkan(pilihan.value, {

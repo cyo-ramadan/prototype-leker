@@ -38,6 +38,13 @@ urutan kerjanya saja.
 7. Catat skor di `UNA-MESIN-DAN-LATIHAN.md` §10, catatan fitur di `HANDOFF-CACA.md`, dan baris §8
    `HANDOFF-STRATEGI-PENJUALAN.md` kalau terlihat pengguna.
 
+## Pertanyaan "cara pakai" yang tidak terjawab
+
+Jangan tambal per kalimat. Perbaiki di tingkat layar/kata: `PENJELASAN` di `src/caca-peta.js`,
+entri kamus di `src/caca-jelaskan.js`, `SINONIM` di `src/caca-kata.js`; uji dengan kalimat lain yang
+setipe. Menu baru → `node scripts/build-peta-una.mjs` (tes penjaga merah kalau lupa).
+Detail: `UNA-MESIN-DAN-LATIHAN.md` §7b.
+
 ## Jebakan yang pernah terjadi
 
 - Isian yang ditambahkan kode DI DALAM `siapkan` tidak ikut `tangkapan` → draft gagal saat "Ya".

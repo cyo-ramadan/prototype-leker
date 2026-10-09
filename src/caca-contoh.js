@@ -83,6 +83,8 @@ export const CONTOH = Object.freeze([
   { pesan: 'untung hari ini berapa', langkah: ['laba_periode periode "hari_ini", lanjut=false'] },
   { pesan: 'kemarin vs hari ini lebih untung mana?', langkah: ['laba_periode "kemarin", lanjut=true', 'laba_periode "hari_ini", lanjut=true', 'selesai: bandingkan, semua angka dari catatan'] },
   { pesan: 'siapa aja yang masih hutang gaji?', langkah: ['baca_api api hutang, lanjut=false'] },
+  { pesan: 'setoran cs yang masih dibawa siapa aja?', langkah: ['cek_setoran_cs, lanjut=false'] },
+  { pesan: 'gimana kalau cs lupa absen, gajinya gimana?', langkah: ['jelaskan topik "cs lupa absen gaji" (pertanyaan cara pakai aplikasi)'] },
   { pesan: 'menu paling laku minggu ini apa', langkah: ['baca_api api penjualan periode 7_hari_terakhir, lanjut=false'] },
 
   // --- akuntansi ---

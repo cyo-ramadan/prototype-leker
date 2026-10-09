@@ -25,6 +25,7 @@ import { uraiDaftarRentang } from './caca-aksi-rentang.js';
 import { terjemahkanPesan } from './caca-terjemah.js';
 import { uraikanNominal } from './caca-nominal.js';
 import { teksContoh } from './caca-contoh.js';
+import { jelaskan } from './caca-jelaskan.js';
 import {
   bersihkanTertunda, mintaBatal, terdengarBingung, jawabanPendek, gabungTangkapan, isianKosong,
   isiKolomDariJawaban, teksTertunda, jelaskanTertunda, terapkanNgambek
@@ -124,6 +125,22 @@ export function alatPasti(pesan) {
   // Blok Penutup: "Una, sinkronkan akuntansi MANDALA." (pendek, satu perintah).
   if (teks.length <= 120 && /^\s*(una[,\s]+)?(tolong\s+)?sinkron(kan|isasi)?\s+akuntansi\b/i.test(teks)) return 'sinkron_akuntansi';
   return null;
+}
+
+// Pertanyaan "cara pakai" dijawab dari panduan tertulis tanpa memanggil model (lebih
+// cepat, gratis, dan tidak ngarang). Bos Cyo 2026-10-10: berlaku untuk pertanyaan
+// sejenis, bukan hanya kalimat yang diuji — pencocokannya lewat kata dasar + sinonim
+// (src/caca-kata.js) ke kamus (src/caca-jelaskan.js) lalu peta menu (src/caca-peta.js).
+// Pertanyaan yang minta DATA ("berapa", "hari ini", "siapa aja") atau membawa nominal
+// tetap ke model/alat data.
+const TANYA_CARA = /^\s*(bagaimana|gimana|gmn|gmana|cara|caranya|di\s*mana|dimana|menu\s+apa|tombol\s+apa)\b|\b(caranya|bagaimana\s+cara|gimana\s+cara|bagaimana\s+(kalau|kalo|jika)|gimana\s+(kalau|kalo|jika))\b/i;
+const MINTA_DATA = /\b(berapa|hari\s+ini|kemarin|minggu\s+ini|bulan\s+ini|sekarang|siapa\s+(aja|saja)|daftar\s+\w+\s+yang)\b/i;
+
+export function panduanPasti(pesan, lingkup = 'gerai') {
+  const teks = String(pesan ?? '');
+  if (!TANYA_CARA.test(teks) || MINTA_DATA.test(teks) || /\d[\d.,]*\s*(rb|ribu|k|jt|juta)\b/i.test(teks)) return null;
+  const hasil = jelaskan(teks, { halaman: lingkup === 'entity' ? 'entity' : 'gerai' });
+  return hasil.dikenal ? hasil : null;
 }
 
 /** Langkah rencana dari model, dibersihkan; null kalau tidak layak (kurang dari 2). */
@@ -370,6 +387,13 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
   } = opsi;
   const namaAlat = pilihan.value?.alat;
   if (!namaAlat || namaAlat === 'tidak_ada') {
+    // Sebelum bilang "belum bisa", cari dulu panduannya (kamus / peta menu): uji karyawan
+    // 2026-10-10 — "cara menambah karyawan" dijawab "Una tidak memiliki alat".
+    // Hanya untuk kalimat yang BERTANYA soal pemakaian; perintah ("catat penjualan …")
+    // tetap mendapat penolakan jujurnya.
+    const bertanya = TANYA_CARA.test(pertanyaan) || /\?\s*$/.test(pertanyaan) || /\b(jelas(in|kan)|terangin|kenapa|maksudnya)\b/i.test(pertanyaan);
+    const panduan = bertanya ? jelaskan(pertanyaan, { halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai' }) : null;
+    if (panduan?.dikenal) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null };
     return {
       ok: true,
       alat: null,
@@ -786,6 +810,10 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
   const lanjutan = kerja.length > 0;
   // Tugas yang tadi belum lengkap (src/caca-tertunda.js).
   const tertunda = bersihkanTertunda(opsi.tertunda, kolomAlat);
+  if (!tertunda && !lanjutan) {
+    const panduan = panduanPasti(pesanBaku, konteks.lingkup);
+    if (panduan) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null };
+  }
   if (tertunda && mintaBatal(pertanyaan)) {
     return { ok: true, alat: null, jawaban: 'Oke, yang tadi nggak jadi ya, Bos.', tertunda: null };
   }

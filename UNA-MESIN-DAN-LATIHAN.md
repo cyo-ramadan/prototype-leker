@@ -302,6 +302,7 @@ Urut dari dampak terbesar:
 |---|---|---|---|---|
 | 2026-10-09 | main sebelum revisi draft | bawaan | 9/10 | Gagal: 05-koreksi-draft-terbuka (persis layar Bos) |
 | 2026-10-09 | sesudah #474 (revisi draft) | bawaan, `UNA_ULANG=2` | 10/20 | Skenario 01–05 lulus 2x (termasuk 05). Sisanya berhenti karena Gemini 429 RESOURCE_EXHAUSTED (jatah habis), bukan salah jawab. 06–10 belum diulang |
+| 2026-10-10 | sesudah #478 (panduan → tawaran, alat karyawan) | bawaan | 6/6 | 15 (panduan lalu "kamu bisa buatin itu?" → draft karyawan), 12, 13, 16, 03, 05. Skenario 16 diubah: gerai uji tidak punya akun CS, jadi yang dinilai alatnya benar + jujur "belum nemu" |
 
 <!-- DOC-IMPACT: 2026-10-09 dokumen baru — fakta mesin Una (Gemini 3.1 Flash-Lite), vonis "masih tertolong",
 aturan emas kerangka, tuas latihan, alat uji live scripts/uji-una.mjs + una-latih/skenario/, keputusan Bos Cyo: model & level

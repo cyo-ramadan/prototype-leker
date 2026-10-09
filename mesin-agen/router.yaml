@@ -49,3 +49,13 @@ litellm_settings:
 general_settings:
   # Kunci lokal antara mesin dan router; dibuat acak oleh skrip mulai setiap kali jalan.
   master_key: os.environ/LITELLM_MASTER_KEY
+  # Mesin ini sengaja tanpa database (lihat komentar di atas -- tidak ada database_url).
+  # Tanpa baris ini, setiap kali LiteLLM mencoba jalur yang butuh DB (mis. pelacakan
+  # per-user dari layar web OpenCode), ia gagal total dengan pesan membingungkan
+  # "No connected db" alih-alih meneruskan request-nya. Dialami nyata 2026-10-09 di
+  # laptop Bos Cyo (uji 1 lewat layar web gagal dengan pesan itu, padahal kunci
+  # OpenRouter benar -- akar masalah sungguhannya saldo OpenRouter kosong, dikonfirmasi
+  # lewat litellm/proxy/auth/auth_exception_handler.py), tapi pesan "No connected db"
+  # menutupi pesan asli itu dan bikin susah didiagnosis. Baris ini membuat LiteLLM tetap
+  # meneruskan request dengan token terbatas saat DB tidak ada, bukan menolak.
+  allow_requests_on_db_unavailable: true

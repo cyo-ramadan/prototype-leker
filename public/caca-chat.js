@@ -200,6 +200,10 @@ function cacaSimpanPercakapan() {
     tanda.textContent = '📷 Foto lembar rekap';
     img.replaceWith(tanda);
   });
+  // Password awal akun baru cuma ditampilkan sekali: tidak ikut disimpan.
+  salinan.querySelectorAll('.caca-rahasia').forEach(el => {
+    el.innerHTML = '<p>🔒 Password awal disembunyikan. Lupa? Ganti di Tim → Akun Kasir.</p>';
+  });
   while (salinan.childElementCount > CACA_MAKS_SIMPAN) salinan.firstElementChild.remove();
   try {
     sessionStorage.setItem(CACA_SIMPANAN, JSON.stringify({ sidik: cacaSidikLogin(), html: salinan.innerHTML, riwayat: cacaState.riwayat }));
@@ -561,12 +565,19 @@ async function cacaJalankanTawaran(tombol) {
 async function cacaJelaskan(topik, label) {
   cacaTambahGelembung('saya', label || topik);
   cacaCatatRiwayat('saya', label || topik);
+  const mengetik = cacaTambahKerjaLive('Buka panduan…');
+  const mulai = Date.now();
   try {
     const hasil = await cacaApi(`/api/caca/jelaskan?topik=${encodeURIComponent(topik || '')}`);
+    await cacaJedaManusiawi(mengetik, { ...hasil, alat: 'jelaskan' }, mulai);
+    mengetik.remove();
     cacaTambahGelembung('caca', hasil.jawaban, hasil.judul ? `kamus · ${hasil.judul}` : '');
     cacaCatatRiwayat('una', hasil.jawaban);
     cacaTambahTawaran(hasil.tawaran);
+    // "Mau Una buatkan?" — pesan berikutnya ("bisa buatin itu?") nyambung ke panduan ini.
+    cacaState.tertunda = hasil.tertunda || null;
   } catch (error) {
+    mengetik.remove();
     cacaTambahGelembung('caca', error.message);
   }
 }
@@ -729,8 +740,9 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
       kartu.classList.add('tercatat');
       cacaKadaluarsakanDraftLain(kartu);
       cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
-      cacaSimpanPercakapan();
       cacaTambahGelembung('caca', hasil.jawaban);
+      if (hasil.rahasia?.nilai) cacaTampilkanRahasia(hasil.rahasia);
+      cacaSimpanPercakapan();
       if (draft.aksi === 'buat_barang') {
         // Barang yang barusan tercatat masih bisa dikoreksi lewat chat ("namanya ganti …",
         // "harganya harusnya …") — dibawa sebagai tugas revisi untuk ubah_barang.
@@ -746,6 +758,22 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
       kartu.querySelectorAll('button').forEach(b => { b.disabled = false; });
       cacaTambahGelembung('caca', error.message);
     }
+  });
+}
+
+// Password awal akun yang barusan dibuat Una (src/caca-aksi-karyawan.js). Sengaja
+// TIDAK dicatat ke riwayat (riwayat ikut terkirim ke mesin AI) dan tidak ikut
+// tersimpan di sessionStorage (cacaSimpanPercakapan menggantinya dengan tanda).
+function cacaTampilkanRahasia(rahasia) {
+  const html = `
+    <div class="caca-rahasia">
+      <div class="caca-draft-baris"><span>${cacaEscape(rahasia.label || 'Password')}</span><strong class="caca-rahasia-nilai" style="font-family: ui-monospace, monospace; letter-spacing: .08em">${cacaEscape(rahasia.nilai)}</strong></div>
+      <p class="caca-draft-tenang">Catat atau salin sekarang, lalu berikan ke orangnya. Password ini tidak ditampilkan lagi — kalau lupa, ganti di Tim → Akun Kasir.</p>
+      <div class="caca-draft-aksi"><button class="secondary-btn" type="button" data-caca-salin>Salin password</button></div>
+    </div>`;
+  const gelembung = cacaTambahGelembung('caca', '', '', { html });
+  gelembung.querySelector('[data-caca-salin]')?.addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(rahasia.nilai); e.target.textContent = 'Tersalin ✓'; } catch { e.target.textContent = 'Salin manual ya'; }
   });
 }
 
@@ -1233,6 +1261,24 @@ function cacaTambahKerjaLive(awal = 'Memahami perintah Bos…') {
   return gelembung;
 }
 
+// Bos Cyo 2026-10-10: "jangan keliatan langsung 0.3ms, harusnya tetep ada proses
+// kaya una mengetik gitu, kalo langsung jawab itu malah kaya robot". Jawaban yang
+// dihitung kode (panduan, tanpa mesin AI) datang hampir seketika; kartu "Una lagi
+// kerja" tetap ditahan sebentar — makin panjang jawabannya makin lama, tapi
+// dibatasi supaya tidak terasa lemot. Jawaban yang memang sudah lama tidak ditahan lagi.
+function cacaLamaMengetik(payload) {
+  const panjang = String(payload?.jawaban || '').length + (payload?.draft ? 200 : 0);
+  return Math.min(2600, Math.max(900, 500 + panjang * 6));
+}
+
+async function cacaJedaManusiawi(mengetik, payload, mulai) {
+  const sisa = cacaLamaMengetik(payload) - (Date.now() - mulai);
+  if (sisa <= 0) return;
+  const langkah = payload?.alat === 'jelaskan' ? 'Buka panduan' : 'Pahami maksud Bos';
+  mengetik?.aturLangkah?.([{ judul: langkah }], payload?.draft ? 'Menyusun draft…' : 'Mengetik jawaban…');
+  await new Promise(selesai => setTimeout(selesai, sisa));
+}
+
 // Langkah yang sudah dijalankan Una, ditulis seperti agen: 1. … ✓ 2. … ⏸
 function cacaHtmlKerja(payload) {
   const kerja = Array.isArray(payload.kerja) ? payload.kerja : [];
@@ -1358,8 +1404,10 @@ async function cacaKirimTeks(pertanyaan) {
   // Tugas tertunda tetap dibawa walau gerai diganti: "pilih gerai dulu, lalu lanjut".
   const tugas = cacaState.tertunda;
   const mengetik = cacaTambahKerjaLive();
+  const mulai = Date.now();
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
+    await cacaJedaManusiawi(mengetik, payload, mulai);
     mengetik.remove();
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);

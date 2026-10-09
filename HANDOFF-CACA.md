@@ -567,6 +567,31 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
 
 ---
 
+### 2026-10-10 — Panduan nyambung ke pekerjaan + alat karyawan
+
+Keluhan Bos Cyo (tangkapan layar): "cara bikin karyawan baru gimana?" dijawab panduan, lalu
+"kamu bisa buatin itu?" dijawab daftar kemampuan umum — konteksnya hilang. Plus: "pastikan una
+juga bisa mengerjakan yang apabila ditanya mekanismenya aja", dan jawaban 0,3 ms "kaya robot".
+
+- **Tawaran sesudah panduan**: entri kamus punya `aksi` (`src/caca-jelaskan.js`,
+  `denganTawaranKerja`). Jawaban panduan ditutup "Mau Una yang buatkan?" + tombol, dan
+  meninggalkan tugas tertunda `tawaran: true`. `jawabPertanyaanInti` mengikutinya hanya kalau Bos
+  meminta (`mintaDikerjakan`); permintaan tanpa isian tidak memanggil model (`permintaanMurni`).
+  Pagar: tiap entri kamus `aksi` atau `tanpaAksi` beralasan.
+- **Alat baru** (`src/caca-aksi-karyawan.js`, jadwal di `src/caca-jadwal.js`):
+  - `buat_karyawan` — data orang (POST /api/admin/employees) + opsional akun login
+    (POST /api/admin/cashiers dengan gaji, jenis bayar, jadwal 7 hari) + tautan
+    (POST /employees/:id/links). Orang yang sudah ada tidak dibuat dobel. **Password dibuat
+    server saat "Ya"**, dikembalikan sebagai `rahasia`, ditampilkan panel sekali, tidak masuk
+    riwayat (= tidak ke Gemini) dan disamarkan di sessionStorage.
+  - `atur_jadwal_kasir` — PATCH /api/admin/cashiers/:id; hari yang tidak disebut tetap. Seperti
+    layar, menyimpan membuat orangnya login ulang.
+  - `penyesuaian_gaji` — POST /api/admin/cashiers/:id/payroll; potong/tambah, "kemarin"/"tgl 5"
+    dibaca kode, alasan wajib.
+  - `PINTU_AKSI` ditambah tiga pola path persis untuk itu.
+- **Jeda mengetik** di panel (`cacaJedaManusiawi`), termasuk tombol kamus.
+- Skenario live 15 dan 16. Prompt pilih-alat bertambah ±2,3 ribu huruf (±600 token).
+
 ## Langkah berikutnya yang disarankan
 
 **Ukur dulu, jangan menambah fitur.** Godaan terbesar di titik ini adalah

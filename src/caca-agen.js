@@ -25,10 +25,11 @@ import { uraiDaftarRentang } from './caca-aksi-rentang.js';
 import { terjemahkanPesan } from './caca-terjemah.js';
 import { uraikanNominal } from './caca-nominal.js';
 import { teksContoh } from './caca-contoh.js';
-import { jelaskan } from './caca-jelaskan.js';
+import { jelaskan, denganTawaranKerja } from './caca-jelaskan.js';
 import {
   bersihkanTertunda, mintaBatal, terdengarBingung, jawabanPendek, gabungTangkapan, isianKosong,
-  isiKolomDariJawaban, teksTertunda, jelaskanTertunda, terapkanNgambek
+  isiKolomDariJawaban, teksTertunda, jelaskanTertunda, terapkanNgambek,
+  mintaDikerjakan, permintaanMurni
 } from './caca-tertunda.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
@@ -341,6 +342,15 @@ function kolomAlat(alat) {
   return aksi && !aksi.baca ? Object.keys(aksi.skema) : null;
 }
 
+// Tugas tertunda boleh menunjuk alat BACA hanya sebagai tawaran dari panduan
+// ("Mau Una cekkan angkanya sekarang?"); alat baca tidak punya isian.
+function kolomTertunda(alat) {
+  const kolom = kolomAlat(alat);
+  if (kolom) return kolom;
+  const aksi = cariAksi(alat);
+  return aksi?.baca && aksi.nama !== 'jelaskan' ? [] : null;
+}
+
 /**
  * Kolom yang mau ditanyakan dicari dulu di pesan Bos sebelumnya (terbaru dulu),
  * pakai pembaca kalimat alat itu. Kalau nama barangnya sudah diketahui, hanya pesan
@@ -393,7 +403,7 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     // tetap mendapat penolakan jujurnya.
     const bertanya = TANYA_CARA.test(pertanyaan) || /\?\s*$/.test(pertanyaan) || /\b(jelas(in|kan)|terangin|kenapa|maksudnya)\b/i.test(pertanyaan);
     const panduan = bertanya ? jelaskan(pertanyaan, { halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai' }) : null;
-    if (panduan?.dikenal) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null };
+    if (panduan?.dikenal) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null, kerjakan: panduan.kerjakan ?? null };
     return {
       ok: true,
       alat: null,
@@ -439,7 +449,7 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
     // Isian berlabel yang jelas tertulis di kalimat Bos dibaca kode dulu (model lite
     // sering lupa menyalinnya), supaya ikut tangkapan draft.
-    if (aksi.isiDariPesan) pilihan = { ...pilihan, value: aksi.isiDariPesan(pilihan.value ?? {}, pesanBaku) };
+    if (aksi.isiDariPesan) pilihan = { ...pilihan, value: aksi.isiDariPesan(pilihan.value ?? {}, pesanBaku, { hariIni: konteks.hariIni }) };
     // Pesan asli ikut dibawa: alat daftar panjang membaca barisnya langsung dari teks,
     // karena model kadang mengembalikan daftar kosong untuk tempelan panjang.
     const ctxSiapkan = {
@@ -473,7 +483,7 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     }
     // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
     // dihitung kode — tanpa draft, tanpa panggilan model kedua.
-    if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null, tawaran: disiapkan.tawaran ?? null };
+    if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null, tawaran: disiapkan.tawaran ?? null, kerjakan: disiapkan.kerjakan ?? null };
     // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa
     // disusun ulang dan dibandingkan tanpa memanggil model lagi.
     const tangkapan = Object.fromEntries(Object.keys(aksi.skema).map((kunci) => [kunci, pilihan.value?.[kunci] ?? null]));
@@ -756,7 +766,12 @@ const PERINTAH_BARU = /\b(baru|bikin|buat(in|kan)?|tambah(in|kan)?|masukin)\b/i;
 function lanjutkanTertunda(tertunda, pilihan, pertanyaan) {
   const v = pilihan.value ?? {};
   const pendek = jawabanPendek(pertanyaan);
-  const kolom = kolomAlat(tertunda.alat);
+  const kolom = kolomTertunda(tertunda.alat) ?? [];
+  // Bos meminta yang barusan ditawarkan panduan dikerjakan: PASTI alat itu, apa pun
+  // pilihan model; isian yang model tangkap dari kalimatnya tetap dipakai.
+  if (tertunda.tawaran) {
+    return { ok: true, value: { alat: tertunda.alat, judul_langkah: v.judul_langkah, ...gabungTangkapan(tertunda.tangkapan, v, kolom) } };
+  }
   const aksi = cariAksi(tertunda.alat);
   // Koreksi atas draft yang masih terbuka ("eh salah, harga belinya harusnya 100") atau
   // atas barang yang barusan tercatat ("namanya ganti es mega mendung"). Kalau kode bisa
@@ -795,7 +810,10 @@ function lanjutkanTertunda(tertunda, pilihan, pertanyaan) {
  *   `lanjutSesudahYa` (draft ini bagian dari pekerjaan yang lebih panjang).
  */
 export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
-  const hasil = await jawabPertanyaanInti(pertanyaan, konteks, opsi);
+  let hasil = await jawabPertanyaanInti(pertanyaan, konteks, opsi);
+  // Panduan yang bisa dikerjakan Una sendiri ditutup tawaran + tugas tertunda, supaya
+  // "kamu bisa buatin itu?" berikutnya nyambung (src/caca-jelaskan.js denganTawaranKerja).
+  if (hasil?.ok && hasil.alat === 'jelaskan' && hasil.kerjakan && !hasil.tertunda) hasil = denganTawaranKerja(hasil);
   // Pertanyaan yang sama berulang → Una "ngambek" (src/caca-tertunda.js).
   return terapkanNgambek(hasil, konteks.riwayat);
 }
@@ -809,10 +827,14 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
   const kerja = bersihkanKerja(opsi.kerja);
   const lanjutan = kerja.length > 0;
   // Tugas yang tadi belum lengkap (src/caca-tertunda.js).
-  const tertunda = bersihkanTertunda(opsi.tertunda, kolomAlat);
+  let tertunda = bersihkanTertunda(opsi.tertunda, kolomTertunda);
+  // Tawaran dari panduan hanya diikuti kalau Bos memang minta dikerjakan ("kamu bisa
+  // buatin itu?", "iya boleh"); pertanyaan cara yang lain dan obrolan lain melepasnya.
+  const ikutTawaran = Boolean(tertunda?.tawaran) && !lanjutan && mintaDikerjakan(pertanyaan) && !TANYA_CARA.test(pesanBaku);
+  if (tertunda?.tawaran && !ikutTawaran) tertunda = null;
   if (!tertunda && !lanjutan) {
     const panduan = panduanPasti(pesanBaku, konteks.lingkup);
-    if (panduan) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null };
+    if (panduan) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null, kerjakan: panduan.kerjakan ?? null };
   }
   if (tertunda && mintaBatal(pertanyaan)) {
     return { ok: true, alat: null, jawaban: 'Oke, yang tadi nggak jadi ya, Bos.', tertunda: null };
@@ -840,7 +862,11 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
     }
     const pakaiTertunda = tertunda && putaran === 0;
     const pasti = !lanjutan && !pakaiTertunda && putaran === 0 ? alatPasti(pesanBaku) : null;
-    let pilihan = pasti
+    // "kamu bisa buatin itu?" tidak membawa isian apa pun: alatnya sudah pasti, model tidak perlu ditanya.
+    const murni = pakaiTertunda && ikutTawaran && permintaanMurni(pertanyaan);
+    let pilihan = murni
+      ? { ok: true, value: { alat: tertunda.alat } }
+      : pasti
       ? { ok: true, value: { alat: pasti } }
       : await panggilModel(env, {
         system: promptPilihAlat(konteks, pesanBaku),

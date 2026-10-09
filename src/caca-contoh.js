@@ -57,6 +57,14 @@ export const CONTOH = Object.freeze([
 
   // --- barang: buat ---
   { pesan: 'tambahin menu es kopi 15rb', langkah: ['buat_barang nama "es kopi", harga_jual "15rb" (detail lain diisi sistem, jangan ditanya)'] },
+  {
+    pesan: 'bikin barang namanya tutup cup manual, harganya 12rb dapet 50 pcs. jualnya sama dengan harga beli',
+    langkah: ['buat_barang nama "tutup cup manual", harga_beli "12rb", isi "50", jual_sama_beli=true (harga per pcs dihitung sistem — jangan dihitung sendiri, jangan ditanya)']
+  },
+  {
+    pesan: '5000',
+    langkah: ['(Una tadi bertanya harga jual untuk TUGAS YANG SEDANG DIKERJAKAN, mis. buat_barang) -> buat_barang lagi: isian lama + harga_jual "5000"']
+  },
   { pesan: 'masukin menu: es teh 5rb, kopi susu 12rb, roti bakar 15rb', langkah: ['buat_barang_banyak: SEMUA 3 barang disalin, daftar_jenis "jualan"'] },
   { pesan: 'bahan baru: gula pasir (gram), susu uht (ml), cup 16oz', langkah: ['buat_barang_banyak daftar_jenis "bahan", satuan disalin apa adanya'] },
   { pesan: 'es kopi susu itu resepnya espresso 30ml, susu 150ml, gula aren 20gr', langkah: ['buat_resep hasil "es kopi susu", komponen disalin persis (nama + qty + satuan)'] },

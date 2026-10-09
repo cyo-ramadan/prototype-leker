@@ -272,7 +272,9 @@ async function tanya(request, env, jalurUtama) {
     // Catatan kerja dari putaran sebelumnya (mode agen berputar). Data tak
     // tepercaya seperti riwayat: dibersihkan di jawabPertanyaan.
     kerja: body.value?.kerja,
-    maksPutaran: body.value?.satuLangkah === true ? 1 : undefined
+    maksPutaran: body.value?.satuLangkah === true ? 1 : undefined,
+    // Tugas yang tadi belum lengkap (data tak tepercaya, dibersihkan di caca-tertunda.js).
+    tertunda: body.value?.tertunda
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
@@ -294,6 +296,7 @@ async function tanya(request, env, jalurUtama) {
     kerja: hasil.kerja ?? null,
     lanjutkan: Boolean(hasil.lanjutkan),
     lanjutSesudahYa: Boolean(hasil.lanjutSesudahYa),
+    tertunda: hasil.tertunda ?? null,
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }

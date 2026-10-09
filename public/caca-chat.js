@@ -27,6 +27,7 @@ const cacaState = {
   // Bos terakhir supaya "kalau kemarin?" nyambung; server membersihkannya lagi.
   riwayat: [],
   kerjaTertunda: null,
+  tertunda: null,
   scope: '',
   stores: [],
   entityName: '',
@@ -1086,13 +1087,15 @@ async function cacaKirimFotoMenu(file) {
 }
 
 // Satu pesan ke Una (dipakai pesan biasa dan tiap langkah rencana).
-async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
-  return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
-    method: 'POST',
-    // satuLangkah: server mengerjakan satu putaran lalu membalas, supaya kartu
-    // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
-    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja, satuLangkah: true } : { pertanyaan, riwayat, satuLangkah: true })
-  });
+async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertunda = null) {
+  // satuLangkah: server mengerjakan satu putaran lalu membalas, supaya kartu
+  // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
+  // tertunda: tugas yang tadi belum lengkap (Una sedang bertanya), supaya jawaban
+  // Bos melengkapi isiannya, bukan dibaca dari nol (src/caca-tertunda.js).
+  const isi = { pertanyaan, riwayat, satuLangkah: true };
+  if (kerja) isi.kerja = kerja;
+  if (tertunda) isi.tertunda = tertunda;
+  return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify(isi) });
 }
 
 // --- mode agen berputar -------------------------------------------------------
@@ -1105,9 +1108,9 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
 // Server juga membatasi 12 langkah per perintah; ini batas sisi panel.
 const CACA_MAKS_LANJUT_OTOMATIS = 11;
 
-async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik) {
+async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik, tertunda = null) {
   if (kerja?.length) mengetik?.aturLangkah?.(kerja, 'Lanjut ke langkah berikutnya…');
-  let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja);
+  let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja, tertunda);
   for (let i = 0; i < CACA_MAKS_LANJUT_OTOMATIS && payload.lanjutkan && payload.kerja?.length; i += 1) {
     mengetik?.aturLangkah?.(payload.kerja, 'Mikirin langkah berikutnya…');
     payload = await cacaTanyaServer(pertanyaan, scope, riwayat, payload.kerja);
@@ -1191,6 +1194,8 @@ async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
 // Balasan pesan biasa: langkah kerja, lanjut sesudah "Ya", tombol lanjut.
 function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
   cacaState.kerjaTertunda = null;
+  // Una balik bertanya untuk tugas yang belum lengkap: dibawa ke pesan berikutnya.
+  cacaState.tertunda = payload.tertunda || null;
   const jenis = cacaTampilkanBalasan(payload, scope, {
     sesudahDraft: payload.lanjutSesudahYa && payload.kerja?.length ? status => {
       if (status !== 'tercatat') return;
@@ -1255,9 +1260,11 @@ async function cacaKirimTeks(pertanyaan) {
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
   const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;
   cacaState.kerjaTertunda = null;
+  // Tugas tertunda tetap dibawa walau gerai diganti: "pilih gerai dulu, lalu lanjut".
+  const tugas = cacaState.tertunda;
   const mengetik = cacaTambahKerjaLive();
   try {
-    const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik);
+    const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
     mengetik.remove();
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
@@ -1430,6 +1437,7 @@ function cacaLupakan() {
   if (wadah) wadah.innerHTML = '';
   cacaState.riwayat = [];
   cacaState.kerjaTertunda = null;
+  cacaState.tertunda = null;
   cacaState.siapDipakai = false;
 }
 

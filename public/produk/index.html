@@ -652,10 +652,18 @@ Roti bakar coklat 15rb</textarea>
   const LANDING = {
     BRAND: 'OwnerTenang',
     WA_NUMBER: '6285860070439',
-    WA_TEXT: 'Halo, saya ingin demo aplikasi kontrol gerai. Saya punya ... gerai.'
+    WA_TEXT: 'Halo, saya ingin demo aplikasi kontrol gerai. Saya punya ... gerai.',
+    PAGE: 'utama'
   };
+  // Kode sumber: ikut di akhir pesan WhatsApp supaya ketahuan chat datang dari halaman/iklan mana.
+  // Tautan iklan/artikel memakai ?s=nama-kampanye; tanpa itu dipakai kode halaman.
+  function sourceCode(search) {
+    var s = new URLSearchParams(search || '').get('s') || '';
+    return /^[A-Za-z0-9_-]{1,30}$/.test(s) ? s : 'web-' + LANDING.PAGE;
+  }
   function waHref(extra) {
-    return 'https://wa.me/' + LANDING.WA_NUMBER + '?text=' + encodeURIComponent(LANDING.WA_TEXT + (extra ? ' ' + extra : ''));
+    var text = LANDING.WA_TEXT + (extra ? ' ' + extra : '') + ' [' + sourceCode(location.search) + ']';
+    return 'https://wa.me/' + LANDING.WA_NUMBER + '?text=' + encodeURIComponent(text);
   }
   function applyWa(el) { el.href = waHref(el.dataset.waExtra); el.target = '_blank'; el.rel = 'noopener'; }
   document.querySelectorAll('[data-brand]').forEach(el => { el.textContent = LANDING.BRAND; });

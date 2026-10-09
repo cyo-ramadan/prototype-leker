@@ -66,6 +66,7 @@ Catat jawaban nomor 2. Itu menentukan babak demonya.
 | "Transaksi / uang hilang" | Hapus transaksi harus lewat izin pemilik; Laporan Izin: siapa, kapan, alasannya. |
 | "Kas laci kurang" | Buka-tutup laci, setoran, selisih langsung kelihatan, bukti transfer setoran wajib foto. |
 | "Tidak tahu untungnya" | Grafik perbandingan gerai (hijau untung, merah rugi) dan HPP bahan per gerai dengan penanda janggal. |
+| "Ribet isi menu / belum sempat mulai" | **Una** (berlabel *Baru · sedang kami uji bersama pemilik pertama*): tempel daftar menu atau foto papan menu → Una membuat **draft** → pemilik menekan "Ya". Tekankan: Una membantu, pemilik yang memutuskan. |
 | "Salah input harga / qty" | Isian angka yang tidak bisa salah titik-koma; pembelian di luar harga wajar ditolak dengan pesan jelas. |
 
 **Menit 11–14 — Jujur soal batas** (ini membangun percaya):
@@ -74,9 +75,9 @@ Catat jawaban nomor 2. Itu menentukan babak demonya.
 - "Gerai disiapkan bareng tim kami, belum bisa daftar sendiri."
 
 **Menit 14–15 — Satu ajakan:**
-> "Mau kita siapkan satu gerai Anda dulu untuk dicoba? [ISI: syarat uji coba dan harga]"
+> "Mau kita siapkan satu gerai Anda dulu? Saya kirim penawarannya tertulis di WhatsApp." → lanjut ke langkah 3 di `pemasaran/CHECKOUT-MANUAL.md` (penawaran → tagihan → bukti terima → persiapan gerai).
 
-Jangan: menyebut Una/asisten chat, game, poin, atau jurnal akuntansi. Jangan menawar harga di tempat sebelum `[ISI]` diputuskan.
+Jangan: menyebut game, poin, atau jurnal akuntansi. **Una boleh** (USP kedua, keputusan Bos Cyo 2026-10-05) asal berlabel *sedang kami uji* dan selalu memperlihatkan langkah draft → "Ya"; jangan berjanji Una tidak pernah salah. Jangan menawar harga di tempat sebelum `[ISI]` diputuskan.
 
 **Setelah demo (besok pagi):**
 > Terima kasih sudah sempat lihat kemarin, [NAMA]. Dari yang kita bahas, yang paling terasa manfaatnya buat usahamu: [ISI: masalah nomor 2 dari jawaban mereka]. Mau kusiapkan satu gerai dulu supaya bisa dicoba beberapa hari?

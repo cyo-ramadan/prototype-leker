@@ -52,10 +52,43 @@ export function bersihkanTertunda(masuk, kolomAlat) {
   const kurang = kolom.includes(masuk.kurang) ? masuk.kurang : null;
   const tanya = String(masuk.tanya ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
   // revisi = draft yang masih terbuka (menunggu "Ya"); pesan berikutnya bisa koreksi atasnya.
-  return { alat, tangkapan, tanya, kurang, revisi: masuk.revisi === true, tercatat: masuk.tercatat === true };
+  // tawaran = Una baru menjelaskan caranya lalu menawarkan mengerjakannya (panduan
+  // berlabel `aksi`, src/caca-jelaskan.js). Hanya diikuti kalau Bos memintanya.
+  const tawaran = masuk.tawaran === true && masuk.revisi !== true;
+  return { alat, tangkapan, tanya, kurang, revisi: !tawaran && masuk.revisi === true, tercatat: !tawaran && masuk.tercatat === true, ...(tawaran ? { tawaran: true } : {}) };
 }
 
 export const mintaBatal = (pesan) => BATAL.test(String(pesan ?? ''));
+
+// --- "kamu bisa buatin itu?" sesudah panduan (Bos Cyo 2026-10-10) -------------------
+// Pertanyaan kedua nyambung ke penjelasan pertama: Una baru menjelaskan cara menambah
+// karyawan, lalu Bos bertanya "kamu bisa buatin itu?" — dulu dibaca dari nol dan
+// dijawab daftar kemampuan umum. Permintaan mengerjakan (atau persetujuan singkat)
+// sesudah tawaran = kerjakan yang barusan dijelaskan.
+const KATA_KERJAKAN = /\b(buat(in|kan)|bikin(in|kan)?|kerja(in|kan)|lakuin|lakukan|jalan(in|kan)|bantu(in)?|tolong|cek(in|kan)|catat(in|kan)|atur(in|kan)|ubah(in|kan)|ganti(in|kan)|potong(in|kan)|tambah(in|kan)|daftar(in|kan)|input(in|kan)?|isi(in|kan))\b/i;
+const SETUJU = /^\s*(iya|iyaa+|ya|yes|yup|boleh|mau|gas|gass+|ok|oke|okey|okay|sip|siap|lanjut|yuk|ayo|monggo|silakan|silahkan)\b/i;
+// Kata yang tidak menambah isi apa pun pada permintaan ("kamu bisa buatin itu dong?").
+const KATA_KOSONG = new Set(('kamu una km kak mba mbak bisa bisakah dapat tolong dong deh ya yah itu ini tadi nya sekalian langsung aja saja ' +
+  'juga sih kah lah nih coba gak ga nggak engga enggak apa mau boleh iya yes yup gas ok oke okey okay sip siap lanjut yuk ayo monggo silakan ' +
+  'silahkan aku saya gue gw yg yang tsb tersebut buat buatin buatkan bikin bikinin bikinkan kerjain kerjakan lakuin lakukan jalanin jalankan ' +
+  'bantu bantuin cekin cekkan catatin catatkan aturin aturkan ubahin ubahkan gantiin gantikan potongin potongkan tambahin tambahkan ' +
+  'daftarin daftarkan inputin inputkan isiin isikan sama untuk biar supaya please pls').split(' '));
+
+// "oke makasih", "nanti aja", "ga usah": penutup / penolakan, bukan permintaan.
+const BUKAN_SEKARANG = /\b(makasih|makasi|terima\s*kasih|thanks|thx|nanti|ntar|entar|ga+k?\s*usah|nggak\s*usah|gausah|tidak\s*usah|ga+k?\s*perlu|nggak\s*perlu|tidak\s*perlu|jangan|udah|sudah|cukup)\b/i;
+
+/** Bos meminta Una mengerjakan yang barusan ditawarkan? */
+export function mintaDikerjakan(pesan) {
+  const t = String(pesan ?? '').trim();
+  if (!t || t.length > 300 || BUKAN_SEKARANG.test(t)) return false;
+  return KATA_KERJAKAN.test(t) || SETUJU.test(t);
+}
+
+/** Permintaan tanpa isian apa pun ("kamu bisa buatin itu?"): tidak perlu bertanya ke model. */
+export function permintaanMurni(pesan) {
+  const kata = String(pesan ?? '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  return kata.length > 0 && kata.every((k) => KATA_KOSONG.has(k));
+}
 export const terdengarBingung = (pesan) => BINGUNG.test(String(pesan ?? '')) && !NOMINAL.test(String(pesan ?? ''));
 
 /** Pesan pendek tanpa perintah baru = jawaban atas pertanyaan Una. */
@@ -116,7 +149,8 @@ export function teksTertunda(t) {
     `TUGAS YANG SEDANG UNA KERJAKAN: alat ${t.alat}. Isian sejauh ini: ${JSON.stringify(t.tangkapan)}.`,
     t.revisi && t.tercatat ? 'Barang ini BARU SAJA disimpan atas persetujuan Bos. Koreksi nama/harga = alat ini untuk barang itu.' : '',
     t.revisi && !t.tercatat ? 'Draftnya sudah ditunjukkan dan masih menunggu "Ya" dari Bos (BELUM tersimpan). Pesan koreksi = ubah isian draft ini.' : '',
-    t.tanya ? `Una tadi bertanya: "${t.tanya}"` : '',
+    t.tawaran ? 'Una BARU SAJA menjelaskan caranya dan menawarkan untuk mengerjakannya; Bos memintanya. Pilih alat ini dan isi kolom yang Bos sebut.' : '',
+    t.tanya && !t.tawaran ? `Una tadi bertanya: "${t.tanya}"` : '',
     'Kalau pesan Bos menjawab pertanyaan itu atau melengkapi isian, pilih alat yang sama dan isi SEMUA kolomnya',
     '(isian sejauh ini + jawaban Bos). Pilih alat lain hanya kalau Bos jelas memberi perintah baru.',
     '---'

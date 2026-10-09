@@ -241,6 +241,17 @@ Kalau ada pertanyaan "bagaimana cara …" yang tidak terjawab, **jangan menambal
 4. Uji dengan **kalimat lain yang setipe**, bukan kalimat aslinya saja (`test/caca-peta.test.js`).
 5. **Menu baru di aplikasi**: `node scripts/build-peta-una.mjs` + `PENJELASAN`. Tes penjaga merah
    kalau lupa, jadi Una tidak tertinggal pengetahuan.
+6. **Yang dijelaskan juga bisa dikerjakan** (Bos Cyo 2026-10-10: "pastikan una juga bisa
+   mengerjakan yang apabila ditanya mekanismenya aja"). Tiap entri kamus WAJIB punya
+   `aksi: { alat, tawar, tombol, awal? }` (alat yang mengerjakannya) atau `tanpaAksi: 'alasan'`
+   — `test/caca-karyawan.test.js` merah kalau lupa. Panduan ber-`aksi` ditutup tawaran
+   ("Mau Una yang buatkan?") dan meninggalkan tugas tertunda bertanda `tawaran`; pesan berikutnya
+   yang meminta dikerjakan ("kamu bisa buatin itu?", "iya boleh", tombol "Una buatkan…")
+   PASTI masuk alat itu (`mintaDikerjakan`). Permintaan tanpa isian (`permintaanMurni`) bahkan
+   tidak memanggil model. "oke makasih" / pertanyaan cara lain melepas tawarannya.
+7. **Jawaban instan tetap "mengetik"** (Bos: "kalo langsung jawab itu malah kaya robot"): panel
+   menahan kartu "Una lagi kerja" 0,9–2,6 detik sesuai panjang jawaban (`cacaJedaManusiawi`).
+   Waktu tunggu ini di browser saja, tidak menambah biaya.
 
 ## 8. Resep menambah atau membetulkan alat Una
 

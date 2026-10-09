@@ -51,13 +51,15 @@ export const KAMUS = Object.freeze([
       '• Nanya apa aja: untung hari ini, stok tinggal berapa, barang yang HPP-nya kemahalan, dst.',
       '• Baca foto lembar rekap harian, jelasin istilah, dan batalin barang yang salah bikin.',
       'Semua yang menyimpan data lewat kartu draft dulu — belum ada yang tersimpan sebelum Bos tekan "Ya".',
-      'Yang tetap di kasir: penjualan, pembelian, dan uang laci. Akun kasir dibuat di layarnya sendiri karena ada PIN.'
+      '• Urusan karyawan: tambah karyawan + akun login (password dibuat sistem, tidak lewat mesin AI), ubah jadwal, potongan/bonus gaji.',
+      'Yang tetap di kasir: penjualan, pembelian, dan uang laci.'
     ].join('\n'),
     tawaran: [
       isi('Masukin daftar menu', 'masukin menu: Es Teh 5rb, Kopi Susu 12rb, Roti Bakar 15rb'),
       { jenis: 'kirim', label: 'Untung hari ini?', teks: 'untung hari ini berapa?' },
       jelas('mulai', 'Mulai dari mana?')
-    ]
+    ],
+    tanpaAksi: 'daftar kemampuan, bukan satu pekerjaan'
   },
   {
     id: 'mulai',
@@ -66,7 +68,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Urutan paling cepat sampai bisa jualan:',
       '1. Daftar menu — kirim foto papan menu atau ketik daftarnya, Una yang masukin.',
-      '2. Akun kasir — dibuat di layar Akun Kasir (ada PIN, jadi tidak lewat chat).',
+      '2. Akun kasir — bilang ke Una "buatin akun kasir Rika username rika", atau buat di layar Akun Kasir. Password dibuat sistem.',
       '3. Kasir membuka laci di HP/komputer kasir, lalu jualan pertama.',
       'Bahan & resep, karyawan, dan titik lokasi presensi bisa menyusul — dan Una ingatkan.'
     ].join('\n'),
@@ -74,7 +76,8 @@ export const KAMUS = Object.freeze([
       { jenis: 'foto_menu', label: '📷 Foto daftar menu' },
       isi('✍️ Ketik daftar menu', 'masukin menu: Es Teh 5rb, Kopi Susu 12rb, Roti Bakar 15rb'),
       buka('cashiers')
-    ]
+    ],
+    tanpaAksi: 'urutan langkah; tiap langkah punya alat/tawarannya sendiri'
   },
   {
     id: 'hpp',
@@ -86,7 +89,8 @@ export const KAMUS = Object.freeze([
       'Untuk menu yang dibuat dari bahan, HPP datang dari resep (takaran bahan × harga bahannya).',
       'Kalau HPP kelihatan aneh, biasanya harga beli bahan salah ketik — betulkan lewat Hitung Ulang HPP.'
     ].join('\n'),
-    tawaran: [jelas('resep', 'Apa itu resep?'), { jenis: 'kirim', label: 'Barang yang HPP-nya di atas harga jual', teks: 'barang mana yang HPP-nya di atas harga jual?' }]
+    tawaran: [jelas('resep', 'Apa itu resep?'), { jenis: 'kirim', label: 'Barang yang HPP-nya di atas harga jual', teks: 'barang mana yang HPP-nya di atas harga jual?' }],
+    tanpaAksi: 'penjelasan istilah; koreksi HPP lewat hitung_ulang_hpp saat Bos menyebut bahannya'
   },
   {
     id: 'resep',
@@ -102,7 +106,8 @@ export const KAMUS = Object.freeze([
       isi('Masukin bahan dulu', 'masukin bahan: Gula pasir (gram), Teh (gram), Susu kental manis (ml)'),
       isi('Bikin resep', 'resep Es Teh: hasil 1, Teh 5, Gula pasir 20'),
       buka('manufacturing')
-    ]
+    ],
+    aksi: { alat: 'buat_resep', tawar: 'Mau Una buatkan resepnya? Bilang "buatin", atau langsung tulis mis. "resep Es Teh: hasil 1, Teh 5, Gula pasir 20".', tombol: 'Una buatkan resep' }
   },
   {
     id: 'jenis_tipe',
@@ -113,7 +118,8 @@ export const KAMUS = Object.freeze([
       'Jenis barang = pengelompokan untuk pembukuan: menentukan akun Persediaan dan HPP-nya. Barang baru otomatis dapat jenis yang benar.',
       'Jadi pemilik cukup memikirkan tipe; jenis urusan pembukuan.'
     ].join('\n'),
-    tawaran: [buka('products')]
+    tawaran: [buka('products')],
+    aksi: { alat: 'betulkan_klasifikasi_barang', tawar: 'Mau Una betulkan tipe/jenis barang yang keliru? Bilang "betulin", atau sebut barangnya mis. \'Tipe "bahan baku": Gula, Teh\'.', tombol: 'Una betulkan' }
   },
   {
     id: 'master_barang',
@@ -124,7 +130,8 @@ export const KAMUS = Object.freeze([
       'Entity cuma menyimpan Kode Barang dan foto, supaya barang yang sama bisa dipakai banyak gerai tanpa diketik ulang.',
       'Kalau Bos minta Una ubah harga, yang diubah Data Barang gerai yang dipilih di judul chat Una (tombol ▾), bukan gerai yang sedang terbuka di workspace.'
     ].join('\n'),
-    tawaran: [buka('products')]
+    tawaran: [buka('products')],
+    aksi: { alat: 'buat_barang', tawar: 'Mau Una tambahkan barangnya? Bilang "buatin", atau langsung mis. "bikin barang Es Teh harga 5rb".', tombol: 'Una tambahkan barang' }
   },
   {
     id: 'satuan',
@@ -135,7 +142,8 @@ export const KAMUS = Object.freeze([
       'Bahan sebaiknya pakai gram/ml supaya takaran resep tepat; menu jualan biasanya pcs.',
       'Tersedia: pcs, gram, kilogram, mililiter, liter.'
     ].join('\n'),
-    tawaran: [buka('manufacturing')]
+    tawaran: [buka('manufacturing')],
+    tanpaAksi: 'penjelasan istilah; satuan dipilih saat membuat barang/bahan'
   },
   {
     id: 'stok_minus',
@@ -145,7 +153,8 @@ export const KAMUS = Object.freeze([
       'Stok minus bukan error: artinya barangnya sudah terjual sebelum pembeliannya dicatat.',
       'Begitu pembelian dicatat di kasir, stoknya kembali sesuai. Angkanya sengaja tidak disembunyikan supaya ketahuan ada pembelian yang belum dicatat.'
     ].join('\n'),
-    tawaran: [buka('stock')]
+    tawaran: [buka('stock')],
+    tanpaAksi: 'penjelasan; stok kembali sesuai saat kasir mencatat pembelian (Una tidak mencatat pembelian)'
   },
   {
     id: 'untung_rugi',
@@ -155,7 +164,8 @@ export const KAMUS = Object.freeze([
       'Omzet = total penjualan. Untung kotor = omzet − HPP. Untung bersih = untung kotor − beban (gaji, sewa lapak, dll).',
       'Semuanya terhitung sendiri dari penjualan, pembelian, dan biaya yang dicatat — tidak perlu rekap manual.'
     ].join('\n'),
-    tawaran: [{ jenis: 'kirim', label: 'Untung hari ini?', teks: 'untung hari ini berapa?' }, buka('labarugi')]
+    tawaran: [{ jenis: 'kirim', label: 'Untung hari ini?', teks: 'untung hari ini berapa?' }, buka('labarugi')],
+    tanpaAksi: 'angkanya ditanyakan langsung ("untung hari ini berapa?") — alat bacanya bukan alat tulis'
   },
   {
     id: 'jurnal',
@@ -166,7 +176,8 @@ export const KAMUS = Object.freeze([
       'Jurnal manual cuma untuk hal di luar itu (mis. setoran modal). Debit dan kredit wajib sama persis.',
       'Jurnal yang sudah diposting tidak bisa diedit; kalau salah, dibetulkan dengan jurnal balik — jadi jejaknya rapi.'
     ].join('\n'),
-    tawaran: [isi('Contoh jurnal setoran modal', 'jurnal setoran modal 5jt: debit Bank, kredit Modal Pemilik'), buka('accountingWorkspaceTab')]
+    tawaran: [isi('Contoh jurnal setoran modal', 'jurnal setoran modal 5jt: debit Bank, kredit Modal Pemilik'), buka('accountingWorkspaceTab')],
+    aksi: { alat: 'buat_jurnal', tawar: 'Mau Una buatkan jurnalnya? Sebut isinya, mis. "jurnal setoran modal 5jt: debit Bank, kredit Modal Pemilik".', tombol: 'Una buatkan jurnal' }
   },
   {
     id: 'akun',
@@ -176,7 +187,8 @@ export const KAMUS = Object.freeze([
       'Akun = "laci" pembukuan tempat uang dan nilai dicatat: Kas, Bank, Persediaan, Penjualan, HPP, Beban, Modal, dst.',
       'Bagan akun standar sudah disiapkan sama di semua gerai, jadi pemilik tidak perlu membuatnya.'
     ].join('\n'),
-    tawaran: [buka('accountingWorkspaceTab')]
+    tawaran: [buka('accountingWorkspaceTab')],
+    tanpaAksi: 'penjelasan istilah; bagan akun sudah disiapkan'
   },
   {
     id: 'rekening_bersama',
@@ -186,7 +198,8 @@ export const KAMUS = Object.freeze([
       'Rekening Bersama = satu rekening bank yang dipakai beberapa gerai sekaligus.',
       'Tiap gerai tetap punya bagian saldonya sendiri, jadi uang gerai A tidak tercampur dengan gerai B di laporan.'
     ].join('\n'),
-    tawaran: [{ jenis: 'kirim', label: 'Cek Rekening Bersama', teks: 'cek rekening bersama' }, buka('sharedaccounts')]
+    tawaran: [{ jenis: 'kirim', label: 'Cek Rekening Bersama', teks: 'cek rekening bersama' }, buka('sharedaccounts')],
+    aksi: { alat: 'cek_rekening_bersama', tawar: 'Mau Una cekkan saldonya sekarang?', tombol: 'Una cekkan' }
   },
   {
     id: 'deposit',
@@ -196,7 +209,8 @@ export const KAMUS = Object.freeze([
       'Uang muka = uang yang dibayar duluan ke supplier sebelum barangnya datang.',
       'Saldonya disimpan sebagai Deposit, lalu pembelian berikutnya bisa dibayar dari situ.'
     ].join('\n'),
-    tawaran: [isi('Catat uang muka', 'uang muka ke Pak Slamet 500rb lewat transfer bank'), buka('hutangpiutang')]
+    tawaran: [isi('Catat uang muka', 'uang muka ke Pak Slamet 500rb lewat transfer bank'), buka('hutangpiutang')],
+    aksi: { alat: 'buat_uang_muka', tawar: 'Mau Una catatkan uang mukanya? Sebut ke siapa, berapa, dan lewat apa, mis. "uang muka ke Pak Slamet 500rb lewat transfer bank".', tombol: 'Una catatkan' }
   },
   {
     id: 'bea',
@@ -206,7 +220,8 @@ export const KAMUS = Object.freeze([
       'Bea = biaya menjalankan gerai: Bea Gaji, Bea Lapak (sewa tempat), dan Bea Lainnya (gas, sampah, dll).',
       'Boleh dicatat walau belum dibayar — jadi hutang dulu, dilunasi belakangan.'
     ].join('\n'),
-    tawaran: [isi('Catat biaya', 'beli gas 22rb ke Pak Slamet, bayarnya nanti'), buka('beaops')]
+    tawaran: [isi('Catat biaya', 'beli gas 22rb ke Pak Slamet, bayarnya nanti'), buka('beaops')],
+    aksi: { alat: 'catat_pengeluaran', tawar: 'Mau Una catatkan biayanya? Sebut untuk apa, berapa, ke siapa, mis. "beli gas 22rb ke Pak Slamet".', tombol: 'Una catatkan' }
   },
   {
     id: 'hutang',
@@ -216,7 +231,8 @@ export const KAMUS = Object.freeze([
       'Hutang = yang belum gerai bayar (gaji, sewa, supplier). Piutang = yang belum dibayar ke gerai.',
       'Layar Hutang & Pembayaran merangkum per orang, dan pelunasannya bisa dicatat lewat Una.'
     ].join('\n'),
-    tawaran: [{ jenis: 'kirim', label: 'Siapa saja yang masih hutang?', teks: 'siapa saja yang masih hutang?' }, buka('hutangpiutang')]
+    tawaran: [{ jenis: 'kirim', label: 'Siapa saja yang masih hutang?', teks: 'siapa saja yang masih hutang?' }, buka('hutangpiutang')],
+    aksi: { alat: 'bayar_hutang', tawar: 'Mau Una catatkan pelunasannya? Sebut ke siapa dan berapa, mis. "bayar hutang Pak Slamet 200rb lewat Kas".', tombol: 'Una catatkan pelunasan' }
   },
   {
     id: 'laci',
@@ -227,7 +243,8 @@ export const KAMUS = Object.freeze([
       'Yang menggerakkan laci hanya pembayaran tunai. Selisih saat tutup langsung kelihatan di laporan laci.',
       'Una sengaja tidak menyentuh uang laci — itu urusan kasir.'
     ].join('\n'),
-    tawaran: [buka('drawers')]
+    tawaran: [buka('drawers')],
+    tanpaAksi: 'uang laci urusan kasir; Una sengaja tidak menyentuhnya'
   },
   {
     id: 'persetujuan',
@@ -237,7 +254,8 @@ export const KAMUS = Object.freeze([
       'Hal sensitif yang diminta kasir (hapus transaksi, ambil uang kas, tutup laci kasir lain, koreksi presensi) masuk ke Persetujuan dulu.',
       'Pemilik/admin yang menyetujui atau menolak — jadi tidak ada yang hilang diam-diam.'
     ].join('\n'),
-    tawaran: [buka('approvals')]
+    tawaran: [buka('approvals')],
+    tanpaAksi: 'ACC/tolak diputuskan Admin di layar Persetujuan, bukan lewat chat'
   },
   {
     id: 'presensi',
@@ -248,17 +266,19 @@ export const KAMUS = Object.freeze([
       'Titik lokasi gerai diisi di Profil Toko; absen di luar radiusnya tetap tercatat tapi ditandai merah, dan karyawan bisa mengajukan perbaikan.',
       'Dari presensi, gaji per jam/per sesi terhitung sendiri.'
     ].join('\n'),
-    tawaran: [buka('store'), buka('attendance-report')]
+    tawaran: [buka('store'), buka('attendance-report')],
+    tanpaAksi: 'presensi dilakukan karyawan dari HP-nya sendiri'
   },
   {
     id: 'akun_kasir',
     judul: 'Akun kasir dan karyawan',
     kunci: ['akun kasir', 'buat kasir', 'kasir baru', 'karyawan', 'pin kasir', 'login kasir', 'username kasir'],
     isi: [
-      'Akun kasir = login untuk berjualan (username + PIN). Karyawan = data orangnya (nama, HP), dipakai presensi dan gaji; satu karyawan bisa ditautkan ke akun kasirnya.',
-      'Akun kasir sengaja tidak dibuat lewat chat: PIN-nya tidak boleh lewat mesin AI. Una bukakan layarnya saja.'
+      'Akun kasir = login untuk berjualan dan presensi (username + password). Karyawan = data orangnya (nama, HP), dipakai presensi dan gaji; satu karyawan bisa ditautkan ke akun kasirnya.',
+      'Una bisa membuatkan keduanya sekaligus. Password dibuat sistem saat Bos menekan "Ya" dan ditampilkan sekali — tidak pernah lewat mesin AI.'
     ].join('\n'),
-    tawaran: [buka('cashiers'), buka('employees')]
+    tawaran: [buka('cashiers'), buka('employees')],
+    aksi: { alat: 'buat_karyawan', tawar: 'Mau Una buatkan akunnya? Bilang "buatin", atau langsung sebut nama + username, mis. "buatin akun Rika Nur username rika, gaji 12rb per jam".', tombol: 'Una buatkan akun', awal: { kr_akun: true } }
   },
   {
     id: 'cara_bayar',
@@ -268,7 +288,8 @@ export const KAMUS = Object.freeze([
       'Cara bayar = tunai, transfer, QRIS, dll., diatur per gerai dan masing-masing tertaut ke akun (Kas, Bank, Rekening Bersama).',
       'Hanya tunai yang menggerakkan uang laci. Aplikasi ini mencatat cara bayarnya — uangnya sendiri tidak diproses aplikasi.'
     ].join('\n'),
-    tawaran: [{ jenis: 'kirim', label: 'Cara bayar gerai ini apa saja?', teks: 'cara bayar gerai ini apa saja dan akunnya apa?' }]
+    tawaran: [{ jenis: 'kirim', label: 'Cara bayar gerai ini apa saja?', teks: 'cara bayar gerai ini apa saja dan akunnya apa?' }],
+    aksi: { alat: 'atur_cara_bayar', tawar: 'Mau Una atur cara bayarnya? Sebut mis. "QRIS masuk ke Bank BCA".', tombol: 'Una aturkan' }
   },
   {
     id: 'jualan_pertama',
@@ -278,7 +299,8 @@ export const KAMUS = Object.freeze([
       'Kasir login di halaman Kasir (HP atau komputer gerai) dengan akun kasirnya, membuka laci, lalu memilih menu dan menekan bayar.',
       'Begitu ada penjualan, untung-rugi, stok, dan pembukuan jalan sendiri — dan Bos bisa langsung tanya Una "untung hari ini berapa?".'
     ].join('\n'),
-    tawaran: [jelas('laci', 'Apa itu laci kasir?')]
+    tawaran: [jelas('laci', 'Apa itu laci kasir?')],
+    tanpaAksi: 'penjualan dilakukan kasir di halaman Kasir'
   },
   {
     id: 'gerai_entity',
@@ -288,7 +310,8 @@ export const KAMUS = Object.freeze([
       'Gerai = satu toko/outlet. Entity = usahanya (pemilik buku), yang membawahi beberapa gerai.',
       'Data tiap gerai terpisah rapi; laporan entity menjumlahkan semuanya. Di Una, pilih gerai lewat tombol ▾ di atas, atau "semua gerai" untuk tingkat entity.'
     ].join('\n'),
-    tawaran: []
+    tawaran: [],
+    tanpaAksi: 'penjelasan istilah'
   },
 
   // --- karyawan, presensi, gaji, setoran CS ---------------------------------------
@@ -304,9 +327,10 @@ export const KAMUS = Object.freeze([
       'Di Workspace Gerai, buka Tim → Karyawan → "Tambah karyawan".',
       'Isi Nama lengkap (mis. Rika Nur), No. HP, No. identitas, dan alamat kalau ada, lalu Simpan karyawan.',
       'Supaya dia bisa login dan presensi, buatkan juga akunnya di Tim → Akun Kasir, lalu kembali ke Karyawan dan tekan "Tautkan" ke username itu.',
-      'Akun dibuat sendiri di layar Akun Kasir (bukan lewat Una) karena ada password.'
+      'Atau suruh Una: karyawan, akun login, dan tautannya dibuat sekaligus. Password akun dibuat sistem dan ditampilkan sekali — tidak pernah lewat mesin AI.'
     ].join('\n'),
-    tawaran: [buka('employees'), buka('cashiers'), jelas('akun_cs', 'Bikin akun CS + jam kerja')]
+    tawaran: [buka('employees'), buka('cashiers'), jelas('akun_cs', 'Bikin akun CS + jam kerja')],
+    aksi: { alat: 'buat_karyawan', tawar: 'Mau Una yang buatkan? Bilang "buatin", atau langsung sebut namanya, mis. "tambah karyawan Rika Nur hp 0812…" — sekalian akun login kalau perlu.', tombol: 'Una buatkan karyawan' }
   },
   {
     id: 'akun_cs',
@@ -321,7 +345,8 @@ export const KAMUS = Object.freeze([
       'Simpan kasir, lalu di tab Karyawan tautkan username itu ke orangnya.',
       'Jadwal ini yang dipakai untuk menandai telat; presensi di luar jadwal tidak dihitung gaji.'
     ].join('\n'),
-    tawaran: [buka('cashiers'), jelas('jadwal_beda', 'Jam masuk tiap hari beda?')]
+    tawaran: [buka('cashiers'), jelas('jadwal_beda', 'Jam masuk tiap hari beda?')],
+    aksi: { alat: 'buat_karyawan', tawar: 'Mau Una buatkan akunnya? Bilang "buatin", atau langsung mis. "buatin akun Rika Nur username rika, gaji 12rb per jam, Senin–Sabtu 09.00–17.00, Minggu libur".', tombol: 'Una buatkan akun', awal: { kr_akun: true } }
   },
   {
     id: 'jadwal_beda',
@@ -333,7 +358,8 @@ export const KAMUS = Object.freeze([
       'Telat dinilai dari jadwal hari itu. Hari yang libur atau belum diisi jadwalnya tidak dinilai telat.',
       'Kalau shift-nya beda orang (pagi/sore), lebih rapi bikin akun per shift (mis. "Kasir Shift Pagi"), karena jadwal menempel ke akun, bukan ke orangnya.'
     ].join('\n'),
-    tawaran: [buka('cashiers')]
+    tawaran: [buka('cashiers')],
+    aksi: { alat: 'atur_jadwal_kasir', tawar: 'Mau Una ubahkan jadwalnya? Sebut nama CS + jadwalnya, mis. "jadwal Rika: Senin 09.00–22.00, Selasa–Sabtu 09.00–18.00, Minggu libur".', tombol: 'Una ubahkan jadwal' }
   },
   {
     id: 'setoran_cs',
@@ -347,7 +373,8 @@ export const KAMUS = Object.freeze([
       'Piutang CS baru berkurang setelah Admin klik ACC; tidak ada ACC otomatis.',
       'Mau angkanya sekarang? Tanya Una "setoran CS yang masih dibawa siapa aja?".'
     ].join('\n'),
-    tawaran: [buka('setoran-cs'), { jenis: 'kirim', label: 'Setoran yang masih dibawa?', teks: 'setoran cs yang masih dibawa siapa aja?' }]
+    tawaran: [buka('setoran-cs'), { jenis: 'kirim', label: 'Setoran yang masih dibawa?', teks: 'setoran cs yang masih dibawa siapa aja?' }],
+    aksi: { alat: 'cek_setoran_cs', tawar: 'Mau Una cekkan angkanya sekarang?', tombol: 'Una cekkan' }
   },
   {
     id: 'gaji_harian',
@@ -359,7 +386,8 @@ export const KAMUS = Object.freeze([
       '• Per orang (lintas akun & gerai): Tim → Karyawan → klik namanya → Riwayat Gaji, lengkap dengan saldo hutang gaji.',
       'Presensi di luar jadwal ditandai "Di luar jadwal, tidak dihitung".'
     ].join('\n'),
-    tawaran: [buka('cashiers'), buka('employees'), jelas('potongan_gaji', 'Potongan / bonus gaji')]
+    tawaran: [buka('cashiers'), buka('employees'), jelas('potongan_gaji', 'Potongan / bonus gaji')],
+    tanpaAksi: 'gaji dihitung otomatis dari presensi; dibaca di layar Gaji per akun'
   },
   {
     id: 'potongan_gaji',
@@ -371,7 +399,8 @@ export const KAMUS = Object.freeze([
       'Hari yang tidak masuk (tidak ada presensi) memang tidak menghasilkan gaji otomatis; penyesuaian dipakai kalau ada denda tambahan.',
       'Salah input? Penyesuaian bisa dibatalkan dengan alasan — tidak dihapus diam-diam, tetap tercatat jejaknya.'
     ].join('\n'),
-    tawaran: [buka('cashiers')]
+    tawaran: [buka('cashiers')],
+    aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una catatkan potongan/bonusnya? Sebut nama, nominal, tanggal, dan alasan, mis. "potong gaji Rika 20rb kemarin karena telat".', tombol: 'Una catatkan' }
   },
   {
     id: 'telat_gaji',
@@ -383,7 +412,8 @@ export const KAMUS = Object.freeze([
       'Kalau mau ada denda tambahan: Tim → Akun Kasir → "💰 Gaji" → Penyesuaian Gaji dengan nominal negatif + alasan.',
       'Kalau telatnya karena alasan sah (mis. aplikasi error), CS mengajukan koreksi jam masuk dari Portal Staf SEBELUM presensi pulang; Admin meng-ACC di Akun Kasir → "Pengajuan koreksi presensi".'
     ].join('\n'),
-    tawaran: [buka('cashiers'), buka('attendance-report')]
+    tawaran: [buka('cashiers'), buka('attendance-report')],
+    aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una catatkan dendanya? Sebut mis. "potong gaji Rika 20rb kemarin karena telat".', tombol: 'Una catatkan denda', awal: { pg_jenis: 'potong' } }
   },
   {
     id: 'presensi_gagal',
@@ -396,7 +426,8 @@ export const KAMUS = Object.freeze([
       '• Lupa presensi pulang → sesi ditutup otomatis sistem dan ditandai di Laporan Presensi; koreksinya lewat Penyesuaian Gaji.',
       'Semua pengajuan dan keputusan terlihat di Laporan → Izin & Koreksi.'
     ].join('\n'),
-    tawaran: [buka('attendance-report'), buka('permit-report'), buka('cashiers')]
+    tawaran: [buka('attendance-report'), buka('permit-report'), buka('cashiers')],
+    aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una tambahkan gaji hari yang tidak terhitung? Sebut mis. "tambah gaji Rika 80rb tgl 5 karena tidak bisa presensi".', tombol: 'Una tambahkan gaji', awal: { pg_jenis: 'tambah' } }
   },
   {
     id: 'backup_salah_gerai',
@@ -408,7 +439,8 @@ export const KAMUS = Object.freeze([
       'Belum ada tombol untuk membatalkan aktivasi dari layar. Pilihannya hari itu: CS backup presensi pakai akunnya sendiri di Pendem kalau punya, atau minta Entity Admin/tim membetulkan datanya. Besok cukup aktifkan di gerai yang benar.',
       'Supaya tidak terulang: cek tulisan "Aktif di gerai …" di baris akun backup sebelum menekan tombol aktifkan.'
     ].join('\n'),
-    tawaran: [buka('cashiers')]
+    tawaran: [buka('cashiers')],
+    tanpaAksi: 'belum ada jalur membatalkan aktivasi backup — dari layar pun belum bisa'
   }
 ].map((entri) => Object.freeze(entri)));
 
@@ -474,7 +506,25 @@ export function jelaskan(teks, { halaman = 'gerai' } = {}) {
       tawaran: KAMUS.filter((e) => e.id !== 'gerai_entity').slice(0, 10).map((e) => jelas(e.id, e.judul))
     };
   }
-  return { ok: true, dikenal: true, topik: entri.id, judul: entri.judul, jawaban: entri.isi, tawaran: entri.tawaran };
+  return { ok: true, dikenal: true, topik: entri.id, judul: entri.judul, jawaban: entri.isi, tawaran: entri.tawaran, kerjakan: entri.aksi ?? null };
+}
+
+/**
+ * Panduan yang bisa dikerjakan Una sendiri ditutup dengan tawaran (Bos Cyo 2026-10-10:
+ * "pastikan una juga bisa mengerjakan yang apabila ditanya mekanismenya aja"), dan
+ * meninggalkan tugas tertunda bertanda `tawaran` supaya "kamu bisa buatin itu?"
+ * berikutnya nyambung ke alat ini, bukan dibaca dari nol (src/caca-agen.js).
+ */
+export const TEKS_MINTA_KERJAKAN = 'iya, tolong kerjain ya';
+export function denganTawaranKerja(hasil) {
+  const k = hasil?.kerjakan;
+  if (!k?.alat) return hasil;
+  return {
+    ...hasil,
+    jawaban: `${hasil.jawaban}\n\n${k.tawar}`,
+    tawaran: [{ jenis: 'kirim', label: k.tombol, teks: TEKS_MINTA_KERJAKAN }, ...(hasil.tawaran ?? [])],
+    tertunda: { alat: k.alat, tangkapan: { ...(k.awal ?? {}) }, tanya: k.tawar, kurang: null, tawaran: true }
+  };
 }
 
 /** Alat untuk agen: dipilih model, dijawab kode. */
@@ -494,6 +544,6 @@ export const ALAT_JELASKAN = Object.freeze({
       const dariPesan = jelaskan(ctx.pesan, { halaman });
       if (dariPesan.dikenal) hasil = dariPesan;
     }
-    return { ok: true, jawaban: hasil.jawaban, tawaran: hasil.tawaran };
+    return { ok: true, jawaban: hasil.jawaban, tawaran: hasil.tawaran, kerjakan: hasil.kerjakan ?? null };
   }
 });

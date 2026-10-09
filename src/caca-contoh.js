@@ -79,6 +79,12 @@ export const CONTOH = Object.freeze([
   { pesan: 'beli gas 22rb ke pak slamet bayarnya nanti', langkah: ['catat_pengeluaran keterangan "gas", nominal "22rb", pihak "pak slamet"'] },
   { pesan: 'bayar hutang ke supplier susu 500rb lewat bca', langkah: ['bayar_hutang pihak "supplier susu", nominal "500rb", cara bayar "bca"'] },
 
+  // --- karyawan (password akun dibuat sistem, tidak pernah ditanyakan) ---
+  { pesan: 'tambah karyawan Rika Nur hp 08123456789, buatin akunnya username rika gaji 12rb per jam senin-sabtu 9-17 minggu libur', langkah: ['buat_karyawan (kr_nama "Rika Nur", kr_hp "08123456789", kr_akun true, kr_username "rika", kr_gaji "12rb per jam", kr_jadwal "senin-sabtu 9-17 minggu libur"), lanjut=false'] },
+  { pesan: 'bikinin akun cs buat budi', langkah: ['buat_karyawan (kr_nama "budi", kr_akun true) -> Una menanyakan username-nya'] },
+  { pesan: 'jadwal rika sabtu libur ya', langkah: ['atur_jadwal_kasir (jk_orang "rika", kr_jadwal "sabtu libur"), lanjut=false'] },
+  { pesan: 'potong gaji rika 20rb kemarin karena telat', langkah: ['penyesuaian_gaji (pg_orang "rika", pg_jenis "potong", pg_nominal "20rb", pg_alasan "telat"), lanjut=false'] },
+  { pesan: 'kasih bonus lembur budi 30rb', langkah: ['penyesuaian_gaji (pg_orang "budi", pg_jenis "tambah", pg_nominal "30rb", pg_alasan "lembur"), lanjut=false (tanggal bawaan hari ini)'] },
   // --- data / laporan ---
   { pesan: 'untung hari ini berapa', langkah: ['laba_periode periode "hari_ini", lanjut=false'] },
   { pesan: 'kemarin vs hari ini lebih untung mana?', langkah: ['laba_periode "kemarin", lanjut=true', 'laba_periode "hari_ini", lanjut=true', 'selesai: bandingkan, semua angka dari catatan'] },

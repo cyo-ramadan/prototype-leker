@@ -1,0 +1,10 @@
+{
+  "nama": "Mekanisme potongan gaji dikerjakan langsung",
+  "pesan": [
+    "potong gaji kasir1 20rb kemarin karena telat"
+  ],
+  "harapan": {
+    "alat": "penyesuaian_gaji",
+    "draft": { "amountRupiah": -20000, "reason": "telat" }
+  }
+}

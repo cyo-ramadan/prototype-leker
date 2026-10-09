@@ -1256,6 +1256,15 @@ async function cacaKirimTeks(pertanyaan) {
   cacaCatatRiwayat('saya', pertanyaan);
   if (!cacaCekGerai({ bolehEntity: true })) return;
 
+  // "batal"/"gajadi" diketik saat draft terakhir masih menunggu = tombol Batal
+  // (uji live 2026-10-09: tanpa ini model mengira perintah menonaktifkan barang).
+  if (/^\s*(batal(in|kan)?|ga+k?\s*jadi|gajadi|nggak\s*jadi|cancel)\b/i.test(pertanyaan)) {
+    const drafts = cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)');
+    const terakhir = drafts?.length ? drafts[drafts.length - 1] : null;
+    const tombol = terakhir?.querySelector('[data-caca-batal]:not(:disabled)');
+    if (tombol) { tombol.click(); return; }
+  }
+
   const scope = cacaState.scope;
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
   const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;

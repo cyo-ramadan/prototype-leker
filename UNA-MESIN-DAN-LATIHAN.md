@@ -129,6 +129,9 @@ Peta mekanisme yang sudah ada:
 | Tugas tertunda + revisi | `src/caca-tertunda.js` + `lanjutkanTertunda` | Ingat tugas yang belum lengkap / draft yang belum "Ya" |
 | `isiDariPesan` | per alat, mis. `uraiPesanBarang` di `src/caca-aksi.js` | Kode membaca isian berlabel dari kalimat |
 | `kurang` | hasil `siapkan` | Kolom yang ditanyakan; jawaban Bos mengisinya langsung |
+| `cariDiRiwayat` | `src/caca-agen.js` | Sebelum bertanya kolom `kurang`, baca ulang pesan Bos sebelumnya (barang yang sama) |
+| `jangkarRencana` | `src/caca-agen.js` | Langkah rencana yang kehilangan angka diberi potongan kalimat asli Bos |
+| Una ngambek | `terapkanNgambek` (`src/caca-tertunda.js`) | Balasan mentok yang sama berulang → kalimat manusiawi bertingkat, terakhir chat ditutup 60 detik |
 | `alihkan` | hasil `siapkan` | Alat menyatakan maksudnya ternyata alat lain (mis. barang sudah ada → ubah harga) |
 | `angkaTanpaBukti`, `GAGAL_BACA`, `hargaKarangan` | `src/caca-baca.js`, `src/caca-agen.js` | Pagar angka karangan |
 | Draft + "Ya" + periksa ulang | `src/caca-aksi.js`, `src/caca-chat.js` | Tidak ada yang tersimpan tanpa persetujuan |

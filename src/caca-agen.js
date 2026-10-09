@@ -27,7 +27,7 @@ import { uraikanNominal } from './caca-nominal.js';
 import { teksContoh } from './caca-contoh.js';
 import {
   bersihkanTertunda, mintaBatal, terdengarBingung, jawabanPendek, gabungTangkapan, isianKosong,
-  isiKolomDariJawaban, teksTertunda, jelaskanTertunda
+  isiKolomDariJawaban, teksTertunda, jelaskanTertunda, terapkanNgambek
 } from './caca-tertunda.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
@@ -136,6 +136,39 @@ export function susunRencana(mentah) {
     .filter((l) => l.judul && l.perintah)
     .slice(0, MAKS_LANGKAH_RENCANA);
   return langkah.length >= 2 ? langkah : null;
+}
+
+// Uji Bos 2026-10-09: "namanya ganti es mega mendung. sama bikin lagi barang baru
+// namanya pizza hot harga jual 25000 harga beli 10000" dipecah model jadi langkah
+// "Buat barang baru pizza hot" — harganya hilang, lalu Una menanyakannya berulang.
+// Kode mengembalikan potongan kalimat ASLI Bos ke tiap langkah: potongan yang paling
+// mirip dengan langkah itu, kalau memuat angka yang tidak ada di perintah langkahnya.
+const PEMISAH_KLAUSA = /(?:[.;\n]+|\b(?:sama|terus|lalu|habis\s+itu|abis\s+itu|kemudian|dan\s+juga|trus)\b)/i;
+
+export function pecahKlausa(pesan) {
+  return String(pesan ?? '').split(PEMISAH_KLAUSA).map((k) => k.replace(/\s+/g, ' ').trim()).filter((k) => k.length >= 3);
+}
+
+const kataBermakna = (teks) => new Set(String(teks).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((k) => k.length >= 3));
+const angkaDi = (teks) => [...String(teks).matchAll(/\d[\d.,]*/g)].map((m) => m[0].replace(/[.,]/g, ''));
+
+export function jangkarRencana(langkah, pesan) {
+  const klausa = pecahKlausa(pesan);
+  if (klausa.length < 2) return langkah;
+  return langkah.map((l) => {
+    const kataL = kataBermakna(`${l.judul} ${l.perintah}`);
+    let terbaik = null;
+    let skor = 0;
+    for (const k of klausa) {
+      let sama = 0;
+      for (const kata of kataBermakna(k)) if (kataL.has(kata)) sama += 1;
+      if (sama > skor) { skor = sama; terbaik = k; }
+    }
+    if (!terbaik || skor < 1) return l;
+    const angkaL = new Set(angkaDi(l.perintah));
+    const hilang = angkaDi(terbaik).some((a) => !angkaL.has(a));
+    return hilang ? { ...l, perintah: `${l.perintah} — persisnya kata Bos: "${terbaik}"`.slice(0, MAKS_PERINTAH_LANGKAH) } : l;
+  });
 }
 
 const SKEMA_JAWABAN = Object.freeze({
@@ -291,6 +324,28 @@ function kolomAlat(alat) {
   return aksi && !aksi.baca ? Object.keys(aksi.skema) : null;
 }
 
+/**
+ * Kolom yang mau ditanyakan dicari dulu di pesan Bos sebelumnya (terbaru dulu),
+ * pakai pembaca kalimat alat itu. Kalau nama barangnya sudah diketahui, hanya pesan
+ * yang menyebut nama itu yang dipakai, supaya harga barang lain tidak tertukar.
+ * Mengembalikan isian baru atau null.
+ */
+function cariDiRiwayat(aksi, nilai, kurang, riwayat) {
+  if (!aksi.isiDariPesan || !Array.isArray(riwayat)) return null;
+  const nama = String(nilai?.barang_nama ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const pesanBos = riwayat.filter((r) => r.dari === 'saya').map((r) => r.teks).reverse();
+  for (const teks of pesanBos) {
+    if (nama && !String(teks).toLowerCase().replace(/\s+/g, ' ').includes(nama)) continue;
+    // Potongan kalimat yang memuat nama itu saja ("... sama bikin pizza hot harga jual 25000").
+    const potongan = nama ? pecahKlausa(teks).filter((k) => k.toLowerCase().includes(nama)) : [teks];
+    for (const p of potongan) {
+      const isi = aksi.isiDariPesan({}, p);
+      if (!isianKosong(isi[kurang])) return { ...nilai, [kurang]: isi[kurang] };
+    }
+  }
+  return null;
+}
+
 /** Keadaan tugas yang belum lengkap, untuk dibawa panel ke pesan berikutnya. */
 function tertundaDari(alat, nilai, tanya, kurang = null) {
   const kolom = kolomAlat(alat);
@@ -325,7 +380,8 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
   }
 
   if (namaAlat === ALAT_RENCANA) {
-    const langkah = susunRencana(pilihan.value?.rencana_langkah);
+    const langkahModel = susunRencana(pilihan.value?.rencana_langkah);
+    const langkah = langkahModel ? jangkarRencana(langkahModel, pertanyaan) : null;
     if (!langkah) {
       return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa memecah perintah itu jadi langkah-langkah. Coba sebut satu per satu ya.', belumLengkap: true };
     }
@@ -362,10 +418,20 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     if (aksi.isiDariPesan) pilihan = { ...pilihan, value: aksi.isiDariPesan(pilihan.value ?? {}, pesanBaku) };
     // Pesan asli ikut dibawa: alat daftar panjang membaca barisnya langsung dari teks,
     // karena model kadang mengembalikan daftar kosong untuk tempelan panjang.
-    const disiapkan = await aksi.siapkan(pilihan.value, {
+    const ctxSiapkan = {
       ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
       storeCode: konteks.storeCode, pesan: pesanBaku
-    });
+    };
+    let disiapkan = await aksi.siapkan(pilihan.value, ctxSiapkan);
+    // Sebelum bertanya, baca ulang pesan Bos sebelumnya (Bos 2026-10-09: "coba baca
+    // sebelumnya" — harga pizza hot sudah ia sebut, tapi Una tetap menanyakannya).
+    const dariRiwayat = !disiapkan.ok && disiapkan.kurang
+      ? cariDiRiwayat(aksi, pilihan.value, disiapkan.kurang, konteks.riwayat)
+      : null;
+    if (dariRiwayat) {
+      pilihan = { ...pilihan, value: dariRiwayat };
+      disiapkan = await aksi.siapkan(pilihan.value, ctxSiapkan);
+    }
     // Alat bisa menyatakan maksudnya ternyata alat lain (mis. daftar "barang baru"
     // yang semuanya sudah ada = ganti harga). Dialihkan sekali saja.
     if (!disiapkan.ok && disiapkan.alihkan && !pilihan.dialihkan && cariAksi(disiapkan.alihkan.alat)) {
@@ -661,18 +727,25 @@ async function selesaikan(v, { pertanyaan, pesanBaku, konteks, kerja, tabel, env
  * pun alat yang dipilih model; perintah lengkap untuk alat yang sama menimpa
  * isian lama yang disebut ulang. Perintah lain dibiarkan apa adanya (tugas lama dilepas).
  */
+const PERINTAH_BARU = /\b(baru|bikin|buat(in|kan)?|tambah(in|kan)?|masukin)\b/i;
+
 function lanjutkanTertunda(tertunda, pilihan, pertanyaan) {
   const v = pilihan.value ?? {};
   const pendek = jawabanPendek(pertanyaan);
-  if (v.alat !== tertunda.alat && !pendek) return pilihan;
   const kolom = kolomAlat(tertunda.alat);
+  const aksi = cariAksi(tertunda.alat);
+  // Koreksi atas draft yang masih terbuka ("eh salah, harga belinya harusnya 100") atau
+  // atas barang yang barusan tercatat ("namanya ganti es mega mendung"). Kalau kode bisa
+  // membaca isian berlabel dari kalimatnya dan tidak ada perintah membuat yang baru,
+  // itu PASTI koreksi — apa pun alat yang dipilih model.
+  const dariKalimat = tertunda.revisi && aksi?.isiDariPesan
+    ? aksi.isiDariPesan({}, pertanyaan, { revisiDari: tertunda.tangkapan })
+    : {};
+  const adaLabel = Object.values(dariKalimat).some((x) => !isianKosong(x));
+  const koreksiPasti = tertunda.revisi && adaLabel && !PERINTAH_BARU.test(pertanyaan);
+  if (v.alat !== tertunda.alat && !pendek && !koreksiPasti) return pilihan;
   if (tertunda.revisi) {
-    // Koreksi atas draft yang masih terbuka ("eh salah, harga belinya harusnya 100";
-    // uji 2026-10-09: dikira ubah_barang untuk barang yang belum ada). Isian berlabel
-    // yang dibaca kode dari kalimat koreksi MENANG; tanpa label, isian model menimpa.
-    const aksi = cariAksi(tertunda.alat);
-    const dariKalimat = aksi?.isiDariPesan ? aksi.isiDariPesan({}, pertanyaan) : {};
-    const adaLabel = Object.values(dariKalimat).some((x) => !isianKosong(x));
+    // Isian berlabel yang dibaca kode dari kalimat koreksi MENANG; tanpa label, isian model menimpa.
     const isian = adaLabel
       ? gabungTangkapan(tertunda.tangkapan, dariKalimat, kolom)
       : gabungTangkapan(tertunda.tangkapan, v, kolom);
@@ -698,6 +771,12 @@ function lanjutkanTertunda(tertunda, pilihan, pertanyaan) {
  *   `lanjutSesudahYa` (draft ini bagian dari pekerjaan yang lebih panjang).
  */
 export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
+  const hasil = await jawabPertanyaanInti(pertanyaan, konteks, opsi);
+  // Pertanyaan yang sama berulang → Una "ngambek" (src/caca-tertunda.js).
+  return terapkanNgambek(hasil, konteks.riwayat);
+}
+
+async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
   const { env, panggilModel = callStructured } = opsi;
   // Bahasa chat -> format baku dulu (tanggal, daftar satu baris, tipe barang), dikerjakan
   // kode karena model lite tidak andal di bagian ini (src/caca-terjemah.js). Pesan baku
@@ -711,7 +790,8 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
     return { ok: true, alat: null, jawaban: 'Oke, yang tadi nggak jadi ya, Bos.', tertunda: null };
   }
   if (tertunda && terdengarBingung(pertanyaan)) {
-    return { ok: true, alat: tertunda.alat, jawaban: jelaskanTertunda(tertunda), belumLengkap: true, tertunda, kerja: kerja.length ? kerja : null };
+    // Penjelasan ulang bukan "pertanyaan yang sama": tidak dihitung ngambek.
+    return { ok: true, alat: tertunda.alat, jawaban: jelaskanTertunda(tertunda), belumLengkap: true, tertunda, penjelasan: true, kerja: kerja.length ? kerja : null };
   }
   let tabel = null;
   // Panel meminta satu putaran per permintaan supaya tiap langkah langsung

@@ -35,6 +35,30 @@ const REFERENSI = /^caca_[0-9a-f-]{36}$/;
 
 // --- barang baru ----------------------------------------------------------
 
+const NOMINAL_TEKS = String.raw`(?:rp\.?\s*)?\d[\d.,]*\s*(?:rb|ribu|k|jt|juta)?(?![\w])`;
+const BATAS_NAMA = String.raw`(?=\s*(?:[,.;\n]|\b(?:harga\w*|hrg|seharga|dapet|dapat|isi|jual\w*|beli\w*|modal\w*|kategori\w*|satuan\w*)\b|$))`;
+
+/** Isian berlabel dari kalimat Bos untuk buat_barang. Hanya yang pasti; sisanya model. */
+export function uraiPesanBarang(pesan) {
+  const teks = String(pesan ?? '').replace(/\s+/g, ' ').trim();
+  const hasil = {};
+  const nama = teks.match(new RegExp(String.raw`\b(?:nama(?:\s*barang)?(?:nya)?|namain)\s*(?:itu|adalah|:)?\s+(.+?)` + BATAS_NAMA, 'i'));
+  if (nama && nama[1].trim().length >= 2) hasil.barang_nama = nama[1].trim().replace(/^["']|["']$/g, '');
+  const beli = teks.match(new RegExp(String.raw`\b(?:harga\s*beli(?:nya)?|modal(?:nya)?|belinya)\s*(?:=|:)?\s*(` + NOMINAL_TEKS + ')', 'i'));
+  if (beli) hasil.barang_harga_beli = beli[1].trim();
+  const jual = teks.match(new RegExp(String.raw`\b(?:harga\s*jual(?:nya)?|dijual|jualnya|jual)\s*(?:=|:)?\s*(` + NOMINAL_TEKS + ')', 'i'));
+  if (jual) hasil.barang_harga_jual = jual[1].trim();
+  const isi = teks.match(/\b(?:dapet|dapat|isi)\s*(\d{1,5})\b/i);
+  if (isi) hasil.barang_isi = isi[1];
+  // "harganya 12rb dapet 50": harga kemasan = harga beli.
+  if (!hasil.barang_harga_beli && isi) {
+    const harga = teks.match(new RegExp(String.raw`\b(?:harga(?:nya)?|seharga)\s*(` + NOMINAL_TEKS + ')', 'i'));
+    if (harga) hasil.barang_harga_beli = harga[1].trim();
+  }
+  if (/\bjual\w*\s*(?:nya\s*)?sama\s*(?:dengan|dgn|kayak|kaya|ama)?\s*(?:harga\s*)?(?:beli|modal)/i.test(teks)) hasil.barang_jual_sama_beli = true;
+  return hasil;
+}
+
 const barang = Object.freeze({
   nama: 'buat_barang',
   lingkup: 'gerai',
@@ -47,6 +71,19 @@ const barang = Object.freeze({
     barang_satuan: { type: 'string', description: 'buat_barang: satuan (pcs, gram, ml, dll), kalau disebut.' },
     barang_isi: { type: 'string', description: 'buat_barang: kalau harga beli yang disebut untuk satu kemasan berisi banyak ("12rb dapet 50 pcs", "sepak isi 50"), tulis jumlah isinya ("50"). Harga per satuan dihitung sistem.' },
     barang_jual_sama_beli: { type: 'boolean', description: 'buat_barang: true kalau Bos bilang harga jualnya sama dengan harga beli/modal.' }
+  },
+
+  // Model lite sering gagal menyalin isian yang jelas tertulis (uji langsung
+  // 2026-10-09: "namanya tutup cup manual", "harga beli 12rb" hilang). Isian
+  // yang BERLABEL di kalimat Bos dibaca kode dan mengisi yang kosong. Dipanggil
+  // agen SEBELUM siapkan, jadi hasilnya ikut tangkapan draft (lolos periksa "Ya").
+  isiDariPesan(t, pesan) {
+    const dari = uraiPesanBarang(pesan);
+    const hasil = { ...t };
+    for (const [k, v] of Object.entries(dari)) {
+      if (hasil[k] == null || hasil[k] === '' || (k === 'barang_jual_sama_beli' && hasil[k] !== true)) hasil[k] = v;
+    }
+    return hasil;
   },
 
   async siapkan(t, ctx) {

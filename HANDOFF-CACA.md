@@ -277,6 +277,10 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   alat (baru `buat_barang`; alat lain menyusul). Data dari browser → `bersihkanTertunda`.
   `buat_barang` juga paham "12rb dapet 50 pcs" (`barang_isi`, dibagi kode, harus habis dibagi) dan "jual
   sama dengan harga beli" (`barang_jual_sama_beli`). Test: `test/caca-tertunda.test.js` (skenario layar Bos).
+  Uji live menunjukkan model lite tetap sering tidak menyalin isian yang jelas ("namanya tutup cup manual",
+  "harga beli 12rb"), jadi alat boleh punya `isiDariPesan(t, pesan)`: kode membaca isian BERLABEL dari
+  kalimat Bos dan mengisi yang kosong, dipanggil agen sebelum `siapkan` sehingga ikut tangkapan draft
+  (`uraiPesanBarang` untuk `buat_barang`).
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat

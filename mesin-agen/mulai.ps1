@@ -1,5 +1,6 @@
 # Jalankan Mesin Agen (Windows PowerShell): router model + OpenCode, dari folder repo.
-#   powershell -ExecutionPolicy Bypass -File mesin-agen\mulai.ps1            -> layar kerja interaktif
+#   powershell -ExecutionPolicy Bypass -File mesin-agen\mulai.ps1            -> layar kerja di browser (bawaan)
+#   powershell -ExecutionPolicy Bypass -File mesin-agen\mulai.ps1 terminal   -> layar kerja di terminal
 #   powershell -ExecutionPolicy Bypass -File mesin-agen\mulai.ps1 run "..."  -> satu perintah lalu selesai
 $ErrorActionPreference = 'Stop'
 
@@ -52,11 +53,22 @@ try {
     }
   }
 
+  # Tanpa argumen: buka layar kerja di browser. "terminal": layar kerja di terminal.
+  $Perintah = @($args)
+  if ($Perintah.Count -eq 0) {
+    $WebPort = if ($env:MESIN_WEB_PORT) { $env:MESIN_WEB_PORT } else { '4096' }
+    Write-Host "Layar Mesin dibuka di browser: http://127.0.0.1:$WebPort"
+    Write-Host 'Biarkan jendela ini terbuka selama Mesin dipakai. Tutup jendela ini untuk mematikan Mesin.'
+    $Perintah = @('web', '--hostname', '127.0.0.1', '--port', $WebPort)
+  } elseif ($Perintah[0] -eq 'terminal') {
+    $Perintah = @($Perintah | Select-Object -Skip 1)
+  }
+
   $env:OPENCODE_CONFIG = Join-Path $MesinDir 'opencode\opencode.json'
   $env:OPENCODE_CONFIG_DIR = Join-Path $MesinDir 'opencode'
   Set-Location $RepoDir
-  if (Get-Command opencode -ErrorAction SilentlyContinue) { opencode @args }
-  else { npx --yes "opencode-ai@$OpencodeVersi" @args }
+  if (Get-Command opencode -ErrorAction SilentlyContinue) { opencode @Perintah }
+  else { npx --yes "opencode-ai@$OpencodeVersi" @Perintah }
 }
 finally {
   if (-not $Router.HasExited) { Stop-Process -Id $Router.Id -Force }

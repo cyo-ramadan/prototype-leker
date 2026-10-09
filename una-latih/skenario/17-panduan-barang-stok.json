@@ -1,0 +1,11 @@
+{
+  "nama": "Pertanyaan karyawan soal stok: restock dengan nota beda (uji 2026-10-11)",
+  "pesan": [
+    "bagaimana cara mencatat restock barang yang jumlah nya berbeda dari nota suplier?"
+  ],
+  "harapan": {
+    "alat": "jelaskan",
+    "jawabanMemuat": "Beli Bahan",
+    "jawabanTidakMemuat": "Jadwal"
+  }
+}

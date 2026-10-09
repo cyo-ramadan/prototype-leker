@@ -592,6 +592,24 @@ juga bisa mengerjakan yang apabila ditanya mekanismenya aja", dan jawaban 0,3 ms
 - **Jeda mengetik** di panel (`cacaJedaManusiawi`), termasuk tombol kamus.
 - Skenario live 15 dan 16. Prompt pilih-alat bertambah ±2,3 ribu huruf (±600 token).
 
+### 2026-10-11 — Panduan barang, stok, supplier, pembelian + alat supplier & kategori
+
+Uji karyawan (Notepad_Una.txt): 14 pertanyaan "bagaimana cara …" soal barang/stok dijawab
+"belum punya penjelasan" atau ke layar salah (restock → "gerai dan entity", nota supplier →
+jadwal kerja, supplier → Daftar Barang).
+
+- 11 entri kamus baru di `src/caca-jelaskan.js`, isinya dicocokkan ke layar sungguhan:
+  barang_tambah, harga_barang, kategori_barang, barang_nonaktif, supplier_tambah,
+  pembelian (Beli Bahan di kasir), nota_beda, barang_rusak, barang_keluar (Arus Barang),
+  penyesuaian_stok, riwayat_stok; stok_minus diberi langkah menanganinya.
+- Kunci terlalu umum dibuang ("gerai", "berbeda") — itu yang menyeret ke panduan salah.
+- Sinonim: restock/kulakan/belanja → beli, suplier/pemasok → supplier, basi/pecah → rusak.
+- Alat baru `src/caca-aksi-master.js`: `buat_supplier` (POST /api/admin/suppliers),
+  `buat_kategori` (POST /api/admin/categories, ditambah ke PINTU_AKSI).
+- Pembelian, barang rusak/keluar, dan penyesuaian stok sengaja `tanpaAksi`: dicatat kasir
+  dan di-ACC Admin (Una tidak menyentuh kas/stok langsung).
+- Test: `test/caca-barang-panduan.test.js` (14 kalimat asli + 17 kalimat setipe).
+
 ## Langkah berikutnya yang disarankan
 
 **Ukur dulu, jangan menambah fitur.** Godaan terbesar di titik ini adalah

@@ -219,6 +219,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-01 | pengembangan | Halaman diagnostik perangkat | INTERNAL | Mengurangi beban dukungan "tidak bisa login" |
 | 2026-10-01 | strategi | Landing page penjualan di `/produk/` (hanya fitur Paket Kontrol; tombol "Minta demo lewat WhatsApp") | INTERNAL | Belum dibagikan: nomor WhatsApp, nama merek, dan izin memakai angka Leker masih menunggu Bos Cyo |
 | 2026-10-02 | strategi | Merek landing page diganti jadi OwnerTenang; domain ownertenang.biz.id dibeli (belum tersambung) | INTERNAL | Nomor WhatsApp dan izin angka Leker masih menunggu Bos Cyo |
+| 2026-10-09 | strategi | Tombol WhatsApp di dua landing page kini membawa kode sumber (`[web-utama]`, `[web-kemitraan]`, atau `?s=nama-kampanye` dari iklan/artikel); alur checkout manual dan tiga tugas penghalang (akun Entity Admin, ganti password, dasar SEO) dicatat | INTERNAL | Chat calon pembeli kini bisa dilacak asalnya; checkout pertama masih bergantung pada akun Entity Admin lewat layar |
 | 2026-10-04 | strategi | Nomor WhatsApp demo dipasang di landing page; alamat utama domain ownertenang.biz.id/.id diarahkan ke landing page (kode siap; domain harus dipasang sebagai Custom domain di Cloudflare) | INTERNAL | Landing page bisa dibagikan setelah domain terbukti terbuka dan izin angka Leker ada |
 | 2026-10-01 | pengembangan | Resep produksi diisi sekali di tingkat perusahaan lalu diterapkan ke banyak gerai sekaligus (termasuk menu dengan dua resep) | UJI | Mengurangi kerja pasang resep per gerai bagi pemilik banyak gerai; belum dicoba di gerai nyata |
 | 2026-10-01 | pengembangan | Grafik perbandingan gerai di laporan perusahaan: untung/rugi (hijau/merah), omset, untung kotor, beban, HPP, margin, urut dari terbesar | JUAL | Pemilik langsung melihat gerai mana yang untung dan mana yang rugi dalam satu layar; §5 perlu ditinjau: beban yang hanya dibuat di Akuntansi belum ikut angka laporan ini |
@@ -338,6 +339,19 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
   dibeli, pasang sebagai Custom Domain di Cloudflare dan arahkan halaman utama domain itu ke
   landing page — keputusan teknisnya (Worker statis terpisah vs. aturan per alamat di Worker
   utama) diambil sesi pengembangan saat itu, tanpa mengubah isi halaman.
+- **Dua landing page, dua segmen** *(diputuskan 2026-10-05)*: `/produk/` untuk pemilik 2–10 gerai F&B yang
+  dijaga karyawan; `/produk/kemitraan/` untuk pemilik kemitraan/franchise (pilot 1–3 gerai mitra). Warung
+  kecil/tanpa karyawan belum dibuatkan halaman (fiturnya UJI). Keduanya wajib **interaktif** (mockup yang bisa
+  disentuh, kalkulator kebocoran/biaya, simulasi). Video pendek direkam dari **akun demo** saja.
+  Prompt untuk agen pembuatnya: `PROMPT-LANDING-PAGE-AHLI.md`; paket pesan WA/skrip demo/naskah video:
+  `PAKET-JUALAN-MINGGU-1.md`. Hasil agen dipasang Hana: tes kata terlarang untuk halaman kemitraan
+  ditambah, dan pengecualian Una (di bawah) diterapkan di tes.
+- **Una = USP kedua, berlabel uji** *(diputuskan 2026-10-05, atas permintaan Bos Cyo)*: Una boleh tampil di
+  landing page dan video sebagai *pendamping pemilik baru* (isi menu dari daftar/foto papan menu, ubah harga
+  lewat chat, cari harga janggal), **wajib** berlabel "Baru · sedang kami uji bersama pemilik pertama" dan
+  selalu memperlihatkan langkah draft → "Ya" dari pemilik. Janji utama tetap kontrol gerai. **Syarat naik jadi
+  USP penuh (JUAL)**: minimal 3 pemilik di luar lingkaran Bos Cyo menyiapkan menu lewat Una tanpa bantuan tim,
+  dan selama 2 minggu tidak ada perubahan Una yang salah lolos ke laporan.
 - **Halaman & video (2026-10-06)**: `/produk/` (pemilik 2–10 gerai, interaktif: coba jadi pemilik,
   kalkulator kebocoran, simulasi Una) dan `/produk/kemitraan/` (pilot 1–3 gerai mitra, kalkulator biaya);
   video 9:16 nomor 1, 2, 4 di `pemasaran/video/`. Ringkasan, daftar klaim, cara rekam ulang: `pemasaran/README.md`.
@@ -345,6 +359,19 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
   Usulan Hana yang menunggu persetujuan: situs jualan dipisah dari aplikasi POS (statis, tanpa database);
   setiap tombol WhatsApp membawa kode sumber; Google Search sebelum Meta; uang iklan baru naik setelah
   ada pembayar dari iklan.
+- **Alamat aplikasi = `app.ownertenang.biz.id`** *(diputuskan 2026-10-07, atas permintaan Bos Cyo — alamat
+  `…workers.dev` bertuliskan "prototype" dan membuat calon pelanggan ragu)*. Tidak butuh domain baru:
+  subdomain gratis di bawah `ownertenang.biz.id`. Dipasang sebagai Custom domain kedua pada Worker yang sama;
+  **tidak ada perubahan kode** (server tidak memeriksa nama host/asal). Alamat lama **tetap hidup** supaya 14 gerai
+  yang sudah memakainya tidak terputus; tiap pengguna cukup login ulang saat pindah (sesi tersimpan per alamat).
+  Nama Worker (`prototype-leker-v2`) tidak diganti — tidak terlihat pengguna setelah alamat baru dipakai, dan
+  mengganti nama memutus integrasi Git. Gerai baru langsung memakai alamat baru; gerai lama pindah bertahap.
+  Sisa tulisan "MAXI" di judul halaman aplikasi (kasir, admin, login) = pekerjaan sesi UI/UX agar seragam "OwnerTenang".
+  Aplikasi di `app.` sebaiknya tidak diindeks Google (bagian fondasi SEO, `PLAN-SEO-KONTEN.md` S1).
+- **Checkout minggu ini** *(2026-10-09, target Bos Cyo)*: satu checkout = bukti transfer pertama masuk. Alur manual (penawaran →
+  tagihan → bukti terima → persiapan gerai) di `pemasaran/CHECKOUT-MANUAL.md`. SEO dan iklan **tidak** menghasilkan checkout minggu ini
+  (butuh 2–4 bulan); checkout minggu ini datang dari jual langsung (`PAKET-JUALAN-MINGGU-1.md`). Penghalang terbesar: akun pemilik
+  pelanggan (Entity Admin) hanya bisa dibuat lewat migration -- tugas `karen-PEMASARAN-ENTITY-ADMIN-BUAT-AKUN` di papan agen.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 

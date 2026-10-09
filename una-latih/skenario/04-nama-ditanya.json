@@ -1,0 +1,14 @@
+{
+  "nama": "Nama yang ditanya diisi dari jawaban",
+  "pesan": [
+    "bikin barang harga jual 8rb",
+    "es jeruk peras"
+  ],
+  "harapan": {
+    "alat": "buat_barang",
+    "draft": {
+      "name": "es jeruk peras",
+      "price": 8000
+    }
+  }
+}

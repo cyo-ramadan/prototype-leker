@@ -281,6 +281,11 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   "harga beli 12rb"), jadi alat boleh punya `isiDariPesan(t, pesan)`: kode membaca isian BERLABEL dari
   kalimat Bos dan mengisi yang kosong, dipanggil agen sebelum `siapkan` sehingga ikut tangkapan draft
   (`uraiPesanBarang` untuk `buat_barang`).
+- **Draft terbuka bisa dikoreksi (2026-10-09, layar Bos "eh salah harga belinya harusnya 100"):** panel
+  membawa draft yang belum "Ya" sebagai tugas tertunda `revisi`; koreksi menimpa isian (isian berlabel dari
+  kalimat menang), draft lama ditandai "diganti". `uraiPesanBarang` paham kata sisipan ("harusnya", "jadi").
+- **Panduan melatih Una:** `UNA-MESIN-DAN-LATIHAN.md` + skill `latih-una` + uji live `scripts/uji-una.mjs`
+  (skenario di `una-latih/skenario/`). Bos Cyo 2026-10-09: model & level mikir dikunci termurah.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat

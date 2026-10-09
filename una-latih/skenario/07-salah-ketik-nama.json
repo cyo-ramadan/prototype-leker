@@ -1,0 +1,10 @@
+{
+  "nama": "Salah ketik nama tetap ketemu",
+  "pesan": [
+    "harga es teh black curent besar berapa"
+  ],
+  "harapan": {
+    "alat": "cek_barang",
+    "jawabanTidakMemuat": "belum ketemu"
+  }
+}

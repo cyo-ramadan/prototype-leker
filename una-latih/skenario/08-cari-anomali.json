@@ -1,0 +1,9 @@
+{
+  "nama": "Harga janggal dihitung kode",
+  "pesan": [
+    "cek harga yang anomali di sini"
+  ],
+  "harapan": {
+    "alat": "cek_harga_janggal"
+  }
+}

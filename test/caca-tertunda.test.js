@@ -70,7 +70,7 @@ test('bingung → Una menjelaskan ulang tugasnya; batal → tugas dilepas; tanpa
   const bingung = await jawabPertanyaan('ga jelas lu', KONTEKS, { env: {}, panggilModel: m.panggilModel, jalurAksi: jalur, tertunda });
   assert.match(bingung.jawaban, /tutup cup manual/);
   assert.match(bingung.jawaban, /Harga jual "tutup cup manual" berapa/);
-  assert.deepEqual(bingung.tertunda, tertunda);
+  assert.deepEqual(bingung.tertunda, { ...tertunda, revisi: false });
   const batal = await jawabPertanyaan('gajadi deh', KONTEKS, { env: {}, panggilModel: m.panggilModel, jalurAksi: jalur, tertunda });
   assert.equal(batal.tertunda, null);
   assert.equal(m.panggilan.length, 0);
@@ -118,4 +118,28 @@ test('kalimat Bos dibaca kode: model lupa nama & harga, draft tetap lengkap (dan
   assert.equal(hasil.draft.muatan.price, 240);
   const diperiksa = await periksaUlangDraft(hasil.draft, { ...jalur, namaLingkup: 'Mandala', lingkup: 'gerai' });
   assert.equal(diperiksa.ok, true, diperiksa.error);
+});
+
+// Bos Cyo 2026-10-09 (layar kedua): draft "cup jumbo" masih terbuka, lalu "eh salah
+// harga belinya harusnya 100" → Una mengira ubah_barang untuk barang yang belum ada.
+test('koreksi atas draft yang masih terbuka menghasilkan draft baru, bukan ubah_barang', async () => {
+  const m1 = model(pilih('buat_barang', {}));
+  const satu = await jawabPertanyaan('bisa masukin barang namanya cup jumbo harga jual 2000 harga beli 1000', KONTEKS, { env: {}, panggilModel: m1.panggilModel, jalurAksi: jalur });
+  assert.equal(satu.draft.muatan.purchasePrice, 1000);
+  const draftTerbuka = { alat: satu.draft.aksi, tangkapan: satu.draft.tangkapan, tanya: '', kurang: null, revisi: true };
+
+  const m2 = model(pilih('ubah_barang', { ubah_daftar: [{ barang: 'cup jumbo', harga_beli: '100' }] }));
+  const dua = await jawabPertanyaan('eh salah harga belinya harusnya 100', KONTEKS, { env: {}, panggilModel: m2.panggilModel, jalurAksi: jalur, tertunda: draftTerbuka });
+  assert.match(m2.panggilan[0].content[0].text, /menunggu "Ya"/);
+  assert.equal(dua.alat, 'buat_barang');
+  assert.equal(dua.revisi, true);
+  assert.equal(dua.draft.muatan.name, 'cup jumbo');
+  assert.equal(dua.draft.muatan.purchasePrice, 100, 'harga beli dikoreksi');
+  assert.equal(dua.draft.muatan.price, 2000, 'harga jual tetap');
+
+  // Koreksi tanpa label → isian model menimpa isian lama.
+  const m3 = model(pilih('buat_barang', { barang_nama: 'cup jumbo besar' }));
+  const tiga = await jawabPertanyaan('ganti cup jumbo besar aja', KONTEKS, { env: {}, panggilModel: m3.panggilModel, jalurAksi: jalur, tertunda: { ...draftTerbuka, tangkapan: dua.draft.tangkapan } });
+  assert.equal(tiga.draft.muatan.name, 'cup jumbo besar');
+  assert.equal(tiga.draft.muatan.purchasePrice, 100);
 });

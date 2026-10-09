@@ -1,0 +1,9 @@
+{
+  "nama": "Harga barang tertentu = cek_barang",
+  "pesan": [
+    "harga es teh leci berapa"
+  ],
+  "harapan": {
+    "alat": "cek_barang"
+  }
+}

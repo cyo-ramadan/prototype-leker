@@ -642,6 +642,23 @@ function cacaIsiDraft(draft) {
   };
 }
 
+// Draft hasil koreksi menggantikan draft yang masih terbuka di atasnya: tombolnya
+// dimatikan supaya tidak ada dua draft untuk hal yang sama yang bisa di-"Ya".
+function cacaGantiDraftLama() {
+  const semua = [...(cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)') ?? [])];
+  for (const kartu of semua.slice(0, -1)) {
+    kartu.classList.add('kedaluwarsa');
+    kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    if (!kartu.querySelector('.caca-draft-catatan')) {
+      const catatan = document.createElement('p');
+      catatan.className = 'caca-draft-catatan';
+      catatan.textContent = 'Sudah diganti draft yang dikoreksi di bawah.';
+      kartu.appendChild(catatan);
+    }
+  }
+  cacaSimpanPercakapan();
+}
+
 function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
   const draft = payload.draft;
   const tampilan = cacaIsiDraft(draft);
@@ -670,6 +687,7 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
     cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.');
     cacaSimpanPercakapan();
     cacaTambahGelembung('caca', 'Oke, gajadi deh.');
+    if (cacaState.tertunda?.revisi) cacaState.tertunda = null;
     kartu._cacaSesudah?.('batal');
   });
 
@@ -678,6 +696,7 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
   // tempat yang tertulis di draft.
   kartu.querySelector('[data-caca-catat]').addEventListener('click', async () => {
     kunci();
+    if (cacaState.tertunda?.revisi) cacaState.tertunda = null;
     if (draft.bertahap) {
       await cacaJalankanBertahap(kartu, draft, scope, 0);
       return;
@@ -1195,7 +1214,12 @@ async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
 function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
   cacaState.kerjaTertunda = null;
   // Una balik bertanya untuk tugas yang belum lengkap: dibawa ke pesan berikutnya.
-  cacaState.tertunda = payload.tertunda || null;
+  // Draft yang masih menunggu "Ya" juga dibawa (revisi): "eh salah, harga belinya
+  // harusnya 100" mengoreksi draft itu, bukan dibaca sebagai perintah baru.
+  cacaState.tertunda = payload.tertunda
+    || (payload.perluKonfirmasi && payload.draft?.aksi && payload.draft.tangkapan
+      ? { alat: payload.draft.aksi, tangkapan: payload.draft.tangkapan, tanya: '', kurang: null, revisi: true }
+      : null);
   const jenis = cacaTampilkanBalasan(payload, scope, {
     sesudahDraft: payload.lanjutSesudahYa && payload.kerja?.length ? status => {
       if (status !== 'tercatat') return;
@@ -1204,6 +1228,7 @@ function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
       cacaLanjutkanKerja(pertanyaan, scope, kerja);
     } : null
   });
+  if (payload.revisi && payload.draft) cacaGantiDraftLama();
   if (payload.lanjutkan && payload.kerja?.length) {
     const gelembung = cacaEl('cacaPercakapan')?.lastElementChild;
     cacaTombolLanjutKerja(gelembung, pertanyaan, scope, payload.kerja);

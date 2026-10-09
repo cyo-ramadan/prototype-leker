@@ -1,0 +1,14 @@
+{
+  "nama": "Harga per kemasan + jual sama dengan beli (layar Bos 2026-10-09)",
+  "pesan": [
+    "bikin barang namanya tutup cup manual, harganya 12rb dapet 50 pcs. jual nya sama dengan harga beli"
+  ],
+  "harapan": {
+    "alat": "buat_barang",
+    "draft": {
+      "name": "tutup cup manual",
+      "purchasePrice": 240,
+      "price": 240
+    }
+  }
+}

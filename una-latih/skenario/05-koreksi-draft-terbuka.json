@@ -1,0 +1,15 @@
+{
+  "nama": "Koreksi draft yang belum di-Ya (layar Bos 2026-10-09)",
+  "pesan": [
+    "bisa masukin barang namanya cup jumbo harga jual 2000 harga beli 1000",
+    "eh salah harga belinya harusnya 100"
+  ],
+  "harapan": {
+    "alat": "buat_barang",
+    "draft": {
+      "name": "cup jumbo",
+      "price": 2000,
+      "purchasePrice": 100
+    }
+  }
+}

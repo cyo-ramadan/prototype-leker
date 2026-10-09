@@ -1,0 +1,12 @@
+{
+  "nama": "'ga jelas lu' dijelaskan ulang, bukan kamus",
+  "pesan": [
+    "bikin barang namanya tutup cup baru, harga beli 12rb",
+    "ga jelas lu"
+  ],
+  "harapan": {
+    "alat": "buat_barang",
+    "jawabanMemuat": "Maaf bikin bingung",
+    "tanpaDraft": true
+  }
+}

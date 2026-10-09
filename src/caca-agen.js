@@ -223,7 +223,8 @@ function promptPilihAlat(konteks, pesan = '') {
     '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
     '- buat_barang: harga untuk satu kemasan isi banyak ("12rb dapet 50 pcs") -> barang_harga_beli "12rb" + barang_isi "50";',
     '  "jualnya sama dengan harga beli" -> barang_jual_sama_beli=true. Jangan membagi/menghitung sendiri.',
-    '- Ada "TUGAS YANG SEDANG UNA KERJAKAN": pesan pendek Bos hampir pasti jawaban untuk tugas itu. Pilih alat yang',
+    '- Ada "TUGAS YANG SEDANG UNA KERJAKAN" (termasuk draft yang masih menunggu "Ya"): pesan pendek Bos hampir pasti',
+    '  jawaban/koreksi untuk tugas itu ("salah, harusnya 100" = ubah isian draft itu, BUKAN ubah_barang). Pilih alat yang',
     '  sama dan salin semua isian sejauh ini + jawabannya. Jangan menanyakan lagi yang sudah ada di isian.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
     '  Salin SEMUA barangnya; jangan diringkas, jangan dipilih sebagian.',
@@ -665,6 +666,18 @@ function lanjutkanTertunda(tertunda, pilihan, pertanyaan) {
   const pendek = jawabanPendek(pertanyaan);
   if (v.alat !== tertunda.alat && !pendek) return pilihan;
   const kolom = kolomAlat(tertunda.alat);
+  if (tertunda.revisi) {
+    // Koreksi atas draft yang masih terbuka ("eh salah, harga belinya harusnya 100";
+    // uji 2026-10-09: dikira ubah_barang untuk barang yang belum ada). Isian berlabel
+    // yang dibaca kode dari kalimat koreksi MENANG; tanpa label, isian model menimpa.
+    const aksi = cariAksi(tertunda.alat);
+    const dariKalimat = aksi?.isiDariPesan ? aksi.isiDariPesan({}, pertanyaan) : {};
+    const adaLabel = Object.values(dariKalimat).some((x) => !isianKosong(x));
+    const isian = adaLabel
+      ? gabungTangkapan(tertunda.tangkapan, dariKalimat, kolom)
+      : gabungTangkapan(tertunda.tangkapan, v, kolom);
+    return { ok: true, revisi: true, value: { alat: tertunda.alat, judul_langkah: v.judul_langkah, lanjut: v.lanjut, ...isian } };
+  }
   const isian = gabungTangkapan(tertunda.tangkapan, v, kolom, { lengkapi: pendek });
   if (pendek && tertunda.kurang) {
     // Kolom yang ditanyakan diisi dari jawaban Bos sendiri; tebakan model hanya cadangan.
@@ -768,6 +781,9 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
         kerja: kerja.length ? kerja : null
       };
     }
+
+    // Draft hasil koreksi: panel mengganti draft lama yang masih terbuka.
+    if (pilihan.revisi && hasil.draft) hasil.revisi = true;
 
     const bisaDiamati = amati && hasil.alat && !hasil.draft && !hasil.belumLengkap && !hasil.ditolak && !hasil.rencana;
     if (!bisaDiamati) {

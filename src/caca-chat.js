@@ -297,6 +297,7 @@ async function tanya(request, env, jalurUtama) {
     lanjutkan: Boolean(hasil.lanjutkan),
     lanjutSesudahYa: Boolean(hasil.lanjutSesudahYa),
     tertunda: hasil.tertunda ?? null,
+    revisi: Boolean(hasil.revisi),
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }

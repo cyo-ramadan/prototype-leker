@@ -51,7 +51,8 @@ export function bersihkanTertunda(masuk, kolomAlat) {
   if (ukuran > MAKS_JSON_TANGKAPAN) return null;
   const kurang = kolom.includes(masuk.kurang) ? masuk.kurang : null;
   const tanya = String(masuk.tanya ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
-  return { alat, tangkapan, tanya, kurang };
+  // revisi = draft yang masih terbuka (menunggu "Ya"); pesan berikutnya bisa koreksi atasnya.
+  return { alat, tangkapan, tanya, kurang, revisi: masuk.revisi === true };
 }
 
 export const mintaBatal = (pesan) => BATAL.test(String(pesan ?? ''));
@@ -113,6 +114,7 @@ export function teksTertunda(t) {
   if (!t) return '';
   return [
     `TUGAS YANG SEDANG UNA KERJAKAN: alat ${t.alat}. Isian sejauh ini: ${JSON.stringify(t.tangkapan)}.`,
+    t.revisi ? 'Draftnya sudah ditunjukkan dan masih menunggu "Ya" dari Bos (BELUM tersimpan). Pesan koreksi = ubah isian draft ini.' : '',
     t.tanya ? `Una tadi bertanya: "${t.tanya}"` : '',
     'Kalau pesan Bos menjawab pertanyaan itu atau melengkapi isian, pilih alat yang sama dan isi SEMUA kolomnya',
     '(isian sejauh ini + jawaban Bos). Pilih alat lain hanya kalau Bos jelas memberi perintah baru.',

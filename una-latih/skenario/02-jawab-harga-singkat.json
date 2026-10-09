@@ -1,0 +1,15 @@
+{
+  "nama": "Jawaban '5000' melengkapi harga jual yang ditanya",
+  "pesan": [
+    "bikin barang namanya tutup cup baru, harga beli 12rb",
+    "5000"
+  ],
+  "harapan": {
+    "alat": "buat_barang",
+    "draft": {
+      "name": "tutup cup baru",
+      "price": 5000,
+      "purchasePrice": 12000
+    }
+  }
+}

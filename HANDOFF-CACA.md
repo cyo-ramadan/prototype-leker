@@ -267,6 +267,44 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   pilih-alat; contoh statis di `ATURAN_PUTARAN` dihapus. Disimpan di kode, bukan D1: pengetahuan
   produk yang sama untuk semua tenant, lewat review + test (`test/caca-contoh.test.js` memastikan
   nama alat di contoh masih ada). Tiap temuan uji langsung sebaiknya jadi satu contoh baru.
+- **Tugas tertunda (`src/caca-tertunda.js`, 2026-10-09, Bos Cyo: "dia kehilangan konteks padahal belum ada 5
+  chat"):** alat tulis yang balik bertanya kini mengembalikan `tertunda {alat, tangkapan, tanya, kurang}`;
+  panel mengirimnya bersama pesan berikutnya (juga lintas ganti gerai: "pilih gerai lalu bilang lanjut").
+  Server: "batal/gajadi" → dilepas; "ga jelas/bingung" (tanpa angka) → Una menjelaskan ulang tugas + yang
+  kurang, tanpa model; jawaban pendek tanpa kata perintah/pertanyaan → PASTI untuk tugas itu (apa pun
+  pilihan model), isian lama tidak ditimpa, dan kolom `kurang` diisi dari jawaban Bos sendiri ("harga
+  jualnya 120" → "120"); perintah lengkap untuk alat yang sama → isian baru menimpa. `kurang` diisi oleh
+  alat (baru `buat_barang`; alat lain menyusul). Data dari browser → `bersihkanTertunda`.
+  `buat_barang` juga paham "12rb dapet 50 pcs" (`barang_isi`, dibagi kode, harus habis dibagi) dan "jual
+  sama dengan harga beli" (`barang_jual_sama_beli`). Test: `test/caca-tertunda.test.js` (skenario layar Bos).
+  Uji live menunjukkan model lite tetap sering tidak menyalin isian yang jelas ("namanya tutup cup manual",
+  "harga beli 12rb"), jadi alat boleh punya `isiDariPesan(t, pesan)`: kode membaca isian BERLABEL dari
+  kalimat Bos dan mengisi yang kosong, dipanggil agen sebelum `siapkan` sehingga ikut tangkapan draft
+  (`uraiPesanBarang` untuk `buat_barang`).
+- **Draft terbuka bisa dikoreksi (2026-10-09, layar Bos "eh salah harga belinya harusnya 100"):** panel
+  membawa draft yang belum "Ya" sebagai tugas tertunda `revisi`; koreksi menimpa isian (isian berlabel dari
+  kalimat menang), draft lama ditandai "diganti". `uraiPesanBarang` paham kata sisipan ("harusnya", "jadi").
+- **Lanjutan layar Bos 2026-10-09 (pizza hot):** (1) `jangkarRencana`: langkah rencana yang kehilangan angka
+  diberi potongan kalimat asli Bos ("persisnya kata Bos: …"); (2) `cariDiRiwayat`: sebelum bertanya kolom
+  `kurang`, kode membaca pesan Bos sebelumnya yang menyebut barang yang sama; (3) **Una ngambek**
+  (`terapkanNgambek`, `src/caca-tertunda.js`): balasan MENTOK yang sama berturut-turut (pertanyaan sama /
+  "Una belum bisa…") diganti kalimat bertingkat "maaf kurang ngerti" → "rada lola" → "udah lah ngambek" →
+  "#$@^##^" → chat ditutup 60 detik (hitung mundur di panel), lalu mulai dari awal; jawaban data yang sama
+  tidak dihitung; (4) draft lain kedaluwarsa begitu satu disetujui; (5) barang yang barusan tercatat bisa
+  dikoreksi lewat chat → `ubah_barang` (tugas revisi `tercatat`, `ubah_barang.isiDariPesan`). Pembaca kalimat
+  barang (`uraiPesanBarang`) pindah ke `src/caca-aksi-dasar.js`.
+- **Panduan cara pakai yang setipe + peta menu (2026-10-10, uji karyawan 10 pertanyaan HR):** (1) kamus
+  `src/caca-jelaskan.js` ditambah 9 panduan karyawan/CS (tambah karyawan, akun CS + jadwal, jadwal beda,
+  setoran CS, gaji harian, potongan/bonus, telat, gagal presensi, backup salah gerai) yang dicocokkan ke layar
+  sungguhan; (2) `src/caca-kata.js`: kata dasar + sinonim ("nambahin pegawai" = tambah karyawan); (3) peta menu
+  `generated/peta-una-data.js` DIBANGKITKAN dari `public/nav-groups.js` oleh `scripts/build-peta-una.mjs` +
+  `PENJELASAN` per menu di `src/caca-peta.js` → pertanyaan cara pakai tanpa panduan khusus diarahkan ke layar
+  yang tepat; tes penjaga merah kalau menu baru belum diajarkan; (4) `panduanPasti`: pertanyaan "bagaimana/
+  gimana/cara/di mana …" tanpa minta data/nominal dijawab panduan TANPA model; model "tidak_ada" untuk kalimat
+  bertanya → cari panduan dulu; (5) alat data `cek_setoran_cs` (`src/caca-aksi-karyawan.js`). Kesenjangan produk
+  yang ditemukan: aktivasi akun backup di gerai yang salah belum bisa dibatalkan dari layar.
+- **Panduan melatih Una:** `UNA-MESIN-DAN-LATIHAN.md` + skill `latih-una` + uji live `scripts/uji-una.mjs`
+  (skenario di `una-latih/skenario/`). Bos Cyo 2026-10-09: model & level mikir dikunci termurah.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat
@@ -528,6 +566,31 @@ disepakati bukan WhatsApp** — lihat "Langkah berikutnya" di bawah.
    dianggap sudah punya arah yang jelas hanya karena sempat dibahas.
 
 ---
+
+### 2026-10-10 — Panduan nyambung ke pekerjaan + alat karyawan
+
+Keluhan Bos Cyo (tangkapan layar): "cara bikin karyawan baru gimana?" dijawab panduan, lalu
+"kamu bisa buatin itu?" dijawab daftar kemampuan umum — konteksnya hilang. Plus: "pastikan una
+juga bisa mengerjakan yang apabila ditanya mekanismenya aja", dan jawaban 0,3 ms "kaya robot".
+
+- **Tawaran sesudah panduan**: entri kamus punya `aksi` (`src/caca-jelaskan.js`,
+  `denganTawaranKerja`). Jawaban panduan ditutup "Mau Una yang buatkan?" + tombol, dan
+  meninggalkan tugas tertunda `tawaran: true`. `jawabPertanyaanInti` mengikutinya hanya kalau Bos
+  meminta (`mintaDikerjakan`); permintaan tanpa isian tidak memanggil model (`permintaanMurni`).
+  Pagar: tiap entri kamus `aksi` atau `tanpaAksi` beralasan.
+- **Alat baru** (`src/caca-aksi-karyawan.js`, jadwal di `src/caca-jadwal.js`):
+  - `buat_karyawan` — data orang (POST /api/admin/employees) + opsional akun login
+    (POST /api/admin/cashiers dengan gaji, jenis bayar, jadwal 7 hari) + tautan
+    (POST /employees/:id/links). Orang yang sudah ada tidak dibuat dobel. **Password dibuat
+    server saat "Ya"**, dikembalikan sebagai `rahasia`, ditampilkan panel sekali, tidak masuk
+    riwayat (= tidak ke Gemini) dan disamarkan di sessionStorage.
+  - `atur_jadwal_kasir` — PATCH /api/admin/cashiers/:id; hari yang tidak disebut tetap. Seperti
+    layar, menyimpan membuat orangnya login ulang.
+  - `penyesuaian_gaji` — POST /api/admin/cashiers/:id/payroll; potong/tambah, "kemarin"/"tgl 5"
+    dibaca kode, alasan wajib.
+  - `PINTU_AKSI` ditambah tiga pola path persis untuk itu.
+- **Jeda mengetik** di panel (`cacaJedaManusiawi`), termasuk tombol kamus.
+- Skenario live 15 dan 16. Prompt pilih-alat bertambah ±2,3 ribu huruf (±600 token).
 
 ## Langkah berikutnya yang disarankan
 

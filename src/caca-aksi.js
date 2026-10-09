@@ -18,7 +18,9 @@
 // Yang diposting selalu yang sudah dilihat, tidak pernah tafsiran baru.
 
 import { rupiah } from './caca-nominal.js';
-import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari } from './caca-aksi-dasar.js';
+import { normalkan, cocokkanSatu, jumlahBulat, rupiahDari, teks, tanggalDari, uraiPesanBarang } from './caca-aksi-dasar.js';
+
+export { uraiPesanBarang };
 import { AKSI_BAYAR } from './caca-aksi-bayar.js';
 import { AKSI_AKUN } from './caca-aksi-akun.js';
 import { AKSI_AKUNTAN } from './caca-aksi-akuntan.js';
@@ -28,6 +30,7 @@ import { AKSI_HPP } from './caca-aksi-hpp.js';
 import { AKSI_HPP_BANYAK } from './caca-aksi-hpp-banyak.js';
 import { AKSI_RENTANG } from './caca-aksi-rentang.js';
 import { ALAT_JELASKAN } from './caca-jelaskan.js';
+import { AKSI_KARYAWAN } from './caca-aksi-karyawan.js';
 
 export { normalkan, cocokkanSatu };
 
@@ -44,7 +47,22 @@ const barang = Object.freeze({
     barang_kategori: { type: 'string', description: 'buat_barang: kategori, kalau disebut.' },
     barang_harga_jual: { type: 'string', description: 'buat_barang: harga jual PERSIS seperti diucapkan, mis. "15rb".' },
     barang_harga_beli: { type: 'string', description: 'buat_barang: harga beli/modal PERSIS seperti diucapkan, kalau disebut.' },
-    barang_satuan: { type: 'string', description: 'buat_barang: satuan (pcs, gram, ml, dll), kalau disebut.' }
+    barang_satuan: { type: 'string', description: 'buat_barang: satuan (pcs, gram, ml, dll), kalau disebut.' },
+    barang_isi: { type: 'string', description: 'buat_barang: kalau harga beli yang disebut untuk satu kemasan berisi banyak ("12rb dapet 50 pcs", "sepak isi 50"), tulis jumlah isinya ("50"). Harga per satuan dihitung sistem.' },
+    barang_jual_sama_beli: { type: 'boolean', description: 'buat_barang: true kalau Bos bilang harga jualnya sama dengan harga beli/modal.' }
+  },
+
+  // Model lite sering gagal menyalin isian yang jelas tertulis (uji langsung
+  // 2026-10-09: "namanya tutup cup manual", "harga beli 12rb" hilang). Isian
+  // yang BERLABEL di kalimat Bos dibaca kode dan mengisi yang kosong. Dipanggil
+  // agen SEBELUM siapkan, jadi hasilnya ikut tangkapan draft (lolos periksa "Ya").
+  isiDariPesan(t, pesan) {
+    const dari = uraiPesanBarang(pesan);
+    const hasil = { ...t };
+    for (const [k, v] of Object.entries(dari)) {
+      if (hasil[k] == null || hasil[k] === '' || (k === 'barang_jual_sama_beli' && hasil[k] !== true)) hasil[k] = v;
+    }
+    return hasil;
   },
 
   async siapkan(t, ctx) {
@@ -53,15 +71,36 @@ const barang = Object.freeze({
     // ditebak hanya nama dan harga jual. Kategori dan harga beli yang tidak
     // disebut diisi bawaan — tapi ditulis terang di draft, bukan diam-diam;
     // modal yang kosong ditanyakan santai SESUDAH barangnya jadi (panel).
+    // `kurang` = kolom yang ditanyakan. Jawaban Bos berikutnya ("5000",
+    // "tutup cup manual") dipakai mengisi kolom itu (tugas tertunda, caca-agen.js).
     const nama = teks(t?.barang_nama, 100);
-    if (!nama) return { ok: false, tanya: 'Nama barangnya apa?' };
+    if (!nama) return { ok: false, tanya: 'Nama barangnya apa?', kurang: 'barang_nama' };
     const kategori = teks(t?.barang_kategori, 60) || 'Menu';
-    if (!teks(t?.barang_harga_jual, 40)) return { ok: false, tanya: `Harga jual "${nama}" berapa?` };
-    const jual = rupiahDari(t.barang_harga_jual, 'Harga jual', { bolehNol: true });
-    if (!jual.ok) return jual;
-    const tanpaHargaBeli = !teks(t?.barang_harga_beli, 40);
-    const beli = tanpaHargaBeli ? { ok: true, nilai: 0 } : rupiahDari(t.barang_harga_beli, 'Harga beli', { bolehNol: true });
-    if (!beli.ok) return beli;
+    const samaBeli = t?.barang_jual_sama_beli === true;
+    // "jualnya sama dengan harga beli" + satu harga saja: harga itu harga beli.
+    const teksBeli = teks(t?.barang_harga_beli, 40) || (samaBeli ? teks(t?.barang_harga_jual, 40) : '');
+    const tanpaHargaBeli = !teksBeli;
+    const beli = tanpaHargaBeli ? { ok: true, nilai: 0 } : rupiahDari(teksBeli, 'Harga beli', { bolehNol: true });
+    if (!beli.ok) return { ...beli, kurang: 'barang_harga_beli' };
+    // Harga per kemasan ("12rb dapet 50 pcs") dibagi isinya oleh kode. Hanya kalau
+    // habis dibagi — rupiah per satuan yang berkoma ditanyakan, bukan dibulatkan diam-diam.
+    const isi = Number.parseInt(String(t?.barang_isi ?? '').replace(/[^\d]/g, ''), 10);
+    let catatanIsi = null;
+    if (!tanpaHargaBeli && Number.isInteger(isi) && isi > 1) {
+      if (beli.nilai % isi !== 0) {
+        return { ok: false, tanya: `${rupiah(beli.nilai)} isi ${isi} jatuhnya tidak bulat per satuan. Harga beli per satuannya berapa, Bos?`, kurang: 'barang_harga_beli' };
+      }
+      catatanIsi = `Harga beli ${rupiah(beli.nilai)} untuk ${isi}, jadi per satuan ${rupiah(beli.nilai / isi)}.`;
+      beli.nilai /= isi;
+    }
+    let jual;
+    if (samaBeli && !tanpaHargaBeli) {
+      jual = { ok: true, nilai: beli.nilai };
+    } else {
+      if (!teks(t?.barang_harga_jual, 40)) return { ok: false, tanya: `Harga jual "${nama}" berapa?`, kurang: 'barang_harga_jual' };
+      jual = rupiahDari(t.barang_harga_jual, 'Harga jual', { bolehNol: true });
+      if (!jual.ok) return { ...jual, kurang: 'barang_harga_jual' };
+    }
 
     const ref = await ctx.baca(`/api/admin/manufacturing/bootstrap`);
     if (!ref.ok) return ref;
@@ -104,6 +143,8 @@ const barang = Object.freeze({
           `Barang baru di ${ctx.namaLingkup}, langsung aktif.`,
           ...(teks(t?.barang_kategori, 60) ? [] : ['Kategorinya Una taruh di "Menu" — bisa dipindah nanti.']),
           ...(tanpaHargaBeli ? ['Harga beli belum disebut, diisi 0: modalnya menyusul dari resep atau pembelian pertama.'] : []),
+          ...(catatanIsi ? [catatanIsi] : []),
+          ...(samaBeli && !tanpaHargaBeli ? ['Harga jual disamakan dengan harga beli, sesuai pesan Bos.'] : []),
           'Stok awalnya 0 — stok bertambah lewat pembelian atau produksi.',
           'Foto, poin, dan tipe barang bisa dilengkapi nanti di Master Barang.'
         ],
@@ -341,7 +382,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ALAT_JELASKAN]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ...AKSI_KARYAWAN, ALAT_JELASKAN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;

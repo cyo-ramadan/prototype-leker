@@ -27,6 +27,8 @@ const cacaState = {
   // Bos terakhir supaya "kalau kemarin?" nyambung; server membersihkannya lagi.
   riwayat: [],
   kerjaTertunda: null,
+  tertunda: null,
+  ngambekSampai: 0,
   scope: '',
   stores: [],
   entityName: '',
@@ -197,6 +199,10 @@ function cacaSimpanPercakapan() {
     const tanda = document.createElement('p');
     tanda.textContent = '📷 Foto lembar rekap';
     img.replaceWith(tanda);
+  });
+  // Password awal akun baru cuma ditampilkan sekali: tidak ikut disimpan.
+  salinan.querySelectorAll('.caca-rahasia').forEach(el => {
+    el.innerHTML = '<p>🔒 Password awal disembunyikan. Lupa? Ganti di Tim → Akun Kasir.</p>';
   });
   while (salinan.childElementCount > CACA_MAKS_SIMPAN) salinan.firstElementChild.remove();
   try {
@@ -559,12 +565,19 @@ async function cacaJalankanTawaran(tombol) {
 async function cacaJelaskan(topik, label) {
   cacaTambahGelembung('saya', label || topik);
   cacaCatatRiwayat('saya', label || topik);
+  const mengetik = cacaTambahKerjaLive('Buka panduan…');
+  const mulai = Date.now();
   try {
     const hasil = await cacaApi(`/api/caca/jelaskan?topik=${encodeURIComponent(topik || '')}`);
+    await cacaJedaManusiawi(mengetik, { ...hasil, alat: 'jelaskan' }, mulai);
+    mengetik.remove();
     cacaTambahGelembung('caca', hasil.jawaban, hasil.judul ? `kamus · ${hasil.judul}` : '');
     cacaCatatRiwayat('una', hasil.jawaban);
     cacaTambahTawaran(hasil.tawaran);
+    // "Mau Una buatkan?" — pesan berikutnya ("bisa buatin itu?") nyambung ke panduan ini.
+    cacaState.tertunda = hasil.tertunda || null;
   } catch (error) {
+    mengetik.remove();
     cacaTambahGelembung('caca', error.message);
   }
 }
@@ -641,6 +654,42 @@ function cacaIsiDraft(draft) {
   };
 }
 
+// Bos Cyo 2026-10-09: "ketika sudah di acc satu pencatatan maka draft catatan lainnya
+// bakal kadaluarsa". Draft lain yang masih terbuka dimatikan begitu satu disetujui,
+// supaya tidak ada draft basi yang bisa di-"Ya" belakangan.
+function cacaKadaluarsakanDraftLain(kecuali) {
+  const terbuka = cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)') ?? [];
+  for (const kartu of terbuka) {
+    if (kartu === kecuali) continue;
+    kartu.classList.add('kedaluwarsa');
+    kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    if (!kartu.querySelector('.caca-draft-catatan')) {
+      const catatan = document.createElement('p');
+      catatan.className = 'caca-draft-catatan';
+      catatan.textContent = 'Kedaluwarsa — ada catatan lain yang barusan disetujui. Minta Una susun ulang kalau masih perlu.';
+      kartu.appendChild(catatan);
+    }
+  }
+  cacaSimpanPercakapan();
+}
+
+// Draft hasil koreksi menggantikan draft yang masih terbuka di atasnya: tombolnya
+// dimatikan supaya tidak ada dua draft untuk hal yang sama yang bisa di-"Ya".
+function cacaGantiDraftLama() {
+  const semua = [...(cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)') ?? [])];
+  for (const kartu of semua.slice(0, -1)) {
+    kartu.classList.add('kedaluwarsa');
+    kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    if (!kartu.querySelector('.caca-draft-catatan')) {
+      const catatan = document.createElement('p');
+      catatan.className = 'caca-draft-catatan';
+      catatan.textContent = 'Sudah diganti draft yang dikoreksi di bawah.';
+      kartu.appendChild(catatan);
+    }
+  }
+  cacaSimpanPercakapan();
+}
+
 function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
   const draft = payload.draft;
   const tampilan = cacaIsiDraft(draft);
@@ -669,6 +718,7 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
     cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.');
     cacaSimpanPercakapan();
     cacaTambahGelembung('caca', 'Oke, gajadi deh.');
+    if (cacaState.tertunda?.revisi) cacaState.tertunda = null;
     kartu._cacaSesudah?.('batal');
   });
 
@@ -677,6 +727,7 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
   // tempat yang tertulis di draft.
   kartu.querySelector('[data-caca-catat]').addEventListener('click', async () => {
     kunci();
+    if (cacaState.tertunda?.revisi) cacaState.tertunda = null;
     if (draft.bertahap) {
       await cacaJalankanBertahap(kartu, draft, scope, 0);
       return;
@@ -687,10 +738,19 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
         body: JSON.stringify({ draft })
       });
       kartu.classList.add('tercatat');
+      cacaKadaluarsakanDraftLain(kartu);
       cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
-      cacaSimpanPercakapan();
       cacaTambahGelembung('caca', hasil.jawaban);
-      if (draft.aksi === 'buat_barang') cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
+      if (hasil.rahasia?.nilai) cacaTampilkanRahasia(hasil.rahasia);
+      cacaSimpanPercakapan();
+      if (draft.aksi === 'buat_barang') {
+        // Barang yang barusan tercatat masih bisa dikoreksi lewat chat ("namanya ganti …",
+        // "harganya harusnya …") — dibawa sebagai tugas revisi untuk ubah_barang.
+        if (draft.muatan?.name) {
+          cacaState.tertunda = { alat: 'ubah_barang', tangkapan: { ubah_daftar: [{ barang: draft.muatan.name }] }, tanya: '', kurang: null, revisi: true, tercatat: true };
+        }
+        cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
+      }
       kartu._cacaSesudah?.('tercatat');
     } catch (error) {
       // Tombol dibuka lagi: yang gagal biasanya bisa diulang setelah sebabnya
@@ -698,6 +758,22 @@ function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
       kartu.querySelectorAll('button').forEach(b => { b.disabled = false; });
       cacaTambahGelembung('caca', error.message);
     }
+  });
+}
+
+// Password awal akun yang barusan dibuat Una (src/caca-aksi-karyawan.js). Sengaja
+// TIDAK dicatat ke riwayat (riwayat ikut terkirim ke mesin AI) dan tidak ikut
+// tersimpan di sessionStorage (cacaSimpanPercakapan menggantinya dengan tanda).
+function cacaTampilkanRahasia(rahasia) {
+  const html = `
+    <div class="caca-rahasia">
+      <div class="caca-draft-baris"><span>${cacaEscape(rahasia.label || 'Password')}</span><strong class="caca-rahasia-nilai" style="font-family: ui-monospace, monospace; letter-spacing: .08em">${cacaEscape(rahasia.nilai)}</strong></div>
+      <p class="caca-draft-tenang">Catat atau salin sekarang, lalu berikan ke orangnya. Password ini tidak ditampilkan lagi — kalau lupa, ganti di Tim → Akun Kasir.</p>
+      <div class="caca-draft-aksi"><button class="secondary-btn" type="button" data-caca-salin>Salin password</button></div>
+    </div>`;
+  const gelembung = cacaTambahGelembung('caca', '', '', { html });
+  gelembung.querySelector('[data-caca-salin]')?.addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(rahasia.nilai); e.target.textContent = 'Tersalin ✓'; } catch { e.target.textContent = 'Salin manual ya'; }
   });
 }
 
@@ -749,6 +825,7 @@ async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
 
   isiBar.style.width = '100%';
   kartu.classList.add('tercatat');
+  cacaKadaluarsakanDraftLain(kartu);
   const selesai = hasil.filter(Boolean);
   // Rencana bertahap menunggu draft ini selesai sebelum lanjut ke langkah berikutnya.
   setTimeout(() => kartu._cacaSesudah?.('tercatat'), 0);
@@ -1019,7 +1096,38 @@ function cacaBuangLampiran({ terkirim = false } = {}) {
 function cacaAturTombol() {
   const ada = Boolean(cacaState.lampiran) || Boolean(cacaEl('cacaPertanyaan')?.value.trim());
   const tombol = cacaEl('cacaTanyaKirim');
-  if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim);
+  if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim && !cacaSedangNgambek());
+}
+
+// --- Una ngambek ------------------------------------------------------------
+// Bos Cyo 2026-10-09: kalau Una terpaksa mengulang balasan yang sama berkali-kali,
+// di tingkat terakhir "chat ga bisa dipakai beberapa saat, tunggu sampai una engga
+// ngambek". Server menentukan kapan (src/caca-tertunda.js); panel menutup kotak ketik
+// dengan hitung mundur (jam browser saja, tidak bertanya ke server).
+function cacaSedangNgambek() {
+  return Number(cacaState.ngambekSampai || 0) > Date.now();
+}
+
+function cacaMulaiNgambek(detik) {
+  const kotak = cacaEl('cacaPertanyaan');
+  cacaState.ngambekSampai = Date.now() + Math.max(5, Math.min(Number(detik) || 60, 300)) * 1000;
+  const asli = kotak?.getAttribute('placeholder') || 'Ketik pesan';
+  if (kotak) { kotak.disabled = true; kotak.dataset.placeholderAsli = asli; }
+  const jalan = () => {
+    const sisa = Math.ceil((cacaState.ngambekSampai - Date.now()) / 1000);
+    if (sisa <= 0) {
+      clearInterval(jam);
+      cacaState.ngambekSampai = 0;
+      if (kotak) { kotak.disabled = false; kotak.setAttribute('placeholder', kotak.dataset.placeholderAsli || 'Ketik pesan'); }
+      cacaTambahGelembung('caca', 'Oke deh, Una udah nggak ngambek 😌 Yuk lanjut, kasih infonya yang jelas ya.');
+      cacaAturTombol();
+      return;
+    }
+    if (kotak) kotak.setAttribute('placeholder', `Una lagi ngambek 😤 tunggu ${sisa} detik…`);
+  };
+  const jam = setInterval(jalan, 1000);
+  jalan();
+  cacaAturTombol();
 }
 
 function cacaCekGerai({ bolehEntity = false } = {}) {
@@ -1086,13 +1194,15 @@ async function cacaKirimFotoMenu(file) {
 }
 
 // Satu pesan ke Una (dipakai pesan biasa dan tiap langkah rencana).
-async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
-  return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, {
-    method: 'POST',
-    // satuLangkah: server mengerjakan satu putaran lalu membalas, supaya kartu
-    // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
-    body: JSON.stringify(kerja ? { pertanyaan, riwayat, kerja, satuLangkah: true } : { pertanyaan, riwayat, satuLangkah: true })
-  });
+async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertunda = null) {
+  // satuLangkah: server mengerjakan satu putaran lalu membalas, supaya kartu
+  // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
+  // tertunda: tugas yang tadi belum lengkap (Una sedang bertanya), supaya jawaban
+  // Bos melengkapi isiannya, bukan dibaca dari nol (src/caca-tertunda.js).
+  const isi = { pertanyaan, riwayat, satuLangkah: true };
+  if (kerja) isi.kerja = kerja;
+  if (tertunda) isi.tertunda = tertunda;
+  return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify(isi) });
 }
 
 // --- mode agen berputar -------------------------------------------------------
@@ -1105,9 +1215,9 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null) {
 // Server juga membatasi 12 langkah per perintah; ini batas sisi panel.
 const CACA_MAKS_LANJUT_OTOMATIS = 11;
 
-async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik) {
+async function cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, kerja, mengetik, tertunda = null) {
   if (kerja?.length) mengetik?.aturLangkah?.(kerja, 'Lanjut ke langkah berikutnya…');
-  let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja);
+  let payload = await cacaTanyaServer(pertanyaan, scope, riwayat, kerja, tertunda);
   for (let i = 0; i < CACA_MAKS_LANJUT_OTOMATIS && payload.lanjutkan && payload.kerja?.length; i += 1) {
     mengetik?.aturLangkah?.(payload.kerja, 'Mikirin langkah berikutnya…');
     payload = await cacaTanyaServer(pertanyaan, scope, riwayat, payload.kerja);
@@ -1151,6 +1261,24 @@ function cacaTambahKerjaLive(awal = 'Memahami perintah Bos…') {
   return gelembung;
 }
 
+// Bos Cyo 2026-10-10: "jangan keliatan langsung 0.3ms, harusnya tetep ada proses
+// kaya una mengetik gitu, kalo langsung jawab itu malah kaya robot". Jawaban yang
+// dihitung kode (panduan, tanpa mesin AI) datang hampir seketika; kartu "Una lagi
+// kerja" tetap ditahan sebentar — makin panjang jawabannya makin lama, tapi
+// dibatasi supaya tidak terasa lemot. Jawaban yang memang sudah lama tidak ditahan lagi.
+function cacaLamaMengetik(payload) {
+  const panjang = String(payload?.jawaban || '').length + (payload?.draft ? 200 : 0);
+  return Math.min(2600, Math.max(900, 500 + panjang * 6));
+}
+
+async function cacaJedaManusiawi(mengetik, payload, mulai) {
+  const sisa = cacaLamaMengetik(payload) - (Date.now() - mulai);
+  if (sisa <= 0) return;
+  const langkah = payload?.alat === 'jelaskan' ? 'Buka panduan' : 'Pahami maksud Bos';
+  mengetik?.aturLangkah?.([{ judul: langkah }], payload?.draft ? 'Menyusun draft…' : 'Mengetik jawaban…');
+  await new Promise(selesai => setTimeout(selesai, sisa));
+}
+
 // Langkah yang sudah dijalankan Una, ditulis seperti agen: 1. … ✓ 2. … ⏸
 function cacaHtmlKerja(payload) {
   const kerja = Array.isArray(payload.kerja) ? payload.kerja : [];
@@ -1191,6 +1319,13 @@ async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
 // Balasan pesan biasa: langkah kerja, lanjut sesudah "Ya", tombol lanjut.
 function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
   cacaState.kerjaTertunda = null;
+  // Una balik bertanya untuk tugas yang belum lengkap: dibawa ke pesan berikutnya.
+  // Draft yang masih menunggu "Ya" juga dibawa (revisi): "eh salah, harga belinya
+  // harusnya 100" mengoreksi draft itu, bukan dibaca sebagai perintah baru.
+  cacaState.tertunda = payload.tertunda
+    || (payload.perluKonfirmasi && payload.draft?.aksi && payload.draft.tangkapan
+      ? { alat: payload.draft.aksi, tangkapan: payload.draft.tangkapan, tanya: '', kurang: null, revisi: true }
+      : null);
   const jenis = cacaTampilkanBalasan(payload, scope, {
     sesudahDraft: payload.lanjutSesudahYa && payload.kerja?.length ? status => {
       if (status !== 'tercatat') return;
@@ -1199,6 +1334,8 @@ function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
       cacaLanjutkanKerja(pertanyaan, scope, kerja);
     } : null
   });
+  if (payload.revisi && payload.draft) cacaGantiDraftLama();
+  if (payload.ngambek) cacaMulaiNgambek(payload.ngambek.detik);
   if (payload.lanjutkan && payload.kerja?.length) {
     const gelembung = cacaEl('cacaPercakapan')?.lastElementChild;
     cacaTombolLanjutKerja(gelembung, pertanyaan, scope, payload.kerja);
@@ -1251,13 +1388,26 @@ async function cacaKirimTeks(pertanyaan) {
   cacaCatatRiwayat('saya', pertanyaan);
   if (!cacaCekGerai({ bolehEntity: true })) return;
 
+  // "batal"/"gajadi" diketik saat draft terakhir masih menunggu = tombol Batal
+  // (uji live 2026-10-09: tanpa ini model mengira perintah menonaktifkan barang).
+  if (/^\s*(batal(in|kan)?|ga+k?\s*jadi|gajadi|nggak\s*jadi|cancel)\b/i.test(pertanyaan)) {
+    const drafts = cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)');
+    const terakhir = drafts?.length ? drafts[drafts.length - 1] : null;
+    const tombol = terakhir?.querySelector('[data-caca-batal]:not(:disabled)');
+    if (tombol) { tombol.click(); return; }
+  }
+
   const scope = cacaState.scope;
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
   const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;
   cacaState.kerjaTertunda = null;
+  // Tugas tertunda tetap dibawa walau gerai diganti: "pilih gerai dulu, lalu lanjut".
+  const tugas = cacaState.tertunda;
   const mengetik = cacaTambahKerjaLive();
+  const mulai = Date.now();
   try {
-    const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik);
+    const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
+    await cacaJedaManusiawi(mengetik, payload, mulai);
     mengetik.remove();
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
@@ -1386,7 +1536,7 @@ function cacaAturTinggiKetik() {
 
 async function cacaKirim(event) {
   event?.preventDefault();
-  if (cacaState.sedangKirim || !cacaState.siap) return;
+  if (cacaState.sedangKirim || !cacaState.siap || cacaSedangNgambek()) return;
   const input = cacaEl('cacaPertanyaan');
   const teks = input.value.trim();
   if (!cacaState.lampiran && !teks) return;
@@ -1430,6 +1580,7 @@ function cacaLupakan() {
   if (wadah) wadah.innerHTML = '';
   cacaState.riwayat = [];
   cacaState.kerjaTertunda = null;
+  cacaState.tertunda = null;
   cacaState.siapDipakai = false;
 }
 

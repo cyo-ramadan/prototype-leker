@@ -1,0 +1,11 @@
+{
+  "nama": "Mekanisme potongan gaji dikerjakan langsung (gerai uji tidak punya akun CS, jadi Una jujur bilang belum ketemu)",
+  "pesan": [
+    "potong gaji kasir1 20rb kemarin karena telat"
+  ],
+  "harapan": {
+    "alat": "penyesuaian_gaji",
+    "tanpaDraft": true,
+    "jawabanMemuat": "kasir1"
+  }
+}

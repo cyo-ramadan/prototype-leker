@@ -107,6 +107,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | **Mau cek ada yang perlu Hana jawab/kerjakan di Workboard (MAXI Workboard, D1 `maxi-workboard-prototype`)** | Pakai skill `akses-workboard-hana` (`.claude/skills/`) — dua tabel terpisah (`issues` dan `tasks`) yang dua-duanya wajib dicek, jangan cuma yang datang lewat @mention |
 | **Mau menulis/menilai apa pun yang dibaca calon pembeli (landing page, konten, pesan WA, iklan, harga) atau membahas strategi jual** | Pakai skill `strategi-penjualan-ownertenang` (`.claude/skills/`) — aturan janji berdasar status di `HANDOFF-STRATEGI-PENJUALAN.md` §8, posisi, segmen F&B, template konten & jawaban keberatan |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
+| **Mau membuat Una (asisten chat AI) lebih pintar, membetulkan jawabannya, atau menambah alatnya** | Skill `latih-una` + `UNA-MESIN-DAN-LATIHAN.md` — model & level mikir dikunci termurah; yang diperbaiki kerangkanya; uji live `scripts/uji-una.mjs` di gerai TESTINGUNA |
 | Mesin Agen: agen OpenCode dengan model non-Anthropic + router yang turun ke model cadangan saat limit | `mesin-agen/README.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 
@@ -160,7 +161,9 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   Komponen yang benar-benar baru (mis. grafik) boleh punya token sendiri asal latarnya terang.
   Jangan menyunting `public/skin-*.css` untuk fitur biasa.
   Tab baru di Workspace Gerai / Panel Pemilik: daftarkan ke grupnya di `public/nav-groups.js`
-  (`GROUPS`), kalau tidak di skin A/B/C ia muncul di grup "Lainnya". Kartu daftar pakai
+  (`GROUPS`), kalau tidak di skin A/B/C ia muncul di grup "Lainnya". Lalu ajarkan ke Una:
+  `node scripts/build-peta-una.mjs` + satu baris `PENJELASAN` di `src/caca-peta.js` —
+  `test/caca-peta.test.js` merah kalau lupa. Kartu daftar pakai
   `.master-row` + `.status-chip` (`public/list-cards.css`), jangan tumpuk keterangan per baris.
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
 - **Fitur/perubahan yang terlihat pengguna sudah live di `main`** → tambah satu baris di

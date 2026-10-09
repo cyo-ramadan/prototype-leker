@@ -16,7 +16,7 @@ import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
 import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
 import { gayaJawaban, gayaSelesai, bumbui } from './caca-gaya.js';
 import { periksaKesiapan, sapaanKesiapan } from './caca-kesiapan.js';
-import { jelaskan } from './caca-jelaskan.js';
+import { jelaskan, denganTawaranKerja } from './caca-jelaskan.js';
 import { MENU_SCHEMA, MENU_SYSTEM_PROMPT, tangkapanDariMenu } from './caca-baca-menu.js';
 import { bersihkanRiwayat } from './caca-riwayat.js';
 import { KATALOG } from './caca-baca-katalog.js';
@@ -159,7 +159,13 @@ export const PINTU_AKSI = Object.freeze([
   '/api/admin/operational-expenses',
   '/api/admin/hutang-piutang',
   '/api/entity-admin/accounts',
-  '/api/entity-admin/journals'
+  '/api/entity-admin/journals',
+  // Alat karyawan (src/caca-aksi-karyawan.js): tautkan akun ke orangnya, ubah jadwal
+  // akun (PATCH), dan penyesuaian gaji. POST /api/admin/employees dan /cashiers sudah
+  // tercakup PINTU_BACA (path persis). Cocok PERSIS, bukan seluruh sub-path.
+  '^/api/admin/employees/[A-Za-z0-9_.-]+/links$',
+  '^/api/admin/cashiers/[A-Za-z0-9_.-]+$',
+  '^/api/admin/cashiers/[A-Za-z0-9_.-]+/payroll$'
 ]);
 
 function pintuDiizinkan(pathname, pintu) {
@@ -272,7 +278,9 @@ async function tanya(request, env, jalurUtama) {
     // Catatan kerja dari putaran sebelumnya (mode agen berputar). Data tak
     // tepercaya seperti riwayat: dibersihkan di jawabPertanyaan.
     kerja: body.value?.kerja,
-    maksPutaran: body.value?.satuLangkah === true ? 1 : undefined
+    maksPutaran: body.value?.satuLangkah === true ? 1 : undefined,
+    // Tugas yang tadi belum lengkap (data tak tepercaya, dibersihkan di caca-tertunda.js).
+    tertunda: body.value?.tertunda
   });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
@@ -294,6 +302,9 @@ async function tanya(request, env, jalurUtama) {
     kerja: hasil.kerja ?? null,
     lanjutkan: Boolean(hasil.lanjutkan),
     lanjutSesudahYa: Boolean(hasil.lanjutSesudahYa),
+    tertunda: hasil.tertunda ?? null,
+    revisi: Boolean(hasil.revisi),
+    ngambek: hasil.ngambek ?? null,
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }
@@ -334,7 +345,9 @@ async function catatAksi(request, env, isi, jalurUtama) {
 
   const hasil = await aksi.posting(diperiksa.draft, { ...jalur, lingkup: lingkup.konteks.lingkup });
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status ?? 502);
-  return json({ tercatat: true, draft: diperiksa.draft, jawaban: gayaSelesai(hasil.jawaban) });
+  // `rahasia` (password awal akun baru) hanya untuk ditampilkan sekali di panel; panel
+  // tidak mencatatnya ke riwayat, jadi tidak pernah terkirim ke model.
+  return json({ tercatat: true, draft: diperiksa.draft, jawaban: gayaSelesai(hasil.jawaban), rahasia: hasil.rahasia ?? null });
 }
 
 // --- pendamping pengguna baru (UNA-PENDAMPING.md) ---------------------------
@@ -533,8 +546,9 @@ export async function handleCacaApi(request, env, pathname, { jalurUtama } = {})
     if (!(await ownerFromRequest(request, env.DB)) && !(await entityAdminFromRequest(request, env.DB))) {
       return json({ error: 'Login Owner atau Entity Admin diperlukan.' }, 401);
     }
-    const hasil = jelaskan(new URL(request.url).searchParams.get('topik'));
-    return json({ ...hasil, jawaban: bumbui(hasil.jawaban, hasil.dikenal ? [] : ['tanya']) });
+    const hasil = denganTawaranKerja(jelaskan(new URL(request.url).searchParams.get('topik')));
+    const { kerjakan: _alat, ...keluar } = hasil;
+    return json({ ...keluar, jawaban: bumbui(hasil.jawaban, hasil.dikenal ? [] : ['tanya']) });
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/siapkan') {

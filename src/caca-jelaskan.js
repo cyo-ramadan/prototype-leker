@@ -11,6 +11,8 @@
 // bentuknya): membuka layarnya, atau mengisi contoh perintah ke kotak ketik.
 
 import { normalkan } from './caca-aksi-dasar.js';
+import { kataInti } from './caca-kata.js';
+import { cariMenu, jawabanMenu } from './caca-peta.js';
 
 /** Layar yang bisa dibukakan Una. `gerai` = tab di Workspace Gerai. */
 export const LAYAR = Object.freeze({
@@ -27,7 +29,9 @@ export const LAYAR = Object.freeze({
   beaops: { label: 'Biaya Operasional', halaman: 'gerai' },
   sharedaccounts: { label: 'Rekening Bersama', halaman: 'gerai' },
   accountingWorkspaceTab: { label: 'Pembukuan', halaman: 'gerai' },
-  'attendance-report': { label: 'Laporan Presensi', halaman: 'gerai' }
+  'attendance-report': { label: 'Laporan Presensi', halaman: 'gerai' },
+  'setoran-cs': { label: 'Setoran CS', halaman: 'gerai' },
+  'permit-report': { label: 'Izin & Koreksi', halaman: 'gerai' }
 });
 
 const buka = (layar) => ({ jenis: 'buka', layar, label: `Buka layar ${LAYAR[layar].label}` });
@@ -285,33 +289,183 @@ export const KAMUS = Object.freeze([
       'Data tiap gerai terpisah rapi; laporan entity menjumlahkan semuanya. Di Una, pilih gerai lewat tombol ▾ di atas, atau "semua gerai" untuk tingkat entity.'
     ].join('\n'),
     tawaran: []
+  },
+
+  // --- karyawan, presensi, gaji, setoran CS ---------------------------------------
+  // Uji karyawan Bos Cyo 2026-10-10: sembilan pertanyaan "bagaimana cara ..." soal CS
+  // dijawab "Una belum punya penjelasan". Isinya dicocokkan ke layar sungguhan
+  // (public/admin-cashiers.js, admin-employees.js, admin-employee-deposits.js,
+  // src/staff-attendance.js, attendance-correction-permit.js, entity-backup-cashiers.js).
+  {
+    id: 'karyawan_tambah',
+    judul: 'Menambah karyawan',
+    kunci: ['tambah karyawan', 'menambah karyawan', 'karyawan baru', 'daftar karyawan', 'nama karyawan', 'input karyawan', 'data karyawan', 'rekrut'],
+    isi: [
+      'Di Workspace Gerai, buka Tim → Karyawan → "Tambah karyawan".',
+      'Isi Nama lengkap (mis. Rika Nur), No. HP, No. identitas, dan alamat kalau ada, lalu Simpan karyawan.',
+      'Supaya dia bisa login dan presensi, buatkan juga akunnya di Tim → Akun Kasir, lalu kembali ke Karyawan dan tekan "Tautkan" ke username itu.',
+      'Akun dibuat sendiri di layar Akun Kasir (bukan lewat Una) karena ada password.'
+    ].join('\n'),
+    tawaran: [buka('employees'), buka('cashiers'), jelas('akun_cs', 'Bikin akun CS + jam kerja')]
+  },
+  {
+    id: 'akun_cs',
+    judul: 'Membuat akun CS + jam kerja',
+    kunci: ['akun cs', 'akun kasir', 'akun karyawan', 'buat akun', 'bikin akun', 'membuat akun', 'jam kerja', 'hari kerja', 'jadwal kerja', 'jadwal cs', 'shift', 'libur', 'gaji per jam', 'username'],
+    isi: [
+      'Buka Tim → Akun Kasir → "Tambah kasir":',
+      '• Username dan Password (min. 6 huruf) — ini yang dipakai CS untuk login dan presensi.',
+      '• Nama karyawan (mis. Rika Nur) dan Jenis pekerjaan (mis. "CS").',
+      '• Jenis pembayaran: Per Jam atau Per Sesi, lalu Gaji per jam.',
+      '• Jam & hari kerja per hari: isi jam masuk–pulang tiap hari. Contoh: Senin 09.00–22.00, Selasa sampai Sabtu 09.00–18.00, Minggu centang "Libur".',
+      'Simpan kasir, lalu di tab Karyawan tautkan username itu ke orangnya.',
+      'Jadwal ini yang dipakai untuk menandai telat; presensi di luar jadwal tidak dihitung gaji.'
+    ].join('\n'),
+    tawaran: [buka('cashiers'), jelas('jadwal_beda', 'Jam masuk tiap hari beda?')]
+  },
+  {
+    id: 'jadwal_beda',
+    judul: 'Jam masuk CS tiap hari berbeda',
+    kunci: ['jam masuk', 'jam masuknya', 'tiap hari beda', 'tidak sama', 'beda beda', 'berbeda', 'ganti shift', 'jadwal berubah'],
+    isi: [
+      'Bisa. Jadwal di Akun Kasir diisi PER HARI, jadi tiap hari boleh beda jam masuk–pulangnya, dan hari libur dicentang "Libur".',
+      'Ubah lewat Tim → Akun Kasir → Edit pada akun CS itu → bagian "Jam & hari kerja" → Simpan kasir.',
+      'Telat dinilai dari jadwal hari itu. Hari yang libur atau belum diisi jadwalnya tidak dinilai telat.',
+      'Kalau shift-nya beda orang (pagi/sore), lebih rapi bikin akun per shift (mis. "Kasir Shift Pagi"), karena jadwal menempel ke akun, bukan ke orangnya.'
+    ].join('\n'),
+    tawaran: [buka('cashiers')]
+  },
+  {
+    id: 'setoran_cs',
+    judul: 'Rekap setoran CS',
+    kunci: ['setoran cs', 'setoran', 'rekap setoran', 'setor', 'bukti transfer', 'uang laci dibawa', 'piutang cs', 'piutang karyawan'],
+    isi: [
+      'Buka Keuangan → Setoran CS. Isinya tiga bagian:',
+      '• Setoran menunggu ACC — CS mengirim foto bukti transfer dari Portal Staf (Riwayat Setoran); cocokkan dengan mutasi rekening lalu ACC atau tolak.',
+      '• Sisa piutang setoran per CS — uang laci yang belum diserahkan ke kantor (masih "dibawa" CS).',
+      '• Riwayat setoran — semua yang sudah diputuskan.',
+      'Piutang CS baru berkurang setelah Admin klik ACC; tidak ada ACC otomatis.',
+      'Mau angkanya sekarang? Tanya Una "setoran CS yang masih dibawa siapa aja?".'
+    ].join('\n'),
+    tawaran: [buka('setoran-cs'), { jenis: 'kirim', label: 'Setoran yang masih dibawa?', teks: 'setoran cs yang masih dibawa siapa aja?' }]
+  },
+  {
+    id: 'gaji_harian',
+    judul: 'Melihat gaji harian CS',
+    kunci: ['gaji harian', 'gaji cs', 'gaji karyawan', 'honor', 'riwayat gaji', 'gaji per hari', 'hitung gaji', 'gajian'],
+    isi: [
+      'Gaji harian terhitung sendiri dari presensi: Per Jam = gaji per jam × jam kerja sebenarnya (jam masuk sampai pulang), Per Sesi = nominal per sesi.',
+      '• Per akun: Tim → Akun Kasir → tombol "💰 Gaji" pada akun CS itu — kartu per tanggal.',
+      '• Per orang (lintas akun & gerai): Tim → Karyawan → klik namanya → Riwayat Gaji, lengkap dengan saldo hutang gaji.',
+      'Presensi di luar jadwal ditandai "Di luar jadwal, tidak dihitung".'
+    ].join('\n'),
+    tawaran: [buka('cashiers'), buka('employees'), jelas('potongan_gaji', 'Potongan / bonus gaji')]
+  },
+  {
+    id: 'potongan_gaji',
+    judul: 'Potongan, bonus, dan penyesuaian gaji',
+    kunci: ['potongan', 'potong gaji', 'denda', 'tidak masuk', 'bolos', 'bonus', 'lembur', 'penyesuaian gaji', 'tambahan gaji'],
+    isi: [
+      'Buka Tim → Akun Kasir → "💰 Gaji" pada akun CS itu → bagian Penyesuaian Gaji.',
+      'Isi tanggal, Nominal (Rp) — angka NEGATIF = potongan, positif = bonus/lembur — dan alasannya, lalu Simpan Penyesuaian.',
+      'Hari yang tidak masuk (tidak ada presensi) memang tidak menghasilkan gaji otomatis; penyesuaian dipakai kalau ada denda tambahan.',
+      'Salah input? Penyesuaian bisa dibatalkan dengan alasan — tidak dihapus diam-diam, tetap tercatat jejaknya.'
+    ].join('\n'),
+    tawaran: [buka('cashiers')]
+  },
+  {
+    id: 'telat_gaji',
+    judul: 'Gaji kalau CS terlambat',
+    kunci: ['terlambat', 'telat', 'keterlambatan', 'datang telat', 'masuk telat', 'cs terlambat', 'karyawan terlambat', 'karyawan telat', 'yang telat', 'gaji terlambat', 'cs telat'],
+    isi: [
+      'Telat ditandai otomatis ("Telat X menit") dengan membandingkan jam presensi masuk dengan jadwal hari itu.',
+      'Untuk gaji Per Jam, jam kerja dihitung dari jam presensi sebenarnya — jadi telat otomatis mengurangi gaji hari itu, tanpa perlu diatur.',
+      'Kalau mau ada denda tambahan: Tim → Akun Kasir → "💰 Gaji" → Penyesuaian Gaji dengan nominal negatif + alasan.',
+      'Kalau telatnya karena alasan sah (mis. aplikasi error), CS mengajukan koreksi jam masuk dari Portal Staf SEBELUM presensi pulang; Admin meng-ACC di Akun Kasir → "Pengajuan koreksi presensi".'
+    ].join('\n'),
+    tawaran: [buka('cashiers'), buka('attendance-report')]
+  },
+  {
+    id: 'presensi_gagal',
+    judul: 'CS tidak bisa presensi',
+    kunci: ['tidak bisa presensi', 'gagal presensi', 'tidak presensi', 'lupa presensi', 'lupa absen', 'tidak absen', 'gagal absen', 'tidak ada rekap presensi', 'presensi hilang', 'koreksi presensi'],
+    isi: [
+      'Tergantung kapan ketahuannya:',
+      '• Masih di hari kerja dan sudah presensi masuk tapi jamnya salah → CS ajukan koreksi dari Portal Staf sebelum presensi pulang; Admin ACC di Akun Kasir → "Pengajuan koreksi presensi". Jam yang di-ACC langsung dipakai menghitung gaji.',
+      '• Tidak presensi sama sekali di hari itu → memang tidak ada data presensi, jadi gajinya tidak terhitung otomatis. Tambahkan lewat Akun Kasir → "💰 Gaji" → Penyesuaian Gaji (nominal positif) dengan alasan "tidak bisa presensi tgl …".',
+      '• Lupa presensi pulang → sesi ditutup otomatis sistem dan ditandai di Laporan Presensi; koreksinya lewat Penyesuaian Gaji.',
+      'Semua pengajuan dan keputusan terlihat di Laporan → Izin & Koreksi.'
+    ].join('\n'),
+    tawaran: [buka('attendance-report'), buka('permit-report'), buka('cashiers')]
+  },
+  {
+    id: 'backup_salah_gerai',
+    judul: 'Akun CS backup diaktifkan di gerai yang salah',
+    kunci: ['backup', 'back up', 'cs backup', 'akun backup', 'lintas gerai', 'salah gerai', 'salah mengaktifkan', 'aktifkan backup'],
+    isi: [
+      'Akun backup lintas gerai harus diaktifkan Admin per hari (Akun Kasir → "✅ Aktifkan gerai ini hari ini"), dan satu akun hanya bisa aktif di SATU gerai per hari.',
+      'Kalau terlanjur diaktifkan di gerai yang salah (mis. Beji, padahal harusnya Pendem), gerai lain akan DITOLAK saat mengaktifkan akun itu di hari yang sama.',
+      'Belum ada tombol untuk membatalkan aktivasi dari layar. Pilihannya hari itu: CS backup presensi pakai akunnya sendiri di Pendem kalau punya, atau minta Entity Admin/tim membetulkan datanya. Besok cukup aktifkan di gerai yang benar.',
+      'Supaya tidak terulang: cek tulisan "Aktif di gerai …" di baris akun backup sebelum menekan tombol aktifkan.'
+    ].join('\n'),
+    tawaran: [buka('cashiers')]
   }
 ].map((entri) => Object.freeze(entri)));
 
-const SEMUA_KUNCI = KAMUS.flatMap((entri) => entri.kunci.map((kunci) => ({ entri, kunci: normalkan(kunci) })));
+
+const KOSAKATA = new Map(KAMUS.map((entri) => [entri, kataInti([...entri.kunci, entri.judul].join(' '))]));
 
 /**
- * Mencari entri kamus untuk satu pertanyaan/topik. Kunci terpanjang yang
- * muncul di teks menang ("rekening bersama" mengalahkan "rekening").
+ * Mencari entri kamus untuk satu pertanyaan/topik. Skor = frasa kunci yang muncul utuh
+ * (makin panjang makin kuat) + kata bermakna pertanyaan yang ada di kosakata entri.
+ * Uji 2026-10-10: "salah mengaktifkan akun cs back up ... gerai pendem ... gerai beji"
+ * dulu jatuh ke "gerai dan entity" karena hanya mencari frasa terpanjang.
  * @returns {object|null}
  */
-export function cariTopik(teks) {
+export function cariTopikSkor(teks) {
   const kalimat = ` ${normalkan(teks)} `;
   if (!kalimat.trim()) return null;
   const langsung = KAMUS.find((entri) => entri.id === String(teks ?? '').trim());
-  if (langsung) return langsung;
+  if (langsung) return { entri: langsung, skor: 99 };
+  const kataTanya = kataInti(teks);
   let terbaik = null;
-  for (const { entri, kunci } of SEMUA_KUNCI) {
-    if (!kunci || !kalimat.includes(` ${kunci} `)) continue;
-    if (!terbaik || kunci.length > terbaik.kunci.length) terbaik = { entri, kunci };
+  for (const entri of KAMUS) {
+    let skor = 0;
+    for (const kunci of entri.kunci) {
+      const k = normalkan(kunci);
+      if (k && kalimat.includes(` ${k} `)) skor += 2 + k.split(' ').length;
+    }
+    for (const kata of kataTanya) if (KOSAKATA.get(entri).has(kata)) skor += 1;
+    if (!terbaik || skor > terbaik.skor) terbaik = { entri, skor };
   }
-  return terbaik?.entri ?? null;
+  return terbaik && terbaik.skor >= 3 ? terbaik : null;
+}
+
+export function cariTopik(teks) {
+  return cariTopikSkor(teks)?.entri ?? null;
 }
 
 /** Jawaban siap tampil: kalimat + tawaran. Topik tak dikenal → daftar topik. */
-export function jelaskan(teks) {
-  const entri = cariTopik(teks);
+export function jelaskan(teks, { halaman = 'gerai' } = {}) {
+  const topik = cariTopikSkor(teks);
+  // Peta menu aplikasi (dibangkitkan dari daftar menu sungguhan, src/caca-peta.js)
+  // menang kalau kecocokannya lebih kuat dari panduan kamus — mis. "bikin pengumuman
+  // buat karyawan" adalah menu Pengumuman, bukan panduan akun kasir.
+  const cocok = cariMenu(teks, { halaman });
+  // Panduan kamus yang menunjuk layar yang sama dengan menu itu selalu menang: isinya lebih lengkap.
+  const layarSama = Boolean(topik && cocok && (topik.entri.tawaran ?? []).some((t) => t.layar === cocok.menu.tab));
+  const entri = topik && (!cocok || layarSama || topik.skor >= cocok.skor) ? topik.entri : null;
   if (!entri) {
+    if (cocok) {
+      return {
+        ok: true,
+        dikenal: true,
+        topik: `menu:${cocok.menu.tab}`,
+        judul: cocok.menu.label,
+        jawaban: jawabanMenu(cocok.menu),
+        tawaran: cocok.menu.halaman === 'gerai' ? [{ jenis: 'buka', layar: cocok.menu.tab, label: `Buka ${cocok.menu.label}` }] : []
+      };
+    }
     return {
       ok: true,
       dikenal: false,
@@ -328,12 +482,18 @@ export const ALAT_JELASKAN = Object.freeze({
   nama: 'jelaskan',
   lingkup: 'semua',
   baca: true,
-  petunjuk: 'MENJELASKAN arti istilah atau cara pakai aplikasi yang berdiri sendiri, mis. "HPP itu apa?", "jurnal itu apa?", "mulai dari mana?", "Una bisa apa aja?", "akun kasir bikinnya di mana?". BUKAN untuk pesan yang merujuk percakapan tadi, menyebut barang/gerai tertentu, atau meminta tindakan.',
+  petunjuk: 'MENJELASKAN arti istilah atau CARA PAKAI aplikasi (semua pertanyaan "bagaimana cara ...", "gimana kalau ...", "di mana ...", "menu apa untuk ..."), mis. "HPP itu apa?", "bagaimana cara menambah karyawan?", "gimana kalau CS lupa absen?", "potongan gaji di mana?", "Una bisa apa aja?". BUKAN untuk pesan yang merujuk percakapan tadi, menyebut barang/gerai tertentu, atau meminta tindakan.',
   skema: {
     jelaskan_topik: { type: 'string', description: 'jelaskan: istilah atau hal yang ditanyakan, PERSIS seperti ditulis.' }
   },
-  async siapkan(t) {
-    const hasil = jelaskan(t?.jelaskan_topik);
+  async siapkan(t, ctx = {}) {
+    // Topik salinan model kadang terlalu pendek/terlalu panjang; kalimat Bos utuh jadi cadangan.
+    const halaman = ctx.lingkup === 'entity' ? 'entity' : 'gerai';
+    let hasil = jelaskan(t?.jelaskan_topik, { halaman });
+    if (!hasil.dikenal && ctx.pesan) {
+      const dariPesan = jelaskan(ctx.pesan, { halaman });
+      if (dariPesan.dikenal) hasil = dariPesan;
+    }
     return { ok: true, jawaban: hasil.jawaban, tawaran: hasil.tawaran };
   }
 });

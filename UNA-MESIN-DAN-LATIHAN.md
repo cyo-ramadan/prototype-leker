@@ -132,6 +132,7 @@ Peta mekanisme yang sudah ada:
 | `cariDiRiwayat` | `src/caca-agen.js` | Sebelum bertanya kolom `kurang`, baca ulang pesan Bos sebelumnya (barang yang sama) |
 | `jangkarRencana` | `src/caca-agen.js` | Langkah rencana yang kehilangan angka diberi potongan kalimat asli Bos |
 | Una ngambek | `terapkanNgambek` (`src/caca-tertunda.js`) | Balasan mentok yang sama berulang → kalimat manusiawi bertingkat, terakhir chat ditutup 60 detik |
+| Kamus + peta menu + `panduanPasti` | `src/caca-jelaskan.js`, `src/caca-peta.js`, `generated/peta-una-data.js` | Pertanyaan cara pakai dijawab dari panduan tertulis (tanpa model); kata dasar + sinonim di `src/caca-kata.js` supaya kalimat setipe ikut kena |
 | `alihkan` | hasil `siapkan` | Alat menyatakan maksudnya ternyata alat lain (mis. barang sudah ada → ubah harga) |
 | `angkaTanpaBukti`, `GAGAL_BACA`, `hargaKarangan` | `src/caca-baca.js`, `src/caca-agen.js` | Pagar angka karangan |
 | Draft + "Ya" + periksa ulang | `src/caca-aksi.js`, `src/caca-chat.js` | Tidak ada yang tersimpan tanpa persetujuan |
@@ -225,6 +226,21 @@ Kolom `harapan` yang dikenali: `alat`, `draft` (dicocokkan ke isi draft), `jawab
 `jawabanTidakMemuat`, `tanpaDraft`.
 
 ---
+
+## 7b. Pengetahuan "cara pakai aplikasi" — jangan per kalimat
+
+Kalau ada pertanyaan "bagaimana cara …" yang tidak terjawab, **jangan menambal kalimat itu saja**
+(Bos Cyo 2026-10-10: "bukan cuma bisa jawab spesifik itu, tapi case yang setype"):
+
+1. Kalau ada layar/menu yang belum punya `PENJELASAN` atau kata kuncinya kurang, perbaiki di
+   `src/caca-peta.js`. Ini menutup semua pertanyaan tentang layar itu.
+2. Kalau butuh langkah persis (lebih dari "ada di menu X"), tambah entri kamus di
+   `src/caca-jelaskan.js`. Isinya dicocokkan ke layar sungguhan (baca file `public/admin-*.js`-nya),
+   `kunci` diisi beberapa cara orang menanyakannya, dan `tawaran` membuka layarnya.
+3. Kata yang tidak dikenal ("absen", "honor", "pegawai") → tambah ke `SINONIM` di `src/caca-kata.js`.
+4. Uji dengan **kalimat lain yang setipe**, bukan kalimat aslinya saja (`test/caca-peta.test.js`).
+5. **Menu baru di aplikasi**: `node scripts/build-peta-una.mjs` + `PENJELASAN`. Tes penjaga merah
+   kalau lupa, jadi Una tidak tertinggal pengetahuan.
 
 ## 8. Resep menambah atau membetulkan alat Una
 

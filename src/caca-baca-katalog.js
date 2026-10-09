@@ -143,6 +143,10 @@ export const KATALOG = Object.freeze([
     id: 'uang_muka_karyawan', path: '/api/admin/employee-deposits/pending', lingkup: 'gerai',
     ringkas: 'Setoran/uang karyawan yang menunggu penyelesaian.'
   },
+  {
+    id: 'setoran_cs', path: '/api/admin/employee-deposits/overview', lingkup: 'gerai',
+    ringkas: 'Setoran CS: sisa setoran laci yang masih dibawa tiap CS (saldo per orang), yang menunggu ACC, dan riwayat.'
+  },
 
   // --- akuntansi --------------------------------------------------------------
   {

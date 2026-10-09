@@ -1,0 +1,9 @@
+{
+  "nama": "Setoran CS yang masih dibawa = data, bukan panduan",
+  "pesan": [
+    "setoran cs yang masih dibawa siapa aja?"
+  ],
+  "harapan": {
+    "alat": "cek_setoran_cs"
+  }
+}

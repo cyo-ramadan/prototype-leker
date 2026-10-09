@@ -161,7 +161,9 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   Komponen yang benar-benar baru (mis. grafik) boleh punya token sendiri asal latarnya terang.
   Jangan menyunting `public/skin-*.css` untuk fitur biasa.
   Tab baru di Workspace Gerai / Panel Pemilik: daftarkan ke grupnya di `public/nav-groups.js`
-  (`GROUPS`), kalau tidak di skin A/B/C ia muncul di grup "Lainnya". Kartu daftar pakai
+  (`GROUPS`), kalau tidak di skin A/B/C ia muncul di grup "Lainnya". Lalu ajarkan ke Una:
+  `node scripts/build-peta-una.mjs` + satu baris `PENJELASAN` di `src/caca-peta.js` —
+  `test/caca-peta.test.js` merah kalau lupa. Kartu daftar pakai
   `.master-row` + `.status-chip` (`public/list-cards.css`), jangan tumpuk keterangan per baris.
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
 - **Fitur/perubahan yang terlihat pengguna sudah live di `main`** → tambah satu baris di

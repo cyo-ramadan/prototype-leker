@@ -293,6 +293,16 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   tidak dihitung; (4) draft lain kedaluwarsa begitu satu disetujui; (5) barang yang barusan tercatat bisa
   dikoreksi lewat chat → `ubah_barang` (tugas revisi `tercatat`, `ubah_barang.isiDariPesan`). Pembaca kalimat
   barang (`uraiPesanBarang`) pindah ke `src/caca-aksi-dasar.js`.
+- **Panduan cara pakai yang setipe + peta menu (2026-10-10, uji karyawan 10 pertanyaan HR):** (1) kamus
+  `src/caca-jelaskan.js` ditambah 9 panduan karyawan/CS (tambah karyawan, akun CS + jadwal, jadwal beda,
+  setoran CS, gaji harian, potongan/bonus, telat, gagal presensi, backup salah gerai) yang dicocokkan ke layar
+  sungguhan; (2) `src/caca-kata.js`: kata dasar + sinonim ("nambahin pegawai" = tambah karyawan); (3) peta menu
+  `generated/peta-una-data.js` DIBANGKITKAN dari `public/nav-groups.js` oleh `scripts/build-peta-una.mjs` +
+  `PENJELASAN` per menu di `src/caca-peta.js` → pertanyaan cara pakai tanpa panduan khusus diarahkan ke layar
+  yang tepat; tes penjaga merah kalau menu baru belum diajarkan; (4) `panduanPasti`: pertanyaan "bagaimana/
+  gimana/cara/di mana …" tanpa minta data/nominal dijawab panduan TANPA model; model "tidak_ada" untuk kalimat
+  bertanya → cari panduan dulu; (5) alat data `cek_setoran_cs` (`src/caca-aksi-karyawan.js`). Kesenjangan produk
+  yang ditemukan: aktivasi akun backup di gerai yang salah belum bisa dibatalkan dari layar.
 - **Panduan melatih Una:** `UNA-MESIN-DAN-LATIHAN.md` + skill `latih-una` + uji live `scripts/uji-una.mjs`
   (skenario di `una-latih/skenario/`). Bos Cyo 2026-10-09: model & level mikir dikunci termurah.
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala

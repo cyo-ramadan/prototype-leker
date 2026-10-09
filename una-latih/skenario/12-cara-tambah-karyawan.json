@@ -1,0 +1,10 @@
+{
+  "nama": "Pertanyaan karyawan: cara menambah karyawan (uji 2026-10-10)",
+  "pesan": [
+    "bagaimana cara menambah nama karyawan misal atas nama Rika Nur?"
+  ],
+  "harapan": {
+    "alat": "jelaskan",
+    "jawabanMemuat": "Tambah karyawan"
+  }
+}

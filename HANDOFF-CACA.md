@@ -267,6 +267,16 @@ tipe/resep tidak tersentuh). Draft sebelum→sesudah, diposting bertahap per bar
   pilih-alat; contoh statis di `ATURAN_PUTARAN` dihapus. Disimpan di kode, bukan D1: pengetahuan
   produk yang sama untuk semua tenant, lewat review + test (`test/caca-contoh.test.js` memastikan
   nama alat di contoh masih ada). Tiap temuan uji langsung sebaiknya jadi satu contoh baru.
+- **Tugas tertunda (`src/caca-tertunda.js`, 2026-10-09, Bos Cyo: "dia kehilangan konteks padahal belum ada 5
+  chat"):** alat tulis yang balik bertanya kini mengembalikan `tertunda {alat, tangkapan, tanya, kurang}`;
+  panel mengirimnya bersama pesan berikutnya (juga lintas ganti gerai: "pilih gerai lalu bilang lanjut").
+  Server: "batal/gajadi" → dilepas; "ga jelas/bingung" (tanpa angka) → Una menjelaskan ulang tugas + yang
+  kurang, tanpa model; jawaban pendek tanpa kata perintah/pertanyaan → PASTI untuk tugas itu (apa pun
+  pilihan model), isian lama tidak ditimpa, dan kolom `kurang` diisi dari jawaban Bos sendiri ("harga
+  jualnya 120" → "120"); perintah lengkap untuk alat yang sama → isian baru menimpa. `kurang` diisi oleh
+  alat (baru `buat_barang`; alat lain menyusul). Data dari browser → `bersihkanTertunda`.
+  `buat_barang` juga paham "12rb dapet 50 pcs" (`barang_isi`, dibagi kode, harus habis dibagi) dan "jual
+  sama dengan harga beli" (`barang_jual_sama_beli`). Test: `test/caca-tertunda.test.js` (skenario layar Bos).
 - **Gerai uji `TESTINGUNA` ("Testing Una", ENT-KPM, migration 0137):** salinan master Mandala
   untuk Hana menguji Una langsung ke produksi (akun Entity Admin yang dititipkan Bos Cyo
   lewat environment sesi). Ikut muncul di laporan tingkat entity KPM — jangan mencatat

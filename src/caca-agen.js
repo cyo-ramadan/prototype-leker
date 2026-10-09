@@ -25,6 +25,10 @@ import { uraiDaftarRentang } from './caca-aksi-rentang.js';
 import { terjemahkanPesan } from './caca-terjemah.js';
 import { uraikanNominal } from './caca-nominal.js';
 import { teksContoh } from './caca-contoh.js';
+import {
+  bersihkanTertunda, mintaBatal, terdengarBingung, jawabanPendek, gabungTangkapan, isianKosong,
+  isiKolomDariJawaban, teksTertunda, jelaskanTertunda
+} from './caca-tertunda.js';
 
 export const ALAT_CATAT_PENGELUARAN = 'catat_pengeluaran';
 export const ALAT_BACA_API = 'baca_api';
@@ -217,6 +221,10 @@ function promptPilihAlat(konteks, pesan = '') {
     '  pilih alatnya langsung, sepanjang apa pun daftarnya.',
     '- Membuat barang/bahan/resep: tetap pilih alatnya walau detailnya kurang (kategori, satuan, harga beli, jumlah',
     '  hasil). Sistem mengisi yang dasar dan menuliskannya di draft — jangan dijawab "tidak_ada" karena itu.',
+    '- buat_barang: harga untuk satu kemasan isi banyak ("12rb dapet 50 pcs") -> barang_harga_beli "12rb" + barang_isi "50";',
+    '  "jualnya sama dengan harga beli" -> barang_jual_sama_beli=true. Jangan membagi/menghitung sendiri.',
+    '- Ada "TUGAS YANG SEDANG UNA KERJAKAN": pesan pendek Bos hampir pasti jawaban untuk tugas itu. Pilih alat yang',
+    '  sama dan salin semua isian sejauh ini + jawabannya. Jangan menanyakan lagi yang sudah ada di isian.',
     '- Daftar berisi 2 barang atau lebih (diketik, ditempel, per baris atau dipisah koma) = buat_barang_banyak, bukan buat_barang.',
     '  Salin SEMUA barangnya; jangan diringkas, jangan dipilih sebagian.',
     '- jelaskan HANYA untuk pertanyaan arti istilah atau cara pakai aplikasi yang berdiri sendiri: "HPP itu apa?",',
@@ -275,6 +283,22 @@ function promptSusunJawaban(konteks) {
   ].join('\n');
 }
 
+// Kolom isian sah untuk alat TULIS yang bisa jadi tugas tertunda; null kalau bukan.
+function kolomAlat(alat) {
+  if (alat === ALAT_CATAT_PENGELUARAN) return Object.keys(TANGKAP_PENGELUARAN_SCHEMA.properties);
+  const aksi = cariAksi(alat);
+  return aksi && !aksi.baca ? Object.keys(aksi.skema) : null;
+}
+
+/** Keadaan tugas yang belum lengkap, untuk dibawa panel ke pesan berikutnya. */
+function tertundaDari(alat, nilai, tanya, kurang = null) {
+  const kolom = kolomAlat(alat);
+  if (!kolom) return null;
+  const tangkapan = {};
+  for (const k of kolom) if (!isianKosong(nilai?.[k])) tangkapan[k] = nilai[k];
+  return { alat, tangkapan, tanya: String(tanya ?? '').slice(0, 300), kurang: kolom.includes(kurang) ? kurang : null };
+}
+
 /**
  * Menjalankan SATU alat yang sudah dipilih. `amati` = Una masih akan melihat
  * hasilnya di putaran berikutnya, jadi alat baca lama tidak perlu menyusun
@@ -326,8 +350,9 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
         alat: namaAlat,
         belumLengkap: true,
         jawaban: aksi.lingkup === 'entity'
-          ? 'Yang itu dikerjakan di buku entity. Pilih "semua gerai" lewat tombol ▾ di atas dulu, lalu ulangi perintahnya.'
-          : 'Yang itu dikerjakan per gerai. Pilih gerainya dulu lewat tombol ▾ di atas, lalu ulangi perintahnya.'
+          ? 'Yang itu dikerjakan di buku entity. Pilih "semua gerai" lewat tombol ▾ di atas dulu, lalu bilang "lanjut" — isiannya Una ingat.'
+          : 'Yang itu dikerjakan per gerai. Pilih gerainya dulu lewat tombol ▾ di atas, lalu bilang "lanjut" — isiannya Una ingat.',
+        tertunda: tertundaDari(namaAlat, pilihan.value, 'Pilih gerai/lingkupnya dulu, lalu bilang "lanjut".')
       };
     }
     if (!jalurAksi) return { ok: true, alat: namaAlat, jawaban: 'Una belum bisa menjalankan itu dari sini.', ditolak: true };
@@ -345,7 +370,12 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
       }, konteks, opsi, { amati });
     }
     if (!disiapkan.ok) {
-      return { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya || disiapkan.error), belumLengkap: true };
+      const tanya = tanyaHalus(namaAlat, disiapkan.tanya || disiapkan.error);
+      return {
+        ok: true, alat: namaAlat, jawaban: tanya, belumLengkap: true,
+        // Alat tulis yang balik bertanya: isiannya disimpan supaya jawaban Bos melengkapi, bukan mengulang.
+        tertunda: aksi.baca ? null : tertundaDari(namaAlat, pilihan.value, disiapkan.tanya || disiapkan.error, disiapkan.kurang)
+      };
     }
     // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
     // dihitung kode — tanpa draft, tanpa panggilan model kedua.
@@ -388,7 +418,10 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     const disiapkan = siapkanDraftPengeluaran(pilihan.value, { hariIni: konteks.hariIni });
     return disiapkan.ok
       ? { ok: true, alat: namaAlat, draft: disiapkan.draft, perluKonfirmasi: true }
-      : { ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya), belumLengkap: true };
+      : {
+        ok: true, alat: namaAlat, jawaban: tanyaHalus(namaAlat, disiapkan.tanya), belumLengkap: true,
+        tertunda: tertundaDari(namaAlat, pilihan.value, disiapkan.tanya)
+      };
   }
 
   const hasil = await jalankan(namaAlat, pilihan.value, { request, env, storeCode: konteks.storeCode, hariIni: konteks.hariIni });
@@ -494,10 +527,11 @@ function teksKerja(kerja) {
   ].join('\n');
 }
 
-function isiPilihAlat(pesanBaku, konteks, kerja) {
+function isiPilihAlat(pesanBaku, konteks, kerja, tertunda = null) {
   const blok = teksKerja(kerja);
   const pesan = pesanDenganRiwayat(pesanBaku, konteks.riwayat);
-  return blok ? `${pesan}\n\n${blok}\nPilih langkah berikutnya (atau "${ALAT_SELESAI}" kalau sudah cukup).` : pesan;
+  const isi = blok ? `${pesan}\n\n${blok}\nPilih langkah berikutnya (atau "${ALAT_SELESAI}" kalau sudah cukup).` : pesan;
+  return tertunda ? `${teksTertunda(tertunda)}\n${isi}` : isi;
 }
 
 const GAGAL_BACA = /^(Una belum bisa|Una belum berhasil|GAGAL|pembacaan gagal)/i;
@@ -618,6 +652,27 @@ async function selesaikan(v, { pertanyaan, pesanBaku, konteks, kerja, tabel, env
 }
 
 /**
+ * Pesan Bos sesudah Una bertanya. Jawaban pendek tanpa perintah baru ("5000",
+ * "tutup cup manual", "harga jualnya 120") PASTI untuk tugas yang tertunda, apa
+ * pun alat yang dipilih model; perintah lengkap untuk alat yang sama menimpa
+ * isian lama yang disebut ulang. Perintah lain dibiarkan apa adanya (tugas lama dilepas).
+ */
+function lanjutkanTertunda(tertunda, pilihan, pertanyaan) {
+  const v = pilihan.value ?? {};
+  const pendek = jawabanPendek(pertanyaan);
+  if (v.alat !== tertunda.alat && !pendek) return pilihan;
+  const kolom = kolomAlat(tertunda.alat);
+  const isian = gabungTangkapan(tertunda.tangkapan, v, kolom, { lengkapi: pendek });
+  if (pendek && tertunda.kurang) {
+    // Kolom yang ditanyakan diisi dari jawaban Bos sendiri; tebakan model hanya cadangan.
+    const dariJawaban = isiKolomDariJawaban(tertunda.kurang, pertanyaan);
+    if (dariJawaban) isian[tertunda.kurang] = dariJawaban;
+    else if (!isianKosong(v[tertunda.kurang])) isian[tertunda.kurang] = v[tertunda.kurang];
+  }
+  return { ok: true, value: { alat: tertunda.alat, judul_langkah: v.judul_langkah, lanjut: v.lanjut, ...isian } };
+}
+
+/**
  * @param {string} pertanyaan pesan dari penyuruh
  * @param {object} konteks { nama, peran, lingkup, namaLingkup, storeCode, storeName, hariIni, riwayat }
  * @param {object} opsi { request, env, jalankan, panggilModel, jalurAksi, kerja }
@@ -634,6 +689,14 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
   const pesanBaku = terjemahkanPesan(pertanyaan, konteks.hariIni).teks;
   const kerja = bersihkanKerja(opsi.kerja);
   const lanjutan = kerja.length > 0;
+  // Tugas yang tadi belum lengkap (src/caca-tertunda.js).
+  const tertunda = bersihkanTertunda(opsi.tertunda, kolomAlat);
+  if (tertunda && mintaBatal(pertanyaan)) {
+    return { ok: true, alat: null, jawaban: 'Oke, yang tadi nggak jadi ya, Bos.', tertunda: null };
+  }
+  if (tertunda && terdengarBingung(pertanyaan)) {
+    return { ok: true, alat: tertunda.alat, jawaban: jelaskanTertunda(tertunda), belumLengkap: true, tertunda, kerja: kerja.length ? kerja : null };
+  }
   let tabel = null;
   // Panel meminta satu putaran per permintaan supaya tiap langkah langsung
   // terlihat jalan (✓ satu per satu); pemanggil lain tetap boleh sampai MAKS_PUTARAN.
@@ -651,15 +714,17 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
         kerja
       };
     }
-    const pasti = !lanjutan && putaran === 0 ? alatPasti(pesanBaku) : null;
-    const pilihan = pasti
+    const pakaiTertunda = tertunda && putaran === 0;
+    const pasti = !lanjutan && !pakaiTertunda && putaran === 0 ? alatPasti(pesanBaku) : null;
+    let pilihan = pasti
       ? { ok: true, value: { alat: pasti } }
       : await panggilModel(env, {
         system: promptPilihAlat(konteks, pesanBaku),
-        content: [{ type: 'text', text: isiPilihAlat(pesanBaku, konteks, kerja) }],
+        content: [{ type: 'text', text: isiPilihAlat(pesanBaku, konteks, kerja, pakaiTertunda ? tertunda : null) }],
         schema: skemaPilihAlat()
       });
     if (!pilihan.ok) return { ok: false, status: pilihan.status, error: pilihan.error };
+    if (pakaiTertunda) pilihan = lanjutkanTertunda(tertunda, pilihan, pertanyaan);
     const v = pilihan.value ?? {};
 
     if (v.alat === ALAT_SELESAI) {

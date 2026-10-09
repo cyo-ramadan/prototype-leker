@@ -1,0 +1,12 @@
+{
+  "nama": "Panduan supplier lalu \"buatin dong\" → draft supplier",
+  "pesan": [
+    "bagaimana cara mendaftarkan suplier baru ke sistem?",
+    "buatin dong",
+    "Toko Uji Una"
+  ],
+  "harapan": {
+    "alat": "buat_supplier",
+    "draft": { "name": "Toko Uji Una" }
+  }
+}

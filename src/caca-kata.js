@@ -29,6 +29,10 @@ const SINONIM = Object.freeze({
   cabang: 'gerai', outlet: 'gerai', toko: 'gerai',
   resep: 'resep', racikan: 'resep', bom: 'resep',
   backup: 'cadang', cadangan: 'cadang', serep: 'cadang',
+  suplier: 'supplier', pemasok: 'supplier', vendor: 'supplier', agen: 'supplier',
+  restock: 'beli', restok: 'beli', kulakan: 'beli', belanja: 'beli', pembelian: 'beli',
+  rusak: 'rusak', cacat: 'rusak', pecah: 'rusak', basi: 'rusak', busuk: 'rusak', expired: 'rusak', kadaluarsa: 'rusak', kedaluwarsa: 'rusak',
+  opname: 'opname', mutasi: 'mutasi', kategori: 'kategori', golongan: 'kategori', kelompok: 'kategori',
   // bentuk lisan yang huruf awalnya luluh
   nambah: 'tambah', nulis: 'tulis', nyatet: 'catat', nyatat: 'catat', ngecek: 'cek', ngubah: 'ubah',
   motong: 'potong', ngasih: 'kasih', masukin: 'masuk', ngaktif: 'aktif', nyetor: 'setor', nyetorin: 'setor'

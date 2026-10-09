@@ -31,7 +31,9 @@ export const LAYAR = Object.freeze({
   accountingWorkspaceTab: { label: 'Pembukuan', halaman: 'gerai' },
   'attendance-report': { label: 'Laporan Presensi', halaman: 'gerai' },
   'setoran-cs': { label: 'Setoran CS', halaman: 'gerai' },
-  'permit-report': { label: 'Izin & Koreksi', halaman: 'gerai' }
+  'permit-report': { label: 'Izin & Koreksi', halaman: 'gerai' },
+  suppliers: { label: 'Supplier', halaman: 'gerai' },
+  categories: { label: 'Kategori', halaman: 'gerai' }
 });
 
 const buka = (layar) => ({ jenis: 'buka', layar, label: `Buka layar ${LAYAR[layar].label}` });
@@ -148,12 +150,13 @@ export const KAMUS = Object.freeze([
   {
     id: 'stok_minus',
     judul: 'Stok minus',
-    kunci: ['stok minus', 'minus', 'stok negatif', 'negatif'],
+    kunci: ['stok minus', 'minus', 'stok negatif', 'negatif', 'stok tidak sesuai penjualan', 'tidak sesuai dengan transaksi'],
     isi: [
       'Stok minus bukan error: artinya barangnya sudah terjual sebelum pembeliannya dicatat.',
-      'Begitu pembelian dicatat di kasir, stoknya kembali sesuai. Angkanya sengaja tidak disembunyikan supaya ketahuan ada pembelian yang belum dicatat.'
+      'Begitu pembelian dicatat di kasir, stoknya kembali sesuai. Angkanya sengaja tidak disembunyikan supaya ketahuan ada pembelian yang belum dicatat.',
+      'Cara menanganinya: (1) Barang → Stok → Lihat Mutasi untuk melihat penjualan/pemakaian yang mengurangi; (2) pastikan semua belanja sudah dicatat lewat Beli Bahan; (3) untuk bahan, cek takaran resepnya; (4) kalau tetap beda dengan hitungan fisik, ajukan Penyesuaian Stok dari kasir.'
     ].join('\n'),
-    tawaran: [buka('stock')],
+    tawaran: [buka('stock'), jelas('penyesuaian_stok', 'Cara Penyesuaian Stok')],
     tanpaAksi: 'penjelasan; stok kembali sesuai saat kasir mencatat pembelian (Una tidak mencatat pembelian)'
   },
   {
@@ -305,13 +308,161 @@ export const KAMUS = Object.freeze([
   {
     id: 'gerai_entity',
     judul: 'Gerai dan entity',
-    kunci: ['entity', 'gerai', 'outlet', 'cabang', 'badan usaha', 'semua gerai'],
+    kunci: ['entity', 'apa itu gerai', 'gerai dan entity', 'badan usaha', 'semua gerai', 'beda gerai dan entity'],
     isi: [
       'Gerai = satu toko/outlet. Entity = usahanya (pemilik buku), yang membawahi beberapa gerai.',
       'Data tiap gerai terpisah rapi; laporan entity menjumlahkan semuanya. Di Una, pilih gerai lewat tombol ▾ di atas, atau "semua gerai" untuk tingkat entity.'
     ].join('\n'),
     tawaran: [],
     tanpaAksi: 'penjelasan istilah'
+  },
+
+  // --- barang, stok, supplier, pembelian -----------------------------------------
+  // Uji karyawan Bos Cyo 2026-10-11: 14 pertanyaan "bagaimana cara …" soal barang dan
+  // stok dijawab "belum punya penjelasan" atau diarahkan ke layar yang salah (restock →
+  // "gerai dan entity", nota supplier → jadwal kerja). Isinya dicocokkan ke layar
+  // sungguhan: public/branch-admin.html (form Tambah barang/kategori/supplier),
+  // public/admin-stock.js (Lihat Mutasi), public/cashier-procurement-ui.js (Beli Bahan),
+  // public/cashier-approval-actions.js (Penyesuaian Stok, Arus Barang).
+  {
+    id: 'barang_tambah',
+    judul: 'Menambah barang baru',
+    kunci: ['tambah barang', 'barang baru', 'menambahkan barang', 'input barang', 'daftar barang', 'nama barang', 'masukin barang', 'produk baru', 'menu baru', 'bikin barang', 'buat barang'],
+    isi: [
+      'Di Workspace Gerai, buka Barang → Daftar Barang. Form "Tambah barang" ada di kiri:',
+      '• Nama barang, Harga beli (modal per satuan; boleh koma, mis. 0,5), Harga jual, Kategori, dan Foto (opsional).',
+      '• Centang "Aktif dijual" supaya muncul di kasir, lalu Simpan barang.',
+      'Untuk bahan baku (gula, cup, susu), atur juga Peran Barang dan Satuan Dasar (gram/ml/pcs) di bagian bawah form, supaya stok dan resepnya pas.',
+      'Banyak barang sekaligus? Ketik daftarnya ke Una atau kirim foto papan menu.'
+    ].join('\n'),
+    tawaran: [buka('products'), isi('Masukin daftar menu', 'masukin menu: Es Teh 5rb, Kopi Susu 12rb, Roti Bakar 15rb')],
+    aksi: { alat: 'buat_barang', tawar: 'Mau Una yang tambahkan? Bilang "buatin", atau langsung mis. "bikin barang Es Teh harga 5rb, harga beli 2rb, kategori Minuman".', tombol: 'Una tambahkan barang' }
+  },
+  {
+    id: 'harga_barang',
+    judul: 'Mengisi / mengubah harga beli & harga jual',
+    kunci: ['harga beli', 'harga jual', 'ubah harga', 'ganti harga', 'ganti harga jual', 'memasukkan harga', 'isi harga', 'naikin harga', 'harga modal'],
+    isi: [
+      'Barang baru: isi Harga beli dan Harga jual di form "Tambah barang" (Barang → Daftar Barang).',
+      'Barang yang sudah ada: cari di daftar kanan → Edit → ubah harganya → Simpan barang. Harga jual baru langsung dipakai kasir.',
+      'Harga beli di sini = harga bawaan saat kasir mencatat Beli Bahan (tetap bisa diubah di kasir). Modal rata-rata (HPP) dihitung sendiri dari pembelian.',
+      'Lebih cepat lewat Una: "harga es teh jadi 7rb" atau beberapa sekaligus.'
+    ].join('\n'),
+    tawaran: [buka('products')],
+    aksi: { alat: 'ubah_barang', tawar: 'Mau Una ubahkan harganya? Sebut barang dan harga barunya, mis. "harga es teh jadi 7rb, harga beli 2.500".', tombol: 'Una ubahkan harga' }
+  },
+  {
+    id: 'kategori_barang',
+    judul: 'Kategori barang',
+    kunci: ['kategori', 'kategori barang', 'kategori baru', 'menentukan kategori', 'kelompok barang', 'golongan barang'],
+    isi: [
+      'Kategori = pengelompokan barang di menu kasir (mis. Minuman, Makanan, Snack).',
+      'Buat kategori baru di Barang → Kategori → "Tambah kategori": isi Nama kategori (Kategori induk boleh dikosongkan), centang Aktif, Simpan kategori.',
+      'Lalu saat Tambah barang / Edit barang, pilih kategorinya di kolom Kategori. Kategori yang dinonaktifkan tidak menghapus barangnya.'
+    ].join('\n'),
+    tawaran: [buka('categories'), buka('products')],
+    aksi: { alat: 'buat_kategori', tawar: 'Mau Una buatkan kategorinya? Sebut namanya, mis. "bikin kategori Minuman Dingin". Memindah barang: "pindahin es teh ke kategori Minuman Dingin".', tombol: 'Una buatkan kategori' }
+  },
+  {
+    id: 'barang_nonaktif',
+    judul: 'Menonaktifkan barang (tanpa menghapus riwayat)',
+    kunci: ['nonaktifkan barang', 'menonaktifkan', 'nonaktif', 'tidak dijual', 'sudah tidak dijual', 'hapus barang', 'menghapus barang', 'sembunyikan barang', 'stop jual', 'tidak dipakai lagi'],
+    isi: [
+      'Di Barang → Daftar Barang, cari barangnya lalu tekan "Nonaktifkan" (atau Edit → hilangkan centang "Aktif dijual" → Simpan barang).',
+      'Barang hanya hilang dari menu kasir. Riwayat transaksi, stok, HPP, dan laporan lamanya TETAP utuh — memang tidak ada tombol hapus permanen.',
+      'Mau dijual lagi? Edit barangnya dan centang "Aktif dijual".'
+    ].join('\n'),
+    tawaran: [buka('products')],
+    aksi: { alat: 'nonaktifkan_barang', tawar: 'Mau Una nonaktifkan? Sebut barangnya, mis. "nonaktifkan Es Teh Leci dan Roti Bakar".', tombol: 'Una nonaktifkan' }
+  },
+  {
+    id: 'supplier_tambah',
+    judul: 'Mendaftarkan supplier baru',
+    kunci: ['supplier', 'suplier', 'supplier baru', 'suplier baru', 'tambah supplier', 'daftar supplier', 'pemasok', 'vendor'],
+    isi: [
+      'Di Workspace Gerai, buka Barang → Supplier → form "Tambah supplier".',
+      'Isi Nama supplier, No. HP, Alamat, dan Catatan kalau perlu, centang Aktif, lalu Simpan supplier.',
+      'Supplier yang aktif muncul di pilihan "Supplier" saat kasir mencatat Beli Bahan, jadi hutang dan uang muka ke supplier itu terlacak per nama.'
+    ].join('\n'),
+    tawaran: [buka('suppliers')],
+    aksi: { alat: 'buat_supplier', tawar: 'Mau Una daftarkan? Bilang "buatin", atau langsung mis. "tambah supplier Toko Makmur hp 0812…, alamat Pasar Baru".', tombol: 'Una daftarkan supplier' }
+  },
+  {
+    id: 'pembelian',
+    judul: 'Mencatat pembelian / restock barang',
+    kunci: ['pembelian', 'beli bahan', 'restock', 'restok', 're stock', 'belanja bahan', 'kulakan', 'barang masuk dari supplier', 'mencatat pembelian', 'stok masuk', 'tambah stok', 'menambah stok', 'baru dibeli', 'yang dibeli', 'ke stok', 'masuk stok'],
+    isi: [
+      'Pembelian/restock dicatat di aplikasi Kasir (laci harus sedang dibuka): tekan "🧺 Beli Bahan".',
+      '• Pilih Supplier (atau "Tanpa supplier") dan Cara bayar: Cash/Kas, Bank/Transfer, atau Hutang.',
+      '• Pilih Barang, isi Qty, lalu Total belanja baris itu (atau ganti ke "Isi Harga per Satuan") → "＋ Tambah Baris Barang". Ulangi untuk barang lain.',
+      '• SIMPAN PEMBELIAN. Stok langsung bertambah dan modal rata-rata (HPP) diperbarui.',
+      'Barangnya harus sudah ada di Daftar Barang. Kalau sudah bayar uang muka ke supplier, pilih "Bayar dari Deposit".',
+      'Una sengaja tidak mencatat pembelian — uangnya keluar dari laci/rekening, jadi tetap lewat kasir.'
+    ].join('\n'),
+    tawaran: [jelas('nota_beda', 'Jumlah datang beda dari nota?'), jelas('barang_rusak', 'Barang rusak saat diterima?')],
+    tanpaAksi: 'pembelian menggerakkan uang laci/rekening, jadi tetap dicatat kasir (Una tidak menyentuh kas)'
+  },
+  {
+    id: 'nota_beda',
+    judul: 'Barang datang tidak sama dengan nota supplier',
+    kunci: ['nota supplier', 'nota suplier', 'berbeda dari nota', 'beda dari nota', 'tidak sesuai nota', 'jumlah berbeda', 'kurang dari nota', 'lebih dari nota', 'barang kurang', 'kiriman kurang', 'jumlahnya berbeda'],
+    isi: [
+      'Pegangannya: stok mengikuti barang yang BENAR-BENAR datang, uang mengikuti yang BENAR-BENAR dibayar/ditagih.',
+      '• Di Beli Bahan, isi Qty sesuai yang datang dan Total sesuai tagihan untuk barang yang datang itu. Tulis selisihnya di Catatan (mis. "nota 10, datang 8").',
+      '• Sudah terlanjur bayar penuh padahal barang kurang? Kekurangannya jadi uang muka (Deposit) ke supplier itu; nanti pembelian berikutnya pilih "Bayar dari Deposit".',
+      '• Supplier akan mengirim susulan dan ditagih belakangan? Catat yang datang sekarang saja; susulannya dicatat Beli Bahan lagi saat datang.',
+      'Terlanjur dicatat sesuai nota? Stoknya dibetulkan lewat Penyesuaian Stok di kasir (di-ACC Admin).'
+    ].join('\n'),
+    tawaran: [jelas('penyesuaian_stok', 'Cara Penyesuaian Stok'), jelas('deposit', 'Apa itu uang muka / deposit?')],
+    aksi: { alat: 'buat_uang_muka', tawar: 'Ada kelebihan bayar ke supplier yang perlu dicatat sebagai deposit? Una bisa catatkan, mis. "uang muka ke Toko Makmur 300rb lewat transfer bank".', tombol: 'Una catatkan deposit' }
+  },
+  {
+    id: 'barang_rusak',
+    judul: 'Barang rusak (saat diterima atau di gerai)',
+    kunci: ['rusak', 'barang rusak', 'rusak saat diterima', 'cacat', 'pecah', 'basi', 'kedaluwarsa', 'expired', 'busuk', 'tumpah', 'retur'],
+    isi: [
+      'Rusak saat diterima dan belum dicatat: di Beli Bahan isi Qty yang BAGUS saja, Total sesuai yang dibayar. Kalau supplier mengganti/mengembalikan uang belakangan, catat penggantinya sebagai Beli Bahan lagi saat datang.',
+      'Sudah terlanjur masuk stok (atau rusak di gerai): di Kasir tekan "📦 Arus Barang" → Arah arus "Barang Keluar" → pilih barang, Qty yang rusak, Catatan mis. "rusak saat diterima" → AJUKAN ARUS BARANG.',
+      'Stok baru berkurang setelah Admin/Owner meng-ACC di Transaksi → Persetujuan. Nilainya dihitung dari modal (HPP) barang itu, jadi kerugiannya ikut tercatat.'
+    ].join('\n'),
+    tawaran: [buka('approvals'), jelas('barang_keluar', 'Barang keluar untuk pemakaian gerai')],
+    tanpaAksi: 'barang keluar diajukan kasir lewat Arus Barang dan di-ACC Admin di layar Persetujuan'
+  },
+  {
+    id: 'barang_keluar',
+    judul: 'Barang keluar untuk kebutuhan internal gerai',
+    kunci: ['barang keluar', 'kebutuhan internal', 'pemakaian internal', 'dipakai sendiri', 'pemakaian sendiri', 'konsumsi karyawan', 'dipakai gerai', 'keperluan gerai', 'arus barang', 'sampel', 'tester'],
+    isi: [
+      'Di aplikasi Kasir tekan "📦 Arus Barang": pilih barang, Arah arus "Barang Keluar", isi Qty, dan Catatan untuk apa (mis. "dipakai bersih-bersih", "makan karyawan") → AJUKAN ARUS BARANG.',
+      'Kasir tidak langsung mengubah stok: setelah Admin/Owner ACC di Transaksi → Persetujuan, stok dan pembukuannya berubah bersamaan (nilainya dari modal/HPP).',
+      'Barang yang dipakai rutin lewat resep (gula untuk es teh) tidak perlu dicatat begini — sudah berkurang otomatis saat menunya terjual.'
+    ].join('\n'),
+    tawaran: [buka('approvals'), buka('stock')],
+    tanpaAksi: 'barang keluar diajukan kasir lewat Arus Barang dan di-ACC Admin di layar Persetujuan'
+  },
+  {
+    id: 'penyesuaian_stok',
+    judul: 'Penyesuaian stok (hasil hitung fisik)',
+    kunci: ['penyesuaian stok', 'menyesuaikan stok', 'koreksi stok', 'stok opname', 'opname', 'hitung fisik', 'stok fisik', 'stok tidak sesuai', 'stok salah', 'betulkan stok', 'adjust stok'],
+    isi: [
+      'Di aplikasi Kasir tekan "🧮 Penyesuaian Stok": pilih barang (stok sistemnya terlihat), isi "Target stok fisik" = hasil hitung, dan Alasan (mis. "hasil hitung fisik") → AJUKAN PENYESUAIAN.',
+      'Admin/Owner meng-ACC di Transaksi → Persetujuan. Saat ACC stoknya dicek ulang — kalau sudah berubah karena transaksi lain, pengajuan ditolak dan perlu diajukan ulang.',
+      'Sebelum menyesuaikan, cek dulu mutasinya (Barang → Stok → Lihat Mutasi): sering kali penyebabnya pembelian yang belum dicatat atau resep yang takarannya salah.'
+    ].join('\n'),
+    tawaran: [buka('stock'), buka('approvals')],
+    tanpaAksi: 'penyesuaian stok diajukan kasir (hitung fisik di gerai) dan di-ACC Admin di layar Persetujuan'
+  },
+  {
+    id: 'riwayat_stok',
+    judul: 'Melihat riwayat keluar-masuk barang',
+    kunci: ['riwayat stok', 'keluar masuk', 'keluar masuk barang', 'mutasi stok', 'mutasi barang', 'histori stok', 'riwayat barang', 'kartu stok', 'pergerakan stok'],
+    isi: [
+      'Buka Barang → Stok, cari barangnya, lalu tekan "📦 Lihat Mutasi".',
+      'Tiap baris = satu gerakan: ＋ masuk / − keluar, jumlahnya, dari mana (Penjualan, Pembelian, Arus Barang, Produksi, Penyesuaian stok), tanggal-jam, dan catatannya.',
+      '"📈 Histori HPP" di sebelahnya menunjukkan perubahan modal rata-rata barang itu dari waktu ke waktu.'
+    ].join('\n'),
+    tawaran: [buka('stock'), { jenis: 'kirim', label: 'Stok tinggal berapa?', teks: 'stok barang yang tinggal sedikit apa aja?' }],
+    tanpaAksi: 'riwayat mutasi dibaca di layar Stok; angka stok sekarang bisa ditanyakan langsung ("stok gula tinggal berapa?")'
   },
 
   // --- karyawan, presensi, gaji, setoran CS ---------------------------------------
@@ -351,7 +502,7 @@ export const KAMUS = Object.freeze([
   {
     id: 'jadwal_beda',
     judul: 'Jam masuk CS tiap hari berbeda',
-    kunci: ['jam masuk', 'jam masuknya', 'tiap hari beda', 'tidak sama', 'beda beda', 'berbeda', 'ganti shift', 'jadwal berubah'],
+    kunci: ['jam masuk', 'jam masuknya', 'jam masuk berbeda', 'jam kerja beda', 'tiap hari beda', 'jadwal beda', 'ganti shift', 'jadwal berubah'],
     isi: [
       'Bisa. Jadwal di Akun Kasir diisi PER HARI, jadi tiap hari boleh beda jam masuk–pulangnya, dan hari libur dicentang "Libur".',
       'Ubah lewat Tim → Akun Kasir → Edit pada akun CS itu → bagian "Jam & hari kerja" → Simpan kasir.',

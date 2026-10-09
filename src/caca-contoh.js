@@ -85,6 +85,9 @@ export const CONTOH = Object.freeze([
   { pesan: 'jadwal rika sabtu libur ya', langkah: ['atur_jadwal_kasir (jk_orang "rika", kr_jadwal "sabtu libur"), lanjut=false'] },
   { pesan: 'potong gaji rika 20rb kemarin karena telat', langkah: ['penyesuaian_gaji (pg_orang "rika", pg_jenis "potong", pg_nominal "20rb", pg_alasan "telat"), lanjut=false'] },
   { pesan: 'kasih bonus lembur budi 30rb', langkah: ['penyesuaian_gaji (pg_orang "budi", pg_jenis "tambah", pg_nominal "30rb", pg_alasan "lembur"), lanjut=false (tanggal bawaan hari ini)'] },
+  // --- master kecil: supplier & kategori ---
+  { pesan: 'tambah supplier Toko Makmur hp 08123456789', langkah: ['buat_supplier (sp_nama "Toko Makmur", sp_hp "08123456789"), lanjut=false'] },
+  { pesan: 'bikin kategori minuman dingin', langkah: ['buat_kategori (kat_nama "minuman dingin"), lanjut=false'] },
   // --- data / laporan ---
   { pesan: 'untung hari ini berapa', langkah: ['laba_periode periode "hari_ini", lanjut=false'] },
   { pesan: 'kemarin vs hari ini lebih untung mana?', langkah: ['laba_periode "kemarin", lanjut=true', 'laba_periode "hari_ini", lanjut=true', 'selesai: bandingkan, semua angka dari catatan'] },

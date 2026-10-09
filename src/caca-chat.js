@@ -165,7 +165,9 @@ export const PINTU_AKSI = Object.freeze([
   // tercakup PINTU_BACA (path persis). Cocok PERSIS, bukan seluruh sub-path.
   '^/api/admin/employees/[A-Za-z0-9_.-]+/links$',
   '^/api/admin/cashiers/[A-Za-z0-9_.-]+$',
-  '^/api/admin/cashiers/[A-Za-z0-9_.-]+/payroll$'
+  '^/api/admin/cashiers/[A-Za-z0-9_.-]+/payroll$',
+  // Alat master (src/caca-aksi-master.js): kategori baru. Supplier sudah lewat PINTU_BACA.
+  '/api/admin/categories$'
 ]);
 
 function pintuDiizinkan(pathname, pintu) {

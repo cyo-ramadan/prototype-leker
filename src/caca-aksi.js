@@ -31,6 +31,7 @@ import { AKSI_HPP_BANYAK } from './caca-aksi-hpp-banyak.js';
 import { AKSI_RENTANG } from './caca-aksi-rentang.js';
 import { ALAT_JELASKAN } from './caca-jelaskan.js';
 import { AKSI_KARYAWAN } from './caca-aksi-karyawan.js';
+import { AKSI_MASTER } from './caca-aksi-master.js';
 
 export { normalkan, cocokkanSatu };
 
@@ -382,7 +383,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ...AKSI_KARYAWAN, ALAT_JELASKAN]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ...AKSI_KARYAWAN, ...AKSI_MASTER, ALAT_JELASKAN]);
 
 export function cariAksi(nama) {
   return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;

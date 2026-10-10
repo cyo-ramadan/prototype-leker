@@ -307,6 +307,8 @@ async function tanya(request, env, jalurUtama) {
     tertunda: hasil.tertunda ?? null,
     revisi: Boolean(hasil.revisi),
     ngambek: hasil.ngambek ?? null,
+    // Diagnosis saja (tidak ditampilkan): panduan dipoles Gemini atau tidak, dan kalau tidak, kenapa.
+    poles: hasil.alat === 'jelaskan' ? { dipoles: Boolean(hasil.dipoles), catatan: hasil.polesCatatan ?? null } : null,
     store: lingkup.store ? { code: lingkup.store.code, storeName: lingkup.store.storeName } : null
   });
 }

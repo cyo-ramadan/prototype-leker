@@ -122,20 +122,20 @@ export async function polesPanduan({ pertanyaan, panduan, konteks = {}, env, pan
       }],
       schema: SKEMA_POLES
     });
-  } catch {
-    return asli;
+  } catch (galat) {
+    return { ...asli, catatan: `model melempar: ${String(galat?.message ?? galat).slice(0, 80)}` };
   }
-  if (!balasan?.ok) return asli;
+  if (!balasan?.ok) return { ...asli, catatan: `model gagal: ${String(balasan?.error ?? 'tanpa balasan').slice(0, 80)}` };
 
   const pilihan = String(balasan.value?.cocok ?? '').trim().toLowerCase();
   if (/^tidak/.test(pilihan) || /^(none|nol|0)$/.test(pilihan)) return { tidakCocok: true };
   const nomor = Number.parseInt(pilihan.replace(/\D/g, ''), 10);
   const terpilih = kandidat.find((k) => k.nomor === nomor);
-  if (!terpilih) return asli;
+  if (!terpilih) return { ...asli, catatan: `pilihan model tidak dikenal: ${pilihan.slice(0, 20)}` };
 
   // Pilihan model berbeda dari tebakan kode: ambil panduan lengkapnya (tawaran, aksi) dari kamus.
   const dasar = terpilih.id === panduan.topik ? panduan : jelaskan(terpilih.id, { halaman });
-  if (!dasar?.dikenal) return asli;
+  if (!dasar?.dikenal) return { ...asli, catatan: 'panduan pilihan model tidak ditemukan' };
 
   const periksa = periksaPoles(dasar.jawaban, balasan.value?.jawaban);
   if (!periksa.aman) return { tidakCocok: false, panduan: dasar, dipoles: false, catatan: periksa.alasan };

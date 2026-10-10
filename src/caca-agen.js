@@ -409,7 +409,7 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
       const poles = await polesPanduan({ pertanyaan, panduan, konteks, env, panggilModel });
       if (!poles.tidakCocok) {
         const p = poles.panduan;
-        return { ok: true, alat: 'jelaskan', jawaban: p.jawaban, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles };
+        return { ok: true, alat: 'jelaskan', jawaban: p.jawaban, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles, polesCatatan: poles.catatan ?? null };
       }
     }
     return {
@@ -848,7 +848,7 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
       const poles = await polesPanduan({ pertanyaan, panduan, konteks, env, panggilModel });
       if (!poles.tidakCocok) {
         const p = poles.panduan;
-        return { ok: true, alat: 'jelaskan', jawaban: p.jawaban, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles };
+        return { ok: true, alat: 'jelaskan', jawaban: p.jawaban, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles, polesCatatan: poles.catatan ?? null };
       }
       // Gemini sudah menolak panduan ini: jalur cadangan "tidak ada alat" tidak boleh memunculkannya lagi.
       opsi = { ...opsi, panduanDitolak: true };

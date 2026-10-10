@@ -42,6 +42,7 @@ ulang. Jangan percaya status lama begitu ada perubahan kode.
 | Business Settings | **IN_PROGRESS** | Registry tenant mulai tersedia, tetapi compatibility switch existing belum seluruhnya dipindah | `src/business-settings.js`, `src/product-kinds.js`, `src/platform-module-registry.js` |
 | Accounting | **IN_PROGRESS** | Dispatch/capability masih punya compatibility path `stores.edition`; belum dimigrasikan penuh ke tenant module entitlement | `src/accounting-*.js` |
 | Tenancy / Entity foundation | **IN_PROGRESS** | ADR-030 foundation + Store→Entity/Tenant resolution aktif; registry module tenant ditambahkan secara additive pada 0080 | `src/stores.js`, `migrations/0039_tenancy_and_consolidation_foundation.sql`, `migrations/0080_game_module_foundation.sql` |
+| Percetakan | **IN_PROGRESS** | ADR-055, tenant `TEN-CETAK` / gerai `CETAK01`, entitlement `PERCETAKAN` (VERTICAL). Tahap 1 di branch `eskor/tenant-percetakan`: webhook WA Cloud API + simulator, draft Una, order + antrian per mesin, riwayat rantai hash. Backlog di `HANDOFF-PERCETAKAN.md` | `src/percetakan*.js`, `public/percetakan.*`, `migrations/0145_percetakan_tenant_foundation.sql` |
 | Game | **IN_PROGRESS** | ADR-042 + `MAXI_GAME_MODULE_V1`; schema `game_*` provider-neutral dan entitlement `GAME` per Tenant. Legacy Roda Puter belum dimigrasikan dan route Game belum dihubungkan ke router production | `src/game.js`, `src/platform-module-registry.js`, `migrations/0080_game_module_foundation.sql` |
 
 ## Game — batas foundation saat ini

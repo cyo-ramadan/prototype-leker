@@ -36,6 +36,7 @@ import { handleStaffAnnouncementApi } from './staff-announcement.js';
 import { handleStaffDailyTaskApi } from './staff-daily-task.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleCacaApi } from './caca-chat.js';
+import { handlePercetakanApi } from './percetakan-api.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
@@ -224,7 +225,12 @@ async function handleIkanApi(request, env, pathname) {
 // tapi setiap permintaan TULIS ke route kasir ditolak 403 CASHIER_READ_ONLY_MODE. Pembungkus tunggal
 // di sini menutup semua route tulis kasir sekaligus (juga yang ditambah kelak) tanpa menyentuh
 // handler-nya; biaya untuk kasir sungguhan nol (hanya cek status respons).
-async function handleApi(request, env, url) {
+async function handleApi(request, env, url, ctx) {
+  // Modul Percetakan (ADR-055) dipisah di depan: webhook WA-nya tanpa login, dan unduhan file
+  // dari WA boleh berjalan sesudah respons (ctx.waitUntil).
+  if (url.pathname.startsWith('/api/percetakan/')) {
+    return handlePercetakanApi(request, env, url.pathname, { waitUntil: ctx?.waitUntil?.bind(ctx) });
+  }
   const response = await handleApiRouted(request, env, url);
   return rejectManagementWriteInCashierMode(request, env, url.pathname, response);
 }
@@ -488,10 +494,12 @@ export function assetRoute(pathname) {
   if (direct[pathname]) return direct[pathname];
   // 'warung' = Mode Warung (skin D, public/warung.html) -- DESAIN-SKIN-D-WARUNG.md.
   // 'racik' = layar Racik Parfum (skin F, public/racik.html) -- DESAIN-SKIN-F-RACIK-PARFUM.md.
-  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung|racik))?\/?$/);
+  // 'cetak' = layar Percetakan (public/percetakan.html) -- ADR-055, HANDOFF-PERCETAKAN.md.
+  const scoped = pathname.match(/^\/s\/([^/]+)(?:\/(customer|cashier|admin|warung|racik|cetak))?\/?$/);
   if (scoped) {
     const page = scoped[2] || 'customer';
     if (page === 'admin') return '/branch-admin';
+    if (page === 'cetak') return '/percetakan';
     return `/${page}`;
   }
   return pathname;
@@ -533,10 +541,10 @@ export function marketingAssetPath(hostname, pathname) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     try {
-      if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
+      if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url, ctx);
       if (url.pathname === '/') {
         const marketing = marketingAssetPath(url.hostname, url.pathname);
         if (!marketing) return await env.ASSETS.fetch(request);

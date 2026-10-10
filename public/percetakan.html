@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#1F4D3A" />
+  <title>Percetakan</title>
+  <link rel="stylesheet" href="/percetakan.css?v=20261010-percetakan-v1" />
+</head>
+<body>
+  <!-- Layar Percetakan -- ADR-055, HANDOFF-PERCETAKAN.md.
+       Chat WA masuk -> Draft (Una/manual) -> Konfirmasi -> Order + mesin + nomor antrian -> status.
+       Semua angka harga dari server (master produk); layar ini tidak pernah menghitung harga. -->
+  <header class="cetak-header">
+    <div>
+      <h1 id="judul">Percetakan</h1>
+      <p id="subjudul" class="muted">Memuat…</p>
+    </div>
+    <button class="secondary-btn" id="muat-ulang" type="button">Muat ulang</button>
+  </header>
+
+  <nav class="cetak-tabs" id="tabs">
+    <button class="admin-tab active" data-tab="masuk" type="button">Chat masuk</button>
+    <button class="admin-tab" data-tab="draft" type="button">Draft</button>
+    <button class="admin-tab" data-tab="antrian" type="button">Antrian</button>
+    <button class="admin-tab" data-tab="order" type="button">Order</button>
+    <button class="admin-tab" data-tab="atur" type="button" hidden>Pengaturan</button>
+  </nav>
+
+  <main>
+    <p id="pesan" class="notice" hidden></p>
+    <section id="tab-masuk" class="tab-panel"></section>
+    <section id="tab-draft" class="tab-panel" hidden></section>
+    <section id="tab-antrian" class="tab-panel" hidden></section>
+    <section id="tab-order" class="tab-panel" hidden></section>
+    <section id="tab-atur" class="tab-panel" hidden></section>
+  </main>
+
+  <dialog id="dialog-order"><div id="dialog-isi"></div></dialog>
+
+  <script src="/percetakan.js?v=20261010-percetakan-v1"></script>
+</body>
+</html>

@@ -38,7 +38,7 @@ const SISTEM = [
   '   sapa/tanggapi pertanyaan Bos secara singkat, jelaskan dengan kalimatmu sendiri, boleh dirapikan jadi langkah bernomor.',
   'ATURAN KERAS:',
   '- Pakai HANYA fakta dari panduan terpilih. Jangan menambah langkah, tombol, menu, angka, atau janji yang tidak ada di sana.',
-  '- Nama menu dan jalur menu (mis. "Barang → Daftar Barang"), nama tombol dalam tanda kutip, dan semua angka ditulis PERSIS seperti di panduan.',
+  '- Nama menu dan jalur menu (mis. "Barang → Daftar Barang"), semua nama tombol berhuruf kapital dalam tanda kutip (mis. "Bayar dari Deposit", "Simpan supplier"), dan semua angka ditulis PERSIS seperti di panduan. Contoh isian berhuruf kecil boleh kamu sesuaikan.',
   '- Kalau pertanyaan Bos lebih sempit dari panduan, jawab bagian yang relevan dulu, jangan buang langkah penting.',
   '- Jangan menyebut kata "panduan" atau "kamus". Jangan menutup dengan tawaran mengerjakan — itu ditambahkan sistem.',
   '- Panjang kira-kira sama dengan panduan atau lebih pendek. Bahasa Indonesia sehari-hari, panggil Bos.',
@@ -47,9 +47,15 @@ const SISTEM = [
 
 const rapikan = (t) => String(t ?? '').toLowerCase().replace(/\s+/g, ' ').replace(/\s*→\s*/g, '→').trim();
 
-/** Nama tombol/istilah dalam tanda kutip di panduan. */
+/**
+ * Nama tombol/menu dalam tanda kutip di panduan — yang diawali huruf kapital atau emoji
+ * ("Tambah supplier", "🧺 Beli Bahan"). Contoh isian berhuruf kecil ("hasil hitung fisik",
+ * "nota 10, datang 8") sengaja tidak dikunci: model boleh menyesuaikannya dengan pertanyaan.
+ */
 function kutipan(sumber) {
-  return [...String(sumber).matchAll(/["“]([^"”\n]{2,60})["”]/g)].map((m) => m[1].trim()).filter(Boolean);
+  return [...String(sumber).matchAll(/["“]([^"”\n]{2,60})["”]/g)]
+    .map((m) => m[1].trim())
+    .filter((k) => k && /^(\p{Lu}|\p{Extended_Pictographic})/u.test(k));
 }
 
 /** Pasangan jalur menu "Tim → Akun Kasir": kata terakhir di kiri panah + deretan kapital di kanan. */

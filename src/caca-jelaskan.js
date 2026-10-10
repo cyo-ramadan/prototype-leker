@@ -716,6 +716,6 @@ export const ALAT_JELASKAN = Object.freeze({
       const dariPesan = jelaskan(ctx.pesan, { halaman });
       if (dariPesan.dikenal) hasil = dariPesan;
     }
-    return { ok: true, jawaban: hasil.jawaban, tawaran: hasil.tawaran, kerjakan: hasil.kerjakan ?? null };
+    return { ok: true, jawaban: hasil.jawaban, tawaran: hasil.tawaran, kerjakan: hasil.kerjakan ?? null, panduan: hasil };
   }
 });

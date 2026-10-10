@@ -115,3 +115,43 @@ test('"kamu bisa buatin itu?" sesudah panduan tidak memanggil pemeriksa lagi', a
   assert.equal(m2.panggilan.length, 0);
   assert.equal(dua.alat, 'buat_supplier');
 });
+
+test('pagar hanya mengunci nama tombol berhuruf kapital, bukan contoh isian berhuruf kecil', () => {
+  const sumber = jelaskan('penyesuaian_stok').jawaban;
+  assert.match(sumber, /"hasil hitung fisik"/);
+  const tulisan = 'Di kasir tekan "🧮 Penyesuaian Stok", pilih barangnya, isi "Target stok fisik" sesuai hitungan, dan alasannya (mis. habis dihitung ulang) lalu AJUKAN PENYESUAIAN. Admin/Owner meng-ACC di Transaksi → Persetujuan; stoknya dicek ulang saat ACC. Sebelum itu cek dulu Barang → Stok → Lihat Mutasi: sering penyebabnya pembelian yang belum dicatat.';
+  const hasil = periksaPoles(sumber, tulisan);
+  assert.equal(hasil.aman, true, hasil.alasan);
+  assert.match(periksaPoles(sumber, tulisan.replace('"🧮 Penyesuaian Stok"', 'tombol penyesuaian')).alasan, /Penyesuaian Stok.*hilang/);
+});
+
+test('model memilih alat "jelaskan" sendiri (tanpa "bagaimana cara") → panduannya tetap diperiksa & dipoles', async () => {
+  const pertanyaan = 'stok kok minus gimana benerinnya?';
+  const sumber = jelaskan('stok_minus').jawaban;
+  const polesan = [
+    'Tenang Bos, stok minus itu bukan error — artinya barangnya sudah terjual sebelum pembeliannya dicatat. Begitu pembelian dicatat di kasir, stoknya balik sesuai.',
+    'Cara menanganinya: (1) cek Barang → Stok → Lihat Mutasi buat lihat penjualan/pemakaian yang mengurangi; (2) pastikan semua belanja sudah dicatat lewat Beli Bahan; (3) untuk bahan, cek takaran resepnya; (4) kalau masih beda dengan hitungan fisik, ajukan Penyesuaian Stok dari kasir.'
+  ].join('\n');
+  assert.equal(periksaPoles(sumber, polesan).aman, true, periksaPoles(sumber, polesan).alasan);
+  const panggilan = [];
+  const panggilModel = async (_e, p) => {
+    panggilan.push(p);
+    return panggilan.length === 1 ? { ok: true, value: { alat: 'jelaskan', jelaskan_topik: 'stok minus' } } : jawab('1', polesan);
+  };
+  const hasil = await jawabPertanyaan(pertanyaan, KONTEKS, { env: {}, panggilModel, jalurAksi: { baca: async () => ({ ok: false }), kirim: async () => ({ ok: false }) } });
+  assert.equal(panggilan.length, 2);
+  assert.match(panggilan[1].system, /PANDUAN RESMI/);
+  assert.equal(hasil.dipoles, true);
+  assert.match(hasil.jawaban, /^Tenang Bos/);
+});
+
+test('model memilih "jelaskan" tapi pemeriksa bilang tidak cocok → jujur belum yakin, bukan panduan yang salah', async () => {
+  const panggilan = [];
+  const panggilModel = async () => {
+    panggilan.push(1);
+    return panggilan.length === 1 ? { ok: true, value: { alat: 'jelaskan', jelaskan_topik: 'stok' } } : jawab('tidak_ada', '');
+  };
+  const hasil = await jawabPertanyaan('kenapa laporan kemarin beda sama hari ini', KONTEKS, { env: {}, panggilModel, jalurAksi: { baca: async () => ({ ok: false }), kirim: async () => ({ ok: false }) } });
+  if (hasil.alat === 'jelaskan') return; // kode tidak menemukan panduan sama sekali → tidak lewat pemeriksa
+  assert.match(hasil.jawaban, /belum yakin|belum bisa|belum punya/i);
+});

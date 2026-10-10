@@ -175,7 +175,7 @@ test('agen: daftar barang → draft massal dengan tangkapan, tidak ada yang terk
   assert.equal(jalur.terkirim.length, 0);
 });
 
-test('agen: "HPP itu apa" dijawab kamus, model dipanggil sekali saja', async () => {
+test('agen: "HPP itu apa" dijawab kamus; model dipanggil dua kali (pilih alat + pemeriksaan panduan kecil)', async () => {
   let panggilan = 0;
   const hasil = await jawabPertanyaan('hpp itu apa sih?', {
     nama: 'Bos', peran: 'Entity Admin', lingkup: 'gerai', namaLingkup: 'Gerai Contoh', storeCode: 'LAB01', storeName: 'Gerai Contoh', hariIni: '2026-10-02'
@@ -183,7 +183,7 @@ test('agen: "HPP itu apa" dijawab kamus, model dipanggil sekali saja', async () 
     jalurAksi: jalurPalsu(),
     panggilModel: async () => { panggilan += 1; return { ok: true, value: { alat: 'jelaskan', jelaskan_topik: 'hpp' } }; }
   });
-  assert.equal(panggilan, 1);
+  assert.equal(panggilan, 2);
   assert.match(hasil.jawaban, /HPP = modal/);
   assert.ok(hasil.tawaran.length > 0);
 });

@@ -31,17 +31,23 @@ FROM (
   SELECT 'pprd_cetak01_flx280' AS id, 'FLX280' AS code, 'Banner Flexi 280gr' AS name, 'M2' AS unit,
          22000000000 AS price, 'OUTDOOR' AS machine, 'banner, spanduk, baliho, flexi, mmt' AS keywords
   UNION ALL SELECT 'pprd_cetak01_flx440', 'FLX440', 'Banner Flexi Korcin 440gr', 'M2',
-         28000000000, 'OUTDOOR', 'korcin, flexi tebal, banner premium, backdrop'
+         28000000000, 'OUTDOOR', 'banner korcin, flexi korcin, korcin, flexi 440, flexi tebal, banner premium, backdrop'
   UNION ALL SELECT 'pprd_cetak01_a3ap', 'A3AP', 'Print A3+ Art Paper', 'LEMBAR',
          6000000000, 'A3PLUS', 'poster, brosur, flyer, pamflet, a3'
   UNION ALL SELECT 'pprd_cetak01_a3stk', 'A3STK', 'Stiker Vinyl A3+ (kiss cut)', 'LEMBAR',
-         10000000000, 'A3PLUS', 'stiker, sticker, label, cutting'
+         10000000000, 'A3PLUS', 'stiker, sticker, label, cutting, vinyl, kiss cut'
   UNION ALL SELECT 'pprd_cetak01_krtnm', 'KRTNM', 'Kartu Nama 2 Sisi (1 box)', 'PCS',
-         35000000000, 'A3PLUS', 'kartu nama, name card, box'
+         35000000000, 'A3PLUS', 'kartu nama, name card, namecard'
   UNION ALL SELECT 'pprd_cetak01_a4bw', 'A4BW', 'Print Dokumen A4 Hitam Putih', 'LEMBAR',
          500000000, 'DOKUMEN', 'print, dokumen, skripsi, makalah, hitam putih'
   UNION ALL SELECT 'pprd_cetak01_a4clr', 'A4CLR', 'Print Dokumen A4 Warna', 'LEMBAR',
-         1500000000, 'DOKUMEN', 'print warna, dokumen warna'
+         1500000000, 'DOKUMEN', 'print warna, dokumen warna, warna'
 ) v
 JOIN print_machines m ON m.store_id = 'store_cetak01' AND m.code = v.machine
 WHERE NOT EXISTS (SELECT 1 FROM print_products p WHERE p.store_id = 'store_cetak01' AND p.code = v.code);
+
+-- Bos Cyo, 2026-10-10: "yang paling penting ini otomatisasi task nya". Gerai contoh langsung
+-- di mode OTOMATIS: chat yang terbaca lengkap jadi order + antrian tanpa ditekan karyawan.
+INSERT INTO print_settings (store_id, mode, updated_by_role, updated_by_id)
+SELECT 'store_cetak01', 'OTOMATIS', 'SYSTEM', 'migration-0146'
+WHERE NOT EXISTS (SELECT 1 FROM print_settings WHERE store_id = 'store_cetak01');

@@ -108,7 +108,7 @@ menyentuh Accounting, Inventory/Costing, atau approval flow.
 | **Mau menulis/menilai apa pun yang dibaca calon pembeli (landing page, konten, pesan WA, iklan, harga) atau membahas strategi jual** | Pakai skill `strategi-penjualan-ownertenang` (`.claude/skills/`) — aturan janji berdasar status di `HANDOFF-STRATEGI-PENJUALAN.md` §8, posisi, segmen F&B, template konten & jawaban keberatan |
 | Onboarding lengkap agen implementer (Karen/Kimi/dst), termasuk kapan D1 langsung vs GitHub-only | `agent-bus/CLAIM-PROMPT.md` |
 | **Mau membuat Una (asisten chat AI) lebih pintar, membetulkan jawabannya, atau menambah alatnya** | Skill `latih-una` + `UNA-MESIN-DAN-LATIHAN.md` — model & level mikir dikunci termurah; yang diperbaiki kerangkanya; uji live `scripts/uji-una.mjs` di gerai TESTINGUNA |
-| **Modul Percetakan** (tenant `CETAK01`: order WA → draft Una → antrian per mesin, riwayat anti-palsu) | `HANDOFF-PERCETAKAN.md` + `adr/ADR-055` |
+| **Modul Percetakan** (tenant `CETAK01`: order WA → otomatis jadi task antrian per mesin / agen cetak, riwayat anti-palsu) | `HANDOFF-PERCETAKAN.md` + `adr/ADR-055` |
 | Mesin Agen: agen OpenCode dengan model non-Anthropic + router yang turun ke model cadangan saat limit | `mesin-agen/README.md` |
 | Agen lain nemu masalah di rancangan Hana, atau papan tugas D1 tidak terjangkau | GitHub Issues di repo ini — cek yang belum dibalas Hana sebelum mulai kerja |
 

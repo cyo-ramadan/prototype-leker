@@ -16,26 +16,36 @@ Ditulis: 2026-10-10 oleh Eskor. Diperbarui: 2026-10-10.
 | Mesin cetak + produk & harga per gerai | selesai, + data contoh 3 mesin / 7 produk (migration 0146, harga referensi marketplace, ganti dengan harga asli) | `src/percetakan-api.js` |
 | Webhook WhatsApp Cloud API (verifikasi + tanda tangan + simpan pesan + unduh file ke R2) | selesai, **belum dicoba dengan Meta sungguhan** | `src/percetakan-wa.js` |
 | Simulator WA (uji alur tanpa WA) | selesai | `src/percetakan-wa.js` `simulasiPesan` |
-| Una membaca chat → draft order | selesai, **akurasi belum diukur dengan chat asli** | `src/percetakan-una.js` |
+| **Pembaca aturan (tanpa AI)**: chat → produk, ukuran, jumlah, file | selesai, 26/26 contoh chat buatan Eskor; **belum diuji dengan chat asli** | `src/percetakan-tebak.js`, `una-latih/percetakan-chat-contoh.json` |
+| **Otomatisasi**: chat lengkap langsung jadi order + task antrian (mode MANUAL / OTOMATIS / LANGSUNG_CETAK per gerai; CETAK01 = OTOMATIS) | selesai | `src/percetakan-otomatis.js` |
+| **Agen cetak** di PC mesin: hot folder RIP / SumatraPDF, kunci per mesin | selesai, **belum dicoba di mesin sungguhan** | `src/percetakan-mesin.js`, `percetakan-agen/` |
+| Una membaca chat → draft order (tombol, untuk chat yang ragu) | selesai, **akurasi belum diukur dengan chat asli** | `src/percetakan-una.js` |
 | Draft → order + mesin + nomor antrian per mesin per hari | selesai | `src/percetakan.js` `buatOrder` |
 | Status order + rantai hash + verifikasi | selesai | `src/percetakan.js` `ubahStatus`, `verifikasiRiwayat` |
 | Layar operator `/s/CETAK01/cetak` | selesai (versi pertama) | `public/percetakan.{html,js,css}` |
-| Tes | 10 tes | `test/percetakan.test.js` |
-| Balas WA ke pelanggan, pembayaran, foto hasil, counter mesin, laporan owner | **belum** | lihat §5 |
+| Tes | 13 tes | `test/percetakan.test.js` |
+| Pembayaran, foto hasil, counter mesin, laporan owner | **belum** | lihat §5 |
+| Balas WA otomatis ke pelanggan | **sengaja ditunda**: Bos Cyo 2026-10-10, "chat customer itu nanti pake orang gpp" | T1 |
 
 ## 2. Alur
 
 ```
-Pelanggan chat + kirim file ke nomor WA gerai
+Pelanggan chat + kirim file ke nomor WA gerai (CS manusia tetap yang membalas chatnya)
   → Meta memanggil POST /api/percetakan/wa/webhook (tanda tangan dicek)
   → wa_inbound_messages (append-only) + print_files (unduh ke R2, sidik SHA-256)
-Karyawan buka /s/CETAK01/cetak → tab "Chat masuk"
+  → prosesOtomatis: pembaca aturan membaca SEMUA pesan nomor itu yang belum diproses
+       lengkap (produk dikenal, ukuran ada, file pas, tanpa koreksi) dan mode bukan MANUAL
+         → draft ATURAN + order otomatis (aktor SYSTEM); mode LANGSUNG_CETAK: langsung SIAP_CETAK
+       belum lengkap → tunggu pesan berikutnya; tetap tampil di "Chat masuk"
+Untuk chat yang belum lengkap: karyawan buka /s/CETAK01/cetak → tab "Chat masuk"
   → "Baca dengan Una" (AI) atau "Isi manual" → print_order_drafts (MENUNGGU)
   → periksa rincian → "Konfirmasi jadi order"
   → print_orders + print_order_items (harga dari master, dibekukan)
     + print_queue_tickets (nomor antrian per mesin per tanggal)
     + print_order_events #1 DIBUAT (rantai hash)
-Tab "Antrian": per mesin, urut nomor. Tiap ganti status = 1 event baru.
+Tab "Antrian": per mesin, urut nomor (?mesin=KODE = layar satu mesin). Tiap ganti status = 1 event baru.
+Agen cetak (PC mesin): ambil tiket SIAP_CETAK + file TERSIMPAN → hot folder / printer
+  → event DIKIRIM_KE_MESIN → semua tiket order terkirim → DICETAK (aktor MESIN)
 BARU → DESAIN → SIAP_CETAK → DICETAK → FINISHING → SIAP_AMBIL → DIAMBIL
 BATAL: hanya Owner/Admin, alasan wajib, hanya sebelum DICETAK.
 ```
@@ -64,6 +74,11 @@ Token PIN lama / token agen ditolak (riwayat wajib punya orang).
 | `POST /orders/:id/status` | semua (BATAL: Owner/Admin) | `{toStatus, note}` |
 | `GET /antrian` | semua | tiket aktif per mesin |
 | `GET /files/:id` · `POST /files/:id/ulang` | semua | unduh file / ambil ulang dari Meta |
+| `POST /settings` | Owner/Admin | `{mode: MANUAL / OTOMATIS / LANGSUNG_CETAK}` |
+| `POST /machines/:id/kunci` | Owner/Admin | buat kunci agen baru (teks kunci hanya di respons ini; kunci lama mati) |
+| `GET /antrian?machine=<id>` | semua | antrian satu mesin |
+| `GET /agen/tugas` | kunci mesin | tugas SIAP_CETAK mesin itu (maks 10, urut antrian) |
+| `GET /agen/tugas/:ticketId/file` · `POST /agen/tugas/:ticketId/terkirim` | kunci mesin | unduh file / lapor sudah di mesin |
 
 Semua path di atas berawalan `/api/percetakan`.
 
@@ -130,7 +145,13 @@ Cara paling murah, yang wajib diikuti T1:
 
 Tiap task berdiri sendiri. Pagar di §6 berlaku untuk semuanya.
 
-**T1 — Balas WA otomatis ke pelanggan.** Setelah order dikonfirmasi, kirim nomor order, rincian,
+**T0 — Uji otomatisasi dengan chat asli (PRIORITAS).** Kumpulkan 30–50 chat order asli dari
+percetakan Bos Cyo, tambahkan ke `una-latih/percetakan-chat-contoh.json` beserta jawaban benarnya,
+lalu perbaiki `src/percetakan-tebak.js` dan kata kunci produk sampai tes hijau. Ukuran sukses:
+**nol chat ragu yang jadi order otomatis** (salah cetak lebih mahal daripada chat yang masuk draft).
+Rasio yang otomatis boleh naik pelan-pelan. Tiap salah baca yang ditemukan jadi satu contoh baru.
+
+**T1 — (DITUNDA atas arahan Bos Cyo; chat pelanggan dibalas orang) Balas WA otomatis ke pelanggan.** Setelah order dikonfirmasi, kirim nomor order, rincian,
 total, dan tenggat ke pelanggan. Saat status SIAP_AMBIL, kirim "pesanan siap diambil".
 - Kirim lewat `POST {GRAPH_API_BASE}/{phone_number_id}/messages`. Dalam 24 jam sejak chat terakhir
   pelanggan → pesan teks biasa (gratis sampai 1.000/bulan, lihat "Biaya WA"). Lewat 24 jam → wajib
@@ -175,6 +196,14 @@ CETAK01, daftarkan di `public/nav-groups.js`, ajarkan ke Una (`node scripts/buil
 **T10 — Ukur akurasi Una** dengan 20–30 chat order asli dari percetakan Bos Cyo (minta contohnya).
 Catat skor seperti `UNA-MESIN-DAN-LATIHAN.md` §10. Perbaiki kerangka (prompt, `keywords` produk,
 `saringUsulan`), bukan modelnya.
+
+**T12 — Una otomatis untuk chat yang ragu (opsional, berbayar per baca).** Kalau pembaca aturan
+bilang belum lengkap tapi ada file dan niat order, jalankan Una di belakang (`ctx.waitUntil`) dan
+simpan hasilnya sebagai draft AI, supaya CS tinggal menekan Konfirmasi. Una **tidak** boleh membuat
+order otomatis. Batasi per nomor per hari supaya biaya tidak bocor.
+
+**T13 — Push, bukan polling, untuk agen cetak.** Sekarang agen bertanya tiap 20 detik (satu query
+ber-index per mesin). Kalau mesinnya banyak, ganti dengan WebSocket Durable Object (pola ADR-048).
 
 **T11 — Skin "G · Percetakan"** di `DESAIN-SKIN-KATALOG.md` + baris di
 `HANDOFF-STRATEGI-PENJUALAN.md` §8. Dikerjakan **sesudah** fitur live, jangan sebelumnya.

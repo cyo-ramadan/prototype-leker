@@ -396,6 +396,40 @@ export async function ubahStatus(db, { storeId, orderId, toStatus, actor, note =
   return { ok: true, status: target };
 }
 
+/**
+ * Event tanpa perubahan status (mis. DIKIRIM_KE_MESIN), tetap masuk rantai hash. extraStatements
+ * ikut dalam batch yang sama supaya event dan perubahan datanya tidak pernah setengah jalan.
+ */
+export async function catatEvent(db, { storeId, orderId, eventType, actor, note = '' }, { now = new Date(), extraStatements = [] } = {}) {
+  const order = await db.prepare('SELECT status FROM print_orders WHERE id = ? AND store_id = ?').bind(orderId, storeId).first();
+  if (!order) return { ok: false, status: 404, error: 'Order tidak ditemukan di gerai ini.' };
+  const last = await db.prepare('SELECT seq, hash FROM print_order_events WHERE order_id = ? ORDER BY seq DESC LIMIT 1').bind(orderId).first();
+  const event = {
+    id: `pevt_${crypto.randomUUID()}`,
+    order_id: orderId,
+    store_id: storeId,
+    seq: Number(last?.seq || 0) + 1,
+    event_type: text(eventType, 40),
+    from_status: order.status,
+    to_status: order.status,
+    actor_role: actor.role,
+    actor_id: actor.id,
+    note: text(note, 500),
+    photo_key: null,
+    payload_json: '{}',
+    created_at: now.toISOString(),
+    prev_hash: last?.hash || GENESIS_HASH
+  };
+  event.hash = await eventHash(event);
+  try {
+    await db.batch([insertEventStatement(db, event), ...extraStatements]);
+  } catch (error) {
+    if (isUniqueConflict(error)) return { ok: false, status: 409, error: 'Order ini barusan diubah. Coba lagi.' };
+    throw error;
+  }
+  return { ok: true };
+}
+
 export async function detailOrder(db, storeId, orderId) {
   const order = await db.prepare('SELECT * FROM print_orders WHERE id = ? AND store_id = ?').bind(orderId, storeId).first();
   if (!order) return null;
@@ -425,6 +459,8 @@ export function mapOrder(order) {
     totalScaled: String(order.total_scaled),
     dueAt: order.due_at,
     note: order.note,
+    createdByRole: order.created_by_role,
+    automatic: order.created_by_role === 'SYSTEM',
     createdAt: order.created_at
   };
 }

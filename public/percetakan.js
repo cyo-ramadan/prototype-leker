@@ -12,6 +12,13 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const STATUS_LABEL = { BARU: 'Baru', DESAIN: 'Desain', SIAP_CETAK: 'Siap cetak', DICETAK: 'Dicetak', FINISHING: 'Finishing', SIAP_AMBIL: 'Siap diambil', DIAMBIL: 'Diambil', BATAL: 'Batal' };
   let setup = null;
+  // ?mesin=OUTDOOR -> layar khusus satu mesin (tablet di samping mesin).
+  let mesinDipilih = new URLSearchParams(location.search).get('mesin') || '';
+  const MODE_LABEL = {
+    MANUAL: 'Manual: semua chat jadi draft, karyawan yang mengonfirmasi',
+    OTOMATIS: 'Otomatis: chat yang jelas langsung jadi order + antrian',
+    LANGSUNG_CETAK: 'Langsung cetak: seperti Otomatis, file langsung dikirim ke mesin oleh agen cetak'
+  };
 
   async function api(path, { method = 'GET', body } = {}) {
     const url = new URL(path, location.origin);
@@ -102,11 +109,14 @@
         for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         fileBase64 = btoa(binary);
       }
-      await api('/api/percetakan/wa/simulasi', { method: 'POST', body: {
+      const hasil = await api('/api/percetakan/wa/simulasi', { method: 'POST', body: {
         from: $('sim-from').value, name: $('sim-name').value, text: $('sim-text').value,
         fileName: file?.name, mime: file?.type, fileBase64
       } });
       await renderMasuk();
+      const auto = hasil.otomatis || {};
+      if (auto.created) tampilPesan(`Order otomatis ${auto.created.orderNo} dibuat dan masuk antrian mesin.`);
+      else if (auto.reason === 'BELUM_LENGKAP') tampilPesan(`Belum jadi order otomatis: ${(auto.questions || []).join(' ')}`);
     }));
     $('tab-masuk').querySelectorAll('[data-baca],[data-manual]').forEach(button => button.addEventListener('click', () => jalankan(async () => {
       button.disabled = true;
@@ -185,8 +195,13 @@
 
   // --- Antrian & order ------------------------------------------------------------------------
   async function renderAntrian() {
-    const { machines } = await api('/api/percetakan/antrian');
-    $('tab-antrian').innerHTML = machines.length ? machines.map(machine => `
+    const pilih = setup.machines.find(m => m.code === mesinDipilih || m.id === mesinDipilih);
+    const { machines } = await api(`/api/percetakan/antrian${pilih ? `?machine=${encodeURIComponent(pilih.id)}` : ''}`);
+    const filter = `<select class="text-input" id="pilih-mesin">
+        <option value="">Semua mesin</option>
+        ${setup.machines.map(m => `<option value="${esc(m.code)}" ${pilih?.id === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
+      </select>`;
+    $('tab-antrian').innerHTML = filter + (machines.length ? machines.map(machine => `
       <h2>${esc(machine.machineName)}</h2>
       ${machine.tickets.map(t => `
         <div class="admin-card master-row">
@@ -194,6 +209,8 @@
           <div class="master-main">
             <strong>${esc(t.productName)}</strong> ${esc(t.qty)}×${esc(ukuran(t))}
             <span class="status-chip">${esc(STATUS_LABEL[t.status] || t.status)}</span>
+            ${t.automatic ? '<span class="status-chip warn">otomatis</span>' : ''}
+            ${t.dispatchedAt ? '<span class="status-chip">sudah di mesin</span>' : ''}
             <div class="muted">${esc(t.orderNo)} · ${esc(t.customerName || t.customerPhone)} · ${esc(t.businessDate)}${t.dueAt ? ` · tenggat ${esc(t.dueAt)}` : ''}</div>
             ${t.note ? `<div class="muted">${esc(t.note)}</div>` : ''}
           </div>
@@ -201,7 +218,8 @@
             ${t.fileId ? `<button class="mini-btn" data-file="${esc(t.fileId)}" type="button">File</button>` : ''}
             <button class="mini-btn" data-order="${esc(t.orderId)}" type="button">Buka</button>
           </div>
-        </div>`).join('')}`).join('') : '<p class="muted">Antrian kosong.</p>';
+        </div>`).join('')}`).join('') : '<p class="muted">Antrian kosong.</p>');
+    $('pilih-mesin').addEventListener('change', event => { mesinDipilih = event.target.value; renderTab('antrian'); });
     pasangTombolOrder($('tab-antrian'));
   }
 
@@ -226,6 +244,7 @@
           <div class="master-main">
             <strong>${esc(o.orderNo)}</strong> <span class="status-chip ${o.status === 'BATAL' ? 'bad' : ''}">${esc(STATUS_LABEL[o.status] || o.status)}</span>
             ${o.source === 'WALKIN' ? '<span class="status-chip warn">datang langsung</span>' : ''}
+            ${o.automatic ? '<span class="status-chip">otomatis dari WA</span>' : ''}
             <div class="muted">${esc(o.customerName || o.customerPhone)} · ${esc(o.totalText)} · ${esc(new Date(o.createdAt).toLocaleString('id-ID'))}</div>
           </div>
           <button class="mini-btn" data-order="${esc(o.id)}" type="button">Buka</button>
@@ -273,8 +292,24 @@
   async function renderAtur() {
     setup = await api('/api/percetakan/setup');
     $('tab-atur').innerHTML = `
+      <h2>Otomatisasi chat WA</h2>
+      <div class="admin-card">
+        <select class="text-input" id="mode-gerai">
+          ${setup.modes.map(m => `<option value="${m}" ${m === setup.mode ? 'selected' : ''}>${esc(MODE_LABEL[m] || m)}</option>`).join('')}
+        </select>
+        <p class="muted">Chat yang belum jelas (ukuran kosong, produk tidak dikenal, ada koreksi, file kurang) selalu masuk Draft untuk dicek orang.</p>
+      </div>
       <h2>Mesin cetak</h2>
-      ${setup.machines.map(m => `<div class="admin-card">${esc(m.name)} <span class="muted">${esc(m.code)}</span></div>`).join('') || '<p class="muted">Belum ada mesin.</p>'}
+      ${setup.machines.map(m => `<div class="admin-card master-row">
+        <div class="master-main">${esc(m.name)} <span class="muted">${esc(m.code)}</span>
+          ${m.hasAgentKey ? `<span class="status-chip">agen ${m.agentLastSeenAt ? `terlihat ${esc(new Date(m.agentLastSeenAt).toLocaleString('id-ID'))}` : 'belum pernah tersambung'}</span>` : ''}
+        </div>
+        <div class="actions">
+          <a class="mini-btn" href="?mesin=${encodeURIComponent(m.code)}${storeCode && !location.pathname.startsWith('/s/') ? `&store=${encodeURIComponent(storeCode)}` : ''}">Layar mesin</a>
+          <button class="mini-btn" data-kunci="${esc(m.id)}" type="button">${m.hasAgentKey ? 'Ganti kunci agen' : 'Buat kunci agen'}</button>
+        </div>
+        <div class="master-main" data-kunci-hasil="${esc(m.id)}"></div>
+      </div>`).join('') || '<p class="muted">Belum ada mesin.</p>'}
       <div class="admin-card grid">
         <input class="text-input" id="mesin-kode" placeholder="Kode, mis. OUTDOOR" />
         <input class="text-input" id="mesin-nama" placeholder="Nama, mis. Outdoor Banner" />
@@ -299,6 +334,17 @@
         <button class="primary-btn" id="wa-simpan" type="button">Sambungkan nomor</button>
       </div>
       <p class="muted">Cara mendapatkan Phone number ID: HANDOFF-PERCETAKAN.md bagian "Menyambungkan WhatsApp".</p>`;
+    $('mode-gerai').addEventListener('change', event => jalankan(async () => {
+      await api('/api/percetakan/settings', { method: 'POST', body: { mode: event.target.value } });
+      tampilPesan('Mode otomatisasi disimpan.');
+      await renderAtur();
+    }));
+    $('tab-atur').querySelectorAll('[data-kunci]').forEach(b => b.addEventListener('click', () => jalankan(async () => {
+      if (!confirm('Buat kunci agen baru? Kunci lama (kalau ada) langsung tidak berlaku.')) return;
+      const { key } = await api(`/api/percetakan/machines/${encodeURIComponent(b.dataset.kunci)}/kunci`, { method: 'POST' });
+      const box = $('tab-atur').querySelector(`[data-kunci-hasil="${b.dataset.kunci}"]`);
+      box.innerHTML = `<div class="notice">Salin sekarang, kunci ini hanya tampil sekali:<br><code>${esc(key)}</code><br>Cara pasang: percetakan-agen/README.md</div>`;
+    })));
     $('mesin-simpan').addEventListener('click', () => jalankan(async () => {
       await api('/api/percetakan/machines', { method: 'POST', body: { code: $('mesin-kode').value, name: $('mesin-nama').value } });
       await renderAtur();
@@ -342,6 +388,6 @@
     $('subjudul').textContent = `${setup.actor.name} · ${setup.isManagement ? 'Owner/Admin' : 'Karyawan'}`;
     document.querySelector('[data-tab="atur"]').hidden = !setup.isManagement;
     if (!setup.storageReady) tampilPesan('Penyimpanan file belum terpasang di server; file dari WA belum bisa disimpan.', true);
-    pindahTab(setup.isManagement && !setup.products.length ? 'atur' : 'masuk');
+    pindahTab(mesinDipilih ? 'antrian' : setup.isManagement && !setup.products.length ? 'atur' : 'masuk');
   });
 })();

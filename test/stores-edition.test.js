@@ -17,6 +17,9 @@ const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   '0086_dermo_leker_master_visuals.sql',
   '0089_dermo_leker_product_photos_canva_complete.sql',
   '0093_dermo_leker_drive_hires_photos.sql',
+  // Data contoh Percetakan butuh tabel print_* dari 0145, yang ikut dilewati di sini karena
+  // membuat gerai CETAK01 dengan edition='LITE'.
+  '0146_percetakan_contoh_mesin_produk.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)

@@ -10,9 +10,11 @@
 //                 punya saluran META_CLOUD aktif -- supaya simulator tidak bisa jadi jalan karyawan
 //                 "mengarang" pesan pelanggan.
 //
-// Webhook hanya MENCATAT pesan dan file. Tidak ada AI yang jalan di webhook: nomor asing bisa
-// mengirim apa saja, dan biaya AI baru keluar saat karyawan menekan "Baca dengan Una".
+// Webhook MENCATAT pesan dan file, lalu menjalankan otomatisasi berbasis aturan (gratis, tanpa AI;
+// src/percetakan-otomatis.js). AI tidak jalan di webhook: nomor asing bisa mengirim apa saja, dan
+// biaya AI baru keluar saat karyawan menekan "Baca dengan Una".
 import { normalizePhone, sha256Hex } from './percetakan.js';
+import { prosesOtomatis } from './percetakan-otomatis.js';
 
 export const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 // Batas ukuran file yang disimpan. Meta sendiri membatasi dokumen 100 MB.
@@ -187,14 +189,20 @@ export async function terimaWebhookMeta(request, env, { waitUntil } = {}) {
   try { payload = JSON.parse(raw); } catch { return new Response('ok', { status: 200 }); }
 
   const downloads = [];
+  const senders = new Map();
   for (const message of uraiWebhookMeta(payload)) {
     const channel = await channelByPhoneNumberId(env.DB, 'META_CLOUD', message.phoneNumberId);
     if (!channel) continue;
     const saved = await catatPesan(env.DB, channel, message, message);
-    if (saved.inserted && saved.fileId && message.mediaId) {
+    if (!saved.inserted) continue;
+    senders.set(`${channel.store_id}|${message.from}`, { storeId: channel.store_id, from: message.from });
+    if (saved.fileId && message.mediaId) {
       downloads.push(unduhMediaMeta(env, { storeId: channel.store_id, fileId: saved.fileId, mediaId: message.mediaId, fileName: message.fileName }));
     }
   }
+  // Order otomatis tidak menunggu file selesai diunduh: file sudah punya id, dan agen cetak hanya
+  // mengambil file yang statusnya TERSIMPAN.
+  for (const sender of senders.values()) await prosesOtomatis(env.DB, sender.storeId, sender.from);
   if (downloads.length) {
     const all = Promise.allSettled(downloads);
     if (typeof waitUntil === 'function') waitUntil(all); else await all;
@@ -246,5 +254,6 @@ export async function simulasiPesan(env, storeId, body) {
   if (saved.fileId && bytes) {
     await simpanBytes(env, { storeId, fileId: saved.fileId, fileName, mime, bytes });
   }
-  return { ok: true, messageId: saved.messageId, fileId: saved.fileId };
+  const otomatis = await prosesOtomatis(db, storeId, from);
+  return { ok: true, messageId: saved.messageId, fileId: saved.fileId, otomatis };
 }

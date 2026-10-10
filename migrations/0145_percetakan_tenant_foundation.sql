@@ -58,9 +58,26 @@ CREATE TABLE IF NOT EXISTS print_machines (
   name        TEXT NOT NULL,
   is_active   INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   sort_order  INTEGER NOT NULL DEFAULT 0,
+  -- Kunci program "agen cetak" di PC mesin ini (SHA-256; teks aslinya hanya ditampilkan sekali).
+  agent_key_hash      TEXT UNIQUE,
+  agent_last_seen_at  TEXT,
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE (store_id, code)
+);
+
+-- Cara gerai memproses chat WA:
+--   MANUAL         -- semua chat jadi draft yang dikonfirmasi karyawan.
+--   OTOMATIS       -- chat yang terbaca lengkap oleh aturan langsung jadi order + task antrian (BARU).
+--   LANGSUNG_CETAK -- seperti OTOMATIS, lalu langsung SIAP_CETAK sehingga agen cetak mengirim
+--                     file ke mesin tanpa disentuh orang.
+-- Chat yang tidak lengkap/ragu selalu jatuh ke draft, di mode apa pun.
+CREATE TABLE IF NOT EXISTS print_settings (
+  store_id         TEXT PRIMARY KEY REFERENCES stores(id),
+  mode             TEXT NOT NULL DEFAULT 'MANUAL' CHECK (mode IN ('MANUAL', 'OTOMATIS', 'LANGSUNG_CETAK')),
+  updated_by_role  TEXT NOT NULL DEFAULT '',
+  updated_by_id    TEXT NOT NULL DEFAULT '',
+  updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 -- Daftar produk + harga + mesin tujuan. Harga HANYA dari sini -- AI tidak pernah menentukan
@@ -147,8 +164,12 @@ CREATE TABLE IF NOT EXISTS print_order_drafts (
   store_id         TEXT NOT NULL REFERENCES stores(id),
   from_number      TEXT NOT NULL,
   message_ids_json TEXT NOT NULL,
+  -- sha256 daftar id pesan (terurut). Satu set pesan hanya boleh punya satu draft hidup, supaya
+  -- dua webhook yang datang bersamaan tidak membuat order kembar.
+  message_key      TEXT NOT NULL,
   proposal_json    TEXT NOT NULL,
-  source           TEXT NOT NULL CHECK (source IN ('AI', 'MANUAL')),
+  -- ATURAN = dibaca kode tanpa AI (src/percetakan-tebak.js); AI = Una; MANUAL = diisi karyawan.
+  source           TEXT NOT NULL CHECK (source IN ('AI', 'MANUAL', 'ATURAN')),
   ai_model         TEXT NOT NULL DEFAULT '',
   status           TEXT NOT NULL DEFAULT 'MENUNGGU' CHECK (status IN ('MENUNGGU', 'DIKONFIRMASI', 'DITOLAK')),
   decided_by_role  TEXT,
@@ -158,6 +179,8 @@ CREATE TABLE IF NOT EXISTS print_order_drafts (
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_print_order_drafts_store ON print_order_drafts(store_id, status, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_print_order_drafts_one_live
+  ON print_order_drafts(store_id, message_key) WHERE status <> 'DITOLAK';
 
 -- Order cetak. status adalah cache dari event terakhir di print_order_events (sumber kebenaran).
 CREATE TABLE IF NOT EXISTS print_orders (
@@ -217,6 +240,8 @@ CREATE TABLE IF NOT EXISTS print_queue_tickets (
   business_date  TEXT NOT NULL,
   queue_no       INTEGER NOT NULL CHECK (queue_no > 0),
   order_item_id  TEXT NOT NULL UNIQUE REFERENCES print_order_items(id),
+  -- Diisi sekali saat agen cetak sudah menaruh file di mesin (hot folder / printer).
+  dispatched_at  TEXT,
   created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE (store_id, machine_id, business_date, queue_no)
 );

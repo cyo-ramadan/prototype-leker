@@ -13,6 +13,8 @@ import {
 import { r2Bucket, simulasiPesan, terimaWebhookMeta, unduhMediaMeta, verifikasiLangganan } from './percetakan-wa.js';
 import { bacaChatOrder } from './percetakan-una.js';
 import { aiConfigured } from './caca-ai-client.js';
+import { MODES, modeGerai, pendingMessages, simpanDraft, simpanMode, draftedMessageIds } from './percetakan-otomatis.js';
+import { buatKunciMesin, handleAgenApi } from './percetakan-mesin.js';
 
 export const MODULE_CODE = 'PERCETAKAN';
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
@@ -98,18 +100,6 @@ async function upsertProduct(db, storeId, body) {
   return json({ ok: true }, 201);
 }
 
-async function draftedMessageIds(db, storeId, fromNumber) {
-  const rows = (await db.prepare(`
-    SELECT message_ids_json FROM print_order_drafts
-    WHERE store_id = ? AND from_number = ? AND status IN ('MENUNGGU', 'DIKONFIRMASI')
-  `).bind(storeId, fromNumber).all()).results ?? [];
-  const ids = new Set();
-  for (const row of rows) {
-    try { for (const id of JSON.parse(row.message_ids_json)) ids.add(id); } catch { /* baris rusak dilewati */ }
-  }
-  return ids;
-}
-
 async function inbox(db, storeId) {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const rows = (await db.prepare(`
@@ -144,25 +134,6 @@ async function inbox(db, storeId) {
   return result;
 }
 
-async function pendingMessages(db, storeId, fromNumber) {
-  const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-  const drafted = await draftedMessageIds(db, storeId, fromNumber);
-  const rows = (await db.prepare(`
-    SELECT m.*, f.id AS file_id FROM wa_inbound_messages m LEFT JOIN print_files f ON f.message_id = m.id
-    WHERE m.store_id = ? AND m.from_number = ? AND m.sent_at >= ? ORDER BY m.sent_at
-  `).bind(storeId, fromNumber, since).all()).results ?? [];
-  return rows.filter(row => !drafted.has(row.id));
-}
-
-async function simpanDraft(db, { storeId, fromNumber, messages, proposal, source, model }) {
-  const id = `pdrf_${crypto.randomUUID()}`;
-  await db.prepare(`
-    INSERT INTO print_order_drafts (id, store_id, from_number, message_ids_json, proposal_json, source, ai_model)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, storeId, fromNumber, JSON.stringify(messages.map(message => message.id)), JSON.stringify(proposal), source, model || '').run();
-  return id;
-}
-
 function mapDraft(row) {
   let proposal = {};
   let messageIds = [];
@@ -193,17 +164,19 @@ async function listOrders(db, storeId, url) {
   return rows.map(mapOrder);
 }
 
-async function antrian(db, storeId) {
+async function antrian(db, storeId, machineId) {
   const rows = (await db.prepare(`
     SELECT m.id AS machine_id, m.name AS machine_name, t.queue_no, t.business_date, o.id AS order_id, o.order_no,
-           o.status, o.customer_name, o.customer_phone, o.due_at, i.product_name, i.qty, i.width_cm, i.height_cm, i.file_id, i.note
+           o.status, o.customer_name, o.customer_phone, o.due_at, o.created_by_role, i.product_name, i.qty, i.width_cm,
+           i.height_cm, i.file_id, i.note, t.dispatched_at
     FROM print_queue_tickets t
     JOIN print_machines m ON m.id = t.machine_id
     JOIN print_order_items i ON i.id = t.order_item_id
     JOIN print_orders o ON o.id = i.order_id
-    WHERE t.store_id = ? AND o.status IN ('BARU', 'DESAIN', 'SIAP_CETAK', 'DICETAK', 'FINISHING')
+    WHERE t.store_id = ? AND (? = '' OR t.machine_id = ?)
+      AND o.status IN ('BARU', 'DESAIN', 'SIAP_CETAK', 'DICETAK', 'FINISHING')
     ORDER BY m.sort_order, m.name, t.business_date, t.queue_no
-  `).bind(storeId).all()).results ?? [];
+  `).bind(storeId, machineId || '', machineId || '').all()).results ?? [];
   const machines = new Map();
   for (const row of rows) {
     if (!machines.has(row.machine_id)) machines.set(row.machine_id, { machineId: row.machine_id, machineName: row.machine_name, tickets: [] });
@@ -221,7 +194,9 @@ async function antrian(db, storeId) {
       widthCm: row.width_cm,
       heightCm: row.height_cm,
       fileId: row.file_id,
-      note: row.note
+      note: row.note,
+      automatic: row.created_by_role === 'SYSTEM',
+      dispatchedAt: row.dispatched_at
     });
   }
   return [...machines.values()];
@@ -239,12 +214,16 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
     return json({ error: 'Method tidak didukung.' }, 405);
   }
 
+  // Agen cetak di PC mesin: login pakai kunci mesin, bukan akun orang.
+  if (pathname.startsWith('/api/percetakan/agen/')) return handleAgenApi(request, env, pathname);
+
   const auth = await aktor(request, env);
   if (!auth.ok) return auth.response;
   const storeId = auth.store.id;
   const body = ['POST', 'PATCH'].includes(request.method) && !pathname.startsWith('/api/percetakan/files/')
     ? await readJson(request) : { ok: true, value: {} };
-  if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+  // Tombol tanpa isi (mis. "Buat kunci agen") boleh tanpa body; JSON rusak tetap ditolak.
+  if (!body.ok && (request.headers.get('content-type') || '').includes('json')) return json({ error: 'Payload tidak valid.' }, 400);
   const input = body.value ?? {};
 
   if (request.method === 'GET' && pathname === '/api/percetakan/setup') {
@@ -253,7 +232,12 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
       store: { id: auth.store.id, code: auth.store.code, name: auth.store.storeName },
       actor: auth.actor,
       isManagement: auth.isManagement,
-      machines: (await machinesForStore(db, storeId)).map(machine => ({ id: machine.id, code: machine.code, name: machine.name, isActive: Boolean(machine.is_active) })),
+      mode: await modeGerai(db, storeId),
+      modes: MODES,
+      machines: (await machinesForStore(db, storeId)).map(machine => ({
+        id: machine.id, code: machine.code, name: machine.name, isActive: Boolean(machine.is_active),
+        hasAgentKey: Boolean(machine.agent_key_hash), agentLastSeenAt: machine.agent_last_seen_at
+      })),
       products: (await productsForStore(db, storeId, { activeOnly: false })).map(mapProduct),
       channels: channels.map(channel => ({ id: channel.id, provider: channel.provider, phoneNumberId: channel.phone_number_id, displayNumber: channel.display_number, isActive: Boolean(channel.is_active) })),
       aiReady: aiConfigured(env),
@@ -262,6 +246,24 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
   }
 
   if (request.method === 'POST' && pathname === '/api/percetakan/machines') return onlyManagement(auth) || upsertMachine(db, storeId, input);
+
+  if (request.method === 'POST' && pathname === '/api/percetakan/settings') {
+    const denied = onlyManagement(auth);
+    if (denied) return denied;
+    const mode = text(input.mode, 20).toUpperCase();
+    if (!await simpanMode(db, storeId, mode, auth.actor)) return json({ error: `Mode wajib salah satu: ${MODES.join(', ')}.` }, 400);
+    return json({ ok: true, mode });
+  }
+
+  const keyMatch = pathname.match(/^\/api\/percetakan\/machines\/([^/]+)\/kunci$/);
+  if (request.method === 'POST' && keyMatch) {
+    const denied = onlyManagement(auth);
+    if (denied) return denied;
+    const key = await buatKunciMesin(db, storeId, keyMatch[1]);
+    if (!key) return json({ error: 'Mesin tidak ditemukan di gerai ini.' }, 404);
+    // Teks kunci hanya muncul sekali di sini; server cuma menyimpan sidiknya.
+    return json({ ok: true, key }, 201);
+  }
   if (request.method === 'POST' && pathname === '/api/percetakan/products') return onlyManagement(auth) || upsertProduct(db, storeId, input);
 
   if (request.method === 'POST' && pathname === '/api/percetakan/channels') {
@@ -305,6 +307,7 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
       source = 'AI';
     }
     const draftId = await simpanDraft(db, { storeId, fromNumber, messages, proposal, source, model });
+    if (!draftId) return json({ error: 'Pesan ini baru saja diproses. Muat ulang.' }, 409);
     const row = await db.prepare('SELECT * FROM print_order_drafts WHERE id = ?').bind(draftId).first();
     return json({ draft: mapDraft(row) }, 201);
   }
@@ -361,7 +364,9 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
     return changed.ok ? json(changed) : json({ error: changed.error }, changed.status);
   }
 
-  if (request.method === 'GET' && pathname === '/api/percetakan/antrian') return json({ machines: await antrian(db, storeId) });
+  if (request.method === 'GET' && pathname === '/api/percetakan/antrian') {
+    return json({ machines: await antrian(db, storeId, text(url.searchParams.get('machine'), 80)) });
+  }
 
   const fileMatch = pathname.match(/^\/api\/percetakan\/files\/([^/]+)(\/ulang)?$/);
   if (fileMatch) {

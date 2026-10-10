@@ -1,7 +1,7 @@
 # ADR-055 — Tenant Percetakan: order WA jadi antrian cetak yang tidak bisa dipalsukan
 
-Status: ACCEPTED — Tahap 1 (fondasi) sudah ditulis di branch `eskor/tenant-percetakan`, belum
-di-merge ke `main`. Tahap berikutnya ada di `HANDOFF-PERCETAKAN.md`.
+Status: ACCEPTED — Tahap 1 (fondasi + otomatisasi task + agen cetak) sudah ditulis di branch
+`eskor/tenant-percetakan`, belum di-merge ke `main`. Tahap berikutnya ada di `HANDOFF-PERCETAKAN.md`.
 Tanggal: 2026-10-10
 Diminta oleh: Bos Cyo
 Ditulis oleh: Eskor (Claude Code di laptop Bos Cyo)
@@ -40,6 +40,9 @@ produk dengan satu janji OwnerTenang.
 Tabel modul diberi prefiks `print_*` dan `wa_*` (migration 0145).
 
 ### D2 — Una hanya mengusulkan; harga selalu dari master gerai
+
+*(Revisi 2026-10-10: lapisan pertama sekarang pembaca aturan tanpa AI, lihat D7. Una tetap dipakai
+untuk chat yang tidak terbaca aturan, lewat tombol, dan hasilnya tetap draft.)*
 
 Mengikuti ADR-044 D1. Alur: pesan masuk → karyawan menekan "Baca dengan Una" (atau "Isi manual")
 → **draft** → karyawan memeriksa dan menekan Konfirmasi → baru jadi order.
@@ -119,6 +122,42 @@ Notifikasi order baru menyusul lewat push (pola ADR-048) bila dibutuhkan.
 
 "APK": layar web dibuat dulu dan bisa dipasang di HP sebagai PWA (T8). Bungkus APK (TWA) hanya
 kalau benar-benar perlu masuk Play Store. Kodenya tetap satu.
+
+### D7 — Otomatisasi task: chat yang jelas langsung jadi order, tanpa AI
+
+Bos Cyo, 2026-10-10: "yang paling penting ini otomatisasi task nya. bukan chat ke customernya.
+kalo chat customer itu nanti pake orang gpp. yang penting dari chat customer tersebut, sistem bisa
+nyimpulin ini orderannya apa dan bikin task ke karyawan tukang nyetak atau langsung ke printer."
+
+- Setiap pesan masuk menjalankan **pembaca aturan** (`src/percetakan-tebak.js`). Yang dibaca: kata
+  kunci produk gerai, ukuran ("3x1", "300x100 cm", "2,5 x 1 m"), jumlah ("2 lembar", "dua lembar",
+  "1 aja"), dan pasangan file ke item (dari nama file, lalu urutan). Gratis, dan hasilnya bisa diuji
+  pasti, tidak seperti AI.
+- Hasilnya dianggap **lengkap** hanya kalau semua item dikenal, produk per meter punya ukuran,
+  jumlah file pas dengan jumlah item, dan tidak ada kata koreksi ("ganti", "ralat", "batal", "eh").
+  Satu saja ragu → tidak otomatis, dan chat tetap menunggu di layar untuk CS/Una.
+- Lengkap + mode gerai `OTOMATIS` → order dibuat lewat `buatOrder` yang sama (harga dari master,
+  antrian per mesin, rantai hash), dengan aktor `SYSTEM`. Mode `LANGSUNG_CETAK` sekalian memajukan
+  ke `SIAP_CETAK`. Mode `MANUAL` mematikan otomatisasi.
+- Order kembar dicegah oleh indeks unik draft per set pesan (`message_key`).
+- Jumlah yang tidak disebut dianggap 1, dan itu ditulis terang di catatan item.
+
+Efek ke anti-palsu justru positif: order dari WA tercatat tanpa campur tangan karyawan sama sekali.
+
+### D8 — "Langsung ke printer" lewat agen cetak + hot folder
+
+Server di cloud tidak bisa menjangkau printer di toko. Jembatannya adalah program kecil di PC mesin
+(`percetakan-agen/agen-cetak.mjs`) yang memegang **kunci per mesin** (disimpan sebagai SHA-256,
+bisa diganti kapan saja).
+- Mesin large format memakai software RIP (Maintop, Onyx, PhotoPrint, Caldera, dll) yang mendukung
+  **hot folder**: file yang masuk folder langsung diproses sesuai preset. Agen cukup menaruh file di
+  folder itu. Printer biasa dicetak lewat SumatraPDF.
+- Agen hanya mengambil tiket order `SIAP_CETAK` yang filenya `TERSIMPAN`, mengecek SHA-256 file,
+  lalu melapor. Server mencatat event `DIKIRIM_KE_MESIN`, dan setelah semua tiket satu order
+  terkirim, order jadi `DICETAK` atas nama mesin.
+- Agen bertanya berkala (bawaan 20 detik). Ini program di PC toko, bukan layar kasir, jadi
+  invariant #6 tidak dilanggar. Biayanya satu query ber-index per mesin per putaran, dan update
+  "terakhir terlihat" dibatasi 5 menit sekali. Versi push lewat Durable Object adalah task T13.
 
 ## Konsekuensi
 

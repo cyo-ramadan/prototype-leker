@@ -247,7 +247,7 @@ Kalau ada pertanyaan "bagaimana cara …" yang tidak terjawab, **jangan menambal
    Gemini sampai 3 kandidat panduan; ia memilih yang benar-benar menjawab (atau `tidak_ada` → lanjut
    pilih-alat biasa) lalu menulis ulang. `periksaPoles` menolak polesan yang membuang nama tombol
    dalam kutip, mengubah jalur menu (`Tim → Akun Kasir`), menambah angka, atau melambung panjangnya.
-   Model gagal / 429 / ditolak pagar → teks panduan asli, jadi panduan tetap jalan saat Gemini mati.
+   Ditolak pagar → SATU kesempatan memperbaiki (model diberi tahu persis apa yang hilang); gagal lagi, model gagal, atau 429 → teks panduan asli, jadi panduan tetap jalan saat Gemini mati. Respons membawa `poles: {dipoles, catatan}` untuk diagnosis uji live (catatan = alasan penolakan).
    Tawaran "Mau Una buatkan?" tetap ditambah KODE, bukan model. Tombol kamus (tap topik) sengaja
    tidak dipoles: deterministik dan gratis. Panduan baru tidak perlu apa-apa: tulis faktanya,
    biarkan bahasanya urusan model.

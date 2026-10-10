@@ -143,7 +143,36 @@ export async function polesPanduan({ pertanyaan, panduan, konteks = {}, env, pan
   const dasar = terpilih.id === panduan.topik ? panduan : jelaskan(terpilih.id, { halaman });
   if (!dasar?.dikenal) return { ...asli, catatan: 'panduan pilihan model tidak ditemukan' };
 
-  const periksa = periksaPoles(dasar.jawaban, balasan.value?.jawaban);
-  if (!periksa.aman) return { tidakCocok: false, panduan: dasar, dipoles: false, catatan: periksa.alasan };
-  return { tidakCocok: false, panduan: { ...dasar, jawaban: String(balasan.value.jawaban).trim() }, dipoles: true };
+  let tulisan = balasan.value?.jawaban;
+  let periksa = periksaPoles(dasar.jawaban, tulisan);
+  if (!periksa.aman) {
+    // Satu kesempatan memperbaiki: model diberi tahu persis apa yang melanggar, lalu menulis ulang
+    // panduan yang SAMA. Gagal lagi → teks panduan asli.
+    const awal = periksa.alasan;
+    try {
+      const ulang = await panggilModel(env, {
+        system: SISTEM,
+        content: [{
+          type: 'text',
+          text: [
+            `Pertanyaan Bos: ${pesanDenganRiwayat(pertanyaan, konteks.riwayat)}`,
+            '',
+            `PANDUAN ${terpilih.nomor} — ${terpilih.judul}\n${dasar.jawaban}`,
+            '',
+            `Tulisanmu sebelumnya DITOLAK pemeriksa karena: ${awal}.`,
+            'Tulis ulang jawabannya (cocok tetap sama). Salin PERSIS semua nama menu, jalur menu (mis. "Barang → Stok → Lihat Mutasi"),',
+            'dan nama tombol berhuruf kapital dalam tanda kutip dari panduan; jangan menambah angka. Bahasanya tetap santai.'
+          ].join('\n')
+        }],
+        schema: SKEMA_POLES
+      });
+      if (ulang?.ok) {
+        tulisan = ulang.value?.jawaban;
+        periksa = periksaPoles(dasar.jawaban, tulisan);
+        if (!periksa.aman) periksa = { aman: false, alasan: `${awal}; perbaikan: ${periksa.alasan}` };
+      }
+    } catch { /* tetap pakai teks asli */ }
+    if (!periksa.aman) return { tidakCocok: false, panduan: dasar, dipoles: false, catatan: periksa.alasan };
+  }
+  return { tidakCocok: false, panduan: { ...dasar, jawaban: String(tulisan).trim() }, dipoles: true };
 }

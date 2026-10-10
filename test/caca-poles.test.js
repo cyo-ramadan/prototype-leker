@@ -87,6 +87,7 @@ test('pagar: polesan yang membuang nama tombol, mengubah jalur menu, atau menamb
 test('polesan ditolak pagar → jawaban tetap panduan asli (cocok tetap dihormati)', async () => {
   const m = model(jawab('1', 'Tinggal buka menu supplier terus isi aja formnya ya Bos, gampang banget kok pokoknya.'));
   const hasil = await jawabPertanyaan(PERTANYAAN, KONTEKS, { env: {}, panggilModel: m.panggilModel });
+  assert.equal(m.panggilan.length, 2, 'asli + satu perbaikan (balasan kedua dari model palsu gagal)');
   assert.equal(hasil.dipoles, false);
   assert.equal(hasil.jawaban.split('\n')[0], jelaskan(PERTANYAAN).jawaban.split('\n')[0]);
 });
@@ -154,4 +155,25 @@ test('model memilih "jelaskan" tapi pemeriksa bilang tidak cocok → jujur belum
   const hasil = await jawabPertanyaan('kenapa laporan kemarin beda sama hari ini', KONTEKS, { env: {}, panggilModel, jalurAksi: { baca: async () => ({ ok: false }), kirim: async () => ({ ok: false }) } });
   if (hasil.alat === 'jelaskan') return; // kode tidak menemukan panduan sama sekali → tidak lewat pemeriksa
   assert.match(hasil.jawaban, /belum yakin|belum bisa|belum punya/i);
+});
+
+test('polesan ditolak pagar → satu kali diminta memperbaiki dengan alasan yang jelas; berhasil → dipakai', async () => {
+  const buruk = 'Tinggal buka menu supplier terus isi formnya ya Bos, gampang banget kok, nanti supplier-nya muncul waktu kasir beli bahan buat usaha.';
+  const baik = 'Buka Barang → Supplier, isi form "Tambah supplier" (Nama supplier, No. HP, Alamat), centang Aktif, lalu "Simpan supplier". Nanti muncul di pilihan "Supplier" waktu kasir Beli Bahan.';
+  const m = model(jawab('1', buruk), jawab('1', baik));
+  const hasil = await jawabPertanyaan(PERTANYAAN, KONTEKS, { env: {}, panggilModel: m.panggilModel });
+  assert.equal(m.panggilan.length, 2);
+  assert.match(m.panggilan[1].content[0].text, /DITOLAK pemeriksa karena: nama "Tambah supplier" hilang/);
+  assert.equal(hasil.dipoles, true);
+  assert.equal(hasil.jawaban.split('\n')[0], baik.split('\n')[0]);
+});
+
+test('perbaikan kedua juga ditolak → teks panduan asli, dengan alasan keduanya tercatat', async () => {
+  const buruk = 'Tinggal buka menu supplier terus isi formnya ya Bos, gampang banget kok, nanti supplier-nya muncul waktu kasir beli bahan buat usaha.';
+  const m = model(jawab('1', buruk), jawab('1', buruk));
+  const hasil = await jawabPertanyaan(PERTANYAAN, KONTEKS, { env: {}, panggilModel: m.panggilModel });
+  assert.equal(m.panggilan.length, 2, 'hanya satu perbaikan, tidak berulang');
+  assert.equal(hasil.dipoles, false);
+  assert.match(hasil.polesCatatan, /perbaikan:/);
+  assert.match(hasil.jawaban, /Tambah supplier/);
 });

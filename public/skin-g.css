@@ -1,0 +1,100 @@
+/* Skin G · Percetakan -- pilihan tenant ui_skin = G (src/tenant-policy.js).
+   Untuk usaha percetakan: tinta biru tua di kertas putih, aksen cyan seperti tinta CMYK, huruf IBM Plex Sans. Layar utamanya public/percetakan.html (chat WA -> order otomatis -> antrian per mesin); file ini hanya mewarnai halaman lain (Kasir lengkap, Workspace Gerai, Panel Pemilik) supaya senada. Saklar fiturnya isPercetakanChoice (src/tenant-policy.js). ADR-055, HANDOFF-PERCETAKAN.md.
+   Hanya berlaku saat <html data-skin="g"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.
+   Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */
+
+html[data-skin="g"] {
+  --skin-font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --bg: #F3F6F9;
+  --skin-page-bg: #F3F6F9;
+  --surface: #FFFFFF;
+  --ink: #14212E;
+  --muted: #4D5B69;
+  --line: #D7E0E8;
+  --brand: #0B6E8A;
+  --brand-2: #123B5C;
+  --green: #1E6B4E;
+  --green-soft: #E1F2EA;
+  --amber: #7A4A00;
+  --shadow: 0 10px 30px -18px rgba(18,59,92,.35);
+  --skin-card-shadow: 0 1px 0 rgba(18,59,92,.05);
+  --skin-top-bg: #123B5C;
+  --skin-top-ink: #F2F8FC;
+  --skin-top-muted: #C9DCEA;
+  --skin-top-line: #123B5C;
+  --skin-mark-bg: #19B5D6;
+  --skin-mark-ink: #0B2236;
+  --skin-hero-bg: #123B5C;
+  --skin-hero-ink: #F2F8FC;
+  --skin-hero-muted: #C9DCEA;
+  --skin-primary: #123B5C;
+  --skin-primary-ink: #ffffff;
+  --skin-active-bg: #0B6E8A;
+  --skin-active-ink: #ffffff;
+  --skin-input-bg: #FFFFFF;
+  --skin-chip-bg: #E2F3F8;
+  --skin-focus: rgba(11,110,138,.18);
+  --skin-danger: #9B1C3C;
+  --skin-danger-soft: #FCE4EA;
+  --skin-danger-line: #F2B6C4;
+  --skin-warn: #7A4A00;
+  --skin-warn-soft: #FCEFD6;
+  --skin-r-sm: 8px;
+  --skin-r: 10px;
+  --skin-r-lg: 14px;
+  --skin-r-pill: 999px;
+}
+html[data-skin="g"] body { background: var(--skin-page-bg); color: var(--ink); font-family: var(--skin-font); }
+html[data-skin="g"] button, html[data-skin="g"] input, html[data-skin="g"] select, html[data-skin="g"] textarea { font-family: inherit; }
+html[data-skin="g"] .topbar { background: var(--skin-top-bg); color: var(--skin-top-ink); border-bottom-color: var(--skin-top-line); backdrop-filter: none; }
+html[data-skin="g"] .brand small { color: var(--skin-top-muted); }
+html[data-skin="g"] .brand-mark { background: var(--skin-mark-bg); color: var(--skin-mark-ink); border-radius: var(--skin-r-sm); box-shadow: none; }
+html[data-skin="g"] .pill, html[data-skin="g"] .admin-link, html[data-skin="g"] .cashier-user-chip span { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="g"] .hero { background: var(--skin-hero-bg); color: var(--skin-hero-ink); border-radius: var(--skin-r-lg); }
+html[data-skin="g"] .hero p { color: var(--skin-hero-muted); }
+html[data-skin="g"] .hero::after { content: none; }
+html[data-skin="g"] .primary-btn { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r); box-shadow: none; }
+html[data-skin="g"] .ready-action, html[data-skin="g"] .action-ready { background: var(--green); }
+html[data-skin="g"] .secondary-btn, html[data-skin="g"] .mini-btn, html[data-skin="g"] .drawer-action-btn { background: var(--surface); color: var(--ink); border-color: var(--line); border-radius: var(--skin-r-sm); }
+html[data-skin="g"] .mini-btn.danger, html[data-skin="g"] .danger-btn { background: var(--skin-danger-soft); color: var(--skin-danger); border-color: var(--skin-danger-line); }
+html[data-skin="g"] .admin-tab, html[data-skin="g"] .category-btn { background: var(--surface); color: var(--muted); border-color: var(--line); border-radius: var(--skin-r-pill); }
+html[data-skin="g"] .admin-tab.active, html[data-skin="g"] .category-btn.active { background: var(--skin-active-bg); color: var(--skin-active-ink); border-color: var(--skin-active-bg); }
+html[data-skin="g"] .category-group-btn { border-color: var(--brand); color: var(--brand); }
+html[data-skin="g"] .category-group-btn.active { background: var(--brand); color: var(--skin-primary-ink); }
+html[data-skin="g"] .admin-card, html[data-skin="g"] .admin-auth-card, html[data-skin="g"] .menu-card, html[data-skin="g"] .cashier-menu-panel,
+html[data-skin="g"] .cashier-draft-panel, html[data-skin="g"] .drawer-command-card, html[data-skin="g"] .order-card, html[data-skin="g"] .status-card,
+html[data-skin="g"] .stat, html[data-skin="g"] .cart-panel, html[data-skin="g"] .column, html[data-skin="g"] .admin-summary span {
+  background: var(--surface); border-color: var(--line); border-radius: var(--skin-r-lg); box-shadow: var(--skin-card-shadow);
+}
+html[data-skin="g"] .cart-drawer { border-radius: var(--skin-r-lg) 0 0 var(--skin-r-lg); }
+html[data-skin="g"] .cashier-menu-card, html[data-skin="g"] .cashier-draft-row, html[data-skin="g"] .master-row, html[data-skin="g"] .cart-item,
+html[data-skin="g"] .purchase-composer, html[data-skin="g"] .cashier-dialog-summary div { background: var(--surface); border-color: var(--line); border-radius: var(--skin-r); }
+html[data-skin="g"] .cashier-dialog { border-radius: var(--skin-r-lg); }
+html[data-skin="g"] .note-input, html[data-skin="g"] .text-input, html[data-skin="g"] textarea,
+html[data-skin="g"] .admin-field input, html[data-skin="g"] .admin-field select, html[data-skin="g"] .admin-field textarea {
+  background: var(--skin-input-bg); border-color: var(--line); border-radius: var(--skin-r-sm); color: var(--ink);
+}
+html[data-skin="g"] .note-input:focus, html[data-skin="g"] .text-input:focus, html[data-skin="g"] textarea:focus,
+html[data-skin="g"] .admin-field input:focus, html[data-skin="g"] .admin-field select:focus, html[data-skin="g"] .admin-field textarea:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px var(--skin-focus);
+}
+html[data-skin="g"] .cashier-add-btn, html[data-skin="g"] .add-btn, html[data-skin="g"] .menu-stepper-plus { background: var(--skin-primary); color: var(--skin-primary-ink); border-radius: var(--skin-r-sm); }
+html[data-skin="g"] .menu-stepper, html[data-skin="g"] .qty-btn, html[data-skin="g"] .cart-close-btn { background: var(--skin-input-bg); border-color: var(--line); }
+html[data-skin="g"] .menu-card.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--skin-focus); }
+html[data-skin="g"] .selected-badge, html[data-skin="g"] .menu-card .category { background: var(--skin-chip-bg); color: var(--brand-2); }
+html[data-skin="g"] .price, html[data-skin="g"] .order-items b, html[data-skin="g"] .order-no { color: var(--brand-2); }
+html[data-skin="g"] .admin-eyebrow, html[data-skin="g"] .cart-kicker, html[data-skin="g"] .text-btn { color: var(--brand); }
+html[data-skin="g"] .badge, html[data-skin="g"] .master-count, html[data-skin="g"] .admin-toast,
+html[data-skin="g"] .purchase-detail-subtotal, html[data-skin="g"] .progress-step.active, html[data-skin="g"] .cart-handle-count { background: var(--skin-active-bg); color: var(--skin-active-ink); }
+html[data-skin="g"] .cart-handle.has-items { background: var(--skin-primary); border-color: var(--skin-primary); }
+html[data-skin="g"] .drawer-mode-badge.write, html[data-skin="g"] .cashier-lock-note.write { background: var(--green-soft); color: var(--green); }
+html[data-skin="g"] .cashier-lock-note, html[data-skin="g"] .drawer-mode-badge.occupied { background: var(--skin-warn-soft); color: var(--skin-warn); }
+html[data-skin="g"] .image-preview-wrap, html[data-skin="g"] .master-thumb, html[data-skin="g"] .cashier-menu-image { background: var(--skin-chip-bg); }
+html[data-skin="g"] .admin-top-actions > a, html[data-skin="g"] .admin-top-actions > button { padding: 7px 12px; font-size: 12.5px; border-radius: var(--skin-r-pill); line-height: 1.2; }
+@media (max-width: 620px) {
+  html[data-skin="g"] .admin-topbar { flex-wrap: wrap; row-gap: 10px; }
+  html[data-skin="g"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+}
+
+html[data-skin="g"] .brand, html[data-skin="g"] .admin-card h2, html[data-skin="g"] .owner-heading h1 { font-weight: 700; letter-spacing: -0.01em; }
+html[data-skin="g"] .primary-btn { min-height: 48px; }

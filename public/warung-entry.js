@@ -8,11 +8,13 @@
 // selalu diarahkan ke Mode Warung (buka/tutup warung ada di sana).
 // Skin F (Racik Parfum, DESAIN-SKIN-F-RACIK-PARFUM.md): sama seperti D, tapi
 // tujuannya layar Racik (/s/<kode>/racik).
+// Skin G (Percetakan, ADR-055): kasir selalu diarahkan ke layar Cetak (/s/<kode>/cetak) -- antrian
+// order dari WA ada di sana. Kasir lengkap (presensi, laci, jual) tetap bisa lewat ?lengkap=1.
 // Tenant skin 0/A/B/C tidak tersentuh sama sekali.
 (() => {
   const params = new URLSearchParams(location.search);
   if (params.get('readonly') === '1') return;
-  const homePage = () => (window.MaxiSkin?.skin?.() === 'f' ? 'racik' : 'warung');
+  const homePage = () => ({ f: 'racik', g: 'cetak' })[window.MaxiSkin?.skin?.()] || 'warung';
   const warungPath = () => (window.lekerStorePath ? window.lekerStorePath(homePage()) : `/${homePage()}`);
 
   function addReturnButton() {
@@ -20,9 +22,9 @@
     const link = document.createElement('a');
     link.id = 'warungReturnBtn';
     link.href = warungPath();
-    link.textContent = homePage() === 'racik' ? '⚗ Kembali ke Racik' : '🏪 Kembali ke Mode Warung';
+    link.textContent = ({ racik: '⚗ Kembali ke Racik', cetak: '🖨 Kembali ke Layar Cetak' })[homePage()] || '🏪 Kembali ke Mode Warung';
     link.style.cssText = 'position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:80;'
-      + `background:${({ e: '#0A5A48', f: '#4A1A42' })[window.MaxiSkin?.skin?.()] || '#1446c8'};color:#fff;` + 'text-decoration:none;font-weight:800;font-size:15px;padding:13px 18px;'
+      + `background:${({ e: '#0A5A48', f: '#4A1A42', g: '#123B5C' })[window.MaxiSkin?.skin?.()] || '#1446c8'};color:#fff;` + 'text-decoration:none;font-weight:800;font-size:15px;padding:13px 18px;'
       + 'border-radius:999px;box-shadow:0 10px 24px rgba(17,24,39,.25)';
     document.body.appendChild(link);
   }
@@ -51,12 +53,13 @@
 
   async function check() {
     const skin = window.MaxiSkin?.skin?.();
-    if (skin !== 'd' && skin !== 'e' && skin !== 'f') return;
+    if (!['d', 'e', 'f', 'g'].includes(skin)) return;
     if (!localStorage.getItem('lekerCashierToken')) return;
     addReturnButton();
     if (params.get('lengkap') === '1') { openRequestedAction(); return; }
     // Skin F (Bos Cyo 2026-10-06): tanpa absen, laci dibuka langsung di layar Racik.
-    if (skin === 'e' || skin === 'f') { location.replace(warungPath()); return; }
+    // Skin G: layar Cetak tidak butuh laci; presensi/laci tetap di Kasir lengkap.
+    if (skin === 'e' || skin === 'f' || skin === 'g') { location.replace(warungPath()); return; }
     try {
       const [me, drawer] = await Promise.all([
         fetch('/api/cashier/me', { cache: 'no-store' }).then(response => (response.ok ? response.json() : null)),
@@ -70,7 +73,7 @@
   // juga harus langsung berlaku: pindah ke Warung/Racik, atau tombol pulangnya hilang.
   function onSkinChange() {
     // Skin diganti Owner ke yang bukan Warung/Racik: tombol pulangnya ikut hilang.
-    if (!['d', 'e', 'f'].includes(window.MaxiSkin?.skin?.())) document.getElementById('warungReturnBtn')?.remove();
+    if (!['d', 'e', 'f', 'g'].includes(window.MaxiSkin?.skin?.())) document.getElementById('warungReturnBtn')?.remove();
     return check();
   }
   const start = () => Promise.resolve(window.MaxiSkin?.ready).then(check, check)

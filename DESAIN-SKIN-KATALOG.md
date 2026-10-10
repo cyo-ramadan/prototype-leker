@@ -18,6 +18,7 @@ lapisan warna/bentuk; D/E menambah layar Mode Warung di atasnya). Detail teknis:
 | **C · Kabar Gerai** | Pemilik yang hidup di WhatsApp | Tampilan | "Gerai Anda mengabari seperti teman, bukan seperti laporan." |
 | **D · Mode Warung** | Warung/UMKM kecil, dijaga bergantian (ada anak/karyawan) | Tampilan + cara pakai | "Untungnya kelihatan. Uangnya aman." |
 | **E · Jaga Sendiri** | Warung tanpa karyawan — pemilik = kasir = admin | Tampilan + cara pakai + **aturan** | "Jualan seperti biasa. Malamnya tahu untung beneran — tanpa nyatet." |
+| **G · Percetakan** | Percetakan yang order-nya masuk lewat WA, pemilik sering tidak di toko | Tampilan + cara pakai + **fitur baru** (chat WA → order otomatis → antrian per mesin → agen cetak; riwayat order anti-palsu) | "Order dari WA langsung jadi antrian mesin. Karyawan tidak bisa main order." |
 | **F · Racik Parfum** | Toko parfum racikan — tiap botol takarannya beda per pelanggan | Tampilan + cara pakai + **aturan** (harga jual boleh diubah & tercatat; tanpa absen; pemilik bisa jual langsung) | "Racikan tiap pelanggan teringat, bahan dan modalnya terhitung pas." |
 
 ---
@@ -143,4 +144,22 @@ warna tiap bahan saat takaran diubah. Alur **Pesanan → Racik → Bayar → Not
 pelanggan di HP/tablet itu. **Aturan berubah:** kasir boleh mengubah harga jual, tercatat di penjualan.
 Detail: `DESAIN-SKIN-F-RACIK-PARFUM.md`.
 
-<!-- DOC-IMPACT: 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->
+## G · Percetakan
+
+**Siapa: Pak Darto, 45 tahun, pemilik percetakan digital** dengan 3 mesin (outdoor, A3+, printer
+dokumen) dan 3 karyawan. Order masuk lewat WA toko; pemilik sering keluar kota.
+
+| Yang terjadi | Yang dia rasakan |
+|---|---|
+| Order WA dicatat karyawan di buku / tidak dicatat | Curiga ada order "di bawah meja", tidak bisa membuktikan |
+| Karyawan bolak-balik membaca chat untuk tahu ukuran & file | Antrian kacau, file tertukar, salah cetak |
+| Harga diturunkan setelah pelanggan bayar penuh | Selisih kas, tidak ada jejak |
+
+**Janji:** "Order dari WA langsung jadi antrian mesin. Karyawan tidak bisa main order." **Desain:**
+tinta biru tua + aksen cyan (CMYK), IBM Plex Sans. Kasir diarahkan ke **Layar Cetak** (`/s/<kode>/cetak`):
+Chat masuk, Draft, Antrian per mesin, Order, Pengaturan; Workspace Gerai dapat tombol "Layar Cetak".
+**Saklar fitur:** seluruh modul percetakan hanya hidup untuk tenant yang memilih G (`isPercetakanChoice`).
+**Batas:** pembayaran order belum tersambung ke kasir; akurasi baca chat belum diuji dengan chat asli.
+Detail: `adr/ADR-055-tenant-percetakan-order-wa.md`, `HANDOFF-PERCETAKAN.md`.
+
+<!-- DOC-IMPACT: 2026-10-10 skin G (Percetakan). 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->

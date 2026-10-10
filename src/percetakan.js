@@ -13,8 +13,25 @@
 //     menyimpan sidik isi order, jadi mengubah total/item langsung di database ikut ketahuan.
 //   - Uang scaled INTEGER: 1 rupiah = 1.000.000 unit (invariant #1). Tanpa float.
 import { getJakartaBusinessDate } from './time.js';
+import { UI_SKIN_KEY, getTenantPolicyChoice, isPercetakanChoice } from './tenant-policy.js';
 
 export const MONEY_SCALE = 1_000_000n;
+
+// Saklar modul: fitur percetakan hidup hanya untuk tenant yang memilih skin G (Bos Cyo 2026-10-10,
+// "dijadikan on/off skin"). Dicek di setiap pintu: API layar, webhook WA, dan agen cetak.
+export async function percetakanAktif(db, tenantId) {
+  if (!tenantId) return false;
+  return isPercetakanChoice(await getTenantPolicyChoice(db, tenantId, UI_SKIN_KEY));
+}
+
+export async function percetakanAktifUntukGerai(db, storeId) {
+  const row = await db.prepare(`
+    SELECT et.tenant_id FROM stores s
+    JOIN entity_tenancy et ON et.entity_id = s.entity_id AND et.effective_to IS NULL
+    WHERE s.id = ? LIMIT 1
+  `).bind(storeId).first();
+  return percetakanAktif(db, row?.tenant_id);
+}
 export const UNITS = Object.freeze(['M2', 'LEMBAR', 'PCS']);
 export const STATUS = Object.freeze({
   BARU: 'BARU',

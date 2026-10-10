@@ -84,7 +84,7 @@ test('Portal Staf tidak meminta presensi: setor uang bisa dikirim walau belum pr
 test('file JS lama yang diubah mem-bump ?v= di semua HTML yang memuatnya', () => {
   for (const [file, version] of [
     ['store-context.js', '20261007-skin-gerai-akun-v1'],
-    ['ui-skin.js', '20261007-skin-segar-v1']
+    ['ui-skin.js', '20261010-percetakan-v1']
   ]) {
     for (const page of ['branch-admin', 'cashier', 'customer', 'racik', 'warung', 'staff', 'entity-admin', 'game']) {
       const html = read(`public/${page}.html`);
@@ -93,6 +93,6 @@ test('file JS lama yang diubah mem-bump ?v= di semua HTML yang memuatnya', () =>
     }
   }
   const cashier = read('public/cashier.html');
-  assert.ok(cashier.includes('/warung-entry.js?v=20261007-skin-segar-v1'));
+  assert.ok(cashier.includes('/warung-entry.js?v=20261010-percetakan-v1'));
   assert.ok(cashier.includes('/cashier-presensi-gate.js?v=20261007-gate-kembali-v1'));
 });

@@ -159,6 +159,23 @@ bisa diganti kapan saja).
   invariant #6 tidak dilanggar. Biayanya satu query ber-index per mesin per putaran, dan update
   "terakhir terlihat" dibatasi 5 menit sekali. Versi push lewat Durable Object adalah task T13.
 
+### D9 — Saklar fitur = skin "G · Percetakan", bukan registry modul
+
+Bos Cyo, 2026-10-10: "upgrade fitur2 itu hanya berlaku pada tenant baru tersebut. jadi dijadikan
+on/off skin. setiap tenant juga bisa pake skin itu kalo dipilih ... aslinya sourcecode nya uda
+berubah tapi tenant lainnya ga ngerasa karna engga on."
+
+- Pintu tunggalnya `percetakanAktif(db, tenantId)` (`src/percetakan.js`), yang membaca kebijakan
+  tenant `ui_skin` = `'G'` (`isPercetakanChoice`, `src/tenant-policy.js`). Dipanggil di API layar
+  (403 `SKIN_PERCETAKAN_OFF`), webhook WA (pesan tenant non-G tidak dicatat), dan agen cetak (401).
+- Owner menyalakan/mematikannya dari Owner Console → Tenant → Kebijakan → Tampilan, sama dengan
+  skin lain. Tenant mana pun boleh memilih G. Data percetakan tetap per gerai, dan saat dimatikan
+  datanya tidak dihapus.
+- Skin G juga mengarahkan kasir ke Layar Cetak (`public/warung-entry.js`) dan menambah tombol
+  "Layar Cetak" di Workspace Gerai (`public/percetakan-admin-entry.js`, `public/nav-groups.js`).
+- Baris `PERCETAKAN` di `platform_modules` (D1) tetap ada sebagai catatan katalog, tetapi tidak lagi
+  menjadi syarat. Migration 0147 memberi tenant Percetakan pilihan G.
+
 ## Konsekuensi
 
 - Push branch yang berisi migration 0145 akan langsung menjalankan migration ke D1 produksi

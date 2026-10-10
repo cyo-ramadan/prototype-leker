@@ -222,10 +222,10 @@ test('anti-palsu: riwayat dan pesan WA tidak bisa diedit/dihapus, dan ubahan dia
   } finally { sqlite.close(); }
 });
 
-test('isolasi gerai + modul: gerai lain tanpa modul ditolak, kasir tidak bisa ubah master/simulator', async () => {
+test('isolasi gerai + skin: tenant tanpa skin G ditolak, kasir tidak bisa ubah master/simulator', async () => {
   const { sqlite, env } = await setup();
   try {
-    assert.equal((await call(env, '/api/percetakan/setup', { store: 'PENDEM' })).body.code, 'MODULE_NOT_INSTALLED');
+    assert.equal((await call(env, '/api/percetakan/setup', { store: 'PENDEM' })).body.code, 'SKIN_PERCETAKAN_OFF');
     assert.equal((await call(env, '/api/percetakan/machines', { token: 'kasir-token', method: 'POST', body: { code: 'X', name: 'X' } })).status, 403);
     assert.equal((await call(env, '/api/percetakan/wa/simulasi', { token: 'kasir-token', method: 'POST', body: { from: '0811', text: 'x' } })).status, 403);
     // Begitu WA sungguhan tersambung, simulator mati.
@@ -403,5 +403,49 @@ test('mode LANGSUNG_CETAK + agen cetak: file sampai ke mesin, order jadi Dicetak
     // Kunci baru mematikan kunci lama.
     await call(env, `/api/percetakan/machines/${outdoor.id}/kunci`, { method: 'POST' });
     assert.equal((await agen('/api/percetakan/agen/tugas', kunci)).status, 401);
+  } finally { sqlite.close(); }
+});
+
+test('skin G = saklar on/off: tenant mana pun bisa memakai, dan mematikannya menutup layar, webhook, dan agen', async () => {
+  const { sqlite, env } = await setup();
+  const skin = (tenant, value) => sqlite.prepare(`
+    INSERT INTO tenant_policy_settings (tenant_id, setting_key, setting_value) VALUES (?, 'ui_skin', ?)
+    ON CONFLICT (tenant_id, setting_key) DO UPDATE SET setting_value = excluded.setting_value
+  `).run(tenant, value);
+  try {
+    // Migration 0147: tenant Percetakan memakai G sejak awal.
+    assert.equal(sqlite.prepare("SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = 'TEN-CETAK' AND setting_key = 'ui_skin'").get().setting_value, 'G');
+
+    // Tenant Leker belum memilih G -> tidak merasakan apa pun; begitu memilih G -> fitur hidup di gerainya.
+    const pendem = sqlite.prepare("SELECT et.tenant_id FROM stores s JOIN entity_tenancy et ON et.entity_id = s.entity_id AND et.effective_to IS NULL WHERE s.code = 'PENDEM'").get().tenant_id;
+    assert.equal((await call(env, '/api/percetakan/setup', { store: 'PENDEM' })).status, 403);
+    skin(pendem, 'G');
+    const lekerSetup = await call(env, '/api/percetakan/setup', { store: 'PENDEM' });
+    assert.equal(lekerSetup.status, 200);
+    assert.equal(lekerSetup.body.machines.length, 0, 'data contoh CETAK01 tidak bocor ke gerai lain');
+    skin(pendem, '0');
+
+    // Siapkan WA + agen di CETAK01, lalu matikan skin G.
+    await call(env, '/api/percetakan/channels', { method: 'POST', body: { phoneNumberId: '777000' } });
+    const outdoor = (await call(env, '/api/percetakan/setup')).body.machines.find(m => m.code === 'OUTDOOR');
+    const kunci = (await call(env, `/api/percetakan/machines/${outdoor.id}/kunci`, { method: 'POST' })).body.key;
+    skin('TEN-CETAK', 'F');
+
+    assert.equal((await call(env, '/api/percetakan/setup')).body.code, 'SKIN_PERCETAKAN_OFF');
+    assert.equal((await call(env, '/api/percetakan/antrian', { token: 'kasir-token' })).status, 403);
+    const agen = await handlePercetakanApi(new Request('https://example.test/api/percetakan/agen/tugas', { headers: { Authorization: `Bearer ${kunci}` } }), env, '/api/percetakan/agen/tugas');
+    assert.equal(agen.status, 401);
+
+    env.WA_APP_SECRET = 'rahasia';
+    const raw = JSON.stringify({ entry: [{ changes: [{ value: { metadata: { phone_number_id: '777000' }, messages: [{ id: 'wamid.off', from: '6281200000000', timestamp: '1760000000', type: 'text', text: { body: 'banner 3x1' } }] } }] }] });
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('rahasia'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = 'sha256=' + [...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(raw)))].map(b => b.toString(16).padStart(2, '0')).join('');
+    const hook = await handlePercetakanApi(new Request('https://example.test/api/percetakan/wa/webhook', { method: 'POST', headers: { 'x-hub-signature-256': sig }, body: raw }), env, '/api/percetakan/wa/webhook');
+    assert.equal(hook.status, 200);
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM wa_inbound_messages').get().n, 0, 'skin mati: pesan WA tidak dicatat');
+
+    // Dinyalakan lagi: semuanya kembali, data lama utuh.
+    skin('TEN-CETAK', 'G');
+    assert.equal((await call(env, '/api/percetakan/setup')).status, 200);
   } finally { sqlite.close(); }
 });

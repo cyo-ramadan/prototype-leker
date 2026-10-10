@@ -1,4 +1,4 @@
-# Pembangkit public/skin-{a,b,c,d,e,f}.css dari satu kerangka selektor (HANDOFF-UIUX-SIAP-JUAL.md §8).
+# Pembangkit public/skin-{a,b,c,d,e,f,g}.css dari satu kerangka selektor (HANDOFF-UIUX-SIAP-JUAL.md §8).
 # Pakai: python3 scripts/generate-skin-css.py public  -- ubah token di SKINS, jangan sunting CSS hasilnya.
 COMMON = r"""
 html[data-skin="{s}"] {{
@@ -219,6 +219,21 @@ html[data-skin="e"] #entityAdminApp .owner-heading h1 { font-size: 26px; margin:
   '--skin-r-sm': '12px', '--skin-r': '16px', '--skin-r-lg': '22px', '--skin-r-pill': '999px'}, extra=r"""
 html[data-skin="f"] .brand, html[data-skin="f"] .admin-card h2, html[data-skin="f"] .owner-heading h1, html[data-skin="f"] .hero h1 { font-family: "Fraunces", Georgia, serif; font-style: italic; }
 html[data-skin="f"] .primary-btn { min-height: 50px; }
+"""),
+ 'g': dict(title='G · Percetakan', note='Untuk usaha percetakan: tinta biru tua di kertas putih, aksen cyan seperti tinta CMYK, huruf IBM Plex Sans. Layar utamanya public/percetakan.html (chat WA -> order otomatis -> antrian per mesin); file ini hanya mewarnai halaman lain (Kasir lengkap, Workspace Gerai, Panel Pemilik) supaya senada. Saklar fiturnya isPercetakanChoice (src/tenant-policy.js). ADR-055, HANDOFF-PERCETAKAN.md.', tok={
+  '--skin-font': '"IBM Plex Sans", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#F3F6F9', '--skin-page-bg': '#F3F6F9', '--surface': '#FFFFFF', '--ink': '#14212E', '--muted': '#4D5B69', '--line': '#D7E0E8',
+  '--brand': '#0B6E8A', '--brand-2': '#123B5C', '--green': '#1E6B4E', '--green-soft': '#E1F2EA', '--amber': '#7A4A00',
+  '--shadow': '0 10px 30px -18px rgba(18,59,92,.35)', '--skin-card-shadow': '0 1px 0 rgba(18,59,92,.05)',
+  '--skin-top-bg': '#123B5C', '--skin-top-ink': '#F2F8FC', '--skin-top-muted': '#C9DCEA', '--skin-top-line': '#123B5C',
+  '--skin-mark-bg': '#19B5D6', '--skin-mark-ink': '#0B2236',
+  '--skin-hero-bg': '#123B5C', '--skin-hero-ink': '#F2F8FC', '--skin-hero-muted': '#C9DCEA',
+  '--skin-primary': '#123B5C', '--skin-primary-ink': '#ffffff', '--skin-active-bg': '#0B6E8A', '--skin-active-ink': '#ffffff',
+  '--skin-input-bg': '#FFFFFF', '--skin-chip-bg': '#E2F3F8', '--skin-focus': 'rgba(11,110,138,.18)',
+  '--skin-danger': '#9B1C3C', '--skin-danger-soft': '#FCE4EA', '--skin-danger-line': '#F2B6C4', '--skin-warn': '#7A4A00', '--skin-warn-soft': '#FCEFD6',
+  '--skin-r-sm': '8px', '--skin-r': '10px', '--skin-r-lg': '14px', '--skin-r-pill': '999px'}, extra=r"""
+html[data-skin="g"] .brand, html[data-skin="g"] .admin-card h2, html[data-skin="g"] .owner-heading h1 { font-weight: 700; letter-spacing: -0.01em; }
+html[data-skin="g"] .primary-btn { min-height: 48px; }
 """),
 }
 

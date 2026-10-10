@@ -135,7 +135,7 @@ test('tab Setoran CS terdaftar di Entity Admin, menu pengelompokan, dan script d
   assert.match(html, /id="entityTab-setorancs"/);
   assert.match(html, /<script src="\/entity-setoran-cs\.js\?v=[^"]+"><\/script>/);
   assert.match(html, /entity-admin\.js\?v=20261008-buku-per-orang-v1/);
-  assert.match(html, /nav-groups\.js\?v=20261007-setoran-cs-v1/);
+  assert.match(html, /nav-groups\.js\?v=20261010-percetakan-v1/);
   assert.match(read('public/entity-admin.js'), /name === 'setorancs'/);
   assert.match(read('public/nav-groups.js'), /items: \['ledger', 'sharedaccounts', 'setorancs'\]/);
   assert.match(read('public/branch-admin.html'), /admin-employee-deposits\.js\?v=20261008-buku-per-orang-v1/);

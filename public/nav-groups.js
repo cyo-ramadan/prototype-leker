@@ -81,6 +81,13 @@
       ? { ...group, items: ['racikbahan', ...group.items] }
       : group))
   };
+  // Skin G (Percetakan, ADR-055): "Layar Cetak" (tombol dari public/percetakan-admin-entry.js)
+  // jadi pintu pertama grup Toko -- chat WA, antrian per mesin, dan pengaturan mesin/produk ada di sana.
+  SKIN_GROUPS.g = {
+    'branch-admin': PAGES['branch-admin'].groups.map(group => (group.id === 'home'
+      ? { ...group, items: ['cetak', ...group.items] }
+      : group))
+  };
   // Keterangan satu baris di daftar "Lainnya" (skin D) -- supaya pemilik tahu
   // isinya sebelum membuka.
   const SKIN_HINTS = {
@@ -110,7 +117,7 @@
     hutangpiutang: 'Hutang & Pembayaran', beaops: 'Biaya Operasional', 'setoran-cs': 'Setoran CS',
     customers: 'Pelanggan', 'customer-feedback': 'Kotak Saran', vouchers: 'Voucher',
     storereport: 'Laporan per Gerai', drawerstatus: 'Status Laci', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
-    ledger: 'Buku Usaha', racikbahan: 'Bahan & Aroma'
+    ledger: 'Buku Usaha', racikbahan: 'Bahan & Aroma', cetak: 'Layar Cetak'
   };
   const ENTITY_LABELS = { stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama', setorancs: 'Setoran CS' };
 

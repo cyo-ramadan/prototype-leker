@@ -8,8 +8,7 @@
 // Kunci mesin hanya bisa: melihat tugas mesin itu, mengunduh file tugas itu, dan melapor terkirim.
 // Tidak bisa membaca order lain, mengubah harga, atau membatalkan.
 import { json } from './http.js';
-import { isTenantModuleEnabled } from './platform-module-registry.js';
-import { STATUS, catatEvent, sha256Hex, ubahStatus } from './percetakan.js';
+import { STATUS, catatEvent, percetakanAktif, sha256Hex, ubahStatus } from './percetakan.js';
 import { r2Bucket } from './percetakan-wa.js';
 
 const KEY_PREFIX = 'mesin_';
@@ -35,7 +34,7 @@ async function mesinDariRequest(request, db) {
     LEFT JOIN entity_tenancy et ON et.entity_id = s.entity_id AND et.effective_to IS NULL
     WHERE m.agent_key_hash = ? AND m.is_active = 1 AND s.is_active = 1
   `).bind(await sha256Hex(token)).first();
-  if (!machine || !await isTenantModuleEnabled(db, machine.tenant_id, 'PERCETAKAN')) return null;
+  if (!machine || !await percetakanAktif(db, machine.tenant_id)) return null;
   return machine;
 }
 

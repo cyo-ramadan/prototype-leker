@@ -52,6 +52,9 @@ BATAL: hanya Owner/Admin, alasan wajib, hanya sebelum DICETAK.
 
 ## 3. API (`src/percetakan-api.js`)
 
+**Saklar:** semua route di bawah (kecuali webhook yang diam-diam mengabaikan) hanya hidup kalau tenant
+gerainya memilih skin **G · Percetakan** (ADR-055 D9). Tenant lain mendapat 403 `SKIN_PERCETAKAN_OFF`.
+
 Login: token kasir (gerai dari akunnya) **atau** token Owner/Admin Gerai/Entity Admin + `?store=KODE`.
 Token PIN lama / token agen ditolak (riwayat wajib punya orang).
 
@@ -205,8 +208,8 @@ order otomatis. Batasi per nomor per hari supaya biaya tidak bocor.
 **T13 — Push, bukan polling, untuk agen cetak.** Sekarang agen bertanya tiap 20 detik (satu query
 ber-index per mesin). Kalau mesinnya banyak, ganti dengan WebSocket Durable Object (pola ADR-048).
 
-**T11 — Skin "G · Percetakan"** di `DESAIN-SKIN-KATALOG.md` + baris di
-`HANDOFF-STRATEGI-PENJUALAN.md` §8. Dikerjakan **sesudah** fitur live, jangan sebelumnya.
+**T11 — (SKIN G SELESAI 2026-10-10)** Sisa: baris di `HANDOFF-STRATEGI-PENJUALAN.md` §8, setelah
+Bos Cyo menguji dengan WA asli.
 
 ## 6. Pagar (jangan dilanggar)
 

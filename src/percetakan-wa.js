@@ -13,7 +13,7 @@
 // Webhook MENCATAT pesan dan file, lalu menjalankan otomatisasi berbasis aturan (gratis, tanpa AI;
 // src/percetakan-otomatis.js). AI tidak jalan di webhook: nomor asing bisa mengirim apa saja, dan
 // biaya AI baru keluar saat karyawan menekan "Baca dengan Una".
-import { normalizePhone, sha256Hex } from './percetakan.js';
+import { normalizePhone, percetakanAktifUntukGerai, sha256Hex } from './percetakan.js';
 import { prosesOtomatis } from './percetakan-otomatis.js';
 
 export const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
@@ -192,7 +192,8 @@ export async function terimaWebhookMeta(request, env, { waitUntil } = {}) {
   const senders = new Map();
   for (const message of uraiWebhookMeta(payload)) {
     const channel = await channelByPhoneNumberId(env.DB, 'META_CLOUD', message.phoneNumberId);
-    if (!channel) continue;
+    // Tenant yang mematikan skin G: pesan tidak dicatat dan tidak diproses.
+    if (!channel || !await percetakanAktifUntukGerai(env.DB, channel.store_id)) continue;
     const saved = await catatPesan(env.DB, channel, message, message);
     if (!saved.inserted) continue;
     senders.set(`${channel.store_id}|${message.from}`, { storeId: channel.store_id, from: message.from });

@@ -38,7 +38,12 @@ export const UI_SKIN_OPTIONS = Object.freeze([
   // Nota) di atas produksi + penjualan yang sudah ada (DESAIN-SKIN-F-RACIK-PARFUM.md).
   // Satu-satunya aturan server yang ikut berubah: kasir boleh mengubah harga
   // jual per transaksi, dan perubahannya tercatat (isRacikChoice di bawah).
-  { value: 'F', label: 'F · Racik Parfum' }
+  { value: 'F', label: 'F · Racik Parfum' },
+  // Bos Cyo, 2026-10-10: "upgrade fitur2 itu hanya berlaku pada tenant baru tersebut. jadi dijadikan
+  // on/off skin. setiap tenant juga bisa pake skin itu kalo dipilih." G = Percetakan: chat WA jadi
+  // order + antrian per mesin + agen cetak (ADR-055, HANDOFF-PERCETAKAN.md). Seluruh /api/percetakan/*
+  // dan layar /s/<kode>/cetak HANYA hidup untuk tenant yang memilih G (isPercetakanChoice).
+  { value: 'G', label: 'G · Percetakan' }
 ]);
 
 // Tenant yang memilih skin E dijaga pemiliknya sendiri, tanpa karyawan:
@@ -62,6 +67,12 @@ export function isRacikChoice(choice) {
 export function isAttendanceOptionalChoice(choice) {
   return choice === OWNER_OPERATED_SKIN_CHOICE || choice === RACIK_SKIN_CHOICE;
 }
+// Skin G (Percetakan): satu-satunya saklar modul percetakan. Tenant lain tidak bisa memanggil
+// /api/percetakan/* sama sekali, webhook WA-nya diabaikan, dan agen cetaknya ditolak.
+export const PERCETAKAN_SKIN_CHOICE = 'G';
+export function isPercetakanChoice(choice) {
+  return choice === PERCETAKAN_SKIN_CHOICE;
+}
 export function isOwnerOperatedChoice(choice) {
   return choice === OWNER_OPERATED_SKIN_CHOICE;
 }
@@ -78,7 +89,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     type: 'choice',
     options: UI_SKIN_OPTIONS,
     label: 'Tampilan (skin)',
-    description: '0 = tampilan sekarang. F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    description: '0 = tampilan sekarang. G = Percetakan (chat WA pelanggan otomatis jadi order + antrian per mesin, layar Cetak untuk operator, agen cetak langsung ke printer; kasir diarahkan ke layar Cetak). F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
     defaultValue: '0'
   }
 ]);

@@ -1,13 +1,12 @@
 // Route /api/percetakan/* (ADR-055). Login karyawan (kasir) atau manajemen (Owner/Admin
-// Gerai/Entity Admin + ?store=). Semua query dikunci store_id dari login, dan gerainya wajib
-// punya modul PERCETAKAN terpasang di tenant-nya.
+// Gerai/Entity Admin + ?store=). Semua query dikunci store_id dari login, dan tenant gerainya wajib
+// memilih skin G · Percetakan (percetakanAktif) -- tenant lain tidak merasakan modul ini sama sekali.
 import { json, readJson } from './http.js';
 import { resolveStore } from './stores.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireManagement } from './owner-auth.js';
-import { isTenantModuleEnabled } from './platform-module-registry.js';
 import {
-  MANAGEMENT_ROLES, UNITS, buatOrder, detailOrder, machinesForStore, mapItem, mapOrder, normalizePhone,
+  MANAGEMENT_ROLES, UNITS, buatOrder, percetakanAktif, detailOrder, machinesForStore, mapItem, mapOrder, normalizePhone,
   productsForStore, rupiahToScaled, scaledToRupiahText, ubahStatus
 } from './percetakan.js';
 import { r2Bucket, simulasiPesan, terimaWebhookMeta, unduhMediaMeta, verifikasiLangganan } from './percetakan-wa.js';
@@ -16,7 +15,6 @@ import { aiConfigured } from './caca-ai-client.js';
 import { MODES, modeGerai, pendingMessages, simpanDraft, simpanMode, draftedMessageIds } from './percetakan-otomatis.js';
 import { buatKunciMesin, handleAgenApi } from './percetakan-mesin.js';
 
-export const MODULE_CODE = 'PERCETAKAN';
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 const code = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 24);
 
@@ -43,8 +41,8 @@ async function aktor(request, env) {
     actor = { role, id: person.id, name: person.displayName || person.username };
   }
   if (!store) return { ok: false, response: json({ error: 'Gerai tidak ditemukan.' }, 404) };
-  if (!await isTenantModuleEnabled(db, store.tenantId, MODULE_CODE)) {
-    return { ok: false, response: json({ error: 'Modul Percetakan belum aktif untuk gerai ini.', code: 'MODULE_NOT_INSTALLED' }, 403) };
+  if (!await percetakanAktif(db, store.tenantId)) {
+    return { ok: false, response: json({ error: 'Fitur Percetakan belum aktif: pilih skin "G · Percetakan" di Kebijakan tenant.', code: 'SKIN_PERCETAKAN_OFF' }, 403) };
   }
   return { ok: true, store, actor, isManagement: MANAGEMENT_ROLES.includes(actor.role) };
 }

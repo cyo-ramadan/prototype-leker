@@ -387,6 +387,12 @@
     $('judul').textContent = setup.store.name;
     $('subjudul').textContent = `${setup.actor.name} · ${setup.isManagement ? 'Owner/Admin' : 'Karyawan'}`;
     document.querySelector('[data-tab="atur"]').hidden = !setup.isManagement;
+    // Skin G mengarahkan kasir ke sini (public/warung-entry.js); jalan pulang ke layar lain tetap ada.
+    const code = encodeURIComponent(setup.store.code);
+    const pindah = $('pindah-layar');
+    pindah.href = setup.isManagement ? `/s/${code}/admin` : `/s/${code}/cashier?lengkap=1`;
+    pindah.textContent = setup.isManagement ? 'Workspace Gerai' : 'Kasir lengkap';
+    pindah.hidden = false;
     if (!setup.storageReady) tampilPesan('Penyimpanan file belum terpasang di server; file dari WA belum bisa disimpan.', true);
     pindahTab(mesinDipilih ? 'antrian' : setup.isManagement && !setup.products.length ? 'atur' : 'masuk');
   });

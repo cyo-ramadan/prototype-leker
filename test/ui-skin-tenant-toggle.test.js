@@ -50,9 +50,10 @@ test('migration 0132/0133 creates the Lab Tampilan tenant with one store, an own
     const setting = db.prepare(`SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = 'TEN-LAB-TAMPILAN' AND setting_key = ?`).get(UI_SKIN_KEY);
     assert.equal(setting?.setting_value, 'A');
     // Tidak ada tenant lain yang ikut berubah tampilan -- kecuali tenant baru
-    // Toko Parfum yang memang dibuat langsung dengan skin F (migration 0140).
+    // Toko Parfum yang memang dibuat langsung dengan skin F (migration 0140), dan tenant Percetakan
+    // yang dibuat langsung dengan skin G (migration 0147, ADR-055).
     assert.deepEqual(db.prepare(`SELECT tenant_id, setting_value FROM tenant_policy_settings WHERE setting_key = ? ORDER BY tenant_id`).all(UI_SKIN_KEY)
-      .map(row => `${row.tenant_id}:${row.setting_value}`), ['TEN-LAB-TAMPILAN:A', 'TEN-PARFUM:F']);
+      .map(row => `${row.tenant_id}:${row.setting_value}`), ['TEN-CETAK:G', 'TEN-LAB-TAMPILAN:A', 'TEN-PARFUM:F']);
   } finally {
     db.close();
   }
@@ -88,7 +89,7 @@ test('Owner panel lists the skin choice (default 0) and rejects unknown options'
     const skin = leker.find(item => item.key === UI_SKIN_KEY);
     assert.equal(skin?.type, 'choice');
     assert.equal(skin?.value, '0');
-    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C', 'D', 'E', 'F']);
+    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C', 'D', 'E', 'F', 'G']);
 
     const owner = db.prepare('SELECT id FROM owner_accounts ORDER BY id LIMIT 1').get();
     db.prepare(`INSERT INTO owner_sessions (token_hash, owner_id, created_at, expires_at) VALUES (?, ?, '2026-10-01T00:00:00Z', '2099-01-01T00:00:00Z')`)
@@ -106,7 +107,7 @@ test('Owner panel lists the skin choice (default 0) and rejects unknown options'
 });
 
 test('three skin stylesheets exist and only apply under their own html[data-skin]', () => {
-  for (const code of ['a', 'b', 'c', 'd', 'e']) {
+  for (const code of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
     const css = readFileSync(new URL(`../public/skin-${code}.css`, import.meta.url), 'utf8');
     const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '').split('}').map(rule => rule.trim()).filter(Boolean);
     for (const rule of rules) {

@@ -619,20 +619,6 @@ cadangan model-bilang-tidak-ada-alat. Tidak cocok → lanjut pilih-alat, dan pan
 tidak ditanyakan lagi. Biaya: +1 panggilan kecil per pertanyaan cara pakai (bukan 10 ribu token pilih-alat).
 Tes: `test/caca-poles.test.js`.
 
-### 2026-10-10 — Perintah lewat suara (lokal, belum diverifikasi live)
-
-Panel Una menyediakan tombol mikrofon untuk mendikte tugas dalam Bahasa Indonesia.
-Hasil ucapan masuk ke kotak pesan, bisa diperiksa/diedit, lalu dikirim lewat tombol Kirim;
-tidak otomatis menyetujui draft atau menyimpan transaksi. Teks yang sudah diketik dipertahankan.
-Pengenalan suara memakai SpeechRecognition bawaan browser (termasuk webkit), bukan perubahan
-model Una. Browser yang tidak mendukung tetap bisa dipakai dengan mengetik.
-Izin mikrofon, kegagalan jaringan, dan suara tidak terbaca diberi pesan. Mendengarkan dihentikan
-saat panel ditutup, gerai diganti, atau halaman ditinggalkan. Pada sebagian browser suara
-diproses layanan browser dan membutuhkan internet; aplikasi tidak menyimpan audio.
-Belum termasuk jawaban bersuara atau pemanggilan tanpa menekan mikrofon.
-
-<!-- DOC-IMPACT: 2026-10-10 input suara Una lokal; belum live dan belum diuji mikrofon nyata;
-alur draft + Ya tetap sama. -->
 ## Langkah berikutnya yang disarankan
 
 **Ukur dulu, jangan menambah fitur.** Godaan terbesar di titik ini adalah

@@ -327,9 +327,13 @@
         <button class="primary-btn" id="produk-simpan" type="button">Simpan produk</button>
       </div>
       <h2>WhatsApp</h2>
-      ${setup.channels.map(c => `<div class="admin-card">${esc(c.provider === 'SIMULATOR' ? 'Simulator' : `WhatsApp ${c.displayNumber || ''}`)} <span class="muted">${esc(c.phoneNumberId)}</span></div>`).join('')}
+      ${setup.channels.map(c => `<div class="admin-card">${esc(({ SIMULATOR: 'Simulator', TWILIO: 'WhatsApp lewat Twilio', META_CLOUD: 'WhatsApp lewat Meta' })[c.provider] || c.provider)} ${esc(c.displayNumber || '')} <span class="muted">${esc(c.phoneNumberId)}</span></div>`).join('')}
       <div class="admin-card grid">
-        <input class="text-input" id="wa-id" placeholder="Phone number ID dari Meta" />
+        <select class="text-input" id="wa-penyedia">
+          <option value="TWILIO">Twilio (sandbox / nomor Twilio)</option>
+          <option value="META_CLOUD">Meta WhatsApp Cloud API</option>
+        </select>
+        <input class="text-input" id="wa-id" placeholder="Twilio: nomor WhatsApp-nya, mis. +1 415 523 8886 · Meta: Phone number ID" />
         <input class="text-input" id="wa-nomor" placeholder="Nomor tampil, mis. 0812…" />
         <button class="primary-btn" id="wa-simpan" type="button">Sambungkan nomor</button>
       </div>
@@ -357,7 +361,7 @@
       await renderAtur();
     }));
     $('wa-simpan').addEventListener('click', () => jalankan(async () => {
-      await api('/api/percetakan/channels', { method: 'POST', body: { phoneNumberId: $('wa-id').value, displayNumber: $('wa-nomor').value } });
+      await api('/api/percetakan/channels', { method: 'POST', body: { provider: $('wa-penyedia').value, phoneNumberId: $('wa-id').value, displayNumber: $('wa-nomor').value } });
       await renderAtur();
     }));
   }

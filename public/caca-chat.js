@@ -110,10 +110,12 @@ const CACA_KERANGKA = `
       <button id="cacaLampirkan" class="caca-ikon-btn caca-tambah" type="button" aria-label="Kirim foto daftar menu atau lembar rekap" title="Kirim foto daftar menu atau lembar rekap">+</button>
       <input id="cacaGambar" type="file" accept="image/*" hidden />
       <textarea id="cacaPertanyaan" rows="1" placeholder="Ketik pesan" autocomplete="off"></textarea>
+      <button id="cacaMikrofon" class="caca-ikon-btn caca-mikrofon" type="button" aria-label="Mulai bicara" aria-pressed="false" aria-describedby="cacaSuaraStatus" title="Beri tugas lewat suara">??</button>
       <button id="cacaTanyaKirim" class="caca-kirim" type="submit" aria-label="Kirim" disabled>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg>
       </button>
     </form>
+    <div id="cacaSuaraStatus" class="caca-suara-status" role="status" aria-live="polite"></div>
   </div>`;
 
 // Dipanggil dari mana pun yang lebih dulu butuh panelnya: entity-admin.js bisa
@@ -323,6 +325,7 @@ function cacaToggleDaftarGerai(buka) {
 function cacaGantiGerai(scope) {
   cacaToggleDaftarGerai(false);
   if (!scope || scope === cacaState.scope) return;
+  cacaHentikanSuara();
   cacaState.scope = scope;
   cacaIngat(scope);
   cacaRenderDaftarGerai();
@@ -1096,7 +1099,105 @@ function cacaBuangLampiran({ terkirim = false } = {}) {
 function cacaAturTombol() {
   const ada = Boolean(cacaState.lampiran) || Boolean(cacaEl('cacaPertanyaan')?.value.trim());
   const tombol = cacaEl('cacaTanyaKirim');
-  if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim && !cacaSedangNgambek());
+  if (tombol) tombol.disabled = !(cacaState.siap && ada && !cacaState.sedangKirim && !cacaSuara.sesi && !cacaSedangNgambek());
+  const mikrofon = cacaEl('cacaMikrofon');
+  if (mikrofon) mikrofon.disabled = !cacaPengenalSuara() || (!cacaSuara.sesi && (!cacaState.siap || cacaState.sedangKirim || cacaSedangNgambek()));
+}
+
+
+// Suara mengisi composer; pengiriman dan persetujuan tetap manual.
+const cacaSuara = { sesi: null };
+const cacaPengenalSuara = () => window.SpeechRecognition || window.webkitSpeechRecognition;
+function cacaStatusSuara(teks) {
+  const status = cacaEl('cacaSuaraStatus');
+  if (status) status.textContent = teks;
+}
+function cacaSelesaiSuara(sesi, pesan) {
+  if (cacaSuara.sesi !== sesi) return;
+  cacaSuara.sesi = null;
+  const input = cacaEl('cacaPertanyaan');
+  if (input) input.readOnly = sesi.readOnly;
+  const tombol = cacaEl('cacaMikrofon');
+  tombol?.setAttribute('aria-pressed', 'false');
+  tombol?.setAttribute('aria-label', 'Mulai bicara');
+  if (tombol) tombol.title = 'Beri tugas lewat suara';
+  cacaStatusSuara(pesan);
+  cacaAturTombol();
+}
+function cacaHentikanSuara() {
+  const sesi = cacaSuara.sesi;
+  if (!sesi) return;
+  cacaSelesaiSuara(sesi, 'Suara dihentikan. Periksa teks sebelum mengirim.');
+  try { sesi.pengenal.abort(); } catch { /* sudah berhenti */ }
+}
+function cacaToggleSuara() {
+  const aktif = cacaSuara.sesi;
+  if (aktif) {
+    if (aktif.berhenti) return;
+    aktif.berhenti = true;
+    cacaStatusSuara('Menyelesaikan teks suara?');
+    try { aktif.pengenal.stop(); } catch { cacaHentikanSuara(); }
+    return;
+  }
+  const Pengenal = cacaPengenalSuara();
+  if (!Pengenal) {
+    cacaStatusSuara('Browser ini belum mendukung input suara. Gunakan Chrome atau Edge, atau ketik pesan.');
+    return;
+  }
+  const input = cacaEl('cacaPertanyaan');
+  if (!input || input.disabled || !cacaState.siap || cacaState.sedangKirim || cacaSedangNgambek()) return;
+  if (!window.isSecureContext) {
+    cacaStatusSuara('Input suara perlu halaman HTTPS. Pesan tetap bisa diketik.');
+    return;
+  }
+  let pengenal;
+  try { pengenal = new Pengenal(); } catch {
+    cacaStatusSuara('Input suara tidak dapat dimulai. Ketik pesan atau coba browser lain.');
+    return;
+  }
+  const sesi = { pengenal, prefix: input.value, readOnly: input.readOnly, adaSuara: false, berhenti: false };
+  cacaSuara.sesi = sesi;
+  pengenal.lang = 'id-ID';
+  pengenal.continuous = true;
+  pengenal.interimResults = true;
+  input.readOnly = true;
+  const tombol = cacaEl('cacaMikrofon');
+  tombol?.setAttribute('aria-pressed', 'true');
+  tombol?.setAttribute('aria-label', 'Selesai bicara');
+  if (tombol) tombol.title = 'Selesai bicara';
+  cacaStatusSuara('Izinkan mikrofon. Pengenalan suara mengikuti layanan browser.');
+  cacaAturTombol();
+  pengenal.onstart = () => {
+    if (cacaSuara.sesi === sesi && !sesi.berhenti) cacaStatusSuara('Mendengarkan? Klik mikrofon lagi setelah selesai. Teks belum dikirim.');
+  };
+  pengenal.onresult = event => {
+    if (cacaSuara.sesi !== sesi) return;
+    const potongan = [];
+    for (let i = 0; i < event.results.length; i += 1) potongan.push(event.results[i][0]?.transcript || '');
+    const teks = potongan.join(' ').trim();
+    sesi.adaSuara = Boolean(teks);
+    input.value = sesi.prefix + (sesi.prefix && teks && !/\s$/.test(sesi.prefix) ? ' ' : '') + teks;
+    cacaAturTinggiKetik();
+  };
+  pengenal.onerror = event => {
+    if (cacaSuara.sesi !== sesi) return;
+    const pesan = {
+      'not-allowed': 'Akses mikrofon ditolak. Izinkan mikrofon di pengaturan situs lalu coba lagi.',
+      'service-not-allowed': 'Layanan suara diblokir browser. Gunakan browser lain atau ketik pesan.',
+      'audio-capture': 'Mikrofon tidak tersedia. Periksa perangkat mikrofon lalu coba lagi.',
+      'network': 'Layanan suara tidak tersambung. Periksa koneksi lalu coba lagi.',
+      'no-speech': 'Suara belum terdengar. Klik mikrofon untuk mencoba lagi.',
+      'language-not-supported': 'Bahasa Indonesia belum didukung layanan suara browser ini.'
+    }[event.error] || 'Input suara berhenti. Periksa teks atau coba lagi.';
+    cacaSelesaiSuara(sesi, pesan);
+    try { pengenal.abort(); } catch { /* sudah berhenti */ }
+  };
+  pengenal.onend = () => cacaSelesaiSuara(sesi, sesi.adaSuara
+    ? 'Periksa teks, lalu tekan Kirim untuk memberi tugas ke Una.'
+    : 'Suara belum terdengar. Klik mikrofon untuk mencoba lagi.');
+  try { pengenal.start(); } catch {
+    cacaSelesaiSuara(sesi, 'Mikrofon gagal dimulai. Coba lagi atau ketik pesan.');
+  }
 }
 
 // --- Una ngambek ------------------------------------------------------------
@@ -1536,7 +1637,7 @@ function cacaAturTinggiKetik() {
 
 async function cacaKirim(event) {
   event?.preventDefault();
-  if (cacaState.sedangKirim || !cacaState.siap || cacaSedangNgambek()) return;
+  if (cacaState.sedangKirim || cacaSuara.sesi || !cacaState.siap || cacaSedangNgambek()) return;
   const input = cacaEl('cacaPertanyaan');
   const teks = input.value.trim();
   if (!cacaState.lampiran && !teks) return;
@@ -1597,6 +1698,7 @@ function cacaBolehDiWorkspace() {
 }
 
 function cacaTutupPanel() {
+  cacaHentikanSuara();
   cacaToggleDaftarGerai(false);
   cacaEl('cacaPanel')?.classList.add('hidden');
   cacaEl('cacaFab')?.setAttribute('aria-expanded', 'false');
@@ -1689,6 +1791,10 @@ function initCacaPanel() {
   cacaPasangKerangka();
   if (cacaBolehDiWorkspace()) cacaSetTampil(true);
   cacaBukaLayarDariHash();
+  cacaEl('cacaMikrofon')?.addEventListener('click', cacaToggleSuara);
+  window.addEventListener('pagehide', cacaHentikanSuara);
+  if (!cacaPengenalSuara()) cacaStatusSuara('Browser ini belum mendukung input suara. Gunakan Chrome atau Edge, atau ketik pesan.');
+  cacaAturTombol();
 
   cacaEl('cacaTanyaForm')?.addEventListener('submit', cacaKirim);
   cacaEl('cacaPertanyaan')?.addEventListener('input', () => { cacaAturTinggiKetik(); cacaAturTombol(); });

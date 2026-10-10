@@ -20,6 +20,7 @@ const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   // Data contoh Percetakan butuh tabel print_* dari 0145, yang ikut dilewati di sini karena
   // membuat gerai CETAK01 dengan edition='LITE'.
   '0146_percetakan_contoh_mesin_produk.sql',
+  '0148_wa_channels_twilio.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)

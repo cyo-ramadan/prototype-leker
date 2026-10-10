@@ -211,10 +211,105 @@ export async function terimaWebhookMeta(request, env, { waitUntil } = {}) {
   return new Response('ok', { status: 200 });
 }
 
+// --- Twilio (ADR-055 D3 revisi 2026-10-10) ----------------------------------------------------
+// Akun Facebook Bos Cyo dibatasi Meta sehingga tidak bisa membuat Portofolio Bisnis. Twilio adalah
+// mitra resmi WhatsApp; sandbox-nya bisa dipakai tanpa Facebook. Pesan masuk lewat POST form
+// (bukan JSON), ditandatangani X-Twilio-Signature = Base64(HMAC-SHA1(auth token, URL + semua
+// parameter diurutkan nama, nama+nilai digabung tanpa pemisah)).
+
+const MIME_EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+export async function tandaTanganTwilioSah(url, params, signature, authToken) {
+  if (!authToken || !signature) return false;
+  const pairs = [...params.entries()].sort(([a, va], [b, vb]) => (a === b ? (va < vb ? -1 : va > vb ? 1 : 0) : a < b ? -1 : 1));
+  const data = url + pairs.map(([key, value]) => key + value).join('');
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(authToken), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data)));
+  const expected = btoa(String.fromCharCode(...mac));
+  return timingSafeEqualHex(expected, String(signature));
+}
+
+const nomorTwilio = value => String(value ?? '').replace(/^whatsapp:/i, '').replace(/\D/g, '');
+
+/** Satu POST Twilio = satu pesan. Media pertama saja (WhatsApp mengirim tiap file sebagai pesan sendiri). */
+export function uraiWebhookTwilio(params) {
+  const numMedia = Number(params.get('NumMedia') || 0);
+  const mime = numMedia > 0 ? text(params.get('MediaContentType0'), 120) : null;
+  const from = normalizePhone(params.get('WaId') || nomorTwilio(params.get('From')));
+  const providerMessageId = text(params.get('MessageSid'), 200);
+  if (!from || !providerMessageId) return null;
+  return {
+    phoneNumberId: nomorTwilio(params.get('To')),
+    providerMessageId,
+    from,
+    fromName: text(params.get('ProfileName'), 120),
+    kind: numMedia > 0 ? (String(mime).startsWith('image/') ? 'IMAGE' : 'DOCUMENT') : 'TEXT',
+    bodyText: text(params.get('Body'), 4000),
+    // Twilio tidak memberi id media, melainkan URL; disimpan di kolom media_id untuk "Ambil ulang file".
+    mediaId: numMedia > 0 ? text(params.get('MediaUrl0'), 500) || null : null,
+    mime,
+    // Twilio tidak mengirim nama file asli; nama dibuat dari jenisnya.
+    fileName: numMedia > 0 ? `file-${providerMessageId.slice(-6)}.${MIME_EXT[mime] || 'bin'}` : null,
+    sentAt: new Date().toISOString()
+  };
+}
+
+/** Media Twilio diunduh dengan HTTP Basic Auth (Account SID : Auth Token). */
+export async function unduhMediaTwilio(env, { storeId, fileId, mediaUrl, fileName }, { fetchImpl = fetch } = {}) {
+  const db = env.DB;
+  if (!env?.TWILIO_ACCOUNT_SID || !env?.TWILIO_AUTH_TOKEN) {
+    await tandaiFile(db, fileId, { status: 'GAGAL', error: 'Kunci Twilio (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) belum dipasang.' });
+    return { ok: false };
+  }
+  try {
+    if (!/^https:\/\/api\.twilio\.com\//.test(String(mediaUrl))) throw new Error('alamat media bukan Twilio');
+    const response = await fetchImpl(mediaUrl, { headers: { Authorization: `Basic ${btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`)}` } });
+    if (!response.ok) throw new Error(`media twilio ${response.status}`);
+    if (Number(response.headers.get('content-length') || 0) > MAX_FILE_BYTES) {
+      await tandaiFile(db, fileId, { status: 'GAGAL', error: 'File lebih dari 100 MB. Minta pelanggan kirim lewat link (Drive dsb).' });
+      return { ok: false };
+    }
+    const bytes = await response.arrayBuffer();
+    return await simpanBytes(env, { storeId, fileId, fileName, mime: response.headers.get('content-type') || '', bytes });
+  } catch (error) {
+    console.error('percetakan: unduh media Twilio gagal', { fileId, error: String(error) });
+    await tandaiFile(db, fileId, { status: 'GAGAL', error: 'File dari WA gagal diunduh. Coba "Ambil ulang file".' });
+    return { ok: false };
+  }
+}
+
+/**
+ * POST webhook Twilio (/api/percetakan/wa/twilio). Membalas TwiML kosong: sistem tidak membalas
+ * chat pelanggan (Bos Cyo 2026-10-10, "chat customer itu nanti pake orang gpp").
+ */
+export async function terimaWebhookTwilio(request, env, { waitUntil } = {}) {
+  const kosong = () => new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', { status: 200, headers: { 'content-type': 'text/xml' } });
+  if (!env?.TWILIO_AUTH_TOKEN || !env?.TWILIO_ACCOUNT_SID) return new Response('webhook belum dikonfigurasi', { status: 503 });
+  const params = new URLSearchParams(await request.text());
+  if (params.get('AccountSid') !== env.TWILIO_ACCOUNT_SID
+    || !await tandaTanganTwilioSah(request.url, params, request.headers.get('x-twilio-signature'), env.TWILIO_AUTH_TOKEN)) {
+    return new Response('signature tidak sah', { status: 401 });
+  }
+  const message = uraiWebhookTwilio(params);
+  if (!message) return kosong();
+  const channel = await channelByPhoneNumberId(env.DB, 'TWILIO', message.phoneNumberId);
+  if (!channel || !await percetakanAktifUntukGerai(env.DB, channel.store_id)) return kosong();
+  const saved = await catatPesan(env.DB, channel, message, Object.fromEntries(params));
+  if (!saved.inserted) return kosong();
+  // File diunduh dulu (biasanya kecil dan cepat), baru otomatisasi -- supaya agen cetak langsung
+  // mendapati file TERSIMPAN. Kalau unduhan lambat, ditaruh di belakang (waitUntil).
+  if (saved.fileId && message.mediaId) {
+    const unduh = unduhMediaTwilio(env, { storeId: channel.store_id, fileId: saved.fileId, mediaUrl: message.mediaId, fileName: message.fileName });
+    if (typeof waitUntil === 'function') waitUntil(unduh); else await unduh;
+  }
+  await prosesOtomatis(env.DB, channel.store_id, message.from);
+  return kosong();
+}
+
 /** Simulator: pesan buatan untuk uji alur. Pemanggil sudah dicek Owner/Admin oleh API. */
 export async function simulasiPesan(env, storeId, body) {
   const db = env.DB;
-  const real = await db.prepare("SELECT 1 FROM wa_channels WHERE store_id = ? AND provider = 'META_CLOUD' AND is_active = 1 LIMIT 1").bind(storeId).first();
+  const real = await db.prepare("SELECT 1 FROM wa_channels WHERE store_id = ? AND provider <> 'SIMULATOR' AND is_active = 1 LIMIT 1").bind(storeId).first();
   if (real) return { ok: false, status: 409, error: 'Gerai ini sudah tersambung WhatsApp sungguhan; simulator dimatikan.' };
   const from = normalizePhone(body?.from);
   if (!from) return { ok: false, status: 400, error: 'Nomor pengirim simulasi tidak valid.' };

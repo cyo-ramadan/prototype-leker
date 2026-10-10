@@ -449,3 +449,53 @@ test('skin G = saklar on/off: tenant mana pun bisa memakai, dan mematikannya men
     assert.equal((await call(env, '/api/percetakan/setup')).status, 200);
   } finally { sqlite.close(); }
 });
+
+test('Twilio WhatsApp: tanda tangan wajib sah, chat + file dari HP jadi order otomatis, pesan ulang tidak dobel', async () => {
+  const { sqlite, env } = await setup();
+  const realFetch = globalThis.fetch;
+  try {
+    env.TWILIO_ACCOUNT_SID = 'AC123';
+    env.TWILIO_AUTH_TOKEN = 'token-twilio';
+    assert.equal((await call(env, '/api/percetakan/channels', { method: 'POST', body: { provider: 'TWILIO', phoneNumberId: '+1 415 523 8886', displayNumber: 'Sandbox' } })).status, 201);
+    // Saluran sungguhan aktif -> simulator mati.
+    assert.equal((await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '0812', text: 'x' } })).status, 409);
+
+    const url = 'https://example.test/api/percetakan/wa/twilio';
+    const sign = async params => {
+      const data = url + [...params.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => k + v).join('');
+      const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('token-twilio'), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+      return btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data)))));
+    };
+    const kirim = async (fields, signature) => {
+      const params = new URLSearchParams({ AccountSid: 'AC123', From: 'whatsapp:+6281234567890', To: 'whatsapp:+14155238886', WaId: '6281234567890', ProfileName: 'Pak Budi', NumMedia: '0', ...fields });
+      return handlePercetakanApi(new Request(url, {
+        method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-twilio-signature': signature ?? await sign(params) }, body: params.toString()
+      }), env, '/api/percetakan/wa/twilio');
+    };
+    globalThis.fetch = async (input, init) => {
+      assert.equal(String(input), 'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages/MM2/Media/ME1');
+      assert.equal(init.headers.Authorization, `Basic ${btoa('AC123:token-twilio')}`);
+      return new Response('%PDF-banner', { headers: { 'content-type': 'application/pdf' } });
+    };
+
+    assert.equal((await kirim({ MessageSid: 'SM1', Body: 'mas cetak banner 3x1 2 lembar ya' }, 'salah')).status, 401);
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM wa_inbound_messages').get().n, 0);
+
+    const pertama = await kirim({ MessageSid: 'SM1', Body: 'mas cetak banner 3x1 2 lembar ya' });
+    assert.equal(pertama.status, 200);
+    assert.match(await pertama.text(), /<Response><\/Response>/);
+    await kirim({ MessageSid: 'MM2', NumMedia: '1', MediaUrl0: 'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages/MM2/Media/ME1', MediaContentType0: 'application/pdf' });
+    await kirim({ MessageSid: 'MM2', NumMedia: '1', MediaUrl0: 'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages/MM2/Media/ME1', MediaContentType0: 'application/pdf' });
+
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM wa_inbound_messages').get().n, 2, 'pesan dikirim ulang Twilio tidak dobel');
+    assert.equal(sqlite.prepare('SELECT status FROM print_files').get().status, 'TERSIMPAN');
+    const orders = (await call(env, '/api/percetakan/orders?phone=081234567890', { token: 'kasir-token' })).body.orders;
+    assert.equal(orders.length, 1);
+    assert.equal(orders[0].automatic, true);
+    assert.equal(orders[0].customerName, 'Pak Budi');
+    assert.equal(orders[0].totalText, 'Rp132.000'); // 3x1 m x 2 @ Rp22.000
+  } finally {
+    globalThis.fetch = realFetch;
+    sqlite.close();
+  }
+});

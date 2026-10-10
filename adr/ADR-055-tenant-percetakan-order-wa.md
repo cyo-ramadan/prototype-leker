@@ -87,6 +87,14 @@ tidak pernah di repo (invariant #9).
 Admin, pesannya ditandai SIMULASI selamanya, dan simulator **mati otomatis** begitu gerai punya
 saluran `META_CLOUD` aktif. Tanpa pagar ini simulator menjadi jalan karyawan mengarang pesan.
 
+**Revisi D3, 2026-10-10:** akun Facebook Bos Cyo dibatasi Meta ("Akses iklan Anda dibatasi"),
+sehingga Portofolio Bisnis tidak bisa dibuat dan jalur Meta langsung tertutup sementara. Uji coba
+memakai **Twilio WhatsApp Sandbox**: tetap jalur resmi (Twilio adalah BSP WhatsApp), tanpa Facebook,
+dengan webhook sendiri `POST /api/percetakan/wa/twilio` dan provider `TWILIO` di `wa_channels`
+(migration 0148 membangun ulang tabelnya untuk CHECK baru). Untuk nomor sungguhan: banding di
+facebook.com/accountquality, atau portofolio dibuat akun Facebook orang yang dipercaya, lalu pilih
+Meta langsung (paling murah) atau sender Twilio.
+
 ### D4 — Anti-palsu: yang tercatat tidak bisa diubah diam-diam
 
 | Lapisan | Mekanisme | Yang dicegah |

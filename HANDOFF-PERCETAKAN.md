@@ -100,7 +100,27 @@ itu, jangan dengan "0 gagal".
 dan produk → Chat masuk: kirim pesan lewat Simulator → Isi manual / Baca dengan Una → Konfirmasi
 → lihat Antrian.
 
-### Menyambungkan WhatsApp (gratis untuk uji)
+### Menyambungkan WhatsApp lewat Twilio (dipakai Bos Cyo sejak 2026-10-10)
+
+Akun Facebook Bos Cyo dibatasi Meta sehingga tidak bisa membuat Portofolio Bisnis. Twilio adalah mitra
+resmi WhatsApp, dan sandbox-nya tidak butuh Facebook. Endpoint: `POST /api/percetakan/wa/twilio`
+(`src/percetakan-wa.js` `terimaWebhookTwilio`; tanda tangan `X-Twilio-Signature`, HMAC-SHA1 + Base64).
+
+1. Daftar di twilio.com/try-twilio. Di Console → Messaging → Try it out → Send a WhatsApp message,
+   catat nomor sandbox (mis. +1 415 523 8886) dan kode `join ...`. Kirim kode itu dari HP penguji.
+2. Pasang secret di Worker (dashboard Cloudflare → prototype-leker-v2 → Settings → Variables and
+   Secrets): `TWILIO_ACCOUNT_SID` dan `TWILIO_AUTH_TOKEN`, keduanya dari halaman depan Console Twilio.
+3. Di halaman sandbox Twilio, bagian **"When a message comes in"**:
+   `https://ownertenang.biz.id/api/percetakan/wa/twilio`, method POST. URL harus persis sama, karena
+   ikut dihitung dalam tanda tangan.
+4. Layar Cetak → Pengaturan → WhatsApp: pilih **Twilio**, isi nomor sandbox, lalu Sambungkan.
+5. Chat dari HP penguji ke nomor sandbox, lalu cek "Chat masuk" / "Antrian".
+
+Catatan: nama file asli tidak dikirim Twilio (diganti `file-xxxxxx.pdf`), jadi pemasangan file ke
+item memakai urutan, bukan nama. Sistem tidak membalas chat (TwiML kosong). Sandbox hanya untuk uji;
+nomor gerai sungguhan lewat Twilio tetap butuh profil bisnis Meta (WhatsApp Self Sign-up).
+
+### Menyambungkan WhatsApp langsung ke Meta (gratis untuk uji)
 
 1. developers.facebook.com → buat App tipe **Business** → tambah produk **WhatsApp**.
 2. Di WhatsApp → API Setup, Meta memberi **nomor uji gratis** + **Phone number ID**. Daftarkan

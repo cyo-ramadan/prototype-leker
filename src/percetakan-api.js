@@ -9,7 +9,9 @@ import {
   MANAGEMENT_ROLES, UNITS, buatOrder, percetakanAktif, detailOrder, machinesForStore, mapItem, mapOrder, normalizePhone,
   productsForStore, rupiahToScaled, scaledToRupiahText, ubahStatus
 } from './percetakan.js';
-import { r2Bucket, simulasiPesan, terimaWebhookMeta, unduhMediaMeta, verifikasiLangganan } from './percetakan-wa.js';
+import {
+  r2Bucket, simulasiPesan, terimaWebhookMeta, terimaWebhookTwilio, unduhMediaMeta, unduhMediaTwilio, verifikasiLangganan
+} from './percetakan-wa.js';
 import { bacaChatOrder } from './percetakan-una.js';
 import { aiConfigured } from './caca-ai-client.js';
 import { MODES, modeGerai, pendingMessages, simpanDraft, simpanMode, draftedMessageIds } from './percetakan-otomatis.js';
@@ -211,6 +213,11 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
     if (request.method === 'POST') return terimaWebhookMeta(request, env, { waitUntil });
     return json({ error: 'Method tidak didukung.' }, 405);
   }
+  // Webhook Twilio: tanpa login, dijaga tanda tangan X-Twilio-Signature + Account SID.
+  if (pathname === '/api/percetakan/wa/twilio') {
+    if (request.method === 'POST') return terimaWebhookTwilio(request, env, { waitUntil });
+    return json({ error: 'Method tidak didukung.' }, 405);
+  }
 
   // Agen cetak di PC mesin: login pakai kunci mesin, bukan akun orang.
   if (pathname.startsWith('/api/percetakan/agen/')) return handleAgenApi(request, env, pathname);
@@ -267,13 +274,15 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
   if (request.method === 'POST' && pathname === '/api/percetakan/channels') {
     const denied = onlyManagement(auth);
     if (denied) return denied;
+    // META_CLOUD: Phone number ID dari Meta. TWILIO: nomor WhatsApp Twilio (sandbox / sender), angka saja.
+    const provider = text(input.provider, 20).toUpperCase() === 'TWILIO' ? 'TWILIO' : 'META_CLOUD';
     const phoneNumberId = text(input.phoneNumberId, 60).replace(/\D/g, '');
-    if (!phoneNumberId) return json({ error: 'Phone number ID dari Meta wajib diisi.' }, 400);
-    const taken = await db.prepare("SELECT store_id FROM wa_channels WHERE provider = 'META_CLOUD' AND phone_number_id = ?").bind(phoneNumberId).first();
+    if (!phoneNumberId) return json({ error: provider === 'TWILIO' ? 'Nomor WhatsApp Twilio wajib diisi.' : 'Phone number ID dari Meta wajib diisi.' }, 400);
+    const taken = await db.prepare('SELECT store_id FROM wa_channels WHERE provider = ? AND phone_number_id = ?').bind(provider, phoneNumberId).first();
     if (taken && taken.store_id !== storeId) return json({ error: 'Nomor WA ini sudah dipakai gerai lain.' }, 409);
     if (!taken) {
-      await db.prepare("INSERT INTO wa_channels (id, store_id, provider, phone_number_id, display_number) VALUES (?, ?, 'META_CLOUD', ?, ?)")
-        .bind(`wach_${crypto.randomUUID()}`, storeId, phoneNumberId, text(input.displayNumber, 30)).run();
+      await db.prepare('INSERT INTO wa_channels (id, store_id, provider, phone_number_id, display_number) VALUES (?, ?, ?, ?, ?)')
+        .bind(`wach_${crypto.randomUUID()}`, storeId, provider, phoneNumberId, text(input.displayNumber, 30)).run();
     }
     return json({ ok: true }, 201);
   }
@@ -369,14 +378,16 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
   const fileMatch = pathname.match(/^\/api\/percetakan\/files\/([^/]+)(\/ulang)?$/);
   if (fileMatch) {
     const file = await db.prepare(`
-      SELECT f.*, m.media_id, m.media_file_name FROM print_files f JOIN wa_inbound_messages m ON m.id = f.message_id
+      SELECT f.*, m.media_id, m.media_file_name, m.provider FROM print_files f JOIN wa_inbound_messages m ON m.id = f.message_id
       WHERE f.id = ? AND f.store_id = ?
     `).bind(fileMatch[1], storeId).first();
     if (!file) return json({ error: 'File tidak ditemukan.' }, 404);
     if (request.method === 'POST' && fileMatch[2]) {
       if (file.status !== 'GAGAL' || !file.media_id) return json({ error: 'File ini tidak perlu diambil ulang.' }, 409);
       await db.prepare("UPDATE print_files SET status = 'MENUNGGU', error = '' WHERE id = ? AND status = 'GAGAL'").bind(file.id).run();
-      const result = await unduhMediaMeta(env, { storeId, fileId: file.id, mediaId: file.media_id, fileName: file.media_file_name });
+      const result = file.provider === 'TWILIO'
+        ? await unduhMediaTwilio(env, { storeId, fileId: file.id, mediaUrl: file.media_id, fileName: file.media_file_name })
+        : await unduhMediaMeta(env, { storeId, fileId: file.id, mediaId: file.media_id, fileName: file.media_file_name });
       return json({ ok: result.ok });
     }
     if (request.method === 'GET' && !fileMatch[2]) {

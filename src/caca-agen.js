@@ -26,6 +26,7 @@ import { terjemahkanPesan } from './caca-terjemah.js';
 import { uraikanNominal } from './caca-nominal.js';
 import { teksContoh } from './caca-contoh.js';
 import { jelaskan, denganTawaranKerja } from './caca-jelaskan.js';
+import { polesPanduan } from './caca-poles.js';
 import {
   bersihkanTertunda, mintaBatal, terdengarBingung, jawabanPendek, gabungTangkapan, isianKosong,
   isiKolomDariJawaban, teksTertunda, jelaskanTertunda, terapkanNgambek,
@@ -402,8 +403,15 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     // Hanya untuk kalimat yang BERTANYA soal pemakaian; perintah ("catat penjualan …")
     // tetap mendapat penolakan jujurnya.
     const bertanya = TANYA_CARA.test(pertanyaan) || /\?\s*$/.test(pertanyaan) || /\b(jelas(in|kan)|terangin|kenapa|maksudnya)\b/i.test(pertanyaan);
-    const panduan = bertanya ? jelaskan(pertanyaan, { halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai' }) : null;
-    if (panduan?.dikenal) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null, kerjakan: panduan.kerjakan ?? null };
+    const panduan = bertanya && !opsi.panduanDitolak ? jelaskan(pertanyaan, { halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai' }) : null;
+    if (panduan?.dikenal) {
+      // Gemini memeriksa cocok/tidaknya dan memoles bahasanya (src/caca-poles.js).
+      const poles = await polesPanduan({ pertanyaan, panduan, konteks, env, panggilModel });
+      if (!poles.tidakCocok) {
+        const p = poles.panduan;
+        return { ok: true, alat: 'jelaskan', jawaban: p.jawaban, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles };
+      }
+    }
     return {
       ok: true,
       alat: null,
@@ -834,7 +842,17 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
   if (tertunda?.tawaran && !ikutTawaran) tertunda = null;
   if (!tertunda && !lanjutan) {
     const panduan = panduanPasti(pesanBaku, konteks.lingkup);
-    if (panduan) return { ok: true, alat: 'jelaskan', jawaban: panduan.jawaban, tawaran: panduan.tawaran ?? null, kerjakan: panduan.kerjakan ?? null };
+    if (panduan) {
+      // Kode menebak panduannya; Gemini memastikan cocok dan membuatnya tidak seperti templat.
+      // "tidak cocok" → lanjut ke pilih-alat biasa (bukan memaksakan panduan yang salah).
+      const poles = await polesPanduan({ pertanyaan, panduan, konteks, env, panggilModel });
+      if (!poles.tidakCocok) {
+        const p = poles.panduan;
+        return { ok: true, alat: 'jelaskan', jawaban: p.jawaban, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles };
+      }
+      // Gemini sudah menolak panduan ini: jalur cadangan "tidak ada alat" tidak boleh memunculkannya lagi.
+      opsi = { ...opsi, panduanDitolak: true };
+    }
   }
   if (tertunda && mintaBatal(pertanyaan)) {
     return { ok: true, alat: null, jawaban: 'Oke, yang tadi nggak jadi ya, Bos.', tertunda: null };

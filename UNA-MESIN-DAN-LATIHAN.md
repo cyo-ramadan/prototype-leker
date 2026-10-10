@@ -132,7 +132,7 @@ Peta mekanisme yang sudah ada:
 | `cariDiRiwayat` | `src/caca-agen.js` | Sebelum bertanya kolom `kurang`, baca ulang pesan Bos sebelumnya (barang yang sama) |
 | `jangkarRencana` | `src/caca-agen.js` | Langkah rencana yang kehilangan angka diberi potongan kalimat asli Bos |
 | Una ngambek | `terapkanNgambek` (`src/caca-tertunda.js`) | Balasan mentok yang sama berulang → kalimat manusiawi bertingkat, terakhir chat ditutup 60 detik |
-| Kamus + peta menu + `panduanPasti` | `src/caca-jelaskan.js`, `src/caca-peta.js`, `generated/peta-una-data.js` | Pertanyaan cara pakai dijawab dari panduan tertulis (tanpa model); kata dasar + sinonim di `src/caca-kata.js` supaya kalimat setipe ikut kena |
+| Kamus + peta menu + `panduanPasti` | `src/caca-jelaskan.js`, `src/caca-peta.js`, `generated/peta-una-data.js` | Pertanyaan cara pakai dijawab dari panduan tertulis: kode memilih kandidat, Gemini memeriksa cocok/tidak lalu memoles bahasanya (`src/caca-poles.js`, satu panggilan ±1,5 ribu token, pagar nama menu/tombol/angka, gagal → teks asli); kata dasar + sinonim di `src/caca-kata.js` supaya kalimat setipe ikut kena |
 | `alihkan` | hasil `siapkan` | Alat menyatakan maksudnya ternyata alat lain (mis. barang sudah ada → ubah harga) |
 | `angkaTanpaBukti`, `GAGAL_BACA`, `hargaKarangan` | `src/caca-baca.js`, `src/caca-agen.js` | Pagar angka karangan |
 | Draft + "Ya" + periksa ulang | `src/caca-aksi.js`, `src/caca-chat.js` | Tidak ada yang tersimpan tanpa persetujuan |
@@ -241,7 +241,17 @@ Kalau ada pertanyaan "bagaimana cara …" yang tidak terjawab, **jangan menambal
 4. Uji dengan **kalimat lain yang setipe**, bukan kalimat aslinya saja (`test/caca-peta.test.js`).
 5. **Menu baru di aplikasi**: `node scripts/build-peta-una.mjs` + `PENJELASAN`. Tes penjaga merah
    kalau lupa, jadi Una tidak tertinggal pengetahuan.
-6. **Yang dijelaskan juga bisa dikerjakan** (Bos Cyo 2026-10-10: "pastikan una juga bisa
+6. **Gemini memeriksa dan memoles panduan** (Bos Cyo 2026-10-10: "kenapa gemininya engga disuruh
+   ngecek apakah pertanyaan dan jawaban dari kamus cocok? ... suruh kasih sentuhan biar bahasanya
+   engga templat"). Pembagian: FAKTA dari kamus/peta (kode), BAHASA dari model. `polesPanduan` memberi
+   Gemini sampai 3 kandidat panduan; ia memilih yang benar-benar menjawab (atau `tidak_ada` → lanjut
+   pilih-alat biasa) lalu menulis ulang. `periksaPoles` menolak polesan yang membuang nama tombol
+   dalam kutip, mengubah jalur menu (`Tim → Akun Kasir`), menambah angka, atau melambung panjangnya.
+   Model gagal / 429 / ditolak pagar → teks panduan asli, jadi panduan tetap jalan saat Gemini mati.
+   Tawaran "Mau Una buatkan?" tetap ditambah KODE, bukan model. Tombol kamus (tap topik) sengaja
+   tidak dipoles: deterministik dan gratis. Panduan baru tidak perlu apa-apa: tulis faktanya,
+   biarkan bahasanya urusan model.
+7. **Yang dijelaskan juga bisa dikerjakan** (Bos Cyo 2026-10-10: "pastikan una juga bisa
    mengerjakan yang apabila ditanya mekanismenya aja"). Tiap entri kamus WAJIB punya
    `aksi: { alat, tawar, tombol, awal? }` (alat yang mengerjakannya) atau `tanpaAksi: 'alasan'`
    — `test/caca-karyawan.test.js` merah kalau lupa. Panduan ber-`aksi` ditutup tawaran
@@ -249,7 +259,7 @@ Kalau ada pertanyaan "bagaimana cara …" yang tidak terjawab, **jangan menambal
    yang meminta dikerjakan ("kamu bisa buatin itu?", "iya boleh", tombol "Una buatkan…")
    PASTI masuk alat itu (`mintaDikerjakan`). Permintaan tanpa isian (`permintaanMurni`) bahkan
    tidak memanggil model. "oke makasih" / pertanyaan cara lain melepas tawarannya.
-7. **Jawaban instan tetap "mengetik"** (Bos: "kalo langsung jawab itu malah kaya robot"): panel
+8. **Jawaban instan tetap "mengetik"** (Bos: "kalo langsung jawab itu malah kaya robot"): panel
    menahan kartu "Una lagi kerja" 0,9–2,6 detik sesuai panjang jawaban (`cacaJedaManusiawi`).
    Waktu tunggu ini di browser saja, tidak menambah biaya.
 

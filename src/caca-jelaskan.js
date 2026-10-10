@@ -624,6 +624,27 @@ export function cariTopikSkor(teks) {
   return terbaik && terbaik.skor >= 3 ? terbaik : null;
 }
 
+/**
+ * Beberapa entri kamus terdekat (skor tertinggi dulu) — bahan bagi Gemini untuk memeriksa
+ * mana yang benar-benar menjawab pertanyaan (src/caca-poles.js). Skor minimal 2: lebih
+ * longgar dari cariTopikSkor karena keputusan akhirnya di tangan pemeriksa.
+ */
+export function peringkatTopik(teks, n = 3) {
+  const kalimat = ` ${normalkan(teks)} `;
+  if (!kalimat.trim()) return [];
+  const kataTanya = kataInti(teks);
+  const nilai = KAMUS.map((entri) => {
+    let skor = 0;
+    for (const kunci of entri.kunci) {
+      const k = normalkan(kunci);
+      if (k && kalimat.includes(` ${k} `)) skor += 2 + k.split(' ').length;
+    }
+    for (const kata of kataTanya) if (KOSAKATA.get(entri).has(kata)) skor += 1;
+    return { entri, skor };
+  });
+  return nilai.filter((x) => x.skor >= 2).sort((a, b) => b.skor - a.skor).slice(0, n);
+}
+
 export function cariTopik(teks) {
   return cariTopikSkor(teks)?.entri ?? null;
 }

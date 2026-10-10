@@ -610,6 +610,15 @@ jadwal kerja, supplier → Daftar Barang).
   dan di-ACC Admin (Una tidak menyentuh kas/stok langsung).
 - Test: `test/caca-barang-panduan.test.js` (14 kalimat asli + 17 kalimat setipe).
 
+### 2026-10-10 — Gemini memeriksa & memoles jawaban panduan
+
+Usul Bos Cyo: kode menyiapkan jawaban dari kamus, Gemini memastikan cocok dengan pertanyaan dan
+memberi sentuhan supaya tidak templat. `src/caca-poles.js` (+ `peringkatTopik` di
+`src/caca-jelaskan.js`). Dipakai di dua tempat `src/caca-agen.js`: jalur `panduanPasti` dan jalur
+cadangan model-bilang-tidak-ada-alat. Tidak cocok → lanjut pilih-alat, dan panduan yang sudah ditolak
+tidak ditanyakan lagi. Biaya: +1 panggilan kecil per pertanyaan cara pakai (bukan 10 ribu token pilih-alat).
+Tes: `test/caca-poles.test.js`.
+
 ## Langkah berikutnya yang disarankan
 
 **Ukur dulu, jangan menambah fitur.** Godaan terbesar di titik ini adalah

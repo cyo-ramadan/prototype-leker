@@ -223,6 +223,9 @@ ber-index per mesin). Kalau mesinnya banyak, ganti dengan WebSocket Durable Obje
 8. **Push branch = migration jalan ke D1 produksi.** Migration baru harus aditif, dan minta izin
    Bos Cyo sebelum push (CLAUDE.md "Deploy").
 9. **Tanpa polling** (invariant #6).
+11. **Migration: jangan pakai `UNION ALL` panjang.** D1 menolaknya ("too many terms in compound
+    SELECT", 2026-10-10, deploy pertama 0146 gagal karena 7 baris), padahal SQLite lokal dan tes
+    lulus. Pakai satu `INSERT ... SELECT ... WHERE NOT EXISTS` per baris.
 10. Isi chat pelanggan adalah data asing: di layar selalu lewat `esc()`, dan di prompt AI
     ditandai sebagai data, bukan perintah.
 

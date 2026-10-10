@@ -72,14 +72,16 @@ test('pengenal kata: imbuhan dan sinonim jadi kata baku', () => {
   assert.equal(cariMenu('zzz qqq'), null);
 });
 
-test('pertanyaan cara pakai dijawab panduan TANPA memanggil model; pertanyaan data tetap ke model', async () => {
+test('pertanyaan cara pakai dijawab panduan TANPA panggilan pilih-alat (hanya satu pemeriksaan kecil); pertanyaan data tetap ke model', async () => {
   let dipanggil = 0;
-  const panggilModel = async () => { dipanggil += 1; return { ok: true, value: { alat: 'tidak_ada' } }; };
+  const sistem = [];
+  const panggilModel = async (_env, p) => { dipanggil += 1; sistem.push(p.system); return { ok: true, value: { alat: 'tidak_ada' } }; };
   const KONTEKS = { nama: 'Bos', peran: 'Owner', storeCode: 'G1', storeName: 'G1', hariIni: '2026-10-10', lingkup: 'gerai', namaLingkup: 'G1' };
   const hasil = await jawabPertanyaan('bagaimana cara menambah nama karyawan misal atas nama Rika Nur?', KONTEKS, { env: {}, panggilModel });
-  assert.equal(dipanggil, 0);
+  assert.equal(dipanggil, 1, 'satu panggilan kecil: Gemini memeriksa & memoles panduan');
+  assert.match(sistem[0], /PANDUAN RESMI/, 'bukan panggilan pilih-alat yang besar');
   assert.equal(hasil.alat, 'jelaskan');
-  assert.match(hasil.jawaban, /Tambah karyawan/);
+  assert.match(hasil.jawaban, /Tambah karyawan/, 'model gagal memilih → teks panduan asli');
   for (const data of ['untung hari ini berapa', 'setoran cs yang masih dibawa siapa aja?', 'gimana kalau harga es teh jadi 7rb', 'bikin barang namanya cup jumbo harga jual 2000']) {
     assert.equal(panduanPasti(data), null, data);
   }

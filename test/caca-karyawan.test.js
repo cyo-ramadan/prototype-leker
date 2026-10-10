@@ -50,11 +50,11 @@ test('tangkapan layar: "cara bikin karyawan baru" → "kamu bisa buatin itu?" ny
   assert.match(satu.jawaban, /Mau Una yang buatkan\?/);
   assert.deepEqual(satu.tertunda, { alat: 'buat_karyawan', tangkapan: {}, tanya: satu.tertunda.tanya, kurang: null, tawaran: true });
   assert.equal(satu.tawaran[0].teks, TEKS_MINTA_KERJAKAN, 'tombol sekali ketuk "Una buatkan karyawan"');
-  assert.equal(m.panggilan.length, 0, 'panduan dijawab kode');
+  assert.equal(m.panggilan.length, 1, 'satu pemeriksaan kecil; model gagal → teks panduan asli');
 
   // Persis kalimat Bos: permintaan tanpa isian → alatnya sudah pasti, model tidak ditanya.
   const dua = await jawabPertanyaan('kamu bisa buatin itu?', KONTEKS, { env: {}, panggilModel: m.panggilModel, jalurAksi: jalur, tertunda: satu.tertunda });
-  assert.equal(m.panggilan.length, 0);
+  assert.equal(m.panggilan.length, 1, 'permintaan murni tidak menambah panggilan');
   assert.equal(dua.alat, 'buat_karyawan');
   assert.equal(dua.belumLengkap, true);
   assert.match(dua.jawaban, /Nama lengkap karyawannya siapa\?/);
@@ -97,7 +97,7 @@ test('tawaran dilepas kalau Bos tidak meminta: "oke makasih", pertanyaan cara ya
   assert.equal(cara.alat, 'jelaskan');
   assert.match(cara.jawaban, /Akun Kasir/);
   assert.deepEqual(cara.tertunda.tangkapan, { kr_akun: true }, 'panduan akun CS menawarkan akun login');
-  assert.equal(m2.panggilan.length, 0);
+  assert.equal(m2.panggilan.length, 1, 'hanya pemeriksaan panduan, bukan pilih-alat');
 });
 
 test('alat baca juga bisa ditawarkan: "setoran cs" → "cekin dong" langsung angkanya', async () => {

@@ -13,14 +13,14 @@ Ditulis: 2026-10-10 oleh Eskor. Diperbarui: 2026-10-10.
 | Bagian | Status | File |
 |---|---|---|
 | Tenant `TEN-CETAK` / gerai `CETAK01` / modul `PERCETAKAN` | selesai (branch, belum di `main`) | `migrations/0145_percetakan_tenant_foundation.sql` |
-| Mesin cetak + produk & harga per gerai | selesai | `src/percetakan-api.js` |
+| Mesin cetak + produk & harga per gerai | selesai, + data contoh 3 mesin / 7 produk (migration 0146, harga referensi marketplace, ganti dengan harga asli) | `src/percetakan-api.js` |
 | Webhook WhatsApp Cloud API (verifikasi + tanda tangan + simpan pesan + unduh file ke R2) | selesai, **belum dicoba dengan Meta sungguhan** | `src/percetakan-wa.js` |
 | Simulator WA (uji alur tanpa WA) | selesai | `src/percetakan-wa.js` `simulasiPesan` |
 | Una membaca chat → draft order | selesai, **akurasi belum diukur dengan chat asli** | `src/percetakan-una.js` |
 | Draft → order + mesin + nomor antrian per mesin per hari | selesai | `src/percetakan.js` `buatOrder` |
 | Status order + rantai hash + verifikasi | selesai | `src/percetakan.js` `ubahStatus`, `verifikasiRiwayat` |
 | Layar operator `/s/CETAK01/cetak` | selesai (versi pertama) | `public/percetakan.{html,js,css}` |
-| Tes | 9 tes | `test/percetakan.test.js` |
+| Tes | 10 tes | `test/percetakan.test.js` |
 | Balas WA ke pelanggan, pembayaran, foto hasil, counter mesin, laporan owner | **belum** | lihat §5 |
 
 ## 2. Alur
@@ -103,8 +103,28 @@ dan produk → Chat masuk: kirim pesan lewat Simulator → Isi manual / Baca den
    untuk gerai ini.
 6. Dari HP penguji, chat ke nomor uji → pesan muncul di "Chat masuk".
 
-Naik ke nomor sungguhan (berbayar) nanti: verifikasi bisnis di Meta Business Manager, tambah nomor
-gerai, lalu ganti Phone number ID di langkah 5. Kode tidak berubah.
+Naik ke nomor sungguhan (berbayar) nanti: verifikasi bisnis di Meta Business Manager, pasang
+metode pembayaran, tambah nomor gerai, lalu ganti Phone number ID di langkah 5. Kode tidak berubah.
+
+### Biaya WA (dicek 2026-10-10, dari sumber pihak ketiga; cocokkan dengan halaman harga Meta)
+
+| Jenis | Tarif Indonesia (sebelum PPN 11%) |
+|---|---|
+| Pesan masuk dari pelanggan | gratis |
+| Balasan dalam 24 jam (service) | 1.000 pesan/nomor/bulan gratis, sesudahnya ±Rp357/pesan (berlaku sejak 1 Okt 2026) |
+| Template utility (mis. "pesanan siap") | ±Rp357/pesan |
+| Template marketing | ±Rp586/pesan (tidak dipakai modul ini) |
+| Biaya platform BSP (Qontak, Wati, dst) | Rp0, karena kita langsung ke Meta. BSP biasanya Rp599 rb–750 rb/bulan |
+
+Cara paling murah, yang wajib diikuti T1:
+1. Sistem hanya mengirim **2 pesan per order**: konfirmasi order dan "siap diambil". Tidak ada
+   pesan basa-basi otomatis.
+2. Obrolan biasa tetap dibalas manusia. Cek apakah fitur **coexistence** Meta (nomor yang sama
+   dipakai aplikasi WhatsApp Business di HP dan Cloud API sekaligus) tersedia untuk nomor gerai.
+   Kalau tersedia, karyawan membalas dari HP seperti biasa dan webhook tetap menerima salinan
+   pesan masuk. Status ketersediaan dan biayanya belum diverifikasi.
+3. Perkiraan: 10 order/hari ≈ 600 pesan/bulan → Rp0. 30 order/hari ≈ 1.800 pesan/bulan → ±800
+   pesan berbayar ≈ Rp285 rb + PPN.
 
 ## 5. Backlog task (urut prioritas)
 
@@ -113,7 +133,9 @@ Tiap task berdiri sendiri. Pagar di §6 berlaku untuk semuanya.
 **T1 — Balas WA otomatis ke pelanggan.** Setelah order dikonfirmasi, kirim nomor order, rincian,
 total, dan tenggat ke pelanggan. Saat status SIAP_AMBIL, kirim "pesanan siap diambil".
 - Kirim lewat `POST {GRAPH_API_BASE}/{phone_number_id}/messages`. Dalam 24 jam sejak chat terakhir
-  pelanggan → pesan teks biasa (gratis). Lewat 24 jam → wajib template utility yang disetujui Meta.
+  pelanggan → pesan teks biasa (gratis sampai 1.000/bulan, lihat "Biaya WA"). Lewat 24 jam → wajib
+  template utility yang disetujui Meta (berbayar).
+- Hitung pesan keluar per bulan per nomor dan tampilkan ke Owner, supaya tagihan tidak mengejutkan.
 - Simpan log keluar di tabel baru `wa_outbound_messages` (append-only, pola `wa_inbound_messages`).
 - Simulator: jangan kirim apa-apa, cukup catat.
 - Selesai bila: tes membuktikan pesan di dalam jendela pakai teks, di luar jendela pakai template,

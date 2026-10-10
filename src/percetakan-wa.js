@@ -1,10 +1,10 @@
 // Pintu WhatsApp modul Percetakan (ADR-055, mengikuti ADR-044 D2/D3).
 //
 // Dua penyedia, satu tabel pesan:
-//   META_CLOUD -- WhatsApp Cloud API resmi. Pesan masuk dari pelanggan dan balasan dalam jendela
-//                 24 jam tidak ditagih Meta; nomor uji (test number) dari Meta juga gratis. Jadi
-//                 jalur resmi dipakai sejak uji coba: pindah ke "berbayar" nanti cuma soal
-//                 penagihan akun Meta, bukan ganti kode.
+//   META_CLOUD -- WhatsApp Cloud API resmi, langsung ke Meta tanpa BSP (termurah). Pesan masuk
+//                 tidak ditagih dan nomor uji Meta gratis; balasan gratis 1.000/nomor/bulan sejak
+//                 1 Okt 2026 (HANDOFF-PERCETAKAN.md "Biaya WA"). Pindah ke nomor sungguhan cuma
+//                 soal verifikasi + penagihan akun Meta, bukan ganti kode.
 //   SIMULATOR  -- pesan buatan dari layar Percetakan untuk mencoba alur tanpa WA sama sekali.
 //                 Hanya Owner/Admin, ditandai SIMULATOR selamanya, dan mati otomatis begitu gerai
 //                 punya saluran META_CLOUD aktif -- supaya simulator tidak bisa jadi jalan karyawan

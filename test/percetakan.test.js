@@ -97,6 +97,18 @@ test('migration membuat tenant Percetakan + gerai CETAK01 + modul PERCETAKAN ter
   } finally { sqlite.close(); }
 });
 
+test('data contoh: 3 mesin dan 7 produk dengan harga referensi siap dipakai Una', async () => {
+  const { sqlite, env } = await setup();
+  try {
+    const setup0 = (await call(env, '/api/percetakan/setup')).body;
+    assert.deepEqual(setup0.machines.map(m => m.code), ['OUTDOOR', 'A3PLUS', 'DOKUMEN']);
+    assert.equal(setup0.products.length, 7);
+    const korcin = setup0.products.find(p => p.code === 'FLX440');
+    assert.equal(korcin.unitPriceText, 'Rp28.000');
+    assert.equal(korcin.machineName, 'Outdoor (banner/spanduk)');
+  } finally { sqlite.close(); }
+});
+
 test('hitungan harga integer: per meter persegi, per lembar, dan pembulatan', () => {
   // Banner 3 x 1 m, 2 lembar, Rp25.000/m2 = Rp150.000
   assert.equal(scaledToRupiahText(hitungSubtotal({ unit: 'M2', unitPriceScaled: rupiahToScaled(25000), qty: 2, widthCm: 300, heightCm: 100 })), 'Rp150.000');

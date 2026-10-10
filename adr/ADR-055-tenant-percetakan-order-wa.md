@@ -58,9 +58,14 @@ Mengikuti ADR-044 D1. Alur: pesan masuk → karyawan menekan "Baca dengan Una" (
 Pilihan "gratis untuk testing" yang dipilih adalah **WhatsApp Cloud API resmi**, bukan gateway
 tidak resmi (Fonnte, Baileys, whatsapp-web.js), karena:
 
-- Pesan masuk dari pelanggan tidak ditagih. Balasan dalam jendela 24 jam setelah pelanggan chat
-  juga tidak ditagih. Meta juga memberi nomor uji gratis. Yang berbayar hanya pesan yang
-  **dimulai bisnis** di luar jendela itu (template).
+- Pesan masuk dari pelanggan tidak ditagih, dan Meta memberi nomor uji gratis. **Koreksi
+  2026-10-10:** mulai 1 Oktober 2026 balasan dalam jendela 24 jam (service message) hanya gratis
+  1.000 pesan per nomor per bulan, sesudahnya ditagih per pesan (lihat "Biaya WA" di
+  `HANDOFF-PERCETAKAN.md`). Template utility di dalam jendela juga mulai ditagih. Akun Meta
+  wajib punya metode pembayaran sejak 30 September 2026, atau pesan service tidak terkirim.
+- Termurah untuk dipakai sungguhan = **langsung ke Meta Cloud API** (yang dibangun di sini),
+  tanpa BSP (Qontak, Wati, dsb). BSP menarik biaya platform bulanan (ratusan ribu rupiah) di
+  atas tarif Meta yang sama.
 - Kode yang dipakai untuk uji = kode produksi. "Beli yang berbayar" nanti cuma mengaktifkan
   penagihan / verifikasi bisnis di akun Meta, tanpa menulis ulang integrasi.
 - Gateway tidak resmi melanggar ToS WhatsApp dan nomornya bisa diblokir permanen (alasan lengkap

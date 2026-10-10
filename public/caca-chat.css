@@ -1087,3 +1087,19 @@
 @media (prefers-reduced-motion: reduce) {
   .caca-gelembung.mengetik.caca-live .caca-live-putar { animation: none; }
 }
+
+/* Input suara: status terlihat dan tidak mengandalkan warna saja. */
+.caca-mikrofon[aria-pressed="true"] {
+  background: var(--green-soft);
+  color: var(--green);
+  outline: 2px solid var(--green);
+}
+.caca-mikrofon:disabled { opacity: 0.5; cursor: default; }
+.caca-suara-status {
+  padding: 0 12px 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+.caca-suara-status:empty { display: none; }

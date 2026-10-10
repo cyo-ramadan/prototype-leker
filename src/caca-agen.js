@@ -491,6 +491,16 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     }
     // Alat baca (mis. cek Rekening Bersama) menjawab langsung dari data yang
     // dihitung kode — tanpa draft, tanpa panggilan model kedua.
+    // Model memilih alat "jelaskan" sendiri (pertanyaan tanpa "bagaimana cara", mis. "stok kok minus
+    // gimana benerinnya?"): panduannya juga diperiksa dan dipoles Gemini.
+    if (aksi.baca && namaAlat === 'jelaskan' && disiapkan.panduan?.dikenal) {
+      const poles = await polesPanduan({ pertanyaan, panduan: disiapkan.panduan, konteks, env, panggilModel });
+      if (!poles.tidakCocok) {
+        const p = poles.panduan;
+        return { ok: true, alat: namaAlat, jawaban: p.jawaban, tabel: null, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles, polesCatatan: poles.catatan ?? null };
+      }
+      return { ok: true, alat: null, jawaban: 'Una belum yakin panduan yang Una punya cocok dengan pertanyaan itu. Coba sebut lebih spesifik ya, Bos — mis. barang atau layar apa yang dimaksud.', belumLengkap: true };
+    }
     if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null, tawaran: disiapkan.tawaran ?? null, kerjakan: disiapkan.kerjakan ?? null };
     // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa
     // disusun ulang dan dibandingkan tanpa memanggil model lagi.

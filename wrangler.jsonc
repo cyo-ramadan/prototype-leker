@@ -11,6 +11,11 @@
   "placement": {
     "region": "gcp:asia-southeast1"
   },
+  "triggers": { "crons": ["* * * * *"] },
+  "durable_objects": {
+    "bindings": [{ "name": "NOTIFICATION_LIVE", "class_name": "NotificationLive" }]
+  },
+  "migrations": [{ "tag": "notification-live-v1", "new_sqlite_classes": ["NotificationLive"] }],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

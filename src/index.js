@@ -1,3 +1,8 @@
+import { handleManagementNotificationsApi, notificationActor, evaluateNotificationRules } from './management-notifications.js';
+import { handleNotificationDeliveryApi, flushNotificationDeliveries } from './notification-delivery.js';
+import { handleNotificationLive, NotificationLive } from './notification-live.js';
+import { queueNotificationEvent, isNotificationEventMutation } from './notification-events.js';
+export { NotificationLive };
 import { handleMasterContactsApi as handleIkanContactsApi } from './ikan-master-contacts.js';
 import { handleMasterProductsApi as handleIkanProductsApi } from './ikan-master-products.js';
 import { handleSalesApi as handleIkanSalesApi } from './ikan-penjualan.js';
@@ -231,8 +236,23 @@ async function handleApi(request, env, url, ctx) {
   if (url.pathname.startsWith('/api/percetakan/')) {
     return handlePercetakanApi(request, env, url.pathname, { waitUntil: ctx?.waitUntil?.bind(ctx) });
   }
+  if (url.pathname === '/api/notifications/live') return handleNotificationLive(request, env);
+  if (url.pathname.startsWith('/api/notifications')) {
+    const actor = await notificationActor(request, env);
+    if (!actor) return json({ error: 'Login diperlukan.', code: 'NOTIFICATION_LOGIN_REQUIRED' }, 401);
+    const delivery = await handleNotificationDeliveryApi(request, env, url.pathname, actor);
+    if (delivery) return delivery;
+    return handleManagementNotificationsApi(request, env, url.pathname);
+  }
   const response = await handleApiRouted(request, env, url);
-  return rejectManagementWriteInCashierMode(request, env, url.pathname, response);
+  const guarded = await rejectManagementWriteInCashierMode(request, env, url.pathname, response);
+  if (guarded.ok && isNotificationEventMutation(request)) {
+    const task = queueNotificationEvent(request, env).catch(error => {
+      console.error('notification event failed', { name: error.name });
+    });
+    if (ctx?.waitUntil) ctx.waitUntil(task); else await task;
+  }
+  return guarded;
 }
 
 async function handleApiRouted(request, env, url) {
@@ -541,6 +561,13 @@ export function marketingAssetPath(hostname, pathname) {
 }
 
 export default {
+  async scheduled(controller, env, ctx) {
+    const task = (async () => {
+      try { await evaluateNotificationRules(env, new Date(controller.scheduledTime)); }
+      finally { await flushNotificationDeliveries(env, new Date(controller.scheduledTime)); }
+    })();
+    ctx.waitUntil(task);
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     try {

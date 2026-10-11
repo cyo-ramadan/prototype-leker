@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MAXI · Entity Admin</title>
+  <link rel="manifest" href="/management.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="/entity-management.css" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/admin.css?v=20261005-header-rapi-v1" />
   <link rel="stylesheet" href="/list-cards.css?v=20261002-kartu-ringkas-v2" />
@@ -18,12 +21,14 @@
   <script src="/tab-tautan.js?v=20261005-login-satu-pintu-v1"></script>
   <script>window.MAXI_SKIN_PAGE = 'entity-admin';</script>
   <script src="/ui-skin.js?v=20261010-percetakan-v1"></script>
+<link rel="apple-touch-icon" href="/management-icon-192.png" />
 </head>
 <body>
 <div class="app-shell">
   <header class="topbar admin-topbar">
     <div class="brand"><div class="brand-mark">E</div><div><span data-skin-brand="upper">MAXI</span><small data-skin-text="Panel Pemilik">Entity Admin</small></div></div>
     <div class="admin-top-actions">
+      <button id="entityManagementSettingsBtn" class="secondary-btn hidden" type="button">Pengaturan</button>
       <button id="entityAdminLogoutBtn" class="secondary-btn hidden" type="button">Logout</button>
     </div>
   </header>
@@ -46,6 +51,8 @@
       </div>
 
       <nav class="admin-tabs" aria-label="Menu Entity Admin">
+        <button class="admin-tab" data-entity-tab="home" type="button">Beranda Saya</button>
+        <button class="admin-tab" data-entity-tab="settings" type="button">Pengaturan</button>
         <button class="admin-tab active" data-entity-tab="stores" type="button">Gerai</button>
         <button class="admin-tab" data-entity-tab="drawerstatus" type="button">Status Laci</button>
         <button class="admin-tab" data-entity-tab="customers" type="button">Pelanggan</button>
@@ -60,6 +67,23 @@
         <button class="admin-tab" data-entity-tab="reports" type="button">Laporan</button>
       </nav>
 
+      <section id="entityTab-home" class="admin-section">
+        <div class="management-toolbar"><div><h2>Beranda Saya</h2><p class="muted">Pekerjaan pilihan akun Anda · tanggal dan jam dalam WIB</p></div><div class="management-actions"><button id="entityHomeRefresh" class="secondary-btn" type="button">Muat ulang</button><button id="entityHomeSettings" class="secondary-btn" type="button">Atur pin beranda</button></div></div>
+        <div id="entityHomePins" class="management-grid"><div class="admin-card">Memuat beranda akun…</div></div>
+      </section>
+      <section id="entityTab-settings" class="admin-section">
+        <div class="admin-card">
+          <div class="management-toolbar"><h2>Pengaturan Entity &amp; Akun</h2><button id="entitySettingsRefresh" class="secondary-btn" type="button">Muat ulang pengaturan</button></div>
+          <div class="management-actions management-subtabs" aria-label="Pengaturan"><button class="secondary-btn active" type="button" data-management-pane="alarm" aria-pressed="true">Alarm &amp; Notifikasi</button><button class="secondary-btn" type="button" data-management-pane="home" aria-pressed="false">Beranda Saya</button></div>
+          <p id="entityManagementStatus" class="management-status" role="status"></p>
+          <div id="entitySettingsAlarm">
+            <p class="muted">Admin Entity mengatur kondisi, gerai, jadwal dan penerima alarm. Setiap akun mengatur bunyi dan tampilan sendiri melalui tombol Notifikasi. Semua jam alarm memakai WIB / Jakarta.</p>
+            <div id="entityAlarmDenied" hidden>Aturan alarm hanya dapat diatur Admin Entity yang diberi akses.</div>
+            <div id="entityAlarmAdmin" hidden><button id="entityNewAlarm" type="button" class="primary-btn">Buat alarm khusus</button><div id="entityAlarmEditor"></div><div id="entityAlarmRules" class="master-list"></div></div>
+          </div>
+          <div id="entitySettingsHome" hidden><div id="entityHomePreferences"></div></div>
+        </div>
+      </section>
       <section id="entityTab-stores" class="admin-section active">
         <div class="admin-card">
           <div class="list-head"><div><h2>Daftar gerai</h2><div class="muted">Hanya gerai yang tertaut ke entity ini yang muncul di sini. Tiap gerai menampilkan status laci (OPEN/CLOSE), jamnya, dan kasir yang membuka.</div></div><span id="entityAdminStoreCount" class="master-count">0</span></div>
@@ -318,10 +342,12 @@
 </div>
 <link rel="stylesheet" href="/caca-chat.css?v=20261010-una-suara-v1" />
 <script src="/caca-chat.js?v=20261010-una-suara-v1"></script>
-<script src="/entity-admin.js?v=20261008-buku-per-orang-v1"></script>
+<script src="/user-notifications.js"></script>
+<script src="/entity-management.js"></script>
+<script src="/entity-admin.js?v=20261011-management-notifications-v1"></script>
 <script src="/foto-lihat.js"></script>
-<script src="/entity-setoran-cs.js?v=20261008-bukti-transfer-v1"></script>
-<script src="/nav-groups.js?v=20261010-percetakan-v1"></script>
+<script src="/entity-setoran-cs.js?v=20261011-management-notifications-v1"></script>
+<script src="/nav-groups.js?v=20261011-management-notifications-v1"></script>
 <script src="/warung-pemilik.js?v=20261003-skin-d-pemilik-v1"></script>
 <script src="/racik-pemilik.js?v=20261006-langsung-jual-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261003-lihat-hpp-v1"></script>
@@ -410,13 +436,7 @@
     }
   });
 
-  document.querySelectorAll('[data-entity-tab]').forEach(button => {
-    button.addEventListener('click', () => {
-      const isCustomerTab = button.dataset.entityTab === 'customers';
-      section?.classList.toggle('active', isCustomerTab);
-      if (isCustomerTab) load();
-    });
-  });
+  window.loadEntityCustomerWhatsApp = load;
 })();
 </script>
 </body>

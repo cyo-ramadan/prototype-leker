@@ -62,11 +62,16 @@ function showEntityAdminApp() {
   window.refreshEntityDrawerCards?.();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
+  window.EntityManagement?.init().catch(error => entityAdminToast(error.message));
 }
 
 // --- Buku Entity ---------------------------------------------------------
 
 function switchEntityTab(name) {
+  window.EntityManagement?.onTab(name);
+  entityAdminEl('entityTab-home')?.classList.toggle('active', name === 'home');
+  entityAdminEl('entityTab-settings')?.classList.toggle('active', name === 'settings');
+  entityAdminEl('entityTab-customers')?.classList.toggle('active', name === 'customers');
   document.querySelectorAll('[data-entity-tab]').forEach(button => button.classList.toggle('active', button.dataset.entityTab === name));
   entityAdminEl('entityTab-stores')?.classList.toggle('active', name === 'stores');
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
@@ -79,16 +84,28 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-storereport')?.classList.toggle('active', name === 'storereport');
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
-  if (name === 'setorancs') window.loadEntitySetoranCs?.();
-  if (name === 'sharedaccounts') loadEntitySharedAccounts().catch(error => entityAdminToast(error.message));
-  if (name === 'productmasters') loadEntityProductMasters().catch(error => entityAdminToast(error.message));
-  if (name === 'entityrecipes') loadEntityRecipes().catch(error => entityAdminToast(error.message));
-  if (name === 'entitystock') window.loadEntityStockMatrix?.();
-  if (name === 'drawerstatus') window.loadEntityDrawerStatus?.();
-  if (name === 'storereport') window.loadEntityStoreReport?.();
-  if (name === 'employees') loadEntityEmployees().catch(error => entityAdminToast(error.message));
-  if (name === 'reports') renderEntityReportStoreChecklist();
+  void loadEntityTabContent(name).catch(error => entityAdminToast(error.message));
 }
+
+// One loader for the original menu and its pinned instance; no copied panels or report renderers.
+async function loadEntityTabContent(name, options = {}) {
+  if (name === 'stores') { renderEntityAdminStores(); return window.refreshEntityDrawerCards?.(); }
+  if (name === 'customers') return window.loadEntityCustomerWhatsApp?.();
+  if (name === 'ledger') return loadEntityLedger();
+  if (name === 'setorancs') return window.loadEntitySetoranCs?.();
+  if (name === 'sharedaccounts') return loadEntitySharedAccounts();
+  if (name === 'productmasters') return loadEntityProductMasters();
+  if (name === 'entityrecipes') return loadEntityRecipes();
+  if (name === 'entitystock') return window.loadEntityStockMatrix?.();
+  if (name === 'drawerstatus') return window.loadEntityDrawerStatus?.();
+  if (name === 'storereport') return window.loadEntityStoreReport?.();
+  if (name === 'employees') return loadEntityEmployees();
+  if (name === 'reports') {
+    renderEntityReportStoreChecklist();
+    if (options.autoReport) return runEntityReport();
+  }
+}
+window.loadEntityTabContent = loadEntityTabContent;
 
 // Master Barang & Karyawan (ADR-043) sudah entity-scoped di backend
 // (src/product-master.js, src/employee-master.js), tapi endpoint-nya masih
@@ -1040,6 +1057,7 @@ function renderEntityAdminStores() {
 }
 
 async function entityAdminLogout() {
+  await window.EntityManagement?.destroy();
   try { await entityAdminApi('/api/entity-admin/logout', { method: 'POST' }); } catch {}
   entityAdminState.token = '';
   entityAdminState.entityAdmin = null;

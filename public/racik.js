@@ -880,6 +880,8 @@
     if (state.draft) saveDraft();
     const backToPanel = ownerMode();
     const panelPath = ownerReturn();
+    await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
+    await window.MaxiNotifications?.destroy();
     try { await api('/api/cashier/logout', { method: 'POST' }); } catch {}
     try {
       localStorage.removeItem('lekerCashierToken');

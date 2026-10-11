@@ -220,6 +220,20 @@ export const PETA_UNA = Object.freeze([
   },
   {
     "halaman": "entity",
+    "tab": "home",
+    "label": "Beranda Saya",
+    "grup": "Beranda Saya",
+    "hint": ""
+  },
+  {
+    "halaman": "entity",
+    "tab": "settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "halaman": "entity",
     "tab": "stores",
     "label": "Gerai",
     "grup": "Gerai",

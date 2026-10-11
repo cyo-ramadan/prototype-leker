@@ -323,6 +323,8 @@ async function createOwnerStore(event) {
 }
 
 async function ownerLogout() {
+  await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
+  await window.MaxiNotifications?.destroy();
   try { await ownerApi('/api/owner/logout', { method: 'POST' }); } catch {}
   ownerState.token = '';
   ownerState.owner = null;

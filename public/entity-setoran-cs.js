@@ -101,9 +101,20 @@
   }
 
   async function load() {
+    const list = el('entitySetoranCsList');
+    photoUrls.forEach(url => URL.revokeObjectURL(url)); photoUrls = [];
+    if (list) list.textContent = 'Memuat setoran…';
+    el('entitySetoranCsCount').textContent = '—';
     try {
-      render((await fetchQueue()).payments || []);
-    } catch (error) { entityAdminToast(error.message); }
+      const payload = await fetchQueue();
+      if (!Array.isArray(payload.payments)) throw new Error('Data setoran tidak lengkap.');
+      render(payload.payments);
+      return true;
+    } catch (error) {
+      if (list) list.textContent = `Setoran belum dapat dimuat: ${error.message}`;
+      entityAdminToast(error.message);
+      return false;
+    }
   }
 
   // Jumlah antrean untuk lencana pada tombol tab: dimuat saat panel dibuka dan saat tab browser

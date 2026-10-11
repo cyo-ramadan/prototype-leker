@@ -211,6 +211,8 @@ async function login(event) {
 }
 
 async function logout() {
+  await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
+  await window.MaxiNotifications?.destroy();
   try { if (state.token) await api('/api/cashier/logout', { method: 'POST' }); } catch {}
   clearSession();
   showLogin();

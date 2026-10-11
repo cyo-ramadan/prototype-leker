@@ -84,6 +84,8 @@
       return;
     }
 
+    await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
+    await window.MaxiNotifications?.destroy();
     try {
       await originalFetch(`/api/store-admin/logout?store=${encodeURIComponent(currentStoreCode)}`, {
         method: 'POST',

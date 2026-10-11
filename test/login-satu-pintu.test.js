@@ -33,7 +33,7 @@ function fakeElement(id) {
   };
 }
 
-function runLoginPage({ local = {}, url = 'https://x.test/login', fetchImpl } = {}) {
+function runLoginPage({ local = {}, url = 'https://x.test/login', fetchImpl, notifications } = {}) {
   const elements = {};
   const el = id => (elements[id] ||= fakeElement(id));
   const localStorage = storage(local);
@@ -42,6 +42,7 @@ function runLoginPage({ local = {}, url = 'https://x.test/login', fetchImpl } = 
   const fetches = [];
   const context = {
     document: { getElementById: el },
+    window: { MaxiNotifications: notifications },
     localStorage, sessionStorage,
     location: { href: url, replace: target => replaced.push(target) },
     fetch: async (path, init) => { fetches.push({ path, init }); return fetchImpl ? fetchImpl(path, init) : { ok: true, json: async () => ({}) }; },
@@ -158,7 +159,7 @@ test('halaman login: kartu tinggi tetap, tanpa CSS halaman admin (penyebab tampi
   const html = read('public/login.html');
   assert.match(html, /id="loginCard" data-state="loading"/);
   assert.match(html, /\/login\.css\?v=20261005-login-fb-v2/);
-  assert.match(html, /\/staff-login\.js\?v=20261005-login-fb-v1/);
+  assert.match(html, /\/staff-login\.js\?v=20261011-management-notifications-v1/);
   assert.doesNotMatch(html, /admin\.css|styles\.css/);
   assert.match(read('public/login.css'), /\.login-card \{[\s\S]*?min-height: 430px;/);
   assert.match(html, /<input id="staffPassword"[^>]*type="password"/);
@@ -178,4 +179,16 @@ test('penjaga Back + tautan tab terpasang di halaman kerja, dan file barunya mas
   assert.match(tabs, /event\.ctrlKey \|\| event\.metaKey \|\| event\.shiftKey/);
   assert.match(tabs, /window\.open\(urlFor\(name\), '_blank', 'noopener'\)/);
   assert.match(tabs, /history\.replaceState\(history\.state, '', urlFor\(name\)\)/, 'pindah tab tidak menumpuk riwayat Back dan tidak merusak penahan Back');
+});
+
+test('account switching revokes device push before server logout and clears widget', async () => {
+  const order = [];
+  const page = runLoginPage({
+    local: { lekerOwnerToken: 'owner-test' },
+    notifications: { revokeStoredPush: async () => order.push('revoke'), destroy: async () => order.push('destroy') },
+    fetchImpl: async path => { order.push(path); return { ok: true, json: async () => ({}) }; }
+  });
+  await page.el('switchAccountBtn').fire('click');
+  assert.deepEqual(order, ['revoke', 'destroy', '/api/owner/logout']);
+  assert.deepEqual(page.localStorage.dump(), {});
 });

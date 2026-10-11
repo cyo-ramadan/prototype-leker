@@ -153,5 +153,5 @@ test('Mode Warung pulang ke Kasir biasa saat skin tenant sudah bukan D/E (tidak 
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(terbuka.pindah, ['/s/MANDALA/cashier']);
 
-  assert.match(read('public/warung.html'), /\/warung\.js\?v=20261004-pulang-skin-v1/);
+  assert.match(read('public/warung.html'), /\/warung\.js\?v=20261011-management-notifications-v1/);
 });

@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f3f1ee" />
   <title>MAXI · Login Karyawan</title>
   <link rel="stylesheet" href="/login.css?v=20261005-login-fb-v2" />
+<link rel="apple-touch-icon" href="/management-icon-192.png" />
 </head>
 <body>
 <noscript><div class="noscript"><b>JavaScript di browser ini mati.</b> Login tidak bisa tampil. Hidupkan di Setelan situs &gt; JavaScript, lalu muat ulang. Cek HP: <a href="/diagnostik">/diagnostik</a></div></noscript>
@@ -51,6 +52,10 @@
     <a class="login-outline" href="/customer">Ke halaman pelanggan</a>
   </section>
 </main>
-<script src="/staff-login.js?v=20261005-login-fb-v1"></script>
+<script src="/staff-login.js?v=20261011-management-notifications-v1"></script>
+<link rel="stylesheet" href="/entity-management.css?v=20261011-management-notifications-v1" />
+<link rel="manifest" href="/management.webmanifest" />
+<script src="/user-notifications.js?v=20261011-management-notifications-v1"></script>
+<script>window.MaxiNotifications?.startForStoredSession();</script>
 </body>
 </html>

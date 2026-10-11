@@ -57,6 +57,8 @@
   }
 
   async function logoutEverywhere() {
+    await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
+    await window.MaxiNotifications?.destroy();
     const calls = [];
     const post = (path, token) => calls.push(fetch(path, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {}));
     const owner = read('lekerOwnerToken');
@@ -122,6 +124,7 @@
 
       // Satu browser = satu akun: semua token karyawan lain (termasuk yang basi) dibuang dulu,
       // supaya tidak ada lagi halaman yang menebak peran dari token tertinggal.
+      await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
       clearAllStaff();
       try {
         localStorage.setItem(TOKEN_KEY[payload.role], payload.token);

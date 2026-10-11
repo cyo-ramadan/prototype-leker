@@ -47,6 +47,8 @@ export const PENJELASAN = Object.freeze({
   'gerai:customers': { bisa: 'Data pelanggan langganan dan poinnya.', kata: ['pelanggan', 'member', 'poin'] },
   'gerai:customer-feedback': { bisa: 'Kotak saran: masukan dan keluhan dari pembeli.', kata: ['saran', 'keluhan', 'masukan', 'feedback'] },
   'gerai:vouchers': { bisa: 'Atur voucher dan potongan harga untuk pembeli.', kata: ['voucher', 'diskon', 'promo'] },
+  'entity:home': { bisa: 'Beranda pribadi setelah login: pin profit harian, setoran CS, persetujuan, atau status gerai sesuai pekerjaan akun.', kata: ['beranda', 'pin', 'dashboard', 'halaman pertama'] },
+  'entity:settings': { bisa: 'Admin Entity mengatur kondisi, jadwal, gerai, dan penerima alarm. Tiap akun mengatur bunyi, notifikasi HP, serta susunan beranda sendiri.', kata: ['alarm', 'notifikasi', 'pengingat', 'pengaturan', 'setting'] },
   'entity:stores': { bisa: 'Daftar semua gerai di bawah usaha ini.', kata: ['gerai', 'cabang', 'outlet'] },
   'entity:drawerstatus': { bisa: 'Status laci semua gerai: mana yang buka/tutup dan selisihnya.', kata: ['laci', 'status laci', 'kas'] },
   'entity:reports': { bisa: 'Laporan gabungan seluruh usaha (semua gerai).', kata: ['laporan usaha', 'gabungan', 'semua gerai'] },

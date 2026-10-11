@@ -651,7 +651,7 @@
   } else {
     el('attendanceToggleBtn').addEventListener('click', () => startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in'));
     el('backCashierBtn').addEventListener('click', () => { window.lekerPrepareStaffHandoff?.(); location.assign('/cashier'); });
-    el('staffLogoutBtn').addEventListener('click', async () => { try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); });
+    el('staffLogoutBtn').addEventListener('click', async () => { await window.MaxiNotifications?.revokeStoredPush().catch(() => {}); await window.MaxiNotifications?.destroy(); try { await staffApi('/api/cashier/logout', { method: 'POST' }); } catch {} window.lekerClearStaffSession?.(); localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); });
   }
   bindTabs(); loadPortal(); loadDeposits(); loadDailyTasks(); loadManualBook(); loadAnnouncements();
 })();

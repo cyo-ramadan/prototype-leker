@@ -534,6 +534,8 @@
     if (button) showTab(button.dataset.tab);
   });
   $('wLogout').addEventListener('click', async () => {
+    await window.MaxiNotifications?.revokeStoredPush().catch(() => {});
+    await window.MaxiNotifications?.destroy();
     try { await api('/api/cashier/logout', { method: 'POST' }); } catch {}
     try { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); } catch {}
     location.replace(cashierPath());

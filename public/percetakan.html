@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#1F4D3A" />
   <title>Percetakan</title>
   <link rel="stylesheet" href="/percetakan.css?v=20261010-percetakan-v1" />
+<link rel="apple-touch-icon" href="/management-icon-192.png" />
 </head>
 <body>
   <!-- Layar Percetakan -- ADR-055, HANDOFF-PERCETAKAN.md.
@@ -42,5 +43,9 @@
   <dialog id="dialog-order"><div id="dialog-isi"></div></dialog>
 
   <script src="/percetakan.js?v=20261010-twilio-v1"></script>
+<link rel="stylesheet" href="/entity-management.css?v=20261011-management-notifications-v1" />
+<link rel="manifest" href="/management.webmanifest" />
+<script src="/user-notifications.js?v=20261011-management-notifications-v1"></script>
+<script>window.MaxiNotifications?.startForStoredSession();</script>
 </body>
 </html>

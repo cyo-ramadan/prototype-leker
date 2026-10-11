@@ -37,6 +37,8 @@
       keyOf: button => button.dataset.entityTab,
       ignore: [],
       groups: [
+        { id: 'home', icon: '⌂', label: 'Beranda Saya', items: ['home'] },
+        { id: 'settings', icon: '⚙', label: 'Pengaturan', items: ['settings'] },
         { id: 'stores', icon: '🏪', label: 'Gerai', items: ['stores', 'drawerstatus'] },
         { id: 'reports', icon: '📈', label: 'Laporan', items: ['reports', 'storereport'] },
         { id: 'goods', icon: '📦', label: 'Barang', items: ['productmasters', 'entityrecipes', 'entitystock'] },
@@ -68,6 +70,8 @@
         ] }
       ],
       'entity-admin': [
+        { id: 'home', icon: '⌂', label: 'Beranda Saya', items: ['home'] },
+        { id: 'settings', icon: '⚙', label: 'Pengaturan', items: ['settings'] },
         { id: 'stores', icon: '🏪', label: 'Gerai', items: ['stores', 'drawerstatus'] },
         { id: 'reports', icon: '📈', label: 'Laporan', items: ['reports', 'storereport'] },
         { id: 'team', icon: '👥', label: 'Karyawan', items: ['employees'] }
@@ -119,7 +123,7 @@
     storereport: 'Laporan per Gerai', drawerstatus: 'Status Laci', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
     ledger: 'Buku Usaha', racikbahan: 'Bahan & Aroma', cetak: 'Layar Cetak'
   };
-  const ENTITY_LABELS = { stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama', setorancs: 'Setoran CS' };
+  const ENTITY_LABELS = { home: 'Beranda Saya', settings: 'Pengaturan', stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama', setorancs: 'Setoran CS' };
 
   function pageKey() {
     if (window.MAXI_SKIN_PAGE === 'entity-admin') return 'entity-admin';

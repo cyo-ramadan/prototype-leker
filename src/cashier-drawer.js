@@ -5,6 +5,7 @@ import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { createEmployeeDepositReceivable } from './employee-deposit-settlement.js';
 import { optionalMoney, resolveDrawerDeposit } from './drawer-deposit.js';
+import { gagalkanPermitHapusSaatTutupLaci } from './permit-hapus-tutup-laci.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const money = value => {
@@ -247,6 +248,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
       return json({ error: 'Laci sudah berubah status di request lain.' }, 409);
     }
+    const permitHapusDigagalkan = await gagalkanPermitHapusSaatTutupLaci(db, ownership.drawer.id, now);
 
     let employeeDeposit = null;
     if (depositAmount > 0) {
@@ -266,7 +268,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
         }, employeeDeposit.accounting.status || 503);
       }
     }
-    return json({ ok: true, drawerId: ownership.drawer.id, closedAt: now, photoType: photo?.type || null, employeeDeposit });
+    return json({ ok: true, drawerId: ownership.drawer.id, closedAt: now, photoType: photo?.type || null, employeeDeposit, permitHapusDigagalkan });
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/menu') {

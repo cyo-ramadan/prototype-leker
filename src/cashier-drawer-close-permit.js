@@ -5,6 +5,7 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getOpenDrawer } from './cashier-drawer.js';
 import { createEmployeeDepositReceivable } from './employee-deposit-settlement.js';
 import { optionalMoney, resolveDrawerDeposit } from './drawer-deposit.js';
+import { gagalkanPermitHapusSaatTutupLaci } from './permit-hapus-tutup-laci.js';
 
 // Bos Cyo, 2026-09-19: "kasih tombol kasir bisa permit tutup laci kasir
 // sebelumnya karna sudah waktu dia untuk jaga. nanti admin acc kan akhirnya
@@ -152,6 +153,7 @@ async function applyClosePermitApproval(db, store, current, { approverRole, appr
   if (!result.success || Number(result.meta?.changes ?? 0) !== 1) {
     return { ok: false, status: 409, error: 'Laci sudah berubah status di request lain.' };
   }
+  await gagalkanPermitHapusSaatTutupLaci(db, current.drawerSessionId, now);
 
   let employeeDeposit = null;
   if (current.depositAmount > 0) {

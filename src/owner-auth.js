@@ -3,6 +3,7 @@ import { pasangJurnalWajib } from './gerai-jurnal-wajib.js';
 import { listStores, normalizeStoreCode, resolveStore } from './stores.js';
 import { secureTokenEqual } from './debugger-control-plane.js';
 import { TENANT_POLICY_DEFINITIONS, listTenantPolicySettings, setTenantPolicySetting } from './tenant-policy.js';
+import { kedaluwarsaSesiStaf, perpanjangSesiStaf } from './sesi-staf.js';
 
 // Identitas mesin buat agen (Hana/Claude Code, dst) yang menulis lewat
 // /api/admin/* -- Bos Cyo, 2026-09-16, setelah menolak pendekatan awal
@@ -27,8 +28,6 @@ async function agentAdminFromRequest(request, env) {
   return AGENT_ADMIN_IDENTITY;
 }
 
-const OWNER_SESSION_HOURS = 12;
-const STORE_ADMIN_SESSION_HOURS = 12;
 const DEFAULT_STORE_CODE = 'G001';
 const text = (value, max = 180) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
@@ -119,12 +118,13 @@ export async function ownerFromRequest(request, db) {
   const tokenHash = await hashCredential(token);
   const now = new Date().toISOString();
   const row = await db.prepare(`
-    SELECT o.id, o.username, o.display_name, o.is_active
+    SELECT o.id, o.username, o.display_name, o.is_active, os.expires_at AS session_expires_at
     FROM owner_sessions os
     JOIN owner_accounts o ON o.id = os.owner_id
     WHERE os.token_hash = ? AND os.expires_at > ? AND o.is_active = 1
     LIMIT 1
   `).bind(tokenHash, now).first();
+  if (row) await perpanjangSesiStaf(db, 'owner_sessions', tokenHash, row.session_expires_at);
   return mapOwner(row);
 }
 
@@ -135,7 +135,8 @@ export async function storeAdminFromRequest(request, db) {
   const now = new Date().toISOString();
   const row = await db.prepare(`
     SELECT a.id, a.username, a.display_name, a.is_active,
-           s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active
+           s.id AS store_id, s.code AS store_code, s.store_name, s.is_active AS store_active,
+           ss.expires_at AS session_expires_at
     FROM store_admin_sessions ss
     JOIN store_admins a ON a.id = ss.admin_id
     JOIN stores s ON s.id = a.store_id
@@ -143,7 +144,9 @@ export async function storeAdminFromRequest(request, db) {
       AND a.is_active = 1 AND s.is_active = 1
     LIMIT 1
   `).bind(tokenHash, now).first();
-  return row?.store_active ? mapStoreAdmin(row) : null;
+  if (!row?.store_active) return null;
+  await perpanjangSesiStaf(db, 'store_admin_sessions', tokenHash, row.session_expires_at);
+  return mapStoreAdmin(row);
 }
 
 export async function entityAdminFromRequest(request, db) {
@@ -153,21 +156,23 @@ export async function entityAdminFromRequest(request, db) {
   const now = new Date().toISOString();
   const row = await db.prepare(`
     SELECT a.id, a.username, a.display_name, a.is_active, a.entity_id,
-           e.name AS entity_name, e.status AS entity_status
+           e.name AS entity_name, e.status AS entity_status, es.expires_at AS session_expires_at
     FROM entity_admin_sessions es
     JOIN entity_admins a ON a.id = es.entity_admin_id
     JOIN entities e ON e.id = a.entity_id
     WHERE es.token_hash = ? AND es.expires_at > ? AND a.is_active = 1
     LIMIT 1
   `).bind(tokenHash, now).first();
-  return row?.entity_status === 'ACTIVE' ? mapEntityAdmin(row) : null;
+  if (row?.entity_status !== 'ACTIVE') return null;
+  await perpanjangSesiStaf(db, 'entity_admin_sessions', tokenHash, row.session_expires_at);
+  return mapEntityAdmin(row);
 }
 
 export async function createEntityAdminSession(db, row) {
   const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
   const tokenHash = await hashCredential(token);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + STORE_ADMIN_SESSION_HOURS * 60 * 60 * 1000).toISOString();
+  const expiresAt = kedaluwarsaSesiStaf(now);
   await db.batch([
     db.prepare('DELETE FROM entity_admin_sessions WHERE expires_at <= ?').bind(now.toISOString()),
     db.prepare('INSERT INTO entity_admin_sessions (token_hash, entity_admin_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
@@ -180,7 +185,7 @@ export async function createStoreAdminSession(db, row) {
   const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
   const tokenHash = await hashCredential(token);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + STORE_ADMIN_SESSION_HOURS * 60 * 60 * 1000).toISOString();
+  const expiresAt = kedaluwarsaSesiStaf(now);
   await db.batch([
     db.prepare('DELETE FROM store_admin_sessions WHERE expires_at <= ?').bind(now.toISOString()),
     db.prepare('INSERT INTO store_admin_sessions (token_hash, admin_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
@@ -402,7 +407,7 @@ export async function handleOwnerApi(request, env, pathname) {
     const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
     const tokenHash = await hashCredential(token);
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + OWNER_SESSION_HOURS * 60 * 60 * 1000).toISOString();
+    const expiresAt = kedaluwarsaSesiStaf(now);
     await db.batch([
       db.prepare('DELETE FROM owner_sessions WHERE expires_at <= ?').bind(now.toISOString()),
       db.prepare('INSERT INTO owner_sessions (token_hash, owner_id, created_at, expires_at) VALUES (?, ?, ?, ?)')

@@ -119,9 +119,11 @@ test('only the customer token and the per-tab handoff marker stay in sessionStor
   }
 });
 
-test('server-side session lifetime for Owner/Store Admin stays 12 hours -- this fix only stops the client from discarding it early', () => {
-  assert.match(ownerAuthSrc, /OWNER_SESSION_HOURS = 12/);
-  assert.match(ownerAuthSrc, /STORE_ADMIN_SESSION_HOURS = 12/);
+// Bos Cyo, 2026-10-11: batas mati 12 jam diganti sesi bergeser (tetap login sampai Keluar, habis
+// hanya kalau 30 hari tidak dipakai). Aturannya dijaga test/sesi-staf-sampai-logout.test.js.
+test('server-side session lifetime for Owner/Store Admin follows the sliding staff session, not a fixed 12 hours', () => {
+  assert.doesNotMatch(ownerAuthSrc, /SESSION_HOURS = 12/);
+  assert.match(ownerAuthSrc, /kedaluwarsaSesiStaf\(now\)/);
 });
 
 // 2026-09-17, bug Bos Cyo: klik "Buka Workspace" gerai dari panel Entity

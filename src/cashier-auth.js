@@ -6,6 +6,8 @@ import { listPayrollAdjustments, createPayrollAdjustment, voidPayrollAdjustment 
 import { activateEntityBackupCashier } from './entity-backup-cashiers.js';
 import { getJakartaBusinessDate } from './time.js';
 import { resolveTenantId, getTenantPolicySetting, getTenantPolicyChoice, isOwnerOperatedChoice, isRacikChoice, isAttendanceOptionalChoice, ATTENDANCE_SCHEDULE_GATE_KEY, UI_SKIN_KEY } from './tenant-policy.js';
+import { kedaluwarsaSesiStaf, perpanjangSesiStaf } from './sesi-staf.js';
+
 
 // Identitas pemanggil requireManagement (Owner/Admin Gerai/Entity Admin/Agent
 // token) diringkas ke {role, id} generik -- dipakai sebagai jejak audit
@@ -16,7 +18,6 @@ function managementActor(auth) {
   return { role: auth.authType, id: identity?.id || auth.authType };
 }
 
-const SESSION_HOURS = 12;
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 const usernameText = value => text(value, 40).toLowerCase().replace(/[^a-z0-9._-]/g, '');
 
@@ -218,7 +219,7 @@ export async function requireCashier(request, db) {
   const now = new Date().toISOString();
   const row = await db.prepare(`
     SELECT c.id, c.username, c.employee_name, c.is_active, c.is_entity_backup,
-           s.id AS store_id, s.code AS store_code, s.store_name, s.entity_id
+           s.id AS store_id, s.code AS store_code, s.store_name, s.entity_id, cs.expires_at AS session_expires_at
     FROM cashier_sessions cs
     JOIN cashiers c ON c.id = cs.cashier_id
     JOIN stores s ON s.id = c.store_id
@@ -235,6 +236,7 @@ export async function requireCashier(request, db) {
     if (viewer) return { ok: true, cashier: viewer, tokenHash: null, readOnly: true };
     return { ok: false, response: json({ error: 'Session kasir tidak valid atau sudah habis.', code: 'CASHIER_SESSION_EXPIRED' }, 401) };
   }
+  await perpanjangSesiStaf(db, 'cashier_sessions', tokenHash, row.session_expires_at);
   const cashier = await attachAttendanceScheduleGate(db, mapCashier(row), row.entity_id);
   return { ok: true, cashier, tokenHash };
 }
@@ -398,7 +400,7 @@ export async function handleCashierAuthApi(request, env, pathname) {
     const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
     const tokenHash = await hashCredential(token);
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + SESSION_HOURS * 60 * 60 * 1000).toISOString();
+    const expiresAt = kedaluwarsaSesiStaf(now);
     await db.batch([
       db.prepare('DELETE FROM cashier_sessions WHERE expires_at <= ?').bind(now.toISOString()),
       db.prepare(`INSERT INTO cashier_sessions (token_hash, cashier_id, created_at, expires_at) VALUES (?, ?, ?, ?)`)

@@ -2,6 +2,7 @@ import { json } from './http.js';
 import { requireManagement, hashCredential } from './owner-auth.js';
 import { resolveStore, DEFAULT_STORE_CODE } from './stores.js';
 import { getTenantPolicyChoice, isRacikChoice, UI_SKIN_KEY } from './tenant-policy.js';
+import { kedaluwarsaSesiStaf } from './sesi-staf.js';
 
 // Skin F (Racik Parfum) -- Bos Cyo, 2026-10-06: "di skin itu admin/owner/kasir
 // untuk saat ini samakan, boleh langsung jual dan buka laci. di entity kasih
@@ -19,7 +20,6 @@ import { getTenantPolicyChoice, isRacikChoice, UI_SKIN_KEY } from './tenant-poli
 // Hanya untuk tenant skin F; tenant lain mendapat 403. Token agen (Una/bot)
 // tidak boleh -- sesi kasir hanya untuk manusia yang login.
 
-const SESSION_HOURS = 12;
 
 function actorOf(auth) {
   if (auth.entityAdmin) return { key: `ea_${auth.entityAdmin.id}`, name: auth.entityAdmin.displayName || auth.entityAdmin.username };
@@ -70,7 +70,7 @@ export async function handleRacikKasirPemilikApi(request, env, pathname) {
   }
 
   const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll('-', '');
-  const expiresAt = new Date(now.getTime() + SESSION_HOURS * 60 * 60 * 1000).toISOString();
+  const expiresAt = kedaluwarsaSesiStaf(now);
   await db.batch([
     db.prepare('DELETE FROM cashier_sessions WHERE expires_at <= ?').bind(nowIso),
     db.prepare('INSERT INTO cashier_sessions (token_hash, cashier_id, created_at, expires_at) VALUES (?, ?, ?, ?)')

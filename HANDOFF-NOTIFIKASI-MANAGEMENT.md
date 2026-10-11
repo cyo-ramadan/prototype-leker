@@ -59,7 +59,7 @@ terdaftar dan tidak boleh menjadi jalan akses URL sembarang.
 ## Bukti pengujian lokal (2026-10-11)
 
 Build dry-run Wrangler 4.149.0 lulus: binding Durable Object, D1, R2 dan assets terbundel.
-Pemeriksaan sintaks 308 perintah lulus. Regresi integrasi terakhir 73/73 lulus. Full suite Windows awal 1772/1788; sebagian gagal karena baseline CRLF/path dan ekspektasi asset lama. Ekspektasi terkait perubahan telah diperbaiki; CI Linux menjadi gerbang rilis. Tes inti SQLite, pengiriman terenkripsi, isolasi entity,
+Pemeriksaan sintaks 308 perintah lulus. Regresi integrasi terakhir 73/73 lulus. Full suite Windows awal 1772/1788; sebagian gagal karena baseline CRLF/path dan ekspektasi asset lama. Ekspektasi terkait perubahan telah diperbaiki; CI Linux commit 01a2039 lulus 1800/1800 dan syntax check. Pembaruan peta kode main d0366fc membawa hash artefak yang tidak selaras; artefak dibangun ulang dari blob Git LF dan tes peta 40/40 lulus, tanpa perubahan graphify dalam fitur ini. Tes inti SQLite, pengiriman terenkripsi, isolasi entity,
 tiket realtime, UI, serta route Worker dijalankan terpisah dan lulus.
 Browser Chrome lokal: login fixture, pin profit/setoran, reload mempertahankan pin, form alarm,
 scheduler ke inbox penerima, serta tampilan 390px diperiksa. WebSocket lokal menghasilkan 101.

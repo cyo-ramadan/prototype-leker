@@ -11,9 +11,14 @@ export const ACCOUNTING_REQUIRED_REMOTE_TABLES = Object.freeze([
   'accounting_journal_headers',
   'accounting_journal_lines'
 ]);
+export const UNA_WORKSPACE_REQUIRED_REMOTE_TABLES = Object.freeze([
+  'una_workspace_tasks',
+  'una_workspace_steps'
+]);
 export const ALL_REQUIRED_REMOTE_TABLES = Object.freeze([
   ...REQUIRED_REMOTE_TABLES,
-  ...ACCOUNTING_REQUIRED_REMOTE_TABLES
+  ...ACCOUNTING_REQUIRED_REMOTE_TABLES,
+  ...UNA_WORKSPACE_REQUIRED_REMOTE_TABLES
 ]);
 export const PRODUCTION_REQUIRED_COLUMNS = Object.freeze({
   production_runs: Object.freeze([

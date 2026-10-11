@@ -13,6 +13,42 @@ Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
 ---
 
+## Update 2026-10-11 - Workspace Una
+
+Implementasi: Workspace V1. Bukti rilis memakai check `Workers Builds: prototype-leker-v2` pada merge commit `main`, lalu pemeriksaan aset dan schema produksi.
+Arahan Bos Cyo: Workspace dibangun lebih dulu agar percakapan live kelak bisa
+berjalan sambil draft di Workspace terus diperiksa dan berubah.
+
+- Tombol Workspace tersedia sejak awal chat; draft di chat menjadi kartu ringkas.
+- Detail, dampak, koreksi dan persetujuan berada di Workspace. Laptop menampilkan
+  chat dan Workspace berdampingan; HP memiliki tombol kembali ke chat.
+- Tugas tersimpan sebagai JSON server per akun dan lingkup; reload tidak menghidupkan
+  tombol dari HTML percakapan lama. Penyimpanan memakai migration0150.
+- Revision dan cursor mengikat persetujuan. Batch menyimpan progres tiap langkah;
+  jeda berlaku setelah langkah berjalan selesai. Hasil ambigu dikunci untuk
+  pemeriksaan manual, bukan diulang otomatis.
+- Draft kredensial mengikuti mode sementara yang ditandai jelas, tanpa menyimpan
+  password/rahasia sekali tampil ke Workspace atau riwayat.
+- Model Una tidak berubah. Call live penuh belum termasuk rilis Workspace ini.
+
+Kontrak: `contracts/una-workspace-v1.md`.
+
+Validasi implementasi 2026-10-11:
+- 47/47 tes terarah lulus: backend14, router nyata3, Workspace UI18, voice lama12.
+- Full suite lokal Windows: 1.831 tes, 1.818 lulus / 13 gagal. Seluruh 13 judul
+  kegagalan direproduksi pada exact baseline `97863645` (103 tes lama: 90/13),
+  bukan regresi Workspace. Perubahan UI terakhir kemudian diuji ulang terarah;
+  CI Linux pada PR menjadi gerbang full suite versi final.
+- `npm run check` dicoba: command gabungan melebihi batas cmd Windows. Seluruh
+  310 pemeriksaan syntax dijalankan per perintah lewat PowerShell dan lulus.
+- `wrangler deploy --dry-run` lulus. Browser lokal laptop dan ukuran390x844
+  memeriksa Workspace, kotak chat, kembali ke chat dan pemulihan draft.
+- Batch lokal12 barang selesai12/12 dengan12 hasil tersimpan; koreksi harga9000
+  tersimpan sebagai scaled integer9000000000 di gerai asal. Tidak ada uji tulis
+  barang atau transaksi pada produksi.
+- Preflight produksi: tabel Workspace belum ada, ledger terakhir0149. Migration0150
+  hanya menambah metadata Workspace; deploy harus apply lalu verify schema.
+
 ## Status singkat
 
 **Tahap 1 sudah ada kodenya, lulus test, tapi BELUM live.** Kodenya masih di
@@ -723,3 +759,5 @@ Dokumen ini **sementara** — berlaku sampai akurasi baca Tahap 1 terukur dan
 dokumen turunannya menyusul (lihat DOC-IMPACT di ADR-044). Begitu
 modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 `MODULE_OWNERSHIP.md`, dan `RUNBOOK.md`, lalu file ini dihapus.
+
+<!-- DOC-IMPACT: 2026-10-11 Workspace Una dan batas call live; status rilis dicatat pada update terbaru. -->

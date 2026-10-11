@@ -237,10 +237,62 @@ html[data-skin="g"] .primary-btn { min-height: 48px; }
 """),
 }
 
+
+SKINS['h'] = dict(title='H · Owner Kelola Sendiri', note='Buku kendali owner beberapa gerai yang merangkap admin. Aturan kasir tetap normal. DESAIN-SKIN-H-OWNER-ADMIN.md.', tok={
+  **SKINS['g']['tok'],
+  '--skin-font': '"DM Sans", "Segoe UI", system-ui, sans-serif',
+  '--bg': '#F4F7FB', '--skin-page-bg': '#F4F7FB', '--surface': '#FFFFFF', '--ink': '#18283C', '--muted': '#526277', '--line': '#D8E1EB',
+  '--brand': '#174EA6', '--brand-2': '#174EA6',
+  '--skin-top-bg': '#FFFFFF', '--skin-top-ink': '#18283C', '--skin-top-muted': '#526277', '--skin-top-line': '#D8E1EB',
+  '--skin-mark-bg': '#174EA6', '--skin-mark-ink': '#FFFFFF',
+  '--skin-primary': '#174EA6', '--skin-active-bg': '#174EA6', '--skin-active-ink': '#FFFFFF',
+  '--skin-input-bg': '#FFFFFF', '--skin-chip-bg': '#EAF0F9', '--skin-focus': 'rgba(23,78,166,.18)',
+  '--skin-danger': '#A12626', '--skin-danger-soft': '#FFF0F0', '--skin-danger-line': '#EDC5C5',
+  '--skin-card-shadow': 'none', '--skin-r-sm': '8px', '--skin-r': '10px', '--skin-r-lg': '16px'
+}, extra=r"""
+html[data-skin="h"] body { font-size:16px; line-height:1.5; }
+html[data-skin="h"] .admin-heading { display:none; }
+html[data-skin="h"] #tab-approvals.active { display:flex; flex-direction:column; }
+html[data-skin="h"] #tab-approvals > .admin-card:first-child { order:9; margin-top:14px; }
+html[data-skin="h"] .admin-top-actions > a:not(#cashierReadOnlyLink) { display:none; }
+html[data-skin="h"] .nav-groups-main { grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
+html[data-skin="h"] .nav-group-btn { border:0; min-height:60px; font-weight:600; font-size:12px; }
+html[data-skin="h"] .nav-group-icon { font-family:system-ui; font-size:24px; }
+html[data-skin="h"] .primary-btn, html[data-skin="h"] .secondary-btn, html[data-skin="h"] .mini-btn,
+html[data-skin="h"] input:not([type="checkbox"]):not([type="hidden"]), html[data-skin="h"] select { min-height:44px; }
+html[data-skin="h"] .admin-card h2 { font-size:21px; letter-spacing:-.025em; }
+html[data-skin="h"] .th-profit, html[data-skin="h"] .hi-profit { background:#FFFFFF; color:#18283C; border:1px solid #D8E1EB; border-top:3px solid #174EA6; border-radius:12px; }
+html[data-skin="h"] .hi-profit p em { color:#174EA6; }
+html[data-skin="h"] .th-profit b.neg, html[data-skin="h"] .hi-profit b.neg { color:#A12626; }
+html[data-skin="h"] .hi-refresh { background:#EAF0F9; color:#174EA6; border-color:#D8E1EB; min-height:44px; }
+html[data-skin="h"] .hi-store a { display:block; color:#174EA6; text-decoration:none; padding:8px 0; }
+html[data-skin="h"] .hi-store a:focus-visible { outline:3px solid #174EA6; outline-offset:3px; }
+html[data-skin="h"] #entityAdminApp .owner-heading .muted, html[data-skin="h"] #entityAdminApp .owner-heading .admin-eyebrow { display:none; }
+html[data-skin="h"] .h-inline-recipe { border-top:1px solid #D8E1EB; padding-top:16px; margin:16px 0; }
+html[data-skin="h"] .h-inline-recipe h3 { margin:0 0 4px; font-size:18px; }
+html[data-skin="h"] .h-recipe-row { display:grid; grid-template-columns:minmax(0,1fr) 80px 44px; align-items:end; gap:8px; margin:12px 0; }
+html[data-skin="h"] .h-recipe-row label { min-width:0; margin:0; }
+html[data-skin="h"] .h-recipe-row select { width:100%; }
+html[data-skin="h"] .h-recipe-row button { min-height:44px; padding:8px; }
+html[data-skin="h"] .h-recipe-error { color:#A12626; background:#FFF0F0; padding:12px; border-radius:8px; }
+html[data-skin="h"] .h-recipe-basic { margin:12px 0; }
+html[data-skin="h"] #productRecipeNote { display:none; }
+html[data-skin="h"] body:not(:has([data-entity-tab="home"].active)) #hariIni { display:none; }
+html[data-skin="h"] #productOperationalDetails summary { cursor:pointer; padding:12px 0; color:#526277; }
+@media(max-width:600px) {
+  html[data-skin="h"] .admin-grid.two { grid-template-columns:minmax(0,1fr); }
+  html[data-skin="h"] .admin-top-actions { gap:6px; }
+  html[data-skin="h"] .admin-top-actions a, html[data-skin="h"] .admin-top-actions button { font-size:12px; }
+  html[data-skin="h"] .nav-group-btn { padding:10px 1px; }
+  html[data-skin="h"] .hi-need { flex-wrap:wrap; }
+}
+""")
+
 import sys
 out = sys.argv[1]
 for s, d in SKINS.items():
+    if len(sys.argv) > 2 and s != sys.argv[2]: continue
     css = f"/* Skin {d['title']} -- pilihan tenant ui_skin = {s.upper()} (src/tenant-policy.js).\n   {d['note']}\n   Hanya berlaku saat <html data-skin=\"{s}\"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.\n   Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */\n"
     css += COMMON.format(s=s, tokens=tokens(d['tok'])) + d['extra']
-    open(f"{out}/skin-{s}.css", "w").write(css)
+    open(f"{out}/skin-{s}.css", "w", encoding="utf-8").write(css)
 print("ok")

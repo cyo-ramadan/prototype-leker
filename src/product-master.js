@@ -1,8 +1,9 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { getManufacturingReferenceData, resolveProductMasterReferences } from './manufacturing-master.js';
+import { getManufacturingReferenceData, resolveProductMasterReferences, listRecipeRows } from './manufacturing-master.js';
 import { resolveLinkedRecipe } from './product-policy.js';
+import { UI_SKIN_KEY, getTenantPolicyChoice } from './tenant-policy.js';
 import { defaultProductKindForItemType, ensureItemCategoryForKind, listProductKinds, resolveProductKind } from './product-kinds.js';
 
 const MAX_PRODUCT_IMAGE_LENGTH = 900_000;
@@ -173,10 +174,11 @@ async function editorPayload(db, store, { withImages = true } = {}) {
   // Reference bootstrap may write missing defaults. Finish it before concurrent
   // reads so D1 never overlaps a bootstrap batch with the editor snapshot.
   const refs = await getManufacturingReferenceData(db, store.id);
+  const inlineRecipes = await getTenantPolicyChoice(db, store.tenantId, UI_SKIN_KEY) === 'H';
   const [productKinds, products, recipes] = await Promise.all([
     listProductKinds(db, store.id),
     listEditorProducts(db, store.id, { withImages }),
-    listActiveRecipes(db, store.id)
+    inlineRecipes ? listRecipeRows(db, store.id) : listActiveRecipes(db, store.id)
   ]);
   return { store, products, recipes, productKinds, ...refs };
 }

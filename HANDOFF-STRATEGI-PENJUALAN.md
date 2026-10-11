@@ -215,6 +215,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 
 | Tanggal | Sesi | Perubahan | Status jual | Dampak ke penjualan |
 |---|---|---|---|---|
+| 2026-10-11 | Codex · UI/UX | Opsi skin H untuk pemilik beberapa gerai yang merangkap admin: lima tujuan utama, ringkasan keputusan lintas gerai, dan resep diisi langsung dari barang dengan klasifikasi bawaan | UJI | Pilihan tenant tetap harus diaktifkan; uji tampilan HP dan pemakaian nyata belum selesai. Tidak mengubah presensi, persetujuan atau aturan pembukuan |
 | 2026-10-01 | pengembangan | Radius GPS presensi + permit perbaikan + Laporan Presensi + Laporan Permit + koreksi jam presensi + dua resep per menu | JUAL | Memperkuat pesan "karyawan terpantau"; bahan KPI manual makin lengkap |
 | 2026-10-01 | pengembangan | Halaman diagnostik perangkat | INTERNAL | Mengurangi beban dukungan "tidak bisa login" |
 | 2026-10-01 | strategi | Landing page penjualan di `/produk/` (hanya fitur Paket Kontrol; tombol "Minta demo lewat WhatsApp") | INTERNAL | Belum dibagikan: nomor WhatsApp, nama merek, dan izin memakai angka Leker masih menunggu Bos Cyo |

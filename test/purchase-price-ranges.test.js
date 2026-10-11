@@ -141,7 +141,7 @@ test('Master Barang punya isian harga beli wajar yang menulis ke tempat simpan y
   assert.match(ui, /MAXIAngka\?\.pasang\(input, \{ desimal: true/, 'aturan isian sama dengan kasir: titik tidak bisa diketik, koma desimal');
   assert.match(ui, /\(hpp \* BigInt\(angka\) \+ 50n\) \/ 100n/, '±25% dari HPP dihitung integer skala, bukan float');
   const angka = html.indexOf('/angka-input.js');
-  const policy = html.indexOf('/admin-product-policy.js?v=20261005-range-pagar-v1');
+  const policy = html.indexOf('/admin-product-policy.js?v=20261011-owner-admin-v1');
   assert.ok(angka > -1 && policy > angka, 'angka-input.js dimuat sebelum admin-product-policy.js (dan versinya dibump)');
   assert.doesNotMatch(ui, /min_purchase_price_scaled|minPurchasePrice/, 'tidak memakai kolom versi Karen yang tidak pernah live');
 });

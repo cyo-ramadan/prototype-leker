@@ -107,6 +107,33 @@
   const SKIN_LABELS = {
     d: { drawers: 'Laci Kasir', beaops: 'Biaya Toko', labarugi: 'Untung Rugi', 'attendance-report': 'Absen', cashiers: 'Akun Kasir', store: 'Profil Toko' }
   };
+
+  SKIN_GROUPS.h = {
+    'branch-admin': [
+      { id: 'today', icon: '⌂', label: 'Hari ini', home: true },
+      { id: 'decide', icon: '✓', label: 'Keputusan', items: ['approvals', 'setoran-cs'] },
+      { id: 'goods', icon: '▤', label: 'Barang', items: ['products', 'stock'] },
+      { id: 'sales', icon: '↗', label: 'Transaksi', items: ['transactions', 'drawers', 'beaops', 'hutangpiutang'] },
+      { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
+        { title: 'Tim gerai', items: ['employees', 'cashiers', 'attendance-report', 'manual-book', 'announcement', 'daily-task', 'cashier-raport', 'permit-report'] },
+        { title: 'Laporan & uang', items: ['labarugi', 'reports', 'sharedaccounts', 'accountingWorkspaceTab', 'accounting-reference', 'accountingSettingsTab'] },
+        { title: 'Pengaturan', items: ['store', 'categories', 'suppliers', 'costmasters', 'manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] },
+        { title: 'Pelanggan', items: ['customers', 'customer-feedback', 'vouchers'] }
+      ] }
+    ],
+    'entity-admin': [
+      { id: 'home', icon: '⌂', label: 'Hari ini', items: ['home'] },
+      { id: 'stores', icon: '▦', label: 'Gerai', items: ['stores', 'drawerstatus'] },
+      { id: 'goods', icon: '▤', label: 'Barang', items: ['productmasters', 'entitystock', 'entityrecipes'] },
+      { id: 'reports', icon: '↗', label: 'Laporan', items: ['reports', 'storereport'] },
+      { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
+        { title: 'Usaha', items: ['settings', 'employees', 'customers'] },
+        { title: 'Uang', items: ['setorancs', 'sharedaccounts', 'ledger'] }
+      ] }
+    ]
+  };
+  SKIN_HINTS.h = { ...SKIN_HINTS.d, manufacturing: 'Pengaturan lanjutan. Resep harian bisa diisi langsung di barang.' };
+  SKIN_LABELS.h = { ...SKIN_LABELS.d, home: 'Hari ini', products: 'Barang & resep', approvals: 'Pengajuan kasir', 'setoran-cs': 'Setoran kasir' };
   const currentSkin = () => window.MaxiSkin?.skin?.() || 'classic';
   const groupsFor = () => SKIN_GROUPS[currentSkin()]?.[pageKey()] || page.groups;
 
@@ -138,6 +165,7 @@
   let lastClickedKey = null;
   let scheduled = false;
   let homeActive = null; // null = belum diputuskan; diisi saat render pertama
+  let initialHRequestHandled = false;
   let menuOpen = false;  // daftar "Lainnya" (grup bertanda `menu`) sedang terbuka
 
   function injectStyle() {
@@ -231,6 +259,15 @@
       nav.setAttribute('aria-label', 'Menu');
       container.insertAdjacentElement('beforebegin', nav);
       nav.addEventListener('click', onClick);
+    }
+    if (currentSkin() === 'h' && !initialHRequestHandled) {
+      const requested = new URLSearchParams(location.hash.replace(/^#/, '')).get('tab');
+      if (!requested) initialHRequestHandled = true;
+      else if (groups.some(group => group.entries.some(entry => entry.key === requested))) {
+        initialHRequestHandled = true;
+        press(requested);
+        return;
+      }
     }
     const homeGroup = groups.find(group => group.home);
     if (homeActive === null) homeActive = Boolean(homeGroup);

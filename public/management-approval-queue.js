@@ -89,7 +89,7 @@
   // Skin D (pemilik yang mengurus admin sendiri, DESAIN-SKIN-D-WARUNG.md §4c):
   // kata tombol dalam bahasa pemilik. Tenant lain tetap memakai kata lama.
   function word(classic, owner) {
-    return window.MaxiSkin?.skin?.() === 'd' ? owner : classic;
+    return ['d', 'h'].includes(window.MaxiSkin?.skin?.()) ? owner : classic;
   }
 
   function renderSingleCard(request) {
@@ -163,7 +163,7 @@
         method: 'PATCH',
         body: JSON.stringify({ decision })
       });
-      showMessage(payload.posted ? 'ACC berhasil · posting snapshot selesai.' : 'Pengajuan ditolak tanpa posting.');
+      showMessage(payload.posted ? word('ACC berhasil · posting snapshot selesai.', 'Pengajuan disetujui dan dicatat.') : word('Pengajuan ditolak tanpa posting.', 'Pengajuan ditolak.'));
       await loadQueue();
     } catch (error) {
       if (error.payload?.code === 'STOCK_ADJUSTMENT_STALE') {

@@ -22,6 +22,7 @@ import { bersihkanRiwayat } from './caca-riwayat.js';
 import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
+import { handleCacaWorkspaceApi } from './caca-workspace.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_LENGTH = 1_500_000;
@@ -511,6 +512,20 @@ async function catat(request, env, jalurUtama) {
  */
 export async function handleCacaApi(request, env, pathname, { jalurUtama } = {}) {
   if (!pathname.startsWith('/api/caca/')) return null;
+
+  // Workspace owns draft persistence only. Every approved business write returns
+  // through the canonical main router, preserving authorization and Accounting.
+  if (pathname === '/api/caca/workspace' || pathname.startsWith('/api/caca/workspace/')) {
+    return handleCacaWorkspaceApi(request, env, pathname, {
+      jalurUtama,
+      bangunKonteks: async scopedRequest => {
+        const lingkup = await lingkupPenyuruh(scopedRequest, env);
+        if (!lingkup.ok) return { ok: false, response: lingkup.response };
+        const jalur = bangunJalurAksi(scopedRequest, env, { storeCode: lingkup.storeCode, jalurUtama });
+        return { ok: true, ctx: ctxAksi(jalur, lingkup) };
+      }
+    });
+  }
 
   if (request.method === 'GET' && pathname === '/api/caca/status') {
     // Status cuma menjawab "mesin AI sudah tersambung atau belum" — tidak

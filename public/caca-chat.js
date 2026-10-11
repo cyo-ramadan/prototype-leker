@@ -55,7 +55,8 @@ async function cacaApi(path, options = {}) {
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   const response = await fetch(path, { ...options, headers });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `Permintaan gagal (${response.status})`);
+  if (!response.ok) throw Object.assign(new Error(payload.error || `Permintaan gagal (${response.status})`), { status: response.status, code: payload.code, payload });
+  if ((localStorage.getItem('lekerEntityAdminToken') || '') !== token) throw new Error('Sesi Una berubah. Buka kembali setelah login.');
   return payload;
 }
 
@@ -90,6 +91,7 @@ const CACA_KERANGKA = `
         </button>
         <div class="caca-subjudul" id="cacaStatus">Memuat…</div>
       </div>
+      <button id="cacaWorkspaceToggle" class="secondary-btn caca-workspace-toggle" type="button" aria-expanded="false" aria-controls="cacaWorkspace">Workspace</button>
       <button id="cacaTutup" class="caca-ikon-btn" type="button" aria-label="Tutup Una">✕</button>
       <ul id="cacaDaftarGerai" class="caca-daftar-gerai hidden" role="listbox" aria-label="Pilih gerai yang dibahas"></ul>
     </div>
@@ -327,6 +329,7 @@ function cacaGantiGerai(scope) {
   if (!scope || scope === cacaState.scope) return;
   cacaHentikanSuara();
   cacaState.scope = scope;
+  window.UnaWorkspace?.scopeChanged();
   cacaIngat(scope);
   cacaRenderDaftarGerai();
   cacaEl('cacaJudulGerai').textContent = cacaNamaScope(scope);
@@ -693,75 +696,58 @@ function cacaGantiDraftLama() {
   cacaSimpanPercakapan();
 }
 
-function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
-  const draft = payload.draft;
+function cacaBuatKartuWorkspace(draft) {
   const tampilan = cacaIsiDraft(draft);
-  // Ketakutan nomor tiga pemilik baru: "takut salah terus rusak". Draft
-  // pertama di percakapan bilang terang bahwa belum ada yang tersimpan.
-  const pertama = !cacaEl('cacaPercakapan')?.querySelector('.caca-draft');
-  const html = `
-    <div class="caca-draft">
-      <div class="caca-draft-judul">${cacaEscape(tampilan.judul)}</div>
-      ${tampilan.isi}
-      <ul class="caca-draft-dampak">${draft.dampak.map(d => `<li>${cacaEscape(d)}</li>`).join('')}</ul>
-      ${pertama ? '<p class="caca-draft-tenang">Tenang, belum ada yang tersimpan sebelum Bos tekan tombol hijau.</p>' : ''}
-      <div class="caca-draft-aksi">
-        <button class="primary-btn" type="button" data-caca-catat>${cacaEscape(tampilan.tombol)}</button>
-        <button class="secondary-btn" type="button" data-caca-batal>Batal</button>
-      </div>
-    </div>`;
-  const gelembung = cacaTambahGelembung('caca', '', '', { html });
-  const kartu = gelembung.querySelector('.caca-draft');
-  kartu._cacaSesudah = sesudah;
-  const kunci = () => kartu.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  const kartu = document.createElement('div'); kartu.className = 'caca-draft';
+  kartu.innerHTML = `<div class="caca-draft-judul">${cacaEscape(tampilan.judul)}</div>${tampilan.isi}<ul class="caca-draft-dampak">${(draft.dampak || []).map(d => `<li>${cacaEscape(d)}</li>`).join('')}</ul><p class="caca-draft-tenang">Belum ada perubahan sebelum draft diperiksa dan disetujui.</p><div class="caca-draft-aksi"></div>`;
+  return kartu;
+}
 
-  kartu.querySelector('[data-caca-batal]').addEventListener('click', () => {
-    kunci();
-    kartu.classList.add('dibatalkan');
-    cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.');
-    cacaSimpanPercakapan();
-    cacaTambahGelembung('caca', 'Oke, gajadi deh.');
-    if (cacaState.tertunda?.revisi) cacaState.tertunda = null;
-    kartu._cacaSesudah?.('batal');
-  });
-
-  // Gerai/lingkup diambil dari saat draft dibuat, bukan dari judul sekarang:
-  // kalau Bos sempat ganti gerai sebelum menekan "Ya", hasilnya tetap masuk ke
-  // tempat yang tertulis di draft.
-  kartu.querySelector('[data-caca-catat]').addEventListener('click', async () => {
-    kunci();
-    if (cacaState.tertunda?.revisi) cacaState.tertunda = null;
-    if (draft.bertahap) {
-      await cacaJalankanBertahap(kartu, draft, scope, 0);
-      return;
-    }
-    try {
-      const hasil = await cacaApi(`/api/caca/catat?${cacaQueryLingkup(scope)}`, {
-        method: 'POST',
-        body: JSON.stringify({ draft })
-      });
-      kartu.classList.add('tercatat');
-      cacaKadaluarsakanDraftLain(kartu);
-      cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
-      cacaTambahGelembung('caca', hasil.jawaban);
-      if (hasil.rahasia?.nilai) cacaTampilkanRahasia(hasil.rahasia);
-      cacaSimpanPercakapan();
-      if (draft.aksi === 'buat_barang') {
-        // Barang yang barusan tercatat masih bisa dikoreksi lewat chat ("namanya ganti …",
-        // "harganya harusnya …") — dibawa sebagai tugas revisi untuk ubah_barang.
-        if (draft.muatan?.name) {
-          cacaState.tertunda = { alat: 'ubah_barang', tangkapan: { ubah_daftar: [{ barang: draft.muatan.name }] }, tanya: '', kurang: null, revisi: true, tercatat: true };
+function cacaKonfigurasiWorkspace() {
+  window.UnaWorkspace?.configure({
+    api: cacaApi,
+    getIdentity: () => localStorage.getItem('lekerEntityAdminToken') || '',
+    getScope: () => cacaState.scope,
+    scopeQuery: cacaQueryLingkup,
+    scopeLabel: cacaNamaScope,
+    renderDraft: cacaBuatKartuWorkspace,
+    setPending: value => { cacaState.tertunda = value; },
+    addCompact: (text, id) => {
+      const bubble = cacaTambahGelembung('caca', '');
+      const compact = document.createElement('button'); compact.type = 'button'; compact.className = 'secondary-btn caca-workspace-compact'; compact.textContent = text; compact.dataset.unaWorkspaceTask = id; bubble.appendChild(compact); cacaSimpanPercakapan(); return compact;
+    },
+    onAccountChange: cacaLupakan,
+    onCancel: () => { cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.'); cacaTambahGelembung('caca', 'Oke, draft dibatalkan.'); cacaSimpanPercakapan(); },
+    executeEphemeral: async (draft, scope, bagian) => {
+      const result = await cacaApi(`/api/caca/catat?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify({ draft, ...(bagian == null ? {} : { bagian }) }) });
+      return { result, rahasia: result.rahasia };
+    },
+    onCompleted: async (task, response, kartu) => {
+      if (window.UnaWorkspace?.isSelected(task.id)) cacaState.tertunda = null;
+      const scope = task.scope.lingkup === 'entity' ? CACA_ENTITY : task.scope.storeCode;
+      if (task.draft.bertahap) {
+        const results = task.results.map(entry => entry.result || {});
+        await cacaSelesaikanBertahap(kartu, task.draft, scope, results);
+      } else {
+        const hasil = response.result || task.results?.[0]?.result || {};
+        kartu?.classList.add('tercatat');
+        cacaCatatRiwayat('sistem', `Bos menyetujui draft itu dan sudah dijalankan. ${hasil.jawaban || ''}`);
+        if (hasil.jawaban) cacaTambahGelembung('caca', hasil.jawaban);
+        if (task.draft.aksi === 'buat_barang') {
+          if (task.draft.muatan?.name && window.UnaWorkspace?.isSelected(task.id)) cacaState.tertunda = { alat: 'ubah_barang', tangkapan: { ubah_daftar: [{ barang: task.draft.muatan.name }] }, tanya: '', kurang: null, revisi: true, tercatat: true };
+          cacaObrolanSesudahBarang(task.draft, [task.draft.muatan?.name].filter(Boolean));
         }
-        cacaObrolanSesudahBarang(draft, [draft.muatan?.name].filter(Boolean));
       }
-      kartu._cacaSesudah?.('tercatat');
-    } catch (error) {
-      // Tombol dibuka lagi: yang gagal biasanya bisa diulang setelah sebabnya
-      // dibereskan, dan menguncinya permanen memaksa mengetik ulang dari awal.
-      kartu.querySelectorAll('button').forEach(b => { b.disabled = false; });
-      cacaTambahGelembung('caca', error.message);
+      if (response.rahasia?.nilai) cacaTampilkanRahasia(response.rahasia);
+      cacaSimpanPercakapan();
     }
   });
+}
+
+function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
+  cacaKonfigurasiWorkspace();
+  if (!window.UnaWorkspace) { cacaTambahGelembung('caca', 'Workspace belum termuat. Muat ulang halaman untuk memeriksa dan menyetujui draft dengan aman.'); return; }
+  window.UnaWorkspace.capture(payload, scope, { sesudah });
 }
 
 // Password awal akun yang barusan dibuat Una (src/caca-aksi-karyawan.js). Sengaja
@@ -787,51 +773,12 @@ function cacaTampilkanRahasia(rahasia) {
 // src/caca-aksi-barang.js). Panel yang mengulang, dan pemilik melihat
 // hitungannya jalan. Yang gagal di tengah bisa dilanjutkan dari baris itu.
 
-async function cacaJalankanBertahap(kartu, draft, scope, mulai) {
-  const daftar = draft.muatan?.daftar || [];
-  const jumlah = daftar.length;
-  let kemajuan = kartu.querySelector('.caca-kemajuan');
-  if (!kemajuan) {
-    kemajuan = document.createElement('div');
-    kemajuan.className = 'caca-kemajuan';
-    kemajuan.innerHTML = '<div class="caca-kemajuan-bar"><span></span></div><p class="caca-kemajuan-teks"></p>';
-    kartu.querySelector('.caca-draft-aksi').before(kemajuan);
-  }
-  kartu.querySelector('[data-caca-lanjut]')?.remove();
-  const isiBar = kemajuan.querySelector('span');
-  const teks = kemajuan.querySelector('.caca-kemajuan-teks');
-  const hasil = JSON.parse(kartu.dataset.cacaHasil || '[]');
-
-  for (let i = mulai; i < jumlah; i += 1) {
-    teks.textContent = `${i + 1} dari ${jumlah} · ${daftar[i].name}`;
-    isiBar.style.width = `${Math.round((i / jumlah) * 100)}%`;
-    try {
-      const balasan = await cacaApi(`/api/caca/catat?${cacaQueryLingkup(scope)}`, {
-        method: 'POST',
-        body: JSON.stringify({ draft, bagian: i })
-      });
-      hasil[i] = { hasil: balasan.hasil, nama: balasan.nama, id: balasan.id };
-      kartu.dataset.cacaHasil = JSON.stringify(hasil);
-    } catch (error) {
-      teks.textContent = `Berhenti di ${i + 1} dari ${jumlah} (${daftar[i].name}): ${error.message}`;
-      const lanjut = document.createElement('button');
-      lanjut.type = 'button';
-      lanjut.className = 'secondary-btn';
-      lanjut.dataset.cacaLanjut = '';
-      lanjut.textContent = `Lanjutkan dari ${daftar[i].name}`;
-      lanjut.addEventListener('click', () => cacaJalankanBertahap(kartu, draft, scope, i));
-      kemajuan.after(lanjut);
-      cacaSimpanPercakapan();
-      return;
-    }
-  }
-
-  isiBar.style.width = '100%';
+async function cacaSelesaikanBertahap(kartu, draft, scope, hasil) {
+  const teks = document.createElement('p'); teks.className = 'caca-kemajuan-teks'; kartu?.appendChild(teks);
   kartu.classList.add('tercatat');
   cacaKadaluarsakanDraftLain(kartu);
   const selesai = hasil.filter(Boolean);
   // Rencana bertahap menunggu draft ini selesai sebelum lanjut ke langkah berikutnya.
-  setTimeout(() => kartu._cacaSesudah?.('tercatat'), 0);
   if (draft.aksi === 'buat_barang_banyak') {
     const dibuat = selesai.filter(h => h.hasil === 'dibuat');
     const sudahAda = selesai.filter(h => h.hasil === 'sudah_ada');
@@ -1431,7 +1378,9 @@ function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
   // Una balik bertanya untuk tugas yang belum lengkap: dibawa ke pesan berikutnya.
   // Draft yang masih menunggu "Ya" juga dibawa (revisi): "eh salah, harga belinya
   // harusnya 100" mengoreksi draft itu, bukan dibaca sebagai perintah baru.
-  cacaState.tertunda = payload.tertunda
+  const workspaceContext = window.UnaWorkspace?.context();
+  const sameWorkspaceVersion = !payload._workspaceContext || (workspaceContext?.id === payload._workspaceContext.id && workspaceContext?.revision === payload._workspaceContext.revision);
+  if (!window.UnaWorkspace?.hasDirtySelection() && sameWorkspaceVersion) cacaState.tertunda = payload.tertunda
     || (payload.perluKonfirmasi && payload.draft?.aksi && payload.draft.tangkapan
       ? { alat: payload.draft.aksi, tangkapan: payload.draft.tangkapan, tanya: '', kurang: null, revisi: true }
       : null);
@@ -1487,6 +1436,7 @@ function cacaTampilkanBalasan(payload, scope, { sesudahDraft = null } = {}) {
     cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
   }
   cacaTambahTawaran(payload.tawaran);
+  if (payload.belumLengkap && payload.tertunda) { cacaKonfigurasiWorkspace(); window.UnaWorkspace?.capture(payload, scope); }
   if (payload.rencana) return 'rencana';
   return payload.belumLengkap ? 'tanya' : 'jawab';
 }
@@ -1500,13 +1450,15 @@ async function cacaKirimTeks(pertanyaan) {
   // "batal"/"gajadi" diketik saat draft terakhir masih menunggu = tombol Batal
   // (uji live 2026-10-09: tanpa ini model mengira perintah menonaktifkan barang).
   if (/^\s*(batal(in|kan)?|ga+k?\s*jadi|gajadi|nggak\s*jadi|cancel)\b/i.test(pertanyaan)) {
+    if (await window.UnaWorkspace?.cancelSelected()) return;
     const drafts = cacaEl('cacaPercakapan')?.querySelectorAll('.caca-draft:not(.tercatat):not(.dibatalkan):not(.kedaluwarsa)');
     const terakhir = drafts?.length ? drafts[drafts.length - 1] : null;
     const tombol = terakhir?.querySelector('[data-caca-batal]:not(:disabled)');
     if (tombol) { tombol.click(); return; }
   }
 
-  const scope = cacaState.scope;
+  const workspaceContext = window.UnaWorkspace?.context();
+  const scope = workspaceContext?.scope || cacaState.scope;
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
   const tertunda = cacaState.kerjaTertunda && cacaState.kerjaTertunda.scope === scope ? cacaState.kerjaTertunda.kerja : null;
   cacaState.kerjaTertunda = null;
@@ -1518,6 +1470,7 @@ async function cacaKirimTeks(pertanyaan) {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
     await cacaJedaManusiawi(mengetik, payload, mulai);
     mengetik.remove();
+    payload._workspaceContext = workspaceContext || null;
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
   } catch (error) {
@@ -1683,6 +1636,7 @@ function cacaSetTampil(tampil) {
 // juga menyembunyikan Una waktu memuat sesi gagal sesaat (mis. koneksi putus),
 // dan itu tidak boleh menghapus percakapan.
 function cacaLupakan() {
+  window.UnaWorkspace?.reset();
   cacaSetTampil(false);
   cacaHapusSimpanan();
   const wadah = cacaEl('cacaPercakapan');
@@ -1706,6 +1660,7 @@ function cacaBolehDiWorkspace() {
 }
 
 function cacaTutupPanel() {
+  window.UnaWorkspace?.close();
   cacaHentikanSuara();
   cacaToggleDaftarGerai(false);
   cacaEl('cacaPanel')?.classList.add('hidden');
@@ -1736,6 +1691,7 @@ function cacaAturTinggiPanel() {
 }
 
 function cacaBukaPanel() {
+  cacaKonfigurasiWorkspace();
   cacaEl('cacaPanel')?.classList.remove('hidden');
   cacaEl('cacaFab')?.setAttribute('aria-expanded', 'true');
   cacaAturTinggiPanel();
@@ -1826,6 +1782,7 @@ function initCacaPanel() {
   cacaEl('cacaLampiranBuang')?.addEventListener('click', () => cacaBuangLampiran());
   cacaEl('cacaFab')?.addEventListener('click', cacaTogglePanel);
   cacaEl('cacaTutup')?.addEventListener('click', cacaTutupPanel);
+  cacaEl('cacaWorkspaceToggle')?.addEventListener('click', () => { cacaKonfigurasiWorkspace(); if (window.UnaWorkspace?.isOpen) window.UnaWorkspace.close(); else window.UnaWorkspace?.open(); });
   cacaEl('cacaPilihGerai')?.addEventListener('click', () => cacaToggleDaftarGerai());
 
   cacaEl('cacaDaftarGerai')?.addEventListener('click', event => {
@@ -1845,6 +1802,9 @@ function initCacaPanel() {
   });
 
   cacaEl('cacaPercakapan')?.addEventListener('click', event => {
+    if (event.defaultPrevented) return;
+    const task = event.target.closest('[data-una-workspace-task]');
+    if (task) { cacaKonfigurasiWorkspace(); window.UnaWorkspace?.open(task.dataset.unaWorkspaceTask); return; }
     const lanjut = event.target.closest('[data-caca-rencana-lanjut]');
     if (lanjut && !lanjut.disabled) {
       const kartu = lanjut.closest('.caca-rencana');

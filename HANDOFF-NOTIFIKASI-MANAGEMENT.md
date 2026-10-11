@@ -1,6 +1,6 @@
 # Notifikasi user dan beranda management
 
-Status: implementasi pada branch codex/management-notifications; belum diterbitkan.
+Status: live melalui PR #489, main 0805f669801fd19a1a72c47b4f44e7360379ba20. Workers Builds: prototype-leker-v2 SUCCESS pada 2026-10-11 08.47 WIB. Pengiriman ke HP fisik masih perlu diuji dengan izin perangkat.
 Pemilik rancangan: Codex. Arahan Bos Cyo: 2026-10-11.
 
 ## Keputusan Bos Cyo
@@ -89,5 +89,13 @@ Aktivasi di perangkat tetap dilakukan user melalui tombol Notifikasi. Izin tidak
 - Push HP sungguhan harus diuji pada perangkat yang mengaktifkan izin; tes unit tidak membuktikannya.
 - npm run check (Windows dijalankan per perintah bila panjang command melebihi batas), npm test.
 
+## Bukti rilis produksi (2026-10-11)
+
+- PR https://github.com/cyo-ramadan/prototype-leker/pull/489 digabung sesudah CI Linux final 1800/1800 dan build branch sukses.
+- Build main 75aafaa0-5a8b-469f-b16f-1f35929df9d9 SUCCESS; assets Entity Settings, panel pin menu asli, widget, service worker dan manifest merespons 200 pada alamat produksi.
+- Inbox tanpa login merespons 401. D1 ledger memuat 0149 dan keenam tabel notifikasi diverifikasi dari sqlite_schema.
+- Binding NOTIFICATION_LIVE dan cron setiap menit diverifikasi melalui settings/schedules Cloudflare; tiga secret VAPID serta semua secret lama tetap tersedia.
+- Browser lokal tambahan membuktikan Laporan asli beserta filter, grafik, tabel dan tanggal awal hari ini tampil di beranda, kembali utuh ke menu Laporan, dan logout menuju /login.
+- Belum membuat alarm atau notifikasi uji kepada user produksi. Belum memverifikasi pengiriman pada HP fisik; izin perangkat tetap diaktifkan user.
 <!-- DOC-IMPACT: 2026-10-11 rancangan dan keputusan notifikasi management, push HP,
-alarm konfigurabel, beranda pribadi; status belum live. -->
+alarm konfigurabel, beranda pribadi; live PR #489; status jual UJI sampai pengiriman HP nyata terverifikasi. -->

@@ -289,6 +289,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-11 | Una | Una menjawab pertanyaan cara pakai soal barang & stok (tambah barang, harga, kategori, nonaktifkan barang tanpa hilang riwayat, restock/Beli Bahan, barang datang beda dari nota, barang rusak, barang keluar untuk pemakaian gerai, stok opname, riwayat keluar-masuk, stok minus, supplier) dengan langkah di layar sungguhan, juga untuk kalimat setipe; dan bisa langsung mendaftarkan supplier / membuat kategori lewat draft + "Ya" | UJI | Mengurangi pertanyaan karyawan gudang/kasir ke pemilik |
 | 2026-10-10 | Una | Jawaban cara-pakai Una tidak lagi terasa seperti salinan dokumen: bahasanya disesuaikan dengan pertanyaan Bos dan dicek dulu cocok atau tidaknya, sementara nama menu, tombol, dan angka tetap persis dari panduan resmi (kalau mesin AI sedang gangguan, yang tampil panduan apa adanya) | UJI | Mengurangi kesan "Una robot/templat" |
 | 2026-10-10 | Una | Memberi tugas lewat tombol mikrofon Bahasa Indonesia: hasil ucapan bisa diperiksa sebelum dikirim; perubahan data tetap draft + Ya. Browser yang tidak mendukung tetap dapat mengetik | UJI | Mempermudah memberi tugas; akurasi mikrofon perangkat nyata belum diuji |
+| 2026-10-11 | Codex / Entity | Tiap akun memiliki inbox notifikasi, Admin Entity mengatur pengingat gerai dan penerimanya, serta user memasang isi menu yang sudah ada seperti Laporan atau Setoran CS pada beranda setelah login | UJI | Membantu pemilik dan tim langsung melihat pekerjaan rutin; push HP perlu izin perangkat dan belum diuji pada HP fisik, jangan menjanjikan alarm selalu berbunyi tepat waktu |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -356,4 +357,4 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 - **Target**: 3 pemilik membayar di hari ke-45; 10 gerai berbayar dari luar lingkaran Bos Cyo
   di hari ke-90.
 
-<!-- DOC-IMPACT: 2026-10-01 dokumen baru; 2026-10-01 §8 diberi format wajib lintas sesi dan §10 keputusan sementara ditambahkan; 2026-10-02 §8 baris susulan Una + Una pendamping pemilik baru; 2026-10-03 §8 baris halaman login karyawan; 2026-10-05 §8 baris Una kerja bertahap seperti agen. Tidak mengubah perilaku sistem. -->
+<!-- DOC-IMPACT: 2026-10-11 baris notifikasi pribadi, alarm Entity dan pin menu asli yang live melalui PR #489; UJI hingga push HP fisik diverifikasi.  2026-10-01 dokumen baru; 2026-10-01 §8 diberi format wajib lintas sesi dan §10 keputusan sementara ditambahkan; 2026-10-02 §8 baris susulan Una + Una pendamping pemilik baru; 2026-10-03 §8 baris halaman login karyawan; 2026-10-05 §8 baris Una kerja bertahap seperti agen. Tidak mengubah perilaku sistem. -->

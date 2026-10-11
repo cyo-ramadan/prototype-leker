@@ -118,3 +118,11 @@ test('perpanjangSesiStaf menolak nama tabel di luar daftar sesi karyawan', async
   await perpanjangSesiStaf(db, 'orders; DROP TABLE x', 'hash', iso(Date.now()));
   assert.equal(dipanggil, false);
 });
+
+test('halaman login mengecek token tersimpan ke server sebelum menawarkan "Lanjutkan"', () => {
+  const login = readFileSync(new URL('../public/staff-login.js', import.meta.url), 'utf8');
+  assert.match(login, /sessionStillValid\(session\)/);
+  assert.match(login, /response\.status !== 401/, 'hanya 401 yang dianggap sesi habis');
+  assert.match(login, /catch \{\s*return true;/, 'gangguan jaringan tidak membuang sesi');
+  assert.match(login, /sudah habis\. Silakan masuk lagi/);
+});

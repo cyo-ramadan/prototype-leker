@@ -184,7 +184,8 @@ test('a single helper clears every staff session trace (token, identity, lease) 
 // Sesi tetap satu untuk semua tab sampai logout -- form tidak muncul selama sesi masih ada.
 test('/login dengan sesi tersimpan menampilkan "Lanjutkan sebagai" + "akun lain", bukan form dan bukan lemparan diam-diam', () => {
   assert.match(staffLogin, /function currentSession\(\)/);
-  assert.match(staffLogin, /if \(session\) showContinue\(session\);\s*else show\('form'\);/);
+  assert.match(staffLogin, /if \(session\) \{\s*showContinue\(session\);/);
+  assert.match(staffLogin, /\} else show\('form'\);/);
   assert.match(staffLogin, /el\('continueLink'\)\.href = session\.href/);
   assert.match(staffLogin, /function logoutEverywhere\(\)/);
   assert.match(staffLogin, /switchAccountBtn[\s\S]*?await logoutEverywhere\(\);[\s\S]*?show\('form'\)/);

@@ -170,10 +170,40 @@
 
   // staffBlocked=1: penjaga antar-tab baru saja mencabut sesi tab ini (akun lain masuk di tab
   // lain) -- tampilkan pesan, bukan tawaran "Lanjutkan" yang bisa membingungkan.
+  // Bos Cyo, 2026-10-11 (CS Adenia, Mandala): HP masih menyimpan token, padahal sesinya di server
+  // sudah habis. Halaman ini dulu tetap menawarkan "Lanjutkan sebagai Adenia"; begitu diklik dan
+  // halaman kerja memanggil server, CS terpental balik ke sini tanpa penjelasan. Sekarang token
+  // dicek dulu ke server. Hanya jawaban 401 yang dianggap sesi habis -- gangguan jaringan tidak
+  // (KNOWN_PITFALLS: error jaringan bukan tanda sesi kedaluwarsa), tawaran Lanjutkan tetap muncul.
+  const ME_ENDPOINT = {
+    OWNER: () => '/api/owner/me',
+    ENTITY_ADMIN: () => '/api/entity-admin/me',
+    ADMIN: session => `/api/store-admin/me?store=${encodeURIComponent(session.storeCode || '')}`,
+    CASHIER: () => '/api/cashier/me'
+  };
+
+  async function sessionStillValid(session) {
+    const token = read(TOKEN_KEY[session.role]);
+    if (!token) return false;
+    try {
+      const response = await fetch(ME_ENDPOINT[session.role](session), { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      return response.status !== 401;
+    } catch {
+      return true;
+    }
+  }
+
   const params = new URL(location.href).searchParams;
   const session = currentSession();
-  if (session) showContinue(session);
-  else show('form');
+  if (session) {
+    showContinue(session);
+    sessionStillValid(session).then(valid => {
+      if (valid) return;
+      clearAllStaff();
+      show('form');
+      el('staffLoginMessage').textContent = `Sesi ${session.name} sudah habis. Silakan masuk lagi.`;
+    });
+  } else show('form');
   if (params.get('staffBlocked') === '1') {
     el('staffLoginMessage').textContent = 'Akun lain baru saja masuk di browser ini. Silakan pilih akun.';
   }

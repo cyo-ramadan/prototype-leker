@@ -81,7 +81,7 @@ test('login: "Masuk dengan akun lain" mengeluarkan semua sesi karyawan (server +
   } });
   assert.equal(page.el('loginCard').dataset.state, 'continue');
   await page.el('switchAccountBtn').fire('click');
-  assert.deepEqual(page.fetches.map(f => f.path).sort(), ['/api/entity-admin/logout', '/api/owner/logout']);
+  assert.deepEqual(page.fetches.map(f => f.path).filter(path => !path.endsWith('/me')).sort(), ['/api/entity-admin/logout', '/api/owner/logout']);
   assert.deepEqual(page.localStorage.dump(), {});
   assert.equal(page.el('loginCard').dataset.state, 'form');
 });
@@ -159,7 +159,7 @@ test('halaman login: kartu tinggi tetap, tanpa CSS halaman admin (penyebab tampi
   const html = read('public/login.html');
   assert.match(html, /id="loginCard" data-state="loading"/);
   assert.match(html, /\/login\.css\?v=20261005-login-fb-v2/);
-  assert.match(html, /\/staff-login\.js\?v=20261011-management-notifications-v1/);
+  assert.match(html, /\/staff-login\.js\?v=20261011-cek-sesi-v1/);
   assert.doesNotMatch(html, /admin\.css|styles\.css/);
   assert.match(read('public/login.css'), /\.login-card \{[\s\S]*?min-height: 430px;/);
   assert.match(html, /<input id="staffPassword"[^>]*type="password"/);
@@ -189,6 +189,6 @@ test('account switching revokes device push before server logout and clears widg
     fetchImpl: async path => { order.push(path); return { ok: true, json: async () => ({}) }; }
   });
   await page.el('switchAccountBtn').fire('click');
-  assert.deepEqual(order, ['revoke', 'destroy', '/api/owner/logout']);
+  assert.deepEqual(order.filter(step => !String(step).endsWith('/me')), ['revoke', 'destroy', '/api/owner/logout']);
   assert.deepEqual(page.localStorage.dump(), {});
 });

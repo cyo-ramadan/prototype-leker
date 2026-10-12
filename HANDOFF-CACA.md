@@ -110,6 +110,25 @@ dan *memaksa* peninjauan. Tidak ada jadwal mingguan atau sesi kamus khusus: yang
 mengubah kodenya, di PR yang sama, saat tes penjaga merah (keputusan Bos Cyo 2026-10-12). Tooling di skill (`--cek`, `--tinjau`, kolom `skin`/`sumber`/`diperiksa`)
 dibangun di tugas ini.
 
+**Inventaris fitur: fitur/tombol baru = wajib masuk kamus (Bos Cyo 2026-10-12: "update
+fitur/update tombol = update kamus").** Rancangan di atas hanya menjaga entri yang *sudah ada* dan
+*menu* per skin. Mekanisme di dalam layar yang belum pernah ditulis tidak terdeteksi. Contoh: cara
+hapus/batalkan penjualan (izin void → ACC → gagal otomatis saat tutup laci) sekarang hanya satu
+kalimat di entri `persetujuan`. Saat ini ada ±204 rute tulis (POST/PUT/PATCH/DELETE di `src/*.js`)
+dan ±103 tombol ber-id di `public/*.html`, sedangkan kamus baru 42 entri. Yang diminta:
+- Pembangkit mekanis (tanpa AI) `generated/inventaris-fitur-una.js`: daftar **fitur** dari rute
+  tulis + tombol/aksi per halaman per skin (id, label tombol, rute yang dipanggil bila bisa
+  dilacak). Rute dan tombol yang satu alur boleh dikelompokkan lewat peta kecil yang ditulis tangan.
+- Entri `KAMUS` diberi `fitur: [...]`. Tes penjaga gagal bila ada fitur di inventaris yang tidak
+  ditunjuk entri mana pun dan tidak tercantum di `TANPA_PANDUAN` (beralasan, misalnya rute internal
+  agen/cron/diagnostik).
+- **Baseline supaya tidak membebani sekaligus:** fitur lama yang belum diajarkan dibekukan di
+  `BELUM_DIAJARKAN` (daftar tertulis). Tes hanya merah untuk fitur **baru**. Daftar itu boleh
+  menyusut, tidak boleh bertambah. Fitur lama dicicil, dimulai dari yang paling sering ditanya
+  (hapus/batal penjualan, retur, tutup laci, setoran, koreksi presensi).
+- Jadi: tombol atau rute baru → tes merah di PR yang menambahkannya → agen yang sama menulis
+  entrinya (pola sama dengan skill `segarkan-kamus-una`).
+
 **Kerangka bersama Una–JARVIS (Bos Cyo 2026-10-12):** mesin kamus dibangun sebagai **kerangka umum**
 yang tidak tahu soal toko, misalnya `src/kerangka/kamus.js`: pencocokan kunci + kata dasar/sinonim,
 varian per konteks (skin untuk Una, nanti ruang kerja untuk JARVIS), penjaga hash `sumber`, dan

@@ -1,6 +1,6 @@
 ---
 name: segarkan-kamus-una
-description: Menyegarkan pengetahuan Una (kamus istilah/cara pakai src/caca-jelaskan.js, penjelasan menu src/caca-peta.js, peta menu per skin generated/peta-una-data.js) supaya selalu sesuai kode dan skin yang sedang berlaku — pola "seperti graphify": bagian mekanis dibangkitkan program, bagian makna ditinjau agen dari kode sumbernya. Pakai SETIAP KALI tes penjaga kamus/peta Una merah, sesudah mengubah algoritma yang dijelaskan Una (HPP, laci, setoran, izin, gaji, jurnal, stok), sesudah menambah/mengubah menu atau skin (public/nav-groups.js, public/ui-skin.js, skin baru), atau saat Bos Cyo bilang "Una jelasinnya salah/udah ga sesuai/beda di skin X".
+description: Menyegarkan pengetahuan Una (kamus istilah/cara pakai src/caca-jelaskan.js, penjelasan menu src/caca-peta.js, peta menu per skin generated/peta-una-data.js) supaya selalu sesuai kode dan skin yang sedang berlaku — pola "seperti graphify": bagian mekanis dibangkitkan program, bagian makna ditinjau agen dari kode sumbernya. Pakai SETIAP KALI tes penjaga kamus/peta Una merah, sesudah mengubah algoritma yang dijelaskan Una (HPP, laci, setoran, izin, gaji, jurnal, stok), sesudah menambah/mengubah menu, tombol, rute API tulis, atau skin (public/nav-groups.js, public/ui-skin.js, skin baru), atau saat Bos Cyo bilang "Una jelasinnya salah/udah ga sesuai/beda di skin X".
 ---
 
 # Menyegarkan kamus Una
@@ -44,6 +44,9 @@ berkas, dan hanya untuk entri yang merah.
    - peta basi → langkah 2;
    - menu/skin tanpa `PENJELASAN` → langkah 3;
    - entri `KAMUS` yang `sumber`-nya berubah (hash beda) → langkah 4.
+   - fitur (rute tulis/tombol) baru di `generated/inventaris-fitur-una.js` tanpa entri → buat
+     entri baru seperti langkah 3-4, lalu tunjuk lewat `fitur: [...]`. Jangan menambah ke
+     `BELUM_DIAJARKAN` (daftar itu hanya boleh menyusut).
    Kalau tooling T-KAMUS (kolom `skin`, `sumber`, `diperiksa`, `--tinjau`) belum ada, kerjakan
    T-KAMUS dulu sesuai handoff. Jangan menambal kamus dengan tangan tanpa penjaga.
 2. **Segarkan mekanis.** `node scripts/build-peta-una.mjs`. Jangan sunting `generated/` dengan tangan.

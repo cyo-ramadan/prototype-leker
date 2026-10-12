@@ -83,7 +83,7 @@
             ${conv.looksComplete ? '<span class="status-chip">kelihatannya lengkap, siap dibuat draft</span>' : ''}
           </div>
           <div class="actions">
-            <button class="primary-btn" data-baca="${esc(conv.fromNumber)}" ${conv.unprocessed && setup.aiReady ? '' : 'disabled'} type="button">Baca dengan Una</button>
+            <button class="primary-btn" data-baca="${esc(conv.fromNumber)}" ${conv.notOrdered && setup.aiReady ? '' : 'disabled'} type="button">${conv.hasDraft ? 'Baca ulang dengan Una' : 'Baca dengan Una'}</button>
             <button class="secondary-btn" data-manual="${esc(conv.fromNumber)}" ${conv.unprocessed ? '' : 'disabled'} type="button">Isi manual</button>
           </div>
         </div>
@@ -134,8 +134,9 @@
       button.disabled = true;
       const ai = button.hasAttribute('data-baca');
       if (ai) button.textContent = 'Una sedang membaca…';
-      await api(`/api/percetakan/drafts/${ai ? 'baca' : 'manual'}`, { method: 'POST', body: { fromNumber: button.dataset.baca || button.dataset.manual } });
+      const hasil = await api(`/api/percetakan/drafts/${ai ? 'baca' : 'manual'}`, { method: 'POST', body: { fromNumber: button.dataset.baca || button.dataset.manual } });
       pindahTab('draft');
+      if (ai) tampilPesan(`Una selesai membaca seluruh chat${hasil.images ? ` + ${hasil.images} foto` : ''}.${hasil.replaced ? ' Draft lama diganti draft baru.' : ''} Periksa, lalu kirim ke pelanggan untuk ACC.`);
     })));
     $('tab-masuk').querySelectorAll('[data-file]').forEach(b => b.addEventListener('click', () => unduhFile(b.dataset.file, b.dataset.name)));
     // Balasan dikirim lewat WhatsApp dari layar ini dan tercatat atas nama karyawan yang login.

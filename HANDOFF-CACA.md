@@ -106,8 +106,8 @@ penyegarannya. Pembagiannya: lapis mekanis (menu/label/grup per skin, hash sumbe
 program tanpa AI, sama seperti `graphify update .`. Lapis makna (kalimat penjelasan) ditinjau agen
 dari kode setiap kali penjaga merah. Makna sengaja tidak diserahkan ke AI otomatis di produksi
 karena alasan di `src/caca-jelaskan.js` baris 4-8. Yang otomatis adalah *mendeteksi* yang basi
-dan *memaksa* peninjauan. Opsional: workflow terjadwal yang menjalankan `--cek` di main dan membuka
-issue bila merah. Tooling di skill (`--cek`, `--tinjau`, kolom `skin`/`sumber`/`diperiksa`)
+dan *memaksa* peninjauan. Tidak ada jadwal mingguan atau sesi kamus khusus: yang membetulkan kamus adalah agen yang
+mengubah kodenya, di PR yang sama, saat tes penjaga merah (keputusan Bos Cyo 2026-10-12). Tooling di skill (`--cek`, `--tinjau`, kolom `skin`/`sumber`/`diperiksa`)
 dibangun di tugas ini.
 
 **Kerangka bersama Una–JARVIS (Bos Cyo 2026-10-12):** mesin kamus dibangun sebagai **kerangka umum**

@@ -21,6 +21,15 @@ meyakinkan tapi bisa salah, dan pemilik toko tidak bisa mengeceknya (`src/caca-j
 baris 4-8). Jadi "otomatis" di sini berarti: **program mendeteksi sendiri apa yang basi dan
 memaksa peninjauan**. Penulisan ulangnya dikerjakan agen sekali, diuji, lalu masuk ke kode.
 
+## Siapa yang mengerjakan (Bos Cyo 2026-10-12)
+
+- **Agen yang mengubah kode** membetulkan kamus di PR yang sama. Pemicunya tes penjaga yang merah
+  saat dia sedang mengerjakan kodenya. Tidak ada sesi kamus khusus yang dibiarkan hidup, dan tidak
+  ada jadwal mingguan (keputusan Bos: pemicunya sudah pasti nyala waktu koding).
+- **Peta menu + peta graphify** disegarkan program (`node scripts/build-peta-una.mjs`,
+  `graphify update .`), tanpa AI.
+- Konteks antar sesi disimpan di skill ini + `HANDOFF-CACA.md`, bukan di percakapan yang panjang.
+
 ## Hemat kuota: segarkan di sesi yang sama
 
 Paling murah: **agen yang mengubah algoritma langsung menyegarkan kamus di PR yang sama**. Kodenya

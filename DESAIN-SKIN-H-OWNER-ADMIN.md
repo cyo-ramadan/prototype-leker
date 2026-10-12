@@ -1,42 +1,101 @@
-# Skin H · Owner Kelola Sendiri
+# Skin H - Owner Merangkap Admin
 
-Bos Cyo, 11 Oktober 2026. Owner punya beberapa gerai dan kasir, tetapi administrasi dikerjakan sendiri. Codex menerapkan prinsip pengurangan keputusan dari DESAIN-SKIN-D-WARUNG.md; skill literal Steve Jobs tidak tersedia.
+Bos Cyo, diperbarui 12 Oktober 2026.
 
-## Rancangan sebelum implementasi
-Layar HP dimulai dengan untung hari ini, pengajuan yang perlu keputusan, lalu gerai yang bisa dibuka. Lima tujuan: Hari ini, Keputusan, Barang, Transaksi, Lainnya. Panel usaha menampilkan Hari ini, Gerai, Barang, Laporan, Lainnya. Menu teknis tetap tersedia di Lainnya; izin server tetap berlaku.
+## Status
 
-Arah visual: buku kendali harian. Kertas putih, latar abu biru pucat #F4F7FB, tinta #18283C, satu aksen biru #174EA6. DM Sans, angka tabular, garis pemisah tipis, ruang lapang. Tombol minimal 44 px. Navigasi lima kolom pada HP, tanpa carousel mendatar. Angka penting punya hirarki; hindari semua informasi tampak seperti kartu statistik seragam.
+Skin H sudah diimplementasikan secara lokal pada branch `codex/skin-h-owner-admin`. Kode belum di-push, belum di-deploy, dan belum mengubah skin tenant produksi sesuai instruksi Bos Cyo.
 
-Barang baru default Barang Jadi + pcs, klasifikasi mengikuti default backend. Peran barang dan satuan terlihat untuk bahan. Resep opsional di barang: hasil, bahan, takaran, satu tombol simpan. Resep lama tetap immutable; simpan revisi dan sambungan dalam batch yang sama. Form tetap terbuka jika barang berhasil tetapi resep gagal; pesan membedakan hasilnya.
+Skin ini ditujukan untuk owner yang mempunyai beberapa gerai, tidak mempunyai Admin terpisah, dan menjalankan satu gerai khusus sebagai Kantor.
 
-## Arahan terbaru dan batas aktivasi
-Bos Cyo membatalkan pembuatan tenant/gerai percobaan dan mengizinkan memakai gerai yang ada karena CS dianggap sudah tutup laci. Kode clone dan form pembuatannya dibatalkan. Belum ada tenant, gerai atau akun yang dibuat. H bukan E: tidak melewati presensi, otomatis menyetujui, atau mengubah akses kasir.
+## Portal tunggal Owner/Admin Entity
 
-Pemeriksaan D1 produksi 11 Oktober sekitar 22:25 WIB: Mandala tutup, tetapi G002 dan Tlekung masih punya laci OPEN dalam TEN-PROTOTYPE yang sama. Karena skin berlaku per tenant, belum diaktifkan pada tenant itu. Jangan menutup laci atas nama CS atau mengubah transaksi untuk mengatasi ini.
+Owner membuka satu portal usaha pada `/entity-admin?entity=...`. Portal hanya muncul untuk entity aktif pada tenant dengan `ui_skin=H`.
 
-## Temuan untuk Bos Cyo sebelum perubahan tambahan
-- Pengajuan tertunda bercampur riwayat panjang; sulit tahu mana yang perlu tindakan.
-- Istilah peran barang dan klasifikasi akuntansi terlihat seperti dua jenis barang.
-- Harga beli, pembelian terakhir dan HPP tampil berdekatan tanpa prioritas jelas.
-- Ada nilai HPP yang jauh di atas harga jual pada layar yang dibaca. Belum dibuktikan penyebabnya; jangan ubah costing atau saldo tanpa audit.
-- Pengaturan teknis, portal akuntansi dan tombol lintas peran mendominasi layar HP.
+Urutan layar:
+1. Admin Entity untuk seluruh gerai di bagian atas.
+2. Kasir Kantor di bagian bawah.
 
-## Jalur resep H
-POST /api/admin/manufacturing/products/:id/recipe, dengan query store wajib. Body: sourceRecipeId (null untuk resep pertama), outputQuantity, components [{productId, quantity}]. Endpoint memakai hak management dan tenant H. Revisi lama tidak diedit; nomor revisi baru dan link disimpan bersama. Sumber yang berubah ditolak 409. Retry isi yang sama tidak menambah revisi.
+Menu utama Admin disederhanakan menjadi:
+- Gerai: daftar gerai, detail laci, tim, akun kasir, presensi.
+- Barang: Barang & resep, stok seluruh gerai, stok gerai, berbagi barang, kategori, supplier.
+- Uang: setoran CS, biaya, hutang/piutang, rekening bersama, pembukuan lanjutan.
+- Laporan: seluruh gerai, per gerai, riwayat transaksi.
+- Pengaturan melalui satu tombol kecil: pelanggan, kontak gerai, dan pengaturan gerai.
 
-## Akses dan konsep visual
-Bos Cyo sempat menyetujui akun khusus dua gerai percobaan setelah review otomatis menolak usulan awal. Rencana itu kemudian dibatalkan bersama tenant baru; tidak ada endpoint pembuatan akun yang ditambahkan. Koneksi Cloudflare tersedia, tetapi AGENT_ADMIN_TOKEN tidak ditemukan di proses/Windows User/Machine maupun binding Worker produksi. Jangan menganggap credential Cloudflare sebagai sesi aplikasi.
+Pekerjaan yang khusus satu gerai meminta pilihan gerai di portal yang sama. Owner masih dapat membuka portal CS yang sudah ada.
 
-Tiga konsep gambar dibuat dengan built-in ImageGen: Fokus (putih-biru), Tenang (ivory-hijau), Langsung (prioritas keputusan, teal). Hasil dan prompt disimpan di C:/Users/Asus/output/owner-tenang-ui-20261011. Angka dan pengajuan pada gambar adalah ilustrasi, bukan hasil pembacaan data live. Konsep gambar belum diterapkan ke aplikasi.
+## Persetujuan seluruh gerai
 
-## Batas pelaksanaan
-Belum dinyatakan live atau selesai sampai resep diuji dari layar HP dan deployment terbukti. Tidak ada migration yang mengubah tenant aktif. Aktivasi tenant harus mempertimbangkan gerai lain dalam tenant yang sama.
+Kotak persetujuan di bagian atas menggabungkan pengajuan dari seluruh gerai dalam entity:
+- arus uang, arus barang, aset, dan penyesuaian stok;
+- pembatalan transaksi;
+- tutup laci;
+- koreksi presensi dan izin GPS;
+- setoran CS;
+- pendaftaran pelanggan.
 
+Sumber data dan handler keputusan lama tetap menjadi pemilik transaksi. Portal hanya menyatukan tampilan dan delegasi keputusan agar aturan akuntansi, stok, dan kas tidak diduplikasi.
 
-Status pemeriksaan lokal terakhir: 311 pemeriksaan sintaks lulus (seluruh daftar npm run check dijalankan satu per satu karena batas panjang perintah Windows); seluruh 1.838 tes lulus, 0 gagal, setelah pembatalan clone. Uji integrasi HTTP lewat Worker lokal juga lulus: barang baru mendapat Barang Jadi + klasifikasi Accounting bawaan, resep tersambung, komponen dimuat ulang, retry tidak menambah revisi. Server QA memakai SQLite di memori dan tidak terhubung ke produksi.
+Penghapusan transaksi tetap memakai persetujuan eksplisit satu ketukan. Tidak ada bypass penghapusan otomatis. Ini menjaga pembalikan stok, kas, dan jurnal tetap dapat diperiksa owner.
 
-Validasi visual implementasi H belum selesai: browser bisa membaca daftar tab tetapi interaksi/navigation berulang kali timeout. Tidak memakai kontrol browser di luar plugin sebagai pengganti. Tiga alternatif owner-kasir baru disimpan di C:/Users/Asus/output/owner-tenang-ui-20261011-v2: A papan tugas + kisi kasir, B gerai dahulu + daftar kasir, C inbox keputusan + pembayaran bertahap. Gambar pilihan belum diterapkan; menunggu preferensi Bos Cyo.
+## Kasir Kantor
 
-Tenant produksi tetap pada skin sebelumnya; tidak ada tenant/gerai/akun baru atau transaksi produksi yang dibuat oleh Codex. Rilis kode H tidak otomatis mengaktifkan skin pada tenant. Bukti deployment dicatat pada PR sebelum dinyatakan live.
+Owner memilih tepat satu gerai dalam entity sebagai Kantor. Pilihan ini tersimpan per entity pada tenant Skin H.
 
-DOC-IMPACT: CHANGED — skin H tenant, navigasi owner/admin, editor resep H, serta tiga konsep gambar. Rencana tenant/gerai/akun percobaan dibatalkan atas arahan Bos Cyo. Aturan stok, uang, presensi dan posting tetap memakai mesin yang sudah ada.
+Tombol Kantor:
+- Jual
+- Beli
+- Catat uang
+- Lainnya
+
+Pada tampilan Kantor disembunyikan:
+- Buka Laci
+- Tutup Laci
+- ACC Pelanggan
+- Detail Laci
+
+Laci Kantor dibuka melalui mesin laci canonical dan dianggap berjalan terus. Route tutup laci ditolak server untuk sesi Kantor. Tindakan operasional langsung owner tetap melewati mesin posting canonical, mencatat identitas manusia, dan tidak mengaktifkan Auto Permit permanen.
+
+Token Kantor membungkus sesi manusia yang masih aktif dan diperiksa ulang pada setiap request. Token tidak disimpan di URL atau localStorage. Perubahan gerai Kantor, pencabutan sesi manusia, pergantian skin, serta putaran H ke skin lain lalu kembali ke H langsung membatalkan token lama.
+
+## Detail laci dan permit
+
+Detail Laci Skin H mempunyai bagian Izin & Perubahan yang memuat permit terkait laci:
+- pengajuan operasional, termasuk penyesuaian stok;
+- pembatalan transaksi;
+- izin tutup laci.
+
+Tampilan memuat gerai/laci, status, pengaju, pemutus, waktu, alasan, dampak stok, dan hasil eksekusi. Total laporan laci tetap berasal dari fakta transaksi canonical; riwayat permit tidak mengubah total.
+
+## Barang dan resep
+
+Pada Skin H resep opsional diisi langsung dari form Barang & resep. Barang baru mendapat default jenis/satuan dari backend yang sudah ada. Simpan resep membuat revisi immutable dan memperbarui link dalam batch yang sama. Perubahan sumber saat proses berjalan ditolak, dan retry dengan isi sama tidak menggandakan revisi.
+
+## Tema visual
+
+Skin H memakai latar pantai kuning-turquoise tanpa logo atau teks merek:
+- aset: `public/owner-beach-h-v1.png`;
+- panel putih;
+- tombol utama teal gelap;
+- tombol pendamping kuning pasir;
+- target sentuh minimal 44 px;
+- pada HP, empat kelompok Admin tetap terlihat dan sub-menu membungkus.
+
+Seluruh CSS portal diawali `html[data-skin="h"]` dan komponen portal dibongkar saat skin bukan H.
+
+## Verifikasi lokal
+
+- `npm test`: 1.847 lulus, 0 gagal.
+- `npm run check`: 319 file lulus pemeriksaan sintaks.
+- Uji Worker lokal: login Owner 200, context Admin Entity 200, 11 gerai terbaca, konfigurasi KANTOR 200, sesi Kantor 200, laci OPEN, inbox lintas gerai 200.
+- Uji isolasi: H ke skin biasa membuat portal 403; kembali ke H tidak menghidupkan token Kantor lama (403); sesi baru berhasil (200).
+- `git diff --check`: tidak ada whitespace error.
+
+Chrome sempat tersambung tetapi koneksi ekstensi hilang sebelum navigasi lokal, jadi screenshot viewport HP aktual belum dihasilkan. Pemeriksaan responsif dilakukan dari aturan CSS dan struktur DOM; jangan nyatakan validasi visual browser selesai sampai screenshot aktual berhasil.
+
+## Batas produksi
+
+Tidak ada migration baru untuk fitur ini. Database preview berada di `.wrangler` lokal dan tidak dilacak Git. Tenant produksi, gerai aktif, akun produksi, laci CS, dan transaksi produksi tidak diubah. Push tetap ditahan sampai Bos Cyo memutuskan.
+
+DOC-IMPACT: CHANGED - implementasi lokal Skin H, portal Admin Entity, Kantor, persetujuan lintas gerai, riwayat permit laci, resep langsung, tema pantai, isolasi saat skin berubah, dan hasil validasi terbaru.

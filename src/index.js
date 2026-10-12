@@ -89,6 +89,8 @@ import { handleDebuggerApi } from './debugger-control-plane.js';
 import { handleUiProfileApi } from './ui-profile.js';
 import { handleWarungUntungApi } from './warung-untung.js';
 import { handleRacikKasirPemilikApi } from './racik-kasir-pemilik.js';
+import { handleOwnerEntityApi } from './owner-entity-approvals.js';
+import { handleOwnerOfficeApi } from './owner-office.js';
 import { DEFAULT_STORE_CODE, listStores, resolveStore } from './stores.js';
 import { json, readJson } from './http.js';
 
@@ -303,6 +305,10 @@ async function handleApiRouted(request, env, url) {
   if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);
   if (entityAdminResponse) return entityAdminResponse;
+  const ownerEntityResponse = await handleOwnerEntityApi(request, env, pathname);
+  if (ownerEntityResponse) return ownerEntityResponse;
+  const ownerOfficeResponse = await handleOwnerOfficeApi(request, env, pathname);
+  if (ownerOfficeResponse) return ownerOfficeResponse;
   const approvalResponse = await handleApprovalQueueApi(request, env, pathname);
   if (approvalResponse) return approvalResponse;
   const sharedAccountResponse = await handleEntitySharedAccountApi(request, env, pathname);

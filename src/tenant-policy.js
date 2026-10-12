@@ -148,13 +148,30 @@ export async function getTenantPolicyChoice(db, tenantId, key) {
 }
 
 export async function setTenantPolicySetting(db, tenantId, key, value, { role = '', id = '' } = {}) {
-  await db.prepare(`
+  const statement = db.prepare(`
     INSERT INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_at, updated_by_role, updated_by_id)
     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
     ON CONFLICT (tenant_id, setting_key) DO UPDATE SET
       setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP,
       updated_by_role = excluded.updated_by_role, updated_by_id = excluded.updated_by_id
-  `).bind(tenantId, key, normalizePolicyValue(key, value), role, id).run();
+  `).bind(tenantId, key, normalizePolicyValue(key, value), role, id);
+  if (key !== UI_SKIN_KEY) { await statement.run(); return; }
+  // A skin round trip must not revive a cached Office credential. Rotate an
+  // opaque epoch with the skin write, without changing any operational policy.
+  const epoch = db.prepare(`
+    INSERT INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_by_role, updated_by_id)
+    SELECT ?, 'owner_office_epoch', ?, ?, ?
+    WHERE COALESCE((SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = ? AND setting_key = 'ui_skin'), '0') <> ?
+    ON CONFLICT (tenant_id, setting_key) DO UPDATE SET setting_value=excluded.setting_value, updated_at=CURRENT_TIMESTAMP, updated_by_role=excluded.updated_by_role, updated_by_id=excluded.updated_by_id
+  `).bind(tenantId, crypto.randomUUID(), role, id, tenantId, normalizePolicyValue(key, value));
+  if (typeof db.batch === 'function') {
+    await db.batch([epoch, statement]);
+  } else {
+    // Test doubles and older adapters may not expose D1 batch(). Keep the
+    // same ordering; production D1 still performs the pair atomically.
+    await epoch.run();
+    await statement.run();
+  }
 }
 
 // Buat panel Owner -- semua saklar yang dikenal + nilainya SEKARANG untuk

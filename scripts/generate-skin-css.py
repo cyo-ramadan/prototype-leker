@@ -238,19 +238,29 @@ html[data-skin="g"] .primary-btn { min-height: 48px; }
 }
 
 
-SKINS['h'] = dict(title='H · Owner Kelola Sendiri', note='Buku kendali owner beberapa gerai yang merangkap admin. Aturan kasir tetap normal. DESAIN-SKIN-H-OWNER-ADMIN.md.', tok={
+SKINS['h'] = dict(title='H · Owner Kelola Sendiri', note='Portal Admin Entity dan Kantor khusus H; pantai kuning-turquoise tanpa merek, panel putih, tombol teal gelap. DESAIN-SKIN-H-OWNER-ADMIN.md.', tok={
   **SKINS['g']['tok'],
   '--skin-font': '"DM Sans", "Segoe UI", system-ui, sans-serif',
-  '--bg': '#F4F7FB', '--skin-page-bg': '#F4F7FB', '--surface': '#FFFFFF', '--ink': '#18283C', '--muted': '#526277', '--line': '#D8E1EB',
-  '--brand': '#174EA6', '--brand-2': '#174EA6',
-  '--skin-top-bg': '#FFFFFF', '--skin-top-ink': '#18283C', '--skin-top-muted': '#526277', '--skin-top-line': '#D8E1EB',
-  '--skin-mark-bg': '#174EA6', '--skin-mark-ink': '#FFFFFF',
-  '--skin-primary': '#174EA6', '--skin-active-bg': '#174EA6', '--skin-active-ink': '#FFFFFF',
-  '--skin-input-bg': '#FFFFFF', '--skin-chip-bg': '#EAF0F9', '--skin-focus': 'rgba(23,78,166,.18)',
+  '--bg': '#FFE7A1', '--skin-page-bg': '#FFE7A1', '--surface': '#FFFFFF', '--ink': '#123F3B', '--muted': '#46655F', '--line': '#C8E2DC',
+  '--brand': '#075E5A', '--brand-2': '#087F8C',
+  '--green': '#276846', '--green-soft': '#E5F3DD',
+  '--skin-hero-bg': '#FFF3BD', '--skin-hero-ink': '#123F3B', '--skin-hero-muted': '#46655F',
+  '--skin-top-bg': '#FFFFFF', '--skin-top-ink': '#123F3B', '--skin-top-muted': '#46655F', '--skin-top-line': '#C8E2DC',
+  '--skin-mark-bg': '#075E5A', '--skin-mark-ink': '#FFFFFF',
+  '--skin-primary': '#075E5A', '--skin-active-bg': '#075E5A', '--skin-active-ink': '#FFFFFF',
+  '--skin-input-bg': '#FFFFFF', '--skin-chip-bg': '#FFF3BD', '--skin-focus': 'rgba(7,94,90,.22)',
   '--skin-danger': '#A12626', '--skin-danger-soft': '#FFF0F0', '--skin-danger-line': '#EDC5C5',
   '--skin-card-shadow': 'none', '--skin-r-sm': '8px', '--skin-r': '10px', '--skin-r-lg': '16px'
 }, extra=r"""
-html[data-skin="h"] body { font-size:16px; line-height:1.5; }
+html[data-skin="h"] body { font-size:16px; line-height:1.5; background-color:#FFE7A1; background-image:url('/owner-beach-h-v1.png'); background-position:center; background-size:cover; background-repeat:no-repeat; background-attachment:fixed; }
+html[data-skin="h"] .topbar { background:rgba(255,255,255,.97); border-bottom:3px solid #FFC93E; }
+html[data-skin="h"] .primary-btn { background:#075E5A; color:#FFFFFF; border-color:#075E5A; }
+html[data-skin="h"] .secondary-btn, html[data-skin="h"] .mini-btn { background:#FFF3BD; color:#174F43; border-color:#E6CF7D; }
+html[data-skin="h"] .admin-card, html[data-skin="h"] .owner-store-card, html[data-skin="h"] .hero { background:#FFFFFF; }
+html[data-skin="h"] .nav-group-btn { background:#FFF3BD; color:#174F43; }
+html[data-skin="h"] .nav-group-btn[aria-current="true"] { background:#075E5A; color:#FFFFFF; }
+html[data-skin="h"] button:focus-visible, html[data-skin="h"] a:focus-visible, html[data-skin="h"] input:focus-visible, html[data-skin="h"] select:focus-visible { outline:3px solid #087F8C; outline-offset:3px; }
+@media(prefers-reduced-motion:reduce) { html[data-skin="h"] body { background-attachment:scroll; } }
 html[data-skin="h"] .admin-heading { display:none; }
 html[data-skin="h"] #tab-approvals.active { display:flex; flex-direction:column; }
 html[data-skin="h"] #tab-approvals > .admin-card:first-child { order:9; margin-top:14px; }
@@ -261,14 +271,14 @@ html[data-skin="h"] .nav-group-icon { font-family:system-ui; font-size:24px; }
 html[data-skin="h"] .primary-btn, html[data-skin="h"] .secondary-btn, html[data-skin="h"] .mini-btn,
 html[data-skin="h"] input:not([type="checkbox"]):not([type="hidden"]), html[data-skin="h"] select { min-height:44px; }
 html[data-skin="h"] .admin-card h2 { font-size:21px; letter-spacing:-.025em; }
-html[data-skin="h"] .th-profit, html[data-skin="h"] .hi-profit { background:#FFFFFF; color:#18283C; border:1px solid #D8E1EB; border-top:3px solid #174EA6; border-radius:12px; }
-html[data-skin="h"] .hi-profit p em { color:#174EA6; }
+html[data-skin="h"] .th-profit, html[data-skin="h"] .hi-profit { background:#FFFFFF; color:#123F3B; border:1px solid #C8E2DC; border-top:3px solid #075E5A; border-radius:12px; }
+html[data-skin="h"] .hi-profit p em { color:#075E5A; }
 html[data-skin="h"] .th-profit b.neg, html[data-skin="h"] .hi-profit b.neg { color:#A12626; }
-html[data-skin="h"] .hi-refresh { background:#EAF0F9; color:#174EA6; border-color:#D8E1EB; min-height:44px; }
-html[data-skin="h"] .hi-store a { display:block; color:#174EA6; text-decoration:none; padding:8px 0; }
-html[data-skin="h"] .hi-store a:focus-visible { outline:3px solid #174EA6; outline-offset:3px; }
+html[data-skin="h"] .hi-refresh { background:#FFF3BD; color:#075E5A; border-color:#C8E2DC; min-height:44px; }
+html[data-skin="h"] .hi-store a { display:block; color:#075E5A; text-decoration:none; padding:8px 0; }
+html[data-skin="h"] .hi-store a:focus-visible { outline:3px solid #075E5A; outline-offset:3px; }
 html[data-skin="h"] #entityAdminApp .owner-heading .muted, html[data-skin="h"] #entityAdminApp .owner-heading .admin-eyebrow { display:none; }
-html[data-skin="h"] .h-inline-recipe { border-top:1px solid #D8E1EB; padding-top:16px; margin:16px 0; }
+html[data-skin="h"] .h-inline-recipe { border-top:1px solid #C8E2DC; padding-top:16px; margin:16px 0; }
 html[data-skin="h"] .h-inline-recipe h3 { margin:0 0 4px; font-size:18px; }
 html[data-skin="h"] .h-recipe-row { display:grid; grid-template-columns:minmax(0,1fr) 80px 44px; align-items:end; gap:8px; margin:12px 0; }
 html[data-skin="h"] .h-recipe-row label { min-width:0; margin:0; }
@@ -278,7 +288,7 @@ html[data-skin="h"] .h-recipe-error { color:#A12626; background:#FFF0F0; padding
 html[data-skin="h"] .h-recipe-basic { margin:12px 0; }
 html[data-skin="h"] #productRecipeNote { display:none; }
 html[data-skin="h"] body:not(:has([data-entity-tab="home"].active)) #hariIni { display:none; }
-html[data-skin="h"] #productOperationalDetails summary { cursor:pointer; padding:12px 0; color:#526277; }
+html[data-skin="h"] #productOperationalDetails summary { cursor:pointer; padding:12px 0; color:#46655F; }
 @media(max-width:600px) {
   html[data-skin="h"] .admin-grid.two { grid-template-columns:minmax(0,1fr); }
   html[data-skin="h"] .admin-top-actions { gap:6px; }

@@ -1,0 +1,29 @@
+/* This layer only exists while the H portal is mounted. */
+html[data-skin="h"] body.owner-entity-h #entityAdminApp > .owner-heading,
+html[data-skin="h"] body.owner-entity-h #entityAdminApp > nav.admin-tabs,
+html[data-skin="h"] body.owner-entity-h #hariIni,
+html[data-skin="h"] body.owner-entity-h #entityManagementSettingsBtn {display:none!important;}
+html[data-skin="h"] body.owner-entity-h #ownerEntityPortal,
+html[data-skin="h"] body.owner-entity-h #ownerEntityOffice {background:rgba(255,255,255,.98);border:1px solid #c8e2dc;border-radius:22px;padding:22px;margin:16px 0;box-shadow:0 10px 28px rgba(0,77,74,.10);}
+html[data-skin="h"] body.owner-entity-h .h-admin-heading,
+html[data-skin="h"] body.owner-entity-h .h-office-heading {display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;}
+html[data-skin="h"] body.owner-entity-h .h-admin-heading h2,
+html[data-skin="h"] body.owner-entity-h .h-office-heading h2 {margin:2px 0;font-size:26px;color:#064c49;}
+html[data-skin="h"] body.owner-entity-h .h-portal-eyebrow {font-size:11px;font-weight:800;letter-spacing:.1em;color:#44665c;}
+html[data-skin="h"] body.owner-entity-h .h-portal-nav {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:18px 0 12px;}
+html[data-skin="h"] body.owner-entity-h .h-portal-nav button {border:1px solid #ecd270;background:#fff3bd;color:#174f43;border-radius:14px;min-height:62px;font:inherit;font-weight:800;cursor:pointer;}
+html[data-skin="h"] body.owner-entity-h .h-portal-nav button[aria-current="true"] {background:#075e5a;color:#fff;border-color:#075e5a;}
+html[data-skin="h"] body.owner-entity-h .h-portal-subnav {display:flex;flex-wrap:wrap;gap:8px;}
+html[data-skin="h"] body.owner-entity-h .h-portal-subnav [aria-current="true"] {background:#dcf3e6;border-color:#34775e;color:#174f43;}
+html[data-skin="h"] body.owner-entity-h [data-store-filter] {display:block;margin-top:16px;max-width:380px;font-weight:700;}
+html[data-skin="h"] body.owner-entity-h [hidden] {display:none!important;}
+html[data-skin="h"] body.owner-entity-h .h-portal-frame {width:100%;height:680px;border:0;background:#fff;border-radius:16px;}
+html[data-skin="h"] body.owner-entity-h .h-portal-scope {background:#fff7d8;padding:12px 16px;border-radius:12px;color:#174f43;font-weight:700;}
+html[data-skin="h"] body.owner-entity-h #ownerEntityOffice {margin-top:36px;border-top:7px solid #10b5c9;}
+html[data-skin="h"] body.owner-entity-h .h-office-heading p {margin:0;color:#47645e;font-size:14px;}
+html[data-skin="h"] body.owner-entity-h .h-office-settings {margin:12px 0 20px;}
+html[data-skin="h"] body.owner-entity-h .h-office-settings summary {cursor:pointer;color:#075e5a;padding:10px 0;}
+html[data-skin="h"] body.owner-entity-h .h-office-settings form {display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:12px;background:#f0f8f4;border-radius:12px;}
+html[data-skin="h"] body.owner-entity-h .h-office-settings label {flex:1;min-width:180px;}
+html[data-skin="h"] body.owner-entity-h :is([data-office-status],[data-portal-status]):not(:empty) {background:#fff3d8;color:#6a4500;padding:12px;border-radius:10px;}
+@media(max-width:600px){html[data-skin="h"] body.owner-entity-h .owner-shell {padding:12px;}html[data-skin="h"] body.owner-entity-h #ownerEntityPortal,html[data-skin="h"] body.owner-entity-h #ownerEntityOffice {padding:14px;border-radius:18px;}html[data-skin="h"] body.owner-entity-h .h-portal-nav {gap:5px;}html[data-skin="h"] body.owner-entity-h .h-portal-nav button {font-size:14px;min-height:56px;}html[data-skin="h"] body.owner-entity-h .h-portal-subnav .secondary-btn {font-size:12px;padding:9px;}}

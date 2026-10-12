@@ -1,4 +1,5 @@
 (() => {
+  if (window.OwnerOfficeEmbed) return;
   // Guard sesi karyawan antar tab.
   //
   // PERUBAHAN BESAR 2026-09-18 (Bos Cyo): dulu ini guard "SATU TAB" -- tab

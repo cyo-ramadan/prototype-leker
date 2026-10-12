@@ -73,11 +73,11 @@ test('debugger registry spans customer, transactions, inventory, approvals, and 
 });
 
 test('debugger namespace is read-only, audited, and routed before normal domain auth', async () => {
-  const [controlPlane, indexSource, migration, packageJson] = await Promise.all([
+  const [controlPlane, indexSource, migration, checkManifest] = await Promise.all([
     readFile(new URL('../src/debugger-control-plane.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/index.js', import.meta.url), 'utf8'),
     readFile(new URL('../migrations/0036_debugger_control_plane.sql', import.meta.url), 'utf8'),
-    readFile(new URL('../package.json', import.meta.url), 'utf8')
+    readFile(new URL('../scripts/check-syntax.mjs', import.meta.url), 'utf8')
   ]);
 
   assert.match(controlPlane, /DEBUG_SUPERADMIN_TOKEN/);
@@ -94,7 +94,7 @@ test('debugger namespace is read-only, audited, and routed before normal domain 
   assert.match(migration, /CREATE TABLE IF NOT EXISTS debugger_audit_log/);
   assert.match(migration, /actor_id TEXT NOT NULL CHECK \(actor_id = 'debugger'\)/);
   assert.match(migration, /request_id TEXT NOT NULL UNIQUE/);
-  assert.match(packageJson, /node --check src\/debugger-control-plane\.js/);
+  assert.match(checkManifest, /src\/debugger-control-plane\.js/);
 });
 
 test('debugger provides system health, module, transaction, feedback, and audit diagnostics', async () => {

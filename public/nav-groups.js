@@ -247,7 +247,7 @@
 
   function render() {
     scheduled = false;
-    if (!window.MaxiSkin?.isOn()) return unmount();
+    if (!window.MaxiSkin?.isOn() || (currentSkin() === 'h' && (pageKey() === 'entity-admin' || (window.parent !== window && new URLSearchParams(location.search).get('ownerPortal') === '1')))) return unmount();
     const container = source();
     const groups = collect();
     if (!container || !groups?.length) return;

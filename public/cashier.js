@@ -11,7 +11,7 @@ const state = {
   orders: [],
   products: [],
   draft: new Map(),
-  token: localStorage.getItem('lekerCashierToken')
+  token: (window.OwnerOfficeEmbed ? '' : localStorage.getItem('lekerCashierToken'))
     || (readOnlyPreviewIntent && (localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerEntityAdminToken') || localStorage.getItem('lekerAdminToken')))
     || '',
   cashier: null,
@@ -229,9 +229,11 @@ function clearSession() {
   state.readOnly = false;
   state.voucherCustomer = null;
   state.rodaOfficialResult = null;
-  window.lekerClearStaffSession?.();
-  localStorage.removeItem('lekerCashierToken');
-  localStorage.removeItem('lekerStaffSessionMeta');
+  if (!window.OwnerOfficeEmbed) {
+    window.lekerClearStaffSession?.();
+    localStorage.removeItem('lekerCashierToken');
+    localStorage.removeItem('lekerStaffSessionMeta');
+  }
   if (state.poller) clearInterval(state.poller);
   state.poller = null;
 }
@@ -1020,4 +1022,4 @@ function formatDateTime(iso) {
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 }
 
-init();
+if (!window.OwnerOfficeEmbed) init();

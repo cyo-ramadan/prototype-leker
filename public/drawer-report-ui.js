@@ -39,6 +39,48 @@
     return `<section class="drawer-report-section"><h4>${esc(title)}</h4>${content}</section>`;
   }
 
+
+  const hasPermitHistory = report => document.documentElement.dataset.skin === 'h' && Array.isArray(report.sections?.permitHistory);
+  const permitStatus = row => ({ PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak', CANCELLED: 'Dibatalkan oleh kasir' })[row.status] || row.status;
+  const executionStatus = row => row.type === 'DRAWER_CLOSE' && row.executionStatus === 'EXECUTED' ? 'Laci ditutup' : ({ EXECUTED: 'Selesai dicatat', NOT_ATTEMPTED: 'Belum dijalankan', BLOCKED: 'Pencatatan tertahan', HOLD: 'Pelaksanaan tertahan', FAILED: 'Pelaksanaan gagal' })[row.executionStatus] || row.executionStatus;
+  const actorLabel = actor => actor ? actor.name || [actor.role, actor.id].filter(Boolean).join(' · ') : '-';
+  const signedNumber = value => value == null ? '-' : value > 0 ? '+' + number(value) : number(value);
+  function permitLines(row) {
+    const lines = [
+      ['Pengajuan', row.id],
+      ['Pemohon', actorLabel(row.requestedBy) + ' · ' + dateTime(row.requestedAt)],
+      ['Persetujuan', permitStatus(row)],
+      ['Pelaksanaan', executionStatus(row)],
+      ['Alasan', row.reason || '-']
+    ];
+    if (row.description) lines.push(['Keterangan', row.description]);
+    if (row.decidedAt) lines.push(['Keputusan', actorLabel(row.decidedBy) + ' · ' + dateTime(row.decidedAt)]);
+    if (row.decisionNote) lines.push(['Catatan keputusan', row.decisionNote]);
+    if (row.executedAt) lines.push(['Dicatat', dateTime(row.executedAt)]);
+    if (row.executionDetail) lines.push(['Hasil pelaksanaan', row.executionDetail]);
+    if (row.accountingStatus === 'FAILED') lines.push(['Pembukuan', 'Pembalik jurnal belum berhasil']);
+    if (row.subject) lines.push(['Transaksi asal', [row.subject.type, row.subject.id, row.subject.amount == null ? '' : rupiah(row.subject.amount), row.subject.paymentMethod].filter(Boolean).join(' · ')]);
+    if (row.cashDelta != null) lines.push([row.executionStatus === 'EXECUTED' ? 'Perubahan kas' : 'Perubahan kas yang diajukan', signedNumber(row.cashDelta) + ' rupiah']);
+    if (row.closingAmount != null) lines.push(['Uang fisik yang diajukan', rupiah(row.closingAmount)]);
+    if (row.depositAmount != null) lines.push(['Setoran yang diajukan', rupiah(row.depositAmount)]);
+    for (const stock of row.stockChanges || []) {
+      const quantity = stock.recorded != null && stock.actual != null
+        ? number(stock.recorded) + ' → ' + number(stock.actual) + ' (selisih ' + signedNumber(stock.delta) + ')'
+        : signedNumber(stock.delta);
+      lines.push([stock.productName || 'Barang', quantity + (stock.unitSymbol ? ' ' + stock.unitSymbol : '')]);
+    }
+    return lines;
+  }
+  function permitHistorySection(report) {
+    if (!hasPermitHistory(report)) return '';
+    const rows = report.sections.permitHistory;
+    const cards = rows.length ? rows.map(row => '<details class="admin-card"><summary><b>' + esc(row.title) + '</b> · ' + esc(permitStatus(row)) + ' · ' + esc(dateTime(row.requestedAt)) + '</summary>'
+      + '<dl>' + permitLines(row).map(([label, value]) => '<dt>' + esc(label) + '</dt><dd style="margin:0 0 10px;overflow-wrap:anywhere">' + esc(value) + '</dd>').join('') + '</dl></details>').join('')
+      : '<div class="drawer-line-empty">Belum ada izin atau perubahan pada laci ini.</div>';
+    return '<div data-drawer-permit-history><style>html:not([data-skin="h"]) [data-drawer-permit-history]{display:none!important}</style>'
+      + section('IZIN & PERUBAHAN', '<p>Riwayat pengajuan dan pelaksanaannya. Angka di sini tidak ditambahkan lagi ke perhitungan laci.</p>' + cards) + '</div>';
+  }
+
   // Bos Cyo, 2026-09-28: tombol Salin di Detail Laci -- format teks siap
   // ditempel ke WA, dari data yang SAMA dengan yang sudah ditampilkan di
   // atas (bukan field tambahan yang tidak ada di tampilan). Dipakai baik
@@ -126,6 +168,10 @@
     lines.push('ARUS KAS MASUK', textMoneyLines((sections.operationalCash || []).filter(row => row.direction === 'IN').map(row => [row.description || row.note || 'Arus Kas', row.amount]), '(kosong)'), `Total | ${number(totals.operationalCashIn)}`, '');
     lines.push('ARUS KAS KELUAR', textMoneyLines((sections.operationalCash || []).filter(row => row.direction === 'OUT').map(row => [row.description || row.note || 'Arus Kas', row.amount]), '(kosong)'), `Total | ${number(totals.operationalCashOut)}`);
 
+    if (hasPermitHistory(report)) {
+      lines.push('', 'IZIN & PERUBAHAN', 'Riwayat saja; angka tidak ditambahkan lagi ke perhitungan laci.');
+      for (const row of sections.permitHistory) lines.push('', plain(row.title), textTableLines(permitLines(row)));
+    }
     return lines.join('\n');
   }
 
@@ -238,6 +284,7 @@
         ...(totals.cashDifference ? [['Lebih (+) / kurang (−) dari ekspektasi', totals.cashDifference]] : [])
       ]))}
 
+      ${permitHistorySection(report)}
       <div class="drawer-report-divider">CATATAN TAMBAHAN</div>
       ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems))}
       ${section('3B. BELANJA BAHAN BAYAR NON TUNAI', purchaseTable(sections.nonCashPurchases || [], totals.nonCashPurchases))}

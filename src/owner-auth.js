@@ -64,6 +64,7 @@ function mapEntity(row) {
     status: row.status,
     tenantId: row.tenant_id ?? null,
     tenantName: row.tenant_name ?? null,
+    uiSkin: row.ui_skin || '0',
     createdAt: row.created_at
   } : null;
 }
@@ -79,10 +80,12 @@ async function listTenants(db) {
 // rewrite of ownership history.
 async function listEntities(db) {
   const rows = await db.prepare(`
-    SELECT e.id, e.name, e.status, e.created_at, et.tenant_id, t.name AS tenant_name
+    SELECT e.id, e.name, e.status, e.created_at, et.tenant_id, t.name AS tenant_name,
+           COALESCE(p.setting_value, '0') AS ui_skin
     FROM entities e
     LEFT JOIN entity_tenancy et ON et.entity_id = e.id AND et.effective_to IS NULL
     LEFT JOIN tenants t ON t.id = et.tenant_id
+    LEFT JOIN tenant_policy_settings p ON p.tenant_id = et.tenant_id AND p.setting_key = 'ui_skin'
     ORDER BY e.name COLLATE NOCASE
   `).all();
   return (rows.results ?? []).map(mapEntity);

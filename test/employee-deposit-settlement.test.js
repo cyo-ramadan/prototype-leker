@@ -549,14 +549,14 @@ test('panel Admin punya tab sendiri "Setoran CS": antrean dengan foto, ACC/Tolak
   const adminUi = readFileSync(new URL('../public/admin-employee-deposits.js', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
   const nav = readFileSync(new URL('../public/nav-groups.js', import.meta.url), 'utf8');
-  const pkg = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
+  const checkManifest = readFileSync(new URL('../scripts/check-syntax.mjs', import.meta.url), 'utf8');
   assert.match(adminUi, /\/api\/admin\/employee-deposits\/overview/);
   assert.match(adminUi, /data-approve-payment/);
   assert.match(adminUi, /data-reject-payment/);
   assert.match(adminUi, /\/api\/admin\/employee-deposits\/payments\/\$\{encodeURIComponent\(img\.dataset\.depositPhoto\)\}\/photo/);
   assert.match(html, /<script src="\/admin-employee-deposits\.js/);
   assert.match(nav, /'setoran-cs'/, 'tab didaftarkan ke grupnya di nav-groups.js');
-  assert.match(pkg, /public\/admin-employee-deposits\.js/, 'file baru masuk script check');
+  assert.match(checkManifest, /public\/admin-employee-deposits\.js/, 'file baru masuk script check');
   const karyawan = readFileSync(new URL('../public/admin-employees.js', import.meta.url), 'utf8');
   assert.doesNotMatch(karyawan, /depositPendingList/, 'antrean pindah ke tab Setoran CS, tidak dobel di tab Karyawan');
 });
@@ -672,7 +672,7 @@ test('UI Detail Laci: baris "Selisih Kas" diganti Taruh uang laci + Setoran; bar
   assert.match(ui, /totals\.cashDifference \?/, 'baris lebih/kurang disembunyikan saat 0');
   const branchAdmin = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
   const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
-  assert.match(branchAdmin, /drawer-report-ui\.js\?v=20261004-setoran-laci-v1/);
-  assert.match(cashierHtml, /drawer-report-ui\.js\?v=20261004-setoran-laci-v1/);
+  assert.match(branchAdmin, /drawer-report-ui\.js\?v=20261012-permit-history-v1/);
+  assert.match(cashierHtml, /drawer-report-ui\.js\?v=20261012-permit-history-v1/);
   assert.match(branchAdmin, /admin-employees\.js\?v=20261008-buku-per-orang-v1/);
 });

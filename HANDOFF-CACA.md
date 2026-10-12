@@ -49,6 +49,100 @@ Validasi implementasi 2026-10-11:
 - Preflight produksi: tabel Workspace belum ada, ledger terakhir0149. Migration0150
   hanya menambah metadata Workspace; deploy harus apply lalu verify schema.
 
+## Untuk Codex 2026-10-12 — Kamus yang ikut berubah + mulut Una (BELUM dikerjakan)
+
+Ditulis Eskor atas arahan Bos Cyo. Ada dua tugas, kerjakan berurutan. Belum ada kode yang ditulis.
+
+### T-KAMUS — kamus Una jangan sampai basi karena update atau skin
+
+Pertanyaan Bos Cyo: *"kamus itu dinamis atau statis? jangan sampe ketika ada perubahan
+algoritma sistem karna update ataupun kusus di skin tertentu bikin kamusnya ga relevan."*
+
+**Kondisi sekarang (dicek di main d2701c1):**
+
+| Bagian | Sifat | Penjaga |
+|---|---|---|
+| `generated/peta-una-data.js` (daftar menu) | Setengah dinamis: dibangkitkan dari `public/nav-groups.js` | `test/caca-peta.test.js` gagal kalau basi atau ada menu tanpa `PENJELASAN` ✅ |
+| `PENJELASAN` di `src/caca-peta.js` (layar itu bisa apa) | Statis, ditulis tangan | Hanya mengecek ada/tidaknya, bukan isinya |
+| `KAMUS` di `src/caca-jelaskan.js` (42 entri: HPP, jurnal, laci, cara pakai) | **Statis, ditulis tangan** | Hanya mengecek tawaran menunjuk ke layar/topik yang ada (`caca-aksi-barang.test.js` "kamus: kunci terpanjang menang…") |
+| Skin | **Una tidak tahu skin sama sekali** (tidak ada `skin`/`ui_skin` di `src/caca-*.js`) | — |
+
+**Lubang yang konkret:**
+1. `bangunPeta()` hanya membaca `PAGES[*].groups` + `LABELS` + `SKIN_HINTS.d`. `SKIN_GROUPS`
+   (d/f/g) dan `SKIN_LABELS` diabaikan, jadi:
+   - Skin F (Racik Parfum): menu `racikbahan` "Bahan & Aroma" tidak dikenal Una. Una tetap
+     menyuruh ke "Data Barang" / "Resep & Satuan".
+   - Skin G (Percetakan): `cetak` "Layar Cetak" tidak dikenal.
+   - Skin D: grup dan label berbeda ("Biaya Toko", "Absen", "Lainnya → Uang & pembukuan").
+     Una menyebut nama grup/label default, jadi petunjuk "ada di grup X" bisa salah tempat.
+2. Isi `KAMUS` menjelaskan perilaku sistem (mis. HPP rata-rata bergerak, alur laci, setoran,
+   izin). Kalau algoritmanya diubah, tidak ada tes yang gagal, sehingga Una tetap menjelaskan
+   cara lama dengan yakin. Ini persis yang dikhawatirkan Bos.
+
+**Yang diminta (arah, detail silakan Codex rancang):**
+- **Peta per skin:** `bangunPeta()` ikut membaca `SKIN_GROUPS` + `SKIN_LABELS` + `SKIN_HINTS` per
+  skin, sehingga keluarannya punya kolom `skin` (atau satu peta per skin). Menu khusus skin
+  (`racikbahan`, `cetak`, dst.) wajib punya `PENJELASAN`, dan tes penjaga yang sama ikut
+  menutupinya.
+- **Una tahu skin tenant:** skin dibaca di server dari kebijakan tenant `ui_skin` (bukan dari
+  klien), lalu `cariMenu`/`jawabanMenu`/`jelaskan` memakai label, grup, dan menu skin itu.
+  Entri `KAMUS` boleh punya `skin: [...]` (hanya berlaku di skin itu) atau varian isi per skin.
+  Tawaran `buka` ke layar yang tidak ada di skin tenant harus disembunyikan.
+- **Kamus terikat ke kode yang dijelaskannya:** tiap entri `KAMUS` yang menjelaskan perilaku
+  sistem diberi `sumber: ['src/hpp-recalculation.js', …]` (berkas yang menentukan perilaku itu)
+  dan `diperiksa: '<hash isi berkas sumber>'`. Tes penjaga baru gagal kalau isi berkas sumber
+  berubah tetapi entri belum ditinjau ulang. Untuk menyegarkan hash dipakai satu skrip
+  (`node scripts/build-peta-una.mjs --tinjau <id>`), mirip pola peta. Tujuannya: setiap update
+  algoritma **memaksa** orang yang mengubahnya membaca ulang penjelasan Una. Entri yang murni
+  istilah umum boleh `sumber: []` dengan alasan tertulis (pola `tanpaAksi` yang sudah ada).
+  - Catatan: CRLF di Windows (`core.autocrlf=true`) membuat hash berbeda. Normalkan `\r\n` → `\n`
+    sebelum di-hash. Ini sumber 10 kegagalan tes Windows yang sudah dikenal.
+- Jangan ubah pembagian yang sudah diputuskan: FAKTA dari kamus/peta (kode), BAHASA dari model
+  (`caca-poles.js`). Model tetap tidak boleh mengarang definisi.
+
+**Selesai bila:** di gerai skin F, "di mana atur bahan?" mengarah ke "Bahan & Aroma"; di skin G,
+"di mana antrian cetak?" mengarah ke "Layar Cetak"; di skin D label/grupnya sesuai layar; dan
+mengubah satu baris di berkas `sumber` sebuah entri membuat tes merah sampai entri itu ditinjau.
+
+### T-MULUT — Una menjawab dengan suara
+
+Sudah ada telinga (mikrofon → teks, `public/caca-chat.js` ~baris 1110, `lang = 'id-ID'`, lihat
+bagian "Perintah lewat suara" di bawah). Sekarang yang diminta adalah mulutnya.
+
+- **Mesin:** `window.speechSynthesis` bawaan browser, **gratis, tanpa server, tanpa kunci**.
+  Pilih suara `id-ID`. Utamakan suara "Natural/Online" (Edge: Microsoft Ardi/Gadis Online
+  Natural), kalau tidak ada pakai suara id-ID apa saja. Kalau tidak ada suara id-ID sama sekali,
+  tombol suara disembunyikan, bukan membaca dengan logat Inggris. `voiceschanged` harus
+  ditunggu (di Chrome daftar suara kosong saat awal).
+- **Kapan bicara:**
+  - Saklar "🔊 Una bicara" di panel, **default mati**. Simpan per perangkat di localStorage dalam
+    try/catch.
+  - Kalau pesan Bos dikirim lewat mikrofon, balasan berikutnya otomatis dibacakan walaupun saklar
+    mati (mode ngobrol). Kalau lewat ketikan, hanya dibacakan bila saklar nyala.
+  - Tiap balasan punya tombol kecil "▶ dengarkan".
+- **Apa yang dibacakan:** hanya teks balasan, dibersihkan dulu. Simbol, emoji, bullet, dan tabel
+  dibuang. Rupiah dibaca wajar ("Rp12.500" → "dua belas ribu lima ratus rupiah") dan tanggal
+  dibaca wajar. **Kartu draft tidak dibacakan isinya penuh**: cukup "Ada draft N baris, cek
+  dulu sebelum tekan Ya". Jangan pernah membacakan password/token (aturan karyawan:
+  password dibuat sistem). Batasi ±600 karakter, sisanya "selengkapnya ada di layar".
+- **Perilaku:**
+  - Berhenti bicara saat Bos menekan mikrofon (supaya Una tidak mendengar suaranya sendiri),
+    saat ada pesan baru, saat panel ditutup, saat gerai diganti, atau saat halaman ditinggalkan.
+    Hormati `visibilitychange`.
+  - Chrome memotong ucapan panjang (~15 detik): pecah per kalimat.
+  - **Suara tidak pernah menyetujui apa pun.** Alur draft + tombol "Ya" tetap sama. Kata "ya"
+    yang terucap hanya masuk ke kotak ketik seperti sekarang.
+- **Biaya:** nol token tambahan. Teks yang sudah ada dibacakan, tidak ada panggilan model baru.
+- **Tes:** pembersih teks-untuk-dibacakan dibuat sebagai fungsi murni dan diuji (rupiah, emoji,
+  tabel, draft, password). Pemilihan suara diuji dengan daftar suara tiruan. Lalu uji di HP
+  sungguhan (Chrome Android + HeyTap/Oppo seperti HP CS) dan Edge laptop, dan catat hasilnya di
+  sini. Jangan klaim "live" sebelum diuji di perangkat nyata.
+- Pengembangan lanjutan (bukan sekarang): panggil tanpa menekan ("Una…"), dan suara premium
+  berbayar. Keduanya butuh keputusan Bos Cyo.
+
+<!-- DOC-IMPACT: 2026-10-12 Eskor: tugas T-KAMUS (kamus/peta sadar skin + terikat kode sumber)
+dan T-MULUT (TTS browser) untuk Codex; belum ada kode. -->
+
 ## Status singkat
 
 **Tahap 1 sudah ada kodenya, lulus test, tapi BELUM live.** Kodenya masih di

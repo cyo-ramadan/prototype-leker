@@ -1327,7 +1327,12 @@ function cacaLamaMengetik(payload) {
   return Math.min(2600, Math.max(900, 500 + panjang * 6));
 }
 
+// Bos Cyo 2026-10-12: dimatikan selama masa pelatihan Una supaya jawaban langsung terlihat.
+// Nyalakan lagi dengan mengganti ke true.
+const CACA_JEDA_MANUSIAWI = false;
+
 async function cacaJedaManusiawi(mengetik, payload, mulai) {
+  if (!CACA_JEDA_MANUSIAWI) return;
   const sisa = cacaLamaMengetik(payload) - (Date.now() - mulai);
   if (sisa <= 0) return;
   const langkah = payload?.alat === 'jelaskan' ? 'Buka panduan' : 'Pahami maksud Bos';

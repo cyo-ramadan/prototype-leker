@@ -16,8 +16,8 @@
   // ?mesin=OUTDOOR -> layar khusus satu mesin (tablet di samping mesin).
   let mesinDipilih = new URLSearchParams(location.search).get('mesin') || '';
   const MODE_LABEL = {
-    MANUAL: 'Manual: semua chat jadi draft, karyawan yang mengonfirmasi',
-    OTOMATIS: 'Otomatis: chat yang jelas langsung jadi order + antrian',
+    MANUAL: 'ACC pelanggan (disarankan): draft Una → kirim rincian ke pelanggan → pelanggan balas OK → order',
+    OTOMATIS: 'Otomatis tanpa ACC: chat yang jelas langsung jadi order + antrian',
     LANGSUNG_CETAK: 'Langsung cetak: seperti Otomatis, file langsung dikirim ke mesin oleh agen cetak'
   };
 
@@ -80,6 +80,7 @@
           <div class="master-main">
             <strong>${esc(conv.fromName || conv.fromNumber)}</strong> <span class="muted">${esc(conv.fromNumber)}</span>
             ${conv.unprocessed ? `<span class="status-chip warn">${conv.unprocessed} belum diproses</span>` : '<span class="status-chip">sudah diproses</span>'}
+            ${conv.looksComplete ? '<span class="status-chip">kelihatannya lengkap, siap dibuat draft</span>' : ''}
           </div>
           <div class="actions">
             <button class="primary-btn" data-baca="${esc(conv.fromNumber)}" ${conv.unprocessed && setup.aiReady ? '' : 'disabled'} type="button">Baca dengan Una</button>
@@ -125,7 +126,8 @@
       } });
       await renderMasuk();
       const auto = hasil.otomatis || {};
-      if (auto.created) tampilPesan(`Order otomatis ${auto.created.orderNo} dibuat dan masuk antrian mesin.`);
+      if (auto.reason === 'ACC_PELANGGAN') tampilPesan(`Pelanggan ACC. Order ${auto.created.orderNo} masuk antrian mesin.`);
+      else if (auto.created) tampilPesan(`Order otomatis ${auto.created.orderNo} dibuat dan masuk antrian mesin.`);
       else if (auto.reason === 'BELUM_LENGKAP') tampilPesan(`Belum jadi order otomatis: ${(auto.questions || []).join(' ')}`);
     }));
     $('tab-masuk').querySelectorAll('[data-baca],[data-manual]').forEach(button => button.addEventListener('click', () => jalankan(async () => {
@@ -168,24 +170,39 @@
 
   async function renderDraft() {
     const { drafts } = await api('/api/percetakan/drafts');
-    $('tab-draft').innerHTML = drafts.length ? drafts.map(d => `
+    // Alur ACC (ADR-055 D14): draft -> "Kirim ke pelanggan" -> pelanggan balas OK -> order otomatis.
+    $('tab-draft').innerHTML = drafts.length ? drafts.map(d => {
+      const isi = d.accPayload || { customerName: d.proposal.customerName, dueAt: d.proposal.dueText, items: d.proposal.items };
+      const menunggu = d.accStatus === 'MENUNGGU_ACC';
+      return `
       <div class="admin-card" data-draft="${esc(d.id)}">
-        <strong>${esc(d.proposal.customerName || d.fromNumber)}</strong> <span class="muted">${esc(d.fromNumber)}</span>
-        <span class="status-chip ${d.source === 'AI' ? '' : 'warn'}">${d.source === 'AI' ? 'dibaca Una' : 'manual'}</span>
-        ${(d.proposal.questions || []).length ? `<div class="notice">Perlu ditanyakan ke pelanggan:<ul>${d.proposal.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ul></div>` : ''}
+        <strong>${esc(isi.customerName || d.fromNumber)}</strong> <span class="muted">${esc(d.fromNumber)}</span>
+        <span class="status-chip ${d.source === 'AI' ? '' : 'warn'}">${d.source === 'AI' ? 'dibaca Una' : d.source === 'ATURAN' ? 'pembaca otomatis' : 'manual'}</span>
+        ${menunggu ? `<span class="status-chip warn">menunggu ACC pelanggan · ${esc(d.accTotalText || '')}</span>` : ''}
+        ${menunggu ? `<div class="notice">Dikirim ${esc(new Date(d.accSentAt).toLocaleString('id-ID'))}. Begitu pelanggan membalas <b>OK</b>, order otomatis masuk antrian.<pre class="acc-pesan">${esc(d.accMessage)}</pre>Kalau pelanggan minta perubahan, ubah rincian di bawah lalu kirim ulang.</div>` : ''}
+        ${(d.proposal.questions || []).length && !menunggu ? `<div class="notice">Perlu ditanyakan ke pelanggan:<ul>${d.proposal.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ul></div>` : ''}
         <div class="grid">
-          <input class="text-input" data-f="customerName" placeholder="Nama pelanggan" value="${esc(d.proposal.customerName || '')}" />
-          <input class="text-input" data-f="dueAt" placeholder="Tenggat, mis. besok 16.00" value="${esc(d.proposal.dueText || '')}" />
+          <input class="text-input" data-f="customerName" placeholder="Nama pelanggan" value="${esc(isi.customerName || '')}" />
+          <input class="text-input" data-f="dueAt" placeholder="Perkiraan jadi, mis. besok 16.00" value="${esc(isi.dueAt || '')}" />
         </div>
         <h2>Rincian</h2>
-        <div data-items>${(d.proposal.items?.length ? d.proposal.items : [{}]).map(barisItem).join('')}</div>
+        <div data-items>${(isi.items?.length ? isi.items : [{}]).map(barisItem).join('')}</div>
         <div class="actions">
           <button class="secondary-btn" data-tambah type="button">+ Item</button>
-          <button class="primary-btn" data-konfirmasi type="button">Konfirmasi jadi order</button>
+          <button class="primary-btn" data-kirim-acc type="button">${menunggu ? 'Kirim ulang ke pelanggan' : 'Kirim ke pelanggan untuk ACC'}</button>
           <button class="secondary-btn" data-tolak type="button">Bukan order</button>
         </div>
+        <details class="manual">
+          <summary>Pelanggan sudah setuju di luar WA (telepon / datang langsung)?</summary>
+          <div class="balas">
+            <input class="text-input" data-f="alasan" placeholder="Alasan, mis. pelanggan setuju lewat telepon jam 14.10" />
+            <button class="secondary-btn" data-konfirmasi type="button">Setujui manual</button>
+          </div>
+          <p class="muted">Persetujuan manual tercatat atas nama Anda dan ditandai di riwayat order.</p>
+        </details>
         <p class="muted">Harga dihitung server dari daftar harga gerai, bukan dari layar ini.</p>
-      </div>`).join('') : '<p class="muted">Tidak ada draft yang menunggu.</p>';
+      </div>`;
+    }).join('') : '<p class="muted">Tidak ada draft yang menunggu.</p>';
 
     $('tab-draft').querySelectorAll('[data-draft]').forEach(card => {
       const id = card.dataset.draft;
@@ -195,18 +212,25 @@
         await api(`/api/percetakan/drafts/${encodeURIComponent(id)}/tolak`, { method: 'POST', body: {} });
         await renderDraft();
       }));
-      card.querySelector('[data-konfirmasi]').addEventListener('click', () => jalankan(async () => {
-        const items = [...card.querySelectorAll('.item-row')].map(row => {
+      const isian = () => ({
+        customerName: card.querySelector('[data-f="customerName"]').value,
+        dueAt: card.querySelector('[data-f="dueAt"]').value,
+        items: [...card.querySelectorAll('.item-row')].map(row => {
           const item = {};
           row.querySelectorAll('[data-k]').forEach(input => { item[input.dataset.k] = input.value; });
           return { productId: item.productId, qty: Number(item.qty), widthCm: Number(item.widthCm) || null, heightCm: Number(item.heightCm) || null, note: item.note, fileId: item.fileId || null };
-        });
+        })
+      });
+      card.querySelector('[data-kirim-acc]').addEventListener('click', () => jalankan(async () => {
+        const hasil = await api(`/api/percetakan/drafts/${encodeURIComponent(id)}/kirim-acc`, { method: 'POST', body: isian() });
+        tampilPesan(`Rincian (${hasil.totalText}) terkirim ke pelanggan${hasil.simulated ? ' (simulasi)' : ''}. Menunggu balasan OK.`);
+        await renderDraft();
+      }));
+      card.querySelector('[data-konfirmasi]').addEventListener('click', () => jalankan(async () => {
         const result = await api(`/api/percetakan/drafts/${encodeURIComponent(id)}/konfirmasi`, { method: 'POST', body: {
-          customerName: card.querySelector('[data-f="customerName"]').value,
-          dueAt: card.querySelector('[data-f="dueAt"]').value,
-          items
+          ...isian(), alasan: card.querySelector('[data-f="alasan"]').value
         } });
-        tampilPesan(`Order ${result.orderNo} dibuat dan masuk antrian.`);
+        tampilPesan(`Order ${result.orderNo} dibuat (persetujuan manual) dan masuk antrian.`);
         await bukaOrder(result.orderId);
         await renderDraft();
       }));

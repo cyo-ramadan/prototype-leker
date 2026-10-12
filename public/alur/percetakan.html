@@ -168,13 +168,13 @@ footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; border
   <header>
     <span class="eyebrow">OwnerTenang · Skin G Percetakan</span>
     <h1>Dari chat WhatsApp pelanggan sampai ke mesin cetak</h1>
-    <p class="lede">Pelanggan tetap pesan lewat WhatsApp. Karyawan tetap membalas chat. Bedanya: setiap chat langsung tercatat, ordernya dibuat otomatis lengkap dengan mesin dan nomor antrian, dan setiap perubahan tercatat atas nama orangnya.</p>
+    <p class="lede">Pelanggan tetap pesan lewat WhatsApp. Karyawan tetap membalas chat. Bedanya: setiap chat langsung tercatat, Una merangkum order jadi draft, pelanggan meng-ACC rinciannya lewat WhatsApp, lalu order masuk antrian mesin. Setiap perubahan tercatat atas nama orangnya.</p>
   </header>
 
   <div class="legend" aria-label="Keterangan simbol">
     <span><i class="ico i-wa"><svg><use href="#s-chat"/></svg></i>WhatsApp pelanggan</span>
     <span><i class="ico i-ot">O</i>OwnerTenang (otomatis)</span>
-    <span><i class="ico i-una"><svg><use href="#s-spark"/></svg></i>Una, asisten AI (lewat tombol)</span>
+    <span><i class="ico i-una"><svg><use href="#s-spark"/></svg></i>Una, asisten AI (dipanggil lewat tombol)</span>
     <span><i class="ico i-staff"><svg><use href="#s-person"/></svg></i>Karyawan / CS</span>
     <span><i class="ico i-machine"><svg><use href="#s-printer"/></svg></i>Mesin cetak</span>
     <span><i class="ico i-owner"><svg><use href="#s-eye"/></svg></i>Pemilik</span>
@@ -229,59 +229,57 @@ footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; border
     </div>
 
     <div class="row">
+      <div class="step">
+        <i class="ico i-una"><svg><use href="#s-spark"/></svg></i>
+        <div><span class="who">Karyawan menekan tombol → Una</span><h3>Una membaca seluruh chat dan membuat draft</h3>
+          <p>Produk, ukuran, jumlah, file, sampai koreksi yang menyusul dibaca. Harga tidak dikarang AI: selalu dari daftar harga toko. Sistem membantu memberi tanda chat yang kelihatannya sudah lengkap.</p>
+          <span class="chip">Banner Flexi 3×1 m</span><span class="chip">× 2</span><span class="chip">spanduk.pdf</span><span class="chip">Rp132.000</span></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble note">CS memeriksa draft, menambah yang kurang</div>
+      </div>
+    </div>
+
+    <div class="row">
       <div>
         <div class="step" style="padding-bottom:12px">
-          <i class="ico i-ot">O</i>
-          <div><span class="who">OwnerTenang · otomatis, tanpa biaya AI</span><h3>Chat dibaca otomatis</h3>
-            <p>Produk, ukuran, jumlah, dan file dikenali.</p>
-            <span class="chip">spanduk</span><span class="chip">3x1 m</span><span class="chip">2 lembar</span><span class="chip">banner-toko.pdf</span></div>
+          <i class="ico i-staff"><svg><use href="#s-chat"/></svg></i>
+          <div><span class="who">Karyawan · satu tombol</span><h3>Rincian dikirim ke pelanggan untuk ACC</h3>
+            <p>Pelanggan menerima rincian, total, dan perkiraan jadi di WhatsApp. Rincian yang dikirim dikunci sebagai penawaran.</p></div>
         </div>
         <div class="decision">
-          <div class="ask"><span class="diamond" aria-hidden="true"></span><strong>Sudah jelas semua?</strong></div>
+          <div class="ask"><span class="diamond" aria-hidden="true"></span><strong>Pelanggan membalas OK?</strong></div>
           <div class="fork">
             <div class="branch yes">
-              <span class="branch-label">Ya, jelas</span>
-              <div class="mini"><i class="ico i-ot">O</i><div><b>Order dibuat otomatis</b><p>Tanpa ada yang menekan tombol.</p></div></div>
+              <span class="branch-label">OK / ACC</span>
+              <div class="mini"><i class="ico i-ot">O</i><div><b>Order diposting otomatis</b><p>Persis sesuai rincian yang di-ACC. Balasan OK disimpan sebagai bukti.</p></div></div>
             </div>
             <div class="branch no">
-              <span class="branch-label">Belum jelas</span>
-              <div class="mini"><i class="ico i-staff"><svg><use href="#s-person"/></svg></i><div><b>CS menekan "Baca dengan Una"</b><p>atau mengisi sendiri</p></div></div>
-              <div class="mini"><i class="ico i-una"><svg><use href="#s-spark"/></svg></i><div><b>Una merinci draft order</b><p>plus daftar yang perlu ditanyakan</p></div></div>
-              <div class="mini"><i class="ico i-staff"><svg><use href="#s-check"/></svg></i><div><b>CS memeriksa, lalu Konfirmasi</b><p>Una tidak membuat order sendiri</p></div></div>
+              <span class="branch-label">Minta ubah</span>
+              <div class="mini"><i class="ico i-staff"><svg><use href="#s-edit"/></svg></i><div><b>CS mengubah draft</b><p>lalu kirim ulang untuk ACC</p></div></div>
+              <div class="mini"><i class="ico i-staff"><svg><use href="#s-check"/></svg></i><div><b>Setuju lewat telepon?</b><p>Boleh disetujui manual, wajib alasan, dan ditandai</p></div></div>
             </div>
           </div>
           <div class="merge" aria-hidden="true"></div>
         </div>
       </div>
       <div class="chatlane">
-        <div class="bubble note">Kalau belum jelas, CS bertanya ke pelanggan sambil Una merinci</div>
-        <div class="bubble out"><small>CS</small>Kak, bahannya flexi biasa atau korcin?</div>
-        <div class="bubble in"><small>Pelanggan</small>Flexi biasa aja</div>
+        <div class="bubble out"><small>Rincian untuk ACC</small>1. Banner Flexi 280gr 300×100 cm × 2 = Rp132.000<br>Total: Rp132.000<br>Balas <b>OK</b> kalau sudah sesuai</div>
+        <div class="bubble in"><small>Pelanggan</small>Ganti 4x1 aja kak</div>
+        <div class="bubble out"><small>Rincian baru</small>Banner Flexi 400×100 cm × 2 = Rp176.000</div>
+        <div class="bubble in"><small>Pelanggan</small>Oke lanjut</div>
       </div>
     </div>
 
     <div class="row">
       <div class="step">
         <i class="ico i-ot"><svg><use href="#s-list"/></svg></i>
-        <div><span class="who">OwnerTenang · otomatis</span><h3>Jadi task di mesin yang tepat</h3>
-          <p>Harga dari daftar harga toko. Mesin tujuan dan nomor antrian dibagikan sistem.</p>
-          <span class="chip">CTK-261012-001</span><span class="chip">Outdoor · antrian #1</span><span class="chip">Rp132.000</span></div>
+        <div><span class="who">OwnerTenang · otomatis setelah ACC</span><h3>Jadi task di mesin yang tepat</h3>
+          <p>Mesin tujuan dan nomor antrian dibagikan sistem. Bagian produksi (boleh orang yang sama) langsung melihatnya.</p>
+          <span class="chip">CTK-261012-001</span><span class="chip">Outdoor · antrian #1</span><span class="chip">Rp176.000</span></div>
       </div>
       <div class="chatlane">
-        <div class="bubble out"><small>CS</small>Total Rp132.000, antrian nomor 1 ya kak</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="step">
-        <i class="ico i-staff"><svg><use href="#s-edit"/></svg></i>
-        <div><span class="who">Karyawan · kalau ada perubahan</span><h3>Revisi order, langsung kembali ke antrian</h3>
-          <p>Order lama ditutup "Direvisi", order baru langsung antri. Keduanya tercatat: dibuat sistem, direvisi oleh siapa, dan alasannya. Antrian memberi tanda kalau pelanggan masih chat setelah order dibuat.</p>
-          <span class="tag wr">Ada chat baru, cek dulu</span></div>
-      </div>
-      <div class="chatlane">
-        <div class="bubble in"><small>Pelanggan</small>Eh, dilaminating sekalian ya</div>
-        <div class="bubble out"><small>CS</small>Siap, sudah kami ubah kak</div>
+        <div class="bubble out"><small>CS</small>Sudah masuk antrian nomor 1 ya kak</div>
       </div>
     </div>
 
@@ -322,9 +320,9 @@ footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; border
 
   <section class="when" aria-label="Kapan masing-masing bekerja">
     <article class="wa"><i class="ico i-wa"><svg><use href="#s-chat"/></svg></i><div><h3>WhatsApp</h3><p>Jalur chat pelanggan. WhatsApp resmi meneruskan setiap pesan ke OwnerTenang.</p></div></article>
-    <article class="ot"><i class="ico i-ot">O</i><div><h3>OwnerTenang</h3><p>Bekerja di setiap pesan: merekam, membaca, membuat order, menghitung harga, menentukan mesin dan antrian, menjaga riwayat.</p></div></article>
-    <article class="una"><i class="ico i-una"><svg><use href="#s-spark"/></svg></i><div><h3>Una</h3><p>Hanya saat chat belum jelas dan CS menekan "Baca dengan Una". Hasilnya draft; keputusan tetap di CS.</p></div></article>
-    <article class="cs"><i class="ico i-staff"><svg><use href="#s-person"/></svg></i><div><h3>Karyawan</h3><p>Membalas chat dari Layar Cetak, merevisi order bila perlu, mencetak, dan memberi catatan untuk cetakan di luar antrian.</p></div></article>
+    <article class="ot"><i class="ico i-ot">O</i><div><h3>OwnerTenang</h3><p>Bekerja di setiap pesan: merekam, mengenali balasan ACC pelanggan, menghitung harga dari daftar, menentukan mesin dan antrian, menjaga riwayat.</p></div></article>
+    <article class="una"><i class="ico i-una"><svg><use href="#s-spark"/></svg></i><div><h3>Una</h3><p>Saat CS menekan tombol, Una membaca seluruh chat dan menyusun draft order. Draft baru jadi order setelah pelanggan ACC.</p></div></article>
+    <article class="cs"><i class="ico i-staff"><svg><use href="#s-person"/></svg></i><div><h3>Karyawan</h3><p>Membalas chat dari Layar Cetak, mengirim rincian untuk ACC, merevisi bila perlu, mencetak, dan memberi catatan untuk cetakan di luar antrian.</p></div></article>
   </section>
 
   <footer>

@@ -72,3 +72,8 @@ td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 .balas { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
 .balas .text-input { flex: 1 1 auto; min-width: 0; }
 .admin-card.flag { border-color: var(--bad-text); }
+
+/* ACC pelanggan (2026-10-12) */
+.acc-pesan { white-space: pre-wrap; font: 13px/1.45 inherit; background: var(--card); color: var(--text); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+details.manual { margin-top: 10px; }
+details.manual summary { cursor: pointer; color: var(--muted); font-size: 13px; }

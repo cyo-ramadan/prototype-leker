@@ -22,6 +22,7 @@ const DATA_ONLY_STORE_ONBOARDING_MIGRATIONS = new Set([
   '0146_percetakan_contoh_mesin_produk.sql',
   '0148_wa_channels_twilio.sql',
   '0151_percetakan_balas_dan_revisi.sql',
+  '0152_percetakan_acc_pelanggan.sql',
 ]);
 
 const migrationFiles = () => readdirSync(migrationDir)

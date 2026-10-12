@@ -226,6 +226,26 @@ bisa dikerjakan agen lain. Sumbernya `public/alur/percetakan.html`. `alurcetak.o
 dialihkan ke `/alur/percetakan` oleh `marketingAssetPath` (`src/index.js`). Link proposal di
 claude.ai dibangun dari file yang sama. Isinya wajib sesuai fitur yang live.
 
+### D14 — ACC pelanggan sebelum produksi (menggantikan "langsung otomatis" sebagai bawaan)
+
+Bos Cyo, 2026-10-12, setelah uji WA asli memperlihatkan pembaca aturan salah baca ("mau cetak print"
+jadi 1 lembar A4 Rp500, "laminating" susulan terlewat): "aku pikir una baca keseluruhan chat lalu
+menyimpulkan dan membuatkan draft ... setelah draft jadi, draft tersebut dikirim ke customer untuk
+makesure, kalo ok baru di post sebagai pesanan" -- lalu "ok bikin seperti itu".
+
+Ini juga pola standar software percetakan (Printavo, InfoFlo Print, PrinterFlo, shopVOX): penawaran →
+ACC pelanggan yang **tercatat** → job ticket → produksi. Implementasi (`src/percetakan-acc.js`):
+- Draft dari Una (tombol) atau manual → `POST /drafts/:id/kirim-acc`: rincian dihitung server dari
+  master, dikirim ke WA pelanggan (`kirimBalasan`), dan rincian PERSIS yang dikirim disimpan
+  (`acc_items_json`, migration 0152).
+- Pesan pelanggan berikutnya dicek `cekBalasanAcc` (dipanggil `prosesOtomatis` di semua mode): pesan
+  pendek berawalan kata setuju tanpa kata perubahan (`adalahSetuju`) → order diposting dari rincian
+  yang dikirim, aktor SYSTEM, balasan disimpan sebagai bukti (`acc_reply_message_id`). Permintaan
+  ubah → tetap menunggu; CS mengubah draft lalu kirim ulang.
+- `POST /drafts/:id/konfirmasi` sekarang = persetujuan MANUAL: wajib `alasan`, tercatat MANUAL.
+- Mode bawaan gerai contoh: MANUAL (= alur ACC). OTOMATIS/LANGSUNG_CETAK tetap ada sebagai pilihan.
+  Pembaca aturan hanya memberi tanda "kelihatannya lengkap" di Chat masuk.
+
 ## Konsekuensi
 
 - Push branch yang berisi migration 0145 akan langsung menjalankan migration ke D1 produksi

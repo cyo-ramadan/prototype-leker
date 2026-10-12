@@ -196,14 +196,14 @@ export async function terimaWebhookMeta(request, env, { waitUntil } = {}) {
     if (!channel || !await percetakanAktifUntukGerai(env.DB, channel.store_id)) continue;
     const saved = await catatPesan(env.DB, channel, message, message);
     if (!saved.inserted) continue;
-    senders.set(`${channel.store_id}|${message.from}`, { storeId: channel.store_id, from: message.from });
+    senders.set(`${channel.store_id}|${message.from}`, { storeId: channel.store_id, from: message.from, messageId: saved.messageId });
     if (saved.fileId && message.mediaId) {
       downloads.push(unduhMediaMeta(env, { storeId: channel.store_id, fileId: saved.fileId, mediaId: message.mediaId, fileName: message.fileName }));
     }
   }
   // Order otomatis tidak menunggu file selesai diunduh: file sudah punya id, dan agen cetak hanya
   // mengambil file yang statusnya TERSIMPAN.
-  for (const sender of senders.values()) await prosesOtomatis(env.DB, sender.storeId, sender.from);
+  for (const sender of senders.values()) await prosesOtomatis(env.DB, sender.storeId, sender.from, { messageId: sender.messageId });
   if (downloads.length) {
     const all = Promise.allSettled(downloads);
     if (typeof waitUntil === 'function') waitUntil(all); else await all;
@@ -302,7 +302,7 @@ export async function terimaWebhookTwilio(request, env, { waitUntil } = {}) {
     const unduh = unduhMediaTwilio(env, { storeId: channel.store_id, fileId: saved.fileId, mediaUrl: message.mediaId, fileName: message.fileName });
     if (typeof waitUntil === 'function') waitUntil(unduh); else await unduh;
   }
-  await prosesOtomatis(env.DB, channel.store_id, message.from);
+  await prosesOtomatis(env.DB, channel.store_id, message.from, { messageId: saved.messageId });
   return kosong();
 }
 
@@ -421,6 +421,6 @@ export async function simulasiPesan(env, storeId, body) {
   if (saved.fileId && bytes) {
     await simpanBytes(env, { storeId, fileId: saved.fileId, fileName, mime, bytes });
   }
-  const otomatis = await prosesOtomatis(db, storeId, from);
+  const otomatis = await prosesOtomatis(db, storeId, from, { messageId: saved.messageId });
   return { ok: true, messageId: saved.messageId, fileId: saved.fileId, otomatis };
 }

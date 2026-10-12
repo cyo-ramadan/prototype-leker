@@ -16,6 +16,8 @@ import { bacaChatOrder } from './percetakan-una.js';
 import { aiConfigured } from './caca-ai-client.js';
 import { MODES, modeGerai, pendingMessages, simpanDraft, simpanMode, draftedMessageIds } from './percetakan-otomatis.js';
 import { buatKunciMesin, handleAgenApi } from './percetakan-mesin.js';
+import { kirimAcc, setujuiDraft } from './percetakan-acc.js';
+import { tebakOrder } from './percetakan-tebak.js';
 
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 const code = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 24);
@@ -143,6 +145,7 @@ async function inbox(db, storeId) {
     });
   }
   const result = [];
+  let products = null;
   for (const group of groups.values()) {
     const drafted = await draftedMessageIds(db, storeId, group.fromNumber);
     group.messages.sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : 0));
@@ -152,6 +155,13 @@ async function inbox(db, storeId) {
       message.processed = drafted.has(message.id);
     }
     group.unprocessed = group.messages.filter(message => message.direction === 'IN' && !message.processed).length;
+    if (group.unprocessed) {
+      products ??= await productsForStore(db, storeId);
+      const pending = group.messages.filter(message => message.direction === 'IN' && !message.processed).map(message => ({
+        id: message.id, body_text: message.text, file_id: message.file?.id || null, media_file_name: message.file?.fileName || ''
+      }));
+      group.looksComplete = tebakOrder(pending, products).complete;
+    }
     group.lastAt = group.messages[group.messages.length - 1]?.sentAt || group.lastAt;
     result.push(group);
   }
@@ -202,7 +212,14 @@ function mapDraft(row) {
     proposal,
     messageIds,
     orderId: row.order_id,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    // ACC pelanggan (ADR-055 D14)
+    accStatus: row.acc_status || '',
+    accMessage: row.acc_message_text || '',
+    accSentAt: row.acc_sent_at || null,
+    accSentByRole: row.acc_sent_by_role || null,
+    accTotalText: row.acc_total_scaled != null ? scaledToRupiahText(row.acc_total_scaled) : null,
+    accPayload: (() => { try { return row.acc_items_json ? JSON.parse(row.acc_items_json) : null; } catch { return null; } })()
   };
 }
 
@@ -388,7 +405,7 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
     return json({ drafts: rows.map(mapDraft) });
   }
 
-  const draftAction = pathname.match(/^\/api\/percetakan\/drafts\/([^/]+)\/(konfirmasi|tolak)$/);
+  const draftAction = pathname.match(/^\/api\/percetakan\/drafts\/([^/]+)\/(konfirmasi|tolak|kirim-acc)$/);
   if (request.method === 'POST' && draftAction) {
     const draft = await db.prepare("SELECT * FROM print_order_drafts WHERE id = ? AND store_id = ? AND status = 'MENUNGGU'").bind(draftAction[1], storeId).first();
     if (!draft) return json({ error: 'Draft tidak ditemukan atau sudah diputuskan.' }, 404);
@@ -399,9 +416,15 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
       `).bind(auth.actor.role, auth.actor.id, new Date().toISOString(), draft.id, storeId).run();
       return json({ ok: true });
     }
-    const created = await buatOrder(db, {
-      storeId, actor: auth.actor, source: 'WA', draftId: draft.id, customerPhone: draft.from_number,
-      customerName: input.customerName, dueAt: input.dueAt, note: input.note, items: input.items
+    if (draftAction[2] === 'kirim-acc') {
+      const sent = await kirimAcc(env, { storeId, draftId: draft.id, actor: auth.actor, body: input });
+      return sent.ok ? json(sent, 201) : json({ error: sent.error }, sent.status);
+    }
+    // "konfirmasi" = persetujuan MANUAL (pelanggan setuju di luar WA): wajib alasan, tercatat MANUAL.
+    // Jalur normal adalah kirim-acc lalu pelanggan membalas OK (src/percetakan-acc.js).
+    const created = await setujuiDraft(db, {
+      storeId, draftId: draft.id, actor: auth.actor, method: 'MANUAL', note: input.alasan,
+      body: Array.isArray(input.items) ? input : null
     });
     return created.ok ? json(created, 201) : json({ error: created.error }, created.status);
   }

@@ -24,6 +24,7 @@ Ditulis: 2026-10-10 oleh Eskor. Diperbarui: 2026-10-10.
 | Status order + rantai hash + verifikasi | selesai | `src/percetakan.js` `ubahStatus`, `verifikasiRiwayat` |
 | Layar operator `/s/CETAK01/cetak` | selesai (versi pertama) | `public/percetakan.{html,js,css}` |
 | Tes | 13 tes | `test/percetakan.test.js` |
+| **ACC pelanggan**: draft → kirim rincian ke WA → pelanggan balas OK → order otomatis (bukti tersimpan); setujui manual wajib alasan | selesai (bawaan) | `src/percetakan-acc.js`, migration 0152 |
 | Karyawan membalas chat dari Layar Cetak (tercatat) | selesai | `kirimBalasan`, `wa_outbound_messages` |
 | Revisi order (lama DIREVISI → baru langsung antri) + tanda "ada chat baru" di antrian | selesai | `revisiOrder`, `src/percetakan-api.js` |
 | Log Mesin: file dari antrian / di luar antrian + catatan operator | selesai, agen **belum dicoba di mesin asli** | `print_machine_jobs`, `percetakan-agen/` |
@@ -82,6 +83,8 @@ Token PIN lama / token agen ditolak (riwayat wajib punya orang).
 | `POST /orders/:id/status` | semua (BATAL: Owner/Admin) | `{toStatus, note}` |
 | `GET /antrian` | semua | tiket aktif per mesin |
 | `GET /files/:id` · `POST /files/:id/ulang` | semua | unduh file / ambil ulang dari Meta |
+| `POST /drafts/:id/kirim-acc` | semua | `{customerName, dueAt, items}` → kirim rincian untuk ACC |
+| `POST /drafts/:id/konfirmasi` | semua | persetujuan MANUAL: `{alasan, items?}` (wajib alasan) |
 | `POST /wa/balas` | semua | `{toNumber, text}`, kirim balasan WA (tercatat) |
 | `POST /orders/:id/revisi` | semua | `{items, note, customerName?, dueAt?}`, hanya BARU/DESAIN/SIAP_CETAK |
 | `GET /log-mesin` · `POST /log-mesin/:id/catatan` | semua | daftar file yang masuk mesin / catatan alasan |

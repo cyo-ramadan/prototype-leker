@@ -9,6 +9,7 @@ import { hitungSubtotal, normalizePhone, bolehUbahStatus, rupiahToScaled, scaled
 import { tandaTanganSah, uraiWebhookMeta } from '../src/percetakan-wa.js';
 import { saringUsulan } from '../src/percetakan-una.js';
 import { tebakOrder } from '../src/percetakan-tebak.js';
+import { adalahSetuju } from '../src/percetakan-acc.js';
 import { productsForStore } from '../src/percetakan.js';
 import { namaFileAman, fileBaruDiFolder } from '../percetakan-agen/agen-cetak.mjs';
 import { mkdtempSync, writeFileSync as tulis, rmSync } from 'node:fs';
@@ -166,6 +167,7 @@ test('alur penuh (mode MANUAL): chat WA (simulator) -> draft -> order dengan mes
     const order = await call(env, `/api/percetakan/drafts/${draft.body.draft.id}/konfirmasi`, {
       token: 'kasir-token', method: 'POST', body: {
         customerName: 'Pak Budi',
+        alasan: 'pelanggan setuju lewat telepon',
         // harga yang dikirim klien diabaikan -- harga selalu dari master
         items: [
           { productId: flexi.id, qty: 2, widthCm: 300, heightCm: 100, fileId: pesan2.body.fileId, unitPriceRupiah: 1 },
@@ -333,6 +335,7 @@ test('pembaca aturan: 26 contoh chat terbaca sesuai jawaban (lengkap -> rincian 
 test('mode OTOMATIS: teks + file dari WA langsung jadi order dan task antrian tanpa ditekan karyawan', async () => {
   const { sqlite, env } = await setup();
   try {
+    await call(env, '/api/percetakan/settings', { method: 'POST', body: { mode: 'OTOMATIS' } });
     // Teks dulu: file belum ada -> belum jadi order.
     const teks = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500001', name: 'Toko Makmur', text: 'spanduk 5x1 dan brosur a3 100 lembar' } });
     assert.equal(teks.body.otomatis.reason, 'BELUM_LENGKAP');
@@ -458,6 +461,7 @@ test('Twilio WhatsApp: tanda tangan wajib sah, chat + file dari HP jadi order ot
   const { sqlite, env } = await setup();
   const realFetch = globalThis.fetch;
   try {
+    await call(env, '/api/percetakan/settings', { method: 'POST', body: { mode: 'OTOMATIS' } });
     env.TWILIO_ACCOUNT_SID = 'AC123';
     env.TWILIO_AUTH_TOKEN = 'token-twilio';
     assert.equal((await call(env, '/api/percetakan/channels', { method: 'POST', body: { provider: 'TWILIO', phoneNumberId: '+1 415 523 8886', displayNumber: 'Sandbox' } })).status, 201);
@@ -507,6 +511,7 @@ test('Twilio WhatsApp: tanda tangan wajib sah, chat + file dari HP jadi order ot
 test('revisi: mesin membuat order, karyawan merevisi -> order lama DIREVISI, order baru langsung antri, keduanya tercatat', async () => {
   const { sqlite, env } = await setup();
   try {
+    await call(env, '/api/percetakan/settings', { method: 'POST', body: { mode: 'OTOMATIS' } });
     const hasil = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500010', text: 'mas cetak banner 3x1 2 lembar ya', ...pdf('banner.pdf') } });
     const asal = hasil.body.otomatis.created;
     // Pelanggan menyusul minta laminating -> antrian menandai "ada chat baru".
@@ -641,4 +646,74 @@ test('Layar Cetak tidak pernah meminta data berulang otomatis (hemat kuota D1, i
   assert.doesNotMatch(ui, /setInterval/);
   // Saat tab browser kembali dilihat, data hanya dimuat ulang kalau layar sudah berhasil dibuka.
   assert.match(ui, /visibilitychange', \(\) => \{ if \(!document\.hidden && setup\)/);
+});
+
+test('ACC pelanggan: draft -> rincian dikirim ke WA -> pelanggan minta ubah -> kirim ulang -> OK -> order masuk antrian', async () => {
+  const { sqlite, env } = await setup();
+  try {
+    assert.equal((await call(env, '/api/percetakan/setup')).body.mode, 'MANUAL', 'gerai contoh memakai alur ACC sebagai bawaan');
+    // Chat lengkap TIDAK langsung jadi order; hanya diberi tanda "kelihatannya lengkap".
+    const masuk = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500040', name: 'Pak Dedi', text: 'mas cetak spanduk 3x1 2 lembar', ...pdf('spanduk.pdf') } });
+    assert.equal(masuk.body.otomatis.reason, 'MODE_MANUAL');
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM print_orders').get().n, 0);
+    const chat = (await call(env, '/api/percetakan/inbox', { token: 'kasir-token' })).body.conversations[0];
+    assert.equal(chat.looksComplete, true);
+
+    const draft = (await call(env, '/api/percetakan/drafts/manual', { token: 'kasir-token', method: 'POST', body: { fromNumber: '081234500040' } })).body.draft;
+    const products = (await call(env, '/api/percetakan/setup')).body.products;
+    const flexi = products.find(p => p.code === 'FLX280');
+    const fileId = masuk.body.fileId;
+
+    // Persetujuan manual tanpa alasan ditolak.
+    assert.equal((await call(env, `/api/percetakan/drafts/${draft.id}/konfirmasi`, { token: 'kasir-token', method: 'POST', body: { items: [{ productId: flexi.id, qty: 2, widthCm: 300, heightCm: 100 }] } })).status, 400);
+
+    let kirim = await call(env, `/api/percetakan/drafts/${draft.id}/kirim-acc`, {
+      token: 'kasir-token', method: 'POST',
+      body: { customerName: 'Pak Dedi', dueAt: 'besok sore', items: [{ productId: flexi.id, qty: 2, widthCm: 300, heightCm: 100, fileId, unitPriceRupiah: 1 }] }
+    });
+    assert.equal(kirim.status, 201, JSON.stringify(kirim.body));
+    assert.equal(kirim.body.totalText, 'Rp132.000', 'harga dari master, bukan dari layar');
+    assert.match(kirim.body.message, /Banner Flexi 280gr 300×100 cm × 2 = Rp132\.000/);
+    assert.match(kirim.body.message, /File: spanduk\.pdf/);
+    assert.match(kirim.body.message, /Balas \*OK\*/);
+    let drafts = (await call(env, '/api/percetakan/drafts', { token: 'kasir-token' })).body.drafts;
+    assert.equal(drafts[0].accStatus, 'MENUNGGU_ACC');
+
+    // Pelanggan minta ubah -> belum jadi order.
+    const ubah = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500040', text: 'ok tapi ganti 4x1 ya' } });
+    assert.equal(ubah.body.otomatis.reason, 'MENUNGGU_ACC');
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM print_orders').get().n, 0);
+
+    kirim = await call(env, `/api/percetakan/drafts/${draft.id}/kirim-acc`, {
+      token: 'kasir-token', method: 'POST',
+      body: { customerName: 'Pak Dedi', dueAt: 'besok sore', items: [{ productId: flexi.id, qty: 2, widthCm: 400, heightCm: 100, fileId }] }
+    });
+    assert.equal(kirim.body.totalText, 'Rp176.000');
+
+    const ok = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500040', text: 'Oke kak lanjut' } });
+    assert.equal(ok.body.otomatis.reason, 'ACC_PELANGGAN');
+    const orderId = ok.body.otomatis.created.orderId;
+    const detail = (await call(env, `/api/percetakan/orders/${orderId}`, { token: 'kasir-token' })).body;
+    assert.equal(detail.order.totalText, 'Rp176.000', 'yang diposting = rincian terakhir yang dikirim ke pelanggan');
+    assert.equal(detail.order.customerName, 'Pak Dedi');
+    assert.equal(detail.items[0].queueNo, 1);
+    assert.equal(detail.events[0].actorRole, 'SYSTEM');
+    assert.match(detail.events[0].note, /ACC pelanggan lewat WA: "Oke kak lanjut"/);
+    assert.equal(detail.verification.ok, true);
+
+    const row = sqlite.prepare('SELECT status, acc_status, acc_method, acc_reply_message_id FROM print_order_drafts WHERE id = ?').get(draft.id);
+    assert.deepEqual({ ...row }, { status: 'DIKONFIRMASI', acc_status: 'DISETUJUI', acc_method: 'PELANGGAN_WA', acc_reply_message_id: ok.body.messageId });
+    // Semua pesan pelanggan ini sudah terproses (tidak ada "chat baru" palsu di antrian).
+    const after = (await call(env, '/api/percetakan/inbox', { token: 'kasir-token' })).body.conversations[0];
+    assert.equal(after.unprocessed, 0);
+    assert.equal((await call(env, '/api/percetakan/antrian', { token: 'kasir-token' })).body.machines[0].tickets[0].hasNewChat, false);
+    // Balasan OK kedua tidak membuat order kembar.
+    await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500040', text: 'ok' } });
+    assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM print_orders').get().n, 1);
+  } finally { sqlite.close(); }
+});
+
+test('ACC: kata setuju dikenali, permintaan ubah tidak dianggap setuju', () => {
+  for (const ya of ['ok', 'OK', 'Oke kak', 'okey', 'ya', 'iya lanjut', 'acc', 'Setuju', 'lanjut kak', 'siap', 'sip', 'sudah sesuai']) assert.equal(adalahSetuju(ya), true, ya);
+  for (const tidak of ['ok tapi ganti 4x1', 'eh salah ukuran', 'ya tapi tambah 1', 'tidak jadi', 'oke jangan dulu', 'bisa kirim ulang rinciannya?', '', 'ok '.repeat(30)]) assert.equal(adalahSetuju(tidak), false, tidak);
 });

@@ -9,6 +9,7 @@
 // master, antrian per mesin, dan rantai hash berlaku sama. Pelakunya tercatat SYSTEM.
 import { STATUS, buatOrder, productsForStore, sha256Hex, ubahStatus } from './percetakan.js';
 import { tebakOrder } from './percetakan-tebak.js';
+import { cekBalasanAcc } from './percetakan-acc.js';
 
 export const MODES = Object.freeze(['MANUAL', 'OTOMATIS', 'LANGSUNG_CETAK']);
 export const SYSTEM_ACTOR = Object.freeze({ role: 'SYSTEM', id: 'otomatis' });
@@ -74,8 +75,13 @@ export async function simpanDraft(db, { storeId, fromNumber, messages, proposal,
  * kegagalan di sini tidak boleh membuat pesan WA ikut gagal tercatat.
  * Hasil: { mode, created?: {orderId, orderNo}, reason? }
  */
-export async function prosesOtomatis(db, storeId, fromNumber, { now = new Date() } = {}) {
+export async function prosesOtomatis(db, storeId, fromNumber, { now = new Date(), messageId = null } = {}) {
   try {
+    // ACC pelanggan (ADR-055 D14) didahulukan di mode apa pun: balasan "OK" atas rincian yang dikirim
+    // langsung memposting order. Selama menunggu ACC, pesan lain dari pelanggan ini dibiarkan untuk CS.
+    const acc = await cekBalasanAcc(db, storeId, fromNumber, messageId, { now });
+    if (acc?.approved) return { mode: 'ACC', created: acc.approved, reason: 'ACC_PELANGGAN' };
+    if (acc) return { mode: 'ACC', reason: acc.error ? 'ACC_GAGAL' : 'MENUNGGU_ACC', error: acc.error };
     const mode = await modeGerai(db, storeId);
     if (mode === 'MANUAL') return { mode, reason: 'MODE_MANUAL' };
     const messages = await pendingMessages(db, storeId, fromNumber);

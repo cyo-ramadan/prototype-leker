@@ -51,7 +51,7 @@ Validasi implementasi 2026-10-11:
 
 ## Untuk Codex 2026-10-12 — Kamus yang ikut berubah + mulut Una (BELUM dikerjakan)
 
-Ditulis Eskor atas arahan Bos Cyo. Ada dua tugas, kerjakan berurutan. Belum ada kode yang ditulis.
+Ditulis Eskor atas arahan Bos Cyo. Ada tiga tugas: T-KAMUS, T-GAGAL, T-MULUT. Belum ada kode yang ditulis.
 
 ### T-KAMUS — kamus Una jangan sampai basi karena update atau skin
 
@@ -142,6 +142,35 @@ masing-masing tetap terpisah. Kerangka tidak boleh mengimpor apa pun dari D1, te
 "di mana antrian cetak?" mengarah ke "Layar Cetak"; di skin D label/grupnya sesuai layar; dan
 mengubah satu baris di berkas `sumber` sebuah entri membuat tes merah sampai entri itu ditinjau.
 
+### T-GAGAL — percakapan saat Una tidak paham otomatis tersimpan jadi PR untuk agen
+
+Bos Cyo 2026-10-12: *"jawaban2 una yang ga paham itu otomatis percakapannya kesimpen, biar nanti
+waktu agent bekerja saja punya pr untuk nyelesaiin masalah itu, pastinya agent pintar … minimal
+opus."* Saat ini **tidak ada** catatan seperti itu. Tanda "tidak paham" hanya hidup sebentar di
+riwayat browser (`TANDA_NGAMBEK`, `src/caca-tertunda.js`).
+
+- **Kapan dicatat (server, bukan klien):** balasan ngambek tingkat ≥1; `belumLengkap` yang
+  berulang di pertanyaan yang sama; `jelaskan`/peta tidak menemukan topik; model gagal atau
+  menolak format; pemeriksa angka menolak jawaban; pesan Bos sesudahnya berisi koreksi ("bukan
+  itu", "salah", "ga gitu"). Opsional: tombol 👎 kecil di balasan Una.
+- **Yang disimpan:** tabel baru, misalnya `una_belum_paham` (migration berikutnya): tenant/gerai,
+  peran pengirim, waktu, alasan pemicu, pesan pemicu, ±6 giliran terakhir (sudah lewat
+  `samarkan`), alat yang dipilih, versi aset/commit, status `baru|dikerjakan|selesai|bukan_masalah`.
+  **Tanpa** password/token/foto. Nomor HP dan nama pelanggan disamarkan. Retensi 60 hari, lalu
+  dihapus otomatis. Satu kejadian per percakapan per alasan (jangan banjir).
+- **Mengubahnya jadi PR untuk agen:** skrip `node scripts/ambil-una-belum-paham.mjs` (memakai
+  akses baca yang sama dengan `uji-una.mjs`) menarik kejadian berstatus `baru` dan menulisnya
+  sebagai **skenario gagal** di `una-latih/skenario/` (format yang sudah ada). Sesudah itu agen
+  mengikuti skill `latih-una`: reproduksi → perbaiki kerangka → skenario hijau → status
+  `selesai`. Kalau akar masalahnya kamus atau panduan yang belum ada, perbaiki lewat skill
+  `segarkan-kamus-una`.
+- **Siapa yang mengerjakan:** agen kelas atas (minimal Claude Opus atau setara) karena butuh
+  menimbang akar masalah, bukan sekadar menambal kalimat. Model Una sendiri **tetap dikunci
+  termurah**. Yang dipintarkan kerangkanya, bukan model Una.
+- **Biaya:** nol token tambahan di sisi Una, karena hanya menulis satu baris D1 saat pemicu nyala.
+  Kuota agen hanya terpakai saat ada yang mengerjakan antrean.
+- Catat juga di skill `latih-una` bahwa langkah 1 sekarang boleh dimulai dari antrean ini.
+
 ### T-MULUT — Una menjawab dengan suara
 
 Sudah ada telinga (mikrofon → teks, `public/caca-chat.js` ~baris 1110, `lang = 'id-ID'`, lihat
@@ -182,7 +211,7 @@ bagian "Perintah lewat suara" di bawah). Sekarang yang diminta adalah mulutnya.
 - Pengembangan lanjutan (bukan sekarang): panggil tanpa menekan ("Una…"), dan suara premium
   berbayar. Keduanya butuh keputusan Bos Cyo.
 
-<!-- DOC-IMPACT: 2026-10-12 Eskor: tugas T-KAMUS (kamus/peta sadar skin + terikat kode sumber)
+<!-- DOC-IMPACT: 2026-10-12 Eskor: tugas T-GAGAL (log Una tidak paham -> skenario), T-KAMUS (kamus/peta sadar skin + terikat kode sumber)
 dan T-MULUT (TTS browser) untuk Codex; belum ada kode. -->
 
 ## Status singkat

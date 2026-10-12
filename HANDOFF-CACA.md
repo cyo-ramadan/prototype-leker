@@ -51,7 +51,7 @@ Validasi implementasi 2026-10-11:
 
 ## Untuk Codex 2026-10-12 — Kamus yang ikut berubah + mulut Una (BELUM dikerjakan)
 
-Ditulis Eskor atas arahan Bos Cyo. Ada tiga tugas: T-KAMUS, T-GAGAL, T-MULUT. Belum ada kode yang ditulis.
+Ditulis Eskor atas arahan Bos Cyo. Ada empat tugas: T-KAMUS, T-GAGAL, T-BUKA, T-MULUT. Belum ada kode yang ditulis.
 
 ### T-KAMUS — kamus Una jangan sampai basi karena update atau skin
 
@@ -171,6 +171,33 @@ riwayat browser (`TANDA_NGAMBEK`, `src/caca-tertunda.js`).
   Kuota agen hanya terpakai saat ada yang mengerjakan antrean.
 - Catat juga di skill `latih-una` bahwa langkah 1 sekarang boleh dimulai dari antrean ini.
 
+### T-BUKA — "Una, buka halaman Karyawan" (tidak butuh Workspace)
+
+Bos Cyo 2026-10-12. Sekarang Una hanya bisa membuka layar lewat **tombol tawaran** yang harus
+diketuk (`jenis: 'buka'`, `cacaBukaLayar`, `public/caca-chat.js` ~baris 552/610), dan pilihannya
+hanya 18 layar di `LAYAR` (`src/caca-jelaskan.js`). Perintah langsung belum menjadi aksi.
+
+- **Tidak perlu Workspace.** Workspace untuk draft yang **menyimpan data** dan menunggu "Ya".
+  Membuka layar itu navigasi baca saja, jadi langsung dijalankan tanpa "Ya", sama seperti pengguna
+  mengetuk menunya sendiri.
+- **Yang diminta:** alat `buka_layar`. Perintah seperti "buka/bukain/ke halaman/pindah ke X" dicocokkan
+  **oleh kode dulu** ke peta menu (`generated/peta-una-data.js`, per skin setelah T-KAMUS),
+  memakai label + `kata` + sinonim. Model hanya dipakai kalau kode tidak yakin. Jadi mayoritas
+  perintah tidak memakan token.
+  - Satu cocok → langsung buka, lalu Una bilang singkat "Ini layar Karyawan, Bos." Panel tetap
+    terbuka supaya obrolan lanjut.
+  - Beberapa cocok → tampilkan pilihan tombol. Tidak cocok → "Una belum nemu layar X" dan
+    **dicatat ke T-GAGAL**.
+  - Layar di halaman lain (Panel Pemilik ↔ Workspace Gerai) memakai pola hash yang sudah ada
+    (`#una-buka=`).
+- **Pagar:** hanya layar yang memang terlihat untuk peran dan skin pengguna itu (pakai sumber yang
+  sama dengan nav, bukan daftar baru). Layar khusus Admin tidak bisa dibuka kasir lewat Una.
+  Membuka layar tidak pernah menekan tombol apa pun di dalamnya.
+- **Ganti `LAYAR` yang ditulis tangan** dengan peta menu supaya menu baru otomatis bisa dibuka (selaras
+  dengan "update tombol = update kamus").
+- **Lanjutan (bukan sekarang), dan baru di sini butuh Workspace:** "buka Karyawan lalu tambah Budi"
+  = buka layar + draft tulis. Bagian tulisnya tetap lewat draft Workspace + "Ya".
+
 ### T-MULUT — Una menjawab dengan suara
 
 Sudah ada telinga (mikrofon → teks, `public/caca-chat.js` ~baris 1110, `lang = 'id-ID'`, lihat
@@ -211,7 +238,7 @@ bagian "Perintah lewat suara" di bawah). Sekarang yang diminta adalah mulutnya.
 - Pengembangan lanjutan (bukan sekarang): panggil tanpa menekan ("Una…"), dan suara premium
   berbayar. Keduanya butuh keputusan Bos Cyo.
 
-<!-- DOC-IMPACT: 2026-10-12 Eskor: tugas T-GAGAL (log Una tidak paham -> skenario), T-KAMUS (kamus/peta sadar skin + terikat kode sumber)
+<!-- DOC-IMPACT: 2026-10-12 Eskor: tugas T-BUKA (buka layar lewat perintah), T-GAGAL (log Una tidak paham -> skenario), T-KAMUS (kamus/peta sadar skin + terikat kode sumber)
 dan T-MULUT (TTS browser) untuk Codex; belum ada kode. -->
 
 ## Status singkat

@@ -100,6 +100,16 @@ algoritma sistem karna update ataupun kusus di skin tertentu bikin kamusnya ga r
 - Jangan ubah pembagian yang sudah diputuskan: FAKTA dari kamus/peta (kode), BAHASA dari model
   (`caca-poles.js`). Model tetap tidak boleh mengarang definisi.
 
+**Dinamis seperti graphify (Bos Cyo 2026-10-12: "dibuat dinamis seperti graphify … bikinin skill kusus"):**
+skill `segarkan-kamus-una` (`.claude/skills/` + `.agents/skills/` untuk Codex) adalah urutan kerja
+penyegarannya. Pembagiannya: lapis mekanis (menu/label/grup per skin, hash sumber) dibangkitkan
+program tanpa AI, sama seperti `graphify update .`. Lapis makna (kalimat penjelasan) ditinjau agen
+dari kode setiap kali penjaga merah. Makna sengaja tidak diserahkan ke AI otomatis di produksi
+karena alasan di `src/caca-jelaskan.js` baris 4-8. Yang otomatis adalah *mendeteksi* yang basi
+dan *memaksa* peninjauan. Opsional: workflow terjadwal yang menjalankan `--cek` di main dan membuka
+issue bila merah. Tooling di skill (`--cek`, `--tinjau`, kolom `skin`/`sumber`/`diperiksa`)
+dibangun di tugas ini.
+
 **Selesai bila:** di gerai skin F, "di mana atur bahan?" mengarah ke "Bahan & Aroma"; di skin G,
 "di mana antrian cetak?" mengarah ke "Layar Cetak"; di skin D label/grupnya sesuai layar; dan
 mengubah satu baris di berkas `sumber` sebuah entri membuat tes merah sampai entri itu ditinjau.

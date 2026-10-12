@@ -556,8 +556,16 @@ const MARKETING_HOSTS = new Set([
   'ownertenang.id', 'www.ownertenang.id'
 ]);
 
+// 2026-10-12, Bos Cyo: halaman alur percetakan "diorbitkan pakai subdomain ownertenang" supaya agen
+// lain bisa memperbaiki desainnya di repo (public/alur/percetakan.html, ADR-055).
+const ALUR_HOSTS = new Set(['alurcetak.ownertenang.biz.id']);
+
 export function marketingAssetPath(hostname, pathname) {
-  return pathname === '/' && MARKETING_HOSTS.has(String(hostname || '').toLowerCase()) ? '/produk/' : null;
+  const host = String(hostname || '').toLowerCase();
+  if (pathname !== '/') return null;
+  if (MARKETING_HOSTS.has(host)) return '/produk/';
+  if (ALUR_HOSTS.has(host)) return '/alur/percetakan';
+  return null;
 }
 
 export default {

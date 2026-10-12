@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Alur Order Percetakan</title>
+<meta name="description" content="OwnerTenang untuk percetakan: chat WhatsApp pelanggan otomatis jadi order dan antrian mesin, karyawan tetap membalas chat, semua tercatat." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Halaman alur Skin G Percetakan (ADR-055). Sumber tunggal: dipakai alurcetak.ownertenang.biz.id dan link
+   proposal. Agen lain boleh memperbaiki desainnya di sini; isinya harus tetap sesuai fitur yang live
+   (HANDOFF-PERCETAKAN.md §1) -- jangan menjanjikan yang belum ada.
+   Layout: strip "cara biasa" ringkas, lalu dua jalur berdampingan (Sistem & mesin | Chat dengan
+   pelanggan) per baris waktu; percabangan "sudah jelas?" digambar dengan garis cabang dan gabung.
+   Sengaja satu tampilan gelap (tinta percetakan + cahaya cyan). */
+:root {
+  color-scheme: dark;
+  --bg: #0A1520; --panel: #0F2030; --panel-2: #132A3D; --line: #22425C;
+  --fg: #E7F0F6; --muted: #93A9BA;
+  --cyan: #2CC6E6; --cyan-glow: rgba(44,198,230,.35);
+  --wa: #25D366; --wa-ink: #062A16; --wa-bubble: #0F3A28;
+  --una: #B58BFF; --una-glow: rgba(181,139,255,.35);
+  --ot: #E8642C; --warn: #F2A93B; --bad: #FF6B6B;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font-body);
+  padding-inline: 16px; padding-block: 28px 44px;
+  background-image: radial-gradient(900px 500px at 85% -10%, rgba(44,198,230,.10), transparent 60%),
+                    radial-gradient(700px 400px at 0% 110%, rgba(181,139,255,.08), transparent 60%);
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
+.eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); }
+h1 { font: 800 clamp(26px, 4vw, 42px)/1.08 var(--font-display); margin: 6px 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 800 21px/1.2 var(--font-display); margin: 0; }
+.lede { color: var(--muted); max-width: 72ch; margin: 0; }
+.muted { color: var(--muted); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+.ico { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex: none; }
+.ico svg { width: 22px; height: 22px; }
+.legend .ico { width: 22px; height: 22px; border-radius: 6px; }
+.legend .ico svg { width: 13px; height: 13px; }
+.i-wa { background: var(--wa); color: var(--wa-ink); }
+.i-ot { background: var(--ot); color: #fff; font: 800 20px/1 var(--font-display); }
+.legend .i-ot { font-size: 12px; }
+.i-una { background: radial-gradient(circle at 30% 30%, #D7C2FF, var(--una)); color: #23104A; box-shadow: 0 0 18px -2px var(--una-glow); }
+.i-staff { background: var(--panel-2); border: 1px solid var(--line); color: var(--fg); }
+.i-machine { background: var(--panel-2); border: 1px solid var(--cyan); color: var(--cyan); }
+.i-owner { background: var(--cyan); color: #04202B; }
+.i-grey { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+
+/* Cara biasa: strip ringkas */
+.old { border-radius: 18px; padding: 18px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 14px; }
+.old-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 860px) { .old-steps { grid-template-columns: minmax(0, 1fr); } }
+.old-step { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: start; }
+.old-step b { display: block; font-size: 14px; color: #C9D6E0; }
+.old-step span { font-size: 12.5px; color: var(--muted); }
+.warn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.warn-row span { font-size: 12.5px; padding: 6px 10px; border-radius: 999px; background: rgba(255,107,107,.1); color: #F1BDBD; border: 1px solid rgba(255,107,107,.3); }
+
+/* Dengan OwnerTenang: dua jalur */
+.new { border-radius: 20px; padding: 20px 18px 24px; background: var(--panel); border: 1.5px solid var(--cyan);
+  box-shadow: 0 0 0 1px rgba(44,198,230,.15), 0 0 40px -6px var(--cyan-glow); display: grid; gap: 16px; }
+.lanes-head { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; }
+.lane-title { font: 700 12px/1 var(--font-body); letter-spacing: .12em; text-transform: uppercase; padding: 9px 12px; border-radius: 10px; }
+.lane-title.sys { color: var(--cyan); background: rgba(44,198,230,.08); border: 1px solid rgba(44,198,230,.3); }
+.lane-title.chat { color: var(--wa); background: rgba(37,211,102,.07); border: 1px solid rgba(37,211,102,.3); }
+.row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; position: relative; }
+.row + .row { margin-top: 2px; }
+@media (max-width: 860px) {
+  .lanes-head { display: none; }
+  .row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .row .chatlane::before { content: "Chat dengan pelanggan"; display: block; font: 700 11px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--wa); margin-bottom: 6px; }
+}
+
+.step { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 20px; }
+.step::before { content: ""; position: absolute; left: 19px; top: 44px; bottom: 0; width: 2px; background: linear-gradient(var(--cyan), rgba(44,198,230,.25)); }
+.step.last::before { display: none; }
+.step h3 { font: 700 15px/1.3 var(--font-body); margin: 1px 0 3px; }
+.step p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.who { font: 600 11px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.chip { display: inline-block; font: 500 12px/1 var(--font-mono); padding: 5px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); margin: 7px 4px 0 0; }
+.tag { display: inline-flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--font-body); padding: 5px 8px; border-radius: 999px; margin: 7px 4px 0 0; }
+.tag.cy { background: rgba(44,198,230,.12); color: var(--cyan); }
+.tag.wr { background: rgba(242,169,59,.13); color: var(--warn); }
+
+/* Percabangan */
+.decision { display: grid; gap: 0; padding-bottom: 20px; }
+.ask { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: center; }
+.diamond { width: 26px; height: 26px; transform: rotate(45deg); border: 2px solid var(--cyan); background: var(--panel-2); margin-left: 7px; box-shadow: 0 0 14px -3px var(--cyan-glow); }
+.ask strong { font-size: 15px; }
+.fork { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding-top: 34px; margin-left: 52px; }
+.fork::before { content: ""; position: absolute; top: 14px; left: 25%; right: 25%; height: 2px; background: var(--line); }
+.fork::after { content: ""; position: absolute; top: 0; left: 50%; width: 2px; height: 15px; background: var(--cyan); }
+.branch { position: relative; border-radius: 14px; padding: 12px; background: var(--panel-2); border: 1px solid var(--line); display: grid; gap: 8px; align-content: start; min-width: 0; }
+.branch::before { content: ""; position: absolute; top: -20px; left: 50%; width: 2px; height: 18px; background: currentColor; }
+.branch::after { content: ""; position: absolute; top: -6px; left: calc(50% - 5px); border: 6px solid transparent; border-top-color: currentColor; }
+.branch.yes { color: var(--cyan); border-color: rgba(44,198,230,.6); }
+.branch.no { color: var(--una); border-color: rgba(181,139,255,.6); box-shadow: 0 0 26px -10px var(--una-glow); }
+.branch-label { font: 800 13px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; }
+.branch p, .branch .mini p { margin: 0; font-size: 13px; color: var(--muted); }
+.mini { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; }
+.mini .ico { width: 26px; height: 26px; border-radius: 7px; }
+.mini .ico svg { width: 14px; height: 14px; }
+.mini .i-ot { font-size: 13px; }
+.mini b { display: block; font-size: 13px; color: var(--fg); }
+.merge { position: relative; height: 34px; margin-left: 52px; }
+.merge::before { content: ""; position: absolute; top: 0; left: 25%; right: 25%; height: 16px; border: 2px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; }
+.merge::after { content: "kedua jalan bertemu di sini"; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding-top: 2px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 520px) {
+  .fork { grid-template-columns: minmax(0, 1fr); margin-left: 0; padding-top: 22px; }
+  .fork::before, .merge { display: none; }
+  .branch::before, .branch::after { display: none; }
+}
+
+/* Jalur chat */
+.chatlane { display: grid; gap: 6px; padding-bottom: 14px; }
+.bubble { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: 13.5px; line-height: 1.4; }
+.bubble small { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.bubble.in { justify-self: start; background: var(--panel-2); border: 1px solid var(--line); border-top-left-radius: 4px; }
+.bubble.out { justify-self: end; background: var(--wa-bubble); border: 1px solid rgba(37,211,102,.35); border-top-right-radius: 4px; }
+.bubble.file::before { content: "📎 "; }
+.bubble.note { justify-self: center; background: transparent; border: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
+
+.when { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 960px) { .when { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .when { grid-template-columns: minmax(0, 1fr); } }
+.when article { border-radius: 16px; padding: 15px; background: var(--panel); border: 1px solid var(--line); display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: start; }
+.when h3 { margin: 0 0 4px; font: 800 17px/1.2 var(--font-display); }
+.when p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.when .wa { border-color: rgba(37,211,102,.5); }
+.when .ot { border-color: rgba(232,100,44,.55); }
+.when .una { border-color: rgba(181,139,255,.55); }
+.when .cs { border-color: rgba(147,169,186,.5); }
+footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 14px; }
+@media (prefers-reduced-motion: no-preference) {
+  .new { animation: glow 4.5s ease-in-out infinite alternate; }
+  @keyframes glow { from { box-shadow: 0 0 0 1px rgba(44,198,230,.12), 0 0 26px -8px var(--cyan-glow); } to { box-shadow: 0 0 0 1px rgba(44,198,230,.2), 0 0 44px -4px var(--cyan-glow); } }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="s-chat" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3C7 3 3 6.6 3 11c0 1.8.7 3.5 1.9 4.8L4 20.5l4.9-1.6c.9.3 2 .5 3.1.5 5 0 9-3.6 9-8.2S17 3 12 3Z"/></symbol>
+    <symbol id="s-person" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z"/></symbol>
+    <symbol id="s-printer" viewBox="0 0 24 24"><path fill="currentColor" d="M7 3h10v4H7V3Zm-3 5h16a2 2 0 0 1 2 2v6h-4v4H6v-4H2v-6a2 2 0 0 1 2-2Zm4 7v4h8v-4H8Zm10-4.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></symbol>
+    <symbol id="s-spark" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l1.8 5.6L19.5 9l-5.7 1.7L12 16.5l-1.8-5.8L4.5 9l5.7-1.4L12 2Zm6.5 11 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6Z"/></symbol>
+    <symbol id="s-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"/></symbol>
+    <symbol id="s-list" viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h2v2H4V5Zm4 0h12v2H8V5ZM4 11h2v2H4v-2Zm4 0h12v2H8v-2Zm-4 6h2v2H4v-2Zm4 0h12v2H8v-2Z"/></symbol>
+    <symbol id="s-eye" viewBox="0 0 24 24"><path fill="currentColor" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/></symbol>
+    <symbol id="s-book" viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h11a3 3 0 0 1 3 3v15H7a2 2 0 0 1-2-2V3Zm2 2v12h10V6a1 1 0 0 0-1-1H7Z"/></symbol>
+    <symbol id="s-cash" viewBox="0 0 24 24"><path fill="currentColor" d="M2 6h20v12H2V6Zm2 2v8h16V8H4Zm8 1.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></symbol>
+    <symbol id="s-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z"/></symbol>
+    <symbol id="s-edit" viewBox="0 0 24 24"><path fill="currentColor" d="M4 17.2V20h2.8l8.3-8.3-2.8-2.8L4 17.2ZM19.7 7a1 1 0 0 0 0-1.4l-1.3-1.3a1 1 0 0 0-1.4 0l-1.6 1.6 2.8 2.8L19.7 7Z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">OwnerTenang · Skin G Percetakan</span>
+    <h1>Dari chat WhatsApp pelanggan sampai ke mesin cetak</h1>
+    <p class="lede">Pelanggan tetap pesan lewat WhatsApp. Karyawan tetap membalas chat. Bedanya: setiap chat langsung tercatat, ordernya dibuat otomatis lengkap dengan mesin dan nomor antrian, dan setiap perubahan tercatat atas nama orangnya.</p>
+  </header>
+
+  <div class="legend" aria-label="Keterangan simbol">
+    <span><i class="ico i-wa"><svg><use href="#s-chat"/></svg></i>WhatsApp pelanggan</span>
+    <span><i class="ico i-ot">O</i>OwnerTenang (otomatis)</span>
+    <span><i class="ico i-una"><svg><use href="#s-spark"/></svg></i>Una, asisten AI (lewat tombol)</span>
+    <span><i class="ico i-staff"><svg><use href="#s-person"/></svg></i>Karyawan / CS</span>
+    <span><i class="ico i-machine"><svg><use href="#s-printer"/></svg></i>Mesin cetak</span>
+    <span><i class="ico i-owner"><svg><use href="#s-eye"/></svg></i>Pemilik</span>
+  </div>
+
+  <section class="old" aria-labelledby="h-old">
+    <h2 id="h-old" class="muted">Cara biasa: bergantung pada ingatan dan kejujuran karyawan</h2>
+    <div class="old-steps">
+      <div class="old-step"><i class="ico i-wa"><svg><use href="#s-chat"/></svg></i><div><b>Pelanggan chat + kirim file</b><span>ke WA toko</span></div></div>
+      <div class="old-step"><i class="ico i-grey"><svg><use href="#s-book"/></svg></i><div><b>CS mencatat</b><span>di buku, kertas, atau ingatan</span></div></div>
+      <div class="old-step"><i class="ico i-grey"><svg><use href="#s-person"/></svg></i><div><b>Disampaikan ke operator</b><span>lisan atau screenshot</span></div></div>
+      <div class="old-step"><i class="ico i-grey"><svg><use href="#s-printer"/></svg></i><div><b>Operator mencetak</b><span>membaca ulang ukuran dari chat</span></div></div>
+      <div class="old-step"><i class="ico i-grey"><svg><use href="#s-cash"/></svg></i><div><b>Bayar</b><span>tercatat kalau tidak lupa</span></div></div>
+    </div>
+    <div class="warn-row">
+      <span>Order bisa tidak dicatat, uang tidak masuk kas</span>
+      <span>Harga bisa diturunkan setelah dibayar</span>
+      <span>File tertukar, antrian kacau</span>
+      <span>Mesin dipakai cetak di luar order</span>
+    </div>
+  </section>
+
+  <section class="new" aria-labelledby="h-new">
+    <div><span class="eyebrow">Dengan OwnerTenang</span><h2 id="h-new">Sistem bekerja di kiri, chat dengan pelanggan tetap berjalan di kanan</h2></div>
+    <div class="lanes-head" aria-hidden="true">
+      <div class="lane-title sys">Sistem &amp; mesin</div>
+      <div class="lane-title chat">Chat dengan pelanggan (karyawan membalas dari Layar Cetak)</div>
+    </div>
+
+    <div class="row">
+      <div class="step">
+        <i class="ico i-wa"><svg><use href="#s-chat"/></svg></i>
+        <div><span class="who">Pelanggan</span><h3>Chat dan kirim file ke WA toko</h3><p>Tidak ada aplikasi baru untuk pelanggan.</p></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble in"><small>Pelanggan</small>Mas, spanduk 3x1 dua lembar ya</div>
+        <div class="bubble in file"><small>Pelanggan</small>banner-toko.pdf</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="step">
+        <i class="ico i-ot">O</i>
+        <div><span class="who">OwnerTenang · detik itu juga</span><h3>Setiap pesan dan file direkam</h3>
+          <p>Chat dan file disimpan terkunci. Karyawan tidak bisa menghapus atau mengganti.</p>
+          <span class="tag cy"><svg width="12" height="12"><use href="#s-lock"/></svg>Rekaman tidak bisa dihapus</span></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble out"><small>CS · dari Layar Cetak</small>Siap kak, kami proses ya 🙏</div>
+        <div class="bubble note">Balasan karyawan juga tercatat: siapa dan jam berapa</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="step" style="padding-bottom:12px">
+          <i class="ico i-ot">O</i>
+          <div><span class="who">OwnerTenang · otomatis, tanpa biaya AI</span><h3>Chat dibaca otomatis</h3>
+            <p>Produk, ukuran, jumlah, dan file dikenali.</p>
+            <span class="chip">spanduk</span><span class="chip">3x1 m</span><span class="chip">2 lembar</span><span class="chip">banner-toko.pdf</span></div>
+        </div>
+        <div class="decision">
+          <div class="ask"><span class="diamond" aria-hidden="true"></span><strong>Sudah jelas semua?</strong></div>
+          <div class="fork">
+            <div class="branch yes">
+              <span class="branch-label">Ya, jelas</span>
+              <div class="mini"><i class="ico i-ot">O</i><div><b>Order dibuat otomatis</b><p>Tanpa ada yang menekan tombol.</p></div></div>
+            </div>
+            <div class="branch no">
+              <span class="branch-label">Belum jelas</span>
+              <div class="mini"><i class="ico i-staff"><svg><use href="#s-person"/></svg></i><div><b>CS menekan "Baca dengan Una"</b><p>atau mengisi sendiri</p></div></div>
+              <div class="mini"><i class="ico i-una"><svg><use href="#s-spark"/></svg></i><div><b>Una merinci draft order</b><p>plus daftar yang perlu ditanyakan</p></div></div>
+              <div class="mini"><i class="ico i-staff"><svg><use href="#s-check"/></svg></i><div><b>CS memeriksa, lalu Konfirmasi</b><p>Una tidak membuat order sendiri</p></div></div>
+            </div>
+          </div>
+          <div class="merge" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble note">Kalau belum jelas, CS bertanya ke pelanggan sambil Una merinci</div>
+        <div class="bubble out"><small>CS</small>Kak, bahannya flexi biasa atau korcin?</div>
+        <div class="bubble in"><small>Pelanggan</small>Flexi biasa aja</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="step">
+        <i class="ico i-ot"><svg><use href="#s-list"/></svg></i>
+        <div><span class="who">OwnerTenang · otomatis</span><h3>Jadi task di mesin yang tepat</h3>
+          <p>Harga dari daftar harga toko. Mesin tujuan dan nomor antrian dibagikan sistem.</p>
+          <span class="chip">CTK-261012-001</span><span class="chip">Outdoor · antrian #1</span><span class="chip">Rp132.000</span></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble out"><small>CS</small>Total Rp132.000, antrian nomor 1 ya kak</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="step">
+        <i class="ico i-staff"><svg><use href="#s-edit"/></svg></i>
+        <div><span class="who">Karyawan · kalau ada perubahan</span><h3>Revisi order, langsung kembali ke antrian</h3>
+          <p>Order lama ditutup "Direvisi", order baru langsung antri. Keduanya tercatat: dibuat sistem, direvisi oleh siapa, dan alasannya. Antrian memberi tanda kalau pelanggan masih chat setelah order dibuat.</p>
+          <span class="tag wr">Ada chat baru, cek dulu</span></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble in"><small>Pelanggan</small>Eh, dilaminating sekalian ya</div>
+        <div class="bubble out"><small>CS</small>Siap, sudah kami ubah kak</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="step">
+        <i class="ico i-machine"><svg><use href="#s-printer"/></svg></i>
+        <div><span class="who">Mesin cetak</span><h3>Dicetak sesuai antrian, setiap file tercatat di Log Mesin</h3>
+          <p>Operator melihat antrian mesinnya, atau file dikirim langsung ke mesin lewat agen cetak di PC mesin. File yang dicetak di luar antrian tetap boleh, tapi ditandai dan operator wajib memberi catatan.</p>
+          <span class="chip">dari antrian</span><span class="chip">di luar antrian + catatan</span></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble in"><small>Pelanggan</small>Kira-kira jadi jam berapa kak?</div>
+        <div class="bubble out"><small>CS</small>Sedang dicetak, sore ini siap 👍</div>
+        <div class="bubble note">Chat terus berjalan selama mesin bekerja</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="step">
+        <i class="ico i-staff"><svg><use href="#s-check"/></svg></i>
+        <div><span class="who">Karyawan</span><h3>Siap diambil, lalu diambil</h3>
+          <p>Setiap langkah tercatat: siapa dan jam berapa. Pembatalan hanya oleh pemilik, dengan alasan.</p></div>
+      </div>
+      <div class="chatlane">
+        <div class="bubble out"><small>CS</small>Spanduknya sudah siap diambil ya kak</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="step last">
+        <i class="ico i-owner"><svg><use href="#s-eye"/></svg></i>
+        <div><span class="who">Pemilik · dari mana saja</span><h3>Tenang, walau tidak di toko</h3>
+          <p>Semua chat, order, revisi, dan file yang masuk mesin terlihat. Angka yang diubah diam-diam ditandai merah.</p></div>
+      </div>
+      <div class="chatlane"></div>
+    </div>
+  </section>
+
+  <section class="when" aria-label="Kapan masing-masing bekerja">
+    <article class="wa"><i class="ico i-wa"><svg><use href="#s-chat"/></svg></i><div><h3>WhatsApp</h3><p>Jalur chat pelanggan. WhatsApp resmi meneruskan setiap pesan ke OwnerTenang.</p></div></article>
+    <article class="ot"><i class="ico i-ot">O</i><div><h3>OwnerTenang</h3><p>Bekerja di setiap pesan: merekam, membaca, membuat order, menghitung harga, menentukan mesin dan antrian, menjaga riwayat.</p></div></article>
+    <article class="una"><i class="ico i-una"><svg><use href="#s-spark"/></svg></i><div><h3>Una</h3><p>Hanya saat chat belum jelas dan CS menekan "Baca dengan Una". Hasilnya draft; keputusan tetap di CS.</p></div></article>
+    <article class="cs"><i class="ico i-staff"><svg><use href="#s-person"/></svg></i><div><h3>Karyawan</h3><p>Membalas chat dari Layar Cetak, merevisi order bila perlu, mencetak, dan memberi catatan untuk cetakan di luar antrian.</p></div></article>
+  </section>
+
+  <footer>
+    <span>Contoh chat, harga, dan nomor order di halaman ini hanya ilustrasi.</span>
+    <span>Uji coba memakai nomor uji WhatsApp resmi dari Meta. Untuk dipakai pelanggan, nomor WA toko didaftarkan ke WhatsApp Business resmi.</span>
+  </footer>
+</div>
+</body>
+</html>

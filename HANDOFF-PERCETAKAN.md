@@ -24,6 +24,11 @@ Ditulis: 2026-10-10 oleh Eskor. Diperbarui: 2026-10-10.
 | Status order + rantai hash + verifikasi | selesai | `src/percetakan.js` `ubahStatus`, `verifikasiRiwayat` |
 | Layar operator `/s/CETAK01/cetak` | selesai (versi pertama) | `public/percetakan.{html,js,css}` |
 | Tes | 13 tes | `test/percetakan.test.js` |
+| Karyawan membalas chat dari Layar Cetak (tercatat) | selesai | `kirimBalasan`, `wa_outbound_messages` |
+| Revisi order (lama DIREVISI → baru langsung antri) + tanda "ada chat baru" di antrian | selesai | `revisiOrder`, `src/percetakan-api.js` |
+| Log Mesin: file dari antrian / di luar antrian + catatan operator | selesai, agen **belum dicoba di mesin asli** | `print_machine_jobs`, `percetakan-agen/` |
+| Halaman alur publik `alurcetak.ownertenang.biz.id` | selesai | `public/alur/percetakan.html` |
+| WhatsApp Meta (nomor uji, App Cetak01) | **tersambung 2026-10-12**, token masih sementara | lihat CATATAN di laptop Bos Cyo |
 | Pembayaran, foto hasil, counter mesin, laporan owner | **belum** | lihat §5 |
 | Balas WA otomatis ke pelanggan | **sengaja ditunda**: Bos Cyo 2026-10-10, "chat customer itu nanti pake orang gpp" | T1 |
 
@@ -77,6 +82,10 @@ Token PIN lama / token agen ditolak (riwayat wajib punya orang).
 | `POST /orders/:id/status` | semua (BATAL: Owner/Admin) | `{toStatus, note}` |
 | `GET /antrian` | semua | tiket aktif per mesin |
 | `GET /files/:id` · `POST /files/:id/ulang` | semua | unduh file / ambil ulang dari Meta |
+| `POST /wa/balas` | semua | `{toNumber, text}`, kirim balasan WA (tercatat) |
+| `POST /orders/:id/revisi` | semua | `{items, note, customerName?, dueAt?}`, hanya BARU/DESAIN/SIAP_CETAK |
+| `GET /log-mesin` · `POST /log-mesin/:id/catatan` | semua | daftar file yang masuk mesin / catatan alasan |
+| `POST /agen/luar-antrian` | kunci mesin | `{fileName, sha256?, sizeBytes?, detectedAt?}` |
 | `POST /settings` | Owner/Admin | `{mode: MANUAL / OTOMATIS / LANGSUNG_CETAK}` |
 | `POST /machines/:id/kunci` | Owner/Admin | buat kunci agen baru (teks kunci hanya di respons ini; kunci lama mati) |
 | `GET /antrian?machine=<id>` | semua | antrian satu mesin |
@@ -224,6 +233,15 @@ Catat skor seperti `UNA-MESIN-DAN-LATIHAN.md` §10. Perbaiki kerangka (prompt, `
 bilang belum lengkap tapi ada file dan niat order, jalankan Una di belakang (`ctx.waitUntil`) dan
 simpan hasilnya sebagai draft AI, supaya CS tinggal menekan Konfirmasi. Una **tidak** boleh membuat
 order otomatis. Batasi per nomor per hari supaya biaya tidak bocor.
+
+**T14 — Log cetakan dari spooler Windows.** Untuk printer kantor/A3+ yang mencetak lewat driver
+Windows: agen membaca event `Microsoft-Windows-PrintService/Operational` (ID 307: nama dokumen,
+halaman, printer). Cocokkan dengan file yang dikirim agen; sisanya laporkan sebagai `LUAR_ANTRIAN`.
+Log itu harus dinyalakan dulu di Event Viewer.
+
+**T15 — Token WhatsApp permanen.** Token dari API Setup kedaluwarsa ±24 jam. Setelah itu pesan teks
+tetap masuk, tetapi unduhan file dan balasan gagal. Buat System User di Business Settings, beri aset
+App + akun WhatsApp, generate token tanpa kedaluwarsa, lalu `wrangler secret put WA_ACCESS_TOKEN`.
 
 **T13 — Push, bukan polling, untuk agen cetak.** Sekarang agen bertanya tiap 20 detik (satu query
 ber-index per mesin). Kalau mesinnya banyak, ganti dengan WebSocket Durable Object (pola ADR-048).

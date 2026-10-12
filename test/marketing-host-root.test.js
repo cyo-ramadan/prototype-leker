@@ -20,6 +20,12 @@ test('domain jualan: "/" dialihkan ke landing page, termasuk www dan huruf besar
   assert.equal(marketingAssetPath('OwnerTenang.ID', '/'), '/produk/');
 });
 
+test('subdomain alur membuka halaman alur percetakan (ADR-055)', () => {
+  assert.equal(marketingAssetPath('alurcetak.ownertenang.biz.id', '/'), '/alur/percetakan');
+  assert.equal(marketingAssetPath('alurcetak.ownertenang.biz.id', '/login'), null);
+  assert.equal(marketingAssetPath('alurcetak.ownertenang.biz.id.example.com', '/'), null);
+});
+
 test('hanya alamat utama yang dialihkan; path lain dan host lain tidak', () => {
   assert.equal(marketingAssetPath('ownertenang.biz.id', '/login'), null);
   assert.equal(marketingAssetPath('ownertenang.biz.id', '/produk/'), null);

@@ -19,7 +19,7 @@
 //   AGEN_PRINTER   (opsional) nama printer Windows untuk SumatraPDF
 //   AGEN_SEKALI=1  (opsional) cek sekali lalu berhenti -- untuk uji
 import { createHash } from 'node:crypto';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -32,6 +32,33 @@ const FOLDER = String(env.AGEN_FOLDER || '');
 const JEDA = Math.max(5, Number(env.AGEN_JEDA) || 20) * 1000;
 
 const log = (...args) => console.log(new Date().toLocaleString('id-ID'), ...args);
+
+// Log Mesin (Bos Cyo 2026-10-12): file yang muncul di hot folder TANPA dikirim agen dilaporkan sebagai
+// "di luar antrian". Isi folder saat agen mulai dianggap sudah ada sebelumnya (tidak dilaporkan).
+const dikenal = new Set();
+
+export async function fileBaruDiFolder(folder, known) {
+  const baru = [];
+  for (const name of await readdir(folder)) {
+    if (known.has(name) || name.endsWith('.sebagian')) continue;
+    known.add(name);
+    baru.push(name);
+  }
+  return baru;
+}
+
+async function laporLuarAntrian(name) {
+  const path = join(FOLDER, name);
+  const info = await stat(path);
+  if (!info.isFile()) return;
+  const sha256 = createHash('sha256').update(await readFile(path)).digest('hex');
+  await api('/api/percetakan/agen/luar-antrian', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ fileName: name, sha256, sizeBytes: info.size, detectedAt: info.mtime.toISOString() })
+  });
+  log(`DI LUAR ANTRIAN: ${name} -- tercatat, operator wajib memberi catatan di Layar Cetak > Log Mesin`);
+}
 
 export function namaFileAman(task) {
   const asli = String(task.fileName || 'file').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(-80);
@@ -52,6 +79,8 @@ async function kerjakan(task) {
   const tujuan = join(FOLDER, namaFileAman(task));
   // Tulis ke nama sementara dulu lalu rename, supaya RIP tidak mengambil file yang belum utuh.
   await writeFile(`${tujuan}.sebagian`, bytes);
+  // Didaftarkan sebelum muncul di folder, supaya tidak ikut terlapor "di luar antrian".
+  dikenal.add(namaFileAman(task));
   await rename(`${tujuan}.sebagian`, tujuan);
   if (env.AGEN_SUMATRA) {
     const args = env.AGEN_PRINTER ? ['-print-to', env.AGEN_PRINTER, '-silent', tujuan] : ['-print-to-default', '-silent', tujuan];
@@ -62,6 +91,9 @@ async function kerjakan(task) {
 }
 
 async function putaran() {
+  for (const name of await fileBaruDiFolder(FOLDER, dikenal)) {
+    try { await laporLuarAntrian(name); } catch (error) { log('gagal melapor file luar antrian', name, String(error.message || error)); }
+  }
   const { machine, tasks } = await (await api('/api/percetakan/agen/tugas')).json();
   if (tasks.length) log(`${machine.name}: ${tasks.length} tugas`);
   for (const task of tasks) {
@@ -75,6 +107,7 @@ async function main() {
     process.exit(1);
   }
   await mkdir(FOLDER, { recursive: true });
+  for (const name of await readdir(FOLDER)) dikenal.add(name);
   log(`agen cetak jalan, folder: ${FOLDER}`);
   do {
     try { await putaran(); } catch (error) { log('server tidak terjangkau:', String(error.message || error)); }

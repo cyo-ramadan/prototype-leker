@@ -6,11 +6,11 @@ import { resolveStore } from './stores.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireManagement } from './owner-auth.js';
 import {
-  MANAGEMENT_ROLES, UNITS, buatOrder, percetakanAktif, detailOrder, machinesForStore, mapItem, mapOrder, normalizePhone,
-  productsForStore, rupiahToScaled, scaledToRupiahText, ubahStatus
+  MANAGEMENT_ROLES, REVISABLE, UNITS, buatOrder, percetakanAktif, detailOrder, machinesForStore, mapItem, mapOrder, normalizePhone,
+  productsForStore, revisiOrder, rupiahToScaled, scaledToRupiahText, ubahStatus
 } from './percetakan.js';
 import {
-  r2Bucket, simulasiPesan, terimaWebhookMeta, terimaWebhookTwilio, unduhMediaMeta, unduhMediaTwilio, verifikasiLangganan
+  kirimBalasan, r2Bucket, simulasiPesan, terimaWebhookMeta, terimaWebhookTwilio, unduhMediaMeta, unduhMediaTwilio, verifikasiLangganan
 } from './percetakan-wa.js';
 import { bacaChatOrder } from './percetakan-una.js';
 import { aiConfigured } from './caca-ai-client.js';
@@ -123,15 +123,69 @@ async function inbox(db, storeId) {
       file: row.file_id ? { id: row.file_id, status: row.file_status, fileName: row.media_file_name || '', error: row.file_error, sizeBytes: row.size_bytes } : null
     });
   }
+  // Balasan karyawan (wa_outbound_messages) ikut di linimasa percakapan yang sama.
+  const keluar = (await db.prepare(`
+    SELECT o.id, o.to_number, o.body_text, o.status, o.error, o.sent_by_role, o.created_at,
+           COALESCE(c.employee_name, sa.display_name, ea.display_name, ow.display_name, o.sent_by_id) AS sender_name
+    FROM wa_outbound_messages o
+    LEFT JOIN cashiers c ON o.sent_by_role = 'CASHIER' AND c.id = o.sent_by_id
+    LEFT JOIN store_admins sa ON o.sent_by_role = 'ADMIN' AND sa.id = o.sent_by_id
+    LEFT JOIN entity_admins ea ON o.sent_by_role = 'ENTITY_ADMIN' AND ea.id = o.sent_by_id
+    LEFT JOIN owner_accounts ow ON o.sent_by_role = 'OWNER' AND ow.id = o.sent_by_id
+    WHERE o.store_id = ? AND o.created_at >= ?
+    ORDER BY o.created_at DESC LIMIT 500
+  `).bind(storeId, since).all()).results ?? [];
+  for (const row of keluar) {
+    if (!groups.has(row.to_number)) groups.set(row.to_number, { fromNumber: row.to_number, fromName: '', lastAt: row.created_at, messages: [] });
+    groups.get(row.to_number).messages.push({
+      id: row.id, sentAt: row.created_at, direction: 'OUT', text: row.body_text,
+      failed: row.status === 'GAGAL', error: row.error, senderName: row.sender_name, senderRole: row.sent_by_role
+    });
+  }
   const result = [];
   for (const group of groups.values()) {
     const drafted = await draftedMessageIds(db, storeId, group.fromNumber);
-    group.messages.reverse();
-    for (const message of group.messages) message.processed = drafted.has(message.id);
-    group.unprocessed = group.messages.filter(message => !message.processed).length;
+    group.messages.sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : 0));
+    for (const message of group.messages) {
+      if (message.direction === 'OUT') continue;
+      message.direction = 'IN';
+      message.processed = drafted.has(message.id);
+    }
+    group.unprocessed = group.messages.filter(message => message.direction === 'IN' && !message.processed).length;
+    group.lastAt = group.messages[group.messages.length - 1]?.sentAt || group.lastAt;
     result.push(group);
   }
-  return result;
+  return result.sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
+}
+
+// Log Mesin: semua file yang masuk mesin, dari antrian maupun di luar antrian (Bos Cyo 2026-10-12).
+async function logMesin(db, storeId) {
+  const rows = (await db.prepare(`
+    SELECT j.*, m.name AS machine_name, o.order_no, t.queue_no
+    FROM print_machine_jobs j
+    JOIN print_machines m ON m.id = j.machine_id
+    LEFT JOIN print_orders o ON o.id = j.order_id
+    LEFT JOIN print_queue_tickets t ON t.id = j.ticket_id
+    WHERE j.store_id = ?
+    ORDER BY j.detected_at DESC LIMIT 200
+  `).bind(storeId).all()).results ?? [];
+  const notes = rows.length ? ((await db.prepare(`
+    SELECT n.job_id, n.note, n.actor_role, n.created_at FROM print_machine_job_notes n
+    WHERE n.store_id = ? ORDER BY n.created_at
+  `).bind(storeId).all()).results ?? []) : [];
+  return rows.map(row => ({
+    id: row.id,
+    machineName: row.machine_name,
+    source: row.source,
+    orderId: row.order_id,
+    orderNo: row.order_no,
+    queueNo: row.queue_no,
+    fileName: row.file_name,
+    sha256: row.sha256,
+    sizeBytes: row.size_bytes,
+    detectedAt: row.detected_at,
+    notes: notes.filter(note => note.job_id === row.id).map(note => ({ note: note.note, actorRole: note.actor_role, createdAt: note.created_at }))
+  }));
 }
 
 function mapDraft(row) {
@@ -168,7 +222,14 @@ async function antrian(db, storeId, machineId) {
   const rows = (await db.prepare(`
     SELECT m.id AS machine_id, m.name AS machine_name, t.queue_no, t.business_date, o.id AS order_id, o.order_no,
            o.status, o.customer_name, o.customer_phone, o.due_at, o.created_by_role, i.product_name, i.qty, i.width_cm,
-           i.height_cm, i.file_id, i.note, t.dispatched_at
+           i.height_cm, i.file_id, i.note, t.dispatched_at, o.revised_from_order_id,
+           -- "Chat baru" = pesan pelanggan ini yang belum masuk draft/order mana pun. Sengaja tidak
+           -- membandingkan jam: jam Worker dan jam database bisa selisih beberapa milidetik.
+           EXISTS (SELECT 1 FROM wa_inbound_messages w
+                   WHERE w.store_id = o.store_id AND w.from_number = o.customer_phone
+                     AND NOT EXISTS (SELECT 1 FROM print_order_drafts d, json_each(d.message_ids_json) j
+                                     WHERE d.store_id = w.store_id AND d.status IN ('MENUNGGU', 'DIKONFIRMASI') AND j.value = w.id)
+          ) AS has_new_chat
     FROM print_queue_tickets t
     JOIN print_machines m ON m.id = t.machine_id
     JOIN print_order_items i ON i.id = t.order_item_id
@@ -196,7 +257,10 @@ async function antrian(db, storeId, machineId) {
       fileId: row.file_id,
       note: row.note,
       automatic: row.created_by_role === 'SYSTEM',
-      dispatchedAt: row.dispatched_at
+      dispatchedAt: row.dispatched_at,
+      revised: Boolean(row.revised_from_order_id),
+      // Pelanggan masih chat setelah order terbentuk (mis. "laminating sekalian"): karyawan cek dulu.
+      hasNewChat: Boolean(row.has_new_chat)
     });
   }
   return [...machines.values()];
@@ -363,12 +427,46 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
         seq: event.seq, eventType: event.event_type, fromStatus: event.from_status, toStatus: event.to_status,
         actorRole: event.actor_role, actorId: event.actor_id, note: event.note, createdAt: event.created_at
       })),
-      verification: detail.verification
+      verification: detail.verification,
+      canRevise: REVISABLE.includes(detail.order.status),
+      revisedFrom: detail.order.revised_from_order_id
+        ? await db.prepare('SELECT id, order_no FROM print_orders WHERE id = ? AND store_id = ?').bind(detail.order.revised_from_order_id, storeId).first()
+        : null,
+      revisedTo: await db.prepare('SELECT id, order_no FROM print_orders WHERE revised_from_order_id = ? AND store_id = ?').bind(detail.order.id, storeId).first(),
+      rawItems: detail.items.map(item => ({
+        productId: item.product_id, qty: item.qty, widthCm: item.width_cm, heightCm: item.height_cm, fileId: item.file_id, note: item.note
+      }))
     });
+  }
+  const reviseMatch = pathname.match(/^\/api\/percetakan\/orders\/([^/]+)\/revisi$/);
+  if (reviseMatch && request.method === 'POST') {
+    const revised = await revisiOrder(db, {
+      storeId, orderId: reviseMatch[1], actor: auth.actor, items: input.items,
+      customerName: input.customerName, dueAt: input.dueAt, note: input.note
+    });
+    return revised.ok ? json(revised, 201) : json({ error: revised.error }, revised.status);
   }
   if (orderMatch && request.method === 'POST' && orderMatch[2]) {
     const changed = await ubahStatus(db, { storeId, orderId: orderMatch[1], toStatus: input.toStatus, actor: auth.actor, note: input.note });
     return changed.ok ? json(changed) : json({ error: changed.error }, changed.status);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/percetakan/wa/balas') {
+    const sent = await kirimBalasan(env, { storeId, toNumber: input.toNumber, body: input.text, actor: auth.actor });
+    return sent.ok ? json(sent, 201) : json({ error: sent.error }, sent.status);
+  }
+
+  if (request.method === 'GET' && pathname === '/api/percetakan/log-mesin') return json({ jobs: await logMesin(db, storeId) });
+  const jobNoteMatch = pathname.match(/^\/api\/percetakan\/log-mesin\/([^/]+)\/catatan$/);
+  if (jobNoteMatch && request.method === 'POST') {
+    const note = text(input.note, 500);
+    if (!note) return json({ error: 'Catatan wajib diisi.' }, 400);
+    const job = await db.prepare('SELECT id FROM print_machine_jobs WHERE id = ? AND store_id = ?').bind(jobNoteMatch[1], storeId).first();
+    if (!job) return json({ error: 'Catatan mesin tidak ditemukan.' }, 404);
+    await db.prepare(`
+      INSERT INTO print_machine_job_notes (id, job_id, store_id, note, actor_role, actor_id) VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(`pmjn_${crypto.randomUUID()}`, job.id, storeId, note, auth.actor.role, auth.actor.id).run();
+    return json({ ok: true }, 201);
   }
 
   if (request.method === 'GET' && pathname === '/api/percetakan/antrian') {

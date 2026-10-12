@@ -41,8 +41,13 @@ export const STATUS = Object.freeze({
   FINISHING: 'FINISHING',
   SIAP_AMBIL: 'SIAP_AMBIL',
   DIAMBIL: 'DIAMBIL',
-  BATAL: 'BATAL'
+  BATAL: 'BATAL',
+  // Ditutup karena diganti order revisi (revisiOrder). Hanya revisiOrder yang boleh menulisnya.
+  DIREVISI: 'DIREVISI'
 });
+// Order yang belum masuk mesin boleh direvisi karyawan (Bos Cyo 2026-10-12: "mesin create, karyawan
+// revisi, langsung diteruskan ke antrean cetak").
+export const REVISABLE = Object.freeze(['BARU', 'DESAIN', 'SIAP_CETAK']);
 
 // Langkah maju yang boleh. BATAL hanya boleh sebelum barang selesai dicetak, dan hanya oleh
 // manajemen (lihat bolehUbahStatus). Tidak ada jalan mundur: salah langkah dicatat sebagai
@@ -55,7 +60,8 @@ const TRANSITIONS = Object.freeze({
   FINISHING: ['SIAP_AMBIL'],
   SIAP_AMBIL: ['DIAMBIL'],
   DIAMBIL: [],
-  BATAL: []
+  BATAL: [],
+  DIREVISI: []
 });
 
 export const MANAGEMENT_ROLES = Object.freeze(['OWNER', 'ADMIN', 'ENTITY_ADMIN']);
@@ -247,7 +253,7 @@ const isUniqueConflict = error => /UNIQUE constraint failed/i.test(String(error?
  * input: { storeId, actor:{role,id}, source:'WA'|'WALKIN', draftId?, customerPhone, customerName,
  *          dueAt?, note?, items:[{productId, qty, widthCm?, heightCm?, fileId?, note?}] }
  */
-export async function buatOrder(db, input, { now = new Date() } = {}) {
+export async function buatOrder(db, input, { now = new Date(), extraStatements = null } = {}) {
   const customerPhone = normalizePhone(input.customerPhone);
   if (!customerPhone) return { ok: false, status: 400, error: 'Nomor WA pelanggan tidak valid.' };
   const rawItems = Array.isArray(input.items) ? input.items : [];
@@ -319,7 +325,7 @@ export async function buatOrder(db, input, { now = new Date() } = {}) {
       to_status: STATUS.BARU,
       actor_role: input.actor.role,
       actor_id: input.actor.id,
-      note: order.source === 'WALKIN' ? 'Order datang langsung (bukan dari WA).' : '',
+      note: text(input.eventNote, 300) || (order.source === 'WALKIN' ? 'Order datang langsung (bukan dari WA).' : ''),
       photo_key: null,
       payload_json: JSON.stringify({ snapshot: await orderSnapshotHash(order, itemRows) }),
       created_at: createdAt,
@@ -330,10 +336,11 @@ export async function buatOrder(db, input, { now = new Date() } = {}) {
     const statements = [
       db.prepare(`
         INSERT INTO print_orders (id, store_id, order_no, business_date, customer_phone, customer_name, source, draft_id,
-          status, total_scaled, due_at, note, created_by_role, created_by_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          status, total_scaled, due_at, note, created_by_role, created_by_id, created_at, revised_from_order_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(order.id, order.store_id, order.order_no, order.business_date, order.customer_phone, order.customer_name,
-        order.source, order.draft_id, order.status, toDb(order.total_scaled), order.due_at, order.note, input.actor.role, input.actor.id, createdAt),
+        order.source, order.draft_id, order.status, toDb(order.total_scaled), order.due_at, order.note, input.actor.role, input.actor.id, createdAt,
+        input.revisedFromOrderId || null),
       ...itemRows.map(item => db.prepare(`
         INSERT INTO print_order_items (id, order_id, store_id, line_no, product_id, product_name, machine_id, unit, qty,
           width_cm, height_cm, unit_price_scaled, subtotal_scaled, file_id, note)
@@ -352,6 +359,7 @@ export async function buatOrder(db, input, { now = new Date() } = {}) {
         WHERE id = ? AND store_id = ? AND status = 'MENUNGGU'
       `).bind(input.actor.role, input.actor.id, createdAt, orderId, order.draft_id, input.storeId));
     }
+    if (extraStatements) statements.push(...await extraStatements({ orderId, orderNo: order.order_no }));
     try {
       await db.batch(statements);
     } catch (error) {
@@ -361,6 +369,61 @@ export async function buatOrder(db, input, { now = new Date() } = {}) {
     return { ok: true, orderId, orderNo: order.order_no };
   }
   return { ok: false, status: 409, error: 'Sedang ramai, nomor order bentrok. Coba simpan lagi.' };
+}
+
+/**
+ * Revisi order oleh karyawan: order lama TIDAK diubah (item dibekukan). Dalam SATU batch:
+ * order baru dibuat (harga tetap dari master, antrian baru), order lama ditutup DIREVISI dengan event
+ * yang menyimpan id order baru. Riwayat kedua order tetap utuh dan saling menunjuk.
+ */
+export async function revisiOrder(db, { storeId, orderId, actor, items, customerName, dueAt, note = '' }, { now = new Date() } = {}) {
+  const old = await db.prepare('SELECT * FROM print_orders WHERE id = ? AND store_id = ?').bind(orderId, storeId).first();
+  if (!old) return { ok: false, status: 404, error: 'Order tidak ditemukan di gerai ini.' };
+  if (!REVISABLE.includes(old.status)) return { ok: false, status: 409, error: `Order berstatus ${old.status} tidak bisa direvisi lagi.` };
+  const alasan = text(note, 300) || 'Direvisi karyawan.';
+  const last = await db.prepare('SELECT seq, hash FROM print_order_events WHERE order_id = ? ORDER BY seq DESC LIMIT 1').bind(orderId).first();
+
+  const created = await buatOrder(db, {
+    storeId,
+    actor,
+    source: old.source,
+    customerPhone: old.customer_phone,
+    customerName: customerName ?? old.customer_name,
+    dueAt: dueAt ?? old.due_at,
+    note: `Revisi dari ${old.order_no}. ${alasan}`.slice(0, 500),
+    eventNote: `Revisi dari ${old.order_no}: ${alasan}`,
+    revisedFromOrderId: old.id,
+    items
+  }, {
+    now,
+    extraStatements: async ({ orderId: newId, orderNo: newNo }) => {
+      const event = {
+        id: `pevt_${crypto.randomUUID()}`,
+        order_id: old.id,
+        store_id: storeId,
+        seq: Number(last?.seq || 0) + 1,
+        event_type: 'DIREVISI',
+        from_status: old.status,
+        to_status: STATUS.DIREVISI,
+        actor_role: actor.role,
+        actor_id: actor.id,
+        note: `Diganti ${newNo}: ${alasan}`.slice(0, 500),
+        photo_key: null,
+        payload_json: JSON.stringify({ revisedTo: newId, revisedToNo: newNo }),
+        created_at: now.toISOString(),
+        prev_hash: last?.hash || GENESIS_HASH
+      };
+      event.hash = await eventHash(event);
+      return [
+        insertEventStatement(db, event),
+        // Bersyarat status lama: kalau order lama barusan berubah, batch gagal dan tidak ada yang tertulis.
+        db.prepare('UPDATE print_orders SET status = ? WHERE id = ? AND store_id = ? AND status = ?')
+          .bind(STATUS.DIREVISI, old.id, storeId, old.status)
+      ];
+    }
+  });
+  if (!created.ok) return created;
+  return { ok: true, orderId: created.orderId, orderNo: created.orderNo, revisedFrom: old.order_no };
 }
 
 function insertEventStatement(db, event) {
@@ -477,6 +540,7 @@ export function mapOrder(order) {
     dueAt: order.due_at,
     note: order.note,
     createdByRole: order.created_by_role,
+    revisedFromOrderId: order.revised_from_order_id || null,
     automatic: order.created_by_role === 'SYSTEM',
     createdAt: order.created_at
   };

@@ -184,6 +184,48 @@ berubah tapi tenant lainnya ga ngerasa karna engga on."
 - Baris `PERCETAKAN` di `platform_modules` (D1) tetap ada sebagai catatan katalog, tetapi tidak lagi
   menjadi syarat. Migration 0147 memberi tenant Percetakan pilihan G.
 
+### D10 — Karyawan membalas chat dari Layar Cetak
+
+Bos Cyo, 2026-10-12: "aku mau demo karyawan bisa sambil balas chat nya juga". Nomor yang tersambung
+WhatsApp Cloud API tidak bisa dibuka di aplikasi WA biasa, jadi balasan dikirim dari Layar Cetak
+(`POST /api/percetakan/wa/balas`, `kirimBalasan` di `src/percetakan-wa.js`). Setiap balasan dicatat
+append-only di `wa_outbound_messages` (siapa, kapan, ke siapa, isi; TERKIRIM atau GAGAL beserta
+alasannya) dan tampil di linimasa Chat masuk. Sistem sendiri tetap **tidak** membalas otomatis.
+Gagal paling umum: lewat 24 jam sejak chat terakhir pelanggan (kode Meta 131047), dan nomor belum
+terdaftar sebagai penerima uji (131030).
+
+### D11 — Mesin membuat order, karyawan merevisi
+
+Bos Cyo, 2026-10-12: "biar aja karyawan lewat wa mengkoreksinya, yang penting kan ke record, bahwa
+mesin create, karyawan revisi. langsung diteruskan ke antrean cetak." Jadi pembaca aturan tidak
+diperketat. Sebagai gantinya:
+- `revisiOrder` (`src/percetakan.js`): order berstatus BARU/DESAIN/SIAP_CETAK boleh direvisi oleh
+  karyawan. Dalam **satu batch**, order baru dibuat (harga tetap dari master, antrian baru,
+  `revised_from_order_id`) dan order lama ditutup `DIREVISI` dengan event yang menyimpan id order baru.
+  Item order lama tidak pernah diubah, dan rantai hash kedua order tetap utuh.
+- Antrian memberi tanda **"ada chat baru, cek dulu"** kalau pelanggan masih chat setelah order dibuat
+  (contoh nyata 2026-10-12: "di laminating sekalian" datang 8 detik setelah order otomatis).
+
+### D12 — Log Mesin: setiap file yang masuk mesin tercatat
+
+Bos Cyo, 2026-10-12: "file2 yang diproses oleh mesin cetak juga ada record nya dan harus file yang
+sudah didaftarkan antrian. kalo ada file yang di print engga sesuai daftar antri boleh juga tapi ada
+catatannya." Tabel append-only `print_machine_jobs` + `print_machine_job_notes` (migration 0151):
+- `ANTRIAN`: dicatat otomatis saat agen cetak melapor terkirim (batch yang sama dengan event
+  DIKIRIM_KE_MESIN), dengan nomor order, antrian, dan SHA-256 file.
+- `LUAR_ANTRIAN`: agen melihat file baru di hot folder yang bukan ia taruh sendiri, lalu melaporkannya
+  (`POST /api/percetakan/agen/luar-antrian`). Kalau isinya sama persis dengan file sebuah order, order
+  itu ditautkan. Operator wajib memberi catatan alasan di tab Log Mesin.
+- Batas: file yang dibuka langsung dari dalam software RIP tanpa lewat folder tidak terlihat oleh agen.
+  Penutupnya pencocokan counter mesin (T4), dan cetakan lewat spooler Windows (T14).
+
+### D13 — Halaman alur di repo + subdomain
+
+Bos Cyo, 2026-10-12: halaman alur "diorbitkan pakai subdomain ownertenang", supaya perbaikan desain
+bisa dikerjakan agen lain. Sumbernya `public/alur/percetakan.html`. `alurcetak.ownertenang.biz.id/`
+dialihkan ke `/alur/percetakan` oleh `marketingAssetPath` (`src/index.js`). Link proposal di
+claude.ai dibangun dari file yang sama. Isinya wajib sesuai fitur yang live.
+
 ## Konsekuensi
 
 - Push branch yang berisi migration 0145 akan langsung menjalankan migration ke D1 produksi

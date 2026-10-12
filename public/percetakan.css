@@ -65,3 +65,10 @@ dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--c
 .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+/* Balasan karyawan + Log Mesin (2026-10-12) */
+.chat li.out { margin-left: 18%; background: var(--ok-bg); border-radius: 10px; padding: 6px 10px; border-top: 0; margin-block: 4px; }
+.chat li.out.failed { background: var(--bad-bg); }
+.balas { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+.balas .text-input { flex: 1 1 auto; min-width: 0; }
+.admin-card.flag { border-color: var(--bad-text); }

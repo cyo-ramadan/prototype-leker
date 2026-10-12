@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -9,7 +10,10 @@ import { tandaTanganSah, uraiWebhookMeta } from '../src/percetakan-wa.js';
 import { saringUsulan } from '../src/percetakan-una.js';
 import { tebakOrder } from '../src/percetakan-tebak.js';
 import { productsForStore } from '../src/percetakan.js';
-import { namaFileAman } from '../percetakan-agen/agen-cetak.mjs';
+import { namaFileAman, fileBaruDiFolder } from '../percetakan-agen/agen-cetak.mjs';
+import { mkdtempSync, writeFileSync as tulis, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as gabung } from 'node:path';
 import { assetRoute } from '../src/index.js';
 
 // Bos Cyo, 2026-10-10: order percetakan dari WA jadi task (mesin + nomor antrian), dan
@@ -498,4 +502,136 @@ test('Twilio WhatsApp: tanda tangan wajib sah, chat + file dari HP jadi order ot
     globalThis.fetch = realFetch;
     sqlite.close();
   }
+});
+
+test('revisi: mesin membuat order, karyawan merevisi -> order lama DIREVISI, order baru langsung antri, keduanya tercatat', async () => {
+  const { sqlite, env } = await setup();
+  try {
+    const hasil = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500010', text: 'mas cetak banner 3x1 2 lembar ya', ...pdf('banner.pdf') } });
+    const asal = hasil.body.otomatis.created;
+    // Pelanggan menyusul minta laminating -> antrian menandai "ada chat baru".
+    await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500010', text: 'di laminating sekalian' } });
+    let antri = (await call(env, '/api/percetakan/antrian', { token: 'kasir-token' })).body.machines;
+    assert.equal(antri[0].tickets[0].hasNewChat, true);
+
+    const detail = (await call(env, `/api/percetakan/orders/${asal.orderId}`, { token: 'kasir-token' })).body;
+    assert.equal(detail.canRevise, true);
+    const products = (await call(env, '/api/percetakan/setup')).body.products;
+    const flx440 = products.find(p => p.code === 'FLX440');
+    const revisi = await call(env, `/api/percetakan/orders/${asal.orderId}/revisi`, {
+      token: 'kasir-token', method: 'POST',
+      body: { items: [{ ...detail.rawItems[0], productId: flx440.id, note: 'laminating doff' }], note: 'pelanggan minta bahan korcin + laminating' }
+    });
+    assert.equal(revisi.status, 201, JSON.stringify(revisi.body));
+
+    const lama = (await call(env, `/api/percetakan/orders/${asal.orderId}`)).body;
+    const baru = (await call(env, `/api/percetakan/orders/${revisi.body.orderId}`)).body;
+    assert.equal(lama.order.status, 'DIREVISI');
+    assert.equal(lama.revisedTo.order_no, revisi.body.orderNo);
+    assert.equal(lama.canRevise, false);
+    assert.equal(lama.verification.ok, true);
+    assert.deepEqual(lama.events.map(e => [e.eventType, e.actorRole]), [['DIBUAT', 'SYSTEM'], ['DIREVISI', 'CASHIER']]);
+    assert.equal(baru.order.status, 'BARU');
+    assert.equal(baru.revisedFrom.id, asal.orderId);
+    assert.equal(baru.order.totalText, 'Rp168.000'); // 3x1 m x 2 @ Rp28.000, harga dari master
+    assert.match(baru.events[0].note, /Revisi dari CTK-/);
+    assert.equal(baru.verification.ok, true);
+
+    antri = (await call(env, '/api/percetakan/antrian', { token: 'kasir-token' })).body.machines;
+    assert.deepEqual(antri.flatMap(m => m.tickets.map(t => [t.orderNo, t.revised])), [[revisi.body.orderNo, true]]);
+    // Order yang sudah direvisi tidak bisa direvisi atau diubah statusnya lagi.
+    assert.equal((await call(env, `/api/percetakan/orders/${asal.orderId}/revisi`, { token: 'kasir-token', method: 'POST', body: { items: detail.rawItems } })).status, 409);
+    assert.equal((await call(env, `/api/percetakan/orders/${asal.orderId}/status`, { token: 'kasir-token', method: 'POST', body: { toStatus: 'SIAP_CETAK' } })).status, 409);
+  } finally { sqlite.close(); }
+});
+
+test('balas chat: karyawan membalas dari Layar Cetak, tercatat atas namanya; gagal 24 jam juga tercatat', async () => {
+  const { sqlite, env } = await setup();
+  const realFetch = globalThis.fetch;
+  try {
+    await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500020', name: 'Bu Rina', text: 'kak bisa cetak brosur?' } });
+    // Simulator: balasan tercatat tanpa keluar ke WhatsApp.
+    assert.equal((await call(env, '/api/percetakan/wa/balas', { token: 'kasir-token', method: 'POST', body: { toNumber: '6281234500020', text: 'Bisa kak, kirim filenya ya' } })).status, 201);
+    let chat = (await call(env, '/api/percetakan/inbox', { token: 'kasir-token' })).body.conversations[0];
+    assert.deepEqual(chat.messages.map(m => [m.direction, m.text]), [['IN', 'kak bisa cetak brosur?'], ['OUT', 'Bisa kak, kirim filenya ya']]);
+    assert.equal(chat.messages[1].senderName, 'Andi');
+    assert.throws(() => sqlite.prepare("UPDATE wa_outbound_messages SET body_text = 'x'").run(), /append-only/);
+
+    // WhatsApp sungguhan (Meta): sukses lalu ditolak karena lewat 24 jam.
+    sqlite.prepare("INSERT INTO wa_channels (id, store_id, provider, phone_number_id) VALUES ('wach_meta', 'store_cetak01', 'META_CLOUD', '999')").run();
+    env.WA_ACCESS_TOKEN = 'tok';
+    const kiriman = [];
+    let tolak = false;
+    globalThis.fetch = async (url, init) => {
+      kiriman.push([String(url), JSON.parse(init.body)]);
+      return tolak
+        ? new Response(JSON.stringify({ error: { code: 131047, message: 'Re-engagement message' } }), { status: 400 })
+        : new Response(JSON.stringify({ messages: [{ id: 'wamid.balas1' }] }), { status: 200 });
+    };
+    assert.equal((await call(env, '/api/percetakan/wa/balas', { method: 'POST', body: { toNumber: '081234500020', text: 'Total Rp60.000 ya kak' } })).status, 201);
+    assert.equal(kiriman[0][0], 'https://graph.facebook.com/v21.0/999/messages');
+    assert.deepEqual(kiriman[0][1], { messaging_product: 'whatsapp', recipient_type: 'individual', to: '6281234500020', type: 'text', text: { preview_url: false, body: 'Total Rp60.000 ya kak' } });
+    tolak = true;
+    const gagal = await call(env, '/api/percetakan/wa/balas', { method: 'POST', body: { toNumber: '081234500020', text: 'Halo kak' } });
+    assert.equal(gagal.status, 502);
+    assert.match(gagal.body.error, /24 jam/);
+    chat = (await call(env, '/api/percetakan/inbox', { token: 'kasir-token' })).body.conversations[0];
+    const terakhir = chat.messages[chat.messages.length - 1];
+    assert.equal(terakhir.failed, true);
+    assert.equal(terakhir.senderName, 'Bos');
+  } finally {
+    globalThis.fetch = realFetch;
+    sqlite.close();
+  }
+});
+
+test('Log Mesin: file dari antrian tercatat otomatis; file di luar antrian boleh tapi ditandai dan diberi catatan', async () => {
+  const { sqlite, env } = await setup();
+  try {
+    await call(env, '/api/percetakan/settings', { method: 'POST', body: { mode: 'LANGSUNG_CETAK' } });
+    const outdoor = (await call(env, '/api/percetakan/setup')).body.machines.find(m => m.code === 'OUTDOOR');
+    const kunci = (await call(env, `/api/percetakan/machines/${outdoor.id}/kunci`, { method: 'POST' })).body.key;
+    const isiPdf = '%PDF backdrop.pdf';
+    const hasil = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: '081234500030', text: 'banner korcin 2x1 3 lembar', ...pdf('backdrop.pdf') } });
+    const agen = (path, method = 'GET', body) => handlePercetakanApi(new Request(`https://example.test${path}`, {
+      method, headers: { Authorization: `Bearer ${kunci}`, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined
+    }), env, path);
+    const tugas = await (await agen('/api/percetakan/agen/tugas')).json();
+    assert.equal((await agen(`/api/percetakan/agen/tugas/${tugas.tasks[0].ticketId}/terkirim`, 'POST')).status, 200);
+
+    const sha = createHash('sha256').update(isiPdf).digest('hex');
+    assert.equal((await agen('/api/percetakan/agen/luar-antrian', 'POST', { fileName: 'cetak-ulang.pdf', sha256: sha, sizeBytes: 17, detectedAt: '2026-10-12T05:00:00Z' })).status, 201);
+    assert.equal((await agen('/api/percetakan/agen/luar-antrian', 'POST', { fileName: 'undangan-pribadi.pdf' })).status, 201);
+
+    let jobs = (await call(env, '/api/percetakan/log-mesin', { token: 'kasir-token' })).body.jobs;
+    const dariAntrian = jobs.find(j => j.source === 'ANTRIAN');
+    assert.equal(dariAntrian.orderNo, hasil.body.otomatis.created.orderNo);
+    assert.equal(dariAntrian.queueNo, 1);
+    assert.equal(dariAntrian.sha256, sha);
+    const ulang = jobs.find(j => j.fileName === 'cetak-ulang.pdf');
+    assert.equal(ulang.source, 'LUAR_ANTRIAN');
+    assert.equal(ulang.orderNo, hasil.body.otomatis.created.orderNo, 'isi sama dengan file order -> ordernya ditautkan');
+    const pribadi = jobs.find(j => j.fileName === 'undangan-pribadi.pdf');
+    assert.equal(pribadi.orderId, null);
+
+    assert.equal((await call(env, `/api/percetakan/log-mesin/${pribadi.id}/catatan`, { token: 'kasir-token', method: 'POST', body: { note: '' } })).status, 400);
+    assert.equal((await call(env, `/api/percetakan/log-mesin/${pribadi.id}/catatan`, { token: 'kasir-token', method: 'POST', body: { note: 'cetak contoh untuk pelanggan walk-in' } })).status, 201);
+    jobs = (await call(env, '/api/percetakan/log-mesin')).body.jobs;
+    assert.equal(jobs.find(j => j.id === pribadi.id).notes[0].note, 'cetak contoh untuk pelanggan walk-in');
+    assert.throws(() => sqlite.prepare('DELETE FROM print_machine_jobs').run(), /append-only/);
+    assert.throws(() => sqlite.prepare("UPDATE print_machine_job_notes SET note = 'x'").run(), /append-only/);
+  } finally { sqlite.close(); }
+});
+
+test('agen cetak: file baru di hot folder yang bukan dari agen terdeteksi sekali saja', async () => {
+  const folder = mkdtempSync(gabung(tmpdir(), 'hotfolder-'));
+  try {
+    tulis(gabung(folder, 'lama.pdf'), 'x');
+    const dikenal = new Set(['lama.pdf', 'CTK-1_antrian-1_1x_a.pdf']);
+    tulis(gabung(folder, 'CTK-1_antrian-1_1x_a.pdf'), 'y');
+    tulis(gabung(folder, 'manual.pdf'), 'z');
+    tulis(gabung(folder, 'proses.pdf.sebagian'), 'w');
+    assert.deepEqual(await fileBaruDiFolder(folder, dikenal), ['manual.pdf']);
+    assert.deepEqual(await fileBaruDiFolder(folder, dikenal), []);
+  } finally { rmSync(folder, { recursive: true, force: true }); }
 });

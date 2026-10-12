@@ -306,6 +306,77 @@ export async function terimaWebhookTwilio(request, env, { waitUntil } = {}) {
   return kosong();
 }
 
+// --- Balasan karyawan ke pelanggan (ADR-055 D10) ------------------------------------------------
+// Bos Cyo, 2026-10-12: "aku mau demo karyawan bisa sambil balas chat nya juga". Nomor yang tersambung
+// Cloud API tidak bisa dibuka di aplikasi WA biasa, jadi balasan dikirim dari Layar Cetak. Setiap
+// balasan dicatat (wa_outbound_messages), terkirim maupun gagal.
+
+const ALASAN_GAGAL_META = {
+  131047: 'Sudah lewat 24 jam sejak pelanggan terakhir chat. Tunggu pelanggan chat lagi dulu.',
+  131030: 'Nomor ini belum terdaftar sebagai penerima uji di Meta (nomor uji hanya bisa membalas ke nomor yang didaftarkan).',
+  131026: 'Pesan tidak bisa diantar ke nomor ini (nomor tidak memakai WhatsApp atau memblokir).',
+  190: 'Token WhatsApp kedaluwarsa. Pasang token baru (WA_ACCESS_TOKEN).'
+};
+
+async function catatKeluar(db, row) {
+  const id = `wao_${crypto.randomUUID()}`;
+  await db.prepare(`
+    INSERT INTO wa_outbound_messages (id, store_id, channel_id, provider, to_number, body_text, status, provider_message_id,
+      error, sent_by_role, sent_by_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, row.storeId, row.channelId, row.provider, row.to, row.body, row.status, row.providerMessageId || null,
+    // Jam dari Worker, sama dengan sent_at pesan masuk, supaya urutan linimasa chat konsisten.
+    row.error || '', row.actor.role, row.actor.id, new Date().toISOString()).run();
+  return id;
+}
+
+/** Kirim balasan teks ke pelanggan dari saluran WA aktif gerai. Mengembalikan { ok, status?, error? }. */
+export async function kirimBalasan(env, { storeId, toNumber, body, actor }, { fetchImpl = fetch } = {}) {
+  const db = env.DB;
+  const to = normalizePhone(toNumber);
+  const pesan = text(body, 4000);
+  if (!to) return { ok: false, status: 400, error: 'Nomor pelanggan tidak valid.' };
+  if (!pesan) return { ok: false, status: 400, error: 'Isi balasan masih kosong.' };
+  const channel = await db.prepare(`
+    SELECT * FROM wa_channels WHERE store_id = ? AND is_active = 1
+    ORDER BY CASE provider WHEN 'META_CLOUD' THEN 0 WHEN 'SIMULATOR' THEN 1 ELSE 2 END LIMIT 1
+  `).bind(storeId).first();
+  if (!channel) return { ok: false, status: 409, error: 'Gerai ini belum punya saluran WhatsApp aktif.' };
+  const base = { storeId, channelId: channel.id, provider: channel.provider, to, body: pesan, actor };
+
+  // Simulator: tidak ada yang dikirim keluar, tapi tetap tercatat supaya alur demo lengkap.
+  if (channel.provider === 'SIMULATOR') {
+    await catatKeluar(db, { ...base, status: 'TERKIRIM' });
+    return { ok: true, simulated: true };
+  }
+  if (channel.provider !== 'META_CLOUD') {
+    return { ok: false, status: 409, error: 'Balasan dari layar ini baru tersedia untuk WhatsApp Cloud API (Meta).' };
+  }
+  if (!env?.WA_ACCESS_TOKEN) return { ok: false, status: 503, error: 'Token WhatsApp (WA_ACCESS_TOKEN) belum dipasang.' };
+
+  let data = null;
+  let okKirim = false;
+  try {
+    const response = await fetchImpl(`${GRAPH_API_BASE}/${encodeURIComponent(channel.phone_number_id)}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.WA_ACCESS_TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body: pesan } })
+    });
+    data = await response.json().catch(() => null);
+    okKirim = response.ok && Boolean(data?.messages?.[0]?.id);
+  } catch (error) {
+    console.error('percetakan: kirim balasan WA gagal', { error: String(error) });
+  }
+  if (okKirim) {
+    await catatKeluar(db, { ...base, status: 'TERKIRIM', providerMessageId: text(data.messages[0].id, 200) });
+    return { ok: true };
+  }
+  const code = Number(data?.error?.code);
+  const alasan = ALASAN_GAGAL_META[code] || 'WhatsApp menolak mengirim balasan ini. Coba lagi sebentar.';
+  await catatKeluar(db, { ...base, status: 'GAGAL', error: `${Number.isFinite(code) ? `[${code}] ` : ''}${alasan}`.slice(0, 300) });
+  return { ok: false, status: 502, error: alasan };
+}
+
 /** Simulator: pesan buatan untuk uji alur. Pemanggil sudah dicek Owner/Admin oleh API. */
 export async function simulasiPesan(env, storeId, body) {
   const db = env.DB;

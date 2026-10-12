@@ -10,7 +10,8 @@
   };
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const STATUS_LABEL = { BARU: 'Baru', DESAIN: 'Desain', SIAP_CETAK: 'Siap cetak', DICETAK: 'Dicetak', FINISHING: 'Finishing', SIAP_AMBIL: 'Siap diambil', DIAMBIL: 'Diambil', BATAL: 'Batal' };
+  const STATUS_LABEL = { BARU: 'Baru', DESAIN: 'Desain', SIAP_CETAK: 'Siap cetak', DICETAK: 'Dicetak', FINISHING: 'Finishing', SIAP_AMBIL: 'Siap diambil', DIAMBIL: 'Diambil', BATAL: 'Batal', DIREVISI: 'Direvisi' };
+  const ROLE_LABEL = { CASHIER: 'Karyawan', ADMIN: 'Admin', ENTITY_ADMIN: 'Admin', OWNER: 'Pemilik', SYSTEM: 'Sistem otomatis', MESIN: 'Mesin' };
   let setup = null;
   // ?mesin=OUTDOOR -> layar khusus satu mesin (tablet di samping mesin).
   let mesinDipilih = new URLSearchParams(location.search).get('mesin') || '';
@@ -85,7 +86,12 @@
             <button class="secondary-btn" data-manual="${esc(conv.fromNumber)}" ${conv.unprocessed ? '' : 'disabled'} type="button">Isi manual</button>
           </div>
         </div>
-        <ul class="chat">${conv.messages.map(m => `
+        <ul class="chat">${conv.messages.map(m => m.direction === 'OUT' ? `
+          <li class="out${m.failed ? ' failed' : ''}">
+            <span class="muted">${esc(new Date(m.sentAt).toLocaleString('id-ID'))} · dibalas ${esc(m.senderName || ROLE_LABEL[m.senderRole] || '')}</span>
+            <div>${esc(m.text)}</div>
+            ${m.failed ? `<span class="status-chip bad">Gagal terkirim: ${esc(m.error)}</span>` : ''}
+          </li>` : `
           <li class="${m.processed ? 'done' : ''}">
             <span class="muted">${esc(new Date(m.sentAt).toLocaleString('id-ID'))}</span>
             ${m.simulated ? '<span class="status-chip warn">SIMULASI</span>' : ''}
@@ -97,6 +103,10 @@
             </div>` : ''}
           </li>`).join('')}
         </ul>
+        <div class="balas">
+          <textarea class="text-input" rows="2" id="balas-${esc(conv.fromNumber)}" placeholder="Balas ke ${esc(conv.fromName || conv.fromNumber)}…"></textarea>
+          <button class="primary-btn" data-balas="${esc(conv.fromNumber)}" type="button">Kirim</button>
+        </div>
       </div>`).join('') : '<p class="muted">Belum ada chat masuk 7 hari terakhir.</p>');
     if (!setup.aiReady) tampilPesan('Una belum tersambung ke mesin AI, pakai "Isi manual" dulu.');
 
@@ -126,6 +136,16 @@
       pindahTab('draft');
     })));
     $('tab-masuk').querySelectorAll('[data-file]').forEach(b => b.addEventListener('click', () => unduhFile(b.dataset.file, b.dataset.name)));
+    // Balasan dikirim lewat WhatsApp dari layar ini dan tercatat atas nama karyawan yang login.
+    $('tab-masuk').querySelectorAll('[data-balas]').forEach(b => b.addEventListener('click', () => jalankan(async () => {
+      const box = document.getElementById(`balas-${b.dataset.balas}`);
+      if (!box.value.trim()) return;
+      b.disabled = true;
+      try {
+        await api('/api/percetakan/wa/balas', { method: 'POST', body: { toNumber: b.dataset.balas, text: box.value } });
+        await renderMasuk();
+      } finally { b.disabled = false; }
+    })));
     $('tab-masuk').querySelectorAll('[data-ulang]').forEach(b => b.addEventListener('click', () => jalankan(async () => {
       await api(`/api/percetakan/files/${encodeURIComponent(b.dataset.ulang)}/ulang`, { method: 'POST' });
       await renderMasuk();
@@ -211,6 +231,8 @@
             <span class="status-chip">${esc(STATUS_LABEL[t.status] || t.status)}</span>
             ${t.automatic ? '<span class="status-chip warn">otomatis</span>' : ''}
             ${t.dispatchedAt ? '<span class="status-chip">sudah di mesin</span>' : ''}
+            ${t.revised ? '<span class="status-chip">hasil revisi</span>' : ''}
+            ${t.hasNewChat ? '<span class="status-chip bad">ada chat baru, cek dulu</span>' : ''}
             <div class="muted">${esc(t.orderNo)} · ${esc(t.customerName || t.customerPhone)} · ${esc(t.businessDate)}${t.dueAt ? ` · tenggat ${esc(t.dueAt)}` : ''}</div>
             ${t.note ? `<div class="muted">${esc(t.note)}</div>` : ''}
           </div>
@@ -268,6 +290,8 @@
       <div class="master-row"><h1>${esc(o.orderNo)}</h1><button class="mini-btn" data-tutup type="button">Tutup</button></div>
       <p>${esc(o.customerName || '')} · ${esc(o.customerPhone)} · <strong>${esc(o.totalText)}</strong>
         <span class="status-chip">${esc(STATUS_LABEL[o.status] || o.status)}</span></p>
+      ${d.revisedFrom ? `<p class="muted">Revisi dari <button class="mini-btn" data-buka="${esc(d.revisedFrom.id)}" type="button">${esc(d.revisedFrom.order_no)}</button></p>` : ''}
+      ${d.revisedTo ? `<p class="notice">Order ini sudah direvisi menjadi <button class="mini-btn" data-buka="${esc(d.revisedTo.id)}" type="button">${esc(d.revisedTo.order_no)}</button></p>` : ''}
       ${d.verification.ok ? '<p class="status-chip">Riwayat utuh, tidak ada yang diubah</p>'
         : `<div class="notice bad"><strong>Riwayat order ini tidak cocok:</strong><ul>${d.verification.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul></div>`}
       <table><tr><th>Item</th><th>Mesin</th><th>Antrian</th><th>Subtotal</th></tr>
@@ -276,10 +300,34 @@
       </table>
       ${o.nextStatuses.length ? `<div class="actions">${o.nextStatuses.map(s => `<button class="${s === 'BATAL' ? 'secondary-btn' : 'primary-btn'}" data-status="${s}" type="button">${s === 'BATAL' ? 'Batalkan' : `Jadikan: ${STATUS_LABEL[s]}`}</button>`).join('')}</div>
         <input class="text-input" id="catatan-status" placeholder="Catatan (wajib untuk pembatalan)" />` : ''}
+      ${d.canRevise ? `<div class="actions"><button class="secondary-btn" data-revisi type="button">Revisi order</button></div>
+        <div id="form-revisi" hidden>
+          <h2>Revisi order</h2>
+          <p class="muted">Order ini ditutup sebagai "Direvisi" dan order baru langsung masuk antrian. Keduanya tercatat atas nama Anda.</p>
+          <div data-items>${(d.rawItems.length ? d.rawItems : [{}]).map(barisItem).join('')}</div>
+          <div class="actions"><button class="secondary-btn" data-tambah type="button">+ Item</button></div>
+          <input class="text-input" id="alasan-revisi" placeholder="Alasan revisi, mis. pelanggan minta laminating" />
+          <div class="actions"><button class="primary-btn" data-simpan-revisi type="button">Simpan revisi</button></div>
+        </div>` : ''}
       <h2>Riwayat</h2>
-      <table>${d.events.map(e => `<tr><td>${esc(new Date(e.createdAt).toLocaleString('id-ID'))}</td><td>${esc(STATUS_LABEL[e.toStatus] || e.toStatus)}</td><td>${esc(e.actorRole)} ${esc(e.actorId)}</td><td>${esc(e.note)}</td></tr>`).join('')}</table>`;
+      <table>${d.events.map(e => `<tr><td>${esc(new Date(e.createdAt).toLocaleString('id-ID'))}</td><td>${esc(e.eventType === 'DIKIRIM_KE_MESIN' ? 'Masuk mesin' : STATUS_LABEL[e.toStatus] || e.toStatus)}</td><td>${esc(ROLE_LABEL[e.actorRole] || e.actorRole)} ${esc(e.actorRole === 'SYSTEM' ? '' : e.actorId)}</td><td>${esc(e.note)}</td></tr>`).join('')}</table>`;
     const dialog = $('dialog-order');
     dialog.querySelector('[data-tutup]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-buka]').forEach(b => b.addEventListener('click', () => jalankan(() => bukaOrder(b.dataset.buka))));
+    dialog.querySelector('[data-revisi]')?.addEventListener('click', () => { $('form-revisi').hidden = false; });
+    dialog.querySelector('[data-tambah]')?.addEventListener('click', () => dialog.querySelector('[data-items]').insertAdjacentHTML('beforeend', barisItem()));
+    $('form-revisi')?.addEventListener('click', event => { if (event.target.matches('[data-hapus]')) event.target.closest('.item-row').remove(); });
+    dialog.querySelector('[data-simpan-revisi]')?.addEventListener('click', () => jalankan(async () => {
+      const items = [...dialog.querySelectorAll('#form-revisi .item-row')].map(row => {
+        const item = {};
+        row.querySelectorAll('[data-k]').forEach(input => { item[input.dataset.k] = input.value; });
+        return { productId: item.productId, qty: Number(item.qty), widthCm: Number(item.widthCm) || null, heightCm: Number(item.heightCm) || null, note: item.note, fileId: item.fileId || null };
+      });
+      const hasil = await api(`/api/percetakan/orders/${encodeURIComponent(orderId)}/revisi`, { method: 'POST', body: { items, note: $('alasan-revisi').value } });
+      tampilPesan(`${o.orderNo} direvisi menjadi ${hasil.orderNo} dan langsung masuk antrian.`);
+      await bukaOrder(hasil.orderId);
+      await renderTab(tabAktif);
+    }));
     dialog.querySelectorAll('[data-status]').forEach(b => b.addEventListener('click', () => jalankan(async () => {
       await api(`/api/percetakan/orders/${encodeURIComponent(orderId)}/status`, { method: 'POST', body: { toStatus: b.dataset.status, note: $('catatan-status')?.value || '' } });
       await bukaOrder(orderId);
@@ -367,7 +415,32 @@
   }
 
   // --- Navigasi ---------------------------------------------------------------------------------
-  const RENDER = { masuk: renderMasuk, draft: renderDraft, antrian: renderAntrian, order: renderOrder, atur: renderAtur };
+  // --- Log Mesin: semua file yang masuk mesin (Bos Cyo 2026-10-12) ---------------------------------
+  async function renderLog() {
+    const { jobs } = await api('/api/percetakan/log-mesin');
+    $('tab-log').innerHTML = `<p class="muted">Setiap file yang masuk mesin tercatat di sini. File di luar antrian boleh, tapi wajib diberi catatan.</p>`
+      + (jobs.length ? jobs.map(j => `
+        <div class="admin-card${j.source === 'LUAR_ANTRIAN' && !j.notes.length ? ' flag' : ''}">
+          <div class="master-row">
+            <div class="master-main">
+              <strong>${esc(j.fileName || 'file')}</strong>
+              ${j.source === 'ANTRIAN' ? '<span class="status-chip">dari antrian</span>' : '<span class="status-chip bad">di luar antrian</span>'}
+              <div class="muted">${esc(j.machineName)} · ${esc(new Date(j.detectedAt).toLocaleString('id-ID'))}${j.orderNo ? ` · ${esc(j.orderNo)}${j.queueNo ? ` antrian #${esc(j.queueNo)}` : ''}` : ''}${j.sha256 ? ` · sidik ${esc(j.sha256.slice(0, 10))}` : ''}</div>
+              ${j.source === 'LUAR_ANTRIAN' && j.orderNo ? `<div class="muted">Isinya sama persis dengan file order ${esc(j.orderNo)}.</div>` : ''}
+              ${j.notes.map(n => `<div class="notice">${esc(n.note)} <span class="muted">— ${esc(ROLE_LABEL[n.actorRole] || n.actorRole)}, ${esc(new Date(n.createdAt).toLocaleString('id-ID'))}</span></div>`).join('')}
+            </div>
+            ${j.orderId ? `<button class="mini-btn" data-order="${esc(j.orderId)}" type="button">Buka order</button>` : ''}
+          </div>
+          ${j.source === 'LUAR_ANTRIAN' ? `<div class="balas"><input class="text-input" id="catat-${esc(j.id)}" placeholder="Kenapa dicetak di luar antrian? mis. cetak ulang karena salah warna" /><button class="secondary-btn" data-catat="${esc(j.id)}" type="button">Simpan catatan</button></div>` : ''}
+        </div>`).join('') : '<p class="muted">Belum ada file yang masuk mesin lewat agen cetak.</p>');
+    pasangTombolOrder($('tab-log'));
+    $('tab-log').querySelectorAll('[data-catat]').forEach(b => b.addEventListener('click', () => jalankan(async () => {
+      await api(`/api/percetakan/log-mesin/${encodeURIComponent(b.dataset.catat)}/catatan`, { method: 'POST', body: { note: document.getElementById(`catat-${b.dataset.catat}`).value } });
+      await renderLog();
+    })));
+  }
+
+  const RENDER = { masuk: renderMasuk, draft: renderDraft, antrian: renderAntrian, order: renderOrder, log: renderLog, atur: renderAtur };
   let tabAktif = 'masuk';
   const renderTab = name => jalankan(() => RENDER[name]());
   function pindahTab(name) {

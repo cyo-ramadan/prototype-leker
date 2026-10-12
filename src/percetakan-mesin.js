@@ -7,7 +7,7 @@
 //
 // Kunci mesin hanya bisa: melihat tugas mesin itu, mengunduh file tugas itu, dan melapor terkirim.
 // Tidak bisa membaca order lain, mengubah harga, atau membatalkan.
-import { json } from './http.js';
+import { json, readJson } from './http.js';
 import { STATUS, catatEvent, percetakanAktif, sha256Hex, ubahStatus } from './percetakan.js';
 import { r2Bucket } from './percetakan-wa.js';
 
@@ -70,7 +70,7 @@ async function tugasMesin(db, machine) {
 
 async function ticketMesin(db, machine, ticketId) {
   return db.prepare(`
-    SELECT t.*, i.order_id, f.r2_key, f.mime, f.file_name, o.status AS order_status
+    SELECT t.*, i.order_id, f.r2_key, f.mime, f.file_name, f.sha256, f.size_bytes, o.status AS order_status
     FROM print_queue_tickets t
     JOIN print_order_items i ON i.id = t.order_item_id
     JOIN print_orders o ON o.id = i.order_id
@@ -90,7 +90,13 @@ async function tandaiTerkirim(db, machine, ticket, now = new Date()) {
   }, {
     now,
     extraStatements: [
-      db.prepare('UPDATE print_queue_tickets SET dispatched_at = ? WHERE id = ? AND machine_id = ? AND dispatched_at IS NULL').bind(sentAt, ticket.id, machine.id)
+      db.prepare('UPDATE print_queue_tickets SET dispatched_at = ? WHERE id = ? AND machine_id = ? AND dispatched_at IS NULL').bind(sentAt, ticket.id, machine.id),
+      // Log Mesin: file dari antrian yang masuk mesin (Bos Cyo 2026-10-12).
+      db.prepare(`
+        INSERT INTO print_machine_jobs (id, store_id, machine_id, source, ticket_id, order_id, file_name, sha256, size_bytes, detected_at)
+        VALUES (?, ?, ?, 'ANTRIAN', ?, ?, ?, ?, ?, ?)
+      `).bind(`pmj_${crypto.randomUUID()}`, machine.store_id, machine.id, ticket.id, ticket.order_id, ticket.file_name || '',
+        ticket.sha256 || null, ticket.size_bytes ?? null, sentAt)
     ]
   });
   if (!logged.ok) return json({ error: logged.error }, logged.status);
@@ -119,6 +125,29 @@ export async function handleAgenApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/percetakan/agen/tugas') {
     return json({ machine: { code: machine.code, name: machine.name }, tasks: await tugasMesin(db, machine) });
+  }
+
+  // File yang muncul di mesin TANPA lewat antrian (mis. ditaruh operator sendiri di hot folder).
+  // Boleh, tapi tercatat sebagai LUAR_ANTRIAN dan menunggu catatan alasan dari operator.
+  if (request.method === 'POST' && pathname === '/api/percetakan/agen/luar-antrian') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+    const fileName = String(body.value?.fileName ?? '').trim().slice(0, 200);
+    const sha256 = /^[0-9a-f]{64}$/.test(String(body.value?.sha256 || '')) ? body.value.sha256 : null;
+    const sizeBytes = Number.isSafeInteger(Number(body.value?.sizeBytes)) ? Number(body.value.sizeBytes) : null;
+    const detectedAt = Number.isFinite(Date.parse(body.value?.detectedAt)) ? new Date(body.value.detectedAt).toISOString() : new Date().toISOString();
+    if (!fileName) return json({ error: 'Nama file wajib ada.' }, 400);
+    // Kalau isinya sama persis dengan file salah satu order, catat order itu supaya mudah dicocokkan.
+    const sama = sha256 ? await db.prepare(`
+      SELECT i.order_id FROM print_files f JOIN print_order_items i ON i.file_id = f.id
+      WHERE f.store_id = ? AND f.sha256 = ? ORDER BY f.created_at DESC LIMIT 1
+    `).bind(machine.store_id, sha256).first() : null;
+    const id = `pmj_${crypto.randomUUID()}`;
+    await db.prepare(`
+      INSERT INTO print_machine_jobs (id, store_id, machine_id, source, order_id, file_name, sha256, size_bytes, detected_at)
+      VALUES (?, ?, ?, 'LUAR_ANTRIAN', ?, ?, ?, ?, ?)
+    `).bind(id, machine.store_id, machine.id, sama?.order_id ?? null, fileName, sha256, sizeBytes, detectedAt).run();
+    return json({ ok: true, id, matchedOrder: Boolean(sama) }, 201);
   }
 
   const match = pathname.match(/^\/api\/percetakan\/agen\/tugas\/([^/]+)\/(file|terkirim)$/);

@@ -39,6 +39,16 @@ dengan folder dan kunci masing-masing.
 
 Uji sekali tanpa menunggu: `$env:AGEN_SEKALI = "1"`.
 
+## Log Mesin: file di luar antrian
+
+Setiap putaran, agen memeriksa hot folder. File yang muncul **bukan dari agen** (misalnya operator
+menaruh file sendiri untuk cetak ulang) dilaporkan ke server sebagai **"di luar antrian"**, lengkap
+dengan sidik SHA-256. Cetakan seperti itu tetap boleh, tetapi tercatat, dan operator wajib mengisi
+alasannya di Layar Cetak → **Log Mesin**. Isi folder saat agen mulai dianggap sudah ada sebelumnya,
+jadi tidak dilaporkan.
+
+Batas: file yang dibuka langsung dari dalam software RIP tanpa lewat folder tidak terlihat oleh agen.
+
 ## Pagar
 
 - Sidik file (SHA-256) dicek sebelum dicetak. Kalau tidak sama dengan catatan server, file tidak

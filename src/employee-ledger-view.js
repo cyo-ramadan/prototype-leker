@@ -1,6 +1,10 @@
 import { json } from './http.js';
 import { entityAdminFromRequest } from './owner-auth.js';
 import { AKUN_HUTANG_GAJI, AKUN_PIUTANG_KARYAWAN, operasionalPerGerai, riwayatDariBuku } from './riwayat-dari-buku.js';
+import { loadJobDetail, loadSchedule } from './cashier-auth.js';
+import { scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js';
+import { listPayrollAdjustments } from './payroll-adjustments.js';
+import { resolveTenantId, getTenantPolicySetting, ATTENDANCE_SCHEDULE_GATE_KEY } from './tenant-policy.js';
 
 // Bos Cyo, 2026-10-06: "didalam tombol karyawan entity admin itu tambahin untuk cek saldo
 // piutang/setoran dari karyawan tersebut, terlihat jika satu karyawan tadi tertaut dengan 2 atau
@@ -14,7 +18,10 @@ import { AKUN_HUTANG_GAJI, AKUN_PIUTANG_KARYAWAN, operasionalPerGerai, riwayatDa
 //   Keduanya ditambah jurnal Akuntansi di luar fakta operasional yang menyebut namanya, dan saldonya
 //   saldo menurut buku (ADR-054, src/riwayat-dari-buku.js).
 //             Akun asal setoran = kasir pemegang laci (cash_drawer_sessions.cashier_id).
-//   Gaji    : payroll_ledger_entries milik karyawan ini atau akun-akun tertautnya.
+//   Gaji    : payroll_ledger_entries milik karyawan ini atau akun-akun tertautnya, DITAMBAH sumber
+//             yang sama dengan Riwayat Gaji Portal Staf (Bos Cyo, 2026-10-12: "riwayat gaji di
+//             entity admin engga kebaca"): gaji dari presensi (dihitung ulang dari presensi + tarif)
+//             yang belum punya baris ACCRUAL di ledger, dan Penyesuaian Gaji Admin (payroll_adjustments).
 // Saldo dihitung berurutan waktu; boleh negatif (invariant #8).
 
 const SCALE = 1_000_000;
@@ -98,14 +105,17 @@ async function setoranEntries(db, employeeId, entityId, accounts) {
 async function gajiEntries(db, employeeId, entityId, accounts) {
   const accountIds = accounts.map(account => account.accountId);
   const rows = await db.prepare(`
-    SELECT p.entry_type, p.account_id, p.store_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
+    SELECT p.entry_type, p.source_type, p.source_id, p.voided_at, p.account_id, p.store_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
     FROM payroll_ledger_entries p
     JOIN stores s ON s.id = p.store_id
-    WHERE s.entity_id = ? AND p.voided_at IS NULL AND p.hutang_gaji_delta_scaled <> 0
+    WHERE s.entity_id = ? AND p.hutang_gaji_delta_scaled <> 0
       AND (p.employee_id = ? OR (p.account_type = 'CASHIER' AND p.account_id IN (${inList(accountIds)})))
   `).bind(entityId, employeeId, ...accountIds).all();
   const label = { ACCRUAL: 'Gaji dari presensi', ADJUSTMENT: 'Bea Gaji / penyesuaian', PAYMENT: 'Pembayaran gaji' };
-  return (rows.results ?? []).map(row => ({
+  const ledger = rows.results ?? [];
+  // Termasuk baris yang dibatalkan: sesi presensi yang ACCRUAL-nya dibatalkan tidak dihitung ulang.
+  const ledgerAttendanceIds = new Set(ledger.filter(row => row.source_type === 'ATTENDANCE').map(row => row.source_id));
+  const entries = ledger.filter(row => !row.voided_at).map(row => ({
     at: row.created_at || `${row.business_date}T00:00:00.000Z`,
     businessDate: row.business_date,
     kind: row.entry_type,
@@ -117,6 +127,49 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
     status: 'POSTED',
     note: row.description || ''
   }));
+  // Portal Staf menghitung gaji dari presensi tiap kali dibuka; ledger hanya terisi untuk sesi yang
+  // ditutup lewat presensi pulang setelah migration 0116. Sesi lain (lama, ditutup otomatis) tetap
+  // ditampilkan di sini dari presensi -- tanpa dobel dengan baris ACCRUAL yang sudah ada.
+  if (!accounts.length) return entries;
+  const gate = await getTenantPolicySetting(db, await resolveTenantId(db, entityId), ATTENDANCE_SCHEDULE_GATE_KEY);
+  const storeIdByCode = new Map((await db.prepare('SELECT id, code FROM stores WHERE entity_id = ?').bind(entityId).all()).results?.map(row => [row.code, row.id]) ?? []);
+  for (const account of accounts) {
+    const storeId = storeIdByCode.get(account.storeCode) || null;
+    const jobDetail = await loadJobDetail(db, account.accountId);
+    const scheduleByDay = scheduleMap(await loadSchedule(db, account.accountId));
+    const attendance = jobDetail ? await listAttendance(db, account.accountId, scheduleByDay, gate) : [];
+    for (const row of buildPayroll(attendance, jobDetail, scheduleByDay, gate)) {
+      if (ledgerAttendanceIds.has(row.attendanceId) || !row.earningRupiah) continue;
+      entries.push({
+        at: row.checkOutAt || row.checkInAt,
+        businessDate: row.date,
+        kind: 'ACCRUAL',
+        label: 'Gaji dari presensi',
+        storeId,
+        storeCode: account.storeCode,
+        accountId: account.accountId,
+        amountScaled: Math.round(row.earningRupiah * SCALE),
+        status: 'POSTED',
+        note: row.paymentType === 'SESI' ? 'Per sesi' : `Per jam${row.hoursWorked != null ? ` · ${row.hoursWorked} jam` : ''}`
+      });
+    }
+    if (!storeId) continue;
+    for (const adjustment of await listPayrollAdjustments(db, { accountId: account.accountId, storeId })) {
+      entries.push({
+        at: adjustment.createdAt || `${adjustment.businessDate}T00:00:00.000Z`,
+        businessDate: adjustment.businessDate,
+        kind: 'PENYESUAIAN_ADMIN',
+        label: 'Penyesuaian Gaji dari Admin',
+        storeId,
+        storeCode: account.storeCode,
+        accountId: account.accountId,
+        amountScaled: Math.round(Number(adjustment.amountRupiah || 0) * SCALE),
+        status: adjustment.voided ? 'REJECTED' : 'POSTED',
+        note: adjustment.voided ? `Dibatalkan: ${adjustment.voidReason || ''}` : (adjustment.reason || '')
+      });
+    }
+  }
+  return entries;
 }
 
 export async function buildEmployeeLedger(db, { employeeId, entityId, kind, accountId = '' }) {

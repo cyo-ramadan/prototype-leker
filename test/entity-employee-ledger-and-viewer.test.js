@@ -99,6 +99,35 @@ test('Riwayat Setoran karyawan: semua akun tertaut lintas gerai + filter per aku
   } finally { db.close(); }
 });
 
+// Bos Cyo, 2026-10-12: "riwayat gaji cs di portal entity admin engga kebaca" -- Portal Staf menghitung
+// gaji dari presensi + Penyesuaian Gaji Admin; ledger hanya berisi sesi yang ditutup lewat presensi
+// pulang. Riwayat Hutang Gaji Entity Admin harus membaca sumber yang sama, tanpa dobel.
+test('Riwayat Hutang Gaji: gaji dari presensi + Penyesuaian Gaji Admin ikut tampil, tanpa dobel dengan ledger', async () => {
+  const { db, env } = await setup();
+  try {
+    db.prepare(`INSERT INTO account_job_details (account_type, account_id, hourly_wage_scaled, job_type, payment_type, updated_at) VALUES ('CASHIER', 'kasir_sari_p', 10000000000, '', 'JAM', CURRENT_TIMESTAMP)`).run();
+    const attend = (id, checkIn, checkOut) => db.prepare(`
+      INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at, status, check_out_at)
+      VALUES (?, 'kasir_sari_p', 'store_pendem', 'in', x'00', 'image/jpeg', ?, 'CLOSED', ?)
+    `).run(id, checkIn, checkOut);
+    attend('att_1', '2026-10-04T01:00:00.000Z', '2026-10-04T08:00:00.000Z'); // sudah ada di ledger (acc_1)
+    attend('att_lama', '2026-10-07T01:00:00.000Z', '2026-10-07T04:00:00.000Z'); // 3 jam x 10.000, belum di ledger
+    db.prepare(`
+      INSERT INTO payroll_adjustments (id, account_type, account_id, store_id, business_date, amount_rupiah, reason, created_by_role, created_by_id, created_at)
+      VALUES ('adj_1', 'CASHIER', 'kasir_sari_p', 'store_pendem', '2026-10-08', 15000, 'Lembur', 'ADMIN', 'admin', '2026-10-08T05:00:00.000Z')
+    `).run();
+
+    const gaji = await (await get(env, '/api/entity-admin/employees/emp_sari/ledger?kind=gaji&account=kasir_sari_p')).json();
+    const presensi = gaji.entries.filter(entry => entry.kind === 'ACCRUAL');
+    assert.equal(presensi.length, 2, 'att_1 dari ledger + att_lama dari presensi, att_1 tidak dobel');
+    assert.ok(presensi.some(entry => entry.amountRupiah === 30000 && entry.businessDate === '2026-10-07'));
+    const penyesuaian = gaji.entries.find(entry => entry.kind === 'PENYESUAIAN_ADMIN');
+    assert.equal(penyesuaian.amountRupiah, 15000);
+    assert.equal(penyesuaian.note, 'Lembur');
+    assert.equal(gaji.balanceRupiah, 115000, '70.000 + 30.000 + 15.000');
+  } finally { db.close(); }
+});
+
 test('Portal Staf Mode Lihat: Entity Admin membaca portal akun pilihan, tidak bisa menulis, tidak bisa keluar gerai', async () => {
   const { db, env, other } = await setup();
   try {

@@ -1,0 +1,166 @@
+// Izin CS menunggu ACC -- sisi Entity Admin (Bos Cyo, 2026-10-12: "kasih tombol acc dari permit yang
+// diminta cs di entity admin"). Satu daftar untuk semua gerai di entity ini, empat jenis izin yang
+// diajukan CS: koreksi jam masuk, titik GPS presensi, tutup laci, dan hapus transaksi. ACC/Tolak
+// memakai route per-gerai yang sama dengan Admin Gerai (?store=KODE) -- backend sudah menerima
+// Entity Admin dan memeriksa gerainya milik entity ini, jadi hasilnya identik dengan ACC Admin Gerai.
+// Data dimuat saat tab dibuka atau tombol ditekan, bukan polling (invariant #6).
+(() => {
+  const el = id => document.getElementById(id);
+  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[char]));
+  const money = value => `Rp${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(value) || 0)}`;
+  const waktu = value => value
+    ? `${new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Jakarta' }).format(new Date(value))} WIB`
+    : '-';
+  const SUBJECT_LABEL = { SALE: 'Penjualan', PURCHASE: 'Pembelian Bahan', EXPENSE: 'Pengeluaran Operasional' };
+
+  // Satu baris per jenis izin: route daftar, route keputusan, cara menggambar kartunya.
+  const JENIS = [
+    {
+      kind: 'koreksi',
+      list: '/api/admin/attendance-correction-permits?status=PENDING',
+      decide: id => `/api/admin/attendance-correction-permits/${encodeURIComponent(id)}`,
+      rows: payload => payload.permits || [],
+      judul: () => 'Koreksi jam masuk',
+      orang: permit => permit.requestedByName,
+      diajukan: permit => permit.createdAt,
+      isi: permit => `Jam masuk tercatat <b>${esc(waktu(permit.originalCheckInAt))}</b> → minta jadi <b>${esc(waktu(permit.requestedCheckInAt))}</b>`,
+      alasan: permit => permit.reason,
+      body: (decision, note) => ({ decision, note })
+    },
+    {
+      kind: 'gps',
+      list: '/api/admin/attendance-gps-permits?status=PENDING',
+      decide: id => `/api/admin/attendance-gps-permits/${encodeURIComponent(id)}`,
+      rows: payload => payload.permits || [],
+      judul: permit => `Titik GPS presensi ${permit.which === 'OUT' ? 'pulang' : 'datang'}`,
+      orang: permit => permit.requestedByName,
+      diajukan: permit => permit.createdAt,
+      isi: permit => `Presensi ${esc(waktu(permit.attendanceAt))} · ${permit.originalStatus === 'OUT_OF_RADIUS'
+        ? `di luar radius${permit.overRadiusMeters != null ? ` ${esc(permit.overRadiusMeters)} m` : ''}`
+        : 'lokasi tidak terbaca'}`,
+      alasan: permit => permit.reason,
+      body: (decision, note) => ({ decision, note })
+    },
+    {
+      kind: 'laci',
+      list: '/api/admin/drawer/close-permits?status=PENDING',
+      decide: id => `/api/admin/drawer/close-permits/${encodeURIComponent(id)}`,
+      rows: payload => payload.permits || [],
+      judul: () => 'Tutup laci',
+      orang: permit => permit.requestedByCashierName + (permit.targetCashierName && permit.targetCashierName !== permit.requestedByCashierName ? ` (laci ${permit.targetCashierName})` : ''),
+      diajukan: permit => permit.createdAt,
+      isi: permit => `Uang di laci <b>${esc(money(permit.closingAmount))}</b> · disetor <b>${esc(money(permit.depositAmount))}</b>${permit.closingNote ? ` · ${esc(permit.closingNote)}` : ''}`,
+      alasan: permit => permit.reason,
+      body: (decision, note) => ({ decision, note })
+    },
+    {
+      kind: 'hapus',
+      list: '/api/management/transaction-void-permits?status=pending_approval',
+      decide: id => `/api/management/transaction-void-permits/${encodeURIComponent(id)}`,
+      rows: payload => payload.permits || [],
+      judul: permit => `Hapus transaksi · ${SUBJECT_LABEL[permit.subjectType] || permit.subjectType}`,
+      orang: permit => permit.cashierName || permit.cashierId,
+      diajukan: permit => permit.requestedAt,
+      isi: permit => `<b>${esc(permit.subject?.description || permit.subjectId)}</b> · ${esc(money(permit.subject?.amount))}${permit.subject?.paymentMethod ? ` · ${esc(permit.subject.paymentMethod)}` : ''}`,
+      alasan: permit => permit.reason,
+      body: (decision, note) => ({ decision, note })
+    }
+  ];
+  const byKind = new Map(JENIS.map(jenis => [jenis.kind, jenis]));
+
+  function stores() {
+    return (typeof entityAdminState !== 'undefined' ? entityAdminState.stores : []) || [];
+  }
+
+  function setBadge(count) {
+    const button = document.querySelector('[data-entity-tab="izincs"]');
+    if (button) button.textContent = `🔐 Izin CS${count ? ` ${count}` : ''}`;
+  }
+
+  // Semua izin PENDING dari semua gerai; satu gerai/jenis yang gagal dimuat tidak menghentikan yang lain.
+  async function fetchQueue() {
+    const items = [];
+    const errors = [];
+    await Promise.all(stores().flatMap(store => JENIS.map(async jenis => {
+      try {
+        const separator = jenis.list.includes('?') ? '&' : '?';
+        const payload = await entityAdminApi(`${jenis.list}${separator}store=${encodeURIComponent(store.code)}`);
+        for (const permit of jenis.rows(payload)) items.push({ jenis, permit, storeCode: store.code });
+      } catch (error) {
+        errors.push(`${store.code} · ${jenis.judul({})}: ${error.message}`);
+      }
+    })));
+    items.sort((a, b) => String(a.jenis.diajukan(a.permit) || '').localeCompare(String(b.jenis.diajukan(b.permit) || '')));
+    return { items, errors };
+  }
+
+  function render({ items, errors }) {
+    el('entityIzinCsCount').textContent = items.length;
+    setBadge(items.length);
+    const warning = errors.length ? `<div class="admin-tip" style="margin-bottom:10px">Sebagian izin belum dapat dimuat: ${esc(errors.join(' · '))}</div>` : '';
+    el('entityIzinCsList').innerHTML = warning + (items.length ? items.map(({ jenis, permit, storeCode }) => `
+      <article class="master-row">
+        <div class="master-main">
+          <strong>${esc(jenis.judul(permit))}</strong> <span class="muted">· ${esc(jenis.orang(permit) || '-')} · ${esc(storeCode)}</span>
+          <div class="master-meta">${jenis.isi(permit)}</div>
+          <div class="master-meta"><b>Alasan CS:</b> ${esc(jenis.alasan(permit) || '-')}</div>
+          <div class="master-meta">Diajukan ${esc(waktu(jenis.diajukan(permit)))}</div>
+        </div>
+        <div class="master-actions">
+          <button class="mini-btn" type="button" data-izin-acc="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}" data-info="${esc(`${jenis.judul(permit)} dari ${jenis.orang(permit) || '-'} (${storeCode})`)}">ACC</button>
+          <button class="mini-btn danger" type="button" data-izin-reject="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}">Tolak</button>
+        </div>
+      </article>`).join('') : '<div class="empty">Tidak ada izin CS yang menunggu ACC di gerai mana pun.</div>');
+    document.querySelectorAll('#entityIzinCsList [data-izin-acc]').forEach(button => { button.onclick = () => decide(button, 'ACC'); });
+    document.querySelectorAll('#entityIzinCsList [data-izin-reject]').forEach(button => { button.onclick = () => decide(button, 'REJECT'); });
+  }
+
+  async function decide(button, decision) {
+    const jenis = byKind.get(button.dataset.kind);
+    const permitId = decision === 'ACC' ? button.dataset.izinAcc : button.dataset.izinReject;
+    let note = '';
+    if (decision === 'ACC') {
+      if (!window.confirm(`ACC ${button.dataset.info}?`)) return;
+    } else {
+      note = (window.prompt('Alasan penolakan (wajib, terlihat oleh CS):', '') ?? '').trim();
+      if (note.length < 3) return entityAdminToast('Alasan penolakan wajib diisi.');
+    }
+    button.disabled = true;
+    try {
+      const result = await entityAdminApi(`${jenis.decide(permitId)}?store=${encodeURIComponent(button.dataset.store)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(jenis.body(decision, note))
+      });
+      entityAdminToast(decision === 'REJECT'
+        ? 'Izin ditolak.'
+        : result.executed === false && result.message ? `Izin di-ACC, eksekusi tertahan: ${result.message}` : 'Izin di-ACC.');
+      await load();
+    } catch (error) { entityAdminToast(error.message); button.disabled = false; await load(); }
+  }
+
+  async function load() {
+    const list = el('entityIzinCsList');
+    if (list) list.textContent = 'Memuat izin…';
+    el('entityIzinCsCount').textContent = '—';
+    try {
+      render(await fetchQueue());
+      return true;
+    } catch (error) {
+      if (list) list.textContent = `Izin belum dapat dimuat: ${error.message}`;
+      entityAdminToast(error.message);
+      return false;
+    }
+  }
+
+  async function refreshBadge() {
+    try {
+      if (!(typeof entityAdminState !== 'undefined' && entityAdminState.token) || !stores().length) return;
+      setBadge((await fetchQueue()).items.length);
+    } catch {}
+  }
+
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshBadge(); });
+  el('entityIzinCsRefresh')?.addEventListener('click', load);
+  window.loadEntityIzinCs = load;
+  window.refreshEntityIzinBadge = refreshBadge;
+})();

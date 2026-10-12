@@ -43,7 +43,7 @@
         { id: 'reports', icon: '📈', label: 'Laporan', items: ['reports', 'storereport'] },
         { id: 'goods', icon: '📦', label: 'Barang', items: ['productmasters', 'entityrecipes', 'entitystock'] },
         { id: 'team', icon: '👥', label: 'Karyawan', items: ['employees'] },
-        { id: 'money', icon: '💰', label: 'Keuangan', items: ['ledger', 'sharedaccounts', 'setorancs'] },
+        { id: 'money', icon: '💰', label: 'Keuangan', items: ['ledger', 'sharedaccounts', 'setorancs', 'izincs'] },
         { id: 'customers', icon: '💬', label: 'Pelanggan', items: ['customers'] }
       ]
     }
@@ -123,7 +123,7 @@
     storereport: 'Laporan per Gerai', drawerstatus: 'Status Laci', productmasters: 'Daftar Barang', entityrecipes: 'Resep', entitystock: 'Stok Gerai',
     ledger: 'Buku Usaha', racikbahan: 'Bahan & Aroma', cetak: 'Layar Cetak'
   };
-  const ENTITY_LABELS = { home: 'Beranda Saya', settings: 'Pengaturan', stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama', setorancs: 'Setoran CS' };
+  const ENTITY_LABELS = { home: 'Beranda Saya', settings: 'Pengaturan', stores: 'Gerai', reports: 'Laporan Usaha', employees: 'Karyawan', customers: 'Pelanggan', sharedaccounts: 'Rekening Bersama', setorancs: 'Setoran CS', izincs: 'Izin CS' };
 
   function pageKey() {
     if (window.MAXI_SKIN_PAGE === 'entity-admin') return 'entity-admin';

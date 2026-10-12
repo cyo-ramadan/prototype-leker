@@ -59,6 +59,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
   window.refreshEntitySetoranBadge?.();
+  window.refreshEntityIzinBadge?.();
   window.refreshEntityDrawerCards?.();
   loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
@@ -77,6 +78,7 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-ledger')?.classList.toggle('active', name === 'ledger');
   entityAdminEl('entityTab-sharedaccounts')?.classList.toggle('active', name === 'sharedaccounts');
   entityAdminEl('entityTab-setorancs')?.classList.toggle('active', name === 'setorancs');
+  entityAdminEl('entityTab-izincs')?.classList.toggle('active', name === 'izincs');
   entityAdminEl('entityTab-productmasters')?.classList.toggle('active', name === 'productmasters');
   entityAdminEl('entityTab-entityrecipes')?.classList.toggle('active', name === 'entityrecipes');
   entityAdminEl('entityTab-entitystock')?.classList.toggle('active', name === 'entitystock');
@@ -93,6 +95,7 @@ async function loadEntityTabContent(name, options = {}) {
   if (name === 'customers') return window.loadEntityCustomerWhatsApp?.();
   if (name === 'ledger') return loadEntityLedger();
   if (name === 'setorancs') return window.loadEntitySetoranCs?.();
+  if (name === 'izincs') return window.loadEntityIzinCs?.();
   if (name === 'sharedaccounts') return loadEntitySharedAccounts();
   if (name === 'productmasters') return loadEntityProductMasters();
   if (name === 'entityrecipes') return loadEntityRecipes();

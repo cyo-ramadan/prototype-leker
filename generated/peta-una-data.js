@@ -311,6 +311,13 @@ export const PETA_UNA = Object.freeze([
   },
   {
     "halaman": "entity",
+    "tab": "izincs",
+    "label": "Izin CS",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "halaman": "entity",
     "tab": "customers",
     "label": "Pelanggan",
     "grup": "Pelanggan",

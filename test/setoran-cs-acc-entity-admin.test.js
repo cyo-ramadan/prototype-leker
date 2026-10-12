@@ -137,6 +137,6 @@ test('tab Setoran CS terdaftar di Entity Admin, menu pengelompokan, dan script d
   assert.match(html, /entity-admin\.js\?v=20261011-management-notifications-v1/);
   assert.match(html, /nav-groups\.js\?v=20261011-management-notifications-v1/);
   assert.match(read('public/entity-admin.js'), /name === 'setorancs'/);
-  assert.match(read('public/nav-groups.js'), /items: \['ledger', 'sharedaccounts', 'setorancs'\]/);
+  assert.match(read('public/nav-groups.js'), /items: \['ledger', 'sharedaccounts', 'setorancs', 'izincs'\]/);
   assert.match(read('public/branch-admin.html'), /admin-employee-deposits\.js\?v=20261008-buku-per-orang-v1/);
 });

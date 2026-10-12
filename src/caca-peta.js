@@ -60,6 +60,7 @@ export const PENJELASAN = Object.freeze({
   'entity:ledger': { bisa: 'Buku usaha (jurnal tingkat entity).', kata: ['jurnal', 'buku usaha', 'entity'] },
   'entity:sharedaccounts': { bisa: 'Rekening Bersama semua gerai dan saldo totalnya.', kata: ['rekening', 'saldo'] },
   'entity:setorancs': { bisa: 'Setoran CS semua gerai yang menunggu ACC.', kata: ['setoran', 'setor'] },
+  'entity:izincs': { bisa: 'Izin CS semua gerai yang menunggu ACC: koreksi jam masuk, GPS presensi, tutup laci, hapus transaksi.', kata: ['izin', 'permit', 'acc'] },
   'entity:customers': { bisa: 'Pelanggan seluruh usaha.', kata: ['pelanggan', 'member'] }
 });
 

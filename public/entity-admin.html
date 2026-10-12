@@ -59,6 +59,7 @@
         <button class="admin-tab" data-entity-tab="ledger" type="button">Buku Entity</button>
         <button class="admin-tab" data-entity-tab="sharedaccounts" type="button">Rekening Bersama</button>
         <button class="admin-tab" data-entity-tab="setorancs" type="button">💵 Setoran CS</button>
+        <button class="admin-tab" data-entity-tab="izincs" type="button">🔐 Izin CS</button>
         <button class="admin-tab" data-entity-tab="productmasters" type="button">Master Barang</button>
         <button class="admin-tab" data-entity-tab="entityrecipes" type="button">Resep Produksi</button>
         <button class="admin-tab" data-entity-tab="entitystock" type="button">Stok Gerai</button>
@@ -152,6 +153,17 @@
           </div>
           <button id="entitySetoranCsRefresh" class="secondary-btn" type="button" style="margin-bottom:10px">↻ Muat ulang</button>
           <div id="entitySetoranCsList" class="master-list"></div>
+        </div>
+      </section>
+
+      <section id="entityTab-izincs" class="admin-section">
+        <div class="admin-card list-card">
+          <div class="list-head">
+            <div><h2>Izin CS menunggu ACC</h2><div class="muted">Semua gerai di entity ini: koreksi jam masuk, titik GPS presensi, tutup laci, dan hapus transaksi. ACC sama persis dengan ACC dari Admin Gerai; Tolak wajib alasan dan terlihat oleh CS.</div></div>
+            <span id="entityIzinCsCount" class="master-count">0</span>
+          </div>
+          <button id="entityIzinCsRefresh" class="secondary-btn" type="button" style="margin-bottom:10px">↻ Muat ulang</button>
+          <div id="entityIzinCsList" class="master-list"></div>
         </div>
       </section>
 
@@ -349,6 +361,7 @@
 <script src="/entity-admin.js?v=20261011-management-notifications-v1"></script>
 <script src="/foto-lihat.js"></script>
 <script src="/entity-setoran-cs.js?v=20261011-management-notifications-v1"></script>
+<script src="/entity-izin-cs.js?v=20261012-izin-cs-v1"></script>
 <script src="/nav-groups.js?v=20261011-management-notifications-v1"></script>
 <script src="/warung-pemilik.js?v=20261003-skin-d-pemilik-v1"></script>
 <script src="/racik-pemilik.js?v=20261006-langsung-jual-v1"></script>

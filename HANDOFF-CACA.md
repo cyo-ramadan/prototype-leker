@@ -110,6 +110,15 @@ dan *memaksa* peninjauan. Opsional: workflow terjadwal yang menjalankan `--cek` 
 issue bila merah. Tooling di skill (`--cek`, `--tinjau`, kolom `skin`/`sumber`/`diperiksa`)
 dibangun di tugas ini.
 
+**Kerangka bersama Una–JARVIS (Bos Cyo 2026-10-12):** mesin kamus dibangun sebagai **kerangka umum**
+yang tidak tahu soal toko, misalnya `src/kerangka/kamus.js`: pencocokan kunci + kata dasar/sinonim,
+varian per konteks (skin untuk Una, nanti ruang kerja untuk JARVIS), penjaga hash `sumber`, dan
+skrip `--cek`/`--tinjau`. Isi entri, daftar layar, dan skin Una disuntikkan dari luar
+(`src/caca-jelaskan.js` tetap jadi isi milik Una). Tujuannya: perbaikan algoritma kerangka otomatis
+ikut ke JARVIS (asisten suara Bos di laptop, belum dibangun), sedangkan kata-kata dan otak
+masing-masing tetap terpisah. Kerangka tidak boleh mengimpor apa pun dari D1, tenant, atau
+`caca-agen`.
+
 **Selesai bila:** di gerai skin F, "di mana atur bahan?" mengarah ke "Bahan & Aroma"; di skin G,
 "di mana antrian cetak?" mengarah ke "Layar Cetak"; di skin D label/grupnya sesuai layar; dan
 mengubah satu baris di berkas `sumber` sebuah entri membuat tes merah sampai entri itu ditinjau.
@@ -142,6 +151,10 @@ bagian "Perintah lewat suara" di bawah). Sekarang yang diminta adalah mulutnya.
   - Chrome memotong ucapan panjang (~15 detik): pecah per kalimat.
   - **Suara tidak pernah menyetujui apa pun.** Alur draft + tombol "Ya" tetap sama. Kata "ya"
     yang terucap hanya masuk ke kotak ketik seperti sekarang.
+- **Modul bersama:** telinga + mulut dipisah jadi satu modul tanpa ketergantungan ke Una
+  (misalnya `public/kerangka-suara.js`: `dengar()`, `ucapkan(teks)`, `bersihkanUntukDibaca()`,
+  `pilihSuara()`). `caca-chat.js` hanya memakainya. JARVIS nanti memakai modul yang sama, jadi
+  update suara berlaku untuk keduanya.
 - **Biaya:** nol token tambahan. Teks yang sudah ada dibacakan, tidak ada panggilan model baru.
 - **Tes:** pembersih teks-untuk-dibacakan dibuat sebagai fungsi murni dan diuji (rupiah, emoji,
   tabel, draft, password). Pemilihan suara diuji dengan daftar suara tiruan. Lalu uji di HP

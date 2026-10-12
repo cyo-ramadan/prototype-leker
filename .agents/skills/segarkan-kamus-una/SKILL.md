@@ -21,6 +21,13 @@ meyakinkan tapi bisa salah, dan pemilik toko tidak bisa mengeceknya (`src/caca-j
 baris 4-8). Jadi "otomatis" di sini berarti: **program mendeteksi sendiri apa yang basi dan
 memaksa peninjauan**. Penulisan ulangnya dikerjakan agen sekali, diuji, lalu masuk ke kode.
 
+## Hemat kuota: segarkan di sesi yang sama
+
+Paling murah: **agen yang mengubah algoritma langsung menyegarkan kamus di PR yang sama**. Kodenya
+masih ada di konteksnya, jadi tidak perlu membaca ulang. Tes penjaga merah di PR itu juga, bukan
+belakangan. Kalau dikerjakan terpisah, baca **diff** berkas sumber sejak hash lama, bukan seluruh
+berkas, dan hanya untuk entri yang merah.
+
 ## Urutan kerja
 
 1. **Deteksi.** Jalankan `node scripts/build-peta-una.mjs --cek`, lalu

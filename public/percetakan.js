@@ -30,7 +30,7 @@
       body: body ? JSON.stringify(body) : undefined
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `Gagal (${response.status})`);
+    if (!response.ok) throw Object.assign(new Error(data.error || `Gagal (${response.status})`), { status: response.status, code: data.code });
     return data;
   }
 
@@ -455,12 +455,34 @@
   // Tanpa polling (invariant #6): muat ulang saat tab kembali dilihat.
   document.addEventListener('visibilitychange', () => { if (!document.hidden && setup) renderTab(tabAktif); });
 
+  // Belum login / sesi habis / skin G mati: tampilkan alasannya sekali dan berhenti. Tidak ada
+  // percobaan ulang otomatis (invariant tanpa polling) -- layar hanya meminta data saat dibuka,
+  // tab diklik, tombol Muat ulang, atau tab browser kembali dilihat.
+  function berhenti(judul, pesan, tombol) {
+    $('subjudul').textContent = judul;
+    document.querySelectorAll('#tabs [data-tab]').forEach(b => { b.disabled = true; });
+    document.querySelectorAll('.tab-panel').forEach(panel => { panel.hidden = true; });
+    tampilPesan(pesan, true);
+    if (tombol) $('pesan').insertAdjacentHTML('beforeend', ` <a class="primary-btn" href="${tombol.href}">${tombol.text}</a>`);
+  }
+
   jalankan(async () => {
     if (!token()) {
-      location.href = '/login';
+      berhenti('Belum masuk', 'Masuk dulu sebagai Owner, Admin, atau karyawan gerai ini, lalu buka lagi alamat ini.', { href: '/login', text: 'Masuk' });
       return;
     }
-    setup = await api('/api/percetakan/setup');
+    try {
+      setup = await api('/api/percetakan/setup');
+    } catch (error) {
+      if (error.status === 401) {
+        berhenti('Sesi sudah habis', 'Sesi login di browser ini sudah habis. Masuk lagi, lalu buka alamat ini.', { href: '/login', text: 'Masuk' });
+      } else if (error.code === 'SKIN_PERCETAKAN_OFF' || error.status === 403) {
+        berhenti('Tidak bisa dibuka', error.message);
+      } else {
+        berhenti('Gagal memuat', `${error.message} Tekan "Muat ulang" untuk mencoba lagi.`);
+      }
+      return;
+    }
     $('judul').textContent = setup.store.name;
     $('subjudul').textContent = `${setup.actor.name} · ${setup.isManagement ? 'Owner/Admin' : 'Karyawan'}`;
     document.querySelector('[data-tab="atur"]').hidden = !setup.isManagement;

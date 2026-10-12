@@ -635,3 +635,10 @@ test('agen cetak: file baru di hot folder yang bukan dari agen terdeteksi sekali
     assert.deepEqual(await fileBaruDiFolder(folder, dikenal), []);
   } finally { rmSync(folder, { recursive: true, force: true }); }
 });
+
+test('Layar Cetak tidak pernah meminta data berulang otomatis (hemat kuota D1, invariant #6)', () => {
+  const ui = readFileSync(new URL('../public/percetakan.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(ui, /setInterval/);
+  // Saat tab browser kembali dilihat, data hanya dimuat ulang kalau layar sudah berhasil dibuka.
+  assert.match(ui, /visibilitychange', \(\) => \{ if \(!document\.hidden && setup\)/);
+});

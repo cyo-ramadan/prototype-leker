@@ -2,6 +2,10 @@
 
 Prototype self-ordering + branch administration + cashier workspace untuk MAXI Leker. Halaman utama domain adalah customer ordering. Customer dapat membeli sebagai guest atau login.
 
+## Library aset desain
+
+Lokasi gambar konsep owner/kasir, background pantai Skin H, prompt, palette, dan panduan reuse: [design-assets/README.md](design-assets/README.md). Daftar file dan checksum: [design-assets/manifest.json](design-assets/manifest.json). Aset saat ini disimpan di repo, belum dimirror ke R2.
+
 ## Hierarki
 
 1. **Owner** — akun tertinggi, create gerai dan mengatur kebijakan lintas gerai seperti Berbagi Pelanggan.
@@ -444,3 +448,5 @@ Migration ledger saja tidak membuktikan seluruh schema object masih ada. Jika re
 **REQUIRED** — README juga mencatat PIMASATU UI reusable dan Master Biaya yang tetap menyerahkan ownership akun/jurnal kepada Accounting, serta **kebijakan sesi karyawan yang berubah 2026-09-18**: banyak sesi per akun sekarang diizinkan (trigger satu-sesi dicabut migration `0102`), dan yang masih ditegakkan cuma "jangan pindah user dalam satu browser" lewat guard sisi klien. **2026-10-03**: login karyawan pindah ke halaman `/login`; login di halaman customer khusus pelanggan; alat akuntan Una (`jembatan_masalah`, `audit_hpp`, `sinkron_akuntansi`, `samakan_aturan_jurnal`, `betulkan_klasifikasi_barang`).
 
 <!-- DOC-IMPACT: 2026-10-11 Workspace Una persisten per akun/lingkup, revision dan progres; call live penuh tetap tahap berikutnya. -->
+
+<!-- DOC-IMPACT: 2026-10-13 menambahkan pintu masuk library aset desain untuk agent. -->

@@ -1,47 +1,52 @@
 /* Skin H · Owner Kelola Sendiri -- pilihan tenant ui_skin = H (src/tenant-policy.js).
-   Portal Admin Entity dan Kantor khusus H; pantai kuning-turquoise tanpa merek, panel putih, tombol teal gelap. DESAIN-SKIN-H-OWNER-ADMIN.md.
+   Portal Admin Entity dan Kantor khusus H; pantai kuning-turquoise tanpa merek, panel buih biru, tombol laut dan pasir. DESAIN-SKIN-H-OWNER-ADMIN.md.
    Hanya berlaku saat <html data-skin="h"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.
    Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */
 
 html[data-skin="h"] {
-  --skin-font: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --h-ocean: #006B99;
+  --h-surf: #00B5DB;
+  --h-foam: #E9F8FE;
+  --h-sand: #FFD65A;
+  --h-sand-soft: #FFF0B8;
+  --skin-font: "Nunito Sans", "Segoe UI", system-ui, sans-serif;
   --bg: #FFE7A1;
   --skin-page-bg: #FFE7A1;
   --surface: #FFFFFF;
-  --ink: #123F3B;
-  --muted: #46655F;
-  --line: #C8E2DC;
-  --brand: #075E5A;
-  --brand-2: #087F8C;
+  --ink: #153E54;
+  --muted: #4A6878;
+  --line: #BEDDEB;
+  --brand: #006B99;
+  --brand-2: #006B99;
   --green: #276846;
   --green-soft: #E5F3DD;
   --amber: #7A4A00;
-  --shadow: 0 10px 30px -18px rgba(7,94,90,.25);
+  --shadow: 0 10px 30px -18px rgba(0,107,153,.18);
   --skin-card-shadow: none;
-  --skin-top-bg: #FFFFFF;
-  --skin-top-ink: #123F3B;
-  --skin-top-muted: #46655F;
-  --skin-top-line: #C8E2DC;
-  --skin-mark-bg: #075E5A;
+  --skin-top-bg: #FFD65A;
+  --skin-top-ink: #153E54;
+  --skin-top-muted: #4A6878;
+  --skin-top-line: #00B5DB;
+  --skin-mark-bg: #4F792A;
   --skin-mark-ink: #FFFFFF;
-  --skin-hero-bg: #FFF3BD;
-  --skin-hero-ink: #123F3B;
-  --skin-hero-muted: #46655F;
-  --skin-primary: #075E5A;
+  --skin-hero-bg: #E9F8FE;
+  --skin-hero-ink: #153E54;
+  --skin-hero-muted: #4A6878;
+  --skin-primary: #006B99;
   --skin-primary-ink: #FFFFFF;
-  --skin-active-bg: #075E5A;
+  --skin-active-bg: #006B99;
   --skin-active-ink: #FFFFFF;
   --skin-input-bg: #FFFFFF;
-  --skin-chip-bg: #FFF3BD;
-  --skin-focus: rgba(7,94,90,.22);
+  --skin-chip-bg: #FFF0B8;
+  --skin-focus: rgba(0,131,175,.20);
   --skin-danger: #A12626;
   --skin-danger-soft: #FFF0F0;
   --skin-danger-line: #EDC5C5;
   --skin-warn: #7A4A00;
   --skin-warn-soft: #FCEFD6;
-  --skin-r-sm: 8px;
-  --skin-r: 10px;
-  --skin-r-lg: 16px;
+  --skin-r-sm: 12px;
+  --skin-r: 16px;
+  --skin-r-lg: 24px;
   --skin-r-pill: 999px;
 }
 html[data-skin="h"] body { background: var(--skin-page-bg); color: var(--ink); font-family: var(--skin-font); }
@@ -96,14 +101,14 @@ html[data-skin="h"] .admin-top-actions > a, html[data-skin="h"] .admin-top-actio
   html[data-skin="h"] .admin-top-actions { width: 100%; justify-content: flex-start; gap: 6px; }
 }
 
-html[data-skin="h"] body { font-size:16px; line-height:1.5; background-color:#FFE7A1; background-image:url('/owner-beach-h-v1.png'); background-position:center; background-size:cover; background-repeat:no-repeat; background-attachment:fixed; }
-html[data-skin="h"] .topbar { background:rgba(255,255,255,.97); border-bottom:3px solid #FFC93E; }
-html[data-skin="h"] .primary-btn { background:#075E5A; color:#FFFFFF; border-color:#075E5A; }
-html[data-skin="h"] .secondary-btn, html[data-skin="h"] .mini-btn { background:#FFF3BD; color:#174F43; border-color:#E6CF7D; }
+html[data-skin="h"] body { font-size:16px; line-height:1.5; background-color:#FFE7A1; background-image:url('/owner-beach-h-v1.png'); background-position:center bottom; background-size:cover; background-repeat:no-repeat; background-attachment:fixed; }
+html[data-skin="h"] .topbar { background:var(--skin-top-bg); border-bottom:4px solid var(--h-surf); }
+html[data-skin="h"] .primary-btn { background:#006B99; color:#FFFFFF; border-color:#006B99; }
+html[data-skin="h"] .secondary-btn, html[data-skin="h"] .mini-btn { background:#FFF0B8; color:#153E54; border-color:#E8C659; }
 html[data-skin="h"] .admin-card, html[data-skin="h"] .owner-store-card, html[data-skin="h"] .hero { background:#FFFFFF; }
-html[data-skin="h"] .nav-group-btn { background:#FFF3BD; color:#174F43; }
-html[data-skin="h"] .nav-group-btn[aria-current="true"] { background:#075E5A; color:#FFFFFF; }
-html[data-skin="h"] button:focus-visible, html[data-skin="h"] a:focus-visible, html[data-skin="h"] input:focus-visible, html[data-skin="h"] select:focus-visible { outline:3px solid #087F8C; outline-offset:3px; }
+html[data-skin="h"] .nav-group-btn { background:#FFF0B8; color:#153E54; }
+html[data-skin="h"] .nav-group-btn[aria-current="true"] { background:#006B99; color:#FFFFFF; }
+html[data-skin="h"] button:focus-visible, html[data-skin="h"] a:focus-visible, html[data-skin="h"] input:focus-visible, html[data-skin="h"] select:focus-visible { outline:3px solid #0083AF; outline-offset:3px; }
 @media(prefers-reduced-motion:reduce) { html[data-skin="h"] body { background-attachment:scroll; } }
 html[data-skin="h"] .admin-heading { display:none; }
 html[data-skin="h"] #tab-approvals.active { display:flex; flex-direction:column; }
@@ -113,16 +118,16 @@ html[data-skin="h"] .nav-groups-main { grid-template-columns:repeat(5,minmax(0,1
 html[data-skin="h"] .nav-group-btn { border:0; min-height:60px; font-weight:600; font-size:12px; }
 html[data-skin="h"] .nav-group-icon { font-family:system-ui; font-size:24px; }
 html[data-skin="h"] .primary-btn, html[data-skin="h"] .secondary-btn, html[data-skin="h"] .mini-btn,
-html[data-skin="h"] input:not([type="checkbox"]):not([type="hidden"]), html[data-skin="h"] select { min-height:44px; }
+html[data-skin="h"] input:not([type="checkbox"]):not([type="hidden"]):not([type="radio"]), html[data-skin="h"] select { min-height:44px; }
 html[data-skin="h"] .admin-card h2 { font-size:21px; letter-spacing:-.025em; }
-html[data-skin="h"] .th-profit, html[data-skin="h"] .hi-profit { background:#FFFFFF; color:#123F3B; border:1px solid #C8E2DC; border-top:3px solid #075E5A; border-radius:12px; }
-html[data-skin="h"] .hi-profit p em { color:#075E5A; }
+html[data-skin="h"] .th-profit, html[data-skin="h"] .hi-profit { background:#FFFFFF; color:#153E54; border:1px solid #BEDDEB; border-top:3px solid #006B99; border-radius:12px; }
+html[data-skin="h"] .hi-profit p em { color:#006B99; }
 html[data-skin="h"] .th-profit b.neg, html[data-skin="h"] .hi-profit b.neg { color:#A12626; }
-html[data-skin="h"] .hi-refresh { background:#FFF3BD; color:#075E5A; border-color:#C8E2DC; min-height:44px; }
-html[data-skin="h"] .hi-store a { display:block; color:#075E5A; text-decoration:none; padding:8px 0; }
-html[data-skin="h"] .hi-store a:focus-visible { outline:3px solid #075E5A; outline-offset:3px; }
+html[data-skin="h"] .hi-refresh { background:#FFF0B8; color:#006B99; border-color:#BEDDEB; min-height:44px; }
+html[data-skin="h"] .hi-store a { display:block; color:#006B99; text-decoration:none; padding:8px 0; }
+html[data-skin="h"] .hi-store a:focus-visible { outline:3px solid #006B99; outline-offset:3px; }
 html[data-skin="h"] #entityAdminApp .owner-heading .muted, html[data-skin="h"] #entityAdminApp .owner-heading .admin-eyebrow { display:none; }
-html[data-skin="h"] .h-inline-recipe { border-top:1px solid #C8E2DC; padding-top:16px; margin:16px 0; }
+html[data-skin="h"] .h-inline-recipe { border-top:1px solid #BEDDEB; padding-top:16px; margin:16px 0; }
 html[data-skin="h"] .h-inline-recipe h3 { margin:0 0 4px; font-size:18px; }
 html[data-skin="h"] .h-recipe-row { display:grid; grid-template-columns:minmax(0,1fr) 80px 44px; align-items:end; gap:8px; margin:12px 0; }
 html[data-skin="h"] .h-recipe-row label { min-width:0; margin:0; }
@@ -132,11 +137,66 @@ html[data-skin="h"] .h-recipe-error { color:#A12626; background:#FFF0F0; padding
 html[data-skin="h"] .h-recipe-basic { margin:12px 0; }
 html[data-skin="h"] #productRecipeNote { display:none; }
 html[data-skin="h"] body:not(:has([data-entity-tab="home"].active)) #hariIni { display:none; }
-html[data-skin="h"] #productOperationalDetails summary { cursor:pointer; padding:12px 0; color:#46655F; }
+html[data-skin="h"] #productOperationalDetails summary { cursor:pointer; padding:12px 0; color:#4A6878; }
 @media(max-width:600px) {
   html[data-skin="h"] .admin-grid.two { grid-template-columns:minmax(0,1fr); }
   html[data-skin="h"] .admin-top-actions { gap:6px; }
   html[data-skin="h"] .admin-top-actions a, html[data-skin="h"] .admin-top-actions button { font-size:12px; }
   html[data-skin="h"] .nav-group-btn { padding:10px 1px; }
   html[data-skin="h"] .hi-need { flex-wrap:wrap; }
+}
+/* Ocean components. All overrides leave the page when data-skin changes. */
+html[data-skin="h"] :is(h1,h2,h3,h4) { font-weight:800; letter-spacing:-.025em; line-height:1.2; }
+html[data-skin="h"] :is(button,.primary-btn,.secondary-btn,.mini-btn,.admin-field,.brand) { font-weight:700; }
+html[data-skin="h"] :is(.primary-btn,.secondary-btn,.mini-btn,.drawer-action-btn) { min-height:44px; padding:11px 16px; line-height:1.3; border-radius:var(--skin-r-sm); }
+html[data-skin="h"] .primary-btn { border:1px solid var(--h-ocean); box-shadow:0 3px 0 #00567D; }
+html[data-skin="h"] :is(.primary-btn,.cashier-add-btn,.add-btn):hover:not(:disabled) { background:#00567D; }
+html[data-skin="h"] :is(.secondary-btn,.mini-btn):hover:not(:disabled) { background:#FFE48A; border-color:#CDAA32; }
+html[data-skin="h"] :is(.mini-btn.danger,.danger-btn) { color:var(--skin-danger); background:var(--skin-danger-soft); border-color:var(--skin-danger-line); box-shadow:none; }
+html[data-skin="h"] :is(.mini-btn.danger,.danger-btn):hover:not(:disabled) { background:#FCE0DE; color:var(--skin-danger); border-color:var(--skin-danger-line); }
+html[data-skin="h"] button:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
+html[data-skin="h"] .topbar .brand { color:var(--ink); }
+html[data-skin="h"] .topbar :is(.admin-link,.pill,.cashier-user-chip span) { background:var(--h-foam); color:var(--ink); border-color:transparent; }
+html[data-skin="h"] :is(.admin-card,.owner-store-card,.cashier-menu-panel,.cashier-draft-panel,.order-card) { border:1px solid var(--line); border-radius:var(--skin-r-lg); box-shadow:0 4px 0 rgba(0,107,153,.08); }
+html[data-skin="h"] :is(.admin-card,.cashier-menu-panel,.cashier-draft-panel) { background:var(--h-foam); }
+html[data-skin="h"] :is(.admin-card h2,.cashier-panel-head h2,.owner-store-card h3) { color:var(--h-ocean); }
+html[data-skin="h"] :is(.master-row,.cashier-menu-card,.cashier-draft-row,.purchase-composer,.cashier-dialog-summary div) { background:white; border:1px solid var(--line); }
+html[data-skin="h"] :is(.master-row:hover,.cashier-menu-card.selected) { background:#F3FCFF; border-color:var(--h-surf); }
+html[data-skin="h"] :is(.cashier-menu-name,.master-main strong,.owner-store-card strong) { font-weight:800; }
+html[data-skin="h"] :is(.cashier-menu-price,.cashier-draft-total strong,.total-row strong,.stat b) { font-weight:800; font-variant-numeric:tabular-nums; color:var(--h-ocean); }
+html[data-skin="h"] :is(.cashier-panel-head,.cashier-draft-total) { border-color:var(--line); }
+html[data-skin="h"] :is(.cashier-draft-total,.purchase-detail-subtotal) { background:var(--h-sand-soft); color:var(--ink); border-radius:var(--skin-r-sm); padding:12px; }
+html[data-skin="h"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),select,textarea) { background:white; color:var(--ink); border:1px solid #9EC9DB; border-radius:var(--skin-r-sm); padding:11px 12px; font-size:16px; min-width:0; max-width:100%; }
+html[data-skin="h"] :is(input,select,textarea):focus { border-color:var(--h-ocean); }
+html[data-skin="h"] :is(input[type="checkbox"],input[type="radio"]) { accent-color:var(--h-ocean); }
+html[data-skin="h"] :is(.admin-tab,.category-btn,.nav-group-btn) { font-weight:700; }
+html[data-skin="h"] .nav-group-btn { border-radius:16px; }
+html[data-skin="h"] :is(.admin-tab.active,.category-btn.active,.nav-group-btn[aria-current="true"]) { background:var(--h-ocean); color:white; box-shadow:inset 0 -3px 0 #00567D; }
+html[data-skin="h"] :is(.muted,.master-meta) { color:var(--muted); }
+html[data-skin="h"] :is(.status-chip,.master-count) { border-radius:999px; font-weight:700; }
+html[data-skin="h"] .status-chip.warn { background:var(--h-sand-soft); color:var(--skin-warn); }
+html[data-skin="h"] :is(.office-taskbar,.cashier-mode-tabs) { background:var(--h-foam); padding:8px; border:1px solid var(--line); border-radius:18px; }
+html[data-skin="h"] .office-taskbar button { min-height:48px; padding:10px 8px; }
+html[data-skin="h"] .cashier-add-btn { min-height:44px; font-size:14px; font-weight:700; }
+html[data-skin="h"] .cashier-draft-controls button { width:44px; height:44px; border-radius:12px; color:var(--h-ocean); }
+html[data-skin="h"] .qty-btn { min-width:44px; min-height:44px; color:var(--h-ocean); border-radius:12px; }
+html[data-skin="h"] :is(dialog,.cashier-dialog,#adminDetailModal) { background:#F7FCFF; color:var(--ink); border:2px solid var(--h-surf); border-radius:24px; box-shadow:0 24px 80px rgba(0,54,83,.30); }
+html[data-skin="h"] dialog::backdrop { background:rgba(5,48,73,.60); backdrop-filter:blur(3px); }
+html[data-skin="h"] #adminDetailModal .admin-detail-modal-head,
+html[data-skin="h"] .cashier-dialog-head { background:var(--h-foam); color:var(--h-ocean); border-bottom:3px solid var(--h-sand); border-radius:22px 22px 0 0; }
+html[data-skin="h"] :is(dialog h2,dialog h3) { color:var(--h-ocean); }
+html[data-skin="h"] :is(.cashier-dialog-actions,.cashier-dialog-footer) { background:var(--h-foam); border-color:var(--line); }
+html[data-skin="h"] #adminDetailModal .admin-detail-modal-body { background:#F7FCFF; }
+html[data-skin="h"] :is(th,td) { border-color:var(--line); }
+html[data-skin="h"] th { background:var(--h-foam); color:var(--ink); }
+html[data-skin="h"] .caca-percakapan { background:var(--h-foam); }
+html[data-skin="h"] .caca-gelembung.saya { background:var(--h-sand-soft); color:var(--ink); }
+html[data-skin="h"] .caca-gelembung.caca { background:white; border:1px solid var(--line); }
+html[data-skin="h"] :is(.caca-melayang,.caca-workspace) { border-color:var(--h-surf); border-radius:24px; }
+html[data-skin="h"] .caca-saran button { min-height:44px; background:var(--h-sand-soft); color:var(--ink); }
+html[data-skin="h"] .h-inline-recipe { background:var(--h-foam); border:1px solid var(--line); border-radius:16px; padding:16px; }
+@media(max-width:600px) {
+ html[data-skin="h"] :is(.admin-card,.cashier-menu-panel,.cashier-draft-panel) { padding:14px; border-radius:20px; }
+ html[data-skin="h"] :is(.primary-btn,.secondary-btn,.mini-btn) { padding:11px 12px; }
+ html[data-skin="h"] .office-taskbar button { font-size:13px; padding:10px 4px; }
 }

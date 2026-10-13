@@ -125,19 +125,20 @@ yang sudah `SUCCESS`.
 `agent-bridge/` adalah Worker terpisah (`leker-agent-bridge`) dan **tidak** ikut
 ter-deploy oleh Git Integration. Deploy manual dengan config-nya sendiri.
 
-**Push ke branch fitur = migration jalan ke D1 production sungguhan, tapi kode
-Worker-nya BELUM live.** Dibuktikan dua kali dengan bukti langsung, bukan
-dugaan (2026-08-31 dan dikoreksi 2026-09-17): `db:migrations:apply` tidak
-branch-aware, jadi migration dari branch fitur mana pun tetap applied ke D1
-production yang sama -- itu tetap berbahaya, jangan push migration
-destruktif/belum yakin ke branch mana pun sebelum benar-benar siap live. TAPI
-kode Worker yang sungguhan melayani user baru berubah sesudah branch-nya
-digabung ke `main` (2026-09-17: 22 commit numpuk ~2 hari di branch fitur,
-migration-nya applied semua, tapi `workers_get_worker_code` membuktikan kode
-yang jalan masih versi merge terakhir ke `main`). Jadi **kerjaan yang sudah
-lulus test wajib digabung ke `main` sebelum dilaporkan "sudah bisa dicoba"** --
-push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
-`KNOWN_PITFALLS.md` ("Preview Worker tidak membuktikan remote D1 siap").
+**Push branch fitur dapat mengubah D1 DAN mempromosikan Worker produksi.**
+Jangan mengandalkan nama trigger "non-production" sebagai isolasi. Bukti 2026-10-13:
+versi `b4f7aea8-3063-4e35-a0dc-cadb7ff597bc` berasal dari branch
+`eskor/sinkronisasi-akuntansi` (commit `35140b5433b9469999695be184b34cfc47637754`)
+dan tercatat pada deployment produksi dengan traffic 100% sebelum masuk `main`.
+Trigger non-main masih menjalankan `npm run deploy`. Kesimpulan 2026-09-17 bahwa
+kode selalu menunggu merge ternyata tidak dapat dijadikan aturan untuk konfigurasi saat ini.
+
+Migration destruktif/belum siap dan kode belum siap live tidak boleh di-push ke branch mana pun.
+`main` tetap sumber rilis canonical: gabungkan pekerjaan yang sudah diuji, lalu buktikan
+check `Workers Builds: prototype-leker-v2` SUCCESS, cocokkan commit build dengan versi
+pada deployment traffic aktif, dan cek aset/perilaku yang disajikan. Build branch lain dapat
+menimpa deployment; jangan menyimpulkan versi aktif dari merge atau modified_on saja.
+Bukti rinci dan batas klaim: `KNOWN_PITFALLS.md`, koreksi 2026-10-13.
 
 ## Konvensi repo
 
@@ -183,3 +184,5 @@ push ke branch fitur doang tidak cukup. Detail bukti dan implikasinya di
   independen, path terpisah, guard di migration). Sequence cuma dipaksakan kalau memang
   ada ketergantungan nyata — dan itu ditulis eksplisit di task/ADR-nya ("selesaikan X
   dulu"), bukan diam-diam ditahan tanpa alasan.
+
+<!-- DOC-IMPACT: 2026-10-13 koreksi risiko push non-main berdasar deployment/version/build metadata produksi. -->

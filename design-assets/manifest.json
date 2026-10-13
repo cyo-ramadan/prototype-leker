@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "updated": "2026-10-13",
+  "storage": "git repository; no R2 mirror configured",
+  "assets": [
+    {
+      "id": "owner-beach-h-v1",
+      "path": "public/owner-beach-h-v1.png",
+      "role": "runtime-background",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 1295579,
+      "sha256": "42af138a014e4f3126b4a08fbc5d7bfc2ae0550e5e387bd749c54e373763cac3",
+      "runtimeUrl": "/owner-beach-h-v1.png"
+    },
+    {
+      "id": "01-fokus",
+      "path": "design-assets/concepts/2026-10-11/v1/01-fokus.png",
+      "role": "concept-only",
+      "width": 1474,
+      "height": 1067,
+      "bytes": 1253951,
+      "sha256": "c72066e6c286b87bcf48fe396f7299f8f364c3742f2fa91422bec79dc32dd5aa",
+      "runtimeUrl": null
+    },
+    {
+      "id": "02-tenang",
+      "path": "design-assets/concepts/2026-10-11/v1/02-tenang.png",
+      "role": "concept-only",
+      "width": 1477,
+      "height": 1065,
+      "bytes": 1394612,
+      "sha256": "72f6ab6b1f4f0db2fa774079e323cdd3669b4fef36aace9295cad5b5176ef6db",
+      "runtimeUrl": null
+    },
+    {
+      "id": "03-langsung",
+      "path": "design-assets/concepts/2026-10-11/v1/03-langsung.png",
+      "role": "concept-only",
+      "width": 1474,
+      "height": 1067,
+      "bytes": 1326610,
+      "sha256": "2117f1ea826bb08675a21a109ccb5985afbad6502f5a0175ceb71baad615e7e4",
+      "runtimeUrl": null
+    },
+    {
+      "id": "A-papan-tugas-owner-kasir-final",
+      "path": "design-assets/concepts/2026-10-11/v2/A-papan-tugas-owner-kasir-final.png",
+      "role": "concept-only",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1512739,
+      "sha256": "56c4870047b790af9b5342856c819fd233ade1eb45ddb05cb1fc9b9fb901d865",
+      "runtimeUrl": null
+    },
+    {
+      "id": "A-papan-tugas-owner-kasir",
+      "path": "design-assets/concepts/2026-10-11/v2/A-papan-tugas-owner-kasir.png",
+      "role": "concept-only",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1279857,
+      "sha256": "c7ea8968269af5e320d0b169c5df23888c7e9898fbf2408eb4fdc040fa1abec4",
+      "runtimeUrl": null
+    },
+    {
+      "id": "B-gerai-dulu-owner-kasir",
+      "path": "design-assets/concepts/2026-10-11/v2/B-gerai-dulu-owner-kasir.png",
+      "role": "concept-only",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1503773,
+      "sha256": "fa8a040e14ab739490be722026c924fec5695a99b6197f3598c60238f8f09e0b",
+      "runtimeUrl": null
+    },
+    {
+      "id": "C-satu-langkah-owner-kasir",
+      "path": "design-assets/concepts/2026-10-11/v2/C-satu-langkah-owner-kasir.png",
+      "role": "concept-only",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1308092,
+      "sha256": "3bb1fa2688d0a0f1fffdb7e968c03dc4098f978870af6ea2443f103297b440cc",
+      "runtimeUrl": null
+    }
+  ]
+}

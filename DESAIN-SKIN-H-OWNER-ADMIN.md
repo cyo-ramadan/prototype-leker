@@ -89,6 +89,8 @@ Seluruh CSS portal diawali `html[data-skin="h"]` dan komponen portal dibongkar s
 
 ## Verifikasi
 
+CI PR #494 (2026-10-13): syntax 321 file dan **seluruh 1.860 tes lulus, 0 gagal**. Log job `115101446050` membuktikan run penuh setelah pemeriksaan UI diperbarui. Build main merge `f6fca1043769a13edab512a92924245b78797839` SUCCESS dan versi produksi aktif cocok dengan build tersebut. CSS/JS di domain aplikasi sama setelah normalisasi CRLF/LF, query versi HTML benar, dan checksum PNG pantai cocok. Rincian run lokal di bawah dipertahankan sebagai jejak verifikasi.
+
 - Run penuh `npm test`: 1.858/1.860 lulus; dua kegagalan pemeriksaan UI berasal dari expected versi aset lama dan pemecahan koma di dalam selector `:is()`.
 - Setelah kedua pemeriksaan diperbarui, `npm test -- test/ui-skin-tenant-toggle.test.js test/skin-gerai-akun-dan-gate-portal.test.js test/owner-entity-portal.test.js`: 15 lulus, 0 gagal. Source aplikasi tidak berubah setelah run penuh; suite backend yang sudah lulus tidak diulang. Pemeriksa selector tetap menangkap selector tanpa scope.
 - `npm run check`: seluruh source lulus pemeriksaan sintaks.

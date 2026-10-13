@@ -106,12 +106,36 @@ test('Owner panel lists the skin choice (default 0) and rejects unknown options'
   }
 });
 
+// A comma inside :is(), :not(), :has() or an attribute value is not a
+// selector-list boundary. Keep the isolation check strict at the outer level.
+function splitSelectorList(value) {
+  const parts = [];
+  let depth = 0, quote = '', escaped = false, start = 0;
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if (escaped) { escaped = false; continue; }
+    if (char === String.fromCharCode(92)) { escaped = true; continue; }
+    if (quote) { if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (char === ',' && depth === 0) { parts.push(value.slice(start, i).trim()); start = i + 1; }
+  }
+  parts.push(value.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
 test('three skin stylesheets exist and only apply under their own html[data-skin]', () => {
+  const prefix = 'html[data-skin="h"]';
+  const nested = `${prefix} :is(h2,:not(.muted,.off)), ${prefix} [data-label="a,b"]`;
+  assert.deepEqual(splitSelectorList(nested), [`${prefix} :is(h2,:not(.muted,.off))`, `${prefix} [data-label="a,b"]`]);
+  assert.ok(splitSelectorList(`${prefix} :is(h2,h3), button`).some(selector => !selector.startsWith(prefix)), 'an actual unscoped selector must still be caught');
+
   for (const code of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
     const css = readFileSync(new URL(`../public/skin-${code}.css`, import.meta.url), 'utf8');
     const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '').split('}').map(rule => rule.trim()).filter(Boolean);
     for (const rule of rules) {
-      const selectors = rule.split('{')[0].split(',').map(part => part.trim()).filter(Boolean);
+      const selectors = splitSelectorList(rule.split('{')[0]);
       for (const selector of selectors) assert.ok(selector.startsWith(`html[data-skin="${code}"]`), `skin-${code}.css: selector bocor ke tenant lain: ${selector}`);
     }
   }

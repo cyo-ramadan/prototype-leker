@@ -53,3 +53,5 @@ Background ditempatkan di `center bottom` supaya ombak turquoise tidak terpotong
 Skin I memakai aset pantai dan palet H yang sama, dengan font, ukuran, layout, menu, dan aturan skin 0. Sumbernya `SKINS['i']` di generator menggunakan template `PAINT_ONLY`, tidak memakai `COMMON` atau menyalin CSS perilaku H. Rincian: [DESAIN-SKIN-I-PANTAI-KLASIK.md](../DESAIN-SKIN-I-PANTAI-KLASIK.md). Screenshot bukan gambar runtime; simpan di arsip, jangan pindahkan ke public.
 
 DOC-IMPACT: CHANGED 2026-10-13 - preview I dan panduan tema visual tanpa perubahan layout; ADDED 2026-10-13 - katalog delapan aset, arsip tujuh mockup beserta prompt, lokasi runtime pantai, status repo/R2, dan aturan reuse terisolasi.
+
+DOC-IMPACT: CHANGED 2026-10-13 - Portal Staf H memakai master pantai existing; panel/menu, dialog koreksi, serta modal kamera dicakup generator H, tanpa aset duplikat.

@@ -5,9 +5,9 @@ import { runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-function uiHarness(initialSkin) {
+function uiHarness(initialSkin, options = {}) {
   let skin = initialSkin;
-  const elements = new Map(), events = new Map(), stored = new Map();
+  const elements = new Map(), events = new Map(), stored = new Map(Object.entries(options.storage || {})), queries = [];
   const classes = () => {
     const values = new Set();
     return { add: (...items) => items.forEach(x => values.add(x)), remove: (...items) => items.forEach(x => values.delete(x)), contains: x => values.has(x) };
@@ -34,20 +34,20 @@ function uiHarness(initialSkin) {
     addEventListener() {}
   };
   const window = {
-    LEKER_STORE_CODE: 'LAB01', LEKER_PAGE_CONTEXT: 'admin',
+    LEKER_STORE_CODE: options.store ?? 'LAB01', LEKER_PAGE_CONTEXT: 'admin', MAXI_SKIN_PAGE: options.page || '',
     addEventListener(type, fn) { const handlers = events.get(type) || []; handlers.push(fn); events.set(type, handlers); },
     dispatchEvent(event) { for (const fn of events.get(event.type) || []) fn(event); }
   };
   window.parent = window;
   const context = {
-    window, document, location: { search: '', hash: '' }, URLSearchParams,
+    window, document, location: { search: options.search || '', hash: '' }, URLSearchParams,
     localStorage: { getItem: key => stored.get(key) || null, setItem: (key, value) => stored.set(key, value) },
-    fetch: async () => ({ ok: true, json: async () => ({ skin, brandName: 'OwnerTenang' }) }),
+    fetch: async url => { queries.push(url); return { ok: true, json: async () => ({ skin, brandName: 'OwnerTenang' }) }; },
     CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } },
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: callback => callback()
   };
   runInNewContext(read('public/ui-skin.js'), context);
-  return { window, document, elements, label, input, nav, buttons, context,
+  return { window, document, elements, label, input, nav, buttons, context, queries,
     async change(value) { skin = value; await window.MaxiSkin.refresh(); } };
 }
 
@@ -99,4 +99,28 @@ test('customer early skin guard preserves the classic buttons for I', () => {
   const html = read('public/customer.html');
   assert.match(html, /html\[data-skin\]:not\(\[data-skin="i"\]\) \[data-skin-hide\]\{display:none!important\}/);
   assert.match(html, /html\[data-skin="i"\] \[data-skin-only\]\{display:none!important\}/);
+});
+
+for (const scenario of [
+  { name: 'cashier session wins over a stale preview URL', search: '?readonly=1&store=OTHER', storage: { lekerCashierToken: 'fixture-token', lekerStaffSessionMeta: JSON.stringify({ role: 'CASHIER', storeCode: 'MANDALA' }) }, expected: 'MANDALA' },
+  { name: 'management preview uses selected store instead of old admin metadata', search: '?readonly=1&store=PENDEM', storage: { lekerStaffSessionMeta: JSON.stringify({ role: 'ADMIN', storeCode: 'OTHER' }) }, expected: 'PENDEM' },
+  { name: 'management preview ignores an old cashier metadata when token is absent', search: '?readonly=1&store=PENDEM', storage: { lekerStaffSessionMeta: JSON.stringify({ role: 'CASHIER', storeCode: 'OTHER' }) }, expected: 'PENDEM' }
+]) {
+  test('staff theme: ' + scenario.name, async () => {
+    const h = uiHarness('h', { page: 'staff', store: '', ...scenario });
+    await h.window.MaxiSkin.ready;
+    assert.equal(h.queries[0], '/api/ui-profile?store=' + scenario.expected);
+    assert.equal(h.document.documentElement.dataset.skin, 'h');
+  });
+}
+
+test('staff theme can recover missing legacy metadata from the authenticated portal store', async () => {
+  const h = uiHarness('h', { page: 'staff', store: '' });
+  await h.window.MaxiSkin.ready;
+  assert.equal(h.queries.length, 0);
+  assert.equal(h.document.documentElement.dataset.skin, undefined);
+  h.window.LEKER_STORE_CODE = 'MANDALA';
+  await h.window.MaxiSkin.refresh();
+  assert.deepEqual(h.queries, ['/api/ui-profile?store=MANDALA']);
+  assert.equal(h.document.documentElement.dataset.skin, 'h');
 });

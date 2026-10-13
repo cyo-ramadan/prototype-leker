@@ -353,11 +353,71 @@ html[data-skin="h"] .h-inline-recipe { background:var(--h-foam); border:1px soli
 }
 """)
 
+# I deliberately avoids COMMON: that template also changes typography,
+# button spacing, hero decorations and responsive header layout.
+PAINT_ONLY = r"""
+html[data-skin="{s}"] {{
+{tokens}
+}}
+"""
+SKINS['i'] = dict(title='I - Pantai Klasik', note='Tema pantai H dengan layout, ukuran, font, menu dan aturan skin 0. DESAIN-SKIN-I-PANTAI-KLASIK.md.', base=PAINT_ONLY, tok={
+ '--bg':'#FFE7A1', '--surface':'#FFFFFF', '--ink':'#153E54', '--muted':'#4A6878', '--line':'#BEDDEB',
+ '--brand':'#006B99', '--brand-2':'#006B99', '--green':'#276846', '--green-soft':'#E5F3DD', '--amber':'#7A4A00',
+ '--shadow':'0 14px 34px rgba(0,107,153,.10)',
+ '--i-ocean':'#006B99', '--i-surf':'#00B5DB', '--i-foam':'#E9F8FE', '--i-sand':'#FFD65A', '--i-sand-soft':'#FFF0B8',
+ '--i-danger':'#A12626', '--i-danger-soft':'#FFF0F0'
+}, extra=r"""
+html[data-skin="i"] body { background-color:var(--bg); background-image:url('/owner-beach-h-v1.png'); background-position:center bottom; background-size:cover; background-repeat:no-repeat; background-attachment:fixed; color:var(--ink); }
+html[data-skin="i"] .topbar { background:var(--i-sand); color:var(--ink); border-color:var(--i-surf); box-shadow:inset 0 -3px 0 var(--i-surf); }
+html[data-skin="i"] .brand { color:var(--ink); }
+html[data-skin="i"] .brand small { color:var(--muted); }
+html[data-skin="i"] .brand-mark { background:#4F792A; color:white; box-shadow:none; }
+html[data-skin="i"] :is(.primary-btn,.cashier-add-btn,.add-btn,.menu-stepper-plus) { background:var(--i-ocean); color:white; border-color:var(--i-ocean); box-shadow:0 3px 0 #00567D; }
+html[data-skin="i"] :is(.primary-btn,.secondary-btn,.mini-btn,.drawer-action-btn) { border-radius:12px; }
+html[data-skin="i"] :is(.secondary-btn,.mini-btn,.drawer-action-btn,.hi-refresh) { background:var(--i-sand-soft); color:var(--ink); border-color:#E8C659; }
+html[data-skin="i"] :is(.primary-btn,.cashier-add-btn,.add-btn):hover:not(:disabled) { background:#00567D; }
+html[data-skin="i"] :is(.secondary-btn,.mini-btn):hover:not(:disabled) { background:#FFE48A; }
+html[data-skin="i"] :is(.mini-btn.danger,.danger-btn) { background:var(--i-danger-soft); color:var(--i-danger); border-color:#EDC5C5; box-shadow:none; }
+html[data-skin="i"] :is(.mini-btn.danger,.danger-btn):hover:not(:disabled) { background:#FCE0DE; color:var(--i-danger); }
+html[data-skin="i"] :is(.admin-tab,.category-btn,.category-group-btn) { background:white; color:var(--i-ocean); border-color:var(--line); }
+html[data-skin="i"] :is(.admin-tab.active,.category-btn.active,.category-group-btn.active) { background:var(--i-ocean); color:white; border-color:var(--i-ocean); }
+html[data-skin="i"] :is(.admin-card,.admin-auth-card,.cashier-menu-panel,.cashier-draft-panel,.drawer-command-card,.hero,.cart-panel,.column,.status-card,.stat) { background:var(--i-foam); border-color:var(--line); box-shadow:0 4px 0 rgba(0,107,153,.08); }
+html[data-skin="i"] .hero { color:var(--ink); }
+html[data-skin="i"] .hero p { color:var(--muted); }
+html[data-skin="i"] .hero::after { background:rgba(0,181,219,.12); }
+html[data-skin="i"] :is(.owner-store-card,.order-card,.menu-card,.cashier-menu-card,.cashier-draft-row,.master-row,.cart-item,.purchase-composer,.cashier-dialog-summary div,.purchase-detail-list,.purchase-search-results) { background:white; border-color:var(--line); }
+html[data-skin="i"] :is(.master-row:hover,.cashier-menu-card.selected,.menu-card.selected) { background:#F3FCFF; border-color:var(--i-surf); }
+html[data-skin="i"] :is(.admin-card h2,.cashier-panel-head h2,.owner-store-card h3,.cashier-menu-price,.cashier-draft-total strong,.total-row strong,.price) { color:var(--i-ocean); }
+html[data-skin="i"] :is(.note-input,.text-input,textarea,.admin-field input,.admin-field select,.admin-field textarea,.qty-btn,.menu-stepper,.menu-stepper-btn,.cart-close-btn) { background:white; color:var(--ink); border-color:#9EC9DB; }
+html[data-skin="i"] :is(.note-input,.text-input,textarea,.admin-field input,.admin-field select):focus { border-color:var(--i-ocean); box-shadow:0 0 0 3px rgba(0,131,175,.20); }
+html[data-skin="i"] :is(input[type="checkbox"],input[type="radio"]) { accent-color:var(--i-ocean); }
+html[data-skin="i"] :is(.pill,.admin-link,.cashier-user-chip span,.selected-badge,.menu-card .category,.owner-store-code,.image-preview-wrap,.master-thumb,.cashier-menu-image) { background:var(--i-sand-soft); color:var(--ink); border-color:var(--line); }
+html[data-skin="i"] :is(.badge,.master-count,.admin-toast,.cart-handle-count,.progress-step.active) { background:var(--i-ocean); color:white; }
+html[data-skin="i"] :is(.cashier-draft-total,.purchase-detail-subtotal) { background:var(--i-sand-soft); color:var(--ink); border-color:var(--line); }
+html[data-skin="i"] :is(dialog,.cashier-dialog,#adminDetailModal,.photo-modal-card) { background:#F7FCFF; color:var(--ink); border-color:var(--i-surf); box-shadow:inset 0 0 0 2px var(--i-surf),0 24px 80px rgba(0,54,83,.30); }
+html[data-skin="i"] dialog::backdrop { background:rgba(5,48,73,.60); }
+html[data-skin="i"] .photo-modal-backdrop { background:rgba(5,48,73,.60); }
+html[data-skin="i"] #adminDetailModal .admin-detail-modal-head,
+html[data-skin="i"] .cashier-dialog-head { background:var(--i-foam); color:var(--i-ocean); border-color:var(--i-sand); }
+html[data-skin="i"] :is(dialog h2,dialog h3) { color:var(--i-ocean); }
+html[data-skin="i"] :is(.cashier-dialog-actions,.cashier-dialog-footer) { background:var(--i-foam); border-color:var(--line); }
+html[data-skin="i"] #adminDetailModal .admin-detail-modal-body { background:#F7FCFF; }
+html[data-skin="i"] :is(th,td) { border-color:var(--line); }
+html[data-skin="i"] th { background:var(--i-foam); color:var(--ink); }
+html[data-skin="i"] .caca-percakapan { background:var(--i-foam); }
+html[data-skin="i"] .caca-gelembung.saya { background:var(--i-sand-soft); color:var(--ink); }
+html[data-skin="i"] .caca-gelembung.caca { background:white; border-color:var(--line); }
+html[data-skin="i"] :is(.caca-melayang,.caca-workspace) { border-color:var(--i-surf); }
+html[data-skin="i"] .caca-saran button { background:var(--i-sand-soft); color:var(--ink); }
+""")
+
 import sys
 out = sys.argv[1]
 for s, d in SKINS.items():
     if len(sys.argv) > 2 and s != sys.argv[2]: continue
     css = f"/* Skin {d['title']} -- pilihan tenant ui_skin = {s.upper()} (src/tenant-policy.js).\n   {d['note']}\n   Hanya berlaku saat <html data-skin=\"{s}\"> (dipasang public/ui-skin.js); tenant dengan pilihan 0 tidak memuat file ini.\n   Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya. */\n"
-    css += COMMON.format(s=s, tokens=tokens(d['tok'])) + d['extra']
+    if s == 'i':
+        css = css.replace('Dibangkitkan dari satu kerangka yang sama untuk A/B/C supaya ketiganya menimpa komponen yang sama -- ubah tokennya, bukan selektornya.', 'Dibangkitkan dari PAINT_ONLY; pertahankan ukuran, font, struktur dan perilaku halaman klasik.')
+    css += d.get('base', COMMON).format(s=s, tokens=tokens(d['tok'])) + d['extra']
     open(f"{out}/skin-{s}.css", "w", encoding="utf-8").write(css)
 print("ok")

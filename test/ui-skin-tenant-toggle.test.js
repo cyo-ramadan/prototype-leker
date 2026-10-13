@@ -68,7 +68,7 @@ test('ui-profile follows the tenant choice 0/A/B/C; other tenants stay on 0 (tam
     assert.deepEqual(await profile(env, 'entity=ENT-LAB-TAMPILAN'), { skin: 'a', brandName: PRODUCT_BRAND_NAME });
     assert.deepEqual(await profile(env, ''), { skin: 'classic', brandName: PRODUCT_BRAND_NAME });
 
-    for (const [choice, skin] of [['B', 'b'], ['C', 'c'], ['0', 'classic'], ['A', 'a']]) {
+    for (const [choice, skin] of [['B', 'b'], ['C', 'c'], ['I', 'i'], ['0', 'classic'], ['A', 'a']]) {
       await setTenantPolicySetting(env.DB, 'TEN-LAB-TAMPILAN', UI_SKIN_KEY, choice, { role: 'OWNER', id: 'test' });
       assert.equal((await profile(env, 'store=LAB01')).skin, skin, `pilihan ${choice}`);
     }
@@ -89,7 +89,7 @@ test('Owner panel lists the skin choice (default 0) and rejects unknown options'
     const skin = leker.find(item => item.key === UI_SKIN_KEY);
     assert.equal(skin?.type, 'choice');
     assert.equal(skin?.value, '0');
-    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+    assert.deepEqual(skin.options.map(option => option.value), ['0', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
 
     const owner = db.prepare('SELECT id FROM owner_accounts ORDER BY id LIMIT 1').get();
     db.prepare(`INSERT INTO owner_sessions (token_hash, owner_id, created_at, expires_at) VALUES (?, ?, '2026-10-01T00:00:00Z', '2099-01-01T00:00:00Z')`)
@@ -131,7 +131,7 @@ test('three skin stylesheets exist and only apply under their own html[data-skin
   assert.deepEqual(splitSelectorList(nested), [`${prefix} :is(h2,:not(.muted,.off))`, `${prefix} [data-label="a,b"]`]);
   assert.ok(splitSelectorList(`${prefix} :is(h2,h3), button`).some(selector => !selector.startsWith(prefix)), 'an actual unscoped selector must still be caught');
 
-  for (const code of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+  for (const code of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']) {
     const css = readFileSync(new URL(`../public/skin-${code}.css`, import.meta.url), 'utf8');
     const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '').split('}').map(rule => rule.trim()).filter(Boolean);
     for (const rule of rules) {

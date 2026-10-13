@@ -121,7 +121,7 @@ test('every skin transition invalidates Office reads/writes; H round trip never 
     const first=await (await f.session()).json();
     await f.skin('H');
     assert.equal((await requireCashier(req('/api/cashier/drawer',first.token),f.db)).ok,true,'same skin write preserves session');
-    for (const skin of ['0','A','B','C','D','E','F','G']) {
+    for (const skin of ['0','A','B','C','D','E','F','G','I']) {
       const current=await (await f.session()).json();
       await f.skin(skin);
       for (const method of ['GET','POST']) {

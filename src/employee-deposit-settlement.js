@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { listActiveSyncs } from './sinkron-akuntansi-baris.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { entityAdminFromRequest, requireManagement } from './owner-auth.js';
 import { ownerEntityContext } from './owner-entity-context.js';
@@ -556,13 +557,18 @@ export async function handleEmployeeDepositApi(request, env, pathname) {
         FROM operational_receivables_payables r
         WHERE r.store_id = ? AND r.source_type = 'EMPLOYEE_DEPOSIT' AND r.counterparty_id = ?
       `).bind(cashier.store.id, holder.employee_id).first() : null;
-      const saldo = bookBalance(cashier.store.id, Number(operational?.saldo || 0), manual, await accountingStoreIds(db, [cashier.store.id]));
+      // Sinkronisasi Akuntansi (migration 0153) ikut sisi Operasional: tampil sebagai kartu sendiri dan
+      // menutup selisih "belum masuk pembukuan". Tidak dijurnal.
+      const syncs = holder ? await listActiveSyncs(db, { employeeId: holder.employee_id, kind: 'setoran', storeId: cashier.store.id }) : [];
+      const syncedScaled = syncs.reduce((sum, row) => sum + row.amountScaled, 0);
+      const saldo = bookBalance(cashier.store.id, Number(operational?.saldo || 0) + syncedScaled, manual, await accountingStoreIds(db, [cashier.store.id]));
       return json({
         items: withPayments,
         depositTarget: target ? { sharedAccountId: target.id, name: target.name } : null,
         // Mutasi dari jurnal Akuntansi (mis. potongan/penyesuaian oleh akuntan). Negatif = mengurangi piutang.
         manualAdjustmentRupiah: manual ? scaledToSignedRupiah(manual.netScaled) : 0,
         manualEntries: manual?.entries ?? [],
+        syncEntries: syncs.map(row => ({ id: row.id, createdAt: row.createdAt, amountRupiah: scaledToSignedRupiah(row.amountScaled) })),
         // Total Riwayat Setoran = saldo menurut buku Akuntansi (ADR-054).
         saldoBukuRupiah: saldo.balanceRupiah,
         belumMasukBukuRupiah: saldo.belumMasukBukuRupiah

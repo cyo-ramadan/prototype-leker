@@ -5,6 +5,7 @@ import { loadJobDetail, loadSchedule } from './cashier-auth.js';
 import { scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js';
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { resolveTenantId, getTenantPolicySetting, ATTENDANCE_SCHEDULE_GATE_KEY } from './tenant-policy.js';
+import { listActiveSyncs, SYNC_LABEL } from './sinkron-akuntansi-baris.js';
 
 // Bos Cyo, 2026-10-06: "didalam tombol karyawan entity admin itu tambahin untuk cek saldo
 // piutang/setoran dari karyawan tersebut, terlihat jika satu karyawan tadi tertaut dengan 2 atau
@@ -28,7 +29,7 @@ const SCALE = 1_000_000;
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 const rupiah = scaled => Number(scaled || 0) / SCALE;
 
-async function linkedAccounts(db, employeeId, entityId) {
+export async function linkedAccounts(db, employeeId, entityId) {
   const rows = await db.prepare(`
     SELECT DISTINCT l.account_id, l.account_type, c.username, c.employee_name, s.code AS store_code, s.store_name
     FROM employee_account_links l
@@ -172,13 +173,42 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
   return entries;
 }
 
+// Fakta operasional satu karyawan (tanpa jurnal penyesuaian & sinkronisasi) -- dipakai riwayat di
+// bawah dan perhitungan selisih tombol Sinkronisasi Akuntansi (src/sinkron-akuntansi.js).
+export function operationalEntries(db, employeeId, entityId, accounts, kind) {
+  return kind === 'gaji'
+    ? gajiEntries(db, employeeId, entityId, accounts)
+    : setoranEntries(db, employeeId, entityId, accounts);
+}
+
+// Baris Sinkronisasi Akuntansi (migration 0153) dalam bentuk mutasi riwayat. Tidak menempel ke satu
+// akun kerja, jadi hanya tampil di "Semua akun".
+export async function syncLedgerEntries(db, employeeId, kind) {
+  return (await listActiveSyncs(db, { employeeId, kind })).map(row => ({
+    at: row.createdAt,
+    businessDate: String(row.createdAt || '').slice(0, 10),
+    kind: 'SINKRONISASI',
+    label: SYNC_LABEL,
+    syncId: row.id,
+    storeId: row.storeId,
+    storeCode: row.storeCode,
+    accountId: null,
+    amountScaled: row.amountScaled,
+    status: 'POSTED',
+    note: 'Penyamaan riwayat dengan buku Akuntansi (tidak dijurnal)'
+  }));
+}
+
 export async function buildEmployeeLedger(db, { employeeId, entityId, kind, accountId = '' }) {
   const employee = await db.prepare(`SELECT id, full_name FROM employees WHERE id = ? AND entity_id = ?`).bind(employeeId, entityId).first();
   if (!employee) return null;
   const accounts = await linkedAccounts(db, employee.id, entityId);
-  const operational = kind === 'gaji'
-    ? await gajiEntries(db, employee.id, entityId, accounts)
-    : await setoranEntries(db, employee.id, entityId, accounts);
+  // Sinkronisasi dihitung sebagai bagian Operasional: setelah disinkronkan, riwayat = buku dan
+  // peringatan "belum masuk pembukuan" hilang.
+  const operational = [
+    ...await operationalEntries(db, employee.id, entityId, accounts, kind),
+    ...await syncLedgerEntries(db, employee.id, kind)
+  ];
   // ADR-054: saldo = buku Akuntansi; jurnal di luar fakta operasional (jurnal akuntan, dst.) atas
   // nama orang ini -- termasuk akun kasirnya sebelum ditautkan -- tampil sebagai penyesuaian.
   const buku = await riwayatDariBuku(db, {
@@ -222,6 +252,7 @@ export async function buildEmployeeLedger(db, { employeeId, entityId, kind, acco
       storeCode: entry.storeCode,
       accountId: entry.accountId,
       accountUsername: account?.username || null,
+      syncId: entry.syncId || null,
       status: entry.status,
       note: entry.note || '',
       amountRupiah: rupiah(entry.amountScaled),

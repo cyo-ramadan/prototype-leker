@@ -45,6 +45,7 @@ import { handlePercetakanApi } from './percetakan-api.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
+import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
 import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
 import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
@@ -301,6 +302,9 @@ async function handleApiRouted(request, env, url) {
   // handleEntityAdminApi karena alasan yang sama.
   const employeeLedgerResponse = await handleEmployeeLedgerViewApi(request, env, pathname);
   if (employeeLedgerResponse) return employeeLedgerResponse;
+  // Tombol Sinkronisasi Akuntansi (2026-10-13, migration 0153).
+  const sinkronAkuntansiResponse = await handleSinkronAkuntansiApi(request, env, pathname);
+  if (sinkronAkuntansiResponse) return sinkronAkuntansiResponse;
   const entityDepositQueueResponse = await handleEntityDepositQueueApi(request, env, pathname);
   if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);

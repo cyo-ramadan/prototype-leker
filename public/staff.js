@@ -236,13 +236,16 @@
     const payrollRows = portal?.payroll || [];
     const adjustmentRows = portal?.payrollAdjustments || [];
     const journalRows = portal?.accountingPayrollAdjustments || [];
-    if (!payrollRows.length && !adjustmentRows.length && !journalRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
+    const syncRows = portal?.payrollSyncEntries || [];
+    if (!payrollRows.length && !adjustmentRows.length && !journalRows.length && !syncRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
     for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule, checkInAt: row.checkInAt, checkOutAt: row.checkOutAt });
     for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: row.amountRupiah, reason: row.reason, voided: row.voided, voidReason: row.voidReason });
     // Koreksi dari Akuntansi (jurnal pada Hutang Gaji atas nama karyawan ini, ADR-054).
     for (const row of journalRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: row.description || 'Penyesuaian gaji', source: `Penyesuaian dari Akuntansi · Jurnal ${row.journalNumber}` });
+    // Penyamaan riwayat dengan buku Akuntansi oleh Entity Admin (migration 0153).
+    for (const row of syncRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: 'Sinkronisasi Akuntansi', source: 'Penyamaan riwayat dengan buku Akuntansi' });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
     const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
     target.innerHTML = `
@@ -509,7 +512,8 @@
     const target = el('staffDepositList'); if (!target) return;
     const items = deposits || [];
     const manualEntries = depositManual.entries || [];
-    if (!items.length && !manualEntries.length) { target.className = 'staff-empty'; target.innerHTML = 'Belum ada riwayat setoran.'; return; }
+    const syncEntries = depositManual.syncEntries || [];
+    if (!items.length && !manualEntries.length && !syncEntries.length) { target.className = 'staff-empty'; target.innerHTML = 'Belum ada riwayat setoran.'; return; }
     target.className = '';
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
@@ -522,6 +526,8 @@
     }
     // Penyesuaian dari jurnal Akuntansi (atas nama karyawan ini): + menambah piutang, - mengurangi.
     for (const entry of manualEntries) pushCard(entry.businessDate, { kind: 'jurnal', at: `${entry.businessDate}T00:00:00.000Z`, entry });
+    // Penyamaan riwayat dengan buku Akuntansi oleh Entity Admin (migration 0153).
+    for (const entry of syncEntries) pushCard(jakartaDate(entry.createdAt), { kind: 'sinkron', at: utcIso(entry.createdAt), amountRupiah: Number(entry.amountRupiah || 0) });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
     // Total = saldo menurut buku Akuntansi (ADR-054); server lama tanpa saldoBuku -> hitung dari kartu.
     const totalSisa = depositManual.saldoBuku != null
@@ -539,6 +545,11 @@
               return `<div class="attendance-row">
                 <div><strong>Setoran dari tutup laci</strong><div class="muted">Tutup laci jam ${escapeHtml(jakartaClock(card.at))} · uang yang dibawa pulang</div></div>
                 <span>${money(card.amountRupiah)}</span></div>`;
+            }
+            if (card.kind === 'sinkron') {
+              return `<div class="attendance-row">
+                <div><strong>Sinkronisasi Akuntansi</strong><div class="muted">Penyamaan riwayat dengan buku Akuntansi</div></div>
+                <span>${card.amountRupiah < 0 ? '−' : '+'}${money(Math.abs(card.amountRupiah))}</span></div>`;
             }
             if (card.kind === 'jurnal') {
               const e = card.entry; const rupiah = Number(e.signedScaled || 0) / 1000000;
@@ -560,7 +571,7 @@
     loadDepositPhotoThumbs();
   }
   function toastStaff(message) { showCameraMessage(message); setTimeout(clearCameraMessage, 4000); }
-  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [], saldoBuku: payload.saldoBukuRupiah ?? null, belumMasukBuku: payload.belumMasukBukuRupiah || 0 }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
+  async function loadDeposits() { try { const payload = await staffApi('/api/cashier/employee-deposits'); deposits = payload.items || []; depositManual = { rupiah: payload.manualAdjustmentRupiah || 0, entries: payload.manualEntries || [], syncEntries: payload.syncEntries || [], saldoBuku: payload.saldoBukuRupiah ?? null, belumMasukBuku: payload.belumMasukBukuRupiah || 0 }; depositTarget = payload.depositTarget || null; renderDeposits(); renderSetorForm(); } catch (error) { const pesan = `<div class="staff-message">${escapeHtml(error.message)}</div>`; el('staffDepositList').innerHTML = pesan; if (el('staffSetorForm')) el('staffSetorForm').innerHTML = pesan; } }
   async function loadPortal() { try { portal = await staffApi('/api/staff/portal'); renderPortal(); } catch (error) { if (error.status === 401 && !viewerMode) { localStorage.removeItem('lekerCashierToken'); localStorage.removeItem('lekerStaffSessionMeta'); location.replace('/login'); return; } el('attendanceList').innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; } }
   function showCameraMessage(message) { const node = el('staffCameraMessage'); node.textContent = message; node.classList.remove('hidden'); }
   function clearCameraMessage() { const node = el('staffCameraMessage'); node.textContent = ''; node.classList.add('hidden'); }

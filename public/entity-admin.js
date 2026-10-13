@@ -687,7 +687,7 @@ async function openEmployeeLedger(employeeId, kind, accountId) {
       <div class="master-row contact-row ${entry.status === 'REJECTED' ? 'inactive' : ''}">
         <div class="master-main"><strong>${entityAdminEscape(entry.label)}</strong>${statusChip(entry)}
           <div class="master-meta">${entityAdminEscape(entry.businessDate || '')} · ${entityAdminEscape(entry.storeCode || '-')}${entry.accountUsername ? ` · akun ${entityAdminEscape(entry.accountUsername)}` : ''}${entry.note ? ` · ${entityAdminEscape(entry.note)}` : ''}</div></div>
-        <div style="text-align:right"><strong>${entry.amountRupiah < 0 ? '−' : '+'}Rp${entityReportRupiah(Math.abs(entry.amountRupiah))}</strong><div class="master-meta">saldo Rp${entityReportRupiah(entry.balanceRupiah)}</div></div>
+        <div style="text-align:right"><strong>${entry.amountRupiah < 0 ? '−' : '+'}Rp${entityReportRupiah(Math.abs(entry.amountRupiah))}</strong><div class="master-meta">saldo Rp${entityReportRupiah(entry.balanceRupiah)}</div>${entry.syncId ? `<button class="mini-btn danger" type="button" data-sync-void="${entityAdminEscape(entry.syncId)}" style="margin-top:4px">Batalkan</button>` : ''}</div>
       </div>`).join('') || '<div class="empty">Belum ada mutasi.</div>';
     dialog.innerHTML = `
       <div class="list-head"><div><h2 style="margin:0">${title} · ${entityAdminEscape(data.employee.fullName)}</h2>
@@ -698,6 +698,20 @@ async function openEmployeeLedger(employeeId, kind, accountId) {
       <div class="master-list">${rows}</div>`;
     dialog.querySelector('[data-ledger-close]').onclick = () => dialog.close();
     dialog.querySelector('[data-ledger-account]').onchange = event => openEmployeeLedger(employeeId, kind, event.target.value);
+    // Baris Sinkronisasi Akuntansi (2026-10-13) bisa dibatalkan; buku Akuntansi tidak ikut berubah.
+    dialog.querySelectorAll('[data-sync-void]').forEach(button => {
+      button.onclick = async () => {
+        const reason = (window.prompt('Alasan membatalkan baris Sinkronisasi Akuntansi ini (wajib):', '') ?? '').trim();
+        if (reason.length < 3) return entityAdminToast('Alasan pembatalan wajib diisi.');
+        button.disabled = true;
+        try {
+          await entityAdminApi(`/api/entity-admin/balance-syncs/${encodeURIComponent(button.dataset.syncVoid)}/void`, { method: 'POST', body: JSON.stringify({ reason }) });
+          entityAdminToast('Baris sinkronisasi dibatalkan.');
+          loadEntityEmployeeBalances({ force: true });
+          openEmployeeLedger(employeeId, kind, accountId);
+        } catch (error) { entityAdminToast(error.message); button.disabled = false; }
+      };
+    });
   } catch (error) {
     dialog.innerHTML = `<div class="staff-message">${entityAdminEscape(error.message)}</div><button class="secondary-btn" type="button" onclick="this.closest('dialog').close()">Tutup</button>`;
   }

@@ -11,6 +11,7 @@ import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
 import { recordAttendanceAccrual } from './payroll-ledger.js';
 import { AKUN_HUTANG_GAJI, riwayatDariBuku } from './riwayat-dari-buku.js';
+import { listActiveSyncs } from './sinkron-akuntansi-baris.js';
 import { expirePermitsForClosedSessions, listOwnCorrectionPermits } from './attendance-correction-permit.js';
 import { listOwnGpsPermits } from './attendance-gps-permit.js';
 import { evaluateGps, storeReference, gpsNotice, overRadiusMeters } from './attendance-gps.js';
@@ -46,6 +47,22 @@ async function accountingPayrollAdjustments(db, cashier) {
   }));
 }
 
+// Sinkronisasi Akuntansi pada Hutang Gaji (migration 0153) untuk karyawan yang tertaut ke akun ini, di
+// gerai akun ini. Kartu tersendiri di Riwayat Gaji; tidak dijurnal.
+async function payrollSyncEntries(db, cashier) {
+  if (!cashier?.id || !cashier.store?.id) return [];
+  const link = await db.prepare(`
+    SELECT employee_id FROM employee_account_links
+    WHERE account_type = 'CASHIER' AND account_id = ? AND effective_to IS NULL LIMIT 1
+  `).bind(cashier.id).first();
+  if (!link?.employee_id) return [];
+  return (await listActiveSyncs(db, { employeeId: link.employee_id, kind: 'gaji', storeId: cashier.store.id })).map(row => ({
+    id: row.id,
+    businessDate: String(row.createdAt || '').slice(0, 10),
+    amountRupiah: row.amountScaled / 1_000_000
+  }));
+}
+
 export async function handleStaffPortalApi(request, env, pathname) {
   if (!pathname.startsWith('/api/staff/')) return null;
   if (request.method === 'GET' && pathname === '/api/staff/viewer-accounts') {
@@ -73,6 +90,7 @@ export async function handleStaffPortalApi(request, env, pathname) {
       payrollAdjustments: await listPayrollAdjustments(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id }),
       // ADR-054: koreksi akuntan pada Hutang Gaji atas nama pemilik akun ini ikut tampil.
       accountingPayrollAdjustments: await accountingPayrollAdjustments(env.DB, auth.cashier),
+      payrollSyncEntries: await payrollSyncEntries(env.DB, auth.cashier),
       attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id),
       attendanceGpsPermits: await listOwnGpsPermits(env.DB, auth.cashier.id)
     });

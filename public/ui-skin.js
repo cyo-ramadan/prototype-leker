@@ -17,7 +17,7 @@
 // berikutnya langsung tampil benar tanpa kedip; server tetap dicek tiap
 // halaman dimuat (bukan polling -- invariant #6).
 (() => {
-  const SKIN_ASSET_VERSION = '20261013-h-ocean-v1';
+  const SKIN_ASSET_VERSION = '20261013-i-classic-beach-v1';
   const SKIN_FONTS = {
     a: 'family=Plus+Jakarta+Sans:wght@400;600;700;800',
     b: 'family=Archivo:wdth,wght@62..125,400..900',
@@ -27,7 +27,9 @@
     f: 'family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,700&family=Manrope:wght@500;600;700;800',
     // G · Percetakan (ADR-055): layar utamanya public/percetakan.html; ini mewarnai halaman lain.
     g: 'family=IBM+Plex+Sans:wght@400;500;600;700',
-    h: 'family=Nunito+Sans:wght@400;500;600;700;800'
+    h: 'family=Nunito+Sans:wght@400;500;600;700;800',
+    // I preserves the page typography and geometry from skin 0.
+    i: null
   };
   const normalizeSkin = value => (Object.prototype.hasOwnProperty.call(SKIN_FONTS, value) ? value : 'classic');
   const CACHE_PREFIX = 'maxiUiSkin:';
@@ -56,7 +58,9 @@
     return storeCode ? { key: `store:${storeCode.toUpperCase()}`, query: `store=${encodeURIComponent(storeCode)}` } : null;
   }
 
-  const isOn = () => state.skin !== 'classic';
+  // Visual-only I loads its theme while retaining the classic UI contract.
+  const hasTheme = () => state.skin !== 'classic';
+  const isOn = () => hasTheme() && state.skin !== 'i';
 
   // Satu <link> gaya + satu <link> huruf, diganti saat skin berubah.
   function loadSkinAssets() {
@@ -65,23 +69,25 @@
       const old = document.getElementById(id);
       if (old && old.dataset.skin !== state.skin) old.remove();
     }
-    if (!isOn() || document.getElementById('maxiSkinCss')) return;
-    const font = document.createElement('link');
-    font.id = 'maxiSkinFont';
-    font.rel = 'stylesheet';
-    font.dataset.skin = state.skin;
-    font.href = `https://fonts.googleapis.com/css2?${SKIN_FONTS[state.skin]}&display=swap`;
+    if (!hasTheme() || document.getElementById('maxiSkinCss')) return;
+    if (SKIN_FONTS[state.skin]) {
+      const font = document.createElement('link');
+      font.id = 'maxiSkinFont';
+      font.rel = 'stylesheet';
+      font.dataset.skin = state.skin;
+      font.href = `https://fonts.googleapis.com/css2?${SKIN_FONTS[state.skin]}&display=swap`;
+      head.appendChild(font);
+    }
     const css = document.createElement('link');
     css.id = 'maxiSkinCss';
     css.rel = 'stylesheet';
     css.dataset.skin = state.skin;
     css.href = `/skin-${state.skin}.css?v=${SKIN_ASSET_VERSION}`;
-    head.appendChild(font);
     head.appendChild(css);
   }
 
   function setRootSkin() {
-    if (isOn()) root.dataset.skin = state.skin;
+    if (hasTheme()) root.dataset.skin = state.skin;
     else delete root.dataset.skin;
     loadSkinAssets();
   }
@@ -90,8 +96,8 @@
     if (document.getElementById('maxiUiSkinStyle')) return;
     const style = document.createElement('style');
     style.id = 'maxiUiSkinStyle';
-    style.textContent = 'html[data-skin] [data-skin-hide]{display:none!important}'
-      + 'html:not([data-skin]) [data-skin-only]{display:none!important}';
+    style.textContent = 'html[data-skin]:not([data-skin="i"]) [data-skin-hide]{display:none!important}'
+      + 'html:not([data-skin]) [data-skin-only],html[data-skin="i"] [data-skin-only]{display:none!important}';
     (document.head || root).appendChild(style);
   }
 

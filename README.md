@@ -4,7 +4,7 @@ Prototype self-ordering + branch administration + cashier workspace untuk MAXI L
 
 ## Library aset desain
 
-Lokasi gambar konsep owner/kasir, background pantai Skin H, prompt, palette, dan panduan reuse: [design-assets/README.md](design-assets/README.md). Daftar file dan checksum: [design-assets/manifest.json](design-assets/manifest.json). Aset saat ini disimpan di repo, belum dimirror ke R2.
+Lokasi gambar konsep owner/kasir, background pantai Skin H/I, preview Skin I, prompt, palette, dan panduan reuse: [design-assets/README.md](design-assets/README.md). Daftar file dan checksum: [design-assets/manifest.json](design-assets/manifest.json). Aset saat ini disimpan di repo, belum dimirror ke R2.
 
 ## Hierarki
 

@@ -12,7 +12,7 @@ import {
 import {
   kirimBalasan, r2Bucket, simulasiPesan, terimaWebhookMeta, terimaWebhookTwilio, unduhMediaMeta, unduhMediaTwilio, verifikasiLangganan
 } from './percetakan-wa.js';
-import { bacaChatOrder } from './percetakan-una.js';
+import { bacaUlangDenganUna, statusDraftNomor } from './percetakan-baca-una.js';
 import { aiConfigured } from './caca-ai-client.js';
 import { MODES, modeGerai, pendingMessages, simpanDraft, simpanMode, draftedMessageIds } from './percetakan-otomatis.js';
 import { buatKunciMesin, handleAgenApi } from './percetakan-mesin.js';
@@ -148,6 +148,7 @@ async function inbox(db, storeId) {
   let products = null;
   for (const group of groups.values()) {
     const drafted = await draftedMessageIds(db, storeId, group.fromNumber);
+    const { ordered, liveDraftIds } = await statusDraftNomor(db, storeId, group.fromNumber);
     group.messages.sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : 0));
     for (const message of group.messages) {
       if (message.direction === 'OUT') continue;
@@ -155,6 +156,9 @@ async function inbox(db, storeId) {
       message.processed = drafted.has(message.id);
     }
     group.unprocessed = group.messages.filter(message => message.direction === 'IN' && !message.processed).length;
+    // Una boleh membaca ulang selama ada pesan yang belum jadi order (juga kalau draftnya sudah ada).
+    group.notOrdered = group.messages.filter(message => message.direction === 'IN' && !ordered.has(message.id)).length;
+    group.hasDraft = liveDraftIds.length > 0;
     if (group.unprocessed) {
       products ??= await productsForStore(db, storeId);
       const pending = group.messages.filter(message => message.direction === 'IN' && !message.processed).map(message => ({
@@ -377,24 +381,22 @@ export async function handlePercetakanApi(request, env, pathname, { waitUntil } 
 
   if (request.method === 'GET' && pathname === '/api/percetakan/inbox') return json({ conversations: await inbox(db, storeId) });
 
-  if (request.method === 'POST' && (pathname === '/api/percetakan/drafts/baca' || pathname === '/api/percetakan/drafts/manual')) {
+  if (request.method === 'POST' && pathname === '/api/percetakan/drafts/baca') {
+    const fromNumber = normalizePhone(input.fromNumber);
+    if (!fromNumber) return json({ error: 'Nomor pelanggan wajib diisi.' }, 400);
+    const read = await bacaUlangDenganUna(env, { storeId, fromNumber, actor: auth.actor });
+    if (!read.ok) return json({ error: read.error }, read.status);
+    const row = await db.prepare('SELECT * FROM print_order_drafts WHERE id = ?').bind(read.draftId).first();
+    return json({ draft: mapDraft(row), replaced: read.replaced, images: read.images }, 201);
+  }
+
+  if (request.method === 'POST' && pathname === '/api/percetakan/drafts/manual') {
     const fromNumber = normalizePhone(input.fromNumber);
     if (!fromNumber) return json({ error: 'Nomor pelanggan wajib diisi.' }, 400);
     const messages = await pendingMessages(db, storeId, fromNumber);
     if (!messages.length) return json({ error: 'Tidak ada pesan baru dari nomor ini yang belum diproses.' }, 409);
-    let proposal = { customerName: messages.find(message => message.from_name)?.from_name || '', dueText: '', items: [], questions: [] };
-    let model = '';
-    let source = 'MANUAL';
-    if (pathname.endsWith('/baca')) {
-      const products = await productsForStore(db, storeId);
-      const filesByMessageId = new Map(messages.filter(message => message.file_id).map(message => [message.id, message.file_id]));
-      const read = await bacaChatOrder(env, { messages, products, filesByMessageId });
-      if (!read.ok) return json({ error: read.error }, read.status);
-      proposal = { ...read.proposal, customerName: read.proposal.customerName || proposal.customerName };
-      model = read.model;
-      source = 'AI';
-    }
-    const draftId = await simpanDraft(db, { storeId, fromNumber, messages, proposal, source, model });
+    const proposal = { customerName: messages.find(message => message.from_name)?.from_name || '', dueText: '', items: [], questions: [] };
+    const draftId = await simpanDraft(db, { storeId, fromNumber, messages, proposal, source: 'MANUAL' });
     if (!draftId) return json({ error: 'Pesan ini baru saja diproses. Muat ulang.' }, 409);
     const row = await db.prepare('SELECT * FROM print_order_drafts WHERE id = ?').bind(draftId).first();
     return json({ draft: mapDraft(row) }, 201);

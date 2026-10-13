@@ -1,4 +1,5 @@
 (() => {
+  if (window.OwnerOfficeEmbed) return;
   const pathname = location.pathname;
   const isCashier = pathname === '/cashier' || /\/cashier\/?$/.test(pathname);
   const isStaffPortal = pathname === '/staff' || /\/staff\/?$/.test(pathname);
@@ -29,7 +30,7 @@
     : isOwner
       ? Boolean(localStorage.getItem('lekerOwnerToken'))
       : isEntityAdmin
-        ? Boolean(localStorage.getItem('lekerEntityAdminToken'))
+        ? Boolean(localStorage.getItem('lekerEntityAdminToken')) || (Boolean(new URLSearchParams(location.search).get('entity')) && Boolean(localStorage.getItem('lekerOwnerToken')))
         : isBranchAdmin
           ? Boolean(localStorage.getItem('lekerOwnerToken') || localStorage.getItem('lekerAdminToken') || localStorage.getItem('lekerEntityAdminToken'))
           : true;

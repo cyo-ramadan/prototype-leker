@@ -1,3 +1,5 @@
+import { listDrawerPermitHistory } from './drawer-permit-history.js';
+
 const number = value => Number(value || 0);
 
 function mapDrawer(row) {
@@ -54,7 +56,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows, permitHistory] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -107,7 +109,8 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       FROM approval_requests
       WHERE store_id = ? AND drawer_session_id = ? AND request_type = 'GOODS_FLOW' AND posting_status = 'posted'
       ORDER BY posted_at
-    `).bind(storeId, drawerId).all()
+    `).bind(storeId, drawerId).all(),
+    listDrawerPermitHistory(db, storeId, drawerId)
   ]);
 
   const sales = (saleRows.results ?? []).map(row => ({
@@ -261,7 +264,8 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       stockAdjustments,
       goodsFlow,
       cashIn,
-      operationalCash
+      operationalCash,
+      ...(permitHistory === null ? {} : { permitHistory })
     },
     totals: {
       cashSales: cashSalesTotal,

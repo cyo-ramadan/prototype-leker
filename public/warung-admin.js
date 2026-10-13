@@ -21,7 +21,7 @@
   // Minus tetap minus (invariant #8).
   const rupiah = value => { const number = Math.round(Number(value) || 0); return `${number < 0 ? '−' : ''}Rp${Math.abs(number).toLocaleString('id-ID')}`; };
   const storeCode = () => String(window.LEKER_STORE_CODE || '').trim();
-  const isOn = () => window.MaxiSkin?.skin?.() === 'd';
+  const isOn = () => ['d', 'h'].includes(window.MaxiSkin?.skin?.());
   let loading = false;
 
   function jakartaDate(offsetDays = 0) {
@@ -118,14 +118,14 @@
     try {
       const [profit, approvals, voids, closes, drawers] = await Promise.all([
         get(`/api/admin/reports/net-profit?from=${yesterday}&to=${today}&stores=${code}`).catch(() => null),
-        get('/api/management/approval-requests?status=pending_approval').then(payload => (payload.requests || []).length).catch(() => 0),
-        get('/api/management/transaction-void-permits?status=all').then(payload => Number(payload.summary?.pending || 0)).catch(() => 0),
-        get('/api/admin/drawer/close-permits').then(payload => (payload.permits || []).length).catch(() => 0),
-        get('/api/admin/drawers').then(payload => payload.drawers || []).catch(() => [])
+        get('/api/management/approval-requests?status=pending_approval').then(payload => (payload.requests || []).length).catch(() => window.MaxiSkin?.skin?.() === 'h' ? null : 0),
+        get('/api/management/transaction-void-permits?status=all').then(payload => Number(payload.summary?.pending || 0)).catch(() => window.MaxiSkin?.skin?.() === 'h' ? null : 0),
+        get('/api/admin/drawer/close-permits').then(payload => (payload.permits || []).length).catch(() => window.MaxiSkin?.skin?.() === 'h' ? null : 0),
+        get('/api/admin/drawers').then(payload => payload.drawers || []).catch(() => window.MaxiSkin?.skin?.() === 'h' ? null : [])
       ]);
-      const open = drawers.find(drawer => drawer.status === 'OPEN') || null;
+      const open = drawers?.find(drawer => drawer.status === 'OPEN') || null;
       const report = open ? await get(`/api/admin/drawers/${encodeURIComponent(open.id)}`).then(payload => payload.report).catch(() => null) : null;
-      render(section, { profit, approvals, voids, closes, open, report, today, yesterday });
+      render(section, { profit, approvals, voids, closes, open, report, today, yesterday, drawersKnown: drawers !== null });
     } catch (error) {
       section.innerHTML = `<div class="admin-card th-card"><h2>Hari ini</h2><div class="muted">${esc(error.message)}</div></div>`;
     } finally {
@@ -133,7 +133,7 @@
     }
   }
 
-  function render(section, { profit, approvals, voids, closes, open, report, today, yesterday }) {
+  function render(section, { profit, approvals, voids, closes, open, report, today, yesterday, drawersKnown }) {
     const rows = profit?.rows || [];
     const day = date => rows.find(row => row.businessDate === date) || null;
     const todayRow = day(today);
@@ -148,13 +148,15 @@
       [closes, 'permintaan tutup laci', 'drawers']
     ].filter(([count]) => count > 0);
     const needCount = needs.reduce((sum, [count]) => sum + count, 0);
-    const needHtml = needs.length
+    const incomplete = [approvals, voids, closes].some(count => count === null);
+    const needHtml = (needs.length
       ? needs.map(([count, text, key]) => `<div class="th-need"><span>${count} ${esc(text)}</span><button type="button" class="primary-btn" data-th-open="${key}">Putuskan</button></div>`).join('')
-      : '<div class="th-ok">✓ Tidak ada yang menunggu keputusan Anda.</div>';
+      : incomplete ? '' : '<div class="th-ok">✓ Tidak ada yang menunggu keputusan Anda.</div>')
+      + (incomplete ? '<p class="muted" role="status">Sebagian pengajuan belum termuat. Tekan Perbarui untuk memeriksa lagi.</p>' : '');
 
     const time = value => (value ? new Date(value).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '');
     const expected = report?.totals?.expectedCash;
-    const drawerHtml = open
+    const drawerHtml = !drawersKnown ? '<div class="muted">Status laci belum bisa dimuat. Tekan Perbarui.</div>' : open
       ? `<div class="th-line"><span>Dijaga</span><b>${esc(open.cashierName || 'kasir')}${open.openedAt ? ` · sejak ${time(open.openedAt)}` : ''}</b></div>
          ${expected !== undefined && expected !== null ? `<div class="th-line"><span>Seharusnya ada di laci</span><b>${rupiah(expected)}</b></div>` : ''}
          <button type="button" class="secondary-btn" data-th-open="drawers" style="margin-top:8px">Lihat laci</button>`

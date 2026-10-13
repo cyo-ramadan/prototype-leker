@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import {
   ACCOUNTING_ACCOUNT_TYPES,
@@ -11,7 +12,7 @@ import {
   accountingSchemaViolations
 } from '../scripts/verify-remote-schema.mjs';
 
-const repositoryRoot = resolve(new URL('..', import.meta.url).pathname);
+const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const migrationDirectory = resolve(repositoryRoot, 'migrations');
 const auditFile = 'test/accounting-orphan-schema-audit.test.js';
 const orphanTableNames = [...FORBIDDEN_REMOTE_TABLES];

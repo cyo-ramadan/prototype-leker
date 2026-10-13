@@ -54,7 +54,7 @@ function fakeR2() {
   return {
     objects,
     async put(key, value) { objects.set(key, value); },
-    async get(key) { return objects.has(key) ? { body: objects.get(key), httpMetadata: {} } : null; }
+    async get(key) { return objects.has(key) ? { body: objects.get(key), httpMetadata: {}, async arrayBuffer() { return new Uint8Array(objects.get(key)).slice().buffer; } } : null; }
   };
 }
 
@@ -716,4 +716,69 @@ test('ACC pelanggan: draft -> rincian dikirim ke WA -> pelanggan minta ubah -> k
 test('ACC: kata setuju dikenali, permintaan ubah tidak dianggap setuju', () => {
   for (const ya of ['ok', 'OK', 'Oke kak', 'okey', 'ya', 'iya lanjut', 'acc', 'Setuju', 'lanjut kak', 'siap', 'sip', 'sudah sesuai']) assert.equal(adalahSetuju(ya), true, ya);
   for (const tidak of ['ok tapi ganti 4x1', 'eh salah ukuran', 'ya tapi tambah 1', 'tidak jadi', 'oke jangan dulu', 'bisa kirim ulang rinciannya?', '', 'ok '.repeat(30)]) assert.equal(adalahSetuju(tidak), false, tidak);
+});
+
+test('Baca dengan Una: membaca SELURUH chat (balasan CS + foto), baca ulang mengganti draft lama, pesan yang sudah jadi order hanya konteks', async () => {
+  const { sqlite, env } = await setup();
+  const realFetch = globalThis.fetch;
+  const permintaan = [];
+  let jawaban = { namaPelanggan: 'Yanti', tenggat: '', items: [{ kodeProduk: 'A3AP', jumlah: 2, lebarCm: 0, tinggiCm: 0, idPesanFile: '', catatan: 'laminating' }], pertanyaan: [] };
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /generativelanguage/);
+    permintaan.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(jawaban) }] } }] }), { headers: { 'content-type': 'application/json' } });
+  };
+  env.GEMINI_API_KEY = 'kunci-tes';
+  const nomor = '6285800000001';
+  const teksPermintaan = n => JSON.stringify(permintaan[n].contents);
+  try {
+    const foto = await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: nomor, name: 'yntkts', text: 'mas mau print ini ya', fileName: 'desain.png', mime: 'image/png', fileBase64: Buffer.from('gambar-png').toString('base64') } });
+    assert.equal(foto.status, 201);
+    assert.equal((await call(env, '/api/percetakan/wa/balas', { method: 'POST', body: { toNumber: nomor, text: 'bisa mas, A3+ ya' } })).status, 201);
+    await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: nomor, text: 'di laminating sekalian, 2 lembar' } });
+
+    let inbox = (await call(env, '/api/percetakan/inbox', { token: 'kasir-token' })).body.conversations[0];
+    assert.equal(inbox.notOrdered, 2);
+    assert.equal(inbox.hasDraft, false);
+
+    const pertama = await call(env, '/api/percetakan/drafts/baca', { token: 'kasir-token', method: 'POST', body: { fromNumber: nomor } });
+    assert.equal(pertama.status, 201, JSON.stringify(pertama.body));
+    assert.equal(pertama.body.images, 1);
+    assert.match(teksPermintaan(0), /CS: bisa mas, A3\+ ya/, 'balasan CS ikut dibaca Una');
+    assert.match(teksPermintaan(0), /inline_data/, 'foto pelanggan ikut dikirim ke Una');
+    assert.equal(pertama.body.draft.proposal.items[0].productCode, 'A3AP');
+    assert.equal(pertama.body.draft.proposal.items[0].note, 'laminating');
+
+    // Draft sudah ada -> tombol tetap aktif sebagai "Baca ulang"; hasilnya mengganti draft lama.
+    inbox = (await call(env, '/api/percetakan/inbox', { token: 'kasir-token' })).body.conversations[0];
+    assert.equal(inbox.hasDraft, true);
+    assert.equal(inbox.notOrdered, 2);
+    jawaban = { ...jawaban, items: [{ ...jawaban.items[0], jumlah: 3 }] };
+    const kedua = await call(env, '/api/percetakan/drafts/baca', { token: 'kasir-token', method: 'POST', body: { fromNumber: nomor } });
+    assert.equal(kedua.status, 201, JSON.stringify(kedua.body));
+    assert.equal(kedua.body.replaced, 1);
+    const drafts = (await call(env, '/api/percetakan/drafts', { token: 'kasir-token' })).body.drafts;
+    assert.equal(drafts.length, 1, 'hanya satu draft hidup per pelanggan');
+    assert.equal(drafts[0].proposal.items[0].qty, 3);
+    assert.equal(sqlite.prepare("SELECT acc_note FROM print_order_drafts WHERE id = ?").get(pertama.body.draft.id).acc_note, 'Diganti draft baru (Una membaca ulang percakapan)');
+
+    // Jadi order -> tanpa chat baru Una tidak dipanggil lagi.
+    const products = (await call(env, '/api/percetakan/setup')).body.products;
+    const a3ap = products.find(p => p.code === 'A3AP');
+    assert.equal((await call(env, `/api/percetakan/drafts/${drafts[0].id}/konfirmasi`, { token: 'kasir-token', method: 'POST', body: { alasan: 'setuju langsung di toko', customerName: 'Yanti', items: [{ productId: a3ap.id, qty: 3 }] } })).status, 201);
+    const kosong = await call(env, '/api/percetakan/drafts/baca', { token: 'kasir-token', method: 'POST', body: { fromNumber: nomor } });
+    assert.equal(kosong.status, 409);
+    assert.equal(permintaan.length, 2, 'tidak memanggil AI kalau tidak ada chat baru');
+
+    // Chat baru: pesan lama dikirim sebagai konteks [SUDAH JADI ORDER], draft hanya mengikat pesan baru.
+    await call(env, '/api/percetakan/wa/simulasi', { method: 'POST', body: { from: nomor, text: 'mas tambah print A3 1 lagi ya' } });
+    const ketiga = await call(env, '/api/percetakan/drafts/baca', { token: 'kasir-token', method: 'POST', body: { fromNumber: nomor } });
+    assert.equal(ketiga.status, 201, JSON.stringify(ketiga.body));
+    assert.match(teksPermintaan(2), /\[SUDAH JADI ORDER\] Pelanggan: mas mau print ini ya/);
+    assert.equal(ketiga.body.images, 0, 'foto yang sudah jadi order tidak dikirim ulang');
+    assert.equal(ketiga.body.draft.messageIds?.length ?? JSON.parse(sqlite.prepare('SELECT message_ids_json FROM print_order_drafts WHERE id = ?').get(ketiga.body.draft.id).message_ids_json).length, 1);
+  } finally {
+    globalThis.fetch = realFetch;
+    sqlite.close();
+  }
 });

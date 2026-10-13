@@ -73,7 +73,8 @@ Token PIN lama / token agen ditolak (riwayat wajib punya orang).
 | `POST /channels` | Owner/Admin | daftarkan nomor Meta: `{phoneNumberId, displayNumber}` |
 | `POST /wa/simulasi` | Owner/Admin | `{from, name?, text?, fileName?, mime?, fileBase64?}` (maks 20 MB) |
 | `GET /inbox` | semua | chat 7 hari, dikelompokkan per nomor, tanda sudah/belum diproses |
-| `POST /drafts/baca` · `/drafts/manual` | semua | `{fromNumber}` → draft dari pesan 3 hari terakhir yang belum masuk draft |
+| `POST /drafts/baca` | semua | `{fromNumber}` → Una membaca SELURUH chat 7 hari (pesan + balasan CS + ≤4 foto), mengganti draft MENUNGGU lama (ADR-055 D15, `src/percetakan-baca-una.js`) |
+| `POST /drafts/manual` | semua | `{fromNumber}` → draft kosong dari pesan 3 hari terakhir yang belum masuk draft |
 | `GET /drafts` | semua | draft MENUNGGU |
 | `POST /drafts/:id/konfirmasi` | semua | `{customerName, dueAt, note, items:[{productId, qty, widthCm?, heightCm?, fileId?, note?}]}` |
 | `POST /drafts/:id/tolak` | semua | bukan order |

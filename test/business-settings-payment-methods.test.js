@@ -9,7 +9,7 @@ const migrationDir = new URL('../migrations/', import.meta.url);
 const businessSource = readFileSync(new URL('../src/business-settings.js', import.meta.url), 'utf8');
 const accountingSource = readFileSync(new URL('../src/accounting-settings.js', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
-const packageSource = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
+const checkManifest = readFileSync(new URL('../scripts/check-syntax.mjs', import.meta.url), 'utf8');
 
 function d1(sqlite) {
   return {
@@ -124,5 +124,5 @@ test('Business Settings owns the reachable writer while Accounting keeps one dep
   const genericAdminDispatch = indexSource.indexOf("if (pathname.startsWith('/api/admin/')) return handleAdminApi");
   assert.ok(businessDispatch >= 0 && businessDispatch < accountingDispatch);
   assert.ok(accountingDispatch < genericAdminDispatch);
-  assert.match(packageSource, /node --check src\/business-settings\.js/);
+  assert.match(checkManifest, /src\/business-settings\.js/);
 });

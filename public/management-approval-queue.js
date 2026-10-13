@@ -89,7 +89,7 @@
   // Skin D (pemilik yang mengurus admin sendiri, DESAIN-SKIN-D-WARUNG.md §4c):
   // kata tombol dalam bahasa pemilik. Tenant lain tetap memakai kata lama.
   function word(classic, owner) {
-    return window.MaxiSkin?.skin?.() === 'd' ? owner : classic;
+    return ['d', 'h'].includes(window.MaxiSkin?.skin?.()) ? owner : classic;
   }
 
   function renderSingleCard(request) {
@@ -163,7 +163,7 @@
         method: 'PATCH',
         body: JSON.stringify({ decision })
       });
-      showMessage(payload.posted ? 'ACC berhasil · posting snapshot selesai.' : 'Pengajuan ditolak tanpa posting.');
+      showMessage(payload.posted ? word('ACC berhasil · posting snapshot selesai.', 'Pengajuan disetujui dan dicatat.') : word('Pengajuan ditolak tanpa posting.', 'Pengajuan ditolak.'));
       await loadQueue();
     } catch (error) {
       if (error.payload?.code === 'STOCK_ADJUSTMENT_STALE') {
@@ -204,8 +204,14 @@
       : 'AKTIF. Pengajuan baru gerai ini langsung ACC otomatis.';
   }
 
+  function autoPermitScopeText() {
+    return window.MaxiSkin?.skin?.() === 'h'
+      ? 'Arus Kas, Arus Barang, Penyesuaian Stok, Aset, dan Hapus Transaksi'
+      : 'Arus Kas, Arus Barang, Penyesuaian Stok, dan Aset';
+  }
+
   async function toggleAutoPermit(currentlyEnabled) {
-    if (!currentlyEnabled && !confirm('Auto Permit akan langsung meng-ACC semua pengajuan baru gerai ini tanpa direview manual. Kalau ada masalah, itu tanggung jawab akun yang mengaktifkan. Lanjutkan?')) return;
+    if (!currentlyEnabled && !confirm(`Auto Permit akan langsung meng-ACC pengajuan baru gerai ini (${autoPermitScopeText()}) tanpa direview manual. Kalau ada masalah, itu tanggung jawab akun yang mengaktifkan. Lanjutkan?`)) return;
     try {
       await managementApi('/api/management/approval-settings', { method: 'PATCH', body: JSON.stringify({ enabled: !currentlyEnabled }) });
       showMessage(!currentlyEnabled ? 'Auto Permit dinyalakan.' : 'Auto Permit dimatikan.');
@@ -240,7 +246,7 @@
     toast.insertAdjacentHTML('beforebegin', `
       <section id="tab-approvals" class="admin-section">
         <div class="admin-card">
-          <div class="list-head"><div><h2>Auto Permit</h2><div class="muted">Kalau nyala, pengajuan baru gerai ini (Arus Kas, Arus Barang, Penyesuaian Stok, Aset) langsung di-ACC otomatis tanpa direview manual.</div></div></div>
+          <div class="list-head"><div><h2>Auto Permit</h2><div class="muted">Kalau nyala, pengajuan baru gerai ini (${autoPermitScopeText()}) langsung di-ACC otomatis tanpa direview manual.</div></div></div>
           <div id="autoPermitStatus" class="muted" style="margin-top:10px">Memuat status...</div>
           <button id="autoPermitToggle" class="secondary-btn" type="button" style="margin-top:10px" disabled>Memuat...</button>
         </div>

@@ -43,7 +43,9 @@ export const UI_SKIN_OPTIONS = Object.freeze([
   // on/off skin. setiap tenant juga bisa pake skin itu kalo dipilih." G = Percetakan: chat WA jadi
   // order + antrian per mesin + agen cetak (ADR-055, HANDOFF-PERCETAKAN.md). Seluruh /api/percetakan/*
   // dan layar /s/<kode>/cetak HANYA hidup untuk tenant yang memilih G (isPercetakanChoice).
-  { value: 'G', label: 'G · Percetakan' }
+  { value: 'G', label: 'G · Percetakan' },
+  // H tetap punya kasir; tidak ikut pengecualian presensi dan izin skin E.
+  { value: 'H', label: 'H · Owner Kelola Sendiri' }
 ]);
 
 // Tenant yang memilih skin E dijaga pemiliknya sendiri, tanpa karyawan:
@@ -89,7 +91,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     type: 'choice',
     options: UI_SKIN_OPTIONS,
     label: 'Tampilan (skin)',
-    description: '0 = tampilan sekarang. G = Percetakan (chat WA pelanggan otomatis jadi order + antrian per mesin, layar Cetak untuk operator, agen cetak langsung ke printer; kasir diarahkan ke layar Cetak). F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    description: '0 = tampilan sekarang. H = Owner Kelola Sendiri (beberapa gerai dengan kasir; owner mengurus admin, resep langsung di barang; aturan presensi dan izin tetap biasa). G = Percetakan (chat WA pelanggan otomatis jadi order + antrian per mesin, layar Cetak untuk operator, agen cetak langsung ke printer; kasir diarahkan ke layar Cetak). F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
     defaultValue: '0'
   }
 ]);
@@ -146,13 +148,30 @@ export async function getTenantPolicyChoice(db, tenantId, key) {
 }
 
 export async function setTenantPolicySetting(db, tenantId, key, value, { role = '', id = '' } = {}) {
-  await db.prepare(`
+  const statement = db.prepare(`
     INSERT INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_at, updated_by_role, updated_by_id)
     VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
     ON CONFLICT (tenant_id, setting_key) DO UPDATE SET
       setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP,
       updated_by_role = excluded.updated_by_role, updated_by_id = excluded.updated_by_id
-  `).bind(tenantId, key, normalizePolicyValue(key, value), role, id).run();
+  `).bind(tenantId, key, normalizePolicyValue(key, value), role, id);
+  if (key !== UI_SKIN_KEY) { await statement.run(); return; }
+  // A skin round trip must not revive a cached Office credential. Rotate an
+  // opaque epoch with the skin write, without changing any operational policy.
+  const epoch = db.prepare(`
+    INSERT INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_by_role, updated_by_id)
+    SELECT ?, 'owner_office_epoch', ?, ?, ?
+    WHERE COALESCE((SELECT setting_value FROM tenant_policy_settings WHERE tenant_id = ? AND setting_key = 'ui_skin'), '0') <> ?
+    ON CONFLICT (tenant_id, setting_key) DO UPDATE SET setting_value=excluded.setting_value, updated_at=CURRENT_TIMESTAMP, updated_by_role=excluded.updated_by_role, updated_by_id=excluded.updated_by_id
+  `).bind(tenantId, crypto.randomUUID(), role, id, tenantId, normalizePolicyValue(key, value));
+  if (typeof db.batch === 'function') {
+    await db.batch([epoch, statement]);
+  } else {
+    // Test doubles and older adapters may not expose D1 batch(). Keep the
+    // same ordering; production D1 still performs the pair atomically.
+    await epoch.run();
+    await statement.run();
+  }
 }
 
 // Buat panel Owner -- semua saklar yang dikenal + nilainya SEKARANG untuk

@@ -43,7 +43,7 @@ test('kunci API tidak pernah ditulis di file konfigurasi', () => {
   assert.match(opencode.provider.router.options.apiKey, /^\{env:/);
   assert.match(opencode.mcp['agent-bus'].headers.Authorization, /^Bearer \{env:/);
   assert.match(baca('.gitignore'), /^mesin-agen\/\.env$/m);
-  for (const baris of baca('mesin-agen/.env.example').split('\n')) {
+  for (const baris of baca('mesin-agen/.env.example').split(/\r?\n/)) {
     if (/(KEY|TOKEN)=/.test(baris)) assert.match(baris, /=$/, `contoh .env harus kosong: ${baris}`);
   }
 });

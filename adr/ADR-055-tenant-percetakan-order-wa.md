@@ -246,6 +246,20 @@ ACC pelanggan yang **tercatat** → job ticket → produksi. Implementasi (`src/
 - Mode bawaan gerai contoh: MANUAL (= alur ACC). OTOMATIS/LANGSUNG_CETAK tetap ada sebagai pilihan.
   Pembaca aturan hanya memberi tanda "kelihatannya lengkap" di Chat masuk.
 
+### D15 — "Baca dengan Una" membaca seluruh percakapan, dan boleh diulang
+
+Bos Cyo, 2026-10-12, setelah tombol Una mati di chat yang "sudah diproses": "bikin sistem keluarin
+draft dari una nya ... sampe kelar". Implementasi `src/percetakan-baca-una.js`:
+- Una menerima seluruh linimasa 7 hari: pesan pelanggan, balasan CS yang TERKIRIM (baris `CS:`),
+  dan sampai 4 foto (≤ 4 MB) dari pesan yang belum jadi order. Pesan yang sudah jadi order ikut
+  sebagai konteks `[SUDAH JADI ORDER]`, tidak diikat ke draft baru.
+- Tombol aktif selama ada pesan yang belum jadi order (`notOrdered`), juga kalau draft sudah ada
+  (label "Baca ulang dengan Una"). Baca ulang mengganti draft MENUNGGU lama dalam satu batch
+  (lama → DITOLAK, `acc_note` = alasan), termasuk draft yang menunggu ACC.
+- `message_key` = hash(id pesan + draft yang digantikan): dua klik bersamaan → satu draft.
+- Tanpa chat baru sejak order terakhir → 409, AI tidak dipanggil (hemat kuota).
+- Tidak bergantung pada penyedia WA: ganti nomor/penyedia (Meta, coexistence, BSP) tidak mengubah alur ini.
+
 ## Konsekuensi
 
 - Push branch yang berisi migration 0145 akan langsung menjalankan migration ke D1 produksi

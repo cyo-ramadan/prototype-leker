@@ -1,5 +1,8 @@
+const entityOwnerScope = new URLSearchParams(location.search).get('entity') || '';
+const entityOwnerMode = Boolean(entityOwnerScope && localStorage.getItem('lekerOwnerToken'));
 const entityAdminState = {
-  token: localStorage.getItem('lekerEntityAdminToken') || '',
+  token: (entityOwnerMode ? localStorage.getItem('lekerOwnerToken') : localStorage.getItem('lekerEntityAdminToken')) || '',
+  ownerMode: entityOwnerMode,
   entityAdmin: null,
   stores: [],
   accounts: [],
@@ -13,6 +16,11 @@ const entityAdminEl = id => document.getElementById(id);
 const entityAdminEscape = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
 
 async function entityAdminApi(path, options = {}) {
+  if (entityAdminState.ownerMode && path.startsWith('/api/entity-admin/')) {
+    const url = new URL(path, location.origin);
+    url.searchParams.set('entity', entityOwnerScope);
+    path = url.pathname + url.search + url.hash;
+  }
   const headers = { ...(options.headers || {}) };
   if (entityAdminState.token) headers.Authorization = `Bearer ${entityAdminState.token}`;
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
@@ -61,9 +69,10 @@ function showEntityAdminApp() {
   window.refreshEntitySetoranBadge?.();
   window.refreshEntityIzinBadge?.();
   window.refreshEntityDrawerCards?.();
-  loadEntityLedger().catch(error => entityAdminToast(error.message));
+  if (!entityAdminState.ownerMode) loadEntityLedger().catch(error => entityAdminToast(error.message));
   window.cacaSetTampil?.(true);
-  window.EntityManagement?.init().catch(error => entityAdminToast(error.message));
+  if (!entityAdminState.ownerMode) window.EntityManagement?.init().catch(error => entityAdminToast(error.message));
+  window.dispatchEvent(new CustomEvent('entity-admin-ready'));
 }
 
 // --- Buku Entity ---------------------------------------------------------
@@ -87,6 +96,7 @@ function switchEntityTab(name) {
   entityAdminEl('entityTab-employees')?.classList.toggle('active', name === 'employees');
   entityAdminEl('entityTab-reports')?.classList.toggle('active', name === 'reports');
   void loadEntityTabContent(name).catch(error => entityAdminToast(error.message));
+  window.dispatchEvent(new CustomEvent('entity-admin-tab', { detail: { name } }));
 }
 
 // One loader for the original menu and its pinned instance; no copied panels or report renderers.
@@ -1110,11 +1120,13 @@ function showLegacyEntityAdminLogin() {
 }
 
 async function loadEntityAdminData() {
-  const payload = await entityAdminApi('/api/entity-admin/stores');
+  const payload = await entityAdminApi(entityAdminState.ownerMode
+    ? '/api/management/owner-entity/context?entity=' + encodeURIComponent(entityOwnerScope)
+    : '/api/entity-admin/stores');
   entityAdminState.entityAdmin = payload.entityAdmin;
   entityAdminState.stores = payload.stores || [];
   // Skin tampilan ikut tenant pemilik entity ini (public/ui-skin.js).
-  window.MaxiSkin?.useEntity(payload.entityAdmin?.entityId);
+  await window.MaxiSkin?.useEntity(payload.entityAdmin?.entityId);
 }
 
 function renderEntityAdminStores() {
@@ -1126,13 +1138,15 @@ function renderEntityAdminStores() {
       ${store.address ? `<p>${entityAdminEscape(store.address)}</p>` : ''}
       <div class="owner-store-status">${window.entityDrawerBadge ? window.entityDrawerBadge(store, entityAdminState.drawers) : (store.isActive ? '' : '○ Nonaktif')}</div>
       <div class="owner-store-actions">
-        <a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>
+        ${window.MaxiSkin?.skin?.() === 'h' ? `<button class="primary-btn" type="button" data-owner-store="${entityAdminEscape(store.code)}">Kelola gerai</button><a class="secondary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/cashier?readonly=1" target="_blank" rel="noopener">Lihat CS</a>` : `<a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>`}
       </div>
     </article>`).join('') : '<div class="empty">Belum ada gerai yang tertaut ke entity ini.</div>';
 }
 
 async function entityAdminLogout() {
+  window.OwnerEntityPortal?.destroy();
   await window.EntityManagement?.destroy();
+  if (entityAdminState.ownerMode) { location.href = '/admin'; return; }
   try { await entityAdminApi('/api/entity-admin/logout', { method: 'POST' }); } catch {}
   entityAdminState.token = '';
   entityAdminState.entityAdmin = null;
@@ -1167,7 +1181,7 @@ async function initEntityAdmin() {
     await loadEntityAdminData();
     showEntityAdminApp();
   } catch {
-    localStorage.removeItem('lekerEntityAdminToken');
+    if (!entityAdminState.ownerMode) localStorage.removeItem('lekerEntityAdminToken');
     entityAdminState.token = '';
     showEntityAdminLogin();
   }

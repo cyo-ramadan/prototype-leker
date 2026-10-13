@@ -4,6 +4,7 @@ import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
 import { executeTransactionCorrection } from './transaction-correction-executor.js';
+import { getTenantPolicyChoice, UI_SKIN_KEY } from './tenant-policy.js';
 
 export const TRANSACTION_VOID_PERMIT_CONTRACT = 'MAXI_TRANSACTION_VOID_PERMIT_V1';
 const SUBJECT_TYPES = new Set(['SALE', 'PURCHASE', 'EXPENSE']);
@@ -136,6 +137,37 @@ async function existingOpenPermit(db, storeId, subjectType, subjectId) {
   `).bind(storeId, subjectType, subjectId).first();
 }
 
+// H menyatukan pekerjaan Owner dan Admin Entity. Pada skin ini saja, saklar
+// Auto Permit gerai juga mencakup permit hapus transaksi. Eksekusinya tetap
+// memakai executor correction canonical di bawah (termasuk HOLD dan retry),
+// jadi tidak ada jalur pembalik stok/kas/jurnal kedua yang bisa menyimpang.
+async function autoVoidDecision(db, auth) {
+  const store = await resolveStore(db, auth.cashier.store.id);
+  if (!store?.tenantId || await getTenantPolicyChoice(db, store.tenantId, UI_SKIN_KEY) !== 'H') return null;
+
+  if (auth.cashier.officeActor) {
+    return {
+      store,
+      approverRole: auth.cashier.officeActor.role,
+      approverId: auth.cashier.officeActor.id,
+      note: 'Tindakan langsung pemilik Kantor'
+    };
+  }
+
+  const settings = await db.prepare(`
+    SELECT auto_permit_enabled, enabled_by_id
+    FROM store_approval_settings
+    WHERE store_id = ?
+  `).bind(store.id).first();
+  if (!settings?.auto_permit_enabled) return null;
+  return {
+    store,
+    approverRole: 'AUTO_PERMIT',
+    approverId: settings.enabled_by_id || '',
+    note: 'Auto Permit Skin H'
+  };
+}
+
 async function handleCashier(request, env, pathname) {
   if (!pathname.startsWith('/api/cashier/transaction-void')) return null;
   const auth = await requireCashier(request, env.DB);
@@ -169,7 +201,30 @@ async function handleCashier(request, env, pathname) {
         approval_status, execution_status, requested_at, updated_at
       ) VALUES (?, ?, ?, ?, 'TRANSACTION_VOID', ?, ?, ?, ?, 'pending_approval', 'NOT_ATTEMPTED', ?, ?)
     `).bind(id, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, subjectId, JSON.stringify(subject), reason, now, now).run();
-    return json({ ok: true, permit: await getPermit(env.DB, id) }, 201);
+    const automatic = await autoVoidDecision(env.DB, auth);
+    if (!automatic) return json({ ok: true, permit: await getPermit(env.DB, id), autoPermit: false }, 201);
+
+    // Klaim dengan predicate status yang sama seperti keputusan manual. Ini
+    // mencegah double execution jika dua request identik tiba bersamaan.
+    const claimed = await env.DB.prepare(`
+      UPDATE approval_permits
+      SET approval_status = 'approved', decision_note = ?, approved_by_role = ?,
+          approved_by_id = ?, decided_at = ?, updated_at = ?
+      WHERE id = ? AND approval_status = 'pending_approval'
+    `).bind(automatic.note, automatic.approverRole, automatic.approverId, now, now, id).run();
+    if (!claimed.success || Number(claimed.meta?.changes ?? 0) !== 1) {
+      return json({ error: 'Permit sudah diputuskan request lain.' }, 409);
+    }
+    const approved = await getPermit(env.DB, id);
+    const result = await runCorrectionAndFinalize(
+      env,
+      { store: automatic.store },
+      approved,
+      automatic.approverRole,
+      automatic.approverId,
+      now
+    );
+    return json({ ...result, autoPermit: true }, 201);
   }
   const cancelMatch = pathname.match(/^\/api\/cashier\/transaction-void\/permits\/([^/]+)$/);
   if (request.method === 'DELETE' && cancelMatch) {

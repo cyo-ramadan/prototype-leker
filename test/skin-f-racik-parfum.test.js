@@ -158,7 +158,7 @@ test('layar Racik: /s/<kode>/racik, hanya jalur kasir yang sudah ada, tanpa poll
   const html = readFileSync(new URL('../public/racik.html', import.meta.url), 'utf8');
   assert.match(html, /<script src="\/racik\.js\?v=[^"]+"><\/script>/);
   assert.match(readFileSync(new URL('../public/ui-skin.js', import.meta.url), 'utf8'), /\bf: 'family=Fraunces/);
-  assert.match(readFileSync(new URL('../package.json', import.meta.url), 'utf8'), /node --check public\/racik\.js/);
+  assert.match(readFileSync(new URL('../scripts/check-syntax.mjs', import.meta.url), 'utf8'), /public\/racik\.js/);
 });
 
 test('skin F Workspace Gerai: tab "Bahan & Aroma" -- sedikit isian wajib, sisanya default, endpoint lama', () => {

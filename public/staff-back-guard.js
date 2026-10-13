@@ -1,4 +1,5 @@
 (() => {
+  if (window.OwnerOfficeEmbed) return;
   // Konfirmasi keluar saat tombol Back (Bos Cyo, 2026-10-05: "kalo di back sampe mau keluar
   // kasih dulu tulisan apakah anda mau keluar"). Dulu Back dari halaman kerja langsung
   // melempar ke halaman pelanggan / login dan karyawan harus masuk ulang.

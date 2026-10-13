@@ -1,5 +1,5 @@
 import { json, readJson } from './http.js';
-import { entityAdminFromRequest } from './owner-auth.js';
+import { ownerEntityContext } from './owner-entity-context.js';
 import {
   listEntityAccounts, createEntityAccount, updateEntityAccount,
   postEntityJournal, listEntityJournals, getEntityJournal
@@ -7,12 +7,10 @@ import {
 
 const text = (value, max = 300) => String(value ?? '').trim().slice(0, max);
 
-async function requireEntityAdmin(request, db) {
-  const entityAdmin = await entityAdminFromRequest(request, db);
-  if (!entityAdmin) {
-    return { ok: false, response: json({ error: 'Session Entity Admin tidak valid atau sudah habis.', code: 'ENTITY_ADMIN_SESSION_EXPIRED' }, 401) };
-  }
-  return { ok: true, entityAdmin };
+async function requireEntityPortal(request, env) {
+  const context = await ownerEntityContext(request, env, { allowEntityAdminOutsideSkin: true });
+  if (context.response) return { ok: false, response: context.response };
+  return { ok: true, entityId: context.entityId };
 }
 
 function resultResponse(result, successStatus = 200) {
@@ -24,9 +22,9 @@ function resultResponse(result, successStatus = 200) {
 export async function handleEntityAccountingApi(request, env, pathname) {
   if (!pathname.startsWith('/api/entity-admin/accounts') && !pathname.startsWith('/api/entity-admin/journals')) return null;
   const db = env.DB;
-  const auth = await requireEntityAdmin(request, db);
+  const auth = await requireEntityPortal(request, env);
   if (!auth.ok) return auth.response;
-  const entityId = auth.entityAdmin.entityId;
+  const entityId = auth.entityId;
 
   if (request.method === 'GET' && pathname === '/api/entity-admin/accounts') {
     return json({ accounts: await listEntityAccounts(db, entityId) });

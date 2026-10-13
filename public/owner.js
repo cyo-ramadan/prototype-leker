@@ -198,6 +198,7 @@ function renderOwnerEntities() {
   ownerEl('ownerEntityList').innerHTML = ownerState.entities.length ? ownerState.entities.map(entity => `
     <div class="master-row">
       <div class="master-main"><strong>${ownerEscape(entity.name)}</strong>${ownerStatusChip(entity.status)}<div class="master-meta">${entity.tenantName ? `Tenant ${ownerEscape(entity.tenantName)}` : 'Belum tertaut tenant'}</div></div>
+      ${entity.status === 'ACTIVE' && entity.uiSkin === 'H' ? `<div class="master-actions"><a class="primary-btn owner-link-btn" href="/entity-admin?entity=${encodeURIComponent(entity.id)}">Buka portal usaha</a></div>` : ''}
     </div>`).join('') : '<div class="empty">Belum ada entity.</div>';
   renderOwnerStoreEntityOptions();
 }

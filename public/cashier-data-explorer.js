@@ -316,16 +316,19 @@
 
   async function requestVoidPermit(kind, id) {
     if (el('cashierDialog')?.open) el('cashierDialog').close();
+    const skinH = window.MaxiSkin?.skin?.() === 'h';
     openDialog({
       eyebrow: 'Laci · Permit Admin',
       title: `Minta Izin Admin Hapus ${KIND_LABEL[kind] || kind}`,
-      body: `<div class="field"><label>Alasan hapus / koreksi</label><textarea id="voidPermitReason" rows="4" maxlength="500" required placeholder="Jelaskan kenapa transaksi ini perlu dihapus"></textarea></div><p class="muted">Request ini tidak langsung menghapus transaksi. Admin harus ACC/Reject dulu. History transaksi tetap ada untuk audit; kalau di-ACC, prosesnya lewat pembalik/koreksi, bukan hapus paksa.</p>`,
+      body: `<div class="field"><label>Alasan hapus / koreksi</label><textarea id="voidPermitReason" rows="4" maxlength="500" required placeholder="Jelaskan kenapa transaksi ini perlu dihapus"></textarea></div><p class="muted">${skinH ? 'Jika Auto Permit gerai aktif, transaksi langsung diproses.' : 'Admin harus ACC/Reject dulu.'} History transaksi tetap ada untuk audit; proses memakai pembalik/koreksi, bukan hapus paksa.</p>`,
       submitText: 'AJUKAN HAPUS',
       onSubmit: async () => {
         const reason = el('voidPermitReason').value.trim();
         if (!reason) throw new Error('Alasan hapus wajib diisi.');
-        await api('/api/cashier/transaction-void/permits', { method: 'POST', body: JSON.stringify({ subjectType: kind, subjectId: id, reason }) });
-        toast('Permintaan hapus masuk ke Admin · pending approval');
+        const result = await api('/api/cashier/transaction-void/permits', { method: 'POST', body: JSON.stringify({ subjectType: kind, subjectId: id, reason }) });
+        if (result.autoPermit && result.executed) toast('Transaksi langsung dibalik · Auto Permit aktif');
+        else if (result.autoPermit) toast(result.message || 'Permit sudah ACC, tetapi eksekusi pembalik perlu diperiksa Admin.');
+        else toast('Permintaan hapus masuk ke Admin · pending approval');
         await loadTransactions({ reset: true });
         return true;
       }

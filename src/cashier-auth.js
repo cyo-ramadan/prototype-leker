@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { requireOwnerOfficeCashier, OWNER_OFFICE_CASHIER_PREFIX, OWNER_OFFICE_TOKEN_PREFIX } from './owner-office.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { bearerToken, hashCredential, requireManagement } from './owner-auth.js';
 import { WAGE_SCALE, scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js';
@@ -212,6 +213,8 @@ async function attachAttendanceScheduleGate(db, cashier, entityId) {
 }
 
 export async function requireCashier(request, db) {
+  const office = await requireOwnerOfficeCashier(request, db);
+  if (office) return office;
   const token = bearerToken(request);
   if (!token) return { ok: false, response: json({ error: 'Login kasir diperlukan.', code: 'CASHIER_LOGIN_REQUIRED' }, 401) };
   const tokenHash = await hashCredential(token);
@@ -235,6 +238,7 @@ export async function requireCashier(request, db) {
     if (viewer) return { ok: true, cashier: viewer, tokenHash: null, readOnly: true };
     return { ok: false, response: json({ error: 'Session kasir tidak valid atau sudah habis.', code: 'CASHIER_SESSION_EXPIRED' }, 401) };
   }
+  if (row.id.startsWith(OWNER_OFFICE_CASHIER_PREFIX)) return { ok: false, response: json({ error: 'Buka Kantor melalui Admin.', code: 'OWNER_OFFICE_SESSION_REQUIRED' }, 403) };
   const cashier = await attachAttendanceScheduleGate(db, mapCashier(row), row.entity_id);
   return { ok: true, cashier, tokenHash };
 }
@@ -358,6 +362,7 @@ export async function requireCashierOrReadOnlyManagement(request, env) {
   const db = env.DB;
   const cashierAuth = await requireCashier(request, db);
   if (cashierAuth.ok) return { ok: true, cashier: cashierAuth.cashier, readOnly: Boolean(cashierAuth.readOnly) };
+  if (bearerToken(request).startsWith(OWNER_OFFICE_TOKEN_PREFIX)) return cashierAuth;
 
   const management = await requireManagement(request, db, env);
   // A specific management failure (mis. Entity Admin di luar entity-nya)

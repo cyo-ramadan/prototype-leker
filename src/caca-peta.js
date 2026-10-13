@@ -20,7 +20,7 @@ export const PENJELASAN = Object.freeze({
   'gerai:transactions': { bisa: 'Lihat semua transaksi gerai: penjualan, pembelian, biaya, produksi, beserta detailnya.', kata: ['riwayat', 'transaksi', 'penjualan', 'pembelian', 'detail'] },
   'gerai:drawers': { bisa: 'Lihat laci kasir yang dibuka/ditutup, selisih kas, dan setoran laci per sesi.', kata: ['laci', 'kas', 'selisih', 'tutup laci', 'buka laci'] },
   'gerai:approvals': { bisa: 'Setujui atau tolak pengajuan kasir: pembatalan transaksi, izin, dan permintaan lain yang butuh ACC Admin.', kata: ['acc', 'setuju', 'persetujuan', 'pembatalan', 'izin', 'tolak'] },
-  'gerai:products': { una: 'harga es teh jadi 7rb', bisa: 'Tambah, ubah, atau nonaktifkan barang: nama, harga jual, harga beli, kategori, foto, satuan.', kata: ['harga', 'tambah barang', 'nonaktif', 'foto', 'satuan'] },
+  'gerai:products': { una: 'harga es teh jadi 7rb', bisa: 'Tambah, ubah, atau nonaktifkan barang: nama, harga jual, harga beli, kategori, foto, satuan. Pada skin H, isi resep langsung di formulir barang; tidak perlu pindah layar untuk menyambungkannya.', kata: ['harga', 'tambah barang', 'nonaktif', 'foto', 'satuan', 'resep di barang'] },
   'gerai:categories': { bisa: 'Atur kategori barang (mis. Minuman, Makanan) dan urutannya di kasir.', kata: ['kategori', 'kelompok', 'urutan'] },
   'gerai:suppliers': { bisa: 'Daftar supplier/pemasok untuk pembelian bahan.', kata: ['supplier', 'pemasok', 'vendor'] },
   'gerai:stock': { una: 'stok gula tinggal berapa?', bisa: 'Lihat stok barang dan riwayat keluar-masuknya, serta penyesuaian stok (stock opname).', kata: ['stok', 'opname', 'sisa', 'keluar masuk'] },

@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { entityAdminFromRequest, requireManagement } from './owner-auth.js';
+import { ownerEntityContext } from './owner-entity-context.js';
 import { requireCashier } from './cashier-auth.js';
 import { newId } from './ikan-ids.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
@@ -493,8 +494,8 @@ async function reviewDepositPayment(db, paymentId, storeId, { action, reviewerId
 export async function handleEntityDepositQueueApi(request, env, pathname) {
   if (pathname !== '/api/entity-admin/employee-deposits/pending') return null;
   if (request.method !== 'GET') return json({ error: 'Method tidak didukung.' }, 405);
-  const entityAdmin = await entityAdminFromRequest(request, env.DB);
-  if (!entityAdmin) return json({ error: 'Login Entity Admin diperlukan.', code: 'ENTITY_ADMIN_REQUIRED' }, 401);
+  const context = await ownerEntityContext(request, env, { allowEntityAdminOutsideSkin: true });
+  if (context.response) return context.response;
   const rows = await env.DB.prepare(`
     SELECT ${KOLOM_SETORAN}, r.counterparty_name_snapshot, r.transaction_date, s.code AS store_code, s.store_name
     FROM operational_receivable_payable_payments p
@@ -503,7 +504,7 @@ export async function handleEntityDepositQueueApi(request, env, pathname) {
     WHERE s.entity_id = ? AND p.approval_status = 'pending_approval' AND r.source_type = 'EMPLOYEE_DEPOSIT'
     ORDER BY p.created_at ASC
     LIMIT 200
-  `).bind(entityAdmin.entityId).all();
+  `).bind(context.entityId).all();
   return json({
     payments: (rows.results ?? []).map(row => ({
       ...mapPayment(row),

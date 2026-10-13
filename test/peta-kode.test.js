@@ -139,9 +139,9 @@ test('data peta tidak ditaruh di folder publik, dan halaman tidak memuat apa pun
 test('Owner Console punya tombol ke Peta Kode 3D, dan file barunya masuk script check', () => {
   const owner = read('public/owner.html');
   assert.match(owner, /<a class="primary-btn" href="\/peta-kode" id="ownerPetaKodeLink">/);
-  const pkg = read('package.json');
+  const checkManifest = read('scripts/check-syntax.mjs');
   for (const file of ['src/peta-kode.js', 'generated/peta-kode-data.js', 'public/peta-kode.js', 'scripts/build-peta-kode.mjs']) {
-    assert.ok(pkg.includes(`node --check ${file}`), `${file} belum ada di script check`);
+    assert.ok(checkManifest.includes(file), `${file} belum ada di script check`);
   }
-  assert.match(pkg, /"peta:build": "node scripts\/build-peta-kode\.mjs"/);
+  assert.match(read('package.json'), /"peta:build": "node scripts\/build-peta-kode\.mjs"/);
 });

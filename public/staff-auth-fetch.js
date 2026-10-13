@@ -1,4 +1,5 @@
 (() => {
+  if (window.OwnerOfficeEmbed) return;
   const originalFetch = window.fetch.bind(window);
 
   function isStaffApi(url) {

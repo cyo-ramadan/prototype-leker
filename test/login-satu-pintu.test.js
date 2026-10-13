@@ -168,13 +168,13 @@ test('halaman login: kartu tinggi tetap, tanpa CSS halaman admin (penyebab tampi
 
 test('penjaga Back + tautan tab terpasang di halaman kerja, dan file barunya masuk script check', () => {
   for (const page of ['owner', 'admin', 'entity-admin', 'branch-admin', 'cashier', 'staff', 'warung']) {
-    assert.match(read(`public/${page}.html`), /<script src="\/staff-back-guard\.js\?v=20261005-login-satu-pintu-v1"><\/script>/, `${page}.html`);
+    assert.match(read(`public/${page}.html`), /<script src="\/staff-back-guard\.js\?v=20261012-owner-office-v1"><\/script>/, `${page}.html`);
   }
   for (const page of ['entity-admin', 'branch-admin']) {
     assert.match(read(`public/${page}.html`), /<script src="\/tab-tautan\.js\?v=20261005-login-satu-pintu-v1"><\/script>/, `${page}.html`);
   }
-  const pkg = read('package.json');
-  for (const file of ['public/staff-back-guard.js', 'public/tab-tautan.js']) assert.ok(pkg.includes(`node --check ${file}`), file);
+  const checkManifest = read('scripts/check-syntax.mjs');
+  for (const file of ['public/staff-back-guard.js', 'public/tab-tautan.js']) assert.ok(checkManifest.includes(file), file);
   const tabs = read('public/tab-tautan.js');
   assert.match(tabs, /event\.ctrlKey \|\| event\.metaKey \|\| event\.shiftKey/);
   assert.match(tabs, /window\.open\(urlFor\(name\), '_blank', 'noopener'\)/);

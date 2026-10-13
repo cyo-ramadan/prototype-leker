@@ -1,5 +1,5 @@
 import { json } from './http.js';
-import { entityAdminFromRequest } from './owner-auth.js';
+import { ownerEntityContext } from './owner-entity-context.js';
 import { AKUN_HUTANG_GAJI, AKUN_PIUTANG_KARYAWAN, operasionalPerGerai, riwayatDariBuku } from './riwayat-dari-buku.js';
 
 // Bos Cyo, 2026-10-06: "didalam tombol karyawan entity admin itu tambahin untuk cek saldo
@@ -192,12 +192,12 @@ export async function handleEmployeeLedgerViewApi(request, env, pathname) {
   const match = pathname.match(/^\/api\/entity-admin\/employees\/([^/]+)\/ledger$/);
   if (!match) return null;
   if (request.method !== 'GET') return json({ error: 'Method tidak didukung.' }, 405);
-  const entityAdmin = await entityAdminFromRequest(request, env.DB);
-  if (!entityAdmin) return json({ error: 'Login Entity Admin diperlukan.', code: 'ENTITY_ADMIN_REQUIRED' }, 401);
+  const context = await ownerEntityContext(request, env, { allowEntityAdminOutsideSkin: true });
+  if (context.response) return context.response;
   const url = new URL(request.url);
   const result = await buildEmployeeLedger(env.DB, {
     employeeId: decodeURIComponent(match[1]),
-    entityId: entityAdmin.entityId,
+    entityId: context.entityId,
     kind: text(url.searchParams.get('kind'), 20).toLowerCase(),
     accountId: text(url.searchParams.get('account'), 120)
   });

@@ -1,6 +1,7 @@
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
+import { UI_SKIN_KEY, getTenantPolicyChoice } from './tenant-policy.js';
 
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const flag = value => value === false ? 0 : 1;
@@ -104,7 +105,7 @@ export async function resolveProductMasterReferences(db, storeId, itemTypeId, ba
   return { ok: true, itemTypeId: type.id, baseUnitId: unit.id };
 }
 
-async function listRecipeRows(db, storeId, includeArchived = false) {
+export async function listRecipeRows(db, storeId, includeArchived = false) {
   const rows = await db.prepare(`
     SELECT r.id, r.output_product_id, p.name AS output_product_name,
            r.output_unit_id, u.symbol AS output_unit_symbol,
@@ -262,10 +263,13 @@ export async function createRecipeRevision(db, store, auth, payload, options = {
       INSERT INTO manufacturing_recipes (
         id, store_id, output_product_id, output_unit_id, output_quantity,
         revision, status, notes, variant_label, created_by_role, created_by_id, created_at, archived_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?,
+        CASE WHEN ? = 0 OR EXISTS (SELECT 1 FROM products WHERE id = ? AND store_id = ? AND linked_recipe_id IS ?) THEN 'ACTIVE' ELSE NULL END,
+        ?, ?, ?, ?, ?, NULL)
     `).bind(
       recipeId, store.id, outputProductId, output.base_unit_id, outputQuantity,
-      revision, text(payload?.notes, 500), variantLabel, actor.role, actor.id, now
+      revision, Object.hasOwn(options, 'expectedLinkedRecipeId') ? 1 : 0, outputProductId, store.id, options.expectedLinkedRecipeId || null,
+      text(payload?.notes, 500), variantLabel, actor.role, actor.id, now
     )
   ];
   if (variantLabel) {
@@ -293,6 +297,11 @@ export async function createRecipeRevision(db, store, auth, payload, options = {
   try {
     await db.batch(statements);
   } catch (error) {
+    // NOT NULL status adalah guard atomik: link berubah sejak formulir dibaca,
+    // sehingga seluruh batch (termasuk arsip resep lama) di-rollback.
+    if (Object.hasOwn(options, 'expectedLinkedRecipeId') && /NOT NULL.*manufacturing_recipes.status/.test(String(error?.message))) {
+      return { ok: false, response: json({ error: 'Resep berubah bersamaan. Muat ulang barang sebelum menyimpan.' }, 409) };
+    }
     if (String(error?.message || '').includes('UNIQUE')) {
       return { ok: false, response: json({ error: 'Resep aktif berubah bersamaan. Refresh lalu simpan ulang.' }, 409) };
     }
@@ -309,6 +318,52 @@ export async function handleManufacturingMasterApi(request, env, pathname) {
   const store = await selectedStore(db, request);
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
   await ensureManufacturingDefaults(db, store.id);
+
+
+  // H: resep diisi dari barang. Revisi + sambungan harus berhasil bersama.
+  const inlineMatch = pathname.match(/^\/api\/admin\/manufacturing\/products\/(\d+)\/recipe$/);
+  if (inlineMatch && request.method === 'POST') {
+    if (await getTenantPolicyChoice(db, store.tenantId, UI_SKIN_KEY) !== 'H') {
+      return json({ error: 'Resep langsung di barang tersedia untuk skin H.' }, 403);
+    }
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload resep tidak valid.' }, 400);
+    const productId = Number(inlineMatch[1]);
+    const product = await db.prepare('SELECT id, linked_recipe_id, base_unit_id FROM products WHERE id = ? AND store_id = ? AND is_active = 1').bind(productId, store.id).first();
+    if (!product) return json({ error: 'Barang aktif tidak ditemukan di gerai ini.' }, 404);
+    const current = product.linked_recipe_id
+      ? await db.prepare("SELECT * FROM manufacturing_recipes WHERE id = ? AND store_id = ? AND output_product_id = ? AND status = 'ACTIVE'").bind(product.linked_recipe_id, store.id, productId).first()
+      : null;
+    if (product.linked_recipe_id && !current) return json({ error: 'Resep terhubung sudah tidak aktif. Pilih resep aktif dari pengaturan lanjutan dahulu.' }, 409);
+    const expected = body.value?.sourceRecipeId || null;
+    // Retry setelah respons terputus tidak boleh membuat revisi ganda.
+    const components = body.value?.components;
+    if (current && Array.isArray(components)) {
+      const saved = await db.prepare('SELECT component_product_id, quantity FROM manufacturing_recipe_components WHERE recipe_id = ? ORDER BY display_order, component_product_id').bind(current.id).all();
+      const same = product.base_unit_id === current.output_unit_id && Number(body.value.outputQuantity) === Number(current.output_quantity)
+        && saved.results.length === components.length
+        && saved.results.every((item, i) => Number(item.component_product_id) === Number(components[i]?.productId) && Number(item.quantity) === Number(components[i]?.quantity));
+      if (same) return json({ ok: true, id: current.id, revision: Number(current.revision), unchanged: true });
+    }
+    if (expected !== (product.linked_recipe_id || null)) {
+      return json({ error: 'Resep barang berubah di sesi lain. Muat ulang barang sebelum menyimpan.' }, 409);
+    }
+    // Jangan mengarsipkan resep yang belum tersambung tanpa pilihan eksplisit.
+    if (!current) {
+      const existing = await db.prepare("SELECT id FROM manufacturing_recipes WHERE store_id = ? AND output_product_id = ? AND status = 'ACTIVE' LIMIT 1").bind(store.id, productId).first();
+      if (existing) return json({ error: 'Barang sudah mempunyai resep. Hubungkan resep yang sesuai dari pengaturan lanjutan dahulu.' }, 409);
+    }
+    const result = await createRecipeRevision(db, store, auth, {
+      ...body.value, outputProductId: productId,
+      variantLabel: current?.variant_label || '', notes: current?.notes || ''
+    }, {
+      expectedLinkedRecipeId: expected,
+      extraStatements: recipeId => [db.prepare(
+        'UPDATE products SET linked_recipe_id = ?, recipe_link_enabled = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND store_id = ?'
+      ).bind(recipeId, productId, store.id)]
+    });
+    return result.response;
+  }
 
   if (request.method === 'GET' && pathname === '/api/admin/manufacturing/bootstrap') {
     const refs = await getManufacturingReferenceData(db, store.id);

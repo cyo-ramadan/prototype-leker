@@ -195,14 +195,14 @@ async function handleCashierApprovalQueue(request, env, pathname) {
     const settings = await getApprovalSettings(env.DB, auth.cashier.store.id);
     // Skin E (jaga sendiri): yang mengajukan dan yang menyetujui orang yang
     // sama, jadi selalu Auto Permit -- tetap tercatat approverRole AUTO_PERMIT.
-    if (!settings.autoPermitEnabled && !auth.cashier.store.ownerOperated) return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
+    if (!settings.autoPermitEnabled && !auth.cashier.store.ownerOperated && !auth.cashier.officeActor) return json({ ok: true, request: await getRequest(env.DB, id) }, 201);
 
     const created = await getRequest(env.DB, id);
     const outcome = await applyAccDecision(env, created, {
-      approverRole: 'AUTO_PERMIT',
-      approverId: settings.enabledById || '',
+      approverRole: auth.cashier.officeActor?.role || 'AUTO_PERMIT',
+      approverId: auth.cashier.officeActor?.id || settings.enabledById || '',
       now,
-      note: 'Auto Permit'
+      note: auth.cashier.officeActor ? 'Tindakan langsung pemilik Kantor' : 'Auto Permit'
     });
     return json({
       ok: true,

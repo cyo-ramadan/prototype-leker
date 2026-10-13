@@ -32,6 +32,20 @@
     return payload;
   }
 
+  async function pendingFor(code) {
+    const query = 'store=' + encodeURIComponent(code);
+    const requests = await get('/api/management/approval-requests?status=pending_approval&' + query);
+    let count = (requests.requests || []).length;
+    if (window.MaxiSkin?.skin?.() === 'h') {
+      const [voids, closes] = await Promise.all([
+        get('/api/management/transaction-void-permits?status=all&' + query),
+        get('/api/admin/drawer/close-permits?' + query)
+      ]);
+      count += Number(voids.summary?.pending || 0) + (closes.permits || []).length;
+    }
+    return count;
+  }
+
   function stores() {
     try { return (entityAdminState?.stores || []).filter(store => store.isActive !== false); } catch { return []; }
   }
@@ -82,7 +96,7 @@
   function unmount() { $('hariIni')?.remove(); }
 
   async function load() {
-    if (!['d', 'e'].includes(window.MaxiSkin?.skin?.())) return unmount();
+    if (!['d', 'e', 'h'].includes(window.MaxiSkin?.skin?.())) return unmount();
     const list = stores();
     if (!list.length || loading) return;
     const section = mount();
@@ -96,8 +110,8 @@
     try {
       const [profit, approvals, drawers] = await Promise.all([
         get(`/api/admin/reports/net-profit?store=${encodeURIComponent(codes[0])}&from=${yesterday}&to=${today}&stores=${encodeURIComponent(codes.join(','))}`).catch(() => null),
-        Promise.all(codes.map(code => get(`/api/management/approval-requests?store=${encodeURIComponent(code)}`).then(payload => [code, (payload.requests || []).length]).catch(() => [code, 0]))),
-        Promise.all(codes.map(code => get(`/api/admin/drawers?store=${encodeURIComponent(code)}`).then(payload => [code, (payload.drawers || []).find(drawer => drawer.status === 'OPEN') || null]).catch(() => [code, null])))
+        Promise.all(codes.map(code => pendingFor(code).then(count => [code, count]).catch(() => [code, window.MaxiSkin?.skin?.() === 'h' ? null : 0]))),
+        Promise.all(codes.map(code => get(`/api/admin/drawers?store=${encodeURIComponent(code)}`).then(payload => [code, (payload.drawers || []).find(drawer => drawer.status === 'OPEN') || null]).catch(() => [code, window.MaxiSkin?.skin?.() === 'h' ? undefined : null])))
       ]);
       render(section, list, profit, new Map(approvals), new Map(drawers), today, yesterday);
     } catch (error) {
@@ -116,27 +130,32 @@
     const prev = Number(yesterdayRow.total) || 0;
     const pendingTotal = [...approvals.values()].reduce((sum, count) => sum + count, 0);
     const openCount = [...drawers.values()].filter(Boolean).length;
+    const openHint = [...drawers.values()].some(value => value === undefined)
+      ? `${openCount} gerai diketahui buka; sebagian status laci belum termuat`
+      : `${openCount} dari ${list.length} gerai sedang buka`;
 
-    const needs = pendingTotal
+    const incomplete = [...approvals.values()].some(count => count === null);
+    const needs = (pendingTotal
       ? [...approvals].filter(([, count]) => count > 0).map(([code, count]) => {
         const store = list.find(item => item.code === code);
-        return `<div class="hi-need"><span><b>${esc(store?.storeName || code)}</b> · ${count} pengajuan menunggu</span><a href="/s/${encodeURIComponent(code)}/admin">Putuskan</a></div>`;
+        return `<div class="hi-need"><span><b>${esc(store?.storeName || code)}</b> · ${count} pengajuan menunggu</span><a href="/s/${encodeURIComponent(code)}/admin">${window.MaxiSkin?.skin?.() === 'h' ? 'Periksa' : 'Putuskan'}</a></div>`;
       }).join('')
-      : '<div class="hi-ok">✓ Tidak ada yang menunggu keputusan Anda.</div>';
+      : incomplete ? '' : '<div class="hi-ok">✓ Tidak ada yang menunggu keputusan Anda.</div>')
+      + (incomplete ? '<p class="hi-muted" role="status">Sebagian pengajuan belum termuat. Tekan Perbarui untuk memeriksa lagi.</p>' : '');
 
     const storeRows = list.map(store => {
       const drawer = drawers.get(store.code);
       const value = Number(todayRow.byStore?.[store.code]) || 0;
-      return `<div class="hi-store"><strong>${esc(store.storeName)}</strong>
-        <span class="status-chip ${drawer ? 'ok' : 'off'}">${drawer ? `Buka · ${esc(drawer.cashierName || 'kasir')}` : 'Tutup'}</span>
-        <span class="num ${value < 0 ? 'neg' : ''}">${rupiah(value)}</span></div>`;
+      return `<div class="hi-store"><strong>${window.MaxiSkin?.skin?.() === 'h' ? `<a href="/s/${encodeURIComponent(store.code)}/admin">${esc(store.storeName)} <span aria-hidden="true">→</span></a>` : esc(store.storeName)}</strong>
+        <span class="status-chip ${drawer ? 'ok' : 'off'}">${drawer === undefined ? 'Belum termuat' : drawer ? `Buka · ${esc(drawer.cashierName || 'kasir')}` : 'Tutup'}</span>
+        <span class="num ${value < 0 ? 'neg' : ''}">${window.MaxiSkin?.skin?.() === 'h' && !profit ? '—' : rupiah(value)}</span></div>`;
     }).join('');
 
     section.innerHTML = `
       <div class="hi-profit">
         <div class="hi-row"><small>Untung bersih hari ini</small><button type="button" class="hi-refresh" data-hi-refresh>Perbarui</button></div>
         <b class="${total < 0 ? 'neg' : ''}">${profit ? rupiah(total) : '—'}</b>
-        <p>${profit ? `Kemarin <em>${rupiah(prev)}</em> · ${openCount} dari ${list.length} gerai sedang buka` : 'Laporan untung belum bisa dimuat.'}</p>
+        <p>${profit ? `Kemarin <em>${rupiah(prev)}</em> · ${openHint}` : 'Laporan untung belum bisa dimuat.'}</p>
       </div>
       <div class="hi-card"><h2>Butuh keputusan Anda${pendingTotal ? ` · ${pendingTotal}` : ''}</h2>${needs}</div>
       <div class="hi-card"><h2>Gerai hari ini</h2>${storeRows}
@@ -168,7 +187,7 @@
 
   document.addEventListener('click', event => { if (event.target.closest('[data-hi-refresh]')) load(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
-  window.addEventListener('maxi-skin-change', () => { lastStoresKey = ''; maybeLoad(); if (!['d', 'e'].includes(window.MaxiSkin?.skin?.())) unmount(); });
+  window.addEventListener('maxi-skin-change', () => { lastStoresKey = ''; maybeLoad(); if (!['d', 'e', 'h'].includes(window.MaxiSkin?.skin?.())) unmount(); });
 
   function start() {
     const app = $('entityAdminApp');

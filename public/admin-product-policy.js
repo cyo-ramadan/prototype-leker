@@ -255,7 +255,11 @@
         <div id="productRecipeNote" class="muted" style="margin:-5px 0 12px"></div>
         </details>
       </div>`);
-    el('productLinkedRecipe')?.addEventListener('change', renderRecipeNote);
+    el('productLinkedRecipe')?.addEventListener('change', () => {
+      renderRecipeNote();
+      const selected = productById(Number(el('productId')?.value));
+      window.MaxiInlineRecipe?.render(state.editor, { ...selected, linkedRecipeId: el('productLinkedRecipe').value || null });
+    });
     if (typeof window.saveProduct === 'function') form.removeEventListener('submit', window.saveProduct);
     form.addEventListener('submit', saveProductMaster, true);
     el('productCancelEdit')?.addEventListener('click', () => setTimeout(resetExtendedForm, 0));
@@ -405,6 +409,7 @@
     renderProductKinds();
     renderProductCodeFields(product);
     renderRangeFields(product);
+    window.MaxiInlineRecipe?.render(state.editor, product);
   }
 
   function renderRecipeNote() {
@@ -543,8 +548,13 @@
   async function saveProductMaster(event) {
     event.preventDefault();
     event.stopImmediatePropagation();
+    if (saveProductMaster.saving) return;
+    saveProductMaster.saving = true;
+    let savedProductId = 0;
+    window.MaxiInlineRecipe?.error('');
     try {
       if (!state.editor) await loadEditor();
+      const recipeDraft = window.MaxiInlineRecipe?.draft();
       const productId = Number(el('productId')?.value || 0);
       const category = el('productCategoryNew')?.value.trim() || el('productCategory').value;
       if (!category) throw new Error('Pilih kategori, atau ketik Kategori baru.');
@@ -576,6 +586,14 @@
         body: JSON.stringify(payload)
       });
       state.editor = response.editor;
+      savedProductId = productId || Number(response.id);
+      // Pertahankan ID saat resep gagal agar retry tidak menduplikasi barang baru.
+      if (recipeDraft) {
+        el('productId').value = String(savedProductId);
+        state.activeProductId = savedProductId;
+        await window.MaxiInlineRecipe.save(savedProductId, recipeDraft, api);
+        state.editor = await api('/api/admin/master/products/editor');
+      }
       // Barang sudah tersimpan; kalau rentang gagal, barangnya tetap tersimpan dan pesannya
       // bilang begitu (bukan seolah semuanya gagal).
       let rangeNote = '';
@@ -596,7 +614,11 @@
       if (typeof loadCatalog === 'function') loadCatalog(true).catch(error => console.error('admin-product-policy: post-save catalog refresh failed', error));
       toast((productId ? 'Master Barang diperbarui' : 'Barang ditambahkan. Cost otomatis mulai bergerak saat ada pembelian/produksi.') + rangeNote);
     } catch (error) {
-      toast(error.message);
+      const message = savedProductId ? 'Barang tersimpan. Proses berikutnya belum selesai: ' + error.message + ' Form tetap terbuka; periksa lalu simpan ulang.' : error.message;
+      window.MaxiInlineRecipe?.error(message);
+      toast(message);
+    } finally {
+      saveProductMaster.saving = false;
     }
   }
 

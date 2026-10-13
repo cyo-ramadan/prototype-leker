@@ -33,6 +33,7 @@
   window.refreshCashierWorkspace = applyWorkspace;
 
   showLogin = function showCentralStaffLogin() {
+    if (window.OwnerOfficeEmbed) return window.ownerOfficeStop?.('Kantor belum dapat dibuka. Muat ulang panel Kantor dari Admin.');
     location.replace('/login');
   };
 

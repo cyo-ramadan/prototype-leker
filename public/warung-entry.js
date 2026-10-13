@@ -12,6 +12,7 @@
 // order dari WA ada di sana. Kasir lengkap (presensi, laci, jual) tetap bisa lewat ?lengkap=1.
 // Tenant skin 0/A/B/C tidak tersentuh sama sekali.
 (() => {
+  if (window.OwnerOfficeEmbed) return;
   const params = new URLSearchParams(location.search);
   if (params.get('readonly') === '1') return;
   const homePage = () => ({ f: 'racik', g: 'cetak' })[window.MaxiSkin?.skin?.()] || 'warung';

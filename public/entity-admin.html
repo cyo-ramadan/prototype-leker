@@ -311,6 +311,18 @@
           </form>
           <div class="admin-card list-card">
             <div class="list-head"><h2>Karyawan di entity ini</h2><span id="entityEmployeeCount" class="master-count">0</span></div>
+            <div class="management-actions" style="margin-bottom:10px;align-items:center">
+              <label class="admin-field" style="margin:0">Urutkan<select id="entityEmployeeSort" class="text-input">
+                <option value="nama-az">Nama A–Z</option>
+                <option value="nama-za">Nama Z–A</option>
+                <option value="gerai">Gerai</option>
+                <option value="setoran-kecil">Saldo setoran terkecil</option>
+                <option value="setoran-besar">Saldo setoran terbesar</option>
+                <option value="gaji-kecil">Hutang gaji terkecil</option>
+                <option value="gaji-besar">Hutang gaji terbesar</option>
+              </select></label>
+              <button id="entityEmployeeBalanceRefresh" class="secondary-btn" type="button">↻ Muat ulang saldo</button>
+            </div>
             <div id="entityEmployeeList" class="master-list"></div>
           </div>
         </div>
@@ -358,7 +370,7 @@
 <script src="/caca-chat.js?v=20261011-una-workspace-v1"></script>
 <script src="/user-notifications.js"></script>
 <script src="/entity-management.js"></script>
-<script src="/entity-admin.js?v=20261011-management-notifications-v1"></script>
+<script src="/entity-admin.js?v=20261013-karyawan-saldo-v1"></script>
 <script src="/foto-lihat.js"></script>
 <script src="/entity-setoran-cs.js?v=20261011-management-notifications-v1"></script>
 <script src="/entity-izin-cs.js?v=20261012-izin-cs-v1"></script>

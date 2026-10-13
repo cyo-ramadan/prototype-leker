@@ -173,3 +173,18 @@ test('Halaman kasir & Portal Staf Mode Lihat punya tombol kembali dan pilihan ak
   assert.match(read('entity-admin.js'), /data-employee-ledger="gaji"/);
   assert.match(read('entity-admin.js'), /data-shared-ledger-toggle/);
 });
+
+// Bos Cyo, 2026-10-13: saldo saat ini di atas tombol Riwayat Setoran / Riwayat Hutang Gaji, dan daftar
+// karyawan bisa diurutkan dari nama, gerai, atau saldo terkecil/terbesar.
+test('Daftar karyawan Entity Admin: saldo di atas tombol riwayat + pilihan urutan', () => {
+  const js = readFileSync(new URL('../public/entity-admin.js', import.meta.url), 'utf8');
+  assert.match(js, /data-employee-balance="setoran"/);
+  assert.match(js, /data-employee-balance="gaji"/);
+  assert.match(js, /\/api\/entity-admin\/employees\/\$\{encodeURIComponent\(job\.employeeId\)\}\/ledger\?kind=\$\{job\.kind\}/, 'saldo dari endpoint yang sama dengan dialog riwayat');
+  assert.match(js, /Array\.from\(\{ length: 4 \}, worker\)/, 'maksimal 4 permintaan bersamaan');
+  assert.doesNotMatch(js, /setInterval\(loadEntityEmployeeBalances/);
+  const html = readFileSync(new URL('../public/entity-admin.html', import.meta.url), 'utf8');
+  for (const value of ['nama-az', 'nama-za', 'gerai', 'setoran-kecil', 'setoran-besar', 'gaji-kecil', 'gaji-besar']) {
+    assert.match(html, new RegExp(`<option value="${value}">`), value);
+  }
+});

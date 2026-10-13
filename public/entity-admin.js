@@ -549,10 +549,76 @@ async function loadEntityEmployees() {
   const payload = await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`);
   entityAdminState.employees = payload.employees || [];
   renderEntityEmployees();
+  loadEntityEmployeeBalances();
+}
+
+// Bos Cyo, 2026-10-13: saldo setoran & hutang gaji tampil di atas tombol riwayat, dan daftar karyawan
+// bisa diurutkan (nama, gerai, saldo). Saldo diambil dari endpoint riwayat yang sama dengan dialog
+// (/api/entity-admin/employees/:id/ledger) supaya angkanya pasti sama; dimuat saat tab dibuka atau
+// tombol ditekan, maksimal 4 permintaan bersamaan, bukan polling.
+const entityEmployeeBalances = new Map();
+
+async function loadEntityEmployeeBalances({ force = false } = {}) {
+  if (force) entityEmployeeBalances.clear();
+  const queue = (entityAdminState.employees || []).flatMap(employee => ['setoran', 'gaji']
+    .filter(kind => !entityEmployeeBalances.has(`${employee.id}:${kind}`))
+    .map(kind => ({ employeeId: employee.id, kind })));
+  const worker = async () => {
+    for (let job = queue.shift(); job; job = queue.shift()) {
+      const key = `${job.employeeId}:${job.kind}`;
+      try {
+        const data = await entityAdminApi(`/api/entity-admin/employees/${encodeURIComponent(job.employeeId)}/ledger?kind=${job.kind}`);
+        entityEmployeeBalances.set(key, { balanceRupiah: Number(data.balanceRupiah) || 0, pendingRupiah: Number(data.pendingRupiah) || 0 });
+      } catch { entityEmployeeBalances.set(key, { error: true }); }
+      renderEntityEmployeeBalance(job.employeeId, job.kind);
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, worker));
+  if (/^(setoran|gaji)-/.test(entityAdminEl('entityEmployeeSort')?.value || '')) renderEntityEmployees();
+}
+
+function entityEmployeeBalanceHtml(employeeId, kind) {
+  const balance = entityEmployeeBalances.get(`${employeeId}:${kind}`);
+  if (!balance) return '<span class="muted">memuat…</span>';
+  if (balance.error) return '<span class="muted">gagal dimuat</span>';
+  const amount = balance.balanceRupiah;
+  const lebih = amount < 0 ? ` <span class="muted">(${kind === 'gaji' ? 'lebih bayar' : 'lebih setor'})</span>` : '';
+  const pending = balance.pendingRupiah ? `<div class="muted" style="font-size:.85em">menunggu ACC Rp${entityReportRupiah(balance.pendingRupiah)}</div>` : '';
+  return `<strong>${amount < 0 ? '−' : ''}Rp${entityReportRupiah(Math.abs(amount))}</strong>${lebih}${pending}`;
+}
+
+function renderEntityEmployeeBalance(employeeId, kind) {
+  document.querySelectorAll(`[data-employee-balance="${kind}"]`).forEach(node => {
+    if (node.dataset.employeeId === employeeId) node.innerHTML = entityEmployeeBalanceHtml(employeeId, kind);
+  });
+}
+
+function sortedEntityEmployees() {
+  const employees = [...(entityAdminState.employees || [])];
+  const mode = entityAdminEl('entityEmployeeSort')?.value || 'nama-az';
+  const name = employee => String(employee.fullName || '');
+  const byName = (a, b) => name(a).localeCompare(name(b), 'id', { sensitivity: 'base' });
+  const [kind, direction] = mode.split('-');
+  if (kind === 'setoran' || kind === 'gaji') {
+    // Saldo yang belum termuat ditaruh paling bawah.
+    const value = employee => entityEmployeeBalances.get(`${employee.id}:${kind}`)?.balanceRupiah;
+    return employees.sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va == null || vb == null) return Number(va == null) - Number(vb == null) || byName(a, b);
+      return (direction === 'besar' ? vb - va : va - vb) || byName(a, b);
+    });
+  }
+  if (mode === 'nama-za') return employees.sort((a, b) => byName(b, a));
+  if (mode === 'gerai') {
+    const store = employee => String(employee.entityLevel ? '' : employee.homeStoreCode || '');
+    return employees.sort((a, b) => store(a).localeCompare(store(b)) || byName(a, b));
+  }
+  return employees.sort(byName);
 }
 
 function renderEntityEmployees() {
-  const employees = entityAdminState.employees || [];
+  const employees = sortedEntityEmployees();
   entityAdminEl('entityEmployeeCount').textContent = employees.length;
   entityAdminEl('entityEmployeeList').innerHTML = employees.length ? employees.map(employee => `
     <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
@@ -562,9 +628,15 @@ function renderEntityEmployees() {
         <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
         <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
       </div>
-      <div class="master-actions">
-        <button class="mini-btn" type="button" data-employee-ledger="setoran" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Setoran</button>
-        <button class="mini-btn" type="button" data-employee-ledger="gaji" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Hutang Gaji</button>
+      <div class="master-actions" style="align-items:flex-end">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
+          <div data-employee-balance="setoran" data-employee-id="${entityAdminEscape(employee.id)}">${entityEmployeeBalanceHtml(employee.id, 'setoran')}</div>
+          <button class="mini-btn" type="button" data-employee-ledger="setoran" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Setoran</button>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
+          <div data-employee-balance="gaji" data-employee-id="${entityAdminEscape(employee.id)}">${entityEmployeeBalanceHtml(employee.id, 'gaji')}</div>
+          <button class="mini-btn" type="button" data-employee-ledger="gaji" data-employee-id="${entityAdminEscape(employee.id)}">Riwayat Hutang Gaji</button>
+        </div>
       </div>
     </div>`).join('') : '<div class="empty">Belum ada karyawan di entity ini.</div>';
   document.querySelectorAll('[data-employee-ledger]').forEach(button => {
@@ -1102,3 +1174,9 @@ async function initEntityAdmin() {
 }
 
 initEntityAdmin();
+
+entityAdminEl('entityEmployeeSort')?.addEventListener('change', renderEntityEmployees);
+entityAdminEl('entityEmployeeBalanceRefresh')?.addEventListener('click', () => {
+  loadEntityEmployeeBalances({ force: true });
+  renderEntityEmployees();
+});

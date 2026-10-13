@@ -38,6 +38,20 @@ ikut tampil di Portal sebagai "Penyesuaian dari Akuntansi", sehingga selisihnya 
 6. Baris bisa dibatalkan (wajib alasan, `voided_at`). Tidak ada penghapusan.
 7. Gerai tanpa Akuntansi tidak ikut, karena tidak punya buku.
 
+## Addendum 2026-10-13 -- Buku Pembantu Hutang Piutang (acuannya)
+
+Bos Cyo: "harus bikin sistem yang seperti itu dulu, baru dibuat acuan" lalu "engga usah bikin buku
+baru ... tetap kolom lama yang disusun jadi buku saja."
+
+- Pola bank: akun kontrol di buku besar (1202, 2102, 2101, 1201, 2103) + rekening per nama. Datanya
+  sudah ada: baris jurnal dan label "atas nama" (`accounting_party_entries`). Tidak ada tabel baru.
+- Panel Akuntansi → **Buku Pembantu**: per akun, saldo buku besar = jumlah semua nama + "belum
+  bernama"; cari nama; klik nama untuk melihat mutasi dengan saldo berjalan.
+- **Beri nama** untuk baris lama yang belum bernama: hanya menambah label (sama dengan migration 0143).
+  Jurnal posted, nominal, dan sisinya tidak berubah. Validasinya sama dengan jurnal manual.
+- Angka per karyawan di Buku Pembantu = angka "Buku Akuntansi" di pratinjau Sinkronisasi (dijaga tes).
+  Urutan pakai: bereskan "belum bernama" di Buku Pembantu dulu, baru tekan Sinkronisasi.
+
 ## Akibat
 
 - Selisih dari data lama hilang tanpa mengubah laporan Akuntansi.
@@ -51,4 +65,5 @@ ikut tampil di Portal sebagai "Penyesuaian dari Akuntansi", sehingga selisihnya 
 DOC-IMPACT: `migrations/0153_sinkronisasi_akuntansi.sql`, `src/sinkron-akuntansi.js`,
 `src/sinkron-akuntansi-baris.js`, `src/employee-ledger-view.js`, `src/employee-deposit-settlement.js`,
 `src/staff-portal.js`, `public/entity-sinkron-akuntansi.js`, `public/entity-admin.js`, `public/staff.js`,
-`test/sinkron-akuntansi.test.js`.
+`src/accounting-buku-pembantu.js`, `src/accounting-workspace.js`,
+`public/admin-accounting-workspace.js`, `test/sinkron-akuntansi.test.js`.

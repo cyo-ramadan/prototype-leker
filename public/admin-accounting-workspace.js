@@ -11,7 +11,9 @@
     journalDetail: null,
     ledger: null,
     profitLoss: null,
-    balanceSheet: null
+    balanceSheet: null,
+    // Buku Pembantu Hutang Piutang: data ringkasan, akun terpilih, pencarian, nama terpilih, mutasinya.
+    bp: { data: null, account: '1202', query: '', key: '', mutasi: null, options: null }
   };
 
   async function api(path, options = {}) {
@@ -126,6 +128,7 @@
           ${navButton('journal-create','Buat Jurnal')}
           ${navButton('journals','Data Jurnal')}
           ${navButton('ledger','Buku Besar')}
+          ${navButton('buku-pembantu','Buku Pembantu')}
           ${navButton('profit-loss','Rugi Laba')}
           ${navButton('balance-sheet','Neraca')}
         </nav>
@@ -162,6 +165,7 @@
     else if (state.view === 'journal-create') renderJournalCreate(host);
     else if (state.view === 'journals') renderJournals(host);
     else if (state.view === 'ledger') renderLedger(host);
+    else if (state.view === 'buku-pembantu') renderBukuPembantu(host);
     else if (state.view === 'profit-loss') renderProfitLoss(host);
     else renderBalanceSheet(host);
     document.querySelectorAll('[data-acct-view]').forEach(button => button.classList.toggle('active', button.dataset.acctView === state.view));
@@ -581,6 +585,113 @@
       el('acctLedgerResult').className = '';
       el('acctLedgerResult').innerHTML = `<div style="margin:12px 0"><b>${esc(ledger.account.accountCode)} — ${esc(ledger.account.accountName)}</b><div class="acct-code">Saldo awal: ${rpExact(ledger.openingBalanceExact ?? ledger.openingBalanceMinor)} · Normal ${esc(ledger.account.normalSide)}</div></div><div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Tanggal</th><th>Jurnal</th><th>Keterangan</th><th>Debit</th><th>Kredit</th><th>Saldo</th></tr></thead><tbody>${ledger.entries.map(row => `<tr><td>${esc(row.businessDate)}</td><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.description)}</td><td>${row.debitScaled ? rpExact(row.debitExact) : ''}</td><td>${row.creditScaled ? rpExact(row.creditExact) : ''}</td><td>${rpExact(row.balanceExact ?? row.balanceMinor)}</td></tr>`).join('') || '<tr><td colspan="6">Tidak ada mutasi.</td></tr>'}</tbody></table></div><div class="acct-report-total"><span>Saldo akhir</span><span>${rpExact(ledger.closingBalanceExact ?? ledger.closingBalanceMinor)}</span></div>`;
     } catch (error) { toast(error.message); }
+  }
+
+  // --- Buku Pembantu Hutang Piutang (Bos Cyo, 2026-10-13) -------------------------------------------
+  // "tetap kolom lama yang disusun jadi buku saja": akun kontrol buku besar dipecah per nama dari label
+  // "atas nama" baris jurnal yang sudah ada (src/accounting-buku-pembantu.js). Saldo buku besar = jumlah
+  // semua nama + belum bernama; "Beri nama" hanya menambah label ke baris lama, nominal tidak berubah.
+  // Angka per karyawan di sini adalah acuan tombol Sinkronisasi Akuntansi di Entity Admin.
+  const bpRp = value => `${Number(value) < 0 ? '−' : ''}Rp${integerFormat.format(Math.abs(Number(value) || 0))}`;
+  const BP_UNNAMED = '__belum_bernama__';
+
+  function renderBukuPembantu(host) {
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Buku Pembantu Hutang Piutang</h2><p>Saldo akun piutang/hutang dipecah per nama, seperti rekening per nasabah. Saldo buku besar = jumlah semua nama + bagian <b>belum bernama</b>. Tujuannya belum bernama = Rp0.</p></div></div>
+      <div class="acct-card"><div id="acctBpAccounts" class="acct-filters"></div><div id="acctBpSummary" style="margin:10px 0"></div>
+        <label class="acct-field" style="max-width:320px"><span>Cari nama</span><input id="acctBpSearch" class="acct-input" value="${esc(state.bp.query)}" placeholder="mis. Adenia" /></label>
+        <div id="acctBpPeople" style="margin-top:10px"><p>Memuat buku pembantu…</p></div></div>
+      <div id="acctBpMutasi"></div></div>`;
+    el('acctBpSearch').addEventListener('input', event => { state.bp.query = event.target.value; renderBpPeople(); });
+    loadBukuPembantu();
+  }
+
+  async function loadBukuPembantu() {
+    try {
+      state.bp.data = await api('/api/admin/accounting/buku-pembantu');
+      if (!state.bp.data.accounts.some(account => account.code === state.bp.account)) state.bp.account = state.bp.data.accounts[0]?.code || '';
+      renderBpAccounts();
+      renderBpPeople();
+      if (state.bp.key) await loadBpMutasi(state.bp.key);
+    } catch (error) { const box = el('acctBpPeople'); if (box) box.innerHTML = `<p>${esc(error.message)}</p>`; }
+  }
+
+  function bpAccount() {
+    return (state.bp.data?.accounts || []).find(account => account.code === state.bp.account) || null;
+  }
+
+  function renderBpAccounts() {
+    const box = el('acctBpAccounts');
+    if (!box) return;
+    const accounts = state.bp.data?.accounts || [];
+    box.innerHTML = accounts.length ? accounts.map(account => `<button type="button" class="acct-btn ${account.code === state.bp.account ? 'primary' : ''}" data-bp-account="${esc(account.code)}">${esc(account.code)} ${esc(account.name)}${account.unnamedCount ? ' <span class="acct-chip inactive">belum bernama</span>' : ''}</button>`).join('') : '<p>Gerai ini belum punya akun piutang/hutang aktif.</p>';
+    box.querySelectorAll('[data-bp-account]').forEach(button => button.addEventListener('click', () => {
+      state.bp.account = button.dataset.bpAccount; state.bp.key = ''; state.bp.mutasi = null;
+      renderBpAccounts(); renderBpPeople(); el('acctBpMutasi').innerHTML = '';
+    }));
+  }
+
+  function renderBpPeople() {
+    const account = bpAccount();
+    const summary = el('acctBpSummary');
+    const box = el('acctBpPeople');
+    if (!box || !summary) return;
+    if (!account) { summary.innerHTML = ''; box.innerHTML = ''; return; }
+    const namedTotal = account.people.reduce((sum, person) => sum + Number(person.balanceRupiah || 0), 0);
+    summary.innerHTML = `<b>Saldo buku besar ${bpRp(account.glRupiah)}</b> = jumlah ${account.people.length} nama ${bpRp(namedTotal)} + belum bernama ${bpRp(account.unnamedRupiah)}
+      ${account.unnamedCount ? `<span class="acct-chip inactive">${account.unnamedCount} baris belum bernama</span>` : '<span class="acct-chip">Sinkron</span>'}`;
+    const query = state.bp.query.trim().toLowerCase();
+    const people = account.people.filter(person => !query || person.name.toLowerCase().includes(query));
+    const unnamedRow = account.unnamedCount && !query
+      ? `<tr data-bp-key="${BP_UNNAMED}" style="cursor:pointer;background:#fff5f3"><td><b>Belum bernama</b><div class="acct-code">perlu diberi nama</div></td><td><b>${bpRp(account.unnamedRupiah)}</b></td><td>${account.unnamedCount}</td><td></td></tr>` : '';
+    box.innerHTML = `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Nama</th><th>Saldo</th><th>Baris</th><th>Terakhir</th></tr></thead><tbody>${unnamedRow}${people.map(person => `<tr data-bp-key="${esc(person.key)}" style="cursor:pointer${person.key === state.bp.key ? ';background:#f3eee7' : ''}"><td>${esc(person.name)}</td><td><b>${bpRp(person.balanceRupiah)}</b></td><td>${person.lineCount}</td><td>${esc(person.lastDate)}</td></tr>`).join('') || (unnamedRow ? '' : '<tr><td colspan="4">Tidak ada nama yang cocok.</td></tr>')}</tbody></table></div>`;
+    box.querySelectorAll('[data-bp-key]').forEach(row => row.addEventListener('click', () => loadBpMutasi(row.dataset.bpKey)));
+  }
+
+  async function loadBpMutasi(key) {
+    const account = bpAccount();
+    if (!account) return;
+    state.bp.key = key;
+    renderBpPeople();
+    const box = el('acctBpMutasi');
+    box.innerHTML = '<div class="acct-card" style="margin-top:12px"><p>Memuat mutasi…</p></div>';
+    try {
+      const params = new URLSearchParams({ account: account.code, key });
+      state.bp.mutasi = await api(`/api/admin/accounting/buku-pembantu/mutasi?${params}`);
+      if (key === BP_UNNAMED && !state.bp.options) state.bp.options = await api('/api/admin/accounting/party-options');
+      renderBpMutasi();
+    } catch (error) { box.innerHTML = `<div class="acct-card" style="margin-top:12px"><p>${esc(error.message)}</p></div>`; }
+  }
+
+  function bpNameControl(account) {
+    const options = state.bp.options || {};
+    if (account.partyKind === 'EMPLOYEE') return `<select class="acct-select" data-bp-party><option value="">Pilih karyawan…</option>${(options.employees || []).map(row => `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join('')}</select>`;
+    if (account.partyKind === 'SUPPLIER') return `<select class="acct-select" data-bp-party><option value="">Pilih pemasok…</option>${(options.suppliers || []).map(row => `<option value="${esc(row.id)}">${esc(row.name)}</option>`).join('')}</select>`;
+    return `<input class="acct-input" data-bp-party maxlength="120" placeholder="Nama ${esc(account.partyLabel)}" />`;
+  }
+
+  function renderBpMutasi() {
+    const account = bpAccount();
+    const data = state.bp.mutasi;
+    const box = el('acctBpMutasi');
+    if (!account || !data || !box) return;
+    const unnamed = data.key === BP_UNNAMED;
+    const person = account.people.find(row => row.key === data.key);
+    const title = unnamed ? 'Belum bernama' : person?.name || '';
+    box.innerHTML = `<div class="acct-card" style="margin-top:12px"><div class="acct-head"><div><h3>${esc(account.code)} ${esc(account.name)} · ${esc(title)}</h3><p>Saldo ${bpRp(data.balanceRupiah)} · ${data.lines.length} baris jurnal${unnamed ? ' · beri nama tiap baris; nominal dan jurnalnya tidak berubah' : ''}</p></div></div>
+      <div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Tanggal</th><th>Jurnal</th><th>Keterangan</th><th>Debit</th><th>Kredit</th><th>Saldo</th>${unnamed ? '<th>Beri nama</th>' : ''}</tr></thead><tbody>${data.lines.map(line => `<tr><td>${esc(line.businessDate)}</td><td>${esc(line.journalNumber)}<div class="acct-code">${esc(line.sourceSystem)}</div></td><td>${esc(line.description)}</td><td>${line.side === 'DEBIT' ? bpRp(line.amountRupiah) : ''}</td><td>${line.side === 'CREDIT' ? bpRp(line.amountRupiah) : ''}</td><td>${bpRp(line.balanceRupiah)}</td>${unnamed ? `<td data-bp-line="${esc(line.lineId)}" style="min-width:220px">${bpNameControl(account)} <button type="button" class="acct-btn" data-bp-save>Simpan</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="${unnamed ? 7 : 6}">Belum ada baris jurnal.</td></tr>`}</tbody></table></div></div>`;
+    box.querySelectorAll('[data-bp-line]').forEach(cell => cell.querySelector('[data-bp-save]').addEventListener('click', () => beriNama(account, cell)));
+  }
+
+  async function beriNama(account, cell) {
+    const value = String(cell.querySelector('[data-bp-party]').value || '').trim();
+    if (!value) return toast(`Pilih atau tulis ${account.partyLabel} dulu`);
+    const party = account.partyKind === 'EMPLOYEE' ? { employeeId: value } : account.partyKind === 'SUPPLIER' ? { supplierId: value } : { name: value };
+    cell.querySelector('[data-bp-save]').disabled = true;
+    try {
+      const result = await api(`/api/admin/accounting/journal-lines/${encodeURIComponent(cell.dataset.bpLine)}/party`, { method: 'POST', body: JSON.stringify({ party }) });
+      toast(`Baris diberi nama ${result.party?.name || ''}`);
+      await loadBukuPembantu();
+    } catch (error) { toast(error.message); cell.querySelector('[data-bp-save]').disabled = false; }
   }
 
   function renderProfitLoss(host) {

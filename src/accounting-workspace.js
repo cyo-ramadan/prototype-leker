@@ -18,6 +18,7 @@ import {
   updateRecurringSchedule
 } from './accounting-journal-schedules.js';
 import { getPartyReconciliation, listPartyOptions, partyEntryStatements, prepareJournalParties } from './accounting-party-ledger.js';
+import { bukuPembantuRingkasan, bukuPembantuMutasi, beriNamaBarisJurnal } from './accounting-buku-pembantu.js';
 import {
   ACCOUNT_TYPES,
   createAccountingAccount,
@@ -168,6 +169,22 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
   }
   if (request.method === 'GET' && pathname === '/api/admin/accounting/party-reconciliation') {
     return json(await getPartyReconciliation(env.DB, store));
+  }
+  // Buku Pembantu Hutang Piutang (2026-10-13): susunan per nama dari baris jurnal + label atas nama yang
+  // sudah ada -- tanpa tabel baru. Beri nama hanya menambah label pada baris lama yang belum bernama.
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/buku-pembantu') {
+    return json(await bukuPembantuRingkasan(env.DB, store));
+  }
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/buku-pembantu/mutasi') {
+    const result = await bukuPembantuMutasi(env.DB, store, { accountCode: text(url.searchParams.get('account'), 10), key: text(url.searchParams.get('key'), 240) });
+    if (!result) return json({ error: 'Akun tidak ditemukan di gerai ini.' }, 404);
+    return json(result);
+  }
+  const namaMatch = pathname.match(/^\/api\/admin\/accounting\/journal-lines\/([^/]+)\/party$/);
+  if (request.method === 'POST' && namaMatch) {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+    return resultResponse(await beriNamaBarisJurnal(env.DB, store, { lineId: decodeURIComponent(namaMatch[1]), party: body.value?.party || {}, actor: actorFrom(ctx.auth) }));
   }
 
   if (pathname === '/api/admin/accounting/journals') {

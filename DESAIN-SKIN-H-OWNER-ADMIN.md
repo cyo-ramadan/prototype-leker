@@ -82,7 +82,7 @@ Skin H memakai latar pantai kuning-turquoise tanpa logo atau teks merek:
 - target sentuh minimal 44 px;
 - pada HP, empat kelompok Admin tetap terlihat dan sub-menu membungkus.
 
-Seluruh CSS portal diawali `html[data-skin="h"]` dan komponen portal dibongkar saat skin bukan H.
+Seluruh CSS portal diawali `html[data-skin="h"]` dan komponen portal dibongkar saat skin bukan H. Definisi warna dan token H berdiri sendiri dan tidak mewarisi Skin A-G.
 
 ## Verifikasi lokal
 

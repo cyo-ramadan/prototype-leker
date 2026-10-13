@@ -16,7 +16,7 @@ html[data-skin="h"] {
   --green: #276846;
   --green-soft: #E5F3DD;
   --amber: #7A4A00;
-  --shadow: 0 10px 30px -18px rgba(18,59,92,.35);
+  --shadow: 0 10px 30px -18px rgba(7,94,90,.25);
   --skin-card-shadow: none;
   --skin-top-bg: #FFFFFF;
   --skin-top-ink: #123F3B;
@@ -28,7 +28,7 @@ html[data-skin="h"] {
   --skin-hero-ink: #123F3B;
   --skin-hero-muted: #46655F;
   --skin-primary: #075E5A;
-  --skin-primary-ink: #ffffff;
+  --skin-primary-ink: #FFFFFF;
   --skin-active-bg: #075E5A;
   --skin-active-ink: #FFFFFF;
   --skin-input-bg: #FFFFFF;

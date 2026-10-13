@@ -239,18 +239,17 @@ html[data-skin="g"] .primary-btn { min-height: 48px; }
 
 
 SKINS['h'] = dict(title='H · Owner Kelola Sendiri', note='Portal Admin Entity dan Kantor khusus H; pantai kuning-turquoise tanpa merek, panel putih, tombol teal gelap. DESAIN-SKIN-H-OWNER-ADMIN.md.', tok={
-  **SKINS['g']['tok'],
   '--skin-font': '"DM Sans", "Segoe UI", system-ui, sans-serif',
   '--bg': '#FFE7A1', '--skin-page-bg': '#FFE7A1', '--surface': '#FFFFFF', '--ink': '#123F3B', '--muted': '#46655F', '--line': '#C8E2DC',
-  '--brand': '#075E5A', '--brand-2': '#087F8C',
-  '--green': '#276846', '--green-soft': '#E5F3DD',
-  '--skin-hero-bg': '#FFF3BD', '--skin-hero-ink': '#123F3B', '--skin-hero-muted': '#46655F',
+  '--brand': '#075E5A', '--brand-2': '#087F8C', '--green': '#276846', '--green-soft': '#E5F3DD', '--amber': '#7A4A00',
+  '--shadow': '0 10px 30px -18px rgba(7,94,90,.25)', '--skin-card-shadow': 'none',
   '--skin-top-bg': '#FFFFFF', '--skin-top-ink': '#123F3B', '--skin-top-muted': '#46655F', '--skin-top-line': '#C8E2DC',
   '--skin-mark-bg': '#075E5A', '--skin-mark-ink': '#FFFFFF',
-  '--skin-primary': '#075E5A', '--skin-active-bg': '#075E5A', '--skin-active-ink': '#FFFFFF',
+  '--skin-hero-bg': '#FFF3BD', '--skin-hero-ink': '#123F3B', '--skin-hero-muted': '#46655F',
+  '--skin-primary': '#075E5A', '--skin-primary-ink': '#FFFFFF', '--skin-active-bg': '#075E5A', '--skin-active-ink': '#FFFFFF',
   '--skin-input-bg': '#FFFFFF', '--skin-chip-bg': '#FFF3BD', '--skin-focus': 'rgba(7,94,90,.22)',
-  '--skin-danger': '#A12626', '--skin-danger-soft': '#FFF0F0', '--skin-danger-line': '#EDC5C5',
-  '--skin-card-shadow': 'none', '--skin-r-sm': '8px', '--skin-r': '10px', '--skin-r-lg': '16px'
+  '--skin-danger': '#A12626', '--skin-danger-soft': '#FFF0F0', '--skin-danger-line': '#EDC5C5', '--skin-warn': '#7A4A00', '--skin-warn-soft': '#FCEFD6',
+  '--skin-r-sm': '8px', '--skin-r': '10px', '--skin-r-lg': '16px', '--skin-r-pill': '999px'
 }, extra=r"""
 html[data-skin="h"] body { font-size:16px; line-height:1.5; background-color:#FFE7A1; background-image:url('/owner-beach-h-v1.png'); background-position:center; background-size:cover; background-repeat:no-repeat; background-attachment:fixed; }
 html[data-skin="h"] .topbar { background:rgba(255,255,255,.97); border-bottom:3px solid #FFC93E; }

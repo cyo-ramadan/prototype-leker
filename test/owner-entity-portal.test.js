@@ -90,6 +90,19 @@ test('Owner portal and legacy Entity features share one H-only, entity-scoped co
   }
 });
 
+test('Skin H is a standalone skin definition and does not inherit another skin', () => {
+  const policy = readFileSync(new URL('../src/tenant-policy.js', import.meta.url), 'utf8');
+  const generator = readFileSync(new URL('../scripts/generate-skin-css.py', import.meta.url), 'utf8');
+  const hStart = generator.indexOf("SKINS['h'] = dict");
+  const hEnd = generator.indexOf('import sys', hStart);
+  const hDefinition = generator.slice(hStart, hEnd);
+
+  assert.match(policy, /{ value: 'H', label: 'H · Owner Kelola Sendiri' }/);
+  assert.ok(hStart >= 0 && hEnd > hStart);
+  assert.equal(hDefinition.includes("**SKINS["), false);
+  assert.ok(hDefinition.includes("background-image:url('/owner-beach-h-v1.png')"));
+});
+
 test('Skin H UI exposes the simple entity portal, Office cashier, and no legacy settings entry', () => {
   const owner = readFileSync(new URL('../public/owner.js', import.meta.url), 'utf8');
   const entity = readFileSync(new URL('../public/entity-admin.html', import.meta.url), 'utf8');

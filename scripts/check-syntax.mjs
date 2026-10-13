@@ -103,6 +103,8 @@ const files = [
   "src/percetakan-tebak.js",
   "src/percetakan-otomatis.js",
   "src/percetakan-mesin.js",
+  "src/percetakan-acc.js",
+  "src/percetakan-baca-una.js",
   "percetakan-agen/agen-cetak.mjs",
   "src/cashier-drawer.js",
   "src/cashier-drawer-close-permit.js",

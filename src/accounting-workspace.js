@@ -7,7 +7,7 @@ import { autoSyncAccounting } from './accounting-auto-sync.js';
 import { getAccountStandardization, standardizeStoreAccounts } from './accounting-standardize.js';
 import {
   createRecurringSchedule,
-  createSplitPlan,
+  createSplitPlan, createDirectSplit,
   getSplitOccurrencesForJournal,
   listPendingOccurrences,
   listRecurringSchedules,
@@ -231,6 +231,12 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
   const occurrenceSkipMatch = pathname.match(/^\/api\/admin\/accounting\/expense-schedules\/occurrences\/([^/]+)\/skip$/);
   if (request.method === 'POST' && occurrenceSkipMatch) {
     return resultResponse(await skipOccurrenceNow(env.DB, store, decodeURIComponent(occurrenceSkipMatch[1])));
+  }
+  // Jurnal Split baru tanpa jurnal sumber (2026-10-13): semua akun, langsung dibagi per hari.
+  if (request.method === 'POST' && pathname === '/api/admin/accounting/journal-splits') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload Jurnal Split tidak valid.' }, 400);
+    return resultResponse(await createDirectSplit(env.DB, store, body.value), 201);
   }
   const splitCreateMatch = pathname.match(/^\/api\/admin\/accounting\/journals\/([^/]+)\/split$/);
   if (request.method === 'POST' && splitCreateMatch) {

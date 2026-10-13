@@ -75,3 +75,24 @@ test('/produk/: Una simulation changes nothing without the owner saying "Ya"', (
   assert.match(html, />Ya, simpan</);
   assert.match(html, /tidak ada yang disimpan/i);
 });
+
+// Kode sumber di tombol WhatsApp (pemasaran/WORKFLOW-SEO-IKLAN.md prinsip 2 / G4):
+// chat yang masuk harus ketahuan datang dari halaman atau iklan mana.
+for (const path of PAGES) {
+  const { html } = load(path);
+  const name = path.replace('../public', '');
+  const fn = html.match(/function sourceCode\(search\) \{[\s\S]*?\n  \}/)?.[0];
+
+  test(`${name}: WhatsApp message carries a source code (page default, ?s= override, unsafe values ignored)`, () => {
+    assert.ok(fn, `${name} has no sourceCode()`);
+    const page = html.match(/PAGE:\s*'([a-z]+)'/)?.[1];
+    assert.ok(page, `${name} has no LANDING.PAGE`);
+    const sourceCode = new Function('LANDING', `${fn}; return sourceCode;`)({ PAGE: page });
+    assert.equal(sourceCode(''), `web-${page}`);
+    assert.equal(sourceCode('?s=A-meta-video1'), 'A-meta-video1');
+    assert.equal(sourceCode('?s=G_absen-gps&x=1'), 'G_absen-gps');
+    assert.equal(sourceCode('?s=<script>'), `web-${page}`);
+    assert.equal(sourceCode('?s=' + 'a'.repeat(31)), `web-${page}`);
+    assert.match(html, /\+ ' \[' \+ sourceCode\(location\.search\) \+ '\]'/);
+  });
+}

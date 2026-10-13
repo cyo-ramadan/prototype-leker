@@ -162,4 +162,8 @@ Chat masuk, Draft, Antrian per mesin, Order, Pengaturan; Workspace Gerai dapat t
 **Batas:** pembayaran order belum tersambung ke kasir; akurasi baca chat belum diuji dengan chat asli.
 Detail: `adr/ADR-055-tenant-percetakan-order-wa.md`, `HANDOFF-PERCETAKAN.md`.
 
-<!-- DOC-IMPACT: 2026-10-10 skin G (Percetakan). 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->
+## H - Owner Kelola Sendiri
+
+Untuk pemilik beberapa gerai yang sekaligus menjadi Admin Entity. Portal Admin di atas mengelola seluruh gerai dan persetujuannya; kasir Kantor berada di bawah. Tema pantai: biru laut, cyan, kuning pasir, panel buih, Nunito Sans. Detail: [DESAIN-SKIN-H-OWNER-ADMIN.md](DESAIN-SKIN-H-OWNER-ADMIN.md). Gambar, prompt, dan panduan aset: [design-assets/README.md](design-assets/README.md).
+
+<!-- DOC-IMPACT: 2026-10-13 katalog H dan library aset. 2026-10-10 skin G (Percetakan). 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->

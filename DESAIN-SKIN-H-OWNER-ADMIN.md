@@ -76,9 +76,12 @@ Pada Skin H resep opsional diisi langsung dari form Barang & resep. Barang baru 
 
 Skin H memakai latar pantai kuning-turquoise tanpa logo atau teks merek:
 - aset: `public/owner-beach-h-v1.png`;
-- panel putih;
-- tombol utama teal gelap;
-- tombol pendamping kuning pasir;
+- panel buih biru muda, kartu barang putih, dan bingkai cyan;
+- tombol utama biru laut `#006B99`, tombol pendamping kuning pasir;
+- bilah atas kuning cerah dengan garis turquoise dan aksen hijau daun, mengikuti referensi pantai Bos Cyo;
+- font Nunito Sans, heading 800 dan kontrol 700;
+- modal buih dengan bingkai ombak, pembatas pasir, dan backdrop biru;
+- arsip gambar konsep, prompt, checksum, dan aturan reuse: [library aset](design-assets/README.md); penyimpanan repo, belum ada mirror R2;
 - target sentuh minimal 44 px;
 - pada HP, empat kelompok Admin tetap terlihat dan sub-menu membungkus.
 
@@ -86,14 +89,17 @@ Seluruh CSS portal diawali `html[data-skin="h"]` dan komponen portal dibongkar s
 
 ## Verifikasi
 
-- `npm test`: 1.860 lulus, 0 gagal.
+- Run penuh `npm test`: 1.858/1.860 lulus; dua kegagalan pemeriksaan UI berasal dari expected versi aset lama dan pemecahan koma di dalam selector `:is()`.
+- Setelah kedua pemeriksaan diperbarui, `npm test -- test/ui-skin-tenant-toggle.test.js test/skin-gerai-akun-dan-gate-portal.test.js test/owner-entity-portal.test.js`: 15 lulus, 0 gagal. Source aplikasi tidak berubah setelah run penuh; suite backend yang sudah lulus tidak diulang. Pemeriksa selector tetap menangkap selector tanpa scope.
 - `npm run check`: seluruh source lulus pemeriksaan sintaks.
 - Tes integrasi membuktikan H + Auto Permit langsung menjalankan pembalik canonical; H dengan saklar mati tetap pending; skin lain dengan saklar aktif tetap pending.
 - Tes retry membuktikan eksekusi pembalik aman diulang tanpa menerapkan koreksi dua kali.
 - `git diff --check`: tidak ada whitespace error.
 
+Pembaruan visual 2026-10-13: empat pasangan warna utama diperiksa kontrasnya: putih/biru 5,89:1, teks/tombol pasir 9,96:1, teks sekunder/panel buih 5,45:1, dan putih/hijau daun 5,12:1. Seluruh delapan path dan checksum PNG di manifest cocok. Preview HP pascaperubahan belum terverifikasi: koneksi browser berulang kali timeout; jangan menganggap tes source sebagai bukti visual perangkat fisik.
+
 ## Batas produksi
 
 Tidak ada migration baru untuk perubahan ini. Pergantian skin tetap dilakukan dari kebijakan tenant dan setiap request membaca skin aktif dari server, sehingga aturan Auto Permit penghapusan langsung berhenti ketika tenant keluar dari H.
 
-DOC-IMPACT: CHANGED - status live Skin H, Auto Permit Hapus Transaksi khusus H, executor pembalik canonical, isolasi saat skin berubah, dan hasil validasi terbaru.
+DOC-IMPACT: CHANGED 2026-10-13 - tema pantai sampai komponen dan katalog aset;  status live Skin H, Auto Permit Hapus Transaksi khusus H, executor pembalik canonical, isolasi saat skin berubah, dan hasil validasi terbaru.

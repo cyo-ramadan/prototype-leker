@@ -294,6 +294,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-11 | Una / Entity Admin | Chat menampilkan kartu draft ringkas yang membuka Workspace; draft, koreksi, persetujuan dan progres tersimpan per akun/gerai, bisa dijeda lalu dilanjutkan; laptop menampilkan chat berdampingan dan HP menyediakan kembali ke chat | UJI | Memeriksa pekerjaan Una tanpa memenuhi chat; fondasi percakapan live disiapkan, panggilan live penuh belum termasuk |
 | 2026-10-13 | Codex / Skin H | Tema pantai kuning dan turquoise menyatu sampai tombol, font, panel, modal, dan kasir Kantor; gambar konsep serta panduan aset diarsipkan untuk desain berikutnya | UJI | Memperjelas identitas visual H; validasi pemakaian HP fisik tetap diperlukan |
 | 2026-10-13 | Codex / Skin I | Pilihan Pantai Klasik memakai tema pantai H dengan seluruh susunan menu, ukuran dan cara pakai skin 0 yang tetap sama | UJI | Pemilik dapat memilih tema baru tanpa mempelajari alur baru; tidak mengaktifkan aturan khusus H |
+| 2026-10-13 | Codex / Portal Staf H | Tema pantai H ikut pada menu, panel, dialog koreksi dan kamera staf; Mode Lihat mengikuti gerai yang dipilih, sesi lama menyegarkan tema dari gerai akun | UJI | Pengalaman staf konsisten dengan tema tenant, tanda peringatan tetap jelas |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -366,3 +367,5 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 <!-- DOC-IMPACT: 2026-10-13 tema pantai Skin H dan library aset desain, status UJI. -->
 
 <!-- DOC-IMPACT: 2026-10-13 pilihan Skin I bertema pantai dengan cara pakai skin 0. -->
+
+<!-- DOC-IMPACT: 2026-10-13 perbaikan cakupan pantai Portal Staf H. -->

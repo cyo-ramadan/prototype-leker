@@ -105,3 +105,14 @@ Pembaruan visual 2026-10-13: empat pasangan warna utama diperiksa kontrasnya: pu
 Tidak ada migration baru untuk perubahan ini. Pergantian skin tetap dilakukan dari kebijakan tenant dan setiap request membaca skin aktif dari server, sehingga aturan Auto Permit penghapusan langsung berhenti ketika tenant keluar dari H.
 
 DOC-IMPACT: CHANGED 2026-10-13 - tema pantai sampai komponen dan katalog aset;  status live Skin H, Auto Permit Hapus Transaksi khusus H, executor pembalik canonical, isolasi saat skin berubah, dan hasil validasi terbaru.
+
+
+## Tema Portal Staf (koreksi 2026-10-13)
+
+Portal Staf mempunyai komponen tersendiri (`staff-card`, `staff-nav`, `staff-empty`) yang sebelumnya belum tercakup lapisan pantai H. Generator H kini mewarnai menu pasir/laut, panel buih, riwayat dan thumbnail, dialog koreksi jam/GPS, serta isi modal kamera. Tanda telat, masalah GPS, pesan gagal dan penolakan tidak ditimpa warna dekoratif.
+
+Pemilihan tema di `/staff` mengikuti gerai sesi kasir; untuk Mode Lihat tanpa token kasir, mengikuti `?store=` yang dipilih manajemen. Metadata login Admin lama tidak boleh menentukan tema staf gerai lain. Respons `/api/staff/portal` yang sudah terautentikasi menyegarkan konteks tema, termasuk sesi lama tanpa metadata gerai. Penyegaran menunggu profil awal selesai agar respons gerai lama yang masih berjalan tidak menimpa tema yang benar. Ini hanya konteks visual: otorisasi dan scope API staf tetap memakai mekanisme existing.
+
+CSS staf hanya berada di `html[data-skin="h"]`, keluar dari H melepasnya. Dialog memakai fallback warna klasik pada skin lain. Aset tetap `/owner-beach-h-v1.png`; tidak ada migration, perubahan data gerai, presensi, setoran, atau pilihan skin tenant otomatis.
+
+DOC-IMPACT: CHANGED 2026-10-13 - cakupan tema Portal Staf H dan pemilihan gerai tema pada sesi kasir, Mode Lihat, serta sesi lama.

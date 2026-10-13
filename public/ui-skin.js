@@ -17,7 +17,7 @@
 // berikutnya langsung tampil benar tanpa kedip; server tetap dicek tiap
 // halaman dimuat (bukan polling -- invariant #6).
 (() => {
-  const SKIN_ASSET_VERSION = '20261013-i-classic-beach-v1';
+  const SKIN_ASSET_VERSION = '20261013-h-staff-beach-v1';
   const SKIN_FONTS = {
     a: 'family=Plus+Jakarta+Sans:wght@400;600;700;800',
     b: 'family=Archivo:wdth,wght@62..125,400..900',
@@ -53,7 +53,13 @@
     }
     let storeCode = String(window.LEKER_STORE_CODE || '').trim();
     if (!storeCode && page === 'staff') {
-      try { storeCode = String(JSON.parse(read('lekerStaffSessionMeta') || 'null')?.storeCode || '').trim(); } catch {}
+      // Cashier identity wins over a stale preview URL. Management preview follows
+      // its selected store, not a previous login's metadata from another tenant.
+      let meta = null;
+      try { meta = JSON.parse(read('lekerStaffSessionMeta') || 'null'); } catch {}
+      const cashierStore = meta?.role === 'CASHIER' ? meta.storeCode : '';
+      const previewStore = new URLSearchParams(location.search).get('store');
+      storeCode = String((read('lekerCashierToken') && cashierStore) || previewStore || cashierStore || '').trim();
     }
     return storeCode ? { key: `store:${storeCode.toUpperCase()}`, query: `store=${encodeURIComponent(storeCode)}` } : null;
   }

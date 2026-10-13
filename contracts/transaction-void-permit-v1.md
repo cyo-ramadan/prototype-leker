@@ -6,7 +6,7 @@ Owner: Approval authorization + transaction-owner correction executor + Accounti
 
 ## Purpose
 
-Cashier-originated requests to remove the operational effect of an existing Sale, Purchase, or Operational Expense require explicit Admin/Owner authorization and an auditable lifecycle.
+Cashier-originated requests to remove the operational effect of an existing Sale, Purchase, or Operational Expense require recorded authorization and an auditable lifecycle. Authorization is normally an explicit Admin/Owner decision; Skin H may use the store Auto Permit setting described below.
 
 The cashier UI may say **Hapus**. Backend semantics are **soft-delete + compensating correction**. Original transaction rows, posted journals, and historical stock movements are never physically deleted or rewritten.
 
@@ -29,6 +29,8 @@ Admin Gerai may decide only permits in its store. Owner may decide an explicitly
 `REJECT` closes the permit without operational mutation.
 
 `ACC` records authorization and invokes the transaction-owner correction executor. ACC never performs hard SQL deletion.
+
+For a tenant whose current `ui_skin` is `H`, an enabled per-store Auto Permit setting may claim a newly created transaction-void permit as `approved` with `approved_by_role = 'AUTO_PERMIT'` and the enabling account ID, then invoke the same correction executor used by manual ACC. The Office actor in Skin H may do the same under the live Owner/Entity Admin identity. This is not a bypass: the permit row, audit actor, HOLD/FAILED states, immutable Accounting reversal, and `RETRY_EXECUTION` path remain unchanged. The server re-reads the tenant skin on each request; outside H, transaction-void permits remain pending for manual review even if the store Auto Permit setting is enabled.
 
 Execution states are `NOT_ATTEMPTED`, `HOLD`, `EXECUTED`, and `FAILED`. HOLD is visible and must never be reported as successful removal.
 

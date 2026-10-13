@@ -1,10 +1,10 @@
 # Skin H - Owner Merangkap Admin
 
-Bos Cyo, diperbarui 12 Oktober 2026.
+Bos Cyo, diperbarui 13 Oktober 2026.
 
 ## Status
 
-Skin H sudah diimplementasikan secara lokal pada branch `codex/skin-h-owner-admin`. Kode belum di-push, belum di-deploy, dan belum mengubah skin tenant produksi sesuai instruksi Bos Cyo.
+Skin H sudah live di Worker produksi dan tersedia sebagai pilihan tenant. Tidak ada tenant yang dipindahkan ke H secara otomatis; aturan khusus H baru aktif setelah tenant memilih `ui_skin=H`.
 
 Skin ini ditujukan untuk owner yang mempunyai beberapa gerai, tidak mempunyai Admin terpisah, dan menjalankan satu gerai khusus sebagai Kantor.
 
@@ -37,7 +37,7 @@ Kotak persetujuan di bagian atas menggabungkan pengajuan dari seluruh gerai dala
 
 Sumber data dan handler keputusan lama tetap menjadi pemilik transaksi. Portal hanya menyatukan tampilan dan delegasi keputusan agar aturan akuntansi, stok, dan kas tidak diduplikasi.
 
-Penghapusan transaksi tetap memakai persetujuan eksplisit satu ketukan. Tidak ada bypass penghapusan otomatis. Ini menjaga pembalikan stok, kas, dan jurnal tetap dapat diperiksa owner.
+Pada Skin H, saklar Auto Permit per gerai juga mencakup Permit Hapus Transaksi. Permit tetap dibuat dan jejak pemutus dicatat sebagai `AUTO_PERMIT`, lalu server menjalankan executor correction canonical yang sama dengan ACC manual. Bila pembalik tidak aman, status menjadi HOLD/FAILED dan Admin dapat memakai `RETRY_EXECUTION`; transaksi tidak dihapus paksa. Pada skin selain H, Permit Hapus Transaksi tetap menunggu ACC manual walaupun saklar Auto Permit gerai aktif.
 
 ## Kasir Kantor
 
@@ -84,18 +84,16 @@ Skin H memakai latar pantai kuning-turquoise tanpa logo atau teks merek:
 
 Seluruh CSS portal diawali `html[data-skin="h"]` dan komponen portal dibongkar saat skin bukan H. Definisi warna dan token H berdiri sendiri dan tidak mewarisi Skin A-G.
 
-## Verifikasi lokal
+## Verifikasi
 
-- `npm test`: 1.847 lulus, 0 gagal.
-- `npm run check`: 319 file lulus pemeriksaan sintaks.
-- Uji Worker lokal: login Owner 200, context Admin Entity 200, 11 gerai terbaca, konfigurasi KANTOR 200, sesi Kantor 200, laci OPEN, inbox lintas gerai 200.
-- Uji isolasi: H ke skin biasa membuat portal 403; kembali ke H tidak menghidupkan token Kantor lama (403); sesi baru berhasil (200).
+- `npm test`: 1.860 lulus, 0 gagal.
+- `npm run check`: seluruh source lulus pemeriksaan sintaks.
+- Tes integrasi membuktikan H + Auto Permit langsung menjalankan pembalik canonical; H dengan saklar mati tetap pending; skin lain dengan saklar aktif tetap pending.
+- Tes retry membuktikan eksekusi pembalik aman diulang tanpa menerapkan koreksi dua kali.
 - `git diff --check`: tidak ada whitespace error.
-
-Chrome sempat tersambung tetapi koneksi ekstensi hilang sebelum navigasi lokal, jadi screenshot viewport HP aktual belum dihasilkan. Pemeriksaan responsif dilakukan dari aturan CSS dan struktur DOM; jangan nyatakan validasi visual browser selesai sampai screenshot aktual berhasil.
 
 ## Batas produksi
 
-Tidak ada migration baru untuk fitur ini. Database preview berada di `.wrangler` lokal dan tidak dilacak Git. Tenant produksi, gerai aktif, akun produksi, laci CS, dan transaksi produksi tidak diubah. Push tetap ditahan sampai Bos Cyo memutuskan.
+Tidak ada migration baru untuk perubahan ini. Pergantian skin tetap dilakukan dari kebijakan tenant dan setiap request membaca skin aktif dari server, sehingga aturan Auto Permit penghapusan langsung berhenti ketika tenant keluar dari H.
 
-DOC-IMPACT: CHANGED - implementasi lokal Skin H, portal Admin Entity, Kantor, persetujuan lintas gerai, riwayat permit laci, resep langsung, tema pantai, isolasi saat skin berubah, dan hasil validasi terbaru.
+DOC-IMPACT: CHANGED - status live Skin H, Auto Permit Hapus Transaksi khusus H, executor pembalik canonical, isolasi saat skin berubah, dan hasil validasi terbaru.

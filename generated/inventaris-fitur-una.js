@@ -127,6 +127,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/accounting-workspace.js:/^\\/api\\/admin\\/accounting\\/journal-splits\\/([^/]+)\\/(post-now|cancel)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/accounting-workspace.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/accounting\\/journal-splits\\/([^/]+)\\/(post-now|cancel)$/",
+    "label": "/^\\/api\\/admin\\/accounting\\/journal-splits\\/([^/]+)\\/(post-now|cancel)$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/accounting-workspace.js:/^\\/api\\/admin\\/accounting\\/journals\\/([^/]+)\\/split$/",
     "jenis": "rute-pola",
     "sumber": "src/accounting-workspace.js",
@@ -4484,6 +4493,39 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": "data-occ-skip",
     "label": "Lewati",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-accounting-workspace.js"
+  },
+  {
+    "id": "tombol:public/admin-accounting-workspace.js:data-split-cancel:Hapus split",
+    "jenis": "tombol",
+    "sumber": "public/admin-accounting-workspace.js",
+    "tombolId": null,
+    "aksi": "data-split-cancel",
+    "label": "Hapus split",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-accounting-workspace.js"
+  },
+  {
+    "id": "tombol:public/admin-accounting-workspace.js:data-split-cancel:Lanjutkan hapus",
+    "jenis": "tombol",
+    "sumber": "public/admin-accounting-workspace.js",
+    "tombolId": null,
+    "aksi": "data-split-cancel",
+    "label": "Lanjutkan hapus",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-accounting-workspace.js"
+  },
+  {
+    "id": "tombol:public/admin-accounting-workspace.js:data-split-post:Posting sekarang",
+    "jenis": "tombol",
+    "sumber": "public/admin-accounting-workspace.js",
+    "tombolId": null,
+    "aksi": "data-split-post",
+    "label": "Posting sekarang",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-accounting-workspace.js"
@@ -12561,6 +12603,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/admin/accounting/standardize-accounts",
     "label": "/api/admin/accounting/standardize-accounts",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/accounting-workspace.js:request.method === 'POST' && splitActionMatch)",
+    "jenis": "rute-tulis",
+    "sumber": "src/accounting-workspace.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST' && splitActionMatch)",
     "skin": null
   },
   {

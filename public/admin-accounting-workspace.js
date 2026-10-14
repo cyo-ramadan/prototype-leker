@@ -803,7 +803,8 @@
         <div class="acct-filters"><label class="acct-field"><span>Dari tanggal</span><input class="acct-input" data-split-field="startDate" type="date" value="${esc(f.startDate)}" required /></label><label class="acct-field"><span>Sampai tanggal</span><input class="acct-input" data-split-field="endDate" type="date" value="${esc(f.endDate)}" required /></label></div>
         <div id="acctSplitPreview">${splitPreviewHtml()}</div>${partyNamesDatalist()}
         <button class="acct-btn primary" type="submit">Buat Jurnal Split</button>
-      </form></div>`;
+      </form>
+      <div class="acct-card" style="margin-top:12px"><div class="acct-head"><div><h3>Jurnal Split yang sudah dibuat</h3><p>Satu baris = satu split. <b>Posting sekarang</b> memposting semua hari yang belum diposting, termasuk tanggal yang belum tiba (tanggal transaksinya tetap tanggal hari itu). <b>Hapus split</b> membatalkan seluruh split: hari yang belum diposting dilewati, hari yang sudah diposting dibalik dengan jurnal pembalik bertanggal sama.</p></div></div><div id="acctSplitList">${splitListHtml()}</div></div></div>`;
     host.querySelectorAll('[data-split-field]').forEach(input => input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
       const key = input.dataset.splitField;
       f[key] = input.value;
@@ -816,6 +817,79 @@
       f[`${input.dataset.splitParty}Party`] = { ...f[`${input.dataset.splitParty}Party`], [input.dataset.splitPartyKey]: input.value };
     }));
     el('acctSplitForm').addEventListener('submit', event => { event.preventDefault(); submitJournalSplit(host); });
+    bindSplitList(host);
+    if (!state.splitList && !state.splitListLoading) loadSplitList(host);
+  }
+
+  // Jurnal Split sebagai satu kesatuan (Bos Cyo, 2026-10-14): daftar + Posting sekarang + Hapus split.
+  async function loadSplitList(host) {
+    state.splitListLoading = true;
+    try { state.splitList = (await api('/api/admin/accounting/journal-splits')).splits || []; }
+    catch (error) { state.splitList = []; toast(error.message); }
+    finally { state.splitListLoading = false; }
+    if (state.view === 'journal-split') renderJournalSplit(host);
+  }
+
+  function splitListHtml() {
+    if (!state.splitList) return '<p class="acct-code">Memuat…</p>';
+    if (!state.splitList.length) return '<p class="acct-code">Belum ada Jurnal Split.</p>';
+    const rp = scaled => `Rp${integerFormat.format(Math.round(Number(scaled || 0) / 1000000))}`;
+    const rows = state.splitList.map(split => {
+      const days = split.totalOccurrences || (split.postedCount + split.plannedCount + split.skippedCount);
+      const party = [split.debitPartyName, split.creditPartyName].filter(Boolean).join(' / ');
+      const unreversed = split.postedCount - split.reversedCount;
+      let status;
+      if (split.cancelledAt) status = unreversed > 0 ? `<span class="acct-chip inactive">Dihapus · ${unreversed} pembalik belum dibuat</span>` : '<span class="acct-chip inactive">Dihapus</span>';
+      else if (split.plannedCount) status = `<span class="acct-chip">${split.postedCount}/${days} diposting · ${split.plannedCount} menunggu</span>`;
+      else status = `<span class="acct-chip">${split.postedCount}/${days} diposting</span>`;
+      const actions = [
+        !split.cancelledAt && split.plannedCount ? `<button class="acct-btn" type="button" data-split-post="${esc(split.scheduleId)}">Posting sekarang</button>` : '',
+        !split.cancelledAt ? `<button class="acct-btn danger" type="button" data-split-cancel="${esc(split.scheduleId)}">Hapus split</button>` : '',
+        split.cancelledAt && unreversed > 0 ? `<button class="acct-btn danger" type="button" data-split-cancel="${esc(split.scheduleId)}">Lanjutkan hapus</button>` : ''
+      ].join(' ');
+      return `<tr><td>${esc(split.name)}${party ? `<div class="acct-code">atas nama ${esc(party)}</div>` : ''}</td><td>${esc(split.startDate)} s/d ${esc(split.endDate || '')}</td><td>D ${esc(split.debitAccountLabel)}<br>K ${esc(split.creditAccountLabel)}</td><td style="text-align:right">${rp(split.totalAmountScaled)}</td><td>${status}</td><td>${actions}</td></tr>`;
+    }).join('');
+    return `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>Keterangan</th><th>Rentang</th><th>Akun</th><th style="text-align:right">Total</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  // Server memproses per kelompok (maks 60 hari per panggilan); diulang sampai habis.
+  async function repeatSplitAction(path, body) {
+    let done = 0;
+    for (let round = 0; round < 40; round += 1) {
+      const result = await api(path, { method: 'POST', body: JSON.stringify(body || {}) });
+      done += Number(result.posted ?? result.reversed ?? 0);
+      if (!result.remaining) return done;
+    }
+    return done;
+  }
+
+  function bindSplitList(host) {
+    host.querySelectorAll('[data-split-post]').forEach(button => button.addEventListener('click', async () => {
+      const split = state.splitList.find(item => item.scheduleId === button.dataset.splitPost);
+      if (!split || !window.confirm(`Posting sekarang ${split.plannedCount} jurnal harian "${split.name}" yang belum diposting? Tanggal transaksinya tetap tanggal masing-masing hari (termasuk yang belum tiba).`)) return;
+      button.disabled = true;
+      try {
+        const posted = await repeatSplitAction(`/api/admin/accounting/journal-splits/${encodeURIComponent(split.scheduleId)}/post-now`);
+        toast(`${posted} jurnal harian diposting`);
+      } catch (error) { toast(error.message); }
+      state.splitList = null;
+      await load(true);
+    }));
+    host.querySelectorAll('[data-split-cancel]').forEach(button => button.addEventListener('click', async () => {
+      const split = state.splitList.find(item => item.scheduleId === button.dataset.splitCancel);
+      if (!split) return;
+      const reason = split.cancelledAt ? split.cancelReason : window.prompt(`Hapus seluruh Jurnal Split "${split.name}" (${split.startDate} s/d ${split.endDate})?
+
+${split.postedCount} jurnal yang sudah diposting akan dibalik (tanggal sama), ${split.plannedCount} yang belum diposting dilewati. Tulis alasannya (opsional):`, '');
+      if (reason === null) return;
+      button.disabled = true;
+      try {
+        const reversed = await repeatSplitAction(`/api/admin/accounting/journal-splits/${encodeURIComponent(split.scheduleId)}/cancel`, { reason });
+        toast(`Jurnal Split dihapus · ${reversed} jurnal pembalik dibuat`);
+      } catch (error) { toast(error.message); }
+      state.splitList = null;
+      await load(true);
+    }));
   }
 
   async function submitJournalSplit(host) {
@@ -847,6 +921,7 @@
         ? `Jurnal Split dibuat, tapi posting tertahan: ${result.failure.error}`
         : `Jurnal Split dibuat: ${result.postedNow} jurnal sudah diposting, ${result.waiting} menunggu tanggalnya`);
       state.split = { name: '', debitAccountId: '', creditAccountId: '', total: '', startDate: '', endDate: '', debitParty: {}, creditParty: {} };
+      state.splitList = null;
       await load(true);
     } catch (error) { toast(error.message); }
   }

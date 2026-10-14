@@ -23,6 +23,10 @@ import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 import { handleCacaWorkspaceApi } from './caca-workspace.js';
+import { resolveUiProfile } from './ui-profile.js';
+import { resolveTenantId } from './tenant-policy.js';
+import { bacaPengaturanAsisten, sesuaikanNamaBalasan, handlePengaturanAsisten } from './caca-pengaturan.js';
+import { catatBelumPaham, handleCacaBelumPahamApi } from './caca-belum-paham.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_LENGTH = 1_500_000;
@@ -224,6 +228,12 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
 // Lingkup entity (buku entity, semua gerai) hanya untuk Entity Admin: endpoint
 // jurnal entity sendiri hanya menerima sesi Entity Admin, dan Owner tidak
 // punya satu entity yang jelas.
+async function lengkapiLingkup(env, lingkup, principal, entityId) {
+  const tenantId = lingkup.store?.tenantId || await resolveTenantId(env.DB, entityId);
+  const profil = await resolveUiProfile(env.DB, { storeCode: lingkup.storeCode, entityId });
+  const pengaturan = await bacaPengaturanAsisten(env.DB, tenantId);
+  return { ...lingkup, tenantId, principal, konteks: { ...lingkup.konteks, skin: profil.skin, namaAsisten: pengaturan.namaAsisten } };
+}
 async function lingkupPenyuruh(request, env) {
   const url = new URL(request.url);
   if (url.searchParams.get('lingkup') === 'entity') {
@@ -231,9 +241,10 @@ async function lingkupPenyuruh(request, env) {
     if (!entityAdmin) {
       return { ok: false, response: json({ error: 'Mode entity hanya untuk Entity Admin.', code: 'CACA_LINGKUP_ENTITY_DITOLAK' }, 403) };
     }
-    return {
+    return lengkapiLingkup(env, {
       ok: true,
       storeCode: '',
+      entityId: entityAdmin.entityId,
       konteks: {
         nama: entityAdmin.displayName || 'Entity Admin',
         peran: 'Entity Admin',
@@ -241,7 +252,7 @@ async function lingkupPenyuruh(request, env) {
         namaLingkup: entityAdmin.entityName || 'Entity',
         hariIni: getJakartaBusinessDate()
       }
-    };
+    }, { role: 'ENTITY_ADMIN', id: entityAdmin.id }, entityAdmin.entityId);
   }
 
   const auth = await requireManagement(request, env.DB);
@@ -252,7 +263,7 @@ async function lingkupPenyuruh(request, env) {
   if (!konteks) {
     return { ok: false, response: json({ error: 'Una baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
   }
-  return { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } };
+  return lengkapiLingkup(env, { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } }, { role: auth.authType, id: auth.owner?.id || auth.entityAdmin?.id }, store.entityId);
 }
 
 async function tanya(request, env, jalurUtama) {
@@ -274,7 +285,8 @@ async function tanya(request, env, jalurUtama) {
   // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
   // memahami rujukan. Tidak ada tindakan yang lahir darinya tanpa draft + "Ya".
   const konteks = { ...lingkup.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat) };
-  const hasil = await jawabPertanyaan(pertanyaan, konteks, {
+  let hasil;
+  try { hasil = await jawabPertanyaan(pertanyaan, konteks, {
     request,
     env,
     jalurAksi: bangunJalurAksi(request, env, { storeCode: lingkup.storeCode, jalurUtama }),
@@ -284,14 +296,21 @@ async function tanya(request, env, jalurUtama) {
     maksPutaran: body.value?.satuLangkah === true ? 1 : undefined,
     // Tugas yang tadi belum lengkap (data tak tepercaya, dibersihkan di caca-tertunda.js).
     tertunda: body.value?.tertunda
-  });
+  }); } catch (error) {
+    await catatBelumPaham(request, env, { pertanyaan, riwayat: konteks.riwayat, kegagalan: 'model_gagal', conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261013-una-v1' }).catch(() => {});
+    throw error;
+  }
+  await catatBelumPaham(request, env, { pertanyaan, riwayat: konteks.riwayat, hasil, conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261013-una-v1', kegagalan: hasil.menuTidakDitemukan ? 'menu_tidak_ditemukan' : !hasil.ok ? 'model_gagal' : null }).catch(() => {});
+  hasil = sesuaikanNamaBalasan(hasil, konteks.namaAsisten);
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
-  const gaya = gayaJawaban(hasil);
+  const gaya = sesuaikanNamaBalasan(gayaJawaban(hasil), konteks.namaAsisten);
   return json({
     jawaban: gaya.jawaban,
     sapaan: gaya.sapaan,
     alat: hasil.alat,
+    navigasi: hasil.navigasi ?? null,
+    namaAsisten: konteks.namaAsisten,
     periode: hasil.periode ?? null,
     tabel: hasil.tabel ?? null,
     jejak: hasil.jejak ?? null,
@@ -329,6 +348,8 @@ async function catatAksi(request, env, isi, jalurUtama) {
     ...jalur,
     hariIni: lingkup.konteks.hariIni,
     namaLingkup: lingkup.konteks.namaLingkup,
+    skin: lingkup.konteks.skin,
+    peran: lingkup.konteks.peran,
     lingkup: lingkup.konteks.lingkup,
     storeCode: lingkup.storeCode
   });
@@ -512,6 +533,8 @@ async function catat(request, env, jalurUtama) {
  */
 export async function handleCacaApi(request, env, pathname, { jalurUtama } = {}) {
   if (!pathname.startsWith('/api/caca/')) return null;
+  if (pathname === '/api/caca/pengaturan') return handlePengaturanAsisten(request, env, lingkupPenyuruh);
+  if (pathname === '/api/caca/belum-paham' || pathname.startsWith('/api/caca/belum-paham/')) return handleCacaBelumPahamApi(request, env, pathname);
 
   // Workspace owns draft persistence only. Every approved business write returns
   // through the canonical main router, preserving authorization and Accounting.
@@ -565,7 +588,16 @@ export async function handleCacaApi(request, env, pathname, { jalurUtama } = {})
     if (!(await ownerFromRequest(request, env.DB)) && !(await entityAdminFromRequest(request, env.DB))) {
       return json({ error: 'Login Owner atau Entity Admin diperlukan.' }, 401);
     }
-    const hasil = denganTawaranKerja(jelaskan(new URL(request.url).searchParams.get('topik')));
+    const url = new URL(request.url);
+    let scopedRequest = request;
+    if (!url.searchParams.get('store') && !url.searchParams.get('lingkup') && await entityAdminFromRequest(request, env.DB)) {
+      url.searchParams.set('lingkup', 'entity');
+      scopedRequest = new Request(url, request);
+    }
+    const lingkup = await lingkupPenyuruh(scopedRequest, env);
+    if (!lingkup.ok) return lingkup.response;
+    const hasil = sesuaikanNamaBalasan(denganTawaranKerja(jelaskan(new URL(request.url).searchParams.get('topik'), { skin: lingkup.konteks.skin, peran: lingkup.konteks.peran, halaman: lingkup.konteks.lingkup === 'entity' ? 'entity' : 'gerai' })), lingkup.konteks.namaAsisten);
+    if (!hasil.dikenal) await catatBelumPaham(scopedRequest, env, { pertanyaan: new URL(request.url).searchParams.get('topik'), hasil, kegagalan: 'topik_tidak_ditemukan', versi: env.CF_VERSION_METADATA?.id || '20261013-una-v1' }).catch(() => {});
     const { kerjakan: _alat, ...keluar } = hasil;
     return json({ ...keluar, jawaban: bumbui(hasil.jawaban, hasil.dikenal ? [] : ['tanya']) });
   }

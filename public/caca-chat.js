@@ -91,6 +91,8 @@ const CACA_KERANGKA = `
         </button>
         <div class="caca-subjudul" id="cacaStatus">Memuat…</div>
       </div>
+      <button id="cacaMulutToggle" class="caca-ikon-btn caca-mulut hidden" type="button" aria-pressed="false" aria-label="Una bicara" title="Bacakan balasan">🔊</button>
+      <button id="cacaMulutStop" class="caca-ikon-btn caca-mulut hidden" type="button" aria-label="Hentikan pembacaan" title="Hentikan pembacaan">■</button>
       <button id="cacaWorkspaceToggle" class="secondary-btn caca-workspace-toggle" type="button" aria-expanded="false" aria-controls="cacaWorkspace">Workspace</button>
       <button id="cacaTutup" class="caca-ikon-btn" type="button" aria-label="Tutup Una">✕</button>
       <ul id="cacaDaftarGerai" class="caca-daftar-gerai hidden" role="listbox" aria-label="Pilih gerai yang dibahas"></ul>
@@ -329,6 +331,7 @@ function cacaGantiGerai(scope) {
   if (!scope || scope === cacaState.scope) return;
   cacaHentikanSuara();
   cacaState.scope = scope;
+  if (typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-scope-change'));
   window.UnaWorkspace?.scopeChanged();
   cacaIngat(scope);
   cacaRenderDaftarGerai();
@@ -550,7 +553,7 @@ async function cacaJalankanTawaran(tombol) {
     return;
   }
   if (t.jenis === 'buka') {
-    cacaBukaLayar(t.layar);
+    cacaBukaLayar(t.layar, { halaman: t.halaman || 'gerai' });
     return;
   }
   if (t.jenis === 'obrolan') {
@@ -574,7 +577,8 @@ async function cacaJelaskan(topik, label) {
   const mengetik = cacaTambahKerjaLive('Buka panduan…');
   const mulai = Date.now();
   try {
-    const hasil = await cacaApi(`/api/caca/jelaskan?topik=${encodeURIComponent(topik || '')}`);
+    const query = cacaState.scope === CACA_ENTITY ? 'lingkup=entity' : `store=${encodeURIComponent(cacaState.scope)}`;
+    const hasil = await cacaApi(`/api/caca/jelaskan?${query}&topik=${encodeURIComponent(topik || '')}`);
     await cacaJedaManusiawi(mengetik, { ...hasil, alat: 'jelaskan' }, mulai);
     mengetik.remove();
     cacaTambahGelembung('caca', hasil.jawaban, hasil.judul ? `kamus · ${hasil.judul}` : '');
@@ -596,35 +600,39 @@ async function cacaJelaskan(topik, label) {
 const CACA_HASH_BUKA = '#una-buka=';
 
 function cacaKlikTab(layar, sisaCoba = 20) {
-  const tombol = document.querySelector(`.admin-tab[data-tab="${CSS.escape(layar)}"]`) || document.querySelector(`[data-tab="${CSS.escape(layar)}"]`);
-  if (tombol) {
+  if (!/^[\w-]{1,40}$/.test(layar)) return false;
+  const selector = `.admin-tab[data-tab="${layar}"], .admin-tab[data-entity-tab="${layar}"]`;
+  const tombol = document.querySelector(selector);
+  if (tombol && !tombol.disabled && !tombol.hidden && !tombol.classList.contains('hidden') && tombol.style.display !== 'none') {
     tombol.click();
     tombol.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
     return true;
   }
-  // Tab di workspace dipasang skrip lain saat halaman dimuat; ditunggu sebentar.
-  if (sisaCoba > 0) setTimeout(() => cacaKlikTab(layar, sisaCoba - 1), 150);
+  if (!tombol && sisaCoba > 0) setTimeout(() => cacaKlikTab(layar, sisaCoba - 1), 150);
   return false;
 }
-
-function cacaBukaLayar(layar) {
+function cacaBukaLayar(layar, { halaman = 'gerai', tetapTerbuka = false } = {}) {
+  if (!/^[\w-]{1,40}$/.test(layar) || !['gerai','entity'].includes(halaman)) return;
   const gerai = cacaGeraiAktif();
-  if (!layar || !gerai) return;
   const geraiHalaman = String(window.LEKER_STORE_CODE || '').toUpperCase();
-  if (cacaDiWorkspace() && geraiHalaman === gerai) {
+  const halamanSama = halaman === 'entity' ? !cacaDiWorkspace() : cacaDiWorkspace() && geraiHalaman === gerai;
+  if (halamanSama) {
     cacaKlikTab(layar);
-    // Di HP panel menutupi layar yang baru dibuka.
-    if (window.innerWidth <= 560) cacaTutupPanel();
+    if (!tetapTerbuka && window.innerWidth <= 560) cacaTutupPanel();
     return;
   }
-  location.href = `/s/${encodeURIComponent(gerai)}/admin${CACA_HASH_BUKA}${encodeURIComponent(layar)}`;
+  if (halaman === 'gerai' && !gerai) { cacaTambahGelembung('caca', 'Pilih gerainya dulu lewat tombol di atas, Bos.'); return; }
+  if (tetapTerbuka) { try { sessionStorage.setItem('lekerUnaBukaSesudahNavigasi','1'); } catch { /* mode privat */ } }
+  const target = halaman === 'entity' ? '/entity-admin' : `/s/${encodeURIComponent(gerai)}/admin`;
+  location.href = `${target}${CACA_HASH_BUKA}${encodeURIComponent(layar)}`;
 }
-
 function cacaBukaLayarDariHash() {
-  if (!cacaDiWorkspace() || !location.hash.startsWith(CACA_HASH_BUKA)) return;
-  const layar = decodeURIComponent(location.hash.slice(CACA_HASH_BUKA.length));
+  if (!location.hash.startsWith(CACA_HASH_BUKA)) return;
+  let layar;
+  try { layar = decodeURIComponent(location.hash.slice(CACA_HASH_BUKA.length)); } catch { return; }
   history.replaceState(null, '', location.pathname + location.search);
   if (/^[\w-]{1,40}$/.test(layar)) cacaKlikTab(layar);
+  try { if (sessionStorage.getItem('lekerUnaBukaSesudahNavigasi') === '1') { sessionStorage.removeItem('lekerUnaBukaSesudahNavigasi'); cacaBukaPanel(); } } catch { /* mode privat */ }
 }
 
 // Yang ditampilkan adalah akibatnya, bukan pengulangan perintah — konfirmasi
@@ -1053,7 +1061,58 @@ function cacaAturTombol() {
 
 
 // Suara mengisi composer; pengiriman dan persetujuan tetap manual.
-const cacaSuara = { sesi: null };
+const cacaSuara = { sesi: null, dariMikrofon: false };
+let cacaMulut = null;
+let cacaMulutGenerasi = 0;
+const cacaMulutKonteks = new WeakMap();
+function cacaDiam() {
+  cacaMulutGenerasi += 1;
+  cacaMulut?.hentikan();
+}
+function cacaAturMulut(status) {
+  const nama = typeof cacaNamaAsisten === 'function' ? cacaNamaAsisten() : 'Una';
+  const toggle = cacaEl('cacaMulutToggle');
+  toggle?.classList.toggle('hidden', !status.tersedia);
+  toggle?.setAttribute('aria-pressed', String(status.aktif));
+  toggle?.setAttribute('aria-label', `${nama} bicara`);
+  if (toggle) toggle.title = `${nama} bicara: ${status.aktif ? 'nyala' : 'mati'}`;
+  cacaEl('cacaMulutStop')?.classList.toggle('hidden', !status.membaca);
+  cacaEl('cacaPercakapan')?.querySelectorAll('[data-caca-dengar]').forEach(tombol => tombol.classList.toggle('hidden', !status.tersedia));
+}
+function cacaBacakanBalasan(payload, gelembung) {
+  if (!window.KerangkaSuara) return;
+  const options = { draft: payload.perluKonfirmasi ? payload.draft : null, rahasia: Boolean(payload.rahasia) };
+  const bersih = window.KerangkaSuara.bersihkanUntukDibaca(payload.jawaban, options);
+  if (!bersih) return;
+  const scope = cacaMulutKonteks.get(payload)?.scope || cacaState.scope;
+  if (gelembung) {
+    const tombol = document.createElement('button');
+    tombol.type = 'button'; tombol.className = 'caca-dengar secondary-btn';
+    tombol.textContent = '▶ dengarkan';
+    tombol.dataset.cacaDengar = bersih; tombol.dataset.cacaScope = scope;
+    tombol.classList.toggle('hidden', !cacaMulut?.status().tersedia);
+    gelembung.appendChild(tombol);
+    cacaSimpanPercakapan();
+  }
+  const konteks = cacaMulutKonteks.get(payload);
+  if (konteks && konteks.generasi === cacaMulutGenerasi && konteks.scope === cacaState.scope
+      && konteks.login === cacaSidikLogin() && !document.hidden && !cacaEl('cacaPanel')?.classList.contains('hidden')) {
+    cacaMulut?.ucapkan(bersih, { paksa: konteks.suara });
+  }
+}
+function cacaPasangMulut() {
+  if (!window.KerangkaSuara || cacaMulut) return;
+  cacaMulut = window.KerangkaSuara.buat({ key: 'lekerUnaBicara', onChange: cacaAturMulut,
+    onStatus: cacaStatusSuara, bolehBicara: () => !cacaSuara.sesi && !document.hidden && !cacaEl('cacaPanel')?.classList.contains('hidden') });
+  cacaEl('cacaMulutToggle')?.addEventListener('click', () => cacaMulut.setAktif(!cacaMulut.status().aktif));
+  cacaEl('cacaMulutStop')?.addEventListener('click', cacaDiam);
+  cacaEl('cacaPercakapan')?.addEventListener('click', event => {
+    const tombol = event.target.closest('[data-caca-dengar]');
+    if (!tombol) return;
+    if (tombol.dataset.cacaScope !== cacaState.scope) { cacaStatusSuara('Pilih gerai pesan ini sebelum mendengarkan.'); return; }
+    cacaMulut.ucapkan(tombol.dataset.cacaDengar, { paksa: true });
+  });
+}
 const cacaPengenalSuara = () => window.SpeechRecognition || window.webkitSpeechRecognition;
 function cacaStatusSuara(teks) {
   const status = cacaEl('cacaSuaraStatus');
@@ -1074,12 +1133,16 @@ function cacaSelesaiSuara(sesi, pesan) {
   cacaAturTombol();
 }
 function cacaHentikanSuara() {
+  cacaDiam();
+  cacaSuara.dariMikrofon = false;
   const sesi = cacaSuara.sesi;
   if (!sesi) return;
   cacaSelesaiSuara(sesi, 'Suara dihentikan. Periksa teks sebelum mengirim.');
+  sesi.rekaman?.abort();
   try { sesi.pengenal.abort(); } catch { /* sudah berhenti */ }
 }
-function cacaToggleSuara() {
+async function cacaToggleSuara() {
+  cacaDiam();
   const aktif = cacaSuara.sesi;
   if (aktif) {
     if (aktif.berhenti) return;
@@ -1102,12 +1165,24 @@ function cacaToggleSuara() {
     cacaStatusSuara('Input suara perlu halaman HTTPS. Pesan tetap bisa diketik.');
     return;
   }
+  const pemilik = window.cacaSuaraPemilik;
+  if (typeof cacaPengaturanProfil === 'function' && (!cacaPengaturanProfil() || !pemilik)) { cacaStatusSuara('Profil asisten sedang dimuat. Coba mikrofon kembali setelah pengaturan siap.'); return; }
   let pengenal;
-  try { pengenal = new Pengenal(); } catch {
+  try { pengenal = window.KerangkaSuara ? window.KerangkaSuara.dengar({ mulai: false }) : new Pengenal(); } catch {
     cacaStatusSuara('Input suara tidak dapat dimulai. Ketik pesan atau coba browser lain.');
     return;
   }
-  const sesi = { pengenal, prefix: input.value, readOnly: input.readOnly, adaSuara: false, berhenti: false };
+  let rekaman = null;
+  if (pemilik?.wajib()) {
+    const scopeAwal = cacaState.scope, loginAwal = cacaSidikLogin();
+    try {
+      cacaStatusSuara('Memuat pengenal suara pemilik…');
+      await pemilik.muatModel();
+      rekaman = await pemilik.rekamManual();
+      if (cacaState.scope !== scopeAwal || cacaSidikLogin() !== loginAwal || window.cacaSuaraPemilik !== pemilik) { rekaman.abort(); return; }
+    } catch (error) { cacaStatusSuara(error.message); return; }
+  }
+  const sesi = { pengenal, rekaman, pemilik, teks: '', prefix: input.value, readOnly: input.readOnly, adaSuara: false, berhenti: false };
   cacaSuara.sesi = sesi;
   pengenal.lang = 'id-ID';
   pengenal.continuous = true;
@@ -1128,6 +1203,9 @@ function cacaToggleSuara() {
     for (let i = 0; i < event.results.length; i += 1) potongan.push(event.results[i][0]?.transcript || '');
     const teks = potongan.join(' ').trim();
     sesi.adaSuara = Boolean(teks);
+    sesi.teks = teks;
+    if (sesi.rekaman) return; // Teks suara belum dipakai sebelum identitas pembicara cocok.
+    if (teks) cacaSuara.dariMikrofon = true;
     input.value = sesi.prefix + (sesi.prefix && teks && !/\s$/.test(sesi.prefix) ? ' ' : '') + teks;
     cacaAturTinggiKetik();
   };
@@ -1141,15 +1219,28 @@ function cacaToggleSuara() {
       'no-speech': 'Suara belum terdengar. Klik mikrofon untuk mencoba lagi.',
       'language-not-supported': 'Bahasa Indonesia belum didukung layanan suara browser ini.'
     }[event.error] || 'Input suara berhenti. Periksa teks atau coba lagi.';
+    sesi.rekaman?.abort();
     cacaSelesaiSuara(sesi, pesan);
     try { pengenal.abort(); } catch { /* sudah berhenti */ }
   };
-  pengenal.onend = () => cacaSelesaiSuara(sesi, sesi.adaSuara
-    ? 'Periksa teks, lalu tekan Kirim untuk memberi tugas ke Una.'
-    : 'Suara belum terdengar. Klik mikrofon untuk mencoba lagi.');
+  pengenal.onend = async () => {
+    if (cacaSuara.sesi !== sesi) return;
+    if (sesi.rekaman) {
+      clearTimeout(sesi.batas); clearTimeout(sesi.tungguAkhir);
+      cacaStatusSuara('Memeriksa suara pemilik…');
+      try {
+        const hasil = await sesi.pemilik.verifikasi(sesi.rekaman.stop());
+        if (cacaSuara.sesi !== sesi) return;
+        if (!hasil.cocok) { cacaSuara.dariMikrofon = false; cacaSelesaiSuara(sesi, 'Suara belum cocok dengan pemilik. Pesan suara tidak dipakai.'); return; }
+        input.value = sesi.prefix + (sesi.prefix && sesi.teks && !/\s$/.test(sesi.prefix) ? ' ' : '') + sesi.teks;
+        cacaSuara.dariMikrofon = Boolean(sesi.teks); cacaAturTinggiKetik();
+      } catch (error) { if (cacaSuara.sesi === sesi) { cacaSuara.dariMikrofon = false; cacaSelesaiSuara(sesi, error.message); } return; }
+    }
+    cacaSelesaiSuara(sesi, sesi.adaSuara ? 'Periksa teks, lalu tekan Kirim untuk memberi tugas ke Una.' : 'Suara belum terdengar. Klik mikrofon untuk mencoba lagi.');
+  };
   sesi.batas = setTimeout(() => {
     if (cacaSuara.sesi === sesi) cacaToggleSuara();
-  }, 60000);
+  }, sesi.rekaman ? 20000 : 60000);
   try { pengenal.start(); } catch {
     cacaSelesaiSuara(sesi, 'Mikrofon gagal dimulai. Coba lagi atau ketik pesan.');
   }
@@ -1255,7 +1346,13 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertund
   // "Una lagi kerja" bisa mencentang tiap langkah begitu selesai.
   // tertunda: tugas yang tadi belum lengkap (Una sedang bertanya), supaya jawaban
   // Bos melengkapi isiannya, bukan dibaca dari nol (src/caca-tertunda.js).
-  const isi = { pertanyaan, riwayat, satuLangkah: true };
+  let conversationId;
+  try {
+    const key = CACA_SIMPANAN + ':id:' + cacaSidikLogin();
+    conversationId = sessionStorage.getItem(key);
+    if (!conversationId) { conversationId = crypto.randomUUID(); sessionStorage.setItem(key, conversationId); }
+  } catch { /* namespace cadangan tetap di server */ }
+  const isi = { pertanyaan, riwayat, satuLangkah: true, conversationId };
   if (kerja) isi.kerja = kerja;
   if (tertunda) isi.tertunda = tertunda;
   return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify(isi) });
@@ -1374,6 +1471,11 @@ async function cacaLanjutkanKerja(pertanyaan, scope, kerja) {
 
 // Balasan pesan biasa: langkah kerja, lanjut sesudah "Ya", tombol lanjut.
 function cacaTampilkanBalasanAgen(payload, pertanyaan, scope) {
+  if (payload.alat === 'buka_layar') {
+    const jenis = cacaTampilkanBalasan(payload, scope);
+    if (payload.navigasi && scope === cacaState.scope) cacaBukaLayar(payload.navigasi.tab, { halaman: payload.navigasi.halaman, tetapTerbuka: true });
+    return jenis; // Navigasi tidak membuang draft/tugas tertunda yang sedang diperiksa.
+  }
   cacaState.kerjaTertunda = null;
   // Una balik bertanya untuk tugas yang belum lengkap: dibawa ke pesan berikutnya.
   // Draft yang masih menunggu "Ya" juga dibawa (revisi): "eh salah, harga belinya
@@ -1422,6 +1524,7 @@ function cacaTampilkanBalasan(payload, scope, { sesudahDraft = null } = {}) {
     const kerja = cacaHtmlKerja(payload);
     if (kerja) cacaTambahGelembung('caca', '', '', { html: kerja });
     cacaTampilkanDraft(payload, scope, { sesudah: sesudahDraft });
+    cacaBacakanBalasan(payload, cacaEl('cacaPercakapan')?.lastElementChild);
     return 'draft';
   }
   // Jejak alat sengaja ditampilkan: angka yang muncul harus bisa ditelusuri
@@ -1435,13 +1538,14 @@ function cacaTampilkanBalasan(payload, scope, { sesudahDraft = null } = {}) {
   } else {
     cacaTambahGelembung('caca', payload.jawaban, cacaJejakAlat(payload));
   }
+  cacaBacakanBalasan(payload, cacaEl('cacaPercakapan')?.lastElementChild);
   cacaTambahTawaran(payload.tawaran);
   if (payload.belumLengkap && payload.tertunda) { cacaKonfigurasiWorkspace(); window.UnaWorkspace?.capture(payload, scope); }
   if (payload.rencana) return 'rencana';
   return payload.belumLengkap ? 'tanya' : 'jawab';
 }
 
-async function cacaKirimTeks(pertanyaan) {
+async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
   const riwayat = cacaRiwayatUntukServer();
   cacaTambahGelembung('saya', pertanyaan);
   cacaCatatRiwayat('saya', pertanyaan);
@@ -1471,6 +1575,7 @@ async function cacaKirimTeks(pertanyaan) {
     await cacaJedaManusiawi(mengetik, payload, mulai);
     mengetik.remove();
     payload._workspaceContext = workspaceContext || null;
+    if (suaraKonteks) cacaMulutKonteks.set(payload, suaraKonteks);
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
   } catch (error) {
@@ -1603,6 +1708,9 @@ async function cacaKirim(event) {
   const teks = input.value.trim();
   if (!cacaState.lampiran && !teks) return;
 
+  cacaDiam();
+  const suaraKonteks = { generasi: cacaMulutGenerasi, scope: cacaState.scope, login: cacaSidikLogin(), suara: cacaSuara.dariMikrofon };
+  cacaSuara.dariMikrofon = false;
   cacaState.sedangKirim = true;
   cacaAturTombol();
   try {
@@ -1611,12 +1719,13 @@ async function cacaKirim(event) {
     } else {
       input.value = '';
       cacaAturTinggiKetik();
-      await cacaKirimTeks(teks);
+      await cacaKirimTeks(teks, suaraKonteks);
     }
   } finally {
     cacaState.sedangKirim = false;
     cacaAturTombol();
     input.focus();
+    if (typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-chat-idle'));
   }
 }
 
@@ -1662,6 +1771,7 @@ function cacaBolehDiWorkspace() {
 function cacaTutupPanel() {
   window.UnaWorkspace?.close();
   cacaHentikanSuara();
+  if (typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-audio-stop'));
   cacaToggleDaftarGerai(false);
   cacaEl('cacaPanel')?.classList.add('hidden');
   cacaEl('cacaFab')?.setAttribute('aria-expanded', 'false');
@@ -1691,6 +1801,7 @@ function cacaAturTinggiPanel() {
 }
 
 function cacaBukaPanel() {
+  if (typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-profile-needed'));
   cacaKonfigurasiWorkspace();
   cacaEl('cacaPanel')?.classList.remove('hidden');
   cacaEl('cacaFab')?.setAttribute('aria-expanded', 'true');
@@ -1732,7 +1843,7 @@ async function cacaMuatPanel() {
   if (siap && !cacaState.stores.length) masalah.push('Belum ada gerai di entity ini.');
 
   cacaState.siap = siap && cacaState.stores.length > 0;
-  cacaEl('cacaStatus').textContent = masalah.length ? 'Una belum siap' : 'Una · siap membantu';
+  cacaEl('cacaStatus').textContent = masalah.length ? 'Una belum siap' : `${typeof cacaNamaAsisten === 'function' ? cacaNamaAsisten() : 'Una'} · siap membantu`;
   cacaEl('cacaStatus').classList.toggle('bermasalah', masalah.length > 0);
   if (cacaEl('cacaPercakapan')?.childElementCount) {
     // Percakapan dipulihkan dari halaman sebelumnya: kesiapan tetap dibaca
@@ -1749,14 +1860,17 @@ async function cacaMuatPanel() {
   // Hanya dianggap selesai kalau semuanya beres, supaya membuka panel lagi
   // mencoba ulang — bukan terjebak di keadaan gagal sampai halaman di-refresh.
   cacaState.siapDipakai = masalah.length === 0;
+  if (typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-profile-needed'));
 }
 
 function initCacaPanel() {
   cacaPasangKerangka();
   if (cacaBolehDiWorkspace()) cacaSetTampil(true);
   cacaBukaLayarDariHash();
+  cacaPasangMulut();
   cacaEl('cacaMikrofon')?.addEventListener('click', cacaToggleSuara);
   window.addEventListener('pagehide', cacaHentikanSuara);
+  window.addEventListener('storage', event => { if (!event.key || event.key === 'lekerEntityAdminToken') cacaHentikanSuara(); });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) cacaHentikanSuara();
   });

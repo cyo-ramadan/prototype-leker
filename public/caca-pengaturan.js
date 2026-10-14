@@ -1,0 +1,152 @@
+// Pengaturan tenant dan profil suara lokal perangkat. Tidak menyimpan rekaman audio ke server.
+(() => {
+  let profil = null, generasi = 0, pemilik = null, contoh = [], sibuk = false;
+  let live = false, mulai = false, tundaUcapan = false, antrean = [], mengirim = false;
+  const el = id => document.getElementById(id);
+  window.cacaNamaAsisten = () => profil?.namaAsisten || 'Una';
+  window.cacaPengaturanProfil = () => profil;
+  const status = teks => { if (el('cacaPengaturanStatus')) el('cacaPengaturanStatus').textContent = teks; };
+  function hentikan() {
+    generasi += 1; live = false; mulai = false; antrean = []; contoh = []; sibuk = false;
+    if (tundaUcapan) { window.speechSynthesis?.resume(); tundaUcapan = false; }
+    pemilik?.hentikan(); cacaDiam(); tombol();
+  }
+  function kosong() { return !el('cacaPertanyaan')?.value.trim() && !cacaState.lampiran && !cacaSuara.sesi; }
+  function masih(versi, adapter, lingkup, login) { return versi === generasi && pemilik === adapter && cacaState.scope === lingkup && cacaSidikLogin() === login && !document.hidden; }
+  async function kirimAntrean() {
+    if (!live || mengirim || !antrean.length || cacaState.sedangKirim || !kosong()) return;
+    const item = antrean.shift();
+    if (!masih(item.versi, item.adapter, item.lingkup, item.login)) { hentikan(); return; }
+    if (!cacaState.siap || cacaSedangNgambek()) { status('Perintah suara ditahan: asisten belum siap.'); antrean.unshift(item); return; }
+    mengirim = true; cacaState.sedangKirim = true; cacaAturTombol();
+    try {
+      await cacaKirimTeks(item.teks, { generasi: cacaMulutGenerasi, scope: item.lingkup, login: item.login, suara: true });
+    } finally {
+      mengirim = false; cacaState.sedangKirim = false; cacaAturTombol();
+      if (live) void kirimAntrean();
+    }
+  }
+  async function mulaiLive() {
+    if (live || mulai) { hentikan(); status('Obrolan live dihentikan.'); return; }
+    if (!profil || !pemilik) { status('Pengaturan asisten belum siap.'); return; }
+    if (!kosong()) { status('Kirim atau kosongkan pesan dan foto sebelum memulai live.'); return; }
+    const adapter = pemilik, versi = generasi, lingkup = cacaState.scope, login = cacaSidikLogin();
+    mulai = true; tombol();
+    try {
+      status('Memuat transkrip suara lokal, unduhan awal sekitar 41 MB…');
+      await adapter.muatTranskrip();
+      if (!masih(versi, adapter, lingkup, login)) return;
+      if (adapter.wajib()) {
+        if (!adapter.hasProfile()) throw new Error('Daftarkan suara pemilik atau matikan opsi hanya pemilik.');
+        await adapter.muatModel();
+        if (!masih(versi, adapter, lingkup, login)) return;
+      }
+      live = true;
+      await adapter.mulaiLive({ headset: el('cacaLiveHeadset').checked,
+        onTunda: () => { if (live && window.speechSynthesis?.speaking) { window.speechSynthesis.pause(); tundaUcapan = true; } },
+        onLanjut: () => { if (tundaUcapan) { window.speechSynthesis?.resume(); tundaUcapan = false; } },
+        onPotong: () => { if (live) { tundaUcapan = false; cacaDiam(); } },
+        onPerintah: async teks => {
+          if (!live || !masih(versi, adapter, lingkup, login)) return;
+          if (antrean.length >= 3) { status('Antrean suara penuh. Tunggu jawaban sebelum mengulang perintah terakhir.'); return; }
+          antrean.push({ teks, versi, adapter, lingkup, login });
+          if (cacaState.sedangKirim || !kosong()) status('Perintah suara menunggu. Pesan atau foto yang sedang disiapkan tetap disimpan.');
+          await kirimAntrean();
+        }
+      });
+      if (!masih(versi, adapter, lingkup, login)) adapter.hentikan();
+    } catch (error) { if (versi === generasi) { live = false; adapter.hentikan(); status(error.message); } }
+    finally { if (versi === generasi) { mulai = false; tombol(); } }
+  }
+  function query() { return cacaState.scope === CACA_ENTITY ? 'lingkup=entity' : cacaState.scope ? `store=${encodeURIComponent(cacaState.scope)}` : ''; }
+  function namaTampil() {
+    const nama = window.cacaNamaAsisten();
+    el('cacaFab')?.setAttribute('title', `Tanya ${nama}`);
+    el('cacaPanel')?.setAttribute('aria-label', nama);
+    el('cacaTutup')?.setAttribute('aria-label', `Tutup ${nama}`);
+    el('cacaMulutToggle')?.setAttribute('aria-label', `${nama} bicara`);
+    const subjudul = el('cacaStatus'); if (subjudul) subjudul.textContent = subjudul.textContent.replace(/\b(?:Una|Maimunah)\b/g, () => nama);
+    const fab = el('cacaFab')?.querySelector('.caca-fab-teks'); if (fab) fab.textContent = nama;
+    document.querySelectorAll('.caca-avatar, .caca-fab-ikon').forEach(node => { if (!node.closest('[data-caca-scope]')) node.textContent = nama.slice(0,1).toUpperCase(); });
+    if (el('cacaNamaAsisten')) el('cacaNamaAsisten').value = nama;
+  }
+  function tombol() {
+    const siap = Boolean(profil && pemilik);
+    for (const id of ['cacaSuaraModel','cacaSuaraDaftar','cacaSuaraHapus','cacaSuaraPemilikWajib']) if (el(id)) el(id).disabled = sibuk || !siap;
+    for (const id of ['cacaSuaraModel','cacaSuaraDaftar','cacaSuaraHapus','cacaSuaraPemilikWajib']) if(el(id)) el(id).disabled ||= live || mulai;
+    if (el('cacaLiveToggle')) { el('cacaLiveToggle').disabled = !siap; el('cacaLiveToggle').textContent = live || mulai ? 'Hentikan obrolan live' : 'Mulai obrolan live'; el('cacaLiveToggle').setAttribute('aria-pressed', String(live)); }
+    if (el('cacaLiveHeadset')) el('cacaLiveHeadset').disabled = live || mulai;
+    if (el('cacaSuaraDaftar')) el('cacaSuaraDaftar').textContent = `Rekam contoh ${contoh.length + 1} dari 3`;
+  }
+  async function muat() {
+    const q = query(); if (!q) return;
+    hentikan(); profil = null; pemilik = null; window.cacaSuaraPemilik = null; tombol();
+    const versi = generasi;
+    try {
+      const hasil = await cacaApi(`/api/caca/pengaturan?${q}`);
+      if (versi !== generasi || q !== query()) return;
+      profil = hasil; namaTampil();
+      if (window.KerangkaSuaraPemilik) pemilik = window.KerangkaSuaraPemilik.buat({ getScope: () => profil?.ruangSuara || '', onStatus: status, onProgress: p => status(typeof p === 'string' ? p : 'Mengunduh mesin pengenal suara…') });
+      window.cacaSuaraPemilik = pemilik;
+      const wajib = pemilik?.wajib?.() || false; if (el('cacaSuaraPemilikWajib')) el('cacaSuaraPemilikWajib').checked = wajib;
+      status(pemilik ? 'Profil suara disimpan di perangkat ini untuk akun dan tenant ini.' : 'Pengaturan nama siap. Mesin suara pemilik belum tersedia di browser ini.');
+    } catch (error) { if (versi === generasi) status(error.message); }
+    tombol();
+  }
+  async function kerja(fn) {
+    if (sibuk) return; sibuk = true; tombol(); const versi = generasi;
+    try { await fn(versi); } catch (error) { if (versi === generasi) status(error.message || 'Pengaturan belum berhasil.'); }
+    finally { if (versi === generasi) { sibuk = false; tombol(); } }
+  }
+  function pasang() {
+    const panel = el('cacaPanel'); if (!panel || el('cacaPengaturan')) return;
+    const wadah = document.createElement('details'); wadah.id = 'cacaPengaturan'; wadah.className = 'caca-pengaturan';
+    wadah.innerHTML = `<summary>Pengaturan asisten</summary><div class="caca-pengaturan-isi">
+      <label>Nama asisten <input id="cacaNamaAsisten" class="text-input" maxlength="32" value="Una" autocomplete="off"></label>
+      <button id="cacaNamaSimpan" class="secondary-btn" type="button">Simpan nama untuk tenant</button>
+      <p>Obrolan live memakai transkrip lokal. Unduhan awal sekitar 41 MB; kecepatannya mengikuti perangkat.</p>
+      <label><input id="cacaLiveHeadset" type="checkbox"> Saya memakai headset agar ucapan asisten tidak masuk kembali ke mikrofon</label>
+      <button id="cacaLiveToggle" class="secondary-btn" type="button" aria-pressed="false">Mulai obrolan live</button>
+      <p>Tanpa headset, live memerlukan peredam gema penuh yang didukung browser. Pengenalan pemilik opsional; tanpa opsi itu, suara sekitar dapat menjadi perintah.</p>
+      <p>Suara pemilik dikenali di perangkat ini. Login dan persetujuan draft tetap diperlukan.</p>
+      <button id="cacaSuaraModel" class="secondary-btn" type="button">Unduh mesin pengenal suara</button>
+      <p>Opsional: unduhan pengenal pemilik sekitar 102 MB, terpisah dari transkrip live. Model WavLM: <a href="https://github.com/microsoft/UniSpeech/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Microsoft, CC BY-SA 3.0</a>.</p>
+      <p id="cacaSuaraKalimat">Baca dengan suara normal: “Ini suara saya. Asisten membantu mengurus usaha saya setiap hari.”</p>
+      <button id="cacaSuaraDaftar" class="secondary-btn" type="button">Rekam contoh 1 dari 3</button>
+      <button id="cacaSuaraHapus" class="secondary-btn" type="button">Hapus profil suara perangkat ini</button>
+      <label><input id="cacaSuaraPemilikWajib" type="checkbox"> Terima perintah suara hanya dari pemilik terdaftar</label>
+      <p id="cacaPengaturanStatus" role="status" aria-live="polite"></p></div>`;
+    panel.querySelector('.caca-kepala')?.after(wadah);
+    wadah.addEventListener('toggle', () => { if (wadah.open) muat(); });
+    el('cacaLiveToggle').addEventListener('click', mulaiLive);
+    el('cacaPertanyaan')?.addEventListener('input', () => { if (kosong()) void kirimAntrean(); });
+    el('cacaNamaSimpan').addEventListener('click', () => kerja(async versi => {
+      if (!profil) throw new Error('Buka kembali pengaturan setelah memilih gerai.');
+      const hasil = await cacaApi(`/api/caca/pengaturan?${query()}`, { method: 'PATCH', body: JSON.stringify({ namaAsisten: el('cacaNamaAsisten').value }) });
+      if (versi !== generasi) return; profil = { ...profil, ...hasil }; namaTampil(); status('Nama asisten tenant sudah disimpan.');
+    }));
+    el('cacaSuaraModel').addEventListener('click', () => kerja(async versi => { await pemilik.muatModel(); if (versi === generasi) status('Mesin siap. Rekam tiga contoh suara pemilik.'); }));
+    el('cacaSuaraDaftar').addEventListener('click', () => kerja(async versi => {
+      if (!pemilik) throw new Error('Mesin suara belum siap.');
+      status('Merekam 4 detik. Bacakan kalimat di atas dengan suara normal.');
+      const rekaman = await pemilik.rekam({ durasi: 4 });
+      if (versi !== generasi) return;
+      contoh.push(rekaman);
+      if (contoh.length < 3) { status(`Contoh ${contoh.length} diterima. Rekam contoh berikutnya.`); return; }
+      try { await pemilik.daftarkan(contoh); if (versi === generasi) status('Tiga contoh sudah terdaftar. Aktifkan pilihan suara pemilik untuk menggunakannya.'); }
+      finally { contoh = []; }
+    }));
+    el('cacaSuaraHapus').addEventListener('click', () => kerja(async () => { await pemilik.hapus(); contoh = []; el('cacaSuaraPemilikWajib').checked = false; status('Profil suara di perangkat ini sudah dihapus.'); }));
+    el('cacaSuaraPemilikWajib').addEventListener('change', async event => {
+      try { await pemilik.setWajib(event.target.checked); } catch (error) { event.target.checked = false; status(error.message); }
+    });
+    tombol();
+  }
+  window.addEventListener('caca-profile-needed', muat);
+  window.addEventListener('caca-scope-change', () => { hentikan(); profil = null; pemilik = null; window.cacaSuaraPemilik = null; muat(); });
+  window.addEventListener('caca-chat-idle', () => { void kirimAntrean(); });
+  window.addEventListener('caca-audio-stop', hentikan);
+  window.addEventListener('pagehide', hentikan);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hentikan(); });
+  document.addEventListener('DOMContentLoaded', () => { pasang(); if (query()) muat(); });
+})();

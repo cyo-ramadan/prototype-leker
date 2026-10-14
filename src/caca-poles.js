@@ -107,8 +107,9 @@ export async function polesPanduan({ pertanyaan, panduan, konteks = {}, env, pan
   if (!panggilModel) return asli;
 
   const halaman = konteks.lingkup === 'entity' ? 'entity' : 'gerai';
+  const konteksMenu = { halaman, skin: konteks.skin, peran: konteks.peran };
   const kandidat = [{ nomor: 1, id: panduan.topik, judul: panduan.judul, isi: panduan.jawaban }];
-  for (const { entri } of peringkatTopik(pertanyaan, MAKS_KANDIDAT + 1)) {
+  for (const { entri } of peringkatTopik(pertanyaan, MAKS_KANDIDAT + 1, konteksMenu)) {
     if (kandidat.length >= MAKS_KANDIDAT) break;
     if (kandidat.some((k) => k.id === entri.id)) continue;
     kandidat.push({ nomor: kandidat.length + 1, id: entri.id, judul: entri.judul, isi: entri.isi });
@@ -140,7 +141,7 @@ export async function polesPanduan({ pertanyaan, panduan, konteks = {}, env, pan
   if (!terpilih) return { ...asli, catatan: `pilihan model tidak dikenal: ${pilihan.slice(0, 20)}` };
 
   // Pilihan model berbeda dari tebakan kode: ambil panduan lengkapnya (tawaran, aksi) dari kamus.
-  const dasar = terpilih.id === panduan.topik ? panduan : jelaskan(terpilih.id, { halaman });
+  const dasar = terpilih.id === panduan.topik ? panduan : jelaskan(terpilih.id, konteksMenu);
   if (!dasar?.dikenal) return { ...asli, catatan: 'panduan pilihan model tidak ditemukan' };
 
   let tulisan = balasan.value?.jawaban;

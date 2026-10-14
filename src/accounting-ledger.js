@@ -326,11 +326,38 @@ async function systemAdjustmentAccount(db, storeId) {
   `).bind(storeId, SYSTEM_ADJUSTMENT_SUBTYPE).first();
 }
 
+// Bos Cyo, 2026-10-14: siapa yang membuat jurnal (migration 0156), dibaca di Detail jurnal saja. Nama
+// diambil dari tabel akun saat dibaca supaya ganti nama tampilan ikut terbaru.
+const CREATOR_TABLES = {
+  OWNER: 'SELECT display_name AS name FROM owner_accounts WHERE id = ?',
+  ADMIN: 'SELECT display_name AS name FROM store_admins WHERE id = ?',
+  ENTITY_ADMIN: 'SELECT display_name AS name FROM entity_admins WHERE id = ?',
+  CASHIER: "SELECT COALESCE(NULLIF(employee_name, ''), username) AS name FROM cashiers WHERE id = ?"
+};
+const CREATOR_ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin Gerai', ENTITY_ADMIN: 'Admin Entitas', CASHIER: 'Kasir', AGENT_ADMIN: 'Una / agen', LEGACY_PIN: 'Admin (PIN lama)', SYSTEM: 'Sistem' };
+
+async function journalCreator(db, header) {
+  const role = header.created_by_role || '';
+  if (!role) return null;
+  let name = '';
+  if (CREATOR_TABLES[role] && header.created_by_id) {
+    try { name = (await db.prepare(CREATOR_TABLES[role]).bind(header.created_by_id).first())?.name || ''; } catch { name = ''; }
+  }
+  return { role, roleLabel: CREATOR_ROLE_LABEL[role] || role, id: header.created_by_id || '', name, note: header.created_by_note || '' };
+}
+
+function creatorColumns(command, sourceSystem) {
+  const createdBy = command?.createdBy && typeof command.createdBy === 'object' ? command.createdBy : {};
+  const role = text(createdBy.role, 30).toUpperCase() || 'SYSTEM';
+  return [role, text(createdBy.id, 180) || (role === 'SYSTEM' ? sourceSystem : ''), text(createdBy.note, 200) || null];
+}
+
 export async function getAccountingJournal(db, storeId, journalId) {
   const header = await db.prepare(`
     SELECT id, journal_number, business_date, occurred_at, currency_code,
            source_system, source_reference_id, correlation_id, idempotency_key,
-           description, journal_status, posted_at, reversal_of_journal_id
+           description, journal_status, posted_at, reversal_of_journal_id,
+           created_by_role, created_by_id, created_by_note
     FROM accounting_journal_headers
     WHERE id = ? AND store_id = ?
   `).bind(journalId, storeId).first();
@@ -358,6 +385,7 @@ export async function getAccountingJournal(db, storeId, journalId) {
     journalStatus: header.journal_status,
     postedAt: header.posted_at,
     reversalOfJournalId: header.reversal_of_journal_id || null,
+    createdBy: await journalCreator(db, header),
     lines: (rows.results ?? []).map(row => {
       const amountScaled = Number(row.amount_scaled);
       const line = {
@@ -543,12 +571,14 @@ export async function postAccountingJournal(db, store, command) {
       INSERT INTO accounting_journal_headers (
         id, store_id, journal_number, business_date, occurred_at, currency_code,
         source_system, source_reference_id, correlation_id, idempotency_key,
-        description, journal_status, posted_at, reversal_of_journal_id, entity_id
-      ) VALUES (?, ?, ?, ?, ?, 'IDR', ?, ?, ?, ?, ?, 'POSTED', ?, ?, (SELECT entity_id FROM stores WHERE id = ?))
+        description, journal_status, posted_at, reversal_of_journal_id, entity_id,
+        created_by_role, created_by_id, created_by_note
+      ) VALUES (?, ?, ?, ?, ?, 'IDR', ?, ?, ?, ?, ?, 'POSTED', ?, ?, (SELECT entity_id FROM stores WHERE id = ?), ?, ?, ?)
     `).bind(
       journalId, store.id, journalNumber, businessDate, occurredAt,
       sourceSystem, sourceReferenceId, correlationId, idempotencyKey,
-      description, postedAt, reversalOfJournalId, store.id
+      description, postedAt, reversalOfJournalId, store.id,
+      ...creatorColumns(command, sourceSystem)
     )
   ];
   checked.lines.forEach((line, index) => {

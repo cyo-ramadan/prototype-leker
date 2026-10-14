@@ -203,7 +203,8 @@ export const KAMUS = Object.freeze([
     isi: [
       'Jurnal = catatan pembukuan. Hampir semuanya dibuat OTOMATIS dari penjualan, pembelian, dan biaya — pemilik tidak perlu menulisnya.',
       'Jurnal manual cuma untuk hal di luar itu (mis. setoran modal). Debit dan kredit wajib sama persis.',
-      'Jurnal yang sudah diposting tidak bisa diedit; kalau salah, dibetulkan dengan jurnal balik — jadi jejaknya rapi.'
+      'Jurnal yang sudah diposting tidak bisa diedit; kalau salah, dibetulkan dengan jurnal balik — jadi jejaknya rapi.',
+      'Jurnal balik memakai tanggal transaksi aslinya, bukan tanggal dibatalkan. Siapa yang membuat jurnal dan jam entry-nya terlihat di Detail jurnal.'
     ].join('\n'),
     tawaran: [isi('Contoh jurnal setoran modal', 'jurnal setoran modal 5jt: debit Bank, kredit Modal Pemilik'), buka('accountingWorkspaceTab')],
     aksi: { alat: 'buat_jurnal', tawar: 'Mau Una buatkan jurnalnya? Sebut isinya, mis. "jurnal setoran modal 5jt: debit Bank, kredit Modal Pemilik".', tombol: 'Una buatkan jurnal' }

@@ -172,7 +172,8 @@ const TANPA_NAMA_DENGAN_ALASAN = Object.freeze({
   'accounting-journal-schedules.js': 'CELAH DIKETAHUI: Beban Rutin/Split memakai akun pilihan akuntan; kalau memilih akun bernama, barisnya belum bernama.',
   'accounting-pos-reversal.js': 'Pembalik transaksi kasir: jurnal pembalik mewarisi nama baris aslinya otomatis.',
   'hpp-recalculation.js': 'Koreksi HPP: Persediaan dan HPP (jurnal pembaliknya mewarisi nama otomatis).',
-  'stock-adjustment-correction.js': 'Koreksi nilai SO: Persediaan dan beban/pendapatan stok.'
+  'stock-adjustment-correction.js': 'Koreksi nilai SO: Persediaan dan beban/pendapatan stok.',
+  'koreksi-tanggal-pembalik.js': 'Koreksi tanggal pembalik: kedua jurnalnya ditandai reversalOfJournalId, jadi mewarisi nama baris yang dibalik otomatis.'
 });
 
 test('Penjaga: modul pemosting jurnal wajib memberi nama, atau tercatat alasannya', () => {

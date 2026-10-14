@@ -656,7 +656,7 @@ export async function dispatchPosAccountingFact(db, store, { factType, factId })
     return resolved;
   }
 
-  const posted = await postAccountingJournal(db, store, resolved.command);
+  const posted = await postAccountingJournal(db, store, { ...resolved.command, createdBy: await posCreator(db, store.id, type, id) });
   if (!posted.ok) {
     await saveDelivery(db, store.id, type, id, config.transactionCategoryCode, {
       status: posted.code?.startsWith('NEEDS_') ? 'NEEDS_CONFIGURATION' : 'FAILED',
@@ -778,4 +778,16 @@ export async function handleAccountingPosBridgeApi(request, env, pathname) {
   // would have re-posted deliberately voided transactions had the handler order
   // ever been swapped. One route, one owner.
   return json({ error: 'Route Accounting bridge tidak ditemukan.' }, 404);
+}
+
+// Pembuat jurnal transaksi kasir (migration 0156): kasir yang mencatat transaksinya.
+async function posCreator(db, storeId, type, id) {
+  const table = { SALE: 'sales', PURCHASE: 'purchases', EXPENSE: 'expenses' }[type];
+  if (!table) return null;
+  try {
+    const row = await db.prepare(`SELECT cashier_id FROM ${table} WHERE id = ? AND store_id = ?`).bind(id, storeId).first();
+    return row?.cashier_id ? { role: 'CASHIER', id: row.cashier_id, note: 'Transaksi kasir' } : null;
+  } catch {
+    return null;
+  }
 }

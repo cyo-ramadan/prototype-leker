@@ -2,6 +2,7 @@ import { activePendingPosFacts, dispatchPosAccountingFact } from './accounting-p
 import { dispatchAdminAccountingFact, pendingAdminFacts, pendingAdminReversals, reverseAdminAccountingFact } from './accounting-admin-bridge.js';
 import { postPendingHppCorrections, reverseHppCorrectionsOfVoidedSales } from './hpp-recalculation.js';
 import { postPendingEmployeeDepositJournals } from './employee-deposit-settlement.js';
+import { koreksiTanggalPembalik } from './koreksi-tanggal-pembalik.js';
 
 // Sinkron Akuntansi (Bos Cyo, 2026-10-02: "sinkron itu jadikan auto sinkron aja").
 // Satu mesin dipakai dua jalur:
@@ -55,6 +56,10 @@ export async function syncStoreAccounting(db, store, { limit = 50, cooldownMinut
     // Koreksi HPP milik penjualan yang kemudian dibatalkan: dibalik supaya HPP tidak terpotong dua kali.
     for (const row of await reverseHppCorrectionsOfVoidedSales(db, store.id, { limit })) {
       results.push({ factType: 'HPP_KOREKSI_VOID', factId: row.factId, status: row.status, code: '', journalId: row.journalId || null });
+    }
+    // Pembalik lama bertanggal hari dibatalkan dibetulkan ke tanggal transaksinya (Bos Cyo 2026-10-14).
+    for (const row of await koreksiTanggalPembalik(db, store, { limit, now })) {
+      results.push({ factType: 'KOREKSI_TANGGAL_PEMBALIK', factId: row.journalId, status: row.status, code: row.code || '', journalId: null });
     }
     // Setoran kasir: piutang yang belum terjurnal / pelunasan disetujui yang belum terjurnal.
     for (const row of await postPendingEmployeeDepositJournals(db, store.id, limit)) {

@@ -115,6 +115,7 @@ function actorFrom(auth) {
   if (auth.owner) return { role: 'OWNER', id: auth.owner.id };
   if (auth.entityAdmin) return { role: 'ENTITY_ADMIN', id: auth.entityAdmin.id };
   if (auth.admin) return { role: 'ADMIN', id: auth.admin.id };
+  if (auth.agent) return { role: 'AGENT_ADMIN', id: auth.agent.id || 'agent-admin' };
   return { role: 'LEGACY_PIN', id: '' };
 }
 
@@ -135,6 +136,7 @@ async function createManualJournal(request, env, store, auth) {
     idempotencyKey: `MANUAL:${store.id}:${sourceReferenceId}`,
     description: body.value?.description,
     journalLines: body.value?.journalLines,
+    createdBy: actor,
     extraStatements: details => partyEntryStatements(env.DB, store, details, prepared.parties, actor)
   };
   const result = await postAccountingJournal(env.DB, store, command);

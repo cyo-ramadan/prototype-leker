@@ -78,6 +78,10 @@ async function setup() {
   const files = migrationFiles();
   const cut = files.findIndex(file => file.startsWith('0124_'));
   for (const file of files.slice(0, cut)) db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
+  // Pemosting jurnal versi sekarang menulis kolom "dibuat oleh" (0156); kolomnya dipasang lebih dulu
+  // supaya jurnal data lama bisa dibuat di keadaan sebelum 0124.
+  const pembuat = files.find(file => file.startsWith('0156_'));
+  db.exec(readFileSync(new URL(pembuat, migrationDir), 'utf8'));
 
   const kas = accountId(db, PENDEM.id, '1101');
   addCustom(db, PENDEM.id, 'acc_pcm', 'ACC-000005', 'Piutang Poci Malang', 'ASSET');
@@ -97,7 +101,7 @@ async function setup() {
   addCustom(db, DERMO.id, 'acc_dermo_hhl', 'ACC-000006', 'Hutang Hari Leker', 'LIABILITY');
   db.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id) VALUES ('pm_dermo_harian', ?, 'PEMBAYARAN_LEKER_HARIAN', 'Pembayaran Leker Harian', 'acc_dermo_hhl')`).run(DERMO.id);
 
-  for (const file of files.slice(cut)) db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
+  for (const file of files.slice(cut).filter(file => file !== pembuat)) db.exec(readFileSync(new URL(file, migrationDir), 'utf8'));
   return { db, env };
 }
 

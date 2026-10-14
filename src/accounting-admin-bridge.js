@@ -481,6 +481,30 @@ export async function pendingAdminReversals(db, storeId, limit = 25) {
 
 // ------------------------------------------------------------- dispatch ---
 
+// Pembuat jurnal (migration 0156) = pembuat transaksi operasionalnya: yang input (jurnal asli) atau yang
+// membatalkan (jurnal pembalik). Gaji presensi = kasir pemilik sesi. Fakta lain: Sistem.
+const CREATOR_SOURCES = {
+  BEA: 'admin_operational_expenses',
+  BAYAR_HUTANG: 'admin_payments',
+  UANG_MUKA: 'operational_receivables_payables'
+};
+
+async function factCreator(db, type, id, { voided = false } = {}) {
+  try {
+    if (type === 'GAJI_PRESENSI') {
+      const row = await db.prepare('SELECT account_type, account_id FROM payroll_ledger_entries WHERE id = ?').bind(id).first();
+      return row?.account_id ? { role: row.account_type || 'CASHIER', id: row.account_id, note: 'Presensi pulang' } : null;
+    }
+    const table = CREATOR_SOURCES[type];
+    if (!table) return null;
+    const prefix = voided ? 'voided_by' : 'created_by';
+    const row = await db.prepare(`SELECT ${prefix}_role AS role, ${prefix}_id AS id FROM ${table} WHERE id = ?`).bind(id).first();
+    return row?.role ? { role: row.role, id: row.id || '', note: voided ? 'Membatalkan transaksi' : '' } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function dispatchAdminAccountingFact(db, factType, factId) {
   const type = text(factType, 40).toUpperCase();
   const id = text(factId, 180);
@@ -510,7 +534,8 @@ export async function dispatchAdminAccountingFact(db, factType, factId) {
       idempotencyKey: `${SOURCE_SYSTEM}:${type}:${id}`,
       description: built.description,
       journalLines: built.lines,
-      lineParties: built.lines.map(line => line.party || null)
+      lineParties: built.lines.map(line => line.party || null),
+      createdBy: await factCreator(db, type, id)
     });
   } catch (error) {
     const value = failed('ACCOUNTING_POST_FAILED', text(error?.message || error, 500));
@@ -561,6 +586,7 @@ export async function reverseAdminAccountingFact(db, factType, factId, reason = 
     idempotencyKey: `${SOURCE_SYSTEM}_VOID:${type}:${id}`,
     description: `Pembalik ${original.description}${reason ? ` · ${text(reason, 120)}` : ''}`.slice(0, 300),
     reversalOfJournalId: original.journalId,
+    createdBy: await factCreator(db, type, id, { voided: true }),
     journalLines: original.lines.map(line => ({
       accountId: line.accountId,
       side: line.side === 'DEBIT' ? 'CREDIT' : 'DEBIT',

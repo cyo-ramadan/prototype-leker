@@ -5,6 +5,8 @@ import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
 import { dispatchAdminAccountingFact, reverseAdminAccountingFact } from '../src/accounting-admin-bridge.js';
 import { hashCredential } from '../src/owner-auth.js';
+import { getAccountingJournal } from '../src/accounting-ledger.js';
+import { syncStoreAccounting } from '../src/accounting-auto-sync.js';
 
 // ADR-046, Bos Cyo 2026-09-27: fitur admin (Bea Operasional, Pembayaran
 // Hutang/Piutang, Pembayaran Lainnya, gaji presensi, Uang Muka/Deposit)
@@ -391,5 +393,70 @@ test('Stok opname yang di-ACC sejak 4 Okt dijurnal otomatis (kurang = Beban Susu
 
     const ulang = await syncStoreAccounting(env.DB, { id: pendem.id, code: 'PENDEM' });
     assert.equal(ulang.filter(r => r.factType === 'STOCK_ADJUSTMENT').length, 0, 'tidak dijurnal dua kali');
+  } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-10-14: "histori siapa yang entry ... masukinnya di detil nya saja" (migration 0156).
+test('Jurnal mencatat pembuatnya: Bea = admin yang input, pembalik = admin yang membatalkan; tampil di Detail', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    const created = await api(env, token, '/api/admin/operational-expenses', {
+      category: 'BEA_LAPAK', description: 'Sewa lapak', amount: 100000, counterpartyType: 'OTHER', counterpartyName: 'Pak RT', businessDate: '2026-09-27'
+    });
+    await api(env, token, `/api/admin/operational-expenses/${created.payload.id}/void`, { reason: 'salah catat' });
+    const header = source => db.prepare(`SELECT id FROM accounting_journal_headers WHERE store_id = ? AND source_system = ?`).get(pendem.id, source).id;
+    const adminName = db.prepare(`SELECT display_name FROM store_admins WHERE id = 'admin_pendem_pilot'`).get().display_name;
+    const asli = await getAccountingJournal(env.DB, pendem.id, header('LEKER_ADMIN'));
+    assert.deepEqual([asli.createdBy.role, asli.createdBy.id, asli.createdBy.name], ['ADMIN', 'admin_pendem_pilot', adminName]);
+    const pembalik = await getAccountingJournal(env.DB, pendem.id, header('LEKER_ADMIN_VOID'));
+    assert.equal(pembalik.createdBy.role, 'ADMIN');
+    assert.equal(pembalik.createdBy.note, 'Membatalkan transaksi');
+
+    const ui = readFileSync(new URL('../public/admin-accounting-workspace.js', import.meta.url), 'utf8');
+    assert.match(ui, /Dibuat oleh: \$\{esc\(creatorText\(j\.createdBy\)\)\}/);
+    assert.doesNotMatch(ui, /<th>Dibuat oleh<\/th>/, 'tidak di tabel Data Jurnal');
+  } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-10-14: pembalik lama yang bertanggal hari dibatalkan (Sugiono 1-10 Sep dibalik 13 Okt)
+// dibetulkan lewat jurnal resmi: netral di tanggal salah + pembalik di tanggal transaksi. Jurnal lama tetap.
+test('Koreksi tanggal pembalik lama: sepasang jurnal resmi, tanggal salah jadi netral, atas nama ikut, tidak dobel', async () => {
+  const { db, env, pendem } = setup();
+  try {
+    const token = await adminToken(db);
+    db.prepare(`INSERT INTO employees (id, entity_id, full_name, status, created_at, updated_at) VALUES ('emp_sheila', ?, 'Sheila', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).run(pendem.entity_id);
+    const gaji = await api(env, token, '/api/admin/operational-expenses', { category: 'BEA_GAJI', description: 'Gaji Sheila', amount: 50400, employeeId: 'emp_sheila', businessDate: '2026-09-01' });
+    await api(env, token, `/api/admin/operational-expenses/${gaji.payload.id}/void`, { reason: 'salah tanggal' });
+    // Tiru data lama sebelum perbaikan: pembalik bertanggal hari dibatalkan.
+    // (Jurnal POSTED dikunci trigger; hanya di tes ini kunci dilepas sebentar untuk meniru data lama.)
+    db.exec('DROP TRIGGER trg_accounting_posted_header_immutable_update');
+    db.prepare(`UPDATE accounting_journal_headers SET business_date = '2026-10-13' WHERE store_id = ? AND source_system = 'LEKER_ADMIN_VOID'`).run(pendem.id);
+    db.exec(`CREATE TRIGGER trg_accounting_posted_header_immutable_update BEFORE UPDATE ON accounting_journal_headers BEGIN SELECT RAISE(ABORT, 'POSTED_JOURNAL_IMMUTABLE'); END;`);
+    const perTanggal = date => Object.fromEntries(db.prepare(`
+      SELECT a.code, SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount_scaled ELSE -l.amount_scaled END) / 1000000 AS net
+      FROM accounting_journal_lines l JOIN accounting_journal_headers h ON h.id = l.journal_id JOIN chart_of_accounts a ON a.id = l.account_id
+      WHERE h.store_id = ? AND h.business_date = ? GROUP BY a.code`).all(pendem.id, date).map(row => [row.code, row.net]));
+    assert.deepEqual(perTanggal('2026-09-01'), { 2102: -50400, 6102: 50400 }, 'sebelum koreksi: beban September masih berdiri');
+
+    const first = await syncStoreAccounting(env.DB, { id: pendem.id }, { limit: 50 });
+    assert.deepEqual(first.filter(row => row.factType === 'KOREKSI_TANGGAL_PEMBALIK').map(row => row.status), ['CORRECTED']);
+    assert.deepEqual(perTanggal('2026-09-01'), { 2102: 0, 6102: 0 }, 'pembatalan jatuh di tanggal transaksi');
+    assert.deepEqual(perTanggal('2026-10-13'), { 2102: 0, 6102: 0 }, 'tanggal salah netral');
+    const koreksi = db.prepare(`SELECT id, business_date, reversal_of_journal_id FROM accounting_journal_headers WHERE store_id = ? AND source_system = 'KOREKSI_TANGGAL_PEMBALIK' ORDER BY business_date`).all(pendem.id);
+    assert.deepEqual(koreksi.map(row => row.business_date), ['2026-09-01', '2026-10-13']);
+    assert.ok(koreksi.every(row => row.reversal_of_journal_id));
+    assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM accounting_journal_headers WHERE store_id = ? AND source_system IN ('LEKER_ADMIN','LEKER_ADMIN_VOID')`).get(pendem.id).n, 2, 'jurnal lama tetap');
+    const party = db.prepare(`
+      SELECT SUM(CASE WHEN p.side = 'DEBIT' THEN p.amount_scaled ELSE -p.amount_scaled END) AS net, COUNT(*) AS n
+      FROM accounting_party_entries p JOIN accounting_journal_headers h ON h.id = p.journal_id
+      WHERE h.source_system = 'KOREKSI_TANGGAL_PEMBALIK' AND p.employee_id = 'emp_sheila'`).get();
+    assert.deepEqual([party.n, party.net], [2, 0], 'atas nama Sheila ikut, saldo orangnya tidak berubah');
+    const detail = await getAccountingJournal(env.DB, pendem.id, koreksi[0].id);
+    assert.equal(detail.createdBy.role, 'SYSTEM');
+    assert.match(detail.createdBy.note, /atas perintah Bos Cyo/);
+
+    const again = await syncStoreAccounting(env.DB, { id: pendem.id }, { limit: 50 });
+    assert.equal(again.filter(row => row.factType === 'KOREKSI_TANGGAL_PEMBALIK').length, 0, 'tidak dobel');
   } finally { db.close(); }
 });

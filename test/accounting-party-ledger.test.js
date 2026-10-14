@@ -181,7 +181,7 @@ test('form jurnal manual menampilkan pemilih nama dan mengirim party; migration 
   assert.match(ui, /\/api\/admin\/accounting\/party-options/);
   assert.match(ui, /\/api\/admin\/accounting\/party-reconciliation/);
   const html = readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8');
-  assert.match(html, /admin-accounting-workspace\.js\?v=20261014-jam-jurnal-v1/);
+  assert.match(html, /admin-accounting-workspace\.js\?v=20261014-jam-jurnal-v2/);
   const sql = readFileSync(new URL('../migrations/0138_accounting_party_entries.sql', import.meta.url), 'utf8');
   assert.match(sql, /entity_id TEXT/);
 });

@@ -49,7 +49,11 @@ export async function reversePostedPosAccountingFact(db, store, {
   // transaksi." Jurnal pembalik memakai TANGGAL TRANSAKSI jurnal asalnya (business_date), bukan tanggal
   // dibatalkan -- membatalkan transaksi September tidak boleh menggeser untung rugi ke Oktober. Waktu
   // pembatalan tetap tersimpan sebagai tanggal entry (occurred_at/posted_at).
+  // Pembuat jurnal pembalik (migration 0156) = yang meng-ACC hapus transaksinya.
+  let approver = null;
+  try { approver = await db.prepare('SELECT approved_by_role AS role, approved_by_id AS id FROM approval_permits WHERE id = ?').bind(permitId).first(); } catch { approver = null; }
   const posted = await postAccountingJournal(db, store, {
+    createdBy: approver?.role ? { role: approver.role, id: approver.id || '', note: 'ACC hapus transaksi kasir' } : null,
     businessDate: original.businessDate || getJakartaBusinessDate(effectiveAt),
     occurredAt: effectiveAt.toISOString(),
     sourceSystem: 'LEKER_POS_VOID',

@@ -81,6 +81,7 @@
     if (source === 'WAREHOUSE') return 'Warehouse';
     if (source === 'ACCOUNT_STANDARDIZE') return 'Penyamaan Akun';
     if (source === 'ACCOUNTING_SCHEDULE') return 'Beban Rutin/Split';
+    if (source === 'KOREKSI_TANGGAL_PEMBALIK') return 'Koreksi Tanggal';
     return source || '-';
   }
 
@@ -568,7 +569,7 @@
       state.journalDetail = result.journal;
       const j = result.journal;
       window.openAdminDetailModal({
-        head: `<div><div class="admin-eyebrow">Journal Detail</div><h2>${esc(j.journalNumber)}</h2><div class="muted">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)} · ${esc(j.businessDate)}</div></div>`,
+        head: `<div><div class="admin-eyebrow">Journal Detail</div><h2>${esc(j.journalNumber)}</h2><div class="muted">${esc(j.sourceSystem)} · ${esc(j.sourceReferenceId)} · ${esc(j.businessDate)}</div><div class="muted">Dibuat oleh: ${esc(creatorText(j.createdBy))}${wibParts(j.postedAt) ? ` · entry ${esc(wibParts(j.postedAt).full)} WIB` : ''}</div></div>`,
         body: `<div class="acct-detail"><div class="acct-detail-head"><div>${esc(j.description)}</div><span class="acct-chip">POSTED · immutable</span></div><div class="acct-table-wrap" style="margin-top:10px"><table class="acct-table"><thead><tr><th>Akun</th><th>Debit</th><th>Kredit</th><th>Keterangan</th></tr></thead><tbody>${j.lines.map(line => `<tr><td>${esc(line.accountCode)} — ${esc(line.accountName)}${line.isSystemGenerated ? ' <span class="acct-chip">System</span>' : ''}</td><td>${line.side === 'DEBIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${line.side === 'CREDIT' ? rpExact(line.amountExact ?? line.amountMinor) : ''}</td><td>${esc(line.description)}</td></tr>`).join('')}</tbody></table></div>${splitSectionHtml(j, result.split, result.splitEligibility)}</div>`
       });
       if (!result.split && result.splitEligibility?.eligible) bindSplitSection(j.journalId, result.splitEligibility.assetLine.amountScaled);
@@ -738,10 +739,22 @@
   // nambah lebar barisnya." Jam entry (posted_at, WIB) kecil di bawah tanggal transaksi; tinggi baris
   // tetap karena tombol Detail sudah lebih tinggi. Kalau tanggal entry beda dari tanggal transaksi
   // (mis. pembalik/input susulan) tanggal entry-nya ikut ditulis.
-  function entryStamp(row) {
-    const at = row.postedAt ? new Date(String(row.postedAt).includes('T') ? row.postedAt : `${String(row.postedAt).replace(' ', 'T')}Z`) : null;
-    if (!at || Number.isNaN(at.getTime())) return '';
+  // Siapa yang membuat jurnal (migration 0156) -- hanya di Detail, bukan di tabel (Bos Cyo 2026-10-14).
+  function creatorText(by) {
+    if (!by) return '-';
+    return [by.roleLabel || by.role, by.name || (by.role === 'SYSTEM' ? '' : by.id), by.note].filter(Boolean).join(' · ');
+  }
+
+  function wibParts(value) {
+    const at = value ? new Date(String(value).includes('T') ? value : `${String(value).replace(' ', 'T')}Z`) : null;
+    if (!at || Number.isNaN(at.getTime())) return null;
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at).map(part => [part.type, part.value]));
+    return { ...parts, full: `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}` };
+  }
+
+  function entryStamp(row) {
+    const parts = wibParts(row.postedAt);
+    if (!parts) return '';
     const date = `${parts.year}-${parts.month}-${parts.day}`;
     const label = date === row.businessDate ? `${parts.hour}:${parts.minute}` : `entry ${parts.day}/${parts.month} ${parts.hour}:${parts.minute}`;
     return `<div class="acct-code" style="font-size:10px;line-height:1.1;opacity:.7" title="Waktu entry ${date} ${parts.hour}:${parts.minute} WIB">${label}</div>`;

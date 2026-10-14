@@ -15,10 +15,15 @@ export const UNA_WORKSPACE_REQUIRED_REMOTE_TABLES = Object.freeze([
   'una_workspace_tasks',
   'una_workspace_steps'
 ]);
+export const UNA_DIAGNOSTIC_REQUIRED_REMOTE_TABLES = Object.freeze([
+  'una_belum_paham',
+  'una_belum_paham_observations'
+]);
 export const ALL_REQUIRED_REMOTE_TABLES = Object.freeze([
   ...REQUIRED_REMOTE_TABLES,
   ...ACCOUNTING_REQUIRED_REMOTE_TABLES,
-  ...UNA_WORKSPACE_REQUIRED_REMOTE_TABLES
+  ...UNA_WORKSPACE_REQUIRED_REMOTE_TABLES,
+  ...UNA_DIAGNOSTIC_REQUIRED_REMOTE_TABLES
 ]);
 export const PRODUCTION_REQUIRED_COLUMNS = Object.freeze({
   production_runs: Object.freeze([

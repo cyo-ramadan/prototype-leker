@@ -97,3 +97,32 @@ test('Owner still needs an active current entity and tenant for assistant settin
  assert.equal((await f.call(path,'GET',undefined,'owner-test')).status,403);
  assert.equal((await f.call(path,'PATCH',{namaAsisten:'Closed Leak'},'owner-test')).status,403);
 });
+test('healthy text chat and readiness add only one bounded metadata query and no queue writes', async t => {
+ const f=await fixture(t);
+ f.sqlite.prepare("INSERT INTO owner_sessions(token_hash,owner_id,created_at,expires_at) VALUES(?,'owner_primary','2026-01-01T00:00:00Z','2099-01-01T00:00:00Z')").run(await hashCredential('owner-perf'));
+ const queries=[];const prepare=f.env.DB.prepare;
+ f.env.DB.prepare=sql=>{queries.push(sql);return prepare(sql);};
+ const healthy={pertanyaan:'batal',tertunda:{alat:'buat_barang',tangkapan:{},tanya:'Harga berapa?',kurang:'barang_harga_jual'}};
+ for(const[token,scope,count]of[['name-e1','?store=G001',6],['name-e1','?lingkup=entity',2],['owner-perf','?store=G001',3]]){
+  for(const endpoint of ['tanya','kesiapan','pengaturan']){
+   queries.length=0;
+   const result=await f.call('/api/caca/'+endpoint+scope,endpoint==='tanya'?'POST':'GET',endpoint==='tanya'?healthy:undefined,token);
+   assert.equal(result.status,200,JSON.stringify(result.body));
+   assert.equal(queries.length,count,endpoint+' '+token+' '+scope+' query count');
+   assert.equal(queries.filter(sql=>sql.includes('AS nama_asisten')).length,1);
+   assert.equal(queries.filter(sql=>/una_belum_paham|\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)).length,0);
+  }
+ }
+});
+
+test('assistant metadata is fresh per request and corrupt oversized settings fall back safely', async t => {
+ const f=await fixture(t);const path='/api/caca/pengaturan?store=G001';
+ const tenant=f.sqlite.prepare("SELECT tenant_id FROM entity_tenancy WHERE entity_id='ENT-G001' AND effective_to IS NULL").get().tenant_id;
+ assert.equal((await f.call(path)).body.namaAsisten,'Una');
+ await f.call(path,'PATCH',{namaAsisten:'Jarvis'});
+ assert.equal((await f.call(path)).body.namaAsisten,'Jarvis');
+ f.sqlite.prepare("UPDATE tenant_policy_settings SET setting_value=? WHERE tenant_id=? AND setting_key='una_nama_asisten'").run('a'.repeat(10000),tenant);
+ f.sqlite.prepare("INSERT INTO tenant_policy_settings(tenant_id,setting_key,setting_value) VALUES(?,'ui_skin',?) ON CONFLICT(tenant_id,setting_key) DO UPDATE SET setting_value=excluded.setting_value").run(tenant,'F'.repeat(10000));
+ const fallback=await f.call(path);
+ assert.equal(fallback.status,200);assert.equal(fallback.body.namaAsisten,'Una');assert.equal(fallback.body.skin,'classic');
+});

@@ -19,3 +19,5 @@ CREATE TABLE IF NOT EXISTS una_belum_paham_observations (
  PRIMARY KEY(conversation_key,question_key)
 );
 CREATE INDEX IF NOT EXISTS idx_una_belum_paham_observations_expiry ON una_belum_paham_observations(expires_at);
+-- Scoped masking must not scan stores across tenants as the service grows.
+CREATE INDEX IF NOT EXISTS idx_stores_entity_id ON stores(entity_id,id);

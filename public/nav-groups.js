@@ -173,7 +173,7 @@
     const style = document.createElement('style');
     style.id = 'navGroupsStyle';
     style.textContent = `
-      html[data-skin] .nav-grouped-source{display:none!important}
+      html[data-skin]:not([data-skin="i"]) .nav-grouped-source{display:none!important}
       .nav-groups{display:grid;gap:10px;margin:0 0 18px}
       .nav-groups-main{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px}
       .nav-group-btn{position:relative;display:grid;justify-items:center;gap:4px;padding:11px 4px 9px;border:1px solid var(--line);background:var(--surface,#fff);color:var(--ink);border-radius:var(--skin-r,14px);font:inherit;font-weight:800;font-size:12.5px;line-height:1.2;cursor:pointer;transition:transform .12s ease,background .15s ease}

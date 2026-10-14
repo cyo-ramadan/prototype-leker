@@ -1,5 +1,6 @@
 // Pengaturan tenant dan profil suara lokal perangkat. Tidak menyimpan rekaman audio ke server.
 (() => {
+  let profilRuang = '', mesinPromise = null;
   let profil = null, generasi = 0, pemilik = null, contoh = [], sibuk = false;
   let live = false, mulai = false, tundaUcapan = false, antrean = [], mengirim = false;
   const el = id => document.getElementById(id);
@@ -78,18 +79,42 @@
     if (el('cacaLiveHeadset')) el('cacaLiveHeadset').disabled = live || mulai;
     if (el('cacaSuaraDaftar')) el('cacaSuaraDaftar').textContent = `Rekam contoh ${contoh.length + 1} dari 3`;
   }
-  async function muat() {
+  function pasangPemilik() {
+    if (!profil || pemilik || !window.KerangkaSuaraPemilik) return;
+    pemilik = window.KerangkaSuaraPemilik.buat({ getScope: () => profil?.ruangSuara || '', onStatus: status, onProgress: p => status(typeof p === 'string' ? p : 'Mengunduh mesin pengenal suara…') });
+    window.cacaSuaraPemilik = pemilik;
+    if (el('cacaSuaraPemilikWajib')) el('cacaSuaraPemilikWajib').checked = pemilik.wajib();
+    tombol();
+  }
+  async function siapkanSuara() {
+    const versi = generasi;
+    if (!profil) throw new Error('Pengaturan asisten sedang dimuat.');
+    if (!window.KerangkaSuaraPemilik) {
+      mesinPromise ||= new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = '/kerangka-suara-pemilik.js?v=20261014-una-v2'; script.async = true;
+        script.onload = () => { if (window.KerangkaSuaraPemilik) resolve(); else { mesinPromise = null; reject(new Error('Mesin suara belum tersedia. Coba kembali.')); } };
+        script.onerror = () => { script.remove(); mesinPromise = null; reject(new Error('Mesin suara belum termuat. Periksa koneksi lalu coba kembali.')); };
+        document.head.appendChild(script);
+      });
+      await mesinPromise;
+    }
+    if (versi !== generasi || !profil) throw new Error('Pengaturan suara berubah. Mulai kembali pada akun dan gerai yang benar.');
+    pasangPemilik(); return pemilik;
+  }
+  window.cacaSiapkanSuara = siapkanSuara;
+  async function muat(paksa = false) {
     const q = query(); if (!q) return;
+    const ruang = q + ':' + cacaSidikLogin();
+    if (!paksa && profil && profilRuang === ruang) return;
     hentikan(); profil = null; pemilik = null; window.cacaSuaraPemilik = null; tombol();
     const versi = generasi;
     try {
       const hasil = await cacaApi(`/api/caca/pengaturan?${q}`);
       if (versi !== generasi || q !== query()) return;
-      profil = hasil; namaTampil();
-      if (window.KerangkaSuaraPemilik) pemilik = window.KerangkaSuaraPemilik.buat({ getScope: () => profil?.ruangSuara || '', onStatus: status, onProgress: p => status(typeof p === 'string' ? p : 'Mengunduh mesin pengenal suara…') });
-      window.cacaSuaraPemilik = pemilik;
-      const wajib = pemilik?.wajib?.() || false; if (el('cacaSuaraPemilikWajib')) el('cacaSuaraPemilikWajib').checked = wajib;
-      status(pemilik ? 'Profil suara disimpan di perangkat ini untuk akun dan tenant ini.' : 'Pengaturan nama siap. Mesin suara pemilik belum tersedia di browser ini.');
+      profil = hasil; profilRuang = ruang; namaTampil();
+      pasangPemilik();
+      status('Pengaturan nama siap. Mesin suara dimuat ketika pengaturan suara atau mikrofon dipilih.');
     } catch (error) { if (versi === generasi) status(error.message); }
     tombol();
   }
@@ -117,7 +142,7 @@
       <label><input id="cacaSuaraPemilikWajib" type="checkbox"> Terima perintah suara hanya dari pemilik terdaftar</label>
       <p id="cacaPengaturanStatus" role="status" aria-live="polite"></p></div>`;
     panel.querySelector('.caca-kepala')?.after(wadah);
-    wadah.addEventListener('toggle', () => { if (wadah.open) muat(); });
+    wadah.addEventListener('toggle', async () => { if (!wadah.open) return; await muat(true); try { await siapkanSuara(); } catch(error) { status(error.message); } });
     el('cacaLiveToggle').addEventListener('click', mulaiLive);
     el('cacaPertanyaan')?.addEventListener('input', () => { if (kosong()) void kirimAntrean(); });
     el('cacaNamaSimpan').addEventListener('click', () => kerja(async versi => {
@@ -142,7 +167,7 @@
     });
     tombol();
   }
-  window.addEventListener('caca-profile-needed', muat);
+  window.addEventListener('caca-profile-needed', () => { void muat(); });
   window.addEventListener('caca-scope-change', () => { hentikan(); profil = null; pemilik = null; window.cacaSuaraPemilik = null; muat(); });
   window.addEventListener('caca-chat-idle', () => { void kirimAntrean(); });
   window.addEventListener('caca-audio-stop', hentikan);

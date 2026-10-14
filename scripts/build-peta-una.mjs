@@ -25,7 +25,20 @@ function labelTombolAsli(tab) {
   return tab;
 }
 
-export function bangunPeta(teks = baca('public/nav-groups.js')) {
+export function kodeSkinResmi(teks = baca('src/ui-profile.js')) {
+  // Gunakan registry yang dipakai server. Skin visual murni (I) tidak punya
+  // SKIN_GROUPS sendiri, tetapi tetap harus mendapat menu layout default.
+  const cocok = teks.match(/const SKIN_BY_CHOICE\s*=\s*Object\.freeze\((\{[^}]+\})\)/);
+  if (!cocok) throw new Error('Registry skin server berubah; tinjau pembangkit peta Una.');
+  const registry = new Function('return (' + cocok[1] + ');')();
+  const kode = [...new Set(Object.values(registry))];
+  if (!kode.length || kode.some((nilai) => typeof nilai !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(nilai))) {
+    throw new Error('Kode skin server tidak valid untuk peta Una.');
+  }
+  return kode;
+}
+
+export function bangunPeta(teks = baca('public/nav-groups.js'), profil = baca('src/ui-profile.js')) {
   // Jalankan hanya deklarasi data lokal; tidak pernah menjalankan IIFE/browser.
   // Termasuk assignment SKIN_GROUPS.f/g/h yang merujuk PAGES.
   const awal = teks.indexOf('const PAGES = {');
@@ -33,7 +46,7 @@ export function bangunPeta(teks = baca('public/nav-groups.js')) {
   if (awal < 0 || akhir < 0) throw new Error('Batas deklarasi nav-groups berubah; tinjau pembangkit peta.');
   const { PAGES, LABELS, ENTITY_LABELS, SKIN_GROUPS, SKIN_LABELS, SKIN_HINTS } =
     new Function(teks.slice(awal, akhir) + '\nreturn {PAGES,LABELS,ENTITY_LABELS,SKIN_GROUPS,SKIN_LABELS,SKIN_HINTS};')();
-  const skins = [...new Set(['classic', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
+  const skins = [...new Set(['classic', ...kodeSkinResmi(profil),
     ...Object.keys(SKIN_GROUPS), ...Object.keys(SKIN_LABELS), ...Object.keys(SKIN_HINTS)])].sort();
   const peta = [];
   for (const skin of skins) {

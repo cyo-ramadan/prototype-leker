@@ -432,5 +432,17 @@ export const SUMBER_KAMUS = Object.freeze({
       "tombol:public/caca-pengaturan.js:cacaNamaSimpan",
       "tulis:src/caca-pengaturan.js:request.method !== 'PATCH') return json("
     ]
+  },
+  "jurnal_split": {
+    "sumber": [
+      "src/accounting-workspace.js",
+      "src/accounting-journal-schedules.js",
+      "public/admin-accounting-workspace.js"
+    ],
+    "fitur": [
+      "rute:src/accounting-workspace.js:/api/admin/accounting/journal-splits",
+      "tombol:public/admin-accounting-workspace.js:label:Buat Jurnal Split",
+      "tulis:src/accounting-workspace.js:request.method === 'POST' && pathname === '/api/admin/accounting/journal-splits')"
+    ]
   }
 });

@@ -105,8 +105,9 @@
     const row = (portal?.attendance || []).find(item => item.id === attendanceId);
     if (!row?.checkIn) return;
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
-    overlay.innerHTML = `<form style="background:#fff;border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
+    overlay.className = 'staff-dialog-backdrop';
+    overlay.style.cssText = 'position:fixed;inset:0;background:var(--staff-dialog-backdrop,rgba(0,0,0,.45));display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
+    overlay.innerHTML = `<form class="staff-dialog" style="background:var(--staff-dialog-bg,#fff);border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
       <h3 style="margin:0">Ajukan koreksi jam masuk</h3>
       <div class="muted">Jam masuk tercatat ${escapeHtml(clockTime(row.checkIn.at))}. Isi jam yang seharusnya dan alasan yang sah, mis. web error. Admin akan memutuskan ACC atau Tolak. Hanya bisa diajukan sebelum presensi pulang.</div>
       <label style="display:grid;gap:4px">Jam masuk seharusnya<input type="time" name="time" required /></label>
@@ -163,8 +164,9 @@
   function gpsBlockHtml(row) { return gpsLine(row, 'IN') + (row.checkOut ? gpsLine(row, 'OUT') : ''); }
   function openGpsFixDialog(attendanceId, which) {
     const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
-    overlay.innerHTML = `<form style="background:#fff;border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
+    overlay.className = 'staff-dialog-backdrop';
+    overlay.style.cssText = 'position:fixed;inset:0;background:var(--staff-dialog-backdrop,rgba(0,0,0,.45));display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
+    overlay.innerHTML = `<form class="staff-dialog" style="background:var(--staff-dialog-bg,#fff);border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
       <h3 style="margin:0">Ajukan perbaikan GPS</h3>
       <div class="muted">Jelaskan kenapa GPS presensi ${which === 'IN' ? 'masuk' : 'pulang'} ini tidak sesuai, mis. GPS HP error padahal sudah di gerai. Admin akan memutuskan. Jika di-ACC tanda merahnya hilang dengan keterangan; jika ditolak tetap merah dan tidak bisa diajukan lagi.</div>
       <label style="display:grid;gap:4px">Alasan<textarea name="reason" rows="3" maxlength="500" required placeholder="mis. GPS HP error, saya sudah di gerai"></textarea></label>
@@ -210,6 +212,13 @@
   }
   function renderPortal() {
     if (!portal) return;
+    // The authenticated portal response is authoritative, including old sessions
+    // without store metadata. This only selects the visual tenant theme.
+    const skinStoreCode = portal.staff.store.code;
+    if (skinStoreCode && window.LEKER_STORE_CODE !== skinStoreCode) {
+      window.LEKER_STORE_CODE = skinStoreCode;
+      window.MaxiSkin?.ready?.then(() => window.MaxiSkin.refresh());
+    }
     el('staffIdentity').textContent = `${portal.staff.employeeName} · ${portal.staff.store.code}`;
     const checkedIn = portal.attendanceStatus === 'in';
     const toggleBtn = el('attendanceToggleBtn');

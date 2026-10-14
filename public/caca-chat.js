@@ -1061,7 +1061,7 @@ function cacaAturTombol() {
 
 
 // Suara mengisi composer; pengiriman dan persetujuan tetap manual.
-const cacaSuara = { sesi: null, dariMikrofon: false };
+const cacaSuara = { sesi: null, dariMikrofon: false, menyiapkan: false };
 let cacaMulut = null;
 let cacaMulutGenerasi = 0;
 const cacaMulutKonteks = new WeakMap();
@@ -1164,6 +1164,13 @@ async function cacaToggleSuara() {
   if (!window.isSecureContext) {
     cacaStatusSuara('Input suara perlu halaman HTTPS. Pesan tetap bisa diketik.');
     return;
+  }
+  if (cacaSuara.menyiapkan) return;
+  if (typeof cacaSiapkanSuara === 'function') {
+    cacaSuara.menyiapkan = true;
+    try { await cacaSiapkanSuara(); } catch(error) { cacaStatusSuara(error.message); return; }
+    finally { cacaSuara.menyiapkan = false; }
+    if (!cacaState.siap || cacaState.sedangKirim) return;
   }
   const pemilik = window.cacaSuaraPemilik;
   if (typeof cacaPengaturanProfil === 'function' && (!cacaPengaturanProfil() || !pemilik)) { cacaStatusSuara('Profil asisten sedang dimuat. Coba mikrofon kembali setelah pengaturan siap.'); return; }

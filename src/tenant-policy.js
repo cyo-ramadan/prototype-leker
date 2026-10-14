@@ -45,7 +45,9 @@ export const UI_SKIN_OPTIONS = Object.freeze([
   // dan layar /s/<kode>/cetak HANYA hidup untuk tenant yang memilih G (isPercetakanChoice).
   { value: 'G', label: 'G · Percetakan' },
   // H tetap punya kasir; tidak ikut pengecualian presensi dan izin skin E.
-  { value: 'H', label: 'H · Owner Kelola Sendiri' }
+  { value: 'H', label: 'H · Owner Kelola Sendiri' },
+  // I hanya tema visual; layout, menu dan kebijakan operasional tetap seperti 0.
+  { value: 'I', label: 'I · Pantai Klasik' }
 ]);
 
 // Tenant yang memilih skin E dijaga pemiliknya sendiri, tanpa karyawan:
@@ -91,7 +93,7 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     type: 'choice',
     options: UI_SKIN_OPTIONS,
     label: 'Tampilan (skin)',
-    description: '0 = tampilan sekarang. H = Owner Kelola Sendiri (beberapa gerai dengan kasir; owner mengurus admin, resep langsung di barang; aturan presensi dan izin tetap biasa). G = Percetakan (chat WA pelanggan otomatis jadi order + antrian per mesin, layar Cetak untuk operator, agen cetak langsung ke printer; kasir diarahkan ke layar Cetak). F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
+    description: '0 = tampilan sekarang. I = Pantai Klasik (tema pantai seperti H, dengan susunan layar, menu, tombol dan aturan yang sama dengan 0). H = Owner Kelola Sendiri (beberapa gerai dengan kasir; owner mengurus admin, resep langsung di barang; aturan presensi dan izin tetap biasa). G = Percetakan (chat WA pelanggan otomatis jadi order + antrian per mesin, layar Cetak untuk operator, agen cetak langsung ke printer; kasir diarahkan ke layar Cetak). F = Racik Parfum (untuk toko parfum racikan: layar Racik pesanan -> takaran bahan -> bayar -> nota, draft bisa dilanjutkan, racikan terakhir per pelanggan; kasir boleh mengubah harga jual dan perubahannya tercatat). E = Jaga Sendiri (untuk warung TANPA karyawan: buka warung tanpa absen, pengajuan langsung disetujui otomatis, login kasir bisa lihat untung; jangan dipilih kalau tenant punya karyawan). D = Mode Warung (cara pakai baru untuk kelontong/UMKM kecil: kasir satu layar dengan kembalian, layar Pemilik "Hari ini"). A, B, C = calon desain baru yang sedang diuji untuk dijual: kasir, portal staf, workspace gerai, panel pemilik, dan halaman pelanggan tenant ini ikut berubah. Berlaku setelah halaman dimuat ulang.',
     defaultValue: '0'
   }
 ]);

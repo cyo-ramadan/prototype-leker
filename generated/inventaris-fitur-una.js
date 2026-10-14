@@ -325,6 +325,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/caca-belum-paham.js:/^\\/api\\/caca\\/belum-paham\\/([a-zA-Z0-9-]{1,80})$/",
+    "jenis": "rute-pola",
+    "sumber": "src/caca-belum-paham.js",
+    "method": null,
+    "rute": "/^\\/api\\/caca\\/belum-paham\\/([a-zA-Z0-9-]{1,80})$/",
+    "label": "/^\\/api\\/caca\\/belum-paham\\/([a-zA-Z0-9-]{1,80})$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/caca-workspace.js:/^\\/api\\/caca\\/workspace\\/([a-zA-Z0-9-]{1,80})(\\/catat)?$/",
     "jenis": "rute-pola",
     "sumber": "src/caca-workspace.js",
@@ -1261,6 +1270,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/accounting-workspace.js:/api/admin/accounting/journal-splits",
+    "jenis": "rute-kandidat",
+    "sumber": "src/accounting-workspace.js",
+    "method": null,
+    "rute": "/api/admin/accounting/journal-splits",
+    "label": "/api/admin/accounting/journal-splits",
+    "skin": null
+  },
+  {
     "id": "rute:src/accounting-workspace.js:/api/admin/accounting/journals",
     "jenis": "rute-kandidat",
     "sumber": "src/accounting-workspace.js",
@@ -1843,6 +1861,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/entity-admin/journals",
     "label": "/api/entity-admin/journals",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-belum-paham.js:/api/caca/belum-paham",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-belum-paham.js",
+    "method": null,
+    "rute": "/api/caca/belum-paham",
+    "label": "/api/caca/belum-paham",
     "skin": null
   },
   {
@@ -4481,6 +4508,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": null,
     "label": "Buat Beban Rutin",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-accounting-workspace.js"
+  },
+  {
+    "id": "tombol:public/admin-accounting-workspace.js:label:Buat Jurnal Split",
+    "jenis": "tombol",
+    "sumber": "public/admin-accounting-workspace.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Buat Jurnal Split",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-accounting-workspace.js"
@@ -12499,6 +12537,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "tulis:src/accounting-workspace.js:request.method === 'POST' && pathname === '/api/admin/accounting/journal-splits')",
+    "jenis": "rute-tulis",
+    "sumber": "src/accounting-workspace.js",
+    "method": "POST",
+    "rute": "/api/admin/accounting/journal-splits",
+    "label": "/api/admin/accounting/journal-splits",
+    "skin": null
+  },
+  {
     "id": "tulis:src/accounting-workspace.js:request.method === 'POST' && pathname === '/api/admin/accounting/standardize-accounts')",
     "jenis": "rute-tulis",
     "sumber": "src/accounting-workspace.js",
@@ -12811,6 +12858,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/admin/settings/business/payment-methods",
     "label": "/api/admin/settings/business/payment-methods",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/caca-belum-paham.js:request.method === 'PATCH')",
+    "jenis": "rute-tulis",
+    "sumber": "src/caca-belum-paham.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method === 'PATCH')",
     "skin": null
   },
   {

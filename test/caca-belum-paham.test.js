@@ -263,3 +263,84 @@ test('status PATCH bounds streamed bytes and cancels oversized uploads before JS
  assert.equal(multibyte.status,413);
  assert.equal((await api(f,'/'+id+'?store=G001','e1','PATCH',{status:'selesai'})).status,200);
 });
+test('first clarification uses one atomic observation query without global cleanup; expired counter resets', async t => {
+ const f=await fixture(t);const queries=[];const prepare=f.env.DB.prepare;
+ f.env.DB.prepare=sql=>{queries.push(sql);return prepare(sql);};
+ const options={pertanyaan:'Berapa harga barang baru',hasil:{ok:true,jawaban:'Harga berapa?',belumLengkap:true,alat:'buat_barang'}};
+ assert.equal((await record(f,options)).tercatat,0);
+ assert.equal(queries.length,4,'Entity Admin auth2+scope1+atomic observation1');
+ assert.equal(queries.filter(sql=>/DELETE FROM|SELECT incomplete_count/.test(sql)).length,0);
+ assert.equal(queries.filter(sql=>/RETURNING incomplete_count/.test(sql)).length,1);
+ assert.equal(f.sqlite.prepare('SELECT incomplete_count FROM una_belum_paham_observations').get().incomplete_count,1);
+ f.sqlite.exec("UPDATE una_belum_paham_observations SET incomplete_count=40,expires_at='2000-01-01T00:00:00.000Z'");
+ queries.length=0;
+ assert.equal((await record(f,options)).tercatat,0);
+ assert.equal(f.sqlite.prepare('SELECT incomplete_count FROM una_belum_paham_observations').get().incomplete_count,1);
+ assert.equal(queries.filter(sql=>/DELETE FROM/.test(sql)).length,0);
+ queries.length=0;
+ assert.equal((await record(f,options)).tercatat,1);
+ assert.equal(f.sqlite.prepare('SELECT incomplete_count FROM una_belum_paham_observations').get().incomplete_count,2);
+ assert.equal(queries.filter(sql=>/DELETE FROM/.test(sql)).length,2,'real case ingestion still purges expired diagnostics');
+});
+const overLimitMask='[teks disamarkan: daftar pelanggan melebihi batas pemeriksaan]';
+function seedCustomerNames(f,names,prefix='bound'){
+ const insert=f.sqlite.prepare('INSERT INTO customers(id,store_id,customer_code,customer_name) VALUES(?,?,?,?)');
+ f.sqlite.exec('BEGIN');try{for(const[index,name]of names.entries())insert.run(prefix+'-'+index,'store_001',prefix+'-'+index,name);f.sqlite.exec('COMMIT');}catch(caught){f.sqlite.exec('ROLLBACK');throw caught;}
+}
+function assertAllSnapshotTextMasked(row){
+ assert.equal(row.trigger_message,overLimitMask);
+ const turns=JSON.parse(row.turns_json);assert.ok(turns.length>0);
+ assert.ok(turns.every(turn=>turn.teks===overLimitMask));
+ assert.ok(turns.every(turn=>['saya','una','sistem'].includes(turn.dari)));
+}
+
+test('customer bound never samples privacy: over 500 customers masks names outside the returned sample',async t=>{
+ const f=await fixture(t);const sensitive='ZZZ Beyond Sample Sensitive';
+ seedCustomerNames(f,[...Array.from({length:700},(_,index)=>'A'+String(index).padStart(4,'0')),sensitive]);
+ let customerSql;const prepare=f.env.DB.prepare;
+ f.env.DB.prepare=sql=>{if(sql.includes('FROM customers c JOIN stores s'))customerSql=sql;return prepare(sql);};
+ await record(f,{pertanyaan:'periksa '+sensitive,riwayat:[{dari:'saya',teks:'Permintaan awal yang aman'}],hasil:{ok:true,jawaban:'Una kurang ngerti '+sensitive}});
+ assert.match(customerSql,/LIMIT 501\b/);assert.match(customerSql,/CASE WHEN length\(c\.customer_name\)<=128 THEN c\.customer_name ELSE NULL END/);
+ const sample=f.sqlite.prepare(customerSql).all('ENT-G001');assert.equal(sample.length,501);
+ assert.ok(sample.every(row=>row.customer_name!==sensitive),'fixture sensitive name really lies beyond bounded sample');
+ const row=f.sqlite.prepare('SELECT * FROM una_belum_paham').get();assertAllSnapshotTextMasked(row);
+ assert.doesNotMatch(JSON.stringify(row),/Beyond Sample Sensitive|Permintaan awal yang aman/);
+ assert.equal(row.sender_role,'ENTITY_ADMIN');assert.equal(row.reason,'ngambek');assert.equal(row.tool_name,null);
+ const plan=f.sqlite.prepare('EXPLAIN QUERY PLAN '+customerSql).all('ENT-G001');
+ const details=plan.map(step=>step.detail);
+ assert.ok(details.some(detail=>/SEARCH s USING COVERING INDEX idx_stores_entity_id\b/.test(detail)),'current tenant stores use the entity covering index');
+ assert.equal(details.some(detail=>/\bSCAN s\b/.test(detail)),false,'customer masking must not scan stores across tenants');
+ t.diagnostic('Bounded customer query plan: '+details.join(' | '));
+});
+
+test('long or invalid customer names conservatively hide all free text, never truncate into a guessed match',async t=>{
+ const f=await fixture(t);seedCustomerNames(f,['Initial Name'],'invalid-bound');
+ const update=f.sqlite.prepare("UPDATE customers SET customer_name=? WHERE id='invalid-bound-0'");
+ for(const[index,name]of ['X'.repeat(129),'Invalid\u200dName','   '].entries()){
+  update.run(name);
+  const prompt='Permintaan aman '+index+' tanpa nama pelanggan';
+  await record(f,{pertanyaan:prompt,hasil:{ok:true,jawaban:'Una kurang ngerti '+index}});
+ }
+ const rows=f.sqlite.prepare('SELECT * FROM una_belum_paham ORDER BY created_at,id').all();assert.equal(rows.length,3);
+ for(const row of rows)assertAllSnapshotTextMasked(row);
+});
+
+test('cumulative customer-name budget masks all text even below the 500 row limit',async t=>{
+ const f=await fixture(t);
+ seedCustomerNames(f,Array.from({length:300},(_,index)=>'N'+String(index).padStart(3,'0')+'q'.repeat(110)),'total-bound');
+ const count=f.sqlite.prepare("SELECT count(*) AS n FROM customers c JOIN stores s ON s.id=c.store_id WHERE s.entity_id='ENT-G001' AND c.customer_name<>''").get().n;
+ assert.ok(count<500);
+ await record(f,{pertanyaan:'Masih pertanyaan umum',hasil:{ok:true,jawaban:'Una kurang ngerti'}});
+ assertAllSnapshotTextMasked(f.sqlite.prepare('SELECT * FROM una_belum_paham').get());
+});
+
+test('exactly 500 valid short customer names retain useful redacted text within the fixed budget',async t=>{
+ const f=await fixture(t);
+ const existing=f.sqlite.prepare("SELECT count(*) AS n FROM customers c JOIN stores s ON s.id=c.store_id WHERE s.entity_id='ENT-G001' AND c.customer_name<>''").get().n;
+ const target='ZZZ Known Customer';
+ seedCustomerNames(f,[...Array.from({length:499-existing},(_,index)=>'A'+index),target],'exact-bound');
+ await record(f,{pertanyaan:'periksa '+target,hasil:{ok:true,jawaban:'Una kurang ngerti'}});
+ const row=f.sqlite.prepare('SELECT * FROM una_belum_paham').get();
+ assert.equal(row.trigger_message,'periksa [pelanggan disamarkan]');
+ assert.notEqual(row.trigger_message,overLimitMask);assert.doesNotMatch(row.turns_json,/ZZZ Known Customer/);
+});

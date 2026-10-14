@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { AKAR, bangunPeta, isiBerkas, bangunInventaris, isiInventaris, fiturDariBerkas, periksaCakupan, hashIsi, hashSumber } from '../scripts/build-peta-una.mjs';
+import { AKAR, bangunPeta, kodeSkinResmi, isiBerkas, bangunInventaris, isiInventaris, fiturDariBerkas, periksaCakupan, hashIsi, hashSumber } from '../scripts/build-peta-una.mjs';
 import { normalkanBaris, bahanHashSumber, periksaSumber, peringkatKamus, pilihVarian } from '../src/kerangka/kamus.js';
 import { PETA_UNA, menuUntuk, cariMenu, jawabanMenu } from '../src/caca-peta.js';
 import { KAMUS, jelaskan, peringkatTopik } from '../src/caca-jelaskan.js';
+import { bukaLayarDariPesan } from '../src/caca-buka-layar.js';
 import { BELUM_DIAJARKAN, TANPA_PANDUAN } from '../src/caca-inventaris-panduan.js';
 
 const baca = nama => readFileSync(resolve(AKAR, nama), 'utf8');
@@ -32,6 +33,32 @@ test('peta generator mencakup assignment F/G/H dan subgrup D, label sesuai layar
   assert.equal(menu('classic','racikbahan'),undefined);
   assert.equal(menu('d','ledger','entity'),undefined);
   assert.deepEqual(peta,PETA_UNA);
+});
+
+test('skin I visual murni mendapat menu classic, panduan dan buka layar yang sama', () => {
+  const opsi = { peran: 'Entity Admin' };
+  const tanpaSkin = (rows) => rows.map(({ skin, ...menu }) => menu);
+  assert.deepEqual(tanpaSkin(menuUntuk({ ...opsi, skin: 'I' })), tanpaSkin(menuUntuk({ ...opsi, skin: 'classic' })));
+  assert.ok(menuUntuk({ ...opsi, skin: 'i' }).length > 0);
+  assert.equal(cariMenu('Karyawan', { ...opsi, skin: 'I' }).menu.tab, 'employees');
+  const buka = bukaLayarDariPesan('Una, buka halaman Karyawan', { ...opsi, skin: 'i', lingkup: 'gerai' });
+  assert.deepEqual(buka.navigasi, { halaman: 'gerai', tab: 'employees', label: 'Karyawan', skin: 'i' });
+  assert.equal(buka.perluKonfirmasi, false);
+  assert.equal(buka.draft, undefined);
+  const i = jelaskan('resep', { ...opsi, skin: 'i' });
+  const classic = jelaskan('resep', { ...opsi, skin: 'classic' });
+  assert.equal(i.jawaban, classic.jawaban);
+  assert.deepEqual(i.tawaran, classic.tawaran);
+  assert.equal(menuUntuk({ skin: 'i', peran: 'CASHIER' }).length, 0);
+  assert.equal(menuUntuk({ skin: 'i' }).some(m => ['racikbahan', 'cetak'].includes(m.tab)), false);
+});
+
+test('registry server menjadi sumber semua skin, termasuk skin baru tanpa menu khusus', () => {
+  for (const skin of kodeSkinResmi()) assert.ok(PETA_UNA.some(m => m.skin === skin), skin);
+  const profil = baca('src/ui-profile.js').replace("I: 'i'", "I: 'i', J: 'j'");
+  const baru = bangunPeta(baca('public/nav-groups.js'), profil);
+  assert.ok(baru.some(m => m.skin === 'j' && m.tab === 'employees'));
+  assert.throws(() => kodeSkinResmi('registry berubah total'), /Registry skin server berubah/);
 });
 
 for (const [skin,pesan,tab,label] of [
@@ -123,7 +150,9 @@ test('PENJAGA: baseline beku hanya boleh menyusut, tidak menyerap fitur baru',()
   const tracked=execFileSync('git',['ls-tree','HEAD','src/caca-inventaris-panduan.js'],{cwd:AKAR,encoding:'utf8'});
   if(tracked.trim()){
     const lama=execFileSync('git',['show','HEAD:src/caca-inventaris-panduan.js'],{cwd:AKAR,encoding:'utf8'});
-    const match=lama.match(/BELUM_DIAJARKAN\s*=\s*Object\.freeze\((\[[\s\S]*?\])\)/);
+    // Route IDs can contain literal ]) inside JSON strings; only a line-closing
+    // array terminator ends this frozen snapshot. The snapshot/hash stays unchanged.
+    const match=lama.match(/BELUM_DIAJARKAN\s*=\s*Object\.freeze\((\[[\s\S]*?\r?\n\])\);/);
     assert.ok(match,'Baseline HEAD harus bisa diperiksa; jangan ganti menjadi pola dinamis.');
     const sebelum=new Set(JSON.parse(match[1]));
     assert.deepEqual(BELUM_DIAJARKAN.filter(id=>!sebelum.has(id)),[],'BELUM_DIAJARKAN bertambah dibanding HEAD.');

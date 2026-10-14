@@ -5,6 +5,8 @@ import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
 import { hashCredential } from '../src/owner-auth.js';
 import { syncPeopleFacts } from '../src/accounting-auto-sync.js';
+import { createDirectSplit, processDueSchedules } from '../src/accounting-journal-schedules.js';
+import { resolveStore } from '../src/stores.js';
 
 // Bos Cyo, 2026-10-13: riwayat panel Entity, Portal Staf dan Akuntansi tidak sinkron karena aturan
 // pencatatan dulu belum ketat. Keputusan: buku Akuntansi = acuan dan tidak disentuh; tombol
@@ -233,5 +235,68 @@ test('Buku Pembantu: menu di panel Akuntansi dan versi skrip dibump', () => {
   assert.match(ui, /navButton\('buku-pembantu','Buku Pembantu'\)/);
   assert.match(ui, /\/api\/admin\/accounting\/buku-pembantu/);
   assert.match(ui, /\/api\/admin\/accounting\/journal-lines\/\$\{encodeURIComponent\(cell\.dataset\.bpLine\)\}\/party/);
-  assert.match(readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8'), /admin-accounting-workspace\.js\?v=20261013-buku-pembantu-v1/);
+  assert.match(readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8'), /admin-accounting-workspace\.js\?v=20261013-jurnal-split-v1/);
+});
+
+// Bos Cyo, 2026-10-13: "entry baru tapi di split langsung ... ini untuk semua akun" -- Jurnal Split baru
+// tanpa jurnal sumber. Akun hutang/piutang per orang wajib atas nama dan tiap jurnal hariannya bernama
+// (masuk saldo orang itu di Buku Pembantu, bukan "belum bernama").
+const accountId = (db, code) => db.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = 'store_pendem' AND code = ?`).get(code).id;
+const splitJournals = (db, scheduleId) => db.prepare(`
+  SELECT h.business_date, l.side, l.amount_scaled FROM accounting_journal_headers h
+  JOIN accounting_journal_lines l ON l.journal_id = h.id
+  WHERE h.correlation_id = ? AND l.side = 'DEBIT' ORDER BY h.business_date
+`).all(scheduleId);
+
+test('Jurnal Split: sewa lapak 1,5 jt 23 Okt-20 Nov dibagi rata, hari yang tiba langsung diposting', async () => {
+  const { db, env } = await setup();
+  try {
+    const store = await resolveStore(env.DB, 'PENDEM', { includeInactive: true });
+    const result = await createDirectSplit(env.DB, store, {
+      name: 'Sewa lapak Okt-Nov', debitAccountId: accountId(db, '6106'), creditAccountId: accountId(db, '1401'),
+      totalAmount: 1500000, startDate: '2026-10-23', endDate: '2026-11-20'
+    }, { today: '2026-10-25' });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.totalDays, 29);
+    assert.equal(result.perDayAmountScaled, 51724 * 1_000_000);
+    assert.equal(result.lastDayAmountScaled, 51728 * 1_000_000, 'sisa pembulatan ke hari terakhir');
+    assert.deepEqual([result.postedNow, result.waiting], [3, 26]);
+    assert.deepEqual(splitJournals(db, result.scheduleId).map(row => row.business_date), ['2026-10-23', '2026-10-24', '2026-10-25']);
+
+    await processDueSchedules(env.DB, store, { today: '2026-12-01' });
+    const all = splitJournals(db, result.scheduleId);
+    assert.equal(all.length, 29);
+    assert.equal(all.at(-1).business_date, '2026-11-20');
+    assert.equal(all.reduce((sum, row) => sum + Number(row.amount_scaled), 0), 1500000 * 1_000_000, 'total tepat 1,5 jt');
+  } finally { db.close(); }
+});
+
+test('Jurnal Split: akun piutang per orang wajib atas nama, tiap jurnal harian masuk saldo orangnya', async () => {
+  const { db, env } = await setup();
+  try {
+    const store = await resolveStore(env.DB, 'PENDEM', { includeInactive: true });
+    const input = { name: 'Kasbon Sari dicicil', debitAccountId: accountId(db, '1202'), creditAccountId: accountId(db, '1101'), totalAmount: 300000, startDate: '2026-10-01', endDate: '2026-10-03' };
+    const tanpaNama = await createDirectSplit(env.DB, store, input, { today: '2026-10-13' });
+    assert.equal(tanpaNama.ok, false);
+    assert.equal(tanpaNama.code, 'PARTY_REQUIRED');
+
+    const before = (await (await admin(env, 'GET', '/api/admin/accounting/buku-pembantu')).json()).accounts.find(account => account.code === '1202');
+    const result = await createDirectSplit(env.DB, store, { ...input, debitParty: { employeeId: 'emp_sari' } }, { today: '2026-10-13' });
+    assert.equal(result.postedNow, 3);
+    const named = db.prepare(`SELECT COUNT(*) AS n FROM accounting_party_entries p JOIN accounting_journal_headers h ON h.id = p.journal_id WHERE h.correlation_id = ? AND p.employee_id = 'emp_sari'`).get(result.scheduleId).n;
+    assert.equal(named, 3, 'tiap jurnal harian bernama Sari');
+    const after = (await (await admin(env, 'GET', '/api/admin/accounting/buku-pembantu')).json()).accounts.find(account => account.code === '1202');
+    const saldo = account => account.people.find(person => person.name === 'Sari')?.balanceRupiah || 0;
+    assert.equal(saldo(after) - saldo(before), 300000);
+    assert.equal(after.unnamedRupiah, before.unnamedRupiah, 'tidak menambah belum bernama');
+
+    assert.equal((await admin(env, 'POST', '/api/admin/accounting/journal-splits', { ...input, name: 'Akun sama', creditAccountId: input.debitAccountId, debitParty: { employeeId: 'emp_sari' } })).status, 400);
+  } finally { db.close(); }
+});
+
+test('Jurnal Split: menu di panel Akuntansi', () => {
+  const ui = readFileSync(new URL('../public/admin-accounting-workspace.js', import.meta.url), 'utf8');
+  assert.match(ui, /navButton\('journal-split','Jurnal Split'\)/);
+  assert.match(ui, /\/api\/admin\/accounting\/journal-splits/);
+  assert.match(ui, /data-split-party/);
 });

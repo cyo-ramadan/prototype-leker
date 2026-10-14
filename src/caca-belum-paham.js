@@ -77,7 +77,6 @@ export async function catatBelumPaham(request, env, { pertanyaan, riwayat = [], 
   const scope = await scopeFor(request, env);
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + RETENTION_MS).toISOString();
-  await cleanup(env.DB, now);
   const history = bersihkanRiwayat(riwayat);
   // A UUID is a grouping hint only, never evidence of a prior failure or authority.
   const validId = typeof conversationId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(conversationId);
@@ -86,18 +85,34 @@ export async function catatBelumPaham(request, env, { pertanyaan, riwayat = [], 
   const conversation = await hashCredential(JSON.stringify([scope.tenantId, scope.tenancyId, scope.entityId, scope.storeId, scope.key, group]));
   const question = await hashCredential(samarkanTeksBelumPaham(pertanyaan).toLowerCase());
   if (incomplete) {
-    await env.DB.prepare(`INSERT INTO una_belum_paham_observations(conversation_key,question_key,incomplete_count,expires_at)
-      VALUES(?,?,1,?) ON CONFLICT(conversation_key,question_key) DO UPDATE SET incomplete_count=incomplete_count+1,expires_at=excluded.expires_at`).bind(conversation, question, expires).run();
-    const observed = await env.DB.prepare('SELECT incomplete_count FROM una_belum_paham_observations WHERE conversation_key=? AND question_key=?').bind(conversation, question).first();
+    const observed = await env.DB.prepare(`INSERT INTO una_belum_paham_observations(conversation_key,question_key,incomplete_count,expires_at)
+      VALUES(?,?,1,?) ON CONFLICT(conversation_key,question_key) DO UPDATE SET
+      incomplete_count=CASE WHEN una_belum_paham_observations.expires_at<=? THEN 1 ELSE incomplete_count+1 END,
+      expires_at=excluded.expires_at RETURNING incomplete_count`).bind(conversation, question, expires, now).first();
     if (observed?.incomplete_count >= 2) reasons.add('belum_lengkap_berulang');
   }
   if (!reasons.size) return { tercatat: 0 };
+  // Retention cleanup belongs to real case ingestion or queue access, never a first clarification.
+  await cleanup(env.DB, now);
   // No draft payloads, tool arguments, photos, tokens or raw error strings in this queue.
   // SQLite lower() only folds ASCII. Filter ownership in SQL, then match names
   // with Unicode-aware JS so ÉLISE/élise and normalized forms cannot escape masking.
-  const customers = await env.DB.prepare(`SELECT c.customer_name FROM customers c JOIN stores s ON s.id=c.store_id WHERE s.entity_id=? AND c.customer_name<>''`).bind(scope.entityId).all();
-  const names = (customers.results ?? []).map(row => row.customer_name);
-  const mask = value => samarkanTeksBelumPaham(value, names);
+  const customers = await env.DB.prepare(`SELECT CASE WHEN length(c.customer_name)<=128 THEN c.customer_name ELSE NULL END AS customer_name
+    FROM customers c JOIN stores s ON s.id=c.store_id WHERE s.entity_id=? AND c.customer_name<>'' LIMIT 501`).bind(scope.entityId).all();
+  const rows = customers.results ?? [];
+  let overLimit = rows.length > 500;
+  let total = 0;
+  const names = [];
+  for (const row of rows) {
+    const name = row.customer_name;
+    if (typeof name !== 'string' || !normalize(name) || name.length > 128 || /[\p{Cc}\p{Cf}]/u.test(name)) { overLimit = true; break; }
+    total += name.length;
+    if (total > 32768) { overLimit = true; break; }
+    names.push(name);
+  }
+  // Sampling could expose an omitted customer's name. If coverage cannot be
+  // guaranteed within fixed limits, redact every free-text turn and trigger.
+  const mask = overLimit ? () => '[teks disamarkan: daftar pelanggan melebihi batas pemeriksaan]' : value => samarkanTeksBelumPaham(value, names);
   const turns = [...history, { dari: 'saya', teks: pertanyaan }, ...(reply ? [{ dari: 'una', teks: reply }] : [])].slice(-6).map(turn => ({ dari: turn.dari, teks: mask(turn.teks) }));
   const sanitized = bersihkan({ pesan: mask(pertanyaan), giliran: turns }).data;
   const tool = /^[a-z][a-z0-9_]{0,70}$/.test(String(hasil.alat ?? '')) ? hasil.alat : null;

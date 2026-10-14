@@ -82,6 +82,45 @@
       "bytes": 1308092,
       "sha256": "3bb1fa2688d0a0f1fffdb7e968c03dc4098f978870af6ea2443f103297b440cc",
       "runtimeUrl": null
+    },
+    {
+      "id": "skin-i-admin-mobile-v1",
+      "path": "design-assets/previews/skin-i-v1/skin-i-admin-mobile-v1.jpg",
+      "role": "ui-preview",
+      "width": 375,
+      "height": 812,
+      "bytes": 44302,
+      "sha256": "d1a9bf2e7d242da7f3bac488257657a4c71601f2124c6ab4065302e39e342fbc",
+      "runtimeUrl": null,
+      "description": "Local fixture with original branch-admin HTML/CSS and mock ui-profile; not production tenant data",
+      "requestedViewport": "390x844",
+      "mimeType": "image/jpeg"
+    },
+    {
+      "id": "skin-i-modal-mobile-v1",
+      "path": "design-assets/previews/skin-i-v1/skin-i-modal-mobile-v1.jpg",
+      "role": "ui-preview",
+      "width": 375,
+      "height": 812,
+      "bytes": 33632,
+      "sha256": "3b4552b9b0603d799d70479178dbde37dc04934e1e75615cf5dcce4ee1811220",
+      "runtimeUrl": null,
+      "description": "Local fixture with original branch-admin HTML/CSS and mock ui-profile; not production tenant data",
+      "requestedViewport": "390x844",
+      "mimeType": "image/jpeg"
+    },
+    {
+      "id": "skin-i-admin-desktop-v1",
+      "path": "design-assets/previews/skin-i-v1/skin-i-admin-desktop-v1.jpg",
+      "role": "ui-preview",
+      "width": 1265,
+      "height": 791,
+      "bytes": 88034,
+      "sha256": "4ffe9b33eefa04365ab2921f33fb14196c0c2e45f8ee7ee33d93955b3bbe2bc3",
+      "runtimeUrl": null,
+      "description": "Local fixture with original branch-admin HTML/CSS and mock ui-profile; not production tenant data",
+      "requestedViewport": "1280x800",
+      "mimeType": "image/jpeg"
     }
   ]
 }

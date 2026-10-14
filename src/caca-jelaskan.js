@@ -191,6 +191,12 @@ export const KAMUS = Object.freeze([
     tanpaAksi: 'angkanya ditanyakan langsung ("untung hari ini berapa?") — alat bacanya bukan alat tulis'
   },
   {
+    id: 'jurnal_split', judul: 'Jurnal Split harian',
+    kunci: ['jurnal split', 'split jurnal', 'bagi jurnal per hari', 'jurnal dibagi harian'],
+    isi: 'Di layar Akuntansi pilih Jurnal Split. Isi Keterangan, akun Debit dan Kredit yang aktif dan berbeda, total rupiah serta tanggal awal dan akhir. Untuk akun hutang atau piutang per orang, isi atas nama yang diminta. Periksa pratinjau lalu tekan Buat Jurnal Split dan konfirmasi. Total dibagi rata per hari; sisa pembulatan masuk hari terakhir. Tanggal yang sudah tiba diproses saat dibuat, tanggal berikutnya menunggu proses jadwal saat jatuh tempo; kegagalan posting ditampilkan. Ini entry baru, tidak memerlukan jurnal sumber. Una dapat menjelaskan dan membuka layar; pembuatan split dilakukan melalui formulir Akuntansi.',
+    tawaran: [buka('accountingWorkspaceTab')], tanpaAksi: 'belum ada alat Una untuk membuat jadwal split; gunakan formulir Akuntansi'
+  },
+  {
     id: 'jurnal',
     judul: 'Jurnal',
     kunci: ['jurnal', 'debit', 'kredit', 'posting', 'pembukuan', 'akuntansi'],

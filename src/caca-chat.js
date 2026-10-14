@@ -23,9 +23,7 @@ import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 import { handleCacaWorkspaceApi } from './caca-workspace.js';
-import { resolveUiProfile } from './ui-profile.js';
-import { resolveTenantId } from './tenant-policy.js';
-import { bacaPengaturanAsisten, sesuaikanNamaBalasan, handlePengaturanAsisten } from './caca-pengaturan.js';
+import { bacaKonteksAsisten, sesuaikanNamaBalasan, handlePengaturanAsisten } from './caca-pengaturan.js';
 import { catatBelumPaham, handleCacaBelumPahamApi } from './caca-belum-paham.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -229,10 +227,9 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
 // jurnal entity sendiri hanya menerima sesi Entity Admin, dan Owner tidak
 // punya satu entity yang jelas.
 async function lengkapiLingkup(env, lingkup, principal, entityId) {
-  const tenantId = lingkup.store?.tenantId || await resolveTenantId(env.DB, entityId);
-  const profil = await resolveUiProfile(env.DB, { storeCode: lingkup.storeCode, entityId });
-  const pengaturan = await bacaPengaturanAsisten(env.DB, tenantId);
-  return { ...lingkup, tenantId, principal, konteks: { ...lingkup.konteks, skin: profil.skin, namaAsisten: pengaturan.namaAsisten } };
+  const pengaturan = await bacaKonteksAsisten(env.DB, entityId);
+  if (lingkup.store?.tenantId && pengaturan.tenantId !== lingkup.store.tenantId) return { ok: false, response: json({ error: 'Lingkup tenant berubah. Muat ulang percakapan.', code: 'CACA_SCOPE_CHANGED' },409) };
+  return { ...lingkup, tenantId: pengaturan.tenantId, principal, asistenAktif: pengaturan.aktif, konteks: { ...lingkup.konteks, skin: pengaturan.profil.skin, namaAsisten: pengaturan.namaAsisten } };
 }
 async function lingkupPenyuruh(request, env) {
   const url = new URL(request.url);
@@ -259,6 +256,7 @@ async function lingkupPenyuruh(request, env) {
   if (!auth.ok) return { ok: false, response: auth.response };
   const store = await selectedStore(env.DB, request);
   if (!store) return { ok: false, response: json({ error: 'Gerainya belum ketemu nih.' }, 404) };
+  if (auth.entityAdmin && store.entityId !== auth.entityAdmin.entityId) return { ok: false, response: json({ error: 'Gerai sudah berpindah lingkup.', code: 'CACA_SCOPE_CHANGED' },403) };
   const konteks = konteksPenyuruh(auth, store);
   if (!konteks) {
     return { ok: false, response: json({ error: 'Una baru bisa diajak ngobrol oleh Owner dan Entity Admin.', code: 'CACA_PERAN_BELUM_DIIKUTKAN' }, 403) };
@@ -266,7 +264,19 @@ async function lingkupPenyuruh(request, env) {
   return lengkapiLingkup(env, { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } }, { role: auth.authType, id: auth.owner?.id || auth.entityAdmin?.id }, store.entityId);
 }
 
-async function tanya(request, env, jalurUtama) {
+// Diagnostic writes are best-effort background work in Workers. Direct callers
+// await the same caught promise; no detached I/O or request state in globals.
+async function catatDiagnosis(request, env, details, waitUntil) {
+  const task = catatBelumPaham(request, env, details).catch(() => {
+    console.warn('una diagnostic recording unavailable', { code: 'UNA_DIAGNOSTIC_UNAVAILABLE' });
+  });
+  if (typeof waitUntil === 'function') {
+    try { waitUntil(task); return; } catch { /* fallback keeps the promise observed */ }
+  }
+  await task;
+}
+
+async function tanya(request, env, jalurUtama, waitUntil) {
   const lingkup = await lingkupPenyuruh(request, env);
   if (!lingkup.ok) return lingkup.response;
 
@@ -297,10 +307,10 @@ async function tanya(request, env, jalurUtama) {
     // Tugas yang tadi belum lengkap (data tak tepercaya, dibersihkan di caca-tertunda.js).
     tertunda: body.value?.tertunda
   }); } catch (error) {
-    await catatBelumPaham(request, env, { pertanyaan, riwayat: konteks.riwayat, kegagalan: 'model_gagal', conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261013-una-v1' }).catch(() => {});
+    await catatDiagnosis(request, env, { pertanyaan, riwayat: konteks.riwayat, kegagalan: 'model_gagal', conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261014-una-v2' }, waitUntil);
     throw error;
   }
-  await catatBelumPaham(request, env, { pertanyaan, riwayat: konteks.riwayat, hasil, conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261013-una-v1', kegagalan: hasil.menuTidakDitemukan ? 'menu_tidak_ditemukan' : !hasil.ok ? 'model_gagal' : null }).catch(() => {});
+  await catatDiagnosis(request, env, { pertanyaan, riwayat: konteks.riwayat, hasil, conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261014-una-v2', kegagalan: hasil.menuTidakDitemukan ? 'menu_tidak_ditemukan' : !hasil.ok ? 'model_gagal' : null }, waitUntil);
   hasil = sesuaikanNamaBalasan(hasil, konteks.namaAsisten);
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
@@ -531,7 +541,7 @@ async function catat(request, env, jalurUtama) {
  * @param {(request: Request) => Promise<Response>} [pilihan.jalurUtama] pintu masuk
  *   utama program (handleApi di index.js) untuk semua tulisan Una.
  */
-export async function handleCacaApi(request, env, pathname, { jalurUtama } = {}) {
+export async function handleCacaApi(request, env, pathname, { jalurUtama, waitUntil } = {}) {
   if (!pathname.startsWith('/api/caca/')) return null;
   if (pathname === '/api/caca/pengaturan') return handlePengaturanAsisten(request, env, lingkupPenyuruh);
   if (pathname === '/api/caca/belum-paham' || pathname.startsWith('/api/caca/belum-paham/')) return handleCacaBelumPahamApi(request, env, pathname);
@@ -568,7 +578,7 @@ export async function handleCacaApi(request, env, pathname, { jalurUtama } = {})
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/tanya') {
-    return tanya(request, env, jalurUtama);
+    return tanya(request, env, jalurUtama, waitUntil);
   }
 
   if (request.method === 'POST' && pathname === '/api/caca/catat') {
@@ -597,7 +607,7 @@ export async function handleCacaApi(request, env, pathname, { jalurUtama } = {})
     const lingkup = await lingkupPenyuruh(scopedRequest, env);
     if (!lingkup.ok) return lingkup.response;
     const hasil = sesuaikanNamaBalasan(denganTawaranKerja(jelaskan(new URL(request.url).searchParams.get('topik'), { skin: lingkup.konteks.skin, peran: lingkup.konteks.peran, halaman: lingkup.konteks.lingkup === 'entity' ? 'entity' : 'gerai' })), lingkup.konteks.namaAsisten);
-    if (!hasil.dikenal) await catatBelumPaham(scopedRequest, env, { pertanyaan: new URL(request.url).searchParams.get('topik'), hasil, kegagalan: 'topik_tidak_ditemukan', versi: env.CF_VERSION_METADATA?.id || '20261013-una-v1' }).catch(() => {});
+    if (!hasil.dikenal) await catatDiagnosis(scopedRequest, env, { pertanyaan: new URL(request.url).searchParams.get('topik'), hasil, kegagalan: 'topik_tidak_ditemukan', versi: env.CF_VERSION_METADATA?.id || '20261014-una-v2' }, waitUntil);
     const { kerjakan: _alat, ...keluar } = hasil;
     return json({ ...keluar, jawaban: bumbui(hasil.jawaban, hasil.dikenal ? [] : ['tanya']) });
   }

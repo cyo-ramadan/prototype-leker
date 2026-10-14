@@ -13,7 +13,9 @@
     profitLoss: null,
     balanceSheet: null,
     // Buku Pembantu Hutang Piutang: data ringkasan, akun terpilih, pencarian, nama terpilih, mutasinya.
-    bp: { data: null, account: '1202', query: '', key: '', mutasi: null, options: null }
+    bp: { data: null, account: '1202', query: '', key: '', mutasi: null, options: null },
+    // Jurnal Split baru: isian form (dipertahankan saat render ulang karena pilihan akun berubah).
+    split: { name: '', debitAccountId: '', creditAccountId: '', total: '', startDate: '', endDate: '', debitParty: {}, creditParty: {} }
   };
 
   async function api(path, options = {}) {
@@ -126,6 +128,7 @@
           ${navButton('accounts','Data Akun')}
           ${navButton('schedules','Beban Rutin')}
           ${navButton('journal-create','Buat Jurnal')}
+          ${navButton('journal-split','Jurnal Split')}
           ${navButton('journals','Data Jurnal')}
           ${navButton('ledger','Buku Besar')}
           ${navButton('buku-pembantu','Buku Pembantu')}
@@ -163,6 +166,7 @@
     if (state.view === 'accounts') renderAccounts(host);
     else if (state.view === 'schedules') renderSchedules(host);
     else if (state.view === 'journal-create') renderJournalCreate(host);
+    else if (state.view === 'journal-split') renderJournalSplit(host);
     else if (state.view === 'journals') renderJournals(host);
     else if (state.view === 'ledger') renderLedger(host);
     else if (state.view === 'buku-pembantu') renderBukuPembantu(host);
@@ -692,6 +696,97 @@
       toast(`Baris diberi nama ${result.party?.name || ''}`);
       await loadBukuPembantu();
     } catch (error) { toast(error.message); cell.querySelector('[data-bp-save]').disabled = false; }
+  }
+
+  // --- Jurnal Split baru (Bos Cyo, 2026-10-13) ------------------------------------------------------
+  // "entry baru tapi di split langsung ... sistem langsung membagi ... kedalam range harian, lalu entry
+  // per tanggalnya ... ini untuk semua akun." Semua akun aktif; total dibagi rata per hari, sisa
+  // pembulatan ke hari terakhir; hari yang sudah tiba langsung diposting, sisanya otomatis saat harinya
+  // tiba. Akun hutang/piutang per orang wajib "atas nama" (src/accounting-journal-schedules.js).
+  function splitDays(start, end) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || end < start) return 0;
+    return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1;
+  }
+
+  function splitPartyHtml(side) {
+    const f = state.split;
+    const kind = partyKindFor(side === 'debit' ? f.debitAccountId : f.creditAccountId);
+    if (!kind) return '';
+    const party = f[`${side}Party`] || {};
+    const options = state.partyOptions || { employees: [], suppliers: [] };
+    const pick = (rows, placeholder, key) => `<select class="acct-select" data-split-party="${side}" data-split-party-key="${key}"><option value="">${placeholder}</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === party[key] ? 'selected' : ''}>${esc(row.name)}</option>`).join('')}</select>`;
+    const nameInput = placeholder => `<input class="acct-input" data-split-party="${side}" data-split-party-key="name" maxlength="120" value="${esc(party.name || '')}" placeholder="${placeholder}" />`;
+    let body;
+    if (kind === 'EMPLOYEE') body = pick(options.employees, 'Pilih karyawan…', 'employeeId');
+    else if (kind === 'SUPPLIER') body = `${pick(options.suppliers, 'Pilih pemasok…', 'supplierId')}<div style="margin-top:4px">${nameInput('…atau tulis nama kalau pemasok belum terdaftar')}</div>`;
+    else body = nameInput('Nama pihak (wajib)');
+    return `<label class="acct-field"><span>Atas nama ${side === 'debit' ? 'akun Debit' : 'akun Kredit'} (wajib untuk piutang/hutang)</span>${body}</label>`;
+  }
+
+  function splitPreviewHtml() {
+    const f = state.split;
+    const days = splitDays(f.startDate, f.endDate);
+    const total = Number(f.total);
+    if (!days || !Number.isSafeInteger(total) || total <= 0) return '<p class="acct-code">Isi total dan rentang tanggal untuk melihat pembagian per hari.</p>';
+    if (total < days) return '<p class="acct-code">Total terlalu kecil untuk dibagi ke semua hari.</p>';
+    const base = Math.floor(total / days);
+    const last = total - base * (days - 1);
+    return `<p><b>${days} jurnal harian</b> · ${f.startDate} s/d ${f.endDate} · Rp${integerFormat.format(base)} per hari${last !== base ? `, hari terakhir Rp${integerFormat.format(last)}` : ''} · total Rp${integerFormat.format(total)}</p>`;
+  }
+
+  function renderJournalSplit(host) {
+    if (!state.partyOptions && !state.partyOptionsLoading) {
+      state.partyOptionsLoading = true;
+      api('/api/admin/accounting/party-options')
+        .then(options => { state.partyOptions = options; })
+        .catch(() => {})
+        .finally(() => { state.partyOptionsLoading = false; if (state.view === 'journal-split') renderJournalSplit(host); });
+    }
+    const f = state.split;
+    if (!f.startDate) f.startDate = state.bootstrap.currentBusinessDate;
+    host.innerHTML = `<div class="acct-page"><div class="acct-head"><div><h2>Jurnal Split</h2><p>Satu entry yang langsung dibagi rata per hari. Contoh: Debit Beban Sewa Lapak, Kredit Uang Muka / Deposit, total Rp1.500.000, 23 Okt s/d 20 Nov. Tanggal yang sudah tiba langsung diposting; tanggal berikutnya diposting otomatis saat harinya tiba. Sisa pembulatan masuk ke hari terakhir.</p></div></div>
+      <form id="acctSplitForm" class="acct-card">
+        <label class="acct-field"><span>Keterangan</span><input class="acct-input" data-split-field="name" maxlength="100" value="${esc(f.name)}" placeholder="Contoh: Sewa lapak Okt–Nov" required /></label>
+        <label class="acct-field"><span>Akun Debit</span><select class="acct-select" data-split-field="debitAccountId">${accountOptions(f.debitAccountId)}</select></label>
+        ${splitPartyHtml('debit')}
+        <label class="acct-field"><span>Akun Kredit</span><select class="acct-select" data-split-field="creditAccountId">${accountOptions(f.creditAccountId)}</select></label>
+        ${splitPartyHtml('credit')}
+        <label class="acct-field"><span>Total (Rp)</span><input class="acct-input" data-split-field="total" type="number" min="1" step="1" value="${esc(f.total)}" required /></label>
+        <div class="acct-filters"><label class="acct-field"><span>Dari tanggal</span><input class="acct-input" data-split-field="startDate" type="date" value="${esc(f.startDate)}" required /></label><label class="acct-field"><span>Sampai tanggal</span><input class="acct-input" data-split-field="endDate" type="date" value="${esc(f.endDate)}" required /></label></div>
+        <div id="acctSplitPreview">${splitPreviewHtml()}</div>
+        <button class="acct-btn primary" type="submit">Buat Jurnal Split</button>
+      </form></div>`;
+    host.querySelectorAll('[data-split-field]').forEach(input => input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
+      const key = input.dataset.splitField;
+      f[key] = input.value;
+      if (key === 'debitAccountId') f.debitParty = {};
+      if (key === 'creditAccountId') f.creditParty = {};
+      if (key === 'debitAccountId' || key === 'creditAccountId') renderJournalSplit(host);
+      else el('acctSplitPreview').innerHTML = splitPreviewHtml();
+    }));
+    host.querySelectorAll('[data-split-party]').forEach(input => input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
+      f[`${input.dataset.splitParty}Party`] = { ...f[`${input.dataset.splitParty}Party`], [input.dataset.splitPartyKey]: input.value };
+    }));
+    el('acctSplitForm').addEventListener('submit', event => { event.preventDefault(); submitJournalSplit(host); });
+  }
+
+  async function submitJournalSplit(host) {
+    const f = state.split;
+    const days = splitDays(f.startDate, f.endDate);
+    if (!days) return toast('Rentang tanggal belum benar');
+    if (!f.debitAccountId || !f.creditAccountId) return toast('Pilih akun Debit dan Kredit');
+    if (!window.confirm(`Buat ${days} jurnal harian "${f.name}" sebesar total Rp${integerFormat.format(Number(f.total) || 0)}?`)) return;
+    try {
+      const result = await api('/api/admin/accounting/journal-splits', { method: 'POST', body: JSON.stringify({
+        name: f.name, debitAccountId: f.debitAccountId, creditAccountId: f.creditAccountId, totalAmount: Number(f.total),
+        startDate: f.startDate, endDate: f.endDate, debitParty: f.debitParty, creditParty: f.creditParty
+      }) });
+      toast(result.failure
+        ? `Jurnal Split dibuat, tapi posting tertahan: ${result.failure.error}`
+        : `Jurnal Split dibuat: ${result.postedNow} jurnal sudah diposting, ${result.waiting} menunggu tanggalnya`);
+      state.split = { name: '', debitAccountId: '', creditAccountId: '', total: '', startDate: '', endDate: '', debitParty: {}, creditParty: {} };
+      await load(true);
+    } catch (error) { toast(error.message); }
   }
 
   function renderProfitLoss(host) {

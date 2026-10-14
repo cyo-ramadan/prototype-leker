@@ -166,4 +166,8 @@ Detail: `adr/ADR-055-tenant-percetakan-order-wa.md`, `HANDOFF-PERCETAKAN.md`.
 
 Untuk pemilik beberapa gerai yang sekaligus menjadi Admin Entity. Portal Admin di atas mengelola seluruh gerai dan persetujuannya; kasir Kantor berada di bawah. Tema pantai: biru laut, cyan, kuning pasir, panel buih, Nunito Sans. Detail: [DESAIN-SKIN-H-OWNER-ADMIN.md](DESAIN-SKIN-H-OWNER-ADMIN.md). Gambar, prompt, dan panduan aset: [design-assets/README.md](design-assets/README.md).
 
-<!-- DOC-IMPACT: 2026-10-13 katalog H dan library aset. 2026-10-10 skin G (Percetakan). 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->
+## I - Pantai Klasik
+
+Untuk tenant yang ingin tema pantai kuning/turquoise seperti H dengan cara pakai skin 0 yang sama persis. Semua menu, teks, ukuran, layout, font, modal, dan aturan operasional mengikuti 0; hanya warna, background, bentuk dan shadow komponen yang berubah. Tidak mengaktifkan fitur atau aturan H. Detail: [DESAIN-SKIN-I-PANTAI-KLASIK.md](DESAIN-SKIN-I-PANTAI-KLASIK.md).
+
+<!-- DOC-IMPACT: 2026-10-13 skin I (tema pantai dengan layout/perilaku klasik). 2026-10-13 katalog H dan library aset. 2026-10-10 skin G (Percetakan). 2026-10-02 dokumen baru; katalog skin 0/A/B/C/D/E dengan persona, masalah, janji, batas. 2026-10-06 skin F (Racik Parfum). -->

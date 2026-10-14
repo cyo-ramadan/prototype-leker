@@ -1,5 +1,6 @@
 import { getAccountingJournal, postAccountingJournal } from './accounting-ledger.js';
 import { getJakartaBusinessDate } from './time.js';
+import { prepareJournalParties } from './accounting-party-ledger.js';
 
 // ADR-049, Bos Cyo 2026-09-28: "Pembuat & Split Jurnal Beban" -- mengganti pekerjaan
 // akuntan manusia. Satu mesin jadwal dipakai untuk dua fitur:
@@ -181,6 +182,98 @@ export function splitEligibility(journal) {
   return { eligible: true, assetLine: assetDebitLine };
 }
 
+// Pembagian exact: semua hari kecuali terakhir dapat pembagian genap (dibulatkan ke bawah), sisanya
+// ditambahkan ke hari TERAKHIR -- bukan dibiarkan hilang, bukan lewat akun Penyesuaian (invariant #1
+// dan #3: uang integer, tanpa toleransi untuk hasil algoritma sendiri).
+// unitScaled: satuan pembagian. Split lama membagi exact sampai 6 desimal (unit 1); Jurnal Split baru
+// membagi per rupiah utuh (unit SCALE) supaya nominal harian sama dengan pratinjau di form.
+function splitShares(totalAmountScaled, totalDays, unitScaled = 1) {
+  const baseShare = Math.floor(totalAmountScaled / totalDays / unitScaled) * unitScaled;
+  return { baseShare, lastShare: totalAmountScaled - baseShare * (totalDays - 1) };
+}
+
+function splitRange(input) {
+  const startDate = text(input?.startDate, 10);
+  const endDate = text(input?.endDate, 10);
+  if (!isValidDate(startDate) || !isValidDate(endDate) || endDate < startDate) {
+    return { ok: false, status: 400, code: 'SPLIT_DATE_RANGE_INVALID', error: 'Rentang tanggal split tidak valid.' };
+  }
+  const totalDays = daysBetweenInclusive(startDate, endDate);
+  if (totalDays < 1 || totalDays > 1096) { // ~3 tahun, pagar akal sehat
+    return { ok: false, status: 400, code: 'SPLIT_RANGE_TOO_LONG', error: 'Rentang tanggal split terlalu panjang.' };
+  }
+  return { ok: true, startDate, endDate, totalDays };
+}
+
+function occurrenceStatements(db, store, scheduleId, { startDate, totalDays, baseShare, lastShare }) {
+  const statements = [];
+  for (let i = 0; i < totalDays; i += 1) {
+    statements.push(db.prepare(`
+      INSERT INTO accounting_journal_schedule_occurrences (id, schedule_id, store_id, occurrence_date, amount_scaled)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(`occ_${scheduleId}_${i}`, scheduleId, store.id, addDaysISO(startDate, i), i === totalDays - 1 ? lastShare : baseShare));
+  }
+  return statements;
+}
+
+// Bos Cyo, 2026-10-13: "entry baru tapi di split langsung ... ini untuk semua akun." Jurnal Split
+// tanpa jurnal sumber: akun debit & kredit bebas (semua akun aktif, harus berbeda), total dibagi rata
+// per hari pada rentang tanggal. Hari yang sudah tiba langsung diposting; hari berikutnya diposting
+// otomatis saat tanggalnya tiba (lazy catch-up yang sama dengan Split/Beban Rutin, ADR-049). Akun
+// hutang/piutang per orang wajib "atas nama" (sama dengan jurnal manual) dan nama itu ikut di setiap
+// jurnal hariannya (migration 0154).
+export async function createDirectSplit(db, store, input, { today = getJakartaBusinessDate() } = {}) {
+  const name = text(input?.name, 100);
+  if (!name) return { ok: false, status: 400, code: 'SPLIT_NAME_REQUIRED', error: 'Keterangan jurnal wajib diisi.' };
+  const totalAmountScaled = positiveScaledFromRupiah(input?.totalAmount);
+  if (!totalAmountScaled) return { ok: false, status: 400, code: 'SPLIT_AMOUNT_INVALID', error: 'Total wajib bilangan bulat rupiah positif.' };
+  const range = splitRange(input);
+  if (!range.ok) return range;
+  const debitAccount = await activeAccountOfType(db, store.id, text(input?.debitAccountId, 180), null);
+  const creditAccount = await activeAccountOfType(db, store.id, text(input?.creditAccountId, 180), null);
+  if (!debitAccount || !creditAccount) return { ok: false, status: 400, code: 'SPLIT_ACCOUNT_INVALID', error: 'Akun Debit dan Kredit wajib akun aktif gerai ini.' };
+  if (debitAccount.id === creditAccount.id) return { ok: false, status: 400, code: 'SPLIT_ACCOUNT_SAME', error: 'Akun Debit dan Kredit harus berbeda.' };
+  const prepared = await prepareJournalParties(db, store, [
+    { accountId: debitAccount.id, party: input?.debitParty },
+    { accountId: creditAccount.id, party: input?.creditParty }
+  ]);
+  if (!prepared.ok) return prepared;
+  const [debitParty, creditParty] = prepared.parties;
+  if (totalAmountScaled < range.totalDays * SCALE) {
+    return { ok: false, status: 400, code: 'SPLIT_AMOUNT_TOO_SMALL', error: 'Total terlalu kecil untuk dibagi ke semua hari (minimal Rp1 per hari).' };
+  }
+  const { baseShare, lastShare } = splitShares(totalAmountScaled, range.totalDays, SCALE);
+  const scheduleId = `sched_${store.id}_${crypto.randomUUID()}`;
+  await db.batch([
+    db.prepare(`
+      INSERT INTO accounting_journal_schedules (
+        id, store_id, kind, name, debit_account_id, credit_account_id, total_amount_scaled,
+        start_date, end_date, recurrence_type, recurrence_value, total_occurrences,
+        auto_create, source_journal_id, debit_party_json, credit_party_json
+      ) VALUES (?, ?, 'SPLIT', ?, ?, ?, ?, ?, ?, 'DAILY', 0, ?, 1, NULL, ?, ?)
+    `).bind(
+      scheduleId, store.id, name, debitAccount.id, creditAccount.id, totalAmountScaled,
+      range.startDate, range.endDate, range.totalDays,
+      debitParty ? JSON.stringify(debitParty) : null, creditParty ? JSON.stringify(creditParty) : null
+    ),
+    ...occurrenceStatements(db, store, scheduleId, { startDate: range.startDate, totalDays: range.totalDays, baseShare, lastShare })
+  ]);
+  const processed = await processDueSchedules(db, store, { today });
+  const postedNow = processed.posted.filter(row => row.scheduleId === scheduleId).length;
+  const failed = processed.failed.find(row => row.scheduleId === scheduleId) || null;
+  return {
+    ok: true,
+    scheduleId,
+    totalDays: range.totalDays,
+    totalAmountScaled,
+    perDayAmountScaled: baseShare,
+    lastDayAmountScaled: lastShare,
+    postedNow,
+    waiting: range.totalDays - postedNow,
+    failure: failed ? { code: failed.code, error: failed.error } : null
+  };
+}
+
 export async function createSplitPlan(db, store, input) {
   const sourceJournalId = text(input?.sourceJournalId, 180);
   const journal = sourceJournalId ? await getAccountingJournal(db, store.id, sourceJournalId) : null;
@@ -207,12 +300,7 @@ export async function createSplitPlan(db, store, input) {
   if (!contraAccount) return { ok: false, status: 400, code: 'CONTRA_ACCOUNT_INVALID', error: 'Akun Lawan wajib akun aktif.' };
 
   const totalAmountScaled = eligibility.assetLine.amountScaled;
-  // Pembagian exact: semua hari kecuali terakhir dapat pembagian genap
-  // (dibulatkan ke bawah), sisanya ditambahkan ke hari TERAKHIR -- bukan
-  // dibiarkan hilang, bukan lewat akun Penyesuaian (invariant #1 dan #3:
-  // uang integer, tanpa toleransi untuk hasil algoritma sendiri).
-  const baseShare = Math.floor(totalAmountScaled / totalDays);
-  const lastShare = totalAmountScaled - baseShare * (totalDays - 1);
+  const { baseShare, lastShare } = splitShares(totalAmountScaled, totalDays);
 
   const scheduleId = `sched_${store.id}_${crypto.randomUUID()}`;
   const statements = [
@@ -227,16 +315,14 @@ export async function createSplitPlan(db, store, input) {
       totalAmountScaled, startDate, endDate, totalDays, sourceJournalId
     )
   ];
-  for (let i = 0; i < totalDays; i += 1) {
-    const occurrenceDate = addDaysISO(startDate, i);
-    const amountScaled = i === totalDays - 1 ? lastShare : baseShare;
-    statements.push(db.prepare(`
-      INSERT INTO accounting_journal_schedule_occurrences (id, schedule_id, store_id, occurrence_date, amount_scaled)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(`occ_${scheduleId}_${i}`, scheduleId, store.id, occurrenceDate, amountScaled));
-  }
+  statements.push(...occurrenceStatements(db, store, scheduleId, { startDate, totalDays, baseShare, lastShare }));
   await db.batch(statements);
   return { ok: true, scheduleId, totalDays, totalAmountScaled, perDayAmountScaled: baseShare, lastDayAmountScaled: lastShare };
+}
+
+function parseParty(value) {
+  if (!value) return null;
+  try { return JSON.parse(value); } catch { return null; }
 }
 
 async function postOccurrence(db, store, schedule, occurrence, businessDate) {
@@ -255,7 +341,9 @@ async function postOccurrence(db, store, schedule, occurrence, businessDate) {
     journalLines: [
       { accountId: schedule.debit_account_id, side: 'DEBIT', amountScaled: occurrence.amount_scaled, description },
       { accountId: schedule.credit_account_id, side: 'CREDIT', amountScaled: occurrence.amount_scaled, description }
-    ]
+    ],
+    // "Atas nama" per sisi (migration 0154) -- jurnal harian akun hutang/piutang ikut bernama.
+    lineParties: [parseParty(schedule.debit_party_json), parseParty(schedule.credit_party_json)]
   });
   if (result?.ok === false) return result;
   const journalId = result.journal?.journalId;

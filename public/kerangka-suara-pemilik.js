@@ -79,7 +79,7 @@
     function message(jenis, pcm) {
       valid();
       if (!worker) {
-        worker = workerFactory ? workerFactory() : new global.Worker('/kerangka-suara-model-worker.js?v=20261013-una-v1', { type: 'module' });
+        worker = workerFactory ? workerFactory() : new global.Worker('/kerangka-suara-model-worker.js?v=20261014-una-v2', { type: 'module' });
         worker.onmessage = event => {
           const item = pending.get(event.data?.id); if (!item) return;
           if (event.data.progress) { onProgress(event.data.progress); return; }
@@ -137,7 +137,7 @@
         if (untukLive && !headset && !settings.echoCancellation) throw new Error('Peredam gema mikrofon belum aktif.');
         const Context = global.AudioContext || global.webkitAudioContext;
         audio.context = new Context({ sampleRate: 16000 });
-        await audio.context.audioWorklet.addModule('/kerangka-suara-audio.js?v=20261013-una-v1'); valid(gen);
+        await audio.context.audioWorklet.addModule('/kerangka-suara-audio.js?v=20261014-una-v2'); valid(gen);
         audio.node = new global.AudioWorkletNode(audio.context, 'kerangka-suara-pcm');
         audio.source = audio.context.createMediaStreamSource(stream);
         audio.mute = audio.context.createGain(); audio.mute.gain.value = 0;

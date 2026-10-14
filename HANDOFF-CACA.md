@@ -13,13 +13,24 @@ Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
 ---
 
+## Update pemeriksaan rilis 2026-10-14 — performa
+
+Bos Cyo mengizinkan publikasi untuk tes langsung, lalu mensyaratkan jangan dipasang bila memperlambat pengguna secara signifikan. Status saat audit: **belum push/deploy**, produksi belum diubah.
+
+- Baseline main6a875c0 diselaraskan lokal; skinI menggunakan menu classic melalui registry server, dan panduan Jurnal Split mengikuti implementasi main. Migration antrean0155 tidak bentrok dengan0154 Jurnal Split.
+- Audit browser48pengukuran bergantian (23sampel per versi setelah warmup): median inisialisasi11,7→25,8ms, buka chat32,4→32,8ms. Suara OFF:0model/Worker/audio,0error; tambahan JS+CSSgzip sekitar9,1KiB. Script pemilik dimuat hanya saat pengaturan suara/mikrofon, model tetap atas tindakan eksplisit. Tidak ada klaim Core Web Vitals/HP/latensi produksi.
+- Backend: konteks skin+nama satu lookup indexed (+1statement terhadap baseline); balasan sehat tanpa diagnostic I/O. Recorder waitUntil tidak menahan response; klarifikasi pertama tanpa cleanup global dan counter atomik. Pelanggan dibaca maksimal501baris, nama128karakter/total32.768; melampaui batas membuat semua teks tersamarkan agar nama di luar sampel aman. Migration0155 menambah index entity pada stores; plan diuji lokal, harus dicek lagi produksi setelah deploy.
+- Kamus: suara_una/nama_una serta lima panduan barang/supplier ditinjau ulang karena pemuatan malas dan cache-version HTML; perilaku bisnis tetap sama. Entri lain yang terdampak main sudah ditinjau, baseline cakupan tetap beku. Parser baseline HEAD pada tes diperbaiki agar pola route yang berisi `])` tidak memotong JSON.
+- Bukti/metode/batas klaim: `audit/2026-10-14-una-performa.md`, data mentah JSON dan `scripts/fixtures/una-perf-local.mjs`.
+- Kesimpulan sementara: tidak teramati pelambatan signifikan pada uji lokal suara OFF setelah perbaikan; lanjut gerbang rilis sesuai izin, tahan bila ditemukan regresi. Bukan bukti seluruh perangkat aman/fitur sudah live. Browser web tetap didukung. Budi belum dipasang.
+
 ## Update lokal 2026-10-13 — Codex: kamus, antrean, navigasi, suara
 
 Status: **implementasi worktree lokal, belum dirilis/merge atau migration produksi**.
 Branch `codex/una-telepon-20261013`, worktree `C:/Users/Asus/leker-una-suara`, basis `f9da386`.
 Kode dirty pada folder `prototype-leker` tidak ditimpa.
 
-- T-KAMUS: peta classic/A–H dan peran, inventaris route/tombol/pola tulis, sumber serta hash makna yang harus ditinjau. Baseline inventaris dibekukan; fitur baru tidak otomatis dianggap sudah diajarkan.
+- T-KAMUS: peta classic/A–I dan peran, inventaris route/tombol/pola tulis, sumber serta hash makna yang harus ditinjau. Baseline inventaris dibekukan; fitur baru tidak otomatis dianggap sudah diajarkan.
 - T-GAGAL: antrean kegagalan server per tenant/entity/gerai, snapshot tersamarkan maksimum enam giliran, dedup dan retensi 60 hari berbasis kejadian. Snapshot ownership menggunakan FK `entity_tenancy_id` (ADR-030), bukan duplikasi tenant_id pada fakta; perpindahan ownership tidak membocorkan antrean lama. Migration additive `0155_una_belum_paham.sql` belum diaplikasikan. Ekspor kasus menjadi skenario lewat `scripts/ambil-una-belum-paham.mjs`; harus ditinjau manusia sebelum latihan.
 - T-BUKA: perintah buka layar deterministik mengikuti nama menu skin dan hak akses, tanpa panggilan AI, draft, atau tombol internal. Perintah campuran buka+tulis diteruskan ke alur agen.
 - T-MULUT: narasi Indonesia opt-in, tombol dengarkan/berhenti, rahasia dan isi draft tidak dibacakan. Balasan suara mengarahkan pemeriksaan draft ke Workspace.
@@ -36,7 +47,7 @@ Validasi akhir lokal 2026-10-13:
 - Probe browser asli menyelesaikan Whisper q8 dan WavLM WASM embedding512 finite memakai fixture publik, tanpa suara pengguna. Penggantian nama lewat UI fixture berhasil. **Belum ada uji mikrofon nyata laptop/HP, akurasi speaker populasi, atau latensi perangkat.**
 - Log lengkap ada di TEMP: `leker-una-full-final.log`, `leker-una-check-final.log`, `leker-una-worker-dryrun.log`; baseline pada `leker-una-baseline-selected.log`, `leker-una-baseline-remaining.log` dan `leker-una-baseline-peta.log`.
 
-Langkah sebelum rilis: review perubahan, selaraskan branch dengan main terbaru dan nomor migration, lalu jalur deploy canonical dan uji perangkat di kontrak. Belum commit/push/merge atau menulis database produksi.
+Langkah sebelum rilis: review perubahan, jalur deploy canonical dan uji perangkat di kontrak. Commit lokal awal98a7748 sudah dibuat; main6a875c0 sedang digabung lokal. Belum push/merge remote atau menulis database produksi.
 
 Rincian model, lisensi, batas keamanan dan daftar uji perangkat: `contracts/una-suara-lokal-v1.md`.
 DOC-IMPACT: handoff ini, kontrak suara baru, kamus suara/nama dan skill `latih-una` diperbarui. Dokumen rilis penjualan tidak diubah karena belum live.

@@ -189,6 +189,22 @@ disebutkan lewat chat tanpa mengubah mesin di balik layar.
 `ADR-046` (pola lazy dispatch + idempotency yang ditiru di sini), `CLAUDE.md` invariant #1-#4/#6,
 `KNOWN_PITFALLS.md` bagian polling.
 
+## Addendum 2026-10-13 -- Jurnal Split baru (tanpa jurnal sumber)
+
+Bos Cyo: "entry baru tapi di split langsung ... sistem langsung membagi ... kedalam range harian, lalu
+entry per tanggalnya ... ini untuk semua akun."
+
+- Menu Akuntansi **Jurnal Split** (`POST /api/admin/accounting/journal-splits`, `createDirectSplit`):
+  akun Debit dan Kredit bebas (semua akun aktif, harus berbeda), total, rentang tanggal. Satu jadwal
+  `SPLIT` dengan `source_journal_id` NULL, memakai mesin occurrence yang sama.
+- Dibagi per **rupiah utuh**; sisa ke hari terakhir (1.500.000 / 29 hari = 51.724 per hari, hari
+  terakhir 51.728). Split lama dari jurnal sumber tetap exact 6 desimal.
+- Hari yang sudah tiba langsung diposting saat dibuat; sisanya lewat lazy catch-up yang sama.
+- Akun hutang/piutang per orang (1202, 2102, 2101, 1201, 2103) wajib "atas nama", divalidasi seperti
+  jurnal manual. Nama disimpan di `debit_party_json`/`credit_party_json` (migration 0154) dan ikut di
+  setiap jurnal harian, sehingga masuk saldo orang itu di Buku Pembantu (ADR-056).
+- Beban Rutin (RECURRING) belum mendukung atas nama.
+
 ## DOC-IMPACT
 
 Perbarui kalau: pola perulangan bertambah (mis. "tiap N hari custom"), Split diizinkan untuk

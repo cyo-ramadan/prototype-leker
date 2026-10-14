@@ -1,5 +1,6 @@
 // Pengecualian tertulis, bukan pola/prefix. Fitur baru wajib diajarkan.
 export const TANPA_PANDUAN = Object.freeze({
+  "pola:src/caca-belum-paham.js:/^\\/api\\/caca\\/belum-paham\\/([a-zA-Z0-9-]{1,80})$/": "Rute diagnostik internal untuk agen; bukan perintah bisnis atau menu pengguna. Peninjauan melalui skill latih-una.",
   "rute:src/caca-belum-paham.js:/api/caca/belum-paham": "Antrean diagnostik untuk agen; proses peninjauan ada di skill latih-una. Bukan pekerjaan kasir/pemilik lewat panduan chat.",
   "rute:src/caca-chat.js:/api/caca/belum-paham": "Antrean diagnostik untuk agen; proses peninjauan ada di skill latih-una. Bukan pekerjaan kasir/pemilik lewat panduan chat.",
   "rute:src/caca-chat.js:/api/caca/belum-paham/": "Antrean diagnostik untuk agen; proses peninjauan ada di skill latih-una. Bukan pekerjaan kasir/pemilik lewat panduan chat.",

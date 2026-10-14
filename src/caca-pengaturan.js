@@ -1,9 +1,26 @@
 import { json } from './http.js';
+import { UI_SKIN_KEY, normalizePolicyValue } from './tenant-policy.js';
+import { uiProfileFromChoice } from './ui-profile.js';
 const KEY = 'una_nama_asisten';
 export function namaAsistenValid(value) {
   if (typeof value !== 'string' || /[\p{Cc}\p{Cf}]/u.test(value)) return null;
   const nama = value.normalize('NFKC').trim().replace(/\s+/g, ' ');
   return /^[\p{L}][\p{L}\p{M} .'-]{0,31}$/u.test(nama) ? nama : null;
+}
+// One bounded server-side lookup for current tenancy, policy skin and display
+// name. The entity comes from validated auth/store scope, never a client field.
+export async function bacaKonteksAsisten(db, entityId) {
+  const row = entityId ? await db.prepare(`SELECT et.tenant_id,e.id AS entity_id,t.status AS tenant_status,e.status AS entity_status,
+    (SELECT CASE WHEN length(p.setting_value)=1 THEN p.setting_value ELSE '0' END FROM tenant_policy_settings p WHERE p.tenant_id=et.tenant_id AND p.setting_key=? LIMIT 1) AS ui_skin,
+    (SELECT CASE WHEN length(p.setting_value)<=32 THEN p.setting_value ELSE '' END FROM tenant_policy_settings p WHERE p.tenant_id=et.tenant_id AND p.setting_key=? LIMIT 1) AS nama_asisten
+    FROM entity_tenancy et JOIN entities e ON e.id=et.entity_id JOIN tenants t ON t.id=et.tenant_id
+    WHERE et.entity_id=? AND et.effective_to IS NULL LIMIT 1`).bind(UI_SKIN_KEY,KEY,entityId).first() : null;
+  return {
+    tenantId: row?.tenant_id ?? null,
+    aktif: row?.tenant_status === 'ACTIVE' && row?.entity_status === 'ACTIVE',
+    namaAsisten: namaAsistenValid(row?.nama_asisten) || 'Una',
+    profil: uiProfileFromChoice(normalizePolicyValue(UI_SKIN_KEY,row?.ui_skin ?? '0'))
+  };
 }
 export async function bacaPengaturanAsisten(db, tenantId) {
   if (!tenantId) return { namaAsisten: 'Una' };
@@ -23,9 +40,8 @@ export async function handlePengaturanAsisten(request, env, bangunLingkup) {
   const lingkup = await bangunLingkup(request, env);
   if (!lingkup.ok) return lingkup.response;
   if (!lingkup.tenantId || !lingkup.principal?.id || lingkup.store?.isActive === false) return json({ error: 'Tenant atau gerai aktif belum tersedia.' },409);
-  const aktif = await env.DB.prepare("SELECT t.id FROM tenants t JOIN entity_tenancy et ON et.tenant_id=t.id AND et.effective_to IS NULL JOIN entities e ON e.id=et.entity_id WHERE t.id=? AND e.id=? AND t.status='ACTIVE' AND e.status='ACTIVE'").bind(lingkup.tenantId, lingkup.store?.entityId || lingkup.entityId).first();
-  if (!aktif) return json({ error: 'Tenant atau entity tidak aktif.' },403);
-  if (request.method === 'GET') return json({ ...await bacaPengaturanAsisten(env.DB,lingkup.tenantId), ruangSuara: `${lingkup.tenantId}:${lingkup.principal.role}:${lingkup.principal.id}`, skin: lingkup.konteks.skin });
+  if (!lingkup.asistenAktif) return json({ error: 'Tenant atau entity tidak aktif.' },403);
+  if (request.method === 'GET') return json({ namaAsisten: lingkup.konteks.namaAsisten, ruangSuara: `${lingkup.tenantId}:${lingkup.principal.role}:${lingkup.principal.id}`, skin: lingkup.konteks.skin });
   if (request.method !== 'PATCH') return json({ error: 'Method not allowed' },405);
   const reader = request.body?.getReader();
   if (!reader) return json({ error: 'Pengaturan belum dikirim.' },400);

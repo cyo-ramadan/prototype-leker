@@ -16,7 +16,7 @@ import { UI_SKIN_KEY, getTenantPolicyChoice, resolveTenantId } from './tenant-po
 export const UI_SKIN_CLASSIC = 'classic';
 // Pilihan Owner (0/A/B/C) -> kode skin yang dipakai halaman (<html data-skin>
 // dan file /skin-<kode>.css). 0 = tampilan sekarang, tanpa data-skin.
-const SKIN_BY_CHOICE = Object.freeze({ A: 'a', B: 'b', C: 'c', D: 'd', E: 'e', F: 'f', G: 'g', H: 'h' });
+const SKIN_BY_CHOICE = Object.freeze({ A: 'a', B: 'b', C: 'c', D: 'd', E: 'e', F: 'f', G: 'g', H: 'h', I: 'i' });
 
 // Satu-satunya tempat nama merek, sama untuk SEMUA tenant (Bos Cyo
 // 2026-10-01: handoff UI/UX "dikerjakan buat universal", bukan khusus
@@ -35,13 +35,14 @@ async function tenantIdForContext(db, { storeCode, entityId }) {
   return null;
 }
 
+// Pure canonical mapping shared with server-resolved assistant context.
+export function uiProfileFromChoice(choice) {
+  return { skin: SKIN_BY_CHOICE[choice] || UI_SKIN_CLASSIC, brandName: PRODUCT_BRAND_NAME };
+}
 export async function resolveUiProfile(db, context = {}) {
   const tenantId = await tenantIdForContext(db, context);
   const choice = tenantId ? await getTenantPolicyChoice(db, tenantId, UI_SKIN_KEY) : '0';
-  return {
-    skin: SKIN_BY_CHOICE[choice] || UI_SKIN_CLASSIC,
-    brandName: PRODUCT_BRAND_NAME
-  };
+  return uiProfileFromChoice(choice);
 }
 
 export async function handleUiProfileApi(request, env, pathname) {

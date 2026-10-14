@@ -3256,5 +3256,373 @@ export const PETA_UNA = Object.freeze([
     "label": "Buku Usaha",
     "grup": "Lainnya → Uang",
     "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "store",
+    "label": "Profil Toko",
+    "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "transactions",
+    "label": "Riwayat Transaksi",
+    "grup": "Transaksi",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "drawers",
+    "label": "Laci Kasir",
+    "grup": "Transaksi",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "approvals",
+    "label": "Persetujuan",
+    "grup": "Transaksi",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "products",
+    "label": "Daftar Barang",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "categories",
+    "label": "Kategori",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "suppliers",
+    "label": "Supplier",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "stock",
+    "label": "Stok",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "costmasters",
+    "label": "Jenis Biaya",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "manufacturing",
+    "label": "Resep & Satuan",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "hpp-recalc",
+    "label": "Hitung Ulang HPP",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "warehouseSettingsTab",
+    "label": "Gudang",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "employees",
+    "label": "Karyawan",
+    "grup": "Tim",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "cashiers",
+    "label": "Akun Kasir",
+    "grup": "Tim",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "manual-book",
+    "label": "Buku Panduan",
+    "grup": "Tim",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "announcement",
+    "label": "Pengumuman",
+    "grup": "Tim",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian",
+    "grup": "Tim",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "labarugi",
+    "label": "Untung Rugi",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "attendance-report",
+    "label": "Presensi",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "permit-report",
+    "label": "Izin & Koreksi",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "cashier-raport",
+    "label": "Raport Kasir",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "reports",
+    "label": "Laporan",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "setoran-cs",
+    "label": "Setoran CS",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "accountingWorkspaceTab",
+    "label": "Pembukuan",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "accountingSettingsTab",
+    "label": "Pengaturan Pembukuan",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "sharedaccounts",
+    "label": "Rekening Bersama",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "hutangpiutang",
+    "label": "Hutang & Pembayaran",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "beaops",
+    "label": "Biaya Operasional",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "customers",
+    "label": "Pelanggan",
+    "grup": "Pelanggan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "customer-feedback",
+    "label": "Kotak Saran",
+    "grup": "Pelanggan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "vouchers",
+    "label": "Voucher",
+    "grup": "Pelanggan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "home",
+    "label": "Beranda Saya",
+    "grup": "Beranda Saya",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "stores",
+    "label": "Gerai",
+    "grup": "Gerai",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "drawerstatus",
+    "label": "Status Laci",
+    "grup": "Gerai",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "reports",
+    "label": "Laporan Usaha",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "storereport",
+    "label": "Laporan per Gerai",
+    "grup": "Laporan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "productmasters",
+    "label": "Daftar Barang",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "entityrecipes",
+    "label": "Resep",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "entitystock",
+    "label": "Stok Gerai",
+    "grup": "Barang",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "employees",
+    "label": "Karyawan",
+    "grup": "Karyawan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "ledger",
+    "label": "Buku Usaha",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "sharedaccounts",
+    "label": "Rekening Bersama",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "setorancs",
+    "label": "Setoran CS",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "izincs",
+    "label": "Izin CS",
+    "grup": "Keuangan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "entity",
+    "tab": "customers",
+    "label": "Pelanggan",
+    "grup": "Pelanggan",
+    "hint": ""
   }
 ]);

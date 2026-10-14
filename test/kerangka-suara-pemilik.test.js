@@ -77,3 +77,8 @@ test('stopping live discards late transcription and never dispatches another tas
  h.workers[0].hold=true;feed(h,true,10);feed(h,false,6);await flush();assert.equal(h.workers[0].delayed.length,1);
  h.runtime.hentikan();h.workers[0].delayed[0]();await flush();assert.deepEqual(commands,[]);
 });
+
+
+test('idle voice runtime does not create worker, audio context, timers, recordings or model downloads',()=>{
+ const h=setup();h.runtime.status();h.runtime.hasProfile();h.runtime.wajib();assert.equal(h.workers.length,0);assert.equal(h.nodes.length,0);assert.equal(h.timers.size,0);assert.equal(h.data.size,0);assert.equal(h.stopped,0);
+});

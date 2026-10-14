@@ -115,7 +115,7 @@ export function mapAttendance(row, scheduleByDay = new Map(), options = {}) {
 // lewat src/tenant-policy.js. Off = fungsi ini no-op sama sekali.
 export async function forceCloseOverdueSessions(db, userId, scheduleByDay, enabled = true) {
   if (!enabled) return;
-  const openRows = await db.prepare(`SELECT id, created_at FROM staff_attendance WHERE user_id = ? AND status = 'OPEN'`).bind(userId).all();
+  const openRows = await db.prepare(`SELECT id, store_id, created_at FROM staff_attendance WHERE user_id = ? AND status = 'OPEN'`).bind(userId).all();
   const rows = openRows.results ?? [];
   if (!rows.length) return;
   const nowMs = Date.now();
@@ -126,11 +126,37 @@ export async function forceCloseOverdueSessions(db, userId, scheduleByDay, enabl
     if (!shiftEndUtc) continue;
     const deadline = new Date(shiftEndUtc.getTime() + 60 * 60 * 1000);
     if (nowMs <= deadline.getTime()) continue;
-    await db.prepare(`
+    const closed = await db.prepare(`
       UPDATE staff_attendance SET status = 'CLOSED', check_out_at = ?, auto_closed = 1
       WHERE id = ? AND status = 'OPEN'
     `).bind(shiftEndUtc.toISOString(), row.id).run();
+    // Bos Cyo, 2026-10-14 (audit Diva): sesi yang ditutup otomatis dulu TIDAK dicatat ke Akun Gaji --
+    // Portal menghitung gajinya, buku Akuntansi tidak. Sekarang dicatat persis seperti presensi pulang
+    // manual (fungsi yang sama), bertanggal hari presensi.
+    if (Number(closed?.meta?.changes ?? 0) === 1) {
+      await recordSessionAccrual(db, { accountId: userId, storeId: row.store_id, checkInAt: row.created_at, checkOutAt: shiftEndUtc.toISOString(), attendanceId: row.id, scheduleByDay, scheduleGateEnabled: enabled });
+    }
   }
+}
+
+// Catat gaji satu sesi presensi SELESAI ke Akun Gaji (ACCRUAL, idempoten per attendanceId lewat
+// INSERT OR IGNORE di payroll-ledger). Dipakai presensi pulang manual & tutup otomatis.
+export async function recordSessionAccrual(db, { accountId, storeId, checkInAt, checkOutAt, attendanceId, scheduleByDay, scheduleGateEnabled = true }) {
+  const jobDetail = await db.prepare(`
+    SELECT hourly_wage_scaled, job_type, payment_type FROM account_job_details WHERE account_type = 'CASHIER' AND account_id = ?
+  `).bind(accountId).first();
+  const amountScaled = sessionEarningScaled(jobDetail, checkInAt, checkOutAt, scheduleByDay, scheduleGateEnabled);
+  if (amountScaled <= 0) return { ok: true, skipped: true };
+  const businessDate = getJakartaBusinessDate(new Date(checkInAt));
+  const { recordAttendanceAccrual } = await import('./payroll-ledger.js');
+  await recordAttendanceAccrual(db, {
+    accountType: 'CASHIER', accountId, storeId, businessDate, checkInAtIso: checkInAt,
+    amountScaled, attendanceId, description: `Gaji presensi ${businessDate}`
+  });
+  // Sama dengan invalidateDailyProfitSnapshot (net-profit-report.js), ditulis langsung supaya modul
+  // presensi tidak mengimpor modul laporan.
+  await db.prepare('DELETE FROM store_daily_profit_snapshot WHERE store_id = ? AND business_date = ?').bind(storeId, businessDate).run();
+  return { ok: true, amountScaled, businessDate };
 }
 
 export async function listAttendance(db, userId, scheduleByDay, enabled = true, limit = 60, options = {}) {
@@ -189,7 +215,35 @@ export function isWithinScheduledWindow(checkInAt, scheduleByDay) {
   const endMinutes = timeOfDayToMinutes(day.shift_end);
   const checkInMinutes = timeOfDayToMinutes(getJakartaTimeOfDay(new Date(checkInAt)));
   if (startMinutes === null || endMinutes === null || checkInMinutes === null) return true;
-  return checkInMinutes >= startMinutes && checkInMinutes <= endMinutes;
+  // Bos Cyo, 2026-10-14 (audit Uswatun Genengan: shift 09:00, selalu masuk 08:49-08:57, gajinya Rp0 dan
+  // akuntan menginput manual "9 jam" lewat Bea Operasional): DATANG LEBIH AWAL bukan "di luar jadwal".
+  // Sesinya tetap dibayar, dihitung mulai jam shift (lihat payableCheckInAt), bukan dari jam datang.
+  // Berlaku mulai EARLY_ARRIVAL_PAID_FROM: sesi sebelumnya sudah diinput manual oleh akuntan lewat Bea
+  // Operasional, jadi tidak dihitung ulang (supaya tidak dobel di riwayat).
+  if (getJakartaBusinessDate(new Date(checkInAt)) < EARLY_ARRIVAL_PAID_FROM) return checkInMinutes >= startMinutes && checkInMinutes <= endMinutes;
+  return checkInMinutes <= endMinutes;
+}
+
+export const EARLY_ARRIVAL_PAID_FROM = '2026-10-14';
+
+// Jam mulai yang dibayar: presensi masuk sebelum shift_start di hari kerja dihitung mulai shift_start
+// (jam WIB hari itu). Selain itu jam presensi masuk apa adanya.
+export function payableCheckInAt(checkInAt, scheduleByDay) {
+  const day = scheduleByDay?.get?.(getJakartaDayOfWeek(new Date(checkInAt)));
+  if (!day || day.is_day_off || !day.shift_start) return checkInAt;
+  if (getJakartaBusinessDate(new Date(checkInAt)) < EARLY_ARRIVAL_PAID_FROM) return checkInAt;
+  const shiftStart = jakartaWallClockToUtc(getJakartaBusinessDate(new Date(checkInAt)), day.shift_start);
+  if (!shiftStart || shiftStart.getTime() <= new Date(checkInAt).getTime()) return checkInAt;
+  return shiftStart.toISOString();
+}
+
+// Gaji satu sesi presensi yang sudah selesai -- SATU rumus untuk Portal (buildPayroll), presensi pulang
+// manual, dan tutup otomatis lupa pulang. 0 = tidak dibayar (di luar jadwal / belum ada tarif).
+export function sessionEarningScaled(jobDetail, checkInAt, checkOutAt, scheduleByDay, scheduleGateEnabled = true) {
+  if (!jobDetail) return 0;
+  if (scheduleGateEnabled && !isWithinScheduledWindow(checkInAt, scheduleByDay)) return 0;
+  const startAt = scheduleGateEnabled ? payableCheckInAt(checkInAt, scheduleByDay) : checkInAt;
+  return computeEarningScaled(jobDetail.payment_type || 'JAM', Number(jobDetail.hourly_wage_scaled || 0), startAt, checkOutAt);
 }
 
 // `scheduleGateEnabled` -- saklar Bos Cyo (lihat forceCloseOverdueSessions
@@ -203,7 +257,7 @@ export function buildPayroll(attendanceRows, jobDetail, scheduleByDay = new Map(
     .filter(row => row.status === 'CLOSED' && row.checkIn && row.checkOut)
     .map(row => {
       const withinSchedule = !scheduleGateEnabled || isWithinScheduledWindow(row.checkIn.at, scheduleByDay);
-      const earningScaled = withinSchedule ? computeEarningScaled(paymentType, hourlyWageScaled, row.checkIn.at, row.checkOut.at) : 0;
+      const earningScaled = sessionEarningScaled({ payment_type: paymentType, hourly_wage_scaled: hourlyWageScaled }, row.checkIn.at, row.checkOut.at, scheduleByDay, scheduleGateEnabled);
       return {
         attendanceId: row.id,
         date: getJakartaBusinessDate(new Date(row.checkIn.at)),

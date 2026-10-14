@@ -558,7 +558,7 @@
   function renderJournalList(rows) {
     const host = el('acctJournalList');
     if (!host) return;
-    host.innerHTML = rows.length ? `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>No Jurnal</th><th>Tanggal</th><th>Sumber</th><th>Keterangan</th><th>Debit</th><th>Kredit</th><th></th></tr></thead><tbody>${rows.map(row => `<tr><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.businessDate)}</td><td><span class="acct-chip ${row.sourceSystem === 'MANUAL' ? 'manual' : 'pos'}">${esc(sourceLabel(row.sourceSystem))}</span></td><td>${esc(row.description)}</td><td>${rpExact(row.totalDebitExact ?? row.totalDebitMinor)}</td><td>${rpExact(row.totalCreditExact ?? row.totalCreditMinor)}</td><td><button class="acct-btn" data-journal-detail="${esc(row.journalId)}" type="button">Detail</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="acct-empty">Belum ada jurnal pada periode ini.</div>';
+    host.innerHTML = rows.length ? `<div class="acct-table-wrap"><table class="acct-table"><thead><tr><th>No Jurnal</th><th>Tanggal</th><th>Sumber</th><th>Keterangan</th><th>Debit</th><th>Kredit</th><th></th></tr></thead><tbody>${rows.map(row => `<tr><td class="acct-code">${esc(row.journalNumber)}</td><td>${esc(row.businessDate)}${entryStamp(row)}</td><td><span class="acct-chip ${row.sourceSystem === 'MANUAL' ? 'manual' : 'pos'}">${esc(sourceLabel(row.sourceSystem))}</span></td><td>${esc(row.description)}</td><td>${rpExact(row.totalDebitExact ?? row.totalDebitMinor)}</td><td>${rpExact(row.totalCreditExact ?? row.totalCreditMinor)}</td><td><button class="acct-btn" data-journal-detail="${esc(row.journalId)}" type="button">Detail</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="acct-empty">Belum ada jurnal pada periode ini.</div>';
     host.querySelectorAll('[data-journal-detail]').forEach(button => button.addEventListener('click', () => loadJournalDetail(button.dataset.journalDetail)));
   }
 
@@ -732,6 +732,19 @@
     const base = Math.floor(total / days);
     const last = total - base * (days - 1);
     return `<p><b>${days} jurnal harian</b> · ${f.startDate} s/d ${f.endDate} · Rp${integerFormat.format(base)} per hari${last !== base ? `, hari terakhir Rp${integerFormat.format(last)}` : ''} · total Rp${integerFormat.format(total)}</p>`;
+  }
+
+  // Bos Cyo, 2026-10-14: "di data jurnal tambahin sekalian jam nya, tapi kecil banget aja, jangan sampe
+  // nambah lebar barisnya." Jam entry (posted_at, WIB) kecil di bawah tanggal transaksi; tinggi baris
+  // tetap karena tombol Detail sudah lebih tinggi. Kalau tanggal entry beda dari tanggal transaksi
+  // (mis. pembalik/input susulan) tanggal entry-nya ikut ditulis.
+  function entryStamp(row) {
+    const at = row.postedAt ? new Date(String(row.postedAt).includes('T') ? row.postedAt : `${String(row.postedAt).replace(' ', 'T')}Z`) : null;
+    if (!at || Number.isNaN(at.getTime())) return '';
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at).map(part => [part.type, part.value]));
+    const date = `${parts.year}-${parts.month}-${parts.day}`;
+    const label = date === row.businessDate ? `${parts.hour}:${parts.minute}` : `entry ${parts.day}/${parts.month} ${parts.hour}:${parts.minute}`;
+    return `<div class="acct-code" style="font-size:10px;line-height:1.1;opacity:.7" title="Waktu entry ${date} ${parts.hour}:${parts.minute} WIB">${label}</div>`;
   }
 
   function renderJournalSplit(host) {

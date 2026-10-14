@@ -339,7 +339,7 @@ test('gerai Akuntansi: penjualan dibatalkan sesudah HPP-nya dikoreksi -> jurnal 
 
     const pembalik = ctx.db.prepare(`SELECT business_date, reversal_of_journal_id FROM accounting_journal_headers WHERE source_system = 'LEKER_HPP_KOREKSI_VOID'`).all();
     assert.equal(pembalik.length, 1);
-    assert.equal(pembalik[0].business_date, '2026-10-02', 'bertanggal hari pembatalan, seperti pembalik penjualannya');
+    assert.equal(pembalik[0].business_date, '2026-09-30', 'bertanggal transaksi jurnal koreksi asalnya (Bos Cyo 2026-10-14), bukan hari pembatalan');
     assert.ok(pembalik[0].reversal_of_journal_id, 'tercatat sebagai pembalik jurnal koreksi (jurnal asli tidak diedit)');
 
     const lagi = await (await call(ctx, 'POST', '/api/admin/accounting/bridge/sync', {})).json();

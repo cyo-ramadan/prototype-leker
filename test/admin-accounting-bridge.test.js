@@ -111,8 +111,12 @@ test('Bea Lapak jadi Hutang otomatis terjurnal Beban vs Utang; dibatalkan = jurn
     assert.equal(voided.payload.accounting.deliveries[0].bridgeStatus, 'POSTED');
     assert.deepEqual(accountBalances(db, pendem.id), { 2101: 0, 6106: 0 });
     assert.equal(journalCount(db, pendem.id), 2, 'jurnal asli tetap ada, ditambah satu pembalik');
-    const reversal = db.prepare(`SELECT reversal_of_journal_id FROM accounting_journal_headers WHERE source_system = 'LEKER_ADMIN_VOID'`).get();
+    const reversal = db.prepare(`SELECT reversal_of_journal_id, business_date, posted_at FROM accounting_journal_headers WHERE source_system = 'LEKER_ADMIN_VOID'`).get();
     assert.ok(reversal.reversal_of_journal_id);
+    // Bos Cyo, 2026-10-14: pembalik ikut TANGGAL TRANSAKSI (27 Sep), bukan tanggal dibatalkan; waktu
+    // batal tetap tersimpan sebagai waktu entry (posted_at).
+    assert.equal(reversal.business_date, '2026-09-27');
+    assert.ok(reversal.posted_at);
   } finally { db.close(); }
 });
 

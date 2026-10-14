@@ -235,7 +235,7 @@ test('Buku Pembantu: menu di panel Akuntansi dan versi skrip dibump', () => {
   assert.match(ui, /navButton\('buku-pembantu','Buku Pembantu'\)/);
   assert.match(ui, /\/api\/admin\/accounting\/buku-pembantu/);
   assert.match(ui, /\/api\/admin\/accounting\/journal-lines\/\$\{encodeURIComponent\(cell\.dataset\.bpLine\)\}\/party/);
-  assert.match(readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8'), /admin-accounting-workspace\.js\?v=20261013-jurnal-split-v1/);
+  assert.match(readFileSync(new URL('../public/branch-admin.html', import.meta.url), 'utf8'), /admin-accounting-workspace\.js\?v=20261014-jam-jurnal-v1/);
 });
 
 // Bos Cyo, 2026-10-13: "entry baru tapi di split langsung ... ini untuk semua akun" -- Jurnal Split baru

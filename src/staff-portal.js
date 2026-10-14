@@ -6,16 +6,14 @@ import { getCashierRaportFacts } from './staff-raport.js';
 // karena dipakai dua sisi sekarang -- Portal Staf (di sini) dan Admin Gerai
 // (src/cashier-auth.js) -- lihat komentar di staff-attendance.js untuk
 // alasan kenapa dipisah ke modul netral, bukan diimpor silang.
-import { scheduleMap, mapAttendance, listAttendance, buildPayroll, computeEarningScaled, isWithinScheduledWindow, forceCloseOverdueSessions } from './staff-attendance.js';
+import { scheduleMap, mapAttendance, listAttendance, buildPayroll, forceCloseOverdueSessions, recordSessionAccrual } from './staff-attendance.js';
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { isActivatedToday } from './entity-backup-cashiers.js';
-import { recordAttendanceAccrual } from './payroll-ledger.js';
 import { AKUN_HUTANG_GAJI, riwayatDariBuku } from './riwayat-dari-buku.js';
 import { listActiveSyncs } from './sinkron-akuntansi-baris.js';
 import { expirePermitsForClosedSessions, listOwnCorrectionPermits } from './attendance-correction-permit.js';
 import { listOwnGpsPermits } from './attendance-gps-permit.js';
 import { evaluateGps, storeReference, gpsNotice, overRadiusMeters } from './attendance-gps.js';
-import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 import { getJakartaBusinessDate } from './time.js';
 
 const coord = value => {
@@ -225,24 +223,17 @@ export async function handleStaffPortalApi(request, env, pathname) {
     // masuknya di hari Libur atau di luar shift_start..shift_end hari itu
     // TIDAK dicatat ke Akun Gaji sama sekali (bukan dicatat lalu dibatalkan)
     // -- presensinya sendiri tetap tersimpan seperti biasa di staff_attendance.
-    const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
-    const withinSchedule = !auth.cashier.store.attendanceScheduleGateEnabled
-      || isWithinScheduledWindow(updated.created_at, scheduleMap(await loadSchedule(env.DB, auth.cashier.id)));
-    if (jobDetail && withinSchedule) {
-      const earningScaled = computeEarningScaled(jobDetail.payment_type, jobDetail.hourly_wage_scaled, updated.created_at, updated.check_out_at);
-      const businessDate = getJakartaBusinessDate(new Date(updated.created_at));
-      await recordAttendanceAccrual(env.DB, {
-        accountType: 'CASHIER',
-        accountId: auth.cashier.id,
-        storeId: auth.cashier.store.id,
-        businessDate,
-        checkInAtIso: updated.created_at,
-        amountScaled: earningScaled,
-        attendanceId: updated.id,
-        description: `Gaji presensi ${businessDate}`
-      });
-      await invalidateDailyProfitSnapshot(env.DB, auth.cashier.store.id, businessDate);
-    }
+    // 2026-10-14: rumusnya satu dengan tutup otomatis & Portal (recordSessionAccrual) -- datang lebih
+    // awal dihitung mulai jam shift, bukan Rp0.
+    await recordSessionAccrual(env.DB, {
+      accountId: auth.cashier.id,
+      storeId: auth.cashier.store.id,
+      checkInAt: updated.created_at,
+      checkOutAt: updated.check_out_at,
+      attendanceId: updated.id,
+      scheduleByDay: scheduleMap(await loadSchedule(env.DB, auth.cashier.id)),
+      scheduleGateEnabled: auth.cashier.store.attendanceScheduleGateEnabled
+    });
 
     return json({ ok: true, attendance: mapAttendance(updated), gps: gpsResponse }, 201);
   }

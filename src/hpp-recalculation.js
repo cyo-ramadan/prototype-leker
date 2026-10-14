@@ -340,8 +340,9 @@ export async function reverseHppCorrectionsOfVoidedSales(db, storeId, { saleId =
     const voidedAt = new Date(row.voided_at);
     let posted;
     try {
+      // Pembalik ikut tanggal transaksi jurnal asal (Bos Cyo 2026-10-14), waktu batal = tanggal entry.
       posted = await postAccountingJournal(db, { id: storeId }, {
-        businessDate: getJakartaBusinessDate(voidedAt),
+        businessDate: original.businessDate || getJakartaBusinessDate(voidedAt),
         occurredAt: voidedAt.toISOString(),
         sourceSystem: `${SOURCE_SYSTEM}_VOID`,
         sourceReferenceId: `VOID:${FACT_TYPE}:${row.fact_id}`,

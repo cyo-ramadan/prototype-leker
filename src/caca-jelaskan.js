@@ -566,7 +566,7 @@ export const KAMUS = Object.freeze([
       'Gaji harian terhitung sendiri dari presensi: Per Jam = gaji per jam × jam kerja sebenarnya (jam masuk sampai pulang), Per Sesi = nominal per sesi.',
       '• Per akun: Tim → Akun Kasir → tombol "💰 Gaji" pada akun CS itu — kartu per tanggal.',
       '• Per orang (lintas akun & gerai): Tim → Karyawan → klik namanya → Riwayat Gaji, lengkap dengan saldo hutang gaji.',
-      'Jika kebijakan batas jadwal aktif, presensi di luar jadwal ditandai "Di luar jadwal, tidak dihitung".'
+      'Jika kebijakan batas jadwal aktif, presensi di luar jadwal ditandai "Di luar jadwal, tidak dihitung". Datang lebih awal dari jam shift tidak dianggap di luar jadwal: gajinya dihitung mulai jam shift (berlaku mulai 14 Okt 2026).'
     ].join('\n'),
     tawaran: [buka('cashiers'), buka('employees'), jelas('potongan_gaji', 'Potongan / bonus gaji')],
     tanpaAksi: 'gaji dihitung otomatis dari presensi; dibaca di layar Gaji per akun'
@@ -605,7 +605,7 @@ export const KAMUS = Object.freeze([
       'Tergantung kapan ketahuannya:',
       '• Masih di hari kerja dan sudah presensi masuk tapi jamnya salah → CS ajukan koreksi dari Portal Staf sebelum presensi pulang; Admin ACC di Akun Kasir → "Pengajuan koreksi presensi". Jam yang di-ACC langsung dipakai menghitung gaji.',
       '• Tidak presensi sama sekali di hari itu → memang tidak ada data presensi, jadi gajinya tidak terhitung otomatis. Tambahkan lewat Akun Kasir → "💰 Gaji" → Penyesuaian Gaji (nominal positif) dengan alasan "tidak bisa presensi tgl …".',
-      '• Lupa presensi pulang → sesi ditutup otomatis sistem dan ditandai di Laporan Presensi; koreksinya lewat Penyesuaian Gaji.',
+      '• Lupa presensi pulang → sesi ditutup otomatis sistem pada jam pulang jadwal dan ditandai di Laporan Presensi; gajinya tetap tercatat sampai jam pulang jadwal itu. Jam tambahan lewat Penyesuaian Gaji.',
       'Semua pengajuan dan keputusan terlihat di Laporan → Izin & Koreksi.'
     ].join('\n'),
     tawaran: [buka('attendance-report'), buka('permit-report'), buka('cashiers')],

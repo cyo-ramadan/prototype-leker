@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleStaffPortalApi } from '../src/staff-portal.js';
+import { sessionEarningScaled, isWithinScheduledWindow, EARLY_ARRIVAL_PAID_FROM } from '../src/staff-attendance.js';
 import { getCashierRaportFacts } from '../src/staff-raport.js';
 import { getJakartaDayOfWeek, getJakartaTimeOfDay, jakartaWallClockToUtc, getJakartaBusinessDate } from '../src/time.js';
 import { hashCredential } from '../src/owner-auth.js';
@@ -271,4 +272,49 @@ test('Default saklar ON untuk tenant yang belum pernah diubah kebijakannya', asy
     assert.ok(tenantId, 'Pendem harus sudah tertaut ke sebuah tenant lewat entity_tenancy');
     assert.equal(await getTenantPolicySetting(env.DB, tenantId, ATTENDANCE_SCHEDULE_GATE_KEY), true);
   } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-10-14 (audit Diva): sesi yang ditutup otomatis dulu tidak tercatat ke Akun Gaji, jadi
+// Portal menampilkan gajinya tapi buku Akuntansi tidak. Sekarang dicatat seperti presensi pulang manual.
+test('Tutup otomatis lupa pulang ikut mencatat gaji ke Akun Gaji, bertanggal hari presensi', async () => {
+  const db = migratedDatabase();
+  try {
+    const env = { DB: new D1Database(db) };
+    const pendem = storeRow(db, 'PENDEM');
+    const cashier = await seedCashier(db, pendem.id, 'fcgaji', 'CS Lupa Pulang');
+    seedSchedule(db, cashier.id, HISTORICAL_DAY_OF_WEEK, { shiftStart: '08:00', shiftEnd: '10:00' });
+    seedJobDetail(db, cashier.id, { hourlyWage: 6000, paymentType: 'JAM' });
+    const attendanceId = insertOpenAttendance(db, cashier.id, pendem.id, HISTORICAL_CHECK_IN);
+
+    assert.equal((await handleStaffPortalApi(portalRequest(cashier.token), env, '/api/staff/portal')).status, 200);
+    const ledger = db.prepare(`SELECT business_date, entry_type, hutang_gaji_delta_scaled, store_id FROM payroll_ledger_entries WHERE source_id = ?`).all(attendanceId);
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0].entry_type, 'ACCRUAL');
+    assert.equal(ledger[0].business_date, getJakartaBusinessDate(new Date(HISTORICAL_CHECK_IN)));
+    assert.equal(ledger[0].hutang_gaji_delta_scaled, 12000 * 1_000_000, '08:00-10:00 = 2 jam x Rp6.000');
+    assert.equal(ledger[0].store_id, pendem.id);
+
+    await handleStaffPortalApi(portalRequest(cashier.token), env, '/api/staff/portal');
+    assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM payroll_ledger_entries WHERE source_id = ?`).get(attendanceId).n, 1, 'tidak dobel');
+  } finally { db.close(); }
+});
+
+// Bos Cyo, 2026-10-14 (audit Uswatun Genengan: shift 09:00, masuk 08:49-08:57 -> gaji Rp0, akuntan
+// menginput manual 9 jam): datang lebih awal dibayar mulai jam shift.
+test('Datang lebih awal dari jam shift: tetap dibayar, dihitung mulai jam shift; sebelum tanggal berlaku tetap aturan lama', () => {
+  const job = { payment_type: 'JAM', hourly_wage_scaled: 5600 * 1_000_000 };
+  const checkIn = '2026-10-14T01:53:00.000Z'; // 08:53 WIB
+  const checkOut = '2026-10-14T11:00:00.000Z'; // 18:00 WIB
+  const day = getJakartaDayOfWeek(new Date(checkIn));
+  const schedule = new Map([[day, { day_of_week: day, is_day_off: 0, shift_start: '09:00', shift_end: '18:00' }]]);
+  assert.equal(EARLY_ARRIVAL_PAID_FROM, '2026-10-14');
+  assert.equal(isWithinScheduledWindow(checkIn, schedule), true);
+  assert.equal(sessionEarningScaled(job, checkIn, checkOut, schedule), 50400 * 1_000_000, '09:00-18:00 = 9 jam x Rp5.600');
+  assert.equal(sessionEarningScaled(job, '2026-10-14T03:00:00.000Z', checkOut, schedule), 44800 * 1_000_000, 'datang telat: dari jam datang');
+  assert.equal(sessionEarningScaled(job, checkIn, checkOut, schedule, false), Math.round(547 * 5600 / 60 * 1_000_000), 'saklar OFF: dari jam datang');
+  assert.equal(sessionEarningScaled(job, '2026-10-14T11:30:00.000Z', '2026-10-14T12:00:00.000Z', schedule), 0, 'masuk setelah jam pulang: tetap di luar jadwal');
+
+  const oldDay = getJakartaDayOfWeek(new Date('2026-10-12T01:53:00.000Z'));
+  const oldSchedule = new Map([[oldDay, { day_of_week: oldDay, is_day_off: 0, shift_start: '09:00', shift_end: '18:00' }]]);
+  assert.equal(sessionEarningScaled(job, '2026-10-12T01:53:00.000Z', '2026-10-12T11:00:00.000Z', oldSchedule), 0, 'sesi lama sudah diinput manual akuntan, tidak dihitung ulang');
 });

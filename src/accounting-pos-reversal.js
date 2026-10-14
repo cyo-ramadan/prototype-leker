@@ -45,8 +45,12 @@ export async function reversePostedPosAccountingFact(db, store, {
 
   const effectiveAt = new Date(occurredAt || new Date().toISOString());
   const description = `Pembalik ${original.description}${reason ? ` · ${text(reason, 180)}` : ''}`.slice(0, 300);
+  // Bos Cyo, 2026-10-14: "pembaliknya ngikutin tanggal transaksi, perhitungan juga ngikutin tanggal
+  // transaksi." Jurnal pembalik memakai TANGGAL TRANSAKSI jurnal asalnya (business_date), bukan tanggal
+  // dibatalkan -- membatalkan transaksi September tidak boleh menggeser untung rugi ke Oktober. Waktu
+  // pembatalan tetap tersimpan sebagai tanggal entry (occurred_at/posted_at).
   const posted = await postAccountingJournal(db, store, {
-    businessDate: getJakartaBusinessDate(effectiveAt),
+    businessDate: original.businessDate || getJakartaBusinessDate(effectiveAt),
     occurredAt: effectiveAt.toISOString(),
     sourceSystem: 'LEKER_POS_VOID',
     sourceReferenceId: `VOID:${factType}:${factId}:${permitId}`,

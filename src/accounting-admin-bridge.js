@@ -547,9 +547,13 @@ export async function reverseAdminAccountingFact(db, factType, factId, reason = 
     await saveDelivery(db, delivery.store_id, voidType, id, delivery.transaction_category_code, value);
     return value;
   }
+  // Bos Cyo, 2026-10-14: "pembaliknya ngikutin tanggal transaksi, perhitungan juga ngikutin tanggal
+  // transaksi." Jurnal pembalik memakai TANGGAL TRANSAKSI jurnal asalnya (business_date), bukan tanggal
+  // dibatalkan -- membatalkan transaksi September tidak boleh menggeser untung rugi ke Oktober. Waktu
+  // pembatalan tetap tersimpan sebagai tanggal entry (occurred_at/posted_at).
   const now = new Date();
   const posted = await postAccountingJournal(db, { id: delivery.store_id }, {
-    businessDate: getJakartaBusinessDate(now),
+    businessDate: original.businessDate || getJakartaBusinessDate(now),
     occurredAt: now.toISOString(),
     sourceSystem: `${SOURCE_SYSTEM}_VOID`,
     sourceReferenceId: `VOID:${type}:${id}`,

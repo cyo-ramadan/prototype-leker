@@ -1,0 +1,648 @@
+{
+  "manifest": {
+    "baseline": [
+      {
+        "file": "caca-workspace.js",
+        "bytes": 24650,
+        "gzipBytes": 7169
+      },
+      {
+        "file": "caca-chat.js",
+        "bytes": 89992,
+        "gzipBytes": 25688
+      }
+    ],
+    "feature": [
+      {
+        "file": "caca-workspace.js",
+        "bytes": 24871,
+        "gzipBytes": 7185
+      },
+      {
+        "file": "kerangka-suara.js",
+        "bytes": 7429,
+        "gzipBytes": 2823
+      },
+      {
+        "file": "caca-chat.js",
+        "bytes": 100077,
+        "gzipBytes": 27924
+      },
+      {
+        "file": "caca-pengaturan.js",
+        "bytes": 13073,
+        "gzipBytes": 4045
+      }
+    ]
+  },
+  "rows": [
+    {
+      "mode": "baseline",
+      "initializationMs": 14.100000023841858,
+      "chatOpenMs": 114.69999992847443,
+      "longTasks": 1,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 27,
+      "chatOpenMs": 41.60000002384186,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 12.700000047683716,
+      "chatOpenMs": 34.299999952316284,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 22.800000071525574,
+      "chatOpenMs": 31.09999990463257,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 13.099999904632568,
+      "chatOpenMs": 30.300000071525574,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 28.300000071525574,
+      "chatOpenMs": 31.699999928474426,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 11.700000047683716,
+      "chatOpenMs": 34.10000002384186,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 26.399999976158142,
+      "chatOpenMs": 30.300000071525574,
+      "longTasks": 1,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 12.200000047683716,
+      "chatOpenMs": 30.399999976158142,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.700000047683716,
+      "chatOpenMs": 28,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 16,
+      "chatOpenMs": 33,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 34.10000002384186,
+      "chatOpenMs": 38.799999952316284,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 15.100000023841858,
+      "chatOpenMs": 35.5,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.799999952316284,
+      "chatOpenMs": 33.10000002384186,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 10,
+      "chatOpenMs": 30.600000023841858,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 28.600000023841858,
+      "chatOpenMs": 44.200000047683716,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 10.600000023841858,
+      "chatOpenMs": 32.10000002384186,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 27.600000023841858,
+      "chatOpenMs": 33.89999997615814,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 8,
+      "chatOpenMs": 32.60000002384186,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.300000071525574,
+      "chatOpenMs": 30.600000023841858,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 8.700000047683716,
+      "chatOpenMs": 34.39999997615814,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.399999976158142,
+      "chatOpenMs": 30.100000023841858,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 11.100000023841858,
+      "chatOpenMs": 30.399999976158142,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 22.100000023841858,
+      "chatOpenMs": 43.200000047683716,
+      "longTasks": 1,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 11.400000095367432,
+      "chatOpenMs": 35,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 29.199999928474426,
+      "chatOpenMs": 32.5,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 12.299999952316284,
+      "chatOpenMs": 27.5,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 27.5,
+      "chatOpenMs": 32,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 10.699999928474426,
+      "chatOpenMs": 32.40000009536743,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 23.100000023841858,
+      "chatOpenMs": 38.5,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 11.600000023841858,
+      "chatOpenMs": 27.700000047683716,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 24.899999976158142,
+      "chatOpenMs": 29.800000071525574,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 11.299999952316284,
+      "chatOpenMs": 30.899999976158142,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25,
+      "chatOpenMs": 32.60000002384186,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 11,
+      "chatOpenMs": 31.399999976158142,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.100000023841858,
+      "chatOpenMs": 37.39999997615814,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 15.5,
+      "chatOpenMs": 39,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 49.200000047683716,
+      "chatOpenMs": 59.199999928474426,
+      "longTasks": 1,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 7.799999952316284,
+      "chatOpenMs": 27.799999952316284,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.799999952316284,
+      "chatOpenMs": 29.700000047683716,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 17.40000009536743,
+      "chatOpenMs": 34.39999997615814,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 34.60000002384186,
+      "chatOpenMs": 52.09999990463257,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 17.200000047683716,
+      "chatOpenMs": 45.799999952316284,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 39.300000071525574,
+      "chatOpenMs": 42.5,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 24.59999990463257,
+      "chatOpenMs": 46,
+      "longTasks": 1,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 27.699999928474426,
+      "chatOpenMs": 38.800000071525574,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "baseline",
+      "initializationMs": 13.799999952316284,
+      "chatOpenMs": 25.5,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    },
+    {
+      "mode": "feature",
+      "initializationMs": 25.700000047683716,
+      "chatOpenMs": 32.799999952316284,
+      "longTasks": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "modelResources": 0,
+      "errors": []
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "samples": 23,
+      "initializationMs": {
+        "median": 11.7,
+        "p95": 17.2,
+        "min": 7.8,
+        "max": 24.6
+      },
+      "chatOpenMs": {
+        "median": 32.4,
+        "p95": 39,
+        "min": 25.5,
+        "max": 46
+      },
+      "modelResources": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "longTasks": 1,
+      "errors": []
+    },
+    "feature": {
+      "samples": 23,
+      "initializationMs": {
+        "median": 25.8,
+        "p95": 34.6,
+        "min": 22.1,
+        "max": 49.2
+      },
+      "chatOpenMs": {
+        "median": 32.8,
+        "p95": 44.2,
+        "min": 28,
+        "max": 59.2
+      },
+      "modelResources": 0,
+      "workerStarts": 0,
+      "audioStarts": 0,
+      "longTasks": 3,
+      "errors": []
+    }
+  },
+  "cssGzipBytes": {
+    "baseline": 10212,
+    "feature": 10440
+  },
+  "baselineCommit": "6a875c04c331c9a4a05c256724215613d5bc4185",
+  "context": "Local Windows Chromium, controlled fixture; voice OFF; alternating 24 per version, first of each discarded. Not production latency or whole-app CWV.",
+  "backendContextQueryCounts": [
+    {
+      "role": "owner",
+      "scope": "?store=G001",
+      "endpoint": "tanya",
+      "baseline": 2,
+      "current": 3
+    },
+    {
+      "role": "owner",
+      "scope": "?store=G001",
+      "endpoint": "kesiapan",
+      "baseline": 2,
+      "current": 3
+    },
+    {
+      "role": "owner",
+      "scope": "?store=G001",
+      "endpoint": "pengaturan",
+      "baseline": null,
+      "current": 3
+    },
+    {
+      "role": "ea",
+      "scope": "?store=G001",
+      "endpoint": "tanya",
+      "baseline": 5,
+      "current": 6
+    },
+    {
+      "role": "ea",
+      "scope": "?store=G001",
+      "endpoint": "kesiapan",
+      "baseline": 5,
+      "current": 6
+    },
+    {
+      "role": "ea",
+      "scope": "?store=G001",
+      "endpoint": "pengaturan",
+      "baseline": null,
+      "current": 6
+    },
+    {
+      "role": "ea",
+      "scope": "?lingkup=entity",
+      "endpoint": "tanya",
+      "baseline": 1,
+      "current": 2
+    },
+    {
+      "role": "ea",
+      "scope": "?lingkup=entity",
+      "endpoint": "kesiapan",
+      "baseline": 1,
+      "current": 2
+    },
+    {
+      "role": "ea",
+      "scope": "?lingkup=entity",
+      "endpoint": "pengaturan",
+      "baseline": null,
+      "current": 2
+    }
+  ],
+  "backendCountsNote": "Fake DB query instrumentation; no model/API/production calls, no timing inference. Kesiapan delegated read endpoints stubbed equally for both versions; counts cover Una context queries only.",
+  "firstClarificationRecorderStatements": [
+    {
+      "role": "OWNER",
+      "total": 3,
+      "reads": 2,
+      "writes": 1
+    },
+    {
+      "role": "ENTITY_ADMIN",
+      "total": 4,
+      "reads": 3,
+      "writes": 1
+    }
+  ]
+}

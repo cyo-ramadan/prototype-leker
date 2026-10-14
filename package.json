@@ -5,7 +5,7 @@
   "scripts": {
     "test": "node --test",
     "precheck": "node --check agent-bus/src/worker.js",
-    "check": "node scripts/check-syntax.mjs",
+    "check": "node scripts/check-syntax.mjs && node --check src/caca-buka-layar.js && node --check src/caca-pengaturan.js && node --check src/caca-belum-paham.js && node --check src/kerangka/kamus.js && node --check public/kerangka-suara.js && node --check public/caca-pengaturan.js && node --check scripts/ambil-una-belum-paham.mjs && node --check public/kerangka-suara-pemilik.js && node --check public/kerangka-suara-model-worker.js && node --check public/kerangka-suara-audio.js && node --check src/caca-kamus-sumber.js && node --check src/caca-inventaris-panduan.js && node --check generated/inventaris-fitur-una.js",
     "peta:build": "node scripts/build-peta-kode.mjs",
     "db:migrations:apply": "npx --yes wrangler d1 migrations apply DB --remote",
     "db:schema:verify": "node scripts/verify-remote-schema.mjs",

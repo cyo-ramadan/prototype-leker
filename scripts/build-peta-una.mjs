@@ -1,46 +1,63 @@
 #!/usr/bin/env node
-// Pembangkit PETA MENU untuk Una (Bos Cyo 2026-10-10: "kalo ada tambahan program lagi
-// dia bingung juga karna ga ada knowledge itu ... peta yang bisa di refresh sendiri by
-// program?"). Sumbernya daftar menu yang SUNGGUHAN dipakai layar: public/nav-groups.js
-// (grup, label tombol, keterangan singkat). Hasilnya generated/peta-una-data.js, dibaca
-// Una untuk menjawab "bagaimana cara ... / di mana ...".
-//
-//   node scripts/build-peta-una.mjs          -> tulis ulang generated/peta-una-data.js
-//   node scripts/build-peta-una.mjs --cek    -> exit 1 kalau file belum mutakhir
-//
-// test/caca-peta.test.js menjalankan pembangkit ini dan GAGAL kalau peta belum disegarkan
-// atau ada menu tanpa penjelasan di src/caca-peta.js — jadi menu baru tidak bisa lolos
-// tanpa ikut diajarkan ke Una.
+// Mekanis saja: menu, inventaris, dan sidik sumber. Makna ditinjau agen dari kode.
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+import { bahanHashSumber, normalkanBaris, periksaSumber } from '../src/kerangka/kamus.js';
 
-import { readFileSync, writeFileSync } from 'node:fs';
+export const AKAR = fileURLToPath(new URL('../', import.meta.url));
+const baca = (nama) => readFileSync(resolve(AKAR, nama), 'utf8');
+export const hashIsi = (isi) => createHash('sha256').update(isi).digest('hex');
+export const hashSumber = (sumber, pembaca = baca) => hashIsi(bahanHashSumber(sumber, pembaca));
 
-const SUMBER = new URL('../public/nav-groups.js', import.meta.url);
-const TUJUAN = new URL('../generated/peta-una-data.js', import.meta.url);
-
-function ambilObjek(teks, nama) {
-  const awal = teks.indexOf(`const ${nama} = {`);
-  if (awal < 0) throw new Error(`${nama} tidak ditemukan di nav-groups.js`);
-  let i = teks.indexOf('{', awal);
-  let dalam = 0;
-  for (let j = i; j < teks.length; j += 1) {
-    if (teks[j] === '{') dalam += 1;
-    else if (teks[j] === '}') { dalam -= 1; if (dalam === 0) return new Function(`return (${teks.slice(i, j + 1)});`)(); }
+function labelTombolAsli(tab) {
+  // Label fallback nav berasal dari tombol asli yang dibangkitkan public JS.
+  for (const nama of berkasDi('public').filter((s) => s.endsWith('.js') && !s.endsWith('/nav-groups.js'))) {
+    const teks = baca(nama);
+    for (const m of teks.matchAll(/\b(\w+)\.dataset\.tab\s*=\s*['"]([^'"]+)['"]/g)) {
+      if (m[2] !== tab) continue;
+      const lanjut = teks.slice(m.index, m.index + 600);
+      const label = lanjut.match(new RegExp(m[1] + "\\.textContent\\s*=\\s*['\"]([^'\"]+)['\"]"))?.[1];
+      if (label) return label.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+    }
   }
-  throw new Error(`${nama} tidak tertutup`);
+  return tab;
 }
 
-export function bangunPeta(teks = readFileSync(SUMBER, 'utf8')) {
-  const PAGES = ambilObjek(teks, 'PAGES');
-  const LABELS = ambilObjek(teks, 'LABELS');
-  const ENTITY_LABELS = ambilObjek(teks, 'ENTITY_LABELS');
-  const HINTS = ambilObjek(teks, 'SKIN_HINTS').d ?? {};
-  const halamanDari = { 'branch-admin': 'gerai', 'entity-admin': 'entity' };
+export function kodeSkinResmi(teks = baca('src/ui-profile.js')) {
+  // Gunakan registry yang dipakai server. Skin visual murni (I) tidak punya
+  // SKIN_GROUPS sendiri, tetapi tetap harus mendapat menu layout default.
+  const cocok = teks.match(/const SKIN_BY_CHOICE\s*=\s*Object\.freeze\((\{[^}]+\})\)/);
+  if (!cocok) throw new Error('Registry skin server berubah; tinjau pembangkit peta Una.');
+  const registry = new Function('return (' + cocok[1] + ');')();
+  const kode = [...new Set(Object.values(registry))];
+  if (!kode.length || kode.some((nilai) => typeof nilai !== 'string' || !/^[a-z][a-z0-9_-]*$/.test(nilai))) {
+    throw new Error('Kode skin server tidak valid untuk peta Una.');
+  }
+  return kode;
+}
+
+export function bangunPeta(teks = baca('public/nav-groups.js'), profil = baca('src/ui-profile.js')) {
+  // Jalankan hanya deklarasi data lokal; tidak pernah menjalankan IIFE/browser.
+  // Termasuk assignment SKIN_GROUPS.f/g/h yang merujuk PAGES.
+  const awal = teks.indexOf('const PAGES = {');
+  const akhir = teks.indexOf('function pageKey()', awal);
+  if (awal < 0 || akhir < 0) throw new Error('Batas deklarasi nav-groups berubah; tinjau pembangkit peta.');
+  const { PAGES, LABELS, ENTITY_LABELS, SKIN_GROUPS, SKIN_LABELS, SKIN_HINTS } =
+    new Function(teks.slice(awal, akhir) + '\nreturn {PAGES,LABELS,ENTITY_LABELS,SKIN_GROUPS,SKIN_LABELS,SKIN_HINTS};')();
+  const skins = [...new Set(['classic', ...kodeSkinResmi(profil),
+    ...Object.keys(SKIN_GROUPS), ...Object.keys(SKIN_LABELS), ...Object.keys(SKIN_HINTS)])].sort();
   const peta = [];
-  for (const [kunci, halaman] of Object.entries(halamanDari)) {
-    for (const grup of PAGES[kunci]?.groups ?? []) {
-      for (const tab of grup.items ?? []) {
-        const label = (halaman === 'entity' ? ENTITY_LABELS[tab] : null) ?? LABELS[tab] ?? tab;
-        peta.push({ halaman, tab, label, grup: grup.label, hint: HINTS[tab] ?? '' });
+  for (const skin of skins) {
+    for (const [kunci, halaman] of Object.entries({ 'branch-admin': 'gerai', 'entity-admin': 'entity' })) {
+      const groups = SKIN_GROUPS[skin]?.[kunci] ?? PAGES[kunci].groups;
+      for (const grup of groups) {
+        const sections = grup.menu ?? [{ items: grup.items ?? [] }];
+        for (const section of sections) for (const tab of section.items ?? []) {
+          const label = SKIN_LABELS[skin]?.[tab] ?? (halaman === 'entity' ? ENTITY_LABELS[tab] : null) ?? LABELS[tab] ?? labelTombolAsli(tab);
+          peta.push({ skin, halaman, tab, label, grup: [grup.label, section.title].filter(Boolean).join(' → '), hint: SKIN_HINTS[skin]?.[tab] ?? '' });
+        }
       }
     }
   }
@@ -48,20 +65,156 @@ export function bangunPeta(teks = readFileSync(SUMBER, 'utf8')) {
 }
 
 export function isiBerkas(peta) {
-  return `// DIBANGKITKAN scripts/build-peta-una.mjs dari public/nav-groups.js — jangan disunting tangan.\n`
-    + `// Segarkan: node scripts/build-peta-una.mjs\n`
-    + `export const PETA_UNA = Object.freeze(${JSON.stringify(peta, null, 2)});\n`;
+  return '// DIBANGKITKAN scripts/build-peta-una.mjs dari public/nav-groups.js — jangan disunting tangan.\n'
+    + '// Segarkan: node scripts/build-peta-una.mjs\n'
+    + 'export const PETA_UNA = Object.freeze(' + JSON.stringify(peta, null, 2) + ');\n';
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const isi = isiBerkas(bangunPeta());
-  if (process.argv.includes('--cek')) {
-    let lama = '';
-    try { lama = readFileSync(TUJUAN, 'utf8'); } catch { /* belum ada */ }
-    if (lama !== isi) { console.error('Peta menu Una belum mutakhir. Jalankan: node scripts/build-peta-una.mjs'); process.exit(1); }
-    console.log('Peta menu Una mutakhir.');
-  } else {
-    writeFileSync(TUJUAN, isi);
-    console.log(`Peta menu Una ditulis: ${bangunPeta().length} menu.`);
+export function berkasDi(dir) {
+  return readdirSync(resolve(AKAR, dir), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? berkasDi(dir + '/' + e.name) : [dir + '/' + e.name]);
+}
+const stripTags = (s) => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+// Rentang string/comment mencegah inventaris membaca salinan ID fitur sebagai kode.
+function rentangLiteral(teks) {
+  const rentang = [];
+  for (let i = 0; i < teks.length; i++) {
+    const c = teks[i], n = teks[i + 1];
+    if (c === '/' && (n === '/' || n === '*')) {
+      const mulai = i;
+      const akhir = n === '/' ? teks.indexOf('\n', i + 2) : teks.indexOf('*/', i + 2);
+      i = akhir < 0 ? teks.length : akhir + (n === '*' ? 1 : 0);
+      rentang.push({ mulai, akhir: i + 1, jenis: 'komentar' });
+    } else if (c === "'" || c === '"' || c.charCodeAt(0) === 96) {
+      const mulai = i;
+      for (i++; i < teks.length; i++) {
+        if (teks[i] === '\\\\') { i++; continue; }
+        if (teks[i] === c) break;
+      }
+      rentang.push({ mulai, akhir: i + 1, jenis: 'string', isi: teks.slice(mulai + 1, i) });
+    }
   }
+  return rentang;
+}
+export function fiturDariBerkas(nama, teks) {
+  const fitur = [];
+  if (nama.endsWith('.js') && nama.startsWith('src/')) {
+    // Setiap guard method tulis ikut inventaris meski pola rutenya indirect/regex.
+    // ID kondisi, bukan nomor baris: memindah kode/CRLF tidak membuat fitur baru.
+    const literal = rentangLiteral(teks);
+    const dalamData = (i) => literal.some((r) => r.mulai <= i && i < r.akhir);
+    const guards = [...teks.matchAll(/\b(?:request|req)\.method\s*(?:===|!==|==|!=)\s*['"](POST|PUT|PATCH|DELETE)['"]([^\r\n]*)/g)].filter((m) => !dalamData(m.index));
+    for (const m of guards) {
+      const kondisi = (m[0].split('{')[0]).trim().replace(/\s+/g, ' ');
+      const rute = kondisi.match(/['"](\/api\/[^'"]+)['"]/)?.[1] ?? null;
+      fitur.push({ id: 'tulis:' + nama + ':' + kondisi, jenis: 'rute-tulis', sumber: nama, method: m[1], rute, label: rute ?? kondisi, skin: null });
+    }
+    // Rute literal di modul tulis juga dicatat: mencakup array/switch/guard lebih awal.
+    // Bisa mencakup endpoint baca di modul campuran; konservatif agar tidak ada lubang
+    // ketika endpoint yang dulu baca ditambah kemampuan tulis.
+    if (guards.length || literal.some((r) => r.jenis === 'string' && /^(POST|PUT|PATCH|DELETE)$/.test(r.isi))) {
+      // Parameter routes memakai regex, bukan string literal. Identitas pola
+      // membuat regex baru terdeteksi walau nama variabel match/guard sama.
+      const penanda = '/^\\/api\\/';
+      let mulai = teks.indexOf(penanda);
+      while (mulai >= 0) {
+        if (!dalamData(mulai)) {
+          let kelas = false, akhir = mulai + 1;
+          for (; akhir < teks.length; akhir++) {
+            const c = teks[akhir];
+            if (c === '\\') { akhir++; continue; }
+            if (c === '[') kelas = true;
+            else if (c === ']') kelas = false;
+            else if (c === '/' && !kelas) break;
+          }
+          if (akhir < teks.length) {
+            const pola = teks.slice(mulai, akhir + 1);
+            fitur.push({ id: 'pola:' + nama + ':' + pola, jenis: 'rute-pola', sumber: nama, method: null, rute: pola, label: pola, skin: null });
+          }
+        }
+        mulai = teks.indexOf(penanda, mulai + penanda.length);
+      }
+
+      for (const m of teks.matchAll(/(['"])(\/api\/[^'"\s]+)\1/g)) {
+        if (!literal.some((r) => r.jenis === 'string' && r.mulai === m.index)) continue;
+        fitur.push({ id: 'rute:' + nama + ':' + m[2], jenis: 'rute-kandidat', sumber: nama, method: null, rute: m[2], label: m[2], skin: null });
+      }
+    }
+  }
+  // HTML juga di template JS: tombol hasil render termasuk sehingga label/data-action
+  // baru tidak luput hanya karena tidak ditulis di berkas .html.
+  if (nama.startsWith('public/') && /\.(html|js)$/.test(nama)) {
+    for (const m of teks.matchAll(/\b(?:const|let)\s+(\w+)\s*=\s*document\.createElement\(['"]button['"]\)/g)) {
+      const namaVar = m[1];
+      const badan = teks.slice(m.index, m.index + 1800).split(/\n\s*(?:const|let)\s+\w+\s*=\s*document\.createElement/)[0];
+      const ambil = (properti) => badan.match(new RegExp('\\b' + namaVar + '\\.' + properti + '\\s*=\\s*([\"\\\'])([^\"\\\']+)\\1'))?.[2];
+      const tombolId = ambil('id');
+      const tab = ambil('dataset\\.tab');
+      const label = ambil('textContent');
+      if (tombolId || tab || label) fitur.push({
+        id: 'tombol:' + nama + ':' + (tombolId ?? (tab ? 'data-tab:' + tab : 'label:' + label)),
+        jenis: 'tombol', sumber: nama, tombolId: tombolId ?? null,
+        aksi: tab ? 'data-tab' : null, label: label ?? tab ?? tombolId, rute: null, skin: nama.includes('racik') ? ['f'] : nama.includes('percetakan') ? ['g'] : null, halaman: nama
+      });
+    }
+    for (const m of teks.matchAll(/<button\b([^>]*?)>([\s\S]*?)<\/button\s*>/gi)) {
+      const attrs = m[1];
+      const id = attrs.match(/\bid\s*=\s*["']([^"']+)["']/i)?.[1];
+      const action = [...attrs.matchAll(/\b(data-[\w-]+)\s*=\s*["']([^"']*)["']/gi)].map((a) => a[1]).sort().join(',');
+      const label = stripTags(m[2]).replace(/\$\{[^}]*\}/g, '{nilai}');
+      const identitas = id ?? (action ? action + ':' + label : 'label:' + label);
+      if (!identitas.trim()) continue;
+      const skin = nama.includes('racik') ? ['f'] : nama.includes('percetakan') ? ['g'] : nama.includes('warung') ? ['d', 'e', 'h'] : null;
+      fitur.push({ id: 'tombol:' + nama + ':' + identitas, jenis: 'tombol', sumber: nama, tombolId: id ?? null, aksi: action || null, label, rute: null, skin, halaman: nama });
+    }
+  }
+  return [...new Map(fitur.map((f) => [f.id, f])).values()];
+}
+export function bangunInventaris(berkas = berkasDi('src').filter((s) => s.endsWith('.js')).concat(berkasDi('public').filter((s) => /\.(js|html)$/.test(s))), pembaca = baca) {
+  return berkas.flatMap((nama) => fiturDariBerkas(nama, pembaca(nama))).sort((a, b) => a.id.localeCompare(b.id, 'en'));
+}
+export const isiInventaris = (fitur) => '// DIBANGKITKAN scripts/build-peta-una.mjs — jangan disunting tangan.\nexport const INVENTARIS_FITUR_UNA = Object.freeze(' + JSON.stringify(fitur, null, 2) + ');\n';
+
+export function periksaCakupan(fitur, kamus, tanpa = {}, belum = []) {
+  const dikenal = new Set(kamus.flatMap((e) => e.fitur ?? []));
+  const baseline = new Set(belum);
+  return fitur.filter((f) => !dikenal.has(f.id) && !String(tanpa[f.id] ?? '').trim() && !baseline.has(f.id)).map((f) => f.id);
+}
+
+async function utama() {
+  const cek = process.argv.includes('--cek');
+  const i = process.argv.indexOf('--tinjau');
+  if (i >= 0) {
+    const id = process.argv[i + 1];
+    const { KAMUS } = await import('../src/caca-jelaskan.js');
+    const entri = KAMUS.find((e) => e.id === id);
+    if (!entri) throw new Error('ID kamus tidak dikenal. Gunakan --tinjau <satu-id>, sesudah membaca sumbernya.');
+    const nama = 'generated/tinjauan-kamus-una.json';
+    const tinjauan = JSON.parse(baca(nama));
+    tinjauan[id] = hashSumber(entri.sumber);
+    writeFileSync(resolve(AKAR, nama), JSON.stringify(tinjauan, null, 2) + '\n');
+    console.log('Hash ' + id + ' diperbarui; penjelasan wajib sudah dibaca dari sumber.');
+    return;
+  }
+  const hasil = [['generated/peta-una-data.js', isiBerkas(bangunPeta())],
+    ['generated/inventaris-fitur-una.js', isiInventaris(bangunInventaris())]];
+  const basi = [];
+  for (const [nama, isi] of hasil) {
+    if (cek) {
+      let lama = ''; try { lama = baca(nama); } catch {}
+      if (normalkanBaris(lama) !== normalkanBaris(isi)) basi.push(nama);
+    } else writeFileSync(resolve(AKAR, nama), isi);
+  }
+  if (cek) {
+    const { KAMUS } = await import('../src/caca-jelaskan.js');
+    const { TANPA_PANDUAN, BELUM_DIAJARKAN } = await import('../src/caca-inventaris-panduan.js');
+    basi.push(...periksaSumber(KAMUS, { baca, hash: hashIsi }));
+    basi.push(...periksaCakupan(bangunInventaris(), KAMUS, TANPA_PANDUAN, BELUM_DIAJARKAN).map((id) => 'Fitur belum diajarkan: ' + id));
+    if (basi.length) throw new Error(basi.join('\n'));
+  }
+  console.log(cek ? 'Peta, inventaris, sumber, dan cakupan Una mutakhir.' : 'Peta dan inventaris dibangkitkan. Hash tinjauan tidak diubah.');
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  utama().catch((e) => { console.error(e.message); process.exitCode = 1; });
 }

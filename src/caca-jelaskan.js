@@ -12,35 +12,54 @@
 
 import { normalkan } from './caca-aksi-dasar.js';
 import { kataInti } from './caca-kata.js';
-import { cariMenu, jawabanMenu } from './caca-peta.js';
+import { cariMenu, jawabanMenu, menuUntuk, normalisasiSkin, PETA_UNA } from './caca-peta.js';
+import { peringkatKamus, pilihVarian } from './kerangka/kamus.js';
+import { SUMBER_KAMUS } from './caca-kamus-sumber.js';
+import TINJAUAN from '../generated/tinjauan-kamus-una.json' with { type: 'json' };
 
 /** Layar yang bisa dibukakan Una. `gerai` = tab di Workspace Gerai. */
-export const LAYAR = Object.freeze({
-  products: { label: 'Data Barang', halaman: 'gerai' },
-  manufacturing: { label: 'Resep & Satuan', halaman: 'gerai' },
-  cashiers: { label: 'Akun Kasir', halaman: 'gerai' },
-  employees: { label: 'Karyawan', halaman: 'gerai' },
-  store: { label: 'Profil Toko', halaman: 'gerai' },
-  approvals: { label: 'Persetujuan', halaman: 'gerai' },
-  drawers: { label: 'Laci Kasir', halaman: 'gerai' },
-  stock: { label: 'Stok', halaman: 'gerai' },
-  labarugi: { label: 'Untung Rugi', halaman: 'gerai' },
-  hutangpiutang: { label: 'Hutang & Pembayaran', halaman: 'gerai' },
-  beaops: { label: 'Biaya Operasional', halaman: 'gerai' },
-  sharedaccounts: { label: 'Rekening Bersama', halaman: 'gerai' },
-  accountingWorkspaceTab: { label: 'Pembukuan', halaman: 'gerai' },
-  'attendance-report': { label: 'Laporan Presensi', halaman: 'gerai' },
-  'setoran-cs': { label: 'Setoran CS', halaman: 'gerai' },
-  'permit-report': { label: 'Izin & Koreksi', halaman: 'gerai' },
-  suppliers: { label: 'Supplier', halaman: 'gerai' },
-  categories: { label: 'Kategori', halaman: 'gerai' }
-});
+export const LAYAR = Object.freeze(Object.fromEntries(
+  [...PETA_UNA.filter((p) => p.skin === 'classic' && p.halaman === 'entity'),
+   ...PETA_UNA.filter((p) => p.skin === 'classic' && p.halaman === 'gerai')]
+    .map((p) => [p.tab, Object.freeze({ label: p.label, halaman: p.halaman })])
+));
 
 const buka = (layar) => ({ jenis: 'buka', layar, label: `Buka layar ${LAYAR[layar].label}` });
 const isi = (label, teks) => ({ jenis: 'isi', label, teks });
 const jelas = (topik, label) => ({ jenis: 'jelaskan', topik, label });
 
 export const KAMUS = Object.freeze([
+  {
+    id: 'batal_penjualan', judul: 'Hapus / batalkan penjualan',
+    kunci: ['batal penjualan', 'batalkan penjualan', 'hapus penjualan', 'hapus transaksi', 'pembatalan transaksi', 'void transaksi'],
+    isi: 'Di Kasir, buka Data, cari penjualan lalu tekan Hapus dan isi alasan. Pengajuan masuk Persetujuan untuk ACC atau Tolak Admin. Sebelum diputuskan, kasir bisa Batal Hapus. Riwayat tetap ada; saat berhasil, stok/kas dikoreksi dan jurnal yang sudah posted dibalik, bukan dihapus. ACC belum selalu berarti selesai: bila status HOLD atau FAILED, periksa alasannya; Admin dapat mencoba ulang eksekusi yang sudah di-ACC. Una tidak menekan ACC untuk Bos.',
+    varian: { h: { isi: 'Di Kasir, buka Data, cari transaksi lalu Hapus dan isi alasan. Pada skin H, bila Auto Permit gerai aktif, transaksi langsung diproses; jika tidak, menunggu ACC Admin di Persetujuan. Riwayat tetap ada. Periksa status eksekusi: HOLD/FAILED perlu ditinjau, bukan dianggap berhasil. Jurnal posted diperbaiki dengan pembalik.' } },
+    tawaran: [buka('approvals')], tanpaAksi: 'pembatalan lewat permit dan pemeriksaan Admin'
+  },
+  {
+    id: 'tutup_laci', judul: 'Menutup laci dan uang setoran',
+    kunci: ['cara tutup laci', 'menutup laci', 'tutup laci', 'akhir shift', 'saldo akhir laci'],
+    isi: 'Di Kasir tekan Tutup Laci. Isi kas fisik akhir dan uang yang ditinggal di laci, lalu ambil foto langsung sesuai layar. Selisih uang akhir dan yang ditinggal menjadi setoran yang dibawa CS; piutangnya tidak otomatis lunas. Kirim bukti transfer lewat Portal Staf, lalu Admin mencocokkan dan ACC. Saldo awal laci berikutnya melanjutkan kas akhir dikurangi setoran. Menutup laci kasir lain memakai pengajuan izin; Una tidak menutup atau memindahkan uang laci.',
+    tawaran: [buka('drawers'), jelas('setoran_cs', 'Cara setoran CS')], tanpaAksi: 'kas fisik diperiksa kasir pada layar Tutup Laci'
+  },
+  {
+    id: 'retur_barang', judul: 'Retur barang',
+    kunci: ['retur', 'retur barang', 'barang dikembalikan', 'pengembalian barang', 'refund'],
+    isi: 'Belum ada alur khusus Retur yang sekaligus mengembalikan uang dan stok. Jangan mencatat uang kembali dengan menebak. Salah transaksi penuh: periksa pembatalan lewat Hapus dan ACC Admin. Barang rusak atau selisih fisik: periksa Arus Barang atau Penyesuaian Stok. Pengembalian sebagian dan pembayaran kembali perlu diperiksa Admin/akuntan sesuai kejadian.',
+    tawaran: [jelas('batal_penjualan', 'Pembatalan transaksi'), jelas('barang_rusak', 'Barang rusak')], tanpaAksi: 'belum ada alat retur parsial; jangan mengarang transaksi uang'
+  },
+  {
+    id: 'suara_una', judul: 'Suara dan obrolan Una',
+    kunci: ['suara una', 'una bicara', 'mikrofon', 'mode suara', 'suara pemilik', 'kenali suara', 'dengarkan'],
+    isi: 'Mikrofon mengubah ucapan menjadi pesan. Saklar Una bicara membacakan balasan dengan suara Indonesia bila browser menyediakannya; tiap balasan juga bisa didengarkan. Hentikan ucapan dengan tombol berhenti. Profil suara pemilik, bila dipilih, disimpan di perangkat ini dan bersifat percobaan; bukan pengganti login atau bukti identitas. Mulai obrolan live dari Pengaturan asisten: transkrip diproses lokal, unduhan awal sekitar 41 MB. Pengenalan pemilik opsional dan membutuhkan unduhan terpisah sekitar 102 MB serta tiga contoh suara. Tanpa opsi pemilik, live tetap berjalan. Ucapan bisa disela sementara tugas tetap berjalan; perintah baru mengantre. Gunakan headset bila browser tidak mendukung peredam gema penuh. Kecepatan dan ketepatan bergantung perangkat; model AI tugas tetap memakai layanan yang sudah dikonfigurasi. Suara tidak pernah menekan Ya: periksa dan setujui draft dari Workspace.',
+    tawaran: [], tanpaAksi: 'pengaturan suara dan mikrofon dikerjakan di panel perangkat'
+  },
+  {
+    id: 'nama_una', judul: 'Mengganti nama asisten',
+    kunci: ['nama una', 'ganti nama asisten', 'nama asisten', 'panggilan asisten'],
+    isi: 'Nama panggilan asisten dapat diatur dari pengaturan Una oleh akun yang berhak. Nama berlaku untuk tenant yang sama. Mengganti nama tidak mengubah hak akses atau cara persetujuan pekerjaan.',
+    tawaran: [], tanpaAksi: 'pengaturan nama memakai formulir pengaturan'
+  },
   {
     id: 'kemampuan',
     judul: 'Una bisa bantu apa aja',
@@ -96,6 +115,7 @@ export const KAMUS = Object.freeze([
   },
   {
     id: 'resep',
+    varian: { f: { isi: 'Di Racik Parfum, buka Barang ? Bahan & Aroma. Tambah bahan dan pilih satuan serta harga modalnya, lalu tambah aroma, harga jual dan resep standar dari takaran bahan. Saat Edit aroma, Simpan aroma memperbarui resep standarnya. Kasir meracik pesanan dengan takaran yang dipilih dan HPP mengikuti bahan yang dipakai.' } },
     judul: 'Resep & produksi',
     kunci: ['resep', 'takaran', 'produksi', 'bom', 'dadakan', 'komposisi'],
     isi: [
@@ -164,11 +184,17 @@ export const KAMUS = Object.freeze([
     judul: 'Untung rugi',
     kunci: ['untung rugi', 'laba rugi', 'laba', 'untung', 'net profit', 'rugi', 'omzet', 'omset'],
     isi: [
-      'Omzet = total penjualan. Untung kotor = omzet − HPP. Untung bersih = untung kotor − beban (gaji, sewa lapak, dll).',
+      'Omzet = total penjualan. Di laporan gerai, Untung Kotor = penjualan + pendapatan lain − HPP; Untung Bersih mengurangi beban (gaji, sewa lapak, dll.) lalu memperhitungkan untung/rugi penyesuaian stok.',
       'Semuanya terhitung sendiri dari penjualan, pembelian, dan biaya yang dicatat — tidak perlu rekap manual.'
     ].join('\n'),
     tawaran: [{ jenis: 'kirim', label: 'Untung hari ini?', teks: 'untung hari ini berapa?' }, buka('labarugi')],
     tanpaAksi: 'angkanya ditanyakan langsung ("untung hari ini berapa?") — alat bacanya bukan alat tulis'
+  },
+  {
+    id: 'jurnal_split', judul: 'Jurnal Split harian',
+    kunci: ['jurnal split', 'split jurnal', 'bagi jurnal per hari', 'jurnal dibagi harian'],
+    isi: 'Di layar Akuntansi pilih Jurnal Split. Isi Keterangan, akun Debit dan Kredit yang aktif dan berbeda, total rupiah serta tanggal awal dan akhir. Untuk akun hutang atau piutang per orang, isi atas nama yang diminta. Periksa pratinjau lalu tekan Buat Jurnal Split dan konfirmasi. Total dibagi rata per hari; sisa pembulatan masuk hari terakhir. Tanggal yang sudah tiba diproses saat dibuat, tanggal berikutnya menunggu proses jadwal saat jatuh tempo; kegagalan posting ditampilkan. Ini entry baru, tidak memerlukan jurnal sumber. Una dapat menjelaskan dan membuka layar; pembuatan split dilakukan melalui formulir Akuntansi.',
+    tawaran: [buka('accountingWorkspaceTab')], tanpaAksi: 'belum ada alat Una untuk membuat jadwal split; gunakan formulir Akuntansi'
   },
   {
     id: 'jurnal',
@@ -239,10 +265,14 @@ export const KAMUS = Object.freeze([
   },
   {
     id: 'laci',
+    varian: {
+      e: { isi: 'Laci mencatat uang tunai. Skin E untuk pemilik yang jaga sendiri: membuka laci tidak perlu presensi. Saldo awal melanjutkan kas akhir sebelumnya dikurangi setoran; laci pertama diisi sesuai kas fisik. Una tidak memindahkan uang laci.' },
+      f: { isi: 'Laci mencatat uang tunai. Di Racik Parfum (skin F), kasir/pemilik dapat membuka laci tanpa presensi; pengajuan izin lainnya tetap diperiksa menurut kebijakannya. Saldo awal melanjutkan kas akhir sebelumnya dikurangi setoran. Una tidak memindahkan uang laci.' }
+    },
     judul: 'Laci kasir',
     kunci: ['laci', 'drawer', 'buka laci', 'tutup laci', 'selisih', 'uang laci', 'kas laci'],
     isi: [
-      'Laci = uang tunai di gerai. Kasir membuka laci di awal shift dan menutupnya di akhir; saldo awal otomatis melanjutkan saldo akhir sebelumnya.',
+      'Laci = uang tunai di gerai. Kasir membuka laci di awal shift dan menutupnya di akhir; saldo awal melanjutkan kas akhir sebelumnya dikurangi setoran (laci pertama diisi manual).',
       'Yang menggerakkan laci hanya pembayaran tunai. Selisih saat tutup langsung kelihatan di laporan laci.',
       'Una sengaja tidak menyentuh uang laci — itu urusan kasir.'
     ].join('\n'),
@@ -262,6 +292,7 @@ export const KAMUS = Object.freeze([
   },
   {
     id: 'presensi',
+    varian: { e: { isi: 'Skin E dipakai pemilik yang jaga sendiri; presensi tidak diwajibkan untuk membuka laci. Bila usahanya memakai karyawan, pilih skin yang sesuai agar presensi dan pemeriksaan izinnya berlaku.' } },
     judul: 'Presensi & titik lokasi',
     kunci: ['presensi', 'absen', 'gps', 'radius', 'titik lokasi', 'lokasi gerai', 'jadwal shift', 'telat'],
     isi: [
@@ -288,7 +319,7 @@ export const KAMUS = Object.freeze([
     judul: 'Cara bayar',
     kunci: ['cara bayar', 'metode bayar', 'qris', 'transfer', 'tunai', 'payment method'],
     isi: [
-      'Cara bayar = tunai, transfer, QRIS, dll., diatur per gerai dan masing-masing tertaut ke akun (Kas, Bank, Rekening Bersama).',
+      'Cara bayar = tunai, transfer, QRIS, dll., diatur per gerai. POS memakai pilihan cara bayar aktif; jika memakai Accounting, pemetaan akun (Kas, Bank, Rekening Bersama) diurus terpisah oleh pembukuan.',
       'Hanya tunai yang menggerakkan uang laci. Aplikasi ini mencatat cara bayarnya — uangnya sendiri tidak diproses aplikasi.'
     ].join('\n'),
     tawaran: [{ jenis: 'kirim', label: 'Cara bayar gerai ini apa saja?', teks: 'cara bayar gerai ini apa saja dan akunnya apa?' }],
@@ -419,7 +450,7 @@ export const KAMUS = Object.freeze([
   {
     id: 'barang_rusak',
     judul: 'Barang rusak (saat diterima atau di gerai)',
-    kunci: ['rusak', 'barang rusak', 'rusak saat diterima', 'cacat', 'pecah', 'basi', 'kedaluwarsa', 'expired', 'busuk', 'tumpah', 'retur'],
+    kunci: ['rusak', 'barang rusak', 'rusak saat diterima', 'cacat', 'pecah', 'basi', 'kedaluwarsa', 'expired', 'busuk', 'tumpah'],
     isi: [
       'Rusak saat diterima dan belum dicatat: di Beli Bahan isi Qty yang BAGUS saja, Total sesuai yang dibayar. Kalau supplier mengganti/mengembalikan uang belakangan, catat penggantinya sebagai Beli Bahan lagi saat datang.',
       'Sudah terlanjur masuk stok (atau rusak di gerai): di Kasir tekan "📦 Arus Barang" → Arah arus "Barang Keluar" → pilih barang, Qty yang rusak, Catatan mis. "rusak saat diterima" → AJUKAN ARUS BARANG.',
@@ -494,7 +525,7 @@ export const KAMUS = Object.freeze([
       '• Jenis pembayaran: Per Jam atau Per Sesi, lalu Gaji per jam.',
       '• Jam & hari kerja per hari: isi jam masuk–pulang tiap hari. Contoh: Senin 09.00–22.00, Selasa sampai Sabtu 09.00–18.00, Minggu centang "Libur".',
       'Simpan kasir, lalu di tab Karyawan tautkan username itu ke orangnya.',
-      'Jadwal ini yang dipakai untuk menandai telat; presensi di luar jadwal tidak dihitung gaji.'
+      'Jadwal ini dipakai untuk menandai telat. Kebijakan batas jadwal tenant menentukan apakah presensi di luar jadwal dihitung gaji.'
     ].join('\n'),
     tawaran: [buka('cashiers'), jelas('jadwal_beda', 'Jam masuk tiap hari beda?')],
     aksi: { alat: 'buat_karyawan', tawar: 'Mau Una buatkan akunnya? Bilang "buatin", atau langsung mis. "buatin akun Rika Nur username rika, gaji 12rb per jam, Senin–Sabtu 09.00–17.00, Minggu libur".', tombol: 'Una buatkan akun', awal: { kr_akun: true } }
@@ -535,7 +566,7 @@ export const KAMUS = Object.freeze([
       'Gaji harian terhitung sendiri dari presensi: Per Jam = gaji per jam × jam kerja sebenarnya (jam masuk sampai pulang), Per Sesi = nominal per sesi.',
       '• Per akun: Tim → Akun Kasir → tombol "💰 Gaji" pada akun CS itu — kartu per tanggal.',
       '• Per orang (lintas akun & gerai): Tim → Karyawan → klik namanya → Riwayat Gaji, lengkap dengan saldo hutang gaji.',
-      'Presensi di luar jadwal ditandai "Di luar jadwal, tidak dihitung".'
+      'Jika kebijakan batas jadwal aktif, presensi di luar jadwal ditandai "Di luar jadwal, tidak dihitung".'
     ].join('\n'),
     tawaran: [buka('cashiers'), buka('employees'), jelas('potongan_gaji', 'Potongan / bonus gaji')],
     tanpaAksi: 'gaji dihitung otomatis dari presensi; dibaca di layar Gaji per akun'
@@ -593,72 +624,53 @@ export const KAMUS = Object.freeze([
     tawaran: [buka('cashiers')],
     tanpaAksi: 'belum ada jalur membatalkan aktivasi backup — dari layar pun belum bisa'
   }
-].map((entri) => Object.freeze(entri)));
+].map((entri) => Object.freeze({
+  ...entri, ...(SUMBER_KAMUS[entri.id] ?? {}), diperiksa: TINJAUAN[entri.id] ?? null
+})));
 
 
-const KOSAKATA = new Map(KAMUS.map((entri) => [entri, kataInti([...entri.kunci, entri.judul].join(' '))]));
-
-/**
- * Mencari entri kamus untuk satu pertanyaan/topik. Skor = frasa kunci yang muncul utuh
- * (makin panjang makin kuat) + kata bermakna pertanyaan yang ada di kosakata entri.
- * Uji 2026-10-10: "salah mengaktifkan akun cs back up ... gerai pendem ... gerai beji"
- * dulu jatuh ke "gerai dan entity" karena hanya mencari frasa terpanjang.
- * @returns {object|null}
- */
-export function cariTopikSkor(teks) {
-  const kalimat = ` ${normalkan(teks)} `;
-  if (!kalimat.trim()) return null;
-  const langsung = KAMUS.find((entri) => entri.id === String(teks ?? '').trim());
-  if (langsung) return { entri: langsung, skor: 99 };
-  const kataTanya = kataInti(teks);
-  let terbaik = null;
-  for (const entri of KAMUS) {
-    let skor = 0;
-    for (const kunci of entri.kunci) {
-      const k = normalkan(kunci);
-      if (k && kalimat.includes(` ${k} `)) skor += 2 + k.split(' ').length;
+function kamusKonteks(opsi = {}) {
+  const skin = normalisasiSkin(opsi.skin);
+  return KAMUS.map((e) => {
+    const hasil = { ...pilihVarian(e, { skin }) };
+    const tersedia = menuUntuk(opsi);
+    hasil.tawaran = (hasil.tawaran ?? []).flatMap((t) => {
+      if (t.jenis !== 'buka') return [t];
+      const tab = skin === 'f' && ['resep', 'satuan'].includes(e.id) && t.layar === 'manufacturing' ? 'racikbahan' : t.layar;
+      const menu = tersedia.find((m) => m.tab === tab && (!t.halaman || m.halaman === t.halaman));
+      return menu ? [{ ...t, layar: tab, halaman: menu.halaman, label: 'Buka layar ' + menu.label }] : [];
+    });
+    for (const biasa of PETA_UNA.filter((p) => p.skin === 'classic' && p.halaman === 'gerai')) {
+      const aktual = tersedia.find((p) => p.tab === biasa.tab && p.halaman === 'gerai');
+      if (!aktual) continue;
+      hasil.isi = hasil.isi.replaceAll(biasa.grup + ' ? ' + biasa.label, aktual.grup + ' ? ' + aktual.label);
     }
-    for (const kata of kataTanya) if (KOSAKATA.get(entri).has(kata)) skor += 1;
-    if (!terbaik || skor > terbaik.skor) terbaik = { entri, skor };
-  }
-  return terbaik && terbaik.skor >= 3 ? terbaik : null;
-}
-
-/**
- * Beberapa entri kamus terdekat (skor tertinggi dulu) — bahan bagi Gemini untuk memeriksa
- * mana yang benar-benar menjawab pertanyaan (src/caca-poles.js). Skor minimal 2: lebih
- * longgar dari cariTopikSkor karena keputusan akhirnya di tangan pemeriksa.
- */
-export function peringkatTopik(teks, n = 3) {
-  const kalimat = ` ${normalkan(teks)} `;
-  if (!kalimat.trim()) return [];
-  const kataTanya = kataInti(teks);
-  const nilai = KAMUS.map((entri) => {
-    let skor = 0;
-    for (const kunci of entri.kunci) {
-      const k = normalkan(kunci);
-      if (k && kalimat.includes(` ${k} `)) skor += 2 + k.split(' ').length;
-    }
-    for (const kata of kataTanya) if (KOSAKATA.get(entri).has(kata)) skor += 1;
-    return { entri, skor };
+    if (['akun_cs','gaji_harian','telat_gaji'].includes(e.id)) hasil.isi += '\nBatas gaji di luar jadwal berlaku bila kebijakan batas jadwal tenant aktif; saat dimatikan sesi itu tetap dihitung. Jadwal hari yang belum diisi tidak membatasi.';
+    return hasil;
   });
-  return nilai.filter((x) => x.skor >= 2).sort((a, b) => b.skor - a.skor).slice(0, n);
 }
-
-export function cariTopik(teks) {
-  return cariTopikSkor(teks)?.entri ?? null;
+export function peringkatTopik(teks, n = 3, opsi = {}) {
+  return peringkatKamus(teks, kamusKonteks(opsi), {
+    normalisasi: normalkan, kata: kataInti, konteks: { skin: normalisasiSkin(opsi.skin) }, minimum: 2
+  }).slice(0, n);
 }
+export function cariTopikSkor(teks, opsi = {}) {
+  return peringkatTopik(teks, 1, opsi).find((e) => e.skor >= 3) ?? null;
+}
+export function cariTopik(teks, opsi = {}) { return cariTopikSkor(teks, opsi)?.entri ?? null; }
 
 /** Jawaban siap tampil: kalimat + tawaran. Topik tak dikenal → daftar topik. */
-export function jelaskan(teks, { halaman = 'gerai' } = {}) {
-  const topik = cariTopikSkor(teks);
+export function jelaskan(teks, { halaman = 'gerai', skin = 'classic', peran } = {}) {
+  const opsi = { halaman, skin, peran };
+  const topik = cariTopikSkor(teks, opsi);
   // Peta menu aplikasi (dibangkitkan dari daftar menu sungguhan, src/caca-peta.js)
   // menang kalau kecocokannya lebih kuat dari panduan kamus — mis. "bikin pengumuman
   // buat karyawan" adalah menu Pengumuman, bukan panduan akun kasir.
-  const cocok = cariMenu(teks, { halaman });
+  const cocok = cariMenu(teks, opsi);
   // Panduan kamus yang menunjuk layar yang sama dengan menu itu selalu menang: isinya lebih lengkap.
   const layarSama = Boolean(topik && cocok && (topik.entri.tawaran ?? []).some((t) => t.layar === cocok.menu.tab));
-  const entri = topik && (!cocok || layarSama || topik.skor >= cocok.skor) ? topik.entri : null;
+  const khususSkin = cocok && ['racikbahan', 'cetak'].includes(cocok.menu.tab) && /\b(di mana|dimana|atur bahan|antrian|antrean)\b/i.test(teks);
+  const entri = !khususSkin && topik && (!cocok || layarSama || topik.skor >= cocok.skor) ? topik.entri : null;
   if (!entri) {
     if (cocok) {
       return {
@@ -667,7 +679,7 @@ export function jelaskan(teks, { halaman = 'gerai' } = {}) {
         topik: `menu:${cocok.menu.tab}`,
         judul: cocok.menu.label,
         jawaban: jawabanMenu(cocok.menu),
-        tawaran: cocok.menu.halaman === 'gerai' ? [{ jenis: 'buka', layar: cocok.menu.tab, label: `Buka ${cocok.menu.label}` }] : []
+        tawaran: [{ jenis: 'buka', layar: cocok.menu.tab, halaman: cocok.menu.halaman, label: `Buka ${cocok.menu.label}` }]
       };
     }
     return {
@@ -711,9 +723,10 @@ export const ALAT_JELASKAN = Object.freeze({
   async siapkan(t, ctx = {}) {
     // Topik salinan model kadang terlalu pendek/terlalu panjang; kalimat Bos utuh jadi cadangan.
     const halaman = ctx.lingkup === 'entity' ? 'entity' : 'gerai';
-    let hasil = jelaskan(t?.jelaskan_topik, { halaman });
+    const opsi = { halaman, skin: ctx.skin ?? ctx.uiSkin ?? 'classic', peran: ctx.peran };
+    let hasil = jelaskan(t?.jelaskan_topik, opsi);
     if (!hasil.dikenal && ctx.pesan) {
-      const dariPesan = jelaskan(ctx.pesan, { halaman });
+      const dariPesan = jelaskan(ctx.pesan, opsi);
       if (dariPesan.dikenal) hasil = dariPesan;
     }
     return { ok: true, jawaban: hasil.jawaban, tawaran: hasil.tawaran, kerjakan: hasil.kerjakan ?? null, panduan: hasil };

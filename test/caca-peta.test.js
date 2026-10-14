@@ -14,7 +14,7 @@ import { kataInti } from '../src/caca-kata.js';
 
 test('PENJAGA: peta menu Una sama dengan daftar menu aplikasi sekarang (jalankan node scripts/build-peta-una.mjs)', () => {
   const sekarang = readFileSync(new URL('../generated/peta-una-data.js', import.meta.url), 'utf8');
-  assert.equal(sekarang, isiBerkas(bangunPeta()), 'Menu aplikasi berubah tapi peta Una belum disegarkan: node scripts/build-peta-una.mjs');
+  assert.equal(sekarang.replace(/\r\n?/g, '\n'), isiBerkas(bangunPeta()), 'Menu aplikasi berubah tapi peta Una belum disegarkan: node scripts/build-peta-una.mjs');
 });
 
 test('PENJAGA: setiap menu punya penjelasan untuk Una (src/caca-peta.js PENJELASAN)', () => {

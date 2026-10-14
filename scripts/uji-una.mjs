@@ -63,6 +63,8 @@ async function obrolan(token, pesanDaftar) {
 function nilai(harapan, akhir) {
   const salah = [];
   if (akhir.error) salah.push(`error: ${akhir.error}`);
+  if (harapan.tanpaBelumLengkap && akhir.belumLengkap) salah.push('Una masih meminta kelengkapan atau belum memahami.');
+  if (harapan.tanpaPeringatan && akhir.peringatan) salah.push('Jawaban masih memiliki peringatan pemeriksa data.');
   if (harapan.alat && akhir.alat !== harapan.alat) salah.push(`alat ${akhir.alat} ≠ ${harapan.alat}`);
   for (const [k, v] of Object.entries(harapan.draft ?? {})) {
     const nyata = akhir.draft?.muatan?.[k];

@@ -3,6 +3,7 @@
   "name": "prototype-leker-v2",
   "main": "src/index.js",
   "compatibility_date": "2026-08-07",
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   // Worker dijalankan dekat Singapura, bukan di data center terdekat pengguna.
   // 2026-09-30: Gemini menolak Caca dengan "User location is not supported"
   // karena request dari Indonesia kadang dilayani data center di wilayah yang

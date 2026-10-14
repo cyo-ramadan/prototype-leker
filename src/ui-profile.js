@@ -35,13 +35,14 @@ async function tenantIdForContext(db, { storeCode, entityId }) {
   return null;
 }
 
+// Pure canonical mapping shared with server-resolved assistant context.
+export function uiProfileFromChoice(choice) {
+  return { skin: SKIN_BY_CHOICE[choice] || UI_SKIN_CLASSIC, brandName: PRODUCT_BRAND_NAME };
+}
 export async function resolveUiProfile(db, context = {}) {
   const tenantId = await tenantIdForContext(db, context);
   const choice = tenantId ? await getTenantPolicyChoice(db, tenantId, UI_SKIN_KEY) : '0';
-  return {
-    skin: SKIN_BY_CHOICE[choice] || UI_SKIN_CLASSIC,
-    brandName: PRODUCT_BRAND_NAME
-  };
+  return uiProfileFromChoice(choice);
 }
 
 export async function handleUiProfileApi(request, env, pathname) {

@@ -144,3 +144,34 @@ test('normal end clears all voice timers', () => {
   h.instances[0].onend();
   assert.equal(h.timers.size, 0);
 });
+
+
+test('owner-only dictation hides unverified words and rejects another speaker',async()=>{
+ const h=setup();
+ h.run(`globalThis.localStorage={getItem:()=> 'token'};globalThis.cacaPengaturanProfil=()=>({});window.cacaSuaraPemilik={wajib:()=>true,muatModel:async()=>{},rekamManual:async()=>({stop:()=>new Float32Array(64000).fill(.04),abort(){}}),verifikasi:async()=>({cocok:false})};`);
+ h.elements.get('cacaPertanyaan').value='catatan awal';await h.run('cacaToggleSuara()');
+ const r=h.instances[0];r.onresult(result('tambahkan barang palsu'));assert.equal(h.elements.get('cacaPertanyaan').value,'catatan awal');
+ await r.onend();assert.equal(h.elements.get('cacaPertanyaan').value,'catatan awal');assert.equal(h.elements.get('cacaPertanyaan').readOnly,false);assert.match(h.elements.get('cacaSuaraStatus').textContent,/belum cocok/);
+});
+test('loaded settings cannot bypass owner policy when runtime adapter is missing',async()=>{
+ const h=setup();h.run('globalThis.cacaPengaturanProfil=()=>({});');await h.run('cacaToggleSuara()');assert.equal(h.instances.length,0);assert.match(h.elements.get('cacaSuaraStatus').textContent,/sedang dimuat/);
+});
+
+
+test('repeated microphone clicks during voice preparation start only one recording',async()=>{
+ const h=setup();
+ h.run('let releaseVoice;globalThis.cacaSiapkanSuara=()=>new Promise(resolve=>{releaseVoice=resolve;});');
+ const first=h.run('cacaToggleSuara()');await h.run('cacaToggleSuara()');
+ assert.equal(h.instances.length,0);assert.equal(h.elements.get('cacaPertanyaan').readOnly,false);
+ h.run('releaseVoice()');await first;
+ assert.equal(h.instances.length,1);assert.equal(h.instances[0].started,true);
+});
+
+test('failed voice preparation leaves microphone closed and typed message intact',async()=>{
+ const h=setup();h.elements.get('cacaPertanyaan').value='catatan tetap';
+ h.run("globalThis.cacaSiapkanSuara=async()=>{throw new Error('Pengaturan suara berubah. Mulai kembali.');};");
+ await h.run('cacaToggleSuara()');
+ assert.equal(h.instances.length,0);assert.equal(h.elements.get('cacaPertanyaan').value,'catatan tetap');
+ assert.equal(h.elements.get('cacaPertanyaan').readOnly,false);assert.equal(h.run('cacaSuara.menyiapkan'),false);
+ assert.match(h.elements.get('cacaSuaraStatus').textContent,/Pengaturan suara berubah/);
+});

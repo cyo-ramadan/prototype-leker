@@ -11,6 +11,8 @@ import {
 } from '../src/customer-feedback.js';
 import {
   REQUIRED_REMOTE_TABLES,
+  ALL_REQUIRED_REMOTE_TABLES,
+  UNA_DIAGNOSTIC_REQUIRED_REMOTE_TABLES,
   WRANGLER_SCHEMA_VERIFY_TIMEOUT_MS,
   extractWranglerD1Rows,
   missingRequiredTables
@@ -250,4 +252,11 @@ test('remote schema verifier requires feedback and debugger audit tables with bo
     missingRequiredTables([{ success: true, results: [{ name: 'customer_feedback_reports' }] }]),
     ['customer_feedback_report_issues', 'debugger_audit_log']
   );
+});
+
+
+test('deploy schema check rejects absent Una diagnostic tables even when existing tables are healthy',()=>{
+ const existing=ALL_REQUIRED_REMOTE_TABLES.filter(name=>!UNA_DIAGNOSTIC_REQUIRED_REMOTE_TABLES.includes(name)).map(name=>({name}));
+ assert.deepEqual(missingRequiredTables([{results:existing}],ALL_REQUIRED_REMOTE_TABLES),['una_belum_paham','una_belum_paham_observations']);
+ assert.deepEqual(missingRequiredTables([{results:[...existing,...UNA_DIAGNOSTIC_REQUIRED_REMOTE_TABLES.map(name=>({name}))]}],ALL_REQUIRED_REMOTE_TABLES),[]);
 });

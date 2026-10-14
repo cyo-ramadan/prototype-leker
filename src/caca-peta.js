@@ -13,9 +13,24 @@
 import { PETA_UNA } from '../generated/peta-una-data.js';
 import { kataInti } from './caca-kata.js';
 
+export function normalisasiSkin(skin) {
+  const nilai = String(skin ?? 'classic').toLowerCase();
+  return nilai === '0' ? 'classic' : nilai;
+}
+export function menuUntuk({ skin = 'classic', halaman, peran } = {}) {
+  const role = String(peran ?? '').toUpperCase().replace(/[ -]/g, '_');
+  // Tanpa role dipakai oleh tooling/kode lama. Role eksplisit selalu dipagari.
+  if (role && !['OWNER', 'ENTITY_ADMIN', 'ADMIN', 'PEMILIK', 'ADMIN_GERAI', 'ADMIN_ENTITY'].includes(role)) return [];
+  return PETA_UNA.filter((p) => p.skin === normalisasiSkin(skin)
+    && (!halaman || p.halaman === halaman)
+    && (!['ADMIN', 'ADMIN_GERAI'].includes(role) || p.halaman === 'gerai'));
+}
 const NAMA_HALAMAN = Object.freeze({ gerai: 'Workspace Gerai', entity: 'Panel Pemilik (Entity)' });
 
 export const PENJELASAN = Object.freeze({
+  'gerai:racikbahan': { bisa: 'Tambah bahan beserta harga modal per gram/ml, lalu tambah aroma, harga jual, dan resep standar dari takaran bahan. Edit aroma memperbarui resep standarnya.', kata: ['bahan', 'atur bahan', 'aroma', 'parfum', 'racik', 'resep standar', 'takaran'] },
+  'gerai:cetak': { bisa: 'Buka Layar Cetak untuk chat WhatsApp, antrian pekerjaan per mesin, dan pengaturan mesin, produk, serta otomatisasi percetakan.', kata: ['cetak', 'antrian', 'antrean', 'mesin', 'percetakan', 'whatsapp', 'wa', 'printer'] },
+  'gerai:accounting-reference': { bisa: 'Portal Link Akuntansi mengatur hubungan transaksi bisnis dengan akun debit/kredit; jurnal tetap ditafsirkan dan diposting modul Accounting.', kata: ['referensi akuntansi', 'referensi pembukuan'] },
   'gerai:store': { bisa: 'Ubah nama, logo, alamat gerai, dan titik lokasi + radius presensi karyawan.', kata: ['profil', 'logo', 'alamat', 'lokasi', 'gps', 'radius', 'titik'] },
   'gerai:transactions': { bisa: 'Lihat semua transaksi gerai: penjualan, pembelian, biaya, produksi, beserta detailnya.', kata: ['riwayat', 'transaksi', 'penjualan', 'pembelian', 'detail'] },
   'gerai:drawers': { bisa: 'Lihat laci kasir yang dibuka/ditutup, selisih kas, dan setoran laci per sesi.', kata: ['laci', 'kas', 'selisih', 'tutup laci', 'buka laci'] },
@@ -66,38 +81,35 @@ export const PENJELASAN = Object.freeze({
 
 const KUNCI = (p) => `${p.halaman}:${p.tab}`;
 
-const INDEKS = PETA_UNA.map((p) => {
+function indeksMenu(p) {
   const jelas = PENJELASAN[KUNCI(p)] ?? { bisa: p.hint || '', kata: [] };
-  return {
-    ...p,
-    bisa: jelas.bisa,
-    una: jelas.una ?? null,
-    kataLabel: kataInti(`${p.label} ${(jelas.kata ?? []).join(' ')}`),
-    kataLain: kataInti(`${p.grup} ${p.hint} ${jelas.bisa}`)
-  };
-});
+  return { ...p, bisa: jelas.bisa, una: jelas.una ?? null,
+    kataLabel: kataInti(p.label + ' ' + (jelas.kata ?? []).join(' ')),
+    kataLain: kataInti(p.grup + ' ' + p.hint + ' ' + jelas.bisa) };
+}
 
-/**
- * Menu yang paling cocok untuk sebuah pertanyaan. Kata yang ada di label/kata kunci
- * bernilai 2, yang hanya ada di penjelasan bernilai 1. `halaman` (gerai/entity)
- * mengutamakan menu di halaman yang sedang dibuka.
- * @returns {{ menu: object, skor: number } | null}
- */
-export function cariMenu(teks, { halaman = 'gerai' } = {}) {
+/** Semua calon, agar perintah buka bisa meminta pilihan saat ambigu. */
+export function peringkatMenu(teks, { halaman = 'gerai', skin = 'classic', peran } = {}) {
   const kata = kataInti(teks);
-  if (!kata.size) return null;
-  let terbaik = null;
-  for (const m of INDEKS) {
+  if (!kata.size) return [];
+  return menuUntuk({ skin, peran }).map(indeksMenu).map((m) => {
     let skor = 0;
     for (const k of kata) skor += m.kataLabel.has(k) ? 2 : (m.kataLain.has(k) ? 1 : 0);
     if (m.halaman === halaman) skor += 0.5;
-    if (!terbaik || skor > terbaik.skor) terbaik = { menu: m, skor };
-  }
-  return terbaik && terbaik.skor >= 2.5 ? terbaik : null;
+    // Pintu khusus skin mengutamakan pekerjaan khasnya, tetap dari kata peta.
+    if (m.tab === 'racikbahan' && /\b(bahan|aroma|parfum)\b/i.test(teks)) skor += 2;
+    return { menu: m, skor };
+  }).filter((m) => m.skor >= 2.5).sort((a, b) => b.skor - a.skor);
 }
+export function cariMenu(teks, opsi = {}) { return peringkatMenu(teks, opsi)[0] ?? null; }
 
 /** Kalimat jawaban: di mana menunya dan di sana bisa apa. */
-export function jawabanMenu(menu) {
+export function jawabanMenu(menu, opsi = {}) {
+  if (opsi.skin != null || opsi.peran != null) {
+    const tersedia = menuUntuk(opsi).find((m) => m.tab === menu.tab && m.halaman === menu.halaman);
+    if (!tersedia) return '';
+    menu = indeksMenu(tersedia);
+  }
   return [
     `Itu ada di ${NAMA_HALAMAN[menu.halaman]} → ${menu.grup} → ${menu.label}.`,
     menu.bisa ? `Di sana Bos bisa: ${menu.bisa}` : '',

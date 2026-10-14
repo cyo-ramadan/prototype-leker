@@ -13,6 +13,45 @@ Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
 ---
 
+## Update pemeriksaan rilis 2026-10-14 — performa
+
+Bos Cyo mengizinkan publikasi untuk tes langsung, lalu mensyaratkan jangan dipasang bila memperlambat pengguna secara signifikan. Status saat audit: **belum push/deploy**, produksi belum diubah.
+
+- Baseline main6a875c0 diselaraskan lokal; skinI menggunakan menu classic melalui registry server, dan panduan Jurnal Split mengikuti implementasi main. Migration antrean0155 tidak bentrok dengan0154 Jurnal Split.
+- Audit browser48pengukuran bergantian (23sampel per versi setelah warmup): median inisialisasi11,7→25,8ms, buka chat32,4→32,8ms. Suara OFF:0model/Worker/audio,0error; tambahan JS+CSSgzip sekitar9,1KiB. Script pemilik dimuat hanya saat pengaturan suara/mikrofon, model tetap atas tindakan eksplisit. Tidak ada klaim Core Web Vitals/HP/latensi produksi.
+- Backend: konteks skin+nama satu lookup indexed (+1statement terhadap baseline); balasan sehat tanpa diagnostic I/O. Recorder waitUntil tidak menahan response; klarifikasi pertama tanpa cleanup global dan counter atomik. Pelanggan dibaca maksimal501baris, nama128karakter/total32.768; melampaui batas membuat semua teks tersamarkan agar nama di luar sampel aman. Migration0155 menambah index entity pada stores; plan diuji lokal, harus dicek lagi produksi setelah deploy.
+- Kamus: suara_una/nama_una serta lima panduan barang/supplier ditinjau ulang karena pemuatan malas dan cache-version HTML; perilaku bisnis tetap sama. Entri lain yang terdampak main sudah ditinjau, baseline cakupan tetap beku. Parser baseline HEAD pada tes diperbaiki agar pola route yang berisi `])` tidak memotong JSON.
+- Bukti/metode/batas klaim: `audit/2026-10-14-una-performa.md`, data mentah JSON dan `scripts/fixtures/una-perf-local.mjs`.
+- Kesimpulan sementara: tidak teramati pelambatan signifikan pada uji lokal suara OFF setelah perbaikan; lanjut gerbang rilis sesuai izin, tahan bila ditemukan regresi. Bukan bukti seluruh perangkat aman/fitur sudah live. Browser web tetap didukung. Budi belum dipasang.
+
+## Update lokal 2026-10-13 — Codex: kamus, antrean, navigasi, suara
+
+Status: **implementasi worktree lokal, belum dirilis/merge atau migration produksi**.
+Branch `codex/una-telepon-20261013`, worktree `C:/Users/Asus/leker-una-suara`, basis `f9da386`.
+Kode dirty pada folder `prototype-leker` tidak ditimpa.
+
+- T-KAMUS: peta classic/A–I dan peran, inventaris route/tombol/pola tulis, sumber serta hash makna yang harus ditinjau. Baseline inventaris dibekukan; fitur baru tidak otomatis dianggap sudah diajarkan.
+- T-GAGAL: antrean kegagalan server per tenant/entity/gerai, snapshot tersamarkan maksimum enam giliran, dedup dan retensi 60 hari berbasis kejadian. Snapshot ownership menggunakan FK `entity_tenancy_id` (ADR-030), bukan duplikasi tenant_id pada fakta; perpindahan ownership tidak membocorkan antrean lama. Migration additive `0155_una_belum_paham.sql` belum diaplikasikan. Ekspor kasus menjadi skenario lewat `scripts/ambil-una-belum-paham.mjs`; harus ditinjau manusia sebelum latihan.
+- T-BUKA: perintah buka layar deterministik mengikuti nama menu skin dan hak akses, tanpa panggilan AI, draft, atau tombol internal. Perintah campuran buka+tulis diteruskan ke alur agen.
+- T-MULUT: narasi Indonesia opt-in, tombol dengarkan/berhenti, rahasia dan isi draft tidak dibacakan. Balasan suara mengarahkan pemeriksaan draft ke Workspace.
+- Arahan Bos Cyo terbaru: **audio lokal dipilih; pengenalan pemilik opsional, OFF tetap bisa live**. Whisper tiny q8 ~41 MB untuk transkrip lokal. WavLM q8 ~102 MB hanya bila pengguna memilih pengenalan pemilik dan merekam tiga contoh. Model diunduh setelah tindakan pengguna; audio hanya di memori/Worker, profil embedding tersimpan pada akun+tenant+browser perangkat. Tidak perlu hardware buatan khusus.
+- Live menggunakan satu capture getUserMedia yang terus mendengar saat narasi/tugas berjalan. VAD menyela narasi; bila owner-only aktif harus cocok dahulu. Perintah mengantre maksimum tiga tanpa menimpa ketikan/foto. Tutup, ganti scope/akun, pagehide, tab tersembunyi melepaskan capture dan mengabaikan hasil terlambat. Speaker memerlukan echoCancellation `all`; browser tanpa dukungan itu harus memakai headset dengan pilihan eksplisit. Ini batas MVP, bukan klaim setara kelancaran GPT Live.
+- Nama asisten dapat diubah di pengaturan tenant oleh pengguna berhak; tidak mengubah draft/data/hak akses. Profil suara tetap khusus akun/perangkat. Login dan persetujuan manual server tetap wajib.
+- Pengolahan audio lokal tidak menambah biaya audio API. AI tugas Gemini yang sudah ada tetap terpisah. Tidak ada provider realtime berbayar diaktifkan.
+
+Validasi akhir lokal 2026-10-13:
+- `npm run check` lulus: 321 file dasar plus seluruh modul JS baru pada daftar check.
+- `npm test -- --test-concurrency=12`: **1937 tes, 1929 lulus, 8 gagal baseline**. Delapan kegagalan dibandingkan pada checkout base f9da386 dengan dependency dan snapshot graph lokal yang sama: token login (CRLF), pembaca dokumen HPP, tiga tes foto Dermo (CRLF), multi-store (CRLF), peta graphify lama tidak cocok generated, dan pembaca rentang harga. Tidak ditambal di PR fitur ini.
+- Fokus final: 27 tes dikte/live/pemilik, 47 tes kamus/peta/jelaskan, 44 tes antrean/pengaturan/navigasi/live/TTS dan 22 tes antrean/tenancy lulus. Perbaikan terakhir stop-live+hash diperiksa 19 tes; dedup saat ownership kembali ke tenant yang sama diperiksa ulang 16 tes antrean, semuanya lulus. Kelompok tes saling tumpang tindih, jangan dijumlahkan sebagai total.
+- Generator `--cek` mutakhir, `git diff --check` bersih, bundel `wrangler@4.150.0 deploy --dry-run` lulus (tanpa deploy/migration).
+- Probe browser asli menyelesaikan Whisper q8 dan WavLM WASM embedding512 finite memakai fixture publik, tanpa suara pengguna. Penggantian nama lewat UI fixture berhasil. **Belum ada uji mikrofon nyata laptop/HP, akurasi speaker populasi, atau latensi perangkat.**
+- Log lengkap ada di TEMP: `leker-una-full-final.log`, `leker-una-check-final.log`, `leker-una-worker-dryrun.log`; baseline pada `leker-una-baseline-selected.log`, `leker-una-baseline-remaining.log` dan `leker-una-baseline-peta.log`.
+
+Langkah sebelum rilis: review perubahan, jalur deploy canonical dan uji perangkat di kontrak. Commit lokal awal98a7748 sudah dibuat; main6a875c0 sedang digabung lokal. Belum push/merge remote atau menulis database produksi.
+
+Rincian model, lisensi, batas keamanan dan daftar uji perangkat: `contracts/una-suara-lokal-v1.md`.
+DOC-IMPACT: handoff ini, kontrak suara baru, kamus suara/nama dan skill `latih-una` diperbarui. Dokumen rilis penjualan tidak diubah karena belum live.
+
 ## Update 2026-10-11 - Workspace Una
 
 Implementasi: Workspace V1. Bukti rilis memakai check `Workers Builds: prototype-leker-v2` pada merge commit `main`, lalu pemeriksaan aset dan schema produksi.
@@ -48,6 +87,198 @@ Validasi implementasi 2026-10-11:
   barang atau transaksi pada produksi.
 - Preflight produksi: tabel Workspace belum ada, ledger terakhir0149. Migration0150
   hanya menambah metadata Workspace; deploy harus apply lalu verify schema.
+
+## Untuk Codex 2026-10-12 — Kamus yang ikut berubah + mulut Una (BELUM dikerjakan)
+
+Ditulis Eskor atas arahan Bos Cyo. Ada empat tugas: T-KAMUS, T-GAGAL, T-BUKA, T-MULUT. Belum ada kode yang ditulis.
+
+### T-KAMUS — kamus Una jangan sampai basi karena update atau skin
+
+Pertanyaan Bos Cyo: *"kamus itu dinamis atau statis? jangan sampe ketika ada perubahan
+algoritma sistem karna update ataupun kusus di skin tertentu bikin kamusnya ga relevan."*
+
+**Kondisi sekarang (dicek di main d2701c1):**
+
+| Bagian | Sifat | Penjaga |
+|---|---|---|
+| `generated/peta-una-data.js` (daftar menu) | Setengah dinamis: dibangkitkan dari `public/nav-groups.js` | `test/caca-peta.test.js` gagal kalau basi atau ada menu tanpa `PENJELASAN` ✅ |
+| `PENJELASAN` di `src/caca-peta.js` (layar itu bisa apa) | Statis, ditulis tangan | Hanya mengecek ada/tidaknya, bukan isinya |
+| `KAMUS` di `src/caca-jelaskan.js` (42 entri: HPP, jurnal, laci, cara pakai) | **Statis, ditulis tangan** | Hanya mengecek tawaran menunjuk ke layar/topik yang ada (`caca-aksi-barang.test.js` "kamus: kunci terpanjang menang…") |
+| Skin | **Una tidak tahu skin sama sekali** (tidak ada `skin`/`ui_skin` di `src/caca-*.js`) | — |
+
+**Lubang yang konkret:**
+1. `bangunPeta()` hanya membaca `PAGES[*].groups` + `LABELS` + `SKIN_HINTS.d`. `SKIN_GROUPS`
+   (d/f/g) dan `SKIN_LABELS` diabaikan, jadi:
+   - Skin F (Racik Parfum): menu `racikbahan` "Bahan & Aroma" tidak dikenal Una. Una tetap
+     menyuruh ke "Data Barang" / "Resep & Satuan".
+   - Skin G (Percetakan): `cetak` "Layar Cetak" tidak dikenal.
+   - Skin D: grup dan label berbeda ("Biaya Toko", "Absen", "Lainnya → Uang & pembukuan").
+     Una menyebut nama grup/label default, jadi petunjuk "ada di grup X" bisa salah tempat.
+2. Isi `KAMUS` menjelaskan perilaku sistem (mis. HPP rata-rata bergerak, alur laci, setoran,
+   izin). Kalau algoritmanya diubah, tidak ada tes yang gagal, sehingga Una tetap menjelaskan
+   cara lama dengan yakin. Ini persis yang dikhawatirkan Bos.
+
+**Yang diminta (arah, detail silakan Codex rancang):**
+- **Peta per skin:** `bangunPeta()` ikut membaca `SKIN_GROUPS` + `SKIN_LABELS` + `SKIN_HINTS` per
+  skin, sehingga keluarannya punya kolom `skin` (atau satu peta per skin). Menu khusus skin
+  (`racikbahan`, `cetak`, dst.) wajib punya `PENJELASAN`, dan tes penjaga yang sama ikut
+  menutupinya.
+- **Una tahu skin tenant:** skin dibaca di server dari kebijakan tenant `ui_skin` (bukan dari
+  klien), lalu `cariMenu`/`jawabanMenu`/`jelaskan` memakai label, grup, dan menu skin itu.
+  Entri `KAMUS` boleh punya `skin: [...]` (hanya berlaku di skin itu) atau varian isi per skin.
+  Tawaran `buka` ke layar yang tidak ada di skin tenant harus disembunyikan.
+- **Kamus terikat ke kode yang dijelaskannya:** tiap entri `KAMUS` yang menjelaskan perilaku
+  sistem diberi `sumber: ['src/hpp-recalculation.js', …]` (berkas yang menentukan perilaku itu)
+  dan `diperiksa: '<hash isi berkas sumber>'`. Tes penjaga baru gagal kalau isi berkas sumber
+  berubah tetapi entri belum ditinjau ulang. Untuk menyegarkan hash dipakai satu skrip
+  (`node scripts/build-peta-una.mjs --tinjau <id>`), mirip pola peta. Tujuannya: setiap update
+  algoritma **memaksa** orang yang mengubahnya membaca ulang penjelasan Una. Entri yang murni
+  istilah umum boleh `sumber: []` dengan alasan tertulis (pola `tanpaAksi` yang sudah ada).
+  - Catatan: CRLF di Windows (`core.autocrlf=true`) membuat hash berbeda. Normalkan `\r\n` → `\n`
+    sebelum di-hash. Ini sumber 10 kegagalan tes Windows yang sudah dikenal.
+- Jangan ubah pembagian yang sudah diputuskan: FAKTA dari kamus/peta (kode), BAHASA dari model
+  (`caca-poles.js`). Model tetap tidak boleh mengarang definisi.
+
+**Dinamis seperti graphify (Bos Cyo 2026-10-12: "dibuat dinamis seperti graphify … bikinin skill kusus"):**
+skill `segarkan-kamus-una` (`.claude/skills/` + `.agents/skills/` untuk Codex) adalah urutan kerja
+penyegarannya. Pembagiannya: lapis mekanis (menu/label/grup per skin, hash sumber) dibangkitkan
+program tanpa AI, sama seperti `graphify update .`. Lapis makna (kalimat penjelasan) ditinjau agen
+dari kode setiap kali penjaga merah. Makna sengaja tidak diserahkan ke AI otomatis di produksi
+karena alasan di `src/caca-jelaskan.js` baris 4-8. Yang otomatis adalah *mendeteksi* yang basi
+dan *memaksa* peninjauan. Tidak ada jadwal mingguan atau sesi kamus khusus: yang membetulkan kamus adalah agen yang
+mengubah kodenya, di PR yang sama, saat tes penjaga merah (keputusan Bos Cyo 2026-10-12). Tooling di skill (`--cek`, `--tinjau`, kolom `skin`/`sumber`/`diperiksa`)
+dibangun di tugas ini.
+
+**Inventaris fitur: fitur/tombol baru = wajib masuk kamus (Bos Cyo 2026-10-12: "update
+fitur/update tombol = update kamus").** Rancangan di atas hanya menjaga entri yang *sudah ada* dan
+*menu* per skin. Mekanisme di dalam layar yang belum pernah ditulis tidak terdeteksi. Contoh: cara
+hapus/batalkan penjualan (izin void → ACC → gagal otomatis saat tutup laci) sekarang hanya satu
+kalimat di entri `persetujuan`. Saat ini ada ±204 rute tulis (POST/PUT/PATCH/DELETE di `src/*.js`)
+dan ±103 tombol ber-id di `public/*.html`, sedangkan kamus baru 42 entri. Yang diminta:
+- Pembangkit mekanis (tanpa AI) `generated/inventaris-fitur-una.js`: daftar **fitur** dari rute
+  tulis + tombol/aksi per halaman per skin (id, label tombol, rute yang dipanggil bila bisa
+  dilacak). Rute dan tombol yang satu alur boleh dikelompokkan lewat peta kecil yang ditulis tangan.
+- Entri `KAMUS` diberi `fitur: [...]`. Tes penjaga gagal bila ada fitur di inventaris yang tidak
+  ditunjuk entri mana pun dan tidak tercantum di `TANPA_PANDUAN` (beralasan, misalnya rute internal
+  agen/cron/diagnostik).
+- **Baseline supaya tidak membebani sekaligus:** fitur lama yang belum diajarkan dibekukan di
+  `BELUM_DIAJARKAN` (daftar tertulis). Tes hanya merah untuk fitur **baru**. Daftar itu boleh
+  menyusut, tidak boleh bertambah. Fitur lama dicicil, dimulai dari yang paling sering ditanya
+  (hapus/batal penjualan, retur, tutup laci, setoran, koreksi presensi).
+- Jadi: tombol atau rute baru → tes merah di PR yang menambahkannya → agen yang sama menulis
+  entrinya (pola sama dengan skill `segarkan-kamus-una`).
+
+**Kerangka bersama Una–JARVIS (Bos Cyo 2026-10-12):** mesin kamus dibangun sebagai **kerangka umum**
+yang tidak tahu soal toko, misalnya `src/kerangka/kamus.js`: pencocokan kunci + kata dasar/sinonim,
+varian per konteks (skin untuk Una, nanti ruang kerja untuk JARVIS), penjaga hash `sumber`, dan
+skrip `--cek`/`--tinjau`. Isi entri, daftar layar, dan skin Una disuntikkan dari luar
+(`src/caca-jelaskan.js` tetap jadi isi milik Una). Tujuannya: perbaikan algoritma kerangka otomatis
+ikut ke JARVIS (asisten suara Bos di laptop, belum dibangun), sedangkan kata-kata dan otak
+masing-masing tetap terpisah. Kerangka tidak boleh mengimpor apa pun dari D1, tenant, atau
+`caca-agen`.
+
+**Selesai bila:** di gerai skin F, "di mana atur bahan?" mengarah ke "Bahan & Aroma"; di skin G,
+"di mana antrian cetak?" mengarah ke "Layar Cetak"; di skin D label/grupnya sesuai layar; dan
+mengubah satu baris di berkas `sumber` sebuah entri membuat tes merah sampai entri itu ditinjau.
+
+### T-GAGAL — percakapan saat Una tidak paham otomatis tersimpan jadi PR untuk agen
+
+Bos Cyo 2026-10-12: *"jawaban2 una yang ga paham itu otomatis percakapannya kesimpen, biar nanti
+waktu agent bekerja saja punya pr untuk nyelesaiin masalah itu, pastinya agent pintar … minimal
+opus."* Saat ini **tidak ada** catatan seperti itu. Tanda "tidak paham" hanya hidup sebentar di
+riwayat browser (`TANDA_NGAMBEK`, `src/caca-tertunda.js`).
+
+- **Kapan dicatat (server, bukan klien):** balasan ngambek tingkat ≥1; `belumLengkap` yang
+  berulang di pertanyaan yang sama; `jelaskan`/peta tidak menemukan topik; model gagal atau
+  menolak format; pemeriksa angka menolak jawaban; pesan Bos sesudahnya berisi koreksi ("bukan
+  itu", "salah", "ga gitu"). Opsional: tombol 👎 kecil di balasan Una.
+- **Yang disimpan:** tabel baru, misalnya `una_belum_paham` (migration berikutnya): tenant/gerai,
+  peran pengirim, waktu, alasan pemicu, pesan pemicu, ±6 giliran terakhir (sudah lewat
+  `samarkan`), alat yang dipilih, versi aset/commit, status `baru|dikerjakan|selesai|bukan_masalah`.
+  **Tanpa** password/token/foto. Nomor HP dan nama pelanggan disamarkan. Retensi 60 hari, lalu
+  dihapus otomatis. Satu kejadian per percakapan per alasan (jangan banjir).
+- **Mengubahnya jadi PR untuk agen:** skrip `node scripts/ambil-una-belum-paham.mjs` (memakai
+  akses baca yang sama dengan `uji-una.mjs`) menarik kejadian berstatus `baru` dan menulisnya
+  sebagai **skenario gagal** di `una-latih/skenario/` (format yang sudah ada). Sesudah itu agen
+  mengikuti skill `latih-una`: reproduksi → perbaiki kerangka → skenario hijau → status
+  `selesai`. Kalau akar masalahnya kamus atau panduan yang belum ada, perbaiki lewat skill
+  `segarkan-kamus-una`.
+- **Siapa yang mengerjakan:** agen kelas atas (minimal Claude Opus atau setara) karena butuh
+  menimbang akar masalah, bukan sekadar menambal kalimat. Model Una sendiri **tetap dikunci
+  termurah**. Yang dipintarkan kerangkanya, bukan model Una.
+- **Biaya:** nol token tambahan di sisi Una, karena hanya menulis satu baris D1 saat pemicu nyala.
+  Kuota agen hanya terpakai saat ada yang mengerjakan antrean.
+- Catat juga di skill `latih-una` bahwa langkah 1 sekarang boleh dimulai dari antrean ini.
+
+### T-BUKA — "Una, buka halaman Karyawan" (tidak butuh Workspace)
+
+Bos Cyo 2026-10-12. Sekarang Una hanya bisa membuka layar lewat **tombol tawaran** yang harus
+diketuk (`jenis: 'buka'`, `cacaBukaLayar`, `public/caca-chat.js` ~baris 552/610), dan pilihannya
+hanya 18 layar di `LAYAR` (`src/caca-jelaskan.js`). Perintah langsung belum menjadi aksi.
+
+- **Tidak perlu Workspace.** Workspace untuk draft yang **menyimpan data** dan menunggu "Ya".
+  Membuka layar itu navigasi baca saja, jadi langsung dijalankan tanpa "Ya", sama seperti pengguna
+  mengetuk menunya sendiri.
+- **Yang diminta:** alat `buka_layar`. Perintah seperti "buka/bukain/ke halaman/pindah ke X" dicocokkan
+  **oleh kode dulu** ke peta menu (`generated/peta-una-data.js`, per skin setelah T-KAMUS),
+  memakai label + `kata` + sinonim. Model hanya dipakai kalau kode tidak yakin. Jadi mayoritas
+  perintah tidak memakan token.
+  - Satu cocok → langsung buka, lalu Una bilang singkat "Ini layar Karyawan, Bos." Panel tetap
+    terbuka supaya obrolan lanjut.
+  - Beberapa cocok → tampilkan pilihan tombol. Tidak cocok → "Una belum nemu layar X" dan
+    **dicatat ke T-GAGAL**.
+  - Layar di halaman lain (Panel Pemilik ↔ Workspace Gerai) memakai pola hash yang sudah ada
+    (`#una-buka=`).
+- **Pagar:** hanya layar yang memang terlihat untuk peran dan skin pengguna itu (pakai sumber yang
+  sama dengan nav, bukan daftar baru). Layar khusus Admin tidak bisa dibuka kasir lewat Una.
+  Membuka layar tidak pernah menekan tombol apa pun di dalamnya.
+- **Ganti `LAYAR` yang ditulis tangan** dengan peta menu supaya menu baru otomatis bisa dibuka (selaras
+  dengan "update tombol = update kamus").
+- **Lanjutan (bukan sekarang), dan baru di sini butuh Workspace:** "buka Karyawan lalu tambah Budi"
+  = buka layar + draft tulis. Bagian tulisnya tetap lewat draft Workspace + "Ya".
+
+### T-MULUT — Una menjawab dengan suara
+
+Sudah ada telinga (mikrofon → teks, `public/caca-chat.js` ~baris 1110, `lang = 'id-ID'`, lihat
+bagian "Perintah lewat suara" di bawah). Sekarang yang diminta adalah mulutnya.
+
+- **Mesin:** `window.speechSynthesis` bawaan browser, **gratis, tanpa server, tanpa kunci**.
+  Pilih suara `id-ID`. Utamakan suara "Natural/Online" (Edge: Microsoft Ardi/Gadis Online
+  Natural), kalau tidak ada pakai suara id-ID apa saja. Kalau tidak ada suara id-ID sama sekali,
+  tombol suara disembunyikan, bukan membaca dengan logat Inggris. `voiceschanged` harus
+  ditunggu (di Chrome daftar suara kosong saat awal).
+- **Kapan bicara:**
+  - Saklar "🔊 Una bicara" di panel, **default mati**. Simpan per perangkat di localStorage dalam
+    try/catch.
+  - Kalau pesan Bos dikirim lewat mikrofon, balasan berikutnya otomatis dibacakan walaupun saklar
+    mati (mode ngobrol). Kalau lewat ketikan, hanya dibacakan bila saklar nyala.
+  - Tiap balasan punya tombol kecil "▶ dengarkan".
+- **Apa yang dibacakan:** hanya teks balasan, dibersihkan dulu. Simbol, emoji, bullet, dan tabel
+  dibuang. Rupiah dibaca wajar ("Rp12.500" → "dua belas ribu lima ratus rupiah") dan tanggal
+  dibaca wajar. **Kartu draft tidak dibacakan isinya penuh**: cukup "Ada draft N baris, cek
+  dulu sebelum tekan Ya". Jangan pernah membacakan password/token (aturan karyawan:
+  password dibuat sistem). Batasi ±600 karakter, sisanya "selengkapnya ada di layar".
+- **Perilaku:**
+  - Berhenti bicara saat Bos menekan mikrofon (supaya Una tidak mendengar suaranya sendiri),
+    saat ada pesan baru, saat panel ditutup, saat gerai diganti, atau saat halaman ditinggalkan.
+    Hormati `visibilitychange`.
+  - Chrome memotong ucapan panjang (~15 detik): pecah per kalimat.
+  - **Suara tidak pernah menyetujui apa pun.** Alur draft + tombol "Ya" tetap sama. Kata "ya"
+    yang terucap hanya masuk ke kotak ketik seperti sekarang.
+- **Modul bersama:** telinga + mulut dipisah jadi satu modul tanpa ketergantungan ke Una
+  (misalnya `public/kerangka-suara.js`: `dengar()`, `ucapkan(teks)`, `bersihkanUntukDibaca()`,
+  `pilihSuara()`). `caca-chat.js` hanya memakainya. JARVIS nanti memakai modul yang sama, jadi
+  update suara berlaku untuk keduanya.
+- **Biaya:** nol token tambahan. Teks yang sudah ada dibacakan, tidak ada panggilan model baru.
+- **Tes:** pembersih teks-untuk-dibacakan dibuat sebagai fungsi murni dan diuji (rupiah, emoji,
+  tabel, draft, password). Pemilihan suara diuji dengan daftar suara tiruan. Lalu uji di HP
+  sungguhan (Chrome Android + HeyTap/Oppo seperti HP CS) dan Edge laptop, dan catat hasilnya di
+  sini. Jangan klaim "live" sebelum diuji di perangkat nyata.
+- Pengembangan lanjutan (bukan sekarang): panggil tanpa menekan ("Una…"), dan suara premium
+  berbayar. Keduanya butuh keputusan Bos Cyo.
+
+<!-- DOC-IMPACT: 2026-10-12 Eskor: tugas T-BUKA (buka layar lewat perintah), T-GAGAL (log Una tidak paham -> skenario), T-KAMUS (kamus/peta sadar skin + terikat kode sumber)
+dan T-MULUT (TTS browser) untuk Codex; belum ada kode. -->
 
 ## Status singkat
 

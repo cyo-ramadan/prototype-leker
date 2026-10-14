@@ -247,7 +247,7 @@ async function handleApi(request, env, url, ctx) {
     if (delivery) return delivery;
     return handleManagementNotificationsApi(request, env, url.pathname);
   }
-  const response = await handleApiRouted(request, env, url);
+  const response = await handleApiRouted(request, env, url, ctx);
   const guarded = await rejectManagementWriteInCashierMode(request, env, url.pathname, response);
   if (guarded.ok && isNotificationEventMutation(request)) {
     const task = queueNotificationEvent(request, env).catch(error => {
@@ -258,7 +258,7 @@ async function handleApi(request, env, url, ctx) {
   return guarded;
 }
 
-async function handleApiRouted(request, env, url) {
+async function handleApiRouted(request, env, url, ctx) {
   const { pathname } = url;
 
   if (pathname.startsWith('/api/ikan/')) {
@@ -418,7 +418,8 @@ async function handleApiRouted(request, env, url) {
   // Una menulis lewat pintu masuk ini juga (bukan handler modul langsung),
   // supaya pembungkus seperti jembatan Akuntansi ikut berlaku.
   const cacaResponse = await handleCacaApi(request, env, pathname, {
-    jalurUtama: (permintaan) => handleApi(permintaan, env, new URL(permintaan.url))
+    jalurUtama: (permintaan) => handleApi(permintaan, env, new URL(permintaan.url)),
+    waitUntil: ctx?.waitUntil?.bind(ctx)
   });
   if (cacaResponse) return cacaResponse;
   if (pathname.startsWith('/api/admin/')) return handleAdminApi(request, env, pathname);

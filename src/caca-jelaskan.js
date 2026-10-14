@@ -193,7 +193,7 @@ export const KAMUS = Object.freeze([
   {
     id: 'jurnal_split', judul: 'Jurnal Split harian',
     kunci: ['jurnal split', 'split jurnal', 'bagi jurnal per hari', 'jurnal dibagi harian'],
-    isi: 'Di layar Akuntansi pilih Jurnal Split. Isi Keterangan, akun Debit dan Kredit yang aktif dan berbeda, total rupiah serta tanggal awal dan akhir. Untuk akun hutang atau piutang per orang, isi atas nama yang diminta. Periksa pratinjau lalu tekan Buat Jurnal Split dan konfirmasi. Total dibagi rata per hari; sisa pembulatan masuk hari terakhir. Tanggal yang sudah tiba diproses saat dibuat, tanggal berikutnya menunggu proses jadwal saat jatuh tempo; kegagalan posting ditampilkan. Ini entry baru, tidak memerlukan jurnal sumber. Una dapat menjelaskan dan membuka layar; pembuatan split dilakukan melalui formulir Akuntansi.',
+    isi: 'Di layar Akuntansi pilih Jurnal Split. Isi Keterangan, akun Debit dan Kredit yang aktif dan berbeda, total rupiah serta tanggal awal dan akhir. Untuk akun hutang atau piutang per orang, isi atas nama yang diminta; nama yang mirip nama lama ditanya "Maksudnya ...?" dan nama baru dikonfirmasi dulu supaya satu orang tidak terpecah dua nama. Periksa pratinjau lalu tekan Buat Jurnal Split dan konfirmasi. Total dibagi rata per hari; sisa pembulatan masuk hari terakhir. Tanggal yang sudah tiba diproses saat dibuat, tanggal berikutnya menunggu proses jadwal saat jatuh tempo; kegagalan posting ditampilkan. Ini entry baru, tidak memerlukan jurnal sumber. Una dapat menjelaskan dan membuka layar; pembuatan split dilakukan melalui formulir Akuntansi.',
     tawaran: [buka('accountingWorkspaceTab')], tanpaAksi: 'belum ada alat Una untuk membuat jadwal split; gunakan formulir Akuntansi'
   },
   {
@@ -248,7 +248,8 @@ export const KAMUS = Object.freeze([
     kunci: ['bea', 'biaya operasional', 'bea gaji', 'bea lapak', 'sewa lapak', 'pengeluaran', 'beban'],
     isi: [
       'Bea = biaya menjalankan gerai: Bea Gaji, Bea Lapak (sewa tempat), dan Bea Lainnya (gas, sampah, dll).',
-      'Boleh dicatat walau belum dibayar — jadi hutang dulu, dilunasi belakangan.'
+      'Boleh dicatat walau belum dibayar — jadi hutang dulu, dilunasi belakangan.',
+      'Nama pihak yang ditulis bebas dicocokkan dengan nama yang sudah ada: tulisan yang sama memakai nama lama, yang mirip ditanya "Maksudnya ...?", nama baru dikonfirmasi dulu.'
     ].join('\n'),
     tawaran: [isi('Catat biaya', 'beli gas 22rb ke Pak Slamet, bayarnya nanti'), buka('beaops')],
     aksi: { alat: 'catat_pengeluaran', tawar: 'Mau Una catatkan biayanya? Sebut untuk apa, berapa, ke siapa, mis. "beli gas 22rb ke Pak Slamet".', tombol: 'Una catatkan' }
@@ -414,7 +415,8 @@ export const KAMUS = Object.freeze([
     isi: [
       'Di Workspace Gerai, buka Barang → Supplier → form "Tambah supplier".',
       'Isi Nama supplier, No. HP, Alamat, dan Catatan kalau perlu, centang Aktif, lalu Simpan supplier.',
-      'Supplier yang aktif muncul di pilihan "Supplier" saat kasir mencatat Beli Bahan, jadi hutang dan uang muka ke supplier itu terlacak per nama.'
+      'Supplier yang aktif muncul di pilihan "Supplier" saat kasir mencatat Beli Bahan, jadi hutang dan uang muka ke supplier itu terlacak per nama.',
+      'Saat membuat jurnal Utang Usaha atas nama pemasok yang belum terdaftar, layar menawarkan "Tambahkan sebagai pemasok baru?" dan pemasok itu langsung masuk daftar Supplier.'
     ].join('\n'),
     tawaran: [buka('suppliers')],
     aksi: { alat: 'buat_supplier', tawar: 'Mau Una daftarkan? Bilang "buatin", atau langsung mis. "tambah supplier Toko Makmur hp 0812…, alamat Pasar Baru".', tombol: 'Una daftarkan supplier' }

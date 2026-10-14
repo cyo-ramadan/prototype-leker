@@ -1297,6 +1297,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/accounting-workspace.js:/api/admin/accounting/party-names/check",
+    "jenis": "rute-kandidat",
+    "sumber": "src/accounting-workspace.js",
+    "method": null,
+    "rute": "/api/admin/accounting/party-names/check",
+    "label": "/api/admin/accounting/party-names/check",
+    "skin": null
+  },
+  {
     "id": "rute:src/accounting-workspace.js:/api/admin/accounting/party-options",
     "jenis": "rute-kandidat",
     "sumber": "src/accounting-workspace.js",

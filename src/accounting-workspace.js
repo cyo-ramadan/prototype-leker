@@ -18,6 +18,7 @@ import {
   updateRecurringSchedule
 } from './accounting-journal-schedules.js';
 import { getPartyReconciliation, listPartyOptions, partyEntryStatements, prepareJournalParties } from './accounting-party-ledger.js';
+import { checkPartyName } from './nama-pihak.js';
 import { bukuPembantuRingkasan, bukuPembantuMutasi, beriNamaBarisJurnal } from './accounting-buku-pembantu.js';
 import {
   ACCOUNT_TYPES,
@@ -168,6 +169,10 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/admin/accounting/party-options') {
     return json(await listPartyOptions(env.DB, store));
+  }
+  // Master nama fleksibel (2026-10-14): nama yang diketik sama / mirip / baru (nama-pihak.js).
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/party-names/check') {
+    return json(await checkPartyName(env.DB, store, url.searchParams.get('name')));
   }
   if (request.method === 'GET' && pathname === '/api/admin/accounting/party-reconciliation') {
     return json(await getPartyReconciliation(env.DB, store));

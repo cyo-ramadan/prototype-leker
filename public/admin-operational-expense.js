@@ -138,16 +138,28 @@
   async function save(event) {
     event.preventDefault();
     try {
+      let party = partyPayload();
+      let note = el('beaOpsNote').value;
+      // Master nama fleksibel (2026-10-14): nama bebas dicek sama / mirip / baru dulu supaya satu
+      // pihak tidak terpecah dua nama di Hutang Piutang (public/nama-pihak-ui.js).
+      if (party.counterpartyType === 'OTHER' && typeof window.konfirmasiNamaPihak === 'function') {
+        const picked = await window.konfirmasiNamaPihak({ name: party.counterpartyName, api });
+        if (!picked) return toast('Dibatalkan -- periksa lagi nama pihaknya');
+        party = picked.supplierId
+          ? { counterpartyType: 'SUPPLIER', counterpartyId: picked.supplierId }
+          : { counterpartyType: 'OTHER', counterpartyName: picked.name };
+        if (picked.note) note = [note.trim(), picked.note].filter(Boolean).join(' · ');
+      }
       const payload = await api('/api/admin/operational-expenses', {
         method: 'POST',
         body: JSON.stringify({
           category: el('beaOpsCategory').value,
           employeeId: el('beaOpsCategory').value === 'BEA_GAJI' ? el('beaOpsEmployee').value : undefined,
-          ...partyPayload(),
+          ...party,
           description: el('beaOpsDescription').value,
           amount: Number(el('beaOpsAmount').value),
           businessDate: el('beaOpsDate').value,
-          note: el('beaOpsNote').value
+          note
         })
       });
       snapshot.expenses = payload.expenses || snapshot.expenses;

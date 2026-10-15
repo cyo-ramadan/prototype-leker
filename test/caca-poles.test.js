@@ -23,7 +23,8 @@ test('panduan yang cocok dipoles: bahasa baru, nama menu/tombol/angka tetap, taw
   const m = model(jawab('1', [
     'Gampang kok, Bos! Buka Barang → Supplier, nanti ada form "Tambah supplier" di sebelah kiri.',
     'Isi Nama supplier, No. HP, Alamat, dan Catatan kalau perlu, centang Aktif, lalu Simpan supplier.',
-    'Supplier yang aktif bakal muncul di pilihan "Supplier" waktu kasir mencatat Beli Bahan, jadi hutang dan uang muka ke dia kelihatan per nama.'
+    'Supplier yang aktif bakal muncul di pilihan "Supplier" waktu kasir mencatat Beli Bahan, jadi hutang dan uang muka ke dia kelihatan per nama.',
+    'Bikin jurnal Utang Usaha atas nama pemasok yang belum terdaftar? Layar nawarin "Tambahkan sebagai pemasok baru?" dan dia langsung masuk daftar.'
   ].join('\n')));
   const hasil = await jawabPertanyaan(PERTANYAAN, KONTEKS, { env: {}, panggilModel: m.panggilModel });
   assert.equal(m.panggilan.length, 1);
@@ -74,7 +75,7 @@ test('Gemini memilih panduan lain yang lebih pas → dipakai, lengkap dengan taw
 
 test('pagar: polesan yang membuang nama tombol, mengubah jalur menu, atau menambah angka ditolak → teks asli', () => {
   const sumber = jelaskan('supplier_tambah').jawaban;
-  const bagus = 'Buka Barang → Supplier, isi form "Tambah supplier" (Nama, HP, Alamat), centang Aktif lalu Simpan supplier. Nanti dia muncul di pilihan "Supplier" saat Beli Bahan.';
+  const bagus = 'Buka Barang → Supplier, isi form "Tambah supplier" (Nama, HP, Alamat), centang Aktif lalu Simpan supplier. Nanti dia muncul di pilihan "Supplier" saat Beli Bahan. Jurnal Utang Usaha atas nama pemasok yang belum terdaftar menawarkan "Tambahkan sebagai pemasok baru?".';
   assert.equal(periksaPoles(sumber, bagus).aman, true, periksaPoles(sumber, bagus).alasan);
   assert.match(periksaPoles(sumber, bagus.replace('"Tambah supplier"', 'tombol tambah')).alasan, /Tambah supplier.*hilang/);
   assert.match(periksaPoles(sumber, bagus.replace('Barang → Supplier', 'menu Supplier')).alasan, /jalur/);
@@ -159,7 +160,7 @@ test('model memilih "jelaskan" tapi pemeriksa bilang tidak cocok → jujur belum
 
 test('polesan ditolak pagar → satu kali diminta memperbaiki dengan alasan yang jelas; berhasil → dipakai', async () => {
   const buruk = 'Tinggal buka menu supplier terus isi formnya ya Bos, gampang banget kok, nanti supplier-nya muncul waktu kasir beli bahan buat usaha.';
-  const baik = 'Buka Barang → Supplier, isi form "Tambah supplier" (Nama supplier, No. HP, Alamat), centang Aktif, lalu "Simpan supplier". Nanti muncul di pilihan "Supplier" waktu kasir Beli Bahan.';
+  const baik = 'Buka Barang → Supplier, isi form "Tambah supplier" (Nama supplier, No. HP, Alamat), centang Aktif, lalu "Simpan supplier". Nanti muncul di pilihan "Supplier" waktu kasir Beli Bahan. Jurnal Utang Usaha atas nama pemasok yang belum terdaftar menawarkan "Tambahkan sebagai pemasok baru?".';
   const m = model(jawab('1', buruk), jawab('1', baik));
   const hasil = await jawabPertanyaan(PERTANYAAN, KONTEKS, { env: {}, panggilModel: m.panggilModel });
   assert.equal(m.panggilan.length, 2);

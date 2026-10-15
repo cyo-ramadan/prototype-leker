@@ -169,6 +169,7 @@ Bukti rinci dan batas klaim: `KNOWN_PITFALLS.md`, koreksi 2026-10-13.
   `node scripts/build-peta-una.mjs` + satu baris `PENJELASAN` di `src/caca-peta.js` —
   `test/caca-peta.test.js` merah kalau lupa. Kartu daftar pakai
   `.master-row` + `.status-chip` (`public/list-cards.css`), jangan tumpuk keterangan per baris.
+- **Layout panel Entity Admin:** uji menu asli dan pin Beranda yang terbuka langsung di browser (HP + desktop), dengan tabel lebar dan beberapa pin. Pertahankan `min-width:0` pada item grid dan scroll lokal tabel. Matriks uji: `KNOWN_PITFALLS.md`, "Pin Beranda".
 - Dokumen berakhir dengan penanda **DOC-IMPACT**; perbarui saat perilaku berubah.
 - **Fitur/perubahan yang terlihat pengguna sudah live di `main`** → tambah satu baris di
   `HANDOFF-STRATEGI-PENJUALAN.md` §8 (format di sana). Sesi strategi penjualan hanya membaca
@@ -185,4 +186,4 @@ Bukti rinci dan batas klaim: `KNOWN_PITFALLS.md`, koreksi 2026-10-13.
   ada ketergantungan nyata — dan itu ditulis eksplisit di task/ADR-nya ("selesaikan X
   dulu"), bukan diam-diam ditahan tanpa alasan.
 
-<!-- DOC-IMPACT: 2026-10-13 koreksi risiko push non-main berdasar deployment/version/build metadata produksi. -->
+<!-- DOC-IMPACT: 2026-10-15 aturan QA layout Entity Admin lewat menu dan pin; mempertahankan koreksi risiko push 2026-10-13. -->

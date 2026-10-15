@@ -271,7 +271,14 @@ async function buildBayarHutang(db, paymentId) {
 
   // Debit = akun Utang yang dulu dikredit waktu hutangnya lahir.
   const debits = new Map();
-  if (HUTANG_CATEGORY[row.hutang_account]) {
+  if (String(row.hutang_account).startsWith('BUKU:')) {
+    // Hutang yang lahir dari jurnal akuntan (hutang-piutang.js BUKU_ACCOUNTS): Debit akun itu sendiri,
+    // atas nama yang sama, supaya saldo per nama di buku ikut turun.
+    const code = String(row.hutang_account).slice('BUKU:'.length);
+    const accountId = await accountIdByCode(db, row.store_id, code);
+    if (!accountId) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', `Akun ${code} belum aktif.`) };
+    debits.set(accountId, totalScaled);
+  } else if (HUTANG_CATEGORY[row.hutang_account]) {
     const accounts = await categoryAccounts(db, row.store_id, HUTANG_CATEGORY[row.hutang_account]);
     if (!accounts?.creditAccountId) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', `Akun Utang untuk ${row.hutang_account} belum aktif.`) };
     debits.set(accounts.creditAccountId, totalScaled);

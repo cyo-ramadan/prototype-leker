@@ -7,7 +7,7 @@ import { autoSyncAccounting } from './accounting-auto-sync.js';
 import { getAccountStandardization, standardizeStoreAccounts } from './accounting-standardize.js';
 import {
   createRecurringSchedule,
-  createSplitPlan, createDirectSplit,
+  createSplitPlan, createDirectSplit, listSplitSchedules, postSplitNow, cancelSplit,
   getSplitOccurrencesForJournal,
   listPendingOccurrences,
   listRecurringSchedules,
@@ -18,6 +18,7 @@ import {
   updateRecurringSchedule
 } from './accounting-journal-schedules.js';
 import { getPartyReconciliation, listPartyOptions, partyEntryStatements, prepareJournalParties } from './accounting-party-ledger.js';
+import { checkPartyName } from './nama-pihak.js';
 import { bukuPembantuRingkasan, bukuPembantuMutasi, beriNamaBarisJurnal } from './accounting-buku-pembantu.js';
 import {
   ACCOUNT_TYPES,
@@ -169,6 +170,10 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/admin/accounting/party-options') {
     return json(await listPartyOptions(env.DB, store));
   }
+  // Master nama fleksibel (2026-10-14): nama yang diketik sama / mirip / baru (nama-pihak.js).
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/party-names/check') {
+    return json(await checkPartyName(env.DB, store, url.searchParams.get('name')));
+  }
   if (request.method === 'GET' && pathname === '/api/admin/accounting/party-reconciliation') {
     return json(await getPartyReconciliation(env.DB, store));
   }
@@ -239,6 +244,18 @@ export async function handleAccountingWorkspaceApi(request, env, pathname) {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload Jurnal Split tidak valid.' }, 400);
     return resultResponse(await createDirectSplit(env.DB, store, body.value), 201);
+  }
+  // Jurnal Split sebagai satu kesatuan (2026-10-14): daftar, posting sekarang (termasuk tanggal yang belum
+  // tiba), dan hapus seluruh split (pembalik per hari yang sudah diposting) -- berlaku juga untuk split lama.
+  if (request.method === 'GET' && pathname === '/api/admin/accounting/journal-splits') {
+    return json({ splits: await listSplitSchedules(env.DB, store.id) });
+  }
+  const splitActionMatch = pathname.match(/^\/api\/admin\/accounting\/journal-splits\/([^/]+)\/(post-now|cancel)$/);
+  if (request.method === 'POST' && splitActionMatch) {
+    const scheduleId = decodeURIComponent(splitActionMatch[1]);
+    if (splitActionMatch[2] === 'post-now') return resultResponse(await postSplitNow(env.DB, store, scheduleId));
+    const body = await readJson(request);
+    return resultResponse(await cancelSplit(env.DB, store, scheduleId, { actor: actorFrom(ctx.auth), reason: body.ok ? body.value?.reason : '' }));
   }
   const splitCreateMatch = pathname.match(/^\/api\/admin\/accounting\/journals\/([^/]+)\/split$/);
   if (request.method === 'POST' && splitCreateMatch) {

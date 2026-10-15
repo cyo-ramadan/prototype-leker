@@ -134,9 +134,17 @@ test('tab Setoran CS terdaftar di Entity Admin, menu pengelompokan, dan script d
   assert.match(html, /data-entity-tab="setorancs"/);
   assert.match(html, /id="entityTab-setorancs"/);
   assert.match(html, /<script src="\/entity-setoran-cs\.js\?v=[^"]+"><\/script>/);
-  assert.match(html, /entity-admin\.js\?v=20261013-sinkron-v1/);
+  assert.match(html, /entity-admin\.js\?v=20261015-total-saldo-v1/);
   assert.match(html, /nav-groups\.js\?v=20261015-una-pengaturan-v3/);
   assert.match(read('public/entity-admin.js'), /name === 'setorancs'/);
   assert.match(read('public/nav-groups.js'), /items: \['ledger', 'sharedaccounts', 'setorancs', 'izincs'\]/);
   assert.match(read('public/branch-admin.html'), /admin-employee-deposits\.js\?v=20261008-buku-per-orang-v1/);
+});
+
+// Bos Cyo, 2026-10-15: total saldo setoran & hutang gaji di atas kolomnya, dijumlah dari saldo per karyawan.
+test('Entity Admin: baris total saldo setoran dan hutang gaji di atas kolomnya', () => {
+  const js = readFileSync(new URL('../public/entity-admin.js', import.meta.url), 'utf8');
+  assert.match(js, /data-employee-total="setoran"/);
+  assert.match(js, /data-employee-total="gaji"/);
+  assert.match(js, /function entityEmployeeTotalHtml\(kind\)/);
 });

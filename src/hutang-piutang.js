@@ -52,6 +52,29 @@ export const HUTANG_ACCOUNT_LABELS = Object.freeze({
   EMPLOYEE_DEPOSIT: 'Piutang Setoran Laci'
 });
 
+// Bos Cyo, 2026-10-14: hutang yang dicatat akuntan lewat jurnal (mis. sewa lapak: Debit 1401 /
+// Kredit 2101 atas nama "Spbu Beji") harus muncul dan bisa dibayar di sini -- "buku = satu acuan",
+// sama seperti Hutang Gaji (ADR-054). Akun "BUKU:<kode>" = saldo per nama dari jurnal di luar fakta
+// Operasional; pelunasannya admin_payments ber-hutang_account "BUKU:<kode>" yang dijurnal Debit akun
+// itu atas nama yang sama (accounting-admin-bridge.js buildBayarHutang).
+const BUKU_PREFIX = 'BUKU:';
+export const BUKU_ACCOUNTS = Object.freeze({
+  '2101': { balanceType: 'PAYABLE', label: 'Utang Usaha (buku Akuntansi)' },
+  '2103': { balanceType: 'PAYABLE', label: 'Utang Lainnya (buku Akuntansi)' },
+  '1201': { balanceType: 'RECEIVABLE', label: 'Piutang Usaha (buku Akuntansi)' }
+});
+// Jurnal yang rinciannya sudah dihitung dari fakta Operasional di daftar ini: Bea & pelunasan admin
+// (LEKER_ADMIN, dan pembaliknya), pembelian kasir (LEKER_POS), setoran CS. Saldo BUKU hanya membaca
+// jurnal di luar itu (manual akuntan, Jurnal Split, Una, koreksi) supaya tidak terhitung dua kali.
+// Pelunasan BUKU sendiri juga LEKER_ADMIN -- dihitung dari admin_payments-nya.
+const BUKU_MIRROR_SOURCES = Object.freeze(['LEKER_ADMIN', 'LEKER_ADMIN_VOID', 'LEKER_POS', 'LEKER_POS_VOID', 'EMPLOYEE_DEPOSIT']);
+const isBukuAccount = account => String(account || '').startsWith(BUKU_PREFIX);
+
+export function hutangAccountLabel(account) {
+  if (isBukuAccount(account)) return BUKU_ACCOUNTS[account.slice(BUKU_PREFIX.length)]?.label || account;
+  return HUTANG_ACCOUNT_LABELS[account] || account;
+}
+
 // Hutang yang boleh dilunasi dari layar Pembayaran Hutang/Piutang. Piutang
 // setoran laci tetap lewat alurnya sendiri (bukti transfer + ACC, src/
 // employee-deposit-settlement.js) -- di sini cuma ditampilkan.
@@ -243,10 +266,83 @@ async function loadGajiAccounts(db, storeId) {
   return accounts;
 }
 
+// Saldo per nama dari buku untuk BUKU_ACCOUNTS (hanya gerai berAkuntansi; gerai LITE tidak punya jurnal).
+// Nilai bertanda dalam sisi normal akun: hutang = Kredit-Debit, piutang = Debit-Kredit.
+async function loadBukuAccounts(db, storeId) {
+  if (!(await accountingStoreIds(db, [storeId])).has(storeId)) return [];
+  const codes = Object.keys(BUKU_ACCOUNTS);
+  const [entries, payments] = await Promise.all([
+    db.prepare(`
+      SELECT e.account_code, e.party_type, e.employee_id, e.supplier_id, e.party_name, e.side, e.amount_scaled,
+             e.business_date, e.description, h.journal_number, h.description AS journal_description, h.source_system
+      FROM accounting_party_entries e
+      JOIN accounting_journal_headers h ON h.id = e.journal_id
+      WHERE e.store_id = ? AND e.account_code IN (${codes.map(() => '?').join(',')}) AND h.journal_status = 'POSTED'
+        AND h.source_system NOT IN (${BUKU_MIRROR_SOURCES.map(() => '?').join(',')})
+      ORDER BY e.business_date, h.journal_number
+    `).bind(storeId, ...codes, ...BUKU_MIRROR_SOURCES).all(),
+    db.prepare(`
+      SELECT ap.id, ap.hutang_account, ap.counterparty_type, ap.counterparty_id, ap.counterparty_name, ap.amount, ap.business_date,
+             EXISTS (SELECT 1 FROM accounting_bridge_deliveries d
+                     WHERE d.store_id = ap.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'BAYAR_HUTANG'
+                       AND d.fact_id = ap.id AND d.status = 'POSTED') AS journaled
+      FROM admin_payments ap
+      WHERE ap.store_id = ? AND ap.kind = 'HUTANG' AND ap.hutang_account LIKE '${BUKU_PREFIX}%' AND ap.voided_at IS NULL
+      ORDER BY ap.business_date, ap.created_at
+    `).bind(storeId).all()
+  ]);
+  const accounts = new Map();
+  function accountFor(code, type, id, name) {
+    const key = `${code}|${counterpartyKey(type, id, name)}`;
+    if (!accounts.has(key)) {
+      accounts.set(key, {
+        account: `${BUKU_PREFIX}${code}`, balanceType: BUKU_ACCOUNTS[code].balanceType,
+        counterpartyType: type, counterpartyId: id || null, counterpartyName: name,
+        createdScaled: 0, paidScaled: 0, balanceScaled: 0, belumMasukBukuScaled: 0, items: []
+      });
+    }
+    return accounts.get(key);
+  }
+  for (const row of entries.results ?? []) {
+    const type = row.party_type === 'OTHER' ? 'OTHER' : row.party_type;
+    const id = type === 'SUPPLIER' ? row.supplier_id : type === 'EMPLOYEE' ? row.employee_id : null;
+    const account = accountFor(row.account_code, type, id, row.party_name);
+    const sign = BUKU_ACCOUNTS[row.account_code].balanceType === 'RECEIVABLE' ? 1 : -1;
+    const signed = (row.side === 'DEBIT' ? 1 : -1) * sign * Number(row.amount_scaled);
+    if (signed >= 0) account.createdScaled += signed; else account.paidScaled -= signed;
+    account.balanceScaled += signed;
+    account.counterpartyName = row.party_name;
+    account.items.push({
+      id: row.journal_number,
+      description: [row.journal_number, row.description || row.journal_description].filter(Boolean).join(' · '),
+      transactionDate: row.business_date,
+      sourceVoided: false,
+      originalScaled: signed,
+      paidScaled: 0,
+      balanceScaled: signed
+    });
+  }
+  for (const row of payments.results ?? []) {
+    const code = row.hutang_account.slice(BUKU_PREFIX.length);
+    if (!BUKU_ACCOUNTS[code]) continue;
+    const account = accountFor(code, row.counterparty_type, row.counterparty_id, row.counterparty_name);
+    const scaled = Number(row.amount) * SCALE;
+    account.paidScaled += scaled;
+    account.balanceScaled -= scaled;
+    // Pelunasan yang jurnalnya belum ada (Setting Akuntansi belum lengkap): saldo di sini sudah
+    // berkurang supaya tidak dibayar dua kali, tapi bukunya belum -- ditampilkan sebagai peringatan.
+    if (!Number(row.journaled)) account.belumMasukBukuScaled -= scaled;
+  }
+  return [...accounts.values()].filter(account => account.balanceScaled !== 0 || account.items.length);
+}
+
 // Rekap per orang: satu orang bisa punya beberapa "akun" Hutang/Piutang
 // (mis. Adiva: Hutang Gaji + Hutang Lainnya + Piutang Setoran Laci).
 export async function buildHutangPiutangSummary(db, storeId) {
   const [orpItems, gajiAccounts] = await Promise.all([loadOrpItems(db, storeId), loadGajiAccounts(db, storeId)]);
+  // Sesudah loadGajiAccounts: ia menyambungkan fakta yang belum terjurnal (termasuk pelunasan BUKU
+  // yang baru saja disimpan), jadi buku yang dibaca di sini sudah memuatnya.
+  const bukuAccounts = await loadBukuAccounts(db, storeId);
   const persons = new Map();
 
   function personFor(type, id, name) {
@@ -258,7 +354,7 @@ export async function buildHutangPiutangSummary(db, storeId) {
     const accountKey = `${account}|${person.key}`;
     if (!person.accounts.has(accountKey)) {
       person.accounts.set(accountKey, {
-        accountKey, account, label: HUTANG_ACCOUNT_LABELS[account] || account, balanceType,
+        accountKey, account, label: hutangAccountLabel(account), balanceType,
         createdScaled: 0, paidScaled: 0, balanceScaled: 0, items: []
       });
     }
@@ -287,6 +383,15 @@ export async function buildHutangPiutangSummary(db, storeId) {
     account.balanceScaled += item.balanceScaled;
     account.items.push(item);
   }
+  for (const buku of bukuAccounts) {
+    const person = personFor(buku.counterpartyType, buku.counterpartyId, buku.counterpartyName);
+    const account = accountFor(person, buku.account, buku.balanceType);
+    account.createdScaled += buku.createdScaled;
+    account.paidScaled += buku.paidScaled;
+    account.balanceScaled += buku.balanceScaled;
+    account.belumMasukBukuScaled = (account.belumMasukBukuScaled || 0) + buku.belumMasukBukuScaled;
+    account.items.push(...buku.items);
+  }
 
   const personList = [...persons.values()].map(person => {
     const accounts = [...person.accounts.values()].map(account => ({
@@ -299,7 +404,8 @@ export async function buildHutangPiutangSummary(db, storeId) {
       balanceRupiah: rupiah(account.balanceScaled),
       adjustmentRupiah: rupiah(account.adjustmentScaled || 0),
       belumMasukBukuRupiah: rupiah(account.belumMasukBukuScaled || 0),
-      payableByAdmin: account.balanceType === 'PAYABLE' && PAYABLE_BY_ADMIN.has(account.account) && !account.unlinked,
+      payableByAdmin: account.balanceType === 'PAYABLE' && (PAYABLE_BY_ADMIN.has(account.account) || isBukuAccount(account.account)) && !account.unlinked,
+      fromBook: isBukuAccount(account.account),
       unlinked: Boolean(account.unlinked),
       items: account.items.map(item => ({
         id: item.id,
@@ -532,7 +638,11 @@ export async function payHutang(db, { store, actor, accountKey, amountRupiah, pa
       note: `Pelunasan ${account.label} · ${person.counterpartyName}${noteText ? ` · ${noteText}` : ''}`
     }));
   }
-  if (account.account === 'GAJI') {
+  if (account.fromBook) {
+    // Hutang dari buku: tidak ada sub-buku Operasional yang dikurangi. Baris admin_payments di atas
+    // (hutang_account BUKU:<kode>) yang mengurangi saldonya; jurnal Debit <kode> atas nama orang ini
+    // dibuat jembatan Akuntansi sesudah commit (BAYAR_HUTANG).
+  } else if (account.account === 'GAJI') {
     // entry_type PAYMENT sudah disiapkan migration 0116. Beban 0 -- beban
     // gajinya sudah diakui saat akrual presensi / Bea Gaji.
     statements.push(db.prepare(`
@@ -701,7 +811,7 @@ function mapPayment(row) {
     id: row.id,
     kind: row.kind,
     hutangAccount: row.hutang_account || '',
-    hutangLabel: row.kind === 'HUTANG' ? (HUTANG_ACCOUNT_LABELS[row.hutang_account] || row.hutang_account) : 'Pembayaran Lainnya',
+    hutangLabel: row.kind === 'HUTANG' ? hutangAccountLabel(row.hutang_account) : 'Pembayaran Lainnya',
     counterpartyType: row.counterparty_type,
     counterpartyId: row.counterparty_id || null,
     counterpartyName: row.counterparty_name || '',

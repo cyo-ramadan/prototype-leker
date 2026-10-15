@@ -11,6 +11,7 @@
 // jurnal manual tanpa nama yang lolos lewat jalur ini.
 
 import { ACCOUNTING_AMOUNT_SCALE, journalPartyStatements } from './accounting-ledger.js';
+import { checkPartyName, listKnownNames } from './nama-pihak.js';
 
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 
@@ -96,11 +97,17 @@ export async function prepareJournalParties(db, store, journalLines) {
         continue;
       }
       if (name.length < 2) return failure('PARTY_REQUIRED', `${where} wajib memilih pemasok (atau mengisi nama pihak yang berhutang).`);
-      parties.push({ type: 'OTHER', employeeId: null, supplierId: null, name });
+      // Nama yang sama dengan pemasok/nama yang sudah ada (beda huruf besar/spasi saja) memakai yang
+      // sudah ada, supaya satu orang tidak terpecah dua nama di buku (nama-pihak.js).
+      const { exact } = await checkPartyName(db, store, name);
+      parties.push(exact?.kind === 'SUPPLIER'
+        ? { type: 'SUPPLIER', employeeId: null, supplierId: exact.id, name: text(exact.name, 120) }
+        : { type: 'OTHER', employeeId: null, supplierId: null, name: exact ? text(exact.name, 120) : name });
       continue;
     }
     if (name.length < 2) return failure('PARTY_REQUIRED', `${where} wajib diisi ${rule.label}.`);
-    parties.push({ type: 'OTHER', employeeId: null, supplierId: null, name });
+    const { exact } = await checkPartyName(db, store, name);
+    parties.push({ type: 'OTHER', employeeId: null, supplierId: null, name: exact ? text(exact.name, 120) : name });
   }
   return { ok: true, parties };
 }
@@ -117,7 +124,7 @@ export function partyEntryStatements(db, store, { journalId, businessDate, lines
 // Pilihan nama untuk form jurnal manual: karyawan entity, pemegang akun kasir yang belum ditautkan
 // (yang punya piutang setoran), dan pemasok gerai.
 export async function listPartyOptions(db, store) {
-  const [employees, holders, suppliers] = await Promise.all([
+  const [employees, holders, suppliers, names] = await Promise.all([
     store.entityId
       ? db.prepare(`SELECT id, full_name FROM employees WHERE entity_id = ? AND status = 'ACTIVE' ORDER BY full_name COLLATE NOCASE`).bind(store.entityId).all()
       : { results: [] },
@@ -127,7 +134,8 @@ export async function listPartyOptions(db, store) {
       WHERE store_id = ? AND source_type = 'EMPLOYEE_DEPOSIT' AND counterparty_id LIKE 'cashier:%'
       ORDER BY name COLLATE NOCASE
     `).bind(store.id).all(),
-    db.prepare(`SELECT id, name FROM suppliers WHERE store_id = ? AND is_active = 1 ORDER BY name COLLATE NOCASE`).bind(store.id).all()
+    db.prepare(`SELECT id, name FROM suppliers WHERE store_id = ? AND is_active = 1 ORDER BY name COLLATE NOCASE`).bind(store.id).all(),
+    listKnownNames(db, store)
   ]);
   return {
     employees: [
@@ -135,6 +143,8 @@ export async function listPartyOptions(db, store) {
       ...(holders.results ?? []).map(row => ({ id: row.counterparty_id, name: `${row.name} (akun kasir)` }))
     ],
     suppliers: (suppliers.results ?? []).map(row => ({ id: row.id, name: row.name })),
+    // Semua nama yang dikenal (pemasok + nama bebas yang pernah dipakai) untuk saran ketik.
+    names,
     rules: Object.fromEntries(Object.entries(PARTY_RULES).map(([code, rule]) => [code, rule.kind]))
   };
 }

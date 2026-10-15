@@ -180,10 +180,17 @@ Bukti rinci dan batas klaim: `KNOWN_PITFALLS.md`, koreksi 2026-10-13.
   Hana yang mengerjakan, bukan akun yang kebetulan dipakai untuk push. Sama
   aturannya berlaku untuk agen implementer lain (`agent-bus/CLAIM-PROMPT.md`),
   masing-masing pakai nama sendiri.
+- **Mekanisme bisnis yang unik dijadikan opsi, dan tanyakan dulu sebelum ngoding** (Bos Cyo, 2026-10-15:
+  "model2 mekanisme seperti ini kan unik tiap2 usaha, jadi untuk aktivitas yang dinilai unik, nanti tanyakan
+  dulu setiap ngoding ... berlaku untuk semua agent"). Sebelum membangun aturan yang belum tentu dipakai
+  usaha lain (mis. potongan dana apresiasi CS backup, pagar gaji di luar jadwal, tutup otomatis presensi),
+  tanya Bos: "Ini dibuat opsi mekanisme (bisa diaktifkan/dimatikan) karena <alasan>?" Kalau ya, pasang
+  saklarnya di kebijakan tenant (`src/tenant-policy.js`, pola sama dengan saklar gaji di Pengaturan
+  Pemilik), **default aktif**, dan perilaku saat mati = perilaku sebelum fitur itu ada.
 - **Task/ADR baru defaultnya boleh dikerjakan paralel** oleh agen berbeda, kalau
   barrier-nya sudah dirancang supaya tidak saling membahayakan struktur (mis. sumbu
   independen, path terpisah, guard di migration). Sequence cuma dipaksakan kalau memang
   ada ketergantungan nyata — dan itu ditulis eksplisit di task/ADR-nya ("selesaikan X
   dulu"), bukan diam-diam ditahan tanpa alasan.
 
-<!-- DOC-IMPACT: 2026-10-15 aturan QA layout Entity Admin lewat menu dan pin; mempertahankan koreksi risiko push 2026-10-13. -->
+<!-- DOC-IMPACT: 2026-10-15 aturan QA layout Entity Admin lewat menu dan pin; mekanisme bisnis unik jadi opsi tenant (tanya dulu); mempertahankan koreksi risiko push 2026-10-13. -->

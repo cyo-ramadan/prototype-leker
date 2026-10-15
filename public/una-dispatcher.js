@@ -21,6 +21,7 @@
 
   function create(w) {
     let last = null; let menuTab = null; let urutan = 0;
+    const pertanyaan = new Map(); // turnId -> teks pesan Bos (untuk pembaca kanvas)
     const berjalan = new Map(); // actionId -> { batal }
     const uuid = () => (w.crypto?.randomUUID ? w.crypto.randomUUID() : Date.now().toString(36) + '-' + (++urutan));
     const emit = (name, detail) => { if (typeof w.CustomEvent === 'function') w.dispatchEvent?.(new w.CustomEvent(name, { detail })); };
@@ -68,8 +69,17 @@
     //   yang dikirim). Bila Bos sudah mengubah filter, perintah dibiarkan dan validator menolak
     //   REVISION_CONFLICT. Perintah dari model tidak pernah diikat ulang.
     async function bind(aksi, basis, sebelumnya) {
-      if (aksi.origin !== 'code' || !/^report\./.test(aksi.capabilityId)) return aksi;
       const L = w.UnaLembar;
+      // canvas.read membaca yang Bos lihat SEKARANG: coretan yang belum tersimpan disimpan dulu,
+      // lalu dibaca pada revisi hasil simpan itu (lembar yang sama saja).
+      if (aksi.origin === 'code' && aksi.capabilityId === 'canvas.read') {
+        const s = L.context()?.surface;
+        if (!s || s.kind !== 'canvas' || aksi.target?.surfaceId !== s.id) return aksi;
+        if (L.context()?.dirty) await L.save?.(s.id);
+        const kini = L.context()?.surface || s;
+        return kini.revision === aksi.target.expectedRevision ? aksi : { ...aksi, target: { surfaceId: s.id, expectedRevision: kini.revision } };
+      }
+      if (aksi.origin !== 'code' || !/^report\./.test(aksi.capabilityId)) return aksi;
       let s = L.context()?.surface;
       if (!s || s.kind !== 'page' || !s.content) return aksi;
       const kunci = s.content.halaman + ':' + s.content.tab;
@@ -85,8 +95,9 @@
     }
 
     // Aksi dijalankan berurutan; berhenti di tanda terima pertama yang bukan ok.
-    async function run(actions, { turnId, onStep, basis = null } = {}) {
+    async function run(actions, { turnId, onStep, basis = null, question = '' } = {}) {
       if (!siap() || !Array.isArray(actions) || !actions.length) return [];
+      if (turnId && question) { pertanyaan.set(turnId, String(question).slice(0, 200)); if (pertanyaan.size > 20) pertanyaan.delete(pertanyaan.keys().next().value); }
       const tanda = [];
       for (const aksi of actions.slice(0, 3)) {
         const label = LABEL[aksi.capabilityId] || 'Kerjakan perintah';
@@ -113,6 +124,7 @@
       if (!r) return { text: 'Workspace Una belum siap di halaman ini, Bos. Muat ulang halaman lalu coba lagi.', ask: true };
       if (r.status === 'superseded' || r.status === 'cancelled') return null;
       if (r.status === 'ok') {
+        if (r.capabilityId === 'canvas.read') return w.UnaKanvasBaca?.ringkas(r.actionId) || { text: 'Lembar sudah dibaca, Bos.', ask: false };
         if (r.capabilityId === 'report.set_filters' || r.capabilityId === 'report.refresh') {
           const f = r.proof?.filters; const dibaca = payload.rentang?.dibaca;
           const toko = Number.isInteger(r.summary?.storeCount) ? ` untuk ${r.summary.storeCount} gerai` : '';
@@ -134,7 +146,7 @@
     }
     const pending = () => berjalan.size;
 
-    return { turn, context, run, conclude, cancelReads, pending, label: id => LABEL[id] || id };
+    return { turn, context, run, conclude, cancelReads, pending, question: id => pertanyaan.get(id) || '', label: id => LABEL[id] || id };
   }
 
   const api = create(window);

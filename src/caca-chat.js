@@ -27,6 +27,7 @@ import { handleUnaSurfacesApi } from './una-surfaces.js';
 import { bacaKonteksAsisten, sesuaikanNamaBalasan, handlePengaturanAsisten } from './caca-pengaturan.js';
 import { catatBelumPaham, handleCacaBelumPahamApi } from './caca-belum-paham.js';
 import { bersihkanKonteksLembar } from './una-perintah-lembar.js';
+import { handleBacaKanvas } from './una-kanvas-baca.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_LENGTH = 1_500_000;
@@ -550,6 +551,7 @@ async function catat(request, env, jalurUtama) {
 export async function handleCacaApi(request, env, pathname, { jalurUtama, waitUntil } = {}) {
   if (!pathname.startsWith('/api/caca/')) return null;
   if (pathname === '/api/caca/surfaces' || pathname.startsWith('/api/caca/surfaces/')) return handleUnaSurfacesApi(request, env, pathname);
+  if (request.method === 'POST' && pathname === '/api/caca/kanvas/baca') return handleBacaKanvas(request, env);
   if (pathname === '/api/caca/pengaturan') return handlePengaturanAsisten(request, env, lingkupPenyuruh);
   if (pathname === '/api/caca/belum-paham' || pathname.startsWith('/api/caca/belum-paham/')) return handleCacaBelumPahamApi(request, env, pathname);
 

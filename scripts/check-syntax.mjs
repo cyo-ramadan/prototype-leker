@@ -25,6 +25,8 @@ const files = [
   "src/caca-agen.js",
   "src/una-perintah-lembar.js",
   "public/una-dispatcher.js",
+  "src/una-kanvas-baca.js",
+  "public/una-kanvas-baca.js",
   "src/caca-aksi.js",
   "src/caca-aksi-dasar.js",
   "src/caca-aksi-bayar.js",

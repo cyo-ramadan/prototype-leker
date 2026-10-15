@@ -552,6 +552,15 @@ async function cacaJalankanTawaran(tombol) {
     cacaEl('cacaGambar')?.click();
     return;
   }
+  if (t.jenis === 'kanvas_usulan') {
+    // Usulan tulisan dari bacaan lembar gambar (U7): patch tervalidasi, bisa di-undo.
+    tombol.disabled = true;
+    const hasil = await window.UnaKanvasBaca?.terapkan(t.actionId);
+    cacaTambahGelembung('caca', hasil?.message || 'Lembar gambar belum siap.');
+    cacaCatatRiwayat('una', hasil?.message || '');
+    if (!hasil?.ok) tombol.disabled = false;
+    return;
+  }
   if (t.jenis === 'jelaskan') {
     await cacaJelaskan(t.topik, t.label);
     return;
@@ -1601,6 +1610,7 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
     const aksiUi = payload.uiActions?.length && window.UnaDispatcher;
+    payload._pertanyaan = pertanyaan;
     // Jalur live dan aksi halaman tanpa jeda buatan: progresnya nyata.
     if (!aksiUi && !suaraKonteks?.suara) await cacaJedaManusiawi(mengetik, payload, mulai);
     payload._workspaceContext = workspaceContext || null;
@@ -1624,7 +1634,7 @@ async function cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks
   let tanda = [];
   try {
     tanda = await dispatcher.run(payload.uiActions, {
-      turnId, basis,
+      turnId, basis, question: payload._pertanyaan || '',
       onStep: ({ label, done }) => mengetik.aturLangkah?.(done.map(judul => ({ judul })), `${label}…`)
     });
   } finally {
@@ -1640,7 +1650,7 @@ async function cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks
   const hasil = dispatcher.conclude(tanda, payload);
   if (!hasil) return; // Digantikan perintah yang lebih baru; perintah itu yang melapor.
   const akhir = {
-    ...payload, uiActions: null, jawaban: hasil.text, belumLengkap: hasil.ask,
+    ...payload, uiActions: null, jawaban: hasil.text, belumLengkap: hasil.ask, tawaran: hasil.tawaran || payload.tawaran || null,
     kerja: tanda.filter(r => r.status === 'ok').map(r => ({ alat: r.capabilityId, judul: r.label }))
   };
   if (suaraKonteks) cacaMulutKonteks.set(akhir, suaraKonteks);

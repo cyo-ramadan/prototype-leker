@@ -2098,6 +2098,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/caca-chat.js:/api/caca/kanvas/baca",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/caca/kanvas/baca",
+    "label": "/api/caca/kanvas/baca",
+    "skin": null
+  },
+  {
     "id": "rute:src/caca-chat.js:/api/caca/kesiapan",
     "jenis": "rute-kandidat",
     "sumber": "src/caca-chat.js",
@@ -12992,6 +13001,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/caca/catat",
     "label": "/api/caca/catat",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/caca-chat.js:request.method === 'POST' && pathname === '/api/caca/kanvas/baca') return handleBacaKanvas(request, env);",
+    "jenis": "rute-tulis",
+    "sumber": "src/caca-chat.js",
+    "method": "POST",
+    "rute": "/api/caca/kanvas/baca",
+    "label": "/api/caca/kanvas/baca",
     "skin": null
   },
   {

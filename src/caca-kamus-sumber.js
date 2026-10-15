@@ -1,8 +1,10 @@
 // Sumber makna ditinjau dari kode. ID fitur eksplisit, tidak mengikuti route baru otomatis.
 export const SUMBER_KAMUS = Object.freeze({
   "una_lembar": {
-    "sumber": ["src/una-surfaces.js", "public/una-lembar.js", "public/una-surfaces-client.js", "public/una-kanvas.js", "src/una-kanvas-patch.js"],
+    "sumber": ["src/una-surfaces.js", "public/una-lembar.js", "public/una-surfaces-client.js", "public/una-kanvas.js", "src/una-kanvas-patch.js", "src/una-kanvas-baca.js", "public/una-kanvas-baca.js"],
     "fitur": [
+      "rute:src/caca-chat.js:/api/caca/kanvas/baca",
+      "tulis:src/caca-chat.js:request.method === 'POST' && pathname === '/api/caca/kanvas/baca') return handleBacaKanvas(request, env);",
       "rute:src/caca-chat.js:/api/caca/surfaces", "rute:src/caca-chat.js:/api/caca/surfaces/", "rute:src/una-surfaces.js:/api/caca/surfaces",
       "tulis:src/una-surfaces.js:request.method!=='POST')return json(",
       "tulis:src/una-surfaces.js:request.method==='DELETE')",

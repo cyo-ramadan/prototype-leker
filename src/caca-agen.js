@@ -12,6 +12,7 @@
 
 import { bukaLayarDariPesan } from './caca-buka-layar.js';
 import { perintahLembar } from './una-perintah-lembar.js';
+import { perintahBacaKanvas } from './una-kanvas-baca.js';
 import { callStructured } from './caca-ai-client.js';
 import { ALAT_BACA, PERIODE, daftarAlatUntukModel, jalankanAlat } from './caca-alat.js';
 import { TANGKAP_PENGELUARAN_SCHEMA, TANGKAP_PENGELUARAN_PROMPT, siapkanDraftPengeluaran } from './caca-tulis.js';
@@ -841,7 +842,7 @@ export async function jawabPertanyaan(pertanyaan, konteks, opsi = {}) {
 
 async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
   // Filter laporan di lembar Workspace (U4 Una Live): tanggal diterjemahkan kode, bukan model.
-  const lembar = perintahLembar(pertanyaan, konteks);
+  const lembar = perintahLembar(pertanyaan, konteks) || perintahBacaKanvas(pertanyaan, konteks);
   if (lembar) return lembar;
   const navigasi = bukaLayarDariPesan(pertanyaan, konteks);
   if (navigasi) return navigasi;

@@ -60,6 +60,11 @@ const mapped = (row,ctx,list=false) => ({id:row.id,kind:row.kind,title:row.title
 const keys = ctx => [ctx.key,ctx.entityId,ctx.storeId,ctx.lingkup];
 const where = 'principal_key=? AND entity_id=? AND store_id IS ? AND scope_kind=?';
 async function rowFor(env,ctx,id) { return env.DB.prepare('SELECT * FROM una_surfaces WHERE '+where+' AND id=?').bind(...keys(ctx),id).first(); }
+// U7: pembaca kanvas memakai otorisasi dan cakupan yang sama; lembar milik orang lain = 404.
+export async function lembarMilikSesi(request,env,id) {
+  const ctx=await contextFor(request,env);const row=await rowFor(env,ctx,id);if(!row)throw missing();
+  return {ctx,row:{id:row.id,kind:row.kind,revision:row.revision}};
+}
 async function validateStores(env,ctx,content) {
   for(const code of content.filters?.stores||[]) {
     const store=await env.DB.prepare('SELECT id FROM stores WHERE code=? AND entity_id=? AND is_active=1').bind(code,ctx.entityId).first();

@@ -46,8 +46,16 @@ U1, U2, U3, U5, U6) dan **Opus 5.5** (Eskor: U0, U4, U7, U8).
 | U0 (Opus 5.5) | **SELESAI 2026-10-15**, belum di main | `eskor/una-live-u0`: `contracts/una-live-workspace-v1.md`, `test/fixtures/una-live/*.json`, `test/una-live-kontrak.test.js` (8 lulus) |
 | U1, U2, U3, U5, U6 (Sol 6.1) | **SELESAI lokal** (Codex `bec92f7`), sudah digabung ke `eskor/una-live-u4` | branch `codex/una-live-sol-20261015`, worktree `wt-una-sol` |
 | U4 (Opus 5.5) | **SELESAI lokal**, terintegrasi dengan modul Sol asli; uji browser/HP/suara nyata tetap di U8 | branch `eskor/una-live-u4` (= U0 + Sol + U4), `test/una-live-integrasi.test.js` |
-| U7 (Opus 5.5) | boleh mulai (U4+U6 ada) | |
+| U7 (Opus 5.5) | **SELESAI lokal**; uji model sungguhan + browser = U8 | branch `eskor/una-live-u4`, `test/una-kanvas-baca.test.js` |
 | U8 (Opus 5.5) | menunggu semua | |
+
+**U7 pembaca lembar gambar (Eskor, 2026-10-15 malam):**
+- Pemicu (kode, tanpa model): saat lembar aktif adalah kanvas dan pesan merujuk gambar ("lihat gambar ini", "ini maksudnya apa?", "baca coretan aku") → `canvas.read` bertarget lembar + revisi (`perintahBacaKanvas`, `src/una-kanvas-baca.js`, dipanggil sesudah `perintahLembar`).
+- Browser `public/una-kanvas-baca.js`: dispatcher menyimpan coretan yang belum tersimpan lalu mengikat `canvas.read` ke revisi hasil simpan (hanya perintah kode). Snapshot editor Sol (revisi + editSerial + PNG ≤ 1,5 MB + objek) dikirim ke `POST /api/caca/kanvas/baca`. Saat hasil tiba, revisi DAN editSerial dibandingkan (catatan Codex no. 6); berbeda = "bacaan versi sebelumnya", usulan tulisan tidak bisa diterapkan.
+- Server `handleBacaKanvas`: kepemilikan lewat `lembarMilikSesi` (ditambahkan ke `src/una-surfaces.js`, memakai `contextFor`/`rowFor` U5; lembar orang lain 404), revisi harus sama dengan yang tersimpan (409), PNG saja, objek divalidasi `validateCanvasObject`, lalu `callStructured` (model Una yang sama, tidak diganti). Model hanya mengamati: pengamatan / dugaan maksud / belum jelas. Usulan tulisan → operasi patch tervalidasi (id `una-N` tidak bentrok, koordinat diklem); usulan pekerjaan toko → maks 3 kalimat.
+- Chat: jawaban bacaan dipisah per bagian. Tombol "Tambahkan N catatan Una di gambar" menjalankan `canvas.apply_patch` (origin `user`) hanya bila kanvas masih persis seperti yang dibaca; bisa di-Undo. Usulan bisnis memakai tawaran jenis `isi` (masuk kotak ketik, Bos yang mengirim → draft + Ya). Bacaan gambar tidak pernah membuat transaksi.
+- Kamus `una_lembar` diperbarui (cara minta Una membaca gambar), rute `/api/caca/kanvas/baca` diajarkan.
+- Belum: uji dengan model sungguhan (mutu bacaan coretan), pemilihan `objectIds` bagian tertentu oleh pengguna.
 
 **Finalisasi U4 sesudah Sol `bec92f7` digabung (Eskor, 2026-10-15 malam):**
 - Catatan Codex no. 1–2 dikerjakan: perintah laporan kini membawa `target {surfaceId, expectedRevision}` dari konteks; `target: null` hanya sesudah `page.open` di giliran yang sama dan diikat dispatcher ke lembar hasil `page.open` (dari tanda terimanya, bukan tebakan).

@@ -61,8 +61,31 @@
       return ctx;
     }
 
+    // Mengikat perintah laporan buatan kode ke lembar yang benar sebelum divalidasi registry.
+    // - target null hanya sah sesudah page.open ok di giliran yang sama: diikat ke lembar itu.
+    // - target berisi revisi lama (autosave Una/Bos selesai saat pesan di jalan): diikat ke
+    //   revisi terbaru HANYA bila filter yang tampil masih sama dengan dasar perintah (konteks
+    //   yang dikirim). Bila Bos sudah mengubah filter, perintah dibiarkan dan validator menolak
+    //   REVISION_CONFLICT. Perintah dari model tidak pernah diikat ulang.
+    async function bind(aksi, basis, sebelumnya) {
+      if (aksi.origin !== 'code' || !/^report\./.test(aksi.capabilityId)) return aksi;
+      const L = w.UnaLembar;
+      let s = L.context()?.surface;
+      if (!s || s.kind !== 'page' || !s.content) return aksi;
+      const kunci = s.content.halaman + ':' + s.content.tab;
+      if (aksi.target && aksi.target.surfaceId !== s.id) return aksi;
+      if (!aksi.target && !(sebelumnya?.capabilityId === 'page.open' && sebelumnya.status === 'ok' && sebelumnya.surfaceId === s.id)) return aksi;
+      if (aksi.target && basis?.filters) {
+        const kini = w.UnaPageAdapters?.[kunci]?.readState?.() || {};
+        if (kini.from !== basis.filters.from || kini.to !== basis.filters.to) return aksi;
+      }
+      if (L.context()?.dirty || L.client?.()?.get?.(s.id)?.dirty) { await L.save?.(s.id); s = L.context()?.surface || s; }
+      if (aksi.target?.expectedRevision === s.revision) return aksi;
+      return { ...aksi, target: { surfaceId: s.id, expectedRevision: s.revision } };
+    }
+
     // Aksi dijalankan berurutan; berhenti di tanda terima pertama yang bukan ok.
-    async function run(actions, { turnId, onStep } = {}) {
+    async function run(actions, { turnId, onStep, basis = null } = {}) {
       if (!siap() || !Array.isArray(actions) || !actions.length) return [];
       const tanda = [];
       for (const aksi of actions.slice(0, 3)) {
@@ -71,7 +94,7 @@
         emit('una-live:progress', { turnId, actionId: aksi.actionId, step: tanda.length + 1, phase: 'start', label });
         onStep?.({ phase: 'start', label, done: tanda.map(t => t.label) });
         let r;
-        try { r = await w.UnaRegistry.execute(aksi); }
+        try { r = await w.UnaRegistry.execute(await bind(aksi, basis, tanda[tanda.length - 1])); }
         catch { r = { actionId: aksi.actionId, capabilityId: aksi.capabilityId, status: 'failed', code: 'DATA_FAILED', message: 'Tindakan gagal. Periksa halaman sebelum mengulang.', summary: {} }; }
         berjalan.delete(aksi.actionId);
         if (jejak.batal && r.status === 'ok') r = { ...r, status: 'cancelled', code: 'SUPERSEDED', message: 'Bos minta berhenti; hasil ini tidak diumumkan.' };
@@ -103,7 +126,12 @@
     }
 
     // "stop/berhenti": berhenti menunggu baca yang sedang jalan. Tidak menyentuh draft bisnis.
-    function cancelReads() { let n = 0; for (const v of berjalan.values()) { v.batal = true; n++; } return n; }
+    function cancelReads() {
+      let n = 0; for (const v of berjalan.values()) { v.batal = true; n++; }
+      // Registry (U1) berhenti merender hasil baca/tampilan yang sedang jalan; fetch fisik bisa
+      // tetap selesai tetapi hasilnya tidak digambar. Draft/artefak tidak tersentuh.
+      return Math.max(n, w.UnaRegistry?.cancelReads?.() || 0);
+    }
     const pending = () => berjalan.size;
 
     return { turn, context, run, conclude, cancelReads, pending, label: id => LABEL[id] || id };

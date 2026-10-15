@@ -1,5 +1,22 @@
 # Handoff — "Caca", asisten toko berbasis AI
 
+<!-- UNA-SOL-IMPLEMENTATION-NOTE -->
+### Progres pelaksanaan Sol — 2026-10-15
+
+- Implementasi lokal U1/U2/U3/U5/U6 tersedia di branch codex/una-live-sol-20261015, worktree C:/Users/Asus/wt-una-sol, basis U0 cec4240. Belum dirilis.
+- Registry tervalidasi, shell lembar + mount bersama menu/pin, adapter Laporan, API artefak/revisi/autosave, editor kanvas/snapshot/patch sudah terhubung di branch Sol. "Buka laporan" pada lingkup Entity memilih reports.
+- Verifikasi akhir: **156/156 tes terarah lulus**, tambahan **8/8 kontrak lulus** sesudah klasifikasi kontrol; **npm run check 332 berkas** dan **build-peta-una --cek** lulus. Enam contoh pertanyaan panduan kanvas classic/H lulus.
+- Suite penuh selesai **2057 tes: 2046 lulus, 11 gagal**. Delapan kegagalan dibuktikan pada baseline bersih cec4240 (72 tes: 66/6; tambahan 19: 17/2). Tiga masalah terkait paket ini sudah diperbaiki dan lulus dalam tes akhir. Tidak mengklaim seluruh suite hijau.
+- Restore menjaga edit filter saat loader menunggu, menyimpan filter awal, memeriksa role/skin/scope, dan memberikan revisi terbaru. Konflik tidak menimpa edit baru selama pemuatan versi server.
+- Untuk Opus U4 8043bbe: **report.set_filters dengan target:null akan ditolak**. Pakai activeSurfaceId + surfaceRevision nyata; buka lembar dulu bila belum ada. Koreksi pada surfaceId sama memakai key supersession sama. Normalisasi "Entity Admin" sudah ditangani dan diuji.
+- U1 menyediakan **UnaRegistry.cancelReads()** untuk menghentikan guard render read/view; hubungkan dari pembatalan baca U4. Penyimpanan artefak dan draft bisnis tidak dibatalkan. Fetch fisik mungkin tetap berjalan.
+- 28 kontrol baru diklasifikasikan eksplisit di fixture kontrol Entity Admin; tidak ada izin klik DOM sembarang.
+- Browser lokal: screenshot shell terlihat; DOM/klik timeout. Browser HP, suara nyata, TESTINGUNA, performa, pembaca AI kanvas (U7) dan review U8 belum terbukti.
+- Laporan rinci: C:/Users/Asus/wt-una-sol/audit/2026-10-15-una-sol.md; bukti tes di C:/Users/Asus/work/una-sol-hourly/sol-final-targeted.log dan sol-root-full-test.log.
+- Jadwal Codex-Una-Sol-Hourly-01a13e14 tetap terpasang PT1H. BUSY menahan run selama implementasi manual; laptop menyala dan akun Windows login diperlukan. Tidak push/deploy/migration remote otomatis.
+
+
+
 Dokumen ini untuk **sesi baru yang mulai dari nol** (Hana di sesi lain, atau agen
 implementer). Instance tidak berbagi memory, jadi semua yang perlu diketahui
 ditulis di sini atau ditunjuk dari sini.
@@ -27,10 +44,18 @@ U1, U2, U3, U5, U6) dan **Opus 5.5** (Eskor: U0, U4, U7, U8).
 | Paket | Status | Branch / bukti |
 |---|---|---|
 | U0 (Opus 5.5) | **SELESAI 2026-10-15**, belum di main | `eskor/una-live-u0`: `contracts/una-live-workspace-v1.md`, `test/fixtures/una-live/*.json`, `test/una-live-kontrak.test.js` (8 lulus) |
-| U1, U2, U3, U5, U6 (Sol 6.1) | dikerjakan Codex, belum commit (cek 2026-10-15 18:15) | worktree `wt-una-sol`, branch `codex/una-live-sol-20261015` |
-| U4 (Opus 5.5) | **sisi Opus selesai, finalisasi setelah U1–U3 digabung** | branch `eskor/una-live-u4` (dari `cec4240`), lihat catatan U4 di bawah |
-| U7 (Opus 5.5) | menunggu U4+U6 | |
+| U1, U2, U3, U5, U6 (Sol 6.1) | **SELESAI lokal** (Codex `bec92f7`), sudah digabung ke `eskor/una-live-u4` | branch `codex/una-live-sol-20261015`, worktree `wt-una-sol` |
+| U4 (Opus 5.5) | **SELESAI lokal**, terintegrasi dengan modul Sol asli; uji browser/HP/suara nyata tetap di U8 | branch `eskor/una-live-u4` (= U0 + Sol + U4), `test/una-live-integrasi.test.js` |
+| U7 (Opus 5.5) | boleh mulai (U4+U6 ada) | |
 | U8 (Opus 5.5) | menunggu semua | |
+
+**Finalisasi U4 sesudah Sol `bec92f7` digabung (Eskor, 2026-10-15 malam):**
+- Catatan Codex no. 1–2 dikerjakan: perintah laporan kini membawa `target {surfaceId, expectedRevision}` dari konteks; `target: null` hanya sesudah `page.open` di giliran yang sama dan diikat dispatcher ke lembar hasil `page.open` (dari tanda terimanya, bukan tebakan).
+- Celah waktu yang ditemukan saat integrasi: autosave filter Una menaikkan revisi ketika pesan koreksi sedang di jalan, sehingga "eh sampai tanggal 8" ditolak `REVISION_CONFLICT`. Validator **tidak** dilonggarkan. Dispatcher (`bind`) mengikat ulang perintah buatan kode (bukan model) ke revisi terbaru hanya bila filter yang tampil masih sama dengan filter di konteks yang dikirim; bila Bos sudah mengubah tanggal sendiri, perintah dibiarkan dan ditolak (ketikan Bos tidak ditimpa).
+- "stop" memanggil `UnaRegistry.cancelReads()` (catatan Codex): hasil yang dihentikan tidak digambar.
+- Bukti dengan modul asli (registry, validator, data kemampuan, adapter laporan, pemuat laporan `entity-admin.js`; hanya shell lembar ditiru): `test/una-live-integrasi.test.js` 4 skenario lulus: koreksi saat memuat (respons tanggal 10 yang terlambat tidak digambar), ubahan manual Bos tidak ditimpa, `page.open` → filter, `target null` tanpa `page.open` ditolak + stop.
+- Kamus: entri baru `una_laporan_chat` (sumber `src/una-perintah-lembar.js`, `public/una-dispatcher.js`, `public/una-adapter-laporan.js`).
+- Untuk U8: skrip Sol (`una-registry.js`, `una-lembar.js`, `una-kanvas.js`, dll.) dipasang tanpa `?v=`; tambahkan versi cache sebelum rilis.
 
 **Catatan U4 (Eskor, 2026-10-15) untuk penggabungan dengan paket Sol:**
 - Server: `src/una-perintah-lembar.js` menerjemahkan perintah filter Laporan Entity tanpa model ("1 sampai 10 Oktober", "eh sampai tanggal 8 aja", "mulai tanggal 3", "minggu sebelumnya", "bulan ini"), aturan tahun kontrak 3.3, klarifikasi bila tanggal tidak sah/terbalik. Dipanggil paling awal di `jawabPertanyaanInti` (sebelum `buka_layar`). Hanya aktif bila browser mengirim `surfaceContext` (panel lama tidak terpengaruh). Perintah memakai `target: null` agar kunci penggantian registry = `entity:reports` (koreksi selalu menggantikan bacaan yang masih jalan).

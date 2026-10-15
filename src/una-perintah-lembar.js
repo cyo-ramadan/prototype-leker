@@ -170,14 +170,15 @@ const KATA_TANYA_ANGKA = /\b(berapa|brp|jumlah(?:nya)?|total(?:nya)?)\b/;
 const KATA_FILTER = /\b(ganti|ubah|set|atur|tampil(?:kan|in)?|lihat|liat|buka(?:kan|in)?|filter|range|rentang|periode|tanggal|tgl)\b/;
 const KATA_KOREKSI = /^(eh|eits|ralat|maksudnya|maksud(?:ku|nya)?|bukan|salah|oh|kalau|kalo|gimana kalau|gimana kalo)\b/;
 
-function perintah(capabilityId, params, sc) {
+function perintah(capabilityId, params, sc, target = null) {
   return {
     actionId: 'act_' + globalThis.crypto.randomUUID(),
     turnId: sc.turnId,
     capabilityId, capabilityVersion: 1, params,
-    // Target null: kunci penggantian di registry = halaman (entity:reports) sehingga koreksi
-    // berikutnya selalu menggantikan yang masih berjalan, walau lembarnya baru dibuat.
-    target: null,
+    // Target = lembar dan revisi yang Bos lihat saat mengirim pesan. Null hanya untuk perintah
+    // yang didahului page.open di giliran yang sama; browser mengikatnya ke lembar hasil
+    // page.open itu (public/una-dispatcher.js), bukan menebak revisi.
+    target,
     scopeEpoch: sc.scopeEpoch,
     origin: 'code'
   };
@@ -206,8 +207,10 @@ export function perintahLembar(pesan, konteks = {}) {
   const uiActions = [];
   // Laporan yang hanya terbuka di menu biasa (surfaceKind null) dipindah ke Workspace dulu,
   // karena set_filters mensyaratkan panel terpasang di lembar.
-  if (!laporanAktif || sc.surfaceKind !== 'page') uiActions.push(perintah('page.open', { halaman: 'entity', tab: 'reports', display: 'workspace' }, sc));
-  uiActions.push(perintah('report.set_filters', { from: rentang.from, to: rentang.to }, sc));
+  const diWorkspace = laporanAktif && sc.surfaceKind === 'page' && sc.activeSurfaceId?.startsWith('srf_') && Number.isSafeInteger(sc.surfaceRevision) && sc.surfaceRevision >= 1;
+  if (!diWorkspace) uiActions.push(perintah('page.open', { halaman: 'entity', tab: 'reports', display: 'workspace' }, sc));
+  const target = diWorkspace ? { surfaceId: sc.activeSurfaceId, expectedRevision: sc.surfaceRevision } : null;
+  uiActions.push(perintah('report.set_filters', { from: rentang.from, to: rentang.to }, sc, target));
   const dibaca = rentangUntukDibaca(rentang.from, rentang.to);
   return {
     ok: true, alat: 'ui_aksi',

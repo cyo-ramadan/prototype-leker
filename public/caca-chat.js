@@ -41,6 +41,7 @@ const cacaState = {
   sedangKirim: false,
   // Giliran percakapan aktif (U4 Una Live): mengikat konteks lembar dan uiActions.
   turnId: null,
+  konteksLembar: null,
   siap: false,
   siapDipakai: false
 };
@@ -1368,6 +1369,7 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertund
   // Konteks lembar Workspace yang sedang tampil (U4 Una Live), dibaca saat dikirim.
   const lembar = cacaState.turnId ? window.UnaDispatcher?.context({ conversationId, turnId: cacaState.turnId }) : null;
   if (lembar) isi.surfaceContext = lembar;
+  cacaState.konteksLembar = lembar;
   if (kerja) isi.kerja = kerja;
   if (tertunda) isi.tertunda = tertunda;
   return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify(isi) });
@@ -1605,7 +1607,7 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
     if (suaraKonteks) cacaMulutKonteks.set(payload, suaraKonteks);
     // Aksi halaman tidak ditunggu di sini: chat langsung bisa menerima koreksi ("eh sampai
     // tanggal 8") yang menggantikan bacaan yang masih berjalan.
-    if (aksiUi) { void cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks); return; }
+    if (aksiUi) { void cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks, cacaState.konteksLembar); return; }
     mengetik.remove();
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
@@ -1617,12 +1619,12 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
 
 // U4 Una Live: jalankan uiActions lewat registry dan laporkan hasil dari tanda terimanya.
 // Una tidak berkata "sudah tampil" sebelum tanda terima ok (contracts/una-live-workspace-v1.md 3.2).
-async function cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks) {
+async function cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks, basis = null) {
   const dispatcher = window.UnaDispatcher;
   let tanda = [];
   try {
     tanda = await dispatcher.run(payload.uiActions, {
-      turnId,
+      turnId, basis,
       onStep: ({ label, done }) => mengetik.aturLangkah?.(done.map(judul => ({ judul })), `${label}…`)
     });
   } finally {

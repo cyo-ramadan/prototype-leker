@@ -24,3 +24,9 @@ test('compound write commands are not truncated into navigation', () => {
  for (const pesan of ['buka Karyawan lalu tambah Budi','buka Karyawan, tambah Budi','buka Karyawan sekaligus tambah Budi','buka Karyawan, tambahkan Budi','buka Karyawan, buatkan akun Budi']) assert.equal(permintaanBuka(pesan),null);
  assert.equal(permintaanBuka('tolong tambah karyawan Budi'),null);
 });
+
+test('entity laporan means the real Entity Laporan page without widening other scopes',()=>{
+  const r=bukaLayarDariPesan('buka laporan',{...ctx,lingkup:'entity'});
+  assert.equal(r.navigasi?.halaman,'entity');assert.equal(r.navigasi?.tab,'reports');assert.equal(r.uiActions[0].capabilityId,'page.open');
+  assert.equal(bukaLayarDariPesan('buka laporan',{...ctx,lingkup:'entity',peran:'CASHIER'}).navigasi,undefined);
+});

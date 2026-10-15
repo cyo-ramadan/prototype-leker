@@ -1,3 +1,4 @@
+import { buatAksiBuka } from './una-kemampuan.js';
 // Navigasi baca saja, dari menu yang sama dengan panduan; tidak membuat draft.
 import { menuUntuk, peringkatMenu, aliasMenu } from './caca-peta.js';
 const normal = s => String(s ?? '').normalize('NFKC').toLocaleLowerCase('id-ID').replace(/[^\p{L}\p{N} -]/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -19,6 +20,7 @@ export function bukaLayarDariPesan(teks, konteks = {}) {
   const opsi = { skin: konteks.skin || 'classic', peran, halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai' };
   const semua = menuUntuk(opsi);
   let cocok = semua.filter(m => normal(m.label) === cari || normal(m.tab) === cari || aliasMenu(m).some(alias => normal(alias) === cari));
+  if(cari==='laporan'&&opsi.halaman==='entity'){const laporan=semua.find(m=>m.halaman==='entity'&&m.tab==='reports');if(laporan)cocok=[laporan];}
   if (!cocok.length) {
     const peringkat = peringkatMenu(cari, opsi);
     const terbaik = peringkat[0]?.skor || 0;
@@ -29,7 +31,7 @@ export function bukaLayarDariPesan(teks, konteks = {}) {
   const unik = [...new Map(cocok.map(m => [m.halaman + ':' + m.tab, m])).values()];
   if (unik.length === 1) {
     const m = unik[0];
-    return { ok: true, alat: 'buka_layar', jawaban: `Ini layar ${m.label}, Bos.`, navigasi: { halaman: m.halaman, tab: m.tab, label: m.label, skin: m.skin }, perluKonfirmasi: false };
+    return { ok: true, alat: 'buka_layar', jawaban: `Ini layar ${m.label}, Bos.`, navigasi: { halaman: m.halaman, tab: m.tab, label: m.label, skin: m.skin }, uiActions: buatAksiBuka(m, konteks), perluKonfirmasi: false };
   }
   if (unik.length > 1) return { ok: true, alat: 'buka_layar', jawaban: 'Bos mau membuka layar yang mana?', tawaran: unik.slice(0,6).map(m => ({ jenis: 'buka', layar: m.tab, halaman: m.halaman, label: m.label })), perluKonfirmasi: false };
   return { ok: true, alat: 'buka_layar', jawaban: `Una belum nemu layar ${cari.slice(0,100)} yang tersedia untuk akses dan tampilan Bos.`, menuTidakDitemukan: true, perluKonfirmasi: false };

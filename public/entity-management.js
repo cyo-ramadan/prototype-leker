@@ -19,22 +19,20 @@
   function selectedPins() { return [...new Set(state.snapshot?.preferences?.homePins || [])].filter(id => pinTabs[id] && $('entityTab-' + pinTabs[id])); }
   function restorePanels() {
     for (const entry of state.moved) {
-      // Anchors retain exact original position, including interleaved text nodes.
-      entry.source.insertBefore(entry.node, entry.anchor); entry.anchor.remove();
+      window.UnaMount.detach(entry.key, entry.host);
     }
     state.moved = []; state.homeLayoutKey = null;
   }
   function movePanel(tab, host) {
     const source = $('entityTab-' + tab); if (!source) return false;
-    for (const item of [...source.childNodes]) {
-      const anchor = document.createComment('home-pin:' + tab);
-      source.insertBefore(anchor, item); state.moved.push({ source, node: item, anchor }); host.append(item);
-    }
+    const key='entity:'+tab; state.moved.push({key,host});
+    window.UnaMount.claim(key,host,'pin');
     return true;
   }
   function refreshPinnedViews() {
     if (!state.homeActive) return;
     for (const id of selectedPins()) {
+      if(window.UnaMount.owner('entity:'+pinTabs[id])==='workspace')continue;
       Promise.resolve(window.loadEntityTabContent?.(pinTabs[id], { autoReport: id === 'profit' })).catch(error => entityAdminToast(error.message));
     }
   }

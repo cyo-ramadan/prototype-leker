@@ -2,6 +2,18 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 const files = [
+  "src/una-surfaces.js",
+  "src/una-kanvas-patch.js",
+  "public/una-surfaces-client.js",
+  "public/una-mount.js",
+  "public/una-lembar.js",
+  "public/una-adapter-laporan.js",
+  "public/una-kanvas.js",
+
+  "src/una-kemampuan.js",
+  "src/una-kemampuan-validasi.js",
+  "public/una-kemampuan-data.js",
+  "public/una-registry.js",
   "src/index.js",
   "src/caca-ai-client.js",
   "src/caca-ai-error.js",

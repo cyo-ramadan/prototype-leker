@@ -1,6 +1,6 @@
 {
  "formatVersion": 1,
- "note": "Klasifikasi tiap kontrol Entity Admin. Tombol dari generated/inventaris-fitur-una.js (id sama). Tombol baru wajib ditambahkan di sini (tes una-live-kontrak). Klasifikasi bukan izin: eksekusi tetap hanya lewat kemampuan terdaftar.",
+ "note": "Klasifikasi tiap kontrol Entity Admin. Tombol dari generated/inventaris-fitur-una.js (id sama). Tombol baru wajib ditambahkan di sini (tes una-live-kontrak). Klasifikasi bukan izin: eksekusi tetap hanya lewat kemampuan terdaftar. Kontrol factory lembar/kanvas memakai awalan ui: dan diklasifikasikan eksplisit; supported berarti kemampuan semantik, bukan izin klik DOM.",
  "classes": [
   "supported",
   "business_draft",
@@ -1111,6 +1111,243 @@
    "capabilityId": "report.set_filters",
    "param": "stores",
    "reason": "Filter laporan (checkbox gerai, dibuat renderEntityReportStoreChecklist)",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-lembar.js:canvas-new",
+   "label": "Lembar gambar baru",
+   "sumber": "public/una-lembar.js",
+   "class": "supported",
+   "capabilityId": "canvas.create",
+   "reason": "Melalui capability terdaftar; bukan izin klik sembarang.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-lembar.js:surface-close",
+   "label": "Tutup tampilan lembar",
+   "sumber": "public/una-lembar.js",
+   "class": "supported",
+   "capabilityId": "surface.close",
+   "reason": "Melalui capability terdaftar; bukan izin klik sembarang.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-lembar.js:surface-focus",
+   "label": "Judul lembar",
+   "sumber": "public/una-lembar.js",
+   "class": "supported",
+   "capabilityId": "surface.focus",
+   "reason": "Melalui capability terdaftar; bukan izin klik sembarang.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-lembar.js:tasks",
+   "label": "Tugas",
+   "sumber": "public/una-lembar.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-lembar.js:conflict-0",
+   "label": "Muat versi server",
+   "sumber": "public/una-lembar.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": true
+  },
+  {
+   "id": "ui:public/una-lembar.js:conflict-1",
+   "label": "Simpan sebagai lembar baru",
+   "sumber": "public/una-lembar.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": true
+  },
+  {
+   "id": "ui:public/una-lembar.js:conflict-2",
+   "label": "Ekspor filter lokal",
+   "sumber": "public/una-lembar.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": true
+  },
+  {
+   "id": "ui:public/una-lembar.js:conflict-3",
+   "label": "Simpan sekarang",
+   "sumber": "public/una-lembar.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": true
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-0",
+   "label": "Pena",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-1",
+   "label": "Penghapus",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-2",
+   "label": "Pilih / pindah",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-3",
+   "label": "Teks",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-4",
+   "label": "Kotak",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-5",
+   "label": "Elips",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-6",
+   "label": "Garis",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-7",
+   "label": "Panah",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:edit-8",
+   "label": "Hapus pilihan",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "canvas.apply_patch",
+   "reason": "Perubahan objek melalui patch tervalidasi; bukan otomatisasi klik alat.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-0",
+   "label": "Geser lembar",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-1",
+   "label": "Undo",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-2",
+   "label": "Redo",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-3",
+   "label": "Perkecil",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-4",
+   "label": "Perbesar",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-5",
+   "label": "Ekspor PNG",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-6",
+   "label": "Warna pena",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:manual-7",
+   "label": "Teks gambar",
+   "sumber": "public/una-kanvas.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-kanvas.js:surface-close",
+   "label": "Tutup tampilan lembar",
+   "sumber": "public/una-kanvas.js",
+   "class": "supported",
+   "capabilityId": "surface.close",
+   "reason": "Melalui capability terdaftar; bukan izin klik sembarang.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-mount.js:reclaim-0",
+   "label": "Sedang dibuka di Workspace, tampilkan di sini",
+   "sumber": "public/una-mount.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
+   "automationForbidden": false
+  },
+  {
+   "id": "ui:public/una-mount.js:reclaim-1",
+   "label": "Tampilkan halaman di sini",
+   "sumber": "public/una-mount.js",
+   "class": "unsupported",
+   "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
    "automationForbidden": false
   }
  ]

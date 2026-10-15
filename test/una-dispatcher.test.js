@@ -38,7 +38,7 @@ function setup({ surface = null, state = null, gagal = null } = {}) {
   };
   vm.createContext(w); w.window = w;
   vm.runInContext(source, w);
-  const jalankanSemua = async () => { while (tunda.length) { tunda.shift().selesai(); await new Promise(r => setImmediate(r)); } };
+  const jalankanSemua = async () => { for (let i = 0; i < 20; i++) { await new Promise(r => setImmediate(r)); if (tunda.length) tunda.shift().selesai(); } };
   const selesaikan = async i => { const [t] = tunda.splice(i, 1); t.selesai(); await new Promise(r => setImmediate(r)); };
   return { w, d: w.UnaDispatcher, events, report, tunda, jalankanSemua, selesaikan };
 }
@@ -82,18 +82,7 @@ test('aksi berurutan dengan progres nyata; kalimat akhir dari tanda terima', asy
   assert.equal(d.context({ turnId: 'turn_2' }).lastAction.capabilityId, 'report.set_filters');
 });
 
-test('koreksi "sampai tanggal 8" saat tanggal 10 masih memuat: hasil lama tidak diumumkan', async () => {
-  const { d, report, selesaikan } = setup();
-  const lama = d.run([aksi('report.set_filters', { from: '2026-10-01', to: '2026-10-10' }, 1)], { turnId: 'turn_1' });
-  const baru = d.run([aksi('report.set_filters', { from: '2026-10-01', to: '2026-10-08' }, 2)], { turnId: 'turn_2' });
-  await selesaikan(1); // respons tanggal 8 datang duluan
-  await selesaikan(0); // respons tanggal 10 terlambat
-  const [tLama, tBaru] = [await lama, await baru];
-  assert.equal(tLama[0].status, 'superseded');
-  assert.equal(d.conclude(tLama, {}), null, 'yang digantikan diam');
-  assert.match(d.conclude(tBaru, { rentang: { dibaca: '1–8 Oktober 2026' } }).text, /1–8 Oktober 2026/);
-  assert.equal(report.to, '2026-10-08');
-});
+// Koreksi saat laporan masih memuat diuji dengan registry/adapter/pemuat asli di una-live-integrasi.test.js.
 
 test('gagal berhenti di langkah itu dan tidak mengaku sudah tampil', async () => {
   const { d, jalankanSemua } = setup({ gagal: 'report.set_filters' });

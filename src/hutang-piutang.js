@@ -1,3 +1,4 @@
+import { evaluateDueApresiasi } from './dana-apresiasi.js';
 import { json, readJson } from './http.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
@@ -179,7 +180,7 @@ async function loadOrpItems(db, storeId) {
 }
 
 // Hutang Gaji operasional = Akun Gaji + Penyesuaian Gaji manual (payroll_adjustments, rupiah utuh, atas
-// nama karyawan yang tertaut ke akunnya sekarang). 2026-10-16: penyesuaian dulu tidak terhitung di sini.
+// nama karyawan yang tertaut ke akunnya sekarang) + mutasi dana apresiasi & denda (ADR-058, apresiasi_entries).
 const GAJI_LEDGER = `(
   SELECT employee_id, account_type, account_id, store_id, business_date, entry_type, hutang_gaji_delta_scaled, voided_at
   FROM payroll_ledger_entries
@@ -187,9 +188,14 @@ const GAJI_LEDGER = `(
   SELECT k.employee_id, p.account_type, p.account_id, p.store_id, p.business_date, 'ADJUSTMENT', p.amount_rupiah * 1000000, p.voided_at
   FROM payroll_adjustments p
   LEFT JOIN employee_account_links k ON k.account_type = p.account_type AND k.account_id = p.account_id AND k.effective_to IS NULL
+  UNION ALL
+  SELECT employee_id, 'CASHIER', account_id, store_id, business_date, 'APRESIASI', amount_scaled, voided_at
+  FROM apresiasi_entries
 )`;
 
 async function loadGajiAccounts(db, storeId) {
+  // Shift yang sudah lewat dinilai dulu supaya potongan/fee-nya masuk saldo yang dibaca di bawah.
+  try { await evaluateDueApresiasi(db, storeId); } catch (error) { console.warn('nilai apresiasi gagal', storeId, error?.message); }
   const sums = `
            COALESCE(SUM(CASE WHEN l.entry_type <> 'PAYMENT' THEN l.hutang_gaji_delta_scaled ELSE 0 END), 0) AS created_scaled,
            COALESCE(SUM(CASE WHEN l.entry_type = 'PAYMENT' THEN -l.hutang_gaji_delta_scaled ELSE 0 END), 0) AS paid_scaled,

@@ -439,7 +439,53 @@ async function buildStockAdjustment(db, requestId) {
   };
 }
 
+// Dana Apresiasi Backup & Denda (ADR-058, src/dana-apresiasi.js). Satu jurnal per baris
+// apresiasi_entries, atas nama pemilik baris di Utang Gaji:
+//   POTONG_BACKUP : Debit Utang Gaji (CS asli)  / Kredit 2105 Dana Apresiasi Backup (penampung)
+//   FEE_BACKUP    : Debit 2105                  / Kredit Utang Gaji (backup)
+//   POTONG_KOSONG, DENDA : Debit Utang Gaji (CS asli) / Kredit 4202 Pendapatan Lainnya
+//   PENYESUAIAN   : kebalikan baris yang disesuaikan; bagian jam backup ditanggung Beban Gaji
+//                   (backup tetap dibayar), bagian kosong/denda mengurangi Pendapatan Lainnya.
+// Beban Gaji di laba rugi tetap hanya tarif dasar. Penampung dibuat otomatis bila belum ada.
+async function penampungAccountId(db, storeId) {
+  const existing = await accountIdByCode(db, storeId, '2105');
+  if (existing) return existing;
+  await db.prepare(`
+    INSERT OR IGNORE INTO chart_of_accounts (id, store_id, code, name, type, subtype, is_active)
+    VALUES (?, ?, '2105', 'Dana Apresiasi Backup', 'LIABILITY', '', 1)
+  `).bind(`coa_${storeId}_2105`, storeId).run();
+  return accountIdByCode(db, storeId, '2105');
+}
+
+async function buildApresiasi(db, entryId) {
+  const row = await db.prepare(`
+    SELECT e.id, e.store_id, e.business_date, e.account_id, e.employee_id, e.kind, e.amount_scaled, e.description, e.voided_at,
+           a.kind AS adjusted_kind
+    FROM apresiasi_entries e LEFT JOIN apresiasi_entries a ON a.id = e.adjusts_entry_id
+    WHERE e.id = ? LIMIT 1
+  `).bind(entryId).first();
+  if (!row || row.voided_at) return { skip: true };
+  const amountScaled = Number(row.amount_scaled);
+  if (!Number.isSafeInteger(amountScaled) || amountScaled === 0) return { skip: true };
+  const base = { storeId: row.store_id, categoryCode: 'admin_gaji' };
+  const accounts = await categoryAccounts(db, row.store_id, 'admin_gaji');
+  if (!accounts?.creditAccountId || !accounts?.debitAccountId) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', 'Akun Beban Gaji / Utang Gaji belum aktif.') };
+  const utangGaji = accounts.creditAccountId;
+  const kind = row.kind === 'PENYESUAIAN' ? row.adjusted_kind : row.kind;
+  const viaPenampung = ['POTONG_BACKUP', 'FEE_BACKUP'].includes(kind);
+  const counter = viaPenampung
+    ? (row.kind === 'PENYESUAIAN' ? accounts.debitAccountId : await penampungAccountId(db, row.store_id))
+    : await accountIdByCode(db, row.store_id, '4202');
+  if (!counter) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', 'Akun 4202 Pendapatan Lainnya / 2105 Dana Apresiasi Backup belum aktif.') };
+  const party = row.employee_id ? await employeeParty(db, row.employee_id) : await accountHolderParty(db, 'CASHIER', row.account_id);
+  const label = text(row.description, 200) || 'Dana apresiasi';
+  // amount_scaled = perubahan Utang Gaji pemilik baris: + = Kredit Utang Gaji, - = Debit Utang Gaji.
+  const lines = twoLines(counter, utangGaji, amountScaled, label, label);
+  return { ...base, businessDate: row.business_date, description: label, lines: withParty(lines, utangGaji, party) };
+}
+
 const BUILDERS = Object.freeze({
+  APRESIASI: buildApresiasi,
   BEA: buildBea,
   STOCK_ADJUSTMENT: buildStockAdjustment,
   GAJI_PRESENSI: buildGajiPresensi,
@@ -493,6 +539,11 @@ const ADMIN_BACKLOG_EXTRA_SQL = `
   FROM payroll_adjustments g
   WHERE g.store_id = ? AND g.voided_at IS NULL AND g.amount_rupiah <> 0
     AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = g.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'PENYESUAIAN_GAJI' AND d.fact_id = g.id AND d.status = 'POSTED')
+  UNION ALL
+  SELECT 'APRESIASI', x.id, x.created_at
+  FROM apresiasi_entries x
+  WHERE x.store_id = ? AND x.voided_at IS NULL AND x.amount_scaled <> 0
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = x.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'APRESIASI' AND d.fact_id = x.id AND d.status = 'POSTED')
 `;
 
 const byBacklogOrder = (a, b) => String(a.created_at).localeCompare(String(b.created_at))
@@ -505,7 +556,7 @@ export async function pendingAdminFacts(db, storeId, limit = 50) {
       SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_SQL})
       ORDER BY created_at, fact_type, fact_id LIMIT ?
     `).bind(storeId, storeId, storeId, storeId, storeId, safeLimit).all(),
-    db.prepare(`SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_EXTRA_SQL}) ORDER BY created_at, fact_id LIMIT ?`).bind(storeId, safeLimit).all()
+    db.prepare(`SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_EXTRA_SQL}) ORDER BY created_at, fact_id LIMIT ?`).bind(storeId, storeId, safeLimit).all()
   ]);
   return [...(main.results ?? []), ...(extra.results ?? [])].sort(byBacklogOrder).slice(0, safeLimit);
 }
@@ -513,7 +564,7 @@ export async function pendingAdminFacts(db, storeId, limit = 50) {
 export async function countPendingAdminFacts(db, storeId) {
   const [main, extra] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId, storeId).first(),
-    db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_EXTRA_SQL})`).bind(storeId).first()
+    db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_EXTRA_SQL})`).bind(storeId, storeId).first()
   ]);
   return Number(main?.count || 0) + Number(extra?.count || 0);
 }
@@ -526,9 +577,10 @@ export async function pendingAdminReversals(db, storeId, limit = 25) {
   const rows = await db.prepare(`
     SELECT d.fact_type, d.fact_id FROM accounting_bridge_deliveries d
     WHERE d.store_id = ? AND d.producer_module = 'ADMIN' AND d.status = 'POSTED' AND d.journal_id IS NOT NULL
-      AND d.fact_type IN ('BEA', 'BAYAR_HUTANG', 'PENYESUAIAN_GAJI')
+      AND d.fact_type IN ('BEA', 'BAYAR_HUTANG', 'PENYESUAIAN_GAJI', 'APRESIASI')
       AND (
         (d.fact_type = 'PENYESUAIAN_GAJI' AND EXISTS (SELECT 1 FROM payroll_adjustments g WHERE g.id = d.fact_id AND g.voided_at IS NOT NULL))
+        OR (d.fact_type = 'APRESIASI' AND EXISTS (SELECT 1 FROM apresiasi_entries x WHERE x.id = d.fact_id AND x.voided_at IS NOT NULL))
         OR (d.fact_type = 'BEA' AND EXISTS (SELECT 1 FROM admin_operational_expenses e WHERE e.id = d.fact_id AND e.voided_at IS NOT NULL))
         OR (d.fact_type = 'BAYAR_HUTANG' AND EXISTS (SELECT 1 FROM admin_payments a WHERE a.id = d.fact_id AND a.voided_at IS NOT NULL))
       )
@@ -550,7 +602,8 @@ const CREATOR_SOURCES = {
   BEA: 'admin_operational_expenses',
   BAYAR_HUTANG: 'admin_payments',
   UANG_MUKA: 'operational_receivables_payables',
-  PENYESUAIAN_GAJI: 'payroll_adjustments'
+  PENYESUAIAN_GAJI: 'payroll_adjustments',
+  APRESIASI: 'apresiasi_entries'
 };
 
 async function factCreator(db, type, id, { voided = false } = {}) {

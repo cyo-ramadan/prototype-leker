@@ -2728,6 +2728,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/dana-apresiasi-api.js:/api/entity-admin/dana-apresiasi",
+    "jenis": "rute-kandidat",
+    "sumber": "src/dana-apresiasi-api.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi",
+    "label": "/api/entity-admin/dana-apresiasi",
+    "skin": null
+  },
+  {
     "id": "rute:src/employee-deposit-settlement.js:/api/admin/employee-deposits/",
     "jenis": "rute-kandidat",
     "sumber": "src/employee-deposit-settlement.js",
@@ -3994,6 +4003,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/staff/attendance",
     "label": "/api/staff/attendance",
+    "skin": null
+  },
+  {
+    "id": "rute:src/staff-portal.js:/api/staff/pengganti",
+    "jenis": "rute-kandidat",
+    "sumber": "src/staff-portal.js",
+    "method": null,
+    "rute": "/api/staff/pengganti",
+    "label": "/api/staff/pengganti",
     "skin": null
   },
   {
@@ -9503,6 +9521,50 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-admin.js"
   },
   {
+    "id": "tombol:public/entity-dana-apresiasi.js:label:Rekap &amp; penyesuaian",
+    "jenis": "tombol",
+    "sumber": "public/entity-dana-apresiasi.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Rekap &amp; penyesuaian",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-dana-apresiasi.js"
+  },
+  {
+    "id": "tombol:public/entity-dana-apresiasi.js:label:Simpan bawaan",
+    "jenis": "tombol",
+    "sumber": "public/entity-dana-apresiasi.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan bawaan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-dana-apresiasi.js"
+  },
+  {
+    "id": "tombol:public/entity-dana-apresiasi.js:label:Simpan gerai {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-dana-apresiasi.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan gerai {nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-dana-apresiasi.js"
+  },
+  {
+    "id": "tombol:public/entity-dana-apresiasi.js:label:Tampilkan",
+    "jenis": "tombol",
+    "sumber": "public/entity-dana-apresiasi.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Tampilkan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-dana-apresiasi.js"
+  },
+  {
     "id": "tombol:public/entity-izin-cs.js:data-info,data-izin-acc,data-kind,data-store:ACC",
     "jenis": "tombol",
     "sumber": "public/entity-izin-cs.js",
@@ -13715,6 +13777,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "tulis:src/dana-apresiasi-api.js:request.method !== 'POST') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/dana-apresiasi-api.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST') return json(",
+    "skin": null
+  },
+  {
     "id": "tulis:src/employee-deposit-settlement.js:request.method === 'PATCH')",
     "jenis": "rute-tulis",
     "sumber": "src/employee-deposit-settlement.js",
@@ -14756,6 +14827,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/staff/attendance",
     "label": "/api/staff/attendance",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/staff-portal.js:request.method === 'POST' && pathname === '/api/staff/pengganti')",
+    "jenis": "rute-tulis",
+    "sumber": "src/staff-portal.js",
+    "method": "POST",
+    "rute": "/api/staff/pengganti",
+    "label": "/api/staff/pengganti",
     "skin": null
   },
   {

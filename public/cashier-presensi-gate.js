@@ -30,7 +30,9 @@
     if (geo?.latitude != null) form.set('latitude', String(geo.latitude));
     if (geo?.longitude != null) form.set('longitude', String(geo.longitude));
     if (geo?.accuracy != null) form.set('accuracy', String(geo.accuracy));
-    await api('/api/staff/attendance', { method: 'POST', body: form });
+    const result = await api('/api/staff/attendance', { method: 'POST', body: form });
+    // Akun freelance/backup: konfirmasi menggantikan siapa (ADR-058).
+    if (result?.pengganti && window.konfirmasiPengganti) await window.konfirmasiPengganti(result.pengganti, api);
   }
 
   button.addEventListener('click', () => {

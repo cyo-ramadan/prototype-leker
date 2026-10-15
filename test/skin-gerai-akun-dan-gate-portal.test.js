@@ -94,5 +94,5 @@ test('file JS lama yang diubah mem-bump ?v= di semua HTML yang memuatnya', () =>
   }
   const cashier = read('public/cashier.html');
   assert.ok(cashier.includes('/warung-entry.js?v=20261012-owner-office-v1'));
-  assert.ok(cashier.includes('/cashier-presensi-gate.js?v=20261007-gate-kembali-v1'));
+  assert.ok(cashier.includes('/cashier-presensi-gate.js?v=20261015-dana-apresiasi-v1'));
 });

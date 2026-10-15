@@ -3,6 +3,7 @@ import { dispatchAdminAccountingFact, pendingAdminFacts, pendingAdminReversals, 
 import { postPendingHppCorrections, reverseHppCorrectionsOfVoidedSales } from './hpp-recalculation.js';
 import { postPendingEmployeeDepositJournals } from './employee-deposit-settlement.js';
 import { koreksiTanggalPembalik } from './koreksi-tanggal-pembalik.js';
+import { evaluateDueApresiasi } from './dana-apresiasi.js';
 
 // Sinkron Akuntansi (Bos Cyo, 2026-10-02: "sinkron itu jadikan auto sinkron aja").
 // Satu mesin dipakai dua jalur:
@@ -96,12 +97,17 @@ export async function syncPeopleFacts(db, storeIds, { now = new Date() } = {}) {
   const ids = [...new Set((storeIds || []).filter(Boolean))];
   if (!ids.length) return [];
   const since = new Date(now.getTime() - AUTO_SYNC_COOLDOWN_MINUTES * 60_000).toISOString();
+  // Dana apresiasi (ADR-058): shift CS asli yang sudah lewat dinilai dulu (semua edisi), supaya
+  // potongan/fee-nya ikut terbaca di riwayat yang sedang dibuka.
+  for (const storeId of ids) {
+    try { await evaluateDueApresiasi(db, storeId, { now }); } catch (error) { console.warn('nilai apresiasi gagal', storeId, error?.message); }
+  }
   const editions = await db.prepare(`SELECT id FROM stores WHERE edition = 'ACCOUNTING' AND id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
   const results = [];
   for (const { id: storeId } of editions.results ?? []) {
     try {
       const adminRows = (await pendingAdminFacts(db, storeId, AUTO_SYNC_LIMIT))
-        .filter(row => ['GAJI_PRESENSI', 'BEA', 'BAYAR_HUTANG', 'PENYESUAIAN_GAJI'].includes(row.fact_type));
+        .filter(row => ['GAJI_PRESENSI', 'BEA', 'BAYAR_HUTANG', 'PENYESUAIAN_GAJI', 'APRESIASI'].includes(row.fact_type));
       const adminSkip = await recentlyAttempted(db, storeId, 'ADMIN', adminRows, since);
       for (const row of adminRows) {
         if (adminSkip.has(`${row.fact_type}:${row.fact_id}`)) continue;

@@ -197,6 +197,24 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "dana_apresiasi": {
+    "sumber": [
+      "src/dana-apresiasi.js",
+      "src/dana-apresiasi-api.js",
+      "public/entity-dana-apresiasi.js",
+      "public/pengganti-presensi.js"
+    ],
+    "fitur": [
+      "rute:src/dana-apresiasi-api.js:/api/entity-admin/dana-apresiasi",
+      "rute:src/staff-portal.js:/api/staff/pengganti",
+      "tombol:public/entity-dana-apresiasi.js:label:Rekap &amp; penyesuaian",
+      "tombol:public/entity-dana-apresiasi.js:label:Simpan bawaan",
+      "tombol:public/entity-dana-apresiasi.js:label:Simpan gerai {nilai}",
+      "tombol:public/entity-dana-apresiasi.js:label:Tampilkan",
+      "tulis:src/dana-apresiasi-api.js:request.method !== 'POST') return json(",
+      "tulis:src/staff-portal.js:request.method === 'POST' && pathname === '/api/staff/pengganti')"
+    ]
+  },
   "presensi_gagal": {
     "sumber": [
       "src/staff-portal.js",

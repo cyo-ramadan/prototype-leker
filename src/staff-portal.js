@@ -15,6 +15,7 @@ import { expirePermitsForClosedSessions, listOwnCorrectionPermits } from './atte
 import { listOwnGpsPermits } from './attendance-gps-permit.js';
 import { evaluateGps, storeReference, gpsNotice, overRadiusMeters } from './attendance-gps.js';
 import { getJakartaBusinessDate } from './time.js';
+import { entriesForAccount, evaluateDueApresiasi, penggantiOptions, setPengganti } from './dana-apresiasi.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -71,6 +72,8 @@ export async function handleStaffPortalApi(request, env, pathname) {
   if (!auth.ok) return auth.response;
 
   if (request.method === 'GET' && pathname === '/api/staff/portal') {
+    // Dana apresiasi (ADR-058): shift gerai ini yang sudah lewat dinilai dulu.
+    try { await evaluateDueApresiasi(env.DB, auth.cashier.store.id); } catch (error) { console.warn('nilai apresiasi gagal', error?.message); }
     const jobDetail = await loadJobDetail(env.DB, auth.cashier.id);
     const scheduleByDay = scheduleMap(await loadSchedule(env.DB, auth.cashier.id));
     const attendance = await listAttendance(env.DB, auth.cashier.id, scheduleByDay, auth.cashier.store.attendanceScheduleGateEnabled);
@@ -89,6 +92,8 @@ export async function handleStaffPortalApi(request, env, pathname) {
       // ADR-054: koreksi akuntan pada Hutang Gaji atas nama pemilik akun ini ikut tampil.
       accountingPayrollAdjustments: await accountingPayrollAdjustments(env.DB, auth.cashier),
       payrollSyncEntries: await payrollSyncEntries(env.DB, auth.cashier),
+      // Potongan apresiasi, denda, fee backup, dan penyesuaiannya (ADR-058).
+      apresiasiEntries: auth.readOnly ? [] : await entriesForAccount(env.DB, auth.cashier.id),
       attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id),
       attendanceGpsPermits: await listOwnGpsPermits(env.DB, auth.cashier.id)
     });
@@ -113,6 +118,18 @@ export async function handleStaffPortalApi(request, env, pathname) {
     return new Response(row.photo_blob, {
       headers: { 'Content-Type': row.photo_type || 'image/jpeg', 'Cache-Control': 'private, max-age=86400' }
     });
+  }
+
+  // Konfirmasi "menggantikan siapa" untuk sesi presensi sendiri (ADR-058). replacesAccountId:
+  // id CS asli, '' = tidak menggantikan siapa pun, 'AUTO' = ikut jadwal otomatis.
+  if (request.method === 'POST' && pathname === '/api/staff/pengganti') {
+    let body = {};
+    try { body = await request.json(); } catch { body = {}; }
+    const attendanceId = String(body.attendanceId || '').slice(0, 120);
+    const own = await env.DB.prepare('SELECT 1 FROM staff_attendance WHERE id = ? AND user_id = ?').bind(attendanceId, auth.cashier.id).first();
+    if (!own) return json({ error: 'Sesi presensi tidak ditemukan.' }, 404);
+    const result = await setPengganti(env.DB, { attendanceId, replacesAccountId: body.replacesAccountId ?? 'AUTO', actor: { role: 'CASHIER', id: auth.cashier.id } });
+    return result.ok ? json({ ok: true }) : json({ error: result.error }, 400);
   }
 
   if (request.method === 'POST' && pathname === '/api/staff/attendance') {
@@ -186,7 +203,13 @@ export async function handleStaffPortalApi(request, env, pathname) {
                gps_in_status, gps_in_distance_m, gps_in_resolved_permit_id, gps_in_resolution_note
         FROM staff_attendance WHERE id = ?
       `).bind(id).first();
-      return json({ ok: true, attendance: mapAttendance(created), gps: gpsResponse }, 201);
+      // Akun freelance/backup: daftar CS asli yang mungkin sedang digantikan, untuk dikonfirmasi.
+      let pengganti = null;
+      try {
+        const info = await penggantiOptions(env.DB, { accountId: auth.cashier.id, storeId: auth.cashier.store.id });
+        if (info.enabled && info.status === 'FREELANCE' && info.options.length) pengganti = { attendanceId: id, options: info.options };
+      } catch (error) { console.warn('pilihan pengganti gagal', error?.message); }
+      return json({ ok: true, attendance: mapAttendance(created), gps: gpsResponse, pengganti }, 201);
     }
 
     const open = await env.DB.prepare(`SELECT id FROM staff_attendance WHERE user_id = ? AND status = 'OPEN' ORDER BY created_at DESC LIMIT 1`).bind(auth.cashier.id).first();

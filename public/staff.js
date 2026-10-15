@@ -246,7 +246,8 @@
     const adjustmentRows = portal?.payrollAdjustments || [];
     const journalRows = portal?.accountingPayrollAdjustments || [];
     const syncRows = portal?.payrollSyncEntries || [];
-    if (!payrollRows.length && !adjustmentRows.length && !journalRows.length && !syncRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
+    const apresiasiRows = portal?.apresiasiEntries || [];
+    if (!payrollRows.length && !adjustmentRows.length && !journalRows.length && !syncRows.length && !apresiasiRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
     for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule, checkInAt: row.checkInAt, checkOutAt: row.checkOutAt });
@@ -254,6 +255,8 @@
     // Koreksi dari Akuntansi (jurnal pada Hutang Gaji atas nama karyawan ini, ADR-054).
     for (const row of journalRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: row.description || 'Penyesuaian gaji', source: `Penyesuaian dari Akuntansi · Jurnal ${row.journalNumber}` });
     // Penyamaan riwayat dengan buku Akuntansi oleh Entity Admin (migration 0153).
+    // Dana apresiasi & denda (ADR-058): potongan CS asli, apresiasi backup, penyesuaian Entity Admin.
+    for (const row of apresiasiRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: row.description, source: row.kind === 'PENYESUAIAN' ? 'Penyesuaian dari Entity Admin' : 'Dana apresiasi & denda', voided: row.voided, voidReason: row.voidReason || 'dihitung ulang' });
     for (const row of syncRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: 'Sinkronisasi Akuntansi', source: 'Penyamaan riwayat dengan buku Akuntansi' });
     const dates = [...cardsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
     const grandTotal = [...cardsByDate.values()].flat().reduce((sum, card) => sum + (card.voided ? 0 : card.amountRupiah), 0);
@@ -592,6 +595,8 @@
     if (geo?.longitude != null) form.set('longitude', String(geo.longitude));
     if (geo?.accuracy != null) form.set('accuracy', String(geo.accuracy));
     const result = await staffApi('/api/staff/attendance', { method: 'POST', body: form });
+    // Akun freelance/backup: konfirmasi menggantikan siapa (ADR-058).
+    if (result?.pengganti && window.konfirmasiPengganti) await window.konfirmasiPengganti(result.pengganti, staffApi);
     portal = await staffApi('/api/staff/portal');
     renderPortal();
     clearCameraMessage();

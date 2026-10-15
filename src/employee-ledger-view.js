@@ -6,6 +6,7 @@ import { scheduleMap, listAttendance, buildPayroll } from './staff-attendance.js
 import { listPayrollAdjustments } from './payroll-adjustments.js';
 import { resolveTenantId, getTenantPolicySetting, ATTENDANCE_SCHEDULE_GATE_KEY } from './tenant-policy.js';
 import { listActiveSyncs, SYNC_LABEL } from './sinkron-akuntansi-baris.js';
+import { evaluateDueApresiasi } from './dana-apresiasi.js';
 
 // Bos Cyo, 2026-10-06: "didalam tombol karyawan entity admin itu tambahin untuk cek saldo
 // piutang/setoran dari karyawan tersebut, terlihat jika satu karyawan tadi tertaut dengan 2 atau
@@ -105,6 +106,13 @@ async function setoranEntries(db, employeeId, entityId, accounts) {
 
 async function gajiEntries(db, employeeId, entityId, accounts) {
   const accountIds = accounts.map(account => account.accountId);
+  // Dana apresiasi (ADR-058): shift yang sudah lewat di gerai akun-akun orang ini dinilai dulu.
+  const accountStores = accountIds.length
+    ? (await db.prepare(`SELECT DISTINCT store_id FROM cashiers WHERE id IN (${inList(accountIds)})`).bind(...accountIds).all()).results ?? []
+    : [];
+  for (const row of accountStores) {
+    try { await evaluateDueApresiasi(db, row.store_id); } catch (error) { console.warn('nilai apresiasi gagal', row.store_id, error?.message); }
+  }
   const rows = await db.prepare(`
     SELECT p.entry_type, p.source_type, p.source_id, p.voided_at, p.account_id, p.store_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
     FROM payroll_ledger_entries p
@@ -128,6 +136,27 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
     status: 'POSTED',
     note: row.description || ''
   }));
+  // Dana apresiasi & denda (ADR-058): potongan CS asli, fee backup, penyesuaian Entity Admin.
+  const apresiasi = await db.prepare(`
+    SELECT x.id, x.kind, x.account_id, x.store_id, x.business_date, x.created_at, x.amount_scaled, x.description, s.code AS store_code
+    FROM apresiasi_entries x JOIN stores s ON s.id = x.store_id
+    WHERE x.entity_id = ? AND x.voided_at IS NULL AND x.amount_scaled <> 0
+      AND (x.employee_id = ? OR x.account_id IN (${inList(accountIds)}))
+  `).bind(entityId, employeeId, ...accountIds).all();
+  for (const row of apresiasi.results ?? []) {
+    entries.push({
+      at: row.created_at || `${row.business_date}T00:00:00.000Z`,
+      businessDate: row.business_date,
+      kind: `APRESIASI_${row.kind}`,
+      label: row.description || 'Dana apresiasi',
+      apresiasiEntryId: row.kind === 'PENYESUAIAN' ? null : row.id,
+      storeId: row.store_id,
+      storeCode: row.store_code,
+      accountId: row.account_id,
+      amountScaled: Number(row.amount_scaled),
+      status: 'POSTED'
+    });
+  }
   // Portal Staf menghitung gaji dari presensi tiap kali dibuka; ledger hanya terisi untuk sesi yang
   // ditutup lewat presensi pulang setelah migration 0116. Sesi lain (lama, ditutup otomatis) tetap
   // ditampilkan di sini dari presensi -- tanpa dobel dengan baris ACCRUAL yang sudah ada.
@@ -253,6 +282,7 @@ export async function buildEmployeeLedger(db, { employeeId, entityId, kind, acco
       accountId: entry.accountId,
       accountUsername: account?.username || null,
       syncId: entry.syncId || null,
+      apresiasiEntryId: entry.apresiasiEntryId || null,
       status: entry.status,
       note: entry.note || '',
       amountRupiah: rupiah(entry.amountScaled),

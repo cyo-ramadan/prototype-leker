@@ -628,7 +628,8 @@ export const KAMUS = Object.freeze([
       'Telat ditandai otomatis ("Telat X menit") dengan membandingkan jam presensi masuk dengan jadwal hari itu.',
       'Untuk gaji Per Jam, jam kerja dihitung dari jam presensi sebenarnya — jadi telat otomatis mengurangi gaji hari itu, tanpa perlu diatur.',
       'Kalau mau ada denda tambahan: Tim → Akun Kasir → "💰 Gaji" → Penyesuaian Gaji dengan nominal negatif + alasan.',
-      'Kalau telatnya karena alasan sah (mis. aplikasi error), CS mengajukan koreksi jam masuk dari Portal Staf SEBELUM presensi pulang; Admin meng-ACC di Akun Kasir → "Pengajuan koreksi presensi".'
+      'Kalau telatnya karena alasan sah (mis. aplikasi error), CS mengajukan koreksi jam masuk dari Portal Staf SEBELUM presensi pulang; Admin meng-ACC di Akun Kasir → "Pengajuan koreksi presensi".',
+      'Kalau mekanisme Dana Apresiasi & Denda aktif (Entity Admin → Pengaturan), menit telat CS asli otomatis dipotong apresiasi per jam + denda shift kosong sebagian — tidak perlu input denda manual lagi.'
     ].join('\n'),
     tawaran: [buka('cashiers'), buka('attendance-report')],
     aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una catatkan dendanya? Sebut mis. "potong gaji Rika 20rb kemarin karena telat".', tombol: 'Una catatkan denda', awal: { pg_jenis: 'potong' } }
@@ -646,6 +647,24 @@ export const KAMUS = Object.freeze([
     ].join('\n'),
     tawaran: [buka('attendance-report'), buka('permit-report'), buka('cashiers')],
     aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una tambahkan gaji hari yang tidak terhitung? Sebut mis. "tambah gaji Rika 80rb tgl 5 karena tidak bisa presensi".', tombol: 'Una tambahkan gaji', awal: { pg_jenis: 'tambah' } }
+  },
+  {
+    id: 'dana_apresiasi',
+    judul: 'Dana apresiasi backup & denda tidak masuk',
+    kunci: ['dana apresiasi', 'apresiasi', 'apresiasi backup', 'denda', 'denda tidak masuk', 'denda absen', 'cs tidak masuk', 'cs berhalangan', 'gantikan', 'menggantikan', 'potongan apresiasi', 'shift kosong', 'gerai kosong', 'freelance', 'cs asli', 'alasan syari', 'jam operasional'],
+    isi: [
+      'Diatur di Entity Admin → Pengaturan → "Dana Apresiasi & Denda CS" (bawaan entity + bisa beda per gerai; bawaannya ON).',
+      'Setiap jam shift CS asli yang tidak dia jaga (tidak masuk, telat, pulang awal) dipotong apresiasi per jam (bawaan Rp2.400) dari hutang gajinya:',
+      '• jam yang dijaga backup → diteruskan ke backup sebagai "Apresiasi backup" (lewat akun penampung 2105, saldonya harus 0);',
+      '• jam yang kosong → masuk Pendapatan Lainnya.',
+      'Denda tambahan: shift kosong penuh Rp20.000, kosong sebagian Rp10.000; dijaga penuh backup = tanpa denda. Hutang gaji boleh minus (lebih bayar).',
+      'Hanya akun berstatus CS asli yang dinilai (status diatur di pengaturan yang sama; akun backup entity bawaannya Freelance). Dihitung otomatis 1 jam setelah jam pulang shift, mulai tanggal "Mulai dihitung" di pengaturan. Telat 1 menit pun dihitung (tanpa toleransi), jadi pastikan jadwal shift dan hari libur tiap CS benar.',
+      'Backup memilih "menggantikan siapa" saat presensi masuk (bawaan otomatis dari jadwal); Entity Admin bisa mengoreksi di "Rekap & penyesuaian".',
+      'Alasan syar\'i: Entity Admin buka "Rekap & penyesuaian" → tombol Penyesuaian di baris potongan/denda; bawaannya membatalkan penuh, nominal & keterangan bisa diubah.',
+      'Isi jam operasional gerai supaya muncul peringatan kalau jadwal CS asli tidak menutup jam buka gerai.'
+    ].join('\n'),
+    tawaran: [],
+    tanpaAksi: 'pengaturan dan penyesuaiannya ada di Entity Admin, belum lewat Una'
   },
   {
     id: 'backup_salah_gerai',

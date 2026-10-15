@@ -47,6 +47,7 @@ import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleInfoGeraiApi } from './info-gerai.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
+import { handleDanaApresiasiApi } from './dana-apresiasi-api.js';
 import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
 import { handleEntityAccountingApi } from './entity-accounting.js';
 import { handleManufacturingMasterApi } from './manufacturing-master.js';
@@ -306,6 +307,9 @@ async function handleApiRouted(request, env, url, ctx) {
   // Tombol Sinkronisasi Akuntansi (2026-10-13, migration 0153).
   const sinkronAkuntansiResponse = await handleSinkronAkuntansiApi(request, env, pathname);
   if (sinkronAkuntansiResponse) return sinkronAkuntansiResponse;
+  // Dana Apresiasi Backup & Denda (ADR-058, migration 0158).
+  const danaApresiasiResponse = await handleDanaApresiasiApi(request, env, pathname);
+  if (danaApresiasiResponse) return danaApresiasiResponse;
   const entityDepositQueueResponse = await handleEntityDepositQueueApi(request, env, pathname);
   if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);

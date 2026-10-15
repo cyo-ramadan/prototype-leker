@@ -13,6 +13,251 @@ Diperbarui: 2026-09-17 sore, setelah Tahap 1 mendarat.
 
 ---
 
+## Una Live dan Workspace yang dapat dikendalikan (RENCANA 2026-10-15)
+
+Arahan Bos Cyo 2026-10-15: chat Una dikembangkan sampai terasa seperti obrolan live, dengan
+Workspace milik Una. Contoh: "buka halaman laporan" lalu halaman itu muncul di Workspace;
+"ganti range tanggal 1 sampai 10 Oktober" lalu filter berubah dan hasilnya tampil; "buka lembar
+gambar" lalu Bos bisa mencoret dan Una bisa membacanya. Model Una tetap yang murah; yang
+dikembangkan adalah alat dan mesinnya. Rencana disusun Codex, pengerja: **Sol 6.1** (Codex:
+U1, U2, U3, U5, U6) dan **Opus 5.5** (Eskor: U0, U4, U7, U8).
+
+**Status paket (perbarui baris ini setiap paket selesai):**
+
+| Paket | Status | Branch / bukti |
+|---|---|---|
+| U0 (Opus 5.5) | **SELESAI 2026-10-15**, belum di main | `eskor/una-live-u0`: `contracts/una-live-workspace-v1.md`, `test/fixtures/una-live/*.json`, `test/una-live-kontrak.test.js` (8 lulus) |
+| U1, U2, U5 (Sol 6.1) | boleh mulai (bergantung U0 saja) | bercabang dari `eskor/una-live-u0` |
+| U3 (Sol 6.1) | menunggu U1+U2 | |
+| U4 (Opus 5.5) | menunggu U1+U2 | |
+| U6 (Sol 6.1) | menunggu U2+U5 | |
+| U7 (Opus 5.5) | menunggu U4+U6 | |
+| U8 (Opus 5.5) | menunggu semua | |
+
+**Hasil U0 yang wajib dibaca sebelum U1–U8:**
+- Kontrak: `contracts/una-live-workspace-v1.md`, berisi bentuk deskriptor kemampuan + subset
+  skema parameter, urutan validasi dan kode penolakan, lembar + API `/api/caca/surfaces`, perintah
+  dan tanda terima aksi, konteks giliran, event `una-live:*`, format dan patch kanvas, tabel
+  **kepemilikan file per paket**.
+- Basis: `eskor/una-live-u0` = `origin/main` 78e9774 + branch Pengaturan Una
+  (`codex/una-pengaturan-apk-20261015`, belum di main). Konflik gabung hanya versi cache tes dan
+  hash kamus (sumbernya cuma versi skrip, makna tidak berubah, ditinjau ulang).
+- Migration: **0158 sudah dipakai** `eskor/dana-apresiasi-denda`; U5 memakai nomor bebas
+  berikutnya (≥ 0159).
+- Inventaris kontrol Entity Admin: `test/fixtures/una-live/kontrol-entity-admin.json`
+  (128 kontrol: 19 didukung = 15 menu + jalankan laporan + 3 filter; 17 lewat draft bisnis;
+  92 belum didukung; ACC/Setujui/Tolak/login/kredensial ditandai `automationForbidden`).
+  Tombol baru di Entity Admin membuat `test/una-live-kontrak.test.js` merah sampai diklasifikasikan.
+- Branch belum di-push: push branch = deploy produksi (CLAUDE.md). Paket berikut bekerja dari
+  branch lokal ini; push/merge menunggu izin Bos.
+
+Rencana lengkap (teks Codex, tidak diubah selain tingkat judul):
+
+### 1. Tujuan dan dasar pekerjaan
+
+**Tujuan:** Bos Cyo dapat mengetik atau berbicara dengan Una sambil bekerja dalam Workspace yang sama. Una dapat membuka halaman aplikasi, mengubah filter, membaca hasilnya, serta membuka lembar gambar untuk dicoret dan dibahas bersama.
+
+Sol 6.1 dan Opus 5.5 adalah **model agen pengembang**. Model runtime Una tetap mengikuti konfigurasi murah yang sudah ditetapkan. Fokus pengembangan adalah alat, pengelolaan konteks, integrasi halaman, dan pembuktian hasil tindakan.
+
+**Tujuan penyimpanan handoff:** tambahkan arahan ini di bagian teratas `HANDOFF-CACA.md`, dekat arahan 15 Oktober pada baris 16, tanpa menghapus riwayat. Statusnya **RENCANA, BELUM DIIMPLEMENTASIKAN**. Dalam sesi Plan Mode ini file belum diubah.
+
+Temuan kode yang menjadi dasar:
+
+- Workspace saat ini mengelola draft, revisi, persetujuan, dan progres pekerjaan.
+- `buka_layar` sudah mengenali menu, tetapi membuka tab aplikasi; belum menghadirkan halaman sebagai lembar dalam Workspace.
+- Laporan yang dimaksud adalah tab `reports` di Entity Admin. Kontrol aktualnya adalah `entityReportFrom`, `entityReportTo`, dan `entityReportRun`.
+- `runEntityReport()` dan `loadEntityTabContent()` sudah menyediakan jalur pemuatan laporan.
+- Fitur pin Beranda memindahkan panel asli. Workspace perlu berbagi mekanisme kepemilikan panel agar tidak menciptakan panel, ID, atau listener ganda.
+- Runtime suara lokal, interupsi narasi, antrean perintah, dan input gambar sudah tersedia sebagai fondasi.
+
+Checkout utama memiliki perubahan milik sesi lain dan kode yang lebih lama. Implementasi harus memakai worktree terpisah dari main terbaru; cocokkan kembali temuan ini sebelum mengedit.
+
+### 2. Keputusan arsitektur dan perilaku
+
+#### A. Daftar kemampuan sebagai penghubung Una ke aplikasi
+
+Bangun **capability registry** yang menghubungkan bahasa pengguna dengan tindakan aplikasi. ID tombol tetap berguna sebagai binding internal.
+
+Setiap kemampuan mempunyai:
+
+- ID stabil, label, alias bahasa Indonesia, dan halaman pemilik.
+- Skema parameter, batas role/scope, serta prasyarat.
+- Kategori tindakan: navigasi, baca, perubahan tampilan, edit artefak, atau draft bisnis.
+- Handler eksekusi, hasil terstruktur, dan pemeriksaan bahwa hasil benar-benar tampil.
+
+Contoh kemampuan:
+
+| ID | Perilaku |
+|---|---|
+| `page.open` | Membuka halaman terdaftar dalam Workspace |
+| `report.set_filters` | Mengubah tanggal dan pilihan gerai pada laporan aktif |
+| `report.refresh` | Memuat ulang melalui pemuat laporan asli |
+| `page.read_state` | Membaca filter, status, pilihan, dan referensi hasil aktif |
+| `canvas.create` | Membuka lembar gambar kosong |
+| `canvas.read` | Membaca snapshot coretan yang dipilih |
+| `canvas.apply_patch` | Mengubah objek kanvas dengan operasi yang dapat di-undo |
+
+Model hanya memilih kemampuan dan parameter. Kode memvalidasi, menjalankan, dan memeriksa hasilnya.
+
+Jangan memberikan kemampuan menjalankan JavaScript, URL, selector CSS, atau klik tombol sembarang dari keluaran model. Tombol persetujuan bisnis tidak boleh menjadi target otomatisasi.
+
+Gunakan kamus/peta menu yang sudah ada sebagai sumber navigasi. Tambahkan inventaris kontrol yang mengklasifikasikan tindakan sebagai **didukung**, **melalui draft bisnis**, atau **belum didukung**. Kontrol baru wajib mempunyai klasifikasi; klasifikasi tersebut tidak otomatis memberikan izin eksekusi.
+
+#### B. Tiga jenis lembar Workspace
+
+| Jenis | Isi dan perilaku |
+|---|---|
+| `task` | Draft dan progres pekerjaan lama; tetap memakai kontrak persetujuan yang ada |
+| `page` | Halaman aplikasi asli berikut filter, tabel, grafik, dan tombolnya |
+| `canvas` | Coretan, bentuk sederhana, teks, serta hasil pembacaan Una |
+
+Desktop menampilkan percakapan dan lembar aktif berdampingan. Pada HP, lembar menjadi area utama dengan composer, kontrol live, dan akses percakapan tetap tersedia.
+
+Workspace menyediakan daftar lembar, pindah lembar, tutup tampilan, dan buka kembali. Menutup tampilan tidak menghapus artefak atau membatalkan pekerjaan.
+
+**Halaman aplikasi:**
+
+- Gunakan panel asli dan pemuat data asli.
+- Buat pengelola mount bersama untuk menu, pin Beranda, dan Workspace.
+- Satu panel hanya memiliki satu lokasi aktif. Lokasi lainnya menampilkan akses untuk memfokuskan panel tersebut.
+- Pindahkan node dengan anchor yang dapat dipulihkan; jangan menyalin `innerHTML`.
+- Membuka kembali halaman yang sama memfokuskan lembar yang ada.
+- Pertahankan state ketika berpindah antara menu, Beranda, dan Workspace.
+
+Cakupan awal navigasi mencakup halaman Entity Admin yang tersedia bagi pengguna. Laporan menjadi implementasi pertama untuk kendali filter dan pembacaan hasil. Halaman lain ditambahkan melalui adapter yang sama.
+
+Navigasi lintas dokumen atau perpindahan scope tetap mengikuti lifecycle login dan suara yang ada; jangan menjanjikan live tetap berjalan melewati reload halaman.
+
+#### C. Konteks bersama dan eksekusi yang terbukti
+
+Setiap giliran percakapan membawa konteks terstruktur:
+
+`conversationId`, `turnId`, `scopeEpoch`, `activeSurfaceId`, `surfaceRevision`, halaman aktif, filter, pilihan objek, dan tindakan terakhir.
+
+Perubahan manual pengguna memperbarui konteks yang sama melalui event aplikasi. Dengan demikian, setelah Bos mengubah tanggal sendiri, pertanyaan “kalau minggu sebelumnya?” memakai tanggal terbaru.
+
+Perintah UI memuat `actionId`, `capabilityId`, parameter, target lembar, dan revisi yang diharapkan. Hasilnya memuat status, revisi hasil, dan ringkasan perubahan.
+
+Aturan eksekusi:
+
+- Tolak hasil terlambat setelah akun, tenant, scope, atau target revisi berubah.
+- Perintah berulang dengan `actionId` sama tidak dijalankan dua kali.
+- Koreksi filter yang lebih baru menggantikan hasil baca lama; respons lama tidak boleh menggambar ulang halaman.
+- Setelah reload, baca kembali state; jangan memutar ulang tindakan otomatis.
+- Bukti browser hanya membuktikan tampilan. Angka bisnis yang dipakai menjawab tetap berasal dari API terotorisasi.
+- Una baru mengatakan “sudah ditampilkan” setelah pemuat data berhasil dan panel menampilkan hasil untuk filter yang diminta.
+
+Untuk “1 sampai 10 Oktober”, gunakan tahun dari konteks periode aktif; bila belum ada, gunakan tahun berjalan Asia/Jakarta dan tampilkan tanggal lengkap. Rentang inklusif. Tanggal tidak valid atau terbalik menghasilkan klarifikasi.
+
+#### D. Penyimpanan artefak
+
+Sesuai pilihan Bos Cyo, lembar tersimpan per akun dan dapat dibuka kembali setelah logout atau berpindah perangkat.
+
+Pertahankan `/api/caca/workspace` untuk tugas bisnis. Tambahkan API artefak terpisah:
+
+- `GET/POST /api/caca/surfaces`
+- `GET/PATCH/DELETE /api/caca/surfaces/:id`
+
+Identitas pemilik dan scope ditentukan server dari sesi. Data minimum: ID, jenis, judul, pemilik, scope, revisi, versi format, konten, dan waktu perubahan. `PATCH` memakai pemeriksaan revisi; konflik mengembalikan `409` tanpa menimpa edit pengguna.
+
+- Lembar halaman menyimpan identitas halaman dan filter; angka laporan dimuat ulang ketika dibuka.
+- Kanvas menyimpan objek/stroke sebagai JSON dalam tabel baru melalui migration aditif.
+- Autosave dipicu perubahan dengan debounce, bukan polling.
+- Fokus lembar aktif tetap lokal per perangkat.
+- Tidak ada kolaborasi realtime antarperangkat pada tahap awal.
+- Simpan artefak tidak memerlukan persetujuan bisnis; perubahan transaksi tetap mengikuti persetujuan Workspace lama.
+- Saat gagal menyimpan, pertahankan edit dalam memori, tampilkan status belum tersimpan, dan sediakan ekspor kanvas.
+
+#### E. Live dan kanvas
+
+Satukan input ketik dan suara melalui dispatcher giliran yang sama. Pisahkan status mikrofon, narasi, giliran percakapan, dan pekerjaan.
+
+- Mikrofon dapat tetap mendengar ketika Una berbicara atau membaca data.
+- Interupsi menghentikan narasi; pembatalan pekerjaan merupakan tindakan terpisah.
+- Koreksi seperti “eh, sampai tanggal delapan saja” memperbarui target pekerjaan yang relevan.
+- Ketikan dan lampiran tidak ditimpa transkrip.
+- Tampilkan progres berdasarkan event nyata setiap langkah; hilangkan jeda buatan pada jalur live.
+- Pertahankan pemuatan model audio atas tindakan pengguna, pengenalan pemilik opsional, dan cleanup ketika logout/scope berubah/tab tersembunyi.
+
+Kanvas tahap pertama menyediakan pena, penghapus, teks, bentuk sederhana, pilih/pindah objek, undo/redo, zoom/pan, dan ekspor PNG.
+
+Saat diminta membaca:
+
+1. Bekukan snapshot beserta revisinya.
+2. Kirim gambar dan objek relevan melalui adapter model yang sudah ada, dengan batas ukuran gambar yang berlaku.
+3. Pisahkan hasil menjadi pengamatan, dugaan maksud, dan hal yang belum jelas.
+4. Jika pengguna sudah mengubah kanvas, tandai hasil sebagai pembacaan versi sebelumnya.
+5. Perubahan kanvas dari Una memakai patch objek tervalidasi dan dapat di-undo.
+6. Permintaan yang menghasilkan perubahan bisnis diteruskan menjadi draft bisnis.
+
+Tidak ada pengiriman gambar ke model pada setiap goresan. Perintah “lihat gambar ini” atau pertanyaan yang merujuk kanvas menjadi pemicunya.
+
+### 3. Paket pekerjaan untuk agen
+
+Setiap paket wajib melaporkan perubahan, tes, bukti penerimaan, dan keterbatasan. Nama paket berikut adalah label handoff, belum merupakan task yang diterbitkan di papan.
+
+| Paket / pengerja | Pekerjaan konkret | Dependensi dan bukti selesai |
+|---|---|---|
+| **U0 — Opus 5.5** | Cocokkan main, pekerjaan pengaturan, kontrak lama, dan klaim aktif. Tetapkan kontrak registry, surface, action receipt, dan event. Inventarisasi menu/kontrol Entity Admin. | Pertama. Kontrak dan fixture bersama tersedia; kepemilikan file jelas. |
+| **U1 — Sol 6.1** | Implementasikan registry, validasi parameter, adapter navigasi, pemeriksaan role/scope, dan katalog kemampuan relevan untuk model. Pertahankan fast path `buka_layar`. | Setelah U0. Navigasi terdaftar berjalan; kemampuan tidak dikenal ditolak. |
+| **U2 — Sol 6.1** | Implementasikan shell lembar dan pengelola mount bersama menu/pin/Workspace. Pertahankan adapter tugas lama. | Setelah U0; dapat paralel U1 dengan file terpisah. Tidak ada duplikasi panel/listener atau hilangnya edit. |
+| **U3 — Sol 6.1** | Hubungkan Laporan Entity Admin: buka, set tanggal/gerai, jalankan, baca state/hasil. Refactor pemuat laporan agar mengembalikan hasil/error eksplisit dan menolak respons basi. | Setelah U1+U2. Skenario tanggal Bos bekerja sampai tabel dan grafik berubah. |
+| **U4 — Opus 5.5** | Integrasikan dispatcher percakapan, konteks lembar, koreksi, antrean, interupsi narasi, dan pembatalan baca. Hubungkan progres nyata ke chat/live. | Setelah U1+U2, finalisasi setelah U3. Koreksi saat proses berjalan tidak menampilkan hasil lama. |
+| **U5 — Sol 6.1** | Implementasikan API artefak, migration aditif, revisi, autosave, buka kembali, dan isolasi akun/scope. | Setelah U0; dapat paralel paket UI. Artefak dapat dibuka dari sesi perangkat lain tanpa kebocoran. |
+| **U6 — Sol 6.1** | Implementasikan renderer/editor kanvas dan adapter snapshot/patch. | Setelah U2+U5. Coretan tersimpan, dapat diedit kembali, undo/redo dan ekspor bekerja. |
+| **U7 — Opus 5.5** | Implementasikan pembaca kanvas melalui model existing, pengikatan revisi, klarifikasi, dan penerjemahan maksud menjadi capability atau draft. | Setelah U4+U6. Model yang keliru tidak dapat mengeksekusi operasi di luar kontrak. |
+| **U8 — Opus 5.5, perbaikan oleh pemilik paket** | Review integrasi, keamanan scope, kompatibilitas tugas lama, performa, dan browser nyata. Lengkapi matriks kemampuan serta bukti penerimaan. | Setelah semua paket. Tidak menutup pekerjaan berdasarkan unit test saja. |
+
+Pembagian file:
+
+- Paket fondasi memakai modul baru agar dapat dikerjakan paralel.
+- U2 memiliki integrasi shell, HTML/CSS, dan perpindahan panel.
+- U3 memiliki adapter serta perubahan pemuat laporan.
+- U4 menjadi integrator tunggal jalur bersama `caca-chat`, `caca-agen`, dan runtime live selama tahap tersebut.
+- U5 memiliki penyimpanan artefak dan migration.
+- U6/U7 memisahkan editor browser dari pembaca server.
+- Integrator menggabungkan perubahan router, daftar syntax check, versi aset, dan dokumentasi secara berurutan.
+
+### 4. Tes penerimaan dan gerbang rilis
+
+**Skenario wajib:**
+
+1. Dari Entity Admin, “buka laporan” menghadirkan panel Laporan asli dalam Workspace; chat tetap tersedia.
+2. “Tanggal 1 sampai 10 Oktober 2026” memperbarui kedua input, request data, tabel, dan grafik.
+3. Pengguna mengubah filter manual; pertanyaan lanjutan Una memakai state terbaru.
+4. “Eh, sampai tanggal delapan” saat request sebelumnya berjalan tidak tertimpa respons tanggal sepuluh.
+5. Laporan dipin di Beranda, dibuka di Workspace, lalu dikembalikan tanpa ID ganda atau listener berulang.
+6. Menu terlarang/tidak tersedia tidak dapat dibuka melalui model atau pemalsuan capability.
+7. Model palsu memilih kemampuan salah, parameter kosong, atau operasi persetujuan: validator menolak atau meminta klarifikasi.
+8. Menyela narasi tidak membatalkan transaksi; menghentikan live tidak menekan persetujuan.
+9. Membuka lembar gambar, mencoret, logout, lalu login kembali memulihkan artefak yang tersimpan.
+10. Akun/tenant lain tidak dapat membaca artefak; konflik dua perangkat tidak menimpa revisi diam-diam.
+11. Una membaca snapshot kanvas yang benar, mengakui bagian ambigu, dan tidak menerapkan hasil pembacaan basi.
+12. Regresi tugas lama tetap lulus: persetujuan manual, batch, pause/resume, revisi, dan hasil transaksi tidak pasti.
+
+**Validasi:**
+
+- Unit test validator, reducer state, tanggal, dan patch kanvas.
+- Integration test auth/scope, revision conflict, action deduplication, serta API artefak.
+- Browser test desktop/HP untuk menu, pin, Workspace, tabel lebar, keyboard, sentuhan, dan kanvas.
+- Uji mikrofon/interupsi pada perangkat nyata; catat browser dan perangkatnya.
+- Jalankan `npm run check` dan `npm test`. Kegagalan baseline harus dibuktikan pada base yang sama; jangan diasumsikan.
+- Jalankan skenario bahasa Una di TESTINGUNA tanpa menyetujui transaksi; ulangi skenario penting tiga kali.
+- Ukur suara OFF dan live ON terpisah: waktu respons UI, waktu hasil laporan, waktu interupsi, penggunaan memori, dan unduhan model. Tahan rilis bila ada pelambatan signifikan.
+
+**Pagar seluruh paket:**
+
+- Tidak mengganti model/provider atau menaikkan reasoning untuk menutupi kegagalan kerangka.
+- Tidak menambahkan jalur persetujuan bisnis lewat suara atau otomatisasi tombol.
+- Tidak mengubah ledger, aturan kas/laci, uang scaled-integer, atau jurnal posted.
+- Tidak mengulang otomatis transaksi dengan hasil tidak pasti.
+- Tidak menambah polling periodik atau mengubah migration yang sudah applied.
+- Semua akses data tetap melalui otorisasi dan handler canonical.
+- Tidak mengklaim sudah live dari commit atau tes lokal. Push branch dapat memicu produksi; rilis mengikuti pemeriksaan deployment repo.
+- Tahap awal selesai ketika navigasi, laporan, live, penyimpanan, dan kanvas di atas terbukti. Klaim “semua tombol bisa dikendalikan” hanya boleh dibuat sesuai matriks kemampuan yang sudah diuji.
+
+---
+
 ## Update pemeriksaan rilis 2026-10-14 — performa
 
 Bos Cyo mengizinkan publikasi untuk tes langsung, lalu mensyaratkan jangan dipasang bila memperlambat pengguna secara signifikan. Status saat audit: **belum push/deploy**, produksi belum diubah.
@@ -1016,3 +1261,5 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 <!-- DOC-IMPACT: 2026-10-11 Workspace Una dan batas call live; status rilis dicatat pada update terbaru. -->
 
 <!-- DOC-IMPACT: 2026-10-15 konfigurasi Una ke Pengaturan dan live di composer; arah percakapan disimpan, APK menunggu artifact; hasil perangkat tidak diklaim. -->
+
+<!-- DOC-IMPACT: 2026-10-15 Eskor U0: rencana Una Live + Workspace dimasukkan ke atas, status paket, kontrak contracts/una-live-workspace-v1.md dan fixture bersama. -->

@@ -1,0 +1,36 @@
+{
+  "formatVersion": 1,
+  "kinds": ["task", "page", "canvas"],
+  "surfaces": [
+    {
+      "id": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "kind": "page", "title": "Laporan Usaha",
+      "scope": { "lingkup": "entity" }, "revision": 2, "formatVersion": 1,
+      "content": { "halaman": "entity", "tab": "reports", "filters": { "from": "2026-10-01", "to": "2026-10-10", "stores": ["G001", "G002"] } },
+      "createdAt": "2026-10-15T03:00:00.000Z", "updatedAt": "2026-10-15T03:05:00.000Z"
+    },
+    {
+      "id": "srf_8b2e4c6a-1d3f-4e5a-8b7c-9d0e1f2a3b4c", "kind": "canvas", "title": "Denah lapak Beji",
+      "scope": { "lingkup": "gerai", "storeCode": "G001" }, "revision": 5, "formatVersion": 1,
+      "content": {
+        "width": 1600, "height": 1000, "background": "grid",
+        "objects": [
+          { "id": "o1", "type": "stroke", "z": 1, "color": "#1f2937", "size": 3, "points": [[100, 100], [140, 120], [180, 160]] },
+          { "id": "o2", "type": "text", "z": 2, "x": 200, "y": 180, "text": "rak minuman", "fontSize": 18, "color": "#b91c1c" },
+          { "id": "o3", "type": "rect", "z": 3, "x": 400, "y": 300, "w": 240, "h": 120, "color": "#1f2937", "fill": null },
+          { "id": "o4", "type": "arrow", "z": 4, "x1": 640, "y1": 360, "x2": 820, "y2": 360, "color": "#2563eb", "size": 2 }
+        ]
+      },
+      "createdAt": "2026-10-15T04:00:00.000Z", "updatedAt": "2026-10-15T04:20:00.000Z"
+    }
+  ],
+  "taskSurface": { "id": "task:wst_0d6b", "kind": "task", "source": "/api/caca/workspace" },
+  "conflict": {
+    "request": { "method": "PATCH", "expectedRevision": 4 },
+    "response": { "status": 409, "body": { "code": "REVISION_CONFLICT", "surface": { "id": "srf_8b2e4c6a-1d3f-4e5a-8b7c-9d0e1f2a3b4c", "revision": 5 } } }
+  },
+  "foreignAccessStatus": 404,
+  "contentLimitBytes": 524288,
+  "canvasLimits": { "maxObjects": 2000, "maxPointsPerStroke": 2000, "maxTextLength": 500, "coordMin": 0, "coordMax": 10000, "maxPatchOperations": 50 },
+  "canvasObjectTypes": ["stroke", "text", "rect", "ellipse", "line", "arrow"],
+  "canvasOperations": ["add", "update", "remove", "reorder"]
+}

@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "statuses": ["ok", "rejected", "failed", "stale", "superseded", "needs_clarification", "cancelled"],
+  "codes": ["UNKNOWN_CAPABILITY", "INVALID_PARAMS", "ROLE_DENIED", "SCOPE_DENIED", "PRECONDITION_FAILED", "REVISION_CONFLICT", "SCOPE_CHANGED", "SUPERSEDED", "DATA_FAILED", "NOT_VERIFIED", "FORBIDDEN_TARGET"],
+  "events": ["una-live:surface", "una-live:page-state", "una-live:receipt", "una-live:progress", "una-live:context"],
+  "maxUiActionsPerReply": 3,
+  "maxSurfaceContextBytes": 4096,
+  "maxReceiptSummaryBytes": 2048,
+  "receiptMemory": 100,
+  "scenarios": [
+    {
+      "name": "laporan 1-10 Oktober berhasil",
+      "context": { "scopeEpoch": 7, "role": "ENTITY_ADMIN", "lingkup": "entity", "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f" },
+      "command": { "actionId": "act_001", "turnId": "turn_001", "capabilityId": "report.set_filters", "capabilityVersion": 1, "params": { "from": "2026-10-01", "to": "2026-10-10" }, "target": { "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "expectedRevision": 2 }, "scopeEpoch": 7, "origin": "model" },
+      "receipt": { "actionId": "act_001", "capabilityId": "report.set_filters", "status": "ok", "code": null, "message": "Laporan 1–10 Oktober 2026 sudah tampil.", "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "resultRevision": 3, "summary": { "from": "2026-10-01", "to": "2026-10-10", "storeCount": 2 }, "proof": { "kind": "data_loaded", "filters": { "from": "2026-10-01", "to": "2026-10-10" }, "requestKey": 12, "at": "2026-10-15T05:00:00.000Z" }, "clarification": null, "replayed": false },
+      "expectRunCount": 1
+    },
+    {
+      "name": "actionId sama dikirim ulang",
+      "context": { "scopeEpoch": 7, "role": "ENTITY_ADMIN", "lingkup": "entity", "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "previous": ["act_001"] },
+      "command": { "actionId": "act_001", "turnId": "turn_001", "capabilityId": "report.set_filters", "capabilityVersion": 1, "params": { "from": "2026-10-01", "to": "2026-10-10" }, "target": { "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "expectedRevision": 2 }, "scopeEpoch": 7, "origin": "model" },
+      "receipt": { "actionId": "act_001", "capabilityId": "report.set_filters", "status": "ok", "code": null, "message": "Laporan 1–10 Oktober 2026 sudah tampil.", "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "resultRevision": 3, "summary": { "from": "2026-10-01", "to": "2026-10-10", "storeCount": 2 }, "proof": { "kind": "data_loaded", "filters": { "from": "2026-10-01", "to": "2026-10-10" }, "requestKey": 12, "at": "2026-10-15T05:00:00.000Z" }, "clarification": null, "replayed": true },
+      "expectRunCount": 0
+    },
+    {
+      "name": "koreksi sampai tanggal 8 menggantikan request tanggal 10 yang masih jalan",
+      "context": { "scopeEpoch": 7, "role": "ENTITY_ADMIN", "lingkup": "entity", "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "running": "act_001" },
+      "command": { "actionId": "act_002", "turnId": "turn_002", "capabilityId": "report.set_filters", "capabilityVersion": 1, "params": { "from": "2026-10-01", "to": "2026-10-08" }, "target": { "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "expectedRevision": 2 }, "scopeEpoch": 7, "origin": "model" },
+      "receipt": { "actionId": "act_002", "capabilityId": "report.set_filters", "status": "ok", "code": null, "message": "Laporan 1–8 Oktober 2026 sudah tampil.", "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "resultRevision": 3, "summary": { "from": "2026-10-01", "to": "2026-10-08", "storeCount": 2 }, "proof": { "kind": "data_loaded", "filters": { "from": "2026-10-01", "to": "2026-10-08" }, "requestKey": 13, "at": "2026-10-15T05:00:02.000Z" }, "clarification": null, "replayed": false },
+      "earlierReceipt": { "actionId": "act_001", "capabilityId": "report.set_filters", "status": "superseded", "code": "SUPERSEDED", "message": "Diganti perintah yang lebih baru.", "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "resultRevision": null, "summary": {}, "proof": null, "clarification": null, "replayed": false },
+      "expectVisibleFilters": { "from": "2026-10-01", "to": "2026-10-08" },
+      "expectRunCount": 1
+    },
+    {
+      "name": "ganti gerai/login di tengah jalan",
+      "context": { "scopeEpoch": 8, "role": "ENTITY_ADMIN", "lingkup": "entity", "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f" },
+      "command": { "actionId": "act_003", "turnId": "turn_003", "capabilityId": "report.refresh", "capabilityVersion": 1, "params": {}, "target": { "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "expectedRevision": 3 }, "scopeEpoch": 7, "origin": "model" },
+      "receipt": { "actionId": "act_003", "capabilityId": "report.refresh", "status": "stale", "code": "SCOPE_CHANGED", "message": "Akun atau lingkup sudah berganti, perintah tidak dijalankan.", "surfaceId": null, "resultRevision": null, "summary": {}, "proof": null, "clarification": null, "replayed": false },
+      "expectRunCount": 0
+    },
+    {
+      "name": "tanggal terbalik minta klarifikasi",
+      "context": { "scopeEpoch": 7, "role": "ENTITY_ADMIN", "lingkup": "entity", "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f" },
+      "command": { "actionId": "act_004", "turnId": "turn_004", "capabilityId": "report.set_filters", "capabilityVersion": 1, "params": { "from": "2026-10-10", "to": "2026-10-01" }, "target": { "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "expectedRevision": 3 }, "scopeEpoch": 7, "origin": "model" },
+      "receipt": { "actionId": "act_004", "capabilityId": "report.set_filters", "status": "needs_clarification", "code": "INVALID_PARAMS", "message": "Tanggal mulai sesudah tanggal akhir.", "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "resultRevision": null, "summary": {}, "proof": null, "clarification": { "question": "Maksud Bos 1 sampai 10 Oktober 2026?", "options": ["1–10 Oktober 2026", "Ganti tanggal"] }, "replayed": false },
+      "expectRunCount": 0
+    },
+    {
+      "name": "pemuat laporan gagal",
+      "context": { "scopeEpoch": 7, "role": "ENTITY_ADMIN", "lingkup": "entity", "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "loaderError": "Gagal memuat laporan" },
+      "command": { "actionId": "act_005", "turnId": "turn_005", "capabilityId": "report.refresh", "capabilityVersion": 1, "params": {}, "target": { "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "expectedRevision": 3 }, "scopeEpoch": 7, "origin": "user" },
+      "receipt": { "actionId": "act_005", "capabilityId": "report.refresh", "status": "failed", "code": "DATA_FAILED", "message": "Gagal memuat laporan", "surfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "resultRevision": null, "summary": {}, "proof": null, "clarification": null, "replayed": false },
+      "expectRunCount": 1
+    }
+  ],
+  "surfaceContextExample": {
+    "conversationId": "c0ffee00-0000-4000-8000-000000000001", "turnId": "turn_006", "scopeEpoch": 7,
+    "activeSurfaceId": "srf_3f9d2a10-7c1e-4b8a-9d55-0a1b2c3d4e5f", "surfaceRevision": 3, "surfaceKind": "page",
+    "page": { "halaman": "entity", "tab": "reports" },
+    "filters": { "from": "2026-10-01", "to": "2026-10-08", "stores": ["G001", "G002"] },
+    "selection": null,
+    "lastAction": { "capabilityId": "report.set_filters", "status": "ok", "summary": { "from": "2026-10-01", "to": "2026-10-08", "storeCount": 2 } }
+  }
+}

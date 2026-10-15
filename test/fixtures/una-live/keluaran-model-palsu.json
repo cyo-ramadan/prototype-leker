@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "note": "Keluaran model yang salah/berbahaya. Validator U1 (server dan browser) wajib menghasilkan status+code yang diharapkan tanpa menyentuh DOM atau data. Nilai __51_ops__ dan __41_chars__ dibangkitkan oleh tes (51 operasi tambah teks; 41 huruf 'a').",
+  "context": { "scopeEpoch": 7, "role": "ENTITY_ADMIN", "lingkup": "entity", "skin": "classic", "activeSurfaceId": "srf_8b2e4c6a-1d3f-4e5a-8b7c-9d0e1f2a3b4c" },
+  "cases": [
+    { "name": "kemampuan tidak dikenal", "output": { "capabilityId": "report.export_all", "params": {} }, "expect": { "status": "rejected", "code": "UNKNOWN_CAPABILITY" } },
+    { "name": "mirip tapi bukan id terdaftar", "output": { "capabilityId": "report.setfilters", "params": { "from": "2026-10-01", "to": "2026-10-10" } }, "expect": { "status": "rejected", "code": "UNKNOWN_CAPABILITY" } },
+    { "name": "parameter wajib kosong", "output": { "capabilityId": "report.set_filters", "params": { "from": "2026-10-01" } }, "expect": { "status": "needs_clarification", "code": "INVALID_PARAMS" } },
+    { "name": "tanggal tidak ada di kalender", "output": { "capabilityId": "report.set_filters", "params": { "from": "2026-02-30", "to": "2026-03-01" } }, "expect": { "status": "needs_clarification", "code": "INVALID_PARAMS" } },
+    { "name": "parameter tambahan selector", "output": { "capabilityId": "report.refresh", "params": { "selector": "#entityReportRun" } }, "expect": { "status": "rejected", "code": "INVALID_PARAMS" } },
+    { "name": "klik tombol ACC", "output": { "capabilityId": "page.click", "params": { "id": "data-approve" } }, "expect": { "status": "rejected", "code": "UNKNOWN_CAPABILITY" } },
+    { "name": "javascript lewat tab", "output": { "capabilityId": "page.open", "params": { "halaman": "entity", "tab": "javascript:alert(1)" } }, "expect": { "status": "rejected", "code": "INVALID_PARAMS" } },
+    { "name": "URL luar lewat tab", "output": { "capabilityId": "page.open", "params": { "halaman": "entity", "tab": "https://contoh.invalid" } }, "expect": { "status": "rejected", "code": "INVALID_PARAMS" } },
+    { "name": "tab tidak ada di peta untuk peran/skin", "output": { "capabilityId": "page.open", "params": { "halaman": "entity", "tab": "accounting" } }, "expect": { "status": "rejected", "code": "FORBIDDEN_TARGET" } },
+    { "name": "halaman gerai khusus admin dari peran kasir", "context": { "role": "CASHIER", "lingkup": "gerai" }, "output": { "capabilityId": "page.open", "params": { "halaman": "gerai", "tab": "accountingWorkspaceTab" } }, "expect": { "status": "rejected", "code": "FORBIDDEN_TARGET" } },
+    { "name": "laporan entity dari lingkup gerai", "context": { "role": "ADMIN", "lingkup": "gerai" }, "output": { "capabilityId": "report.set_filters", "params": { "from": "2026-10-01", "to": "2026-10-10" } }, "expect": { "status": "rejected", "code": "ROLE_DENIED" } },
+    { "name": "versi kemampuan tidak cocok", "output": { "capabilityId": "page.open", "capabilityVersion": 9, "params": { "halaman": "entity", "tab": "reports" } }, "expect": { "status": "rejected", "code": "UNKNOWN_CAPABILITY" } },
+    { "name": "baca kanvas tanpa lembar aktif", "context": { "activeSurfaceId": null }, "output": { "capabilityId": "canvas.read", "params": {} }, "expect": { "status": "rejected", "code": "PRECONDITION_FAILED" } },
+    { "name": "patch kanvas melebihi 50 operasi", "output": { "capabilityId": "canvas.apply_patch", "params": { "operations": "__51_ops__" } }, "expect": { "status": "rejected", "code": "INVALID_PARAMS" } },
+    { "name": "teks tab terlalu panjang", "output": { "capabilityId": "page.open", "params": { "halaman": "entity", "tab": "__41_chars__" } }, "expect": { "status": "rejected", "code": "INVALID_PARAMS" } }
+  ]
+}

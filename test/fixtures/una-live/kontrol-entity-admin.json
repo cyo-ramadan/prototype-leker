@@ -1,0 +1,1117 @@
+{
+ "formatVersion": 1,
+ "note": "Klasifikasi tiap kontrol Entity Admin. Tombol dari generated/inventaris-fitur-una.js (id sama). Tombol baru wajib ditambahkan di sini (tes una-live-kontrak). Klasifikasi bukan izin: eksekusi tetap hanya lewat kemampuan terdaftar.",
+ "classes": [
+  "supported",
+  "business_draft",
+  "unsupported"
+ ],
+ "controls": [
+  {
+   "id": "tombol:public/caca-chat.js:cacaFab",
+   "label": "U Una",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaLampiranBuang",
+   "label": "✕",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaLampirkan",
+   "label": "+",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaLiveToggle",
+   "label": "☎",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaMikrofon",
+   "label": "",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaMulutStop",
+   "label": "■",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaMulutToggle",
+   "label": "🔊",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaPilihGerai",
+   "label": "Memuat gerai… ▾",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaTanyaKirim",
+   "label": "",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaTutup",
+   "label": "✕",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:cacaWorkspaceToggle",
+   "label": "Workspace",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:data-caca-mode:📋 Lembar rekap",
+   "label": "📋 Lembar rekap",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:data-caca-mode:🧾 Daftar menu / harga",
+   "label": "🧾 Daftar menu / harga",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:data-caca-rencana-lanjut:Lanjutkan ke langkah {nilai}",
+   "label": "Lanjutkan ke langkah {nilai}",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:data-caca-rencana-lanjut:Ulangi langkah {nilai}",
+   "label": "Ulangi langkah {nilai}",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:data-caca-tawaran:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:label:▶ dengarkan",
+   "label": "▶ dengarkan",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:label:Lanjutkan kerjaan",
+   "label": "Lanjutkan kerjaan",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-chat.js:label:Salin password",
+   "label": "Salin password",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/caca-pengaturan.js:cacaNamaSimpan",
+   "label": "Simpan nama untuk tenant",
+   "sumber": "public/caca-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/caca-pengaturan.js:cacaSuaraDaftar",
+   "label": "Rekam contoh 1 dari 3",
+   "sumber": "public/caca-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/caca-pengaturan.js:cacaSuaraHapus",
+   "label": "Hapus profil suara perangkat ini",
+   "sumber": "public/caca-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/caca-pengaturan.js:cacaSuaraModel",
+   "label": "Unduh mesin pengenal suara",
+   "sumber": "public/caca-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:💵 Setoran CS",
+   "label": "💵 Setoran CS",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "setorancs"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:🔐 Izin CS",
+   "label": "🔐 Izin CS",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "izincs"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Beranda Saya",
+   "label": "Beranda Saya",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "home"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Buku Entity",
+   "label": "Buku Entity",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "ledger"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Gerai",
+   "label": "Gerai",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "stores"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Karyawan",
+   "label": "Karyawan",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "employees"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Laporan",
+   "label": "Laporan",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "reports"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Laporan Gerai",
+   "label": "Laporan Gerai",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "storereport"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Master Barang",
+   "label": "Master Barang",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "productmasters"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Pelanggan",
+   "label": "Pelanggan",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "customers"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Pengaturan",
+   "label": "Pengaturan",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "settings"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Rekening Bersama",
+   "label": "Rekening Bersama",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "sharedaccounts"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Resep Produksi",
+   "label": "Resep Produksi",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "entityrecipes"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Status Laci",
+   "label": "Status Laci",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "drawerstatus"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-entity-tab:Stok Gerai",
+   "label": "Stok Gerai",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Navigasi menu Entity",
+   "automationForbidden": false,
+   "capabilityId": "page.open",
+   "params": {
+    "halaman": "entity",
+    "tab": "entitystock"
+   }
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-management-pane:Alarm &amp; Notifikasi",
+   "label": "Alarm &amp; Notifikasi",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-management-pane:Beranda Saya",
+   "label": "Beranda Saya",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-save-entity-wa:Simpan",
+   "label": "Simpan",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-stock-kind:Bahan",
+   "label": "Bahan",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-stock-kind:Semua barang",
+   "label": "Semua barang",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-stock-view:Lihat HPP",
+   "label": "Lihat HPP",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-stock-view:Lihat Stok",
+   "label": "Lihat Stok",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityAccountCancelEdit",
+   "label": "Batal edit",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityAdminLoginBtn",
+   "label": "MASUK ENTITY ADMIN",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityAdminLogoutBtn",
+   "label": "Logout",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityDrawerCardsRefresh",
+   "label": "Cek status laci",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityDrawerRefresh",
+   "label": "Cek sekarang",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityEmployeeBalanceRefresh",
+   "label": "↻ Muat ulang saldo",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityEmployeeSyncBtn",
+   "label": "⚖ Sinkronisasi Akuntansi",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityHomeRefresh",
+   "label": "Muat ulang",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityHomeSettings",
+   "label": "Atur pin beranda",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityIzinCsRefresh",
+   "label": "↻ Muat ulang",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityJournalAddLine",
+   "label": "+ Baris",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityManagementSettingsBtn",
+   "label": "Pengaturan",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityNewAlarm",
+   "label": "Buat alarm khusus",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityProductMasterRefresh",
+   "label": "↻ Refresh",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityRecipeRefresh",
+   "label": "↻ Refresh",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityReportRun",
+   "label": "Tampilkan Laporan",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "reason": "Jalankan laporan dengan filter aktif",
+   "automationForbidden": false,
+   "capabilityId": "report.refresh"
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entitySetoranCsRefresh",
+   "label": "↻ Muat ulang",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entitySettingsRefresh",
+   "label": "Muat ulang pengaturan",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entitySharedAccountViewClose",
+   "label": "Tutup",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityStockPdf",
+   "label": "PDF",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityStockRun",
+   "label": "Muat ulang",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityStockStoreBtn",
+   "label": "",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityStockXlsx",
+   "label": "Excel",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityStoreReportRun",
+   "label": "Tampilkan",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:label:Posting jurnal",
+   "label": "Posting jurnal",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:label:Simpan akun",
+   "label": "Simpan akun",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:label:Simpan Rekening",
+   "label": "Simpan Rekening",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:label:Simpan resep",
+   "label": "Simpan resep",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:label:Tambah karyawan",
+   "label": "Tambah karyawan",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:label:Upload Kode Barang",
+   "label": "Upload Kode Barang",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:${entityAdminEscape(employee.id)}",
+   "label": "Riwayat Hutang Gaji",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-activate-shared-account:Pasang di semua gerai",
+   "label": "Pasang di semua gerai",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-edit-entity-account:Edit",
+   "label": "Edit",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-edit-entity-pm:Edit",
+   "label": "Edit",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-entity-metric:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-entity-recipe-apply:Terapkan ke gerai terpilih",
+   "label": "Terapkan ke gerai terpilih",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-entity-recipe-edit:Edit",
+   "label": "Edit",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-entity-recipe-preview:Pratinjau &amp; terapkan",
+   "label": "Pratinjau &amp; terapkan",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-owner-store:Kelola gerai",
+   "label": "Kelola gerai",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-save-entity-recipe:Simpan resep acuan",
+   "label": "Simpan resep acuan",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-shared-ledger-toggle:Lihat mutasi",
+   "label": "Lihat mutasi",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-sync-void:Batalkan",
+   "label": "Batalkan",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-toggle-entity-recipe:✎ Edit resep acuan",
+   "label": "✎ Edit resep acuan",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-toggle-shared-account:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-view-shared-account:Rincian",
+   "label": "Rincian",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:label:×",
+   "label": "×",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:label:Muat lagi",
+   "label": "Muat lagi",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:label:Tutup",
+   "label": "Tutup",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-izin-cs.js:data-info,data-izin-acc,data-kind,data-store:ACC",
+   "label": "ACC",
+   "sumber": "public/entity-izin-cs.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-izin-cs.js:data-izin-reject,data-kind,data-store:Tolak",
+   "label": "Tolak",
+   "sumber": "public/entity-izin-cs.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-setoran-cs.js:data-approve,data-info,data-store:ACC",
+   "label": "ACC",
+   "sumber": "public/entity-setoran-cs.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-setoran-cs.js:data-reject,data-store:Tolak",
+   "label": "Tolak",
+   "sumber": "public/entity-setoran-cs.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-sinkron-akuntansi.js:label:Sinkronkan yang dicentang ({nilai})",
+   "label": "Sinkronkan yang dicentang ({nilai})",
+   "sumber": "public/entity-sinkron-akuntansi.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-sinkron-akuntansi.js:label:Tutup",
+   "label": "Tutup",
+   "sumber": "public/entity-sinkron-akuntansi.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-stock-matrix.js:data-stock-store:{nilai} {nilai}",
+   "label": "{nilai} {nilai}",
+   "sumber": "public/entity-stock-matrix.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-store-report.js:data-store-report:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/entity-store-report.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/foto-lihat.js:label:Tutup",
+   "label": "Tutup",
+   "sumber": "public/foto-lihat.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/nav-groups.js:data-nav-group:‹ {nilai}",
+   "label": "‹ {nilai}",
+   "sumber": "public/nav-groups.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/nav-groups.js:data-nav-group:{nilai} {nilai} {nilai} ` : ''}",
+   "label": "{nilai} {nilai} {nilai} ` : ''}",
+   "sumber": "public/nav-groups.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/nav-groups.js:data-nav-item:{nilai} {nilai} ` : ''} ›",
+   "label": "{nilai} {nilai} ` : ''} ›",
+   "sumber": "public/nav-groups.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/nav-groups.js:data-nav-item:{nilai}{nilai} ` : ''}",
+   "label": "{nilai}{nilai} ` : ''}",
+   "sumber": "public/nav-groups.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-approvals.js:data-decision,data-key:'+(i.retry?'Selesaikan proses':'Setujui')+'",
+   "label": "'+(i.retry?'Selesaikan proses':'Setujui')+'",
+   "sumber": "public/owner-entity-approvals.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/owner-entity-approvals.js:data-decision,data-key:Tolak",
+   "label": "Tolak",
+   "sumber": "public/owner-entity-approvals.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/owner-entity-approvals.js:data-mode:Menunggu · '+count+(s.complete?'':'+')+'",
+   "label": "Menunggu · '+count+(s.complete?'':'+')+'",
+   "sumber": "public/owner-entity-approvals.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-approvals.js:data-mode:Selesai",
+   "label": "Selesai",
+   "sumber": "public/owner-entity-approvals.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-approvals.js:data-proof:Lihat bukti transfer",
+   "label": "Lihat bukti transfer",
+   "sumber": "public/owner-entity-approvals.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-approvals.js:label:Muat ulang",
+   "label": "Muat ulang",
+   "sumber": "public/owner-entity-approvals.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-portal.js:data-portal-group:' + label + '",
+   "label": "' + label + '",
+   "sumber": "public/owner-entity-portal.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-portal.js:data-portal-group:⚙",
+   "label": "⚙",
+   "sumber": "public/owner-entity-portal.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-portal.js:data-portal-item:' + esc(label) + '",
+   "label": "' + esc(label) + '",
+   "sumber": "public/owner-entity-portal.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-portal.js:label:Coba lagi",
+   "label": "Coba lagi",
+   "sumber": "public/owner-entity-portal.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/owner-entity-portal.js:label:Simpan Kantor",
+   "label": "Simpan Kantor",
+   "sumber": "public/owner-entity-portal.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/racik-pemilik.js:data-rp-go,data-rp-store:💸 Biaya operasional",
+   "label": "💸 Biaya operasional",
+   "sumber": "public/racik-pemilik.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/racik-pemilik.js:data-rp-go,data-rp-store:🧴 Jual",
+   "label": "🧴 Jual",
+   "sumber": "public/racik-pemilik.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/racik-pemilik.js:data-rp-go,data-rp-store:🧺 Beli bahan",
+   "label": "🧺 Beli bahan",
+   "sumber": "public/racik-pemilik.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/staff-back-guard.js:label:Keluar",
+   "label": "Keluar",
+   "sumber": "public/staff-back-guard.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/staff-back-guard.js:label:Tetap di sini",
+   "label": "Tetap di sini",
+   "sumber": "public/staff-back-guard.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/tab-tautan.js:label:Buka di tab baru",
+   "label": "Buka di tab baru",
+   "sumber": "public/tab-tautan.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/tab-tautan.js:label:Salin tautan",
+   "label": "Salin tautan",
+   "sumber": "public/tab-tautan.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/warung-pemilik.js:label:Perbarui",
+   "label": "Perbarui",
+   "sumber": "public/warung-pemilik.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "input:public/entity-admin.html:entityReportFrom",
+   "label": "Dari tanggal",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "capabilityId": "report.set_filters",
+   "param": "from",
+   "reason": "Filter laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "input:public/entity-admin.html:entityReportTo",
+   "label": "Sampai tanggal",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "capabilityId": "report.set_filters",
+   "param": "to",
+   "reason": "Filter laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "input:public/entity-admin.html:entityReportStoreChecklist",
+   "label": "Gerai yang ditampilkan",
+   "sumber": "public/entity-admin.html",
+   "class": "supported",
+   "capabilityId": "report.set_filters",
+   "param": "stores",
+   "reason": "Filter laporan (checkbox gerai, dibuat renderEntityReportStoreChecklist)",
+   "automationForbidden": false
+  }
+ ]
+}

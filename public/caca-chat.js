@@ -115,6 +115,7 @@ const CACA_KERANGKA = `
       <input id="cacaGambar" type="file" accept="image/*" hidden />
       <textarea id="cacaPertanyaan" rows="1" placeholder="Ketik pesan" autocomplete="off"></textarea>
       <button id="cacaMikrofon" class="caca-ikon-btn caca-mikrofon" type="button" aria-label="Mulai bicara" aria-pressed="false" aria-describedby="cacaSuaraStatus" title="Beri tugas lewat suara"><svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3Zm-5-3H5a7 7 0 0 0 6 6.93V22h2v-3.07A7 7 0 0 0 19 12h-2a5 5 0 0 1-10 0Z"/></svg></button>
+      <button id="cacaLiveToggle" class="caca-ikon-btn caca-live-toggle" type="button" aria-label="Mulai obrolan live" aria-pressed="false" aria-describedby="cacaSuaraStatus" title="Mulai obrolan live">☎</button>
       <button id="cacaTanyaKirim" class="caca-kirim" type="submit" aria-label="Kirim" disabled>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg>
       </button>

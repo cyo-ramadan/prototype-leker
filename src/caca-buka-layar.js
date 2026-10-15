@@ -1,5 +1,5 @@
 // Navigasi baca saja, dari menu yang sama dengan panduan; tidak membuat draft.
-import { menuUntuk, peringkatMenu } from './caca-peta.js';
+import { menuUntuk, peringkatMenu, aliasMenu } from './caca-peta.js';
 const normal = s => String(s ?? '').normalize('NFKC').toLocaleLowerCase('id-ID').replace(/[^\p{L}\p{N} -]/gu, ' ').replace(/\s+/g, ' ').trim();
 export function permintaanBuka(teks, namaAsisten = 'Una') {
   let pesan = normal(teks);
@@ -18,7 +18,7 @@ export function bukaLayarDariPesan(teks, konteks = {}) {
   const peran = konteks.peran === 'Entity Admin' ? 'ENTITY_ADMIN' : String(konteks.peran ?? '').toUpperCase();
   const opsi = { skin: konteks.skin || 'classic', peran, halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai' };
   const semua = menuUntuk(opsi);
-  let cocok = semua.filter(m => normal(m.label) === cari || normal(m.tab) === cari);
+  let cocok = semua.filter(m => normal(m.label) === cari || normal(m.tab) === cari || aliasMenu(m).some(alias => normal(alias) === cari));
   if (!cocok.length) {
     const peringkat = peringkatMenu(cari, opsi);
     const terbaik = peringkat[0]?.skor || 0;

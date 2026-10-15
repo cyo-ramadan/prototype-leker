@@ -419,7 +419,7 @@ export const SUMBER_KAMUS = Object.freeze({
       "tombol:public/caca-pengaturan.js:cacaSuaraDaftar",
       "tombol:public/caca-pengaturan.js:cacaSuaraHapus",
       "tombol:public/caca-pengaturan.js:cacaSuaraModel",
-      "tombol:public/caca-pengaturan.js:cacaLiveToggle"
+      "tombol:public/caca-chat.js:cacaLiveToggle"
     ]
   },
   "nama_una": {
@@ -430,6 +430,7 @@ export const SUMBER_KAMUS = Object.freeze({
     "fitur": [
       "rute:src/caca-chat.js:/api/caca/pengaturan",
       "tombol:public/caca-pengaturan.js:cacaNamaSimpan",
+      "tombol:public/branch-admin.html:cacaPengaturanTab",
       "tulis:src/caca-pengaturan.js:request.method !== 'PATCH') return json("
     ]
   },

@@ -24,6 +24,7 @@
       ignore: ['adminMasterMenu', 'contacts', 'adminMasterMenuToggle'],
       groups: [
         { id: 'home', icon: '🏪', label: 'Toko', items: ['store'] },
+        { id: 'settings', icon: '⚙', label: 'Pengaturan', items: ['assistant-settings'] },
         { id: 'sales', icon: '🧾', label: 'Transaksi', items: ['transactions', 'drawers', 'approvals'] },
         { id: 'goods', icon: '📦', label: 'Barang', items: ['products', 'categories', 'suppliers', 'stock', 'costmasters', 'manufacturing', 'hpp-recalc', 'warehouseSettingsTab'] },
         { id: 'team', icon: '👥', label: 'Tim', items: ['employees', 'cashiers', 'manual-book', 'announcement', 'daily-task'] },
@@ -63,6 +64,7 @@
         // Lainnya = daftar berkelompok seperti menu Pengaturan, bukan 17 tombol
         // bertumpuk. Tab baru dari sesi lain otomatis masuk "Fitur lain".
         { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
+          { title: 'Pengaturan', items: ['assistant-settings'] },
           { title: 'Toko & pelanggan', items: ['store', 'customers', 'customer-feedback', 'vouchers'] },
           { title: 'Tim', items: ['manual-book', 'announcement', 'daily-task', 'cashier-raport', 'permit-report'] },
           { title: 'Uang & pembukuan', items: ['hutangpiutang', 'costmasters', 'sharedaccounts', 'accountingWorkspaceTab', 'accountingSettingsTab'] },
@@ -117,7 +119,7 @@
       { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
         { title: 'Tim gerai', items: ['employees', 'cashiers', 'attendance-report', 'manual-book', 'announcement', 'daily-task', 'cashier-raport', 'permit-report'] },
         { title: 'Laporan & uang', items: ['labarugi', 'reports', 'sharedaccounts', 'accountingWorkspaceTab', 'accounting-reference', 'accountingSettingsTab'] },
-        { title: 'Pengaturan', items: ['store', 'categories', 'suppliers', 'costmasters', 'manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] },
+        { title: 'Pengaturan', items: ['assistant-settings', 'store', 'categories', 'suppliers', 'costmasters', 'manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] },
         { title: 'Pelanggan', items: ['customers', 'customer-feedback', 'vouchers'] }
       ] }
     ],
@@ -139,7 +141,7 @@
 
   // Nama tombol dalam bahasa pemilik usaha (tombol asli tidak diubah).
   const LABELS = {
-    store: 'Profil Toko', transactions: 'Riwayat Transaksi', drawers: 'Laci Kasir', approvals: 'Persetujuan',
+    'assistant-settings': 'Pengaturan', store: 'Profil Toko', transactions: 'Riwayat Transaksi', drawers: 'Laci Kasir', approvals: 'Persetujuan',
     products: 'Daftar Barang', categories: 'Kategori', suppliers: 'Supplier', stock: 'Stok', costmasters: 'Jenis Biaya',
     manufacturing: 'Resep & Satuan', 'hpp-recalc': 'Hitung Ulang HPP', warehouseSettingsTab: 'Gudang',
     employees: 'Karyawan', cashiers: 'Akun Kasir', 'manual-book': 'Buku Panduan', announcement: 'Pengumuman', 'daily-task': 'Tugas Harian',

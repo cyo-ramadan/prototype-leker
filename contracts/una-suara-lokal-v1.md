@@ -25,3 +25,11 @@ WavLM oleh Microsoft dan bobot ONNX Xenova menggunakan [CC BY-SA 3.0](https://gi
 Probe Node CPU Windows dengan empat fixture suara publik HF menghasilkan embedding finite512, cosine speaker sama0.9143/0.9609 dan lintas speaker0.6658–0.7943. Ini bukti kompatibilitas model, bukan akurasi biometrik populasi atau kecepatan HP. Probe browser Chrome asli juga menyelesaikan Whisper q8 dan WavLM WASM embedding512 finite dengan fixture publik. Pengujian mikrofon, gema dan latensi perangkat nyata belum dilakukan. Hasil keseluruhan suite dicatat di handoff setelah selesai.
 
 Sebelum rilis klaim live: uji Edge laptop dan Chrome Oppo, izin mic ditolak/dicabut, speaker vs headset, interupsi saat TTS dan tugas aktif, dua pembicara, perubahan gerai/login, sembunyi/tutup tab, unduhan terputus, perangkat lambat dan ketikan/foto bersamaan. Jangan menyebut fitur sudah dapat dicoba di produksi sebelum merge+Workers SUCCESS dan pemeriksaan aset/migration.
+
+## Penempatan Pengaturan — 2026-10-15
+
+Form nama, headset, profil/enrollment/hapus pemilik dan opsi pemilik berada di halaman Pengaturan, kartu Asisten. Chat hanya memuat kontrol operasional mikrofon/live/pembacaan dan Workspace. Panel Entity memakai tab settings; Workspace Gerai memakai assistant-settings sesuai akses frontend Una yang sudah ada. Server tetap memvalidasi otorisasi dan tenant; tidak ada endpoint atau role baru.
+
+Membuka Pengaturan tanpa chat menggunakan scope halaman yang sah; tidak memulai percakapan atau meminta mic/model. Script adapter kecil dapat dimuat saat Pengaturan dipilih, sedangkan bobot model tetap tindakan eksplisit. Pengaturan yang dibuka kembali tidak mereset capture/profil yang valid. Scope/login/close/hidden tetap membatalkan hasil terlambat. Live dari chat menyiapkan profile/adapter sesuai kebutuhan; kata-kata pengguna tidak menggantikan persetujuan manual.
+
+DOC-IMPACT: 2026-10-15 penempatan konfigurasi dan kontrol live dipisahkan; namespace/data/API/mode audio tidak berubah.

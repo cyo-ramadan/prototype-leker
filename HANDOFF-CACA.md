@@ -24,6 +24,28 @@ Bos Cyo mengizinkan publikasi untuk tes langsung, lalu mensyaratkan jangan dipas
 - Bukti/metode/batas klaim: `audit/2026-10-14-una-performa.md`, data mentah JSON dan `scripts/fixtures/una-perf-local.mjs`.
 - Kesimpulan sementara: tidak teramati pelambatan signifikan pada uji lokal suara OFF setelah perbaikan; lanjut gerbang rilis sesuai izin, tahan bila ditemukan regresi. Bukan bukti seluruh perangkat aman/fitur sudah live. Browser web tetap didukung. Budi belum dipasang.
 
+## Update 2026-10-15 — Pengaturan di luar chat
+
+Arahan Bos Cyo: konfigurasi Una berada di halaman Pengaturan; chat fokus pada percakapan alami seperti ChatGPT, dapat disela sambil Una mengerjakan tugas di Workspace. `HANDOFF-CACA.md` tetap pintu masuk tunggal; Caca nama historis kode/dokumen, tidak perlu handoff paralel.
+
+**Implementasi lokal tahap pemindahan selesai; status rilis harus dicocokkan dengan PR/build, bukan diasumsikan dari dokumen.** Pada Panel Entity, kartu Asisten berada dalam tab Pengaturan yang sudah ada. Workspace Gerai menyediakan tab Pengaturan untuk sesi Entity Admin yang menggunakan Una. Form nama/headset/enrollment/opsi pemilik tidak lagi dipasang sesudah kepala chat; tombol telepon mulai/akhiri live berada dekat kolom pesan. Pengaturan bisa dibuka tanpa membuka chat sebelumnya.
+
+View/form dipisahkan penempatannya dari runtime yang tetap dipakai chat. Model masih dimuat atas tindakan pengguna. Membuka ulang Pengaturan memakai profil pada scope/login yang sama dan tidak menghentikan live/menghapus enrollment. Scope/login/close tetap membatalkan hasil terlambat. Nama tenant dan profil pemilik per akun/perangkat, default opsional OFF, API dan persetujuan Workspace tidak berubah. Label menu dan alias mengikuti halaman aktif pada classic/A–I; pertanyaan cara mulai live dijelaskan lewat tombol telepon di chat.
+
+Validasi terarah:74/74UI/suara/profil/Workspace dan70/70kamus/peta/navigasi (kelompok bertumpang tindih); syntax seluruh321file+modul eksplisit lulus. Generator/penjaga sumber/baseline lulus. Percobaan UI browser terhenti karena sambungan inspeksi tidak merespons; belum ada verifikasi visual atau mikrofon fisik baru. Jangan mengarang hasilnya. Regresi luas dan CI penuh tetap gerbang rilis.
+
+Kamus suara_una/nama_una diperbarui sesuai lokasi dan tombol live. Lima panduan barang/supplier ditinjau ulang karena HTML/cache-version berubah; makna bisnis tetap. Baca diff sumber sebelum menyegarkan hash berikutnya; baseline cakupan tetap beku.
+
+Bukti rilis suara sebelumnya: PR498/main47ac9565, CI1968/1968, build/versi/schema/aset diverifikasi14 Oktober. Dokumentasi yang semula hanya pada commitlokal9ef63b5 dibawa bersama perubahan UI ini (`audit/2026-10-14-una-rilis.md`); jangan menganggap bukti14 Oktober adalah versi produksi terkini15 Oktober. Periksa main/deployment aktual saat melanjutkan.
+
+**APK login masih menunggu sumber paket yang benar.** Penelusuran repo, rilis dan proyek lokal belum menemukan APK Leker atau proyek Android. Jangan memasang link APK palsu, mendistribusikan APK aplikasi lain, atau menyebut PWA sebagai APK. Pertanyaan ke Bos Cyo sudah diajukan: APK tersedia di lokasi lain atau perlu dibuat sebagai task Android tersendiri. Belum ada perubahan login/unggah/rilis APK pada tahap ini.
+
+### Arah sesi berikutnya
+
+Sesudah pemindahan stabil: percakapan mengikuti konteks, koreksi/pertanyaan lanjutan dan progres tugas; interupsi narasi tidak membatalkan server write. Uji percakapan laptop/HP nyata, headset/gema, dua pembicara, izin dicabut, pergantian akun/tenant, serta pesan/foto bersamaan. Ukur suara OFF dan ON terpisah; jangan pasang bila ada pelambatan signifikan. Tidak ada izin implisit mengganti model termurah, mengaktifkan provider berbayar, membuat wake word, atau menjanjikan semua fitur ChatGPT. Pengenalan pemilik tetap pilihan, bukan pengganti login; transaksi tetap draft+persetujuan manual. Suara Budi belum diintegrasikan.
+
+Catatan di bawah bersifat historis. Jangan menyalin file atau reset checkout `prototype-leker` yang dirty; buat checkout terpisah dari main terbaru. Status/peran dan task aktif diperiksa sebelum agen berikutnya mulai.
+
 ## Update lokal 2026-10-13 — Codex: kamus, antrean, navigasi, suara
 
 Status: **implementasi worktree lokal, belum dirilis/merge atau migration produksi**.
@@ -992,3 +1014,5 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 `MODULE_OWNERSHIP.md`, dan `RUNBOOK.md`, lalu file ini dihapus.
 
 <!-- DOC-IMPACT: 2026-10-11 Workspace Una dan batas call live; status rilis dicatat pada update terbaru. -->
+
+<!-- DOC-IMPACT: 2026-10-15 konfigurasi Una ke Pengaturan dan live di composer; arah percakapan disimpan, APK menunggu artifact; hasil perangkat tidak diklaim. -->

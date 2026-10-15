@@ -12,6 +12,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "a",
     "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "a",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -375,6 +383,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "b",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {
@@ -743,6 +759,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "c",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {
@@ -1111,6 +1135,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "classic",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {
@@ -1580,6 +1612,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "d",
     "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Lainnya → Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "d",
+    "halaman": "gerai",
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Lainnya → Toko & pelanggan",
@@ -1775,6 +1815,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "e",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {
@@ -2143,6 +2191,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "f",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {
@@ -2527,6 +2583,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "g",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {
@@ -3068,6 +3132,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "h",
     "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Lainnya → Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "h",
+    "halaman": "gerai",
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Lainnya → Pengaturan",
@@ -3263,6 +3335,14 @@ export const PETA_UNA = Object.freeze([
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Toko",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
+    "tab": "assistant-settings",
+    "label": "Pengaturan",
+    "grup": "Pengaturan",
     "hint": ""
   },
   {

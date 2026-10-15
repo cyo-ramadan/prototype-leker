@@ -31,6 +31,7 @@ export const PENJELASAN = Object.freeze({
   'gerai:racikbahan': { bisa: 'Tambah bahan beserta harga modal per gram/ml, lalu tambah aroma, harga jual, dan resep standar dari takaran bahan. Edit aroma memperbarui resep standarnya.', kata: ['bahan', 'atur bahan', 'aroma', 'parfum', 'racik', 'resep standar', 'takaran'] },
   'gerai:cetak': { bisa: 'Buka Layar Cetak untuk chat WhatsApp, antrian pekerjaan per mesin, dan pengaturan mesin, produk, serta otomatisasi percetakan.', kata: ['cetak', 'antrian', 'antrean', 'mesin', 'percetakan', 'whatsapp', 'wa', 'printer'] },
   'gerai:accounting-reference': { bisa: 'Portal Link Akuntansi mengatur hubungan transaksi bisnis dengan akun debit/kredit; jurnal tetap ditafsirkan dan diposting modul Accounting.', kata: ['referensi akuntansi', 'referensi pembukuan'] },
+  'gerai:assistant-settings': { alias: ['pengaturan asisten', 'pengaturan una', 'setelan asisten'], bisa: 'Pengaturan asisten untuk akun yang menggunakan Una: nama tenant, pilihan headset dan pengenalan suara pemilik di perangkat. Mulai/akhiri live dari tombol telepon di chat.', kata: ['asisten', 'una', 'suara', 'nama asisten', 'profil suara', 'pengaturan asisten'] },
   'gerai:store': { bisa: 'Ubah nama, logo, alamat gerai, dan titik lokasi + radius presensi karyawan.', kata: ['profil', 'logo', 'alamat', 'lokasi', 'gps', 'radius', 'titik'] },
   'gerai:transactions': { bisa: 'Lihat semua transaksi gerai: penjualan, pembelian, biaya, produksi, beserta detailnya.', kata: ['riwayat', 'transaksi', 'penjualan', 'pembelian', 'detail'] },
   'gerai:drawers': { bisa: 'Lihat laci kasir yang dibuka/ditutup, selisih kas, dan setoran laci per sesi.', kata: ['laci', 'kas', 'selisih', 'tutup laci', 'buka laci'] },
@@ -63,7 +64,7 @@ export const PENJELASAN = Object.freeze({
   'gerai:customer-feedback': { bisa: 'Kotak saran: masukan dan keluhan dari pembeli.', kata: ['saran', 'keluhan', 'masukan', 'feedback'] },
   'gerai:vouchers': { bisa: 'Atur voucher dan potongan harga untuk pembeli.', kata: ['voucher', 'diskon', 'promo'] },
   'entity:home': { bisa: 'Beranda pribadi setelah login: pin profit harian, setoran CS, persetujuan, atau status gerai sesuai pekerjaan akun.', kata: ['beranda', 'pin', 'dashboard', 'halaman pertama'] },
-  'entity:settings': { bisa: 'Admin Entity mengatur kondisi, jadwal, gerai, dan penerima alarm. Tiap akun mengatur bunyi, notifikasi HP, serta susunan beranda sendiri.', kata: ['alarm', 'notifikasi', 'pengingat', 'pengaturan', 'setting'] },
+  'entity:settings': { alias: ['pengaturan asisten', 'pengaturan una', 'setelan asisten'], bisa: 'Admin Entity mengatur kondisi, jadwal, gerai, dan penerima alarm. Tiap akun mengatur bunyi, notifikasi HP, serta susunan beranda sendiri. Bagian Asisten mengatur nama tenant dan profil suara pemilik khusus akun/perangkat. Mulai atau akhiri obrolan live dari tombol telepon di chat.', kata: ['alarm', 'notifikasi', 'pengingat', 'pengaturan', 'setting', 'asisten', 'suara', 'profil suara', 'nama asisten'] },
   'entity:stores': { bisa: 'Daftar semua gerai di bawah usaha ini.', kata: ['gerai', 'cabang', 'outlet'] },
   'entity:drawerstatus': { bisa: 'Status laci semua gerai: mana yang buka/tutup dan selisihnya.', kata: ['laci', 'status laci', 'kas'] },
   'entity:reports': { bisa: 'Laporan gabungan seluruh usaha (semua gerai).', kata: ['laporan usaha', 'gabungan', 'semua gerai'] },
@@ -88,12 +89,15 @@ function indeksMenu(p) {
     kataLain: kataInti(p.grup + ' ' + p.hint + ' ' + jelas.bisa) };
 }
 
+// Alias berasal dari penjelasan menu yang ditinjau, mengikuti lingkup aktif.
+export function aliasMenu(menu) { return PENJELASAN[menu.halaman + ':' + menu.tab]?.alias ?? []; }
+
 /** Semua calon, agar perintah buka bisa meminta pilihan saat ambigu. */
 export function peringkatMenu(teks, { halaman = 'gerai', skin = 'classic', peran } = {}) {
   const kata = kataInti(teks);
   if (!kata.size) return [];
   return menuUntuk({ skin, peran }).map(indeksMenu).map((m) => {
-    let skor = 0;
+    let skor = aliasMenu(m).some(alias => alias.toLocaleLowerCase('id-ID') === String(teks).toLocaleLowerCase('id-ID').trim()) ? 10 : 0;
     for (const k of kata) skor += m.kataLabel.has(k) ? 2 : (m.kataLain.has(k) ? 1 : 0);
     if (m.halaman === halaman) skor += 0.5;
     // Pintu khusus skin mengutamakan pekerjaan khasnya, tetap dari kata peta.

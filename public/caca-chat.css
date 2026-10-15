@@ -1109,10 +1109,12 @@
 .caca-dengar { display: block; margin-top: 6px; padding: 3px 7px; font-size: 0.72rem; }
 .caca-dengar.hidden, .caca-mulut.hidden { display: none; }
 
-.caca-pengaturan { background: var(--surface); border-bottom: 1px solid var(--line); font-size: .8rem; }
-.caca-pengaturan summary { padding: 7px 12px; cursor: pointer; color: var(--ink); }
-.caca-pengaturan-isi { display: grid; gap: 8px; padding: 0 12px 12px; max-height: 42vh; overflow-y: auto; }
-.caca-pengaturan-isi p { margin: 0; color: var(--muted); }
-.caca-pengaturan-isi label { display: grid; gap: 4px; }
+/* Konfigurasi berada di halaman Pengaturan, terpisah dari panel chat. */
+.caca-pengaturan { margin-top: 16px; }
+.caca-pengaturan-isi { display: grid; gap: 12px; max-width: 720px; }
+.caca-pengaturan-isi p { margin: 0; color: var(--muted); line-height: 1.5; }
+.caca-pengaturan-isi label { display: grid; gap: 6px; }
 .caca-pengaturan-isi input[type=checkbox] { justify-self: start; }
 .caca-pengaturan-isi a { color: var(--brand); }
+.caca-live-toggle[aria-pressed="true"] { background: var(--green-soft); color: var(--green); }
+.caca-ketik textarea { min-width: 0; }

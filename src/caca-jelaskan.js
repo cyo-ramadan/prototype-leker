@@ -50,14 +50,14 @@ export const KAMUS = Object.freeze([
   },
   {
     id: 'suara_una', judul: 'Suara dan obrolan Una',
-    kunci: ['suara una', 'una bicara', 'mikrofon', 'mode suara', 'suara pemilik', 'kenali suara', 'dengarkan'],
-    isi: 'Mikrofon mengubah ucapan menjadi pesan. Saklar Una bicara membacakan balasan dengan suara Indonesia bila browser menyediakannya; tiap balasan juga bisa didengarkan. Hentikan ucapan dengan tombol berhenti. Profil suara pemilik, bila dipilih, disimpan di perangkat ini dan bersifat percobaan; bukan pengganti login atau bukti identitas. Mulai obrolan live dari Pengaturan asisten: transkrip diproses lokal, unduhan awal sekitar 41 MB. Pengenalan pemilik opsional dan membutuhkan unduhan terpisah sekitar 102 MB serta tiga contoh suara. Tanpa opsi pemilik, live tetap berjalan. Ucapan bisa disela sementara tugas tetap berjalan; perintah baru mengantre. Gunakan headset bila browser tidak mendukung peredam gema penuh. Kecepatan dan ketepatan bergantung perangkat; model AI tugas tetap memakai layanan yang sudah dikonfigurasi. Suara tidak pernah menekan Ya: periksa dan setujui draft dari Workspace.',
+    kunci: ['suara una', 'una bicara', 'mikrofon', 'mode suara', 'suara pemilik', 'kenali suara', 'dengarkan', 'obrolan live', 'mulai live', 'percakapan live', 'mengakhiri live'],
+    isi: 'Mikrofon mengubah ucapan menjadi pesan. Saklar Una bicara membacakan balasan dengan suara Indonesia bila browser menyediakannya; tiap balasan juga bisa didengarkan. Hentikan ucapan dengan tombol berhenti. Profil suara pemilik, bila dipilih, disimpan di perangkat ini dan bersifat percobaan; bukan pengganti login atau bukti identitas. Atur pilihan headset dan profil pemilik pada Pengaturan → Asisten. Mulai atau akhiri obrolan live dari tombol telepon di chat: transkrip diproses lokal, unduhan awal sekitar 41 MB. Pengenalan pemilik opsional dan membutuhkan unduhan terpisah sekitar 102 MB serta tiga contoh suara. Tanpa opsi pemilik, live tetap berjalan. Ucapan bisa disela sementara tugas tetap berjalan; perintah baru mengantre. Gunakan headset bila browser tidak mendukung peredam gema penuh. Kecepatan dan ketepatan bergantung perangkat; model AI tugas tetap memakai layanan yang sudah dikonfigurasi. Suara tidak pernah menekan Ya: periksa dan setujui draft dari Workspace.',
     tawaran: [], tanpaAksi: 'pengaturan suara dan mikrofon dikerjakan di panel perangkat'
   },
   {
     id: 'nama_una', judul: 'Mengganti nama asisten',
     kunci: ['nama una', 'ganti nama asisten', 'nama asisten', 'panggilan asisten'],
-    isi: 'Nama panggilan asisten dapat diatur dari pengaturan Una oleh akun yang berhak. Nama berlaku untuk tenant yang sama. Mengganti nama tidak mengubah hak akses atau cara persetujuan pekerjaan.',
+    isi: 'Nama panggilan asisten dapat diatur pada halaman Pengaturan, bagian Asisten, oleh akun yang berhak. Nama berlaku untuk tenant yang sama. Mengganti nama tidak mengubah hak akses atau cara persetujuan pekerjaan.',
     tawaran: [], tanpaAksi: 'pengaturan nama memakai formulir pengaturan'
   },
   {

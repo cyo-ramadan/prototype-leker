@@ -296,6 +296,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-13 | Codex / Skin I | Pilihan Pantai Klasik memakai tema pantai H dengan seluruh susunan menu, ukuran dan cara pakai skin 0 yang tetap sama | UJI | Pemilik dapat memilih tema baru tanpa mempelajari alur baru; tidak mengaktifkan aturan khusus H |
 | 2026-10-13 | Codex / Portal Staf H | Tema pantai H ikut pada menu, panel, dialog koreksi dan kamera staf; Mode Lihat mengikuti gerai yang dipilih, sesi lama menyegarkan tema dari gerai akun | UJI | Pengalaman staf konsisten dengan tema tenant, tanda peringatan tetap jelas |
 | 2026-10-15 | Codex / Beranda Entity | Laporan yang dipin mengikuti lebar layar HP seperti saat dibuka dari menu Laporan; tabel banyak gerai tetap bisa digeser di dalam kartu dan formulir tanggal tidak mendorong layar sempit. Batas grid berlaku untuk seluruh pin | UJI | Perbaikan layout diuji di browser dengan data uji 16 gerai; status UJI fitur Beranda tetap mengikuti catatan 2026-10-11 |
+| 2026-10-15 | Codex / Una | Konfigurasi nama dan profil suara pindah ke Pengaturan; chat memakai tombol telepon untuk mulai/akhiri live. Profil tetap khusus akun/perangkat, suara opsional dan persetujuan melalui Workspace | UJI | Mengurangi formulir di percakapan; pengujian mikrofon/HP nyata masih diperlukan. APK belum tersedia untuk ditautkan, Budi belum diintegrasikan |
 | *(semua sesi menambah baris di sini)* | | | | |
 
 ---
@@ -372,3 +373,5 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 <!-- DOC-IMPACT: 2026-10-13 perbaikan cakupan pantai Portal Staf H. -->
 
 <!-- DOC-IMPACT: 2026-10-15 perbaikan responsif laporan dan batas lebar pin Beranda Entity; status UJI tetap. -->
+
+<!-- DOC-IMPACT: 2026-10-15 penempatan Pengaturan Una dan tombol live; status UJI, APK tidak diklaim tersedia. -->

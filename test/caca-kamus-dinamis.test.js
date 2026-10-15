@@ -61,6 +61,78 @@ test('registry server menjadi sumber semua skin, termasuk skin baru tanpa menu k
   assert.throws(() => kodeSkinResmi('registry berubah total'), /Registry skin server berubah/);
 });
 
+const SKIN_PENGATURAN = ['classic', ...kodeSkinResmi()];
+
+for (const skin of SKIN_PENGATURAN) {
+  test('pengaturan asisten terbuka di halaman aktif pada skin ' + skin, () => {
+    const akun = { skin, peran: 'Entity Admin' };
+    const gerai = menuUntuk({ ...akun, halaman: 'gerai' }).find(m => m.tab === 'assistant-settings');
+    const entity = menuUntuk({ ...akun, halaman: 'entity' }).find(m => m.tab === 'settings');
+    assert.ok(gerai, 'menu asisten gerai tersedia');
+    assert.ok(entity, 'pengaturan entity tetap tersedia');
+    assert.equal(entity.label, 'Pengaturan');
+    const html = baca('public/branch-admin.html');
+    const tombolAsli = html.match(/data-tab="assistant-settings"[^>]*>([^<]+)<\/button>/);
+    assert.ok(tombolAsli, 'tujuan navigasi benar-benar mempunyai tombol layar');
+    const labelAsli = tombolAsli[1].replace(/^[^\p{L}\p{N}]+/u, '').trim();
+    assert.equal(labelAsli, 'Pengaturan');
+    assert.equal(gerai.label, labelAsli, 'nama tujuan sesuai tombol Pengaturan yang terlihat');
+    for (const pesan of ['Una, buka ' + labelAsli, 'Una, buka pengaturan asisten']) {
+      const bukaGerai = bukaLayarDariPesan(pesan, { ...akun, lingkup: 'gerai' });
+      assert.equal(bukaGerai.navigasi?.halaman, 'gerai');
+      assert.equal(bukaGerai.navigasi?.tab, 'assistant-settings', 'membuka pengaturan yang terlihat, bukan menawarkan pembukuan');
+      assert.equal(bukaGerai.perluKonfirmasi, false);
+      assert.equal(bukaGerai.draft, undefined);
+    }
+    for (const pesan of ['Una, buka Pengaturan', 'Una, buka pengaturan asisten']) {
+      const bukaEntity = bukaLayarDariPesan(pesan, { ...akun, lingkup: 'entity' });
+      assert.equal(bukaEntity.navigasi?.halaman, 'entity', 'pengaturan asisten entity tidak memindahkan pengguna ke gerai');
+      assert.equal(bukaEntity.navigasi?.tab, 'settings');
+      assert.equal(bukaEntity.perluKonfirmasi, false);
+      assert.equal(bukaEntity.draft, undefined);
+    }
+  });
+}
+
+for (const pesan of ['bagaimana cara mengatur suara Una?', 'di mana profil suara pemilik?', 'cara mulai obrolan live']) {
+  test('panduan suara mengarahkan pengaturan dan tombol telepon: ' + pesan, () => {
+    for (const skin of SKIN_PENGATURAN) for (const halaman of ['gerai', 'entity']) {
+      const hasil = jelaskan(pesan, { skin, halaman, peran: 'Entity Admin' });
+      assert.equal(hasil.dikenal, true);
+      assert.match(hasil.jawaban, /pengaturan/i, skin + ':' + halaman);
+      assert.match(hasil.jawaban, /asisten/i);
+      assert.match(hasil.jawaban, /\blive\b/i, 'panduan juga menjelaskan obrolan live');
+      assert.match(hasil.jawaban, /tombol telepon[^.]*chat|chat[^.]*tombol telepon/i,
+        'kendali obrolan live berada di chat, pengaturan hanya menyiapkan pilihan');
+      assert.doesNotMatch(hasil.jawaban, /mulai[^.]*live[^.]*dari pengaturan|mulai[^.]*live[^.]*pada halaman pengaturan/i);
+    }
+  });
+}
+
+for (const pesan of ['gimana ganti nama asisten?', 'nama panggilan asisten di mana?', 'cara mengganti nama Una']) {
+  test('panduan nama menunjuk bagian Asisten dalam Pengaturan: ' + pesan, () => {
+    for (const halaman of ['gerai', 'entity']) {
+      const hasil = jelaskan(pesan, { skin: 'classic', halaman, peran: 'Entity Admin' });
+      assert.equal(hasil.dikenal, true);
+      assert.match(hasil.jawaban, /pengaturan/i);
+      assert.match(hasil.jawaban, /asisten/i);
+      assert.match(hasil.jawaban, /tenant/i, 'nama berlaku pada tenant, bukan hanya satu percakapan');
+    }
+  });
+}
+
+test('kasir tidak mendapat tujuan pengaturan asisten gerai maupun entity lewat Una', () => {
+  for (const skin of SKIN_PENGATURAN) {
+    const akun = { skin, peran: 'CASHIER' };
+    assert.equal(menuUntuk(akun).some(m => ['assistant-settings', 'settings'].includes(m.tab)), false);
+    for (const lingkup of ['gerai', 'entity']) for (const pesan of ['buka Pengaturan', 'buka pengaturan asisten']) {
+      const hasil = bukaLayarDariPesan(pesan, { ...akun, lingkup });
+      assert.equal(hasil.navigasi, undefined);
+      assert.ok(!(hasil.tawaran ?? []).some(t => ['assistant-settings', 'settings'].includes(t.layar)));
+    }
+  }
+});
+
 for (const [skin,pesan,tab,label] of [
   ['F','di mana atur bahan?','racikbahan','Bahan & Aroma'],
   ['f','bahan aroma parfum atur di mana?','racikbahan','Bahan & Aroma'],

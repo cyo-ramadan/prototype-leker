@@ -6823,6 +6823,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/branch-admin.html"
   },
   {
+    "id": "tombol:public/branch-admin.html:cacaPengaturanTab",
+    "jenis": "tombol",
+    "sumber": "public/branch-admin.html",
+    "tombolId": "cacaPengaturanTab",
+    "aksi": "data-tab",
+    "label": "⚙ Pengaturan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/branch-admin.html"
+  },
+  {
     "id": "tombol:public/branch-admin.html:categoryCancelEdit",
     "jenis": "tombol",
     "sumber": "public/branch-admin.html",
@@ -7054,6 +7065,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/caca-chat.js"
   },
   {
+    "id": "tombol:public/caca-chat.js:cacaLiveToggle",
+    "jenis": "tombol",
+    "sumber": "public/caca-chat.js",
+    "tombolId": "cacaLiveToggle",
+    "aksi": null,
+    "label": "☎",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/caca-chat.js"
+  },
+  {
     "id": "tombol:public/caca-chat.js:cacaMikrofon",
     "jenis": "tombol",
     "sumber": "public/caca-chat.js",
@@ -7217,17 +7239,6 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/caca-chat.js"
-  },
-  {
-    "id": "tombol:public/caca-pengaturan.js:cacaLiveToggle",
-    "jenis": "tombol",
-    "sumber": "public/caca-pengaturan.js",
-    "tombolId": "cacaLiveToggle",
-    "aksi": null,
-    "label": "Mulai obrolan live",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/caca-pengaturan.js"
   },
   {
     "id": "tombol:public/caca-pengaturan.js:cacaNamaSimpan",

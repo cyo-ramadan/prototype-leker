@@ -39,6 +39,8 @@ const cacaState = {
   // Hasil /api/caca/kesiapan untuk gerai yang sedang dibahas.
   kesiapan: null,
   sedangKirim: false,
+  // Giliran percakapan aktif (U4 Una Live): mengikat konteks lembar dan uiActions.
+  turnId: null,
   siap: false,
   siapDipakai: false
 };
@@ -717,6 +719,8 @@ function cacaKonfigurasiWorkspace() {
     api: cacaApi,
     getIdentity: () => localStorage.getItem('lekerEntityAdminToken') || '',
     getScope: () => cacaState.scope,
+    // Petunjuk peran untuk registry lembar; otorisasi tetap di server.
+    getRole: () => cacaDiWorkspace() ? 'ADMIN' : 'ENTITY_ADMIN',
     scopeQuery: cacaQueryLingkup,
     scopeLabel: cacaNamaScope,
     renderDraft: cacaBuatKartuWorkspace,
@@ -1361,6 +1365,9 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertund
     if (!conversationId) { conversationId = crypto.randomUUID(); sessionStorage.setItem(key, conversationId); }
   } catch { /* namespace cadangan tetap di server */ }
   const isi = { pertanyaan, riwayat, satuLangkah: true, conversationId };
+  // Konteks lembar Workspace yang sedang tampil (U4 Una Live), dibaca saat dikirim.
+  const lembar = cacaState.turnId ? window.UnaDispatcher?.context({ conversationId, turnId: cacaState.turnId }) : null;
+  if (lembar) isi.surfaceContext = lembar;
   if (kerja) isi.kerja = kerja;
   if (tertunda) isi.tertunda = tertunda;
   return cacaApi(`/api/caca/tanya?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify(isi) });
@@ -1569,6 +1576,17 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
     if (tombol) { tombol.click(); return; }
   }
 
+  // "stop/berhenti" saat Una masih memuat laporan: berhenti menunggu bacaan itu saja.
+  // Draft bisnis dan persetujuannya tidak tersentuh.
+  if (/^\s*(stop|berhenti|udahan|cukup)\b/i.test(pertanyaan) && window.UnaDispatcher?.cancelReads()) {
+    cacaTambahGelembung('caca', 'Oke, Una berhenti menunggu bacaan itu, Bos. Draft yang ada tidak tersentuh.');
+    cacaCatatRiwayat('una', 'Una berhenti menunggu bacaan halaman.');
+    return;
+  }
+
+  cacaKonfigurasiWorkspace();
+  cacaState.turnId = window.UnaDispatcher?.turn() || null;
+  const turnId = cacaState.turnId;
   const workspaceContext = window.UnaWorkspace?.context();
   const scope = workspaceContext?.scope || cacaState.scope;
   // Jawaban Bos atas pertanyaan Una di tengah kerjaan ikut membawa catatan kerjanya.
@@ -1580,16 +1598,52 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
   const mulai = Date.now();
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
-    await cacaJedaManusiawi(mengetik, payload, mulai);
-    mengetik.remove();
+    const aksiUi = payload.uiActions?.length && window.UnaDispatcher;
+    // Jalur live dan aksi halaman tanpa jeda buatan: progresnya nyata.
+    if (!aksiUi && !suaraKonteks?.suara) await cacaJedaManusiawi(mengetik, payload, mulai);
     payload._workspaceContext = workspaceContext || null;
     if (suaraKonteks) cacaMulutKonteks.set(payload, suaraKonteks);
+    // Aksi halaman tidak ditunggu di sini: chat langsung bisa menerima koreksi ("eh sampai
+    // tanggal 8") yang menggantikan bacaan yang masih berjalan.
+    if (aksiUi) { void cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks); return; }
+    mengetik.remove();
     const jenis = cacaTampilkanBalasanAgen(payload, pertanyaan, scope);
     if (jenis === 'rencana') await cacaMulaiRencana(payload.rencana, scope);
   } catch (error) {
     mengetik.remove();
     cacaTambahGelembung('caca', error.message);
   }
+}
+
+// U4 Una Live: jalankan uiActions lewat registry dan laporkan hasil dari tanda terimanya.
+// Una tidak berkata "sudah tampil" sebelum tanda terima ok (contracts/una-live-workspace-v1.md 3.2).
+async function cacaJalankanAksiUi(payload, scope, mengetik, turnId, suaraKonteks) {
+  const dispatcher = window.UnaDispatcher;
+  let tanda = [];
+  try {
+    tanda = await dispatcher.run(payload.uiActions, {
+      turnId,
+      onStep: ({ label, done }) => mengetik.aturLangkah?.(done.map(judul => ({ judul })), `${label}…`)
+    });
+  } finally {
+    mengetik.remove();
+  }
+  const semuaOk = tanda.length > 0 && tanda.every(r => r.status === 'ok');
+  // Halaman yang belum bisa jadi lembar (mis. menu gerai): kembali ke navigasi tab lama.
+  if (!semuaOk && payload.alat === 'buka_layar' && payload.navigasi) {
+    cacaTampilkanBalasanAgen({ ...payload, uiActions: null }, '', scope);
+    return;
+  }
+  if (scope !== cacaState.scope) return;
+  const hasil = dispatcher.conclude(tanda, payload);
+  if (!hasil) return; // Digantikan perintah yang lebih baru; perintah itu yang melapor.
+  const akhir = {
+    ...payload, uiActions: null, jawaban: hasil.text, belumLengkap: hasil.ask,
+    kerja: tanda.filter(r => r.status === 'ok').map(r => ({ alat: r.capabilityId, judul: r.label }))
+  };
+  if (suaraKonteks) cacaMulutKonteks.set(akhir, suaraKonteks);
+  cacaTampilkanBalasan(akhir, scope);
+  cacaSimpanPercakapan();
 }
 
 // --- rencana bertahap ----------------------------------------------------------

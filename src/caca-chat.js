@@ -25,6 +25,7 @@ import { getJakartaBusinessDate } from './time.js';
 import { handleCacaWorkspaceApi } from './caca-workspace.js';
 import { bacaKonteksAsisten, sesuaikanNamaBalasan, handlePengaturanAsisten } from './caca-pengaturan.js';
 import { catatBelumPaham, handleCacaBelumPahamApi } from './caca-belum-paham.js';
+import { bersihkanKonteksLembar } from './una-perintah-lembar.js';
 
 const MEDIA_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_LENGTH = 1_500_000;
@@ -294,7 +295,9 @@ async function tanya(request, env, jalurUtama, waitUntil) {
 
   // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
   // memahami rujukan. Tidak ada tindakan yang lahir darinya tanpa draft + "Ya".
-  const konteks = { ...lingkup.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat) };
+  const konteks = { ...lingkup.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat),
+    // Konteks lembar Workspace (contracts/una-live-workspace-v1.md 4.1): petunjuk saja, bukan otorisasi.
+    surfaceContext: bersihkanKonteksLembar(body.value?.surfaceContext) };
   let hasil;
   try { hasil = await jawabPertanyaan(pertanyaan, konteks, {
     request,
@@ -320,6 +323,8 @@ async function tanya(request, env, jalurUtama, waitUntil) {
     sapaan: gaya.sapaan,
     alat: hasil.alat,
     navigasi: hasil.navigasi ?? null,
+    // Perintah kemampuan untuk registry browser; maks 3, dijalankan hanya bila lingkupnya masih sama.
+    uiActions: Array.isArray(hasil.uiActions) ? hasil.uiActions.slice(0, 3) : null,
     namaAsisten: konteks.namaAsisten,
     periode: hasil.periode ?? null,
     tabel: hasil.tabel ?? null,

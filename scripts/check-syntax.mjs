@@ -11,6 +11,8 @@ const files = [
   "src/caca-chat.js",
   "src/caca-alat.js",
   "src/caca-agen.js",
+  "src/una-perintah-lembar.js",
+  "public/una-dispatcher.js",
   "src/caca-aksi.js",
   "src/caca-aksi-dasar.js",
   "src/caca-aksi-bayar.js",

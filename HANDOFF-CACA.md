@@ -27,12 +27,19 @@ U1, U2, U3, U5, U6) dan **Opus 5.5** (Eskor: U0, U4, U7, U8).
 | Paket | Status | Branch / bukti |
 |---|---|---|
 | U0 (Opus 5.5) | **SELESAI 2026-10-15**, belum di main | `eskor/una-live-u0`: `contracts/una-live-workspace-v1.md`, `test/fixtures/una-live/*.json`, `test/una-live-kontrak.test.js` (8 lulus) |
-| U1, U2, U5 (Sol 6.1) | boleh mulai (bergantung U0 saja) | bercabang dari `eskor/una-live-u0` |
-| U3 (Sol 6.1) | menunggu U1+U2 | |
-| U4 (Opus 5.5) | menunggu U1+U2 | |
-| U6 (Sol 6.1) | menunggu U2+U5 | |
+| U1, U2, U3, U5, U6 (Sol 6.1) | dikerjakan Codex, belum commit (cek 2026-10-15 18:15) | worktree `wt-una-sol`, branch `codex/una-live-sol-20261015` |
+| U4 (Opus 5.5) | **sisi Opus selesai, finalisasi setelah U1–U3 digabung** | branch `eskor/una-live-u4` (dari `cec4240`), lihat catatan U4 di bawah |
 | U7 (Opus 5.5) | menunggu U4+U6 | |
 | U8 (Opus 5.5) | menunggu semua | |
+
+**Catatan U4 (Eskor, 2026-10-15) untuk penggabungan dengan paket Sol:**
+- Server: `src/una-perintah-lembar.js` menerjemahkan perintah filter Laporan Entity tanpa model ("1 sampai 10 Oktober", "eh sampai tanggal 8 aja", "mulai tanggal 3", "minggu sebelumnya", "bulan ini"), aturan tahun kontrak 3.3, klarifikasi bila tanggal tidak sah/terbalik. Dipanggil paling awal di `jawabPertanyaanInti` (sebelum `buka_layar`). Hanya aktif bila browser mengirim `surfaceContext` (panel lama tidak terpengaruh). Perintah memakai `target: null` agar kunci penggantian registry = `entity:reports` (koreksi selalu menggantikan bacaan yang masih jalan).
+- `src/caca-chat.js`: body `surfaceContext` dibersihkan `bersihkanKonteksLembar` (tak tepercaya, ≤ 4 KiB); balasan kini memuat `uiActions` (maks 3). Sebelumnya `uiActions` dari `buatAksiBuka` (U1) **tidak** ikut ke balasan JSON.
+- Browser: `public/una-dispatcher.js` (`window.UnaDispatcher`: `turn`, `context`, `run`, `conclude`, `cancelReads`, `pending`). Memakai `UnaLembar.context()`, `UnaRegistry.execute()`, `UnaPageAdapters[...].readState()` milik Sol. `public/caca-chat.js`: aksi halaman dijalankan tanpa menahan `sedangKirim` (koreksi bisa dikirim saat laporan memuat), progres dari event nyata, kalimat akhir dari tanda terima, "stop/berhenti" berhenti menunggu bacaan tanpa menyentuh draft, jeda buatan dihapus untuk pesan suara dan aksi halaman, `getRole` diberikan ke adapter Workspace. `buka_layar` dengan `uiActions` dijalankan lewat registry; bila gagal (mis. halaman gerai) kembali ke navigasi tab lama.
+- Berkas milik paket lain yang ikut tersentuh U4 (gabungkan, jangan timpa): tag `<script src="/una-dispatcher.js">` + versi `caca-chat.js?v=20261015-una-live-u4-v1` di `public/entity-admin.html` dan `public/branch-admin.html` (U2); dua baris di `scripts/check-syntax.mjs`.
+- Untuk Sol: `buatAksiBuka` membaca peran dari `context.peran` ("Entity Admin"), sedangkan validator memakai `ENTITY_ADMIN`; pastikan dipetakan atau `uiActions` buka jadi kosong. `openPage(..., display:'menu')` tetap memanggil `UnaWorkspace.show()`; cek ulang di U8.
+- Tes: `test/una-perintah-lembar.test.js` (8) dan `test/una-dispatcher.test.js` (7, registry tiruan dengan aturan penggantian kontrak 3.2). Uji gabungan dengan registry/lembar/adapter asli dan browser nyata = U8.
+- Belum: entri kamus Una "Una kendalikan Laporan di Workspace" (ditulis saat integrasi, ketika fiturnya benar-benar jalan); kemampuan dipilih model (`ui_aksi` via katalog) untuk perintah di luar pola kode; pembatalan baca yang benar-benar membatalkan fetch.
 
 **Hasil U0 yang wajib dibaca sebelum U1–U8:**
 - Kontrak: `contracts/una-live-workspace-v1.md`, berisi bentuk deskriptor kemampuan + subset

@@ -300,7 +300,10 @@ async function cacaMuatGerai() {
   const geraiHalaman = cacaDiWorkspace() ? String(window.LEKER_STORE_CODE || '').toUpperCase() : '';
   const ingatan = cacaState.stores.some(store => store.code === geraiHalaman) ? geraiHalaman : cacaIngatan();
   const masihAda = ingatan === CACA_ENTITY || cacaState.stores.some(store => store.code === ingatan);
-  cacaState.scope = masihAda ? ingatan : (cacaState.stores[0]?.code || '');
+  // Bos Cyo 2026-10-15: di halaman Entity Admin bawaannya Entity (Laporan Usaha, data semua gerai);
+  // pilihan terakhir tetap diingat. Workspace gerai dan mode Owner tetap memakai gerai.
+  const bawaanEntity = !cacaDiWorkspace() && typeof entityAdminState !== 'undefined' && !entityAdminState.ownerMode && cacaState.stores.length > 0;
+  cacaState.scope = masihAda ? ingatan : (bawaanEntity ? CACA_ENTITY : (cacaState.stores[0]?.code || ''));
   cacaRenderDaftarGerai();
   cacaEl('cacaJudulGerai').textContent = cacaState.scope ? cacaNamaScope(cacaState.scope) : 'Belum ada gerai';
 }

@@ -23,6 +23,7 @@ import { KATALOG } from './caca-baca-katalog.js';
 import { handleAdminOperationalExpenseApi } from './admin-operational-expense.js';
 import { getJakartaBusinessDate } from './time.js';
 import { handleCacaWorkspaceApi } from './caca-workspace.js';
+import { handleUnaSurfacesApi } from './una-surfaces.js';
 import { bacaKonteksAsisten, sesuaikanNamaBalasan, handlePengaturanAsisten } from './caca-pengaturan.js';
 import { catatBelumPaham, handleCacaBelumPahamApi } from './caca-belum-paham.js';
 
@@ -543,6 +544,7 @@ async function catat(request, env, jalurUtama) {
  */
 export async function handleCacaApi(request, env, pathname, { jalurUtama, waitUntil } = {}) {
   if (!pathname.startsWith('/api/caca/')) return null;
+  if (pathname === '/api/caca/surfaces' || pathname.startsWith('/api/caca/surfaces/')) return handleUnaSurfacesApi(request, env, pathname);
   if (pathname === '/api/caca/pengaturan') return handlePengaturanAsisten(request, env, lingkupPenyuruh);
   if (pathname === '/api/caca/belum-paham' || pathname.startsWith('/api/caca/belum-paham/')) return handleCacaBelumPahamApi(request, env, pathname);
 

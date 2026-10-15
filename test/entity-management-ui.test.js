@@ -66,6 +66,7 @@ test('logout revokes on server before removing local push even when network fail
 const actualPinTabs = { profit: 'reports', setoran: 'setorancs', drawerstatus: 'drawerstatus', stores: 'stores', customers: 'customers', ledger: 'ledger', sharedaccounts: 'sharedaccounts', productmasters: 'productmasters', entityrecipes: 'entityrecipes', entitystock: 'entitystock', storereport: 'storereport', employees: 'employees' };
 async function homeEnvironment(homePins = ['profit']) {
   const e = environment(); const { context, document } = e; const sources = new Map(); const loaderCalls = [];
+  context.dispatchEvent=()=>{};
   for (const tab of Object.values(actualPinTabs)) {
     const source = document.getElementById('entityTab-' + tab);
     const nodes = [new Element('#text'), new Element('form'), new Element('#text'), new Element('article'), new Element('article')];
@@ -80,6 +81,7 @@ async function homeEnvironment(homePins = ['profit']) {
   let onChange;
   context.MaxiNotifications = { init: async opts => { onChange = opts.onChange; onChange(snapshot); return snapshot; }, destroy: async () => {} };
   context.switchEntityTab = name => { context.EntityManagement.onTab(name); for (const id of ['home', 'settings', ...Object.values(actualPinTabs)]) document.getElementById('entityTab-' + id).classList.toggle('active', id === name); };
+  vm.runInContext(readFileSync(new URL('../public/una-mount.js',import.meta.url),'utf8'),context);
   vm.runInContext(managementSource, context); await context.EntityManagement.init(); await new Promise(resolve => setImmediate(resolve));
   return { ...e, sources, loaderCalls, updatePins: list => onChange({ ...snapshot, preferences: { ...snapshot.preferences, homePins: list } }) };
 }
@@ -97,7 +99,9 @@ test('all pinned menu child nodes return to their exact source order on leaving 
   const home = document.getElementById('entityHomePins');
   for (const tab of ['reports', 'setorancs', 'drawerstatus']) {
     for (const item of sources.get(tab).nodes) assert.ok(descendants(home).includes(item));
-    assert.ok(sources.get(tab).source.childNodes.every(n => n.tagName === '#comment'));
+    assert.ok(sources.get(tab).source.childNodes.some(n => n.tagName === '#comment'));
+    assert.ok(!sources.get(tab).source.childNodes.some(n=>sources.get(tab).nodes.includes(n)));
+    assert.ok(descendants(sources.get(tab).source).some(n=>n.tagName==='button'),'The menu offers reclaiming its original panel');
   }
   context.switchEntityTab('stores');
   for (const { source, nodes } of sources.values()) assert.deepEqual(source.childNodes, nodes);
@@ -109,7 +113,7 @@ test('unpin restores the original panel and a remote pin change never steals a m
   updatePins(['profit']); assert.deepEqual(sources.get('drawerstatus').source.childNodes, sources.get('drawerstatus').nodes);
   context.switchEntityTab('reports'); updatePins(['profit', 'setoran']);
   for (const { source, nodes } of sources.values()) assert.deepEqual(source.childNodes, nodes);
-  context.switchEntityTab('home'); assert.ok(sources.get('setorancs').source.childNodes.every(n => n.tagName === '#comment'));
+  context.switchEntityTab('home'); assert.ok(!sources.get('setorancs').source.childNodes.some(n=>sources.get('setorancs').nodes.includes(n)));
   await context.EntityManagement.destroy();
 });
 test('every pin choice refers to an existing Entity menu, including both drawer panels and all report cards', async () => {

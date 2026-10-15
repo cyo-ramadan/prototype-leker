@@ -2134,6 +2134,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/caca-chat.js:/api/caca/surfaces",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/caca/surfaces",
+    "label": "/api/caca/surfaces",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/caca/surfaces/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/caca/surfaces/",
+    "label": "/api/caca/surfaces/",
+    "skin": null
+  },
+  {
     "id": "rute:src/caca-chat.js:/api/caca/tanya",
     "jenis": "rute-kandidat",
     "sumber": "src/caca-chat.js",
@@ -3985,6 +4003,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/management/transaction-void-permits",
     "label": "/api/management/transaction-void-permits",
+    "skin": null
+  },
+  {
+    "id": "rute:src/una-surfaces.js:/api/caca/surfaces",
+    "jenis": "rute-kandidat",
+    "sumber": "src/una-surfaces.js",
+    "method": null,
+    "rute": "/api/caca/surfaces",
+    "label": "/api/caca/surfaces",
     "skin": null
   },
   {
@@ -14369,6 +14396,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/cashier/transaction-void/permits",
     "label": "/api/cashier/transaction-void/permits",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/una-surfaces.js:request.method!=='POST')return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/una-surfaces.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method!=='POST')return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/una-surfaces.js:request.method==='DELETE')",
+    "jenis": "rute-tulis",
+    "sumber": "src/una-surfaces.js",
+    "method": "DELETE",
+    "rute": null,
+    "label": "request.method==='DELETE')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/una-surfaces.js:request.method==='PATCH'?await readBody(request):",
+    "jenis": "rute-tulis",
+    "sumber": "src/una-surfaces.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method==='PATCH'?await readBody(request):",
     "skin": null
   },
   {

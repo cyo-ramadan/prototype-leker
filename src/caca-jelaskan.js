@@ -30,6 +30,12 @@ const jelas = (topik, label) => ({ jenis: 'jelaskan', topik, label });
 
 export const KAMUS = Object.freeze([
   {
+    id: 'una_lembar', judul: 'Lembar Workspace dan gambar', tawaran: [],
+    kunci: ['lembar workspace','lembar gambar','kanvas','cara pakai kanvas','cara memakai kanvas','coretan','gambar tersimpan','konflik lembar'],
+    isi: 'Di Workspace, tombol "Tugas" menampilkan draft yang tetap memerlukan pemeriksaan dan persetujuan manual. "Lembar gambar baru" membuka tempat mencoret dengan pena, teks dan bentuk, undo/redo, zoom serta "Ekspor PNG". Lembar tersimpan per akun dan lingkup yang dipilih. Menutup tampilan tidak menghapus lembar atau membatalkan tugas. Jika status "Belum tersimpan", edit tetap di layar; coba "Simpan sekarang" atau ekspor gambar. Saat ada versi baru, pilih "Muat versi server" atau, untuk kanvas, "Simpan sebagai lembar baru". Halaman yang sama tetap satu lembar; konflik filter dapat diekspor sebelum memuat versi server. Angka laporan dimuat ulang lewat aplikasi dan tidak disimpan dalam lembar.',
+    tanpaAksi: 'Lembar bukan transaksi bisnis; gunakan kontrol Workspace. Pembaca gambar dan dispatcher percakapan mengikuti paket integrasi terpisah.'
+  },
+  {
     id: 'batal_penjualan', judul: 'Hapus / batalkan penjualan',
     kunci: ['batal penjualan', 'batalkan penjualan', 'hapus penjualan', 'hapus transaksi', 'pembatalan transaksi', 'void transaksi'],
     isi: 'Di Kasir, buka Data, cari penjualan lalu tekan Hapus dan isi alasan. Pengajuan masuk Persetujuan untuk ACC atau Tolak Admin. Sebelum diputuskan, kasir bisa Batal Hapus. Riwayat tetap ada; saat berhasil, stok/kas dikoreksi dan jurnal yang sudah posted dibalik, bukan dihapus. ACC belum selalu berarti selesai: bila status HOLD atau FAILED, periksa alasannya; Admin dapat mencoba ulang eksekusi yang sudah di-ACC. Una tidak menekan ACC untuk Bos.',

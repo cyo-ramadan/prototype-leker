@@ -1,0 +1,8 @@
+.una-canvas-editor{display:flex;flex-direction:column;min-width:0;height:100%;gap:8px}
+.una-canvas-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.una-canvas-tools button{min-height:34px}.una-canvas-tools [aria-pressed="true"]{outline:2px solid var(--brand)}
+.una-canvas-tools input[type="text"]{flex:1;min-width:140px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.una-canvas-tools input[type="color"]{width:40px;height:34px;padding:2px;border:1px solid var(--line)}
+.una-canvas-viewport{min-height:220px;max-height:65dvh;overflow:auto;border:1px solid var(--line);background:var(--bg);flex:1;min-width:0}
+.una-canvas-viewport canvas{display:block;touch-action:none;max-width:none;cursor:crosshair}
+.una-canvas-status{font-size:.82rem;margin:0;color:var(--amber)}

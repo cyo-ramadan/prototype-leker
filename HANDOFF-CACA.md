@@ -1,5 +1,22 @@
 # Handoff — "Caca", asisten toko berbasis AI
 
+<!-- UNA-SOL-IMPLEMENTATION-NOTE -->
+### Progres pelaksanaan Sol — 2026-10-15
+
+- Implementasi lokal U1/U2/U3/U5/U6 tersedia di branch codex/una-live-sol-20261015, worktree C:/Users/Asus/wt-una-sol, basis U0 cec4240. Belum dirilis.
+- Registry tervalidasi, shell lembar + mount bersama menu/pin, adapter Laporan, API artefak/revisi/autosave, editor kanvas/snapshot/patch sudah terhubung di branch Sol. "Buka laporan" pada lingkup Entity memilih reports.
+- Verifikasi akhir: **156/156 tes terarah lulus**, tambahan **8/8 kontrak lulus** sesudah klasifikasi kontrol; **npm run check 332 berkas** dan **build-peta-una --cek** lulus. Enam contoh pertanyaan panduan kanvas classic/H lulus.
+- Suite penuh selesai **2057 tes: 2046 lulus, 11 gagal**. Delapan kegagalan dibuktikan pada baseline bersih cec4240 (72 tes: 66/6; tambahan 19: 17/2). Tiga masalah terkait paket ini sudah diperbaiki dan lulus dalam tes akhir. Tidak mengklaim seluruh suite hijau.
+- Restore menjaga edit filter saat loader menunggu, menyimpan filter awal, memeriksa role/skin/scope, dan memberikan revisi terbaru. Konflik tidak menimpa edit baru selama pemuatan versi server.
+- Untuk Opus U4 8043bbe: **report.set_filters dengan target:null akan ditolak**. Pakai activeSurfaceId + surfaceRevision nyata; buka lembar dulu bila belum ada. Koreksi pada surfaceId sama memakai key supersession sama. Normalisasi "Entity Admin" sudah ditangani dan diuji.
+- U1 menyediakan **UnaRegistry.cancelReads()** untuk menghentikan guard render read/view; hubungkan dari pembatalan baca U4. Penyimpanan artefak dan draft bisnis tidak dibatalkan. Fetch fisik mungkin tetap berjalan.
+- 28 kontrol baru diklasifikasikan eksplisit di fixture kontrol Entity Admin; tidak ada izin klik DOM sembarang.
+- Browser lokal: screenshot shell terlihat; DOM/klik timeout. Browser HP, suara nyata, TESTINGUNA, performa, pembaca AI kanvas (U7) dan review U8 belum terbukti.
+- Laporan rinci: C:/Users/Asus/wt-una-sol/audit/2026-10-15-una-sol.md; bukti tes di C:/Users/Asus/work/una-sol-hourly/sol-final-targeted.log dan sol-root-full-test.log.
+- Jadwal Codex-Una-Sol-Hourly-01a13e14 tetap terpasang PT1H. BUSY menahan run selama implementasi manual; laptop menyala dan akun Windows login diperlukan. Tidak push/deploy/migration remote otomatis.
+
+
+
 Dokumen ini untuk **sesi baru yang mulai dari nol** (Hana di sesi lain, atau agen
 implementer). Instance tidak berbagi memory, jadi semua yang perlu diketahui
 ditulis di sini atau ditunjuk dari sini.

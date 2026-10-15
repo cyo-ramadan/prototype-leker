@@ -948,13 +948,35 @@ function renderEntityReportChart() {
     </tbody></table>`;
 }
 
-async function runEntityReport() {
+let entityReportRequestKey = 0;
+let entityReportState = {status:'idle',requestKey:0,result:null,error:null};
+function readEntityReportState() {
+  return {from:entityAdminEl('entityReportFrom').value,to:entityAdminEl('entityReportTo').value,stores:selectedReportStoreCodes(),...entityReportState};
+}
+function emitEntityReportState() {
+  const surface=window.UnaLembar?.surfaceForPanel('entity:reports');
+  window.dispatchEvent(new CustomEvent('una-live:page-state',{detail:{surfaceId:surface?.id||null,panelKey:'entity:reports',state:readEntityReportState()}}));
+}
+function invalidateEntityReport() {
+  entityReportRequestKey++;entityReportState={status:'idle',requestKey:entityReportRequestKey,result:null,error:null};
+  entityAdminState.reportPayload=null;
+  for(const id of ['entityReportChart','entityReportStoreTable','entityReportTableWrap'])entityAdminEl(id)?.replaceChildren();
+  emitEntityReportState();
+}
+async function runEntityReport(options = {}) {
+  const requestKey=++entityReportRequestKey;
   const from = entityAdminEl('entityReportFrom').value;
   const to = entityAdminEl('entityReportTo').value;
   const codes = selectedReportStoreCodes();
   const status = entityAdminEl('entityReportStatus');
-  if (!from || !to) { status.textContent = 'Isi dari/sampai tanggal dulu.'; return; }
-  if (!codes.length) { status.textContent = 'Pilih minimal satu gerai.'; return; }
+  const identity=entityAdminState.token,entityId=entityAdminState.entityAdmin?.entityId;
+  const current=()=>requestKey===entityReportRequestKey&&identity===entityAdminState.token&&entityId===entityAdminState.entityAdmin?.entityId
+    && from===entityAdminEl('entityReportFrom').value&&to===entityAdminEl('entityReportTo').value&&JSON.stringify(codes)===JSON.stringify(selectedReportStoreCodes())&&options.isCurrent?.()!==false;
+  const failed=(message,code='INVALID_PARAMS')=>{status.textContent=message;entityReportState={status:'error',requestKey,result:null,error:message};emitEntityReportState();return {ok:false,code,message,requestKey,state:readEntityReportState()};};
+  const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+  if (!validDate(from) || !validDate(to) || from>to) return failed('Isi rentang tanggal yang valid.');
+  if (!codes.length) return failed('Pilih minimal satu gerai.');
+  entityReportState={status:'loading',requestKey,result:null,error:null};emitEntityReportState();
   status.textContent = 'Menghitung… (pertama kali untuk periode baru bisa agak lama, sesudahnya instan)';
   // ?store= WAJIB ada -- server memakainya untuk tahu entity mana yang
   // memanggil (selectedStore() di src/net-profit-report.js). Tanpa ini,
@@ -963,16 +985,20 @@ async function runEntityReport() {
   // sebagai "di luar entity" -- laporan kelihatan kosong tanpa pesan yang
   // jelas kenapa (dibuktikan langsung, 2026-09-17).
   const callerStoreCode = anyEntityStoreCode();
-  if (!callerStoreCode) { status.textContent = 'Belum ada gerai di entity ini.'; return; }
+  if (!callerStoreCode) return failed('Belum ada gerai di entity ini.');
   try {
     const payload = await entityAdminApi(`/api/admin/reports/net-profit?store=${encodeURIComponent(callerStoreCode)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&stores=${encodeURIComponent(codes.join(','))}`);
+    if(!current())return {ok:false,code:'SUPERSEDED',message:'Laporan digantikan filter atau lingkup yang lebih baru.',requestKey};
     renderEntityReportTable(payload);
     entityAdminState.reportPayload = payload;
     renderEntityReportMetricButtons();
     renderEntityReportChart();
     status.textContent = '';
+    entityReportState={status:'ready',requestKey,result:{storeCount:codes.length,totals:payload.totals||null},error:null};emitEntityReportState();
+    return {ok:true,requestKey,state:readEntityReportState()};
   } catch (error) {
-    status.textContent = error.message;
+    if(!current())return {ok:false,code:'SUPERSEDED',message:'Laporan lama diabaikan.',requestKey};
+    return failed(error.message,'DATA_FAILED');
   }
 }
 

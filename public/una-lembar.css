@@ -1,0 +1,13 @@
+/* Original panels retain their own skin, typography and local table scrolling. */
+.una-surface-tabs{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;flex:none;border-bottom:1px solid var(--line)}
+.una-surface-tabs button{white-space:nowrap;font:inherit;font-size:.82rem}
+.una-surface-tabs [aria-current="true"]{outline:2px solid var(--brand);outline-offset:-2px}
+.una-surface-tab{display:inline-flex;flex:none;align-items:center}
+.una-surface-view{flex:1;min-height:0;min-width:0;overflow:auto;padding:12px}
+.una-surface-content{min-width:0;max-width:100%}.una-surface-content[hidden]{display:none}
+.una-surface-content .admin-grid>*{min-width:0}.una-surface-content .admin-grid{max-width:100%}
+.una-surface-save{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;font-size:.82rem;border-bottom:1px solid var(--line)}
+.una-panel-placeholder{padding:12px;min-width:0}.una-panel-placeholder button{max-width:100%;white-space:normal}
+.una-surface-view.hidden,.caca-workspace-grid.hidden,.una-surface-save[hidden]{display:none}
+.caca-workspace:has(.una-surface-view:not(.hidden)) .caca-workspace-hint{display:none}
+@media(max-width:900px){.una-surface-view{padding:8px}.una-surface-tabs{padding:8px}.una-surface-tabs button{min-height:36px}}

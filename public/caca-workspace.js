@@ -25,7 +25,7 @@
     const grid = node('div', null, 'caca-workspace-grid'); const list = node('nav', null, 'caca-workspace-list'); list.id = 'cacaWorkspaceList'; list.setAttribute('aria-label', 'Daftar tugas');
     const detail = node('main', null, 'caca-workspace-detail'); detail.id = 'cacaWorkspaceDetail'; grid.append(list, detail); panel.append(head, hint, message, grid); document.body.append(panel); renderList();
   }
-  function configure(value) { if (adapter && identity !== value.getIdentity()) reset(); adapter = value; identity = value.getIdentity(); ensure(); }
+  function configure(value) { if (adapter && identity !== value.getIdentity()) reset(); adapter = value; identity = value.getIdentity(); ensure(); window.UnaLembar?.configure({...value,selectTask:select}); }
   function assertSession(marker) { if (!live(marker)) throw new Error('Sesi Workspace berubah. Buka kembali setelah login.'); }
   async function request(path, options = {}, scope = adapter?.getScope()) {
     const marker = epoch; assertSession(marker); const value = await adapter.api('/api/caca/workspace' + path + '?' + adapter.scopeQuery(scope), options); assertSession(marker); return value;
@@ -207,12 +207,13 @@
     if (window.innerWidth <= 900) { const vv = window.visualViewport; panel.style.top = `${Math.round(vv?.offsetTop || 0)}px`; panel.style.height = `${Math.max(150, Math.round((vv?.height || window.innerHeight) - 98))}px`; panel.style.bottom = 'auto'; }
     else { panel.style.top = ''; panel.style.height = ''; panel.style.bottom = ''; }
   }
-  function scopeChanged() { selected = null; adapter?.setPending(null); renderList(); $('cacaWorkspaceDetail')?.replaceChildren(node('p', 'Pilih tugas yang ingin dibahas. Setiap tugas mempertahankan gerai asalnya.', 'muted')); if (open) void refresh(); }
-  function openWorkspace(id = null) { ensure(); open = true; $('cacaWorkspace').classList.remove('hidden'); $('cacaPanel')?.classList.add('caca-workspace-chat-open'); $('cacaWorkspaceToggle')?.setAttribute('aria-expanded', 'true'); alignViewport(); if (id && tasks.has(id)) select(id); void refresh().then(() => { if (open && id && tasks.has(id)) select(id); }); }
+  function scopeChanged() { selected = null; adapter?.setPending(null); if(adapter)window.UnaLembar?.configure({...adapter,selectTask:select}); renderList(); $('cacaWorkspaceDetail')?.replaceChildren(node('p', 'Pilih tugas yang ingin dibahas. Setiap tugas mempertahankan gerai asalnya.', 'muted')); if (open) void refresh(); }
+  function showWorkspace() { ensure(); open = true; $('cacaWorkspace').classList.remove('hidden'); $('cacaPanel')?.classList.add('caca-workspace-chat-open'); $('cacaWorkspaceToggle')?.setAttribute('aria-expanded', 'true'); alignViewport(); }
+  function openWorkspace(id = null) { showWorkspace(); if (id) window.UnaLembar?.showTasks(id); else void window.UnaLembar?.restore().catch(error=>status(error.message)); if (id && tasks.has(id)) select(id); void refresh().then(() => { if (open && id && tasks.has(id)) select(id); }); }
 
   function closeWorkspace() { open = false; $('cacaWorkspace')?.classList.add('hidden'); $('cacaPanel')?.classList.remove('caca-workspace-chat-open'); $('cacaWorkspaceToggle')?.setAttribute('aria-expanded', 'false'); $('cacaPertanyaan')?.focus(); }
-  function reset() { epoch++; closeWorkspace(); tasks.clear(); views.clear(); selected = null; identity = ''; $('cacaWorkspaceList')?.replaceChildren(); $('cacaWorkspaceDetail')?.replaceChildren(); status(''); }
-  window.UnaWorkspace = { configure, capture, open: openWorkspace, close: closeWorkspace, refresh, select, cancelSelected: () => cancel(), context, scopeChanged, chatScope: () => context()?.scope || null, isSelected: id => selected === id, hasDirtySelection: () => !!views.get(selected)?.dirty, reset, get isOpen() { return open; } };
+  function reset() { epoch++; window.UnaLembar?.reset(); closeWorkspace(); tasks.clear(); views.clear(); selected = null; identity = ''; $('cacaWorkspaceList')?.replaceChildren(); $('cacaWorkspaceDetail')?.replaceChildren(); status(''); }
+  window.UnaWorkspace = { configure, capture, open: openWorkspace, show:showWorkspace, close: closeWorkspace, refresh, select, taskState:id=>{const t=tasks.get(id);return t?{id:t.id,revision:t.revision}:null;}, cancelSelected: () => cancel(), context, scopeChanged, chatScope: () => context()?.scope || null, isSelected: id => selected === id, hasDirtySelection: () => !!views.get(selected)?.dirty, reset, get isOpen() { return open; } };
   window.addEventListener('resize', alignViewport); window.visualViewport?.addEventListener('resize', alignViewport); window.visualViewport?.addEventListener('scroll', alignViewport);
   window.addEventListener('focus', () => { if (open) void refresh(); });
   window.addEventListener('storage', () => { if (adapter && adapter.getIdentity() !== identity) { reset(); adapter.onAccountChange?.(); } });

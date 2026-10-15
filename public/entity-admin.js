@@ -601,6 +601,28 @@ function renderEntityEmployeeBalance(employeeId, kind) {
   document.querySelectorAll(`[data-employee-balance="${kind}"]`).forEach(node => {
     if (node.dataset.employeeId === employeeId) node.innerHTML = entityEmployeeBalanceHtml(employeeId, kind);
   });
+  const total = document.querySelector(`[data-employee-total="${kind}"]`);
+  if (total) total.innerHTML = entityEmployeeTotalHtml(kind);
+}
+
+// Bos Cyo, 2026-10-15: total saldo setoran & hutang gaji semua karyawan di atas kolomnya masing-masing.
+// Dijumlah dari saldo per karyawan yang sama (bukan hitungan terpisah); selama ada yang belum termuat,
+// ditandai "memuat N".
+function entityEmployeeTotalHtml(kind) {
+  const employees = entityAdminState.employees || [];
+  let sum = 0;
+  let pending = 0;
+  let waiting = 0;
+  for (const employee of employees) {
+    const balance = entityEmployeeBalances.get(`${employee.id}:${kind}`);
+    if (!balance || balance.error) { waiting += 1; continue; }
+    sum += balance.balanceRupiah;
+    pending += balance.pendingRupiah || 0;
+  }
+  const label = kind === 'gaji' ? 'Total hutang gaji' : 'Total setoran';
+  const pendingHtml = pending ? `<div class="muted" style="font-size:.85em">menunggu ACC Rp${entityReportRupiah(pending)}</div>` : '';
+  const waitingHtml = waiting ? `<div class="muted" style="font-size:.85em">memuat ${waiting}…</div>` : '';
+  return `<div class="muted" style="font-size:.85em">${label}</div><strong>${sum < 0 ? '−' : ''}Rp${entityReportRupiah(Math.abs(sum))}</strong>${pendingHtml}${waitingHtml}`;
 }
 
 function sortedEntityEmployees() {
@@ -630,7 +652,24 @@ function sortedEntityEmployees() {
 function renderEntityEmployees() {
   const employees = sortedEntityEmployees();
   entityAdminEl('entityEmployeeCount').textContent = employees.length;
-  entityAdminEl('entityEmployeeList').innerHTML = employees.length ? employees.map(employee => `
+  // Baris total memakai kerangka kolom yang sama dengan baris karyawan (label tombol tak terlihat dan
+  // setinggi nol) supaya angkanya pas di atas kolom Setoran dan Hutang Gaji.
+  const ghost = 'display:inline-block;visibility:hidden;height:0;padding-top:0;padding-bottom:0;border:0;overflow:hidden';
+  const totalRow = employees.length ? `
+    <div class="master-row contact-row" style="background:transparent;border-style:dashed">
+      <div class="master-main"><strong>Total ${employees.length} karyawan</strong></div>
+      <div class="master-actions" style="align-items:flex-end">
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+          <div data-employee-total="setoran">${entityEmployeeTotalHtml('setoran')}</div>
+          <span class="mini-btn" aria-hidden="true" style="${ghost}">Riwayat Setoran</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+          <div data-employee-total="gaji">${entityEmployeeTotalHtml('gaji')}</div>
+          <span class="mini-btn" aria-hidden="true" style="${ghost}">Riwayat Hutang Gaji</span>
+        </div>
+      </div>
+    </div>` : '';
+  entityAdminEl('entityEmployeeList').innerHTML = employees.length ? totalRow + employees.map(employee => `
     <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
       <div class="master-main">
         <strong>${entityAdminEscape(employee.fullName)}</strong>

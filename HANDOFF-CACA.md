@@ -47,7 +47,12 @@ U1, U2, U3, U5, U6) dan **Opus 5.5** (Eskor: U0, U4, U7, U8).
 | U1, U2, U3, U5, U6 (Sol 6.1) | **SELESAI lokal** (Codex `bec92f7`), sudah digabung ke `eskor/una-live-u4` | branch `codex/una-live-sol-20261015`, worktree `wt-una-sol` |
 | U4 (Opus 5.5) | **SELESAI lokal**, terintegrasi dengan modul Sol asli; uji browser/HP/suara nyata tetap di U8 | branch `eskor/una-live-u4` (= U0 + Sol + U4), `test/una-live-integrasi.test.js` |
 | U7 (Opus 5.5) | **SELESAI lokal**; uji model sungguhan + browser = U8 | branch `eskor/una-live-u4`, `test/una-kanvas-baca.test.js` |
-| U8 (Opus 5.5) | menunggu semua | |
+| U8 (Opus 5.5) | **uji browser lokal LULUS** (2026-10-15 22:55); uji suara/HP nyata + model sungguhan menunggu Bos sesudah rilis | lihat catatan U8 |
+
+**U8 uji browser lokal (Eskor, 2026-10-15 22:55):** `wrangler dev --local` + D1 lokal dari semua migration (dibangun lewat node:sqlite karena `wrangler d1 migrations apply --local` gagal "too many terms in compound SELECT" di migration lama), akun uji Entity Admin ENT-KPM (11 gerai), kunci Gemini palsu di `.dev.vars` (dikecualikan git). Chrome headless lewat CDP. Hasil:
+- LULUS: Entity Admin terbuka tanpa error JS (muat ±1,0–1,6 dtk lokal, skrip una-* ±32 KB); semua modul termuat; "buka laporan tanggal 1 sampai 10 oktober" → Laporan Usaha di Workspace, 1–10 Okt, data termuat, kalimat "Laporan 1–10 Oktober 2026 untuk 11 gerai sudah tampil"; "eh sampai tanggal 8 aja" → 1–8; ubah tanggal manual 8–14 lalu "kalau minggu sebelumnya?" → 1–7; coretan tersimpan ke server; "lihat gambar ini" sampai ke model (ditolak karena kunci palsu); sesudah reload lembar + coretan kembali; HP 390 px tanpa geser samping.
+- Diperbaiki dari temuan: kalimat konfirmasi kini memakai tanggal dari bukti tanda terima (server tidak meneruskan `rentang`); chat di lingkup gerai yang menerima perintah tanggal Laporan Entity kini dijawab "pilih Entity dulu" (sebelumnya lolos ke model); versi cache `?v=` untuk skrip/CSS Sol.
+- Terbuka/keputusan Bos: chat Una di halaman Entity Admin bawaannya memilih gerai pertama (BEJI), bukan Entity; lingkup terakhir diingat. Tombol "Tutup tampilan lembar" muncul dua kali (kepala Workspace + toolbar kanvas). PATCH lembar sekali gagal di proxy wrangler lokal lalu berhasil saat diulang (diduga khas lokal). Belum diuji: mikrofon/suara nyata, HP fisik, mutu bacaan gambar oleh model sungguhan, performa produksi.
 
 **U7 pembaca lembar gambar (Eskor, 2026-10-15 malam):**
 - Pemicu (kode, tanpa model): saat lembar aktif adalah kanvas dan pesan merujuk gambar ("lihat gambar ini", "ini maksudnya apa?", "baca coretan aku") → `canvas.read` bertarget lembar + revisi (`perintahBacaKanvas`, `src/una-kanvas-baca.js`, dipanggil sesudah `perintahLembar`).

@@ -18,6 +18,16 @@
     'canvas.apply_patch': 'Ubah lembar gambar'
   };
   const MAKS_KONTEKS = 4096;
+  const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  // Sama dengan rentangUntukDibaca di src/una-perintah-lembar.js: "1–8 Oktober 2026".
+  function rentang(dari, sampai) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dari || '') || !/^\d{4}-\d{2}-\d{2}$/.test(sampai || '')) return '';
+    const [y1, m1, d1] = dari.split('-').map(Number); const [y2, m2, d2] = sampai.split('-').map(Number);
+    if (dari === sampai) return `${d1} ${BULAN[m1 - 1]} ${y1}`;
+    if (y1 === y2 && m1 === m2) return `${d1}–${d2} ${BULAN[m2 - 1]} ${y2}`;
+    if (y1 === y2) return `${d1} ${BULAN[m1 - 1]} – ${d2} ${BULAN[m2 - 1]} ${y2}`;
+    return `${d1} ${BULAN[m1 - 1]} ${y1} – ${d2} ${BULAN[m2 - 1]} ${y2}`;
+  }
 
   function create(w) {
     let last = null; let menuTab = null; let urutan = 0;
@@ -126,7 +136,8 @@
       if (r.status === 'ok') {
         if (r.capabilityId === 'canvas.read') return w.UnaKanvasBaca?.ringkas(r.actionId) || { text: 'Lembar sudah dibaca, Bos.', ask: false };
         if (r.capabilityId === 'report.set_filters' || r.capabilityId === 'report.refresh') {
-          const f = r.proof?.filters; const dibaca = payload.rentang?.dibaca;
+          // Tanggal dari bukti tanda terima (yang benar-benar tampil), bukan dari janji server.
+          const f = r.proof?.filters; const dibaca = (f && rentang(f.from, f.to)) || payload.rentang?.dibaca;
           const toko = Number.isInteger(r.summary?.storeCount) ? ` untuk ${r.summary.storeCount} gerai` : '';
           return { text: `Laporan ${dibaca || (f ? f.from + ' s/d ' + f.to : '')}${toko} sudah tampil di Workspace, Bos.`, ask: false };
         }

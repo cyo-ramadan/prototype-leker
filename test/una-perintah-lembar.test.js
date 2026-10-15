@@ -84,6 +84,15 @@ test('bukan wilayah modul ini: tulis, tanya angka, gerai, panel lama, atau tanpa
   assert.equal(perintahLembar('buka laporan', entity(sc())), null, 'buka saja tetap lewat buka_layar');
 });
 
+test('Entity Admin dengan chat di lingkup gerai: diarahkan ke Entity, tidak dilempar ke model', () => {
+  const hasil = perintahLembar('buka laporan tanggal 1 sampai 10 oktober', entity(sc(), { lingkup: 'gerai' }));
+  assert.equal(hasil.belumLengkap, true);
+  assert.deepEqual(hasil.uiActions, []);
+  assert.match(hasil.jawaban, /pilih "Entity"/i);
+  assert.equal(perintahLembar('buka laporan', entity(sc(), { lingkup: 'gerai' })), null, 'buka saja tetap buka_layar');
+  assert.equal(perintahLembar('ganti tanggal laporan gerai 1 sampai 10 oktober', entity(sc(), { lingkup: 'gerai' })), null);
+});
+
 test('konteks lembar dari browser dibersihkan; bentuk asing dibuang', () => {
   const contoh = fixture('aksi.json').surfaceContextExample;
   assert.deepEqual(bersihkanKonteksLembar(contoh), contoh);

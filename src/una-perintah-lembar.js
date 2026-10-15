@@ -192,9 +192,16 @@ export function perintahLembar(pesan, konteks = {}) {
   const sc = konteks.surfaceContext;
   if (!sc) return null; // Panel lama tanpa registry tidak bisa menjalankan uiActions.
   const peran = PERAN[String(konteks.peran ?? '').toUpperCase().replace(/_/g, ' ')] || PERAN[String(konteks.peran ?? '').toUpperCase()];
-  if (!peran || konteks.lingkup !== 'entity') return null;
   const t = normal(pesan).replace(/^(una|maimunah|caca)\s*,?\s*/, '');
-  if (KATA_TULIS.test(t) || KATA_TANYA_ANGKA.test(t)) return null;
+  if (!peran || KATA_TULIS.test(t) || KATA_TANYA_ANGKA.test(t)) return null;
+  // Chat sedang membahas satu gerai: Laporan Usaha (semua gerai) ada di tingkat Entity.
+  // Beri tahu, jangan diam-diam dilempar ke model atau membuka laporan gerai.
+  if (konteks.lingkup !== 'entity') {
+    const laporanEntity = /\blaporan\b/.test(t) && !/\blaporan (gerai|per gerai|stok|laci)\b/.test(t) && KATA_FILTER.test(t);
+    if (!laporanEntity || !uraiRentang(t, { sc: null, hariIni: konteks.hariIni })) return null;
+    return { ok: true, alat: 'ui_aksi', belumLengkap: true, uiActions: [], perluKonfirmasi: false,
+      jawaban: 'Laporan Usaha untuk semua gerai ada di tingkat Entity, Bos. Pilih "Entity" di daftar gerai di atas chat, lalu ulangi perintahnya.' };
+  }
   const laporanAktif = sc.page?.halaman === 'entity' && sc.page?.tab === 'reports';
   const sebutLaporan = /\blaporan\b/.test(t) && !/\blaporan (gerai|per gerai|stok|laci)\b/.test(t);
   if (!laporanAktif && !sebutLaporan) return null;

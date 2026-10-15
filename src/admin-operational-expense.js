@@ -5,6 +5,7 @@ import { getJakartaBusinessDate } from './time.js';
 import { invalidateDailyProfitSnapshot } from './net-profit-report.js';
 import { recordBeaGajiAdjustment, voidLedgerEntryBySource, WAGE_SCALE } from './payroll-ledger.js';
 import { operationalExpensePayableStatement } from './operational-expense-payables.js';
+import { checkPartyName } from './nama-pihak.js';
 
 // Bea Operasional dari panel Admin Gerai (migration 0100) -- Bos Cyo,
 // 2026-09-17. Uang keluar yang dibayar Admin, bukan lewat laci kasir:
@@ -213,7 +214,10 @@ export async function handleAdminOperationalExpenseApi(request, env, pathname) {
       } else if (counterpartyType === 'OTHER') {
         const name = text(body.value?.counterpartyName, 200);
         if (!name) return json({ error: 'Tulis nama pihak yang dihutangi (mis. pemilik lapak).', code: 'COUNTERPARTY_REQUIRED' }, 400);
-        party = { type: 'OTHER', id: null, name };
+        // Nama yang sama dengan pemasok/nama yang sudah dipakai (beda huruf besar/spasi saja) memakai
+        // yang sudah ada -- satu orang satu nama di Hutang Piutang (nama-pihak.js).
+        const { exact } = await checkPartyName(db, store, name);
+        party = exact?.kind === 'SUPPLIER' ? { type: 'SUPPLIER', id: exact.id, name: exact.name } : { type: 'OTHER', id: null, name: exact?.name || name };
       } else {
         return json({ error: 'Jenis pihak tidak dikenal.', code: 'COUNTERPARTY_TYPE_INVALID' }, 400);
       }

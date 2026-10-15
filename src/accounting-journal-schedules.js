@@ -446,6 +446,134 @@ export async function skipOccurrenceNow(db, store, occurrenceId) {
   return { ok: true };
 }
 
+// --- Jurnal Split sebagai satu kesatuan (Bos Cyo, 2026-10-14) ------------------------------------------
+// "split tanggal 1-7 aku pilih hapus maka hapusnya sudah semua jurnal di tanggal itu" + "jurnal ... tanggal
+// lebih besar dari hari ini ... kasih pilihan, post sekarang?" Berlaku juga untuk split lama. Batas per
+// panggilan supaya satu request tidak memposting ratusan jurnal; UI mengulang sampai `remaining` 0.
+const SPLIT_BATCH_PER_CALL = 60;
+
+async function splitSchedule(db, store, scheduleId) {
+  return db.prepare(`SELECT * FROM accounting_journal_schedules WHERE id = ? AND store_id = ? AND kind = 'SPLIT'`)
+    .bind(text(scheduleId, 200), store.id).first();
+}
+
+// Daftar semua Jurnal Split gerai beserta hitungan per status -- satu query agregat (tanpa subquery per baris,
+// KNOWN_PITFALLS kuota baca D1).
+export async function listSplitSchedules(db, storeId) {
+  const [schedules, counts, accounts] = await Promise.all([
+    db.prepare(`SELECT * FROM accounting_journal_schedules WHERE store_id = ? AND kind = 'SPLIT' ORDER BY created_at DESC LIMIT 200`).bind(storeId).all(),
+    db.prepare(`
+      SELECT o.schedule_id,
+             SUM(CASE WHEN o.status = 'POSTED' THEN 1 ELSE 0 END) AS posted,
+             SUM(CASE WHEN o.status = 'PLANNED' THEN 1 ELSE 0 END) AS planned,
+             SUM(CASE WHEN o.status = 'SKIPPED' THEN 1 ELSE 0 END) AS skipped,
+             SUM(CASE WHEN o.status = 'POSTED' AND EXISTS (
+               SELECT 1 FROM accounting_journal_headers r WHERE r.store_id = o.store_id AND r.reversal_of_journal_id = o.journal_id
+             ) THEN 1 ELSE 0 END) AS reversed
+      FROM accounting_journal_schedule_occurrences o
+      JOIN accounting_journal_schedules s ON s.id = o.schedule_id AND s.kind = 'SPLIT'
+      WHERE o.store_id = ?
+      GROUP BY o.schedule_id
+    `).bind(storeId).all(),
+    db.prepare(`SELECT id, code, name FROM chart_of_accounts WHERE store_id = ?`).bind(storeId).all()
+  ]);
+  const countById = new Map((counts.results ?? []).map(row => [row.schedule_id, row]));
+  const accountById = new Map((accounts.results ?? []).map(row => [row.id, `${row.code} ${row.name}`]));
+  return (schedules.results ?? []).map(row => {
+    const count = countById.get(row.id) || {};
+    return {
+      ...scheduleRowToObject(row),
+      debitAccountLabel: accountById.get(row.debit_account_id) || '',
+      creditAccountLabel: accountById.get(row.credit_account_id) || '',
+      debitPartyName: parseParty(row.debit_party_json)?.name || '',
+      creditPartyName: parseParty(row.credit_party_json)?.name || '',
+      postedCount: Number(count.posted || 0),
+      plannedCount: Number(count.planned || 0),
+      skippedCount: Number(count.skipped || 0),
+      reversedCount: Number(count.reversed || 0),
+      cancelledAt: row.cancelled_at || null,
+      cancelReason: row.cancel_reason || ''
+    };
+  });
+}
+
+// Posting sekarang: semua hari yang belum diposting (termasuk tanggal yang belum tiba) diposting dengan
+// tanggal transaksinya masing-masing -- entry tanggal 14 boleh memposting jurnal bertanggal 15, 16, dst.
+export async function postSplitNow(db, store, scheduleId) {
+  const schedule = await splitSchedule(db, store, scheduleId);
+  if (!schedule) return { ok: false, status: 404, code: 'SPLIT_NOT_FOUND', error: 'Jurnal Split tidak ditemukan.' };
+  if (schedule.cancelled_at) return { ok: false, status: 409, code: 'SPLIT_CANCELLED', error: 'Jurnal Split ini sudah dihapus.' };
+  const due = await db.prepare(`
+    SELECT * FROM accounting_journal_schedule_occurrences WHERE schedule_id = ? AND status = 'PLANNED'
+    ORDER BY occurrence_date ASC LIMIT ?
+  `).bind(schedule.id, SPLIT_BATCH_PER_CALL).all();
+  let posted = 0;
+  for (const occurrence of due.results ?? []) {
+    const result = await postOccurrence(db, store, schedule, occurrence, occurrence.occurrence_date);
+    if (!result.ok) return { ok: false, status: 409, code: result.code || 'SPLIT_POST_FAILED', error: result.error || 'Posting gagal.', posted };
+    posted += 1;
+  }
+  const remaining = Number((await db.prepare(`
+    SELECT COUNT(*) AS n FROM accounting_journal_schedule_occurrences WHERE schedule_id = ? AND status = 'PLANNED'
+  `).bind(schedule.id).first())?.n || 0);
+  if (!remaining) await db.prepare(`UPDATE accounting_journal_schedules SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(schedule.id).run();
+  return { ok: true, scheduleId: schedule.id, posted, remaining };
+}
+
+// Hapus split: tandai dihapus + hari yang belum diposting dilewati (sekali, atomik), lalu setiap jurnal harian
+// yang sudah diposting dibalik dengan pembalik bertanggal sama (nama "atas nama" diwarisi). Idempoten: dipanggil
+// ulang hanya melanjutkan pembalik yang belum ada.
+export async function cancelSplit(db, store, scheduleId, { actor = {}, reason = '' } = {}) {
+  const schedule = await splitSchedule(db, store, scheduleId);
+  if (!schedule) return { ok: false, status: 404, code: 'SPLIT_NOT_FOUND', error: 'Jurnal Split tidak ditemukan.' };
+  const why = text(reason, 200);
+  if (!schedule.cancelled_at) {
+    await db.batch([
+      db.prepare(`
+        UPDATE accounting_journal_schedules
+        SET cancelled_at = ?, cancelled_by_role = ?, cancelled_by_id = ?, cancel_reason = ?, is_active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND cancelled_at IS NULL
+      `).bind(new Date().toISOString(), text(actor.role, 40), text(actor.id, 180), why, schedule.id),
+      db.prepare(`
+        UPDATE accounting_journal_schedule_occurrences SET status = 'SKIPPED', updated_at = CURRENT_TIMESTAMP
+        WHERE schedule_id = ? AND status = 'PLANNED'
+      `).bind(schedule.id)
+    ]);
+  }
+  const pending = await db.prepare(`
+    SELECT o.occurrence_date, o.journal_id FROM accounting_journal_schedule_occurrences o
+    WHERE o.schedule_id = ? AND o.status = 'POSTED' AND o.journal_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM accounting_journal_headers r WHERE r.store_id = o.store_id AND r.reversal_of_journal_id = o.journal_id)
+    ORDER BY o.occurrence_date ASC LIMIT ?
+  `).bind(schedule.id, SPLIT_BATCH_PER_CALL + 1).all();
+  const rows = pending.results ?? [];
+  let reversed = 0;
+  for (const row of rows.slice(0, SPLIT_BATCH_PER_CALL)) {
+    const original = await getAccountingJournal(db, store.id, row.journal_id);
+    if (!original) continue;
+    const result = await postAccountingJournal(db, store, {
+      businessDate: original.businessDate,
+      occurredAt: new Date().toISOString(),
+      sourceSystem: 'ACCOUNTING_SCHEDULE_VOID',
+      sourceReferenceId: `schedule_void_${schedule.id}_${row.occurrence_date}`,
+      correlationId: schedule.id,
+      idempotencyKey: `ACCOUNTING_SCHEDULE_VOID:${store.id}:${schedule.id}:${row.occurrence_date}`,
+      description: `Hapus Jurnal Split · ${schedule.name} · hari ${row.occurrence_date}${why ? ` · ${why}` : ''}`.slice(0, 300),
+      reversalOfJournalId: original.journalId,
+      createdBy: actor.role ? { role: actor.role, id: actor.id || '', note: 'Hapus Jurnal Split' } : undefined,
+      journalLines: original.lines.map(line => ({
+        accountId: line.accountId,
+        side: line.side === 'DEBIT' ? 'CREDIT' : 'DEBIT',
+        amountScaled: line.amountScaled,
+        description: `Pembalik · ${line.description || original.description}`.slice(0, 240)
+      }))
+    });
+    if (!result?.ok) return { ok: false, status: 409, code: result?.code || 'SPLIT_REVERSAL_FAILED', error: result?.error || 'Jurnal pembalik gagal diposting.', reversed };
+    reversed += 1;
+  }
+  return { ok: true, scheduleId: schedule.id, reversed, remaining: Math.max(0, rows.length - reversed) };
+}
+
 export async function listRecurringSchedules(db, storeId) {
   const rows = await db.prepare(`
     SELECT * FROM accounting_journal_schedules WHERE store_id = ? AND kind = 'RECURRING' ORDER BY name

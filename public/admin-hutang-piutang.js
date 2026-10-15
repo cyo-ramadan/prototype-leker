@@ -49,7 +49,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:8px">
             ${PANELS.map(panel => `<button class="secondary-btn" type="button" style="width:auto;flex:0 0 auto" data-hp-panel="${panel.key}">${panel.label}</button>`).join('')}
           </div>
-          <div class="muted" style="margin-top:8px">Hutang dibuat di tab <b>Bea Operasional</b> (dan otomatis dari pembelian kasir yang cara bayarnya ditandai "Jadi Hutang"). Di sini tempat melunasi dan melihat laporannya.</div>
+          <div class="muted" style="margin-top:8px">Hutang dibuat di tab <b>Bea Operasional</b>, otomatis dari pembelian kasir yang cara bayarnya ditandai "Jadi Hutang", dan dari jurnal Akuntansi atas nama seseorang (mis. hutang sewa lapak: Kredit 2101 Utang Usaha atas nama pemilik lapak). Di sini tempat melunasi dan melihat laporannya.</div>
         </div>
         <div id="hpPanelHost"></div>
       </section>`);
@@ -125,7 +125,7 @@
       <div class="admin-grid master-layout">
         <form id="hpPayForm" class="admin-card sticky-form">
           <div class="form-title-row"><h2>Pembayaran Hutang/Piutang</h2></div>
-          <div class="muted" style="margin-bottom:10px">Pilih hutang siapa yang dibayar. Pelunasan tidak mengubah untung-rugi (bebannya sudah diakui waktu hutang dibuat) -- cuma mengurangi hutang.</div>
+          <div class="muted" style="margin-bottom:10px">Pilih hutang siapa yang dibayar. Pelunasan tidak mengubah untung-rugi (bebannya sudah diakui waktu hutang dibuat) -- cuma mengurangi hutang. Hutang bertanda "buku Akuntansi" dilunasi dengan jurnal atas nama orang yang sama.</div>
           <label class="admin-field">Bayar hutang ke<select id="hpPayAccount" required>
             ${accounts.length ? accounts.map(({ person, account }) =>
               `<option value="${escapeHtml(account.accountKey)}" data-balance="${account.balanceRupiah}">${escapeHtml(person.counterpartyName)} (${PARTY_LABEL[person.counterpartyType] || ''}) · ${escapeHtml(account.label)} · sisa ${rupiah(account.balanceRupiah)}</option>`).join('')

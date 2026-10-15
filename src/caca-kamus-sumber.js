@@ -442,7 +442,12 @@ export const SUMBER_KAMUS = Object.freeze({
     "fitur": [
       "rute:src/accounting-workspace.js:/api/admin/accounting/journal-splits",
       "tombol:public/admin-accounting-workspace.js:label:Buat Jurnal Split",
-      "tulis:src/accounting-workspace.js:request.method === 'POST' && pathname === '/api/admin/accounting/journal-splits')"
+      "tulis:src/accounting-workspace.js:request.method === 'POST' && pathname === '/api/admin/accounting/journal-splits')",
+      "pola:src/accounting-workspace.js:/^\\/api\\/admin\\/accounting\\/journal-splits\\/([^/]+)\\/(post-now|cancel)$/",
+      "tombol:public/admin-accounting-workspace.js:data-split-cancel:Hapus split",
+      "tombol:public/admin-accounting-workspace.js:data-split-cancel:Lanjutkan hapus",
+      "tombol:public/admin-accounting-workspace.js:data-split-post:Posting sekarang",
+      "tulis:src/accounting-workspace.js:request.method === 'POST' && splitActionMatch)"
     ]
   }
 });

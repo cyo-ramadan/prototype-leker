@@ -231,6 +231,47 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "info_gerai": {
+    "sumber": [
+      "src/info-gerai.js",
+      "public/info-gerai.js",
+      "public/info-gerai-kasir.js",
+      "src/tenant-policy.js"
+    ],
+    "fitur": [
+      "pola:src/info-gerai.js:/^\\/api\\/info-gerai\\/([^/]+)(?:\\/(foto|status|aktivitas))?$/",
+      "rute:src/info-gerai.js:/api/info-gerai",
+      "rute:src/info-gerai.js:/api/info-gerai/",
+      "rute:src/info-gerai.js:/api/info-gerai/ringkasan",
+      "tombol:public/cashier.html:infoGeraiBtn",
+      "tombol:public/entity-admin.js:data-info-gerai:ℹ️ Info Gerai{nilai}",
+      "tombol:public/info-gerai.js:${esc(entry.id)}",
+      "tombol:public/info-gerai.js:data-ig-baru:＋ Laporkan Masalah",
+      "tombol:public/info-gerai.js:data-ig-baru:＋ Tambah kontak",
+      "tombol:public/info-gerai.js:data-ig-baru:＋ Tulis panduan",
+      "tombol:public/info-gerai.js:data-ig-edit:Ubah",
+      "tombol:public/info-gerai.js:data-ig-filter:Belum beres ({nilai})",
+      "tombol:public/info-gerai.js:data-ig-filter:Sudah beres ({nilai})",
+      "tombol:public/info-gerai.js:data-ig-foto:🖼 Lihat foto",
+      "tombol:public/info-gerai.js:data-ig-hapus:Hapus",
+      "tombol:public/info-gerai.js:data-ig-kontak-salah:⚠️ Nomor salah / tutup",
+      "tombol:public/info-gerai.js:data-ig-saya-juga:👀 Saya juga lihat{nilai})` : ''}",
+      "tombol:public/info-gerai.js:data-ig-selesai:✅ Tandai selesai",
+      "tombol:public/info-gerai.js:data-ig-tab:{nilai}",
+      "tombol:public/info-gerai.js:label:← Kembali",
+      "tombol:public/info-gerai.js:label:Kirim",
+      "tombol:public/info-gerai.js:label:Kirim laporan",
+      "tombol:public/info-gerai.js:label:Simpan kontak",
+      "tombol:public/info-gerai.js:label:Simpan panduan",
+      "tombol:public/info-gerai.js:label:Tandai selesai",
+      "tombol:public/info-gerai.js:label:Tutup",
+      "tulis:src/info-gerai.js:request.method === 'DELETE' && !action)",
+      "tulis:src/info-gerai.js:request.method === 'PATCH' && !action)",
+      "tulis:src/info-gerai.js:request.method === 'POST' && action === 'aktivitas')",
+      "tulis:src/info-gerai.js:request.method === 'POST' && action === 'status')",
+      "tulis:src/info-gerai.js:request.method === 'POST' && pathname === '/api/info-gerai')"
+    ]
+  },
   "karyawan_tambah": {
     "sumber": [
       "src/employee-master.js",

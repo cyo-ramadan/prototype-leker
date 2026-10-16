@@ -66,6 +66,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminIdentity').textContent = entityAdminState.entityAdmin?.displayName || entityAdminState.entityAdmin?.username || 'Entity Admin';
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
+  loadEntityInfoGeraiSummary().catch(() => {});
   window.refreshEntitySetoranBadge?.();
   window.refreshEntityIzinBadge?.();
   window.refreshEntityDrawerCards?.();
@@ -1383,9 +1384,35 @@ function renderEntityAdminStores() {
       <div class="owner-store-status">${window.entityDrawerBadge ? window.entityDrawerBadge(store, entityAdminState.drawers) : (store.isActive ? '' : '○ Nonaktif')}</div>
       <div class="owner-store-actions">
         ${window.MaxiSkin?.skin?.() === 'h' ? `<button class="primary-btn" type="button" data-owner-store="${entityAdminEscape(store.code)}">Kelola gerai</button><a class="secondary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/cashier?readonly=1" target="_blank" rel="noopener">Lihat CS</a>` : `<a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>`}
+        ${entityInfoGeraiButton(store)}
       </div>
     </article>`).join('') : '<div class="empty">Belum ada gerai yang tertaut ke entity ini.</div>';
 }
+
+// Bos Cyo, 2026-10-16: tombol Info Gerai per kartu gerai, dengan angka laporan yang belum beres
+// (🔴 kalau ada yang mengganggu jualan). Ringkasan dimuat sekali saat panel dibuka dan setelah
+// dialog Info Gerai ditutup -- bukan polling.
+let entityInfoGeraiSummary = { enabled: false, stores: [] };
+
+function entityInfoGeraiButton(store) {
+  if (!entityInfoGeraiSummary.enabled || !store.isActive) return '';
+  const counts = entityInfoGeraiSummary.stores.find(item => item.storeCode === store.code);
+  const badge = counts?.open ? ` <span class="info-gerai-badge">${counts.urgent ? '🔴 ' : ''}${counts.open}</span>` : '';
+  return `<button class="secondary-btn" type="button" data-info-gerai="${entityAdminEscape(store.code)}">ℹ️ Info Gerai${badge}</button>`;
+}
+
+async function loadEntityInfoGeraiSummary() {
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode || !window.InfoGerai) return;
+  entityInfoGeraiSummary = await window.InfoGerai.ringkasan(entityAdminApi, storeCode);
+  renderEntityAdminStores();
+}
+
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-info-gerai]');
+  if (!button) return;
+  window.InfoGerai?.open({ api: entityAdminApi, storeCode: button.dataset.infoGerai, onClose: loadEntityInfoGeraiSummary });
+});
 
 async function entityAdminLogout() {
   window.OwnerEntityPortal?.destroy();

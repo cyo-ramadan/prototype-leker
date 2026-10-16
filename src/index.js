@@ -44,6 +44,7 @@ import { handleCacaApi } from './caca-chat.js';
 import { handlePercetakanApi } from './percetakan-api.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
+import { handleInfoGeraiApi } from './info-gerai.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
 import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
@@ -351,6 +352,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (entityStockResponse) return entityStockResponse;
   const entityDrawerStatusResponse = await handleEntityDrawerStatusApi(request, env, pathname);
   if (entityDrawerStatusResponse) return entityDrawerStatusResponse;
+  const infoGeraiResponse = await handleInfoGeraiApi(request, env, pathname);
+  if (infoGeraiResponse) return infoGeraiResponse;
   const employeeMasterResponse = await handleEmployeeMasterApi(request, env, pathname);
   if (employeeMasterResponse) return employeeMasterResponse;
   const employeeDepositResponse = await handleEmployeeDepositApi(request, env, pathname);

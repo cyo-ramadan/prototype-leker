@@ -1,0 +1,52 @@
+/* Info Gerai (Bos Cyo, 2026-10-16) -- dialog bersama kasir & Entity Admin. Warna lewat token tema. */
+.info-gerai-dialog {
+  width: min(760px, calc(100vw - 24px));
+  max-height: 88vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--line, #eadfce);
+  border-radius: 20px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1d1b18);
+}
+.info-gerai-dialog::backdrop { background: rgba(20, 16, 10, .45); }
+.info-gerai-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.info-gerai-head h2 { margin: 0; }
+.info-gerai-lapor { width: 100%; margin-bottom: 10px; }
+.info-gerai-search { width: 100%; margin-bottom: 10px; }
+.info-gerai-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.info-gerai-tab {
+  border: 1px solid var(--line, #eadfce);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1d1b18);
+  padding: 8px 14px;
+  font-weight: 800;
+  min-height: 40px;
+  font-size: 14px;
+}
+.info-gerai-tab.active { background: var(--ink, #1d1b18); color: var(--surface, #fff); border-color: var(--ink, #1d1b18); }
+.info-gerai-filter { display: flex; gap: 6px; margin-bottom: 10px; }
+.info-gerai-filter .mini-btn.active { outline: 2px solid var(--brand, #dc5b2b); }
+.info-gerai-list { display: grid; gap: 10px; }
+.info-gerai-group { margin: 6px 0 0; font-size: 14px; color: var(--muted, #756f67); text-transform: uppercase; letter-spacing: .04em; }
+.info-gerai-card { border: 1px solid var(--line, #eadfce); border-radius: 16px; padding: 12px; display: grid; gap: 6px; min-width: 0; }
+.info-gerai-card.severity-MERAH { border-left: 5px solid #c2255c; }
+.info-gerai-card.severity-KUNING { border-left: 5px solid var(--amber, #d88c00); }
+.info-gerai-card.severity-HIJAU { border-left: 5px solid var(--green, #168a45); }
+.info-gerai-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.info-gerai-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.info-gerai-solusi { background: var(--green-soft, #e7f7ed); border-radius: 12px; padding: 8px 10px; }
+.info-gerai-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.info-gerai-link { text-decoration: none; display: inline-flex; align-items: center; min-height: 36px; padding: 6px 12px; }
+.info-gerai-link.secondary-btn { color: var(--ink, #1d1b18); }
+.info-gerai-foto { max-width: 100%; max-height: 360px; border-radius: 12px; display: block; }
+.info-gerai-details summary { cursor: pointer; color: var(--muted, #756f67); }
+.info-gerai-activity { border-top: 1px dashed var(--line, #eadfce); padding: 6px 0; overflow-wrap: anywhere; }
+.info-gerai-note { display: flex; gap: 6px; margin-top: 6px; }
+.info-gerai-note .text-input { flex: 1; min-width: 0; }
+.info-gerai-form { display: grid; gap: 8px; }
+.info-gerai-form h2 { margin: 0 0 4px; }
+.info-gerai-form .text-input { width: 100%; }
+.info-gerai-severity { display: grid; gap: 6px; margin-top: 6px; }
+.info-gerai-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: #c2255c; color: #fff; font-size: 11px; font-weight: 800; }

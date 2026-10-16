@@ -532,6 +532,23 @@ export const KAMUS = Object.freeze([
     tawaran: [buka('employees'), buka('cashiers'), jelas('akun_cs', 'Bikin akun CS + jam kerja')],
     aksi: { alat: 'buat_karyawan', tawar: 'Mau Una yang buatkan? Bilang "buatin", atau langsung sebut namanya, mis. "tambah karyawan Rika Nur hp 0812…" — sekalian akun login kalau perlu.', tombol: 'Una buatkan karyawan' }
   },
+  // Info Gerai (Bos Cyo, 2026-10-16): src/info-gerai.js, public/info-gerai.js.
+  {
+    id: 'info_gerai',
+    judul: 'Info Gerai: kontak darurat, laporan masalah, panduan',
+    kunci: ['info gerai', 'kontak darurat', 'supplier es batu', 'pemasok es batu', 'es batu habis', 'nomor supplier', 'lapor masalah', 'laporkan masalah', 'lampu mati', 'neon box', 'listrik mati', 'temuan sidak', 'sidak', 'panduan masalah', 'cara mengatasi', 'dokumentasi masalah'],
+    isi: [
+      'Tombol "ℹ️ Info Gerai" ada di kasir (deretan tombol laci) dan di Entity Admin (tiap kartu gerai, angka merah = laporan yang belum beres; 🔴 = mengganggu jualan).',
+      'Isinya tiga bagian:',
+      '• 📞 Kontak Darurat — pemasok/tukang per kategori (Es Batu, Plastik, Gas, Tukang Listrik…), dengan tombol Chat WA, Telepon, dan Buka Peta. Urutannya Utama lalu Cadangan 1, 2. Kalau nomornya salah atau tokonya tutup, tekan "⚠️ Nomor salah / tutup".',
+      '• ⚠️ Laporan — tekan "＋ Laporkan Masalah", pilih kategori, tulis masalahnya, pilih seberapa mendesak (🔴 langsung jadi notifikasi ke admin), boleh tambah foto. CS lain bisa menekan "👀 Saya juga lihat" atau menambah catatan. Admin mengubah statusnya: Sudah dilihat → Sedang ditangani → ✅ Tandai selesai.',
+      '• 📘 Panduan & Solusi — "masalah → cara mengatasi". Saat laporan ditandai selesai, solusinya wajib ditulis dan otomatis tersimpan jadi panduan, jadi CS baru bisa mencari sendiri (kotak cari: "es batu", "listrik").',
+      'Sifat catatan: Umum (semua bisa lihat), Admin saja, atau Rahasia (Entity Admin & Owner, mis. temuan sidak soal orang). Kasir hanya bisa membuat laporan; kontak dan panduan diisi admin. Kontak/panduan "semua gerai" diisi dari Entity Admin.',
+      'Fitur ini bisa dimatikan Owner di Pengaturan (saklar "Info Gerai").'
+    ].join('\n'),
+    tawaran: [],
+    tanpaAksi: 'Info Gerai diisi langsung dari tombolnya di kasir atau Entity Admin; Una belum mencatat laporan sendiri.'
+  },
   {
     id: 'akun_cs',
     judul: 'Membuat akun CS + jam kerja',

@@ -20,6 +20,9 @@ export const ATTENDANCE_SCHEDULE_GATE_KEY = 'attendance_schedule_gate';
 // lewat GET /api/ui-profile (src/ui-profile.js). Default 0 supaya tenant
 // yang sudah jalan tidak berubah tampilan tanpa diminta.
 export const UI_SKIN_KEY = 'ui_skin';
+// Bos Cyo, 2026-10-16: Info Gerai (kontak darurat, laporan masalah, panduan) di kasir & Entity
+// Admin. Saklar tenant, default aktif; mati = tombol hilang dan /api/info-gerai menolak (403).
+export const INFO_GERAI_KEY = 'info_gerai';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -86,6 +89,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     key: ATTENDANCE_SCHEDULE_GATE_KEY,
     label: 'Batasi gaji & presensi sesuai jadwal shift',
     description: 'ON: presensi di luar jam shift/hari libur gajinya Rp0, dan sesi yang lupa ditutup 1 jam setelah jadwal pulang otomatis ditutup sistem. OFF: cocok untuk tenant yang kebijakannya tidak pakai akun khusus lembur -- di luar jam kerja tetap dihitung gaji, dan tidak di-force-close karena memang masih dianggap kerja.',
+    defaultValue: true
+  },
+  {
+    key: INFO_GERAI_KEY,
+    label: 'Info Gerai',
+    description: 'ON: tombol Info Gerai di kasir dan Entity Admin -- kontak darurat pemasok (WA, telepon, lokasi), laporan masalah dari CS/sidak yang diikuti sampai selesai, dan panduan "masalah -> cara mengatasi" yang bisa dibaca CS baru. OFF: tombolnya tidak tampil.',
     defaultValue: true
   },
   {

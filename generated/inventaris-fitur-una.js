@@ -685,6 +685,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/info-gerai.js:/^\\/api\\/info-gerai\\/([^/]+)(?:\\/(foto|status|aktivitas))?$/",
+    "jenis": "rute-pola",
+    "sumber": "src/info-gerai.js",
+    "method": null,
+    "rute": "/^\\/api\\/info-gerai\\/([^/]+)(?:\\/(foto|status|aktivitas))?$/",
+    "label": "/^\\/api\\/info-gerai\\/([^/]+)(?:\\/(foto|status|aktivitas))?$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/management-notifications.js:/^\\/api\\/notifications\\/rules(?:\\/([^/]+))?$/",
     "jenis": "rute-pola",
     "sumber": "src/management-notifications.js",
@@ -3112,6 +3121,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/stores",
     "label": "/api/stores",
+    "skin": null
+  },
+  {
+    "id": "rute:src/info-gerai.js:/api/info-gerai",
+    "jenis": "rute-kandidat",
+    "sumber": "src/info-gerai.js",
+    "method": null,
+    "rute": "/api/info-gerai",
+    "label": "/api/info-gerai",
+    "skin": null
+  },
+  {
+    "id": "rute:src/info-gerai.js:/api/info-gerai/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/info-gerai.js",
+    "method": null,
+    "rute": "/api/info-gerai/",
+    "label": "/api/info-gerai/",
+    "skin": null
+  },
+  {
+    "id": "rute:src/info-gerai.js:/api/info-gerai/ringkasan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/info-gerai.js",
+    "method": null,
+    "rute": "/api/info-gerai/ringkasan",
+    "label": "/api/info-gerai/ringkasan",
     "skin": null
   },
   {
@@ -8085,6 +8121,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/cashier.html"
   },
   {
+    "id": "tombol:public/cashier.html:infoGeraiBtn",
+    "jenis": "tombol",
+    "sumber": "public/cashier.html",
+    "tombolId": "infoGeraiBtn",
+    "aksi": null,
+    "label": "ℹ️ Info Gerai",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier.html"
+  },
+  {
     "id": "tombol:public/cashier.html:label:MASUK KE KASIR",
     "jenis": "tombol",
     "sumber": "public/cashier.html",
@@ -9295,6 +9342,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-admin.js"
   },
   {
+    "id": "tombol:public/entity-admin.js:data-info-gerai:ℹ️ Info Gerai{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.js",
+    "tombolId": null,
+    "aksi": "data-info-gerai",
+    "label": "ℹ️ Info Gerai{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.js"
+  },
+  {
     "id": "tombol:public/entity-admin.js:data-owner-store:Kelola gerai",
     "jenis": "tombol",
     "sumber": "public/entity-admin.js",
@@ -10107,6 +10165,226 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/ikan/index.html"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:${esc(entry.id)}",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": "${esc(entry.id)}",
+    "aksi": "data-id,data-ig-nilai",
+    "label": "👎 Kurang jelas{nilai})` : ''}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-baru:＋ Laporkan Masalah",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-baru",
+    "label": "＋ Laporkan Masalah",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-baru:＋ Tambah kontak",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-baru",
+    "label": "＋ Tambah kontak",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-baru:＋ Tulis panduan",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-baru",
+    "label": "＋ Tulis panduan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-edit:Ubah",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-edit",
+    "label": "Ubah",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-filter:Belum beres ({nilai})",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-filter",
+    "label": "Belum beres ({nilai})",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-filter:Sudah beres ({nilai})",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-filter",
+    "label": "Sudah beres ({nilai})",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-foto:🖼 Lihat foto",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-foto",
+    "label": "🖼 Lihat foto",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-hapus:Hapus",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-hapus",
+    "label": "Hapus",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-kontak-salah:⚠️ Nomor salah / tutup",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-kontak-salah",
+    "label": "⚠️ Nomor salah / tutup",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-saya-juga:👀 Saya juga lihat{nilai})` : ''}",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-saya-juga",
+    "label": "👀 Saya juga lihat{nilai})` : ''}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-selesai:✅ Tandai selesai",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-selesai",
+    "label": "✅ Tandai selesai",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:data-ig-tab:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": "data-ig-tab",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:← Kembali",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "← Kembali",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:Kirim",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Kirim",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:Kirim laporan",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Kirim laporan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:Simpan kontak",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan kontak",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:Simpan panduan",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan panduan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:Tandai selesai",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Tandai selesai",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/info-gerai.js:label:Tutup",
+    "jenis": "tombol",
+    "sumber": "public/info-gerai.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Tutup",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/info-gerai.js"
   },
   {
     "id": "tombol:public/login.html:staffSubmit",
@@ -13785,6 +14063,51 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/orders",
     "label": "/api/orders",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/info-gerai.js:request.method === 'DELETE' && !action)",
+    "jenis": "rute-tulis",
+    "sumber": "src/info-gerai.js",
+    "method": "DELETE",
+    "rute": null,
+    "label": "request.method === 'DELETE' && !action)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/info-gerai.js:request.method === 'PATCH' && !action)",
+    "jenis": "rute-tulis",
+    "sumber": "src/info-gerai.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method === 'PATCH' && !action)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/info-gerai.js:request.method === 'POST' && action === 'aktivitas')",
+    "jenis": "rute-tulis",
+    "sumber": "src/info-gerai.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST' && action === 'aktivitas')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/info-gerai.js:request.method === 'POST' && action === 'status')",
+    "jenis": "rute-tulis",
+    "sumber": "src/info-gerai.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST' && action === 'status')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/info-gerai.js:request.method === 'POST' && pathname === '/api/info-gerai')",
+    "jenis": "rute-tulis",
+    "sumber": "src/info-gerai.js",
+    "method": "POST",
+    "rute": "/api/info-gerai",
+    "label": "/api/info-gerai",
     "skin": null
   },
   {

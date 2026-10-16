@@ -1381,6 +1381,174 @@
    "class": "unsupported",
    "reason": "Kontrol manual; belum ada capability khusus untuk kontrol ini.",
    "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-info-gerai:ℹ️ Info Gerai{nilai}",
+   "label": "ℹ️ Info Gerai{nilai}",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/info-gerai.js:${esc(entry.id)}",
+   "label": "${esc(entry.id)}",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-baru:＋ Laporkan Masalah",
+   "label": "＋ Laporkan Masalah",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-baru:＋ Tambah kontak",
+   "label": "＋ Tambah kontak",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-baru:＋ Tulis panduan",
+   "label": "＋ Tulis panduan",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-edit:Ubah",
+   "label": "Ubah",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-filter:Belum beres ({nilai})",
+   "label": "Belum beres ({nilai})",
+   "sumber": "public/info-gerai.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-filter:Sudah beres ({nilai})",
+   "label": "Sudah beres ({nilai})",
+   "sumber": "public/info-gerai.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-foto:🖼 Lihat foto",
+   "label": "🖼 Lihat foto",
+   "sumber": "public/info-gerai.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-hapus:Hapus",
+   "label": "Hapus",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-kontak-salah:⚠️ Nomor salah / tutup",
+   "label": "⚠️ Nomor salah / tutup",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-saya-juga:👀 Saya juga lihat{nilai})` : ''}",
+   "label": "👀 Saya juga lihat{nilai})` : ''}",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-selesai:✅ Tandai selesai",
+   "label": "✅ Tandai selesai",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:data-ig-tab:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/info-gerai.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:← Kembali",
+   "label": "← Kembali",
+   "sumber": "public/info-gerai.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:Kirim",
+   "label": "Kirim",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:Kirim laporan",
+   "label": "Kirim laporan",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:Simpan kontak",
+   "label": "Simpan kontak",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:Simpan panduan",
+   "label": "Simpan panduan",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:Tandai selesai",
+   "label": "Tandai selesai",
+   "sumber": "public/info-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/info-gerai.js:label:Tutup",
+   "label": "Tutup",
+   "sumber": "public/info-gerai.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
   }
  ]
 }

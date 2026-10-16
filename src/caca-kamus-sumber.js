@@ -456,9 +456,13 @@ export const SUMBER_KAMUS = Object.freeze({
   "potongan_gaji": {
     "sumber": [
       "src/payroll-adjustments.js",
-      "public/admin-cashiers.js"
+      "public/admin-cashiers.js",
+      "src/accounting-admin-bridge.js"
     ],
-    "fitur": []
+    "fitur": [
+      "pola:src/accounting-admin-bridge.js:/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll-adjustments\\/([^/]+)\\/void$/",
+      "pola:src/accounting-admin-bridge.js:/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll$/"
+    ]
   },
   "backup_salah_gerai": {
     "sumber": [

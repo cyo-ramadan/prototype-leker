@@ -248,6 +248,42 @@ async function buildGajiPresensi(db, entryId) {
   };
 }
 
+// Penyesuaian Gaji manual dari Akun Kasir -> Gaji (payroll_adjustments, rupiah utuh). Bos Cyo,
+// 2026-10-16: "akuntan entry di penyesuaian gaji tapi engga muncul di riwayat maupun jurnal" -- jalur
+// lama (24 Sep) ini tidak pernah dijurnal. Sekarang sama dengan Bea Gaji: tambahan = Debit Beban Gaji /
+// Kredit Utang Gaji atas nama pemilik akun; potongan = kebalikannya. Dibatalkan = jurnal pembalik.
+async function buildPenyesuaianGaji(db, adjustmentId) {
+  const row = await db.prepare(`
+    SELECT p.id, p.store_id, p.account_type, p.account_id, p.business_date, p.amount_rupiah, p.reason, p.created_at, p.voided_at,
+           c.employee_name, c.username
+    FROM payroll_adjustments p LEFT JOIN cashiers c ON c.id = p.account_id AND p.account_type = 'CASHIER'
+    WHERE p.id = ? LIMIT 1
+  `).bind(adjustmentId).first();
+  if (!row || row.voided_at) return { skip: true };
+  const amountScaled = rupiahToScaled(row.amount_rupiah);
+  if (!amountScaled) return { skip: true };
+  const base = { storeId: row.store_id, categoryCode: 'admin_gaji' };
+  const accounts = await categoryAccounts(db, row.store_id, 'admin_gaji');
+  if (!accounts) return { ...base, failure: needs('NEEDS_TRANSACTION_MAPPING', 'Jenis transaksi admin_gaji belum aktif di Setting Akuntansi.') };
+  if (!accounts.debitAccountId || !accounts.creditAccountId) return { ...base, failure: needs('NEEDS_FIXED_ACCOUNT', 'Akun Beban Gaji / Utang Gaji belum aktif.') };
+  const link = await db.prepare(`
+    SELECT employee_id FROM employee_account_links
+    WHERE account_type = ? AND account_id = ? AND effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)
+    ORDER BY effective_from DESC LIMIT 1
+  `).bind(row.account_type, row.account_id, row.created_at, row.created_at).first();
+  const party = link?.employee_id
+    ? await employeeParty(db, link.employee_id)
+    : await accountHolderParty(db, row.account_type, row.account_id);
+  const who = text(row.employee_name || row.username, 120);
+  const label = `Penyesuaian Gaji${who ? ` · ${who}` : ''} · ${text(row.reason, 160)}`.slice(0, 240);
+  return {
+    ...base,
+    businessDate: row.business_date,
+    description: label,
+    lines: withParty(twoLines(accounts.debitAccountId, accounts.creditAccountId, amountScaled, label, label), accounts.creditAccountId, party)
+  };
+}
+
 async function buildBayarHutang(db, paymentId) {
   const row = await db.prepare(`
     SELECT ap.id, ap.store_id, ap.kind, ap.hutang_account, ap.counterparty_type, ap.counterparty_id, ap.counterparty_name,
@@ -407,6 +443,7 @@ const BUILDERS = Object.freeze({
   BEA: buildBea,
   STOCK_ADJUSTMENT: buildStockAdjustment,
   GAJI_PRESENSI: buildGajiPresensi,
+  PENYESUAIAN_GAJI: buildPenyesuaianGaji,
   BAYAR_HUTANG: buildBayarHutang,
   UANG_MUKA: buildUangMuka
 });
@@ -443,6 +480,11 @@ const ADMIN_BACKLOG_SQL = `
     AND COALESCE(json_extract(q.payload_json, '$.totalCostSnapshotScaled'), 0) > 0
     AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = q.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'STOCK_ADJUSTMENT' AND d.fact_id = q.id AND d.status = 'POSTED')
   UNION ALL
+  SELECT 'PENYESUAIAN_GAJI', g.id, g.created_at
+  FROM payroll_adjustments g
+  WHERE g.store_id = ? AND g.voided_at IS NULL AND g.amount_rupiah <> 0
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = g.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'PENYESUAIAN_GAJI' AND d.fact_id = g.id AND d.status = 'POSTED')
+  UNION ALL
   SELECT 'UANG_MUKA', r.id, r.created_at
   FROM operational_receivables_payables r
   WHERE r.store_id = ? AND r.source_type LIKE 'DEPOSIT_%' AND r.funding_method <> ''
@@ -454,12 +496,12 @@ export async function pendingAdminFacts(db, storeId, limit = 50) {
   const rows = await db.prepare(`
     SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_SQL})
     ORDER BY created_at, fact_type, fact_id LIMIT ?
-  `).bind(storeId, storeId, storeId, storeId, storeId, safeLimit).all();
+  `).bind(storeId, storeId, storeId, storeId, storeId, storeId, safeLimit).all();
   return rows.results ?? [];
 }
 
 export async function countPendingAdminFacts(db, storeId) {
-  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId, storeId).first();
+  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId, storeId, storeId).first();
   return Number(row?.count || 0);
 }
 
@@ -471,9 +513,10 @@ export async function pendingAdminReversals(db, storeId, limit = 25) {
   const rows = await db.prepare(`
     SELECT d.fact_type, d.fact_id FROM accounting_bridge_deliveries d
     WHERE d.store_id = ? AND d.producer_module = 'ADMIN' AND d.status = 'POSTED' AND d.journal_id IS NOT NULL
-      AND d.fact_type IN ('BEA', 'BAYAR_HUTANG')
+      AND d.fact_type IN ('BEA', 'BAYAR_HUTANG', 'PENYESUAIAN_GAJI')
       AND (
-        (d.fact_type = 'BEA' AND EXISTS (SELECT 1 FROM admin_operational_expenses e WHERE e.id = d.fact_id AND e.voided_at IS NOT NULL))
+        (d.fact_type = 'PENYESUAIAN_GAJI' AND EXISTS (SELECT 1 FROM payroll_adjustments g WHERE g.id = d.fact_id AND g.voided_at IS NOT NULL))
+        OR (d.fact_type = 'BEA' AND EXISTS (SELECT 1 FROM admin_operational_expenses e WHERE e.id = d.fact_id AND e.voided_at IS NOT NULL))
         OR (d.fact_type = 'BAYAR_HUTANG' AND EXISTS (SELECT 1 FROM admin_payments a WHERE a.id = d.fact_id AND a.voided_at IS NOT NULL))
       )
       AND NOT EXISTS (
@@ -493,7 +536,8 @@ export async function pendingAdminReversals(db, storeId, limit = 25) {
 const CREATOR_SOURCES = {
   BEA: 'admin_operational_expenses',
   BAYAR_HUTANG: 'admin_payments',
-  UANG_MUKA: 'operational_receivables_payables'
+  UANG_MUKA: 'operational_receivables_payables',
+  PENYESUAIAN_GAJI: 'payroll_adjustments'
 };
 
 async function factCreator(db, type, id, { voided = false } = {}) {
@@ -629,6 +673,9 @@ async function actionsFor(db, pathname, payload) {
       : payload.payment.expenseId ? [['reverse', 'BEA', payload.payment.expenseId]] : [];
   }
   if (pathname === '/api/admin/hutang-piutang/deposits' && payload?.deposit?.id) return [['dispatch', 'UANG_MUKA', payload.deposit.id]];
+  if (/^\/api\/admin\/cashiers\/[^/]+\/payroll$/.test(pathname) && payload?.id) return [['dispatch', 'PENYESUAIAN_GAJI', payload.id]];
+  const adjustmentVoid = pathname.match(/^\/api\/admin\/cashiers\/[^/]+\/payroll-adjustments\/([^/]+)\/void$/);
+  if (adjustmentVoid) return [['reverse', 'PENYESUAIAN_GAJI', decodeURIComponent(adjustmentVoid[1])]];
   if (pathname === '/api/staff/attendance' && payload?.attendance?.id) {
     const entry = await db.prepare(`
       SELECT id FROM payroll_ledger_entries WHERE source_type = 'ATTENDANCE' AND source_id = ? AND entry_type = 'ACCRUAL' LIMIT 1

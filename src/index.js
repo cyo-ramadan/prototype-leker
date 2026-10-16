@@ -325,7 +325,10 @@ async function handleApiRouted(request, env, url, ctx) {
   const supplierResponse = await handleSupplierApi(request, env, pathname);
   if (supplierResponse) return supplierResponse;
   const adminCashierResponse = await handleAdminCashierApi(request, env, pathname);
-  if (adminCashierResponse) return adminCashierResponse;
+  // Penyesuaian Gaji (Akun Kasir -> Gaji) dijurnal sesudah commit (2026-10-16); rute admin kasir lain apa adanya.
+  if (adminCashierResponse) return /\/api\/admin\/cashiers\/[^/]+\/(payroll|payroll-adjustments\/[^/]+\/void)$/.test(pathname)
+    ? attachAdminAccountingToCommittedResponse(request, adminCashierResponse, env, pathname)
+    : adminCashierResponse;
   const adminDrawerResponse = await handleAdminDrawerApi(request, env, pathname);
   if (adminDrawerResponse) return adminDrawerResponse;
   const drawerClosePermitResponse = await handleDrawerClosePermitApi(request, env, pathname);

@@ -178,6 +178,17 @@ async function loadOrpItems(db, storeId) {
   });
 }
 
+// Hutang Gaji operasional = Akun Gaji + Penyesuaian Gaji manual (payroll_adjustments, rupiah utuh, atas
+// nama karyawan yang tertaut ke akunnya sekarang). 2026-10-16: penyesuaian dulu tidak terhitung di sini.
+const GAJI_LEDGER = `(
+  SELECT employee_id, account_type, account_id, store_id, business_date, entry_type, hutang_gaji_delta_scaled, voided_at
+  FROM payroll_ledger_entries
+  UNION ALL
+  SELECT k.employee_id, p.account_type, p.account_id, p.store_id, p.business_date, 'ADJUSTMENT', p.amount_rupiah * 1000000, p.voided_at
+  FROM payroll_adjustments p
+  LEFT JOIN employee_account_links k ON k.account_type = p.account_type AND k.account_id = p.account_id AND k.effective_to IS NULL
+)`;
+
 async function loadGajiAccounts(db, storeId) {
   const sums = `
            COALESCE(SUM(CASE WHEN l.entry_type <> 'PAYMENT' THEN l.hutang_gaji_delta_scaled ELSE 0 END), 0) AS created_scaled,
@@ -188,7 +199,7 @@ async function loadGajiAccounts(db, storeId) {
   const [linked, unlinked] = await Promise.all([
     db.prepare(`
       SELECT l.employee_id, e.full_name, ${sums}
-      FROM payroll_ledger_entries l
+      FROM ${GAJI_LEDGER} l
       JOIN employees e ON e.id = l.employee_id
       WHERE l.store_id = ? AND l.voided_at IS NULL AND l.employee_id IS NOT NULL
       GROUP BY l.employee_id, e.full_name
@@ -201,7 +212,7 @@ async function loadGajiAccounts(db, storeId) {
     // dari sini sampai akunnya ditautkan ke karyawan.
     db.prepare(`
       SELECT l.account_type, l.account_id, COALESCE(c.employee_name, c.username, l.account_id) AS account_name, ${sums}
-      FROM payroll_ledger_entries l
+      FROM ${GAJI_LEDGER} l
       LEFT JOIN cashiers c ON c.id = l.account_id AND l.account_type = 'CASHIER'
       WHERE l.store_id = ? AND l.voided_at IS NULL AND l.employee_id IS NULL
       GROUP BY l.account_type, l.account_id, account_name

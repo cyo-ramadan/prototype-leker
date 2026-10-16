@@ -614,7 +614,8 @@ export const KAMUS = Object.freeze([
       'Buka Tim → Akun Kasir → "💰 Gaji" pada akun CS itu → bagian Penyesuaian Gaji.',
       'Isi tanggal, Nominal (Rp) — angka NEGATIF = potongan, positif = bonus/lembur — dan alasannya, lalu Simpan Penyesuaian.',
       'Hari yang tidak masuk (tidak ada presensi) memang tidak menghasilkan gaji otomatis; penyesuaian dipakai kalau ada denda tambahan.',
-      'Salah input? Penyesuaian bisa dibatalkan dengan alasan — tidak dihapus diam-diam, tetap tercatat jejaknya.'
+      'Salah input? Penyesuaian bisa dibatalkan dengan alasan — tidak dihapus diam-diam, tetap tercatat jejaknya.',
+      'Penyesuaian langsung dijurnal di Akuntansi (bonus: Debit Beban Gaji / Kredit Utang Gaji atas nama CS itu; potongan kebalikannya) bertanggal sesuai tanggal yang diisi, dan ikut saldo Riwayat Hutang Gaji serta Pembayaran Hutang Gaji. Dibatalkan = jurnal pembalik di tanggal yang sama.'
     ].join('\n'),
     tawaran: [buka('cashiers')],
     aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una catatkan potongan/bonusnya? Sebut nama, nominal, tanggal, dan alasan, mis. "potong gaji Rika 20rb kemarin karena telat".', tombol: 'Una catatkan' }

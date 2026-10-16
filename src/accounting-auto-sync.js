@@ -101,7 +101,7 @@ export async function syncPeopleFacts(db, storeIds, { now = new Date() } = {}) {
   for (const { id: storeId } of editions.results ?? []) {
     try {
       const adminRows = (await pendingAdminFacts(db, storeId, AUTO_SYNC_LIMIT))
-        .filter(row => ['GAJI_PRESENSI', 'BEA', 'BAYAR_HUTANG'].includes(row.fact_type));
+        .filter(row => ['GAJI_PRESENSI', 'BEA', 'BAYAR_HUTANG', 'PENYESUAIAN_GAJI'].includes(row.fact_type));
       const adminSkip = await recentlyAttempted(db, storeId, 'ADMIN', adminRows, since);
       for (const row of adminRows) {
         if (adminSkip.has(`${row.fact_type}:${row.fact_id}`)) continue;

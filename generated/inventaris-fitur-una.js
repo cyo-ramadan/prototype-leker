@@ -1,6 +1,24 @@
 // DIBANGKITKAN scripts/build-peta-una.mjs — jangan disunting tangan.
 export const INVENTARIS_FITUR_UNA = Object.freeze([
   {
+    "id": "pola:src/accounting-admin-bridge.js:/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll-adjustments\\/([^/]+)\\/void$/",
+    "jenis": "rute-pola",
+    "sumber": "src/accounting-admin-bridge.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll-adjustments\\/([^/]+)\\/void$/",
+    "label": "/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll-adjustments\\/([^/]+)\\/void$/",
+    "skin": null
+  },
+  {
+    "id": "pola:src/accounting-admin-bridge.js:/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll$/",
+    "jenis": "rute-pola",
+    "sumber": "src/accounting-admin-bridge.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll$/",
+    "label": "/^\\/api\\/admin\\/cashiers\\/[^/]+\\/payroll$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/accounting-admin-bridge.js:/^\\/api\\/admin\\/hutang-piutang\\/payments\\/[^/]+\\/void$/",
     "jenis": "rute-pola",
     "sumber": "src/accounting-admin-bridge.js",

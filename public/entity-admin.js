@@ -67,6 +67,7 @@ function showEntityAdminApp() {
   entityAdminEl('entityAdminEntityName').textContent = entityAdminState.entityAdmin?.entityName || 'Entity';
   renderEntityAdminStores();
   loadEntityInfoGeraiSummary().catch(() => {});
+  loadEntityQrisSummary().catch(() => {});
   window.refreshEntitySetoranBadge?.();
   window.refreshEntityIzinBadge?.();
   window.refreshEntityDrawerCards?.();
@@ -1385,6 +1386,7 @@ function renderEntityAdminStores() {
       <div class="owner-store-actions">
         ${window.MaxiSkin?.skin?.() === 'h' ? `<button class="primary-btn" type="button" data-owner-store="${entityAdminEscape(store.code)}">Kelola gerai</button><a class="secondary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/cashier?readonly=1" target="_blank" rel="noopener">Lihat CS</a>` : `<a class="primary-btn owner-link-btn" href="/s/${encodeURIComponent(store.code)}/admin">Buka Workspace</a>`}
         ${entityInfoGeraiButton(store)}
+        ${entityQrisButton(store)}
       </div>
     </article>`).join('') : '<div class="empty">Belum ada gerai yang tertaut ke entity ini.</div>';
 }
@@ -1412,6 +1414,39 @@ document.addEventListener('click', event => {
   const button = event.target.closest?.('[data-info-gerai]');
   if (!button) return;
   window.InfoGerai?.open({ api: entityAdminApi, storeCode: button.dataset.infoGerai, onClose: loadEntityInfoGeraiSummary });
+});
+
+// Bos Cyo, 2026-10-16: tombol QRIS per kartu gerai -- angka = penjualan QRIS hari ini yang belum
+// tertaut ke uang masuk (⚠️ bila ada uang masuk yang gerainya belum dikenali). Dimuat saat panel
+// dibuka, setelah dialog ditutup, dan saat notifikasi QRIS masuk -- bukan polling.
+let entityQrisSummary = { enabled: false, stores: [], tanpaGerai: 0 };
+
+function entityQrisButton(store) {
+  if (!entityQrisSummary.enabled || !store.isActive) return '';
+  const counts = entityQrisSummary.stores.find(item => item.storeCode === store.code);
+  const belum = (counts?.penjualanBelum || 0) + (counts?.masukBelum || 0);
+  const badge = belum || entityQrisSummary.tanpaGerai ? ` <span class="info-gerai-badge">${entityQrisSummary.tanpaGerai ? '⚠️ ' : ''}${belum || ''}</span>` : '';
+  return `<button class="secondary-btn" type="button" data-qris-gerai="${entityAdminEscape(store.code)}">📲 QRIS${badge}</button>`;
+}
+
+async function loadEntityQrisSummary() {
+  const storeCode = anyEntityStoreCode();
+  if (!storeCode || !window.QrisOtomatis) return;
+  entityQrisSummary = await window.QrisOtomatis.ringkasan(entityAdminApi, storeCode);
+  renderEntityAdminStores();
+}
+
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-qris-gerai]');
+  if (!button) return;
+  window.QrisOtomatis?.open({ api: entityAdminApi, storeCode: button.dataset.qrisGerai, onClose: loadEntityQrisSummary });
+});
+
+document.addEventListener('maxi-notifications-changed', event => {
+  if ((event.detail?.items || []).some(item => item.kind === 'QRIS_MASUK' && !item.readAt)) {
+    loadEntityQrisSummary().catch(() => {});
+    window.QrisOtomatis?.refreshIfOpen();
+  }
 });
 
 async function entityAdminLogout() {

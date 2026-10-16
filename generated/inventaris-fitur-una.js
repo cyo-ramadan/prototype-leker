@@ -3862,6 +3862,123 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/qris-otomatis.js:/api/qris",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris",
+    "label": "/api/qris",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/",
+    "label": "/api/qris/",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/abaikan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/abaikan",
+    "label": "/api/qris/abaikan",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/lepas",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/lepas",
+    "label": "/api/qris/lepas",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/manual",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/manual",
+    "label": "/api/qris/manual",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/masuk",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/masuk",
+    "label": "/api/qris/masuk",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/penerima",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/penerima",
+    "label": "/api/qris/penerima",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/penerima/cabut",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/penerima/cabut",
+    "label": "/api/qris/penerima/cabut",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/pindah-gerai",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/pindah-gerai",
+    "label": "/api/qris/pindah-gerai",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/pulihkan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/pulihkan",
+    "label": "/api/qris/pulihkan",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/ringkasan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/ringkasan",
+    "label": "/api/qris/ringkasan",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/setelan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/setelan",
+    "label": "/api/qris/setelan",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/tautkan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/tautkan",
+    "label": "/api/qris/tautkan",
+    "skin": null
+  },
+  {
     "id": "rute:src/racik-kasir-pemilik.js:/api/management/racik/kasir-pemilik",
     "jenis": "rute-kandidat",
     "sumber": "src/racik-kasir-pemilik.js",
@@ -8272,6 +8389,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/cashier.html"
   },
   {
+    "id": "tombol:public/cashier.html:qrisBtn",
+    "jenis": "tombol",
+    "sumber": "public/cashier.html",
+    "tombolId": "qrisBtn",
+    "aksi": null,
+    "label": "📲 QRIS",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier.html"
+  },
+  {
     "id": "tombol:public/cashier.html:refreshOrdersBtn",
     "jenis": "tombol",
     "sumber": "public/cashier.html",
@@ -9422,6 +9550,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": "data-owner-store",
     "label": "Kelola gerai",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.js"
+  },
+  {
+    "id": "tombol:public/entity-admin.js:data-qris-gerai:📲 QRIS{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.js",
+    "tombolId": null,
+    "aksi": "data-qris-gerai",
+    "label": "📲 QRIS{nilai}",
     "rute": null,
     "skin": null,
     "halaman": "public/entity-admin.js"
@@ -11790,6 +11929,138 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/produk/kemitraan/index.html"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:${esc(item.id)}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": "${esc(item.id)}",
+    "aksi": "data-id,data-qr-ubah",
+    "label": "Pulihkan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qr-cabut:Cabut",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-cabut",
+    "label": "Cabut",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qr-pakai,data-qr-sale:Pakai uang masuk {nilai} · {nilai}{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-pakai,data-qr-sale",
+    "label": "Pakai uang masuk {nilai} · {nilai}{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qr-pindah:Masukkan ke {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-pindah",
+    "label": "Masukkan ke {nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qr-tab:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-tab",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qr-taut:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-taut",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:＋ Buat HP penerima",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "＋ Buat HP penerima",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:＋ Tambah uang masuk manual (dari mutasi)",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "＋ Tambah uang masuk manual (dari mutasi)",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:Muat ulang",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Muat ulang",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:Salin",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Salin",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:Simpan setelan",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan setelan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:Tutup",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Tutup",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
   },
   {
     "id": "tombol:public/racik-admin.js:data-rb-edit:Ubah resep",
@@ -14757,6 +15028,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "PATCH",
     "rute": null,
     "label": "request.method !== 'PATCH') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/qris-otomatis.js:request.method !== 'POST' && request.method !== 'PUT') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/qris-otomatis.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST' && request.method !== 'PUT') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/qris-otomatis.js:request.method !== 'POST') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/qris-otomatis.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST') return json(",
     "skin": null
   },
   {

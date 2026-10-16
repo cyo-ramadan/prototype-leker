@@ -23,6 +23,9 @@ export const UI_SKIN_KEY = 'ui_skin';
 // Bos Cyo, 2026-10-16: Info Gerai (kontak darurat, laporan masalah, panduan) di kasir & Entity
 // Admin. Saklar tenant, default aktif; mati = tombol hilang dan /api/info-gerai menolak (403).
 export const INFO_GERAI_KEY = 'info_gerai';
+// Bos Cyo, 2026-10-16: QRIS Otomatis -- uang QRIS masuk dari HP penerima pemilik, bunyi di kasir,
+// penjualan QRIS wajib ditautkan ke uang masuk. Default aktif; mati = tombol hilang, /api/qris 403.
+export const QRIS_OTOMATIS_KEY = 'qris_otomatis';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -95,6 +98,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     key: INFO_GERAI_KEY,
     label: 'Info Gerai',
     description: 'ON: tombol Info Gerai di kasir dan Entity Admin -- kontak darurat pemasok (WA, telepon, lokasi), laporan masalah dari CS/sidak yang diikuti sampai selesai, dan panduan "masalah -> cara mengatasi" yang bisa dibaca CS baru. OFF: tombolnya tidak tampil.',
+    defaultValue: true
+  },
+  {
+    key: QRIS_OTOMATIS_KEY,
+    label: 'QRIS Otomatis',
+    description: 'ON: notifikasi uang QRIS masuk dari HP penerima pemilik langsung berbunyi di kasir gerai, dan setiap penjualan QRIS harus tertaut ke satu uang masuk (otomatis bila nominal & waktunya cocok). Penjualan QRIS tanpa uang masuk tetap berstatus Belum tertaut. OFF: tombol QRIS tidak tampil.',
     defaultValue: true
   },
   {

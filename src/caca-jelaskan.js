@@ -549,6 +549,24 @@ export const KAMUS = Object.freeze([
     tawaran: [],
     tanpaAksi: 'Info Gerai diisi langsung dari tombolnya di kasir atau Entity Admin; Una belum mencatat laporan sendiri.'
   },
+  // QRIS Otomatis (Bos Cyo, 2026-10-16): src/qris-otomatis.js, public/qris-otomatis.js, public/qris-kasir.js.
+  {
+    id: 'qris_otomatis',
+    judul: 'QRIS Otomatis: bunyi uang masuk & tautan penjualan QRIS',
+    kunci: ['qris', 'qris otomatis', 'cek qris', 'qris masuk', 'uang qris', 'notif qris', 'bunyi qris', 'qris belum tertaut', 'tautkan qris', 'belum tertaut', 'hp penerima', 'macrodroid', 'gobiz', 'mutasi qris', 'qris palsu'],
+    isi: [
+      'Uang QRIS yang benar-benar masuk dicatat dari notifikasi aplikasi merchant (GoBiz, bank, dll.) di SATU HP penerima milik pemilik — CS tidak memasang aplikasi merchant. HP itu meneruskan notifikasinya ke Leker (MacroDroid, gratis).',
+      'Begitu uang masuk, kasir gerai itu mendengar bunyi "cring" dan melihat pita hijau "💰 QRIS masuk Rp…". Saat aplikasi ditutup, kabarnya datang lewat notifikasi HP (aktifkan dulu di menu Notifikasi).',
+      'Tombol "📲 QRIS" ada di kasir (deretan tombol laci; angka = penjualan QRIS hari ini yang belum tertaut) dan di tiap kartu gerai Entity Admin.',
+      'Setiap penjualan QRIS harus tertaut ke tepat satu uang masuk. Kalau nominal sama dan waktunya berdekatan (±30 menit) tanpa keraguan, Leker menautkan sendiri. Kalau ada dua pembeli bernominal sama, CS menekan "Tautkan" lalu memilih uang masuk yang benar. Satu uang masuk tidak bisa dipakai dua kali.',
+      'Status: hijau = Tertaut; kuning = Belum tertaut (penjualan QRIS tanpa uang masuk — perlu dicek); merah = uang masuk tanpa penjualan. CS tidak bisa membuat uang masuk sendiri, jadi orderan QRIS karangan tetap kuning.',
+      'Admin bisa: tambah uang masuk manual dari mutasi (wajib catatan), lepas tautan, abaikan uang masuk (mis. uji coba), dan menautkan nominal yang beda dengan alasan. Entity Admin memasukkan uang yang gerainya belum dikenali ke gerai yang benar.',
+      'Setelan (tab ⚙️ Setelan, admin): pilih cara bayar yang dihitung QRIS, kata kunci gerai di teks notifikasi, dan buat HP penerima (alamatnya tampil sekali, berisi petunjuk MacroDroid).',
+      'Fitur ini bisa dimatikan Owner di Pengaturan (saklar "QRIS Otomatis").'
+    ].join('\n'),
+    tawaran: [],
+    tanpaAksi: 'Tautan QRIS dibuat dari tombol 📲 QRIS di kasir atau Entity Admin; Una tidak menautkan uang sendiri.'
+  },
   {
     id: 'akun_cs',
     judul: 'Membuat akun CS + jam kerja',

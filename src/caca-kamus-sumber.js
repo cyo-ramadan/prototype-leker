@@ -258,6 +258,45 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "qris_otomatis": {
+    "sumber": [
+      "src/qris-otomatis.js",
+      "public/qris-otomatis.js",
+      "public/qris-kasir.js",
+      "src/tenant-policy.js"
+    ],
+    "fitur": [
+      "rute:src/qris-otomatis.js:/api/qris",
+      "rute:src/qris-otomatis.js:/api/qris/",
+      "rute:src/qris-otomatis.js:/api/qris/abaikan",
+      "rute:src/qris-otomatis.js:/api/qris/lepas",
+      "rute:src/qris-otomatis.js:/api/qris/manual",
+      "rute:src/qris-otomatis.js:/api/qris/masuk",
+      "rute:src/qris-otomatis.js:/api/qris/penerima",
+      "rute:src/qris-otomatis.js:/api/qris/penerima/cabut",
+      "rute:src/qris-otomatis.js:/api/qris/pindah-gerai",
+      "rute:src/qris-otomatis.js:/api/qris/pulihkan",
+      "rute:src/qris-otomatis.js:/api/qris/ringkasan",
+      "rute:src/qris-otomatis.js:/api/qris/setelan",
+      "rute:src/qris-otomatis.js:/api/qris/tautkan",
+      "tombol:public/cashier.html:qrisBtn",
+      "tombol:public/entity-admin.js:data-qris-gerai:📲 QRIS{nilai}",
+      "tombol:public/qris-otomatis.js:${esc(item.id)}",
+      "tombol:public/qris-otomatis.js:data-qr-cabut:Cabut",
+      "tombol:public/qris-otomatis.js:data-qr-pakai,data-qr-sale:Pakai uang masuk {nilai} · {nilai}{nilai}",
+      "tombol:public/qris-otomatis.js:data-qr-pindah:Masukkan ke {nilai}",
+      "tombol:public/qris-otomatis.js:data-qr-tab:{nilai}",
+      "tombol:public/qris-otomatis.js:data-qr-taut:{nilai}",
+      "tombol:public/qris-otomatis.js:label:＋ Buat HP penerima",
+      "tombol:public/qris-otomatis.js:label:＋ Tambah uang masuk manual (dari mutasi)",
+      "tombol:public/qris-otomatis.js:label:Muat ulang",
+      "tombol:public/qris-otomatis.js:label:Salin",
+      "tombol:public/qris-otomatis.js:label:Simpan setelan",
+      "tombol:public/qris-otomatis.js:label:Tutup",
+      "tulis:src/qris-otomatis.js:request.method !== 'POST' && request.method !== 'PUT') return json(",
+      "tulis:src/qris-otomatis.js:request.method !== 'POST') return json("
+    ]
+  },
   "info_gerai": {
     "sumber": [
       "src/info-gerai.js",

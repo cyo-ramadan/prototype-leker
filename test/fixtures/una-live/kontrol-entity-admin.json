@@ -1589,6 +1589,110 @@
    "class": "unsupported",
    "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
    "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-qris-gerai:📲 QRIS{nilai}",
+   "label": "📲 QRIS{nilai}",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:${esc(item.id)}",
+   "label": "${esc(item.id)}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-cabut:Cabut",
+   "label": "Cabut",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-pakai,data-qr-sale:Pakai uang masuk {nilai} · {nilai}{nilai}",
+   "label": "Pakai uang masuk {nilai} · {nilai}{nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-pindah:Masukkan ke {nilai}",
+   "label": "Masukkan ke {nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-tab:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-taut:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:＋ Buat HP penerima",
+   "label": "＋ Buat HP penerima",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:＋ Tambah uang masuk manual (dari mutasi)",
+   "label": "＋ Tambah uang masuk manual (dari mutasi)",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:Muat ulang",
+   "label": "Muat ulang",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:Salin",
+   "label": "Salin",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:Simpan setelan",
+   "label": "Simpan setelan",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:Tutup",
+   "label": "Tutup",
+   "sumber": "public/qris-otomatis.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
   }
  ]
 }

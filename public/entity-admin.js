@@ -730,6 +730,64 @@ async function loadEntityEmployeePhotos() {
   await Promise.all(Array.from({ length: 4 }, worker));
 }
 
+// Bos Cyo, 2026-10-16: tambah karyawan langsung dari daftar ("＋"), selain lewat form master.
+// Gerai perekrut dipilih di sini; ?store= gerai itu membuat server mencatatnya sebagai home store.
+function openEntityEmployeeAdd() {
+  const stores = entityAdminState.stores || [];
+  if (!stores.length) return entityAdminToast('Belum ada gerai di entity ini.');
+  const dialog = employeeLedgerDialog();
+  if (!dialog.open) dialog.showModal();
+  dialog.innerHTML = `
+    <div class="list-head"><h2 style="margin:0">Tambah karyawan</h2><button class="secondary-btn" type="button" data-add-close>Tutup</button></div>
+    <form data-add-form style="display:grid;gap:4px;margin-top:10px">
+      <label class="admin-field">Gerai perekrut<select name="home" class="text-input">
+        ${stores.map(store => `<option value="${entityAdminEscape(store.code)}">${entityAdminEscape(store.code)} · ${entityAdminEscape(store.storeName || '')}</option>`).join('')}
+        <option value="__ENTITY__">Level Entity (tanpa gerai, mis. OB kantor)</option>
+      </select></label>
+      <label class="admin-field">Nama lengkap<input name="fullName" maxlength="100" required class="text-input" /></label>
+      <label class="admin-field">Telepon<input name="phone" maxlength="40" class="text-input" /></label>
+      <label class="admin-field">No. identitas<input name="idNumber" maxlength="40" class="text-input" /></label>
+      <label class="admin-field">Alamat<input name="address" maxlength="200" class="text-input" /></label>
+      <label class="admin-field">Tahun kelahiran<input name="birthYear" type="number" inputmode="numeric" min="1930" max="2100" placeholder="mis. 1999" class="text-input" /></label>
+      <label class="admin-field">Alamat domisili saat ini <span class="field-note">tersimpan dengan tanggal entry</span><input name="domicileAddress" maxlength="300" class="text-input" /></label>
+      <label class="admin-field">Foto<input name="photo" type="file" accept="image/*" /></label>
+      <label class="admin-field">Catatan<input name="note" maxlength="500" class="text-input" /></label>
+      <button class="primary-btn" type="submit">Tambah karyawan</button>
+    </form>`;
+  dialog.querySelector('[data-add-close]').onclick = () => dialog.close();
+  dialog.querySelector('[data-add-form]').onsubmit = async event => {
+    event.preventDefault();
+    const form = event.target;
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      const entityLevel = form.home.value === '__ENTITY__';
+      const storeCode = entityLevel ? anyEntityStoreCode() : form.home.value;
+      const photoFile = form.photo.files[0];
+      await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(entityLevel ? { scope: 'ENTITY' } : {}),
+          fullName: form.fullName.value,
+          phone: form.phone.value,
+          idNumber: form.idNumber.value,
+          address: form.address.value,
+          birthYear: form.birthYear.value,
+          domicileAddress: form.domicileAddress.value,
+          note: form.note.value,
+          ...(photoFile ? { photoDataUrl: await entityProductMasterImageToDataUrl(photoFile, 480) } : {})
+        })
+      });
+      dialog.close();
+      entityAdminToast('Karyawan ditambahkan');
+      await loadEntityEmployees();
+    } catch (error) {
+      entityAdminToast(error.message);
+      submit.disabled = false;
+    }
+  };
+}
+
 const entityEmployeeRecordedAt = value => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value));
 
 function openEmployeeDetail(employeeId) {
@@ -1376,6 +1434,7 @@ async function initEntityAdmin() {
 initEntityAdmin();
 
 entityAdminEl('entityEmployeeSort')?.addEventListener('change', renderEntityEmployees);
+entityAdminEl('entityEmployeeAddBtn')?.addEventListener('click', openEntityEmployeeAdd);
 entityAdminEl('entityEmployeeBalanceRefresh')?.addEventListener('click', () => {
   loadEntityEmployeeBalances({ force: true });
   renderEntityEmployees();

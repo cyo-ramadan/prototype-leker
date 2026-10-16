@@ -243,7 +243,9 @@ export const SUMBER_KAMUS = Object.freeze({
       "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)\\/photo$/",
       "tombol:public/admin-employees.js:employeePhotoRemove",
       "tombol:public/entity-admin.js:data-employee-detail:Detail",
-      "tombol:public/entity-admin.js:label:Simpan"
+      "tombol:public/entity-admin.js:label:Simpan",
+      "tombol:public/entity-admin.html:entityEmployeeAddBtn",
+      "tombol:public/entity-admin.js:label:Tambah karyawan"
     ]
   },
   "cara_bayar": {

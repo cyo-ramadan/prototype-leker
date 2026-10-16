@@ -8910,6 +8910,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-admin.html"
   },
   {
+    "id": "tombol:public/entity-admin.html:entityEmployeeAddBtn",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.html",
+    "tombolId": "entityEmployeeAddBtn",
+    "aksi": null,
+    "label": "＋ Tambah karyawan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.html"
+  },
+  {
     "id": "tombol:public/entity-admin.html:entityEmployeeBalanceRefresh",
     "jenis": "tombol",
     "sumber": "public/entity-admin.html",
@@ -9389,6 +9400,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": null,
     "label": "Simpan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.js"
+  },
+  {
+    "id": "tombol:public/entity-admin.js:label:Tambah karyawan",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Tambah karyawan",
     "rute": null,
     "skin": null,
     "halaman": "public/entity-admin.js"

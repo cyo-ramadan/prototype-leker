@@ -236,9 +236,15 @@ export const SUMBER_KAMUS = Object.freeze({
       "src/employee-master.js",
       "src/caca-aksi-karyawan.js",
       "public/admin-employees.js",
-      "public/admin-cashiers.js"
+      "public/admin-cashiers.js",
+      "public/entity-admin.js"
     ],
-    "fitur": []
+    "fitur": [
+      "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)\\/photo$/",
+      "tombol:public/admin-employees.js:employeePhotoRemove",
+      "tombol:public/entity-admin.js:data-employee-detail:Detail",
+      "tombol:public/entity-admin.js:label:Simpan"
+    ]
   },
   "cara_bayar": {
     "sumber": [

@@ -280,7 +280,7 @@ entityAdminEl('entitySharedAccountViewClose')?.addEventListener('click', () => {
 // Kompresi foto sebelum dikirim -- sama persis pola imageFileToDataUrl di
 // admin.js (maxSide 800, quality .76 dipakai buat foto barang di sana),
 // diduplikasi kecil di sini karena entity-admin.html tidak memuat admin.js.
-async function entityProductMasterImageToDataUrl(file) {
+async function entityProductMasterImageToDataUrl(file, maxSide = 800) {
   if (!file) return '';
   if (!file.type.startsWith('image/')) throw new Error('File harus berupa gambar.');
   const source = await new Promise((resolve, reject) => {
@@ -295,7 +295,6 @@ async function entityProductMasterImageToDataUrl(file) {
     img.onerror = () => reject(new Error('Gambar tidak bisa dibuka.'));
     img.src = source;
   });
-  const maxSide = 800;
   const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
   const width = Math.max(1, Math.round(image.naturalWidth * scale));
   const height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -671,11 +670,12 @@ function renderEntityEmployees() {
     </div>` : '';
   entityAdminEl('entityEmployeeList').innerHTML = employees.length ? totalRow + employees.map(employee => `
     <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
+      <div class="master-thumb">${entityEmployeeAvatarHtml(employee, 52)}</div>
       <div class="master-main">
         <strong>${entityAdminEscape(employee.fullName)}</strong>
         <span class="status-chip ${employee.status === 'ACTIVE' ? 'ok' : 'off'}">${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</span>
         <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
-        <div class="master-meta">${employee.links.length ? `Akun: ${employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join(', ')}` : 'Belum ada akun ditautkan'}</div>
+        <div><button class="mini-btn" type="button" data-employee-detail="${entityAdminEscape(employee.id)}" style="margin-top:2px;padding:2px 12px">Detail</button></div>
       </div>
       <div class="master-actions" style="align-items:flex-end">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
@@ -691,6 +691,109 @@ function renderEntityEmployees() {
   document.querySelectorAll('[data-employee-ledger]').forEach(button => {
     button.onclick = () => openEmployeeLedger(button.dataset.employeeId, button.dataset.employeeLedger, '');
   });
+  document.querySelectorAll('[data-employee-detail]').forEach(button => {
+    button.onclick = () => openEmployeeDetail(button.dataset.employeeDetail);
+  });
+  loadEntityEmployeePhotos();
+}
+
+// Bos Cyo, 2026-10-16: foto, tahun kelahiran, alamat domisili (dengan waktu entry). Akun tertaut
+// tidak lagi di kartu -- pindah ke Detail, supaya tinggi kartu tetap. Foto diambil per karyawan lewat
+// /api/admin/employees/:id/photo (JSON, karena Bearer tidak ikut di <img>) dan disimpan per versi.
+const entityEmployeePhotos = new Map();
+
+function entityEmployeeAvatarHtml(employee, size) {
+  const photo = entityEmployeePhotos.get(employee.id);
+  const box = `width:${size}px;height:${size}px;border-radius:14px;flex:none`;
+  if (employee.hasPhoto && photo?.version === employee.photoUpdatedAt && photo.dataUrl) {
+    return `<img data-employee-avatar="${entityAdminEscape(employee.id)}" data-size="${size}" src="${photo.dataUrl}" alt="" style="${box};object-fit:cover" />`;
+  }
+  const initials = String(employee.fullName || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+  return `<span data-employee-avatar="${entityAdminEscape(employee.id)}" data-size="${size}" style="${box};display:grid;place-items:center;background:var(--line);color:var(--muted);font-weight:800;font-size:${Math.round(size / 3)}px">${entityAdminEscape(initials)}</span>`;
+}
+
+async function loadEntityEmployeePhotos() {
+  const storeCode = anyEntityStoreCode();
+  const queue = (entityAdminState.employees || []).filter(employee => employee.hasPhoto
+    && entityEmployeePhotos.get(employee.id)?.version !== employee.photoUpdatedAt);
+  const worker = async () => {
+    for (let employee = queue.shift(); employee; employee = queue.shift()) {
+      try {
+        const data = await entityAdminApi(`/api/admin/employees/${encodeURIComponent(employee.id)}/photo?store=${encodeURIComponent(storeCode)}`);
+        entityEmployeePhotos.set(employee.id, { version: employee.photoUpdatedAt, dataUrl: data.photoDataUrl });
+      } catch { entityEmployeePhotos.set(employee.id, { version: employee.photoUpdatedAt, dataUrl: '' }); }
+      document.querySelectorAll(`[data-employee-avatar="${CSS.escape(employee.id)}"]`).forEach(node => {
+        node.outerHTML = entityEmployeeAvatarHtml(employee, Number(node.dataset.size) || 52);
+      });
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, worker));
+}
+
+const entityEmployeeRecordedAt = value => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value));
+
+function openEmployeeDetail(employeeId) {
+  const employee = (entityAdminState.employees || []).find(item => item.id === employeeId);
+  if (!employee) return;
+  const dialog = employeeLedgerDialog();
+  if (!dialog.open) dialog.showModal();
+  const age = employee.birthYear ? new Date().getFullYear() - employee.birthYear : null;
+  const row = (label, value) => `<div class="master-meta" style="display:grid;grid-template-columns:130px 1fr;gap:8px"><span>${label}</span><span style="color:var(--ink,inherit)">${value || '<span class="muted">-</span>'}</span></div>`;
+  const accounts = employee.links.length
+    ? employee.links.map(link => `${entityAdminEscape(link.username)}${link.storeCode ? ` @${entityAdminEscape(link.storeCode)}` : ' (Entity Admin)'}`).join('<br>')
+    : 'Belum ada akun ditautkan';
+  const history = employee.domicileHistory.slice(1).map(entry =>
+    `<div class="master-meta">• ${entityAdminEscape(entry.address)} <span class="muted">(dicatat ${entityAdminEscape(entityEmployeeRecordedAt(entry.recordedAt))})</span></div>`).join('');
+  dialog.innerHTML = `
+    <div class="list-head"><div style="display:flex;gap:12px;align-items:center">${entityEmployeeAvatarHtml(employee, 88)}
+      <div><h2 style="margin:0">${entityAdminEscape(employee.fullName)}</h2>
+        <div class="muted">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</div></div></div>
+      <button class="secondary-btn" type="button" data-detail-close>Tutup</button></div>
+    <div style="display:grid;gap:6px;margin:12px 0">
+      ${row('Tahun kelahiran', employee.birthYear ? `${employee.birthYear}${age != null ? ` (±${age} tahun)` : ''}` : '')}
+      ${row('Domisili saat ini', employee.domicile ? `${entityAdminEscape(employee.domicile.address)}<div class="muted" style="font-size:.9em">dicatat ${entityAdminEscape(entityEmployeeRecordedAt(employee.domicile.recordedAt))}</div>` : '')}
+      ${history ? row('Domisili sebelumnya', history) : ''}
+      ${row('Alamat', entityAdminEscape(employee.address))}
+      ${row('Telepon', entityAdminEscape(employee.phone))}
+      ${row('No. identitas', entityAdminEscape(employee.idNumber))}
+      ${row('Catatan', entityAdminEscape(employee.note))}
+      ${row('Akun tertaut', accounts)}
+    </div>
+    <form data-detail-form class="admin-card" style="padding:12px">
+      <h3 style="margin:0 0 8px">Perbarui data diri</h3>
+      <label class="admin-field">Tahun kelahiran<input name="birthYear" type="number" inputmode="numeric" min="1930" max="2100" class="text-input" value="${employee.birthYear ?? ''}" /></label>
+      <label class="admin-field">Alamat domisili saat ini <span class="field-note">kalau berubah, alamat lama tetap tersimpan di riwayat</span><input name="domicileAddress" maxlength="300" class="text-input" value="${entityAdminEscape(employee.domicile?.address || '')}" /></label>
+      <label class="admin-field">Ganti foto<input name="photo" type="file" accept="image/*" /></label>
+      ${employee.hasPhoto ? '<label class="admin-check"><input name="removePhoto" type="checkbox" /> Hapus foto</label>' : ''}
+      <button class="primary-btn" type="submit">Simpan</button>
+    </form>`;
+  dialog.querySelector('[data-detail-close]').onclick = () => dialog.close();
+  dialog.querySelector('[data-detail-form]').onsubmit = async event => {
+    event.preventDefault();
+    const form = event.target;
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      const payload = {
+        status: employee.status,
+        birthYear: form.birthYear.value,
+        domicileAddress: form.domicileAddress.value
+      };
+      const photoFile = form.photo.files[0];
+      if (photoFile) payload.photoDataUrl = await entityProductMasterImageToDataUrl(photoFile, 480);
+      else if (form.removePhoto?.checked) payload.photoDataUrl = '';
+      await entityAdminApi(`/api/admin/employees/${encodeURIComponent(employee.id)}?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      entityAdminToast('Data karyawan diperbarui');
+      await loadEntityEmployees();
+      openEmployeeDetail(employee.id);
+    } catch (error) {
+      entityAdminToast(error.message);
+      submit.disabled = false;
+    }
+  };
 }
 
 // Bos Cyo, 2026-10-06: riwayat setoran / hutang gaji satu karyawan dari SEMUA akun kerja yang
@@ -1007,6 +1110,7 @@ async function saveEntityEmployee(event) {
   const storeCode = anyEntityStoreCode();
   if (!storeCode) { entityAdminToast('Belum ada gerai di entity ini.'); return; }
   try {
+    const photoFile = entityAdminEl('entityEmployeePhoto').files[0];
     await entityAdminApi(`/api/admin/employees?store=${encodeURIComponent(storeCode)}`, {
       method: 'POST',
       body: JSON.stringify({
@@ -1014,7 +1118,10 @@ async function saveEntityEmployee(event) {
         fullName: entityAdminEl('entityEmployeeName').value,
         phone: entityAdminEl('entityEmployeePhone').value,
         address: entityAdminEl('entityEmployeeAddress').value,
-        note: entityAdminEl('entityEmployeeNote').value
+        note: entityAdminEl('entityEmployeeNote').value,
+        birthYear: entityAdminEl('entityEmployeeBirthYear').value,
+        domicileAddress: entityAdminEl('entityEmployeeDomicile').value,
+        ...(photoFile ? { photoDataUrl: await entityProductMasterImageToDataUrl(photoFile, 480) } : {})
       })
     });
     entityAdminEl('entityEmployeeForm').reset();

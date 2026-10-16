@@ -53,8 +53,57 @@ function mapEmployee(row, storeId) {
     ownedByThisStore: Boolean(row.home_store_id && row.home_store_id === storeId),
     entityLevel: !row.home_store_id,
     createdAt: row.created_at,
+    birthYear: row.birth_year == null ? null : Number(row.birth_year),
+    hasPhoto: Boolean(row.has_photo),
+    photoUpdatedAt: row.photo_updated_at || null,
+    // Domisili terbaru + riwayatnya (diisi loadEmployees dari employee_domicile_history).
+    domicile: null,
+    domicileHistory: [],
     links: []
   };
+}
+
+// Bos Cyo, 2026-10-16: tahun kelahiran, foto, dan alamat domisili "saat itu" (ada keterangan waktu
+// entry). Domisili tidak ditimpa: tiap perubahan jadi baris baru di employee_domicile_history.
+const MAX_EMPLOYEE_PHOTO_LENGTH = 400_000;
+
+// undefined = tidak diubah; null = dikosongkan; NaN = tidak valid.
+function parseBirthYear(value) {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === '') return null;
+  const year = Number(value);
+  const now = new Date().getUTCFullYear();
+  return Number.isInteger(year) && year >= 1930 && year <= now ? year : NaN;
+}
+
+// undefined = tidak diubah; '' = foto dihapus; null = tidak valid.
+function parsePhoto(value) {
+  if (value === undefined) return undefined;
+  const dataUrl = String(value ?? '');
+  if (!dataUrl) return '';
+  if (dataUrl.length > MAX_EMPLOYEE_PHOTO_LENGTH) return null;
+  return /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(dataUrl) ? dataUrl : null;
+}
+
+function validateProfile(value) {
+  const birthYear = parseBirthYear(value?.birthYear);
+  if (Number.isNaN(birthYear)) return { error: 'Tahun kelahiran tidak valid (contoh: 1999).' };
+  const photo = parsePhoto(value?.photoDataUrl);
+  if (photo === null) return { error: 'Foto tidak valid atau terlalu besar.' };
+  const domicile = value?.domicileAddress === undefined ? undefined : text(value.domicileAddress, 300);
+  return { birthYear, photo, domicile };
+}
+
+async function recordDomicile(db, employeeId, entityId, address, actor) {
+  if (!address) return;
+  const latest = await db.prepare(`
+    SELECT address FROM employee_domicile_history WHERE employee_id = ? ORDER BY recorded_at DESC, id DESC LIMIT 1
+  `).bind(employeeId).first();
+  if (latest && latest.address === address) return;
+  await db.prepare(`
+    INSERT INTO employee_domicile_history (id, employee_id, entity_id, address, recorded_at, recorded_by_role, recorded_by_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(`empdom_${crypto.randomUUID()}`, employeeId, entityId, address, new Date().toISOString(), actor.role, actor.id).run();
 }
 
 function mapLink(row) {
@@ -171,7 +220,10 @@ async function loadLinkableAccounts(db, storeId) {
 
 async function loadEmployees(db, entityId, storeId, { includeHistory = false } = {}) {
   const rows = await db.prepare(`
-    SELECT e.*, s.code AS home_store_code, s.store_name AS home_store_name
+    SELECT e.id, e.entity_id, e.home_store_id, e.full_name, e.phone, e.address, e.id_number, e.note,
+           e.status, e.created_at, e.birth_year, e.photo_updated_at,
+           (e.photo_data IS NOT NULL AND e.photo_data != '') AS has_photo,
+           s.code AS home_store_code, s.store_name AS home_store_name
     FROM employees e
     LEFT JOIN stores s ON s.id = e.home_store_id
     WHERE e.entity_id = ?
@@ -185,6 +237,15 @@ async function loadEmployees(db, entityId, storeId, { includeHistory = false } =
     byEmployee.get(link.employeeId).push(link);
   }
   for (const employee of employees) employee.links = byEmployee.get(employee.id) ?? [];
+  const domiciles = await db.prepare(`
+    SELECT id, employee_id, address, recorded_at FROM employee_domicile_history
+    WHERE entity_id = ? ORDER BY recorded_at DESC, id DESC
+  `).bind(entityId).all();
+  const byId = new Map(employees.map(employee => [employee.id, employee]));
+  for (const row of domiciles.results ?? []) {
+    byId.get(row.employee_id)?.domicileHistory.push({ id: row.id, address: row.address, recordedAt: row.recorded_at });
+  }
+  for (const employee of employees) employee.domicile = employee.domicileHistory[0] ?? null;
   return employees;
 }
 
@@ -237,19 +298,24 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
       return json({ error: 'Karyawan tingkat Entity hanya bisa dibuat Entity Admin atau Owner.', code: 'ENTITY_LEVEL_FORBIDDEN' }, 403);
     }
     const homeStoreId = wantsEntityLevel ? null : store.id;
+    const profile = validateProfile(body.value);
+    if (profile.error) return json({ error: profile.error }, 400);
 
     const id = `emp_${crypto.randomUUID()}`;
     await db.prepare(`
       INSERT INTO employees (
         id, entity_id, home_store_id, full_name, phone, address, id_number, note,
-        status, created_by_role, created_by_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        status, created_by_role, created_by_id, created_at, updated_at,
+        birth_year, photo_data, photo_updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
     `).bind(
       id, store.entityId, homeStoreId, fullName,
       text(body.value?.phone, 40), text(body.value?.address, 200),
       text(body.value?.idNumber, 40), text(body.value?.note, 500),
-      actor.role, actor.id
+      actor.role, actor.id,
+      profile.birthYear ?? null, profile.photo || null, profile.photo ? new Date().toISOString() : null
     ).run();
+    await recordDomicile(db, id, store.entityId, profile.domicile, actor);
     return json({ ok: true, id }, 201);
   }
 
@@ -370,6 +436,16 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
     });
   }
 
+  // Foto dikirim sebagai JSON (bukan gambar langsung) karena Entity Admin memakai header Bearer,
+  // yang tidak bisa dibawa tag <img>.
+  const photoMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)\/photo$/);
+  if (request.method === 'GET' && photoMatch) {
+    const row = await db.prepare('SELECT photo_data, photo_updated_at FROM employees WHERE id = ? AND entity_id = ?')
+      .bind(decodeURIComponent(photoMatch[1]), store.entityId).first();
+    if (!row?.photo_data) return json({ error: 'Foto karyawan tidak ditemukan.' }, 404);
+    return json({ photoDataUrl: row.photo_data, photoUpdatedAt: row.photo_updated_at });
+  }
+
   const employeeMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)$/);
   if (!employeeMatch) return json({ error: 'Route master karyawan tidak ditemukan.' }, 404);
   const employeeId = decodeURIComponent(employeeMatch[1]);
@@ -388,6 +464,8 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
     const fullName = text(body.value?.fullName ?? current.full_name, 100);
     if (!fullName) return json({ error: 'Nama karyawan wajib diisi.' }, 400);
     const status = body.value?.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const profile = validateProfile(body.value);
+    if (profile.error) return json({ error: profile.error }, 400);
     if (status === 'INACTIVE') {
       const active = await db.prepare('SELECT COUNT(*) AS n FROM employee_account_links WHERE employee_id = ? AND effective_to IS NULL').bind(employeeId).first();
       if (Number(active?.n ?? 0) > 0) {
@@ -396,7 +474,8 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
     }
     await db.prepare(`
       UPDATE employees
-      SET full_name = ?, phone = ?, address = ?, id_number = ?, note = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+      SET full_name = ?, phone = ?, address = ?, id_number = ?, note = ?, status = ?,
+          birth_year = ?, photo_data = ?, photo_updated_at = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND entity_id = ?
     `).bind(
       fullName,
@@ -404,8 +483,13 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
       text(body.value?.address ?? current.address, 200),
       text(body.value?.idNumber ?? current.id_number, 40),
       text(body.value?.note ?? current.note, 500),
-      status, employeeId, store.entityId
+      status,
+      profile.birthYear === undefined ? current.birth_year ?? null : profile.birthYear,
+      profile.photo === undefined ? current.photo_data ?? null : (profile.photo || null),
+      profile.photo === undefined ? current.photo_updated_at ?? null : (profile.photo ? new Date().toISOString() : null),
+      employeeId, store.entityId
     ).run();
+    await recordDomicile(db, employeeId, store.entityId, profile.domicile, actor);
     return json({ ok: true });
   }
 

@@ -21,6 +21,15 @@
             <label class="admin-field">No. HP<input id="employeePhone" maxlength="40" /></label>
             <label class="admin-field">No. identitas <span class="field-note">optional</span><input id="employeeIdNumber" maxlength="40" /></label>
             <label class="admin-field">Alamat<textarea id="employeeAddress" rows="2" maxlength="200"></textarea></label>
+            <label class="admin-field">Tahun kelahiran<input id="employeeBirthYear" type="number" inputmode="numeric" min="1930" max="2100" placeholder="mis. 1999" /></label>
+            <label class="admin-field">Alamat domisili saat ini <span class="field-note">tersimpan dengan tanggal entry; alamat lama tetap di riwayat</span><textarea id="employeeDomicile" rows="2" maxlength="300"></textarea><span id="employeeDomicileInfo" class="field-note"></span></label>
+            <div class="admin-field">Foto
+              <div style="display:flex;align-items:center;gap:10px">
+                <img id="employeePhotoPreview" alt="" style="width:56px;height:56px;border-radius:12px;object-fit:cover;background:var(--line);display:none" />
+                <input id="employeePhoto" type="file" accept="image/*" />
+                <button id="employeePhotoRemove" class="text-btn hidden" type="button">Hapus foto</button>
+              </div>
+            </div>
             <label class="admin-field">Catatan<textarea id="employeeNote" rows="2" maxlength="500"></textarea></label>
             <label class="admin-check hidden" id="employeeEntityLevelWrap"><input id="employeeEntityLevel" type="checkbox" /> Karyawan tingkat Entity (tidak menempel gerai, mis. OB kantor)</label>
             <button class="primary-btn" type="submit">Simpan karyawan</button>
@@ -101,7 +110,7 @@
       <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
         <div class="master-main">
           <strong>${escapeHtml(employee.fullName)}</strong>
-          <div class="master-meta">${originLabel(employee)} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</div>
+          <div class="master-meta">${originLabel(employee)} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}${employee.birthYear ? ` · lahir ${employee.birthYear}` : ''}</div>
           ${employee.phone ? `<div class="master-meta">${escapeHtml(employee.phone)}</div>` : ''}
           ${employee.links.length ? employee.links.map(linkRow).join('') : '<div class="master-meta muted">Belum tertaut username mana pun.</div>'}
           ${employee.status === 'ACTIVE' ? linkPicker(employee) : ''}
@@ -187,8 +196,62 @@
     } catch (error) { toast(error.message); }
   }
 
+  // Foto: undefined = tidak diubah, '' = dihapus, data URL = foto baru (sudah dikecilkan).
+  let photoChange;
+
+  async function photoToDataUrl(file) {
+    const source = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Foto tidak bisa dibaca.'));
+      reader.readAsDataURL(file);
+    });
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Foto tidak bisa dibuka.'));
+      img.src = source;
+    });
+    const scale = Math.min(1, 480 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.8);
+  }
+
+  function showPhoto(dataUrl) {
+    const preview = el('employeePhotoPreview');
+    preview.src = dataUrl || '';
+    preview.style.display = dataUrl ? 'block' : 'none';
+    el('employeePhotoRemove').classList.toggle('hidden', !dataUrl);
+  }
+
+  async function pickPhoto() {
+    const file = el('employeePhoto').files[0];
+    if (!file) return;
+    try {
+      photoChange = await photoToDataUrl(file);
+      showPhoto(photoChange);
+    } catch (error) { toast(error.message); }
+  }
+
+  function removePhoto() {
+    photoChange = '';
+    el('employeePhoto').value = '';
+    showPhoto('');
+  }
+
+  const recordedLabel = value => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value));
+
   function resetForm() {
     el('employeeForm').reset();
+    photoChange = undefined;
+    showPhoto('');
+    el('employeeDomicileInfo').textContent = '';
     el('employeeId').value = '';
     el('employeeFormTitle').textContent = 'Tambah karyawan';
     el('employeeCancelEdit').classList.add('hidden');
@@ -204,6 +267,17 @@
     el('employeeIdNumber').value = employee.idNumber;
     el('employeeAddress').value = employee.address;
     el('employeeNote').value = employee.note;
+    el('employeeBirthYear').value = employee.birthYear ?? '';
+    el('employeeDomicile').value = employee.domicile?.address || '';
+    el('employeeDomicileInfo').textContent = employee.domicile ? `Dicatat ${recordedLabel(employee.domicile.recordedAt)}` : '';
+    photoChange = undefined;
+    el('employeePhoto').value = '';
+    showPhoto('');
+    if (employee.hasPhoto) {
+      request(`/api/admin/employees/${encodeURIComponent(employee.id)}/photo${storeQuery()}`)
+        .then(payload => { if (el('employeeId').value === employee.id && photoChange === undefined) showPhoto(payload.photoDataUrl); })
+        .catch(() => {});
+    }
     el('employeeFormTitle').textContent = 'Edit karyawan';
     el('employeeCancelEdit').classList.remove('hidden');
     // Perekrut tidak bisa dipindah lewat edit -- itu keputusan lain, bukan
@@ -221,8 +295,11 @@
       phone: el('employeePhone').value,
       idNumber: el('employeeIdNumber').value,
       address: el('employeeAddress').value,
-      note: el('employeeNote').value
+      note: el('employeeNote').value,
+      birthYear: el('employeeBirthYear').value,
+      domicileAddress: el('employeeDomicile').value
     };
+    if (photoChange !== undefined) payload.photoDataUrl = photoChange;
     if (!id && el('employeeEntityLevel')?.checked) payload.scope = 'ENTITY';
     try {
       await request(id ? `/api/admin/employees/${encodeURIComponent(id)}${storeQuery()}` : `/api/admin/employees${storeQuery()}`, {
@@ -274,6 +351,8 @@
   document.querySelector('[data-tab="employees"]')?.addEventListener('click', switchTab);
   el('employeeForm')?.addEventListener('submit', save);
   el('employeeCancelEdit')?.addEventListener('click', resetForm);
+  el('employeePhoto')?.addEventListener('change', pickPhoto);
+  el('employeePhotoRemove')?.addEventListener('click', removePhoto);
 
   const gate = el('authGate');
   if (gate) new MutationObserver(() => { if (gate.classList.contains('hidden')) load(); }).observe(gate, { attributes: true, attributeFilter: ['class'] });

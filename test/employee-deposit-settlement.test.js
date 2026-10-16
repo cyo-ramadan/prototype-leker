@@ -674,5 +674,5 @@ test('UI Detail Laci: baris "Selisih Kas" diganti Taruh uang laci + Setoran; bar
   const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
   assert.match(branchAdmin, /drawer-report-ui\.js\?v=20261012-permit-history-v1/);
   assert.match(cashierHtml, /drawer-report-ui\.js\?v=20261012-permit-history-v1/);
-  assert.match(branchAdmin, /admin-employees\.js\?v=20261008-buku-per-orang-v1/);
+  assert.match(branchAdmin, /admin-employees\.js\?v=20261016-karyawan-foto-v1/);
 });

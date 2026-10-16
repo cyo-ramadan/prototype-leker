@@ -522,7 +522,9 @@ export const KAMUS = Object.freeze([
     kunci: ['tambah karyawan', 'menambah karyawan', 'karyawan baru', 'daftar karyawan', 'nama karyawan', 'input karyawan', 'data karyawan', 'rekrut'],
     isi: [
       'Di Workspace Gerai, buka Tim → Karyawan → "Tambah karyawan".',
-      'Isi Nama lengkap (mis. Rika Nur), No. HP, No. identitas, dan alamat kalau ada, lalu Simpan karyawan.',
+      'Isi Nama lengkap (mis. Rika Nur), No. HP, No. identitas, alamat, tahun kelahiran, alamat domisili saat ini, dan foto kalau ada, lalu Simpan karyawan.',
+      'Alamat domisili dicatat bersama tanggal entry-nya; kalau nanti pindah, isi alamat baru — alamat lama tetap tersimpan di riwayat.',
+      'Di Entity Admin → Karyawan, tombol "Detail" di tiap kartu menampilkan foto, tahun kelahiran, domisili (dengan tanggal dicatat dan riwayatnya), dan akun yang tertaut; data diri itu juga bisa diperbarui dari sana.',
       'Supaya dia bisa login dan presensi, buatkan juga akunnya di Tim → Akun Kasir, lalu kembali ke Karyawan dan tekan "Tautkan" ke username itu.',
       'Atau suruh Una: karyawan, akun login, dan tautannya dibuat sekaligus. Password akun dibuat sistem dan ditampilkan sekali — tidak pernah lewat mesin AI.'
     ].join('\n'),

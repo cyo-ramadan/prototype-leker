@@ -308,6 +308,9 @@
             <label class="admin-field">Nama lengkap<input id="entityEmployeeName" maxlength="100" required /></label>
             <label class="admin-field">Telepon<input id="entityEmployeePhone" maxlength="40" /></label>
             <label class="admin-field">Alamat<input id="entityEmployeeAddress" maxlength="200" /></label>
+            <label class="admin-field">Tahun kelahiran<input id="entityEmployeeBirthYear" type="number" inputmode="numeric" min="1930" max="2100" placeholder="mis. 1999" /></label>
+            <label class="admin-field">Alamat domisili saat ini <span class="field-note">tersimpan dengan tanggal entry</span><input id="entityEmployeeDomicile" maxlength="300" /></label>
+            <label class="admin-field">Foto<input id="entityEmployeePhoto" type="file" accept="image/*" /></label>
             <label class="admin-field">Catatan<input id="entityEmployeeNote" maxlength="500" /></label>
             <button class="primary-btn" type="submit">Tambah karyawan</button>
           </form>
@@ -385,7 +388,7 @@
 <script src="/caca-pengaturan.js?v=20261015-una-pengaturan-v3"></script>
 <script src="/user-notifications.js"></script>
 <script src="/entity-management.js?v=20261015-una-mount-v1"></script>
-<script src="/entity-admin.js?v=20261015-una-laporan-v1"></script>
+<script src="/entity-admin.js?v=20261016-karyawan-foto-v1"></script>
 <script src="/una-adapter-laporan.js?v=20261015-una-live-v1"></script>
 <script src="/foto-lihat.js"></script>
 <script src="/entity-setoran-cs.js?v=20261011-management-notifications-v1"></script>

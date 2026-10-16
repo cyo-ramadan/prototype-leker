@@ -550,6 +550,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)\\/photo$/",
+    "jenis": "rute-pola",
+    "sumber": "src/employee-master.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/employees\\/([^/]+)\\/photo$/",
+    "label": "/^\\/api\\/admin\\/employees\\/([^/]+)\\/photo$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)$/",
     "jenis": "rute-pola",
     "sumber": "src/employee-master.js",
@@ -5271,6 +5280,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-employees.js"
   },
   {
+    "id": "tombol:public/admin-employees.js:employeePhotoRemove",
+    "jenis": "tombol",
+    "sumber": "public/admin-employees.js",
+    "tombolId": "employeePhotoRemove",
+    "aksi": null,
+    "label": "Hapus foto",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-employees.js"
+  },
+  {
     "id": "tombol:public/admin-employees.js:label:Simpan karyawan",
     "jenis": "tombol",
     "sumber": "public/admin-employees.js",
@@ -9209,6 +9229,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-admin.js"
   },
   {
+    "id": "tombol:public/entity-admin.js:data-employee-detail:Detail",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.js",
+    "tombolId": null,
+    "aksi": "data-employee-detail",
+    "label": "Detail",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.js"
+  },
+  {
     "id": "tombol:public/entity-admin.js:data-entity-metric:{nilai}",
     "jenis": "tombol",
     "sumber": "public/entity-admin.js",
@@ -9347,6 +9378,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": null,
     "label": "Muat lagi",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.js"
+  },
+  {
+    "id": "tombol:public/entity-admin.js:label:Simpan",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan",
     "rute": null,
     "skin": null,
     "halaman": "public/entity-admin.js"

@@ -251,6 +251,45 @@ test('karyawan tingkat Entity (tanpa gerai, mis. OB kantor) hanya boleh dibuat O
   } finally { sqlite.close(); }
 });
 
+test('foto, tahun kelahiran, dan domisili: domisili berubah jadi riwayat bertanggal, foto tidak ikut di daftar', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const env = { DB: d1(sqlite) };
+    const token = await storeAdminToken(sqlite, 'admin_pendem_pilot');
+    const photo = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+
+    const created = await createEmployee(env, token, 'PENDEM', { fullName: 'Mita Wulandari', birthYear: '1999', domicileAddress: 'Jl. Mawar 1', photoDataUrl: photo });
+    assert.equal(created.status, 201);
+
+    const bad = await call(env, `/api/admin/employees/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { birthYear: '19x9' } });
+    assert.equal(bad.status, 400);
+    const badPhoto = await call(env, `/api/admin/employees/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { photoDataUrl: 'data:text/html;base64,AAAA' } });
+    assert.equal(badPhoto.status, 400);
+
+    // Alamat sama tidak menambah riwayat; alamat baru menambah baris, yang lama tetap ada.
+    await call(env, `/api/admin/employees/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { domicileAddress: 'Jl. Mawar 1' } });
+    await call(env, `/api/admin/employees/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { domicileAddress: 'Jl. Melati 2' } });
+
+    const list = await (await call(env, '/api/admin/employees', { token, store: 'PENDEM' })).json();
+    const mita = list.employees.find(employee => employee.id === created.id);
+    assert.equal(mita.birthYear, 1999);
+    assert.equal(mita.hasPhoto, true);
+    assert.equal(mita.photoDataUrl, undefined);
+    assert.equal(mita.domicile.address, 'Jl. Melati 2');
+    assert.ok(mita.domicile.recordedAt);
+    assert.deepEqual(mita.domicileHistory.map(entry => entry.address), ['Jl. Melati 2', 'Jl. Mawar 1']);
+
+    const fetched = await (await call(env, `/api/admin/employees/${created.id}/photo`, { token, store: 'PENDEM' })).json();
+    assert.equal(fetched.photoDataUrl, photo);
+
+    // PATCH tanpa photoDataUrl tidak menyentuh foto; string kosong menghapusnya.
+    await call(env, `/api/admin/employees/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { phone: '0812' } });
+    assert.equal(sqlite.prepare('SELECT photo_data FROM employees WHERE id = ?').get(created.id).photo_data, photo);
+    await call(env, `/api/admin/employees/${created.id}`, { token, store: 'PENDEM', method: 'PATCH', body: { photoDataUrl: '' } });
+    assert.equal(sqlite.prepare('SELECT photo_data FROM employees WHERE id = ?').get(created.id).photo_data, null);
+  } finally { sqlite.close(); }
+});
+
 test('panel Karyawan terpasang di workspace Admin Gerai, bukan di kasir', () => {
   assert.match(branchAdminHtml, /admin-employees\.js/);
   assert.match(adminUi, /data-tab="employees"/);

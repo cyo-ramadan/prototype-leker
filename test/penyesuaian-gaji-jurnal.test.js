@@ -88,3 +88,9 @@ test('penyesuaian lama yang belum dijurnal ikut disinkronkan', async () => {
   await syncStoreAccounting(env.DB, { id: 'store_pendem', code: 'PENDEM' });
   assert.equal(bukuRani(db), 25000, 'tidak dobel');
 });
+
+test('PENJAGA D1: tidak ada query di jembatan admin dengan lebih dari 5 SELECT dalam satu UNION', () => {
+  // D1 produksi menolak "too many terms in compound SELECT" (SQLite lokal tidak) -- 2026-10-16 laporan error.
+  const source = readFileSync(new URL('../src/accounting-admin-bridge.js', import.meta.url), 'utf8');
+  for (const segment of source.split('`')) assert.ok((segment.match(/UNION ALL/g) || []).length <= 4, segment.slice(0, 120));
+});

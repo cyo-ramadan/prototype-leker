@@ -480,29 +480,42 @@ const ADMIN_BACKLOG_SQL = `
     AND COALESCE(json_extract(q.payload_json, '$.totalCostSnapshotScaled'), 0) > 0
     AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = q.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'STOCK_ADJUSTMENT' AND d.fact_id = q.id AND d.status = 'POSTED')
   UNION ALL
-  SELECT 'PENYESUAIAN_GAJI', g.id, g.created_at
-  FROM payroll_adjustments g
-  WHERE g.store_id = ? AND g.voided_at IS NULL AND g.amount_rupiah <> 0
-    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = g.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'PENYESUAIAN_GAJI' AND d.fact_id = g.id AND d.status = 'POSTED')
-  UNION ALL
   SELECT 'UANG_MUKA', r.id, r.created_at
   FROM operational_receivables_payables r
   WHERE r.store_id = ? AND r.source_type LIKE 'DEPOSIT_%' AND r.funding_method <> ''
     AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = r.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'UANG_MUKA' AND d.fact_id = r.id AND d.status = 'POSTED')
 `;
 
+// D1 menolak lebih dari 5 SELECT dalam satu gabungan UNION ("too many terms in compound SELECT",
+// 2026-10-16: laporan untung rugi error). Fakta tambahan dibaca lewat query kedua, lalu digabung.
+const ADMIN_BACKLOG_EXTRA_SQL = `
+  SELECT 'PENYESUAIAN_GAJI' AS fact_type, g.id AS fact_id, g.created_at
+  FROM payroll_adjustments g
+  WHERE g.store_id = ? AND g.voided_at IS NULL AND g.amount_rupiah <> 0
+    AND NOT EXISTS (SELECT 1 FROM accounting_bridge_deliveries d WHERE d.store_id = g.store_id AND d.producer_module = 'ADMIN' AND d.fact_type = 'PENYESUAIAN_GAJI' AND d.fact_id = g.id AND d.status = 'POSTED')
+`;
+
+const byBacklogOrder = (a, b) => String(a.created_at).localeCompare(String(b.created_at))
+  || String(a.fact_type).localeCompare(String(b.fact_type)) || String(a.fact_id).localeCompare(String(b.fact_id));
+
 export async function pendingAdminFacts(db, storeId, limit = 50) {
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
-  const rows = await db.prepare(`
-    SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_SQL})
-    ORDER BY created_at, fact_type, fact_id LIMIT ?
-  `).bind(storeId, storeId, storeId, storeId, storeId, storeId, safeLimit).all();
-  return rows.results ?? [];
+  const [main, extra] = await Promise.all([
+    db.prepare(`
+      SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_SQL})
+      ORDER BY created_at, fact_type, fact_id LIMIT ?
+    `).bind(storeId, storeId, storeId, storeId, storeId, safeLimit).all(),
+    db.prepare(`SELECT fact_type, fact_id, created_at FROM (${ADMIN_BACKLOG_EXTRA_SQL}) ORDER BY created_at, fact_id LIMIT ?`).bind(storeId, safeLimit).all()
+  ]);
+  return [...(main.results ?? []), ...(extra.results ?? [])].sort(byBacklogOrder).slice(0, safeLimit);
 }
 
 export async function countPendingAdminFacts(db, storeId) {
-  const row = await db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId, storeId, storeId).first();
-  return Number(row?.count || 0);
+  const [main, extra] = await Promise.all([
+    db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_SQL})`).bind(storeId, storeId, storeId, storeId, storeId).first(),
+    db.prepare(`SELECT COUNT(*) AS count FROM (${ADMIN_BACKLOG_EXTRA_SQL})`).bind(storeId).first()
+  ]);
+  return Number(main?.count || 0) + Number(extra?.count || 0);
 }
 
 // ADR-054: fakta admin yang sudah dibatalkan di Operasional tetapi jurnal aslinya masih POSTED dan

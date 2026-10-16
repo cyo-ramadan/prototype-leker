@@ -499,6 +499,38 @@
    "automationForbidden": true
   },
   {
+   "id": "tombol:public/entity-admin.html:entityEmployeeAddBtn",
+   "label": "＋ Tambah karyawan",
+   "sumber": "public/entity-admin.html",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:data-employee-detail:Detail",
+   "label": "Detail",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.js:label:Simpan",
+   "label": "Simpan",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.js:label:Tambah karyawan",
+   "label": "Tambah karyawan",
+   "sumber": "public/entity-admin.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-admin.html:entityHomeRefresh",
    "label": "Muat ulang",
    "sumber": "public/entity-admin.html",

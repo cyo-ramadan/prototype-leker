@@ -258,6 +258,13 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "qris_sambung_hp": {
+    "sumber": [
+      "src/qris-otomatis.js",
+      "public/qris-otomatis.js"
+    ],
+    "fitur": []
+  },
   "qris_otomatis": {
     "sumber": [
       "src/qris-otomatis.js",

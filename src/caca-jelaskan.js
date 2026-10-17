@@ -567,6 +567,23 @@ export const KAMUS = Object.freeze([
     tawaran: [],
     tanpaAksi: 'Tautan QRIS dibuat dari Detail Laci → Cek QRIS di kasir atau tombol 📲 QRIS di Entity Admin; Una tidak menautkan uang sendiri.'
   },
+  // Tata cara menyambungkan HP merchant ke Leker (Bos Cyo, 2026-10-17; dicoba dengan merchantBCA).
+  {
+    id: 'qris_sambung_hp',
+    judul: 'Menyambungkan HP aplikasi merchant QRIS ke Leker',
+    kunci: ['sambung hp qris', 'hp penerima', 'pasang macrodroid', 'macrodroid', 'merchant bca', 'merchantbca', 'notif qris telat', 'qris telat', 'telat terus', 'notifikasi qris terlambat', 'cara setting qris', 'setting qris otomatis', 'qris tidak bunyi', 'qris belum masuk leker'],
+    isi: [
+      'Cukup sekali. Sesudahnya tiap QRIS masuk diteruskan sendiri ke Leker — tidak perlu screenshot.',
+      '1) Entity Admin → tombol "📲 QRIS" di kartu gerai → tab "⚙️ Setelan": pilih cara bayar yang dihitung QRIS, isi kata kunci gerai (nama outlet seperti tertulis di notifikasi, mis. "TEH POCI BENDUNGAN", atau NMID). Ulangi untuk tiap gerai.',
+      '2) Masih di Setelan: isi nama HP, centang "Untuk semua gerai" bila satu akun merchant memegang banyak outlet, tekan "＋ Buat HP penerima". Salin alamat yang muncul (hanya tampil sekali) ke HP merchant.',
+      '3) Di HP merchant: nyalakan notifikasi suara aplikasi merchant; Pengaturan HP → Aplikasi → aplikasi merchant dan MacroDroid → Baterai "Tidak dibatasi" (+ Autostart bila ada). Ini yang mencegah notifikasi telat berjam-jam.',
+      '4) Pasang MacroDroid (gratis). Makro baru: Pemicu "Notifikasi Diterima" → pilih aplikasi merchant; Aksi "Permintaan HTTP" → POST ke alamat tadi, isi jenis text/plain: [notification_title] [notification].',
+      '5) Uji transfer Rp1. Di Setelan, baris HP penerima menulis hasilnya (mis. "Uang masuk Rp1 -> BENDUNGAN"); di kasir gerai itu terdengar bunyi + pita hijau. Bila tertulis "gerai belum dikenali", betulkan kata kuncinya.',
+      'HP merchant boleh HP harian, asal selalu menyala dan ada internet. Kalau HP mati, uang masuk bisa ditambah admin dari mutasi. Notifikasi yang telat tetap tercatat di jam transaksinya (dibaca dari teks notifikasi), dan nomor RRN mencegah dobel.'
+    ].join('\n'),
+    tawaran: [jelas('qris_otomatis', 'Cara kerja QRIS Otomatis')],
+    tanpaAksi: 'HP penerima dibuat sendiri oleh admin di tab Setelan karena alamatnya rahasia; Una tidak membuatkannya.'
+  },
   {
     id: 'akun_cs',
     judul: 'Membuat akun CS + jam kerja',

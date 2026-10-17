@@ -1693,6 +1693,22 @@
    "class": "unsupported",
    "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
    "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-batal:Batal klaim",
+   "label": "Batal klaim",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-klaim:✋ Klaim untuk {nilai}",
+   "label": "✋ Klaim untuk {nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
   }
  ]
 }

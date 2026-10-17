@@ -97,6 +97,12 @@ async function siapkan(f, { semuaGerai = false } = {}) {
 
 const kirim = (f, token, payload) => call(f.env, '/api/qris/masuk', { store: null, method: 'POST', body: payload, query: { token } });
 
+// Mode lama (kolam bersama OFF): uang masuk langsung ke gerai dan berbunyi di kasirnya.
+function kolamMati(f) {
+  const tenant = f.sqlite.prepare(`SELECT tenant_id FROM entity_tenancy WHERE entity_id = 'ENT-KPM' AND effective_to IS NULL`).get();
+  f.sqlite.prepare(`INSERT OR REPLACE INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_at) VALUES (?, 'qris_kolam_bersama', '0', '2026-10-17T00:00:00Z')`).run(tenant.tenant_id);
+}
+
 test('membaca nominal dan arah notifikasi merchant', () => {
   assert.equal(bacaNominal('Pembayaran QRIS Rp 15.000 berhasil diterima'), 15000);
   assert.equal(bacaNominal('Kamu menerima Rp15.000,00 dari pelanggan'), 15000);
@@ -110,6 +116,7 @@ test('membaca nominal dan arah notifikasi merchant', () => {
 
 test('notif dari HP penerima tercatat, berbunyi di kasir, dan menaut otomatis bila tidak ragu', async () => {
   const f = await fixture();
+  kolamMati(f);
   const token = await siapkan(f);
   addSale(f.sqlite, { id: 'sale_a', amount: 15000 });
 
@@ -234,6 +241,7 @@ test('merchantBCA: jam transaksi & RRN dibaca dari teks, notif telat 6 jam tetap
   assert.equal(bacaNominal('Rp 1,00 17 Okt 2026 08:31:48'), 1);
 
   const f = await fixture();
+  kolamMati(f);
   const token = await siapkan(f, { semuaGerai: true });
   f.sqlite.prepare(`UPDATE qris_gerai_setelan SET kata_kunci = 'TEH POCI BENDUNGAN' WHERE store_id = 'store_pendem'`).run();
   const sekarang = new Date();
@@ -250,4 +258,58 @@ test('merchantBCA: jam transaksi & RRN dibaca dari teks, notif telat 6 jam tetap
   assert.equal((await kirim(f, token, { title: 'merchantBCA', text: teks })).body.duplicate, true);
   const notif = f.sqlite.prepare(`SELECT body FROM management_notifications WHERE recipient_key = 'CASHIER:cashier_pendem_pilot'`).get();
   assert.match(notif.body, /notif telat 6 jam/);
+});
+
+test('kolam bersama: semua kasir berlaci terbuka melihat, satu gerai mengklaim, gerai lain terkunci, batal klaim', async () => {
+  const f = await fixture();
+  const mandala = await session(f.sqlite, 'cashier_sessions', 'cashier_id', 'cashier_mandala_pilot', 'qr-kasir-mandala');
+  const token = await siapkan(f, { semuaGerai: true });
+  addSale(f.sqlite, { id: 'sale_pendem_dana', amount: 6000 });
+
+  // Notif merchantBCA tanpa nama outlet -> masuk kolam, tanpa notifikasi ke kasir mana pun.
+  const masuk = await kirim(f, token, { title: 'Merchant BCA', text: 'Anda telah menerima pembayaran QRIS sebesar Rp 6.000 dari DANA.' });
+  assert.equal(masuk.status, 201);
+  assert.equal(masuk.body.storeCode, null);
+  assert.equal(masuk.body.kolam, true);
+  assert.equal(f.sqlite.prepare(`SELECT COUNT(*) AS n FROM management_notifications WHERE kind = 'QRIS_MASUK'`).get().n, 0);
+
+  // Laci Mandala belum dibuka -> belum boleh melihat kolam.
+  assert.equal((await call(f.env, '/api/qris/kolam', { token: mandala, store: 'MANDALA' })).status, 403);
+  f.sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, status, opened_at) VALUES ('drawer_mandala', 'store_mandala', 'cashier_mandala_pilot', 'OPEN', ?)`).run(new Date().toISOString());
+
+  let kolamPendem = await call(f.env, '/api/qris/kolam', { token: f.kasir });
+  assert.equal(kolamPendem.status, 200);
+  assert.equal(kolamPendem.body.items.length, 1);
+  assert.equal(kolamPendem.body.items[0].sumberBayar, 'DANA');
+  assert.equal(kolamPendem.body.items[0].diklaim, false);
+  assert.equal((await call(f.env, '/api/qris/ringkasan', { token: f.kasir })).body.kolamBelum, 1);
+
+  // Pendem mengklaim -> langsung tertaut ke satu-satunya penjualan Rp6.000 Pendem.
+  const k = await call(f.env, '/api/qris/klaim', { token: f.kasir, method: 'POST', body: { masukId: masuk.body.id } });
+  assert.equal(k.status, 200, JSON.stringify(k.body));
+  assert.equal(k.body.tertaut, true);
+
+  // Mandala melihat "diklaim PENDEM" dan tidak bisa mengklaim / membatalkan.
+  const kolamMandala = await call(f.env, '/api/qris/kolam', { token: mandala, store: 'MANDALA' });
+  assert.equal(kolamMandala.body.items[0].storeCode, 'PENDEM');
+  assert.equal(kolamMandala.body.items[0].bisaBatal, false);
+  const rebut = await call(f.env, '/api/qris/klaim', { token: mandala, store: 'MANDALA', method: 'POST', body: { masukId: masuk.body.id } });
+  assert.equal(rebut.status, 409);
+  assert.match(rebut.body.error, /PENDEM/);
+  assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: mandala, store: 'MANDALA', method: 'POST', body: { masukId: masuk.body.id } })).status, 403);
+
+  // Kepencet: Pendem membatalkan -> kembali ke kolam, tautan ikut lepas, penjualannya kuning lagi.
+  assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: f.kasir, method: 'POST', body: { masukId: masuk.body.id } })).status, 200);
+  kolamPendem = await call(f.env, '/api/qris/kolam', { token: f.kasir });
+  assert.equal(kolamPendem.body.items[0].diklaim, false);
+  const harian = await call(f.env, '/api/qris', { token: f.kasir });
+  assert.equal(harian.body.sales.find(sale => sale.id === 'sale_pendem_dana').masukId, null);
+
+  // Sekarang Mandala boleh mengklaim (tanpa penjualan cocok -> belum tertaut).
+  const m = await call(f.env, '/api/qris/klaim', { token: mandala, store: 'MANDALA', method: 'POST', body: { masukId: masuk.body.id } });
+  assert.equal(m.status, 200);
+  assert.equal(m.body.tertaut, false);
+  // Admin membatalkan klaim gerai lain wajib catatan.
+  assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: f.owner, method: 'POST', body: { masukId: masuk.body.id } })).body.code, 'QRIS_CATATAN_WAJIB');
+  assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: f.owner, method: 'POST', body: { masukId: masuk.body.id, catatan: 'Mutasi: outlet Pendem' } })).status, 200);
 });

@@ -3889,6 +3889,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/qris-otomatis.js:/api/qris/batal-klaim",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/batal-klaim",
+    "label": "/api/qris/batal-klaim",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/klaim",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/klaim",
+    "label": "/api/qris/klaim",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/kolam",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/kolam",
+    "label": "/api/qris/kolam",
+    "skin": null
+  },
+  {
     "id": "rute:src/qris-otomatis.js:/api/qris/lepas",
     "jenis": "rute-kandidat",
     "sumber": "src/qris-otomatis.js",
@@ -11920,12 +11947,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/produk/kemitraan/index.html"
   },
   {
-    "id": "tombol:public/qris-kasir.js:label:Buka Cek QRIS",
+    "id": "tombol:public/qris-kasir.js:label:{nilai}",
     "jenis": "tombol",
     "sumber": "public/qris-kasir.js",
     "tombolId": null,
     "aksi": null,
-    "label": "Buka Cek QRIS",
+    "label": "{nilai}",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-kasir.js"
@@ -11942,12 +11969,34 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/qris-otomatis.js"
   },
   {
+    "id": "tombol:public/qris-otomatis.js:data-qr-batal:Batal klaim",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-batal",
+    "label": "Batal klaim",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
     "id": "tombol:public/qris-otomatis.js:data-qr-cabut:Cabut",
     "jenis": "tombol",
     "sumber": "public/qris-otomatis.js",
     "tombolId": null,
     "aksi": "data-qr-cabut",
     "label": "Cabut",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qr-klaim:✋ Klaim untuk {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qr-klaim",
+    "label": "✋ Klaim untuk {nilai}",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-otomatis.js"

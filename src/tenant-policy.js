@@ -26,6 +26,10 @@ export const INFO_GERAI_KEY = 'info_gerai';
 // Bos Cyo, 2026-10-16: QRIS Otomatis -- uang QRIS masuk dari HP penerima pemilik, bunyi di kasir,
 // penjualan QRIS wajib ditautkan ke uang masuk. Default aktif; mati = tombol hilang, /api/qris 403.
 export const QRIS_OTOMATIS_KEY = 'qris_otomatis';
+// Bos Cyo, 2026-10-17: kolam QRIS bersama -- satu akun merchant (mis. merchantBCA) untuk banyak
+// outlet tidak menyebut outletnya di notifikasi. ON: uang masuk menunggu di kolam yang terlihat
+// semua kasir yang lacinya terbuka, CS mengklaim untuk gerainya, tanpa bunyi/notifikasi ke kasir.
+export const QRIS_KOLAM_BERSAMA_KEY = 'qris_kolam_bersama';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -104,6 +108,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     key: QRIS_OTOMATIS_KEY,
     label: 'QRIS Otomatis',
     description: 'ON: notifikasi uang QRIS masuk dari HP penerima pemilik langsung berbunyi di kasir gerai, dan setiap penjualan QRIS harus tertaut ke satu uang masuk (otomatis bila nominal & waktunya cocok). Penjualan QRIS tanpa uang masuk tetap berstatus Belum tertaut. OFF: tombol QRIS tidak tampil.',
+    defaultValue: true
+  },
+  {
+    key: QRIS_KOLAM_BERSAMA_KEY,
+    label: 'QRIS: kolam bersama + klaim CS',
+    description: 'ON: uang QRIS masuk dari HP penerima menunggu di satu kolam yang terlihat semua kasir yang lacinya terbuka; CS yang pembelinya baru membayar mengklaimnya untuk gerainya (gerai lain tidak bisa memakainya), lalu menautkan ke penjualan. Tidak ada bunyi/notifikasi ke kasir. Cocok bila satu akun merchant memegang banyak outlet dan notifikasinya tidak menyebut outlet. OFF: uang masuk langsung ke gerai menurut HP penerima/kata kunci dan berbunyi di kasir gerai itu.',
     defaultValue: true
   },
   {

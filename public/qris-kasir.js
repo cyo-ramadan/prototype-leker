@@ -90,8 +90,10 @@
     const status = penjualanBelum || masukBelum
       ? `<span class="status-chip warn">${penjualanBelum} penjualan belum tertaut</span>${masukBelum ? ` <span class="status-chip bad">${masukBelum} uang masuk tanpa penjualan</span>` : ''}`
       : '<span class="status-chip ok">Semua QRIS hari ini tertaut</span>';
-    strip.innerHTML = `<div><strong>📲 Cek QRIS hari ini</strong><div class="qris-laci-status">${status}</div></div>
-      <button class="primary-btn" type="button" data-qris-laci>Buka Cek QRIS</button>`;
+    const kolam = summary.kolam
+      ? `<div class="qris-laci-status"><span class="status-chip ${summary.kolamBelum ? 'bad' : 'ok'}">🧾 Kolam: ${summary.kolamBelum} belum diklaim</span></div>` : '';
+    strip.innerHTML = `<div><strong>📲 Cek QRIS hari ini</strong><div class="qris-laci-status">${status}</div>${kolam}</div>
+      <button class="primary-btn" type="button" data-qris-laci>${summary.kolam ? 'Buka Kolam QRIS' : 'Buka Cek QRIS'}</button>`;
     strip.querySelector('[data-qris-laci]').onclick = openDialog;
   }
 
@@ -104,7 +106,7 @@
 
   function openDialog() {
     if (!storeCode()) return toast('Gerai kasir belum terbaca. Login ulang lalu coba lagi.');
-    window.QrisOtomatis.open({ api, storeCode: storeCode(), onClose: refresh });
+    window.QrisOtomatis.open({ api, storeCode: storeCode(), kolam: Boolean(summary.kolam), onClose: refresh });
   }
   // Tombol Detail Laci dibuat cashier-enhancements.js; pasang sesudah ia ada.
   document.addEventListener('click', event => {

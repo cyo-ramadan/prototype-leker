@@ -42,6 +42,10 @@
   async function reload() {
     ctx.data = await ctx.api(`/api/qris${q(ctx.tanggal ? { tanggal: ctx.tanggal } : {})}`);
     if (ctx.tab === 'SETELAN') ctx.setelan = await ctx.api(`/api/qris/setelan${q()}`);
+    if (ctx.tab === 'KOLAM') {
+      try { ctx.kolamData = await ctx.api(`/api/qris/kolam${q()}`); ctx.kolamError = ''; }
+      catch (error) { ctx.kolamData = null; ctx.kolamError = error.message; }
+    }
     render();
   }
 
@@ -155,6 +159,37 @@
       </div>`;
   }
 
+  // Kolam bersama (Bos Cyo, 2026-10-17): uang masuk yang belum punya gerai. CS yang pembelinya
+  // baru membayar menekan Klaim; gerai lain lalu terkunci. Tidak ada bunyi -- CS yang bersangkutan
+  // memang sedang menunggu pembayaran pembelinya.
+  function renderKolam() {
+    if (ctx.kolamError) return `<div class="qris-peringatan">${esc(ctx.kolamError)}</div>`;
+    const data = ctx.kolamData;
+    if (!data) return '<div class="muted">Memuat kolam…</div>';
+    const code = esc(data.store.code);
+    const baris = item => {
+      let status;
+      let tombol = '';
+      if (!item.diklaim) {
+        status = chip('bad', 'Belum diklaim');
+        tombol = `<button class="primary-btn" type="button" data-qr-klaim="${esc(item.id)}">✋ Klaim untuk ${code}</button>`;
+      } else if (item.milikGeraiIni) {
+        status = chip('ok', `Diklaim ${item.storeCode}${item.claimedByName ? ` · ${item.claimedByName}` : ''}`)
+          + (item.status === 'TERTAUT' ? ` ${chip('ok', 'Tertaut')}` : ` ${chip('warn', 'Belum ditautkan')}`);
+      } else {
+        status = chip('off', `Diklaim ${item.storeCode || 'gerai lain'}`);
+      }
+      if (item.bisaBatal) tombol += `<button class="mini-btn" type="button" data-qr-batal="${esc(item.id)}">Batal klaim</button>`;
+      return `<article class="master-row qris-row${item.diklaim && !item.milikGeraiIni ? ' qris-row-lain' : ''}">
+        <div class="master-main"><strong>${rp(item.amount)}</strong>${status}
+          <div class="master-meta">${jam(item.receivedAt)}${item.sumberBayar ? ` · dari ${esc(item.sumberBayar)}` : ''}</div></div>
+        ${tombol}
+      </article>`;
+    };
+    return `<p class="muted">Begitu pembelimu membayar QRIS, cari nominal &amp; jamnya di sini lalu tekan <b>Klaim</b>. Yang sudah diklaim gerai lain terkunci. Menautkan ke penjualan boleh nanti di tab "Hari ini".</p>
+      ${data.items.map(baris).join('') || '<div class="empty">Belum ada uang QRIS masuk dalam 24 jam terakhir.</div>'}`;
+  }
+
   function render() {
     if (!ctx) return;
     const node = dialog();
@@ -166,11 +201,11 @@
         <button class="secondary-btn" type="button" data-qr-tutup>Tutup</button>
       </div>
       <div class="info-gerai-tabs">
-        ${tab('HARIAN', 'Hari ini')}${data.canManage ? tab('SETELAN', '⚙️ Setelan') : ''}
+        ${ctx.kolam ? tab('KOLAM', '🧾 Kolam QRIS') : ''}${tab('HARIAN', 'Hari ini')}${data.canManage ? tab('SETELAN', '⚙️ Setelan') : ''}
         ${ctx.tab === 'HARIAN' ? `<input class="text-input qris-tanggal" type="date" value="${esc(data.tanggal)}" data-qr-tanggal />` : ''}
         <button class="mini-btn" type="button" data-qr-muat>Muat ulang</button>
       </div>
-      <div class="qris-isi">${ctx.tab === 'SETELAN' ? renderSetelan() : renderHarian()}</div>`;
+      <div class="qris-isi">${ctx.tab === 'SETELAN' ? renderSetelan() : ctx.tab === 'KOLAM' ? renderKolam() : renderHarian()}</div>`;
     bind(node);
   }
 
@@ -187,6 +222,19 @@
     on('[data-qr-tab]', button => { ctx.tab = button.dataset.qrTab; ctx.tokenBaru = null; aksi(async () => {}); });
     const tanggal = node.querySelector('[data-qr-tanggal]');
     if (tanggal) tanggal.onchange = () => { ctx.tanggal = tanggal.value; aksi(async () => {}); };
+    on('[data-qr-klaim]', button => aksi(async () => {
+      const hasil = await post('klaim', { masukId: button.dataset.qrKlaim });
+      toast(hasil.tertaut ? 'Diklaim & langsung tertaut ✓' : 'Diklaim ✓ — tautkan nanti di tab "Hari ini"');
+    }, button));
+    on('[data-qr-batal]', button => aksi(async () => {
+      let catatan = '';
+      if (ctx.data.canManage) {
+        catatan = window.prompt('Alasan membatalkan klaim ini:') || '';
+        if (!catatan.trim()) throw new Error('Dibatalkan: alasan wajib diisi.');
+      } else if (!window.confirm('Batalkan klaim? Uang ini kembali ke kolam dan bisa diklaim gerai lain.')) throw new Error('Dibatalkan.');
+      await post('batal-klaim', { masukId: button.dataset.qrBatal, catatan });
+      toast('Klaim dibatalkan');
+    }, button));
     on('[data-qr-taut]', button => { ctx.pilihSale = ctx.pilihSale === button.dataset.qrTaut ? null : button.dataset.qrTaut; render(); });
     on('[data-qr-pakai]', button => aksi(async () => {
       const masuk = ctx.data.pilihan.find(item => item.id === button.dataset.qrPakai);
@@ -235,8 +283,8 @@
     });
   }
 
-  async function open({ api, storeCode, onClose = null, tab = 'HARIAN' }) {
-    ctx = { api, storeCode, tanggal: '', data: null, tab, pilihSale: null, setelan: null, tokenBaru: null, onClose };
+  async function open({ api, storeCode, onClose = null, tab, kolam = false }) {
+    ctx = { api, storeCode, tanggal: '', data: null, tab: tab || (kolam ? 'KOLAM' : 'HARIAN'), kolam, kolamData: null, kolamError: '', pilihSale: null, setelan: null, tokenBaru: null, onClose };
     const node = dialog();
     node.innerHTML = '<div class="muted">Memuat QRIS…</div>';
     if (!node.open) node.showModal();

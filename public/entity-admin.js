@@ -1439,7 +1439,7 @@ async function loadEntityQrisSummary() {
 document.addEventListener('click', event => {
   const button = event.target.closest?.('[data-qris-gerai]');
   if (!button) return;
-  window.QrisOtomatis?.open({ api: entityAdminApi, storeCode: button.dataset.qrisGerai, onClose: loadEntityQrisSummary });
+  window.QrisOtomatis?.open({ api: entityAdminApi, storeCode: button.dataset.qrisGerai, kolam: Boolean(entityQrisSummary.kolam), tab: 'HARIAN', onClose: loadEntityQrisSummary });
 });
 
 document.addEventListener('maxi-notifications-changed', event => {

@@ -61,6 +61,15 @@ CREATE TABLE IF NOT EXISTS qris_masuk (
   linked_by_role TEXT NOT NULL DEFAULT '',
   linked_by_name TEXT NOT NULL DEFAULT '',
   note TEXT NOT NULL DEFAULT '',
+  -- Dompet/bank pembayar yang tertulis di notifikasi ("dari DANA") -- bantu CS mengenali pembeli.
+  sumber_bayar TEXT NOT NULL DEFAULT '',
+  -- Kolam bersama (Bos Cyo, 2026-10-17): notifikasi satu akun merchant untuk banyak outlet tidak
+  -- menyebut outletnya, jadi uang masuk menunggu di kolam (store_id NULL) sampai CS gerai yang
+  -- pembelinya membayar mengklaimnya. Klaim mengisi store_id + siapa/kapan.
+  claimed_at TEXT,
+  claimed_by_role TEXT NOT NULL DEFAULT '',
+  claimed_by_id TEXT NOT NULL DEFAULT '',
+  claimed_by_name TEXT NOT NULL DEFAULT '',
   created_by_role TEXT NOT NULL DEFAULT '',
   created_by_name TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
@@ -74,3 +83,4 @@ CREATE TABLE IF NOT EXISTS qris_masuk (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_qris_masuk_ref ON qris_masuk(entity_id, ref) WHERE ref IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_qris_masuk_store_date ON qris_masuk(store_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_qris_masuk_open ON qris_masuk(entity_id, status) WHERE status = 'BELUM';
+CREATE INDEX IF NOT EXISTS idx_qris_masuk_kolam ON qris_masuk(entity_id, received_at) WHERE store_id IS NULL;

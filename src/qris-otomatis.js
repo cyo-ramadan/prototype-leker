@@ -3,7 +3,7 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { hashCredential, requireManagement } from './owner-auth.js';
 import { requireCashier } from './cashier-auth.js';
 import { getJakartaBusinessDate, jakartaWallClockToUtc } from './time.js';
-import { QRIS_OTOMATIS_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
+import { QRIS_OTOMATIS_KEY, QRIS_KOLAM_BERSAMA_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
 import { emitNotification, listNotificationActors } from './management-notifications.js';
 import { flushNotificationDeliveries } from './notification-delivery.js';
 
@@ -87,6 +87,12 @@ export function bacaWaktu(value, now = new Date()) {
   return age >= -5 * 60_000 && age <= 3 * 24 * 3600_000 ? date : null;
 }
 
+// Dompet/bank pembayar: "…sebesar Rp 6.000 dari DANA." -> "DANA". Membantu CS mengenali pembelinya.
+export function bacaSumberBayar(value) {
+  const match = String(value ?? '').match(/\bdari\s+([A-Za-z][A-Za-z0-9 &-]{0,29}?)\s*(?:[.,;!]|$)/im);
+  return match ? match[1].trim().toUpperCase() : '';
+}
+
 // ---- Siapa yang memanggil ---------------------------------------------------------------------
 
 async function resolveActor(request, env) {
@@ -114,6 +120,10 @@ const forbidden = message => json({ error: message, code: 'QRIS_FORBIDDEN' }, 40
 
 async function qrisEnabled(db, entityId) {
   return getTenantPolicySetting(db, await resolveTenantId(db, entityId), QRIS_OTOMATIS_KEY);
+}
+
+async function kolamAktif(db, entityId) {
+  return getTenantPolicySetting(db, await resolveTenantId(db, entityId), QRIS_KOLAM_BERSAMA_KEY);
 }
 
 // ---- Setelan gerai ----------------------------------------------------------------------------
@@ -278,7 +288,8 @@ function mapMasuk(row) {
     id: row.id, storeId: row.store_id || null, amount: Number(row.amount), source: row.source, app: row.app,
     title: row.raw_title, text: row.raw_text, receivedAt: row.received_at, status: row.status, saleId: row.sale_id || null,
     linkMode: row.link_mode || null, linkedByName: row.linked_by_name, note: row.note, createdByName: row.created_by_name,
-    saleVoided: Boolean(row.sale_voided_at)
+    saleVoided: Boolean(row.sale_voided_at), sumberBayar: row.sumber_bayar || '',
+    claimedAt: row.claimed_at || null, claimedByName: row.claimed_by_name || '', storeCode: row.store_code || null
   };
 }
 
@@ -354,7 +365,86 @@ async function ringkasan(db, actor) {
     result.push(await hitungGerai(db, store, tanggal));
   }
   const tanpaGerai = actor.entityWide ? Number((await db.prepare(`SELECT COUNT(*) AS n FROM qris_masuk WHERE entity_id = ? AND store_id IS NULL AND status = 'BELUM'`).bind(actor.store.entityId).first())?.n || 0) : 0;
-  return { enabled: true, tanggal, stores: result, tanpaGerai };
+  const kolam = await kolamAktif(db, actor.store.entityId);
+  const kolamBelum = kolam ? Number((await db.prepare(`SELECT COUNT(*) AS n FROM qris_masuk WHERE entity_id = ? AND store_id IS NULL AND status = 'BELUM' AND received_at >= ?`)
+    .bind(actor.store.entityId, new Date(Date.now() - KOLAM_JAM * 3600_000).toISOString()).first())?.n || 0) : 0;
+  return { enabled: true, tanggal, stores: result, tanpaGerai, kolam, kolamBelum };
+}
+
+// ---- Kolam bersama & klaim (Bos Cyo, 2026-10-17) ----------------------------------------------
+// Semua kasir yang lacinya terbuka melihat uang masuk yang belum punya gerai. CS yang pembelinya
+// baru membayar mengklaimnya untuk gerainya; sesudah itu gerai lain tidak bisa memakainya.
+// Batal klaim untuk yang kepencet. Pencocokan akhir dengan mutasi bank (outlet asli) menangkap
+// klaim yang salah gerai.
+
+const KOLAM_JAM = 24;
+
+async function lacinyaTerbuka(db, storeId) {
+  return Boolean(await db.prepare(`SELECT 1 FROM cash_drawer_sessions WHERE store_id = ? AND status = 'OPEN' LIMIT 1`).bind(storeId).first());
+}
+
+async function bolehKolam(db, actor) {
+  if (actor.readOnly) return forbidden('Akses ini hanya untuk membaca.');
+  if (actor.role === 'CASHIER' && !await lacinyaTerbuka(db, actor.store.id)) return forbidden('Buka laci dulu untuk melihat dan mengklaim QRIS.');
+  return null;
+}
+
+async function kolam(db, actor) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const since = new Date(Date.now() - KOLAM_JAM * 3600_000).toISOString();
+  const items = (await rows(db.prepare(`
+    SELECT q.*, st.code AS store_code, NULL AS sale_voided_at FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id
+    WHERE q.entity_id = ? AND q.received_at >= ? AND (q.store_id IS NULL OR q.claimed_at IS NOT NULL) AND q.status != 'DIABAIKAN'
+    ORDER BY q.received_at DESC LIMIT 200
+  `).bind(actor.store.entityId, since))).map(row => {
+    const item = mapMasuk(row);
+    item.diklaim = Boolean(row.store_id);
+    item.milikGeraiIni = row.store_id === actor.store.id;
+    item.bisaBatal = item.diklaim && (actor.entityWide || item.milikGeraiIni) && (row.status !== 'TERTAUT' || row.link_mode !== 'ADMIN' || actor.canManage);
+    return item;
+  });
+  return json({ enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, items });
+}
+
+async function klaim(db, actor, value) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const masukId = text(value?.masukId, 80);
+  const now = new Date().toISOString();
+  const result = await db.prepare(`
+    UPDATE qris_masuk SET store_id = ?, claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?
+    WHERE id = ? AND entity_id = ? AND store_id IS NULL AND status = 'BELUM'
+  `).bind(actor.store.id, now, actor.role, actor.id || '', actor.name, masukId, actor.store.entityId).run();
+  if (!result.meta?.changes) {
+    const row = await db.prepare(`SELECT q.status, st.code AS store_code, q.claimed_by_name FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id WHERE q.id = ? AND q.entity_id = ?`).bind(masukId, actor.store.entityId).first();
+    if (!row) return json({ error: 'Uang masuk tidak ditemukan.' }, 404);
+    return json({ error: row.store_code ? `Sudah diklaim ${row.store_code}${row.claimed_by_name ? ` (${row.claimed_by_name})` : ''}.` : 'Uang masuk ini tidak bisa diklaim.', code: 'QRIS_SUDAH_DIKLAIM' }, 409);
+  }
+  const masuk = await db.prepare(`SELECT received_at FROM qris_masuk WHERE id = ?`).bind(masukId).first();
+  await tautkanOtomatis(db, actor.store.id, { around: masuk.received_at });
+  const tertaut = Boolean(await db.prepare(`SELECT 1 FROM qris_masuk WHERE id = ? AND status = 'TERTAUT'`).bind(masukId).first());
+  return json({ ok: true, storeCode: actor.store.code, tertaut });
+}
+
+async function batalKlaim(db, actor, value) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const row = await db.prepare(`SELECT * FROM qris_masuk WHERE id = ? AND entity_id = ?`).bind(text(value?.masukId, 80), actor.store.entityId).first();
+  if (!row || !row.claimed_at || !row.store_id) return json({ error: 'Uang masuk ini tidak sedang diklaim.' }, 404);
+  if (!actor.entityWide && row.store_id !== actor.store.id) return forbidden('Klaim ini milik gerai lain. Minta admin bila salah klaim.');
+  if (row.status === 'DIABAIKAN') return json({ error: 'Uang masuk ini sudah diabaikan admin.' }, 409);
+  if (row.status === 'TERTAUT' && row.link_mode === 'ADMIN' && !actor.canManage) return forbidden('Tautan ini dibuat admin; minta admin yang membatalkan.');
+  const catatan = text(value?.catatan, 300);
+  if (actor.canManage && !catatan) return json({ error: 'Tulis catatan alasannya.', code: 'QRIS_CATATAN_WAJIB' }, 400);
+  const now = new Date().toISOString();
+  const jejak = `Klaim ${row.claimed_by_name || ''} dibatalkan ${actor.name} (${now.slice(0, 16).replace('T', ' ')} UTC)${catatan ? `: ${catatan}` : ''}`;
+  await db.prepare(`
+    UPDATE qris_masuk SET store_id = NULL, status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = '',
+      claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', note = ?
+    WHERE id = ? AND claimed_at IS NOT NULL
+  `).bind(jejak, row.id).run();
+  return json({ ok: true });
 }
 
 // ---- Setelan & HP penerima --------------------------------------------------------------------
@@ -518,21 +608,24 @@ async function terimaNotifikasi(request, env) {
     return json({ ok: true, duplicate: true });
   }
   const storeId = await tebakGerai(db, penerima, whole);
+  const kolam = await kolamAktif(db, penerima.entity_id);
   const waktu = (body.waktu && bacaWaktu(`${body.waktu} WIB`, now)) || bacaWaktu(whole, now) || now;
   const terlambatMenit = Math.round((now.getTime() - waktu.getTime()) / 60000);
   const masuk = {
     id: `qrism_${crypto.randomUUID()}`, entity_id: penerima.entity_id, store_id: storeId, amount, received_at: waktu.toISOString(), terlambatMenit
   };
   await db.prepare(`
-    INSERT INTO qris_masuk (id, entity_id, store_id, penerima_id, amount, source, app, raw_title, raw_text, ref, received_at, business_date, created_by_role, created_by_name, created_at)
-    VALUES (?, ?, ?, ?, ?, 'NOTIF_HP', ?, ?, ?, ?, ?, ?, 'PENERIMA', ?, ?)
-  `).bind(masuk.id, masuk.entity_id, storeId, penerima.id, amount, app, title, notifText, ref, masuk.received_at, getJakartaBusinessDate(waktu), penerima.label, now.toISOString()).run();
+    INSERT INTO qris_masuk (id, entity_id, store_id, penerima_id, amount, source, app, raw_title, raw_text, ref, received_at, business_date, sumber_bayar, created_by_role, created_by_name, created_at)
+    VALUES (?, ?, ?, ?, ?, 'NOTIF_HP', ?, ?, ?, ?, ?, ?, ?, 'PENERIMA', ?, ?)
+  `).bind(masuk.id, masuk.entity_id, storeId, penerima.id, amount, app, title, notifText, ref, masuk.received_at, getJakartaBusinessDate(waktu), bacaSumberBayar(whole), penerima.label, now.toISOString()).run();
   const store = storeId ? await db.prepare(`SELECT id, code, store_name FROM stores WHERE id = ?`).bind(storeId).first() : null;
   const linked = storeId ? await tautkanOtomatis(db, storeId, { around: waktu }) : 0;
   const linkedThis = linked ? Boolean(await db.prepare(`SELECT 1 FROM qris_masuk WHERE id = ? AND status = 'TERTAUT'`).bind(masuk.id).first()) : false;
-  await catat(`Uang masuk ${rupiah(amount)}${store ? ` -> ${store.code}` : ' (gerai belum dikenali)'}${terlambatMenit >= 10 ? ` · notifikasi terlambat ${terlambatMenit} menit` : ''}`);
-  await kabariKasir(env, masuk, store, linkedThis);
-  return json({ ok: true, id: masuk.id, amount, storeCode: store?.code || null, tertaut: linkedThis, waktu: masuk.received_at, terlambatMenit }, 201);
+  await catat(`Uang masuk ${rupiah(amount)}${store ? ` -> ${store.code}` : (kolam ? ' (masuk kolam bersama)' : ' (gerai belum dikenali)')}${terlambatMenit >= 10 ? ` · notifikasi terlambat ${terlambatMenit} menit` : ''}`);
+  // Kolam bersama: sengaja tanpa bunyi/notifikasi -- kalau semua kasir dikabari, CS yang bukan
+  // penerima pembayaran bisa mengklaim duluan. CS yang pembelinya membayar sudah menunggu di kolam.
+  if (!kolam) await kabariKasir(env, masuk, store, linkedThis);
+  return json({ ok: true, id: masuk.id, amount, storeCode: store?.code || null, kolam: !store && kolam, tertaut: linkedThis, waktu: masuk.received_at, terlambatMenit }, 201);
 }
 
 // ---- Router -------------------------------------------------------------------------------------
@@ -550,6 +643,7 @@ export async function handleQrisApi(request, env, pathname) {
   }
 
   if (request.method === 'GET' && pathname === '/api/qris/ringkasan') return json(await ringkasan(db, actor));
+  if (request.method === 'GET' && pathname === '/api/qris/kolam') return kolam(db, actor);
   if (request.method === 'GET' && pathname === '/api/qris') {
     const asked = new URL(request.url).searchParams.get('tanggal') || '';
     const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : getJakartaBusinessDate();
@@ -566,6 +660,8 @@ export async function handleQrisApi(request, env, pathname) {
   if (actor.readOnly) return forbidden('Akses ini hanya untuk membaca.');
   switch (pathname) {
     case '/api/qris/tautkan': return tautkan(db, actor, value);
+    case '/api/qris/klaim': return klaim(db, actor, value);
+    case '/api/qris/batal-klaim': return batalKlaim(db, actor, value);
     case '/api/qris/lepas': return adminUbah(db, actor, value, 'lepas');
     case '/api/qris/abaikan': return adminUbah(db, actor, value, 'abaikan');
     case '/api/qris/pulihkan': return adminUbah(db, actor, value, 'pulihkan');

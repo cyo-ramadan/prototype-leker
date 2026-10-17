@@ -8389,17 +8389,6 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/cashier.html"
   },
   {
-    "id": "tombol:public/cashier.html:qrisBtn",
-    "jenis": "tombol",
-    "sumber": "public/cashier.html",
-    "tombolId": "qrisBtn",
-    "aksi": null,
-    "label": "📲 QRIS",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/cashier.html"
-  },
-  {
     "id": "tombol:public/cashier.html:refreshOrdersBtn",
     "jenis": "tombol",
     "sumber": "public/cashier.html",
@@ -11929,6 +11918,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/produk/kemitraan/index.html"
+  },
+  {
+    "id": "tombol:public/qris-kasir.js:label:Buka Cek QRIS",
+    "jenis": "tombol",
+    "sumber": "public/qris-kasir.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Buka Cek QRIS",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-kasir.js"
   },
   {
     "id": "tombol:public/qris-otomatis.js:${esc(item.id)}",

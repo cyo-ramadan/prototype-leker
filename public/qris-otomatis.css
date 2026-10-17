@@ -26,3 +26,5 @@
 .qris-banner.show { transform: translate(-50%, 0); }
 .qris-banner strong { font-size: 18px; }
 .qris-banner span { font-size: 13px; opacity: .92; }
+.qris-laci-strip { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 12px; border: 1px solid var(--line, #eadfce); border-radius: 14px; }
+.qris-laci-status { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }

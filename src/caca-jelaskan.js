@@ -557,7 +557,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Uang QRIS yang benar-benar masuk dicatat dari notifikasi aplikasi merchant (GoBiz, bank, dll.) di SATU HP penerima milik pemilik — CS tidak memasang aplikasi merchant. HP itu meneruskan notifikasinya ke Leker (MacroDroid, gratis).',
       'Begitu uang masuk, kasir gerai itu mendengar bunyi "cring" dan melihat pita hijau "💰 QRIS masuk Rp…". Saat aplikasi ditutup, kabarnya datang lewat notifikasi HP (aktifkan dulu di menu Notifikasi).',
-      'Tombol "📲 QRIS" ada di kasir (deretan tombol laci; angka = penjualan QRIS hari ini yang belum tertaut) dan di tiap kartu gerai Entity Admin.',
+      'Di kasir tidak ada tombol tersendiri: buka "📚 Detail Laci" lalu "Buka Cek QRIS" di baris paling atas (tanda "QRIS 2" di tombol Detail Laci = penjualan QRIS hari ini yang belum tertaut). Pita hijau "QRIS masuk" juga bisa diketuk. Di Entity Admin: tombol "📲 QRIS" di tiap kartu gerai.',
       'Setiap penjualan QRIS harus tertaut ke tepat satu uang masuk. Kalau nominal sama dan waktunya berdekatan (±30 menit) tanpa keraguan, Leker menautkan sendiri. Kalau ada dua pembeli bernominal sama, CS menekan "Tautkan" lalu memilih uang masuk yang benar. Satu uang masuk tidak bisa dipakai dua kali.',
       'Status: hijau = Tertaut; kuning = Belum tertaut (penjualan QRIS tanpa uang masuk — perlu dicek); merah = uang masuk tanpa penjualan. CS tidak bisa membuat uang masuk sendiri, jadi orderan QRIS karangan tetap kuning.',
       'Admin bisa: tambah uang masuk manual dari mutasi (wajib catatan), lepas tautan, abaikan uang masuk (mis. uji coba), dan menautkan nominal yang beda dengan alasan. Entity Admin memasukkan uang yang gerainya belum dikenali ke gerai yang benar.',
@@ -565,7 +565,7 @@ export const KAMUS = Object.freeze([
       'Fitur ini bisa dimatikan Owner di Pengaturan (saklar "QRIS Otomatis").'
     ].join('\n'),
     tawaran: [],
-    tanpaAksi: 'Tautan QRIS dibuat dari tombol 📲 QRIS di kasir atau Entity Admin; Una tidak menautkan uang sendiri.'
+    tanpaAksi: 'Tautan QRIS dibuat dari Detail Laci → Cek QRIS di kasir atau tombol 📲 QRIS di Entity Admin; Una tidak menautkan uang sendiri.'
   },
   {
     id: 'akun_cs',

@@ -432,7 +432,7 @@ async function kabariKasir(env, masuk, store, linked) {
         dedupKey: `qris-masuk:${masuk.id}`,
         title: `💰 QRIS masuk ${rupiah(masuk.amount)}`,
         body: store
-          ? `${store.store_name || store.code} · ${jam} WIB. ${linked ? 'Sudah otomatis tertaut ke penjualan.' : 'Tautkan ke penjualan QRIS di menu 📲 QRIS.'}`
+          ? `${store.store_name || store.code} · ${jam} WIB. ${linked ? 'Sudah otomatis tertaut ke penjualan.' : 'Tautkan di 📚 Detail Laci → Buka Cek QRIS.'}`
           : `${jam} WIB. Gerainya belum dikenali -- pilih gerainya di menu QRIS.`,
         url: store ? '/staff' : '/entity-admin',
         kind: 'QRIS_MASUK'

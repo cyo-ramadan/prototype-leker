@@ -1,10 +1,13 @@
-// Tombol "📲 QRIS" + bunyi "uang masuk" di panel kasir (Bos Cyo, 2026-10-16).
+// Cek QRIS di panel kasir (Bos Cyo, 2026-10-16/17). Tidak ada tombol baru di kasir: cek QRIS
+// menumpang tombol "📚 Detail Laci" yang sudah ada (cashier-enhancements.js) -- tombol itu diberi
+// angka penjualan QRIS yang belum tertaut, dan jendela Detail Laci diberi baris "📲 Cek QRIS".
 // Tampilan & aturan ada di qris-otomatis.js / src/qris-otomatis.js. Bunyi dipicu notifikasi
-// QRIS_MASUK yang datang lewat saluran notifikasi langsung (WebSocket, user-notifications.js) --
-// tidak ada polling. Saat aplikasi ditutup, notifikasi HP (push) yang memberi tahu CS.
+// QRIS_MASUK lewat saluran notifikasi langsung (WebSocket, user-notifications.js) -- tanpa polling.
+// Saat aplikasi ditutup, notifikasi HP (push) yang memberi tahu CS.
 (() => {
-  const button = el('qrisBtn');
-  if (!button || !window.QrisOtomatis) return;
+  if (!window.QrisOtomatis) return;
+  const laciBtn = () => document.getElementById('drawerHistoryBtn');
+  let summary = { enabled: false };
 
   const storeCode = () => String(state.cashier?.store?.code || '').trim().toUpperCase();
   const seen = new Set();
@@ -58,20 +61,55 @@
     banner.timer = setTimeout(() => node.classList.remove('show'), 8000);
   }
 
+  function mine() {
+    return (summary.stores || []).find(item => item.storeCode === storeCode()) || { penjualanBelum: 0, masukBelum: 0 };
+  }
+
+  // Angka di tombol Detail Laci = penjualan QRIS hari ini yang belum tertaut.
+  function paintLaciBtn() {
+    const button = laciBtn();
+    if (!button) return;
+    button.querySelector('.qris-laci-badge')?.remove();
+    const belum = summary.enabled ? mine().penjualanBelum : 0;
+    if (belum) button.insertAdjacentHTML('beforeend', ` <span class="info-gerai-badge qris-laci-badge" title="Penjualan QRIS belum tertaut">QRIS ${belum}</span>`);
+  }
+
+  // Baris "📲 Cek QRIS" di atas jendela Detail Laci.
+  function paintLaciStrip() {
+    const dialog = document.getElementById('cashierDrawerHistoryDialog');
+    if (!dialog) return;
+    let strip = document.getElementById('qrisLaciStrip');
+    if (!summary.enabled) { strip?.remove(); return; }
+    if (!strip) {
+      strip = document.createElement('div');
+      strip.id = 'qrisLaciStrip';
+      strip.className = 'qris-laci-strip';
+      dialog.querySelector('.cashier-dialog-head')?.after(strip);
+    }
+    const { penjualanBelum, masukBelum } = mine();
+    const status = penjualanBelum || masukBelum
+      ? `<span class="status-chip warn">${penjualanBelum} penjualan belum tertaut</span>${masukBelum ? ` <span class="status-chip bad">${masukBelum} uang masuk tanpa penjualan</span>` : ''}`
+      : '<span class="status-chip ok">Semua QRIS hari ini tertaut</span>';
+    strip.innerHTML = `<div><strong>📲 Cek QRIS hari ini</strong><div class="qris-laci-status">${status}</div></div>
+      <button class="primary-btn" type="button" data-qris-laci>Buka Cek QRIS</button>`;
+    strip.querySelector('[data-qris-laci]').onclick = openDialog;
+  }
+
   async function refresh() {
     if (!state.cashier || !storeCode()) return;
-    const summary = await window.QrisOtomatis.ringkasan(api, storeCode());
-    button.classList.toggle('hidden', !summary.enabled);
-    const mine = (summary.stores || []).find(item => item.storeCode === storeCode());
-    const belum = mine?.penjualanBelum || 0;
-    button.innerHTML = `📲 QRIS${belum ? ` <span class="info-gerai-badge">${belum}</span>` : ''}`;
+    summary = await window.QrisOtomatis.ringkasan(api, storeCode());
+    paintLaciBtn();
+    paintLaciStrip();
   }
 
   function openDialog() {
     if (!storeCode()) return toast('Gerai kasir belum terbaca. Login ulang lalu coba lagi.');
     window.QrisOtomatis.open({ api, storeCode: storeCode(), onClose: refresh });
   }
-  button.addEventListener('click', openDialog);
+  // Tombol Detail Laci dibuat cashier-enhancements.js; pasang sesudah ia ada.
+  document.addEventListener('click', event => {
+    if (event.target.closest?.('#drawerHistoryBtn')) setTimeout(() => { paintLaciStrip(); refresh(); }, 0);
+  });
 
   document.addEventListener('maxi-notifications-changed', event => {
     const items = (event.detail?.items || []).filter(item => item.kind === 'QRIS_MASUK');

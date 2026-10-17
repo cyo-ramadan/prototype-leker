@@ -313,3 +313,23 @@ test('kolam bersama: semua kasir berlaci terbuka melihat, satu gerai mengklaim, 
   assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: f.owner, method: 'POST', body: { masukId: masuk.body.id } })).body.code, 'QRIS_CATATAN_WAJIB');
   assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: f.owner, method: 'POST', body: { masukId: masuk.body.id, catatan: 'Mutasi: outlet Pendem' } })).status, 200);
 });
+
+test('migration 0165: cara bayar QRIS dibuat dari REKBER (akun & Rekening Bersama sama), idempoten, data lain tidak berubah', async () => {
+  const { sqlite } = await fixture();
+  const akun = sqlite.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = 'store_pendem' AND code = '1103'`).get();
+  assert.ok(akun, 'akun 1103 Rekening Bersama gerai ada');
+  sqlite.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, is_active, is_default, creates_payable) VALUES ('pm_rekber_pendem', 'store_pendem', 'REKBER', 'Rekening Bersama Malang', ?, 1, 0, 0)`).run(akun.id);
+  const sebelum = sqlite.prepare(`SELECT id, code, name, account_id, is_active, is_default FROM payment_methods ORDER BY id`).all();
+  const sql = readFileSync(new URL('0165_cara_bayar_qris.sql', migrationDir), 'utf8');
+  sqlite.exec(sql);
+  sqlite.exec(sql);
+  const qris = sqlite.prepare(`SELECT * FROM payment_methods WHERE store_id = 'store_pendem' AND code = 'QRIS'`).all();
+  assert.equal(qris.length, 1);
+  assert.equal(qris[0].account_id, akun.id);
+  assert.equal(qris[0].is_default, 0);
+  assert.equal(qris[0].creates_payable, 0);
+  const sesudah = sqlite.prepare(`SELECT id, code, name, account_id, is_active, is_default FROM payment_methods WHERE code != 'QRIS' ORDER BY id`).all();
+  assert.deepEqual(sesudah, sebelum);
+  // Gerai tanpa REKBER tidak mendapat QRIS otomatis.
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) AS n FROM payment_methods WHERE code = 'QRIS'`).get().n, 1);
+});

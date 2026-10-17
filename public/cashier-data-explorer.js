@@ -2,6 +2,7 @@
   const state = {
     tab: 'transactions',
     filter: 'ALL',
+    bayar: '',
     limit: 50,
     q: '',
     sortKey: 'occurredAt',
@@ -24,6 +25,10 @@
     ['OPERATIONS', 'Operasional'], ['STOCK_ADJUSTMENTS', 'Penyesuaian Stok'],
     ['GOODS_FLOW', 'Arus Barang'], ['PRODUCTION', 'Produksi'], ['ASSETS', 'Aset']
   ];
+  // Bos Cyo, 2026-10-17: kolom & filter cara bayar penjualan. "Kolam QRIS" membuka uang QRIS yang
+  // belum diklaim gerai mana pun (qris-otomatis.js).
+  const BAYAR = [['', 'Semua'], ['TUNAI', 'Tunai'], ['QRIS', 'QRIS'], ['CAMPURAN', 'Campuran'], ['KOLAM', '🧾 Kolam QRIS']];
+  const BAYAR_LABEL = { CASH: 'Tunai', CAMPURAN: 'Campuran' };
   const PAGE_SIZES = [5, 20, 50, 100];
   const SORT_OPTIONS = [
     ['occurredAt:desc', 'Tanggal terbaru'], ['occurredAt:asc', 'Tanggal terlama'],
@@ -132,6 +137,7 @@
       <div class="cashier-tx-toolbar">
         <div class="cashier-tx-toolbar-grid">
           <div class="field"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
+          <div class="field"><label>Cara bayar</label><select id="cashierDataBayar" class="text-input">${BAYAR.map(([value, label]) => `<option value="${value}" ${value === state.bayar ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
           <div class="field"><label>Tampilkan</label><select id="cashierDataLimit" class="text-input">${PAGE_SIZES.map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></div>
           <div class="field"><label>Urutkan</label><select id="cashierDataSort" class="text-input">${SORT_OPTIONS.map(([value, label]) => `<option value="${value}" ${value === `${state.sortKey}:${state.sortDir}` ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
         </div>
@@ -149,6 +155,17 @@
   function wireToolbar() {
     el('cashierDataFilter').addEventListener('change', event => {
       state.filter = event.target.value;
+      loadTransactions({ reset: true });
+    });
+    el('cashierDataBayar').addEventListener('change', event => {
+      if (event.target.value === 'KOLAM') {
+        event.target.value = state.bayar;
+        const storeCode = window.qrisKasirStoreCode?.() || '';
+        if (window.QrisOtomatis && storeCode) window.QrisOtomatis.open({ api, storeCode, kolam: true, onClose: () => loadTransactions({ reset: true }) });
+        return;
+      }
+      state.bayar = event.target.value;
+      if (state.bayar && state.filter !== 'SALES') state.filter = 'SALES';
       loadTransactions({ reset: true });
     });
     el('cashierDataLimit').addEventListener('change', event => {
@@ -223,6 +240,14 @@
     return '';
   }
 
+  // Tombol kecil QRIS per penjualan QRIS/campuran: merah = belum tertaut ke uang masuk, hijau = tertaut.
+  function qrisButtonHtml(row) {
+    if (!row.qris || row.status === 'voided') return '';
+    const warna = row.qris.tertaut ? 'qris-mini-ok' : 'qris-mini-bad';
+    const judul = row.qris.tertaut ? 'QRIS tertaut ke uang masuk' : 'QRIS belum tertaut — ketuk untuk memilih uang masuk';
+    return `<button class="cashier-tx-btn ${warna}" type="button" title="${judul}" data-cashier-tx-qris="${escapeHtml(String(row.id))}">QRIS</button>`;
+  }
+
   function renderTransactionRow(row) {
     return `
       <tr>
@@ -230,6 +255,7 @@
         <td data-label="Jenis">${escapeHtml(transactionKindLabel(row))}</td>
         <td data-label="Deskripsi">${escapeHtml(row.description || '')}${voidNoteHtml(row)}</td>
         <td data-label="Nominal">${row.amount == null ? '-' : rupiah(row.amount)}</td>
+        <td data-label="Cara bayar">${row.kind === 'SALE' ? escapeHtml(row.paymentLabel || BAYAR_LABEL[row.paymentMethod] || row.paymentMethod || '-') : '-'}</td>
         <td data-label="Status">${escapeHtml(row.status || '')}</td>
         <td data-label="Kasir">${escapeHtml(row.cashierName || '-')}</td>
         <td class="cashier-tx-id" data-label="ID">${escapeHtml(String(row.id))}</td>
@@ -237,6 +263,7 @@
         <td class="cashier-tx-actions">
           <button class="cashier-tx-btn cashier-tx-btn-primary" type="button" data-cashier-tx-detail-kind="${escapeHtml(row.kind)}" data-cashier-tx-detail-id="${escapeHtml(String(row.id))}">Detail</button>
           ${voidButtonHtml(row)}
+          ${qrisButtonHtml(row)}
         </td>
       </tr>`;
   }
@@ -251,6 +278,7 @@
             <th>Jenis</th>
             <th>Deskripsi</th>
             <th>Nominal</th>
+            <th>Cara bayar</th>
             <th>Status</th>
             <th data-sort-key="cashierName">Kasir${sortIndicator('cashierName')}</th>
             <th>ID</th>
@@ -275,6 +303,7 @@
       url.searchParams.set('filter', state.filter);
       url.searchParams.set('limit', String(state.limit));
       if (state.q) url.searchParams.set('q', state.q);
+      if (state.bayar) url.searchParams.set('bayar', state.bayar);
       if (!reset && state.txCursor) url.searchParams.set('before', state.txCursor);
       const [payload, permitsPayload] = await Promise.all([
         api(`${url.pathname}${url.search}`),
@@ -312,6 +341,8 @@
       requestVoidPermit(button.dataset.cashierTxVoidKind, button.dataset.cashierTxVoidId)));
     host.querySelectorAll('[data-cashier-tx-cancel-permit]').forEach(button => button.addEventListener('click', () =>
       cancelVoidPermit(button.dataset.cashierTxCancelPermit)));
+    host.querySelectorAll('[data-cashier-tx-qris]').forEach(button => button.addEventListener('click', () =>
+      window.QrisOtomatis?.pilihPenjualan({ api, saleId: button.dataset.cashierTxQris, onDone: () => loadTransactions({ reset: true }) })));
   }
 
   async function requestVoidPermit(kind, id) {

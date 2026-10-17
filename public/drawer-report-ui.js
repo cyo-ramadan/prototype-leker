@@ -161,7 +161,9 @@
     ]), '');
 
     lines.push('----- CATATAN TAMBAHAN -----', '');
-    lines.push('1B. PENJUALAN BAYAR NON TUNAI', 'PRODUK | TERJUAL', textSalesSection(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems), '');
+    lines.push('1B. PENJUALAN BAYAR NON TUNAI', 'PRODUK | TERJUAL', textSalesSection(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems));
+    for (const row of totals.nonCashSalesByMethod || []) lines.push(`Per cara bayar · ${plain(row.name)} | ${number(row.amount)}`);
+    lines.push('');
     lines.push('3B. BELANJA BAHAN BAYAR NON TUNAI', 'PRODUK | TOTAL', textPurchaseSection(sections.nonCashPurchases || [], totals.nonCashPurchases), '');
     lines.push('PENYESUAIAN STOK', 'PRODUK | Stok Tercatat | Stok Riil | Selisih', textTableLines((sections.stockAdjustments || []).map(row => [row.productName, number(row.recordedStock), number(row.actualStock), number(row.difference)]), 'Belum ada penyesuaian stok.'), '');
     lines.push('ARUS BARANG', 'BARANG | ARAH | QTY | KETERANGAN', textTableLines((sections.goodsFlow || []).map(row => [row.productName, row.direction === 'OUT' ? 'Keluar' : 'Masuk', `${number(row.quantity)}${row.unitSymbol ? ` ${row.unitSymbol}` : ''}`, row.sharedAccountName ? `${row.note || 'Arus Barang'} - Rekening Bersama: ${row.sharedAccountName}` : (row.note || '-')]), 'Belum ada Arus Barang.'), '');
@@ -287,7 +289,8 @@
 
       ${permitHistorySection(report)}
       <div class="drawer-report-divider">CATATAN TAMBAHAN</div>
-      ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems))}
+      ${section('1B. PENJUALAN BAYAR NON TUNAI', salesTable(sections.nonCashSales || [], totals.nonCashSales, totals.nonCashSalesItems)
+        + ((totals.nonCashSalesByMethod || []).length ? `<div class="drawer-line-list" style="margin-top:8px">${totals.nonCashSalesByMethod.map(row => `<div class="drawer-line-row"><span>Per cara bayar · ${esc(row.name)}</span><span class="drawer-line-amount">${rupiah(row.amount)}</span></div>`).join('')}</div>` : ''))}
       ${section('3B. BELANJA BAHAN BAYAR NON TUNAI', purchaseTable(sections.nonCashPurchases || [], totals.nonCashPurchases))}
       ${section('PENYESUAIAN STOK', table(['PRODUK', 'Stok Tercatat', 'Stok Riil', 'Selisih'], adjustmentRows))}
       ${section('ARUS BARANG', table(['BARANG', 'ARAH', 'QTY', 'KETERANGAN'], goodsFlowRows))}

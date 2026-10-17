@@ -348,3 +348,51 @@ test('Penerus QRIS: notif tertahan saat offline tetap tercatat di jam notifikasi
   const aneh = await kirim(f, token, { ...kiriman, id: 'lain', postedAt: 1 });
   assert.ok(Math.abs(new Date(aneh.body.waktu).getTime() - Date.now()) < 60_000);
 });
+
+test('menu Data: filter cara bayar, tombol QRIS merah/hijau, klaim+tautkan sekali ketuk dari baris penjualan', async () => {
+  const { handleCashierDataApi } = await import('../src/cashier-data-explorer.js');
+  const f = await fixture();
+  const token = await siapkan(f, { semuaGerai: true });
+  const mandala = await session(f.sqlite, 'cashier_sessions', 'cashier_id', 'cashier_mandala_pilot', 'qr-kasir-mandala-2');
+  f.sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, status, opened_at) VALUES ('drawer_mandala2', 'store_mandala', 'cashier_mandala_pilot', 'OPEN', ?)`).run(new Date().toISOString());
+  addSale(f.sqlite, { id: 'sale_qris_6k', amount: 6000 });
+  addSale(f.sqlite, { id: 'sale_tunai', amount: 9000, method: 'CASH' });
+  const data = async query => {
+    const url = new URL('https://example.test/api/cashier/data/transactions');
+    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+    const res = await handleCashierDataApi(new Request(url, { headers: { Authorization: `Bearer ${f.kasir}` } }), f.env, url.pathname);
+    return res.json();
+  };
+  const qrisSaja = await data({ filter: 'SALES', bayar: 'QRIS' });
+  assert.deepEqual(qrisSaja.transactions.map(row => row.id), ['sale_qris_6k']);
+  assert.deepEqual(qrisSaja.transactions[0].qris, { amount: 6000, tertaut: false, masukId: null, linkMode: null, diklaim: false });
+  assert.deepEqual((await data({ filter: 'SALES', bayar: 'TUNAI' })).transactions.map(row => row.id), ['sale_tunai']);
+
+  // Dua uang Rp6.000 di kolam. Pendem memilih salah satu dari baris penjualannya.
+  const a = await kirim(f, token, { text: 'Anda telah menerima pembayaran QRIS sebesar Rp 6.000 dari DANA.', id: 'n1', postedAt: Date.now() });
+  const b = await kirim(f, token, { text: 'Anda telah menerima pembayaran QRIS sebesar Rp 6.000 dari GOPAY.', id: 'n2', postedAt: Date.now() });
+  const calon = await call(f.env, '/api/qris/kandidat', { token: f.kasir, query: { saleId: 'sale_qris_6k' } });
+  assert.equal(calon.body.qris, true);
+  assert.equal(calon.body.kandidat.length, 2);
+  // Mandala sempat mengklaim uang "b" duluan -> Pendem ditolak untuk "b", berhasil untuk "a".
+  assert.equal((await call(f.env, '/api/qris/klaim', { token: mandala, store: 'MANDALA', method: 'POST', body: { masukId: b.body.id } })).status, 200);
+  const rebut = await call(f.env, '/api/qris/klaim-tautkan', { token: f.kasir, method: 'POST', body: { masukId: b.body.id, saleId: 'sale_qris_6k' } });
+  assert.equal(rebut.status, 409);
+  assert.match(rebut.body.error, /MANDALA/);
+  const ok = await call(f.env, '/api/qris/klaim-tautkan', { token: f.kasir, method: 'POST', body: { masukId: a.body.id, saleId: 'sale_qris_6k' } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  const hijau = (await data({ filter: 'SALES', bayar: 'QRIS' })).transactions[0].qris;
+  assert.equal(hijau.tertaut, true);
+  assert.equal(hijau.masukId, a.body.id);
+  // Penjualan tunai tidak punya tombol QRIS; uang "a" sekarang milik Pendem dan terkunci.
+  assert.equal((await data({ filter: 'SALES', bayar: 'TUNAI' })).transactions[0].qris, undefined);
+  const tautan = await call(f.env, '/api/qris/kandidat', { token: f.kasir, query: { saleId: 'sale_qris_6k' } });
+  assert.equal(tautan.body.tautan.id, a.body.id);
+  assert.equal(tautan.body.tautan.bisaBatal, true);
+  // Nominal beda tidak bisa ditautkan CS -> klaim yang sempat terjadi dikembalikan ke kolam.
+  addSale(f.sqlite, { id: 'sale_qris_7k', amount: 7000 });
+  const c = await kirim(f, token, { text: 'Anda telah menerima pembayaran QRIS sebesar Rp 8.000 dari OVO.', id: 'n3', postedAt: Date.now() });
+  const salah = await call(f.env, '/api/qris/klaim-tautkan', { token: f.kasir, method: 'POST', body: { masukId: c.body.id, saleId: 'sale_qris_7k' } });
+  assert.equal(salah.body.code, 'QRIS_NOMINAL_BEDA');
+  assert.equal(f.sqlite.prepare(`SELECT store_id FROM qris_masuk WHERE id = ?`).get(c.body.id).store_id, null);
+});

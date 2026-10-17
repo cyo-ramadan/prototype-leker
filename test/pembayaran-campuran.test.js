@@ -170,6 +170,7 @@ test('laci: uang seharusnya hanya bertambah bagian tunai; QRIS menaut sebesar ba
   assert.equal(report.totals.nonCashSales, order.total - tunai);
   assert.equal(report.totals.expectedCash, 50000 + tunai);
   assert.equal(report.totals.cashSalesItems, 0, 'baris penyesuaian tidak menambah jumlah item');
+  assert.deepEqual(report.totals.nonCashSalesByMethod.map(row => [row.method, row.amount]), [['QRIS', qris]]);
 
   // Uang QRIS masuk sebesar bagian QRIS -> tertaut otomatis ke penjualan campuran itu.
   fx.sqlite.prepare(`INSERT INTO qris_masuk (id, entity_id, store_id, amount, source, received_at, business_date, created_at) VALUES ('qm_campuran', ?, ?, ?, 'MANUAL', ?, '2026-10-17', ?)`)

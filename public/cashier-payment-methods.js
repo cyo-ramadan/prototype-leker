@@ -409,6 +409,8 @@
         // Pengiriman di LUAR try: error dari server tidak boleh memicu kirim ulang lewat baseApi.
         const posted = await canonicalFactPost(path, payload);
         resetSalePaymentToDefault();
+        // QRIS (qris-kasir.js) menawarkan pilih uang masuk sesudah penjualan QRIS/campuran tersimpan.
+        document.dispatchEvent(new CustomEvent('cashier:sale-saved', { detail: posted }));
         return posted;
       }
       return baseApi(path, options);

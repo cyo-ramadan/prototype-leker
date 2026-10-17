@@ -304,5 +304,70 @@
   const isOpen = () => Boolean(ctx && document.getElementById('qrisDialog')?.open);
   async function refreshIfOpen() { if (isOpen()) { try { await reload(); } catch {} } }
 
-  window.QrisOtomatis = { open, ringkasan, refreshIfOpen };
+  // ---- Pilih uang QRIS untuk satu penjualan (Bos Cyo, 2026-10-17) -----------------------------
+  // Dari tombol kecil QRIS di menu Data (merah = belum, hijau = tertaut) dan otomatis sesudah
+  // penjualan QRIS/campuran disimpan. "Pakai" = klaim (bila masih di kolam) + tautkan sekaligus.
+  function pilihDialog() {
+    let node = document.getElementById('qrisPilihDialog');
+    if (node) return node;
+    node = document.createElement('dialog');
+    node.id = 'qrisPilihDialog';
+    node.className = 'info-gerai-dialog qris-dialog';
+    document.body.appendChild(node);
+    return node;
+  }
+
+  async function pilihPenjualan({ api, saleId, otomatis = false, onDone = null }) {
+    let data;
+    try { data = await api(`/api/qris/kandidat?saleId=${encodeURIComponent(saleId)}`); }
+    catch (error) { if (!otomatis) toast(error.message); return; }
+    if (!data.qris) { if (!otomatis) toast('Penjualan ini bukan pembayaran QRIS.'); return; }
+    if (otomatis && data.tautan) return; // sudah tertaut sendiri (mis. hanya satu yang cocok)
+    const node = pilihDialog();
+    const selesai = () => { if (node.open) node.close(); onDone?.(); };
+    const muat = () => pilihPenjualan({ api, saleId, otomatis: false, onDone });
+    const s = data.sale;
+    const bagian = s.campuran ? ` (bagian QRIS dari ${rp(s.total)})` : '';
+    let isi;
+    if (data.tautan) {
+      const t = data.tautan;
+      isi = `<div class="qris-pilih-row"><div><strong>✅ Tertaut ke uang masuk ${rp(t.amount)}</strong>
+          <div class="muted">${jam(t.receivedAt)}${t.sumberBayar ? ` · dari ${esc(t.sumberBayar)}` : ''}${t.claimedByName ? ` · diklaim ${esc(t.claimedByName)}` : ''}</div></div></div>
+        ${t.bisaBatal ? '<button class="secondary-btn" type="button" data-qp-batal>Batal klaim & tautan</button>' : '<p class="muted">Tautan ini hanya bisa dibatalkan admin.</p>'}`;
+    } else if (data.kandidat.length) {
+      isi = `<p class="muted">Pilih uang QRIS milik pembeli ini. Yang dipilih langsung terkunci untuk gerai ini.</p>
+        ${data.kandidat.map(item => `<div class="qris-pilih-row"><div><strong>${rp(item.amount)}</strong> · ${jam(item.receivedAt)}${item.sumberBayar ? ` · dari ${esc(item.sumberBayar)}` : ''}
+          <div class="muted">${item.dariKolam ? 'Di kolam (belum diklaim)' : 'Sudah diklaim gerai ini'}</div></div>
+          <button class="primary-btn" type="button" data-qp-pakai="${esc(item.id)}">Pakai</button></div>`).join('')}`;
+    } else {
+      isi = `<p>Uang QRIS ${rp(s.amount)} belum masuk.</p><p class="muted">Tunggu beberapa detik lalu tekan Muat ulang, atau tautkan nanti lewat tombol merah QRIS di 📊 Data.</p>`;
+    }
+    node.innerHTML = `<div class="info-gerai-head"><div><h2>📲 Pilih uang QRIS-nya</h2>
+        <div class="muted">Penjualan ${jam(s.createdAt)} · ${rp(s.amount)}${bagian}</div></div>
+        <button class="secondary-btn" type="button" data-qp-tutup>Tutup</button></div>
+      ${isi}
+      <div style="margin-top:12px"><button class="mini-btn" type="button" data-qp-muat>Muat ulang</button></div>`;
+    node.querySelector('[data-qp-tutup]').onclick = selesai;
+    node.querySelector('[data-qp-muat]').onclick = muat;
+    node.querySelectorAll('[data-qp-pakai]').forEach(button => {
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          await api('/api/qris/klaim-tautkan', { method: 'POST', body: JSON.stringify({ masukId: button.dataset.qpPakai, saleId }) });
+          toast('QRIS tertaut ✓');
+          selesai();
+        } catch (error) { toast(error.message); muat(); }
+      };
+    });
+    const batal = node.querySelector('[data-qp-batal]');
+    if (batal) batal.onclick = async () => {
+      if (!window.confirm('Batalkan klaim & tautan? Uang ini kembali ke kolam dan bisa diklaim gerai lain.')) return;
+      batal.disabled = true;
+      try { await api('/api/qris/batal-klaim', { method: 'POST', body: JSON.stringify({ masukId: data.tautan.id }) }); toast('Dibatalkan'); selesai(); }
+      catch (error) { toast(error.message); batal.disabled = false; }
+    };
+    if (!node.open) node.showModal();
+  }
+
+  window.QrisOtomatis = { open, ringkasan, refreshIfOpen, pilihPenjualan };
 })();

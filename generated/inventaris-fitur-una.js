@@ -3898,12 +3898,30 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/qris-otomatis.js:/api/qris/kandidat",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/kandidat",
+    "label": "/api/qris/kandidat",
+    "skin": null
+  },
+  {
     "id": "rute:src/qris-otomatis.js:/api/qris/klaim",
     "jenis": "rute-kandidat",
     "sumber": "src/qris-otomatis.js",
     "method": null,
     "rute": "/api/qris/klaim",
     "label": "/api/qris/klaim",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/klaim-tautkan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/klaim-tautkan",
+    "label": "/api/qris/klaim-tautkan",
     "skin": null
   },
   {
@@ -7795,6 +7813,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": "data-cashier-tx-cancel-permit",
     "label": "Batal Hapus",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier-data-explorer.js"
+  },
+  {
+    "id": "tombol:public/cashier-data-explorer.js:data-cashier-tx-qris:QRIS",
+    "jenis": "tombol",
+    "sumber": "public/cashier-data-explorer.js",
+    "tombolId": null,
+    "aksi": "data-cashier-tx-qris",
+    "label": "QRIS",
     "rute": null,
     "skin": null,
     "halaman": "public/cashier-data-explorer.js"
@@ -11947,23 +11976,23 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/produk/kemitraan/index.html"
   },
   {
-    "id": "tombol:public/qris-kasir.js:label:{nilai}",
-    "jenis": "tombol",
-    "sumber": "public/qris-kasir.js",
-    "tombolId": null,
-    "aksi": null,
-    "label": "{nilai}",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/qris-kasir.js"
-  },
-  {
     "id": "tombol:public/qris-otomatis.js:${esc(item.id)}",
     "jenis": "tombol",
     "sumber": "public/qris-otomatis.js",
     "tombolId": "${esc(item.id)}",
     "aksi": "data-id,data-qr-ubah",
     "label": "Pulihkan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-qp-pakai:Pakai",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-qp-pakai",
+    "label": "Pakai",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-otomatis.js"
@@ -12063,6 +12092,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": null,
     "label": "＋ Tambah uang masuk manual (dari mutasi)",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:Batal klaim & tautan",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Batal klaim & tautan",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-otomatis.js"

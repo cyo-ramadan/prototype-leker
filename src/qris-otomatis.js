@@ -445,6 +445,87 @@ async function klaim(db, actor, value) {
   return json({ ok: true, storeCode: actor.store.code, tertaut });
 }
 
+// ---- Dari baris penjualan (Bos Cyo, 2026-10-17: menu Data kasir) -------------------------------
+// Tombol kecil per penjualan QRIS: merah = belum tertaut, hijau = tertaut. Ketuk merah -> calon uang
+// masuk bernominal sama (kolam + milik gerai ini) -> pilih -> klaim + tautkan sekaligus.
+
+const KANDIDAT_MENIT = 90;
+
+export async function qrisStatusPenjualan(db, storeId, saleIds) {
+  const result = new Map();
+  if (!saleIds.length) return result;
+  const method = await qrisMethodFor(db, storeId);
+  if (!method.code) return result;
+  const rowsQ = await rows(db.prepare(`
+    SELECT s.id, ${QRIS_SALE_AMOUNT} AS qris_amount, q.id AS masuk_id, q.link_mode, q.claimed_at
+    FROM sales s ${QRIS_SALE_JOIN} LEFT JOIN qris_masuk q ON q.sale_id = s.id
+    WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.id IN (${saleIds.map(() => '?').join(', ')})
+  `).bind(method.code, storeId, method.code, ...saleIds));
+  for (const row of rowsQ) {
+    result.set(row.id, { amount: Number(row.qris_amount), tertaut: Boolean(row.masuk_id), masukId: row.masuk_id || null, linkMode: row.link_mode || null, diklaim: Boolean(row.claimed_at) });
+  }
+  return result;
+}
+
+async function kandidat(db, actor, saleId) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const method = await qrisMethodFor(db, actor.store.id);
+  const sale = method.code ? await db.prepare(`
+    SELECT s.id, s.store_id, ${QRIS_SALE_AMOUNT} AS qris_amount, s.total_amount, s.payment_method, s.created_at, s.voided_at, ${QRIS_SALE_WHERE} AS is_qris
+    FROM sales s ${QRIS_SALE_JOIN} WHERE s.id = ?
+  `).bind(method.code, method.code, text(saleId, 120)).first() : null;
+  if (!sale || sale.store_id !== actor.store.id) return json({ error: 'Penjualan tidak ditemukan di gerai ini.' }, 404);
+  if (!Number(sale.is_qris)) return json({ qris: false });
+  const amount = Number(sale.qris_amount);
+  const tautan = await db.prepare(`
+    SELECT q.*, st.code AS store_code, NULL AS sale_voided_at FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id WHERE q.sale_id = ?
+  `).bind(sale.id).first();
+  const dekat = (iso, menit) => new Date(new Date(sale.created_at).getTime() + menit * 60_000).toISOString();
+  const calon = tautan ? [] : (await rows(db.prepare(`
+    SELECT q.*, st.code AS store_code, NULL AS sale_voided_at FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id
+    WHERE q.entity_id = ? AND q.status = 'BELUM' AND q.amount = ?
+      AND ((q.store_id IS NULL AND q.received_at >= ? AND q.received_at < ?)
+        OR (q.store_id = ? AND q.received_at >= ? AND q.received_at < ?))
+    ORDER BY ABS(julianday(q.received_at) - julianday(?)) LIMIT 20
+  `).bind(actor.store.entityId, amount,
+    dekat(null, -KANDIDAT_MENIT), dekat(null, KANDIDAT_MENIT),
+    actor.store.id, dekat(null, -JENDELA_MANUAL_JAM * 60), dekat(null, 60),
+    sale.created_at))).map(row => ({ ...mapMasuk(row), dariKolam: !row.store_id }));
+  return json({
+    qris: true,
+    sale: { id: sale.id, amount, total: Number(sale.total_amount), campuran: sale.payment_method === 'CAMPURAN', createdAt: sale.created_at, voided: Boolean(sale.voided_at) },
+    tautan: tautan ? { ...mapMasuk(tautan), bisaBatal: Boolean(tautan.claimed_at) && (tautan.link_mode !== 'ADMIN' || actor.canManage) } : null,
+    kandidat: calon
+  });
+}
+
+async function klaimTautkan(db, actor, value) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const masukId = text(value?.masukId, 80);
+  const now = new Date().toISOString();
+  // Klaim dulu bila masih di kolam; bila penautan gagal, klaim itu dibatalkan lagi.
+  const klaimBaru = await db.prepare(`
+    UPDATE qris_masuk SET store_id = ?, claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?
+    WHERE id = ? AND entity_id = ? AND store_id IS NULL AND status = 'BELUM'
+  `).bind(actor.store.id, now, actor.role, actor.id || '', actor.name, masukId, actor.store.entityId).run();
+  const diklaim = Boolean(klaimBaru.meta?.changes);
+  if (!diklaim) {
+    const row = await db.prepare(`SELECT q.store_id, q.status, st.code AS store_code FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id WHERE q.id = ? AND q.entity_id = ?`).bind(masukId, actor.store.entityId).first();
+    if (!row) return json({ error: 'Uang masuk tidak ditemukan.' }, 404);
+    if (row.store_id !== actor.store.id) return json({ error: `Sudah diklaim ${row.store_code || 'gerai lain'}.`, code: 'QRIS_SUDAH_DIKLAIM' }, 409);
+  }
+  const hasil = await tautkan(db, actor, value);
+  if (hasil.status !== 200 && diklaim) {
+    await db.prepare(`
+      UPDATE qris_masuk SET store_id = NULL, claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = ''
+      WHERE id = ? AND status = 'BELUM' AND claimed_at = ?
+    `).bind(masukId, now).run();
+  }
+  return hasil;
+}
+
 async function batalKlaim(db, actor, value) {
   const ditolak = await bolehKolam(db, actor);
   if (ditolak) return ditolak;
@@ -667,6 +748,7 @@ export async function handleQrisApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/qris/ringkasan') return json(await ringkasan(db, actor));
   if (request.method === 'GET' && pathname === '/api/qris/kolam') return kolam(db, actor);
+  if (request.method === 'GET' && pathname === '/api/qris/kandidat') return kandidat(db, actor, new URL(request.url).searchParams.get('saleId'));
   if (request.method === 'GET' && pathname === '/api/qris') {
     const asked = new URL(request.url).searchParams.get('tanggal') || '';
     const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : getJakartaBusinessDate();
@@ -684,6 +766,7 @@ export async function handleQrisApi(request, env, pathname) {
   switch (pathname) {
     case '/api/qris/tautkan': return tautkan(db, actor, value);
     case '/api/qris/klaim': return klaim(db, actor, value);
+    case '/api/qris/klaim-tautkan': return klaimTautkan(db, actor, value);
     case '/api/qris/batal-klaim': return batalKlaim(db, actor, value);
     case '/api/qris/lepas': return adminUbah(db, actor, value, 'lepas');
     case '/api/qris/abaikan': return adminUbah(db, actor, value, 'abaikan');

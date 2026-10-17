@@ -271,6 +271,7 @@ export const SUMBER_KAMUS = Object.freeze({
       "src/qris-otomatis.js",
       "public/qris-otomatis.js",
       "public/qris-kasir.js",
+      "public/cashier-data-explorer.js",
       "src/tenant-policy.js"
     ],
     "fitur": [
@@ -287,9 +288,13 @@ export const SUMBER_KAMUS = Object.freeze({
       "rute:src/qris-otomatis.js:/api/qris/ringkasan",
       "rute:src/qris-otomatis.js:/api/qris/setelan",
       "rute:src/qris-otomatis.js:/api/qris/tautkan",
-      "tombol:public/qris-kasir.js:label:{nilai}",
       "rute:src/qris-otomatis.js:/api/qris/batal-klaim",
       "rute:src/qris-otomatis.js:/api/qris/klaim",
+      "rute:src/qris-otomatis.js:/api/qris/kandidat",
+      "rute:src/qris-otomatis.js:/api/qris/klaim-tautkan",
+      "tombol:public/cashier-data-explorer.js:data-cashier-tx-qris:QRIS",
+      "tombol:public/qris-otomatis.js:data-qp-pakai:Pakai",
+      "tombol:public/qris-otomatis.js:label:Batal klaim & tautan",
       "rute:src/qris-otomatis.js:/api/qris/kolam",
       "tombol:public/qris-otomatis.js:data-qr-batal:Batal klaim",
       "tombol:public/qris-otomatis.js:data-qr-klaim:✋ Klaim untuk {nilai}",

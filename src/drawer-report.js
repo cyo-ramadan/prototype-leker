@@ -56,7 +56,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows, permitHistory, splitCashRow] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows, permitHistory, splitCashRow, nonCashMethodRows] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -118,7 +118,19 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       JOIN sales s ON s.id = sp.sale_id AND s.store_id = sp.store_id
       WHERE s.store_id = ? AND s.drawer_session_id = ? AND s.voided_at IS NULL
         AND s.payment_method = 'CAMPURAN' AND sp.payment_method_code = 'CASH'
-    `).bind(storeId, drawerId).first()
+    `).bind(storeId, drawerId).first(),
+    // Subtotal penjualan non tunai per cara bayar (Bos Cyo, 2026-10-17) -- mis. QRIS terpisah dari Rekber,
+    // supaya mudah dicocokkan dengan mutasi bank. Bagian non tunai pembayaran campuran ikut dihitung.
+    db.prepare(`
+      SELECT method, COALESCE(pm.name, method) AS name, SUM(amount) AS amount FROM (
+        SELECT s.payment_method AS method, s.total_amount AS amount FROM sales s
+        WHERE s.store_id = ? AND s.drawer_session_id = ? AND s.voided_at IS NULL AND s.payment_method NOT IN ('CASH', 'CAMPURAN')
+        UNION ALL
+        SELECT sp.payment_method_code, sp.amount FROM sale_payments sp JOIN sales s ON s.id = sp.sale_id AND s.store_id = sp.store_id
+        WHERE s.store_id = ? AND s.drawer_session_id = ? AND s.voided_at IS NULL AND s.payment_method = 'CAMPURAN' AND sp.payment_method_code != 'CASH'
+      ) x LEFT JOIN payment_methods pm ON pm.store_id = ? AND pm.code = x.method
+      GROUP BY method ORDER BY amount DESC
+    `).bind(storeId, drawerId, storeId, drawerId, storeId).all()
   ]);
 
   const sales = (saleRows.results ?? []).map(row => ({
@@ -287,6 +299,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
     totals: {
       cashSales: cashSalesTotal,
       cashSalesItems,
+      nonCashSalesByMethod: (nonCashMethodRows?.results ?? []).map(row => ({ method: row.method, name: row.name, amount: number(row.amount) })),
       nonCashSales: nonCashSalesTotal,
       nonCashSalesItems,
       promotions: promotionTotal,

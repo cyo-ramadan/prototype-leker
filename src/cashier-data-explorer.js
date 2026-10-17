@@ -3,6 +3,7 @@ import { requireCashier } from './cashier-auth.js';
 import { listStoreTransactions, parseIso, parseCursor as parseTransactionCursor } from './admin-transactions.js';
 import { listStoreStockBalances, listProductStockMovements, parseCursor as parseStockCursor } from './admin-stock.js';
 import { transactionDetailByKindId } from './admin-transaction-detail.js';
+import { qrisMethodFor, qrisStatusPenjualan } from './qris-otomatis.js';
 
 // Read-only mirror of Admin's Transaksi + Stok tabs for Kasir/CS. Same query
 // logic (imported, not duplicated), but the store always comes from the
@@ -28,9 +29,14 @@ export async function handleCashierDataApi(request, env, pathname) {
     const requestedLimit = Number(url.searchParams.get('limit') || 50);
     const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(5, requestedLimit)) : 50;
     const q = url.searchParams.get('q') || null;
-    const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit, q });
+    const bayar = String(url.searchParams.get('bayar') || '').trim().toUpperCase() || null;
+    const qrisCode = (await qrisMethodFor(env.DB, storeId)).code;
+    const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit, q, bayar, qrisCode });
     if (!listing.ok) return json({ error: listing.error }, 400);
-    return json({ filter: listing.filter, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
+    // Tombol kecil QRIS per baris (merah = belum tertaut ke uang masuk, hijau = tertaut).
+    const status = await qrisStatusPenjualan(env.DB, storeId, listing.transactions.filter(row => row.kind === 'SALE').map(row => row.id));
+    const transactions = listing.transactions.map(row => (status.has(row.id) ? { ...row, qris: status.get(row.id) } : row));
+    return json({ filter: listing.filter, bayar, transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
   }
 
   const detailMatch = pathname.match(/^\/api\/cashier\/data\/transactions\/detail\/([^/]+)\/([^/]+)$/);

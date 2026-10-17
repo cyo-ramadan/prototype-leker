@@ -1,15 +1,16 @@
-// Cek QRIS di panel kasir (Bos Cyo, 2026-10-16/17). Tidak ada tombol baru di kasir: cek QRIS
-// menumpang tombol "📚 Detail Laci" yang sudah ada (cashier-enhancements.js) -- tombol itu diberi
-// angka penjualan QRIS yang belum tertaut, dan jendela Detail Laci diberi baris "📲 Cek QRIS".
-// Tampilan & aturan ada di qris-otomatis.js / src/qris-otomatis.js. Bunyi dipicu notifikasi
-// QRIS_MASUK lewat saluran notifikasi langsung (WebSocket, user-notifications.js) -- tanpa polling.
-// Saat aplikasi ditutup, notifikasi HP (push) yang memberi tahu CS.
+// QRIS di panel kasir (Bos Cyo, 2026-10-16/17). Tidak ada tombol baru di kasir: QRIS ada di menu
+// "📊 Data" (kolom & filter Cara bayar, tombol kecil QRIS merah/hijau per penjualan, pilihan
+// "🧾 Kolam QRIS") -- cashier-data-explorer.js. Di sini:
+// - sesudah penjualan QRIS/campuran tersimpan, langsung tawarkan "Pilih uang QRIS-nya" supaya CS
+//   mengunci uangnya sebelum gerai lain mengklaim (notifikasi Merchant BCA masuk < 2 detik);
+// - mode tanpa kolam bersama: bunyi + pita hijau saat notifikasi QRIS_MASUK datang lewat saluran
+//   notifikasi langsung (WebSocket, user-notifications.js) -- tanpa polling.
+// Tampilan & aturan ada di qris-otomatis.js / src/qris-otomatis.js.
 (() => {
   if (!window.QrisOtomatis) return;
-  const laciBtn = () => document.getElementById('drawerHistoryBtn');
-  let summary = { enabled: false };
 
   const storeCode = () => String(state.cashier?.store?.code || '').trim().toUpperCase();
+  window.qrisKasirStoreCode = storeCode;
   const seen = new Set();
   let primed = false;
   let audio = null;
@@ -61,56 +62,17 @@
     banner.timer = setTimeout(() => node.classList.remove('show'), 8000);
   }
 
-  function mine() {
-    return (summary.stores || []).find(item => item.storeCode === storeCode()) || { penjualanBelum: 0, masukBelum: 0 };
-  }
-
-  // Angka di tombol Detail Laci = penjualan QRIS hari ini yang belum tertaut.
-  function paintLaciBtn() {
-    const button = laciBtn();
-    if (!button) return;
-    button.querySelector('.qris-laci-badge')?.remove();
-    const belum = summary.enabled ? mine().penjualanBelum : 0;
-    if (belum) button.insertAdjacentHTML('beforeend', ` <span class="info-gerai-badge qris-laci-badge" title="Penjualan QRIS belum tertaut">QRIS ${belum}</span>`);
-  }
-
-  // Baris "📲 Cek QRIS" di atas jendela Detail Laci.
-  function paintLaciStrip() {
-    const dialog = document.getElementById('cashierDrawerHistoryDialog');
-    if (!dialog) return;
-    let strip = document.getElementById('qrisLaciStrip');
-    if (!summary.enabled) { strip?.remove(); return; }
-    if (!strip) {
-      strip = document.createElement('div');
-      strip.id = 'qrisLaciStrip';
-      strip.className = 'qris-laci-strip';
-      dialog.querySelector('.cashier-dialog-head')?.after(strip);
-    }
-    const { penjualanBelum, masukBelum } = mine();
-    const status = penjualanBelum || masukBelum
-      ? `<span class="status-chip warn">${penjualanBelum} penjualan belum tertaut</span>${masukBelum ? ` <span class="status-chip bad">${masukBelum} uang masuk tanpa penjualan</span>` : ''}`
-      : '<span class="status-chip ok">Semua QRIS hari ini tertaut</span>';
-    const kolam = summary.kolam
-      ? `<div class="qris-laci-status"><span class="status-chip ${summary.kolamBelum ? 'bad' : 'ok'}">🧾 Kolam: ${summary.kolamBelum} belum diklaim</span></div>` : '';
-    strip.innerHTML = `<div><strong>📲 Cek QRIS hari ini</strong><div class="qris-laci-status">${status}</div>${kolam}</div>
-      <button class="primary-btn" type="button" data-qris-laci>${summary.kolam ? 'Buka Kolam QRIS' : 'Buka Cek QRIS'}</button>`;
-    strip.querySelector('[data-qris-laci]').onclick = openDialog;
-  }
-
-  async function refresh() {
-    if (!state.cashier || !storeCode()) return;
-    summary = await window.QrisOtomatis.ringkasan(api, storeCode());
-    paintLaciBtn();
-    paintLaciStrip();
-  }
-
   function openDialog() {
     if (!storeCode()) return toast('Gerai kasir belum terbaca. Login ulang lalu coba lagi.');
-    window.QrisOtomatis.open({ api, storeCode: storeCode(), kolam: Boolean(summary.kolam), onClose: refresh });
+    window.QrisOtomatis.open({ api, storeCode: storeCode(), tab: 'HARIAN' });
   }
-  // Tombol Detail Laci dibuat cashier-enhancements.js; pasang sesudah ia ada.
-  document.addEventListener('click', event => {
-    if (event.target.closest?.('#drawerHistoryBtn')) setTimeout(() => { paintLaciStrip(); refresh(); }, 0);
+
+  // Sesudah penjualan non-tunai tersimpan (event dari cashier-payment-methods.js): bila penjualan
+  // itu memakai QRIS (atau campuran dengan bagian QRIS), langsung buka pemilih uang masuk.
+  document.addEventListener('cashier:sale-saved', event => {
+    const sale = event.detail?.sale;
+    if (!sale?.id || sale.paymentMethod === 'CASH') return;
+    window.QrisOtomatis.pilihPenjualan({ api, saleId: sale.id, otomatis: true });
   });
 
   document.addEventListener('maxi-notifications-changed', event => {
@@ -122,18 +84,6 @@
     if (!baru.length) return;
     cring();
     banner(baru[0].title, baru.length > 1 ? `+${baru.length - 1} lainnya · ketuk untuk melihat` : `${baru[0].body}`);
-    refresh();
     window.QrisOtomatis.refreshIfOpen();
   });
-
-  const original = window.openDashboard;
-  if (typeof original === 'function') {
-    window.openDashboard = async function (...args) {
-      const result = await original.apply(this, args);
-      refresh();
-      return result;
-    };
-  }
-  window.addEventListener('focus', refresh);
-  refresh();
 })();

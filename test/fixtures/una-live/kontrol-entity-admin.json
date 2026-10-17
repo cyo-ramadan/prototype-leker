@@ -1709,6 +1709,22 @@
    "class": "business_draft",
    "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
    "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qp-pakai:Pakai",
+   "label": "Pakai",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:Batal klaim & tautan",
+   "label": "Batal klaim & tautan",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
   }
  ]
 }

@@ -169,9 +169,19 @@ async function loadPosDeliveryMap(db, storeId, rows) {
 // storeId is always resolved by the caller BEFORE this runs (query param for
 // Admin, the authenticated cashier's own store for Kasir); this function
 // itself trusts whatever storeId it is given.
-export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50, q = null } = {}) {
+export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50, q = null, bayar = null, qrisCode = '' } = {}) {
   if (!FILTERS.has(filter)) return { ok: false, error: 'Filter transaksi tidak valid.' };
   const { clause: kindClause, values: kindValues } = filterClause(filter);
+  // Filter cara bayar penjualan (Bos Cyo, 2026-10-17, menu Data kasir): Tunai / QRIS / Campuran.
+  // QRIS = cara bayar QRIS gerai, atau campuran yang punya bagian QRIS (migration 0166).
+  let bayarClause = '';
+  let bayarValues = [];
+  if (bayar === 'TUNAI') bayarClause = `AND kind = 'SALE' AND payment_method = 'CASH'`;
+  else if (bayar === 'CAMPURAN') bayarClause = `AND kind = 'SALE' AND payment_method = 'CAMPURAN'`;
+  else if (bayar === 'QRIS') {
+    bayarClause = `AND kind = 'SALE' AND (payment_method = ? OR (payment_method = 'CAMPURAN' AND EXISTS (SELECT 1 FROM sale_payments sp WHERE sp.sale_id = transaction_facts.id AND sp.payment_method_code = ?)))`;
+    bayarValues = [qrisCode || 'QRIS', qrisCode || 'QRIS'];
+  } else if (bayar) return { ok: false, error: 'Filter cara bayar tidak valid.' };
   // Deliberately "contains" across several columns, not an ID-only lookup --
   // typing a date fragment, a cashier's name, or part of a description all
   // work the same way.
@@ -241,13 +251,14 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
     WHERE (? IS NULL OR occurred_at >= ?) AND (? IS NULL OR occurred_at <= ?)
       AND (? IS NULL OR occurred_at < ? OR (occurred_at = ? AND id < ?))
       ${kindClause}
+      ${bayarClause}
       ${searchClause}
     ORDER BY occurred_at DESC, id DESC LIMIT ?
   `).bind(
     storeId, storeId, storeId, storeId, storeId, storeId,
     from, from, to, to,
     before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
-    ...kindValues, ...searchValues, limit + 1
+    ...kindValues, ...bayarValues, ...searchValues, limit + 1
   ).all();
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
   const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);

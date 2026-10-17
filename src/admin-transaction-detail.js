@@ -1,4 +1,5 @@
 import { json } from './http.js';
+import { salePaymentLabel, salePaymentParts } from './sale-payments.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
@@ -101,6 +102,7 @@ async function saleDetail(db, storeId, saleId) {
     totalPoints: Number(sale.total_points || 0),
     note: sale.note || '',
     paymentMethod: sale.payment_method || '',
+    ...(sale.payment_method === 'CAMPURAN' ? { paymentLabel: `CAMPURAN: ${salePaymentLabel(await salePaymentParts(db, sale))}` } : {}),
     drawerSessionId: sale.drawer_session_id,
     cashierId: sale.cashier_id,
     cashierName: sale.cashier_name || '',

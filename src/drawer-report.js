@@ -56,7 +56,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const drawer = await getStoreDrawer(db, storeId, drawerId);
   if (!drawer) return null;
 
-  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows, permitHistory] = await Promise.all([
+  const [saleRows, purchaseRows, expenseRows, incomeRows, operationalCashRows, productionRows, goodsFlowRequestRows, permitHistory, splitCashRow] = await Promise.all([
     db.prepare(`
       SELECT s.payment_method, si.product_name, si.unit_price,
              SUM(si.quantity) AS quantity, SUM(si.line_total) AS line_total
@@ -110,7 +110,15 @@ export async function buildDrawerReport(db, storeId, drawerId) {
       WHERE store_id = ? AND drawer_session_id = ? AND request_type = 'GOODS_FLOW' AND posting_status = 'posted'
       ORDER BY posted_at
     `).bind(storeId, drawerId).all(),
-    listDrawerPermitHistory(db, storeId, drawerId)
+    listDrawerPermitHistory(db, storeId, drawerId),
+    // Pembayaran campuran (migration 0166): bagian TUNAI dari penjualan CAMPURAN masuk uang laci.
+    db.prepare(`
+      SELECT COALESCE(SUM(sp.amount), 0) AS amount, COUNT(DISTINCT sp.sale_id) AS sales
+      FROM sale_payments sp
+      JOIN sales s ON s.id = sp.sale_id AND s.store_id = sp.store_id
+      WHERE s.store_id = ? AND s.drawer_session_id = ? AND s.voided_at IS NULL
+        AND s.payment_method = 'CAMPURAN' AND sp.payment_method_code = 'CASH'
+    `).bind(storeId, drawerId).first()
   ]);
 
   const sales = (saleRows.results ?? []).map(row => ({
@@ -156,6 +164,15 @@ export async function buildDrawerReport(db, storeId, drawerId) {
 
   const cashSales = sales.filter(row => row.paymentMethod === 'CASH');
   const nonCashSales = sales.filter(row => row.paymentMethod !== 'CASH');
+  // Barang penjualan campuran tetap tercantum di bagian non tunai (satu nota tidak dipecah per barang);
+  // bagian tunainya dipindah ke bagian tunai lewat dua baris penyesuaian, jadi total kedua bagian dan
+  // uang laci seharusnya tetap benar. quantity null = baris penyesuaian, tidak menambah jumlah item.
+  const splitCash = number(splitCashRow?.amount);
+  if (splitCash > 0) {
+    const notes = number(splitCashRow?.sales);
+    cashSales.push({ paymentMethod: 'CAMPURAN', productName: `Bagian tunai pembayaran campuran (${notes} nota)`, unitPrice: 0, quantity: null, total: splitCash, adjustment: true });
+    nonCashSales.push({ paymentMethod: 'CAMPURAN', productName: 'Dikurangi bagian tunai pembayaran campuran', unitPrice: 0, quantity: null, total: -splitCash, adjustment: true });
+  }
   const cashPurchases = purchases.filter(row => row.paymentMethod === 'CASH');
   const nonCashPurchases = purchases.filter(row => row.paymentMethod !== 'CASH');
   const cashExpenses = expenses.filter(row => row.paymentMethod === 'CASH');

@@ -35,6 +35,7 @@ import { handleCashierProductionApi } from './cashier-production.js';
 import { handleCashierCustomerSearchApi } from './cashier-customers.js';
 import { handleApprovalQueueApi } from './approval-queue.js';
 import { handleEntitySharedAccountApi, postSharedAccountLedgerForPaymentMethod } from './entity-shared-accounts.js';
+import { CAMPURAN, handleSalePaymentsApi } from './sale-payments.js';
 import { handleTransactionVoidPermitApi } from './transaction-void-permits.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleStaffManualBookApi } from './staff-manual-book.js';
@@ -166,6 +167,18 @@ async function attachSharedAccountLedgerIfApplicable(response, env, factType) {
     for (const factId of factIds) {
       const fact = await env.DB.prepare(`SELECT store_id, payment_method, ${amountColumn} AS amount FROM ${table} WHERE id = ? LIMIT 1`).bind(factId).first();
       if (!fact?.store_id) continue;
+      // Pembayaran campuran (migration 0166): tiap bagian dicatat sendiri; bagian tunai/non-Rekening
+      // Bersama dilewati oleh postSharedAccountLedgerForPaymentMethod.
+      if (type === 'SALE' && String(fact.payment_method || '').toUpperCase() === CAMPURAN) {
+        const parts = (await env.DB.prepare('SELECT payment_method_code, amount FROM sale_payments WHERE sale_id = ? AND store_id = ?').bind(factId, fact.store_id).all()).results ?? [];
+        for (const part of parts) {
+          await postSharedAccountLedgerForPaymentMethod(env.DB, {
+            storeId: fact.store_id, paymentMethodCode: part.payment_method_code, direction, amount: Number(part.amount),
+            sourceType: type, sourceId: factId, actorRole: 'SYSTEM', actorId: ''
+          });
+        }
+        continue;
+      }
       await postSharedAccountLedgerForPaymentMethod(env.DB, {
         storeId: fact.store_id,
         paymentMethodCode: fact.payment_method,
@@ -450,6 +463,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (cashierProductionResponse) return cashierProductionResponse;
   const cashierWorkspaceResponse = await handleCashierWorkspaceApi(request, env, pathname);
   if (cashierWorkspaceResponse) return cashierWorkspaceResponse;
+  const salePaymentsResponse = await handleSalePaymentsApi(request, env, pathname, requireCashier);
+  if (salePaymentsResponse) return salePaymentsResponse;
   const trackedSaleResponse = await handleCashierTrackedSaleApi(request, env, pathname);
   if (trackedSaleResponse) {
     return request.method === 'POST' && pathname === '/api/cashier/sales'

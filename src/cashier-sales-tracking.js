@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { CAMPURAN, campuranEnabled, resolveSplitPayments, buildSalePaymentStatements } from './sale-payments.js';
 import { requireCashier } from './cashier-auth.js';
 import { requireDrawerOwner } from './cashier-drawer.js';
 import { getNextOrderSequence, getOrder, listProducts } from './db-multistore.js';
@@ -198,14 +199,29 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
   if (!body.ok) return json({ error: 'Payload penjualan tidak valid.' }, 400);
 
   const storeId = auth.cashier.store.id;
-  const resolvedPayment = await resolvePosPaymentMethod(env.DB, storeId, body.value?.paymentMethod, 'CASH');
-  if (!resolvedPayment) {
-    return json({ error: 'Cara bayar penjualan tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+  // Pembayaran campuran (Bos Cyo, 2026-10-17): body.payments = [{ paymentMethod, amount }, ...] (2-3 bagian).
+  // Rincian divalidasi sesudah total dihitung server -- nominal dari HP tidak dipercaya begitu saja.
+  const splitRequested = Array.isArray(body.value?.payments) && body.value.payments.length > 1;
+  let resolvedPayment = null;
+  if (splitRequested) {
+    const storeRow = await env.DB.prepare('SELECT entity_id FROM stores WHERE id = ?').bind(storeId).first();
+    if (!await campuranEnabled(env.DB, storeRow?.entity_id || null)) {
+      return json({ error: 'Pembayaran campuran tidak diaktifkan untuk usaha ini.', code: 'SPLIT_PAYMENT_DISABLED' }, 403);
+    }
+  } else {
+    resolvedPayment = await resolvePosPaymentMethod(env.DB, storeId, body.value?.paymentMethod, 'CASH');
+    if (!resolvedPayment) {
+      return json({ error: 'Cara bayar penjualan tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+    }
   }
+  const splitFor = async total => {
+    if (!splitRequested) return { ok: true, parts: null };
+    return resolveSplitPayments(env.DB, storeId, body.value.payments, total);
+  };
   const sourceOrderId = text(body.value?.sourceOrderId, 160) || null;
   const now = isoNow();
   const saleId = `sale_${crypto.randomUUID()}`;
-  const channel = resolvedPayment.code;
+  const channel = splitRequested ? CAMPURAN : resolvedPayment.code;
   const effectContext = {
     storeId,
     drawerId: ownership.drawer.id,
@@ -238,6 +254,8 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
 
     const validated = validateOrderSnapshotLines(sourceOrder, body.value?.items);
     if (!validated.ok) return json({ error: validated.error }, 400);
+    const split = await splitFor(validated.total);
+    if (!split.ok) return json({ error: split.error, code: split.code || 'SPLIT_PAYMENT_INVALID' }, 400);
     const customerId = sourceOrder.customerId || null;
     const point = await pointContext(env.DB, storeId, customerId);
     const effects = await prepareEffects(env.DB, effectContext, validated.lines, customerId);
@@ -261,6 +279,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
       operationalStatements: effects.statements,
       pointShareGroupId: point?.shareGroupId || null
     });
+    if (split.parts) statements.push(...buildSalePaymentStatements(env.DB, { saleId, storeId, parts: split.parts, now }));
     try {
       await env.DB.batch(statements);
     } catch (error) {
@@ -277,6 +296,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
         total: validated.total,
         points: effects.totalPoints,
         paymentMethod: channel,
+        payments: split.parts,
         items: effects.lines,
         createdAt: now
       },
@@ -290,6 +310,8 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
     allowPriceOverride: auth.cashier.store?.priceOverrideAllowed === true
   });
   if (!validated.ok) return json({ error: validated.error }, 400);
+  const split = await splitFor(validated.total);
+  if (!split.ok) return json({ error: split.error, code: split.code || 'SPLIT_PAYMENT_INVALID' }, 400);
 
   const customerResolution = await resolveDirectCustomer(env.DB, storeId, body.value?.customerId);
   if (customerResolution.error) return json({ error: customerResolution.error }, 404);
@@ -353,6 +375,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
       env.DB.prepare(`UPDATE orders SET status = 'COMPLETED', updated_at = ?, completed_at = ? WHERE id = ? AND store_id = ? AND status = 'READY'`)
         .bind(now, now, orderId, storeId)
     );
+    if (split.parts) statements.push(...buildSalePaymentStatements(env.DB, { saleId, storeId, parts: split.parts, now }));
 
     try {
       await env.DB.batch(statements);
@@ -365,6 +388,7 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
           total: validated.total,
           points: effects.totalPoints,
           paymentMethod: channel,
+          payments: split.parts,
           items: effects.lines,
           createdAt: now
         },

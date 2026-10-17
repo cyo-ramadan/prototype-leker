@@ -150,15 +150,22 @@ export async function qrisMethodFor(db, storeId) {
 
 const minutesBetween = (a, b) => Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 60000;
 
+// Penjualan QRIS = cara bayarnya QRIS, ATAU pembayaran campuran yang punya bagian QRIS (migration 0166).
+// Nominal yang ditautkan ke uang masuk = bagian QRIS-nya, bukan total penjualan. Bind: kode QRIS dua kali
+// (JOIN lalu WHERE) -- lihat pemakai di bawah.
+const QRIS_SALE_JOIN = `LEFT JOIN sale_payments sp ON sp.sale_id = s.id AND sp.payment_method_code = ?`;
+const QRIS_SALE_WHERE = `(s.payment_method = ? OR (s.payment_method = 'CAMPURAN' AND sp.id IS NOT NULL))`;
+const QRIS_SALE_AMOUNT = `CASE WHEN s.payment_method = 'CAMPURAN' THEN sp.amount ELSE s.total_amount END`;
+
 async function unlinkedSales(db, storeId, methodCode, fromIso, toIso) {
   if (!methodCode) return [];
   return rows(db.prepare(`
-    SELECT s.id, s.total_amount, s.created_at
-    FROM sales s
-    WHERE s.store_id = ? AND s.payment_method = ? AND s.voided_at IS NULL
+    SELECT s.id, ${QRIS_SALE_AMOUNT} AS total_amount, s.created_at
+    FROM sales s ${QRIS_SALE_JOIN}
+    WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.voided_at IS NULL
       AND s.created_at >= ? AND s.created_at < ?
       AND NOT EXISTS (SELECT 1 FROM qris_masuk q WHERE q.sale_id = s.id)
-  `).bind(storeId, methodCode, fromIso, toIso));
+  `).bind(methodCode, storeId, methodCode, fromIso, toIso));
 }
 
 // Tautkan sendiri hanya bila tidak ada keraguan: uang masuk itu punya tepat satu penjualan QRIS
@@ -184,10 +191,12 @@ export async function tautkanOtomatis(db, storeId, { around = new Date() } = {})
     const sale = forMasuk[0];
     const rivals = masuk.filter(other => !other.used && near(other, sale));
     if (rivals.length !== 1) continue;
-    const result = await db.prepare(`
+    const stmt = db.prepare(`
       UPDATE qris_masuk SET status = 'TERTAUT', sale_id = ?, link_mode = 'OTOMATIS', linked_at = ?, linked_by_role = 'SYSTEM', linked_by_name = 'Otomatis'
       WHERE id = ? AND status = 'BELUM' AND NOT EXISTS (SELECT 1 FROM qris_masuk q2 WHERE q2.sale_id = ?)
-    `).bind(sale.id, now, m.id, sale.id).run().catch(() => ({ meta: { changes: 0 } }));
+    `).bind(sale.id, now, m.id, sale.id);
+    let result;
+    try { result = await stmt.run(); } catch { result = { meta: { changes: 0 } }; }
     if (result.meta?.changes) { sale.used = true; m.used = true; linked += 1; }
   }
   return linked;
@@ -202,10 +211,13 @@ async function tautkan(db, actor, value) {
   if (!masuk || masuk.store_id !== actor.store.id) return json({ error: 'Uang masuk tidak ditemukan di gerai ini.' }, 404);
   if (masuk.status !== 'BELUM') return json({ error: masuk.status === 'TERTAUT' ? 'Uang masuk ini sudah tertaut ke penjualan lain.' : 'Uang masuk ini sudah diabaikan admin.', code: 'QRIS_SUDAH_DIPAKAI' }, 409);
   const method = await qrisMethodFor(db, actor.store.id);
-  const sale = await db.prepare(`SELECT id, store_id, total_amount, created_at, payment_method, voided_at FROM sales WHERE id = ?`).bind(saleId).first();
+  const sale = method.code ? await db.prepare(`
+    SELECT s.id, s.store_id, ${QRIS_SALE_AMOUNT} AS total_amount, s.created_at, s.payment_method, s.voided_at, ${QRIS_SALE_WHERE} AS is_qris
+    FROM sales s ${QRIS_SALE_JOIN} WHERE s.id = ?
+  `).bind(method.code, method.code, saleId).first() : null;
   if (!sale || sale.store_id !== actor.store.id) return json({ error: 'Penjualan tidak ditemukan di gerai ini.' }, 404);
   if (sale.voided_at) return json({ error: 'Penjualan ini sudah dibatalkan.' }, 409);
-  if (!method.code || sale.payment_method !== method.code) return json({ error: 'Penjualan ini bukan pembayaran QRIS.' }, 409);
+  if (!Number(sale.is_qris)) return json({ error: 'Penjualan ini bukan pembayaran QRIS.' }, 409);
   if (await db.prepare(`SELECT 1 FROM qris_masuk WHERE sale_id = ?`).bind(sale.id).first()) return json({ error: 'Penjualan ini sudah tertaut.', code: 'QRIS_SUDAH_DIPAKAI' }, 409);
   const sameAmount = Number(sale.total_amount) === Number(masuk.amount);
   if (!sameAmount) {
@@ -214,12 +226,16 @@ async function tautkan(db, actor, value) {
   }
   if (minutesBetween(sale.created_at, masuk.received_at) > JENDELA_MANUAL_JAM * 60) return json({ error: 'Jarak waktu penjualan dan uang masuk terlalu jauh (lebih dari 36 jam).' }, 409);
   const now = new Date().toISOString();
-  const result = await db.prepare(`
-    UPDATE qris_masuk SET status = 'TERTAUT', sale_id = ?, link_mode = ?, linked_at = ?, linked_by_role = ?, linked_by_name = ?,
-      note = CASE WHEN ? = '' THEN note ELSE ? END
-    WHERE id = ? AND status = 'BELUM'
-  `).bind(sale.id, actor.canManage ? 'ADMIN' : 'CS', now, actor.role, actor.name, catatan, catatan, masuk.id).run()
-    .catch(() => ({ meta: { changes: 0 } }));
+  let result;
+  try {
+    result = await db.prepare(`
+      UPDATE qris_masuk SET status = 'TERTAUT', sale_id = ?, link_mode = ?, linked_at = ?, linked_by_role = ?, linked_by_name = ?,
+        note = CASE WHEN ? = '' THEN note ELSE ? END
+      WHERE id = ? AND status = 'BELUM'
+    `).bind(sale.id, actor.canManage ? 'ADMIN' : 'CS', now, actor.role, actor.name, catatan, catatan, masuk.id).run();
+  } catch {
+    result = { meta: { changes: 0 } }; // sale_id UNIQUE: penjualan sudah tertaut ke uang masuk lain
+  }
   if (!result.meta?.changes) return json({ error: 'Gagal menautkan: data sudah berubah, muat ulang.', code: 'QRIS_SUDAH_DIPAKAI' }, 409);
   return json({ ok: true });
 }
@@ -302,12 +318,14 @@ async function daftar(db, actor, tanggal) {
     WHERE q.store_id = ? AND q.business_date = ? ORDER BY q.received_at DESC
   `).bind(actor.store.id, tanggal))).map(mapMasuk);
   const sales = method.code ? (await rows(db.prepare(`
-    SELECT s.id, s.total_amount, s.created_at, s.customer_name, s.voided_at, c.employee_name AS cashier_name, q.id AS masuk_id, q.link_mode
-    FROM sales s LEFT JOIN cashiers c ON c.id = s.cashier_id LEFT JOIN qris_masuk q ON q.sale_id = s.id
-    WHERE s.store_id = ? AND s.payment_method = ? AND s.created_at >= ? AND s.created_at < ?
+    SELECT s.id, ${QRIS_SALE_AMOUNT} AS qris_amount, s.total_amount, s.payment_method, s.created_at, s.customer_name, s.voided_at,
+           c.employee_name AS cashier_name, q.id AS masuk_id, q.link_mode
+    FROM sales s ${QRIS_SALE_JOIN} LEFT JOIN cashiers c ON c.id = s.cashier_id LEFT JOIN qris_masuk q ON q.sale_id = s.id
+    WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.created_at >= ? AND s.created_at < ?
     ORDER BY s.created_at DESC
-  `).bind(actor.store.id, method.code, from, to))).map(row => ({
-    id: row.id, amount: Number(row.total_amount), createdAt: row.created_at, customerName: row.customer_name,
+  `).bind(method.code, actor.store.id, method.code, from, to))).map(row => ({
+    id: row.id, amount: Number(row.qris_amount), campuran: row.payment_method === 'CAMPURAN' ? Number(row.total_amount) : null,
+    createdAt: row.created_at, customerName: row.customer_name,
     cashierName: row.cashier_name || '', voided: Boolean(row.voided_at), masukId: row.masuk_id || null, linkMode: row.link_mode || null
   })) : [];
   // Uang masuk dari kemarin yang belum tertaut tetap bisa dipilih untuk penjualan hari ini (lewat tengah malam).
@@ -347,9 +365,9 @@ async function hitungGerai(db, store, tanggal) {
   const method = await qrisMethodFor(db, store.id);
   const { from, to } = dayRange(tanggal);
   const penjualanBelum = method.code ? Number((await db.prepare(`
-    SELECT COUNT(*) AS n FROM sales s WHERE s.store_id = ? AND s.payment_method = ? AND s.voided_at IS NULL
+    SELECT COUNT(*) AS n FROM sales s ${QRIS_SALE_JOIN} WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.voided_at IS NULL
       AND s.created_at >= ? AND s.created_at < ? AND NOT EXISTS (SELECT 1 FROM qris_masuk q WHERE q.sale_id = s.id)
-  `).bind(store.id, method.code, from, to).first())?.n || 0) : 0;
+  `).bind(method.code, store.id, method.code, from, to).first())?.n || 0) : 0;
   const masukBelum = Number((await db.prepare(`SELECT COUNT(*) AS n FROM qris_masuk WHERE store_id = ? AND business_date = ? AND status = 'BELUM'`).bind(store.id, tanggal).first())?.n || 0);
   return { storeCode: store.code, penjualanBelum, masukBelum, siap: Boolean(method.code) };
 }

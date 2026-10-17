@@ -95,6 +95,7 @@
 
   function textSalesSection(rows, total, itemCount) {
     const lines = rows.length ? rows.map(row => {
+      if (row.quantity == null) return `${plain(row.productName)} | ${number(row.total)}`;
       const qty = Number(row.quantity) || 0;
       const amount = Number(row.total) || 0;
       const unit = qty ? Math.round(amount / qty) : amount;

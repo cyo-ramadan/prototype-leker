@@ -74,12 +74,15 @@ async function listPermits(db, { storeId = null, cashierId = null, drawerId = nu
 async function transactionSubject(db, storeId, drawerId, cashierId, subjectType, subjectId) {
   if (subjectType === 'SALE') {
     const row = await db.prepare(`
-      SELECT id, customer_name, total_amount, payment_method, note, created_at, order_id
+      SELECT id, customer_name, total_amount, payment_method, note, created_at, order_id,
+             (SELECT COALESCE(SUM(sp.amount), 0) FROM sale_payments sp WHERE sp.sale_id = sales.id AND sp.payment_method_code = 'CASH') AS split_cash
       FROM sales
       WHERE id = ? AND store_id = ? AND drawer_session_id = ? AND cashier_id = ? AND voided_at IS NULL
       LIMIT 1
     `).bind(subjectId, storeId, drawerId, cashierId).first();
-    return row ? { subjectType: 'SALE', subjectId: row.id, amount: Number(row.total_amount || 0), description: row.customer_name ? `Penjualan · ${row.customer_name}` : 'Penjualan', paymentMethod: row.payment_method || 'CASH', note: row.note || '', orderId: row.order_id || null, createdAt: row.created_at } : null;
+    return row ? { subjectType: 'SALE', subjectId: row.id, amount: Number(row.total_amount || 0), description: row.customer_name ? `Penjualan · ${row.customer_name}` : 'Penjualan', paymentMethod: row.payment_method || 'CASH', note: row.note || '', orderId: row.order_id || null, createdAt: row.created_at,
+      // Pembayaran campuran: bagian tunai yang akan keluar dari laci bila penjualan dibatalkan.
+      ...(row.payment_method === 'CAMPURAN' ? { cashAmount: Number(row.split_cash || 0) } : {}) } : null;
   }
   if (subjectType === 'PURCHASE') {
     const row = await db.prepare(`

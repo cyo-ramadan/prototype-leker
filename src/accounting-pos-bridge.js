@@ -8,6 +8,7 @@ import {
   postAccountingJournal
 } from './accounting-ledger.js';
 import { uangMukaAccountId } from './accounting-admin-bridge.js';
+import { CAMPURAN } from './sale-payments.js';
 
 export const ACCOUNTING_POS_BRIDGE_CONTRACT = 'MAXI_ACCOUNTING_POS_BRIDGE_V1';
 
@@ -94,6 +95,12 @@ async function loadSaleFact(db, storeId, factId) {
   `).bind(factId, storeId).first();
   if (!header) return null;
   await healItemKindSnapshot(db, 'sale_items', 'sale_id', storeId, factId);
+  // Pembayaran campuran (migration 0166): rincian per cara bayar. Penjualan biasa -> null.
+  const paymentParts = String(header.payment_method || '').toUpperCase() === CAMPURAN
+    ? ((await db.prepare(`
+        SELECT payment_method_code, amount FROM sale_payments WHERE sale_id = ? AND store_id = ? ORDER BY payment_method_code
+      `).bind(factId, storeId).all()).results ?? []).map(row => ({ code: row.payment_method_code, amountMinor: Number(row.amount) }))
+    : null;
   const rows = await db.prepare(`
     SELECT product_kind_id, product_kind_code, product_kind_name, line_total, line_cogs
     FROM sale_items
@@ -105,6 +112,7 @@ async function loadSaleFact(db, storeId, factId) {
     factId: header.id,
     totalAmountMinor: Number(header.total_amount),
     paymentMethodCode: header.payment_method || 'CASH',
+    paymentParts,
     description: text(header.note, 300) || `Penjualan ${header.id}`,
     createdAt: header.created_at,
     itemLines: (rows.results ?? []).map(row => ({
@@ -438,10 +446,29 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
   // Pembelian yang dilunasi dari Uang Muka/Deposit (ADR-046): uangnya sudah
   // keluar waktu Deposit dibuat, jadi sisi pembayarannya mengurangi akun
   // Uang Muka, bukan akun cara bayar kasir.
-  const payment = fact.depositId
+  // Pembayaran campuran: sisi cara bayar dipecah per bagian (mis. Debit Kas 7.000 + Debit Rekening
+  // Bersama 5.000). Jumlah bagian = total penjualan (dijaga saat penjualan dibuat), jadi jurnal tetap
+  // seimbang persis dengan sisi pendapatan.
+  let splitPayments = null;
+  if (fact.paymentMethodCode === CAMPURAN) {
+    if (!fact.paymentParts?.length) return bridgeFailure('BUSINESS_FACT_PAYMENT_SPLIT_MISSING', 'Rincian pembayaran campuran tidak ditemukan.');
+    if (fact.paymentParts.reduce((sum, part) => sum + part.amountMinor, 0) !== fact.totalAmountMinor) {
+      return bridgeFailure('BUSINESS_FACT_PAYMENT_SPLIT_MISMATCH', 'Jumlah rincian pembayaran campuran tidak sama dengan total penjualan.');
+    }
+    splitPayments = [];
+    for (const part of fact.paymentParts) {
+      const account = await paymentAccount(db, store.id, part.code);
+      if (!account) return configurationFailure('NEEDS_PAYMENT_METHOD', `Cara bayar ${part.code} belum terdaftar/aktif.`);
+      if (!account.accountId || !account.accountCode) return configurationFailure('NEEDS_PAYMENT_MAPPING', `Cara bayar ${account.code} belum dilink ke akun.`);
+      const amountScaled = rupiahIntegerToScaled(part.amountMinor);
+      if (!amountScaled) return bridgeFailure('ACCOUNTING_BRIDGE_AMOUNT_INVALID', 'Nominal pembayaran campuran tidak valid.');
+      splitPayments.push({ account, amountScaled });
+    }
+  }
+  const payment = splitPayments ? null : fact.depositId
     ? await depositPaymentAccount(db, store.id)
     : await paymentAccount(db, store.id, fact.paymentMethodCode);
-  if (rules.some(rule => rule.sourceType === 'payment_method')) {
+  if (!splitPayments && rules.some(rule => rule.sourceType === 'payment_method')) {
     if (!payment) return configurationFailure('NEEDS_PAYMENT_METHOD', `Cara bayar ${fact.paymentMethodCode} belum terdaftar/aktif.`);
     if (!payment.accountId || !payment.accountCode) {
       return configurationFailure('NEEDS_PAYMENT_MAPPING', `Cara bayar ${payment.code} belum dilink ke akun.`);
@@ -467,6 +494,10 @@ export async function resolvePosFactToJournalCommand(db, store, fact) {
   try {
     for (const rule of rules) {
       if (rule.sourceType === 'payment_method') {
+        if (splitPayments) {
+          for (const part of splitPayments) aggregateLine(resultLines, rule.side, part.account.accountId, part.amountScaled, `${rule.label} · ${part.account.name}`, rule.sortOrder);
+          continue;
+        }
         aggregateLine(resultLines, rule.side, payment.accountId, totalAmountScaled, `${rule.label} · ${payment.name}`, rule.sortOrder);
         continue;
       }

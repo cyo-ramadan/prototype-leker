@@ -163,7 +163,7 @@
           <strong>${esc(transaction.description || transaction.kind)}</strong>
           ${purchaseItemsLine(transaction)}
           <div class="master-prices"><span>${transaction.cashierName ? `PIC ${esc(transaction.cashierName)}` : 'System'}</span><span>${money(transaction.amount)}</span></div>
-          <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentMethod)}` : ''}</div>
+          <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentLabel || transaction.paymentMethod)}` : ''}</div>
           <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>
         </div>
         <div class="master-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">🔍 Detail</button></div>
@@ -199,7 +199,7 @@
     return `
       <div class="admin-grid two compact">
         <div class="admin-tip"><b>Customer</b><div>${esc(detail.customerName || 'Walk-in')}${detail.customerId ? ` · ${esc(detail.customerId)}` : ''}</div></div>
-        <div class="admin-tip"><b>Tracking</b><div>${esc(detail.orderNo || detail.orderId || '-')} · ${esc(detail.paymentMethod || '-')}</div></div>
+        <div class="admin-tip"><b>Tracking</b><div>${esc(detail.orderNo || detail.orderId || '-')} · ${esc(detail.paymentLabel || detail.paymentMethod || '-')}</div></div>
       </div>
       <div class="master-list" style="margin-top:12px">${items.map(item => `
         <div class="master-row">

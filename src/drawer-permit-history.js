@@ -66,7 +66,8 @@ export async function listDrawerPermitHistory(db, storeId, drawerId) {
       subject: { type: row.subject_type, id: row.subject_id, amount: numeric(subject.amount), paymentMethod: subject.paymentMethod || '', createdAt: subject.createdAt || null },
       amount: numeric(subject.amount),
       // A proposed reversal is kept separate from the report's posted money totals.
-      cashDelta: subject.paymentMethod === 'CASH' ? signed(row.subject_type === 'SALE' ? 'OUT' : 'IN', numeric(subject.amount)) : null,
+      cashDelta: subject.paymentMethod === 'CASH' ? signed(row.subject_type === 'SALE' ? 'OUT' : 'IN', numeric(subject.amount))
+        : subject.paymentMethod === 'CAMPURAN' && numeric(subject.cashAmount) ? signed('OUT', numeric(subject.cashAmount)) : null,
       stockChanges
     });
   }

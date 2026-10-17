@@ -287,7 +287,7 @@ export const KAMUS = Object.freeze([
     kunci: ['laci', 'drawer', 'buka laci', 'tutup laci', 'selisih', 'uang laci', 'kas laci'],
     isi: [
       'Laci = uang tunai di gerai. Kasir membuka laci di awal shift dan menutupnya di akhir; saldo awal melanjutkan kas akhir sebelumnya dikurangi setoran (laci pertama diisi manual).',
-      'Yang menggerakkan laci hanya pembayaran tunai. Selisih saat tutup langsung kelihatan di laporan laci.',
+      'Yang menggerakkan laci hanya pembayaran tunai — termasuk bagian tunai dari pembayaran campuran (tampil sebagai baris "Bagian tunai pembayaran campuran" di Penjualan Bayar Tunai). Selisih saat tutup langsung kelihatan di laporan laci.',
       'Una sengaja tidak menyentuh uang laci — itu urusan kasir.'
     ].join('\n'),
     tawaran: [buka('drawers')],
@@ -331,9 +331,11 @@ export const KAMUS = Object.freeze([
   {
     id: 'cara_bayar',
     judul: 'Cara bayar',
-    kunci: ['cara bayar', 'metode bayar', 'qris', 'transfer', 'tunai', 'payment method'],
+    kunci: ['cara bayar', 'metode bayar', 'qris', 'transfer', 'tunai', 'payment method', 'bayar campuran', 'pembayaran campuran', 'campuran', 'split bill', 'sebagian qris', 'sebagian tunai', 'bayar dua cara'],
     isi: [
       'Cara bayar = tunai, transfer, QRIS, dll., diatur per gerai. POS memakai pilihan cara bayar aktif; jika memakai Accounting, pemetaan akun (Kas, Bank, Rekening Bersama) diurus terpisah oleh pembukuan.',
+      'Cara bayar QRIS dibukukan sama dengan Rekening Bersama (akun 1103), karena uang QRIS dipindah ke rekening bersama dalam sehari.',
+      'Pembayaran campuran (saklar "Pembayaran campuran", bawaan aktif): di dialog penjualan pilih Cara bayar "🔀 Campuran", isi nominal bagian pertama (mis. QRIS 5.000), bagian kedua (mis. Tunai) terisi otomatis dari sisa total. Jurnal mendebit akun tiap cara bayar sesuai bagiannya; uang laci hanya bertambah bagian tunainya; QRIS ditautkan sebesar bagian QRIS-nya. Cara bayar hutang tidak bisa dicampur.',
       'Hanya tunai yang menggerakkan uang laci. Aplikasi ini mencatat cara bayarnya — uangnya sendiri tidak diproses aplikasi.'
     ].join('\n'),
     tawaran: [{ jenis: 'kirim', label: 'Cara bayar gerai ini apa saja?', teks: 'cara bayar gerai ini apa saja dan akunnya apa?' }],

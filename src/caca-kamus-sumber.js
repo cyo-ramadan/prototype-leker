@@ -127,6 +127,7 @@ export const SUMBER_KAMUS = Object.freeze({
   "laci": {
     "sumber": [
       "src/cashier-drawer.js",
+      "src/drawer-report.js",
       "src/cashier-drawer-close-permit.js",
       "public/cashier-live-photo.js",
       "src/tenant-policy.js"
@@ -369,7 +370,10 @@ export const SUMBER_KAMUS = Object.freeze({
   },
   "cara_bayar": {
     "sumber": [
-      "src/pos-payment-methods.js"
+      "src/pos-payment-methods.js",
+      "src/sale-payments.js",
+      "public/cashier-bayar-campuran.js",
+      "migrations/0165_cara_bayar_qris.sql"
     ],
     "fitur": []
   },

@@ -30,6 +30,8 @@ export const QRIS_OTOMATIS_KEY = 'qris_otomatis';
 // outlet tidak menyebut outletnya di notifikasi. ON: uang masuk menunggu di kolam yang terlihat
 // semua kasir yang lacinya terbuka, CS mengklaim untuk gerainya, tanpa bunyi/notifikasi ke kasir.
 export const QRIS_KOLAM_BERSAMA_KEY = 'qris_kolam_bersama';
+// Bos Cyo, 2026-10-17: pembayaran campuran -- satu penjualan dibayar dengan 2-3 cara (mis. QRIS + tunai).
+export const PEMBAYARAN_CAMPURAN_KEY = 'pembayaran_campuran';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -114,6 +116,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     key: QRIS_KOLAM_BERSAMA_KEY,
     label: 'QRIS: kolam bersama + klaim CS',
     description: 'ON: uang QRIS masuk dari HP penerima menunggu di satu kolam yang terlihat semua kasir yang lacinya terbuka; CS yang pembelinya baru membayar mengklaimnya untuk gerainya (gerai lain tidak bisa memakainya), lalu menautkan ke penjualan. Tidak ada bunyi/notifikasi ke kasir. Cocok bila satu akun merchant memegang banyak outlet dan notifikasinya tidak menyebut outlet. OFF: uang masuk langsung ke gerai menurut HP penerima/kata kunci dan berbunyi di kasir gerai itu.',
+    defaultValue: true
+  },
+  {
+    key: PEMBAYARAN_CAMPURAN_KEY,
+    label: 'Pembayaran campuran',
+    description: 'ON: kasir bisa membagi satu penjualan ke 2-3 cara bayar (mis. Rp12.000 = QRIS Rp5.000 + Tunai Rp7.000). Jurnal mendebit akun tiap cara bayar sesuai bagiannya, uang laci hanya menghitung bagian tunai, dan QRIS ditautkan sebesar bagian QRIS-nya. OFF: satu penjualan satu cara bayar.',
     defaultValue: true
   },
   {

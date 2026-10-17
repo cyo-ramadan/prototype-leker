@@ -21,6 +21,8 @@ const files = [
   "src/qris-otomatis.js",
   "public/qris-otomatis.js",
   "public/qris-kasir.js",
+  "src/sale-payments.js",
+  "public/cashier-bayar-campuran.js",
   "src/caca-ai-client.js",
   "src/caca-ai-error.js",
   "src/caca-ai-gemini.js",

@@ -400,6 +400,12 @@
           || payload.paymentMethod
           || defaultCode()
           || 'CASH';
+        // Pembayaran campuran (Bos Cyo, 2026-10-17; cashier-bayar-campuran.js): rincian per cara bayar.
+        const split = window.CashierBayarCampuran?.payments?.();
+        if (split) {
+          payload.paymentMethod = 'CAMPURAN';
+          payload.payments = split;
+        }
         // Pengiriman di LUAR try: error dari server tidak boleh memicu kirim ulang lewat baseApi.
         const posted = await canonicalFactPost(path, payload);
         resetSalePaymentToDefault();

@@ -1,4 +1,5 @@
 import { json } from './http.js';
+import { salePaymentLabel, salePaymentParts } from './sale-payments.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
@@ -262,6 +263,16 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   // Cursor must key off the raw, ungrouped rows -- grouping only changes how
   // many list entries this page renders as, never where the SQL keyset
   // pagination actually left off.
+  // Pembayaran campuran (migration 0166): tampilkan rinciannya, kode cara bayar tetap 'CAMPURAN'.
+  const splitIds = normalized.filter(item => item.kind === 'SALE' && item.paymentMethod === 'CAMPURAN').map(item => item.id);
+  if (splitIds.length) {
+    const parts = (await db.prepare(`SELECT sale_id, payment_method_code, amount FROM sale_payments WHERE store_id = ? AND sale_id IN (${splitIds.map(() => '?').join(', ')}) ORDER BY amount DESC, payment_method_code`)
+      .bind(storeId, ...splitIds).all()).results ?? [];
+    for (const item of normalized) {
+      const own = parts.filter(part => part.sale_id === item.id);
+      if (own.length) item.paymentLabel = `CAMPURAN: ${salePaymentLabel(own.map(part => ({ code: part.payment_method_code, amount: part.amount })))}`;
+    }
+  }
   const last = normalized.at(-1);
   const visible = groupStockAdjustmentSessions(normalized);
   return { ok: true, filter, transactions: visible, hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null };

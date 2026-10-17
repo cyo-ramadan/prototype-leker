@@ -97,6 +97,12 @@ test('revisi jam masuk sesi yang sudah selesai: ACC = gaji lama dibalik, gaji re
   assert.equal(bukuRika(db), 54100);
   const reversal = db.prepare(`SELECT business_date FROM accounting_journal_headers WHERE source_system = 'LEKER_ADMIN_VOID'`).get();
   assert.equal(reversal.business_date, DATE);
+  // Kartu revisi: gaji sebelum & sesudah tersimpan; Portal Staf menampilkan kartu lama + selisih.
+  const portal = await (await worker.fetch(new Request('https://example.test/api/staff/portal', { headers: { Authorization: 'Bearer kasir-rika' } }), env)).json();
+  const approved = portal.attendanceRevisionPermits.find(item => item.id === permit.id);
+  assert.equal(approved.payBeforeRupiah, 51000);
+  assert.equal(approved.payAfterRupiah, 54100);
+  assert.equal(approved.attendanceId, 'att_rika');
 });
 
 test('owner mengedit jam lalu ACC; tolak wajib alasan; satu pengajuan menunggu per sesi', async () => {
@@ -134,9 +140,25 @@ test('revisi telat yang di-ACC menghapus potongan apresiasi & denda shift itu (d
   await closedSession(db, env, '09:30', '18:00');
   await evaluateDueApresiasi(env.DB, 'store_pendem', { now: new Date(`${DATE}T20:00:00+07:00`) });
   const aktif = () => db.prepare(`SELECT kind, amount_scaled / 1000000 AS rp FROM apresiasi_entries WHERE business_date = ? AND voided_at IS NULL ORDER BY kind`).all(DATE);
-  assert.deepEqual(aktif().map(row => [row.kind, row.rp]), [['DENDA', -10000], ['POTONG_KOSONG', -1200]]);
+  assert.deepEqual(aktif().map(row => [row.kind, row.rp]), [['POTONG_KOSONG', -1200]]);
   const { permit } = await (await staff(env, { attendanceId: 'att_rika', checkIn: '09:00', checkOut: '18:00', reason: 'web error waktu presensi' })).json();
   await decide(env, permit.id, { decision: 'ACC' });
   assert.deepEqual(aktif(), []);
-  assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM accounting_bridge_deliveries WHERE fact_type = 'APRESIASI_VOID' AND status = 'POSTED'`).get().n, 2);
+  assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM accounting_bridge_deliveries WHERE fact_type = 'APRESIASI_VOID' AND status = 'POSTED'`).get().n, 1);
+});
+
+test('Riwayat Hutang Gaji Entity Admin: baris gaji lama tetap tampil, revisi tampil sebagai selisih', async () => {
+  const { db, env } = await setup();
+  const entityId = db.prepare(`SELECT entity_id FROM stores WHERE id = 'store_pendem'`).get().entity_id;
+  db.prepare(`INSERT INTO employees (id, entity_id, full_name) VALUES ('emp_rika', ?, 'Rika')`).run(entityId);
+  db.prepare(`INSERT INTO employee_account_links (id, employee_id, entity_id, account_type, account_id, store_id, effective_from) VALUES ('lnk_rika', 'emp_rika', ?, 'CASHIER', 'rika', 'store_pendem', '2026-01-01')`).run(entityId);
+  await closedSession(db, env, '09:30', '18:00');
+  const { permit } = await (await staff(env, { attendanceId: 'att_rika', checkIn: '08:59', checkOut: '18:00', reason: 'lupa absen, datang 08:59' })).json();
+  await decide(env, permit.id, { decision: 'ACC' });
+  const { buildEmployeeLedger } = await import('../src/employee-ledger-view.js');
+  const ledger = await buildEmployeeLedger(env.DB, { employeeId: 'emp_rika', entityId, kind: 'gaji' });
+  const rows = ledger.entries.filter(entry => entry.businessDate === DATE).map(entry => [entry.label, entry.amountRupiah]);
+  assert.deepEqual(rows.sort(), [['Gaji dari presensi', 51000], ['Revisi jam presensi di-ACC (selisih)', 3100]].sort());
+  assert.equal(ledger.balanceRupiah, 54100);
+  assert.equal(ledger.belumMasukBukuRupiah, 0);
 });

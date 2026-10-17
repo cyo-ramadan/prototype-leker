@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
 import { hashCredential } from '../src/owner-auth.js';
-import { nilaiShift, evaluateDueApresiasi, setPengganti, saveSettings, createPenyesuaian, durasiLabel } from '../src/dana-apresiasi.js';
+import { nilaiShift, dendaTier, APRESIASI_DEFAULTS, evaluateDueApresiasi, setPengganti, saveSettings, createPenyesuaian, durasiLabel } from '../src/dana-apresiasi.js';
 
 // Dana Apresiasi Backup & Denda Ketidakhadiran CS (Bos Cyo, 2026-10-15, ADR-058).
 
@@ -76,16 +76,20 @@ const saldo2105 = sqlite => Number(sqlite.prepare(`
 test('nilaiShift: jam backup, jam kosong, dan jenis denda', () => {
   const h = hours => hours * 3_600_000;
   const base = { accountId: 'A', shiftStart: h(9), shiftEnd: h(18) };
-  assert.deepEqual(nilaiShift({ ...base, own: [[h(9), h(18)]] }).dendaKind, '');
+  assert.equal(nilaiShift({ ...base, own: [[h(9), h(18)]] }).kosongMinutes, 0);
   const kosong = nilaiShift(base);
   assert.equal(kosong.kosongMinutes, 540);
-  assert.equal(kosong.dendaKind, 'PENUH');
+  assert.equal(dendaTier(kosong.kosongMinutes, APRESIASI_DEFAULTS), 'PENUH');
   const telat = nilaiShift({ ...base, own: [[h(9.5), h(18)]] });
   assert.equal(telat.kosongMinutes, 30);
-  assert.equal(telat.dendaKind, 'SEBAGIAN');
+  assert.equal(dendaTier(telat.kosongMinutes, APRESIASI_DEFAULTS), '', 'telat 30 menit tanpa denda, hanya potongan per jam');
   const backupPenuh = nilaiShift({ ...base, others: [{ accountId: 'B', start: h(8), end: h(19) }] });
   assert.deepEqual(backupPenuh.backups, [{ accountId: 'B', minutes: 540 }]);
-  assert.equal(backupPenuh.dendaKind, '');
+  assert.equal(backupPenuh.kosongMinutes, 0);
+  // Denda bertingkat (2026-10-17): < 3 jam tanpa denda, 3-4 jam ringan, > 4 jam berat; OFF = tanpa denda.
+  assert.deepEqual([179, 180, 240, 241].map(m => dendaTier(m, APRESIASI_DEFAULTS)), ['', 'SEBAGIAN', 'SEBAGIAN', 'PENUH']);
+  assert.equal(dendaTier(600, { ...APRESIASI_DEFAULTS, dendaEnabled: false }), '');
+  assert.equal(dendaTier(100, { ...APRESIASI_DEFAULTS, dendaRinganMenit: 60, dendaBeratMenit: 90 }), 'PENUH');
   const bukanPengganti = nilaiShift({ ...base, others: [{ accountId: 'B', start: h(9), end: h(18), replaces: '' }] });
   assert.equal(bukanPengganti.kosongMinutes, 540);
   assert.equal(durasiLabel(270), '4 jam 30 menit');
@@ -106,7 +110,7 @@ test('CS asli tidak masuk, backup jaga sebagian: potongan ke backup lewat penamp
   assert.match(byKind.FEE_BACKUP.description, /^Apresiasi backup · gantikan Rika 20 Okt · 5 jam x Rp2\.400/);
   assert.equal(byKind.POTONG_KOSONG.rupiah, -9600);
   assert.equal(byKind.DENDA.rupiah, -10000);
-  assert.match(byKind.DENDA.description, /kosong sebagian/);
+  assert.match(byKind.DENDA.description, /^Denda gerai kosong · shift 20 Okt · kosong 4 jam/);
   // Penilaian sekali saja.
   assert.equal((await evaluateDueApresiasi(db, STORE, { now: NOW })).evaluated, 0);
   // Jurnal: penampung 2105 saldo 0, Utang Gaji per nama ikut.
@@ -133,11 +137,11 @@ test('koreksi pengganti dinilai ulang: revisi lama dibatalkan + dibalik, jadi ko
   assert.equal(saldo2105(sqlite), 0);
 });
 
-test('telat 30 menit tanpa backup = apresiasi 30 menit + denda sebagian; saklar OFF = tidak dinilai', async () => {
+test('telat 30 menit tanpa backup = apresiasi 30 menit saja (di bawah batas denda); saklar OFF = tidak dinilai', async () => {
   const { sqlite, db, entityId } = await setup();
   session(sqlite, 'att_rika', 'rika', '09:30', '18:00');
   await evaluateDueApresiasi(db, STORE, { now: NOW });
-  assert.deepEqual(entries(sqlite).map(row => [row.kind, row.rupiah]), [['DENDA', -10000], ['POTONG_KOSONG', -1200]]);
+  assert.deepEqual(entries(sqlite).map(row => [row.kind, row.rupiah]), [['POTONG_KOSONG', -1200]]);
 
   const off = await setup();
   await saveSettings(off.db, { entityId: off.entityId, input: { enabled: false } });

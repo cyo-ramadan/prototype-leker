@@ -16,6 +16,14 @@
 
   const numberField = (name, label, value, placeholder) => `<label class="admin-field">${esc(label)}<input class="text-input" name="${name}" type="number" min="0" step="1" value="${value ?? ''}" placeholder="${esc(placeholder ?? '')}" /></label>`;
 
+  const hoursField = (name, label, minutes, placeholder) => `<label class="admin-field">${esc(label)}<input class="text-input" name="${name}" type="number" min="0" max="24" step="0.5" value="${minutes == null ? '' : minutes / 60}" placeholder="${esc(placeholder ?? '')}" /></label>`;
+  // Denda kekosongan bertingkat (2026-10-17): ON/OFF terpisah dari mekanisme, batas jam & nominal bisa diubah.
+  function dendaSelect(value, allowInherit) {
+    const options = [...(allowInherit ? [['', 'Ikut bawaan entity']] : []), ['1', 'Denda ON'], ['0', 'Denda OFF (hanya potongan per jam)']];
+    const current = value === null || value === undefined ? '' : (value ? '1' : '0');
+    return `<label class="admin-field">Denda gerai kosong<select class="text-input" name="dendaEnabled">${options.map(([v, label]) => `<option value="${v}" ${v === current ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
+  }
+
   function enabledSelect(value, allowInherit) {
     const options = [
       ...(allowInherit ? [['', 'Ikut bawaan entity']] : []),
@@ -32,14 +40,17 @@
     const entity = data.entity;
     host.innerHTML = `
       <div class="list-head"><div><h2 style="margin:0">Dana Apresiasi &amp; Denda CS</h2>
-        <div class="muted">CS asli yang tidak menjaga jam shift-nya membayar apresiasi per jam: jam yang dijaga backup diteruskan ke backup (akun penampung 2105, saldo harus 0), jam kosong dan denda masuk Pendapatan Lainnya. Perusahaan hanya terbeban tarif dasar. Dihitung satu jam setelah jam pulang shift, mulai tanggal "Mulai dihitung". Telat 1 menit pun dihitung, jadi pastikan jadwal shift &amp; hari libur tiap CS asli sudah benar.</div></div>
+        <div class="muted">CS asli yang tidak menjaga jam shift-nya membayar apresiasi per jam: jam yang dijaga backup diteruskan ke backup (akun penampung 2105, saldo harus 0), jam kosong masuk Pendapatan Lainnya. Denda dihitung dari lamanya gerai kosong dalam satu shift (bawaan: kosong 3-4 jam Rp10.000, lebih dari 4 jam Rp20.000). Perusahaan hanya terbeban tarif dasar. Dihitung satu jam setelah jam pulang shift, mulai tanggal "Mulai dihitung". Telat 1 menit pun dihitung, jadi pastikan jadwal shift &amp; hari libur tiap CS asli sudah benar.</div></div>
         <button class="secondary-btn" type="button" data-apr-rekap>Rekap &amp; penyesuaian</button></div>
       <form class="admin-card" data-apr-form="" style="margin:10px 0">
         <h3 style="margin-top:0">Bawaan entity</h3>
         <div class="form-grid">${enabledSelect(entity.enabled, false)}
           ${numberField('ratePerHourRupiah', 'Apresiasi per jam (Rp)', entity.ratePerHourRupiah)}
-          ${numberField('dendaPenuhRupiah', 'Denda shift kosong penuh (Rp)', entity.dendaPenuhRupiah)}
-          ${numberField('dendaSebagianRupiah', 'Denda shift kosong sebagian (Rp)', entity.dendaSebagianRupiah)}
+          ${dendaSelect(entity.dendaEnabled, false)}
+          ${hoursField('dendaRinganJam', 'Denda ringan bila kosong mulai (jam)', entity.dendaRinganMenit)}
+          ${numberField('dendaSebagianRupiah', 'Denda ringan (Rp)', entity.dendaSebagianRupiah)}
+          ${hoursField('dendaBeratJam', 'Denda berat bila kosong lebih dari (jam)', entity.dendaBeratMenit)}
+          ${numberField('dendaPenuhRupiah', 'Denda berat (Rp)', entity.dendaPenuhRupiah)}
           <label class="admin-field">Mulai dihitung<input class="text-input" name="mulaiTanggal" type="date" min="${esc(data.palingAwal || '')}" value="${esc(entity.savedMulai || entity.mulaiTanggal || '')}" /></label></div>
         <button class="primary-btn" type="submit">Simpan bawaan</button>
       </form>
@@ -49,7 +60,7 @@
       form.onsubmit = async event => {
         event.preventDefault();
         const values = Object.fromEntries(new FormData(form));
-        const body = { storeId: form.dataset.aprForm, ...values, enabled: values.enabled === '' ? null : values.enabled === '1' };
+        const body = { storeId: form.dataset.aprForm, ...values, enabled: values.enabled === '' ? null : values.enabled === '1', dendaEnabled: values.dendaEnabled === '' ? null : values.dendaEnabled === '1' };
         try { await api('/settings', { method: 'POST', body: JSON.stringify(body) }); toast('Pengaturan dana apresiasi disimpan.'); await load(); } catch (error) { toast(error.message); }
       };
     });
@@ -81,8 +92,11 @@
             <label class="admin-field">Jam buka<input class="text-input" name="jamBuka" type="time" value="${esc(o.jamBuka || '')}" /></label>
             <label class="admin-field">Jam tutup<input class="text-input" name="jamTutup" type="time" value="${esc(o.jamTutup || '')}" /></label>
             ${numberField('ratePerHourRupiah', 'Apresiasi per jam (Rp)', o.ratePerHourRupiah, `ikut bawaan: ${num(e.ratePerHourRupiah)}`)}
-            ${numberField('dendaPenuhRupiah', 'Denda kosong penuh (Rp)', o.dendaPenuhRupiah, `ikut bawaan: ${num(e.dendaPenuhRupiah)}`)}
-            ${numberField('dendaSebagianRupiah', 'Denda kosong sebagian (Rp)', o.dendaSebagianRupiah, `ikut bawaan: ${num(e.dendaSebagianRupiah)}`)}
+            ${dendaSelect(o.dendaEnabled ?? null, true)}
+            ${hoursField('dendaRinganJam', 'Denda ringan bila kosong mulai (jam)', o.dendaRinganMenit, `ikut bawaan: ${e.dendaRinganMenit / 60}`)}
+            ${numberField('dendaSebagianRupiah', 'Denda ringan (Rp)', o.dendaSebagianRupiah, `ikut bawaan: ${num(e.dendaSebagianRupiah)}`)}
+            ${hoursField('dendaBeratJam', 'Denda berat bila kosong lebih dari (jam)', o.dendaBeratMenit, `ikut bawaan: ${e.dendaBeratMenit / 60}`)}
+            ${numberField('dendaPenuhRupiah', 'Denda berat (Rp)', o.dendaPenuhRupiah, `ikut bawaan: ${num(e.dendaPenuhRupiah)}`)}
             <label class="admin-field">Mulai dihitung<input class="text-input" name="mulaiTanggal" type="date" value="${esc(o.mulaiTanggal || '')}" /></label></div>
           <span class="field-note">Kosongkan angka/tanggal untuk ikut bawaan entity.</span>
           <button class="primary-btn" type="submit">Simpan gerai ${esc(store.storeCode)}</button>

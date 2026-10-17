@@ -38,11 +38,11 @@
   "karyawan_tambah": "9e99c9442cee193961168be1137b5cbf0cf8c85dd51ddb1c44ba774b55d2a414",
   "akun_cs": "42a2bf39b87a47b7f6bc0e5a01de460e22af164061bb61b7f31d68cc1ebf9316",
   "jadwal_beda": "42a2bf39b87a47b7f6bc0e5a01de460e22af164061bb61b7f31d68cc1ebf9316",
-  "setoran_cs": "7ee8e60bc15ec1c8a1ddd2fc2b252094db84cd1129f0bb9d7c0c7109eddad3a8",
+  "setoran_cs": "02e9fa0803641ae5e3668a50bf3faaca220b47e18f07b8b27b0f63f8de23eff5",
   "gaji_harian": "42a2bf39b87a47b7f6bc0e5a01de460e22af164061bb61b7f31d68cc1ebf9316",
   "potongan_gaji": "ae64961e80c46f6bb31a575491aff34ab5edaa71f577b700b7ddcf5dcd04f367",
   "telat_gaji": "42a2bf39b87a47b7f6bc0e5a01de460e22af164061bb61b7f31d68cc1ebf9316",
-  "presensi_gagal": "043d334e1f10818d6814aab865c9da60163329d3a13eea1fe844e2d75353289e",
+  "presensi_gagal": "f440b99a0ede2dddec867479cc10cf260630820eb77ba8131789291c1ebd4de1",
   "backup_salah_gerai": "e7c239781b2037ba8aab86d5b4d21bcf33d1736cb677be8d0ef8828c290d2d22",
   "nama_una": "50d185dccae1ca2a9fdc0275f58b1fa31e65005f9001e89dc8e9aaf2e90ed1ed",
   "suara_una": "8ff27c1e39a3be9418756948bfcf859def48c186efc1a62d37c09ccc9da1c828",
@@ -50,5 +50,5 @@
   "una_lembar": "a7f9774d8f3a01fc73ab3fe5f327b90f35e88553f4400622f90fd42778fdf83a",
   "una_laporan_chat": "e64cd76b9264d8359c2404a09cf9af101ed74b9d2437ca8f0de4028503b44050",
   "info_gerai": "3ca68c02a00dcb3e355e849833f4e4f29b2d3e06b222c63d7219d1d71c2f459a",
-  "dana_apresiasi": "15eae31fac011d5d2c3e93053627a9c141b689f260ce275d55124f84125ee078"
+  "dana_apresiasi": "c5e72370e948381b5afc14ab643b569845c64ed7ae07fa4803c7d89843ef150c"
 }

@@ -114,7 +114,7 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
     try { await evaluateDueApresiasi(db, row.store_id); } catch (error) { console.warn('nilai apresiasi gagal', row.store_id, error?.message); }
   }
   const rows = await db.prepare(`
-    SELECT p.entry_type, p.source_type, p.source_id, p.voided_at, p.account_id, p.store_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
+    SELECT p.entry_type, p.source_type, p.source_id, p.voided_at, p.void_reason, p.account_id, p.store_id, p.business_date, p.created_at, p.hutang_gaji_delta_scaled, p.description, s.code AS store_code
     FROM payroll_ledger_entries p
     JOIN stores s ON s.id = p.store_id
     WHERE s.entity_id = ? AND p.hutang_gaji_delta_scaled <> 0
@@ -125,18 +125,40 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
   // Termasuk baris yang dibatalkan: sesi presensi yang ACCRUAL-nya dibatalkan tidak dihitung ulang.
   // Gaji hasil revisi jam presensi bersumber `<attendance>#rev-<permit>` (src/attendance-revision-permit.js).
   const ledgerAttendanceIds = new Set(ledger.filter(row => row.source_type === 'ATTENDANCE').map(row => String(row.source_id).split('#')[0]));
-  const entries = ledger.filter(row => !row.voided_at).map(row => ({
-    at: row.created_at || `${row.business_date}T00:00:00.000Z`,
-    businessDate: row.business_date,
-    kind: row.entry_type,
-    label: label[row.entry_type] || row.entry_type,
-    storeId: row.store_id,
-    storeCode: row.store_code,
-    accountId: row.account_id || null,
-    amountScaled: Number(row.hutang_gaji_delta_scaled),
-    status: 'POSTED',
-    note: row.description || ''
-  }));
+  // Revisi jam presensi (2026-10-17): baris gaji lama tetap tampil apa adanya, tiap revisi tampil sebagai
+  // baris selisih di bawahnya (jumlahnya = gaji sesudah revisi, sama dengan buku).
+  const revisedChain = new Map();
+  for (const row of ledger) {
+    if (row.source_type !== 'ATTENDANCE' || row.entry_type !== 'ACCRUAL') continue;
+    const revisedAway = row.voided_at && String(row.void_reason || '').startsWith('Revisi jam presensi');
+    if (!revisedAway && !String(row.source_id).includes('#rev-')) continue;
+    const base = String(row.source_id).split('#')[0];
+    if (!revisedChain.has(base)) revisedChain.set(base, []);
+    revisedChain.get(base).push(row);
+  }
+  const chainRows = new Map();
+  for (const list of revisedChain.values()) {
+    // Urutan rantai: baris asli, lalu revisi yang sudah digantikan, terakhir yang masih berlaku (created_at bisa sama detiknya).
+    const rank = row => [String(row.source_id).includes('#rev-') ? 1 : 0, row.voided_at ? 0 : 1];
+    list.sort((a, b) => rank(a)[0] - rank(b)[0] || rank(a)[1] - rank(b)[1] || String(a.created_at).localeCompare(String(b.created_at)));
+    list.forEach((row, index) => chainRows.set(row, index === 0 ? null : Number(list[index - 1].hutang_gaji_delta_scaled)));
+  }
+  const entries = ledger.filter(row => !row.voided_at || chainRows.has(row)).map(row => {
+    const previous = chainRows.get(row);
+    const isRevision = chainRows.has(row) && previous !== null;
+    return {
+      at: row.created_at || `${row.business_date}T00:00:00.000Z`,
+      businessDate: row.business_date,
+      kind: isRevision ? 'REVISI_JAM' : row.entry_type,
+      label: isRevision ? 'Revisi jam presensi di-ACC (selisih)' : (label[row.entry_type] || row.entry_type),
+      storeId: row.store_id,
+      storeCode: row.store_code,
+      accountId: row.account_id || null,
+      amountScaled: Number(row.hutang_gaji_delta_scaled) - (isRevision ? previous : 0),
+      status: 'POSTED',
+      note: row.description || ''
+    };
+  });
   // Dana apresiasi & denda (ADR-058): potongan CS asli, fee backup, penyesuaian Entity Admin.
   const apresiasi = await db.prepare(`
     SELECT x.id, x.kind, x.account_id, x.store_id, x.business_date, x.created_at, x.amount_scaled, x.description, s.code AS store_code

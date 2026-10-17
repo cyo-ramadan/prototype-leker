@@ -97,10 +97,10 @@
     let html = '';
     if (row.correction) {
       const note = row.correction.decisionNote ? ` · Catatan: ${escapeHtml(row.correction.decisionNote)}` : '';
-      const asli = row.correction.createdByRevision
+      const berlaku = row.correction.createdByRevision
         ? 'sesi ditambahkan dari pengajuan lupa presensi'
-        : `tercatat asli ${row.correction.originalAt ? escapeHtml(clockTime(row.correction.originalAt)) : '-'}${row.correction.originalCheckOutAt ? `–${escapeHtml(clockTime(row.correction.originalCheckOutAt))}` : ''}`;
-      html += `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:#1971c2">✎ Jam direvisi</span> (${asli}) · Alasan: ${escapeHtml(row.correction.reason)}${note}</div>`;
+        : `jam yang berlaku: datang ${row.revised?.in ? escapeHtml(clockTime(row.revised.in)) : '-'}${row.revised?.out ? ` · pulang ${escapeHtml(clockTime(row.revised.out))}` : ''}`;
+      html += `<div class="staff-card" style="margin-top:6px;padding:8px 10px;border-left:4px solid #1971c2"><div style="font-weight:800;color:#1971c2">✎ Revisi jam di-ACC</div><div class="muted">${berlaku}</div><div class="muted">Alasan: ${escapeHtml(row.correction.reason)}${note}</div></div>`;
     }
     const legacy = correctionPermitFor(row.id);
     if (legacy && legacy.status !== 'APPROVED') html += revisionChip({ ...legacy, requestedCheckOutAt: null });
@@ -224,7 +224,12 @@
   // Bos Cyo, 2026-09-24: "kartu presensi hari itu juga jadi warna kuning"
   // untuk sesi yang ditutup otomatis sistem karena lupa presensi pulang.
   function renderAttendance() {
-    const rows = portal?.attendance || [];
+    const rows = (portal?.attendance || []).map(row => (row.correction?.originalAt ? {
+      ...row,
+      revised: { in: row.checkIn?.at || null, out: row.checkOut?.at || null },
+      checkIn: row.checkIn ? { ...row.checkIn, at: row.correction.originalAt, lateMinutes: null } : row.checkIn,
+      checkOut: row.checkOut && row.correction.originalCheckOutAt ? { ...row.checkOut, at: row.correction.originalCheckOutAt } : row.checkOut
+    } : row));
     el('attendanceList').innerHTML = (viewerMode ? '' : lupaPresensiHtml()) + (rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div>${correctionBlockHtml(row)}${gpsBlockHtml(row)}</div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>');
     document.querySelectorAll('[data-correct-attendance]').forEach(button => button.onclick = () => openCorrectionDialog(button.dataset.correctAttendance)); document.querySelectorAll('[data-lupa-presensi]').forEach(button => button.onclick = () => openCorrectionDialog(null));
     document.querySelectorAll('[data-gps-fix]').forEach(button => button.onclick = () => { const [id, which] = button.dataset.gpsFix.split('|'); openGpsFixDialog(id, which); });
@@ -277,7 +282,44 @@
     if (!payrollRows.length && !adjustmentRows.length && !journalRows.length && !syncRows.length && !apresiasiRows.length) { target.innerHTML = '<div class="staff-empty">Belum ada riwayat gaji.</div>'; return; }
     const cardsByDate = new Map();
     const pushCard = (date, card) => { if (!cardsByDate.has(date)) cardsByDate.set(date, []); cardsByDate.get(date).push(card); };
-    for (const row of payrollRows) pushCard(row.date, { kind: 'attendance', amountRupiah: row.earningRupiah, paymentType: row.paymentType, hoursWorked: row.hoursWorked, withinSchedule: row.withinSchedule, checkInAt: row.checkInAt, checkOutAt: row.checkOutAt });
+    // Revisi jam yang di-ACC (2026-10-17): kartu gaji lama tetap tampil apa adanya, di bawahnya kartu revisi
+    // berisi selisihnya, jadi totalnya sama dengan gaji sesudah revisi.
+    const revisionsBySession = new Map();
+    for (const permit of portal?.attendanceRevisionPermits || []) {
+      if (permit.status !== 'APPROVED' || permit.payAfterRupiah == null || !permit.attendanceId) continue;
+      if (!revisionsBySession.has(permit.attendanceId)) revisionsBySession.set(permit.attendanceId, []);
+      revisionsBySession.get(permit.attendanceId).push(permit);
+    }
+    for (const list of revisionsBySession.values()) list.sort((a, b) => String(a.decidedAt).localeCompare(String(b.decidedAt)));
+    const revisionCard = permit => {
+      const asli = permit.originalCheckInAt
+        ? `datang ${clockTime(permit.originalCheckInAt)} → ${clockTime(permit.approvedCheckInAt)}${permit.approvedCheckOutAt ? ` · pulang ${permit.originalCheckOutAt ? clockTime(permit.originalCheckOutAt) : '-'} → ${clockTime(permit.approvedCheckOutAt)}` : ''}`
+        : `lupa presensi · ${clockTime(permit.approvedCheckInAt)}–${clockTime(permit.approvedCheckOutAt)}`;
+      return {
+        kind: 'adjustment',
+        amountRupiah: Number(permit.payAfterRupiah || 0) - Number(permit.payBeforeRupiah || 0),
+        reason: `Revisi jam di-ACC · ${asli}`,
+        source: `Alasan: ${permit.reason}${permit.editedByApprover ? ' · jam disesuaikan saat ACC' : ''}${permit.decisionNote ? ` · Catatan: ${permit.decisionNote}` : ''}`
+      };
+    };
+    for (const row of payrollRows) {
+      const revisions = revisionsBySession.get(row.attendanceId) || [];
+      if (revisions.length && !revisions[0].originalCheckInAt) {
+        for (const permit of revisions) pushCard(row.date, revisionCard(permit));
+        continue;
+      }
+      const first = revisions[0];
+      pushCard(row.date, {
+        kind: 'attendance',
+        amountRupiah: first ? Number(first.payBeforeRupiah || 0) : row.earningRupiah,
+        paymentType: row.paymentType,
+        hoursWorked: first ? null : row.hoursWorked,
+        withinSchedule: row.withinSchedule,
+        checkInAt: first ? first.originalCheckInAt : row.checkInAt,
+        checkOutAt: first ? (first.originalCheckOutAt || row.checkOutAt) : row.checkOutAt
+      });
+      for (const permit of revisions) pushCard(row.date, revisionCard(permit));
+    }
     for (const row of adjustmentRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: row.amountRupiah, reason: row.reason, voided: row.voided, voidReason: row.voidReason });
     // Koreksi dari Akuntansi (jurnal pada Hutang Gaji atas nama karyawan ini, ADR-054).
     for (const row of journalRows) pushCard(row.businessDate, { kind: 'adjustment', amountRupiah: Number(row.amountRupiah || 0), reason: row.description || 'Penyesuaian gaji', source: `Penyesuaian dari Akuntansi · Jurnal ${row.journalNumber}` });

@@ -40,6 +40,9 @@ function mapPermit(row) {
     requestedCheckOutAt: row.requested_check_out_at || null,
     approvedCheckInAt: row.approved_check_in_at || null,
     approvedCheckOutAt: row.approved_check_out_at || null,
+    // Kartu revisi di riwayat gaji: gaji sesi sebelum & sesudah revisi (rupiah).
+    payBeforeRupiah: row.pay_before_scaled == null ? null : Number(row.pay_before_scaled) / 1_000_000,
+    payAfterRupiah: row.pay_after_scaled == null ? null : Number(row.pay_after_scaled) / 1_000_000,
     editedByApprover: Boolean(row.edited_by_approver),
     reason: row.reason,
     status: row.status,
@@ -160,7 +163,7 @@ async function dispatch(db, action, factType, factId, reason) {
 // Gaji sesi dibatalkan + dibalik, lalu dicatat ulang dari jam revisi.
 async function rebookSessionPay(db, { attendance, permitId, approver, checkInIso, checkOutIso }) {
   const old = (await db.prepare(`
-    SELECT id FROM payroll_ledger_entries
+    SELECT id, hutang_gaji_delta_scaled FROM payroll_ledger_entries
     WHERE source_type = 'ATTENDANCE' AND entry_type = 'ACCRUAL' AND voided_at IS NULL
       AND (source_id = ? OR source_id LIKE ?)
   `).bind(attendance.id, `${attendance.id}#%`).all()).results ?? [];
@@ -177,10 +180,16 @@ async function rebookSessionPay(db, { attendance, permitId, approver, checkInIso
     attendanceId: sourceId, scheduleByDay: scheduleMap(await loadSchedule(db, attendance.user_id)),
     scheduleGateEnabled: await scheduleGateFor(db, attendance.store_id)
   });
+  let afterScaled = 0;
   if (!result.skipped) {
-    const entry = await db.prepare(`SELECT id FROM payroll_ledger_entries WHERE source_type = 'ATTENDANCE' AND source_id = ?`).bind(sourceId).first();
-    if (entry) await dispatch(db, 'dispatch', 'GAJI_PRESENSI', entry.id);
+    const entry = await db.prepare(`SELECT id, hutang_gaji_delta_scaled FROM payroll_ledger_entries WHERE source_type = 'ATTENDANCE' AND source_id = ?`).bind(sourceId).first();
+    if (entry) {
+      afterScaled = Number(entry.hutang_gaji_delta_scaled);
+      await dispatch(db, 'dispatch', 'GAJI_PRESENSI', entry.id);
+    }
   }
+  const beforeScaled = old.reduce((sum, row) => sum + Number(row.hutang_gaji_delta_scaled || 0), 0);
+  await db.prepare('UPDATE attendance_revision_permits SET pay_before_scaled = ?, pay_after_scaled = ? WHERE id = ?').bind(beforeScaled, afterScaled, permitId).run();
 }
 
 async function scheduleGateFor(db, storeId) {
@@ -242,6 +251,7 @@ export async function approveRevision(db, { permitId, approver, note = '', check
       VALUES (?, ?, ?, 'in', x'', 'none', ?, 'CLOSED', ?, ?, ?, ?)
     `).bind(id, permit.accountId, permit.storeId, checked.checkInIso, checked.checkOutIso, permit.id, correctionNote, text(note, 500)).run();
     attendance = await loadAttendance(db, id);
+    await db.prepare('UPDATE attendance_revision_permits SET attendance_id = ? WHERE id = ?').bind(id, permit.id).run();
   } else {
     await db.prepare(`
       UPDATE staff_attendance

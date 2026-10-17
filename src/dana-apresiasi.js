@@ -28,7 +28,21 @@ import { resolveEmployeeForAccount } from './payroll-ledger.js';
 // fitur aktif -> hari penuh pertama sesudah rilis (18 Okt). Tidak pernah sebelum fitur ada.
 export const APRESIASI_BERLAKU_MULAI = '2026-10-18';
 export const APRESIASI_PALING_AWAL = '2026-10-16';
-export const APRESIASI_DEFAULTS = Object.freeze({ ratePerHourRupiah: 2400, dendaPenuhRupiah: 20000, dendaSebagianRupiah: 10000 });
+// Denda kekosongan bertingkat (Bos Cyo, 2026-10-17, migration 0163): dari lamanya gerai KOSONG dalam satu
+// shift. Kosong >= dendaRinganMenit (3 jam) s.d. dendaBeratMenit (4 jam) = denda ringan (dendaSebagianRupiah,
+// Rp10.000); lebih dari dendaBeratMenit = denda berat (dendaPenuhRupiah, Rp20.000); di bawahnya tanpa denda.
+export const APRESIASI_DEFAULTS = Object.freeze({
+  ratePerHourRupiah: 2400, dendaPenuhRupiah: 20000, dendaSebagianRupiah: 10000,
+  dendaEnabled: true, dendaRinganMenit: 180, dendaBeratMenit: 240
+});
+
+// '' = tanpa denda, 'SEBAGIAN' = denda ringan, 'PENUH' = denda berat (nilai kolom denda_kind).
+export function dendaTier(kosongMinutes, settings) {
+  if (!settings?.dendaEnabled || !(kosongMinutes > 0)) return '';
+  if (kosongMinutes > settings.dendaBeratMenit) return 'PENUH';
+  if (kosongMinutes >= settings.dendaRinganMenit) return 'SEBAGIAN';
+  return '';
+}
 export const PENAMPUNG_CODE = '2105';
 export const PENAMPUNG_NAME = 'Dana Apresiasi Backup';
 const SCALE = 1_000_000;
@@ -117,8 +131,7 @@ export function nilaiShift({ accountId, shiftStart, shiftEnd, own = [], others =
   const backupList = [...backups].map(([backupAccountId, ms]) => ({ accountId: backupAccountId, minutes: toMinutes(ms) })).filter(row => row.minutes > 0);
   const backupMinutes = backupList.reduce((sum, row) => sum + row.minutes, 0);
   const kosongMinutes = Math.max(0, toMinutes(totalMs(gaps)));
-  const dendaKind = kosongMinutes <= 0 ? '' : (ownMinutes === 0 && backupMinutes === 0 ? 'PENUH' : 'SEBAGIAN');
-  return { shiftMinutes, ownMinutes, backups: backupList, backupMinutes, kosongMinutes, dendaKind };
+  return { shiftMinutes, ownMinutes, backups: backupList, backupMinutes, kosongMinutes };
 }
 
 // ------------------------------------------------------------ setelan ---
@@ -130,6 +143,9 @@ function mapSettingRow(row) {
     ratePerHourRupiah: row.rate_per_hour_rupiah ?? null,
     dendaPenuhRupiah: row.denda_penuh_rupiah ?? null,
     dendaSebagianRupiah: row.denda_sebagian_rupiah ?? null,
+    dendaEnabled: row.denda_enabled == null ? null : Boolean(row.denda_enabled),
+    dendaRinganMenit: row.denda_ringan_menit ?? null,
+    dendaBeratMenit: row.denda_berat_menit ?? null,
     jamBuka: row.jam_buka || '',
     jamTutup: row.jam_tutup || '',
     enabledSince: row.enabled_since || null,
@@ -149,6 +165,9 @@ function resolveSettings(entityRow, storeRow) {
     ratePerHourRupiah: pick('ratePerHourRupiah'),
     dendaPenuhRupiah: pick('dendaPenuhRupiah'),
     dendaSebagianRupiah: pick('dendaSebagianRupiah'),
+    dendaEnabled: pick('dendaEnabled'),
+    dendaRinganMenit: pick('dendaRinganMenit'),
+    dendaBeratMenit: pick('dendaBeratMenit'),
     jamBuka: storeRow?.jamBuka || '',
     jamTutup: storeRow?.jamTutup || '',
     mulaiTanggal,
@@ -173,6 +192,14 @@ function cleanRupiah(value) {
   return number;
 }
 
+// Batas denda diisi dalam jam (boleh pecahan, koma atau titik), disimpan dalam menit.
+function cleanHours(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const hours = Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(hours) || hours < 0 || hours > 24) return undefined;
+  return Math.round(hours * 60);
+}
+
 function cleanClock(value) {
   const raw = text(value, 5);
   if (!raw) return '';
@@ -189,11 +216,23 @@ export async function saveSettings(db, { entityId, storeId = '', input = {}, act
     rate: cleanRupiah(input.ratePerHourRupiah),
     penuh: cleanRupiah(input.dendaPenuhRupiah),
     sebagian: cleanRupiah(input.dendaSebagianRupiah),
+    ringan: cleanHours(input.dendaRinganJam),
+    berat: cleanHours(input.dendaBeratJam),
     buka: cleanClock(input.jamBuka),
     tutup: cleanClock(input.jamTutup),
     mulai: input.mulaiTanggal ? (/^d{4}-d{2}-d{2}$/.test(String(input.mulaiTanggal)) ? String(input.mulaiTanggal) : undefined) : null
   };
-  if (Object.values(values).includes(undefined)) return { ok: false, error: 'Nominal wajib rupiah bulat 0-10.000.000, jam format HH:MM, tanggal YYYY-MM-DD.' };
+  if (Object.values(values).includes(undefined)) return { ok: false, error: 'Nominal wajib rupiah bulat 0-10.000.000, batas denda dalam jam (mis. 3 atau 3,5), jam format HH:MM, tanggal YYYY-MM-DD.' };
+  const dendaEnabled = input.dendaEnabled === null || input.dendaEnabled === undefined || input.dendaEnabled === ''
+    ? (storeId ? null : true)
+    : Boolean(input.dendaEnabled === true || input.dendaEnabled === 1 || input.dendaEnabled === '1' || input.dendaEnabled === 'true');
+  if (!storeId) {
+    values.ringan ??= APRESIASI_DEFAULTS.dendaRinganMenit;
+    values.berat ??= APRESIASI_DEFAULTS.dendaBeratMenit;
+  }
+  const effRingan = values.ringan ?? rows.get('')?.dendaRinganMenit ?? APRESIASI_DEFAULTS.dendaRinganMenit;
+  const effBerat = values.berat ?? rows.get('')?.dendaBeratMenit ?? APRESIASI_DEFAULTS.dendaBeratMenit;
+  if (effBerat < effRingan) return { ok: false, error: 'Batas denda berat tidak boleh lebih kecil dari batas denda ringan.' };
   if (values.mulai && values.mulai < APRESIASI_PALING_AWAL) return { ok: false, error: `Mulai dihitung paling awal ${APRESIASI_PALING_AWAL}.` };
   if ((values.buka && !values.tutup) || (!values.buka && values.tutup)) return { ok: false, error: 'Jam buka dan jam tutup diisi berdua.' };
   if (values.buka && timeOfDayToMinutes(values.buka) >= timeOfDayToMinutes(values.tutup)) return { ok: false, error: 'Jam tutup harus setelah jam buka.' };
@@ -209,17 +248,20 @@ export async function saveSettings(db, { entityId, storeId = '', input = {}, act
   const enabledSince = enabled === null ? null : (!before.enabled && after.enabled ? getJakartaBusinessDate() : (current.enabledSince || null));
   await db.prepare(`
     INSERT INTO apresiasi_settings (entity_id, store_id, enabled, rate_per_hour_rupiah, denda_penuh_rupiah, denda_sebagian_rupiah,
-      jam_buka, jam_tutup, enabled_since, mulai_tanggal, updated_at, updated_by_role, updated_by_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+      jam_buka, jam_tutup, enabled_since, mulai_tanggal, denda_enabled, denda_ringan_menit, denda_berat_menit,
+      updated_at, updated_by_role, updated_by_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
     ON CONFLICT (entity_id, store_id) DO UPDATE SET
       enabled = excluded.enabled, rate_per_hour_rupiah = excluded.rate_per_hour_rupiah,
       denda_penuh_rupiah = excluded.denda_penuh_rupiah, denda_sebagian_rupiah = excluded.denda_sebagian_rupiah,
       jam_buka = excluded.jam_buka, jam_tutup = excluded.jam_tutup, enabled_since = excluded.enabled_since,
-      mulai_tanggal = excluded.mulai_tanggal,
+      mulai_tanggal = excluded.mulai_tanggal, denda_enabled = excluded.denda_enabled,
+      denda_ringan_menit = excluded.denda_ringan_menit, denda_berat_menit = excluded.denda_berat_menit,
       updated_at = CURRENT_TIMESTAMP, updated_by_role = excluded.updated_by_role, updated_by_id = excluded.updated_by_id
   `).bind(
     entityId, storeId, enabled === null ? null : (enabled ? 1 : 0), values.rate, values.penuh, values.sebagian,
-    values.buka, values.tutup, enabledSince, values.mulai, text(actor.role, 40), text(actor.id, 120)
+    values.buka, values.tutup, enabledSince, values.mulai, dendaEnabled === null ? null : (dendaEnabled ? 1 : 0), values.ringan, values.berat,
+    text(actor.role, 40), text(actor.id, 120)
   ).run();
   return { ok: true };
 }
@@ -355,8 +397,8 @@ async function buildEntries(db, { evaluation, result, settings, names }) {
   }
   if (result.dendaKind) {
     const denda = result.dendaKind === 'PENUH' ? settings.dendaPenuhRupiah : settings.dendaSebagianRupiah;
-    push(evaluation.account_id, 'DENDA', '', 0, -denda * SCALE,
-      `Denda tidak masuk · shift ${tgl} ${result.dendaKind === 'PENUH' ? 'kosong penuh' : 'kosong sebagian'}`);
+    push(evaluation.account_id, 'DENDA', '', result.kosongMinutes, -denda * SCALE,
+      `Denda gerai kosong · shift ${tgl} · kosong ${durasiLabel(result.kosongMinutes)}`);
   }
   for (const row of list) row.employeeId = await resolveEmployeeForAccount(db, 'CASHIER', row.accountId, new Date(jakartaWallClockToUtc(date, evaluation.shift_start) || Date.now()).toISOString());
   return list.map(row => ({ ...row, rateRupiah: rate }));
@@ -446,6 +488,7 @@ export async function evaluateDueApresiasi(db, storeId, { now = new Date() } = {
       const shift = shiftOf(schedules.get(account.id), date);
       if (!shift || nowMs <= shift.end + GRACE_MS) continue;
       const result = await computeFor(db, { storeId, accountId: account.id, shift, nowMs });
+      result.dendaKind = dendaTier(result.kosongMinutes, settings);
       const evaluation = {
         id: `apreval_${crypto.randomUUID()}`, ref_code: refCode(), entity_id: store.entity_id, store_id: storeId,
         account_id: account.id, business_date: date, shift_start: shift.startText, shift_end: shift.endText, revision: 1
@@ -477,6 +520,7 @@ export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Korek
   const shift = shiftOf(schedule, evaluation.business_date);
   const result = await computeFor(db, { storeId: evaluation.store_id, accountId: evaluation.account_id, shift, nowMs: now.getTime() });
   const settings = await storeSettings(db, evaluation.entity_id, evaluation.store_id);
+  result.dendaKind = dendaTier(result.kosongMinutes, settings);
   const old = (await db.prepare(`
     SELECT id, kind, counter_account_id, amount_scaled FROM apresiasi_entries
     WHERE evaluation_id = ? AND revision = ? AND kind <> 'PENYESUAIAN' AND voided_at IS NULL

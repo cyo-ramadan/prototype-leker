@@ -49,6 +49,13 @@ ditambah denda.
    (`source_id = <attendance>#rev-<permit>`) dan dijurnal, dana apresiasi shift itu dinilai ulang.
    Menggantikan permit koreksi jam masuk 0129 untuk pengajuan baru (yang lama tetap tampil statusnya).
 
+10. Denda kekosongan bertingkat (2026-10-17, migration 0163) menggantikan "kosong penuh/sebagian": denda dari
+   lamanya gerai kosong dalam satu shift. Bawaan kosong 3-4 jam Rp10.000, lebih dari 4 jam Rp20.000, kurang
+   dari 3 jam tanpa denda (potongan per jam tetap). Denda ON/OFF, batas jam, nominal = pengaturan entity/gerai.
+11. Riwayat setelah revisi di-ACC: kartu/baris gaji lama tetap tampil apa adanya, revisi tampil sebagai kartu
+   selisih di bawahnya (gaji sebelum/sesudah disimpan di pengajuan); Riwayat Presensi menampilkan jam asli
+   dengan kartu revisi berisi jam yang berlaku.
+
 ## Konsekuensi
 
 - Freelance dibayar tarif di akunnya + fee apresiasi saat menggantikan. Supaya totalnya Rp8.000,

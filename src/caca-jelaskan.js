@@ -557,14 +557,14 @@ export const KAMUS = Object.freeze([
     judul: 'QRIS Otomatis: bunyi uang masuk & tautan penjualan QRIS',
     kunci: ['qris', 'qris otomatis', 'cek qris', 'kolam qris', 'klaim qris', 'batal klaim', 'diklaim gerai lain', 'salah klaim', 'qris masuk', 'uang qris', 'notif qris', 'bunyi qris', 'qris belum tertaut', 'tautkan qris', 'belum tertaut', 'hp penerima', 'macrodroid', 'gobiz', 'mutasi qris', 'qris palsu'],
     isi: [
-      'Uang QRIS yang benar-benar masuk dicatat dari notifikasi aplikasi merchant (GoBiz, bank, dll.) di SATU HP penerima milik pemilik — CS tidak memasang aplikasi merchant. HP itu meneruskan notifikasinya ke Leker (MacroDroid, gratis).',
+      'Uang QRIS yang benar-benar masuk dicatat dari notifikasi aplikasi merchant (GoBiz, bank, dll.) di SATU HP penerima milik pemilik — CS tidak memasang aplikasi merchant. HP itu meneruskan notifikasinya ke Leker lewat aplikasi Penerus QRIS (dari admin; MacroDroid hanya untuk aplikasi merchant bernotifikasi teks biasa — Merchant BCA tidak bisa).',
       'Begitu uang masuk, kasir gerai itu mendengar bunyi "cring" dan melihat pita hijau "💰 QRIS masuk Rp…". Saat aplikasi ditutup, kabarnya datang lewat notifikasi HP (aktifkan dulu di menu Notifikasi).',
       'Di kasir tidak ada tombol tersendiri: buka "📚 Detail Laci" lalu "Buka Kolam QRIS" / "Buka Cek QRIS" di baris paling atas (tanda "QRIS 2" di tombol Detail Laci = penjualan QRIS hari ini yang belum tertaut). Pita hijau "QRIS masuk" juga bisa diketuk. Di Entity Admin: tombol "📲 QRIS" di tiap kartu gerai.',
       'Setiap penjualan QRIS harus tertaut ke tepat satu uang masuk. Kalau nominal sama dan waktunya berdekatan (±30 menit) tanpa keraguan, Leker menautkan sendiri. Kalau ada dua pembeli bernominal sama, CS menekan "Tautkan" lalu memilih uang masuk yang benar. Satu uang masuk tidak bisa dipakai dua kali.',
       'Status: hijau = Tertaut; kuning = Belum tertaut (penjualan QRIS tanpa uang masuk — perlu dicek); merah = uang masuk tanpa penjualan. CS tidak bisa membuat uang masuk sendiri, jadi orderan QRIS karangan tetap kuning.',
       'Kolam bersama (saklar "QRIS: kolam bersama + klaim CS", bawaan aktif): bila satu akun merchant memegang banyak outlet (mis. merchantBCA) dan notifikasinya tidak menyebut outlet, uang masuk menunggu di "🧾 Kolam QRIS" yang terlihat semua kasir yang lacinya terbuka — tanpa bunyi. Begitu pembelinya membayar, CS mencari nominal + jam (+ "dari DANA/GOPAY…") lalu menekan "✋ Klaim untuk <gerai>"; gerai lain terkunci. Kepencet? tekan "Batal klaim" (uang kembali ke kolam). Bila hanya ada satu penjualan QRIS bernominal sama, klaim langsung menautkannya. Admin bisa membatalkan klaim gerai mana pun dengan catatan; pencocokan mutasi bank (outlet asli) menangkap klaim yang salah gerai.',
       'Admin bisa: tambah uang masuk manual dari mutasi (wajib catatan), lepas tautan, abaikan uang masuk (mis. uji coba), dan menautkan nominal yang beda dengan alasan. Entity Admin memasukkan uang yang gerainya belum dikenali ke gerai yang benar.',
-      'Setelan (tab ⚙️ Setelan, admin): pilih cara bayar yang dihitung QRIS, kata kunci gerai di teks notifikasi, dan buat HP penerima (alamatnya tampil sekali, berisi petunjuk MacroDroid).',
+      'Setelan (tab ⚙️ Setelan, admin): pilih cara bayar yang dihitung QRIS, kata kunci gerai di teks notifikasi, dan buat HP penerima (alamatnya tampil sekali, ditempel ke aplikasi Penerus QRIS).',
       'Fitur ini bisa dimatikan Owner di Pengaturan (saklar "QRIS Otomatis").'
     ].join('\n'),
     tawaran: [],
@@ -574,14 +574,14 @@ export const KAMUS = Object.freeze([
   {
     id: 'qris_sambung_hp',
     judul: 'Menyambungkan HP aplikasi merchant QRIS ke Leker',
-    kunci: ['sambung hp qris', 'hp penerima', 'pasang macrodroid', 'macrodroid', 'merchant bca', 'merchantbca', 'notif qris telat', 'qris telat', 'telat terus', 'notifikasi qris terlambat', 'cara setting qris', 'setting qris otomatis', 'qris tidak bunyi', 'qris belum masuk leker'],
+    kunci: ['sambung hp qris', 'hp penerima', 'penerus qris', 'aplikasi penerus', 'pasang macrodroid', 'macrodroid', 'merchant bca', 'merchantbca', 'notif qris telat', 'qris telat', 'telat terus', 'notifikasi qris terlambat', 'cara setting qris', 'setting qris otomatis', 'qris tidak bunyi', 'qris belum masuk leker'],
     isi: [
       'Cukup sekali. Sesudahnya tiap QRIS masuk diteruskan sendiri ke Leker — tidak perlu screenshot.',
       '1) Entity Admin → tombol "📲 QRIS" di kartu gerai → tab "⚙️ Setelan": pilih cara bayar yang dihitung QRIS, isi kata kunci gerai (nama outlet seperti tertulis di notifikasi, mis. "TEH POCI BENDUNGAN", atau NMID). Ulangi untuk tiap gerai.',
       '2) Masih di Setelan: isi nama HP, centang "Untuk semua gerai" bila satu akun merchant memegang banyak outlet, tekan "＋ Buat HP penerima". Salin alamat yang muncul (hanya tampil sekali) ke HP merchant.',
-      '3) Di HP merchant: nyalakan notifikasi suara aplikasi merchant; Pengaturan HP → Aplikasi → aplikasi merchant dan MacroDroid → Baterai "Tidak dibatasi" (+ Autostart bila ada). Ini yang mencegah notifikasi telat berjam-jam.',
-      '4) Pasang MacroDroid (gratis). Makro baru: Pemicu "Notifikasi Diterima" → pilih aplikasi merchant; Aksi "Permintaan HTTP" → POST ke alamat tadi, isi jenis text/plain: [notification_title] [notification].',
-      '5) Uji transfer Rp1. Di Setelan, baris HP penerima menulis hasilnya (mis. "Uang masuk Rp1 -> BENDUNGAN"); di kasir gerai itu terdengar bunyi + pita hijau. Bila tertulis "gerai belum dikenali", betulkan kata kuncinya.',
+      '3) Di HP merchant: izinkan notifikasi aplikasi merchant (di Merchant BCA: Akun → Pengaturan Notifikasi → aktif) dan Pengaturan HP → Aplikasi → aplikasi merchant → Baterai "Tidak dibatasi" (+ Autostart bila ada). Izin notifikasi yang mati + pembatasan baterai inilah penyebab notifikasi telat berjam-jam.',
+      '4) Pasang aplikasi Penerus QRIS (APK dari admin). Buka → Tempel alamat → Simpan; pastikan "Akses notifikasi" dan "Baterai" ✅; "Aplikasi yang diteruskan" bawaan com.bca.msb (Merchant BCA). Penerus QRIS bisa membaca tampilan khusus notifikasi Merchant BCA, menyimpan kiriman saat HP offline lalu mengirim ulang, dan mengirim jam notifikasi muncul. (MacroDroid hanya cocok untuk aplikasi merchant bernotifikasi teks biasa.)',
+      '5) Tekan "Kirim tes" di Penerus QRIS, lalu uji transfer Rp1. Di Setelan, baris HP penerima menulis hasilnya (mis. "Uang masuk Rp1 (masuk kolam bersama)"). Dengan kolam bersama (bawaan), uang muncul di "🧾 Kolam QRIS" kasir tanpa bunyi; tanpa kolam bersama, gerai dikenali dari kata kunci dan kasirnya mendengar bunyi.',
       'HP merchant boleh HP harian, asal selalu menyala dan ada internet. Kalau HP mati, uang masuk bisa ditambah admin dari mutasi. Notifikasi yang telat tetap tercatat di jam transaksinya (dibaca dari teks notifikasi), dan nomor RRN mencegah dobel.'
     ].join('\n'),
     tawaran: [jelas('qris_otomatis', 'Cara kerja QRIS Otomatis')],

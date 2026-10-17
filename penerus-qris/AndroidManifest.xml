@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Penerus QRIS (Bos Cyo, 2026-10-17): meneruskan notifikasi uang masuk dari aplikasi merchant QRIS
+     (Merchant BCA, dll.) di HP penerima ke kolam QRIS (POST /api/qris/masuk). Tanpa pustaka luar. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="id.ownertenang.penerusqris"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:label="Penerus QRIS"
+        android:icon="@android:drawable/sym_action_email"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".PenerusService"
+            android:label="Penerus QRIS"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

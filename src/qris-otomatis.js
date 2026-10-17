@@ -627,7 +627,12 @@ async function terimaNotifikasi(request, env) {
   }
   const storeId = await tebakGerai(db, penerima, whole);
   const kolam = await kolamAktif(db, penerima.entity_id);
-  const waktu = (body.waktu && bacaWaktu(`${body.waktu} WIB`, now)) || bacaWaktu(whole, now) || now;
+  // Urutan sumber jam: jam di teks notifikasi (paling dekat ke transaksi) -> jam notifikasi muncul di HP
+  // (postedAt, dikirim aplikasi Penerus QRIS; tetap benar walau kiriman tertahan saat HP offline) -> sekarang.
+  const postedMs = Number(body.postedAt);
+  const dariHp = Number.isFinite(postedMs) && postedMs > 0 && postedMs <= now.getTime() + 5 * 60_000 && postedMs >= now.getTime() - 3 * 24 * 3600_000
+    ? new Date(postedMs) : null;
+  const waktu = (body.waktu && bacaWaktu(`${body.waktu} WIB`, now)) || bacaWaktu(whole, now) || dariHp || now;
   const terlambatMenit = Math.round((now.getTime() - waktu.getTime()) / 60000);
   const masuk = {
     id: `qrism_${crypto.randomUUID()}`, entity_id: penerima.entity_id, store_id: storeId, amount, received_at: waktu.toISOString(), terlambatMenit

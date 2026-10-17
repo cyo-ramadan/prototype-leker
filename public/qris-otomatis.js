@@ -133,19 +133,19 @@
         <button class="primary-btn" type="button" data-qr-simpan>Simpan setelan</button>
       </div>
       <h3>HP penerima</h3>
-      <p class="muted">HP milik pemilik yang login aplikasi merchant QRIS (GoBiz, bank, dll.). CS tidak perlu memasang aplikasi merchant -- bunyinya datang dari Leker.</p>
+      <p class="muted">HP milik pemilik yang login aplikasi merchant QRIS (Merchant BCA, GoBiz, bank, dll.) dan terpasang aplikasi <b>Penerus QRIS</b>. CS tidak perlu memasang aplikasi merchant.</p>
       ${token ? `<div class="qris-token">
         <b>Salin alamat ini sekarang. Alamat ini hanya tampil sekali:</b>
         <input class="text-input" readonly value="${esc(token.ingestUrl)}" data-qr-tokenurl />
         <button class="mini-btn" type="button" data-qr-salin>Salin</button>
         <ol class="muted">
-          <li>Di HP penerima pasang <b>MacroDroid</b> (gratis, Play Store).</li>
-          <li>Macro baru → Pemicu: <b>Notifikasi diterima</b> → pilih aplikasi merchant QRIS (GoBiz/bank).</li>
-          <li>Aksi: <b>HTTP Request</b> → metode POST ke alamat di atas, isi (body) jenis <b>text/plain</b>:<br>
-            <code>[notification_title] [notification]</code></li>
-          <li>Izinkan akses notifikasi untuk MacroDroid dan matikan penghemat baterai untuknya.</li>
-          <li>Uji: kirim isi <code>tes</code> → di daftar di bawah tertulis "Tes sambungan berhasil".</li>
-        </ol></div>` : ''}
+          <li>Kirim alamat ini ke HP penerima (mis. WA ke diri sendiri) lalu salin di sana.</li>
+          <li>Buka aplikasi <b>Penerus QRIS</b> → <b>Tempel</b> → <b>Simpan</b>.</li>
+          <li>Di aplikasi itu pastikan "Akses notifikasi" dan "Baterai" bertanda ✅ (tekan tombolnya bila ❌).</li>
+          <li>Isian "Aplikasi yang diteruskan": bawaan <code>com.bca.msb</code> (Merchant BCA); tambah paket lain bila perlu.</li>
+          <li>Tekan <b>Kirim tes</b> → di daftar di bawah tertulis "Tes sambungan berhasil".</li>
+        </ol>
+        <p class="muted">Alternatif untuk aplikasi merchant yang notifikasinya teks biasa: MacroDroid (pemicu Notifikasi diterima → HTTP Request POST ke alamat ini, isi text/plain <code>[notification_title] [notification]</code>). Merchant BCA tidak bisa lewat MacroDroid.</p></div>` : ''}
       ${s.penerima.map(p => `<article class="master-row">
         <div class="master-main"><strong>${esc(p.label)}</strong>${chip(p.lastSeenAt ? 'ok' : 'warn', p.lastSeenAt ? `Terakhir ${tgljam(p.lastSeenAt)}` : 'Belum pernah mengirim')}
           <div class="master-meta">${p.semuaGerai ? 'Semua gerai (pakai kata kunci)' : `Gerai ${esc(p.storeCode)}`} · dibuat ${esc(p.createdByName)}</div>

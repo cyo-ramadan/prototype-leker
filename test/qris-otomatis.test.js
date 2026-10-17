@@ -333,3 +333,18 @@ test('migration 0165: cara bayar QRIS dibuat dari REKBER (akun & Rekening Bersam
   // Gerai tanpa REKBER tidak mendapat QRIS otomatis.
   assert.equal(sqlite.prepare(`SELECT COUNT(*) AS n FROM payment_methods WHERE code = 'QRIS'`).get().n, 1);
 });
+
+test('Penerus QRIS: notif tertahan saat offline tetap tercatat di jam notifikasi muncul (postedAt), id mencegah dobel', async () => {
+  const f = await fixture();
+  const token = await siapkan(f, { semuaGerai: true });
+  const muncul = Date.now() - 2 * 3600_000;
+  const kiriman = { app: 'com.bca.msb', title: 'Merchant BCA', text: 'Anda telah menerima pembayaran QRIS sebesar Rp 6.000 dari DANA.', postedAt: muncul, id: `0|com.bca.msb|-1536433262|null|10317|${muncul}` };
+  const masuk = await kirim(f, token, kiriman);
+  assert.equal(masuk.status, 201);
+  assert.equal(masuk.body.waktu, new Date(muncul).toISOString());
+  assert.ok(masuk.body.terlambatMenit >= 119);
+  assert.equal((await kirim(f, token, kiriman)).body.duplicate, true);
+  // postedAt yang tidak masuk akal diabaikan (pakai jam sekarang).
+  const aneh = await kirim(f, token, { ...kiriman, id: 'lain', postedAt: 1 });
+  assert.ok(Math.abs(new Date(aneh.body.waktu).getTime() - Date.now()) < 60_000);
+});

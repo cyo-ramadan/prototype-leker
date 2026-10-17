@@ -185,5 +185,5 @@ test('penyesuaian Entity Admin (alasan syar\'i) bawaan membalik penuh dan tampil
   await saveSettings(db, { entityId, input: { enabled: true } });
   assert.equal((await (await worker.fetch(new Request('https://example.test/api/entity-admin/dana-apresiasi/settings', {
     headers: { Authorization: 'Bearer ea-apr' }
-  }), env)).json()).entity.since, '2026-11-01');
+  }), env)).json()).entity.since, '2026-10-18');
 });

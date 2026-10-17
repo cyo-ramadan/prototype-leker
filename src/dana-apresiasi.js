@@ -24,9 +24,9 @@ import { resolveEmployeeForAccount } from './payroll-ledger.js';
 // Penilaian lazy (tanpa cron, invariant #6): saat riwayat/rekap/portal dibaca, shift yang jam
 // pulangnya sudah lewat 1 jam (jeda yang sama dengan tutup otomatis presensi) dinilai sekali.
 
-// Bawaan "Mulai dihitung" bila Entity Admin belum memilih tanggal (Bos Cyo, 2026-10-15: ON, mulai
-// tanggal yang ditentukan, supaya jadwal & status akun dibetulkan dulu). Tidak pernah sebelum fitur ada.
-export const APRESIASI_BERLAKU_MULAI = '2026-11-01';
+// Bawaan "Mulai dihitung" bila Entity Admin belum memilih tanggal. Bos Cyo, 2026-10-17: dihitung mulai
+// fitur aktif -> hari penuh pertama sesudah rilis (18 Okt). Tidak pernah sebelum fitur ada.
+export const APRESIASI_BERLAKU_MULAI = '2026-10-18';
 export const APRESIASI_PALING_AWAL = '2026-10-16';
 export const APRESIASI_DEFAULTS = Object.freeze({ ratePerHourRupiah: 2400, dendaPenuhRupiah: 20000, dendaSebagianRupiah: 10000 });
 export const PENAMPUNG_CODE = '2105';

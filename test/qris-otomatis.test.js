@@ -222,3 +222,32 @@ test('token salah/dicabut ditolak, notif bukan uang masuk diabaikan, saklar tena
   assert.equal((await call(f.env, '/api/qris/penerima/cabut', { token: f.admin, method: 'POST', body: { id } })).status, 200);
   assert.equal((await kirim(f, token, { text: 'QRIS Rp 1.000 diterima' })).status, 401);
 });
+
+test('merchantBCA: jam transaksi & RRN dibaca dari teks, notif telat 6 jam tetap tertaut dan tidak dobel', async () => {
+  const { bacaWaktu, bacaRef } = await import('../src/qris-otomatis.js');
+  const now = new Date('2026-10-17T07:32:00.000Z'); // 14:32 WIB
+  assert.equal(bacaWaktu('17 Okt 2026 08:31:48 WIB', now).toISOString(), '2026-10-17T01:31:48.000Z');
+  assert.equal(bacaWaktu('17/10/2026 08:31', now).toISOString(), '2026-10-17T01:31:00.000Z');
+  assert.equal(bacaWaktu('pukul 08:31:48 WIB', now).toISOString(), '2026-10-17T01:31:48.000Z');
+  assert.equal(bacaWaktu('1 Jan 2020 08:00', now), null);
+  assert.equal(bacaRef('Rp 1,00 RRN: 308862333'), '308862333');
+  assert.equal(bacaNominal('Rp 1,00 17 Okt 2026 08:31:48'), 1);
+
+  const f = await fixture();
+  const token = await siapkan(f, { semuaGerai: true });
+  f.sqlite.prepare(`UPDATE qris_gerai_setelan SET kata_kunci = 'TEH POCI BENDUNGAN' WHERE store_id = 'store_pendem'`).run();
+  const sekarang = new Date();
+  const transaksi = new Date(sekarang.getTime() - 6 * 3600_000);
+  addSale(f.sqlite, { id: 'sale_bca', amount: 1, at: transaksi });
+  const jam = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })
+    .format(transaksi).replace(/\./g, ':').replace(',', '');
+  const teks = `Pembayaran QRIS diterima TEH POCI BENDUNGAN Rp 1,00 ${jam} WIB RRN: 308862333`;
+  const masuk = await kirim(f, token, { title: 'merchantBCA', text: teks });
+  assert.equal(masuk.status, 201, JSON.stringify(masuk.body));
+  assert.equal(masuk.body.storeCode, 'PENDEM');
+  assert.ok(masuk.body.terlambatMenit >= 350, String(masuk.body.terlambatMenit));
+  assert.equal(masuk.body.tertaut, true);
+  assert.equal((await kirim(f, token, { title: 'merchantBCA', text: teks })).body.duplicate, true);
+  const notif = f.sqlite.prepare(`SELECT body FROM management_notifications WHERE recipient_key = 'CASHIER:cashier_pendem_pilot'`).get();
+  assert.match(notif.body, /notif telat 6 jam/);
+});

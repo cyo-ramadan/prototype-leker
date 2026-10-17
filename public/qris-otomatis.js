@@ -124,8 +124,8 @@
             <option value="">— pilih —</option>
             ${s.paymentMethods.map(m => `<option value="${esc(m.code)}" ${m.code === s.metode.code ? 'selected' : ''}>${esc(m.name)} (${esc(m.code)})</option>`).join('')}
           </select></label>
-        <label>Kata kunci gerai di teks notifikasi <span class="muted">(nama merchant/NMID; dipakai penerima "semua gerai")</span>
-          <input class="text-input" data-qr-kunci value="${esc(s.kataKunci)}" placeholder="mis. LEKER BEJI" /></label>
+        <label>Kata kunci gerai di teks notifikasi <span class="muted">(nama outlet, MID, atau NMID yang tertulis di notifikasi; dipakai penerima "semua gerai")</span>
+          <input class="text-input" data-qr-kunci value="${esc(s.kataKunci)}" placeholder="mis. TEH POCI BENDUNGAN atau NMID ID1024311645419" /></label>
         <button class="primary-btn" type="button" data-qr-simpan>Simpan setelan</button>
       </div>
       <h3>HP penerima</h3>

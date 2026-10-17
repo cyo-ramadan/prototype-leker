@@ -36,7 +36,8 @@ const TANDA_UANG_MASUK = /(terima|diterima|masuk|berhasil|sukses|received|lunas|
 // "Rp15.000", "Rp 15.000,00", "IDR 15,000.00", "Rp15000" -> 15000. Ambil nominal pertama yang sah.
 export function bacaNominal(value) {
   const source = String(value ?? '');
-  const pattern = /(?:rp|idr)\s*\.?\s*(\d[\d.,\s]*)/gi;
+  // Angka berhenti di spasi: "Rp 1,00 17 Okt" = Rp1, bukan Rp10.017.
+  const pattern = /(?:rp|idr)\s*\.?\s*(\d[\d.,]*)/gi;
   let match;
   while ((match = pattern.exec(source))) {
     let raw = match[1].replace(/\s+/g, '').replace(/[.,]+$/, '');
@@ -54,6 +55,36 @@ export function bacaNotifikasi({ title = '', text: body = '' } = {}) {
   const amount = bacaNominal(body) ?? bacaNominal(title);
   if (!amount) return { ok: false, alasan: 'Nominal Rp tidak ditemukan di teks notifikasi.' };
   return { ok: true, amount };
+}
+
+// Nomor transaksi dari bank (RRN merchantBCA, "No. Ref", "ID Transaksi") -- pengenal unik paling
+// kuat supaya satu pembayaran tidak tercatat dua kali.
+export function bacaRef(value) {
+  const match = String(value ?? '').match(/\b(?:RRN|No\.?\s*Ref(?:erensi)?|Ref(?:erence)?(?:\s*No)?|ID\s*Transaksi|Trx\s*ID)\s*[:.#]?\s*([A-Za-z0-9-]{6,40})/i);
+  return match ? match[1].toUpperCase() : null;
+}
+
+const BULAN = { jan: 1, feb: 2, mar: 3, apr: 4, mei: 5, may: 5, jun: 6, jul: 7, agu: 8, agt: 8, aug: 8, sep: 9, okt: 10, oct: 10, nov: 11, des: 12, dec: 12 };
+const jakarta = (y, m, d, hh, mm, ss = 0) => new Date(Date.UTC(y, m - 1, d, hh - 7, mm, ss));
+
+// Jam transaksi yang tertulis di teks notifikasi (WIB). Notifikasi aplikasi bank bisa datang
+// berjam-jam terlambat (merchantBCA: 6 jam) -- yang dipakai untuk tanggal & tautan adalah jam
+// transaksinya, bukan jam notifikasi sampai. Tidak terbaca / tidak masuk akal = null.
+export function bacaWaktu(value, now = new Date()) {
+  const source = String(value ?? '');
+  let date = null;
+  let m = source.match(/\b(\d{1,2})[\s/-]+([A-Za-z]{3,9})[\s/-]+(\d{4})[,\s]+(?:pukul\s+)?(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?/i);
+  if (m && BULAN[m[2].slice(0, 3).toLowerCase()]) date = jakarta(+m[3], BULAN[m[2].slice(0, 3).toLowerCase()], +m[1], +m[4], +m[5], +(m[6] || 0));
+  if (!date && (m = source.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})[,\s]+(?:pukul\s+)?(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?/))) date = jakarta(+m[3], +m[2], +m[1], +m[4], +m[5], +(m[6] || 0));
+  if (!date && (m = source.match(/\b(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/))) date = jakarta(+m[1], +m[2], +m[3], +m[4], +m[5], +(m[6] || 0));
+  if (!date && (m = source.match(/\b(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*WIB/i))) {
+    const [y, mo, d] = getJakartaBusinessDate(now).split('-').map(Number);
+    date = jakarta(y, mo, d, +m[1], +m[2], +(m[3] || 0));
+    if (date.getTime() > now.getTime() + 5 * 60_000) date = new Date(date.getTime() - 24 * 3600_000);
+  }
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const age = now.getTime() - date.getTime();
+  return age >= -5 * 60_000 && age <= 3 * 24 * 3600_000 ? date : null;
 }
 
 // ---- Siapa yang memanggil ---------------------------------------------------------------------
@@ -423,7 +454,8 @@ async function kabariKasir(env, masuk, store, linked) {
   try {
     const actors = await listNotificationActors(env, store ? { storeId: store.id } : { entityId: masuk.entity_id });
     const recipients = store ? actors.filter(a => a.role === 'CASHIER' && a.storeId === store.id) : actors.filter(a => a.role === 'ENTITY_ADMIN' && a.entityId === masuk.entity_id);
-    const jam = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(masuk.received_at));
+    const jam = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(masuk.received_at))
+      + (masuk.terlambatMenit >= 10 ? ` (notif telat ${masuk.terlambatMenit >= 120 ? `${Math.round(masuk.terlambatMenit / 60)} jam` : `${masuk.terlambatMenit} menit`})` : '');
     for (const recipient of recipients) {
       await emitNotification(env, {
         recipientKey: recipient.key,
@@ -471,8 +503,10 @@ async function terimaNotifikasi(request, env) {
   }
   // Uang masuk dobel berbahaya: bisa dipakai menautkan orderan QRIS karangan. Pengenal terbaik =
   // nomor transaksi (ref); kalau tidak ada, waktu terbit notifikasi dari HP (postedAt) + teksnya.
+  const whole = `${title}\n${notifText}`;
   const postedAt = text(body.postedAt ?? body.posted_at ?? body.time, 40);
-  let ref = text(body.ref ?? body.id, 120) || null;
+  const rrn = bacaRef(whole);
+  let ref = text(body.ref ?? body.id, 120) || (rrn ? `ref:${rrn}` : null);
   if (!ref && postedAt) ref = `notif:${(await hashCredential(`${penerima.id}|${postedAt}|${title}|${notifText}`)).slice(0, 40)}`;
   if (ref && await db.prepare(`SELECT 1 FROM qris_masuk WHERE entity_id = ? AND ref = ?`).bind(penerima.entity_id, ref).first()) {
     return json({ ok: true, duplicate: true });
@@ -483,20 +517,22 @@ async function terimaNotifikasi(request, env) {
   if (!ref && await db.prepare(`SELECT 1 FROM qris_masuk WHERE penerima_id = ? AND raw_title = ? AND raw_text = ? AND amount = ? AND received_at >= ?`).bind(penerima.id, title, notifText, amount, since).first()) {
     return json({ ok: true, duplicate: true });
   }
-  const storeId = await tebakGerai(db, penerima, `${title}\n${notifText}`);
+  const storeId = await tebakGerai(db, penerima, whole);
+  const waktu = (body.waktu && bacaWaktu(`${body.waktu} WIB`, now)) || bacaWaktu(whole, now) || now;
+  const terlambatMenit = Math.round((now.getTime() - waktu.getTime()) / 60000);
   const masuk = {
-    id: `qrism_${crypto.randomUUID()}`, entity_id: penerima.entity_id, store_id: storeId, amount, received_at: now.toISOString()
+    id: `qrism_${crypto.randomUUID()}`, entity_id: penerima.entity_id, store_id: storeId, amount, received_at: waktu.toISOString(), terlambatMenit
   };
   await db.prepare(`
     INSERT INTO qris_masuk (id, entity_id, store_id, penerima_id, amount, source, app, raw_title, raw_text, ref, received_at, business_date, created_by_role, created_by_name, created_at)
     VALUES (?, ?, ?, ?, ?, 'NOTIF_HP', ?, ?, ?, ?, ?, ?, 'PENERIMA', ?, ?)
-  `).bind(masuk.id, masuk.entity_id, storeId, penerima.id, amount, app, title, notifText, ref, masuk.received_at, getJakartaBusinessDate(now), penerima.label, masuk.received_at).run();
+  `).bind(masuk.id, masuk.entity_id, storeId, penerima.id, amount, app, title, notifText, ref, masuk.received_at, getJakartaBusinessDate(waktu), penerima.label, now.toISOString()).run();
   const store = storeId ? await db.prepare(`SELECT id, code, store_name FROM stores WHERE id = ?`).bind(storeId).first() : null;
-  const linked = storeId ? await tautkanOtomatis(db, storeId, { around: now }) : 0;
+  const linked = storeId ? await tautkanOtomatis(db, storeId, { around: waktu }) : 0;
   const linkedThis = linked ? Boolean(await db.prepare(`SELECT 1 FROM qris_masuk WHERE id = ? AND status = 'TERTAUT'`).bind(masuk.id).first()) : false;
-  await catat(`Uang masuk ${rupiah(amount)}${store ? ` -> ${store.code}` : ' (gerai belum dikenali)'}`);
+  await catat(`Uang masuk ${rupiah(amount)}${store ? ` -> ${store.code}` : ' (gerai belum dikenali)'}${terlambatMenit >= 10 ? ` · notifikasi terlambat ${terlambatMenit} menit` : ''}`);
   await kabariKasir(env, masuk, store, linkedThis);
-  return json({ ok: true, id: masuk.id, amount, storeCode: store?.code || null, tertaut: linkedThis }, 201);
+  return json({ ok: true, id: masuk.id, amount, storeCode: store?.code || null, tertaut: linkedThis, waktu: masuk.received_at, terlambatMenit }, 201);
 }
 
 // ---- Router -------------------------------------------------------------------------------------

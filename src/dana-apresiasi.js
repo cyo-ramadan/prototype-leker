@@ -1,7 +1,7 @@
 import { getJakartaBusinessDate, jakartaWallClockToUtc, timeOfDayToMinutes } from './time.js';
 import { resolveEmployeeForAccount } from './payroll-ledger.js';
 
-// Dana Apresiasi Backup & Denda Ketidakhadiran CS (Bos Cyo, 2026-10-15, ADR-058, migration 0158).
+// Dana Apresiasi Backup & Denda Ketidakhadiran CS (Bos Cyo, 2026-10-15, ADR-058, migration 0162).
 //
 // "CS normal Rp5.600/jam. Kalau CS asli berhalangan dan ada backup, backup dapat Rp8.000/jam =
 // Rp5.600 beban perusahaan + Rp2.400 dana apresiasi yang DIBAYAR oleh CS asli yang berhalangan.

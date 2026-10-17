@@ -221,9 +221,18 @@ export const SUMBER_KAMUS = Object.freeze({
       "src/staff-attendance.js",
       "src/attendance-correction-permit.js",
       "src/attendance-gps-permit.js",
-      "src/tenant-policy.js"
+      "src/tenant-policy.js",
+      "src/attendance-revision-permit.js",
+      "public/entity-izin-cs.js"
     ],
     "fitur": [
+      "pola:src/attendance-revision-permit.js:/^\\/api\\/admin\\/attendance-revisions\\/([^/]+)$/",
+      "rute:src/attendance-revision-permit.js:/api/admin/attendance-revisions",
+      "rute:src/attendance-revision-permit.js:/api/staff/attendance-revisions",
+      "tombol:public/entity-izin-cs.js:data-in,data-izin-edit,data-kind,data-out,data-store:Edit lalu ACC",
+      "tombol:public/staff.js:data-correct-attendance:Ajukan revisi jam",
+      "tulis:src/attendance-revision-permit.js:request.method !== 'POST') return json(",
+      "tulis:src/attendance-revision-permit.js:request.method === 'PATCH' && match)",
       "rute:src/attendance-correction-permit.js:/api/admin/attendance-correction-permits",
       "rute:src/attendance-correction-permit.js:/api/staff/attendance-correction-permits",
       "rute:src/attendance-gps-permit.js:/api/admin/attendance-gps-permits",

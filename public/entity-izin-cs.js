@@ -14,7 +14,23 @@
   const SUBJECT_LABEL = { SALE: 'Penjualan', PURCHASE: 'Pembelian Bahan', EXPENSE: 'Pengeluaran Operasional' };
 
   // Satu baris per jenis izin: route daftar, route keputusan, cara menggambar kartunya.
+  const jam = value => value ? new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '';
   const JENIS = [
+    // Revisi jam presensi (2026-10-17): ACC apa adanya, Edit lalu ACC, atau Tolak. ACC = gaji, potongan
+    // dana apresiasi, dan jurnalnya dihitung ulang otomatis (jurnal pembalik + jurnal revisi).
+    {
+      kind: 'revisi',
+      bisaEdit: true,
+      list: '/api/admin/attendance-revisions?status=PENDING',
+      decide: id => `/api/admin/attendance-revisions/${encodeURIComponent(id)}`,
+      rows: payload => payload.permits || [],
+      judul: permit => permit.attendanceId ? 'Revisi jam presensi' : 'Lupa presensi (sesi baru)',
+      orang: permit => permit.requestedByName,
+      diajukan: permit => permit.createdAt,
+      isi: permit => `${esc(permit.businessDate)} · tercatat <b>${permit.originalCheckInAt ? esc(`${jam(permit.originalCheckInAt)}–${jam(permit.originalCheckOutAt) || 'belum pulang'}`) : 'tidak ada presensi'}</b> → minta <b>${esc(`${jam(permit.requestedCheckInAt)}${permit.requestedCheckOutAt ? `–${jam(permit.requestedCheckOutAt)}` : ''}`)}</b>`,
+      alasan: permit => permit.reason,
+      body: (decision, note, extra = {}) => ({ decision, note, ...extra })
+    },
     {
       kind: 'koreksi',
       list: '/api/admin/attendance-correction-permits?status=PENDING',
@@ -107,19 +123,31 @@
           <div class="master-meta">Diajukan ${esc(waktu(jenis.diajukan(permit)))}</div>
         </div>
         <div class="master-actions">
+          ${jenis.bisaEdit ? `<button class="mini-btn" type="button" data-izin-edit="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}" data-in="${esc(jam(permit.requestedCheckInAt))}" data-out="${esc(jam(permit.requestedCheckOutAt))}">Edit lalu ACC</button>` : ''}
           <button class="mini-btn" type="button" data-izin-acc="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}" data-info="${esc(`${jenis.judul(permit)} dari ${jenis.orang(permit) || '-'} (${storeCode})`)}">ACC</button>
           <button class="mini-btn danger" type="button" data-izin-reject="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}">Tolak</button>
         </div>
       </article>`).join('') : '<div class="empty">Tidak ada izin CS yang menunggu ACC di gerai mana pun.</div>');
     document.querySelectorAll('#entityIzinCsList [data-izin-acc]').forEach(button => { button.onclick = () => decide(button, 'ACC'); });
     document.querySelectorAll('#entityIzinCsList [data-izin-reject]').forEach(button => { button.onclick = () => decide(button, 'REJECT'); });
+    document.querySelectorAll('#entityIzinCsList [data-izin-edit]').forEach(button => { button.onclick = () => decide(button, 'EDIT'); });
   }
 
-  async function decide(button, decision) {
+  async function decide(button, decisionInput) {
+    let decision = decisionInput;
     const jenis = byKind.get(button.dataset.kind);
-    const permitId = decision === 'ACC' ? button.dataset.izinAcc : button.dataset.izinReject;
+    const permitId = decision === 'ACC' ? button.dataset.izinAcc : decision === 'EDIT' ? button.dataset.izinEdit : button.dataset.izinReject;
     let note = '';
-    if (decision === 'ACC') {
+    let extra = {};
+    if (decision === 'EDIT') {
+      const checkIn = (window.prompt('Jam datang yang di-ACC (JJ:MM):', button.dataset.in) ?? '').trim();
+      if (!checkIn) return;
+      const checkOut = button.dataset.out ? (window.prompt('Jam pulang yang di-ACC (JJ:MM):', button.dataset.out) ?? '').trim() : '';
+      if (button.dataset.out && !checkOut) return;
+      note = (window.prompt('Catatan untuk CS (opsional):', 'Jam disesuaikan kebijakan') ?? '').trim();
+      extra = { checkIn, checkOut };
+      decision = 'ACC';
+    } else if (decision === 'ACC') {
       if (!window.confirm(`ACC ${button.dataset.info}?`)) return;
     } else {
       note = (window.prompt('Alasan penolakan (wajib, terlihat oleh CS):', '') ?? '').trim();
@@ -129,7 +157,7 @@
     try {
       const result = await entityAdminApi(`${jenis.decide(permitId)}?store=${encodeURIComponent(button.dataset.store)}`, {
         method: 'PATCH',
-        body: JSON.stringify(jenis.body(decision, note))
+        body: JSON.stringify(jenis.body(decision, note, extra))
       });
       entityAdminToast(decision === 'REJECT'
         ? 'Izin ditolak.'

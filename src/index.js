@@ -17,6 +17,7 @@ import { handleAdminCashierApi, handleCashierAuthApi, requireCashier, rejectMana
 import { handleCashierDrawerApi, requireDrawerOwner } from './cashier-drawer.js';
 import { handleDrawerClosePermitApi } from './cashier-drawer-close-permit.js';
 import { handleAttendanceCorrectionPermitApi } from './attendance-correction-permit.js';
+import { handleAttendanceRevisionApi } from './attendance-revision-permit.js';
 import { handleAttendanceGpsPermitApi } from './attendance-gps-permit.js';
 import { handlePermitReportApi } from './permit-report.js';
 import { handleAttendanceReportApi } from './attendance-report.js';
@@ -337,6 +338,9 @@ async function handleApiRouted(request, env, url, ctx) {
   if (adminDrawerResponse) return adminDrawerResponse;
   const drawerClosePermitResponse = await handleDrawerClosePermitApi(request, env, pathname);
   if (drawerClosePermitResponse) return drawerClosePermitResponse;
+  // Revisi jam presensi oleh CS (2026-10-17, migration 0162); ACC = jurnal pembalik + jurnal revisi.
+  const attendanceRevisionResponse = await handleAttendanceRevisionApi(request, env, pathname);
+  if (attendanceRevisionResponse) return attendanceRevisionResponse;
   const attendanceCorrectionPermitResponse = await handleAttendanceCorrectionPermitApi(request, env, pathname);
   if (attendanceCorrectionPermitResponse) return attendanceCorrectionPermitResponse;
   const attendanceGpsPermitResponse = await handleAttendanceGpsPermitApi(request, env, pathname);

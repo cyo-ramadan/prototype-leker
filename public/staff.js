@@ -75,45 +75,66 @@
     const color = lateMinutes < 5 ? '#d6336c' : lateMinutes < 10 ? '#c2255c' : '#a4133c';
     return ` · <span style="font-weight:800;color:${color}">Telat ${lateMinutes} menit</span>`;
   }
-  // Bos Cyo, 2026-10-01: permit koreksi jam presensi masuk (web error dsb.).
-  // Hanya selagi sesi masih berjalan; setelah pulang, koreksi lewat Penyesuaian
-  // Gaji oleh Admin. Lihat src/attendance-correction-permit.js.
+  // Revisi jam presensi (Bos Cyo, 2026-10-17; menggantikan koreksi jam masuk 2026-10-01): CS mengajukan
+  // revisi jam masuk/pulang sesi mana pun -- juga yang sudah selesai -- atau sesi baru kalau lupa
+  // presensi. Owner/Admin ACC, edit lalu ACC, atau tolak; ACC = gaji & jurnal ikut dibetulkan.
+  // Lihat src/attendance-revision-permit.js. Pengajuan koreksi lama tetap ditampilkan statusnya.
   const clockTime = value => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value));
-  const CORRECTION_CHIPS = { PENDING: ['Menunggu ACC Admin', '#8b5d00'], REJECTED: ['Ditolak Admin', '#a4133c'], EXPIRED: ['Kadaluarsa', '#6c757d'] };
+  const CORRECTION_CHIPS = { PENDING: ['Menunggu ACC', '#8b5d00'], REJECTED: ['Ditolak', '#a4133c'], EXPIRED: ['Kadaluarsa', '#6c757d'] };
   function correctionPermitFor(attendanceId) {
     return (portal?.attendanceCorrectionPermits || []).find(permit => permit.attendanceId === attendanceId) || null;
   }
+  function revisionPermitFor(attendanceId) {
+    return (portal?.attendanceRevisionPermits || []).find(permit => permit.attendanceId === attendanceId && permit.status !== 'APPROVED') || null;
+  }
+  function revisionChip(permit) {
+    const [label, color] = CORRECTION_CHIPS[permit.status] || [permit.status, '#6c757d'];
+    const jam = `${clockTime(permit.requestedCheckInAt)}${permit.requestedCheckOutAt ? `–${clockTime(permit.requestedCheckOutAt)}` : ''}`;
+    const detail = permit.status === 'PENDING' ? `diajukan ${escapeHtml(jam)}` : escapeHtml(permit.decisionNote || '');
+    return `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:${color}">Revisi jam: ${escapeHtml(label)}</span>${detail ? ` · ${detail}` : ''}</div>`;
+  }
   function correctionBlockHtml(row) {
-    if (row.correction) {
-      const note = row.correction.decisionNote ? ` · Catatan Admin: ${escapeHtml(row.correction.decisionNote)}` : '';
-      return `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:#1971c2">✎ Jam masuk dikoreksi</span> (tercatat asli ${escapeHtml(clockTime(row.correction.originalAt))}) · Alasan: ${escapeHtml(row.correction.reason)}${note}</div>`;
-    }
-    const permit = correctionPermitFor(row.id);
     let html = '';
-    if (permit && permit.status !== 'APPROVED') {
-      const [label, color] = CORRECTION_CHIPS[permit.status] || [permit.status, '#6c757d'];
-      const detail = permit.status === 'PENDING'
-        ? `diajukan ke ${escapeHtml(clockTime(permit.requestedCheckInAt))}`
-        : escapeHtml(permit.decisionNote || '');
-      html += `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:${color}">Koreksi jam masuk: ${escapeHtml(label)}</span>${detail ? ` · ${detail}` : ''}</div>`;
+    if (row.correction) {
+      const note = row.correction.decisionNote ? ` · Catatan: ${escapeHtml(row.correction.decisionNote)}` : '';
+      const asli = row.correction.createdByRevision
+        ? 'sesi ditambahkan dari pengajuan lupa presensi'
+        : `tercatat asli ${row.correction.originalAt ? escapeHtml(clockTime(row.correction.originalAt)) : '-'}${row.correction.originalCheckOutAt ? `–${escapeHtml(clockTime(row.correction.originalCheckOutAt))}` : ''}`;
+      html += `<div class="muted" style="margin-top:4px"><span style="font-weight:800;color:#1971c2">✎ Jam direvisi</span> (${asli}) · Alasan: ${escapeHtml(row.correction.reason)}${note}</div>`;
     }
-    const canRequest = row.status === 'OPEN' && row.checkIn && (!permit || permit.status !== 'PENDING');
-    if (canRequest) html += `<button type="button" class="secondary-btn" data-correct-attendance="${escapeHtml(row.id)}" style="margin-top:6px">Ajukan koreksi jam masuk</button>`;
+    const legacy = correctionPermitFor(row.id);
+    if (legacy && legacy.status !== 'APPROVED') html += revisionChip({ ...legacy, requestedCheckOutAt: null });
+    const permit = revisionPermitFor(row.id);
+    if (permit) html += revisionChip(permit);
+    if (row.checkIn && (!permit || permit.status !== 'PENDING')) {
+      html += `<button type="button" class="secondary-btn" data-correct-attendance="${escapeHtml(row.id)}" style="margin-top:6px">Ajukan revisi jam</button>`;
+    }
     return html;
   }
+  function lupaPresensiHtml() {
+    const pending = (portal?.attendanceRevisionPermits || []).filter(permit => !permit.attendanceId && permit.status !== 'APPROVED');
+    return `<div style="margin-bottom:10px">${pending.map(permit => `<div class="muted">Lupa presensi ${escapeHtml(permit.businessDate)}: ${revisionChip(permit)}</div>`).join('')}
+      <span class="secondary-btn" role="button" tabindex="0" data-lupa-presensi>Lupa presensi? Ajukan sesi</span></div>`;
+  }
   function openCorrectionDialog(attendanceId) {
-    const row = (portal?.attendance || []).find(item => item.id === attendanceId);
-    if (!row?.checkIn) return;
+    const row = attendanceId ? (portal?.attendance || []).find(item => item.id === attendanceId) : null;
+    if (attendanceId && !row?.checkIn) return;
+    const open = row?.status === 'OPEN';
+    const toTime = value => (value ? clockTime(value) : '');
     const overlay = document.createElement('div');
     overlay.className = 'staff-dialog-backdrop';
     overlay.style.cssText = 'position:fixed;inset:0;background:var(--staff-dialog-backdrop,rgba(0,0,0,.45));display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999';
     overlay.innerHTML = `<form class="staff-dialog" style="background:var(--staff-dialog-bg,#fff);border-radius:16px;padding:16px;max-width:420px;width:100%;display:grid;gap:10px">
-      <h3 style="margin:0">Ajukan koreksi jam masuk</h3>
-      <div class="muted">Jam masuk tercatat ${escapeHtml(clockTime(row.checkIn.at))}. Isi jam yang seharusnya dan alasan yang sah, mis. web error. Admin akan memutuskan ACC atau Tolak. Hanya bisa diajukan sebelum presensi pulang.</div>
-      <label style="display:grid;gap:4px">Jam masuk seharusnya<input type="time" name="time" required /></label>
-      <label style="display:grid;gap:4px">Alasan<textarea name="reason" rows="3" maxlength="500" required placeholder="mis. web presensi error sejak pagi"></textarea></label>
+      <h3 style="margin:0">${row ? 'Ajukan revisi jam' : 'Lupa presensi'}</h3>
+      <div class="muted">${row
+        ? `Tercatat datang ${escapeHtml(toTime(row.checkIn.at))}${row.checkOut ? `, pulang ${escapeHtml(toTime(row.checkOut.at))}` : ''}. Isi jam yang sebenarnya dan alasannya. Owner/Admin bisa ACC, mengubah jamnya, atau menolak. Kalau di-ACC, gaji dan potongan ikut dihitung ulang.`
+        : 'Isi tanggal, jam datang dan pulang yang sebenarnya, serta alasannya. Owner/Admin bisa ACC, mengubah jamnya, atau menolak.'}</div>
+      ${row ? '' : '<label style="display:grid;gap:4px">Tanggal<input type="date" name="date" required /></label>'}
+      <label style="display:grid;gap:4px">Jam datang sebenarnya<input type="time" name="checkIn" required value="${escapeHtml(row ? toTime(row.checkIn.at) : '')}" /></label>
+      ${open ? '' : `<label style="display:grid;gap:4px">Jam pulang sebenarnya<input type="time" name="checkOut" required value="${escapeHtml(row?.checkOut ? toTime(row.checkOut.at) : '')}" /></label>`}
+      <label style="display:grid;gap:4px">Alasan<textarea name="reason" rows="3" maxlength="500" required placeholder="mis. lupa absen, sebenarnya datang 08:59"></textarea></label>
       <div class="staff-message" data-correction-message style="display:none"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="secondary-btn" data-correction-cancel>Batal</button><button type="submit" class="primary-btn">Kirim pengajuan</button></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><span class="secondary-btn" role="button" tabindex="0" data-correction-cancel>Batal</span><button type="submit" class="primary-btn">Kirim pengajuan</button></div>
     </form>`;
     document.body.appendChild(overlay);
     const form = overlay.querySelector('form');
@@ -123,12 +144,18 @@
       event.preventDefault();
       message.style.display = 'none';
       try {
-        await staffApi(`/api/staff/attendance/${encodeURIComponent(attendanceId)}/correction-permits`, {
+        await staffApi('/api/staff/attendance-revisions', {
           method: 'POST',
-          body: JSON.stringify({ requestedTime: form.elements.time.value, reason: form.elements.reason.value })
+          body: JSON.stringify({
+            attendanceId: attendanceId || null,
+            businessDate: form.elements.date?.value || null,
+            checkIn: form.elements.checkIn.value,
+            checkOut: form.elements.checkOut?.value || '',
+            reason: form.elements.reason.value
+          })
         });
         overlay.remove();
-        toastStaff('Pengajuan terkirim, menunggu ACC Admin.');
+        toastStaff('Pengajuan revisi terkirim, menunggu keputusan Owner/Admin.');
         await loadPortal();
       } catch (error) {
         message.textContent = error.message;
@@ -198,8 +225,8 @@
   // untuk sesi yang ditutup otomatis sistem karena lupa presensi pulang.
   function renderAttendance() {
     const rows = portal?.attendance || [];
-    el('attendanceList').innerHTML = rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div>${correctionBlockHtml(row)}${gpsBlockHtml(row)}</div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>';
-    document.querySelectorAll('[data-correct-attendance]').forEach(button => button.onclick = () => openCorrectionDialog(button.dataset.correctAttendance));
+    el('attendanceList').innerHTML = (viewerMode ? '' : lupaPresensiHtml()) + (rows.length ? rows.map(row => `<div class="attendance-row" style="${row.autoClosed ? 'background:#fff3bf' : latenessRowStyle(row.checkIn)}"><div class="attendance-row-photos">${attendancePhotoThumb(row, 'in')}${attendancePhotoThumb(row, 'out')}</div><div><strong>${row.status === 'OPEN' ? 'Masih bekerja' : 'Sesi selesai'}</strong>${row.autoClosed ? ' · <span style="font-weight:800;color:#8b5d00">⚠ Ditutup otomatis sistem</span>' : ''}<div class="muted">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div><div class="muted">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · lupa presensi pulang' : ''}` : '—'}</div>${correctionBlockHtml(row)}${gpsBlockHtml(row)}</div><span>${row.status === 'OPEN' ? 'IN' : 'OUT'}</span></div>`).join('') : '<div class="staff-empty">Belum ada riwayat presensi.</div>');
+    document.querySelectorAll('[data-correct-attendance]').forEach(button => button.onclick = () => openCorrectionDialog(button.dataset.correctAttendance)); document.querySelectorAll('[data-lupa-presensi]').forEach(button => button.onclick = () => openCorrectionDialog(null));
     document.querySelectorAll('[data-gps-fix]').forEach(button => button.onclick = () => { const [id, which] = button.dataset.gpsFix.split('|'); openGpsFixDialog(id, which); });
     loadAttendancePhotoThumbs();
   }

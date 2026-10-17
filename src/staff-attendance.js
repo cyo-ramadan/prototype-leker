@@ -62,8 +62,11 @@ export function mapAttendance(row, scheduleByDay = new Map(), options = {}) {
     autoClosed: Boolean(row.auto_closed),
     // Jam masuk yang dikoreksi lewat permit (Admin sudah ACC): created_at sudah
     // berisi jam hasil koreksi, jam aslinya ada di original_created_at.
-    correction: row.original_created_at ? {
-      originalAt: row.original_created_at,
+    // Revisi jam presensi (migration 0162): jam pulang asli dan sesi baru dari "lupa presensi" ikut tampil.
+    correction: (row.original_created_at || row.revision_permit_id) ? {
+      originalAt: row.original_created_at || null,
+      originalCheckOutAt: row.original_check_out_at || null,
+      createdByRevision: Boolean(row.revision_permit_id && !row.original_created_at),
       reason: row.correction_reason || '',
       decisionNote: row.correction_decision_note || ''
     } : null,
@@ -164,7 +167,7 @@ export async function listAttendance(db, userId, scheduleByDay, enabled = true, 
   const rows = await db.prepare(`
     SELECT id, user_id, store_id, attendance_type, photo_type, created_at, latitude, longitude, location_accuracy_meters,
            status, check_out_at, check_out_photo_type, check_out_latitude, check_out_longitude, check_out_location_accuracy_meters,
-           auto_closed, original_created_at, correction_reason, correction_decision_note,
+           auto_closed, original_created_at, original_check_out_at, revision_permit_id, correction_reason, correction_decision_note,
            gps_in_status, gps_in_distance_m, gps_in_resolved_permit_id, gps_in_resolution_note,
            gps_out_status, gps_out_distance_m, gps_out_resolved_permit_id, gps_out_resolution_note
     FROM staff_attendance WHERE user_id = ? ORDER BY created_at DESC LIMIT ?

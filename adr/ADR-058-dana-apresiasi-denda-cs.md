@@ -41,6 +41,14 @@ ditambah denda.
 8. Rekap harian/bulanan di Entity Admin: apresiasi masuk vs keluar (selisih harus 0, merah bila
    tidak), jam kosong, denda, penyesuaian.
 
+9. Revisi jam presensi oleh CS (2026-10-17, `src/attendance-revision-permit.js`): CS mengajukan revisi
+   jam masuk/pulang sesi mana pun (juga yang sudah selesai & dijurnal) atau sesi baru bila lupa
+   presensi, tanpa batas waktu. Owner/Entity Admin: ACC, edit lalu ACC, atau tolak (Izin CS). ACC = jam
+   diganti (asli disimpan di `original_created_at`/`original_check_out_at`), baris gaji sesi itu
+   dibatalkan + jurnal GAJI_PRESENSI dibalik di tanggal sesi, gaji revisi dicatat
+   (`source_id = <attendance>#rev-<permit>`) dan dijurnal, dana apresiasi shift itu dinilai ulang.
+   Menggantikan permit koreksi jam masuk 0129 untuk pengajuan baru (yang lama tetap tampil statusnya).
+
 ## Konsekuensi
 
 - Freelance dibayar tarif di akunnya + fee apresiasi saat menggantikan. Supaya totalnya Rp8.000,

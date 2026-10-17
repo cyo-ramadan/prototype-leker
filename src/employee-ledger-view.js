@@ -123,7 +123,8 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
   const label = { ACCRUAL: 'Gaji dari presensi', ADJUSTMENT: 'Bea Gaji / penyesuaian', PAYMENT: 'Pembayaran gaji' };
   const ledger = rows.results ?? [];
   // Termasuk baris yang dibatalkan: sesi presensi yang ACCRUAL-nya dibatalkan tidak dihitung ulang.
-  const ledgerAttendanceIds = new Set(ledger.filter(row => row.source_type === 'ATTENDANCE').map(row => row.source_id));
+  // Gaji hasil revisi jam presensi bersumber `<attendance>#rev-<permit>` (src/attendance-revision-permit.js).
+  const ledgerAttendanceIds = new Set(ledger.filter(row => row.source_type === 'ATTENDANCE').map(row => String(row.source_id).split('#')[0]));
   const entries = ledger.filter(row => !row.voided_at).map(row => ({
     at: row.created_at || `${row.business_date}T00:00:00.000Z`,
     businessDate: row.business_date,

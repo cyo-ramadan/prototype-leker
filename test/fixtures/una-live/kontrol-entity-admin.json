@@ -1549,6 +1549,46 @@
    "class": "unsupported",
    "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
    "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-dana-apresiasi.js:label:Rekap &amp; penyesuaian",
+   "label": "Rekap &amp; penyesuaian",
+   "sumber": "public/entity-dana-apresiasi.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-dana-apresiasi.js:label:Simpan bawaan",
+   "label": "Simpan bawaan",
+   "sumber": "public/entity-dana-apresiasi.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-dana-apresiasi.js:label:Simpan gerai {nilai}",
+   "label": "Simpan gerai {nilai}",
+   "sumber": "public/entity-dana-apresiasi.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-dana-apresiasi.js:label:Tampilkan",
+   "label": "Tampilkan",
+   "sumber": "public/entity-dana-apresiasi.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-izin-cs.js:data-in,data-izin-edit,data-kind,data-out,data-store:Edit lalu ACC",
+   "label": "Edit lalu ACC",
+   "sumber": "public/entity-izin-cs.js",
+   "class": "unsupported",
+   "reason": "Persetujuan/penolakan bisnis: hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
   }
  ]
 }

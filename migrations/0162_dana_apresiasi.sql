@@ -106,3 +106,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_apresiasi_entries_once
 CREATE INDEX IF NOT EXISTS idx_apresiasi_entries_account ON apresiasi_entries(account_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_apresiasi_entries_store_date ON apresiasi_entries(store_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_apresiasi_entries_employee ON apresiasi_entries(employee_id);
+
+-- Revisi jam presensi oleh CS (Bos Cyo, 2026-10-17): CS mengajukan revisi jam masuk/pulang sesi yang
+-- tercatat -- termasuk sesi yang sudah selesai dan sudah dijurnal -- atau sesi baru bila lupa presensi
+-- sama sekali. Owner/Admin: ACC apa adanya, edit lalu ACC, atau tolak. ACC = jam presensi diganti,
+-- gaji sesi dibatalkan + jurnalnya dibalik, gaji baru dicatat + dijurnal, dana apresiasi dinilai ulang.
+-- Menggantikan permit koreksi jam masuk lama (0129, hanya saat sesi berjalan) untuk pengajuan baru.
+ALTER TABLE staff_attendance ADD COLUMN original_check_out_at TEXT;
+ALTER TABLE staff_attendance ADD COLUMN revision_permit_id TEXT;
+
+CREATE TABLE IF NOT EXISTS attendance_revision_permits (
+  id TEXT PRIMARY KEY,
+  entity_id TEXT NOT NULL,
+  store_id TEXT NOT NULL REFERENCES stores(id),
+  account_id TEXT NOT NULL REFERENCES cashiers(id),
+  -- NULL = lupa presensi sama sekali; ACC membuat sesi baru.
+  attendance_id TEXT REFERENCES staff_attendance(id),
+  business_date TEXT NOT NULL CHECK (business_date GLOB '????-??-??'),
+  original_check_in_at TEXT,
+  original_check_out_at TEXT,
+  requested_check_in_at TEXT NOT NULL,
+  requested_check_out_at TEXT,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+  approved_check_in_at TEXT,
+  approved_check_out_at TEXT,
+  edited_by_approver INTEGER NOT NULL DEFAULT 0 CHECK (edited_by_approver IN (0, 1)),
+  decision_note TEXT NOT NULL DEFAULT '',
+  decided_by_role TEXT,
+  decided_by_id TEXT,
+  decided_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (requested_check_out_at IS NULL OR requested_check_in_at < requested_check_out_at)
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_revision_store_status ON attendance_revision_permits(store_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_attendance_revision_account ON attendance_revision_permits(account_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_revision_one_pending
+  ON attendance_revision_permits(account_id, business_date, COALESCE(attendance_id, '')) WHERE status = 'PENDING';

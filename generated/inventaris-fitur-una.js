@@ -343,6 +343,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/attendance-revision-permit.js:/^\\/api\\/admin\\/attendance-revisions\\/([^/]+)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/attendance-revision-permit.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/attendance-revisions\\/([^/]+)$/",
+    "label": "/^\\/api\\/admin\\/attendance-revisions\\/([^/]+)$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/business-settings.js:/^\\/api\\/admin\\/settings\\/business\\/payment-methods\\/([^/]+)$/",
     "jenis": "rute-pola",
     "sumber": "src/business-settings.js",
@@ -1618,6 +1627,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/staff/attendance-gps-permits",
     "label": "/api/staff/attendance-gps-permits",
+    "skin": null
+  },
+  {
+    "id": "rute:src/attendance-revision-permit.js:/api/admin/attendance-revisions",
+    "jenis": "rute-kandidat",
+    "sumber": "src/attendance-revision-permit.js",
+    "method": null,
+    "rute": "/api/admin/attendance-revisions",
+    "label": "/api/admin/attendance-revisions",
+    "skin": null
+  },
+  {
+    "id": "rute:src/attendance-revision-permit.js:/api/staff/attendance-revisions",
+    "jenis": "rute-kandidat",
+    "sumber": "src/attendance-revision-permit.js",
+    "method": null,
+    "rute": "/api/staff/attendance-revisions",
+    "label": "/api/staff/attendance-revisions",
     "skin": null
   },
   {
@@ -9565,6 +9592,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-dana-apresiasi.js"
   },
   {
+    "id": "tombol:public/entity-izin-cs.js:data-in,data-izin-edit,data-kind,data-out,data-store:Edit lalu ACC",
+    "jenis": "tombol",
+    "sumber": "public/entity-izin-cs.js",
+    "tombolId": null,
+    "aksi": "data-in,data-izin-edit,data-kind,data-out,data-store",
+    "label": "Edit lalu ACC",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-izin-cs.js"
+  },
+  {
     "id": "tombol:public/entity-izin-cs.js:data-info,data-izin-acc,data-kind,data-store:ACC",
     "jenis": "tombol",
     "sumber": "public/entity-izin-cs.js",
@@ -12339,12 +12377,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/staff.html"
   },
   {
-    "id": "tombol:public/staff.js:data-correct-attendance:Ajukan koreksi jam masuk",
+    "id": "tombol:public/staff.js:data-correct-attendance:Ajukan revisi jam",
     "jenis": "tombol",
     "sumber": "public/staff.js",
     "tombolId": null,
     "aksi": "data-correct-attendance",
-    "label": "Ajukan koreksi jam masuk",
+    "label": "Ajukan revisi jam",
     "rute": null,
     "skin": null,
     "halaman": "public/staff.js"
@@ -13369,6 +13407,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method === 'POST' && match)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/attendance-revision-permit.js:request.method !== 'POST') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/attendance-revision-permit.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/attendance-revision-permit.js:request.method === 'PATCH' && match)",
+    "jenis": "rute-tulis",
+    "sumber": "src/attendance-revision-permit.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method === 'PATCH' && match)",
     "skin": null
   },
   {

@@ -83,6 +83,7 @@ const files = [
   "src/operational-deposits.js",
   "src/hutang-piutang.js",
   "src/dana-apresiasi.js",
+  "src/attendance-revision-permit.js",
   "src/dana-apresiasi-api.js",
   "public/entity-dana-apresiasi.js",
   "public/pengganti-presensi.js",

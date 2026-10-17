@@ -134,7 +134,8 @@ export async function listLedgerForEmployee(db, employeeId) {
            CASE WHEN l.source_type = 'ATTENDANCE' THEN a.check_out_at END AS check_out_at
     FROM payroll_ledger_entries l
     JOIN stores s ON s.id = l.store_id
-    LEFT JOIN staff_attendance a ON l.source_type = 'ATTENDANCE' AND a.id = l.source_id
+    LEFT JOIN staff_attendance a ON l.source_type = 'ATTENDANCE'
+      AND a.id = CASE WHEN instr(l.source_id, '#') > 0 THEN substr(l.source_id, 1, instr(l.source_id, '#') - 1) ELSE l.source_id END
     WHERE l.employee_id = ?
     ORDER BY l.business_date DESC, l.created_at DESC
   `).bind(employeeId).all();

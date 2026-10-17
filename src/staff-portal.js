@@ -16,6 +16,7 @@ import { listOwnGpsPermits } from './attendance-gps-permit.js';
 import { evaluateGps, storeReference, gpsNotice, overRadiusMeters } from './attendance-gps.js';
 import { getJakartaBusinessDate } from './time.js';
 import { entriesForAccount, evaluateDueApresiasi, penggantiOptions, setPengganti } from './dana-apresiasi.js';
+import { listRevisionPermits } from './attendance-revision-permit.js';
 
 const coord = value => {
   if (value == null || value === '') return null;
@@ -95,6 +96,7 @@ export async function handleStaffPortalApi(request, env, pathname) {
       // Potongan apresiasi, denda, fee backup, dan penyesuaiannya (ADR-058).
       apresiasiEntries: auth.readOnly ? [] : await entriesForAccount(env.DB, auth.cashier.id),
       attendanceCorrectionPermits: await listOwnCorrectionPermits(env.DB, auth.cashier.id),
+      attendanceRevisionPermits: auth.readOnly ? [] : await listRevisionPermits(env.DB, { accountId: auth.cashier.id }),
       attendanceGpsPermits: await listOwnGpsPermits(env.DB, auth.cashier.id)
     });
   }

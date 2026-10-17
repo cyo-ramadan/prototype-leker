@@ -255,7 +255,7 @@
         <div class="master-meta">Datang: ${row.checkIn ? `${escapeHtml(dateTime(row.checkIn.at))} · ${escapeHtml(locationLine(row.checkIn))}${latenessBadge(row.checkIn)}` : '—'}</div>
         <div class="master-meta">Pulang: ${row.checkOut ? `${escapeHtml(dateTime(row.checkOut.at))} · ${escapeHtml(locationLine(row.checkOut))}${row.autoClosed ? ' · <span class="master-meta">tanpa foto/GPS -- lupa presensi pulang</span>' : ''}` : '—'}</div>
         ${adminGpsBlockHtml(row)}
-        ${row.correction ? `<div class="master-meta"><span style="font-weight:800;color:#1971c2">✎ Jam masuk dikoreksi</span> (asli ${escapeHtml(clockTime(row.correction.originalAt))}) · Alasan: ${escapeHtml(row.correction.reason)}${row.correction.decisionNote ? ` · Catatan Admin: ${escapeHtml(row.correction.decisionNote)}` : ''}</div>` : ''}
+        ${row.correction ? `<div class="master-meta"><span style="font-weight:800;color:#1971c2">✎ Jam direvisi</span> (${row.correction.originalAt ? `asli ${escapeHtml(clockTime(row.correction.originalAt))}${row.correction.originalCheckOutAt ? `–${escapeHtml(clockTime(row.correction.originalCheckOutAt))}` : ''}` : 'sesi dari pengajuan lupa presensi'}) · Alasan: ${escapeHtml(row.correction.reason)}${row.correction.decisionNote ? ` · Catatan Admin: ${escapeHtml(row.correction.decisionNote)}` : ''}</div>` : ''}
       </div>
     </div>`;
   }

@@ -628,7 +628,7 @@ export const KAMUS = Object.freeze([
       'Telat ditandai otomatis ("Telat X menit") dengan membandingkan jam presensi masuk dengan jadwal hari itu.',
       'Untuk gaji Per Jam, jam kerja dihitung dari jam presensi sebenarnya — jadi telat otomatis mengurangi gaji hari itu, tanpa perlu diatur.',
       'Kalau mau ada denda tambahan: Tim → Akun Kasir → "💰 Gaji" → Penyesuaian Gaji dengan nominal negatif + alasan.',
-      'Kalau telatnya karena alasan sah (mis. aplikasi error), CS mengajukan koreksi jam masuk dari Portal Staf SEBELUM presensi pulang; Admin meng-ACC di Akun Kasir → "Pengajuan koreksi presensi".',
+      'Kalau telatnya karena alasan sah (mis. aplikasi error), CS mengajukan revisi jam dari Portal Staf → Riwayat Presensi → "Ajukan revisi jam" (kapan pun, juga setelah pulang); Owner/Entity Admin ACC, edit lalu ACC, atau tolak di Entity Admin → Izin CS.',
       'Kalau mekanisme Dana Apresiasi & Denda aktif (Entity Admin → Pengaturan), menit telat CS asli otomatis dipotong apresiasi per jam + denda shift kosong sebagian — tidak perlu input denda manual lagi.'
     ].join('\n'),
     tawaran: [buka('cashiers'), buka('attendance-report')],
@@ -639,11 +639,11 @@ export const KAMUS = Object.freeze([
     judul: 'CS tidak bisa presensi',
     kunci: ['tidak bisa presensi', 'gagal presensi', 'tidak presensi', 'lupa presensi', 'lupa absen', 'tidak absen', 'gagal absen', 'tidak ada rekap presensi', 'presensi hilang', 'koreksi presensi'],
     isi: [
-      'Tergantung kapan ketahuannya:',
-      '• Masih di hari kerja dan sudah presensi masuk tapi jamnya salah → CS ajukan koreksi dari Portal Staf sebelum presensi pulang; Admin ACC di Akun Kasir → "Pengajuan koreksi presensi". Jam yang di-ACC langsung dipakai menghitung gaji.',
-      '• Tidak presensi sama sekali di hari itu → memang tidak ada data presensi, jadi gajinya tidak terhitung otomatis. Tambahkan lewat Akun Kasir → "💰 Gaji" → Penyesuaian Gaji (nominal positif) dengan alasan "tidak bisa presensi tgl …".',
-      '• Lupa presensi pulang → sesi ditutup otomatis sistem pada jam pulang jadwal dan ditandai di Laporan Presensi; gajinya tetap tercatat sampai jam pulang jadwal itu. Jam tambahan lewat Penyesuaian Gaji.',
-      'Semua pengajuan dan keputusan terlihat di Laporan → Izin & Koreksi.'
+      'CS sendiri yang mengajukan revisi dari Portal Staf → Riwayat Presensi:',
+      '• Jam masuk/pulang salah (telat karena lupa absen, web error, pulang tercatat otomatis) → tombol "Ajukan revisi jam" di sesi itu, isi jam sebenarnya + alasan. Bisa untuk sesi yang masih berjalan maupun yang sudah selesai, tanpa batas waktu.',
+      '• Tidak presensi sama sekali → tombol "Lupa presensi? Ajukan sesi", isi tanggal, jam datang & pulang + alasan.',
+      'Owner/Entity Admin memutuskan di Entity Admin → Izin CS: ACC, "Edit lalu ACC" (jamnya disesuaikan kebijakan), atau Tolak dengan alasan. Kalau di-ACC, jam presensi diganti (jam asli tetap tercatat), gaji sesi itu dihitung ulang dengan jurnal pembalik + jurnal revisi, dan potongan dana apresiasi/denda shift itu ikut dinilai ulang.',
+      'Tambahan di luar jam (lembur, insentif) tetap lewat Akun Kasir → "💰 Gaji" → Penyesuaian Gaji.'
     ].join('\n'),
     tawaran: [buka('attendance-report'), buka('permit-report'), buka('cashiers')],
     aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una tambahkan gaji hari yang tidak terhitung? Sebut mis. "tambah gaji Rika 80rb tgl 5 karena tidak bisa presensi".', tombol: 'Una tambahkan gaji', awal: { pg_jenis: 'tambah' } }

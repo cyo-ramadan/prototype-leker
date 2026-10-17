@@ -299,12 +299,14 @@ test('tampilan: Portal Staf punya dialog pengajuan, panel Admin punya antrean AC
   const staff = read('../public/staff.js');
   const admin = read('../public/admin-cashiers.js');
   assert.match(staff, /data-correct-attendance/);
-  assert.match(staff, /correction-permits/);
-  assert.match(staff, /row\.status === 'OPEN' && row\.checkIn/, 'tombol hanya untuk sesi yang masih berjalan');
+  // 2026-10-17: pengajuan baru lewat revisi jam (src/attendance-revision-permit.js), juga untuk sesi yang
+  // sudah selesai; status pengajuan koreksi lama tetap ditampilkan.
+  assert.match(staff, /\/api\/staff\/attendance-revisions/);
+  assert.match(staff, /attendanceCorrectionPermits/);
   assert.match(admin, /\/api\/admin\/attendance-correction-permits/);
   assert.match(admin, /data-acc-correction/);
   assert.match(admin, /row\.correction/, 'riwayat presensi Admin menampilkan alasan koreksi');
   // Versi boleh lebih baru (fitur sesudahnya ikut membump staff.js), asal tidak mundur.
   assert.ok((read('../public/staff.html').match(/staff\.js\?v=([^"']+)/)?.[1] ?? '') >= '20261003-login-karyawan-v1');
-  assert.match(read('../public/branch-admin.html'), /admin-cashiers\.js\?v=20261001-gps-presensi-v1/);
+  assert.match(read('../public/branch-admin.html'), /admin-cashiers\.js\?v=20261017-revisi-jam-v1/);
 });

@@ -1312,3 +1312,7 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 - 2026-10-18 (Codex, perubahan lokal): entri `qris_otomatis` ditinjau; akses Kolam QRIS dipindah dari pilihan Cara bayar ke tombol di sebelah Stok pada menu Data kasir.
 
 <!-- DOC-IMPACT: 2026-10-18 lokasi tombol Kolam QRIS di kamus Una diselaraskan dengan panel Data kasir. -->
+
+- 2026-10-18 (Codex): panduan QRIS diselaraskan dengan filter status klaim, default Belum diklaim. Entri `qris_sambung_hp` ditinjau: alur pemasangan tetap sama.
+
+<!-- DOC-IMPACT: 2026-10-18 filter status klaim kolam QRIS dan pemuatan data sesuai pilihan. -->

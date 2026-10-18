@@ -408,13 +408,17 @@ async function bolehKolam(db, actor) {
   return null;
 }
 
-async function kolam(db, actor) {
+async function kolam(db, actor, filter = 'BELUM') {
+  if (!['SEMUA', 'BELUM', 'SUDAH'].includes(filter)) return json({ error: 'Filter klaim tidak sah.' }, 400);
   const ditolak = await bolehKolam(db, actor);
   if (ditolak) return ditolak;
   const since = new Date(Date.now() - KOLAM_JAM * 3600_000).toISOString();
+  const klaimWhere = filter === 'BELUM' ? 'q.store_id IS NULL'
+    : filter === 'SUDAH' ? 'q.store_id IS NOT NULL AND q.claimed_at IS NOT NULL'
+    : '(q.store_id IS NULL OR q.claimed_at IS NOT NULL)';
   const items = (await rows(db.prepare(`
     SELECT q.*, st.code AS store_code, NULL AS sale_voided_at FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id
-    WHERE q.entity_id = ? AND q.received_at >= ? AND (q.store_id IS NULL OR q.claimed_at IS NOT NULL) AND q.status != 'DIABAIKAN'
+    WHERE q.entity_id = ? AND q.received_at >= ? AND (${klaimWhere}) AND q.status != 'DIABAIKAN'
     ORDER BY q.received_at DESC LIMIT 200
   `).bind(actor.store.entityId, since))).map(row => {
     const item = mapMasuk(row);
@@ -423,7 +427,7 @@ async function kolam(db, actor) {
     item.bisaBatal = item.diklaim && (actor.entityWide || item.milikGeraiIni) && (row.status !== 'TERTAUT' || row.link_mode !== 'ADMIN' || actor.canManage);
     return item;
   });
-  return json({ enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, items });
+  return json({ enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, entityWide: actor.entityWide, klaim: filter, items });
 }
 
 async function klaim(db, actor, value) {
@@ -757,7 +761,7 @@ export async function handleQrisApi(request, env, pathname) {
     return handleQrisMutasiApi(request, db, actor, pathname, isi);
   }
   if (request.method === 'GET' && pathname === '/api/qris/ringkasan') return json(await ringkasan(db, actor));
-  if (request.method === 'GET' && pathname === '/api/qris/kolam') return kolam(db, actor);
+  if (request.method === 'GET' && pathname === '/api/qris/kolam') return kolam(db, actor, new URL(request.url).searchParams.get('klaim') || 'BELUM');
   if (request.method === 'GET' && pathname === '/api/qris/kandidat') return kandidat(db, actor, new URL(request.url).searchParams.get('saleId'));
   if (request.method === 'GET' && pathname === '/api/qris') {
     const asked = new URL(request.url).searchParams.get('tanggal') || '';

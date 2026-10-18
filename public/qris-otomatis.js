@@ -42,6 +42,10 @@
   async function reload() {
     ctx.data = await ctx.api(`/api/qris${q(ctx.tanggal ? { tanggal: ctx.tanggal } : {})}`);
     if (ctx.tab === 'SETELAN') ctx.setelan = await ctx.api(`/api/qris/setelan${q()}`);
+    if (ctx.tab === 'MUTASI') {
+      try { ctx.mutasi = await ctx.api(`/api/qris/mutasi${q(ctx.mutasiTanggal ? { tanggal: ctx.mutasiTanggal } : {})}`); ctx.mutasiError = ''; }
+      catch (error) { ctx.mutasi = null; ctx.mutasiError = error.message; }
+    }
     if (ctx.tab === 'KOLAM') {
       try { ctx.kolamData = await ctx.api(`/api/qris/kolam${q()}`); ctx.kolamError = ''; }
       catch (error) { ctx.kolamData = null; ctx.kolamError = error.message; }
@@ -190,6 +194,95 @@
       ${data.items.map(baris).join('') || '<div class="empty">Belum ada uang QRIS masuk dalam 24 jam terakhir.</div>'}`;
   }
 
+  // ---- Validasi mutasi BCA (Bos Cyo, 2026-10-18; src/qris-mutasi.js) ------------------------------
+  // Mutasi Merchant BCA diekspor H+1. File Excel terkuncinya dibuka di perangkat ini (bca-mutasi-baca.js);
+  // yang dikirim ke server hanya baris transaksinya.
+  const STATUS_MUTASI = {
+    COCOK: ['ok', 'Cocok'], BELUM_DITAUTKAN: ['warn', 'Gerai benar, belum ditautkan'], BELUM_DIKLAIM: ['warn', 'Belum diklaim'],
+    SALAH_GERAI: ['bad', 'Salah gerai'], TANPA_NOTIF: ['bad', 'Notifikasi tidak sampai'], BELUM_DIPETAKAN: ['off', 'Outlet belum dipasangkan']
+  };
+  const URUT_MUTASI = ['SALAH_GERAI', 'TANPA_NOTIF', 'BELUM_DIKLAIM', 'BELUM_DIPETAKAN', 'BELUM_DITAUTKAN', 'COCOK'];
+
+  function tebakGeraiOutlet(nama, gerai) {
+    const atas = String(nama || '').toUpperCase();
+    const kena = gerai.filter(g => atas.includes(String(g.code).toUpperCase()) || (g.name && atas.includes(String(g.name).toUpperCase())));
+    return kena.length === 1 ? kena[0].code : '';
+  }
+
+  function renderMutasi() {
+    let sandiTersimpan = '';
+    try { sandiTersimpan = localStorage.getItem('qrisMutasiSandi') || ''; } catch {}
+    const unggah = `<div class="qris-form">
+        <label>File mutasi Merchant BCA (.xlsx, ekspor "Transaction Report")
+          <input class="text-input" type="file" accept=".xlsx" data-mt-file /></label>
+        <label>Kata sandi file dari BCA
+          <input class="text-input" type="password" autocomplete="off" value="${esc(sandiTersimpan)}" data-mt-sandi /></label>
+        <label class="qris-cek"><input type="checkbox" data-mt-ingat ${sandiTersimpan ? 'checked' : ''} /> Ingat kata sandi di perangkat ini</label>
+        <button class="primary-btn" type="button" data-mt-baca>Baca & cocokkan</button>
+        <p class="muted">Mutasi bisa diunggah H+1 (paling akhir kemarin). File dibuka di perangkat ini; yang dikirim hanya baris transaksinya. Unggah ulang file yang sama aman (tidak dobel).</p>
+      </div>`;
+    if (ctx.mutasiError) return `${unggah}<div class="qris-peringatan">${esc(ctx.mutasiError)}</div>`;
+    const d = ctx.mutasi;
+    if (!d) return `${unggah}<div class="muted">Memuat…</div>`;
+    if (!d.tersedia.length) return `${unggah}<div class="empty">Belum ada mutasi yang diunggah.</div>`;
+    const r = d.ringkas;
+    const pilihTanggal = `<label>Tanggal mutasi <select class="text-input" data-mt-tanggal>${d.tersedia.map(t => `<option value="${esc(t.tanggal)}" ${t.tanggal === d.tanggal ? 'selected' : ''}>${esc(t.tanggal)} (${t.jumlah})</option>`).join('')}</select></label>`;
+    const kotak = (n, label, kind) => `<div><b class="${n && kind === 'bad' ? 'qris-angka-bad' : ''}">${n}</b><span>${label}</span></div>`;
+    const ringkas = `<div class="qris-ringkas">
+        <div><b>${rp(r.totalRupiah)}</b><span>${r.total} transaksi di mutasi</span></div>
+        ${kotak(r.cocok, 'cocok', 'ok')}${kotak(r.salahGerai, 'salah gerai', 'bad')}${kotak(r.tanpaNotif, 'notifikasi tidak sampai', 'bad')}
+        ${kotak(r.belumDiklaim, 'belum diklaim', 'warn')}${kotak(r.belumDitautkan, 'gerai benar, belum ditautkan', 'warn')}
+        ${kotak(r.notifTanpaMutasi, 'uang masuk tanpa mutasi', 'bad')}${kotak(r.belumDipetakan, 'outlet belum dipasangkan', 'off')}
+      </div>`;
+    const peta = `<h3>Outlet BCA → gerai</h3>
+      ${d.peta.map(p => {
+        const pilih = p.storeCode || tebakGeraiOutlet(p.merchantName, d.gerai);
+        return `<div class="qris-pilih-row"><div><strong>${esc(p.merchantName || '-')}</strong><div class="muted">MID ${esc(p.mid)}${p.storeCode ? '' : ' · belum dipasangkan'}</div></div>
+          <div style="display:flex;gap:6px"><select class="text-input" data-mt-peta="${esc(p.mid)}"><option value="">— pilih gerai —</option>${d.gerai.map(g => `<option value="${esc(g.code)}" ${g.code === pilih ? 'selected' : ''}>${esc(g.code)}</option>`).join('')}</select>
+          <button class="mini-btn" type="button" data-mt-peta-simpan="${esc(p.mid)}">${p.storeCode ? 'Ubah' : 'Simpan'}</button></div></div>`;
+      }).join('')}`;
+    const urut = [...d.baris].sort((a, b) => URUT_MUTASI.indexOf(a.status) - URUT_MUTASI.indexOf(b.status) || a.trxAt.localeCompare(b.trxAt));
+    const daftar = `<h3>Transaksi di mutasi</h3>${urut.map(row => {
+      const [kind, label] = STATUS_MUTASI[row.status] || ['off', row.status];
+      const info = row.masuk
+        ? `Uang masuk ${jam(row.masuk.receivedAt)} · ${row.masuk.storeCode ? `diklaim ${esc(row.masuk.storeCode)}${row.masuk.claimedByName ? ` (${esc(row.masuk.claimedByName)})` : ''}` : 'di kolam'}${row.masuk.saleId ? ' · tertaut penjualan' : ''}`
+        : 'Tidak ada uang masuk yang cocok';
+      const aksi = row.status === 'SALAH_GERAI' ? `<button class="mini-btn" type="button" data-mt-pindah="${esc(row.id)}">Pindahkan ke ${esc(row.geraiSeharusnya)}</button>`
+        : row.status === 'TANPA_NOTIF' ? `<button class="mini-btn" type="button" data-mt-buat="${esc(row.id)}">Buat uang masuk di ${esc(row.geraiSeharusnya)}</button>` : '';
+      return `<article class="master-row qris-row"><div class="master-main"><strong>${rp(row.amount)}</strong>${chip(kind, label)}
+          <div class="master-meta">${jam(row.trxAt)} · ${esc(row.merchantName)}${row.geraiSeharusnya ? ` (${esc(row.geraiSeharusnya)})` : ''} · dari ${esc(row.paymentType || '-')}</div>
+          <div class="muted qris-teks">${info} · RRN ${esc(row.rrn)}</div></div>${aksi}</article>`;
+    }).join('')}`;
+    const tanpaMutasi = d.notifTanpaMutasi.length ? `<h3>Uang masuk tanpa baris mutasi</h3><p class="muted">Tercatat dari notifikasi, tapi tidak ada di mutasi tanggal ini: periksa (notifikasi palsu, dobel, atau transaksi lewat tengah malam).</p>
+      ${d.notifTanpaMutasi.map(item => `<article class="master-row qris-row"><div class="master-main"><strong>${rp(item.amount)}</strong>${chip('bad', item.storeCode ? `Diklaim ${item.storeCode}` : 'Di kolam')}
+        <div class="master-meta">${jam(item.receivedAt)}${item.sumberBayar ? ` · dari ${esc(item.sumberBayar)}` : ''}${item.claimedByName ? ` · ${esc(item.claimedByName)}` : ''}</div></div></article>`).join('')}` : '';
+    return `${unggah}${pilihTanggal}${ringkas}${peta}${daftar}${tanpaMutasi}`;
+  }
+
+  async function bacaUnggahMutasi(node, button) {
+    const file = node.querySelector('[data-mt-file]')?.files?.[0];
+    if (!file) throw new Error('Pilih file Excel mutasi dulu.');
+    if (!window.BcaMutasi) throw new Error('Pembaca mutasi belum termuat. Muat ulang halaman.');
+    const sandi = node.querySelector('[data-mt-sandi]').value;
+    try {
+      if (node.querySelector('[data-mt-ingat]')?.checked) localStorage.setItem('qrisMutasiSandi', sandi);
+      else localStorage.removeItem('qrisMutasiSandi');
+    } catch {}
+    const semula = button.textContent;
+    let hasil;
+    let res;
+    try {
+      button.textContent = 'Membuka file…';
+      hasil = await window.BcaMutasi.baca(await file.arrayBuffer(), sandi);
+      button.textContent = `Mengirim ${hasil.rows.length} baris…`;
+      res = await post('mutasi', { fileName: file.name, rows: hasil.rows });
+    } finally {
+      button.textContent = semula;
+    }
+    ctx.mutasiTanggal = res.tanggal.at(-1);
+    toast(`Mutasi ${res.tanggal.join(', ')}: ${res.baru} baris baru${res.dobel ? `, ${res.dobel} sudah pernah diunggah` : ''}`);
+  }
+
   function render() {
     if (!ctx) return;
     const node = dialog();
@@ -201,11 +294,11 @@
         <button class="secondary-btn" type="button" data-qr-tutup>Tutup</button>
       </div>
       <div class="info-gerai-tabs">
-        ${ctx.kolam ? tab('KOLAM', '🧾 Kolam QRIS') : ''}${tab('HARIAN', 'Hari ini')}${data.canManage ? tab('SETELAN', '⚙️ Setelan') : ''}
+        ${ctx.kolam ? tab('KOLAM', '🧾 Kolam QRIS') : ''}${tab('HARIAN', 'Hari ini')}${data.canManage ? tab('SETELAN', '⚙️ Setelan') : ''}${data.entityWide ? tab('MUTASI', '🏦 Mutasi BCA') : ''}
         ${ctx.tab === 'HARIAN' ? `<input class="text-input qris-tanggal" type="date" value="${esc(data.tanggal)}" data-qr-tanggal />` : ''}
         <button class="mini-btn" type="button" data-qr-muat>Muat ulang</button>
       </div>
-      <div class="qris-isi">${ctx.tab === 'SETELAN' ? renderSetelan() : ctx.tab === 'KOLAM' ? renderKolam() : renderHarian()}</div>`;
+      <div class="qris-isi">${ctx.tab === 'SETELAN' ? renderSetelan() : ctx.tab === 'KOLAM' ? renderKolam() : ctx.tab === 'MUTASI' ? renderMutasi() : renderHarian()}</div>`;
     bind(node);
   }
 
@@ -222,6 +315,25 @@
     on('[data-qr-tab]', button => { ctx.tab = button.dataset.qrTab; ctx.tokenBaru = null; aksi(async () => {}); });
     const tanggal = node.querySelector('[data-qr-tanggal]');
     if (tanggal) tanggal.onchange = () => { ctx.tanggal = tanggal.value; aksi(async () => {}); };
+    on('[data-mt-baca]', button => aksi(() => bacaUnggahMutasi(node, button), button));
+    const tanggalMutasi = node.querySelector('[data-mt-tanggal]');
+    if (tanggalMutasi) tanggalMutasi.onchange = () => { ctx.mutasiTanggal = tanggalMutasi.value; aksi(async () => {}); };
+    on('[data-mt-peta-simpan]', button => aksi(async () => {
+      const mid = button.dataset.mtPetaSimpan;
+      await post('mutasi/peta', { mid, storeCode: node.querySelector(`[data-mt-peta="${mid}"]`).value });
+      toast('Outlet dipasangkan ✓');
+    }, button));
+    on('[data-mt-pindah]', button => aksi(async () => {
+      const catatan = window.prompt('Pindahkan uang ini ke gerai sesuai mutasi? Klaim & tautan lama dilepas. Catatan (opsional):');
+      if (catatan === null) throw new Error('Dibatalkan.');
+      await post('mutasi/pindah', { mutasiId: button.dataset.mtPindah, catatan });
+      toast('Dipindahkan ✓');
+    }, button));
+    on('[data-mt-buat]', button => aksi(async () => {
+      if (!window.confirm('Buat uang masuk dari baris mutasi ini (notifikasinya tidak sampai)?')) throw new Error('Dibatalkan.');
+      await post('mutasi/buat-masuk', { mutasiId: button.dataset.mtBuat });
+      toast('Uang masuk dibuat ✓');
+    }, button));
     on('[data-qr-klaim]', button => aksi(async () => {
       const hasil = await post('klaim', { masukId: button.dataset.qrKlaim });
       toast(hasil.tertaut ? 'Diklaim & langsung tertaut ✓' : 'Diklaim ✓ — tautkan nanti di tab "Hari ini"');

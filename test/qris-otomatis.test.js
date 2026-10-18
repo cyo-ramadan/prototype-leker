@@ -414,3 +414,72 @@ test('pengumuman: angka merah per akun -- baru sampai tab dibuka, lalu nol', asy
   f.sqlite.prepare(`INSERT INTO announcements (id, entity_id, store_id, title, body, created_by, created_by_role, is_active, created_at) VALUES ('ann_baru', 'ENT-KPM', NULL, 'Baru', '', 'Bos', 'OWNER', 1, '2999-01-01 00:00:00')`).run();
   assert.equal((await panggil('/api/staff/announcements')).unread, 1);
 });
+
+test('validasi mutasi BCA (H+1): pemetaan MID, salah gerai, belum diklaim, tanpa notif, pindah & buat dari mutasi', async () => {
+  const f = await fixture();
+  const kemarin = new Date(Date.now() - 24 * 3600_000).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  const wib = jam => new Date(`${kemarin}T${jam}+07:00`).toISOString();
+  const masuk = (id, amount, at, store, status, sumber, sale = null) => f.sqlite.prepare(`
+    INSERT INTO qris_masuk (id, entity_id, store_id, amount, source, received_at, business_date, sumber_bayar, status, sale_id, claimed_at, claimed_by_name, created_at)
+    VALUES (?, 'ENT-KPM', ?, ?, 'NOTIF_HP', ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, store, amount, at, kemarin, sumber, status, sale, store ? at : null, store ? 'CS Pendem' : '', at);
+  addSale(f.sqlite, { id: 'sale_m1', amount: 6000, at: wib('10:00:10') });
+  masuk('m1', 6000, wib('10:00:30'), 'store_pendem', 'TERTAUT', 'DANA', 'sale_m1');
+  masuk('m2', 6000, wib('10:00:40'), 'store_pendem', 'BELUM', 'DANA');
+  masuk('m3', 7000, wib('10:05:20'), null, 'BELUM', 'BCA');
+  masuk('m4', 4000, wib('12:00:00'), null, 'BELUM', 'OVO');
+  const baris = (mid, amount, jam, rrn, paymentType) => ({ merchantName: `OUTLET ${mid}`, mid, nmid: '', amount, tanggal: kemarin, jam, rrn, approvalCode: '1', paymentType, payer: 'X', reversal: '' });
+  const rows = [
+    baris('111111', 6000, '10:00', 'R1', 'DANA'), baris('111111', 7000, '10:05', 'R2', 'BCA'),
+    baris('222222', 6000, '10:00', 'R3', 'DANA'), baris('222222', 9000, '11:00', 'R4', 'GOPAY'),
+    baris('333333', 5000, '13:00', 'R5', 'BRI')
+  ];
+  assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.kasir, method: 'POST', body: { rows } })).status, 403);
+  const up = await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { fileName: 'uji.xlsx', rows } });
+  assert.equal(up.status, 201, JSON.stringify(up.body));
+  assert.equal(up.body.baru, 5);
+  assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { rows } })).body.dobel, 5);
+  const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { rows: [{ ...rows[0], tanggal: hariIni, rrn: 'RX' }] } })).body.code, 'MUTASI_HARI_INI');
+
+  assert.equal((await call(f.env, '/api/qris/mutasi/peta', { token: f.owner, method: 'POST', body: { mid: '111111', storeCode: 'PENDEM' } })).status, 200);
+  assert.equal((await call(f.env, '/api/qris/mutasi/peta', { token: f.owner, method: 'POST', body: { mid: '222222', storeCode: 'MANDALA' } })).status, 200);
+  let lihat = await call(f.env, '/api/qris/mutasi', { token: f.owner, query: { tanggal: kemarin } });
+  const st = rrn => lihat.body.baris.find(row => row.rrn === rrn);
+  assert.equal(st('R1').status, 'COCOK');
+  assert.equal(st('R1').masuk.id, 'm1', 'pasangan gerai benar diutamakan');
+  assert.equal(st('R3').status, 'SALAH_GERAI');
+  assert.equal(st('R3').masuk.claimedByName, 'CS Pendem');
+  assert.equal(st('R2').status, 'BELUM_DIKLAIM');
+  assert.equal(st('R4').status, 'TANPA_NOTIF');
+  assert.equal(st('R5').status, 'BELUM_DIPETAKAN');
+  assert.deepEqual(lihat.body.notifTanpaMutasi.map(row => row.id), ['m4']);
+  assert.equal(lihat.body.ringkas.salahGerai, 1);
+
+  assert.equal((await call(f.env, '/api/qris/mutasi/pindah', { token: f.owner, method: 'POST', body: { mutasiId: st('R3').id } })).status, 200);
+  assert.equal(f.sqlite.prepare(`SELECT store_id FROM qris_masuk WHERE id = 'm2'`).get().store_id, 'store_mandala');
+  assert.equal((await call(f.env, '/api/qris/mutasi/buat-masuk', { token: f.owner, method: 'POST', body: { mutasiId: st('R4').id } })).status, 201);
+  lihat = await call(f.env, '/api/qris/mutasi', { token: f.owner, query: { tanggal: kemarin } });
+  assert.equal(st('R3').status, 'BELUM_DITAUTKAN');
+  assert.equal(st('R4').status, 'BELUM_DITAUTKAN');
+  assert.equal(st('R4').masuk.storeCode, 'MANDALA');
+});
+
+test('pembaca mutasi BCA di browser: buka Excel terkunci, baca baris, sandi salah ditolak; SHA-1 cepat = SHA-1 standar', async () => {
+  const { createHash, randomBytes } = await import('node:crypto');
+  await import('../public/bca-mutasi-baca.js');
+  const { BcaMutasi } = globalThis;
+  for (const n of [0, 1, 20, 24, 55, 56, 64, 65, 200]) {
+    const data = randomBytes(n);
+    assert.equal(Buffer.from(BcaMutasi._uji.sha1(new Uint8Array(data))).toString('hex'), createHash('sha1').update(data).digest('hex'));
+  }
+  const file = readFileSync(new URL('./fixtures/qris/mutasi-bca-uji.xlsx', import.meta.url));
+  const buf = file.buffer.slice(file.byteOffset, file.byteOffset + file.length);
+  await assert.rejects(BcaMutasi.baca(buf, 'SALAH'), error => error.code === 'SANDI_SALAH');
+  await assert.rejects(BcaMutasi.baca(buf, ''), error => error.code === 'SANDI_PERLU');
+  const hasil = await BcaMutasi.baca(buf, 'UJI-BCA');
+  assert.deepEqual(hasil.tanggal, ['2026-10-16']);
+  assert.deepEqual(hasil.rows.map(row => [row.mid, row.amount, row.jam, row.rrn, row.paymentType]), [
+    ['009990001', 6000, '09:52', 'RRNUJI001', 'DANA'],
+    ['009990001', 12000, '14:05', 'RRNUJI002', 'BCA']
+  ]);
+});

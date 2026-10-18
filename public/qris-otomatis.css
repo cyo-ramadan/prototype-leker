@@ -1,4 +1,5 @@
 /* QRIS Otomatis (Bos Cyo, 2026-10-16) -- menumpang gaya dialog Info Gerai; warna lewat token tema. */
+.qris-angka-bad { color: #b3362e; }
 .qris-mini-bad { background: #b3362e !important; color: #fff !important; border-color: #b3362e !important; }
 .qris-mini-ok { background: #17784a !important; color: #fff !important; border-color: #17784a !important; }
 .qris-pilih-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line, #eadfce); }

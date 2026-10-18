@@ -38,7 +38,7 @@
   "karyawan_tambah": "b82f226b92ea64c591ed47628fbb1bcb64fe376d1d8d7616969e7a807bec94d6",
   "akun_cs": "7e4436adf57c98cf4e9d25d7c08506af361816fb9efe5fca4db26440bb1e69e5",
   "jadwal_beda": "7e4436adf57c98cf4e9d25d7c08506af361816fb9efe5fca4db26440bb1e69e5",
-  "setoran_cs": "02e9fa0803641ae5e3668a50bf3faaca220b47e18f07b8b27b0f63f8de23eff5",
+  "setoran_cs": "e02b9be72d50db6b730b833a73036ce9b4ba4b21c9b1dc376cf93125792edd9f",
   "gaji_harian": "7e4436adf57c98cf4e9d25d7c08506af361816fb9efe5fca4db26440bb1e69e5",
   "potongan_gaji": "ae64961e80c46f6bb31a575491aff34ab5edaa71f577b700b7ddcf5dcd04f367",
   "telat_gaji": "7e4436adf57c98cf4e9d25d7c08506af361816fb9efe5fca4db26440bb1e69e5",
@@ -51,6 +51,7 @@
   "una_laporan_chat": "e64cd76b9264d8359c2404a09cf9af101ed74b9d2437ca8f0de4028503b44050",
   "info_gerai": "c46731af4acdfc134cb810566705cec61c424592b7f05b152df9bd5f8f627f74",
   "dana_apresiasi": "c5e72370e948381b5afc14ab643b569845c64ed7ae07fa4803c7d89843ef150c",
-  "qris_otomatis": "88ad3ff0e5e390540e8a3c7e0091e7360328cbb296441bd1fcf74c54a8c3e50f",
-  "qris_sambung_hp": "057292ede07831eed0eaee6687647ebbc4eb873670816f93188be9722f37924c"
+  "qris_otomatis": "5bbe81d624489350f57d67f38860f9bbcc4ecfe2a538de86ed3d803049fb421e",
+  "qris_sambung_hp": "ec433c9aeb06bbd9574879cbf00e21781c0b61a6aab7a07c4ad7d2c909d22e6d",
+  "qris_mutasi": "7184df5c50525a8b05c6a234b165212e63d1b25b1e48c4251ab3bff1a61eb4f3"
 }

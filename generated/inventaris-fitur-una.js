@@ -3862,6 +3862,42 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-mutasi.js",
+    "method": null,
+    "rute": "/api/qris/mutasi",
+    "label": "/api/qris/mutasi",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/buat-masuk",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-mutasi.js",
+    "method": null,
+    "rute": "/api/qris/mutasi/buat-masuk",
+    "label": "/api/qris/mutasi/buat-masuk",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/peta",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-mutasi.js",
+    "method": null,
+    "rute": "/api/qris/mutasi/peta",
+    "label": "/api/qris/mutasi/peta",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/pindah",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-mutasi.js",
+    "method": null,
+    "rute": "/api/qris/mutasi/pindah",
+    "label": "/api/qris/mutasi/pindah",
+    "skin": null
+  },
+  {
     "id": "rute:src/qris-otomatis.js:/api/qris",
     "jenis": "rute-kandidat",
     "sumber": "src/qris-otomatis.js",
@@ -3958,6 +3994,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/qris/masuk",
     "label": "/api/qris/masuk",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/mutasi",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/mutasi",
+    "label": "/api/qris/mutasi",
+    "skin": null
+  },
+  {
+    "id": "rute:src/qris-otomatis.js:/api/qris/mutasi/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/qris-otomatis.js",
+    "method": null,
+    "rute": "/api/qris/mutasi/",
+    "label": "/api/qris/mutasi/",
     "skin": null
   },
   {
@@ -4111,6 +4165,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/staff/announcements",
     "label": "/api/staff/announcements",
+    "skin": null
+  },
+  {
+    "id": "rute:src/staff-announcement.js:/api/staff/announcements/seen",
+    "jenis": "rute-kandidat",
+    "sumber": "src/staff-announcement.js",
+    "method": null,
+    "rute": "/api/staff/announcements/seen",
+    "label": "/api/staff/announcements/seen",
     "skin": null
   },
   {
@@ -11987,6 +12050,39 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/qris-otomatis.js"
   },
   {
+    "id": "tombol:public/qris-otomatis.js:data-mt-buat:Buat uang masuk di {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-mt-buat",
+    "label": "Buat uang masuk di {nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-mt-peta-simpan:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-mt-peta-simpan",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:data-mt-pindah:Pindahkan ke {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": "data-mt-pindah",
+    "label": "Pindahkan ke {nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
     "id": "tombol:public/qris-otomatis.js:data-qp-pakai:Pakai",
     "jenis": "tombol",
     "sumber": "public/qris-otomatis.js",
@@ -12092,6 +12188,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": null,
     "label": "＋ Tambah uang masuk manual (dari mutasi)",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/qris-otomatis.js"
+  },
+  {
+    "id": "tombol:public/qris-otomatis.js:label:Baca & cocokkan",
+    "jenis": "tombol",
+    "sumber": "public/qris-otomatis.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Baca & cocokkan",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-otomatis.js"
@@ -15120,6 +15227,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "tulis:src/qris-mutasi.js:request.method !== 'POST') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/qris-mutasi.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST') return json(",
+    "skin": null
+  },
+  {
     "id": "tulis:src/qris-otomatis.js:request.method !== 'POST' && request.method !== 'PUT') return json(",
     "jenis": "rute-tulis",
     "sumber": "src/qris-otomatis.js",
@@ -15135,6 +15251,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method !== 'POST') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/qris-otomatis.js:request.method === 'POST')",
+    "jenis": "rute-tulis",
+    "sumber": "src/qris-otomatis.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST')",
     "skin": null
   },
   {
@@ -15207,6 +15332,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/admin/announcements",
     "label": "/api/admin/announcements",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/staff-announcement.js:request.method === 'POST' && pathname === '/api/staff/announcements/seen')",
+    "jenis": "rute-tulis",
+    "sumber": "src/staff-announcement.js",
+    "method": "POST",
+    "rute": "/api/staff/announcements/seen",
+    "label": "/api/staff/announcements/seen",
     "skin": null
   },
   {

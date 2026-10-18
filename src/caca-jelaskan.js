@@ -571,6 +571,20 @@ export const KAMUS = Object.freeze([
     tawaran: [],
     tanpaAksi: 'Tautan QRIS dibuat dari Detail Laci → Cek QRIS di kasir atau tombol 📲 QRIS di Entity Admin; Una tidak menautkan uang sendiri.'
   },
+  // Validasi QRIS dengan mutasi bank (Bos Cyo, 2026-10-18): src/qris-mutasi.js, public/bca-mutasi-baca.js.
+  {
+    id: 'qris_mutasi',
+    judul: 'Validasi QRIS dengan mutasi Merchant BCA (H+1)',
+    kunci: ['mutasi qris', 'mutasi bca', 'validasi qris', 'cocokkan mutasi', 'upload mutasi', 'unggah mutasi', 'report merchant bca', 'salah gerai', 'klaim salah', 'cek klaim qris', 'kroscek qris', 'notifikasi tidak sampai'],
+    isi: [
+      'Mutasi Merchant BCA baru bisa diekspor H+1. Entity Admin → tombol "📲 QRIS" di kartu gerai → tab "🏦 Mutasi BCA": pilih file Excel "Transaction Report by Merchant BCA", isi kata sandi file dari BCA, tekan "Baca & cocokkan". File dibuka di perangkat itu sendiri; yang dikirim ke Leker hanya baris transaksinya. Unggah ulang file yang sama tidak membuat dobel.',
+      'Sekali di awal: pasangkan tiap outlet BCA (Merchant ID) ke gerai Leker di bagian "Outlet BCA → gerai" (pilihan gerai sudah ditebak dari nama outlet; tekan Simpan).',
+      'Tiap transaksi di mutasi dipasangkan dengan uang masuk dari notifikasi (nominal, jam, dan dompet pembayar), lalu outlet aslinya dibandingkan dengan gerai yang mengklaim. Statusnya: Cocok; Gerai benar, belum ditautkan; Belum diklaim (masih di kolam); Salah gerai (diklaim gerai lain — nama CS terlihat); Notifikasi tidak sampai; Outlet belum dipasangkan. Ada juga daftar "Uang masuk tanpa baris mutasi" (notifikasi yang tidak ada di bank).',
+      'Tindakan: "Pindahkan ke <gerai>" untuk salah gerai (klaim & tautan lama dilepas, jejaknya dicatat), "Buat uang masuk di <gerai>" bila notifikasinya tidak pernah sampai. Sesudahnya Leker mencoba menautkan ke penjualan QRIS gerai yang benar.'
+    ].join('\n'),
+    tawaran: [jelas('qris_otomatis', 'Cara kerja QRIS Otomatis')],
+    tanpaAksi: 'Mutasi diunggah sendiri oleh Entity Admin dari file BCA; Una tidak membuka file atau kata sandinya.'
+  },
   // Tata cara menyambungkan HP merchant ke Leker (Bos Cyo, 2026-10-17; dicoba dengan merchantBCA).
   {
     id: 'qris_sambung_hp',

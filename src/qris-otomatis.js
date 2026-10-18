@@ -6,6 +6,7 @@ import { getJakartaBusinessDate, jakartaWallClockToUtc } from './time.js';
 import { QRIS_OTOMATIS_KEY, QRIS_KOLAM_BERSAMA_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
 import { emitNotification, listNotificationActors } from './management-notifications.js';
 import { flushNotificationDeliveries } from './notification-delivery.js';
+import { handleQrisMutasiApi } from './qris-mutasi.js';
 
 // QRIS Otomatis (Bos Cyo, 2026-10-16; migration 0164).
 // Alur:
@@ -746,6 +747,15 @@ export async function handleQrisApi(request, env, pathname) {
     return json({ error: 'QRIS Otomatis tidak diaktifkan untuk usaha ini.', code: 'QRIS_DISABLED' }, 403);
   }
 
+  if (pathname === '/api/qris/mutasi' || pathname.startsWith('/api/qris/mutasi/')) {
+    let isi = null;
+    if (request.method === 'POST') {
+      const parsed = await readJson(request);
+      if (!parsed.ok) return json({ error: 'Isi permintaan bukan JSON yang sah.' }, 400);
+      isi = parsed.value || {};
+    }
+    return handleQrisMutasiApi(request, db, actor, pathname, isi);
+  }
   if (request.method === 'GET' && pathname === '/api/qris/ringkasan') return json(await ringkasan(db, actor));
   if (request.method === 'GET' && pathname === '/api/qris/kolam') return kolam(db, actor);
   if (request.method === 'GET' && pathname === '/api/qris/kandidat') return kandidat(db, actor, new URL(request.url).searchParams.get('saleId'));

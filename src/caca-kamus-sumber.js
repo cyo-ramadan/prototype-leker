@@ -259,6 +259,27 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "qris_mutasi": {
+    "sumber": [
+      "src/qris-mutasi.js",
+      "public/bca-mutasi-baca.js",
+      "migrations/0168_qris_mutasi.sql"
+    ],
+    "fitur": [
+      "rute:src/qris-mutasi.js:/api/qris/mutasi",
+      "rute:src/qris-mutasi.js:/api/qris/mutasi/buat-masuk",
+      "rute:src/qris-mutasi.js:/api/qris/mutasi/peta",
+      "rute:src/qris-mutasi.js:/api/qris/mutasi/pindah",
+      "rute:src/qris-otomatis.js:/api/qris/mutasi",
+      "rute:src/qris-otomatis.js:/api/qris/mutasi/",
+      "tombol:public/qris-otomatis.js:data-mt-buat:Buat uang masuk di {nilai}",
+      "tombol:public/qris-otomatis.js:data-mt-peta-simpan:{nilai}",
+      "tombol:public/qris-otomatis.js:data-mt-pindah:Pindahkan ke {nilai}",
+      "tombol:public/qris-otomatis.js:label:Baca & cocokkan",
+      "tulis:src/qris-mutasi.js:request.method !== 'POST') return json(",
+      "tulis:src/qris-otomatis.js:request.method === 'POST')"
+    ]
+  },
   "qris_sambung_hp": {
     "sumber": [
       "src/qris-otomatis.js",

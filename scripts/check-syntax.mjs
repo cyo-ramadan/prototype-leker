@@ -24,6 +24,8 @@ const files = [
   "src/sale-payments.js",
   "public/cashier-bayar-campuran.js",
   "public/pengumuman-badge.js",
+  "src/qris-mutasi.js",
+  "public/bca-mutasi-baca.js",
   "src/caca-ai-client.js",
   "src/caca-ai-error.js",
   "src/caca-ai-gemini.js",

@@ -1725,6 +1725,38 @@
    "class": "business_draft",
    "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
    "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-mt-buat:Buat uang masuk di {nilai}",
+   "label": "Buat uang masuk di {nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-mt-peta-simpan:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-mt-pindah:Pindahkan ke {nilai}",
+   "label": "Pindahkan ke {nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:label:Baca & cocokkan",
+   "label": "Baca & cocokkan",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
   }
  ]
 }

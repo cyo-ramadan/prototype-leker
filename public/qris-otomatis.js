@@ -40,15 +40,28 @@
   const post = (path, body) => ctx.api(`/api/qris/${path}${q()}`, { method: path === 'setelan' ? 'PUT' : 'POST', body: JSON.stringify(body) });
 
   async function reload() {
+    if (ctx.tab === 'KOLAM') {
+      const view = ctx;
+      try {
+        const data = await view.api(`/api/qris/kolam${q({ klaim: view.klaim })}`);
+        if (ctx !== view) return;
+        view.kolamData = data;
+        view.data = data;
+        view.kolamError = '';
+      } catch (error) {
+        if (ctx !== view) return;
+        view.kolamData = null;
+        view.kolamError = error.message;
+        view.data ||= { store: { code: view.storeCode } };
+      }
+      render();
+      return;
+    }
     ctx.data = await ctx.api(`/api/qris${q(ctx.tanggal ? { tanggal: ctx.tanggal } : {})}`);
     if (ctx.tab === 'SETELAN') ctx.setelan = await ctx.api(`/api/qris/setelan${q()}`);
     if (ctx.tab === 'MUTASI') {
       try { ctx.mutasi = await ctx.api(`/api/qris/mutasi${q(ctx.mutasiTanggal ? { tanggal: ctx.mutasiTanggal } : {})}`); ctx.mutasiError = ''; }
       catch (error) { ctx.mutasi = null; ctx.mutasiError = error.message; }
-    }
-    if (ctx.tab === 'KOLAM') {
-      try { ctx.kolamData = await ctx.api(`/api/qris/kolam${q()}`); ctx.kolamError = ''; }
-      catch (error) { ctx.kolamData = null; ctx.kolamError = error.message; }
     }
     render();
   }
@@ -167,9 +180,10 @@
   // baru membayar menekan Klaim; gerai lain lalu terkunci. Tidak ada bunyi -- CS yang bersangkutan
   // memang sedang menunggu pembayaran pembelinya.
   function renderKolam() {
-    if (ctx.kolamError) return `<div class="qris-peringatan">${esc(ctx.kolamError)}</div>`;
+    const filter = `<label class="field">Status klaim<select class="text-input" data-qr-klaim-filter aria-label="Status klaim">${[['SEMUA', 'Semua'], ['BELUM', 'Belum diklaim'], ['SUDAH', 'Sudah diklaim']].map(([value, label]) => `<option value="${value}" ${ctx.klaim === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
+    if (ctx.kolamError) return `${filter}<div class="qris-peringatan">${esc(ctx.kolamError)}</div>`;
     const data = ctx.kolamData;
-    if (!data) return '<div class="muted">Memuat kolam…</div>';
+    if (!data) return `${filter}<div class="muted">Memuat kolam…</div>`;
     const code = esc(data.store.code);
     const baris = item => {
       let status;
@@ -190,8 +204,9 @@
         ${tombol}
       </article>`;
     };
-    return `<p class="muted">Begitu pembelimu membayar QRIS, cari nominal &amp; jamnya di sini lalu tekan <b>Klaim</b>. Yang sudah diklaim gerai lain terkunci. Menautkan ke penjualan boleh nanti di tab "Hari ini".</p>
-      ${data.items.map(baris).join('') || '<div class="empty">Belum ada uang QRIS masuk dalam 24 jam terakhir.</div>'}`;
+    const kosong = ctx.klaim === 'BELUM' ? 'Belum ada uang QRIS yang belum diklaim dalam 24 jam terakhir.' : ctx.klaim === 'SUDAH' ? 'Belum ada uang QRIS yang sudah diklaim dalam 24 jam terakhir.' : 'Belum ada uang QRIS masuk dalam 24 jam terakhir.';
+    return `${filter}<p class="muted">Begitu pembelimu membayar QRIS, cari nominal &amp; jamnya di sini lalu tekan <b>Klaim</b>. Yang sudah diklaim gerai lain terkunci. Menautkan ke penjualan boleh nanti di tab "Hari ini".</p>
+      ${data.items.map(baris).join('') || `<div class="empty">${kosong}</div>`}`;
   }
 
   // ---- Validasi mutasi BCA (Bos Cyo, 2026-10-18; src/qris-mutasi.js) ------------------------------
@@ -312,6 +327,8 @@
     const on = (selector, handler) => node.querySelectorAll(selector).forEach(el => { el.onclick = () => handler(el); });
     on('[data-qr-tutup]', () => node.close());
     on('[data-qr-muat]', button => aksi(async () => {}, button));
+    const filterKlaim = node.querySelector('[data-qr-klaim-filter]');
+    if (filterKlaim) filterKlaim.onchange = () => { ctx.klaim = filterKlaim.value; aksi(async () => {}, filterKlaim); };
     on('[data-qr-tab]', button => { ctx.tab = button.dataset.qrTab; ctx.tokenBaru = null; aksi(async () => {}); });
     const tanggal = node.querySelector('[data-qr-tanggal]');
     if (tanggal) tanggal.onchange = () => { ctx.tanggal = tanggal.value; aksi(async () => {}); };
@@ -396,7 +413,7 @@
   }
 
   async function open({ api, storeCode, onClose = null, tab, kolam = false }) {
-    ctx = { api, storeCode, tanggal: '', data: null, tab: tab || (kolam ? 'KOLAM' : 'HARIAN'), kolam, kolamData: null, kolamError: '', pilihSale: null, setelan: null, tokenBaru: null, onClose };
+    ctx = { api, storeCode, tanggal: '', data: null, tab: tab || (kolam ? 'KOLAM' : 'HARIAN'), kolam, klaim: 'BELUM', kolamData: null, kolamError: '', pilihSale: null, setelan: null, tokenBaru: null, onClose };
     const node = dialog();
     node.innerHTML = '<div class="muted">Memuat QRIS…</div>';
     if (!node.open) node.showModal();

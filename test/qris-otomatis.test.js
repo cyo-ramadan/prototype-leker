@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { runInNewContext } from 'node:vm';
 import { handleQrisApi, bacaNominal, bacaNotifikasi } from '../src/qris-otomatis.js';
 import { hashCredential } from '../src/owner-auth.js';
 
@@ -289,8 +290,19 @@ test('kolam bersama: semua kasir berlaci terbuka melihat, satu gerai mengklaim, 
   assert.equal(k.status, 200, JSON.stringify(k.body));
   assert.equal(k.body.tertaut, true);
 
+  // Default disaring SQL: uang yang diklaim hilang; pilihan Semua/Sudah tetap bisa melihatnya.
+  for (const query of [{}, { klaim: 'BELUM' }]) {
+    const belum = await call(f.env, '/api/qris/kolam', { token: f.kasir, query });
+    assert.equal(belum.body.klaim, 'BELUM');
+    assert.deepEqual(belum.body.items, []);
+  }
+  const sudah = await call(f.env, '/api/qris/kolam', { token: f.kasir, query: { klaim: 'SUDAH' } });
+  assert.deepEqual(sudah.body.items.map(item => item.id), [masuk.body.id]);
+  assert.equal(sudah.body.items[0].diklaim, true);
+  assert.equal((await call(f.env, '/api/qris/kolam', { token: f.kasir, query: { klaim: 'SALAH' } })).status, 400);
+
   // Mandala melihat "diklaim PENDEM" dan tidak bisa mengklaim / membatalkan.
-  const kolamMandala = await call(f.env, '/api/qris/kolam', { token: mandala, store: 'MANDALA' });
+  const kolamMandala = await call(f.env, '/api/qris/kolam', { token: mandala, store: 'MANDALA', query: { klaim: 'SEMUA' } });
   assert.equal(kolamMandala.body.items[0].storeCode, 'PENDEM');
   assert.equal(kolamMandala.body.items[0].bisaBatal, false);
   const rebut = await call(f.env, '/api/qris/klaim', { token: mandala, store: 'MANDALA', method: 'POST', body: { masukId: masuk.body.id } });
@@ -482,4 +494,35 @@ test('pembaca mutasi BCA di browser: buka Excel terkunci, baca baris, sandi sala
     ['009990001', 6000, '09:52', 'RRNUJI001', 'DANA'],
     ['009990001', 12000, '14:05', 'RRNUJI002', 'BCA']
   ]);
+});
+
+
+test('filter kolam: buka hanya mengambil kolam BELUM, ganti filter meminta data server, buka ulang kembali BELUM', async () => {
+  const requests = [];
+  const filter = { value: 'BELUM', disabled: false };
+  const node = {
+    open: false, innerHTML: '',
+    showModal() { this.open = true; },
+    querySelectorAll() { return []; },
+    querySelector(selector) { return selector === '[data-qr-klaim-filter]' ? filter : null; }
+  };
+  const window = {};
+  runInNewContext(readFileSync(new URL('../public/qris-otomatis.js', import.meta.url), 'utf8'), {
+    window, document: { getElementById() { return node; } }, URLSearchParams
+  });
+  const api = async path => {
+    requests.push(path);
+    return { store: { code: 'PENDEM' }, canManage: false, entityWide: false, items: [] };
+  };
+  await window.QrisOtomatis.open({ api, storeCode: 'PENDEM', kolam: true });
+  assert.deepEqual(requests, ['/api/qris/kolam?store=PENDEM&klaim=BELUM']);
+  for (const value of ['SEMUA', 'SUDAH']) {
+    filter.value = value;
+    filter.onchange();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests.at(-1), `/api/qris/kolam?store=PENDEM&klaim=${value}`);
+  }
+  await window.QrisOtomatis.open({ api, storeCode: 'PENDEM', kolam: true });
+  assert.equal(requests.at(-1), '/api/qris/kolam?store=PENDEM&klaim=BELUM');
+  assert.equal(requests.length, 4);
 });

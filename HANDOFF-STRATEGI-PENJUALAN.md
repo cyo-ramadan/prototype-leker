@@ -303,6 +303,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-17 | Eskor / Kasir | Pembayaran campuran: satu nota bisa dibayar 2 cara (mis. QRIS 5.000 + tunai 7.000); jurnal mendebit akun tiap cara bayar, uang laci hanya bertambah bagian tunainya | UJI | Live 17 Okt; diuji otomatis (jurnal, laci, QRIS), belum dipakai CS sungguhan |
 | *(semua sesi menambah baris di sini)* | | | | |
 | 2026-10-18 | Codex / Kasir | Kolam QRIS di menu Data dibuka dari tombol di sebelah Stok; Cara bayar tetap menjadi filter transaksi. Panduan Una mengikuti lokasi tombol baru | UJI | Mempermudah akses kolam QRIS; tidak mengubah aturan klaim atau pembukuan |
+| 2026-10-18 | Codex / Kasir | Kolam QRIS memiliki filter Semua, Belum diklaim, dan Sudah diklaim; saat dibuka langsung menampilkan Belum diklaim dengan pengambilan data sesuai pilihan | UJI | CS lebih mudah mencari pembayaran baru; pemuatan kolam tidak mengambil daftar QRIS harian |
 
 ---
 
@@ -382,3 +383,5 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 <!-- DOC-IMPACT: 2026-10-15 penempatan Pengaturan Una dan tombol live; status UJI, APK tidak diklaim tersedia. -->
 
 <!-- DOC-IMPACT: 2026-10-18 pemindahan tombol Kolam QRIS di menu Data kasir; status UJI. -->
+
+<!-- DOC-IMPACT: 2026-10-18 filter klaim dan pemuatan kolam QRIS sesuai pilihan. -->

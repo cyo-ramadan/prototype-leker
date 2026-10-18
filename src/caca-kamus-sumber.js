@@ -313,6 +313,7 @@ export const SUMBER_KAMUS = Object.freeze({
       "rute:src/qris-otomatis.js:/api/qris/klaim",
       "rute:src/qris-otomatis.js:/api/qris/kandidat",
       "rute:src/qris-otomatis.js:/api/qris/klaim-tautkan",
+      "tombol:public/cashier-data-explorer.js:cashierDataQrisPool",
       "tombol:public/cashier-data-explorer.js:data-cashier-tx-qris:QRIS",
       "tombol:public/qris-otomatis.js:data-qp-pakai:Pakai",
       "tombol:public/qris-otomatis.js:label:Batal klaim & tautan",

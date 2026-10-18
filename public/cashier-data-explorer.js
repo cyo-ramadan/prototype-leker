@@ -25,9 +25,8 @@
     ['OPERATIONS', 'Operasional'], ['STOCK_ADJUSTMENTS', 'Penyesuaian Stok'],
     ['GOODS_FLOW', 'Arus Barang'], ['PRODUCTION', 'Produksi'], ['ASSETS', 'Aset']
   ];
-  // Bos Cyo, 2026-10-17: kolom & filter cara bayar penjualan. "Kolam QRIS" membuka uang QRIS yang
-  // belum diklaim gerai mana pun (qris-otomatis.js).
-  const BAYAR = [['', 'Semua'], ['TUNAI', 'Tunai'], ['QRIS', 'QRIS'], ['CAMPURAN', 'Campuran'], ['KOLAM', '🧾 Kolam QRIS']];
+  // Filter cara bayar penjualan. Kolam QRIS dibuka lewat tombol di sebelah Stok.
+  const BAYAR = [['', 'Semua'], ['TUNAI', 'Tunai'], ['QRIS', 'QRIS'], ['CAMPURAN', 'Campuran']];
   const BAYAR_LABEL = { CASH: 'Tunai', CAMPURAN: 'Campuran' };
   const PAGE_SIZES = [5, 20, 50, 100];
   const SORT_OPTIONS = [
@@ -48,7 +47,7 @@
     document.body.insertAdjacentHTML('beforeend', `
       <dialog id="cashierDataDialog" class="cashier-dialog cashier-dialog-plain" style="max-width:min(1080px,96vw);width:96vw">
         <style>
-          .cashier-tx-tabs{display:flex;gap:8px;margin:10px 0}
+          .cashier-tx-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
           .cashier-tx-btn{border:0;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
           .cashier-tx-btn-primary{background:var(--brand);color:#fff}
           .cashier-tx-btn-primary.active{box-shadow:inset 0 0 0 2px rgba(0,0,0,.22)}
@@ -102,6 +101,7 @@
         <div class="cashier-tx-tabs">
           <button id="cashierDataTabTransactions" class="cashier-tx-btn cashier-tx-btn-primary" type="button">Transaksi</button>
           <button id="cashierDataTabStock" class="cashier-tx-btn cashier-tx-btn-primary" type="button">Stok</button>
+          <button id="cashierDataQrisPool" class="cashier-tx-btn cashier-tx-btn-primary" type="button">Kolam QRIS</button>
         </div>
         <div id="cashierDataTransactions"></div>
         <div id="cashierDataStock" class="hidden"></div>
@@ -123,6 +123,12 @@
     ensureDialog();
     el('cashierDataTabTransactions').onclick = () => activateTab('transactions');
     el('cashierDataTabStock').onclick = () => activateTab('stock');
+    el('cashierDataQrisPool').onclick = () => {
+      const storeCode = window.qrisKasirStoreCode?.() || '';
+      if (window.QrisOtomatis && storeCode) window.QrisOtomatis.open({ api, storeCode, kolam: true, onClose: () => {
+        if (state.tab === 'transactions') loadTransactions({ reset: true });
+      } });
+    };
     el('cashierDataDialog').showModal();
     activateTab(state.tab);
   }
@@ -158,12 +164,6 @@
       loadTransactions({ reset: true });
     });
     el('cashierDataBayar').addEventListener('change', event => {
-      if (event.target.value === 'KOLAM') {
-        event.target.value = state.bayar;
-        const storeCode = window.qrisKasirStoreCode?.() || '';
-        if (window.QrisOtomatis && storeCode) window.QrisOtomatis.open({ api, storeCode, kolam: true, onClose: () => loadTransactions({ reset: true }) });
-        return;
-      }
       state.bayar = event.target.value;
       if (state.bayar && state.filter !== 'SALES') state.filter = 'SALES';
       loadTransactions({ reset: true });

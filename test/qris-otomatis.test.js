@@ -396,3 +396,21 @@ test('menu Data: filter cara bayar, tombol QRIS merah/hijau, klaim+tautkan sekal
   assert.equal(salah.body.code, 'QRIS_NOMINAL_BEDA');
   assert.equal(f.sqlite.prepare(`SELECT store_id FROM qris_masuk WHERE id = ?`).get(c.body.id).store_id, null);
 });
+
+test('pengumuman: angka merah per akun -- baru sampai tab dibuka, lalu nol', async () => {
+  const { handleStaffAnnouncementApi } = await import('../src/staff-announcement.js');
+  const f = await fixture();
+  f.sqlite.prepare(`INSERT INTO announcements (id, entity_id, store_id, title, body, created_by, created_by_role, is_active, created_at) VALUES ('ann_qris', 'ENT-KPM', NULL, 'QRIS', 'isi', 'Bos', 'OWNER', 1, '2026-10-18 01:00:00')`).run();
+  const panggil = async (path, method = 'GET') => {
+    const res = await handleStaffAnnouncementApi(new Request(`https://x.test${path}`, { method, headers: { Authorization: `Bearer ${f.kasir}` }, body: method === 'POST' ? '{}' : undefined }), f.env, path);
+    return res.json();
+  };
+  let daftar = await panggil('/api/staff/announcements');
+  assert.equal(daftar.unread, 1);
+  assert.equal(daftar.announcements[0].isNew, true);
+  assert.equal((await panggil('/api/staff/announcements/seen', 'POST')).ok, true);
+  daftar = await panggil('/api/staff/announcements');
+  assert.equal(daftar.unread, 0);
+  f.sqlite.prepare(`INSERT INTO announcements (id, entity_id, store_id, title, body, created_by, created_by_role, is_active, created_at) VALUES ('ann_baru', 'ENT-KPM', NULL, 'Baru', '', 'Bos', 'OWNER', 1, '2999-01-01 00:00:00')`).run();
+  assert.equal((await panggil('/api/staff/announcements')).unread, 1);
+});

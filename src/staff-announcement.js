@@ -49,7 +49,22 @@ export async function handleStaffAnnouncementApi(request, env, pathname) {
       ORDER BY created_at DESC
       LIMIT 50
     `).bind(store?.entityId ?? '', auth.cashier.store.id).all();
-    return json({ announcements: (rows.results ?? []).map(mapAnnouncement) });
+    // Angka merah di tombol Pengumuman (migration 0167): yang lebih baru dari kunjungan terakhir akun ini.
+    const seen = await db.prepare('SELECT last_seen_at FROM staff_announcement_seen WHERE cashier_id = ?').bind(auth.cashier.id).first();
+    const announcements = (rows.results ?? []).map(row => ({ ...mapAnnouncement(row), isNew: !seen || row.created_at > seen.last_seen_at }));
+    return json({ announcements, unread: announcements.filter(item => item.isNew).length });
+  }
+
+  // Tab Pengumuman dibuka -> semua yang tampil dianggap sudah dibaca (angka merah hilang).
+  if (request.method === 'POST' && pathname === '/api/staff/announcements/seen') {
+    const auth = await requireCashier(request, db);
+    if (!auth.ok) return auth.response;
+    if (auth.readOnly || auth.cashier?.readOnly) return json({ ok: true, readOnly: true });
+    await db.prepare(`
+      INSERT INTO staff_announcement_seen (cashier_id, last_seen_at) VALUES (?, CURRENT_TIMESTAMP)
+      ON CONFLICT(cashier_id) DO UPDATE SET last_seen_at = CURRENT_TIMESTAMP
+    `).bind(auth.cashier.id).run();
+    return json({ ok: true });
   }
 
   if (!pathname.startsWith('/api/admin/announcements')) return null;

@@ -405,13 +405,29 @@
     if (!items.length) { target.innerHTML = '<div class="staff-empty">Belum ada pengumuman.</div>'; return; }
     target.innerHTML = items.map(item => `
       <div class="staff-card" style="margin-bottom:10px">
-        <div class="muted">${item.scope === 'ENTITY' ? 'Semua gerai' : 'Gerai ini'} · ${escapeHtml(dateTime(item.createdAt))} · ${escapeHtml(item.createdBy)}</div>
+        <div class="muted">${item.isNew ? '<b style="color:#e0245e">BARU</b> · ' : ''}${item.scope === 'ENTITY' ? 'Semua gerai' : 'Gerai ini'} · ${escapeHtml(dateTime(item.createdAt))} · ${escapeHtml(item.createdBy)}</div>
         <strong>${escapeHtml(item.title)}</strong>
         ${item.body ? `<div style="white-space:pre-wrap;margin-top:4px">${escapeHtml(item.body)}</div>` : ''}
       </div>`).join('');
   }
+  // Bos Cyo, 2026-10-18: angka merah di tombol Pengumuman bila ada yang baru (seperti notifikasi
+  // Facebook). Hilang begitu tab Pengumuman dibuka (POST .../seen, per akun -- migration 0167).
+  function paintAnnouncementBadge(unread) {
+    const button = document.querySelector('[data-staff-tab="announcement"]'); if (!button) return;
+    button.querySelector('.staff-badge-merah')?.remove();
+    if (unread > 0) button.insertAdjacentHTML('beforeend', ` <span class="staff-badge-merah" style="display:inline-block;min-width:18px;padding:1px 6px;border-radius:999px;background:#e0245e;color:#fff;font-size:12px;font-weight:800;line-height:16px;text-align:center">${unread > 9 ? '9+' : unread}</span>`);
+  }
+  async function markAnnouncementsSeen() {
+    paintAnnouncementBadge(0);
+    try { await staffApi('/api/staff/announcements/seen', { method: 'POST', body: '{}' }); } catch {}
+  }
   async function loadAnnouncements() {
-    try { const payload = await staffApi('/api/staff/announcements'); renderAnnouncements(payload.announcements || []); }
+    try {
+      const payload = await staffApi('/api/staff/announcements');
+      renderAnnouncements(payload.announcements || []);
+      const open = document.querySelector('[data-staff-tab="announcement"]')?.classList.contains('active');
+      if (open && payload.unread) markAnnouncementsSeen(); else paintAnnouncementBadge(payload.unread || 0);
+    }
     catch (error) { const target = el('staffAnnouncementList'); if (target) target.innerHTML = `<div class="staff-message">${escapeHtml(error.message)}</div>`; }
   }
 
@@ -694,6 +710,7 @@
         document.querySelectorAll('[data-staff-tab]').forEach(item => item.classList.toggle('active', item === button));
         document.querySelectorAll('.staff-panel').forEach(panel => panel.classList.toggle('active', panel.id === `staffPanel${tab[0].toUpperCase()}${tab.slice(1)}`));
         if (tab === 'attendance') startAttendance(el('attendanceToggleBtn').dataset.attendanceType || 'in');
+        if (tab === 'announcement') markAnnouncementsSeen();
       });
     });
   }

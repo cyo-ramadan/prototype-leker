@@ -18,7 +18,7 @@
 
   const total = () => angka(byId('saleDialogTotal')?.textContent);
   const pilihan = () => (Array.isArray(state.paymentMethods) ? state.paymentMethods : [])
-    .filter(item => item.code && item.code !== 'CAMPURAN' && item.code !== 'PAYABLE');
+    .filter(item => item.code && item.code !== 'CAMPURAN' && item.code !== 'PAYABLE' && item.allowSale !== false);
 
   function pasangPilihan() {
     const select = byId('saleDialogPaymentMethod');

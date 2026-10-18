@@ -335,6 +335,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Cara bayar = tunai, transfer, QRIS, dll., diatur per gerai. POS memakai pilihan cara bayar aktif; jika memakai Accounting, pemetaan akun (Kas, Bank, Rekening Bersama) diurus terpisah oleh pembukuan.',
       'Cara bayar QRIS dibukukan sama dengan Rekening Bersama (akun 1103), karena uang QRIS dipindah ke rekening bersama dalam sehari.',
+      'Rekening Bersama (REKBER) tidak dipakai untuk penjualan (sejak 18 Okt 2026): tidak muncul di pilihan cara bayar penjualan dan ditolak bila dikirim; untuk pembelian/pengeluaran tetap bisa. Pembeli yang scan QRIS dicatat dengan cara bayar QRIS.',
       'Pembayaran campuran (saklar "Pembayaran campuran", bawaan aktif): di dialog penjualan pilih Cara bayar "🔀 Campuran", isi nominal bagian pertama (mis. QRIS 5.000), bagian kedua (mis. Tunai) terisi otomatis dari sisa total. Jurnal mendebit akun tiap cara bayar sesuai bagiannya; uang laci hanya bertambah bagian tunainya; QRIS ditautkan sebesar bagian QRIS-nya. Cara bayar hutang tidak bisa dicampur.',
       'Hanya tunai yang menggerakkan uang laci. Aplikasi ini mencatat cara bayarnya — uangnya sendiri tidak diproses aplikasi.'
     ].join('\n'),

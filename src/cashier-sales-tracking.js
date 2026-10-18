@@ -8,7 +8,7 @@ import { getJakartaBusinessDate, isoNow } from './time.js';
 import { resolveCustomerScope } from './customer-sharing.js';
 import { prepareSaleStockProduction, stockPostingFailure } from './stock-production.js';
 import { saleHppSnapshotSelect } from './manufacture-costing.js';
-import { resolvePosPaymentMethod } from './pos-payment-methods.js';
+import { resolvePosPaymentMethod, paymentMethodAllowedForSale } from './pos-payment-methods.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const placeholders = count => Array.from({ length: count }, () => '?').join(', ');
@@ -212,6 +212,9 @@ export async function handleCashierTrackedSaleApi(request, env, pathname) {
     resolvedPayment = await resolvePosPaymentMethod(env.DB, storeId, body.value?.paymentMethod, 'CASH');
     if (!resolvedPayment) {
       return json({ error: 'Cara bayar penjualan tidak aktif / tidak terdaftar.', code: 'PAYMENT_METHOD_NOT_AVAILABLE' }, 400);
+    }
+    if (!await paymentMethodAllowedForSale(env.DB, storeId, resolvedPayment.code)) {
+      return json({ error: `${resolvedPayment.name} tidak dipakai untuk penjualan. Pembeli yang scan QRIS: pilih QRIS.`, code: 'PAYMENT_METHOD_NOT_FOR_SALE' }, 400);
     }
   }
   const splitFor = async total => {

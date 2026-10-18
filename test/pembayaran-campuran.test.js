@@ -178,3 +178,21 @@ test('laci: uang seharusnya hanya bertambah bagian tunai; QRIS menaut sebesar ba
   assert.equal(await tautkanOtomatis(fx.env.DB, fx.store.id), 1);
   assert.equal(fx.sqlite.prepare(`SELECT sale_id FROM qris_masuk WHERE id = 'qm_campuran'`).get().sale_id, ok.body.sale.id);
 });
+
+test('REKBER tidak untuk penjualan (migration 0169): ditolak di penjualan & campuran, tetap terdaftar untuk pembelian', async () => {
+  const { listPosPaymentMethods } = await import('../src/pos-payment-methods.js');
+  const fx = await fixture();
+  const rekber = fx.sqlite.prepare(`SELECT id FROM chart_of_accounts WHERE store_id = ? AND code = '1103'`).get(fx.store.id);
+  fx.sqlite.prepare(`INSERT INTO payment_methods (id, store_id, code, name, account_id, is_active, is_default, creates_payable, allow_sale) VALUES ('pm_rekber_g001', ?, 'REKBER', 'Rekening Bersama', ?, 1, 0, 0, 0)`).run(fx.store.id, rekber.id);
+  const order = seedOrder(fx);
+  const tunggal = await jual(fx, order, { paymentMethod: 'REKBER' });
+  assert.equal(tunggal.status, 400);
+  assert.equal(tunggal.body.code, 'PAYMENT_METHOD_NOT_FOR_SALE');
+  const campur = await jual(fx, order, { payments: [{ paymentMethod: 'REKBER', amount: 1000 }, { paymentMethod: 'CASH', amount: order.total - 1000 }] });
+  assert.equal(campur.status, 400);
+  assert.equal(fx.sqlite.prepare(`SELECT COUNT(*) AS n FROM sales`).get().n, 0);
+  const daftar = await listPosPaymentMethods(fx.env.DB, fx.store.id);
+  assert.equal(daftar.find(m => m.code === 'REKBER').allowSale, false);
+  assert.equal(daftar.find(m => m.code === 'QRIS').allowSale, true);
+  assert.equal((await jual(fx, order, { paymentMethod: 'QRIS' })).status, 201);
+});

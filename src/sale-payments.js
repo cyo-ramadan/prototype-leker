@@ -2,7 +2,7 @@
 // satu cara bayar, mis. Rp12.000 = QRIS Rp5.000 + Tunai Rp7.000. sales.payment_method = 'CAMPURAN',
 // rinciannya di sale_payments. Penjualan biasa tidak punya rincian -- semua pembaca di bawah jatuh ke
 // sales.payment_method + total seperti sebelumnya.
-import { resolvePosPaymentMethod } from './pos-payment-methods.js';
+import { resolvePosPaymentMethod, paymentMethodAllowedForSale } from './pos-payment-methods.js';
 import { PEMBAYARAN_CAMPURAN_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
 
 export const CAMPURAN = 'CAMPURAN';
@@ -25,6 +25,7 @@ export async function resolveSplitPayments(db, storeId, payments, total) {
     const method = await resolvePosPaymentMethod(db, storeId, String(item?.paymentMethod || '').trim().toUpperCase() || 'X');
     if (!method || method.code === CAMPURAN) return { ok: false, error: 'Ada cara bayar yang tidak aktif / tidak terdaftar.' };
     if (parts.some(part => part.code === method.code)) return { ok: false, error: `Cara bayar ${method.name} dipilih dua kali.` };
+    if (!await paymentMethodAllowedForSale(db, storeId, method.code)) return { ok: false, error: `${method.name} tidak dipakai untuk penjualan.` };
     const payable = await db.prepare(`SELECT creates_payable FROM payment_methods WHERE store_id = ? AND code = ? LIMIT 1`).bind(storeId, method.code).first();
     if (Number(payable?.creates_payable)) return { ok: false, error: `${method.name} tidak bisa dipakai di pembayaran campuran.` };
     parts.push({ code: method.code, name: method.name, amount });

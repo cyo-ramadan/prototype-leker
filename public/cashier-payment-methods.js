@@ -25,9 +25,10 @@
     }
   }
 
-  function methodOptions(selectedCode = '') {
+  // Penjualan hanya menampilkan cara bayar yang boleh untuk penjualan (Bos Cyo, 2026-10-18: REKBER tidak).
+  function methodOptions(selectedCode = '', { penjualan = false } = {}) {
     const selected = selectedCode || defaultCode();
-    return methods().map(item => `<option value="${escapeHtml(item.code)}" ${item.code === selected ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+    return methods().filter(item => !penjualan || item.allowSale !== false).map(item => `<option value="${escapeHtml(item.code)}" ${item.code === selected ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
   }
 
   function accountingLabel(result) {
@@ -132,9 +133,9 @@
       note.closest('.field')?.insertAdjacentElement('beforebegin', field);
       select = byId('salePaymentMethod');
     }
-    const list = methods();
+    const list = methods().filter(item => item.allowSale !== false);
     const selected = list.some(item => item.code === previous) ? previous : defaultCode();
-    select.innerHTML = methodOptions(selected);
+    select.innerHTML = methodOptions(selected, { penjualan: true });
     select.disabled = !list.length;
   }
 
@@ -152,9 +153,9 @@
       note.closest('.field')?.insertAdjacentElement('beforebegin', field);
       select = byId('saleDialogPaymentMethod');
     }
-    const list = methods();
+    const list = methods().filter(item => item.allowSale !== false);
     const selected = list.some(item => item.code === previous) ? previous : defaultCode();
-    select.innerHTML = methodOptions(selected);
+    select.innerHTML = methodOptions(selected, { penjualan: true });
     select.disabled = !list.length;
     select.onchange = () => {
       const base = byId('salePaymentMethod');

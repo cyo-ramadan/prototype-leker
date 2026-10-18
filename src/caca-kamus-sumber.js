@@ -400,7 +400,8 @@ export const SUMBER_KAMUS = Object.freeze({
       "src/pos-payment-methods.js",
       "src/sale-payments.js",
       "public/cashier-bayar-campuran.js",
-      "migrations/0165_cara_bayar_qris.sql"
+      "migrations/0165_cara_bayar_qris.sql",
+      "migrations/0169_cara_bayar_untuk_penjualan.sql"
     ],
     "fitur": []
   },

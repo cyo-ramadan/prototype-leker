@@ -302,6 +302,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-17 | Eskor / Kasir + Entity Admin | QRIS Otomatis: uang QRIS yang benar-benar masuk diteruskan dari HP pemilik (aplikasi Penerus QRIS membaca notifikasi Merchant BCA, dll.) ke "Kolam QRIS" yang terlihat semua kasir berlaci terbuka; CS mengklaim untuk gerainya (gerai lain terkunci, bisa batal klaim), lalu menautkan ke penjualan QRIS -- penjualan QRIS tanpa uang masuk tetap kuning, jadi orderan QRIS karangan kelihatan. Cara bayar QRIS baru di tiap gerai dibukukan ke Rekening Bersama | UJI | Live 17 Okt; Penerus QRIS baru dipasang di HP pemilik, belum dipakai harian. Pencocokan dengan mutasi bank (outlet asli) belum dibuat -- jangan janjikan "anti-curang otomatis" dulu |
 | 2026-10-17 | Eskor / Kasir | Pembayaran campuran: satu nota bisa dibayar 2 cara (mis. QRIS 5.000 + tunai 7.000); jurnal mendebit akun tiap cara bayar, uang laci hanya bertambah bagian tunainya | UJI | Live 17 Okt; diuji otomatis (jurnal, laci, QRIS), belum dipakai CS sungguhan |
 | *(semua sesi menambah baris di sini)* | | | | |
+| 2026-10-18 | Codex / Kasir | Kolam QRIS di menu Data dibuka dari tombol di sebelah Stok; Cara bayar tetap menjadi filter transaksi. Panduan Una mengikuti lokasi tombol baru | UJI | Mempermudah akses kolam QRIS; tidak mengubah aturan klaim atau pembukuan |
 
 ---
 
@@ -379,3 +380,5 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 <!-- DOC-IMPACT: 2026-10-15 perbaikan responsif laporan dan batas lebar pin Beranda Entity; status UJI tetap. -->
 
 <!-- DOC-IMPACT: 2026-10-15 penempatan Pengaturan Una dan tombol live; status UJI, APK tidak diklaim tersedia. -->
+
+<!-- DOC-IMPACT: 2026-10-18 pemindahan tombol Kolam QRIS di menu Data kasir; status UJI. -->

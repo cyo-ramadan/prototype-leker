@@ -559,7 +559,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Uang QRIS yang benar-benar masuk dicatat dari notifikasi aplikasi merchant (GoBiz, bank, dll.) di SATU HP penerima milik pemilik — CS tidak memasang aplikasi merchant. HP itu meneruskan notifikasinya ke Leker lewat aplikasi Penerus QRIS (dari admin; MacroDroid hanya untuk aplikasi merchant bernotifikasi teks biasa — Merchant BCA tidak bisa).',
       'Begitu uang masuk, kasir gerai itu mendengar bunyi "cring" dan melihat pita hijau "💰 QRIS masuk Rp…". Saat aplikasi ditutup, kabarnya datang lewat notifikasi HP (aktifkan dulu di menu Notifikasi).',
-      'Di kasir tidak ada tombol tersendiri: QRIS ada di menu "📊 Data". Kolom "Cara bayar" menampilkan Tunai/QRIS/Campuran, filter "Cara bayar" menyaring Tunai/QRIS/Campuran, dan "🧾 Kolam QRIS" membuka uang yang belum diklaim gerai mana pun. Tiap penjualan QRIS punya tombol kecil "QRIS": merah = belum tertaut ke uang masuk, hijau = sudah. Ketuk merah → pilih uang masuk bernominal sama (dengan jam & "dari DANA/GOPAY…") → "Pakai": langsung diklaim untuk gerai ini dan tertaut. Ketuk hijau → lihat tautannya / "Batal klaim & tautan".',
+      'Di kasir tidak ada tombol tersendiri: QRIS ada di menu "📊 Data". Kolom "Cara bayar" menampilkan Tunai/QRIS/Campuran, filter "Cara bayar" menyaring Tunai/QRIS/Campuran, dan tombol "Kolam QRIS" di sebelah "Stok" membuka uang yang belum diklaim gerai mana pun. Kolam QRIS tidak berada di pilihan filter "Cara bayar". Tiap penjualan QRIS punya tombol kecil "QRIS": merah = belum tertaut ke uang masuk, hijau = sudah. Ketuk merah → pilih uang masuk bernominal sama (dengan jam & "dari DANA/GOPAY…") → "Pakai": langsung diklaim untuk gerai ini dan tertaut. Ketuk hijau → lihat tautannya / "Batal klaim & tautan".',
       'Sesudah menyimpan penjualan QRIS atau campuran, jendela "📲 Pilih uang QRIS-nya" muncul sendiri — pilih uangnya saat itu juga supaya tidak diklaim gerai lain. Kalau uangnya belum masuk, tutup saja dan tautkan nanti dari tombol merah. Di Entity Admin: tombol "📲 QRIS" di tiap kartu gerai.',
       'Setiap penjualan QRIS harus tertaut ke tepat satu uang masuk. Kalau nominal sama dan waktunya berdekatan (±30 menit) tanpa keraguan, Leker menautkan sendiri. Kalau ada dua pembeli bernominal sama, CS menekan "Tautkan" lalu memilih uang masuk yang benar. Satu uang masuk tidak bisa dipakai dua kali.',
       'Status: hijau = Tertaut; kuning = Belum tertaut (penjualan QRIS tanpa uang masuk — perlu dicek); merah = uang masuk tanpa penjualan. CS tidak bisa membuat uang masuk sendiri, jadi orderan QRIS karangan tetap kuning.',
@@ -569,7 +569,7 @@ export const KAMUS = Object.freeze([
       'Fitur ini bisa dimatikan Owner di Pengaturan (saklar "QRIS Otomatis").'
     ].join('\n'),
     tawaran: [],
-    tanpaAksi: 'Tautan QRIS dibuat dari Detail Laci → Cek QRIS di kasir atau tombol 📲 QRIS di Entity Admin; Una tidak menautkan uang sendiri.'
+    tanpaAksi: 'Tautan QRIS dibuat dari menu Data di kasir (tombol QRIS per penjualan; Kolam QRIS di sebelah Stok) atau tombol 📲 QRIS di Entity Admin; Una tidak menautkan uang sendiri.'
   },
   // Validasi QRIS dengan mutasi bank (Bos Cyo, 2026-10-18): src/qris-mutasi.js, public/bca-mutasi-baca.js.
   {

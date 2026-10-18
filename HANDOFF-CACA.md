@@ -1308,3 +1308,7 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 <!-- DOC-IMPACT: 2026-10-15 konfigurasi Una ke Pengaturan dan live di composer; arah percakapan disimpan, APK menunggu artifact; hasil perangkat tidak diklaim. -->
 
 <!-- DOC-IMPACT: 2026-10-15 Eskor U0: rencana Una Live + Workspace dimasukkan ke atas, status paket, kontrak contracts/una-live-workspace-v1.md dan fixture bersama. -->
+
+- 2026-10-18 (Codex, perubahan lokal): entri `qris_otomatis` ditinjau; akses Kolam QRIS dipindah dari pilihan Cara bayar ke tombol di sebelah Stok pada menu Data kasir.
+
+<!-- DOC-IMPACT: 2026-10-18 lokasi tombol Kolam QRIS di kamus Una diselaraskan dengan panel Data kasir. -->

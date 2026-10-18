@@ -1,6 +1,6 @@
 // QRIS di panel kasir (Bos Cyo, 2026-10-16/17). Tidak ada tombol baru di kasir: QRIS ada di menu
-// "📊 Data" (kolom & filter Cara bayar, tombol kecil QRIS merah/hijau per penjualan, pilihan
-// "🧾 Kolam QRIS") -- cashier-data-explorer.js. Di sini:
+// "📊 Data" (kolom & filter Cara bayar, tombol kecil QRIS merah/hijau per penjualan, tombol
+// "Kolam QRIS" di sebelah Stok) -- cashier-data-explorer.js. Di sini:
 // - sesudah penjualan QRIS/campuran tersimpan, langsung tawarkan "Pilih uang QRIS-nya" supaya CS
 //   mengunci uangnya sebelum gerai lain mengklaim (notifikasi Merchant BCA masuk < 2 detik);
 // - mode tanpa kolam bersama: bunyi + pita hijau saat notifikasi QRIS_MASUK datang lewat saluran

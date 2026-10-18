@@ -7782,6 +7782,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/cashier-data-explorer.js"
   },
   {
+    "id": "tombol:public/cashier-data-explorer.js:cashierDataQrisPool",
+    "jenis": "tombol",
+    "sumber": "public/cashier-data-explorer.js",
+    "tombolId": "cashierDataQrisPool",
+    "aksi": null,
+    "label": "Kolam QRIS",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier-data-explorer.js"
+  },
+  {
     "id": "tombol:public/cashier-data-explorer.js:cashierDataSearchAdvancedBtn",
     "jenis": "tombol",
     "sumber": "public/cashier-data-explorer.js",

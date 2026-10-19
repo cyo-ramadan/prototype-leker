@@ -553,6 +553,20 @@ export const KAMUS = Object.freeze([
     tawaran: [],
     tanpaAksi: 'Info Gerai diisi langsung dari tombolnya di kasir atau Entity Admin; Una belum mencatat laporan sendiri.'
   },
+  // Cek HP /diagnostik (Bos Cyo, 2026-10-19): public/diagnostik.js, src/diagnostik-laporan.js.
+  {
+    id: 'cek_hp',
+    judul: 'Cek HP (/diagnostik): tombol tidak muncul, tidak bisa login, aplikasi aneh di HP tertentu',
+    kunci: ['cek hp', 'diagnostik', 'diagnosis', 'tombol tidak muncul', 'tombol ga muncul', 'tombol hilang', 'kolam qris tidak muncul', 'tidak bisa login', 'gak bisa login', 'aplikasi error', 'halaman tidak muncul', 'dns', 'hp bermasalah', 'versi lama'],
+    isi: [
+      'Kalau di satu HP ada tombol/menu yang tidak muncul (mis. "Kolam QRIS"), tidak bisa login, atau aplikasi terasa aneh padahal di HP lain normal: buka alamat /diagnostik di browser HP itu (di layar Login Kasir ada tautan "🩺 Ada yang tidak muncul / tidak bisa login? Cek HP").',
+      'Halaman itu memeriksa sendiri: penyimpanan browser, jam HP, versi halaman kasir yang dipakai HP (versi lama atau terbaru), modul QRIS termuat atau tidak, error JavaScript di kasir 3 hari terakhir, dan apakah domain aplikasi terjangkau dari jaringan HP (DNS operator yang memblokir/lambat). Hasilnya otomatis terkirim ke tim MAXI dan muncul "Kode laporan" (mis. D-AB3K9) — sebutkan kode itu ke admin.',
+      'Boleh menulis masalahnya di kotak catatan lalu tekan "Kirim ulang + catatan". Kalau versi halaman kasir tertulis lama, tekan "🧹 Bersihkan & buka kasir". Tidak perlu mengubah setelan HP (mis. DNS) sendiri; penyebabnya dibetulkan di program.',
+      'Yang dikirim hanya hasil pemeriksaan, jenis browser, dan nama operator jaringan; kata sandi dan token tidak pernah dikirim.'
+    ].join('\n'),
+    tawaran: [],
+    tanpaAksi: 'Pemeriksaan HP dijalankan dari halaman /diagnostik di HP yang bermasalah; Una tidak bisa memeriksa HP dari jauh.'
+  },
   // QRIS Otomatis (Bos Cyo, 2026-10-16): src/qris-otomatis.js, public/qris-otomatis.js, public/qris-kasir.js.
   {
     id: 'qris_otomatis',

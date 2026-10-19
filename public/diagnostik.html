@@ -9,7 +9,10 @@
     body{margin:0;padding:16px;font:15px/1.4 system-ui,sans-serif;background:#fff;color:#1a1a1a}
     h1{font-size:20px;margin:0 0 4px}
     p{margin:0 0 12px;color:#555}
-    .aksi{display:flex;gap:8px;margin:12px 0}
+    .aksi{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+    .aksi input{flex:1 1 220px;padding:10px;border:1px solid #bbb;border-radius:8px;font:inherit}
+    .status{padding:10px;border-radius:8px;background:#eef6ff;color:#0b3d6e}
+    .status:empty{display:none}
     button{padding:10px 14px;border:1px solid #bbb;border-radius:8px;background:#f5f5f5;font:inherit}
     .baris{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:8px 0;border-bottom:1px solid #eee}
     .baris b{overflow-wrap:anywhere}
@@ -20,8 +23,10 @@
 </head>
 <body>
   <h1>Diagnosis Browser</h1>
-  <p>Halaman ini hanya memeriksa browser di HP ini. Tidak ada kata sandi atau data akun yang dikirim atau ditampilkan.</p>
-  <div class="aksi"><button id="muatUlang" type="button">Muat ulang</button><button id="salin" type="button">Salin hasil</button></div>
+  <p>Halaman ini memeriksa browser dan jaringan HP ini, lalu otomatis mengirim hasilnya ke tim MAXI. Tidak ada kata sandi atau token yang dikirim atau ditampilkan.</p>
+  <div id="kirimStatus" class="status"></div>
+  <div class="aksi"><button id="bersihkan" type="button">🧹 Bersihkan &amp; buka kasir</button><button id="muatUlang" type="button">Muat ulang</button><button id="salin" type="button">Salin hasil</button></div>
+  <div class="aksi"><input id="catatan" maxlength="500" placeholder="Masalahnya apa? (mis. tombol Kolam QRIS tidak muncul)" /><button id="kirim" type="button">Kirim ulang + catatan</button></div>
   <div id="hasil">JavaScript tidak berjalan di browser ini, jadi pemeriksaan tidak bisa dimulai. Cek: Setelan situs > JavaScript di browser, atau matikan aplikasi pemblokir iklan/VPN lalu muat ulang.</div>
   <script>
     // Skrip di dalam halaman ini jalan hanya kalau JavaScript hidup. File

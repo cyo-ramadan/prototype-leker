@@ -98,3 +98,26 @@ test('halaman pelanggan dan kasir menampilkan pesan jelas bila JavaScript mati, 
     assert.match(source, /<noscript>[\s\S]*JavaScript di browser ini mati[\s\S]*href="\/diagnostik"[\s\S]*<\/noscript>/, page);
   }
 });
+
+// 2026-10-19 (Adenia, Mandala: tombol Kolam QRIS tidak muncul): /diagnostik membandingkan skrip
+// yang dimuat halaman kasir di HP (public/diag-jejak.js) dengan versi terbaru server.
+test('versi skrip kasir dibaca dari HTML kasir', () => {
+  const html = '<script src="/cashier-data-explorer.js?v=B"></script><script src="/qris-otomatis.js?v=Q"></script><script src="/lain.js?v=X"></script>';
+  assert.equal(JSON.stringify(loadDiagnostics().scriptVersions(html)), JSON.stringify({ 'cashier-data-explorer.js': 'B', 'qris-otomatis.js': 'Q' }));
+});
+
+test('halaman kasir versi lama, modul QRIS tidak termuat, dan error JS dilaporkan GAGAL', () => {
+  const now = Date.now();
+  const jejak = { kasir: { at: now - 60000, versions: { 'cashier-data-explorer.js': 'A' }, qrisOtomatis: false }, errors: [{ at: now, message: 'ReferenceError: x', source: 'qris-kasir.js:1' }] };
+  const rows = loadDiagnostics().compareKasir(jejak, { 'cashier-data-explorer.js': 'B' }, now);
+  const status = label => rows.find(row => row.label === label).status;
+  assert.equal(status('Versi halaman kasir'), 'GAGAL');
+  assert.equal(status('Modul QRIS (Kolam QRIS)'), 'GAGAL');
+  assert.equal(status('Error JavaScript di kasir'), 'GAGAL');
+});
+
+test('halaman kasir terbaru tanpa error dilaporkan OK', () => {
+  const now = Date.now();
+  const rows = loadDiagnostics().compareKasir({ kasir: { at: now, versions: { 'qris-kasir.js': 'V' }, qrisOtomatis: true } }, { 'qris-kasir.js': 'V' }, now);
+  assert.ok(rows.filter(row => row.status === 'GAGAL').length === 0);
+});

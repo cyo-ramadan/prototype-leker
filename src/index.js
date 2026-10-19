@@ -47,6 +47,7 @@ import { handlePercetakanApi } from './percetakan-api.js';
 import { handleAdminDrawerApi } from './admin-drawers.js';
 import { handleEmployeeMasterApi } from './employee-master.js';
 import { handleInfoGeraiApi } from './info-gerai.js';
+import { handleDiagnostikLaporanApi } from './diagnostik-laporan.js';
 import { handleQrisApi } from './qris-otomatis.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
@@ -377,6 +378,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (entityStockResponse) return entityStockResponse;
   const entityDrawerStatusResponse = await handleEntityDrawerStatusApi(request, env, pathname);
   if (entityDrawerStatusResponse) return entityDrawerStatusResponse;
+  const diagnostikResponse = await handleDiagnostikLaporanApi(request, env, pathname);
+  if (diagnostikResponse) return diagnostikResponse;
   const infoGeraiResponse = await handleInfoGeraiApi(request, env, pathname);
   if (infoGeraiResponse) return infoGeraiResponse;
   const qrisResponse = await handleQrisApi(request, env, pathname);

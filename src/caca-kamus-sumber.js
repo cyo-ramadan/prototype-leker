@@ -343,6 +343,20 @@ export const SUMBER_KAMUS = Object.freeze({
       "tulis:src/qris-otomatis.js:request.method !== 'POST') return json("
     ]
   },
+  "cek_hp": {
+    "sumber": [
+      "public/diagnostik.js",
+      "public/diagnostik.html",
+      "public/diag-jejak.js",
+      "src/diagnostik-laporan.js"
+    ],
+    "fitur": [
+      "rute:src/diagnostik-laporan.js:/api/diagnostik/laporan",
+      "tombol:public/diagnostik.html:bersihkan",
+      "tombol:public/diagnostik.html:kirim",
+      "tulis:src/diagnostik-laporan.js:request.method !== 'POST') return json("
+    ]
+  },
   "info_gerai": {
     "sumber": [
       "src/info-gerai.js",

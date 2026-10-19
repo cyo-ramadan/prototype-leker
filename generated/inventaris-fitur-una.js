@@ -2764,6 +2764,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/diagnostik-laporan.js:/api/diagnostik/laporan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/diagnostik-laporan.js",
+    "method": null,
+    "rute": "/api/diagnostik/laporan",
+    "label": "/api/diagnostik/laporan",
+    "skin": null
+  },
+  {
     "id": "rute:src/employee-deposit-settlement.js:/api/admin/employee-deposits/",
     "jenis": "rute-kandidat",
     "sumber": "src/employee-deposit-settlement.js",
@@ -8955,6 +8964,28 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/customer.js"
   },
   {
+    "id": "tombol:public/diagnostik.html:bersihkan",
+    "jenis": "tombol",
+    "sumber": "public/diagnostik.html",
+    "tombolId": "bersihkan",
+    "aksi": null,
+    "label": "🧹 Bersihkan &amp; buka kasir",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/diagnostik.html"
+  },
+  {
+    "id": "tombol:public/diagnostik.html:kirim",
+    "jenis": "tombol",
+    "sumber": "public/diagnostik.html",
+    "tombolId": "kirim",
+    "aksi": null,
+    "label": "Kirim ulang + catatan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/diagnostik.html"
+  },
+  {
     "id": "tombol:public/diagnostik.html:muatUlang",
     "jenis": "tombol",
     "sumber": "public/diagnostik.html",
@@ -14354,6 +14385,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "id": "tulis:src/dana-apresiasi-api.js:request.method !== 'POST') return json(",
     "jenis": "rute-tulis",
     "sumber": "src/dana-apresiasi-api.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/diagnostik-laporan.js:request.method !== 'POST') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/diagnostik-laporan.js",
     "method": "POST",
     "rute": null,
     "label": "request.method !== 'POST') return json(",

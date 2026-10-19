@@ -1727,14 +1727,6 @@
    "automationForbidden": true
   },
   {
-   "id": "tombol:public/qris-otomatis.js:data-mt-buat:Buat uang masuk di {nilai}",
-   "label": "Buat uang masuk di {nilai}",
-   "sumber": "public/qris-otomatis.js",
-   "class": "business_draft",
-   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
-   "automationForbidden": true
-  },
-  {
    "id": "tombol:public/qris-otomatis.js:data-mt-peta-simpan:{nilai}",
    "label": "{nilai}",
    "sumber": "public/qris-otomatis.js",
@@ -1743,16 +1735,16 @@
    "automationForbidden": true
   },
   {
-   "id": "tombol:public/qris-otomatis.js:data-mt-pindah:Pindahkan ke {nilai}",
-   "label": "Pindahkan ke {nilai}",
+   "id": "tombol:public/qris-otomatis.js:data-mt-proses:Proses ulang tanggal ini",
+   "label": "Proses ulang tanggal ini",
    "sumber": "public/qris-otomatis.js",
    "class": "business_draft",
    "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
    "automationForbidden": true
   },
   {
-   "id": "tombol:public/qris-otomatis.js:label:Baca & cocokkan",
-   "label": "Baca & cocokkan",
+   "id": "tombol:public/qris-otomatis.js:label:Baca & proses",
+   "label": "Baca & proses",
    "sumber": "public/qris-otomatis.js",
    "class": "business_draft",
    "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",

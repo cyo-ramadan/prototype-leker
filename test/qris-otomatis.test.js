@@ -98,6 +98,12 @@ async function siapkan(f, { semuaGerai = false } = {}) {
 
 const kirim = (f, token, payload) => call(f.env, '/api/qris/masuk', { store: null, method: 'POST', body: payload, query: { token } });
 
+// Saklar qris_tautan_sistem OFF: CS menautkan sendiri penjualan QRIS ke uang masuk (perilaku sebelum 2026-10-19).
+function tautanCs(f) {
+  const tenant = f.sqlite.prepare(`SELECT tenant_id FROM entity_tenancy WHERE entity_id = 'ENT-KPM' AND effective_to IS NULL`).get();
+  f.sqlite.prepare(`INSERT OR REPLACE INTO tenant_policy_settings (tenant_id, setting_key, setting_value, updated_at) VALUES (?, 'qris_tautan_sistem', '0', '2026-10-19T00:00:00Z')`).run(tenant.tenant_id);
+}
+
 // Mode lama (kolam bersama OFF): uang masuk langsung ke gerai dan berbunyi di kasirnya.
 function kolamMati(f) {
   const tenant = f.sqlite.prepare(`SELECT tenant_id FROM entity_tenancy WHERE entity_id = 'ENT-KPM' AND effective_to IS NULL`).get();
@@ -144,6 +150,7 @@ test('notif dari HP penerima tercatat, berbunyi di kasir, dan menaut otomatis bi
 
 test('dua pembeli bernominal sama tidak ditebak; CS memilih, satu uang masuk hanya untuk satu penjualan', async () => {
   const f = await fixture();
+  tautanCs(f);
   const token = await siapkan(f);
   addSale(f.sqlite, { id: 'sale_1', amount: 20000 });
   addSale(f.sqlite, { id: 'sale_2', amount: 20000 });
@@ -364,6 +371,7 @@ test('Penerus QRIS: notif tertahan saat offline tetap tercatat di jam notifikasi
 test('menu Data: filter cara bayar, tombol QRIS merah/hijau, klaim+tautkan sekali ketuk dari baris penjualan', async () => {
   const { handleCashierDataApi } = await import('../src/cashier-data-explorer.js');
   const f = await fixture();
+  tautanCs(f);
   const token = await siapkan(f, { semuaGerai: true });
   const mandala = await session(f.sqlite, 'cashier_sessions', 'cashier_id', 'cashier_mandala_pilot', 'qr-kasir-mandala-2');
   f.sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, status, opened_at) VALUES ('drawer_mandala2', 'store_mandala', 'cashier_mandala_pilot', 'OPEN', ?)`).run(new Date().toISOString());
@@ -418,8 +426,8 @@ test('pengumuman: angka merah per akun -- baru sampai tab dibuka, lalu nol', asy
     return res.json();
   };
   let daftar = await panggil('/api/staff/announcements');
-  assert.equal(daftar.unread, 1);
-  assert.equal(daftar.announcements[0].isNew, true);
+  assert.ok(daftar.unread >= 1, "pengumuman baru terhitung (migration bisa menambah pengumuman lain)");
+  assert.ok(daftar.announcements.find(a => a.id === "ann_qris").isNew);
   assert.equal((await panggil('/api/staff/announcements/seen', 'POST')).ok, true);
   daftar = await panggil('/api/staff/announcements');
   assert.equal(daftar.unread, 0);
@@ -427,53 +435,107 @@ test('pengumuman: angka merah per akun -- baru sampai tab dibuka, lalu nol', asy
   assert.equal((await panggil('/api/staff/announcements')).unread, 1);
 });
 
-test('validasi mutasi BCA (H+1): pemetaan MID, salah gerai, belum diklaim, tanpa notif, pindah & buat dari mutasi', async () => {
+test('penautan oleh sistem (bawaan): CS hanya mengklaim, tidak ada pemilih/tombol tautan, klaim asli tersimpan', async () => {
+  const { handleCashierDataApi } = await import('../src/cashier-data-explorer.js');
+  const f = await fixture();
+  const token = await siapkan(f, { semuaGerai: true });
+  addSale(f.sqlite, { id: 'sale_qris_6k', amount: 6000 });
+  const a = await kirim(f, token, { text: 'Anda telah menerima pembayaran QRIS sebesar Rp 6.000 dari DANA.', id: 'n1', postedAt: Date.now() });
+  assert.deepEqual((await call(f.env, '/api/qris/kandidat', { token: f.kasir, query: { saleId: 'sale_qris_6k' } })).body, { qris: true, tautanSistem: true });
+  const taut = await call(f.env, '/api/qris/klaim-tautkan', { token: f.kasir, method: 'POST', body: { masukId: a.body.id, saleId: 'sale_qris_6k' } });
+  assert.equal(taut.status, 403);
+  assert.equal(taut.body.code, 'QRIS_TAUTAN_SISTEM');
+  assert.equal(f.sqlite.prepare(`SELECT store_id FROM qris_masuk WHERE id = ?`).get(a.body.id).store_id, null, 'klaim tidak terjadi');
+  assert.equal((await call(f.env, '/api/qris/tautkan', { token: f.kasir, method: 'POST', body: { masukId: a.body.id, saleId: 'sale_qris_6k' } })).body.code, 'QRIS_TAUTAN_SISTEM');
+  const url = new URL('https://example.test/api/cashier/data/transactions?filter=SALES');
+  const data = await (await handleCashierDataApi(new Request(url, { headers: { Authorization: `Bearer ${f.kasir}` } }), f.env, url.pathname)).json();
+  assert.equal(data.transactions[0].qris, undefined, 'tanpa tombol QRIS merah/hijau');
+  const kolam = await call(f.env, '/api/qris/kolam', { token: f.kasir });
+  assert.equal(kolam.body.tautanSistem, true);
+  assert.equal((await call(f.env, '/api/qris/klaim', { token: f.kasir, method: 'POST', body: { masukId: a.body.id } })).status, 200);
+  assert.deepEqual({ ...f.sqlite.prepare(`SELECT klaim_store_id, klaim_cashier_id FROM qris_masuk WHERE id = ?`).get(a.body.id) }, { klaim_store_id: 'store_pendem', klaim_cashier_id: 'cashier_pendem_pilot' });
+  assert.equal((await call(f.env, '/api/qris/batal-klaim', { token: f.kasir, method: 'POST', body: { masukId: a.body.id } })).status, 200);
+  assert.deepEqual({ ...f.sqlite.prepare(`SELECT klaim_store_id, klaim_cashier_id FROM qris_masuk WHERE id = ?`).get(a.body.id) }, { klaim_store_id: null, klaim_cashier_id: null }, 'batal klaim = klaim tidak dinilai');
+});
+
+test('mutasi BCA H+1: sistem memindah, membuat, menautkan, lalu mencatat kesalahan tiap CS ke Raport', async () => {
+  const { getCashierRaportFacts } = await import('../src/staff-raport.js');
   const f = await fixture();
   const kemarin = new Date(Date.now() - 24 * 3600_000).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
   const wib = jam => new Date(`${kemarin}T${jam}+07:00`).toISOString();
-  const masuk = (id, amount, at, store, status, sumber, sale = null) => f.sqlite.prepare(`
-    INSERT INTO qris_masuk (id, entity_id, store_id, amount, source, received_at, business_date, sumber_bayar, status, sale_id, claimed_at, claimed_by_name, created_at)
-    VALUES (?, 'ENT-KPM', ?, ?, 'NOTIF_HP', ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, store, amount, at, kemarin, sumber, status, sale, store ? at : null, store ? 'CS Pendem' : '', at);
-  addSale(f.sqlite, { id: 'sale_m1', amount: 6000, at: wib('10:00:10') });
-  masuk('m1', 6000, wib('10:00:30'), 'store_pendem', 'TERTAUT', 'DANA', 'sale_m1');
-  masuk('m2', 6000, wib('10:00:40'), 'store_pendem', 'BELUM', 'DANA');
-  masuk('m3', 7000, wib('10:05:20'), null, 'BELUM', 'BCA');
-  masuk('m4', 4000, wib('12:00:00'), null, 'BELUM', 'OVO');
+  for (const store of ['PENDEM', 'MANDALA']) {
+    assert.equal((await call(f.env, '/api/qris/setelan', { token: f.owner, store, method: 'PUT', body: { paymentMethodCode: 'BANK', kataKunci: '' } })).status, 200);
+  }
+  f.sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, status, opened_at, closed_at) VALUES ('laci_p', 'store_pendem', 'cashier_pendem_pilot', 'CLOSED', ?, ?)`).run(wib('08:00:00'), wib('22:00:00'));
+  f.sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, status, opened_at, closed_at) VALUES ('laci_m', 'store_mandala', 'cashier_mandala_pilot', 'CLOSED', ?, ?)`).run(wib('08:00:00'), wib('22:00:00'));
+  const jual = (id, store, amount, jam) => f.sqlite.prepare(`INSERT INTO sales (id, store_id, drawer_session_id, cashier_id, total_amount, created_at, payment_method) VALUES (?, ?, ?, ?, ?, ?, 'BANK')`)
+    .run(id, `store_${store}`, `laci_${store[0]}`, `cashier_${store}_pilot`, amount, wib(jam));
+  jual('sale_p1', 'pendem', 6000, '10:00:10');
+  jual('sale_m1', 'mandala', 6000, '10:01:00');
+  jual('sale_m2', 'mandala', 9000, '11:02:00');
+  jual('sale_p2', 'pendem', 12000, '13:30:00');
+  jual('sale_p3', 'pendem', 8000, '14:00:00');
+  const masuk = (id, amount, jam, sumber, { klaim = null, sale = null } = {}) => f.sqlite.prepare(`
+    INSERT INTO qris_masuk (id, entity_id, store_id, amount, source, received_at, business_date, sumber_bayar, status, sale_id, link_mode, claimed_at, claimed_by_role, claimed_by_id, claimed_by_name, klaim_store_id, klaim_cashier_id, created_at)
+    VALUES (?, 'ENT-KPM', ?, ?, 'NOTIF_HP', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, klaim ? `store_${klaim}` : null, amount, wib(jam), kemarin, sumber,
+    sale ? 'TERTAUT' : 'BELUM', sale, sale ? 'CS' : null, klaim ? wib(jam) : null, klaim ? 'CASHIER' : '', klaim ? `cashier_${klaim}_pilot` : '', klaim ? `Kasir ${klaim}` : '',
+    klaim ? `store_${klaim}` : null, klaim ? `cashier_${klaim}_pilot` : null, wib(jam));
+  masuk('m1', 6000, '10:00:30', 'DANA', { klaim: 'pendem', sale: 'sale_p1' });
+  masuk('m2', 6000, '10:00:40', 'DANA', { klaim: 'pendem' }); // uang Mandala diklaim Pendem
+  masuk('m3', 7000, '10:05:20', 'BCA'); // uang Pendem tak diklaim & tak ada penjualannya
+  masuk('m5', 9000, '11:40:00', 'GOPAY', { klaim: 'mandala' }); // notifikasi telat 40 menit
+  masuk('m4', 4000, '12:00:00', 'OVO'); // tidak ada di mutasi
   const baris = (mid, amount, jam, rrn, paymentType) => ({ merchantName: `OUTLET ${mid}`, mid, nmid: '', amount, tanggal: kemarin, jam, rrn, approvalCode: '1', paymentType, payer: 'X', reversal: '' });
   const rows = [
-    baris('111111', 6000, '10:00', 'R1', 'DANA'), baris('111111', 7000, '10:05', 'R2', 'BCA'),
+    baris('111111', 6000, '10:00', 'R1', 'DANA'), baris('111111', 7000, '10:05', 'R2', 'BCA'), baris('111111', 12000, '13:00', 'R6', 'BRI'),
     baris('222222', 6000, '10:00', 'R3', 'DANA'), baris('222222', 9000, '11:00', 'R4', 'GOPAY'),
     baris('333333', 5000, '13:00', 'R5', 'BRI')
   ];
   assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.kasir, method: 'POST', body: { rows } })).status, 403);
   const up = await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { fileName: 'uji.xlsx', rows } });
   assert.equal(up.status, 201, JSON.stringify(up.body));
-  assert.equal(up.body.baru, 5);
-  assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { rows } })).body.dobel, 5);
+  assert.equal(up.body.baru, 6);
+  assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { rows } })).body.dobel, 6);
   const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
   assert.equal((await call(f.env, '/api/qris/mutasi', { token: f.owner, method: 'POST', body: { rows: [{ ...rows[0], tanggal: hariIni, rrn: 'RX' }] } })).body.code, 'MUTASI_HARI_INI');
 
   assert.equal((await call(f.env, '/api/qris/mutasi/peta', { token: f.owner, method: 'POST', body: { mid: '111111', storeCode: 'PENDEM' } })).status, 200);
   assert.equal((await call(f.env, '/api/qris/mutasi/peta', { token: f.owner, method: 'POST', body: { mid: '222222', storeCode: 'MANDALA' } })).status, 200);
-  let lihat = await call(f.env, '/api/qris/mutasi', { token: f.owner, query: { tanggal: kemarin } });
-  const st = rrn => lihat.body.baris.find(row => row.rrn === rrn);
-  assert.equal(st('R1').status, 'COCOK');
-  assert.equal(st('R1').masuk.id, 'm1', 'pasangan gerai benar diutamakan');
-  assert.equal(st('R3').status, 'SALAH_GERAI');
-  assert.equal(st('R3').masuk.claimedByName, 'CS Pendem');
-  assert.equal(st('R2').status, 'BELUM_DIKLAIM');
-  assert.equal(st('R4').status, 'TANPA_NOTIF');
-  assert.equal(st('R5').status, 'BELUM_DIPETAKAN');
-  assert.deepEqual(lihat.body.notifTanpaMutasi.map(row => row.id), ['m4']);
-  assert.equal(lihat.body.ringkas.salahGerai, 1);
-
-  assert.equal((await call(f.env, '/api/qris/mutasi/pindah', { token: f.owner, method: 'POST', body: { mutasiId: st('R3').id } })).status, 200);
-  assert.equal(f.sqlite.prepare(`SELECT store_id FROM qris_masuk WHERE id = 'm2'`).get().store_id, 'store_mandala');
-  assert.equal((await call(f.env, '/api/qris/mutasi/buat-masuk', { token: f.owner, method: 'POST', body: { mutasiId: st('R4').id } })).status, 201);
-  lihat = await call(f.env, '/api/qris/mutasi', { token: f.owner, query: { tanggal: kemarin } });
-  assert.equal(st('R3').status, 'BELUM_DITAUTKAN');
-  assert.equal(st('R4').status, 'BELUM_DITAUTKAN');
-  assert.equal(st('R4').masuk.storeCode, 'MANDALA');
+  const periksa = async () => {
+    const lihat = await call(f.env, '/api/qris/mutasi', { token: f.owner, query: { tanggal: kemarin } });
+    assert.equal(lihat.status, 200, JSON.stringify(lihat.body));
+    const st = rrn => lihat.body.baris.find(row => row.rrn === rrn);
+    assert.equal(st('R1').status, 'COCOK');
+    assert.equal(st('R1').sale.id, 'sale_p1');
+    assert.equal(st('R3').status, 'COCOK', 'uang Mandala dipindah sistem lalu tertaut ke penjualan Mandala');
+    assert.equal(st('R3').sale.id, 'sale_m1');
+    assert.equal(st('R2').status, 'TANPA_PENJUALAN');
+    assert.equal(st('R4').sale.id, 'sale_m2');
+    assert.equal(st('R4').notifTelatMenit, 40);
+    assert.equal(st('R6').status, 'COCOK');
+    assert.equal(st('R6').notifTidakSampai, true);
+    assert.equal(st('R6').sale.id, 'sale_p2');
+    assert.equal(st('R5').status, 'BELUM_DIPETAKAN');
+    assert.deepEqual(st('R3').catatan.map(k => [k.jenis, k.cashierName]), [['SALAH_KLAIM', 'Kasir Pendem (Percontohan)']]);
+    assert.deepEqual(lihat.body.notifTanpaMutasi.map(row => row.id), ['m4']);
+    assert.deepEqual(lihat.body.ringkas, { total: 6, totalRupiah: 45000, cocok: 4, tanpaPenjualan: 1, belumDipetakan: 1, notifTidakSampai: 1, salahKlaim: 1, tidakKlaim: 1, penjualanTanpaUang: 1, notifTanpaMutasi: 1 });
+    const pendem = lihat.body.perCs.find(cs => cs.cashierId === 'cashier_pendem_pilot');
+    assert.deepEqual(pendem.jumlah, { SALAH_KLAIM: 1, TIDAK_KLAIM: 1, PENJUALAN_TANPA_UANG: 1, UANG_TANPA_PENJUALAN: 1 });
+    assert.equal(lihat.body.perCs.length, 1, 'CS Mandala tidak punya catatan');
+    assert.deepEqual(lihat.body.penjualanTanpaUang.map(k => k.amount), [8000]);
+  };
+  await periksa();
+  assert.deepEqual({ ...f.sqlite.prepare(`SELECT store_id, klaim_store_id FROM qris_masuk WHERE id = 'm2'`).get() }, { store_id: 'store_mandala', klaim_store_id: 'store_pendem' });
+  // Proses ulang = hasil sama, tidak ada uang masuk/catatan dobel.
+  assert.equal((await call(f.env, '/api/qris/mutasi/proses', { token: f.owner, method: 'POST', body: { tanggal: kemarin } })).status, 200);
+  await periksa();
+  assert.equal(f.sqlite.prepare(`SELECT COUNT(*) AS n FROM qris_masuk WHERE source = 'MANUAL'`).get().n, 1);
+  assert.equal(f.sqlite.prepare(`SELECT COUNT(*) AS n FROM qris_catatan_cs`).get().n, 4);
+  // Raport CS.
+  assert.deepEqual((await getCashierRaportFacts(f.env.DB, 'store_pendem', 'cashier_pendem_pilot')).facts.qris,
+    { salahKlaim: 1, tidakKlaim: 1, penjualanTanpaUang: 1, uangTanpaPenjualan: 1, nominalTidakSesuai: 2 });
+  assert.deepEqual((await getCashierRaportFacts(f.env.DB, 'store_mandala', 'cashier_mandala_pilot')).facts.qris,
+    { salahKlaim: 0, tidakKlaim: 0, penjualanTanpaUang: 0, uangTanpaPenjualan: 0, nominalTidakSesuai: 0 });
 });
 
 test('pembaca mutasi BCA di browser: buka Excel terkunci, baca baris, sandi salah ditolak; SHA-1 cepat = SHA-1 standar', async () => {

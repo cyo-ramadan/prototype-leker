@@ -32,6 +32,9 @@ export const QRIS_OTOMATIS_KEY = 'qris_otomatis';
 export const QRIS_KOLAM_BERSAMA_KEY = 'qris_kolam_bersama';
 // Bos Cyo, 2026-10-17: pembayaran campuran -- satu penjualan dibayar dengan 2-3 cara (mis. QRIS + tunai).
 export const PEMBAYARAN_CAMPURAN_KEY = 'pembayaran_campuran';
+// Bos Cyo, 2026-10-19: "aturan untuk cs mentautkan qris itu dihapus aja, biar sistem aja besuknya yang
+// mentautkan". ON: CS hanya mengklaim; penautan ke penjualan dilakukan sistem saat mutasi H+1 diunggah.
+export const QRIS_TAUTAN_SISTEM_KEY = 'qris_tautan_sistem';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -116,6 +119,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     key: QRIS_KOLAM_BERSAMA_KEY,
     label: 'QRIS: kolam bersama + klaim CS',
     description: 'ON: uang QRIS masuk dari HP penerima menunggu di satu kolam yang terlihat semua kasir yang lacinya terbuka; CS yang pembelinya baru membayar mengklaimnya untuk gerainya (gerai lain tidak bisa memakainya), lalu menautkan ke penjualan. Tidak ada bunyi/notifikasi ke kasir. Cocok bila satu akun merchant memegang banyak outlet dan notifikasinya tidak menyebut outlet. OFF: uang masuk langsung ke gerai menurut HP penerima/kata kunci dan berbunyi di kasir gerai itu.',
+    defaultValue: true
+  },
+  {
+    key: QRIS_TAUTAN_SISTEM_KEY,
+    label: 'QRIS: penautan oleh sistem',
+    description: 'ON: CS cukup mengklaim uang QRIS di kolam; tidak ada jendela "Pilih uang QRIS-nya" sesudah penjualan dan tidak ada tombol QRIS merah/hijau. Saat mutasi H+1 diunggah, sistem yang menautkan uang ke penjualan QRIS dan mencatat salah klaim / tidak klaim / nominal QRIS tidak sesuai tiap CS di Raport. OFF: CS juga menautkan sendiri setiap penjualan QRIS ke uang masuknya.',
     defaultValue: true
   },
   {

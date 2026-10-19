@@ -6,7 +6,7 @@ export const STAFF_RAPORT_CONTRACT = 'MAXI_STAFF_RAPORT_FACTS_V1';
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 
 export async function getCashierRaportFacts(db, storeId, cashierId) {
-  const [sales, purchases, expenses, permits, attendance, drawers, reports] = await Promise.all([
+  const [sales, purchases, expenses, permits, attendance, drawers, reports, qris] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total_amount), 0) AS amount FROM sales WHERE store_id = ? AND cashier_id = ?`).bind(storeId, cashierId).first(),
     db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total_amount), 0) AS amount FROM purchases WHERE store_id = ? AND cashier_id = ?`).bind(storeId, cashierId).first(),
     db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM expenses WHERE store_id = ? AND cashier_id = ?`).bind(storeId, cashierId).first(),
@@ -39,7 +39,16 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
     `).bind(storeId, cashierId).first(),
     db.prepare(`SELECT COUNT(*) AS submitted FROM info_gerai_entries
       WHERE store_id = ? AND created_by_id = ? AND created_by_role = 'CASHIER' AND kind = 'LAPORAN' AND source = 'CS'
-    `).bind(storeId, cashierId).first()
+    `).bind(storeId, cashierId).first(),
+    // Bos Cyo, 2026-10-19: catatan QRIS dari mutasi bank H+1 (src/qris-mutasi.js) ikut Raport.
+    db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN jenis = 'SALAH_KLAIM' THEN 1 ELSE 0 END), 0) AS salah_klaim,
+        COALESCE(SUM(CASE WHEN jenis = 'TIDAK_KLAIM' THEN 1 ELSE 0 END), 0) AS tidak_klaim,
+        COALESCE(SUM(CASE WHEN jenis = 'PENJUALAN_TANPA_UANG' THEN 1 ELSE 0 END), 0) AS penjualan_tanpa_uang,
+        COALESCE(SUM(CASE WHEN jenis = 'UANG_TANPA_PENJUALAN' THEN 1 ELSE 0 END), 0) AS uang_tanpa_penjualan
+      FROM qris_catatan_cs WHERE cashier_id = ?
+    `).bind(cashierId).first()
   ]);
 
   return {
@@ -80,14 +89,23 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
           stillRed: Math.max(0, Number(attendance?.gps_no_gps || 0) + Number(attendance?.gps_out_of_radius || 0) - Number(attendance?.gps_resolved || 0))
         }
       },
-      drawers: { total: Number(drawers?.total || 0), closed: Number(drawers?.closed || 0) }
+      drawers: { total: Number(drawers?.total || 0), closed: Number(drawers?.closed || 0) },
+      // nominalTidakSesuai = penjualan QRIS tanpa uang di mutasi + uang QRIS tanpa penjualan QRIS.
+      qris: {
+        salahKlaim: Number(qris?.salah_klaim || 0),
+        tidakKlaim: Number(qris?.tidak_klaim || 0),
+        penjualanTanpaUang: Number(qris?.penjualan_tanpa_uang || 0),
+        uangTanpaPenjualan: Number(qris?.uang_tanpa_penjualan || 0),
+        nominalTidakSesuai: Number(qris?.penjualan_tanpa_uang || 0) + Number(qris?.uang_tanpa_penjualan || 0)
+      }
     },
     assessmentInputs: [
       { code: 'transaction_void_requests', label: 'Permintaan hapus/void transaksi', source: 'approval_permits', scoring: 'UNCONFIGURED' },
       { code: 'transaction_activity', label: 'Aktivitas transaksi', source: 'sales+purchases+expenses', scoring: 'UNCONFIGURED' },
       { code: 'attendance_activity', label: 'Aktivitas presensi', source: 'staff_attendance', scoring: 'UNCONFIGURED' },
       { code: 'drawer_activity', label: 'Aktivitas laci', source: 'cash_drawer_sessions', scoring: 'UNCONFIGURED' },
-      { code: 'info_gerai_reports', label: 'Kontribusi laporan Info Gerai', source: 'info_gerai_entries', scoring: 'UNCONFIGURED' }
+      { code: 'info_gerai_reports', label: 'Kontribusi laporan Info Gerai', source: 'info_gerai_entries', scoring: 'UNCONFIGURED' },
+      { code: 'qris_mutasi', label: 'QRIS: salah klaim, tidak klaim, nominal tidak sesuai', source: 'qris_catatan_cs', scoring: 'UNCONFIGURED' }
     ]
   };
 }

@@ -2,7 +2,9 @@
 // "📊 Data" (kolom & filter Cara bayar, tombol kecil QRIS merah/hijau per penjualan, tombol
 // "Kolam QRIS" di sebelah Stok) -- cashier-data-explorer.js. Di sini:
 // - sesudah penjualan QRIS/campuran tersimpan, langsung tawarkan "Pilih uang QRIS-nya" supaya CS
-//   mengunci uangnya sebelum gerai lain mengklaim (notifikasi Merchant BCA masuk < 2 detik);
+//   mengunci uangnya sebelum gerai lain mengklaim (notifikasi Merchant BCA masuk < 2 detik). Saklar
+//   qris_tautan_sistem ON (bawaan, 2026-10-19): server menjawab tautanSistem dan jendelanya tidak muncul --
+//   CS cukup mengklaim di Kolam QRIS, sistem yang menautkan dari mutasi H+1;
 // - mode tanpa kolam bersama: bunyi + pita hijau saat notifikasi QRIS_MASUK datang lewat saluran
 //   notifikasi langsung (WebSocket, user-notifications.js) -- tanpa polling.
 // Tampilan & aturan ada di qris-otomatis.js / src/qris-otomatis.js.

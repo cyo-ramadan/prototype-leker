@@ -1,25 +1,42 @@
 import { json } from './http.js';
 import { getJakartaBusinessDate, jakartaWallClockToUtc } from './time.js';
-import { tautkanOtomatis } from './qris-otomatis.js';
+import { qrisMethodFor, QRIS_SALE_JOIN, QRIS_SALE_WHERE, QRIS_SALE_AMOUNT } from './qris-otomatis.js';
 
-// Validasi QRIS dengan mutasi bank (Bos Cyo, 2026-10-18; migration 0168). Mutasi Merchant BCA baru bisa
-// diekspor H+1. Admin Entity mengunggahnya (file dibuka di browser, public/bca-mutasi-baca.js), lalu tiap
-// baris mutasi dipasangkan dengan satu uang masuk (qris_masuk) dan outlet aslinya dibandingkan dengan gerai
-// yang mengklaim:
-//   COCOK            uang diklaim gerai yang benar dan sudah tertaut ke penjualan
-//   BELUM_DITAUTKAN  diklaim gerai yang benar, belum ada penjualannya
-//   BELUM_DIKLAIM    masih di kolam (tak ada CS yang mengklaim)
-//   SALAH_GERAI      diklaim gerai lain -> kemungkinan salah klaim / curang (nama CS terlihat)
-//   TANPA_NOTIF      ada di mutasi tapi notifikasinya tidak pernah sampai (HP penerima mati/logout)
-//   BELUM_DIPETAKAN  outlet (MID) belum dipasangkan ke gerai Leker
-// Uang masuk tanpa baris mutasi (NOTIF_TANPA_MUTASI) juga ditampilkan: notifikasi palsu / dobel / beda hari.
+// Mutasi QRIS sebagai hakim (Bos Cyo, 2026-10-18/19; migration 0168, 0171). Mutasi Merchant BCA baru bisa
+// diekspor H+1. Admin Entity mengunggahnya (file dibuka di browser, public/bca-mutasi-baca.js), lalu sistem
+// memproses tanggal itu (prosesMutasi):
+//   1. tiap baris mutasi dipasangkan dengan satu uang masuk (qris_masuk) -- notifikasi yang telat sampai
+//      berjam-jam tetap terpasang;
+//   2. notifikasi yang tidak pernah sampai -> sistem membuat uang masuknya; uang yang diklaim gerai lain /
+//      tidak diklaim -> dipindah ke gerai asli outlet (MID) di mutasi;
+//   3. sistem menautkan uang ke penjualan QRIS gerai itu (nominal sama, waktu terdekat). CS cukup mengklaim;
+//   4. kesalahan tiap CS dicatat untuk Raport (qris_catatan_cs): SALAH_KLAIM, TIDAK_KLAIM,
+//      PENJUALAN_TANPA_UANG dan UANG_TANPA_PENJUALAN (dua-duanya "nominal QRIS tidak sesuai").
+// Bisa diulang kapan saja (unggah ulang, pemetaan MID, tombol Proses ulang) dengan hasil yang sama.
 
 const text = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 const rows = async stmt => (await stmt.all()).results ?? [];
+const rupiah = value => `Rp${Number(value || 0).toLocaleString('id-ID')}`;
+const jamWib = iso => new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(iso));
 const MAKS_BARIS = 3000;
-// Mutasi presisi menit (jam transaksi), notifikasi datang sesudah bayar: jendela -1 s.d. +3 menit.
+// Mutasi presisi menit (jam transaksi), notifikasi datang sesudah bayar: -1 s.d. +3 menit = pasangan pasti.
+// Notifikasi Merchant BCA bisa tertahan di HP berjam-jam (17-18 Okt: 10 menit s.d. 1 jam) -> dicari
+// sampai 8 jam sesudahnya, tapi pasangan pasti selalu didahulukan.
 const JENDELA_SEBELUM_MS = 60_000;
 const JENDELA_SESUDAH_MS = 180_000;
+const JENDELA_TELAT_MS = 8 * 3600_000;
+// Penjualan dicatat sekitar saat bayar; kadang dicatat ulang belakangan (mis. salah cara bayar lalu dihapus).
+const PENJUALAN_SEBELUM_MS = 3600_000;
+const PENJUALAN_SESUDAH_MS = 6 * 3600_000;
+// Penjualan dari laci (shift CS) lain hanya boleh dipasangkan bila jaraknya dekat: uang jam 17.42 milik shift
+// pagi tidak boleh "menutupi" penjualan QRIS jam 19.28 shift sore yang uangnya memang tidak ada.
+const BEDA_LACI_MAKS_MS = 30 * 60_000;
+export const JENIS_CATATAN_CS = Object.freeze({
+  SALAH_KLAIM: 'Salah klaim',
+  TIDAK_KLAIM: 'Tidak klaim',
+  PENJUALAN_TANPA_UANG: 'Penjualan QRIS tanpa uang',
+  UANG_TANPA_PENJUALAN: 'Uang QRIS tanpa penjualan QRIS'
+});
 
 const dompet = value => text(value, 60).toUpperCase().replace(/^BANK\s+/, '').replace(/[^A-Z0-9]/g, '');
 function dompetCocok(a, b) {
@@ -30,6 +47,11 @@ function dompetCocok(a, b) {
 
 function hariIni() { return getJakartaBusinessDate(); }
 
+function rentang(tanggal) {
+  const awal = jakartaWallClockToUtc(tanggal, '00:00');
+  return { awal, from: awal.toISOString(), to: new Date(awal.getTime() + 24 * 3600_000).toISOString() };
+}
+
 async function petaMid(db, entityId) {
   const list = await rows(db.prepare(`
     SELECT m.mid, m.store_id, m.merchant_name, s.code AS store_code FROM qris_merchant_gerai m JOIN stores s ON s.id = m.store_id WHERE m.entity_id = ?
@@ -37,15 +59,14 @@ async function petaMid(db, entityId) {
   return new Map(list.map(row => [row.mid, row]));
 }
 
-// Pasangkan ulang semua mutasi satu tanggal dengan uang masuk. Deterministik dan bisa diulang kapan saja
-// (sesudah klaim baru, pemetaan MID, atau unggah ulang).
+// Pasangkan ulang semua mutasi satu tanggal dengan uang masuk. Deterministik dan bisa diulang kapan saja.
 export async function cocokkanMutasi(db, entityId, tanggal) {
   const mutasi = await rows(db.prepare(`SELECT id, mid, amount, trx_at, payment_type FROM qris_mutasi WHERE entity_id = ? AND business_date = ? ORDER BY trx_at, id`).bind(entityId, tanggal));
   await db.prepare(`UPDATE qris_mutasi SET masuk_id = NULL WHERE entity_id = ? AND business_date = ?`).bind(entityId, tanggal).run();
   if (!mutasi.length) return 0;
-  const awal = jakartaWallClockToUtc(tanggal, '00:00');
+  const { awal } = rentang(tanggal);
   const dari = new Date(awal.getTime() - 30 * 60_000).toISOString();
-  const sampai = new Date(awal.getTime() + 24 * 3600_000 + 30 * 60_000).toISOString();
+  const sampai = new Date(awal.getTime() + 24 * 3600_000 + JENDELA_TELAT_MS).toISOString();
   const masuk = await rows(db.prepare(`
     SELECT id, amount, received_at, store_id, sumber_bayar FROM qris_masuk
     WHERE entity_id = ? AND status != 'DIABAIKAN' AND received_at >= ? AND received_at < ?
@@ -58,15 +79,16 @@ export async function cocokkanMutasi(db, entityId, tanggal) {
     for (const q of masuk) {
       if (Number(q.amount) !== Number(m.amount)) continue;
       const selisih = new Date(q.received_at).getTime() - t;
-      if (selisih < -JENDELA_SEBELUM_MS || selisih > JENDELA_SESUDAH_MS) continue;
+      if (selisih < -JENDELA_SEBELUM_MS || selisih > JENDELA_TELAT_MS) continue;
       if (!dompetCocok(m.payment_type, q.sumber_bayar)) continue;
+      const pasti = selisih <= JENDELA_SESUDAH_MS;
       const geraiBenar = Boolean(q.store_id) && peta.get(m.mid)?.store_id === q.store_id;
-      calon.push({ m: m.id, q: q.id, geraiBenar, jarak: Math.abs(selisih - 30_000) });
+      calon.push({ m: m.id, q: q.id, pasti, geraiBenar, jarak: Math.abs(selisih - 30_000) });
     }
   }
-  // Utamakan pasangan yang gerainya sudah benar: dua pembeli Rp6.000 dari DANA di menit yang sama di dua
-  // outlet berbeda tidak boleh "tertukar" dan menuduh CS yang benar.
-  calon.sort((a, b) => (b.geraiBenar - a.geraiBenar) || (a.jarak - b.jarak));
+  // Pasangan pasti (±menit) dulu, lalu yang gerainya sudah benar: dua pembeli Rp6.000 dari DANA di menit
+  // yang sama di dua outlet berbeda tidak boleh "tertukar" dan menuduh CS yang benar.
+  calon.sort((a, b) => (b.pasti - a.pasti) || (b.geraiBenar - a.geraiBenar) || (a.jarak - b.jarak));
   const pakaiM = new Set();
   const pakaiQ = new Set();
   let n = 0;
@@ -79,13 +101,155 @@ export async function cocokkanMutasi(db, entityId, tanggal) {
   return n;
 }
 
-function statusBaris(row, peta) {
-  const gerai = peta.get(row.mid);
-  if (!gerai) return 'BELUM_DIPETAKAN';
-  if (!row.masuk_id) return 'TANPA_NOTIF';
-  if (!row.q_store_id) return 'BELUM_DIKLAIM';
-  if (row.q_store_id !== gerai.store_id) return 'SALAH_GERAI';
-  return row.q_status === 'TERTAUT' ? 'COCOK' : 'BELUM_DITAUTKAN';
+// CS yang lacinya terbuka di gerai itu saat uangnya masuk = yang seharusnya mengklaim & mencatat.
+async function csBertugas(db, storeId, at) {
+  return db.prepare(`
+    SELECT d.id, d.cashier_id, c.employee_name FROM cash_drawer_sessions d LEFT JOIN cashiers c ON c.id = d.cashier_id
+    WHERE d.store_id = ? AND d.opened_at <= ? AND (d.closed_at IS NULL OR d.closed_at >= ?) ORDER BY d.opened_at DESC LIMIT 1
+  `).bind(storeId, at, at).first();
+}
+
+async function namaKasir(db, cashierId) {
+  if (!cashierId) return '';
+  return (await db.prepare(`SELECT employee_name FROM cashiers WHERE id = ?`).bind(cashierId).first())?.employee_name || '';
+}
+
+export async function prosesMutasi(db, entityId, tanggal) {
+  await cocokkanMutasi(db, entityId, tanggal);
+  const peta = await petaMid(db, entityId);
+  const kodeGerai = new Map([...peta.values()].map(g => [g.store_id, g.store_code]));
+  const now = new Date().toISOString();
+  const mutasi = await rows(db.prepare(`
+    SELECT mt.*, q.store_id AS q_store_id, st.code AS q_store_code FROM qris_mutasi mt
+    LEFT JOIN qris_masuk q ON q.id = mt.masuk_id LEFT JOIN stores st ON st.id = q.store_id
+    WHERE mt.entity_id = ? AND mt.business_date = ? ORDER BY mt.trx_at, mt.id
+  `).bind(entityId, tanggal));
+
+  // 1-2. Uang masuk tiap baris mutasi harus ada dan berada di gerai asli outletnya.
+  for (const m of mutasi) {
+    const gerai = peta.get(m.mid);
+    if (!gerai) continue;
+    if (!m.masuk_id) {
+      const ref = `mutasi:${m.mid}:${m.rrn}`;
+      const ada = await db.prepare(`SELECT id, status FROM qris_masuk WHERE entity_id = ? AND ref = ?`).bind(entityId, ref).first();
+      if (ada?.status === 'DIABAIKAN') continue;
+      const id = ada?.id || `qrism_${crypto.randomUUID()}`;
+      if (!ada) {
+        await db.prepare(`
+          INSERT INTO qris_masuk (id, entity_id, store_id, amount, source, raw_text, ref, received_at, business_date, sumber_bayar, note, created_by_role, created_by_name, created_at)
+          VALUES (?, ?, ?, ?, 'MANUAL', '', ?, ?, ?, ?, ?, 'SYSTEM', 'Sistem (mutasi)', ?)
+        `).bind(id, entityId, gerai.store_id, m.amount, ref, m.trx_at, m.business_date, m.payment_type,
+          `Dibuat sistem dari mutasi BCA ${m.merchant_name} RRN ${m.rrn} (notifikasi tidak sampai)`, now).run();
+      }
+      await db.prepare(`UPDATE qris_mutasi SET masuk_id = ? WHERE id = ?`).bind(id, m.id).run();
+      m.masuk_id = id;
+    } else if (m.q_store_id !== gerai.store_id) {
+      await db.prepare(`
+        UPDATE qris_masuk SET store_id = ?, status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = '', note = ?
+        WHERE id = ?
+      `).bind(gerai.store_id, `Dipindah sistem ke ${gerai.store_code} sesuai mutasi BCA (${m.merchant_name}, RRN ${m.rrn}). Sebelumnya: ${m.q_store_code || 'kolam'}.`, m.masuk_id).run();
+    }
+  }
+
+  // 3. Tautkan ulang per gerai: uang (menurut mutasi) <-> penjualan QRIS bernominal sama, urut waktu.
+  const perGerai = new Map();
+  for (const m of mutasi) {
+    const gerai = peta.get(m.mid);
+    if (!gerai || !m.masuk_id) continue;
+    if (!perGerai.has(gerai.store_id)) perGerai.set(gerai.store_id, []);
+    perGerai.get(gerai.store_id).push(m);
+  }
+  const { awal, from, to } = rentang(tanggal);
+  const tertaut = new Set();
+  for (const [storeId, list] of perGerai) {
+    const method = await qrisMethodFor(db, storeId);
+    if (!method.code) continue;
+    const ids = list.map(m => m.masuk_id);
+    await db.prepare(`
+      UPDATE qris_masuk SET status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = ''
+      WHERE status = 'TERTAUT' AND id IN (${ids.map(() => '?').join(', ')})
+    `).bind(...ids).run();
+    const sales = await rows(db.prepare(`
+      SELECT s.id, ${QRIS_SALE_AMOUNT} AS amount, s.created_at, s.drawer_session_id FROM sales s ${QRIS_SALE_JOIN}
+      WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.voided_at IS NULL AND s.created_at >= ? AND s.created_at < ?
+        AND NOT EXISTS (SELECT 1 FROM qris_masuk q WHERE q.sale_id = s.id)
+      ORDER BY s.created_at, s.id
+    `).bind(method.code, storeId, method.code, new Date(awal.getTime() - PENJUALAN_SEBELUM_MS).toISOString(), new Date(awal.getTime() + 24 * 3600_000 + PENJUALAN_SESUDAH_MS).toISOString()));
+    // Semua pasangan yang mungkin, lalu yang paling dekat waktunya dipasangkan duluan (bukan uang paling pagi
+    // dulu: uang 13.53 tanpa penjualan tidak boleh merebut penjualan 18.16 milik uang 18.15).
+    const calon = [];
+    for (const m of list) {
+      const t = new Date(m.trx_at).getTime();
+      const laci = (await csBertugas(db, storeId, m.trx_at))?.id || null;
+      for (const s of sales) {
+        if (Number(s.amount) !== Number(m.amount)) continue;
+        const selisih = new Date(s.created_at).getTime() - t;
+        if (selisih < -PENJUALAN_SEBELUM_MS || selisih > PENJUALAN_SESUDAH_MS) continue;
+        const bedaLaci = Boolean(laci && s.drawer_session_id && laci !== s.drawer_session_id);
+        if (bedaLaci && Math.abs(selisih) > BEDA_LACI_MAKS_MS) continue;
+        calon.push({ m, s, jarak: Math.abs(selisih) });
+      }
+    }
+    calon.sort((a, b) => a.jarak - b.jarak || a.s.created_at.localeCompare(b.s.created_at));
+    const dipakai = new Set();
+    for (const { m, s: sale } of calon) {
+      if (dipakai.has(sale.id) || tertaut.has(m.masuk_id)) continue;
+      let result;
+      try {
+        result = await db.prepare(`
+          UPDATE qris_masuk SET status = 'TERTAUT', sale_id = ?, link_mode = 'OTOMATIS', linked_at = ?, linked_by_role = 'SYSTEM', linked_by_name = 'Sistem (mutasi)'
+          WHERE id = ? AND status = 'BELUM'
+        `).bind(sale.id, now, m.masuk_id).run();
+      } catch { result = { meta: { changes: 0 } }; }
+      if (result.meta?.changes) { dipakai.add(sale.id); tertaut.add(m.masuk_id); }
+    }
+  }
+
+  // 4. Catatan CS untuk Raport -- dihitung ulang utuh untuk tanggal ini.
+  await db.prepare(`DELETE FROM qris_catatan_cs WHERE entity_id = ? AND business_date = ?`).bind(entityId, tanggal).run();
+  const catat = async (jenis, { storeId, cashierId, cashierName, amount, waktu, mutasiId = null, masukId = null, saleId = null, keterangan }) => {
+    await db.prepare(`
+      INSERT INTO qris_catatan_cs (id, entity_id, business_date, jenis, store_id, cashier_id, cashier_name, amount, waktu, mutasi_id, masuk_id, sale_id, keterangan, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(`qriscs_${crypto.randomUUID()}`, entityId, tanggal, jenis, storeId, cashierId || null, cashierName || '', amount, waktu, mutasiId, masukId, saleId, keterangan, now).run();
+  };
+  for (const m of mutasi) {
+    const gerai = peta.get(m.mid);
+    if (!gerai || !m.masuk_id) continue;
+    const q = await db.prepare(`SELECT source, klaim_store_id, klaim_cashier_id, claimed_by_name FROM qris_masuk WHERE id = ?`).bind(m.masuk_id).first();
+    const uang = `${rupiah(m.amount)} jam ${jamWib(m.trx_at)}${m.payment_type ? ` dari ${m.payment_type}` : ''}`;
+    const bertugas = await csBertugas(db, gerai.store_id, m.trx_at);
+    const dasar = { storeId: gerai.store_id, amount: Number(m.amount), waktu: m.trx_at, mutasiId: m.id, masukId: m.masuk_id };
+    if (q.klaim_store_id && q.klaim_store_id !== gerai.store_id) {
+      const klaimKode = kodeGerai.get(q.klaim_store_id) || (await db.prepare(`SELECT code FROM stores WHERE id = ?`).bind(q.klaim_store_id).first())?.code || 'gerai lain';
+      await catat('SALAH_KLAIM', { ...dasar, storeId: q.klaim_store_id, cashierId: q.klaim_cashier_id, cashierName: await namaKasir(db, q.klaim_cashier_id) || q.claimed_by_name,
+        keterangan: `Mengklaim uang ${uang} untuk ${klaimKode}, padahal uangnya masuk ke outlet ${m.merchant_name} (${gerai.store_code}).` });
+    } else if (!q.klaim_store_id && q.source === 'NOTIF_HP') {
+      await catat('TIDAK_KLAIM', { ...dasar, cashierId: bertugas?.cashier_id, cashierName: bertugas?.employee_name,
+        keterangan: `Uang ${uang} masuk ke ${gerai.store_code} tapi tidak diklaim${bertugas ? '' : ' (tidak ada laci terbuka saat itu)'}.` });
+    }
+    if (!tertaut.has(m.masuk_id)) {
+      await catat('UANG_TANPA_PENJUALAN', { ...dasar, cashierId: bertugas?.cashier_id, cashierName: bertugas?.employee_name,
+        keterangan: `Uang QRIS ${uang} masuk ke ${gerai.store_code} tapi tidak ada penjualan QRIS ${rupiah(m.amount)} -- tercatat dengan cara bayar lain, digabung, atau tidak dicatat.` });
+    }
+  }
+  // Penjualan QRIS yang uangnya tidak ada di mutasi (hanya gerai yang outletnya sudah dipasangkan).
+  for (const storeId of new Set([...peta.values()].map(g => g.store_id))) {
+    const method = await qrisMethodFor(db, storeId);
+    if (!method.code) continue;
+    const yatim = await rows(db.prepare(`
+      SELECT s.id, ${QRIS_SALE_AMOUNT} AS amount, s.created_at, s.cashier_id, c.employee_name, q.id AS masuk_id
+      FROM sales s ${QRIS_SALE_JOIN} LEFT JOIN cashiers c ON c.id = s.cashier_id LEFT JOIN qris_masuk q ON q.sale_id = s.id
+      WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.voided_at IS NULL AND s.created_at >= ? AND s.created_at < ?
+        AND (q.id IS NULL OR q.id NOT IN (SELECT masuk_id FROM qris_mutasi WHERE entity_id = ? AND masuk_id IS NOT NULL))
+      ORDER BY s.created_at
+    `).bind(method.code, storeId, method.code, from, to, entityId));
+    for (const s of yatim) {
+      await catat('PENJUALAN_TANPA_UANG', { storeId, cashierId: s.cashier_id, cashierName: s.employee_name, amount: Number(s.amount), waktu: s.created_at, saleId: s.id, masukId: s.masuk_id || null,
+        keterangan: `Penjualan QRIS ${rupiah(s.amount)} jam ${jamWib(s.created_at)} tidak ada uangnya di mutasi BCA${s.masuk_id ? ' (tertaut ke notifikasi yang tidak ada di mutasi)' : ''}.` });
+    }
+  }
+  return { tertaut: tertaut.size };
 }
 
 async function lihat(db, actor, tanggalDiminta) {
@@ -93,33 +257,52 @@ async function lihat(db, actor, tanggalDiminta) {
   const tersedia = (await rows(db.prepare(`SELECT business_date, COUNT(*) AS n FROM qris_mutasi WHERE entity_id = ? GROUP BY business_date ORDER BY business_date DESC LIMIT 31`).bind(entityId)))
     .map(row => ({ tanggal: row.business_date, jumlah: Number(row.n) }));
   const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(tanggalDiminta || '') ? tanggalDiminta : (tersedia[0]?.tanggal || hariIni());
-  if (tersedia.some(item => item.tanggal === tanggal)) await cocokkanMutasi(db, entityId, tanggal);
   const peta = await petaMid(db, entityId);
   const baris = await rows(db.prepare(`
-    SELECT mt.*, q.store_id AS q_store_id, q.status AS q_status, q.received_at AS q_received_at, q.sumber_bayar AS q_sumber,
-           q.claimed_by_name AS q_claimed_by, q.sale_id AS q_sale_id, qs.code AS q_store_code
-    FROM qris_mutasi mt LEFT JOIN qris_masuk q ON q.id = mt.masuk_id LEFT JOIN stores qs ON qs.id = q.store_id
+    SELECT mt.*, q.status AS q_status, q.received_at AS q_received_at, q.source AS q_source, q.created_by_role AS q_created_by_role,
+           q.sale_id AS q_sale_id, s.created_at AS sale_at, c.employee_name AS sale_cashier
+    FROM qris_mutasi mt LEFT JOIN qris_masuk q ON q.id = mt.masuk_id
+    LEFT JOIN sales s ON s.id = q.sale_id LEFT JOIN cashiers c ON c.id = s.cashier_id
     WHERE mt.entity_id = ? AND mt.business_date = ? ORDER BY mt.trx_at, mt.id
   `).bind(entityId, tanggal));
-  const hasil = baris.map(row => ({
-    id: row.id, mid: row.mid, merchantName: row.merchant_name, amount: Number(row.amount), trxAt: row.trx_at, rrn: row.rrn,
-    paymentType: row.payment_type, payer: row.payer, reversal: row.reversal,
-    geraiSeharusnya: peta.get(row.mid)?.store_code || null,
-    status: statusBaris(row, peta),
-    masuk: row.masuk_id ? { id: row.masuk_id, receivedAt: row.q_received_at, storeCode: row.q_store_code || null, status: row.q_status, claimedByName: row.q_claimed_by || '', saleId: row.q_sale_id || null } : null
-  }));
-  const awal = jakartaWallClockToUtc(tanggal, '00:00');
+  const catatan = await rows(db.prepare(`
+    SELECT k.*, st.code AS store_code FROM qris_catatan_cs k LEFT JOIN stores st ON st.id = k.store_id
+    WHERE k.entity_id = ? AND k.business_date = ? ORDER BY k.waktu
+  `).bind(entityId, tanggal));
+  const mapCatatan = row => ({ jenis: row.jenis, label: JENIS_CATATAN_CS[row.jenis], storeCode: row.store_code || null, cashierId: row.cashier_id || null,
+    cashierName: row.cashier_name || '', amount: Number(row.amount), waktu: row.waktu, keterangan: row.keterangan });
+  const hasil = baris.map(row => {
+    const gerai = peta.get(row.mid);
+    const telat = row.q_source === 'NOTIF_HP' ? Math.round((new Date(row.q_received_at).getTime() - new Date(row.trx_at).getTime()) / 60000) : null;
+    return {
+      id: row.id, mid: row.mid, merchantName: row.merchant_name, amount: Number(row.amount), trxAt: row.trx_at, rrn: row.rrn,
+      paymentType: row.payment_type, geraiSeharusnya: gerai?.store_code || null,
+      status: !gerai ? 'BELUM_DIPETAKAN' : row.q_status === 'TERTAUT' ? 'COCOK' : 'TANPA_PENJUALAN',
+      notifTidakSampai: Boolean(row.masuk_id) && row.q_source === 'MANUAL' && row.q_created_by_role === 'SYSTEM',
+      notifTelatMenit: telat !== null && telat >= 5 ? telat : null,
+      sale: row.q_sale_id ? { id: row.q_sale_id, createdAt: row.sale_at, cashierName: row.sale_cashier || '' } : null,
+      catatan: catatan.filter(k => k.mutasi_id === row.id).map(mapCatatan)
+    };
+  });
   const tanpaMutasi = tersedia.some(item => item.tanggal === tanggal) ? (await rows(db.prepare(`
     SELECT q.id, q.amount, q.received_at, q.sumber_bayar, q.status, q.claimed_by_name, s.code AS store_code FROM qris_masuk q LEFT JOIN stores s ON s.id = q.store_id
-    WHERE q.entity_id = ? AND q.status != 'DIABAIKAN' AND q.received_at >= ? AND q.received_at < ?
+    WHERE q.entity_id = ? AND q.status != 'DIABAIKAN' AND q.business_date = ?
       AND q.id NOT IN (SELECT masuk_id FROM qris_mutasi WHERE entity_id = ? AND masuk_id IS NOT NULL)
     ORDER BY q.received_at
-  `).bind(entityId, awal.toISOString(), new Date(awal.getTime() + 24 * 3600_000).toISOString(), entityId))).map(row => ({
+  `).bind(entityId, tanggal, entityId))).map(row => ({
     id: row.id, amount: Number(row.amount), receivedAt: row.received_at, sumberBayar: row.sumber_bayar, status: row.status,
     storeCode: row.store_code || null, claimedByName: row.claimed_by_name || ''
   })) : [];
-  const hitung = status => hasil.filter(row => row.status === status).length;
-  const mids = [...new Map(baris.map(row => [row.mid, row.merchant_name])).entries()];
+  // Ringkasan per CS: berapa kali tiap jenis kesalahan, dengan rinciannya.
+  const perCs = new Map();
+  for (const row of catatan) {
+    const key = row.cashier_id || `tanpa:${row.store_id}`;
+    if (!perCs.has(key)) perCs.set(key, { cashierId: row.cashier_id || null, cashierName: row.cashier_name || '(tidak ada laci terbuka)', storeCode: row.store_code || null, jumlah: { SALAH_KLAIM: 0, TIDAK_KLAIM: 0, PENJUALAN_TANPA_UANG: 0, UANG_TANPA_PENJUALAN: 0 }, rincian: [] });
+    const cs = perCs.get(key);
+    cs.jumlah[row.jenis] += 1;
+    cs.rincian.push(mapCatatan(row));
+  }
+  const hitung = jenis => catatan.filter(row => row.jenis === jenis).length;
   const semuaMid = await rows(db.prepare(`SELECT DISTINCT mid, merchant_name FROM qris_mutasi WHERE entity_id = ? ORDER BY merchant_name`).bind(entityId));
   return json({
     tanggal,
@@ -127,13 +310,20 @@ async function lihat(db, actor, tanggalDiminta) {
     ringkas: {
       total: hasil.length,
       totalRupiah: hasil.reduce((sum, row) => sum + row.amount, 0),
-      cocok: hitung('COCOK'), belumDitautkan: hitung('BELUM_DITAUTKAN'), belumDiklaim: hitung('BELUM_DIKLAIM'),
-      salahGerai: hitung('SALAH_GERAI'), tanpaNotif: hitung('TANPA_NOTIF'), belumDipetakan: hitung('BELUM_DIPETAKAN'),
+      cocok: hasil.filter(row => row.status === 'COCOK').length,
+      tanpaPenjualan: hasil.filter(row => row.status === 'TANPA_PENJUALAN').length,
+      belumDipetakan: hasil.filter(row => row.status === 'BELUM_DIPETAKAN').length,
+      notifTidakSampai: hasil.filter(row => row.notifTidakSampai).length,
+      salahKlaim: hitung('SALAH_KLAIM'),
+      tidakKlaim: hitung('TIDAK_KLAIM'),
+      penjualanTanpaUang: hitung('PENJUALAN_TANPA_UANG'),
       notifTanpaMutasi: tanpaMutasi.length
     },
-    peta: semuaMid.map(row => ({ mid: row.mid, merchantName: row.merchant_name, storeCode: peta.get(row.mid)?.store_code || null, adaDiTanggalIni: mids.some(([mid]) => mid === row.mid) })),
+    peta: semuaMid.map(row => ({ mid: row.mid, merchantName: row.merchant_name, storeCode: peta.get(row.mid)?.store_code || null, adaDiTanggalIni: baris.some(b => b.mid === row.mid) })),
     gerai: (await rows(db.prepare(`SELECT code, store_name FROM stores WHERE entity_id = ? AND is_active = 1 ORDER BY code`).bind(entityId))).map(row => ({ code: row.code, name: row.store_name })),
     baris: hasil,
+    perCs: [...perCs.values()].sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || '') || a.cashierName.localeCompare(b.cashierName)),
+    penjualanTanpaUang: catatan.filter(row => row.jenis === 'PENJUALAN_TANPA_UANG').map(mapCatatan),
     notifTanpaMutasi: tanpaMutasi
   });
 }
@@ -178,7 +368,7 @@ async function unggah(db, actor, value) {
     baru += Number(res.meta?.changes || 0);
   }
   await db.prepare(`UPDATE qris_mutasi_upload SET baris_baru = ? WHERE id = ?`).bind(baru, uploadId).run();
-  for (const tanggal of tanggalList) await cocokkanMutasi(db, entityId, tanggal);
+  for (const tanggal of tanggalList) await prosesMutasi(db, entityId, tanggal);
   return json({ ok: true, uploadId, jumlah: bersih.length, baru, dobel: bersih.length - baru, tanggal: tanggalList }, 201);
 }
 
@@ -199,55 +389,18 @@ async function simpanPeta(db, actor, value) {
     `).bind(entityId, mid, store.id, contoh.merchant_name, actor.name, new Date().toISOString()).run();
   }
   for (const row of await rows(db.prepare(`SELECT DISTINCT business_date FROM qris_mutasi WHERE entity_id = ? AND mid = ?`).bind(entityId, mid))) {
-    await cocokkanMutasi(db, entityId, row.business_date);
+    await prosesMutasi(db, entityId, row.business_date);
   }
   return json({ ok: true });
 }
 
-async function barisMutasi(db, actor, id) {
-  const row = await db.prepare(`
-    SELECT mt.*, m.store_id AS seharusnya_store_id FROM qris_mutasi mt LEFT JOIN qris_merchant_gerai m ON m.entity_id = mt.entity_id AND m.mid = mt.mid
-    WHERE mt.id = ? AND mt.entity_id = ?
-  `).bind(text(id, 80), actor.store.entityId).first();
-  return row;
-}
-
-// TANPA_NOTIF: notifikasi tidak pernah sampai -> admin membuat uang masuknya dari mutasi, langsung di gerai
-// yang benar (outlet aslinya), lalu Leker mencoba menautkan ke penjualan QRIS gerai itu.
-async function buatMasuk(db, actor, value) {
-  const row = await barisMutasi(db, actor, value?.mutasiId);
-  if (!row) return json({ error: 'Baris mutasi tidak ditemukan.' }, 404);
-  if (row.masuk_id) return json({ error: 'Baris ini sudah punya uang masuk.' }, 409);
-  if (!row.seharusnya_store_id) return json({ error: 'Pasangkan dulu outlet (MID) ini ke gerai.' }, 409);
-  const now = new Date().toISOString();
-  const id = `qrism_${crypto.randomUUID()}`;
-  await db.prepare(`
-    INSERT INTO qris_masuk (id, entity_id, store_id, amount, source, raw_text, ref, received_at, business_date, sumber_bayar, note, created_by_role, created_by_name, created_at)
-    VALUES (?, ?, ?, ?, 'MANUAL', '', ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, actor.store.entityId, row.seharusnya_store_id, row.amount, `mutasi:${row.mid}:${row.rrn}`, row.trx_at, row.business_date, row.payment_type,
-    `Dibuat dari mutasi BCA ${row.merchant_name} RRN ${row.rrn} (notifikasi tidak sampai)`, actor.role, actor.name, now).run();
-  await db.prepare(`UPDATE qris_mutasi SET masuk_id = ? WHERE id = ?`).bind(id, row.id).run();
-  await tautkanOtomatis(db, row.seharusnya_store_id, { around: row.trx_at });
-  return json({ ok: true, id }, 201);
-}
-
-// SALAH_GERAI: uang diklaim gerai lain. Admin memindahkannya ke gerai sesuai outlet di mutasi; tautan &
-// klaim lama dilepas (jejaknya ditulis di catatan), lalu Leker mencoba menautkan ke penjualan gerai yang benar.
-async function pindah(db, actor, value) {
-  const row = await barisMutasi(db, actor, value?.mutasiId);
-  if (!row?.masuk_id) return json({ error: 'Baris mutasi belum punya uang masuk.' }, 404);
-  if (!row.seharusnya_store_id) return json({ error: 'Pasangkan dulu outlet (MID) ini ke gerai.' }, 409);
-  const masuk = await db.prepare(`SELECT q.*, s.code AS store_code FROM qris_masuk q LEFT JOIN stores s ON s.id = q.store_id WHERE q.id = ?`).bind(row.masuk_id).first();
-  if (masuk.store_id === row.seharusnya_store_id) return json({ error: 'Uang ini sudah di gerai yang benar.' }, 409);
-  const jejak = `Dipindah ${actor.name} sesuai mutasi BCA (${row.merchant_name}, RRN ${row.rrn}). Sebelumnya: ${masuk.store_code || 'kolam'}`
-    + `${masuk.claimed_by_name ? `, diklaim ${masuk.claimed_by_name}` : ''}${masuk.sale_id ? `, tertaut penjualan ${masuk.sale_id}` : ''}. ${text(value?.catatan, 200)}`.trim();
-  await db.prepare(`
-    UPDATE qris_masuk SET store_id = ?, status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = '',
-      claimed_at = ?, claimed_by_role = ?, claimed_by_id = '', claimed_by_name = ?, note = ?
-    WHERE id = ?
-  `).bind(row.seharusnya_store_id, new Date().toISOString(), actor.role, `${actor.name} (mutasi)`, jejak, masuk.id).run();
-  await tautkanOtomatis(db, row.seharusnya_store_id, { around: row.trx_at });
-  return json({ ok: true });
+async function prosesUlang(db, actor, value) {
+  const tanggal = text(value?.tanggal, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return json({ error: 'Tanggal tidak valid.' }, 400);
+  if (!await db.prepare(`SELECT 1 FROM qris_mutasi WHERE entity_id = ? AND business_date = ? LIMIT 1`).bind(actor.store.entityId, tanggal).first()) {
+    return json({ error: 'Belum ada mutasi di tanggal ini.' }, 404);
+  }
+  return json({ ok: true, ...await prosesMutasi(db, actor.store.entityId, tanggal) });
 }
 
 export async function handleQrisMutasiApi(request, db, actor, pathname, value) {
@@ -257,8 +410,7 @@ export async function handleQrisMutasiApi(request, db, actor, pathname, value) {
   switch (pathname) {
     case '/api/qris/mutasi': return unggah(db, actor, value);
     case '/api/qris/mutasi/peta': return simpanPeta(db, actor, value);
-    case '/api/qris/mutasi/buat-masuk': return buatMasuk(db, actor, value);
-    case '/api/qris/mutasi/pindah': return pindah(db, actor, value);
+    case '/api/qris/mutasi/proses': return prosesUlang(db, actor, value);
     default: return json({ error: 'Rute mutasi tidak dikenal.' }, 404);
   }
 }

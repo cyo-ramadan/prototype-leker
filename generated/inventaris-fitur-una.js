@@ -3871,15 +3871,6 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
-    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/buat-masuk",
-    "jenis": "rute-kandidat",
-    "sumber": "src/qris-mutasi.js",
-    "method": null,
-    "rute": "/api/qris/mutasi/buat-masuk",
-    "label": "/api/qris/mutasi/buat-masuk",
-    "skin": null
-  },
-  {
     "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/peta",
     "jenis": "rute-kandidat",
     "sumber": "src/qris-mutasi.js",
@@ -3889,12 +3880,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
-    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/pindah",
+    "id": "rute:src/qris-mutasi.js:/api/qris/mutasi/proses",
     "jenis": "rute-kandidat",
     "sumber": "src/qris-mutasi.js",
     "method": null,
-    "rute": "/api/qris/mutasi/pindah",
-    "label": "/api/qris/mutasi/pindah",
+    "rute": "/api/qris/mutasi/proses",
+    "label": "/api/qris/mutasi/proses",
     "skin": null
   },
   {
@@ -12061,17 +12052,6 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/qris-otomatis.js"
   },
   {
-    "id": "tombol:public/qris-otomatis.js:data-mt-buat:Buat uang masuk di {nilai}",
-    "jenis": "tombol",
-    "sumber": "public/qris-otomatis.js",
-    "tombolId": null,
-    "aksi": "data-mt-buat",
-    "label": "Buat uang masuk di {nilai}",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/qris-otomatis.js"
-  },
-  {
     "id": "tombol:public/qris-otomatis.js:data-mt-peta-simpan:{nilai}",
     "jenis": "tombol",
     "sumber": "public/qris-otomatis.js",
@@ -12083,12 +12063,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/qris-otomatis.js"
   },
   {
-    "id": "tombol:public/qris-otomatis.js:data-mt-pindah:Pindahkan ke {nilai}",
+    "id": "tombol:public/qris-otomatis.js:data-mt-proses:Proses ulang tanggal ini",
     "jenis": "tombol",
     "sumber": "public/qris-otomatis.js",
     "tombolId": null,
-    "aksi": "data-mt-pindah",
-    "label": "Pindahkan ke {nilai}",
+    "aksi": "data-mt-proses",
+    "label": "Proses ulang tanggal ini",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-otomatis.js"
@@ -12204,12 +12184,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/qris-otomatis.js"
   },
   {
-    "id": "tombol:public/qris-otomatis.js:label:Baca & cocokkan",
+    "id": "tombol:public/qris-otomatis.js:label:Baca & proses",
     "jenis": "tombol",
     "sumber": "public/qris-otomatis.js",
     "tombolId": null,
     "aksi": null,
-    "label": "Baca & cocokkan",
+    "label": "Baca & proses",
     "rute": null,
     "skin": null,
     "halaman": "public/qris-otomatis.js"

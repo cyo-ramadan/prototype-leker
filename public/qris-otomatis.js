@@ -73,8 +73,8 @@
     let status;
     if (sale.voided) status = chip('off', 'Dibatalkan');
     else if (sale.masukId) status = chip('ok', `Tertaut ${MODE[sale.linkMode] || ''}`);
-    else status = chip('warn', 'Belum tertaut');
-    const bisaTaut = !sale.voided && !sale.masukId;
+    else status = chip('warn', data.tautanSistem ? 'Ditautkan sistem dari mutasi' : 'Belum tertaut');
+    const bisaTaut = !sale.voided && !sale.masukId && (data.canManage || !data.tautanSistem);
     let pilihan = '';
     if (bisaTaut && ctx.pilihSale === sale.id) {
       const cocok = data.pilihan.filter(item => data.canManage || item.amount === sale.amount);
@@ -193,7 +193,7 @@
         tombol = `<button class="primary-btn" type="button" data-qr-klaim="${esc(item.id)}">✋ Klaim untuk ${code}</button>`;
       } else if (item.milikGeraiIni) {
         status = chip('ok', `Diklaim ${item.storeCode}${item.claimedByName ? ` · ${item.claimedByName}` : ''}`)
-          + (item.status === 'TERTAUT' ? ` ${chip('ok', 'Tertaut')}` : ` ${chip('warn', 'Belum ditautkan')}`);
+          + (data.tautanSistem ? '' : item.status === 'TERTAUT' ? ` ${chip('ok', 'Tertaut')}` : ` ${chip('warn', 'Belum ditautkan')}`);
       } else {
         status = chip('off', `Diklaim ${item.storeCode || 'gerai lain'}`);
       }
@@ -205,18 +205,22 @@
       </article>`;
     };
     const kosong = ctx.klaim === 'BELUM' ? 'Belum ada uang QRIS yang belum diklaim dalam 24 jam terakhir.' : ctx.klaim === 'SUDAH' ? 'Belum ada uang QRIS yang sudah diklaim dalam 24 jam terakhir.' : 'Belum ada uang QRIS masuk dalam 24 jam terakhir.';
-    return `${filter}<p class="muted">Begitu pembelimu membayar QRIS, cari nominal &amp; jamnya di sini lalu tekan <b>Klaim</b>. Yang sudah diklaim gerai lain terkunci. Menautkan ke penjualan boleh nanti di tab "Hari ini".</p>
+    const petunjuk = data.tautanSistem
+      ? 'Begitu pembelimu membayar QRIS, cari nominal &amp; jamnya di sini lalu tekan <b>Klaim</b>. Cukup klaim; penautan ke penjualan dilakukan sistem besok dari mutasi bank. Jangan klaim uang pembeli gerai lain: semua klaim dicek dengan mutasi dan tercatat di Raport.'
+      : 'Begitu pembelimu membayar QRIS, cari nominal &amp; jamnya di sini lalu tekan <b>Klaim</b>. Yang sudah diklaim gerai lain terkunci. Menautkan ke penjualan boleh nanti di tab "Hari ini".';
+    return `${filter}<p class="muted">${petunjuk}</p>
       ${data.items.map(baris).join('') || `<div class="empty">${kosong}</div>`}`;
   }
 
-  // ---- Validasi mutasi BCA (Bos Cyo, 2026-10-18; src/qris-mutasi.js) ------------------------------
+  // ---- Mutasi BCA H+1 (Bos Cyo, 2026-10-18/19; src/qris-mutasi.js) ----------------------------------
   // Mutasi Merchant BCA diekspor H+1. File Excel terkuncinya dibuka di perangkat ini (bca-mutasi-baca.js);
-  // yang dikirim ke server hanya baris transaksinya.
+  // yang dikirim ke server hanya baris transaksinya. Sesudah diunggah, SISTEM yang memindah uang ke gerai
+  // aslinya, menautkan ke penjualan QRIS, dan mencatat kesalahan tiap CS (ikut Raport).
   const STATUS_MUTASI = {
-    COCOK: ['ok', 'Cocok'], BELUM_DITAUTKAN: ['warn', 'Gerai benar, belum ditautkan'], BELUM_DIKLAIM: ['warn', 'Belum diklaim'],
-    SALAH_GERAI: ['bad', 'Salah gerai'], TANPA_NOTIF: ['bad', 'Notifikasi tidak sampai'], BELUM_DIPETAKAN: ['off', 'Outlet belum dipasangkan']
+    COCOK: ['ok', 'Tertaut ke penjualan'], TANPA_PENJUALAN: ['bad', 'Tidak ada penjualan QRIS-nya'], BELUM_DIPETAKAN: ['off', 'Outlet belum dipasangkan']
   };
-  const URUT_MUTASI = ['SALAH_GERAI', 'TANPA_NOTIF', 'BELUM_DIKLAIM', 'BELUM_DIPETAKAN', 'BELUM_DITAUTKAN', 'COCOK'];
+  const URUT_MUTASI = ['TANPA_PENJUALAN', 'BELUM_DIPETAKAN', 'COCOK'];
+  const KIND_CATATAN = { SALAH_KLAIM: 'bad', TIDAK_KLAIM: 'warn', PENJUALAN_TANPA_UANG: 'bad', UANG_TANPA_PENJUALAN: 'bad' };
 
   function tebakGeraiOutlet(nama, gerai) {
     const atas = String(nama || '').toUpperCase();
@@ -233,23 +237,32 @@
         <label>Kata sandi file dari BCA
           <input class="text-input" type="password" autocomplete="off" value="${esc(sandiTersimpan)}" data-mt-sandi /></label>
         <label class="qris-cek"><input type="checkbox" data-mt-ingat ${sandiTersimpan ? 'checked' : ''} /> Ingat kata sandi di perangkat ini</label>
-        <button class="primary-btn" type="button" data-mt-baca>Baca & cocokkan</button>
-        <p class="muted">Mutasi bisa diunggah H+1 (paling akhir kemarin). File dibuka di perangkat ini; yang dikirim hanya baris transaksinya. Unggah ulang file yang sama aman (tidak dobel).</p>
+        <button class="primary-btn" type="button" data-mt-baca>Baca & proses</button>
+        <p class="muted">Mutasi bisa diunggah H+1 (paling akhir kemarin). Sesudah diunggah, sistem otomatis: memindah uang ke gerai asli outletnya, membuat uang masuk yang notifikasinya tidak sampai, menautkan uang ke penjualan QRIS, lalu mencatat kesalahan tiap CS ke Raport. Tidak ada yang perlu ditekan satu-satu. Unggah ulang file yang sama aman (tidak dobel).</p>
       </div>`;
     if (ctx.mutasiError) return `${unggah}<div class="qris-peringatan">${esc(ctx.mutasiError)}</div>`;
     const d = ctx.mutasi;
     if (!d) return `${unggah}<div class="muted">Memuat…</div>`;
     if (!d.tersedia.length) return `${unggah}<div class="empty">Belum ada mutasi yang diunggah.</div>`;
     const r = d.ringkas;
-    const pilihTanggal = `<label>Tanggal mutasi <select class="text-input" data-mt-tanggal>${d.tersedia.map(t => `<option value="${esc(t.tanggal)}" ${t.tanggal === d.tanggal ? 'selected' : ''}>${esc(t.tanggal)} (${t.jumlah})</option>`).join('')}</select></label>`;
+    const pilihTanggal = `<div class="qris-form"><label>Tanggal mutasi <select class="text-input" data-mt-tanggal>${d.tersedia.map(t => `<option value="${esc(t.tanggal)}" ${t.tanggal === d.tanggal ? 'selected' : ''}>${esc(t.tanggal)} (${t.jumlah})</option>`).join('')}</select></label>
+      <button class="mini-btn" type="button" data-mt-proses="${esc(d.tanggal)}">Proses ulang tanggal ini</button></div>`;
     const kotak = (n, label, kind) => `<div><b class="${n && kind === 'bad' ? 'qris-angka-bad' : ''}">${n}</b><span>${label}</span></div>`;
     const ringkas = `<div class="qris-ringkas">
         <div><b>${rp(r.totalRupiah)}</b><span>${r.total} transaksi di mutasi</span></div>
-        ${kotak(r.cocok, 'cocok', 'ok')}${kotak(r.salahGerai, 'salah gerai', 'bad')}${kotak(r.tanpaNotif, 'notifikasi tidak sampai', 'bad')}
-        ${kotak(r.belumDiklaim, 'belum diklaim', 'warn')}${kotak(r.belumDitautkan, 'gerai benar, belum ditautkan', 'warn')}
-        ${kotak(r.notifTanpaMutasi, 'uang masuk tanpa mutasi', 'bad')}${kotak(r.belumDipetakan, 'outlet belum dipasangkan', 'off')}
+        ${kotak(r.cocok, 'tertaut ke penjualan', 'ok')}${kotak(r.tanpaPenjualan, 'uang tanpa penjualan QRIS', 'bad')}${kotak(r.penjualanTanpaUang, 'penjualan QRIS tanpa uang', 'bad')}
+        ${kotak(r.salahKlaim, 'salah klaim', 'bad')}${kotak(r.tidakKlaim, 'tidak diklaim', 'warn')}
+        ${kotak(r.notifTidakSampai, 'notifikasi tidak sampai', 'warn')}${kotak(r.notifTanpaMutasi, 'notifikasi tanpa mutasi', 'bad')}${kotak(r.belumDipetakan, 'outlet belum dipasangkan', 'off')}
       </div>`;
+    const jumlahCs = (n, label) => n ? `${chip('bad', `${n} ${label}`)} ` : '';
+    const perCs = d.perCs.length ? `<h3>Catatan per CS (masuk Raport)</h3>
+      <p class="muted"><b>Salah klaim</b> = mengklaim uang yang masuk ke outlet gerai lain. <b>Tidak klaim</b> = uang masuk ke gerainya saat lacinya terbuka tapi tidak diklaim. <b>Nominal tidak sesuai</b> = penjualan QRIS yang uangnya tidak ada di mutasi, atau uang QRIS yang tidak punya penjualan QRIS (mis. dicatat Tunai/Rekening Bersama).</p>
+      ${d.perCs.map(cs => `<details class="master-row qris-row"><summary><strong>${esc(cs.cashierName)}</strong> <span class="muted">${esc(cs.storeCode || '')}</span><br>
+          ${jumlahCs(cs.jumlah.SALAH_KLAIM, 'salah klaim')}${jumlahCs(cs.jumlah.TIDAK_KLAIM, 'tidak klaim')}${jumlahCs(cs.jumlah.PENJUALAN_TANPA_UANG + cs.jumlah.UANG_TANPA_PENJUALAN, 'nominal tidak sesuai')}</summary>
+          ${cs.rincian.map(k => `<div class="muted qris-teks">${chip(KIND_CATATAN[k.jenis] || 'off', k.label)} ${esc(k.keterangan)}</div>`).join('')}
+        </details>`).join('')}` : '<h3>Catatan per CS</h3><div class="empty">Tidak ada kesalahan CS di tanggal ini.</div>';
     const peta = `<h3>Outlet BCA → gerai</h3>
+      <p class="muted">Nama outlet di BCA bisa beda dengan nama gerai (mis. "TEH POCI GADANG" = Beji). Pasangkan sekali; sesudah disimpan sistem langsung memproses ulang.</p>
       ${d.peta.map(p => {
         const pilih = p.storeCode || tebakGeraiOutlet(p.merchantName, d.gerai);
         return `<div class="qris-pilih-row"><div><strong>${esc(p.merchantName || '-')}</strong><div class="muted">MID ${esc(p.mid)}${p.storeCode ? '' : ' · belum dipasangkan'}</div></div>
@@ -259,19 +272,24 @@
     const urut = [...d.baris].sort((a, b) => URUT_MUTASI.indexOf(a.status) - URUT_MUTASI.indexOf(b.status) || a.trxAt.localeCompare(b.trxAt));
     const daftar = `<h3>Transaksi di mutasi</h3>${urut.map(row => {
       const [kind, label] = STATUS_MUTASI[row.status] || ['off', row.status];
-      const info = row.masuk
-        ? `Uang masuk ${jam(row.masuk.receivedAt)} · ${row.masuk.storeCode ? `diklaim ${esc(row.masuk.storeCode)}${row.masuk.claimedByName ? ` (${esc(row.masuk.claimedByName)})` : ''}` : 'di kolam'}${row.masuk.saleId ? ' · tertaut penjualan' : ''}`
-        : 'Tidak ada uang masuk yang cocok';
-      const aksi = row.status === 'SALAH_GERAI' ? `<button class="mini-btn" type="button" data-mt-pindah="${esc(row.id)}">Pindahkan ke ${esc(row.geraiSeharusnya)}</button>`
-        : row.status === 'TANPA_NOTIF' ? `<button class="mini-btn" type="button" data-mt-buat="${esc(row.id)}">Buat uang masuk di ${esc(row.geraiSeharusnya)}</button>` : '';
+      const info = [
+        row.sale ? `Penjualan ${jam(row.sale.createdAt)}${row.sale.cashierName ? ` · ${esc(row.sale.cashierName)}` : ''}` : '',
+        row.notifTidakSampai ? 'Notifikasi tidak sampai — uang masuk dibuat sistem' : '',
+        row.notifTelatMenit ? `Notifikasi telat ${row.notifTelatMenit >= 120 ? `${Math.round(row.notifTelatMenit / 60)} jam` : `${row.notifTelatMenit} menit`}` : ''
+      ].filter(Boolean).join(' · ');
       return `<article class="master-row qris-row"><div class="master-main"><strong>${rp(row.amount)}</strong>${chip(kind, label)}
           <div class="master-meta">${jam(row.trxAt)} · ${esc(row.merchantName)}${row.geraiSeharusnya ? ` (${esc(row.geraiSeharusnya)})` : ''} · dari ${esc(row.paymentType || '-')}</div>
-          <div class="muted qris-teks">${info} · RRN ${esc(row.rrn)}</div></div>${aksi}</article>`;
+          ${info ? `<div class="muted qris-teks">${info}</div>` : ''}
+          ${row.catatan.map(k => `<div class="muted qris-teks">${chip(KIND_CATATAN[k.jenis] || 'off', k.label)} ${esc(k.cashierName || '')}: ${esc(k.keterangan)}</div>`).join('')}
+          <div class="muted qris-teks">RRN ${esc(row.rrn)}</div></div></article>`;
     }).join('')}`;
-    const tanpaMutasi = d.notifTanpaMutasi.length ? `<h3>Uang masuk tanpa baris mutasi</h3><p class="muted">Tercatat dari notifikasi, tapi tidak ada di mutasi tanggal ini: periksa (notifikasi palsu, dobel, atau transaksi lewat tengah malam).</p>
-      ${d.notifTanpaMutasi.map(item => `<article class="master-row qris-row"><div class="master-main"><strong>${rp(item.amount)}</strong>${chip('bad', item.storeCode ? `Diklaim ${item.storeCode}` : 'Di kolam')}
+    const tanpaUang = d.penjualanTanpaUang.length ? `<h3>Penjualan QRIS tanpa uang di mutasi</h3>
+      ${d.penjualanTanpaUang.map(k => `<article class="master-row qris-row"><div class="master-main"><strong>${rp(k.amount)}</strong>${chip('bad', k.storeCode || '')}
+        <div class="master-meta">${jam(k.waktu)} · ${esc(k.cashierName || '-')}</div><div class="muted qris-teks">${esc(k.keterangan)}</div></div></article>`).join('')}` : '';
+    const tanpaMutasi = d.notifTanpaMutasi.length ? `<h3>Notifikasi tanpa baris mutasi</h3><p class="muted">Tercatat dari notifikasi, tapi tidak ada di mutasi tanggal ini: notifikasi dobel/palsu, outlet di akun lain, atau transaksi lewat tengah malam.</p>
+      ${d.notifTanpaMutasi.map(item => `<article class="master-row qris-row"><div class="master-main"><strong>${rp(item.amount)}</strong>${chip('bad', item.storeCode ? `Di ${item.storeCode}` : 'Di kolam')}
         <div class="master-meta">${jam(item.receivedAt)}${item.sumberBayar ? ` · dari ${esc(item.sumberBayar)}` : ''}${item.claimedByName ? ` · ${esc(item.claimedByName)}` : ''}</div></div></article>`).join('')}` : '';
-    return `${unggah}${pilihTanggal}${ringkas}${peta}${daftar}${tanpaMutasi}`;
+    return `${unggah}${pilihTanggal}${ringkas}${perCs}${tanpaUang}${daftar}${tanpaMutasi}${peta}`;
   }
 
   async function bacaUnggahMutasi(node, button) {
@@ -295,7 +313,7 @@
       button.textContent = semula;
     }
     ctx.mutasiTanggal = res.tanggal.at(-1);
-    toast(`Mutasi ${res.tanggal.join(', ')}: ${res.baru} baris baru${res.dobel ? `, ${res.dobel} sudah pernah diunggah` : ''}`);
+    toast(`Mutasi ${res.tanggal.join(', ')} diproses: ${res.baru} baris baru${res.dobel ? `, ${res.dobel} sudah pernah diunggah` : ''}`);
   }
 
   function render() {
@@ -340,20 +358,13 @@
       await post('mutasi/peta', { mid, storeCode: node.querySelector(`[data-mt-peta="${mid}"]`).value });
       toast('Outlet dipasangkan ✓');
     }, button));
-    on('[data-mt-pindah]', button => aksi(async () => {
-      const catatan = window.prompt('Pindahkan uang ini ke gerai sesuai mutasi? Klaim & tautan lama dilepas. Catatan (opsional):');
-      if (catatan === null) throw new Error('Dibatalkan.');
-      await post('mutasi/pindah', { mutasiId: button.dataset.mtPindah, catatan });
-      toast('Dipindahkan ✓');
-    }, button));
-    on('[data-mt-buat]', button => aksi(async () => {
-      if (!window.confirm('Buat uang masuk dari baris mutasi ini (notifikasinya tidak sampai)?')) throw new Error('Dibatalkan.');
-      await post('mutasi/buat-masuk', { mutasiId: button.dataset.mtBuat });
-      toast('Uang masuk dibuat ✓');
+    on('[data-mt-proses]', button => aksi(async () => {
+      const hasil = await post('mutasi/proses', { tanggal: button.dataset.mtProses });
+      toast(`Diproses ulang ✓ — ${hasil.tertaut} uang tertaut ke penjualan`);
     }, button));
     on('[data-qr-klaim]', button => aksi(async () => {
       const hasil = await post('klaim', { masukId: button.dataset.qrKlaim });
-      toast(hasil.tertaut ? 'Diklaim & langsung tertaut ✓' : 'Diklaim ✓ — tautkan nanti di tab "Hari ini"');
+      toast(ctx.kolamData?.tautanSistem ? 'Diklaim ✓' : hasil.tertaut ? 'Diklaim & langsung tertaut ✓' : 'Diklaim ✓ — tautkan nanti di tab "Hari ini"');
     }, button));
     on('[data-qr-batal]', button => aksi(async () => {
       let catatan = '';
@@ -451,6 +462,7 @@
     try { data = await api(`/api/qris/kandidat?saleId=${encodeURIComponent(saleId)}`); }
     catch (error) { if (!otomatis) toast(error.message); return; }
     if (!data.qris) { if (!otomatis) toast('Penjualan ini bukan pembayaran QRIS.'); return; }
+    if (data.tautanSistem) { if (!otomatis) toast('Cukup klaim uangnya di Kolam QRIS. Penautan dilakukan sistem dari mutasi bank.'); return; }
     if (otomatis && data.tautan) return; // sudah tertaut sendiri (mis. hanya satu yang cocok)
     const node = pilihDialog();
     const selesai = () => { if (node.open) node.close(); onDone?.(); };

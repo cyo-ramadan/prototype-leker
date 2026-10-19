@@ -3,7 +3,7 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { hashCredential, requireManagement } from './owner-auth.js';
 import { requireCashier } from './cashier-auth.js';
 import { getJakartaBusinessDate, jakartaWallClockToUtc } from './time.js';
-import { QRIS_OTOMATIS_KEY, QRIS_KOLAM_BERSAMA_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
+import { QRIS_OTOMATIS_KEY, QRIS_KOLAM_BERSAMA_KEY, QRIS_TAUTAN_SISTEM_KEY, getTenantPolicySetting, resolveTenantId } from './tenant-policy.js';
 import { emitNotification, listNotificationActors } from './management-notifications.js';
 import { flushNotificationDeliveries } from './notification-delivery.js';
 import { handleQrisMutasiApi } from './qris-mutasi.js';
@@ -15,7 +15,8 @@ import { handleQrisMutasiApi } from './qris-mutasi.js';
 //    POST /api/qris/masuk memakai token penerima (MacroDroid gratis atau aplikasi penerus).
 // 2. Leker mencatat uang masuk, menebak gerainya, lalu membunyikan notifikasi di kasir gerai itu.
 // 3. Setiap penjualan QRIS harus menaut ke tepat satu uang masuk. Kalau nominal + waktunya cocok
-//    tanpa keraguan, Leker menautkan sendiri; sisanya CS memilih dari daftar uang masuk.
+//    tanpa keraguan, Leker menautkan sendiri. Saklar qris_tautan_sistem ON (bawaan, 2026-10-19): CS
+//    hanya mengklaim, sisanya ditautkan sistem saat mutasi H+1 diproses (qris-mutasi.js). OFF: CS memilih.
 //    CS tidak bisa membuat uang masuk -- hanya admin, dan wajib dengan catatan (mis. cek mutasi).
 // Murni operasional: tidak menyentuh Accounting, stok, atau jurnal.
 
@@ -127,6 +128,16 @@ async function kolamAktif(db, entityId) {
   return getTenantPolicySetting(db, await resolveTenantId(db, entityId), QRIS_KOLAM_BERSAMA_KEY);
 }
 
+// ON (bawaan): CS hanya mengklaim; sistem yang menautkan saat mutasi H+1 diproses (src/qris-mutasi.js).
+export async function tautanOlehSistem(db, entityId) {
+  return getTenantPolicySetting(db, await resolveTenantId(db, entityId), QRIS_TAUTAN_SISTEM_KEY);
+}
+
+async function csTidakMenautkan(db, actor) {
+  if (actor.role !== 'CASHIER' || !await tautanOlehSistem(db, actor.store.entityId)) return null;
+  return json({ error: 'CS cukup mengklaim uang QRIS. Penautan ke penjualan dilakukan sistem saat mutasi bank diproses.', code: 'QRIS_TAUTAN_SISTEM' }, 403);
+}
+
 // ---- Setelan gerai ----------------------------------------------------------------------------
 
 async function paymentMethods(db, storeId) {
@@ -154,9 +165,9 @@ const minutesBetween = (a, b) => Math.abs(new Date(a).getTime() - new Date(b).ge
 // Penjualan QRIS = cara bayarnya QRIS, ATAU pembayaran campuran yang punya bagian QRIS (migration 0166).
 // Nominal yang ditautkan ke uang masuk = bagian QRIS-nya, bukan total penjualan. Bind: kode QRIS dua kali
 // (JOIN lalu WHERE) -- lihat pemakai di bawah.
-const QRIS_SALE_JOIN = `LEFT JOIN sale_payments sp ON sp.sale_id = s.id AND sp.payment_method_code = ?`;
-const QRIS_SALE_WHERE = `(s.payment_method = ? OR (s.payment_method = 'CAMPURAN' AND sp.id IS NOT NULL))`;
-const QRIS_SALE_AMOUNT = `CASE WHEN s.payment_method = 'CAMPURAN' THEN sp.amount ELSE s.total_amount END`;
+export const QRIS_SALE_JOIN = `LEFT JOIN sale_payments sp ON sp.sale_id = s.id AND sp.payment_method_code = ?`;
+export const QRIS_SALE_WHERE = `(s.payment_method = ? OR (s.payment_method = 'CAMPURAN' AND sp.id IS NOT NULL))`;
+export const QRIS_SALE_AMOUNT = `CASE WHEN s.payment_method = 'CAMPURAN' THEN sp.amount ELSE s.total_amount END`;
 
 async function unlinkedSales(db, storeId, methodCode, fromIso, toIso) {
   if (!methodCode) return [];
@@ -205,6 +216,8 @@ export async function tautkanOtomatis(db, storeId, { around = new Date() } = {})
 
 async function tautkan(db, actor, value) {
   if (actor.readOnly) return forbidden('Akses ini hanya untuk membaca.');
+  const bukanTugasCs = await csTidakMenautkan(db, actor);
+  if (bukanTugasCs) return bukanTugasCs;
   const masukId = text(value?.masukId, 80);
   const saleId = text(value?.saleId, 120);
   const catatan = text(value?.catatan, 300);
@@ -347,6 +360,7 @@ async function daftar(db, actor, tanggal) {
     role: actor.role,
     canManage: actor.canManage,
     entityWide: actor.entityWide,
+    tautanSistem: await tautanOlehSistem(db, actor.store.entityId),
     metode: { code: method.code, chosen: method.chosen },
     masuk,
     pilihan,
@@ -397,6 +411,10 @@ async function ringkasan(db, actor) {
 // klaim yang salah gerai.
 
 const KOLAM_JAM = 24;
+// Klaim asli CS (migration 0171): tidak diubah saat sistem/admin memindah uangnya ke gerai yang benar,
+// jadi tetap bisa dinilai "salah klaim" di Raport. Klaim admin tidak dinilai.
+const KLAIM_ASLI_SET = 'klaim_store_id = ?, klaim_cashier_id = ?';
+const klaimAsli = actor => (actor.role === 'CASHIER' ? [actor.store.id, actor.id || null] : [null, null]);
 
 async function lacinyaTerbuka(db, storeId) {
   return Boolean(await db.prepare(`SELECT 1 FROM cash_drawer_sessions WHERE store_id = ? AND status = 'OPEN' LIMIT 1`).bind(storeId).first());
@@ -427,7 +445,7 @@ async function kolam(db, actor, filter = 'BELUM') {
     item.bisaBatal = item.diklaim && (actor.entityWide || item.milikGeraiIni) && (row.status !== 'TERTAUT' || row.link_mode !== 'ADMIN' || actor.canManage);
     return item;
   });
-  return json({ enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, entityWide: actor.entityWide, klaim: filter, items });
+  return json({ enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, entityWide: actor.entityWide, tautanSistem: await tautanOlehSistem(db, actor.store.entityId), klaim: filter, items });
 }
 
 async function klaim(db, actor, value) {
@@ -436,9 +454,9 @@ async function klaim(db, actor, value) {
   const masukId = text(value?.masukId, 80);
   const now = new Date().toISOString();
   const result = await db.prepare(`
-    UPDATE qris_masuk SET store_id = ?, claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?
+    UPDATE qris_masuk SET store_id = ?, claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?, ${KLAIM_ASLI_SET}
     WHERE id = ? AND entity_id = ? AND store_id IS NULL AND status = 'BELUM'
-  `).bind(actor.store.id, now, actor.role, actor.id || '', actor.name, masukId, actor.store.entityId).run();
+  `).bind(actor.store.id, now, actor.role, actor.id || '', actor.name, ...klaimAsli(actor), masukId, actor.store.entityId).run();
   if (!result.meta?.changes) {
     const row = await db.prepare(`SELECT q.status, st.code AS store_code, q.claimed_by_name FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id WHERE q.id = ? AND q.entity_id = ?`).bind(masukId, actor.store.entityId).first();
     if (!row) return json({ error: 'Uang masuk tidak ditemukan.' }, 404);
@@ -475,6 +493,7 @@ export async function qrisStatusPenjualan(db, storeId, saleIds) {
 async function kandidat(db, actor, saleId) {
   const ditolak = await bolehKolam(db, actor);
   if (ditolak) return ditolak;
+  if (await csTidakMenautkan(db, actor)) return json({ qris: true, tautanSistem: true });
   const method = await qrisMethodFor(db, actor.store.id);
   const sale = method.code ? await db.prepare(`
     SELECT s.id, s.store_id, ${QRIS_SALE_AMOUNT} AS qris_amount, s.total_amount, s.payment_method, s.created_at, s.voided_at, ${QRIS_SALE_WHERE} AS is_qris
@@ -506,15 +525,15 @@ async function kandidat(db, actor, saleId) {
 }
 
 async function klaimTautkan(db, actor, value) {
-  const ditolak = await bolehKolam(db, actor);
+  const ditolak = await bolehKolam(db, actor) || await csTidakMenautkan(db, actor);
   if (ditolak) return ditolak;
   const masukId = text(value?.masukId, 80);
   const now = new Date().toISOString();
   // Klaim dulu bila masih di kolam; bila penautan gagal, klaim itu dibatalkan lagi.
   const klaimBaru = await db.prepare(`
-    UPDATE qris_masuk SET store_id = ?, claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?
+    UPDATE qris_masuk SET store_id = ?, claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?, ${KLAIM_ASLI_SET}
     WHERE id = ? AND entity_id = ? AND store_id IS NULL AND status = 'BELUM'
-  `).bind(actor.store.id, now, actor.role, actor.id || '', actor.name, masukId, actor.store.entityId).run();
+  `).bind(actor.store.id, now, actor.role, actor.id || '', actor.name, ...klaimAsli(actor), masukId, actor.store.entityId).run();
   const diklaim = Boolean(klaimBaru.meta?.changes);
   if (!diklaim) {
     const row = await db.prepare(`SELECT q.store_id, q.status, st.code AS store_code FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id WHERE q.id = ? AND q.entity_id = ?`).bind(masukId, actor.store.entityId).first();
@@ -524,7 +543,7 @@ async function klaimTautkan(db, actor, value) {
   const hasil = await tautkan(db, actor, value);
   if (hasil.status !== 200 && diklaim) {
     await db.prepare(`
-      UPDATE qris_masuk SET store_id = NULL, claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = ''
+      UPDATE qris_masuk SET store_id = NULL, claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', klaim_store_id = NULL, klaim_cashier_id = NULL
       WHERE id = ? AND status = 'BELUM' AND claimed_at = ?
     `).bind(masukId, now).run();
   }
@@ -545,7 +564,7 @@ async function batalKlaim(db, actor, value) {
   const jejak = `Klaim ${row.claimed_by_name || ''} dibatalkan ${actor.name} (${now.slice(0, 16).replace('T', ' ')} UTC)${catatan ? `: ${catatan}` : ''}`;
   await db.prepare(`
     UPDATE qris_masuk SET store_id = NULL, status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = '',
-      claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', note = ?
+      claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', klaim_store_id = NULL, klaim_cashier_id = NULL, note = ?
     WHERE id = ? AND claimed_at IS NOT NULL
   `).bind(jejak, row.id).run();
   return json({ ok: true });

@@ -3,7 +3,7 @@ import { requireCashier } from './cashier-auth.js';
 import { listStoreTransactions, parseIso, parseCursor as parseTransactionCursor } from './admin-transactions.js';
 import { listStoreStockBalances, listProductStockMovements, parseCursor as parseStockCursor } from './admin-stock.js';
 import { transactionDetailByKindId } from './admin-transaction-detail.js';
-import { qrisMethodFor, qrisStatusPenjualan } from './qris-otomatis.js';
+import { qrisMethodFor, qrisStatusPenjualan, tautanOlehSistem } from './qris-otomatis.js';
 
 // Read-only mirror of Admin's Transaksi + Stok tabs for Kasir/CS. Same query
 // logic (imported, not duplicated), but the store always comes from the
@@ -33,8 +33,12 @@ export async function handleCashierDataApi(request, env, pathname) {
     const qrisCode = (await qrisMethodFor(env.DB, storeId)).code;
     const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit, q, bayar, qrisCode });
     if (!listing.ok) return json({ error: listing.error }, 400);
-    // Tombol kecil QRIS per baris (merah = belum tertaut ke uang masuk, hijau = tertaut).
-    const status = await qrisStatusPenjualan(env.DB, storeId, listing.transactions.filter(row => row.kind === 'SALE').map(row => row.id));
+    // Tombol kecil QRIS per baris (merah = belum tertaut ke uang masuk, hijau = tertaut). Tidak ada bila
+    // penautan dilakukan sistem dari mutasi (qris_tautan_sistem, Bos Cyo 2026-10-19).
+    const entityId = (await env.DB.prepare(`SELECT entity_id FROM stores WHERE id = ?`).bind(storeId).first())?.entity_id;
+    const status = entityId && await tautanOlehSistem(env.DB, entityId)
+      ? new Map()
+      : await qrisStatusPenjualan(env.DB, storeId, listing.transactions.filter(row => row.kind === 'SALE').map(row => row.id));
     const transactions = listing.transactions.map(row => (status.has(row.id) ? { ...row, qris: status.get(row.id) } : row));
     return json({ filter: listing.filter, bayar, transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
   }

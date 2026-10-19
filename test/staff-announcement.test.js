@@ -190,3 +190,25 @@ test('UI Portal Staf punya tombol Pengumuman', () => {
   assert.match(staffHtml, /data-staff-tab="announcement"/);
   assert.match(staffJs, /loadAnnouncements/);
 });
+
+
+test('pengumuman QRIS/kontak darurat hanya ENT-KPM, tebal, dan tidak ganda', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(`CREATE TABLE entities(id TEXT PRIMARY KEY);
+      INSERT INTO entities VALUES ('ENT-KPM'), ('ENT-OTHER');
+      CREATE TABLE info_gerai_entries(store_id TEXT, created_by_id TEXT, kind TEXT, created_by_role TEXT, source TEXT);
+      CREATE TABLE announcements(id TEXT PRIMARY KEY, entity_id TEXT, store_id TEXT, title TEXT, body TEXT, created_by TEXT, created_by_role TEXT, is_active INTEGER, created_at TEXT);`);
+    const migration = readFileSync(new URL('../migrations/0170_pengumuman_cs_qris_kontak_kpi.sql', import.meta.url), 'utf8');
+    db.exec(migration); db.exec(migration);
+    const rows = db.prepare('SELECT * FROM announcements').all();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].entity_id, 'ENT-KPM');
+    assert.equal(rows[0].store_id, null);
+    assert.match(rows[0].body, /^\*\*[\s\S]*\*\*$/);
+    assert.match(rows[0].body, /SUDAH TIDAK WAJIB/);
+    assert.match(rows[0].body, /KLAIM notifikasi QRIS SEGERA/);
+    assert.match(rows[0].body, /bukan kontak asli/);
+    assert.match(rows[0].body, /Raport\/KPI/);
+  } finally { db.close(); }
+});

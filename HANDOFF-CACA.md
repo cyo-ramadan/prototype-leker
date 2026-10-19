@@ -1316,3 +1316,9 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 - 2026-10-18 (Codex): panduan QRIS diselaraskan dengan filter status klaim, default Belum diklaim. Entri `qris_sambung_hp` ditinjau: alur pemasangan tetap sama.
 
 <!-- DOC-IMPACT: 2026-10-18 filter status klaim kolam QRIS dan pemuatan data sesuai pilihan. -->
+
+- 2026-10-19 (Codex): QRIS menautkan opsional, klaim segera tetap wajib; kontribusi laporan Info Gerai tampil sebagai jumlah kiriman di Raport/KPI. Panduan diselaraskan tanpa mengubah bobot nilai.
+
+<!-- DOC-IMPACT: 2026-10-19 pengumuman CS, klaim QRIS, kontak darurat, dan fakta kontribusi laporan. -->
+
+- 2026-10-19 (Codex): angka merah Portal Staf menjumlah pengumuman dan inbox belum dibaca milik akun CS, mengikuti event notifikasi tanpa polling tambahan.

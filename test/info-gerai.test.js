@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handleInfoGeraiApi } from '../src/info-gerai.js';
+import { getCashierRaportFacts } from '../src/staff-raport.js';
 import { hashCredential } from '../src/owner-auth.js';
 
 // Info Gerai (Bos Cyo, 2026-10-16): kontak darurat, laporan masalah dari CS/sidak, dan panduan
@@ -89,6 +90,12 @@ test('kasir: melaporkan masalah (selalu Umum), tidak bisa menambah kontak/pandua
     assert.equal(row.source, 'CS');
     assert.equal(row.status, 'BARU');
     assert.equal(row.store_id, 'store_pendem');
+    const reportFacts = await getCashierRaportFacts(f.env.DB, 'store_pendem', 'cashier_pendem_pilot');
+    assert.equal(reportFacts.facts.infoGeraiReports.submitted, 1);
+    assert.ok(reportFacts.assessmentInputs.some(input => input.code === 'info_gerai_reports'));
+    assert.equal((await getCashierRaportFacts(f.env.DB, 'store_genengan', 'cashier_pendem_pilot')).facts.infoGeraiReports.submitted, 0);
+    assert.equal((await getCashierRaportFacts(f.env.DB, 'store_pendem', 'cashier_lain')).facts.infoGeraiReports.submitted, 0);
+
 
     assert.equal((await call(f.env, '/api/info-gerai', { token: f.kasir, method: 'POST', body: { kind: 'KONTAK', title: 'Es Batu Pak Darto' } })).status, 403);
     assert.equal((await call(f.env, '/api/info-gerai', { token: f.kasir, method: 'POST', body: { kind: 'PANDUAN', title: 'Listrik' } })).status, 403);

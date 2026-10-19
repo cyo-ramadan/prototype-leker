@@ -340,6 +340,7 @@ export const SUMBER_KAMUS = Object.freeze({
   "info_gerai": {
     "sumber": [
       "src/info-gerai.js",
+      "src/staff-raport.js",
       "public/info-gerai.js",
       "public/info-gerai-kasir.js",
       "src/tenant-policy.js"

@@ -258,16 +258,37 @@
       <button class="mini-btn" type="button" data-mt-proses="${esc(d.tanggal)}">Proses ulang tanggal ini</button></div>`;
     const kotak = (n, label, kind) => `<div><b class="${n && kind === 'bad' ? 'qris-angka-bad' : ''}">${n}</b><span>${label}</span></div>`;
     const ringkas = `<div class="qris-ringkas">
-        <div><b>${rp(r.totalRupiah)}</b><span>${r.total} transaksi di mutasi</span></div>
+        <div><b>${rp(r.totalRupiah)}</b><span>QRIS masuk hari itu (${r.total} transaksi di mutasi)</span></div>
+        <div><b>${rp((d.rekapUang || []).reduce((sum, g) => sum + g.penjualanRp, 0))}</b><span>transaksi QRIS tercatat hari itu (${(d.rekapUang || []).reduce((sum, g) => sum + g.penjualanN, 0)}x)</span></div>
         ${kotak(r.cocok, 'tertaut ke penjualan', 'ok')}${kotak(r.tanpaPenjualan, 'uang tanpa penjualan QRIS', 'bad')}${kotak(r.penjualanTanpaUang, 'penjualan QRIS tanpa uang', 'bad')}
         ${kotak(r.salahKlaim, 'salah klaim', 'bad')}${kotak(r.tidakKlaim, 'tidak diklaim', 'warn')}${kotak(r.klaimLambat, 'klaim > 10 menit', 'warn')}
         ${kotak(r.notifTidakSampai, 'notifikasi tidak sampai', 'warn')}${kotak(r.notifTanpaMutasi, 'notifikasi tanpa mutasi', 'bad')}${kotak(r.belumDipetakan, 'outlet belum dipasangkan', 'off')}
       </div>`;
+    // Rekap uang per gerai & per laci: dari mutasi saja, tidak bergantung klaim (Bos Cyo, 2026-10-20).
+    const selisihChip = n => chip(n === 0 ? 'ok' : 'bad', n === 0 ? 'Uang sesuai' : `${n > 0 ? 'Uang lebih' : 'Uang kurang'} ${rp(Math.abs(n))}`);
+    const jamLaci = l => `${jam(l.openedAt)}–${l.closedAt ? jam(l.closedAt) : 'masih buka'}`;
+    const laciCs = new Map();
+    (d.rekapUang || []).forEach(g => g.laci.forEach(l => { if (!laciCs.has(l.cashierId)) laciCs.set(l.cashierId, []); laciCs.get(l.cashierId).push(l); }));
+    const statusLaci = cs => {
+      const l = laciCs.get(cs.cashierId) || [];
+      if (!l.length) return '';
+      return l.every(x => x.selisih === 0)
+        ? `<div class="muted qris-teks">${chip('ok', 'Uang lacinya sesuai')} Uang QRIS di lacinya cocok dengan transaksinya — catatan di bawah hanya kesalahan cara mengoperasikan.</div>`
+        : `<div class="muted qris-teks">${chip('bad', 'Uang lacinya tidak sesuai')} ${l.filter(x => x.selisih).map(x => `laci ${jamLaci(x)}: ${x.selisih > 0 ? 'uang lebih' : 'uang kurang'} ${rp(Math.abs(x.selisih))}`).join(' · ')}</div>`;
+    };
+    const uang = (d.rekapUang || []).length ? `<h3>Uang QRIS per gerai (dari mutasi, tanpa melihat klaim)</h3>
+      <p class="muted">QRIS masuk = total di mutasi bank. Tercatat = total transaksi QRIS (bagian QRIS) yang dibuat CS. Per laci dihitung dari jam buka sampai jam tutup laci. "Uang kurang" = transaksi QRIS lebih besar dari uang yang benar-benar masuk.</p>
+      ${d.rekapUang.map(g => `<details class="master-row qris-row" ${g.selisih ? 'open' : ''}><summary><strong>${esc(g.storeCode)}</strong> ${selisihChip(g.selisih)}
+          <div class="muted">QRIS masuk ${rp(g.uangRp)} (${g.uangN}x) · Transaksi QRIS tercatat ${rp(g.penjualanRp)} (${g.penjualanN}x)${g.metodeQris ? '' : ' · cara bayar QRIS gerai belum dipilih'}</div></summary>
+          ${g.laci.map(l => `<div class="qris-pilih-row"><div><strong>${esc(l.cashierName || '-')}</strong> <span class="muted">laci ${jamLaci(l)}</span>
+            <div class="muted">QRIS masuk ${rp(l.uangRp)} (${l.uangN}x) · Tercatat ${rp(l.penjualanRp)} (${l.penjualanN}x)</div></div>${selisihChip(l.selisih)}</div>`).join('') || '<div class="muted">Tidak ada laci dibuka di tanggal ini.</div>'}
+          ${g.luarLaci.uangN || g.luarLaci.penjualanN ? `<div class="muted qris-teks">Di luar jam laci: QRIS masuk ${rp(g.luarLaci.uangRp)} (${g.luarLaci.uangN}x)${g.luarLaci.penjualanN ? ` · transaksi tanpa laci ${rp(g.luarLaci.penjualanRp)}` : ''}</div>` : ''}
+        </details>`).join('')}` : '';
     const jumlahCs = (n, label) => n ? `${chip('bad', `${n} ${label}`)} ` : '';
     const perCs = d.perCs.length ? `<h3>Catatan per CS (masuk Raport)</h3>
       <p class="muted"><b>Salah klaim</b> = mengklaim uang yang masuk ke outlet gerai lain. <b>Tidak klaim</b> = uang masuk ke gerainya saat lacinya terbuka tapi tidak diklaim. <b>Klaim lambat</b> = diklaim lebih dari 10 menit sesudah notifikasinya muncul. <b>Total klaim ≠ penjualan</b> = jumlah uang yang ia klaim sehari tidak sama dengan jumlah penjualan QRIS yang ia catat. <b>Nominal tidak sesuai</b> = penjualan QRIS yang uangnya tidak ada di mutasi, atau uang QRIS yang tidak punya penjualan QRIS (mis. dicatat Tunai).</p>
       ${d.perCs.map(cs => `<details class="master-row qris-row"><summary><strong>${esc(cs.cashierName)}</strong> <span class="muted">${esc(cs.storeCode || '')}</span><br>
-          ${jumlahCs(cs.jumlah.SALAH_KLAIM, 'salah klaim')}${jumlahCs(cs.jumlah.TIDAK_KLAIM, 'tidak klaim')}${jumlahCs(cs.jumlah.KLAIM_LAMBAT, 'klaim lambat')}${jumlahCs(cs.jumlah.SELISIH_KLAIM, 'total klaim ≠ penjualan')}${jumlahCs(cs.jumlah.PENJUALAN_TANPA_UANG + cs.jumlah.UANG_TANPA_PENJUALAN, 'nominal tidak sesuai')}</summary>
+          ${statusLaci(cs)}${jumlahCs(cs.jumlah.SALAH_KLAIM, 'salah klaim')}${jumlahCs(cs.jumlah.TIDAK_KLAIM, 'tidak klaim')}${jumlahCs(cs.jumlah.KLAIM_LAMBAT, 'klaim lambat')}${jumlahCs(cs.jumlah.SELISIH_KLAIM, 'total klaim ≠ penjualan')}${jumlahCs(cs.jumlah.PENJUALAN_TANPA_UANG + cs.jumlah.UANG_TANPA_PENJUALAN, 'nominal tidak sesuai')}</summary>
           ${cs.rincian.map(k => `<div class="muted qris-teks">${chip(KIND_CATATAN[k.jenis] || 'off', k.label)} ${esc(k.keterangan)}</div>`).join('')}
         </details>`).join('')}` : '<h3>Catatan per CS</h3><div class="empty">Tidak ada kesalahan CS di tanggal ini.</div>';
     const peta = `<h3>Outlet BCA → gerai</h3>
@@ -294,14 +315,14 @@
     }).join('')}`;
     const tanpaUang = d.penjualanTanpaUang.length ? `<h3>Penjualan QRIS tanpa uang di mutasi</h3>
       ${d.penjualanTanpaUang.map(k => `<article class="master-row qris-row"><div class="master-main"><strong>${rp(k.amount)}</strong>${chip('bad', k.storeCode || '')}
-        <div class="master-meta">${jam(k.waktu)} · ${esc(k.cashierName || '-')}</div><div class="muted qris-teks">${esc(k.keterangan)}</div></div></article>`).join('')}` : '';
+        <div class="master-meta">${jam(k.waktu)} · ${esc(k.cashierName || '-')}</div><div class="muted qris-teks">${esc(k.keterangan)}</div>${statusLaci(k)}</div></article>`).join('')}` : '';
     const tanpaMutasi = d.notifTanpaMutasi.length ? `<h3>Notifikasi tanpa baris mutasi</h3><p class="muted">Tercatat dari notifikasi, tapi tidak ada di mutasi tanggal ini: notifikasi dobel/palsu, outlet di akun lain, atau transaksi lewat tengah malam.</p>
       ${d.notifTanpaMutasi.map(item => `<article class="master-row qris-row"><div class="master-main"><strong>${rp(item.amount)}</strong>${chip('bad', item.storeCode ? `Di ${item.storeCode}` : 'Di kolam')}
         <div class="master-meta">${jam(item.receivedAt)}${item.sumberBayar ? ` · dari ${esc(item.sumberBayar)}` : ''}${item.claimedByName ? ` · ${esc(item.claimedByName)}` : ''}</div></div></article>`).join('')}` : '';
     const rekap = (d.rekapCs || []).length ? `<h3>Klaim vs penjualan QRIS per CS</h3>
       ${d.rekapCs.map(r => `<div class="qris-pilih-row"><div><strong>${esc(r.cashierName || '-')}</strong> <span class="muted">${esc(r.storeCode || '')}</span>
         <div class="muted">Klaim ${rp(r.klaimRp)} (${r.klaimN}x) · Penjualan QRIS ${rp(r.penjualanRp)} (${r.penjualanN}x)</div></div>${chip(r.cocok ? 'ok' : 'bad', r.cocok ? 'Sesuai' : `Selisih ${rp(Math.abs(r.klaimRp - r.penjualanRp))}`)}</div>`).join('')}` : '';
-    return `${unggah}${pilihTanggal}${ringkas}${perCs}${rekap}${tanpaUang}${daftar}${tanpaMutasi}${peta}`;
+    return `${unggah}${pilihTanggal}${uang}${ringkas}${perCs}${rekap}${tanpaUang}${daftar}${tanpaMutasi}${peta}`;
   }
 
   async function bacaUnggahMutasi(node, button) {

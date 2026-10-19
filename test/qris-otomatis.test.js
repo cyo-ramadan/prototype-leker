@@ -527,6 +527,13 @@ test('mutasi BCA H+1: sistem memindah, membuat, menautkan, lalu mencatat kesalah
     assert.deepEqual(lihat.body.rekapCs.map(r => [r.cashierId, r.klaimRp, r.penjualanRp, r.cocok]),
       [['cashier_mandala_pilot', 9000, 15000, false], ['cashier_pendem_pilot', 12000, 26000, false]]);
     assert.deepEqual(lihat.body.penjualanTanpaUang.map(k => k.amount), [8000]);
+    // Rekap uang dari mutasi saja (tanpa klaim): per gerai & per laci.
+    const uang = Object.fromEntries(lihat.body.rekapUang.map(g => [g.storeCode, [g.uangRp, g.penjualanRp, g.selisih, g.laci.map(l => [l.drawerId, l.uangRp, l.penjualanRp, l.selisih])]]));
+    assert.deepEqual(uang, {
+      PENDEM: [25000, 26000, -1000, [['laci_p', 25000, 26000, -1000]]],
+      MANDALA: [15000, 15000, 0, [['laci_m', 15000, 15000, 0]]]
+    });
+    assert.equal(lihat.body.rekapUang[0].storeCode, 'PENDEM', 'gerai yang selisih tampil paling atas');
   };
   await periksa();
   assert.deepEqual({ ...f.sqlite.prepare(`SELECT store_id, klaim_store_id FROM qris_masuk WHERE id = 'm2'`).get() }, { store_id: 'store_mandala', klaim_store_id: 'store_pendem' });

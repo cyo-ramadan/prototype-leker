@@ -313,6 +313,54 @@ export async function prosesMutasi(db, entityId, tanggal) {
   return { tertaut: tertaut.size };
 }
 
+// Rekap uang (Bos Cyo, 2026-10-20): "biarpun CS tidak klaim, mutasi sudah masuk -> langsung ada report
+// pasti uangnya sesuai atau tidak". Tidak bergantung pada klaim/notifikasi sama sekali:
+//   per gerai  : total QRIS di mutasi tanggal itu vs total penjualan QRIS (bagian QRIS) tanggal itu;
+//   per laci   : uang mutasi dari jam buka s.d. jam tutup laci vs penjualan QRIS yang dicatat di laci itu.
+// Laci sesuai tapi CS tetap punya catatan = uangnya benar, CS-nya kurang benar mengoperasikan.
+async function rekapUang(db, entityId, tanggal, peta) {
+  const { from, to } = rentang(tanggal);
+  const perGerai = new Map();
+  for (const g of peta.values()) {
+    if (!perGerai.has(g.store_id)) perGerai.set(g.store_id, { storeId: g.store_id, storeCode: g.store_code, mids: [] });
+    perGerai.get(g.store_id).mids.push(g.mid);
+  }
+  const hasil = [];
+  for (const g of perGerai.values()) {
+    const mutasi = await rows(db.prepare(`
+      SELECT amount, trx_at FROM qris_mutasi WHERE entity_id = ? AND business_date = ? AND mid IN (${g.mids.map(() => '?').join(', ')}) ORDER BY trx_at
+    `).bind(entityId, tanggal, ...g.mids));
+    const method = await qrisMethodFor(db, g.storeId);
+    const sales = method.code ? await rows(db.prepare(`
+      SELECT s.id, ${QRIS_SALE_AMOUNT} AS amount, s.created_at, s.drawer_session_id FROM sales s ${QRIS_SALE_JOIN}
+      WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.voided_at IS NULL AND s.created_at >= ? AND s.created_at < ?
+    `).bind(method.code, g.storeId, method.code, from, to)) : [];
+    const laciList = await rows(db.prepare(`
+      SELECT d.id, d.cashier_id, d.opened_at, d.closed_at, c.employee_name FROM cash_drawer_sessions d LEFT JOIN cashiers c ON c.id = d.cashier_id
+      WHERE d.store_id = ? AND d.opened_at < ? AND (d.closed_at IS NULL OR d.closed_at >= ?) ORDER BY d.opened_at
+    `).bind(g.storeId, to, from));
+    const jumlah = list => list.reduce((sum, row) => sum + Number(row.amount), 0);
+    const dipakai = new Set();
+    const laci = laciList.map(d => {
+      const tutup = d.closed_at || '9999';
+      const uang = mutasi.filter(m => m.trx_at >= d.opened_at && m.trx_at <= tutup);
+      uang.forEach(m => dipakai.add(m));
+      const jual = sales.filter(s => s.drawer_session_id === d.id);
+      const uangRp = jumlah(uang);
+      const penjualanRp = jumlah(jual);
+      return { drawerId: d.id, cashierId: d.cashier_id, cashierName: d.employee_name || '', openedAt: d.opened_at, closedAt: d.closed_at || null,
+        uangRp, uangN: uang.length, penjualanRp, penjualanN: jual.length, selisih: uangRp - penjualanRp };
+    });
+    const luar = mutasi.filter(m => !dipakai.has(m));
+    const jualTanpaLaci = sales.filter(s => !laciList.some(d => d.id === s.drawer_session_id));
+    const uangRp = jumlah(mutasi);
+    const penjualanRp = jumlah(sales);
+    hasil.push({ storeCode: g.storeCode, metodeQris: Boolean(method.code), uangRp, uangN: mutasi.length, penjualanRp, penjualanN: sales.length, selisih: uangRp - penjualanRp, laci,
+      luarLaci: { uangRp: jumlah(luar), uangN: luar.length, penjualanRp: jumlah(jualTanpaLaci), penjualanN: jualTanpaLaci.length } });
+  }
+  return hasil.sort((a, b) => (b.selisih !== 0) - (a.selisih !== 0) || a.storeCode.localeCompare(b.storeCode));
+}
+
 async function lihat(db, actor, tanggalDiminta) {
   const entityId = actor.store.entityId;
   const tersedia = (await rows(db.prepare(`SELECT business_date, COUNT(*) AS n FROM qris_mutasi WHERE entity_id = ? GROUP BY business_date ORDER BY business_date DESC LIMIT 31`).bind(entityId)))
@@ -386,6 +434,7 @@ async function lihat(db, actor, tanggalDiminta) {
     gerai: (await rows(db.prepare(`SELECT code, store_name FROM stores WHERE entity_id = ? AND is_active = 1 ORDER BY code`).bind(entityId))).map(row => ({ code: row.code, name: row.store_name })),
     baris: hasil,
     rekapCs: await rekapKlaimCs(db, entityId, tanggal, peta),
+    rekapUang: await rekapUang(db, entityId, tanggal, peta),
     perCs: [...perCs.values()].sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || '') || a.cashierName.localeCompare(b.cashierName)),
     penjualanTanpaUang: catatan.filter(row => row.jenis === 'PENJUALAN_TANPA_UANG').map(mapCatatan),
     notifTanpaMutasi: tanpaMutasi

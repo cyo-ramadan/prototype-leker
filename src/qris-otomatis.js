@@ -400,7 +400,7 @@ async function ringkasan(db, actor) {
   const tanpaGerai = actor.entityWide ? Number((await db.prepare(`SELECT COUNT(*) AS n FROM qris_masuk WHERE entity_id = ? AND store_id IS NULL AND status = 'BELUM'`).bind(actor.store.entityId).first())?.n || 0) : 0;
   const kolam = await kolamAktif(db, actor.store.entityId);
   const kolamBelum = kolam ? Number((await db.prepare(`SELECT COUNT(*) AS n FROM qris_masuk WHERE entity_id = ? AND store_id IS NULL AND status = 'BELUM' AND received_at >= ?`)
-    .bind(actor.store.entityId, new Date(Date.now() - KOLAM_JAM * 3600_000).toISOString()).first())?.n || 0) : 0;
+    .bind(actor.store.entityId, awalHariIni()).first())?.n || 0) : 0;
   return { enabled: true, tanggal, stores: result, tanpaGerai, kolam, kolamBelum };
 }
 
@@ -410,11 +410,13 @@ async function ringkasan(db, actor) {
 // Batal klaim untuk yang kepencet. Pencocokan akhir dengan mutasi bank (outlet asli) menangkap
 // klaim yang salah gerai.
 
-const KOLAM_JAM = 24;
+// Kolam hanya berisi uang masuk HARI INI (Bos Cyo, 2026-10-19): uang kemarin yang belum/salah diklaim
+// sudah ditangani sistem saat mutasi H+1 diproses (qris-mutasi.js), jadi tidak perlu tampil lagi.
+const awalHariIni = () => jakartaWallClockToUtc(getJakartaBusinessDate(), '00:00').toISOString();
 // Klaim asli CS (migration 0171): tidak diubah saat sistem/admin memindah uangnya ke gerai yang benar,
 // jadi tetap bisa dinilai "salah klaim" di Raport. Klaim admin tidak dinilai.
-const KLAIM_ASLI_SET = 'klaim_store_id = ?, klaim_cashier_id = ?';
-const klaimAsli = actor => (actor.role === 'CASHIER' ? [actor.store.id, actor.id || null] : [null, null]);
+const KLAIM_ASLI_SET = 'klaim_store_id = ?, klaim_cashier_id = ?, klaim_at = ?';
+const klaimAsli = actor => (actor.role === 'CASHIER' ? [actor.store.id, actor.id || null, new Date().toISOString()] : [null, null, null]);
 
 async function lacinyaTerbuka(db, storeId) {
   return Boolean(await db.prepare(`SELECT 1 FROM cash_drawer_sessions WHERE store_id = ? AND status = 'OPEN' LIMIT 1`).bind(storeId).first());
@@ -430,7 +432,7 @@ async function kolam(db, actor, filter = 'BELUM') {
   if (!['SEMUA', 'BELUM', 'SUDAH'].includes(filter)) return json({ error: 'Filter klaim tidak sah.' }, 400);
   const ditolak = await bolehKolam(db, actor);
   if (ditolak) return ditolak;
-  const since = new Date(Date.now() - KOLAM_JAM * 3600_000).toISOString();
+  const since = awalHariIni();
   const klaimWhere = filter === 'BELUM' ? 'q.store_id IS NULL'
     : filter === 'SUDAH' ? 'q.store_id IS NOT NULL AND q.claimed_at IS NOT NULL'
     : '(q.store_id IS NULL OR q.claimed_at IS NOT NULL)';
@@ -445,7 +447,22 @@ async function kolam(db, actor, filter = 'BELUM') {
     item.bisaBatal = item.diklaim && (actor.entityWide || item.milikGeraiIni) && (row.status !== 'TERTAUT' || row.link_mode !== 'ADMIN' || actor.canManage);
     return item;
   });
-  return json({ enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, entityWide: actor.entityWide, tautanSistem: await tautanOlehSistem(db, actor.store.entityId), klaim: filter, items });
+  // Permintaan klaim yang masih menunggu: ditandai di tiap baris, dan yang ditujukan ke gerai ini
+  // selalu tampil paling atas (apa pun filternya) supaya CS yang mengklaim langsung menjawab.
+  const terbuka = await rows(db.prepare(`
+    SELECT p.*, ds.code AS dari_code, ks.code AS ke_code, q.amount, q.received_at, q.sumber_bayar FROM qris_klaim_permintaan p
+    JOIN qris_masuk q ON q.id = p.masuk_id LEFT JOIN stores ds ON ds.id = p.dari_store_id LEFT JOIN stores ks ON ks.id = p.ke_store_id
+    WHERE p.entity_id = ? AND p.status = 'MENUNGGU' ORDER BY p.created_at
+  `).bind(actor.store.entityId));
+  const mapMinta = p => ({ id: p.id, masukId: p.masuk_id, dariStoreCode: p.dari_code, dariName: p.dari_name, keStoreCode: p.ke_code, keName: p.ke_name,
+    amount: Number(p.amount), receivedAt: p.received_at, sumberBayar: p.sumber_bayar || '', createdAt: p.created_at });
+  for (const item of items) {
+    const p = terbuka.find(row => row.masuk_id === item.id);
+    item.permintaan = p ? mapMinta(p) : null;
+    item.bisaMinta = item.diklaim && !item.milikGeraiIni && !p && item.status !== 'DIABAIKAN';
+  }
+  const permintaanMasuk = terbuka.filter(p => p.ke_store_id === actor.store.id).map(mapMinta);
+  return json({ permintaanMasuk, enabled: true, store: { code: actor.store.code, name: actor.store.storeName }, role: actor.role, canManage: actor.canManage, entityWide: actor.entityWide, tautanSistem: await tautanOlehSistem(db, actor.store.entityId), klaim: filter, items });
 }
 
 async function klaim(db, actor, value) {
@@ -543,7 +560,7 @@ async function klaimTautkan(db, actor, value) {
   const hasil = await tautkan(db, actor, value);
   if (hasil.status !== 200 && diklaim) {
     await db.prepare(`
-      UPDATE qris_masuk SET store_id = NULL, claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', klaim_store_id = NULL, klaim_cashier_id = NULL
+      UPDATE qris_masuk SET store_id = NULL, claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', klaim_store_id = NULL, klaim_cashier_id = NULL, klaim_at = NULL
       WHERE id = ? AND status = 'BELUM' AND claimed_at = ?
     `).bind(masukId, now).run();
   }
@@ -564,10 +581,102 @@ async function batalKlaim(db, actor, value) {
   const jejak = `Klaim ${row.claimed_by_name || ''} dibatalkan ${actor.name} (${now.slice(0, 16).replace('T', ' ')} UTC)${catatan ? `: ${catatan}` : ''}`;
   await db.prepare(`
     UPDATE qris_masuk SET store_id = NULL, status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = '',
-      claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', klaim_store_id = NULL, klaim_cashier_id = NULL, note = ?
+      claimed_at = NULL, claimed_by_role = '', claimed_by_id = '', claimed_by_name = '', klaim_store_id = NULL, klaim_cashier_id = NULL, klaim_at = NULL, note = ?
     WHERE id = ? AND claimed_at IS NOT NULL
   `).bind(jejak, row.id).run();
+  await db.prepare(`UPDATE qris_klaim_permintaan SET status = 'BATAL', decided_at = ?, decided_by_name = ? WHERE masuk_id = ? AND status = 'MENUNGGU'`)
+    .bind(now, actor.name, row.id).run();
   return json({ ok: true });
+}
+
+// ---- Permintaan klaim antar-CS (Bos Cyo, 2026-10-19; migration 0172) ---------------------------
+// CS gerai lain yang yakin uang itu dari pembelinya menekan "Ini pembeliku". CS yang mengklaim mendapat
+// notifikasi lalu memilih melepas (klaim pindah ke peminta) atau mempertahankan. Mutasi bank H+1 tetap
+// hakim terakhir: yang mempertahankan klaim yang ternyata salah tercatat "salah klaim" di Raport.
+
+async function kabariKlaim(env, { entityId, storeId, cashierId, title, body, dedupKey, kind }) {
+  try {
+    const actors = (await listNotificationActors(env, { storeId })).filter(a => a.role === 'CASHIER' && a.storeId === storeId);
+    const tujuan = cashierId && actors.some(a => a.key === `CASHIER:${cashierId}`) ? actors.filter(a => a.key === `CASHIER:${cashierId}`) : actors;
+    for (const recipient of tujuan) {
+      await emitNotification(env, { recipientKey: recipient.key, entityId, storeId, dedupKey, title, body, url: '/cashier', kind });
+    }
+    if (tujuan.length) await flushNotificationDeliveries(env);
+  } catch (error) {
+    console.error('QRIS: notifikasi permintaan klaim gagal', { name: error?.name });
+  }
+}
+
+const jamWib = iso => new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(iso));
+
+async function mintaKlaim(env, db, actor, value) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const masuk = await db.prepare(`SELECT q.*, st.code AS store_code FROM qris_masuk q LEFT JOIN stores st ON st.id = q.store_id WHERE q.id = ? AND q.entity_id = ?`)
+    .bind(text(value?.masukId, 80), actor.store.entityId).first();
+  if (!masuk) return json({ error: 'Uang masuk tidak ditemukan.' }, 404);
+  if (masuk.status === 'DIABAIKAN') return json({ error: 'Uang masuk ini sudah diabaikan admin.' }, 409);
+  if (!masuk.store_id || !masuk.claimed_at) return json({ error: 'Uang ini belum diklaim siapa pun — langsung klaim saja.', code: 'QRIS_BELUM_DIKLAIM' }, 409);
+  if (masuk.store_id === actor.store.id) return json({ error: 'Uang ini sudah diklaim gerai kamu sendiri.' }, 409);
+  const id = `qrisreq_${crypto.randomUUID()}`;
+  const now = new Date().toISOString();
+  try {
+    await db.prepare(`
+      INSERT INTO qris_klaim_permintaan (id, entity_id, masuk_id, dari_store_id, dari_role, dari_cashier_id, dari_name, ke_store_id, ke_cashier_id, ke_name, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'MENUNGGU', ?)
+    `).bind(id, actor.store.entityId, masuk.id, actor.store.id, actor.role, actor.role === 'CASHIER' ? actor.id : null, actor.name,
+      masuk.store_id, masuk.klaim_cashier_id || null, masuk.claimed_by_name || '', now).run();
+  } catch {
+    return json({ error: 'Uang ini sudah diminta gerai lain dan masih menunggu jawaban.', code: 'QRIS_SUDAH_DIMINTA' }, 409);
+  }
+  await kabariKlaim(env, {
+    entityId: actor.store.entityId, storeId: masuk.store_id, cashierId: masuk.klaim_cashier_id, kind: 'QRIS_PERMINTAAN', dedupKey: `qris-minta:${id}`,
+    title: `🙋 Klaim QRIS ${rupiah(masuk.amount)} diminta ${actor.store.code}`,
+    body: `${actor.name} (${actor.store.code}) bilang uang ${rupiah(masuk.amount)} jam ${jamWib(masuk.received_at)} itu dari pembelinya. Buka Kolam QRIS: lepaskan atau pertahankan klaimmu.`
+  });
+  return json({ ok: true, id }, 201);
+}
+
+async function jawabPermintaan(env, db, actor, value, keputusan) {
+  const ditolak = await bolehKolam(db, actor);
+  if (ditolak) return ditolak;
+  const req = await db.prepare(`
+    SELECT p.*, q.amount, q.received_at, q.store_id AS q_store_id, ds.code AS dari_code, ks.code AS ke_code FROM qris_klaim_permintaan p
+    JOIN qris_masuk q ON q.id = p.masuk_id LEFT JOIN stores ds ON ds.id = p.dari_store_id LEFT JOIN stores ks ON ks.id = p.ke_store_id
+    WHERE p.id = ? AND p.entity_id = ?
+  `).bind(text(value?.permintaanId, 80), actor.store.entityId).first();
+  if (!req) return json({ error: 'Permintaan tidak ditemukan.' }, 404);
+  if (req.status !== 'MENUNGGU') return json({ error: 'Permintaan ini sudah dijawab.', code: 'QRIS_PERMINTAAN_SELESAI' }, 409);
+  if (!actor.entityWide && req.ke_store_id !== actor.store.id) return forbidden('Hanya gerai yang mengklaim yang bisa menjawab permintaan ini.');
+  const now = new Date().toISOString();
+  if (req.q_store_id !== req.ke_store_id) {
+    await db.prepare(`UPDATE qris_klaim_permintaan SET status = 'BATAL', decided_at = ?, decided_by_name = 'Sistem' WHERE id = ?`).bind(now, req.id).run();
+    return json({ error: 'Klaim uang ini sudah berubah; permintaan ditutup.', code: 'QRIS_PERMINTAAN_SELESAI' }, 409);
+  }
+  if (keputusan === 'DILEPAS') {
+    // Klaim pindah ke peminta. Waktu klaimnya = saat ia meminta (bukan saat dilepas), supaya tidak dinilai lambat.
+    const peminta = req.dari_role === 'CASHIER' && req.dari_cashier_id;
+    await db.prepare(`
+      UPDATE qris_masuk SET store_id = ?, status = 'BELUM', sale_id = NULL, link_mode = NULL, linked_at = NULL, linked_by_role = '', linked_by_name = '',
+        claimed_at = ?, claimed_by_role = ?, claimed_by_id = ?, claimed_by_name = ?, klaim_store_id = ?, klaim_cashier_id = ?, klaim_at = ?,
+        note = ?
+      WHERE id = ? AND store_id = ?
+    `).bind(req.dari_store_id, req.created_at, req.dari_role, req.dari_cashier_id || '', req.dari_name,
+      peminta ? req.dari_store_id : null, peminta ? req.dari_cashier_id : null, peminta ? req.created_at : null,
+      `Klaim ${req.ke_code}${req.ke_name ? ` (${req.ke_name})` : ''} dilepas ${actor.name} untuk ${req.dari_code} (${req.dari_name}) atas permintaannya, ${now.slice(0, 16).replace('T', ' ')} UTC.`,
+      req.masuk_id, req.ke_store_id).run();
+    await tautkanOtomatis(db, req.dari_store_id, { around: req.received_at });
+  }
+  await db.prepare(`UPDATE qris_klaim_permintaan SET status = ?, decided_at = ?, decided_by_name = ? WHERE id = ? AND status = 'MENUNGGU'`)
+    .bind(keputusan, now, actor.name, req.id).run();
+  await kabariKlaim(env, {
+    entityId: actor.store.entityId, storeId: req.dari_store_id, cashierId: req.dari_cashier_id, kind: 'QRIS_PERMINTAAN_JAWAB', dedupKey: `qris-minta-jawab:${req.id}`,
+    title: keputusan === 'DILEPAS' ? `✅ QRIS ${rupiah(req.amount)} sekarang milik ${req.dari_code}` : `✋ Klaim QRIS ${rupiah(req.amount)} dipertahankan ${req.ke_code}`,
+    body: keputusan === 'DILEPAS'
+      ? `${actor.name} (${req.ke_code}) melepas klaim uang ${rupiah(req.amount)} jam ${jamWib(req.received_at)} untuk gerai kamu.`
+      : `${actor.name} (${req.ke_code}) tetap mempertahankan klaim uang ${rupiah(req.amount)} jam ${jamWib(req.received_at)}. Mutasi bank besok yang menentukan; kalau ternyata milik gerai kamu, klaim mereka tercatat salah.`
+  });
+  return json({ ok: true, status: keputusan });
 }
 
 // ---- Setelan & HP penerima --------------------------------------------------------------------
@@ -801,6 +910,9 @@ export async function handleQrisApi(request, env, pathname) {
     case '/api/qris/klaim': return klaim(db, actor, value);
     case '/api/qris/klaim-tautkan': return klaimTautkan(db, actor, value);
     case '/api/qris/batal-klaim': return batalKlaim(db, actor, value);
+    case '/api/qris/minta': return mintaKlaim(env, db, actor, value);
+    case '/api/qris/permintaan/lepas': return jawabPermintaan(env, db, actor, value, 'DILEPAS');
+    case '/api/qris/permintaan/tahan': return jawabPermintaan(env, db, actor, value, 'DIPERTAHANKAN');
     case '/api/qris/lepas': return adminUbah(db, actor, value, 'lepas');
     case '/api/qris/abaikan': return adminUbah(db, actor, value, 'abaikan');
     case '/api/qris/pulihkan': return adminUbah(db, actor, value, 'pulihkan');

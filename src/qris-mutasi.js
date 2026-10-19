@@ -34,9 +34,14 @@ const BEDA_LACI_MAKS_MS = 30 * 60_000;
 export const JENIS_CATATAN_CS = Object.freeze({
   SALAH_KLAIM: 'Salah klaim',
   TIDAK_KLAIM: 'Tidak klaim',
+  KLAIM_LAMBAT: 'Klaim lambat',
+  SELISIH_KLAIM: 'Total klaim ≠ penjualan QRIS',
   PENJUALAN_TANPA_UANG: 'Penjualan QRIS tanpa uang',
   UANG_TANPA_PENJUALAN: 'Uang QRIS tanpa penjualan QRIS'
 });
+const JUMLAH_KOSONG = () => Object.fromEntries(Object.keys(JENIS_CATATAN_CS).map(jenis => [jenis, 0]));
+// Bos Cyo, 2026-10-19: klaim lebih dari 10 menit sesudah notifikasinya muncul di MAXI = klaim lambat.
+export const KLAIM_LAMBAT_MENIT = 10;
 
 const dompet = value => text(value, 60).toUpperCase().replace(/^BANK\s+/, '').replace(/[^A-Z0-9]/g, '');
 function dompetCocok(a, b) {
@@ -112,6 +117,42 @@ async function csBertugas(db, storeId, at) {
 async function namaKasir(db, cashierId) {
   if (!cashierId) return '';
   return (await db.prepare(`SELECT employee_name FROM cashiers WHERE id = ?`).bind(cashierId).first())?.employee_name || '';
+}
+
+// Total uang yang diklaim tiap CS sehari vs total penjualan QRIS yang ia catat (bagian QRIS saja), hanya
+// gerai yang outletnya sudah dipasangkan. Klaim dihitung dari klaim asli CS (klaim_cashier_id).
+async function rekapKlaimCs(db, entityId, tanggal, peta) {
+  const { from, to } = rentang(tanggal);
+  const hasil = new Map();
+  const ambil = (cashierId, storeId) => {
+    if (!hasil.has(cashierId)) hasil.set(cashierId, { cashierId, storeId, klaimRp: 0, klaimN: 0, penjualanRp: 0, penjualanN: 0 });
+    return hasil.get(cashierId);
+  };
+  const storeIds = new Set([...peta.values()].map(g => g.store_id));
+  for (const row of await rows(db.prepare(`
+    SELECT klaim_cashier_id, klaim_store_id, SUM(amount) AS rp, COUNT(*) AS n FROM qris_masuk
+    WHERE entity_id = ? AND business_date = ? AND klaim_cashier_id IS NOT NULL AND status != 'DIABAIKAN' GROUP BY klaim_cashier_id, klaim_store_id
+  `).bind(entityId, tanggal))) {
+    if (!storeIds.has(row.klaim_store_id)) continue;
+    const r = ambil(row.klaim_cashier_id, row.klaim_store_id);
+    r.klaimRp += Number(row.rp); r.klaimN += Number(row.n);
+  }
+  for (const storeId of storeIds) {
+    const method = await qrisMethodFor(db, storeId);
+    if (!method.code) continue;
+    for (const row of await rows(db.prepare(`
+      SELECT s.cashier_id, SUM(${QRIS_SALE_AMOUNT}) AS rp, COUNT(*) AS n FROM sales s ${QRIS_SALE_JOIN}
+      WHERE s.store_id = ? AND ${QRIS_SALE_WHERE} AND s.voided_at IS NULL AND s.created_at >= ? AND s.created_at < ? GROUP BY s.cashier_id
+    `).bind(method.code, storeId, method.code, from, to))) {
+      if (!row.cashier_id) continue;
+      const r = ambil(row.cashier_id, storeId);
+      r.penjualanRp += Number(row.rp); r.penjualanN += Number(row.n);
+    }
+  }
+  const kode = new Map([...peta.values()].map(g => [g.store_id, g.store_code]));
+  const list = [];
+  for (const r of hasil.values()) list.push({ ...r, storeCode: kode.get(r.storeId) || null, cashierName: await namaKasir(db, r.cashierId), cocok: r.klaimRp === r.penjualanRp });
+  return list.sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || '') || a.cashierName.localeCompare(b.cashierName));
 }
 
 export async function prosesMutasi(db, entityId, tanggal) {
@@ -217,13 +258,16 @@ export async function prosesMutasi(db, entityId, tanggal) {
     const gerai = peta.get(m.mid);
     if (!gerai || !m.masuk_id) continue;
     const q = await db.prepare(`SELECT source, klaim_store_id, klaim_cashier_id, claimed_by_name FROM qris_masuk WHERE id = ?`).bind(m.masuk_id).first();
+    const dipertahankan = await db.prepare(`
+      SELECT ds.code FROM qris_klaim_permintaan p LEFT JOIN stores ds ON ds.id = p.dari_store_id WHERE p.masuk_id = ? AND p.status = 'DIPERTAHANKAN' AND p.dari_store_id = ? LIMIT 1
+    `).bind(m.masuk_id, gerai.store_id).first();
     const uang = `${rupiah(m.amount)} jam ${jamWib(m.trx_at)}${m.payment_type ? ` dari ${m.payment_type}` : ''}`;
     const bertugas = await csBertugas(db, gerai.store_id, m.trx_at);
     const dasar = { storeId: gerai.store_id, amount: Number(m.amount), waktu: m.trx_at, mutasiId: m.id, masukId: m.masuk_id };
     if (q.klaim_store_id && q.klaim_store_id !== gerai.store_id) {
       const klaimKode = kodeGerai.get(q.klaim_store_id) || (await db.prepare(`SELECT code FROM stores WHERE id = ?`).bind(q.klaim_store_id).first())?.code || 'gerai lain';
       await catat('SALAH_KLAIM', { ...dasar, storeId: q.klaim_store_id, cashierId: q.klaim_cashier_id, cashierName: await namaKasir(db, q.klaim_cashier_id) || q.claimed_by_name,
-        keterangan: `Mengklaim uang ${uang} untuk ${klaimKode}, padahal uangnya masuk ke outlet ${m.merchant_name} (${gerai.store_code}).` });
+        keterangan: `Mengklaim uang ${uang} untuk ${klaimKode}, padahal uangnya masuk ke outlet ${m.merchant_name} (${gerai.store_code}).${dipertahankan ? ` Klaim tetap dipertahankan walau sudah diminta ${dipertahankan.code}.` : ''}` });
     } else if (!q.klaim_store_id && q.source === 'NOTIF_HP') {
       await catat('TIDAK_KLAIM', { ...dasar, cashierId: bertugas?.cashier_id, cashierName: bertugas?.employee_name,
         keterangan: `Uang ${uang} masuk ke ${gerai.store_code} tapi tidak diklaim${bertugas ? '' : ' (tidak ada laci terbuka saat itu)'}.` });
@@ -248,6 +292,23 @@ export async function prosesMutasi(db, entityId, tanggal) {
       await catat('PENJUALAN_TANPA_UANG', { storeId, cashierId: s.cashier_id, cashierName: s.employee_name, amount: Number(s.amount), waktu: s.created_at, saleId: s.id, masukId: s.masuk_id || null,
         keterangan: `Penjualan QRIS ${rupiah(s.amount)} jam ${jamWib(s.created_at)} tidak ada uangnya di mutasi BCA${s.masuk_id ? ' (tertaut ke notifikasi yang tidak ada di mutasi)' : ''}.` });
     }
+  }
+  // Klaim lambat: diklaim lebih dari 10 menit sesudah notifikasinya muncul di MAXI (created_at).
+  for (const q of await rows(db.prepare(`
+    SELECT id, amount, created_at, klaim_at, klaim_store_id, klaim_cashier_id, claimed_by_name FROM qris_masuk
+    WHERE entity_id = ? AND business_date = ? AND klaim_cashier_id IS NOT NULL AND klaim_at IS NOT NULL AND status != 'DIABAIKAN' AND source = 'NOTIF_HP'
+  `).bind(entityId, tanggal))) {
+    const menit = (new Date(q.klaim_at).getTime() - new Date(q.created_at).getTime()) / 60000;
+    if (menit <= KLAIM_LAMBAT_MENIT) continue;
+    await catat('KLAIM_LAMBAT', { storeId: q.klaim_store_id, cashierId: q.klaim_cashier_id, cashierName: await namaKasir(db, q.klaim_cashier_id) || q.claimed_by_name,
+      amount: Number(q.amount), waktu: q.klaim_at, masukId: q.id,
+      keterangan: `Uang ${rupiah(q.amount)} (notifikasi muncul jam ${jamWib(q.created_at)}) baru diklaim jam ${jamWib(q.klaim_at)} — ${Math.round(menit)} menit kemudian (batas ${KLAIM_LAMBAT_MENIT} menit).` });
+  }
+  // Total klaim CS sehari harus sama dengan total penjualan QRIS yang ia catat.
+  for (const r of await rekapKlaimCs(db, entityId, tanggal, peta)) {
+    if (r.cocok) continue;
+    await catat('SELISIH_KLAIM', { storeId: r.storeId, cashierId: r.cashierId, cashierName: r.cashierName, amount: Math.abs(r.klaimRp - r.penjualanRp), waktu: from,
+      keterangan: `Total klaim ${rupiah(r.klaimRp)} (${r.klaimN}x) tidak sama dengan total penjualan QRIS ${rupiah(r.penjualanRp)} (${r.penjualanN}x) — selisih ${rupiah(Math.abs(r.klaimRp - r.penjualanRp))}.` });
   }
   return { tertaut: tertaut.size };
 }
@@ -297,7 +358,7 @@ async function lihat(db, actor, tanggalDiminta) {
   const perCs = new Map();
   for (const row of catatan) {
     const key = row.cashier_id || `tanpa:${row.store_id}`;
-    if (!perCs.has(key)) perCs.set(key, { cashierId: row.cashier_id || null, cashierName: row.cashier_name || '(tidak ada laci terbuka)', storeCode: row.store_code || null, jumlah: { SALAH_KLAIM: 0, TIDAK_KLAIM: 0, PENJUALAN_TANPA_UANG: 0, UANG_TANPA_PENJUALAN: 0 }, rincian: [] });
+    if (!perCs.has(key)) perCs.set(key, { cashierId: row.cashier_id || null, cashierName: row.cashier_name || '(tidak ada laci terbuka)', storeCode: row.store_code || null, jumlah: JUMLAH_KOSONG(), rincian: [] });
     const cs = perCs.get(key);
     cs.jumlah[row.jenis] += 1;
     cs.rincian.push(mapCatatan(row));
@@ -316,12 +377,15 @@ async function lihat(db, actor, tanggalDiminta) {
       notifTidakSampai: hasil.filter(row => row.notifTidakSampai).length,
       salahKlaim: hitung('SALAH_KLAIM'),
       tidakKlaim: hitung('TIDAK_KLAIM'),
+      klaimLambat: hitung('KLAIM_LAMBAT'),
+      selisihKlaim: hitung('SELISIH_KLAIM'),
       penjualanTanpaUang: hitung('PENJUALAN_TANPA_UANG'),
       notifTanpaMutasi: tanpaMutasi.length
     },
     peta: semuaMid.map(row => ({ mid: row.mid, merchantName: row.merchant_name, storeCode: peta.get(row.mid)?.store_code || null, adaDiTanggalIni: baris.some(b => b.mid === row.mid) })),
     gerai: (await rows(db.prepare(`SELECT code, store_name FROM stores WHERE entity_id = ? AND is_active = 1 ORDER BY code`).bind(entityId))).map(row => ({ code: row.code, name: row.store_name })),
     baris: hasil,
+    rekapCs: await rekapKlaimCs(db, entityId, tanggal, peta),
     perCs: [...perCs.values()].sort((a, b) => (a.storeCode || '').localeCompare(b.storeCode || '') || a.cashierName.localeCompare(b.cashierName)),
     penjualanTanpaUang: catatan.filter(row => row.jenis === 'PENJUALAN_TANPA_UANG').map(mapCatatan),
     notifTanpaMutasi: tanpaMutasi

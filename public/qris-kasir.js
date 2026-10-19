@@ -46,16 +46,16 @@
     } catch {}
   }
 
-  function banner(title, body) {
+  function banner(title, body, onOpen = openDialog) {
     let node = document.getElementById('qrisBanner');
     if (!node) {
       node = document.createElement('button');
       node.id = 'qrisBanner';
       node.type = 'button';
       node.className = 'qris-banner';
-      node.onclick = () => { node.classList.remove('show'); openDialog(); };
       document.body.appendChild(node);
     }
+    node.onclick = () => { node.classList.remove('show'); onOpen(); };
     node.innerHTML = `<strong></strong><span></span>`;
     node.querySelector('strong').textContent = title;
     node.querySelector('span').textContent = body;
@@ -75,6 +75,22 @@
     const sale = event.detail?.sale;
     if (!sale?.id || sale.paymentMethod === 'CASH') return;
     window.QrisOtomatis.pilihPenjualan({ api, saleId: sale.id, otomatis: true });
+  });
+
+  // Permintaan klaim antar-CS (Bos Cyo, 2026-10-19): klaimmu diminta gerai lain / jawaban atas permintaanmu.
+  // Pita + bunyi; ketuk = buka Kolam QRIS (permintaan selalu tampil paling atas di sana).
+  const seenMinta = new Set();
+  let primedMinta = false;
+  document.addEventListener('maxi-notifications-changed', event => {
+    const items = (event.detail?.items || []).filter(item => item.kind === 'QRIS_PERMINTAAN' || item.kind === 'QRIS_PERMINTAAN_JAWAB');
+    const fresh = items.filter(item => !seenMinta.has(item.id));
+    fresh.forEach(item => seenMinta.add(item.id));
+    if (!primedMinta) { primedMinta = true; return; }
+    const baru = fresh.filter(item => !item.readAt);
+    if (!baru.length) return;
+    cring();
+    banner(baru[0].title, baru[0].body, () => window.QrisOtomatis.open({ api, storeCode: storeCode(), kolam: true }));
+    window.QrisOtomatis.refreshIfOpen();
   });
 
   document.addEventListener('maxi-notifications-changed', event => {

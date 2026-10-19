@@ -1749,6 +1749,30 @@
    "class": "business_draft",
    "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
    "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-lepas-minta:Lepaskan untuk {nilai}",
+   "label": "Lepaskan untuk {nilai}",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-minta:🙋 Ini pembeliku",
+   "label": "🙋 Ini pembeliku",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/qris-otomatis.js:data-qr-tahan:Pertahankan",
+   "label": "Pertahankan",
+   "sumber": "public/qris-otomatis.js",
+   "class": "business_draft",
+   "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
   }
  ]
 }

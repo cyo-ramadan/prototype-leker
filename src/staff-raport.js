@@ -45,6 +45,8 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
       SELECT
         COALESCE(SUM(CASE WHEN jenis = 'SALAH_KLAIM' THEN 1 ELSE 0 END), 0) AS salah_klaim,
         COALESCE(SUM(CASE WHEN jenis = 'TIDAK_KLAIM' THEN 1 ELSE 0 END), 0) AS tidak_klaim,
+        COALESCE(SUM(CASE WHEN jenis = 'KLAIM_LAMBAT' THEN 1 ELSE 0 END), 0) AS klaim_lambat,
+        COALESCE(SUM(CASE WHEN jenis = 'SELISIH_KLAIM' THEN 1 ELSE 0 END), 0) AS selisih_klaim,
         COALESCE(SUM(CASE WHEN jenis = 'PENJUALAN_TANPA_UANG' THEN 1 ELSE 0 END), 0) AS penjualan_tanpa_uang,
         COALESCE(SUM(CASE WHEN jenis = 'UANG_TANPA_PENJUALAN' THEN 1 ELSE 0 END), 0) AS uang_tanpa_penjualan
       FROM qris_catatan_cs WHERE cashier_id = ?
@@ -94,6 +96,9 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
       qris: {
         salahKlaim: Number(qris?.salah_klaim || 0),
         tidakKlaim: Number(qris?.tidak_klaim || 0),
+        // Klaim > 10 menit sesudah notifikasi muncul; hari yang total klaimnya != total penjualan QRIS.
+        klaimLambat: Number(qris?.klaim_lambat || 0),
+        selisihKlaim: Number(qris?.selisih_klaim || 0),
         penjualanTanpaUang: Number(qris?.penjualan_tanpa_uang || 0),
         uangTanpaPenjualan: Number(qris?.uang_tanpa_penjualan || 0),
         nominalTidakSesuai: Number(qris?.penjualan_tanpa_uang || 0) + Number(qris?.uang_tanpa_penjualan || 0)
@@ -105,7 +110,7 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
       { code: 'attendance_activity', label: 'Aktivitas presensi', source: 'staff_attendance', scoring: 'UNCONFIGURED' },
       { code: 'drawer_activity', label: 'Aktivitas laci', source: 'cash_drawer_sessions', scoring: 'UNCONFIGURED' },
       { code: 'info_gerai_reports', label: 'Kontribusi laporan Info Gerai', source: 'info_gerai_entries', scoring: 'UNCONFIGURED' },
-      { code: 'qris_mutasi', label: 'QRIS: salah klaim, tidak klaim, nominal tidak sesuai', source: 'qris_catatan_cs', scoring: 'UNCONFIGURED' }
+      { code: 'qris_mutasi', label: 'QRIS: salah klaim, tidak klaim, klaim lambat, total klaim vs penjualan, nominal tidak sesuai', source: 'qris_catatan_cs', scoring: 'UNCONFIGURED' }
     ]
   };
 }

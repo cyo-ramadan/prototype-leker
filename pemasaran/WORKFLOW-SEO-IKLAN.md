@@ -178,6 +178,71 @@ Aturan:
 
 ---
 
+## Pemeriksaan 2026-10-09 — apakah sudah sesuai strategi, dan apa yang kurang
+
+Dicek terhadap `HANDOFF-STRATEGI-PENJUALAN.md` §8/§10 dan target Bos Cyo: **dapat checkout minggu ini**.
+Program yang dijual tetap POS ini dengan semua USP, termasuk Una.
+
+**Yang sudah sesuai:** hanya janji `JUAL`; satu ajakan WhatsApp; urutan kanal tidak dilompati; uang iklan baru
+naik setelah ada pembayar; tidak ada angka karangan; persetujuan Bos Cyo sebelum terbit.
+
+**Yang kurang (dan statusnya):**
+
+| # | Kekurangan | Status 2026-10-09 |
+|---|---|---|
+| 1 | **Una tidak ada di workflow**, padahal Bos Cyo menetapkan Una USP kedua | Ditambah di bagian "Una di SEO dan iklan" di bawah |
+| 2 | **Kode sumber di tombol WhatsApp (G4)** belum ada, jadi chat tidak bisa dilacak | **Selesai untuk kedua landing page**: pesan berakhir `[web-utama]` / `[web-kemitraan]`, atau `[nama-kampanye]` bila tautan memakai `?s=nama-kampanye` |
+| 3 | **Dasar teknis SEO belum ada**: tidak ada `robots.txt`, `sitemap.xml`, alamat kanonik, penanda "jangan diindeks" untuk aplikasi | Tugas di papan agen: `karen-PEMASARAN-SEO-DASAR` |
+| 4 | **Tidak ada jalur bayar sama sekali** — tidak ada alur dari "mau" ke "uang masuk" | Ditulis di `CHECKOUT-MANUAL.md` |
+| 5 | **Akun pemilik pelanggan (Entity Admin) hanya bisa dibuat lewat migration**, dan **belum ada fitur ganti password sendiri** | Tugas di papan agen: `karen-PEMASARAN-ENTITY-ADMIN-BUAT-AKUN` (**penghalang terbesar checkout**), lalu `karen-PEMASARAN-ENTITY-ADMIN-GANTI-PASSWORD` (berurutan) |
+| 6 | G1 domain: Bos Cyo sudah mengonfirmasi halaman terbuka (2026-10-05). G2: alamat aplikasi `app.` belum dikonfirmasi terpasang | Menunggu Bos Cyo (2 menit di Cloudflare) |
+| 7 | Antrean artikel TemanNikah (proyek `nikah`) sudah OPEN sejak 12–13 September tanpa ada yang mengklaim | Pelajaran: jangan menumpuk antrean konten sebelum ada yang menjalankan |
+
+**Hal yang harus jujur dikatakan:** SEO dan iklan **tidak akan menghasilkan checkout minggu ini**. SEO butuh 2–4
+bulan, iklan baru boleh setelah ada demo yang berubah jadi bayar. Checkout minggu ini datang dari **jual langsung**
+(`PAKET-JUALAN-MINGGU-1.md`) yang dilengkapi `CHECKOUT-MANUAL.md`. SEO dan iklan dimulai sekarang supaya hasilnya
+ada bulan depan, tanpa mengganggu target minggu ini.
+
+**Persetujuan konten:** pakai cara sederhana di A5 (ringkasan satu layar, Bos Cyo menjawab *setuju* atau
+*ubah: …*) untuk 4 minggu pertama. Layar kurasi tersendiri (`PLAN-SEO-KONTEN.md` Meja Kurasi) ditunda sampai ada
+lebih dari 2 artikel per minggu atau agen penerbit Instagram/Facebook benar-benar berjalan — sebelum itu, membangun
+layar baru memperlambat target utama.
+
+**Papan tugas:** tugas teknis masuk ke papan agen di proyek `leker` (repo yang sama dengan halaman jualan), wilayah
+`pemasaran`. Tidak membuat proyek baru dulu.
+
+**Risiko yang harus Bos Cyo tahu sebelum menjual ke orang luar (belum ada tugasnya, menunggu keputusan):**
+
+- **Password disimpan dengan hash sederhana (SHA-256 tanpa garam).** Cukup untuk akun internal, lemah untuk akun
+  pelanggan luar. Perbaikannya (hash berlapis garam yang otomatis menaikkan akun lama saat login) menyentuh jalur
+  login semua peran, jadi dikerjakan sebagai tugas terpisah dan hati-hati, bukan minggu ini.
+- **Rantai `SAAS-MODUL-01` sampai `07` (pasang tenant baru tanpa SQL tangan)** masih terbuka sejak 23 Agustus dan belum
+  diklaim. Itu fondasi jangka panjang untuk 10+ pelanggan. Untuk 1–3 pelanggan pertama, tombol Buat Akun Entity Admin
+  (tugas di atas) sudah cukup; rantai itu perlu dijadwalkan sebelum pelanggan ke-4.
+
+### Una di SEO dan iklan
+
+Una adalah USP kedua, bukan judul. Aturannya mengikuti `HANDOFF-STRATEGI-PENJUALAN.md` §10:
+
+1. Selalu berlabel **"Baru · sedang kami uji bersama pemilik pertama"** dan selalu tampil dengan langkah draft →
+   pemilik menekan "Ya".
+2. **SEO:** satu halaman tanya-jawab tentang pekerjaan yang paling menyakitkan pemilik baru (mis. "cara memasukkan
+   puluhan menu sekaligus") yang menyebut Una sebagai cara membantu, bukan sebagai judul halaman.
+3. **Iklan Google Search:** Una tidak masuk judul atau kata kunci. Orang belum mencari "Una"; mereka mencari
+   masalahnya.
+4. **Iklan Meta nanti:** satu video "isi menu dari foto papan menu" (nomor 9 di naskah) sebagai video pendukung,
+   bukan video utama.
+5. Syarat Una naik jadi USP penuh ada di §10; sampai syarat itu terpenuhi, klaim di atas tidak berubah.
+
+### Rencana minggu ini (target: satu checkout)
+
+| Hari | Bos Cyo | Hana | Karen |
+|---|---|---|---|
+| Jumat–Sabtu | Isi keputusan di `CHECKOUT-MANUAL.md` (rekening, jaminan, diskon). Kirim 10 pesan pertama. Pasang `app.` di Cloudflare | Siapkan buku tahap; rapikan templat; pantau chat dengan kode sumber | Mulai tugas Entity Admin dan dasar SEO |
+| Minggu–Senin | Demo 15 menit untuk yang membalas | Menyiapkan penawaran per calon dari jawaban "masalah nomor 2" | Entity Admin selesai/di-rilis |
+| Selasa–Rabu | Kirim penawaran + tagihan; tindak lanjut hari ke-3 | Menyiapkan daftar kebutuhan gerai | Siapkan akun pelanggan pertama |
+| Kamis | Cek mutasi rekening → **checkout** | Laporan angka minggu ini | Serah terima gerai |
+
 ## Laporan mingguan (Hana → Bos Cyo, satu layar)
 
 1. Kunjungan situs jualan minggu ini, dan dari mana (Google biasa / iklan / langsung).

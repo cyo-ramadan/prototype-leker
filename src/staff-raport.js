@@ -6,7 +6,7 @@ export const STAFF_RAPORT_CONTRACT = 'MAXI_STAFF_RAPORT_FACTS_V1';
 const text = (value, max = 120) => String(value ?? '').trim().slice(0, max);
 
 export async function getCashierRaportFacts(db, storeId, cashierId) {
-  const [sales, purchases, expenses, permits, attendance, drawers] = await Promise.all([
+  const [sales, purchases, expenses, permits, attendance, drawers, reports] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total_amount), 0) AS amount FROM sales WHERE store_id = ? AND cashier_id = ?`).bind(storeId, cashierId).first(),
     db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total_amount), 0) AS amount FROM purchases WHERE store_id = ? AND cashier_id = ?`).bind(storeId, cashierId).first(),
     db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM expenses WHERE store_id = ? AND cashier_id = ?`).bind(storeId, cashierId).first(),
@@ -36,6 +36,9 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
       SELECT COUNT(*) AS total,
              COALESCE(SUM(CASE WHEN status = 'CLOSED' THEN 1 ELSE 0 END), 0) AS closed
       FROM cash_drawer_sessions WHERE store_id = ? AND cashier_id = ?
+    `).bind(storeId, cashierId).first(),
+    db.prepare(`SELECT COUNT(*) AS submitted FROM info_gerai_entries
+      WHERE store_id = ? AND created_by_id = ? AND created_by_role = 'CASHIER' AND kind = 'LAPORAN' AND source = 'CS'
     `).bind(storeId, cashierId).first()
   ]);
 
@@ -47,6 +50,7 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
     scoreStatus: 'NEEDS_KPI_POLICY',
     scoreMessage: 'Bobot, target, periode, dan formula grade belum ditetapkan. Panel menampilkan fakta auditable tanpa mengarang skor.',
     facts: {
+      infoGeraiReports: { submitted: Number(reports?.submitted || 0) },
       sales: { count: Number(sales?.count || 0), amount: Number(sales?.amount || 0) },
       purchases: { count: Number(purchases?.count || 0), amount: Number(purchases?.amount || 0) },
       operationalExpenses: { count: Number(expenses?.count || 0), amount: Number(expenses?.amount || 0) },
@@ -82,7 +86,8 @@ export async function getCashierRaportFacts(db, storeId, cashierId) {
       { code: 'transaction_void_requests', label: 'Permintaan hapus/void transaksi', source: 'approval_permits', scoring: 'UNCONFIGURED' },
       { code: 'transaction_activity', label: 'Aktivitas transaksi', source: 'sales+purchases+expenses', scoring: 'UNCONFIGURED' },
       { code: 'attendance_activity', label: 'Aktivitas presensi', source: 'staff_attendance', scoring: 'UNCONFIGURED' },
-      { code: 'drawer_activity', label: 'Aktivitas laci', source: 'cash_drawer_sessions', scoring: 'UNCONFIGURED' }
+      { code: 'drawer_activity', label: 'Aktivitas laci', source: 'cash_drawer_sessions', scoring: 'UNCONFIGURED' },
+      { code: 'info_gerai_reports', label: 'Kontribusi laporan Info Gerai', source: 'info_gerai_entries', scoring: 'UNCONFIGURED' }
     ]
   };
 }

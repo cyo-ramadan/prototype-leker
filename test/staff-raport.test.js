@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { readFileSync } from 'node:fs';
 const raport = readFileSync(new URL('../src/staff-raport.js', import.meta.url), 'utf8');
 const portal = readFileSync(new URL('../src/staff-portal.js', import.meta.url), 'utf8');
@@ -42,4 +43,35 @@ test('admin cashier raport card reads the real attendance field shape (total/clo
   assert.doesNotMatch(adminUi, /attendance\?\.checkIn|attendance\?\.checkOut/);
   assert.match(adminUi, /f\.attendance\?\.closed/);
   assert.match(adminUi, /f\.attendance\?\.open/);
+});
+
+
+test('pengumuman mendukung teks tebal tanpa menerima HTML mentah', () => {
+  const source = staffUi.match(/function formatAnnouncementBody\(value\) \{[\s\S]*?\n  \}/)[0];
+  const escapeHtml = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+  const format = new Function('escapeHtml', 'return ' + source)(escapeHtml);
+  assert.equal(format('**WAJIB klaim**'), '<strong>WAJIB klaim</strong>');
+  assert.equal(format('**<script>alert(1)</script>**'), '<strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>');
+  assert.equal(format('**Baris 1\nBaris 2**'), '<strong>Baris 1\nBaris 2</strong>');
+});
+
+
+test('angka merah Portal Staf menjumlah pengumuman dan inbox; berkurang sesudah dibaca', async () => {
+  const events = {}, focus = {};
+  let unread = 2, html = '';
+  const link = { querySelector: () => ({ remove() { html = ''; } }), insertAdjacentHTML: (_, value) => { html = value; } };
+  runInNewContext(readFileSync(new URL('../public/pengumuman-badge.js', import.meta.url), 'utf8'), {
+    document: { getElementById: () => link, addEventListener: (name, fn) => { events[name] = fn; }, hidden: false },
+    window: { addEventListener: (name, fn) => { focus[name] = fn; } },
+    localStorage: { getItem: () => 'cashier-test' },
+    fetch: async () => ({ ok: true, json: async () => ({ unread }) })
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(html, />2<\/span>/);
+  events['maxi-notifications-changed']({ detail: { actor: { role: 'CASHIER' }, unreadCount: 5 } });
+  assert.match(html, />7<\/span>/);
+  events['maxi-notifications-changed']({ detail: { actor: { role: 'CASHIER' }, unreadCount: 0 } });
+  assert.match(html, />2<\/span>/);
+  unread = 0; await focus.focus();
+  assert.equal(html, '');
 });

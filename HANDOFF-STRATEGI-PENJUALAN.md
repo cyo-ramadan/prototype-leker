@@ -304,6 +304,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | *(semua sesi menambah baris di sini)* | | | | |
 | 2026-10-18 | Codex / Kasir | Kolam QRIS di menu Data dibuka dari tombol di sebelah Stok; Cara bayar tetap menjadi filter transaksi. Panduan Una mengikuti lokasi tombol baru | UJI | Mempermudah akses kolam QRIS; tidak mengubah aturan klaim atau pembukuan |
 | 2026-10-18 | Codex / Kasir | Kolam QRIS memiliki filter Semua, Belum diklaim, dan Sudah diklaim; saat dibuka langsung menampilkan Belum diklaim dengan pengambilan data sesuai pilihan | UJI | CS lebih mudah mencari pembayaran baru; pemuatan kolam tidak mengambil daftar QRIS harian |
+| 2026-10-19 | Codex / Portal CS | Pengumuman tebal tentang klaim QRIS dan kontak darurat; jumlah laporan masuk Raport/KPI CS; angka merah Portal Staf menghitung pengumuman dan inbox belum dibaca | UJI | Kontribusi informasi gerai terukur; tidak menambahkan bobot atau grade otomatis |
 
 ---
 
@@ -385,3 +386,5 @@ Hasil diskusi dengan Bos Cyo; yang bertanda *(menunggu)* belum diputuskan.
 <!-- DOC-IMPACT: 2026-10-18 pemindahan tombol Kolam QRIS di menu Data kasir; status UJI. -->
 
 <!-- DOC-IMPACT: 2026-10-18 filter klaim dan pemuatan kolam QRIS sesuai pilihan. -->
+
+<!-- DOC-IMPACT: 2026-10-19 pengumuman dan hitungan kontribusi laporan CS. -->

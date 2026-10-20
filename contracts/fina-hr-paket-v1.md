@@ -9,7 +9,18 @@ Nama produk ke pelanggan: **OwnerTenang (Owten)**, perusahaan **Maxi**. Nama rep
 
 ---
 
-## 0. Aturan untuk SEMUA agen (wajib, tidak boleh dilanggar)
+## 0. Aturan untuk SEMUA agen
+
+**Prinsip utama (Bos Cyo, 2026-10-21): jangan berhenti kerja hanya karena detail kurang jelas.**
+- Detail yang tidak tertulis (nama fungsi, bentuk tampilan, isi pesan, nilai bawaan, letak tombol, bentuk JSON) → **putuskan sendiri** dengan pilihan paling masuk akal
+  yang meniru kode di sekitarnya, lanjutkan, dan tulis asumsinya di laporan akhir. Kontrak ini panduan, bukan naskah kata per kata.
+- Kontrak bertentangan dengan kode yang sebenarnya → ikuti kode, sesuaikan, catat di laporan.
+- Butuh perubahan kecil di berkas paket lain (satu baris rute, satu impor, entri katalog) → **lakukan**, sebutkan di laporan. Yang dilarang hanya merombak pekerjaan paket lain.
+- Butir "Selesai bila" yang tidak bisa dijalankan di lingkunganmu (mis. skenario live butuh akun) → kerjakan sisanya, siapkan berkasnya, tulis apa yang belum teruji.
+- **Berhenti dan tanya Bos hanya untuk:** menulis/menghapus data produksi, push/deploy, keputusan uang atau nasib orang yang belum ada di kontrak,
+  dan mengubah perilaku fitur yang sudah dipakai pelanggan. Selain itu, jalan terus.
+
+Aturan teknis:
 
 1. **Worktree sendiri** dari `origin/main` terbaru: `git -C C:/Users/Asus/prototype-leker worktree add C:/Users/Asus/wt-<agen>-<paket> -b <agen>/fina-<paket> origin/main`.
    Jangan bekerja di `C:/Users/Asus/prototype-leker` (berbagi working copy dengan sesi lain). Stage **per path**, jangan `git add -A`.
@@ -17,7 +28,7 @@ Nama produk ke pelanggan: **OwnerTenang (Owten)**, perusahaan **Maxi**. Nama rep
    Selesai = commit lokal + laporan ke Bos Cyo (hash, ringkasan, hasil tes). Bos yang memutuskan "masukin".
 3. Sebelum ngoding: `graphify update .` di worktree, lalu `graphify query` untuk berkas yang akan disentuh. Baca `AGENTS.md`, `CLAUDE.md`,
    `KNOWN_PITFALLS.md`, `MODULE_OWNERSHIP.md`, skill `.claude/skills/latih-una/SKILL.md` dan `segarkan-kamus-una`.
-4. **Hanya sentuh berkas milik paketmu** (tabel §2). Butuh perubahan di berkas paket lain → tulis di laporan, jangan ubah.
+4. Utamakan berkas milik paketmu (tabel §2). Perubahan kecil di berkas lain boleh (lihat prinsip di atas); jangan merombak pekerjaan paket lain.
 5. **Aturan HR = pengaturan per tenant, bukan konstanta.** Tidak boleh ada angka/aturan KPM yang tertanam di kode (tarif, menit, tingkatan SP).
    Nilai KPM hanya sebagai *bawaan* di satu tempat (`FINA_BAWAAN` di `src/fina-pengaturan.js`).
 6. Agen membaca dari **tabel/endpoint OwnerTenang**, tidak peduli asal datanya (kasir sendiri, impor, API POS lain).
@@ -231,10 +242,10 @@ Kerjakan paket <PAKET> dari contracts/fina-hr-paket-v1.md di repo C:/Users/Asus/
    Kerjakan hanya di worktree itu.
 2. Baca: AGENTS.md, CLAUDE.md, KNOWN_PITFALLS.md, contracts/agen-rika-fina-v1.md (§1–§5, §7), dan contracts/fina-hr-paket-v1.md (§0–§3 dan bagian <PAKET>).
    Jalankan `graphify update .` lalu `graphify query` untuk berkas yang akan kamu sentuh.
-3. Patuhi §0 tanpa kecuali. Sentuh hanya berkas milik <PAKET> di §2.
+3. Patuhi §0. Detail yang tidak jelas: putuskan sendiri dengan pilihan paling masuk akal, lanjutkan, catat asumsinya. Berhenti hanya untuk hal yang disebut di §0.
    JANGAN push apa pun (push = deploy produksi). Commit lokal, stage per path.
 4. Selesai bila semua butir "Selesai bila" di bagian <PAKET> terpenuhi, `npm run check` lulus, `node --test` gagal sama persis dengan baseline main,
    dan `npm run peta:build` sudah dijalankan lalu hasilnya ikut di-commit.
 5. Laporkan ke Bos Cyo dalam Bahasa Indonesia sederhana: apa yang sudah bisa, hash commit, nama branch & worktree, hasil tes (angka), dan hal yang butuh keputusan Bos.
-   Kalau butuh mengubah berkas paket lain, tulis di laporan, jangan diubah sendiri.
+   Sertakan daftar asumsi yang kamu ambil sendiri.
 ```

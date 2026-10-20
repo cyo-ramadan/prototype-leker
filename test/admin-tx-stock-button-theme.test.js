@@ -27,24 +27,20 @@ test('the shared theme defines brand-colored primary and grey buttons, plus a mo
   assert.match(theme, /\.admin-tx-toolbar\{flex-direction:column\}/);
 });
 
-test('Admin Transaksi filter chips and the Detail action use the shared theme classes with icons, not plain mini-btn', () => {
-  assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="ALL" type="button">📋 Semua</);
-  assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="SALES" type="button">🛒 Penjualan</);
-  assert.match(transactionsUi, /id="adminTransactionFilters" class="admin-tx-toolbar"/);
+// 2026-10-20: Transaksi now follows Data Kasir: select filters and a responsive table.
+test('Admin Transaksi uses the cashier-style filter controls and shared Detail button', () => {
+  assert.match(transactionsUi, /id="adminTransactionsFilter" class="text-input"/);
+  assert.match(transactionsUi, /id="adminTransactionsBayar" class="text-input"/);
+  assert.match(transactionsUi, /id="adminTransactionsCreator" class="text-input"/);
   assert.match(transactionsUi, /class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind/);
-  // Bos Cyo, 2026-09-29: filter Arus Barang dan Produksi dipisah jadi dua
-  // tombol -- dulu satu tombol "Stok & Produksi" gabungan.
-  assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="GOODS_FLOW" type="button">📦 Arus Barang</);
-  assert.match(transactionsUi, /class="admin-tx-btn" data-transaction-filter="PRODUCTION" type="button">🏭 Produksi</);
+  assert.match(transactionsUi, /\['GOODS_FLOW', 'Arus Barang'\]/);
+  assert.match(transactionsUi, /\['PRODUCTION', 'Produksi'\]/);
 });
 
-test('Admin Transaksi filter toggling uses the shared active/grey classes, not the unrelated global .primary-btn', () => {
-  assert.match(transactionsUi, /button\.classList\.toggle\('admin-tx-btn-primary', active\)/);
-  assert.match(transactionsUi, /button\.classList\.toggle\('active', active\)/);
-  assert.match(transactionsUi, /button\.classList\.toggle\('admin-tx-btn-grey', !active\)/);
-  // The old toggle put the full-width global .primary-btn class onto a flex
-  // chip, which stretched the active filter to fill the whole row -- make
-  // sure that regression does not come back.
+test('Admin Transaksi keeps table scrolling local and reflows into cards on mobile', () => {
+  assert.match(theme, /\.admin-data-table-wrap\{[^}]*overflow-x:auto/);
+  assert.match(theme, /\.admin-data-table thead\{display:none\}/);
+  assert.match(theme, /content:attr\(data-label\)/);
   assert.doesNotMatch(transactionsUi, /classList\.toggle\('primary-btn', active\)/);
 });
 

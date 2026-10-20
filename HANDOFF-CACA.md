@@ -1322,3 +1322,8 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 <!-- DOC-IMPACT: 2026-10-19 pengumuman CS, klaim QRIS, kontak darurat, dan fakta kontribusi laporan. -->
 
 - 2026-10-19 (Codex): angka merah Portal Staf menjumlah pengumuman dan inbox belum dibaca milik akun CS, mengikuti event notifikasi tanpa polling tambahan.
+
+
+- 2026-10-20 (Codex): ajarkan `riwayat_transaksi` (pencarian, pembuat, cara bayar, Semua waktu/WIB, rekening admin) dan perbarui penjelasan menu Transaksi. Tinjau `batal_penjualan`, `persetujuan`, `qris_otomatis`: perubahan Data hanya filter/pemuatan daftar, alur izin dan QRIS tetap. Tinjau `barang_tambah`, `harga_barang`, `kategori_barang`, `barang_nonaktif`, `supplier_tambah`: perubahan HTML hanya versi aset Transaksi/CSS.
+
+<!-- DOC-IMPACT: 2026-10-20 panduan Transaksi sesuai tampilan admin dan filter pembuat pada Data kasir. -->

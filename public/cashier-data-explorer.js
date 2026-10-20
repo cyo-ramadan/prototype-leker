@@ -3,6 +3,11 @@
     tab: 'transactions',
     filter: 'ALL',
     bayar: '',
+    createdBy: '',
+    creators: [],
+    creatorsLoaded: false,
+    requestId: 0,
+    loading: false,
     limit: 50,
     q: '',
     sortKey: 'occurredAt',
@@ -120,6 +125,7 @@
   }
 
   async function openDataExplorer() {
+    state.creatorsLoaded = false;
     ensureDialog();
     el('cashierDataTabTransactions').onclick = () => activateTab('transactions');
     el('cashierDataTabStock').onclick = () => activateTab('stock');
@@ -144,6 +150,7 @@
         <div class="cashier-tx-toolbar-grid">
           <div class="field"><label>Filter</label><select id="cashierDataFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}" ${value === state.filter ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
           <div class="field"><label>Cara bayar</label><select id="cashierDataBayar" class="text-input">${BAYAR.map(([value, label]) => `<option value="${value}" ${value === state.bayar ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
+          <div class="field"><label for="cashierDataCreator">Dibuat oleh</label><select id="cashierDataCreator" class="text-input"><option value="">Semua pengguna</option>${state.creators.map(creator => `<option value="${escapeHtml(creator.value)}" ${creator.value === state.createdBy ? 'selected' : ''}>${escapeHtml(creator.label)}</option>`).join('')}</select></div>
           <div class="field"><label>Tampilkan</label><select id="cashierDataLimit" class="text-input">${PAGE_SIZES.map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></div>
           <div class="field"><label>Urutkan</label><select id="cashierDataSort" class="text-input">${SORT_OPTIONS.map(([value, label]) => `<option value="${value}" ${value === `${state.sortKey}:${state.sortDir}` ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></div>
         </div>
@@ -166,6 +173,10 @@
     el('cashierDataBayar').addEventListener('change', event => {
       state.bayar = event.target.value;
       if (state.bayar && state.filter !== 'SALES') state.filter = 'SALES';
+      loadTransactions({ reset: true });
+    });
+    el('cashierDataCreator').addEventListener('change', event => {
+      state.createdBy = event.target.value;
       loadTransactions({ reset: true });
     });
     el('cashierDataLimit').addEventListener('change', event => {
@@ -292,6 +303,9 @@
 
   async function loadTransactions({ reset }) {
     const host = el('cashierDataTransactions');
+    if (!reset && state.loading) return;
+    const requestId = ++state.requestId;
+    state.loading = true;
     if (reset) {
       state.transactions = [];
       state.txCursor = null;
@@ -304,11 +318,15 @@
       url.searchParams.set('limit', String(state.limit));
       if (state.q) url.searchParams.set('q', state.q);
       if (state.bayar) url.searchParams.set('bayar', state.bayar);
+      if (state.createdBy) url.searchParams.set('createdBy', state.createdBy);
+      if (state.creatorsLoaded) url.searchParams.set('includeCreators', '0');
       if (!reset && state.txCursor) url.searchParams.set('before', state.txCursor);
       const [payload, permitsPayload] = await Promise.all([
         api(`${url.pathname}${url.search}`),
         api('/api/cashier/transaction-void/permits').catch(() => ({ permits: [] }))
       ]);
+      if (requestId !== state.requestId) return;
+      if (payload.creators) { state.creators = payload.creators; state.creatorsLoaded = true; }
       state.transactions = reset ? (payload.transactions || []) : [...state.transactions, ...(payload.transactions || [])];
       state.txCursor = payload.nextCursor || null;
       state.txHasMore = Boolean(payload.nextCursor);
@@ -319,8 +337,11 @@
       }
       renderTransactionsPanel();
     } catch (error) {
+      if (requestId !== state.requestId) return;
       if (reset) { host.innerHTML = `${renderToolbar()}<div class="empty">${escapeHtml(error.message)}</div>`; wireToolbar(); }
       else toast(error.message);
+    } finally {
+      if (requestId === state.requestId) state.loading = false;
     }
   }
 

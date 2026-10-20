@@ -1,5 +1,6 @@
 import { json } from './http.js';
-import { salePaymentLabel, salePaymentParts } from './sale-payments.js';
+import { salePaymentLabel } from './sale-payments.js';
+import { qrisMethodFor } from './qris-otomatis.js';
 import { requireManagement } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { accountingReferenceForTransaction } from './accounting-bridge-seam.js';
@@ -12,7 +13,7 @@ const FILTERS = new Set(['ALL', 'SALES', 'PURCHASES', 'OPERATIONS', 'STOCK_ADJUS
 // filterClause below) rather than a plain `kind IN (...)` set like the rest.
 const KIND_FILTER = {
   SALES: new Set(['SALE']), PURCHASES: new Set(['PURCHASE']),
-  OPERATIONS: new Set(['EXPENSE', 'OTHER_INCOME', 'CASH_FLOW']),
+  OPERATIONS: new Set(['EXPENSE', 'OTHER_INCOME', 'CASH_FLOW', 'ADMIN_PAYMENT', 'ADMIN_EXPENSE']),
   PRODUCTION: new Set(['PRODUCTION']),
   ASSETS: new Set(['ASSET'])
 };
@@ -59,9 +60,11 @@ function normalizeRow(row, deliveryMap) {
     id: row.id, kind, occurredAt: row.occurred_at, amount, description, status: row.status,
     paymentMethod: row.payment_method || '', drawerSessionId: row.drawer_session_id || null,
     cashierId: row.cashier_id || null, cashierName: row.cashier_name || '',
+    creatorName: row.creator_name || '',
+    createdBy: { value: `${row.creator_role || ''}:${row.creator_id || ''}`, role: row.creator_role || '', id: row.creator_id || '', name: row.creator_name || '' },
     sourceReference: { type: row.reference_type || kind, id: row.reference_id || row.id }, operationalPayload: payload
   };
-  return { ...transaction, accounting: accountingForPosFact(transaction, deliveryMap) };
+  return { ...transaction, accounting: kind.startsWith('ADMIN_') ? null : accountingForPosFact(transaction, deliveryMap) };
 }
 // A Stock Opname submission creates one approval_requests row per item
 // (each keeps its own stale-snapshot guard and its own ACC/Reject decision --
@@ -169,45 +172,53 @@ async function loadPosDeliveryMap(db, storeId, rows) {
 // storeId is always resolved by the caller BEFORE this runs (query param for
 // Admin, the authenticated cashier's own store for Kasir); this function
 // itself trusts whatever storeId it is given.
-export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50, q = null, bayar = null, qrisCode = '' } = {}) {
+export async function listStoreTransactions(db, storeId, { filter = 'ALL', from = null, to = null, before = null, limit = 50, q = null, bayar = null, qrisCode = '', createdBy = null, includeAdmin = false, includeCreators = true } = {}) {
   if (!FILTERS.has(filter)) return { ok: false, error: 'Filter transaksi tidak valid.' };
   const { clause: kindClause, values: kindValues } = filterClause(filter);
   // Filter cara bayar penjualan (Bos Cyo, 2026-10-17, menu Data kasir): Tunai / QRIS / Campuran.
   // QRIS = cara bayar QRIS gerai, atau campuran yang punya bagian QRIS (migration 0166).
   let bayarClause = '';
   let bayarValues = [];
-  if (bayar === 'TUNAI') bayarClause = `AND kind = 'SALE' AND payment_method = 'CASH'`;
+  if (bayar === 'TUNAI') bayarClause = includeAdmin ? `AND payment_method IN ('CASH', 'KAS')` : `AND kind = 'SALE' AND payment_method = 'CASH'`;
   else if (bayar === 'CAMPURAN') bayarClause = `AND kind = 'SALE' AND payment_method = 'CAMPURAN'`;
   else if (bayar === 'QRIS') {
-    bayarClause = `AND kind = 'SALE' AND (payment_method = ? OR (payment_method = 'CAMPURAN' AND EXISTS (SELECT 1 FROM sale_payments sp WHERE sp.sale_id = transaction_facts.id AND sp.payment_method_code = ?)))`;
-    bayarValues = [qrisCode || 'QRIS', qrisCode || 'QRIS'];
+    bayarClause = `AND ${includeAdmin ? '' : "kind = 'SALE' AND "}(payment_method = ? OR (kind = 'SALE' AND payment_method = 'CAMPURAN' AND EXISTS (SELECT 1 FROM sale_payments sp WHERE sp.sale_id = transaction_facts.id AND sp.store_id = ? AND sp.payment_method_code = ?)))`;
+    bayarValues = [qrisCode || 'QRIS', storeId, qrisCode || 'QRIS'];
+  } else if (bayar === 'REKENING' && includeAdmin) {
+    bayarClause = `AND (payment_method IN ('BANK', 'REKBER') OR payment_method IN (SELECT code FROM payment_methods WHERE store_id = ? AND shared_account_id IS NOT NULL))`;
+    bayarValues = [storeId];
+  } else if (bayar && includeAdmin) {
+    bayarClause = 'AND payment_method = ?';
+    bayarValues = [bayar];
   } else if (bayar) return { ok: false, error: 'Filter cara bayar tidak valid.' };
   // Deliberately "contains" across several columns, not an ID-only lookup --
   // typing a date fragment, a cashier's name, or part of a description all
   // work the same way.
   const search = q ? String(q).trim() : '';
-  const searchClause = search ? `AND (id LIKE ? OR description LIKE ? OR occurred_at LIKE ? OR cashier_name LIKE ?)` : '';
+  const searchClause = search ? `AND (id LIKE ? OR description LIKE ? OR occurred_at LIKE ? OR creator_name LIKE ?)` : '';
   const searchValues = search ? Array(4).fill(`%${search}%`) : [];
-  const result = await db.prepare(`
+  const creatorClause = createdBy ? `AND creator_role || ':' || creator_id = ?` : '';
+  const creatorValues = createdBy ? [String(createdBy)] : [];
+  const factsSql = `
     WITH pos_facts AS (
       SELECT s.id, 'SALE' AS kind, s.created_at AS occurred_at, s.total_amount AS amount,
              (CASE WHEN s.customer_name = '' THEN 'Penjualan' ELSE 'Penjualan · ' || s.customer_name END) AS description,
              CASE WHEN s.voided_at IS NULL THEN 'posted' ELSE 'voided' END AS status,
              s.payment_method, s.drawer_session_id, s.cashier_id, c.employee_name AS cashier_name,
-             'SALE' AS reference_type, s.id AS reference_id, NULL AS payload_json
-      FROM sales s LEFT JOIN cashiers c ON c.id = s.cashier_id WHERE s.store_id = ?
+             'SALE' AS reference_type, s.id AS reference_id, NULL AS payload_json, 'CASHIER' AS creator_role, s.cashier_id AS creator_id
+      FROM sales s LEFT JOIN cashiers c ON c.id = s.cashier_id AND c.store_id = s.store_id WHERE s.store_id = ?
       UNION ALL
       SELECT p.id, 'PURCHASE', p.created_at, p.total_amount, p.description,
              CASE WHEN p.voided_at IS NULL THEN 'posted' ELSE 'voided' END,
              p.payment_method, p.drawer_session_id, p.cashier_id, c.employee_name,
-             'PURCHASE', p.id, NULL
-      FROM purchases p LEFT JOIN cashiers c ON c.id = p.cashier_id WHERE p.store_id = ?
+             'PURCHASE', p.id, NULL, 'CASHIER', p.cashier_id
+      FROM purchases p LEFT JOIN cashiers c ON c.id = p.cashier_id AND c.store_id = p.store_id WHERE p.store_id = ?
       UNION ALL
       SELECT e.id, 'EXPENSE', e.created_at, e.amount, e.description,
              CASE WHEN e.voided_at IS NULL THEN 'posted' ELSE 'voided' END,
              e.payment_method, e.drawer_session_id, e.cashier_id, c.employee_name,
-             'EXPENSE', e.id, NULL
-      FROM expenses e LEFT JOIN cashiers c ON c.id = e.cashier_id WHERE e.store_id = ?
+             'EXPENSE', e.id, NULL, 'CASHIER', e.cashier_id
+      FROM expenses e LEFT JOIN cashiers c ON c.id = e.cashier_id AND c.store_id = e.store_id WHERE e.store_id = ?
     ),
     -- D1's compound-SELECT term cap is 5 (not SQLite's usual 500) -- a single
     -- 6-way UNION ALL fails outright on production D1 even though it runs
@@ -216,13 +227,13 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
     -- keeps every individual compound-select node under that cap.
     other_facts AS (
       SELECT i.id, 'OTHER_INCOME' AS kind, i.created_at AS occurred_at, i.amount, i.description, 'posted' AS status, 'CASH' AS payment_method,
-             i.drawer_session_id, i.cashier_id, c.employee_name AS cashier_name, 'OTHER_INCOME' AS reference_type, i.id AS reference_id, NULL AS payload_json
-      FROM other_income i LEFT JOIN cashiers c ON c.id = i.cashier_id WHERE i.store_id = ?
+             i.drawer_session_id, i.cashier_id, c.employee_name AS cashier_name, 'OTHER_INCOME' AS reference_type, i.id AS reference_id, NULL AS payload_json, 'CASHIER' AS creator_role, i.cashier_id AS creator_id
+      FROM other_income i LEFT JOIN cashiers c ON c.id = i.cashier_id AND c.store_id = i.store_id WHERE i.store_id = ?
       UNION ALL
       SELECT a.id, a.request_type, a.created_at, NULL, a.request_type,
              a.approval_status || '/' || a.posting_status, '', a.drawer_session_id, a.cashier_id,
-             c.employee_name, 'APPROVAL_REQUEST', a.id, a.payload_json
-      FROM approval_requests a LEFT JOIN cashiers c ON c.id = a.cashier_id WHERE a.store_id = ?
+             c.employee_name, 'APPROVAL_REQUEST', a.id, a.payload_json, 'CASHIER', a.cashier_id
+      FROM approval_requests a LEFT JOIN cashiers c ON c.id = a.cashier_id AND c.store_id = a.store_id WHERE a.store_id = ?
       UNION ALL
       -- Bos Cyo, 2026-09-29: sempat dicoba sembunyikan produksi AUTO_DADAKAN
       -- dari daftar (karena tombol Hapus tidak pernah nyala di baris Produksi
@@ -238,28 +249,62 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
              'Produksi · ' || pr.output_product_name || ' · ' || pr.total_output_quantity || ' ' || pr.output_unit_symbol ||
              (CASE WHEN pr.mode = 'AUTO_DADAKAN' THEN ' · Dadakan (terkait Penjualan ' || COALESCE(pr.sale_id, '-') || ')' ELSE '' END),
              LOWER(pr.status), '', pr.drawer_session_id, pr.created_by_id, c.employee_name,
-             'PRODUCTION_RUN', pr.id, NULL
-      FROM production_runs pr LEFT JOIN cashiers c ON c.id = pr.created_by_id
+             'PRODUCTION_RUN', pr.id, NULL, pr.created_by_role, pr.created_by_id
+      FROM production_runs pr LEFT JOIN cashiers c ON c.id = pr.created_by_id AND c.store_id = pr.store_id AND pr.created_by_role = 'CASHIER'
       WHERE pr.store_id = ?
     ),
-    transaction_facts AS (
+    ${includeAdmin ? `admin_facts AS (
+      SELECT ap.id, 'ADMIN_PAYMENT' AS kind, ap.created_at AS occurred_at, ap.amount,
+             'Pembayaran ' || ap.kind || ' - ' || ap.counterparty_name || CASE WHEN ap.note <> '' THEN ' - ' || ap.note ELSE '' END AS description,
+             CASE WHEN ap.voided_at IS NULL THEN 'posted' ELSE 'voided' END AS status,
+             ap.payment_method, NULL AS drawer_session_id, NULL AS cashier_id, '' AS cashier_name,
+             'ADMIN_PAYMENT' AS reference_type, ap.id AS reference_id, NULL AS payload_json, ap.created_by_role AS creator_role, ap.created_by_id AS creator_id
+      FROM admin_payments ap WHERE ap.store_id = ?
+      UNION ALL
+      SELECT e.id, 'ADMIN_EXPENSE', e.created_at, e.amount, e.description,
+             CASE WHEN e.voided_at IS NULL THEN 'posted' ELSE 'voided' END,
+             e.payment_method, NULL, NULL, '', 'ADMIN_EXPENSE', e.id, NULL, e.created_by_role, e.created_by_id
+      FROM admin_operational_expenses e
+      WHERE e.store_id = ? AND e.id NOT IN (SELECT expense_id FROM admin_payments WHERE store_id = ? AND expense_id IS NOT NULL)
+    ),` : ''}
+    raw_facts AS (
       SELECT * FROM pos_facts
       UNION ALL
       SELECT * FROM other_facts
-    )
+      ${includeAdmin ? 'UNION ALL SELECT * FROM admin_facts' : ''}
+    ),
+    transaction_facts AS (
+      SELECT f.*, COALESCE(NULLIF(f.cashier_name, ''), sa.display_name, ea.display_name, oa.display_name,
+             NULLIF(f.creator_id, ''), NULLIF(f.creator_role, ''), 'Tidak tercatat') AS creator_name
+      FROM raw_facts f
+      LEFT JOIN store_admins sa ON f.creator_role = 'ADMIN' AND sa.id = f.creator_id AND sa.store_id = ?
+      LEFT JOIN entity_admins ea ON f.creator_role = 'ENTITY_ADMIN' AND ea.id = f.creator_id
+        AND ea.entity_id = (SELECT entity_id FROM stores WHERE id = ?)
+      LEFT JOIN owner_accounts oa ON f.creator_role = 'OWNER' AND oa.id = f.creator_id
+    )`;
+  const factBindings = [storeId, storeId, storeId, storeId, storeId, storeId,
+    ...(includeAdmin ? [storeId, storeId, storeId] : []), storeId, storeId];
+  const result = await db.prepare(`${factsSql}
     SELECT * FROM transaction_facts
     WHERE (? IS NULL OR occurred_at >= ?) AND (? IS NULL OR occurred_at <= ?)
       AND (? IS NULL OR occurred_at < ? OR (occurred_at = ? AND id < ?))
       ${kindClause}
       ${bayarClause}
       ${searchClause}
+      ${creatorClause}
     ORDER BY occurred_at DESC, id DESC LIMIT ?
   `).bind(
-    storeId, storeId, storeId, storeId, storeId, storeId,
+    ...factBindings,
     from, from, to, to,
     before?.occurredAt || null, before?.occurredAt || null, before?.occurredAt || null, before?.id || null,
-    ...kindValues, ...bayarValues, ...searchValues, limit + 1
+    ...kindValues, ...bayarValues, ...searchValues, ...creatorValues, limit + 1
   ).all();
+  // Options span this store's history, independent of pagination and the active filters.
+  const creatorRows = includeCreators ? (await db.prepare(`${factsSql}
+    SELECT DISTINCT creator_role || ':' || creator_id AS value, creator_name AS name, creator_role AS role
+    FROM transaction_facts ORDER BY creator_name COLLATE NOCASE, creator_role, value
+  `).bind(...factBindings).all()).results ?? [] : null;
+  const creators = creatorRows?.map(row => ({ value: row.value, label: `${row.name} (${row.role || 'Tidak tercatat'})` }));
   const rows = result.results ?? []; const hasMore = rows.length > limit; const visibleRows = rows.slice(0, limit);
   const deliveryMap = await loadPosDeliveryMap(db, storeId, visibleRows);
   const dadakanSaleIds = await loadDadakanSaleIds(db, storeId, visibleRows);
@@ -277,8 +322,12 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   // Pembayaran campuran (migration 0166): tampilkan rinciannya, kode cara bayar tetap 'CAMPURAN'.
   const splitIds = normalized.filter(item => item.kind === 'SALE' && item.paymentMethod === 'CAMPURAN').map(item => item.id);
   if (splitIds.length) {
-    const parts = (await db.prepare(`SELECT sale_id, payment_method_code, amount FROM sale_payments WHERE store_id = ? AND sale_id IN (${splitIds.map(() => '?').join(', ')}) ORDER BY amount DESC, payment_method_code`)
-      .bind(storeId, ...splitIds).all()).results ?? [];
+    const parts = [];
+    for (let start = 0; start < splitIds.length; start += 90) {
+      const chunk = splitIds.slice(start, start + 90);
+      parts.push(...((await db.prepare(`SELECT sale_id, payment_method_code, amount FROM sale_payments WHERE store_id = ? AND sale_id IN (${chunk.map(() => '?').join(', ')}) ORDER BY amount DESC, payment_method_code`)
+        .bind(storeId, ...chunk).all()).results ?? []));
+    }
     for (const item of normalized) {
       const own = parts.filter(part => part.sale_id === item.id);
       if (own.length) item.paymentLabel = `CAMPURAN: ${salePaymentLabel(own.map(part => ({ code: part.payment_method_code, amount: part.amount })))}`;
@@ -286,7 +335,7 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
   }
   const last = normalized.at(-1);
   const visible = groupStockAdjustmentSessions(normalized);
-  return { ok: true, filter, transactions: visible, hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null };
+  return { ok: true, filter, creators, transactions: visible, hasMore, nextCursor: hasMore && last ? `${last.occurredAt}|${last.id}` : null };
 }
 
 export { parseIso, parseCursor };
@@ -307,6 +356,16 @@ export async function handleAdminTransactionsApi(request, env, pathname) {
   const requestedLimit = Number(url.searchParams.get('limit') || 50);
   const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(5, requestedLimit)) : 50;
   const q = url.searchParams.get('q') || null;
-  const listing = await listStoreTransactions(env.DB, store.id, { filter, from, to, before, limit, q });
-  return json({ store, filter: listing.filter, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
+  const bayar = String(url.searchParams.get('bayar') || '').trim().toUpperCase() || null;
+  const createdBy = url.searchParams.get('createdBy') || null;
+  const qrisCode = (await qrisMethodFor(env.DB, store.id)).code;
+  const listing = await listStoreTransactions(env.DB, store.id, { filter, from, to, before, limit, q, bayar, qrisCode, createdBy, includeAdmin: true, includeCreators: url.searchParams.get('includeCreators') !== '0' });
+  if (!listing.ok) return json({ error: listing.error }, 400);
+  const configuredMethods = ((await env.DB.prepare('SELECT code, name FROM payment_methods WHERE store_id = ? ORDER BY name COLLATE NOCASE').bind(store.id).all()).results ?? [])
+    .map(row => ({ value: row.code, label: row.name }));
+  const paymentMethods = [...new Map([
+    ...[{ value: 'BANK', label: 'Transfer Bank' }, { value: 'REKBER', label: 'Rekening Bersama' }, { value: 'KAS', label: 'Tunai / Kas Admin' }, { value: 'DEPOSIT', label: 'Deposit' }],
+    ...configuredMethods
+  ].map(method => [method.value, method])).values()];
+  return json({ store, filter: listing.filter, bayar, createdBy, creators: listing.creators, paymentMethods, transactions: listing.transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
 }

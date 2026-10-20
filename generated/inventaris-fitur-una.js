@@ -6890,7 +6890,18 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "sumber": "public/admin-transactions-ui.js",
     "tombolId": "${esc(transaction.id)}",
     "aksi": "data-transaction-detail-id,data-transaction-detail-kind",
-    "label": "🔍 Detail",
+    "label": "Detail",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-transactions-ui.js"
+  },
+  {
+    "id": "tombol:public/admin-transactions-ui.js:adminTransactionsAllTime",
+    "jenis": "tombol",
+    "sumber": "public/admin-transactions-ui.js",
+    "tombolId": "adminTransactionsAllTime",
+    "aksi": null,
+    "label": "Semua waktu",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-transactions-ui.js"
@@ -6929,6 +6940,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-transactions-ui.js"
   },
   {
+    "id": "tombol:public/admin-transactions-ui.js:data-sort-key:{nilai}{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/admin-transactions-ui.js",
+    "tombolId": null,
+    "aksi": "data-sort-key",
+    "label": "{nilai}{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-transactions-ui.js"
+  },
+  {
     "id": "tombol:public/admin-transactions-ui.js:data-tab:transactions",
     "jenis": "tombol",
     "sumber": "public/admin-transactions-ui.js",
@@ -6940,78 +6962,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-transactions-ui.js"
   },
   {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:🏭 Produksi",
+    "id": "tombol:public/admin-transactions-ui.js:label:Cari",
     "jenis": "tombol",
     "sumber": "public/admin-transactions-ui.js",
     "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "🏭 Produksi",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/admin-transactions-ui.js"
-  },
-  {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:🏷️ Aset",
-    "jenis": "tombol",
-    "sumber": "public/admin-transactions-ui.js",
-    "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "🏷️ Aset",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/admin-transactions-ui.js"
-  },
-  {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:💸 Operasional",
-    "jenis": "tombol",
-    "sumber": "public/admin-transactions-ui.js",
-    "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "💸 Operasional",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/admin-transactions-ui.js"
-  },
-  {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:📋 Semua",
-    "jenis": "tombol",
-    "sumber": "public/admin-transactions-ui.js",
-    "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "📋 Semua",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/admin-transactions-ui.js"
-  },
-  {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:📦 Arus Barang",
-    "jenis": "tombol",
-    "sumber": "public/admin-transactions-ui.js",
-    "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "📦 Arus Barang",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/admin-transactions-ui.js"
-  },
-  {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:🧺 Pembelian",
-    "jenis": "tombol",
-    "sumber": "public/admin-transactions-ui.js",
-    "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "🧺 Pembelian",
-    "rute": null,
-    "skin": null,
-    "halaman": "public/admin-transactions-ui.js"
-  },
-  {
-    "id": "tombol:public/admin-transactions-ui.js:data-transaction-filter:🛒 Penjualan",
-    "jenis": "tombol",
-    "sumber": "public/admin-transactions-ui.js",
-    "tombolId": null,
-    "aksi": "data-transaction-filter",
-    "label": "🛒 Penjualan",
+    "aksi": null,
+    "label": "Cari",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-transactions-ui.js"

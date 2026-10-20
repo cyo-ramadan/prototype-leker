@@ -30,8 +30,9 @@ export async function handleCashierDataApi(request, env, pathname) {
     const limit = Number.isInteger(requestedLimit) ? Math.min(100, Math.max(5, requestedLimit)) : 50;
     const q = url.searchParams.get('q') || null;
     const bayar = String(url.searchParams.get('bayar') || '').trim().toUpperCase() || null;
+    const createdBy = url.searchParams.get('createdBy') || null;
     const qrisCode = (await qrisMethodFor(env.DB, storeId)).code;
-    const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit, q, bayar, qrisCode });
+    const listing = await listStoreTransactions(env.DB, storeId, { filter, from, to, before, limit, q, bayar, qrisCode, createdBy, includeCreators: url.searchParams.get('includeCreators') !== '0' });
     if (!listing.ok) return json({ error: listing.error }, 400);
     // Tombol kecil QRIS per baris (merah = belum tertaut ke uang masuk, hijau = tertaut). Tidak ada bila
     // penautan dilakukan sistem dari mutasi (qris_tautan_sistem, Bos Cyo 2026-10-19).
@@ -40,7 +41,7 @@ export async function handleCashierDataApi(request, env, pathname) {
       ? new Map()
       : await qrisStatusPenjualan(env.DB, storeId, listing.transactions.filter(row => row.kind === 'SALE').map(row => row.id));
     const transactions = listing.transactions.map(row => (status.has(row.id) ? { ...row, qris: status.get(row.id) } : row));
-    return json({ filter: listing.filter, bayar, transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
+    return json({ filter: listing.filter, bayar, createdBy, creators: listing.creators, transactions, hasMore: listing.hasMore, nextCursor: listing.nextCursor });
   }
 
   const detailMatch = pathname.match(/^\/api\/cashier\/data\/transactions\/detail\/([^/]+)\/([^/]+)$/);

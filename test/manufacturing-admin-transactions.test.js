@@ -76,11 +76,11 @@ test('admin transaction explorer reads operational facts lazily and exposes acco
   assert.match(transactionApi, /accountingReferenceForTransaction/);
   assert.match(transactionApi, /occurred_at = \? AND id < \?/);
   assert.match(transactionApi, /nextCursor: hasMore && last \? `\$\{last\.occurredAt\}\|\$\{last\.id\}`/);
-  assert.match(transactionUi, /Klik Detail/);
+  assert.match(transactionUi, /data-transaction-detail-kind/);
   assert.match(transactionUi, /Production Snapshot/);
   assert.match(transactionUi, /Arus Barang/);
-  assert.match(transactionUi, /📦.*Arus Barang/);
-  assert.match(transactionUi, /🏭.*Produksi/);
+  assert.match(transactionUi, /\['GOODS_FLOW', 'Arus Barang'\]/);
+  assert.match(transactionUi, /\['PRODUCTION', 'Produksi'\]/);
   assert.doesNotMatch(transactionUi, /setInterval\s*\(/);
 });
 

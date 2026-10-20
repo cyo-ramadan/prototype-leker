@@ -1,5 +1,13 @@
 // Sumber makna ditinjau dari kode. ID fitur eksplisit, tidak mengikuti route baru otomatis.
 export const SUMBER_KAMUS = Object.freeze({
+  "riwayat_transaksi": {
+    "sumber": ["src/admin-transactions.js", "src/admin-transaction-detail.js", "src/cashier-data-explorer.js", "public/admin-transactions-ui.js", "public/cashier-data-explorer.js"],
+    "fitur": [
+      "tombol:public/admin-transactions-ui.js:adminTransactionsAllTime",
+      "tombol:public/admin-transactions-ui.js:data-sort-key:{nilai}{nilai}",
+      "tombol:public/admin-transactions-ui.js:label:Cari"
+    ]
+  },
   "una_lembar": {
     "sumber": ["src/una-surfaces.js", "public/una-lembar.js", "public/una-surfaces-client.js", "public/una-kanvas.js", "src/una-kanvas-patch.js", "src/una-kanvas-baca.js", "public/una-kanvas-baca.js"],
     "fitur": [

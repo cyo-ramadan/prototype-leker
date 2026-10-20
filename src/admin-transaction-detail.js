@@ -298,10 +298,38 @@ async function approvalDetail(db, storeId, kind, id) {
   };
 }
 
+// Admin payments and expense facts live outside cashier drawers. Read the source;
+// this explorer does not infer an accounting delivery or create any posting.
+async function adminFactDetail(db, storeId, kind, id) {
+  if (!['ADMIN_PAYMENT', 'ADMIN_EXPENSE'].includes(kind)) return null;
+  const table = kind === 'ADMIN_PAYMENT' ? 'admin_payments' : 'admin_operational_expenses';
+  const row = await db.prepare(`SELECT f.*, sa.name AS shared_account_name,
+      COALESCE(a.display_name, ea.display_name, o.display_name, NULLIF(f.created_by_id, ''), NULLIF(f.created_by_role, ''), 'Tidak tercatat') AS creator_name
+    FROM ${table} f
+    JOIN stores st ON st.id = f.store_id
+    LEFT JOIN entity_shared_accounts sa ON sa.id = f.shared_account_id AND sa.entity_id = st.entity_id
+    LEFT JOIN store_admins a ON f.created_by_role = 'ADMIN' AND a.id = f.created_by_id AND a.store_id = f.store_id
+    LEFT JOIN entity_admins ea ON f.created_by_role = 'ENTITY_ADMIN' AND ea.id = f.created_by_id AND ea.entity_id = st.entity_id
+    LEFT JOIN owner_accounts o ON f.created_by_role = 'OWNER' AND o.id = f.created_by_id
+    WHERE f.store_id = ? AND f.id = ? LIMIT 1`).bind(storeId, id).first();
+  if (!row) return null;
+  return {
+    id: row.id, kind, occurredAt: row.created_at, businessDate: row.business_date,
+    amount: Number(row.amount), description: row.description || `Pembayaran ${row.kind} - ${row.counterparty_name}`,
+    note: row.note || '', paymentMethod: row.payment_method || '', sharedAccountName: row.shared_account_name || '',
+    counterpartyName: row.counterparty_name || '', category: row.category || '', settlement: row.settlement || '',
+    status: row.voided_at ? 'voided' : 'posted', voidedAt: row.voided_at || null, voidReason: row.void_reason || '',
+    drawerSessionId: null, cashierId: null, cashierName: '', creatorName: row.creator_name,
+    createdBy: { value: `${row.created_by_role}:${row.created_by_id}`, id: row.created_by_id, role: row.created_by_role, name: row.creator_name },
+    sourceReference: { type: kind, id: row.id }, accounting: null
+  };
+}
+
 // Shared by Admin's own detail endpoint and the Kasir read-only mirror --
 // same dispatch-by-kind logic so the two views can never drift (mirrors the
 // listStoreTransactions pattern in admin-transactions.js).
-export async function transactionDetailByKindId(db, storeId, kind, id) {
+export async function transactionDetailByKindId(db, storeId, kind, id, { includeAdmin = false } = {}) {
+  if (kind.startsWith('ADMIN_')) return includeAdmin ? adminFactDetail(db, storeId, kind, id) : null;
   return kind === 'SALE'
     ? await saleDetail(db, storeId, id)
     : await simpleDetail(db, storeId, kind, id) || await approvalDetail(db, storeId, kind, id);
@@ -317,6 +345,6 @@ export async function handleAdminTransactionDetailApi(request, env, pathname) {
   if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
   const kind = decodeURIComponent(match[1]).toUpperCase();
   const id = decodeURIComponent(match[2]);
-  const detail = await transactionDetailByKindId(env.DB, store.id, kind, id);
+  const detail = await transactionDetailByKindId(env.DB, store.id, kind, id, { includeAdmin: true });
   return detail ? json({ store, detail }) : json({ error: 'Detail transaksi tidak ditemukan.' }, 404);
 }

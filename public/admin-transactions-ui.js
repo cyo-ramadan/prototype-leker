@@ -3,7 +3,11 @@
   const money = value => value == null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value) || 0);
   const decimalMoney = value => value == null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 4 }).format(Number(value) || 0);
   const dateTime = value => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
-  const state = { filter: 'ALL', transactions: [], nextCursor: null, hasMore: false };
+  const state = { filter: 'ALL', bayar: '', createdBy: '', creators: [], creatorsLoaded: false, q: '', limit: 50, sortKey: 'occurredAt', sortDir: 'desc', transactions: [], nextCursor: null, hasMore: false, requestId: 0, loading: false };
+  const FILTERS = [['ALL', 'Semua'], ['SALES', 'Penjualan'], ['PURCHASES', 'Pembelian'], ['OPERATIONS', 'Operasional'], ['STOCK_ADJUSTMENTS', 'Penyesuaian Stok'], ['GOODS_FLOW', 'Arus Barang'], ['PRODUCTION', 'Produksi'], ['ASSETS', 'Aset']];
+  const BAYAR = [['', 'Semua'], ['TUNAI', 'Tunai'], ['QRIS', 'QRIS'], ['CAMPURAN', 'Campuran'], ['REKENING', 'Rekening']];
+  const KIND_LABEL = { SALE: 'Penjualan', PURCHASE: 'Pembelian', EXPENSE: 'Pengeluaran', OTHER_INCOME: 'Pendapatan Lain', CASH_FLOW: 'Arus Kas', GOODS_FLOW: 'Arus Barang', PRODUCTION: 'Produksi', ASSET: 'Aset', ADMIN_PAYMENT: 'Pembayaran Admin', ADMIN_EXPENSE: 'Biaya Admin' };
+  const SORT_OPTIONS = [['occurredAt:desc', 'Tanggal terbaru'], ['occurredAt:asc', 'Tanggal terlama'], ['creatorName:asc', 'Pembuat A-Z'], ['creatorName:desc', 'Pembuat Z-A']];
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -48,21 +52,26 @@
       <section id="tab-transactions" class="admin-section">
         <div class="admin-card">
           <div class="list-head">
-            <div><div class="admin-eyebrow">Operational Data Explorer</div><h2>Tracking Transaksi Gerai</h2><div class="muted">Klik Detail untuk mengambil snapshot transaksi, item penjualan, poin, dan jejak produksi hanya saat diperlukan. Jurnal tetap domain Accounting.</div></div>
+            <div><div class="admin-eyebrow">Data gerai</div><h2>Data Transaksi</h2><div class="muted">Semua waktu, termasuk transaksi admin melalui rekening. Pilih rentang tanggal untuk membatasi hasil.</div></div>
             <button id="adminTransactionsRefresh" class="admin-tx-btn admin-tx-btn-grey" type="button">↻ Refresh</button>
           </div>
-          <div id="adminTransactionFilters" class="admin-tx-toolbar">
-            <button class="admin-tx-btn" data-transaction-filter="ALL" type="button">📋 Semua</button>
-            <button class="admin-tx-btn" data-transaction-filter="SALES" type="button">🛒 Penjualan</button>
-            <button class="admin-tx-btn" data-transaction-filter="PURCHASES" type="button">🧺 Pembelian</button>
-            <button class="admin-tx-btn" data-transaction-filter="OPERATIONS" type="button">💸 Operasional</button>
-            <button class="admin-tx-btn" data-transaction-filter="GOODS_FLOW" type="button">📦 Arus Barang</button>
-            <button class="admin-tx-btn" data-transaction-filter="PRODUCTION" type="button">🏭 Produksi</button>
-            <button class="admin-tx-btn" data-transaction-filter="ASSETS" type="button">🏷️ Aset</button>
-          </div>
-          <div class="admin-grid two compact" style="margin-top:12px">
-            <label class="admin-field">Dari<input id="adminTransactionsFrom" type="datetime-local" /></label>
-            <label class="admin-field">Sampai<input id="adminTransactionsTo" type="datetime-local" /></label>
+          <div class="admin-data-toolbar">
+            <div class="admin-data-toolbar-grid">
+              <label class="admin-field">Filter<select id="adminTransactionsFilter" class="text-input">${FILTERS.map(([value, label]) => `<option value="${value}">${esc(label)}</option>`).join('')}</select></label>
+              <label class="admin-field">Cara bayar<select id="adminTransactionsBayar" class="text-input">${BAYAR.map(([value, label]) => `<option value="${value}">${esc(label)}</option>`).join('')}</select></label>
+              <label class="admin-field">Dibuat oleh<select id="adminTransactionsCreator" class="text-input"><option value="">Semua pengguna</option></select></label>
+              <label class="admin-field">Tampilkan<select id="adminTransactionsLimit" class="text-input">${[5, 20, 50, 100].map(size => `<option value="${size}" ${size === state.limit ? 'selected' : ''}>${size}</option>`).join('')}</select></label>
+              <label class="admin-field">Urutkan<select id="adminTransactionsSort" class="text-input">${SORT_OPTIONS.map(([value, label]) => `<option value="${value}">${esc(label)}</option>`).join('')}</select></label>
+            </div>
+            <div class="admin-data-toolbar-grid">
+              <label class="admin-field">Dari (WIB)<input id="adminTransactionsFrom" class="text-input" type="datetime-local" /></label>
+              <label class="admin-field">Sampai (WIB)<input id="adminTransactionsTo" class="text-input" type="datetime-local" /></label>
+              <button id="adminTransactionsAllTime" class="secondary-btn" type="button">Semua waktu</button>
+            </div>
+            <form id="adminTransactionsSearchForm" class="admin-data-search-row">
+              <label class="admin-field">Cari<input id="adminTransactionsSearch" class="text-input" type="search" placeholder="Tanggal, pengguna, nama, deskripsi, dsb" /></label>
+              <button class="admin-tx-btn admin-tx-btn-primary" type="submit">Cari</button>
+            </form>
           </div>
           <div id="adminTransactionsList" class="master-list" style="margin-top:12px"></div>
           <div style="display:flex;justify-content:center;margin-top:12px"><button id="adminTransactionsMore" class="secondary-btn hidden" type="button">Muat lagi</button></div>
@@ -70,34 +79,52 @@
       </section>`);
 
     button.addEventListener('click', activate);
-    document.getElementById('adminTransactionsRefresh')?.addEventListener('click', () => loadTransactions({ reset: true }));
+    document.getElementById('adminTransactionsRefresh')?.addEventListener('click', () => { state.creatorsLoaded = false; loadTransactions({ reset: true }); });
     document.getElementById('adminTransactionsMore')?.addEventListener('click', () => loadTransactions({ reset: false }));
     document.getElementById('adminTransactionsFrom')?.addEventListener('change', () => loadTransactions({ reset: true }));
     document.getElementById('adminTransactionsTo')?.addEventListener('change', () => loadTransactions({ reset: true }));
-    document.querySelectorAll('[data-transaction-filter]').forEach(filterButton => filterButton.addEventListener('click', () => {
-      state.filter = filterButton.dataset.transactionFilter;
-      renderFilterState();
+    for (const [id, key] of [['Filter', 'filter'], ['Bayar', 'bayar'], ['Creator', 'createdBy'], ['Limit', 'limit']]) {
+      document.getElementById(`adminTransactions${id}`).addEventListener('change', event => {
+        state[key] = key === 'limit' ? Number(event.target.value) : event.target.value;
+        loadTransactions({ reset: true });
+      });
+    }
+    document.getElementById('adminTransactionsSort').addEventListener('change', event => {
+      [state.sortKey, state.sortDir] = event.target.value.split(':');
+      renderTransactions();
+    });
+    document.getElementById('adminTransactionsSearchForm').addEventListener('submit', event => {
+      event.preventDefault();
+      state.q = document.getElementById('adminTransactionsSearch').value.trim();
       loadTransactions({ reset: true });
-    }));
-
-    renderFilterState();
+    });
+    document.getElementById('adminTransactionsAllTime').addEventListener('click', () => {
+      document.getElementById('adminTransactionsFrom').value = '';
+      document.getElementById('adminTransactionsTo').value = '';
+      loadTransactions({ reset: true });
+    });
   }
 
   function localInputToIso(id) {
     const value = document.getElementById(id)?.value;
     if (!value) return '';
-    const date = new Date(value);
+    const date = new Date(`${value}+07:00`);
     return Number.isNaN(date.getTime()) ? '' : date.toISOString();
   }
 
   function buildUrl({ reset }) {
     const url = new URL('/api/admin/transactions', location.origin);
     url.searchParams.set('filter', state.filter);
-    url.searchParams.set('limit', '50');
+    url.searchParams.set('limit', String(state.limit));
+    if (state.q) url.searchParams.set('q', state.q);
+    if (state.bayar) url.searchParams.set('bayar', state.bayar);
+    if (state.createdBy) url.searchParams.set('createdBy', state.createdBy);
+    if (state.creatorsLoaded) url.searchParams.set('includeCreators', '0');
     const from = localInputToIso('adminTransactionsFrom');
     const to = localInputToIso('adminTransactionsTo');
     if (from) url.searchParams.set('from', from);
     if (to) url.searchParams.set('to', to);
+    if (from && to && from > to) throw new Error('Tanggal awal harus sebelum tanggal akhir.');
     if (!reset && state.nextCursor) url.searchParams.set('before', state.nextCursor);
     return `${url.pathname}${url.search}`;
   }
@@ -105,27 +132,46 @@
   async function loadTransactions({ reset }) {
     const section = document.getElementById('tab-transactions');
     if (!section?.classList.contains('active')) return;
+    if (!reset && state.loading) return;
+    const requestId = ++state.requestId;
+    state.loading = true;
     const target = document.getElementById('adminTransactionsList');
-    if (reset) target.innerHTML = '<div class="muted">Memuat transaksi...</div>';
+    const more = document.getElementById('adminTransactionsMore');
+    more.disabled = true;
+    if (reset) {
+      state.transactions = [];
+      state.nextCursor = null;
+      state.hasMore = false;
+      more.classList.add('hidden');
+      target.innerHTML = '<div class="muted">Memuat transaksi...</div>';
+    }
     try {
       const payload = await api(buildUrl({ reset }));
+      if (requestId !== state.requestId) return;
       state.transactions = reset ? (payload.transactions || []) : [...state.transactions, ...(payload.transactions || [])];
       state.nextCursor = payload.nextCursor || null;
       state.hasMore = Boolean(payload.hasMore);
+      if (payload.creators) {
+        state.creators = payload.creators;
+        state.creatorsLoaded = true;
+        const select = document.getElementById('adminTransactionsCreator');
+        select.innerHTML = '<option value="">Semua pengguna</option>' + state.creators.map(creator => `<option value="${esc(creator.value)}">${esc(creator.label)}</option>`).join('');
+        select.value = state.createdBy;
+      }
+      if (payload.paymentMethods) {
+        const methods = new Map([...BAYAR, ...payload.paymentMethods.filter(method => method.value !== 'CASH').map(method => [method.value, method.label])]);
+        const select = document.getElementById('adminTransactionsBayar');
+        select.innerHTML = [...methods].map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
+        select.value = state.bayar;
+      }
       renderTransactions();
     } catch (error) {
+      if (requestId !== state.requestId) return;
       if (reset) target.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
       else toast(error.message);
+    } finally {
+      if (requestId === state.requestId) { state.loading = false; more.disabled = false; }
     }
-  }
-
-  function renderFilterState() {
-    document.querySelectorAll('[data-transaction-filter]').forEach(button => {
-      const active = button.dataset.transactionFilter === state.filter;
-      button.classList.toggle('admin-tx-btn-primary', active);
-      button.classList.toggle('active', active);
-      button.classList.toggle('admin-tx-btn-grey', !active);
-    });
   }
 
   function statusLabel(transaction) {
@@ -138,6 +184,7 @@
     return raw || '-';
   }
 
+  // Jurnal tetap domain Accounting.
   function accountingLabel(transaction) {
     const ref = transaction.accounting || {};
     if (!ref.eligible) return 'Belum eligible jurnal';
@@ -154,21 +201,38 @@
     return `<div class="master-meta"><b>Dibeli:</b> ${shown.join(' · ')}${more}</div>`;
   }
 
+  function transactionKindLabel(row) {
+    return row.kind === 'GOODS_FLOW' && row.operationalPayload?.purpose === 'STOCK_ADJUSTMENT'
+      ? 'Penyesuaian Stok' : (KIND_LABEL[row.kind] || row.kind);
+  }
+
   function renderTransactions() {
     const target = document.getElementById('adminTransactionsList');
-    target.innerHTML = state.transactions.length ? state.transactions.map(transaction => `
-      <article class="master-row" style="align-items:flex-start">
-        <div class="master-main">
-          <div class="master-meta">${esc(transaction.kind)} · ${dateTime(transaction.occurredAt)} · ${esc(statusLabel(transaction))}</div>
-          <strong>${esc(transaction.description || transaction.kind)}</strong>
-          ${purchaseItemsLine(transaction)}
-          <div class="master-prices"><span>${transaction.cashierName ? `PIC ${esc(transaction.cashierName)}` : 'System'}</span><span>${money(transaction.amount)}</span></div>
-          <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentLabel || transaction.paymentMethod)}` : ''}</div>
-          <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>
-        </div>
-        <div class="master-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">🔍 Detail</button></div>
-      </article>`).join('') : '<div class="empty">Belum ada transaksi pada filter ini.</div>';
+    const dir = state.sortDir === 'asc' ? 1 : -1;
+    const rows = [...state.transactions].sort((a, b) => dir * String(a[state.sortKey] || '').localeCompare(String(b[state.sortKey] || ''), 'id'));
+    const sortHeading = (key, label) => `<button type="button" data-sort-key="${key}">${label}${state.sortKey === key ? (dir === 1 ? ' ▲' : ' ▼') : ''}</button>`;
+    target.innerHTML = rows.length ? `<div class="admin-data-table-wrap"><table class="admin-data-table">
+      <thead><tr><th>${sortHeading('occurredAt', 'Tanggal')}</th><th>Jenis</th><th>Deskripsi</th><th>Nominal</th><th>Cara bayar</th><th>Status</th><th>${sortHeading('creatorName', 'Dibuat oleh')}</th><th>ID</th><th>ID Laci</th><th>Aksi</th></tr></thead>
+      <tbody>${rows.map(transaction => `<tr>
+        <td data-label="Tanggal">${dateTime(transaction.occurredAt)}</td>
+        <td data-label="Jenis">${esc(transactionKindLabel(transaction))}</td>
+        <td data-label="Deskripsi">${esc(transaction.description || transactionKindLabel(transaction))}${purchaseItemsLine(transaction)}${transaction.status === 'voided' ? '<small class="admin-data-readonly">Dihapus (read only)</small>' : ''}</td>
+        <td data-label="Nominal">${money(transaction.amount)}</td>
+        <td data-label="Cara bayar">${esc(transaction.paymentLabel || ({ CASH: 'Tunai', CAMPURAN: 'Campuran' })[transaction.paymentMethod] || transaction.paymentMethod || '-')}</td>
+        <td data-label="Status">${esc(statusLabel(transaction))}</td>
+        <td data-label="Dibuat oleh">${esc(transaction.creatorName || transaction.cashierName || '-')}</td>
+        <td class="admin-data-id" data-label="ID">${esc(transaction.id)}</td>
+        <td class="admin-data-id" data-label="ID Laci">${esc(transaction.drawerSessionId || '-')}</td>
+        <td class="admin-data-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">Detail</button></td>
+      </tr>`).join('')}</tbody></table></div>` : '<div class="empty">Belum ada transaksi pada filter ini.</div>';
     target.querySelectorAll('[data-transaction-detail-id]').forEach(button => button.addEventListener('click', () => openDetail(button.dataset.transactionDetailKind, button.dataset.transactionDetailId)));
+    target.querySelectorAll('[data-sort-key]').forEach(button => button.addEventListener('click', () => {
+      const key = button.dataset.sortKey;
+      state.sortDir = state.sortKey === key && state.sortDir === 'asc' ? 'desc' : 'asc';
+      state.sortKey = key;
+      document.getElementById('adminTransactionsSort').value = `${key}:${state.sortDir}`;
+      renderTransactions();
+    }));
     document.getElementById('adminTransactionsMore')?.classList.toggle('hidden', !state.hasMore);
   }
 
@@ -283,9 +347,23 @@
     }
   }
 
+  function renderAdminFactDetail(detail) {
+    const fields = [
+      ['Deskripsi', detail.description], ['Tanggal transaksi', detail.businessDate],
+      ['Nominal', money(detail.amount)], ['Cara bayar', detail.paymentMethod],
+      ['Rekening', detail.sharedAccountName], ['Pihak', detail.counterpartyName],
+      ['Dibuat oleh', detail.creatorName], ['Catatan', detail.note],
+      ['Status', statusLabel(detail)], ['Alasan hapus', detail.voidReason]
+    ];
+    return '<div class="admin-grid two compact">' + fields.filter(([, value]) => value).map(([label, value]) =>
+      `<div class="admin-tip"><b>${esc(label)}</b><div>${esc(value)}</div></div>`).join('') + '</div>';
+  }
+
   function renderDetail(detail) {
     const soItems = detail.kind === 'GOODS_FLOW' ? stockAdjustmentItems(detail) : null;
-    const content = detail.kind === 'SALE'
+    const content = detail.kind.startsWith('ADMIN_')
+      ? renderAdminFactDetail(detail)
+      : detail.kind === 'SALE'
       ? renderSaleDetail(detail)
       : detail.kind === 'PRODUCTION'
         ? renderProductionDetail(detail)
@@ -301,7 +379,7 @@
             decisionNote: detail.decisionNote
           }, null, 2))}</pre></div>`;
     window.openAdminDetailModal({
-      head: `<div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)} · Accounting: ${esc(accountingDetail(detail))}</div></div>`,
+      head: `<div><div class="admin-eyebrow">Transaction Detail</div><h2>${esc(KIND_LABEL[detail.kind] || detail.kind)} · ${esc(detail.id)}</h2><div class="muted">${dateTime(detail.occurredAt)}${detail.accounting ? ` · Accounting: ${esc(accountingDetail(detail))}` : ''}</div></div>`,
       body: content
     });
     document.querySelectorAll('[data-so-correct]').forEach(button => button.addEventListener('click', () => correctStockAdjustmentValue(button)));

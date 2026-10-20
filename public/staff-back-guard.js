@@ -7,7 +7,7 @@
   // Hanya dipasang di halaman kerja PERTAMA di tab ini (masuk dari login, halaman pelanggan,
   // atau dibuka langsung). Kalau datang dari halaman kerja lain (mis. Owner -> Workspace Gerai),
   // Back tetap kembali ke halaman sebelumnya seperti biasa.
-  const STAFF_PATH = /^\/(owner|admin|entity-admin|branch-admin|cashier|staff|warung|peta-kode)\/?$|^\/s\/[^/]+\/(admin|cashier|warung)\/?$/;
+  const STAFF_PATH = /^\/(owner|admin|entity-admin|branch-admin|cashier|staff|warung|peta-kode|peta-agen)\/?$|^\/s\/[^/]+\/(admin|cashier|warung)\/?$/;
   let fromStaffPage = false;
   try {
     const ref = document.referrer ? new URL(document.referrer) : null;

@@ -1,5 +1,17 @@
 // Pengecualian tertulis, bukan pola/prefix. Fitur baru wajib diajarkan.
 export const TANPA_PANDUAN = Object.freeze({
+  "tombol:public/peta-agen.html:data-f:Belajar": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:data-f:Fina": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:data-f:Mesin bersama": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:data-f:Rika": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:data-f:Semua": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:data-f:Una": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:data-f:Yang belum": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:fit": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:zin": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.html:zout": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.js:cp": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.js:data-f:{nilai} {nilai}/{nilai} sudah · {nilai}%": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "rute:src/accounting-workspace.js:/api/admin/accounting/party-names/check": "Rute bantu baca untuk form atas nama (cek nama sama/mirip/baru); bukan menu atau perintah pengguna, dijelaskan di panduan Jurnal Split dan Bea.",
   "pola:src/caca-belum-paham.js:/^\\/api\\/caca\\/belum-paham\\/([a-zA-Z0-9-]{1,80})$/": "Rute diagnostik internal untuk agen; bukan perintah bisnis atau menu pengguna. Peninjauan melalui skill latih-una.",
   "rute:src/caca-belum-paham.js:/api/caca/belum-paham": "Antrean diagnostik untuk agen; proses peninjauan ada di skill latih-una. Bukan pekerjaan kasir/pemilik lewat panduan chat.",

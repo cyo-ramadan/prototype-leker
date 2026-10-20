@@ -1,0 +1,1268 @@
+{
+ "judul": "Peta Agen Leker",
+ "handoff": "contracts/agen-rika-fina-v1.md",
+ "ukuran": {
+  "w": 1660,
+  "h": 1460
+ },
+ "jalur": [
+  {
+   "id": "una",
+   "label": "Una · asisten toko",
+   "x": 0,
+   "y": 40,
+   "w": 1350,
+   "h": 220,
+   "agen": "una"
+  },
+  {
+   "id": "rika",
+   "label": "Rika · agen akuntan",
+   "x": 0,
+   "y": 280,
+   "w": 1350,
+   "h": 370,
+   "agen": "rika"
+  },
+  {
+   "id": "fina",
+   "label": "Fina · agen HR",
+   "x": 0,
+   "y": 670,
+   "w": 1350,
+   "h": 480,
+   "agen": "fina"
+  },
+  {
+   "id": "belajar",
+   "label": "Belajar",
+   "x": 1365,
+   "y": 40,
+   "w": 290,
+   "h": 1110,
+   "agen": "belajar"
+  },
+  {
+   "id": "mesin",
+   "label": "Mesin bersama · dipakai ketiganya",
+   "x": 0,
+   "y": 1170,
+   "w": 1655,
+   "h": 280,
+   "agen": "mesin"
+  }
+ ],
+ "kotak": [
+  {
+   "id": "p_chat",
+   "jenis": "pintu",
+   "agen": [
+    "una",
+    "rika",
+    "fina"
+   ],
+   "x": 40,
+   "y": 80,
+   "label": "Chat Leker",
+   "sub": "panel chat di web",
+   "isi": "Tempat Bos, admin, dan tenant mengobrol dengan agen. Sekarang hanya Una.",
+   "bukti": [
+    {
+     "f": "public/caca-chat.js"
+    }
+   ]
+  },
+  {
+   "id": "p_pilih",
+   "jenis": "pintu",
+   "agen": [
+    "una",
+    "rika",
+    "fina"
+   ],
+   "x": 40,
+   "y": 180,
+   "label": "Pemilih Una · Rika · Fina",
+   "sub": "paket A0",
+   "isi": "Tab kecil di kepala panel chat. Persona tersimpan per percakapan, riwayat tidak tercampur. Persona yang tidak diizinkan atau dimatikan tenant tidak muncul.",
+   "bukti": [
+    {
+     "f": "src/agen-persona.js"
+    },
+    {
+     "g": "Rika",
+     "p": "public/caca-chat.js"
+    }
+   ]
+  },
+  {
+   "id": "una",
+   "jenis": "agen",
+   "agen": [
+    "una"
+   ],
+   "x": 310,
+   "y": 120,
+   "label": "Una",
+   "sub": "gemini-3.1-flash-lite",
+   "isi": "Asisten toko umum: tanya laporan, buka menu, catat lewat draft. Perilakunya tidak boleh berubah saat Rika dan Fina ditambahkan.",
+   "bukti": [
+    {
+     "f": "src/caca-agen.js"
+    }
+   ],
+   "file": "src/caca-agen.js"
+  },
+  {
+   "id": "una_alat",
+   "jenis": "alat",
+   "agen": [
+    "una"
+   ],
+   "x": 580,
+   "y": 80,
+   "label": "Alat Una",
+   "sub": "61 jalur baca + aksi draft",
+   "isi": "Katalog baca (jurnal, HPP, presensi, stok, laporan) dan aksi tulis lewat draft.",
+   "bukti": [
+    {
+     "f": "src/caca-baca-katalog.js"
+    },
+    {
+     "f": "src/caca-aksi.js"
+    }
+   ],
+   "file": "src/caca-baca-katalog.js"
+  },
+  {
+   "id": "una_live",
+   "jenis": "alat",
+   "agen": [
+    "una"
+   ],
+   "x": 850,
+   "y": 80,
+   "label": "Workspace & lembar",
+   "sub": "Una Live",
+   "isi": "Una membuka halaman, mengubah filter laporan, dan membaca kanvas di Workspace.",
+   "bukti": [
+    {
+     "f": "src/una-kemampuan.js"
+    },
+    {
+     "f": "public/una-lembar.js"
+    }
+   ],
+   "file": "src/una-kemampuan.js"
+  },
+  {
+   "id": "una_out",
+   "jenis": "keluaran",
+   "agen": [
+    "una"
+   ],
+   "x": 1120,
+   "y": 120,
+   "label": "Draft → Ya → data",
+   "sub": "diperiksa ulang server",
+   "isi": "Semua tulis menjadi draft. Data baru berubah setelah pengguna menjawab Ya dan server memeriksa ulang.",
+   "bukti": [
+    {
+     "g": "draft",
+     "p": "src/caca-aksi.js"
+    }
+   ]
+  },
+  {
+   "id": "meja",
+   "jenis": "lokal",
+   "agen": [
+    "rika"
+   ],
+   "x": 40,
+   "y": 330,
+   "label": "Meja akuntan",
+   "sub": "Claude Code di laptop",
+   "isi": "Lab Rika. Kasus baru yang rumit diselidiki Bos di sini (baca D1 langsung). Kartunya lalu dijadikan kartu umum Rika.",
+   "bukti": [
+    {
+     "luar": "Meja akuntan di laptop Bos: C:/Users/Asus/akuntan-leker (dicatat manual)",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "id": "rika",
+   "jenis": "agen",
+   "agen": [
+    "rika"
+   ],
+   "x": 310,
+   "y": 440,
+   "label": "Rika",
+   "sub": "akuntan · cari salah input",
+   "isi": "Menjawab \"kenapa angka ini aneh?\" sampai ketemu langkah input yang salah, lalu menyiapkan koreksi sebagai draft. Bug program diteruskan, tidak diperbaiki.",
+   "bukti": [
+    {
+     "g": "Rika",
+     "p": "src/agen-persona.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_v1",
+   "jenis": "alat",
+   "agen": [
+    "rika"
+   ],
+   "x": 580,
+   "y": 310,
+   "label": "Alat akuntan v1",
+   "sub": "jembatan, audit HPP, koreksi",
+   "isi": "Alat yang sudah ada dan teruji: jembatan_masalah, audit_hpp, koreksi_hpp_banyak, samakan_aturan_jurnal, buat_jurnal, dan lainnya. Rika memakai ulang.",
+   "bukti": [
+    {
+     "f": "contracts/una-akuntan-tools-v1.md"
+    },
+    {
+     "f": "src/caca-aksi-akuntan.js"
+    }
+   ],
+   "file": "contracts/una-akuntan-tools-v1.md"
+  },
+  {
+   "id": "rika_telusur",
+   "jenis": "alat",
+   "agen": [
+    "rika"
+   ],
+   "x": 580,
+   "y": 420,
+   "label": "telusur_asal_angka",
+   "sub": "angka → jurnal → sumber → pembuat",
+   "isi": "Dari satu angka ke jurnal penyusunnya, sumbernya, transaksi asal, dan siapa yang membuat (created_by).",
+   "bukti": [
+    {
+     "g": "telusur_asal_angka",
+     "p": "src/agen-rika-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_dobel",
+   "jenis": "alat",
+   "agen": [
+    "rika"
+   ],
+   "x": 580,
+   "y": 530,
+   "label": "cari_entri_dobel",
+   "sub": "dihitung kode",
+   "isi": "Pasangan entri dengan nominal dan akun sama, tanggal berdekatan, keterangan mirip, tidak saling membalik. Contoh: HPP dobel tanggal 13, Split + jurnal manual.",
+   "bukti": [
+    {
+     "g": "cari_entri_dobel",
+     "p": "src/agen-rika-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_banding",
+   "jenis": "alat",
+   "agen": [
+    "rika"
+   ],
+   "x": 850,
+   "y": 310,
+   "label": "bandingkan_periode",
+   "sub": "normal vs tanggal ditanya",
+   "isi": "Median 4 minggu sebelumnya dibanding tanggal yang ditanya, lalu dipecah per komponen.",
+   "bukti": [
+    {
+     "g": "bandingkan_periode",
+     "p": "src/agen-rika-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_gaji",
+   "jenis": "alat",
+   "agen": [
+    "rika"
+   ],
+   "x": 850,
+   "y": 420,
+   "label": "cek_gaji_presensi",
+   "sub": "sesi, jadwal, tarif, Bea",
+   "isi": "Satu CS dan tanggal: sesi presensi, cara tutup, jadwal, tarif, catatan gaji, jurnal, dan Bea Gaji manual.",
+   "bukti": [
+    {
+     "g": "cek_gaji_presensi",
+     "p": "src/agen-rika-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_temuan",
+   "jenis": "keluaran",
+   "agen": [
+    "rika"
+   ],
+   "x": 1120,
+   "y": 330,
+   "label": "Temuan + bukti",
+   "sub": "bahasa sederhana",
+   "isi": "Apa yang terjadi, langkah input mana yang salah, bukti (ID jurnal, tanggal, pembuat). Angka hanya dari hasil alat.",
+   "bukti": [
+    {
+     "g": "temuan",
+     "p": "src/agen-rika-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_koreksi",
+   "jenis": "keluaran",
+   "agen": [
+    "rika"
+   ],
+   "x": 1120,
+   "y": 440,
+   "label": "Draft koreksi",
+   "sub": "pembalik / penyesuaian",
+   "isi": "Memakai alat tulis akuntan yang ada. Jurnal POSTED tidak pernah diedit.",
+   "bukti": [
+    {
+     "f": "src/caca-aksi-akuntan.js"
+    }
+   ]
+  },
+  {
+   "id": "rika_bug",
+   "jenis": "keluaran",
+   "agen": [
+    "rika"
+   ],
+   "x": 1120,
+   "y": 550,
+   "label": "Dugaan bug",
+   "sub": "→ agen programmer",
+   "isi": "Input benar tetapi hasil sistem salah: Rika berhenti, mencatat bukti ke antrean dengan alasan dugaan_bug.",
+   "bukti": [
+    {
+     "g": "dugaan_bug",
+     "p": "src/caca-belum-paham.js"
+    }
+   ]
+  },
+  {
+   "id": "p_wa",
+   "jenis": "pintu",
+   "agen": [
+    "fina"
+   ],
+   "x": 40,
+   "y": 720,
+   "label": "WA nomor HR",
+   "sub": "fase 2 · webhook",
+   "isi": "Pesan CS dan pelamar masuk ke server. Nomor asing hanya diproses aturan tanpa AI.",
+   "bukti": [
+    {
+     "f": "src/fina-wa.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_inbox",
+   "jenis": "pintu",
+   "agen": [
+    "fina"
+   ],
+   "x": 40,
+   "y": 830,
+   "label": "Kotak masuk HR",
+   "sub": "mode bayangan",
+   "isi": "Semua percakapan HR dan draft balasan Fina. Admin menekan Kirim dan bisa mengambil alih kapan saja.",
+   "bukti": [
+    {
+     "f": "public/fina-inbox.js"
+    }
+   ]
+  },
+  {
+   "id": "p_cron",
+   "jenis": "pintu",
+   "agen": [
+    "fina"
+   ],
+   "x": 40,
+   "y": 940,
+   "label": "Jadwal otomatis",
+   "sub": "cron tiap menit",
+   "isi": "Cron Worker sudah berjalan tiap menit. Fina nanti memakainya untuk mendeteksi gerai kosong.",
+   "bukti": [
+    {
+     "g": "crons",
+     "p": "wrangler.jsonc"
+    }
+   ]
+  },
+  {
+   "id": "p_loker",
+   "jenis": "pintu",
+   "agen": [
+    "fina"
+   ],
+   "x": 40,
+   "y": 1050,
+   "label": "Halaman loker",
+   "sub": "fase 3 · form lamar",
+   "isi": "Lowongan publik di web Leker. Form lamaran masuk ke data pelamar.",
+   "bukti": [
+    {
+     "f": "public/loker.html"
+    }
+   ]
+  },
+  {
+   "id": "fina",
+   "jenis": "agen",
+   "agen": [
+    "fina"
+   ],
+   "x": 310,
+   "y": 880,
+   "label": "Fina",
+   "sub": "HR · backup, CS, rekrut",
+   "isi": "Kekosongan gerai dan backup, masalah CS, pengumuman, SP (draft), rekrutmen. Keputusan soal orang dan uang selalu di Bos/admin.",
+   "bukti": [
+    {
+     "g": "Fina[^l]",
+     "p": "src/agen-persona.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_kosong",
+   "jenis": "alat",
+   "agen": [
+    "fina"
+   ],
+   "x": 580,
+   "y": 720,
+   "label": "cari_gerai_kosong",
+   "sub": "jadwal vs presensi",
+   "isi": "Jadwal dibanding presensi saat ini dan jam bolong dari evaluasi Dana Apresiasi.",
+   "bukti": [
+    {
+     "g": "cari_gerai_kosong",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_tawar",
+   "jenis": "alat",
+   "agen": [
+    "fina"
+   ],
+   "x": 850,
+   "y": 720,
+   "label": "Tawarkan backup",
+   "sub": "freelance tersedia",
+   "isi": "daftar_freelance_tersedia + siapkan_tawaran_backup + catat_pengganti. Fase 1 teks disalin admin; fase 2 dikirim lewat WA.",
+   "bukti": [
+    {
+     "g": "daftar_freelance_tersedia",
+     "p": "src/agen-fina-alat.js"
+    },
+    {
+     "g": "catat_pengganti",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_balas",
+   "jenis": "keluaran",
+   "agen": [
+    "fina"
+   ],
+   "x": 1120,
+   "y": 720,
+   "label": "Balas WA",
+   "sub": "topik aman / alihkan ke Bos",
+   "isi": "Jadwal, presensi, status lamaran, konfirmasi backup dijawab Fina. Gaji, kasbon, SP, keluhan, nada marah dialihkan ke Bos.",
+   "bukti": [
+    {
+     "g": "alihkan",
+     "p": "src/fina-wa.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_masalah",
+   "jenis": "alat",
+   "agen": [
+    "fina"
+   ],
+   "x": 580,
+   "y": 830,
+   "label": "rekap_masalah_cs",
+   "sub": "telat, bolong, denda",
+   "isi": "Telat, pulang awal, kosong, denda, lupa presensi pulang per CS per periode.",
+   "bukti": [
+    {
+     "g": "rekap_masalah_cs",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_sp",
+   "jenis": "alat",
+   "agen": [
+    "fina"
+   ],
+   "x": 850,
+   "y": 830,
+   "label": "draft_sp",
+   "sub": "teguran / SP",
+   "isi": "Surat berisi fakta dari rekap masalah. Disimpan sebagai draft, tidak pernah terkirim otomatis.",
+   "bukti": [
+    {
+     "g": "draft_sp",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_acc",
+   "jenis": "acc",
+   "agen": [
+    "fina"
+   ],
+   "x": 1120,
+   "y": 830,
+   "label": "Bos ACC",
+   "sub": "SP · pelamar · loker",
+   "isi": "Keputusan tentang orang selalu di Bos atau admin.",
+   "bukti": [
+    {
+     "g": "draft_sp",
+     "p": "src/agen-fina-alat.js"
+    },
+    {
+     "f": "public/fina-inbox.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_umum",
+   "jenis": "alat",
+   "agen": [
+    "fina"
+   ],
+   "x": 580,
+   "y": 940,
+   "label": "pasang_pengumuman",
+   "sub": "papan pengumuman CS",
+   "isi": "Draft pengumuman ke papan CS, contoh info QRIS terbaru.",
+   "bukti": [
+    {
+     "g": "pasang_pengumuman",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "data_cs",
+   "jenis": "data",
+   "agen": [
+    "fina",
+    "rika"
+   ],
+   "x": 850,
+   "y": 940,
+   "label": "Data CS",
+   "sub": "presensi, backup, apresiasi, pengumuman",
+   "isi": "Sudah jalan di produksi: presensi & jadwal, backup lintas gerai, Dana Apresiasi & Denda (pengganti, evaluasi), papan pengumuman.",
+   "bukti": [
+    {
+     "f": "src/staff-attendance.js"
+    },
+    {
+     "f": "src/entity-backup-cashiers.js"
+    },
+    {
+     "f": "src/dana-apresiasi.js"
+    },
+    {
+     "f": "src/staff-announcement.js"
+    }
+   ],
+   "file": "src/dana-apresiasi.js"
+  },
+  {
+   "id": "fina_pelamar",
+   "jenis": "data",
+   "agen": [
+    "fina"
+   ],
+   "x": 1120,
+   "y": 940,
+   "label": "Data pelamar",
+   "sub": "screening lewat WA",
+   "isi": "Sumber (web/FB/IG/WA), posisi, gerai, jawaban screening, skor, status, keputusan Bos.",
+   "bukti": [
+    {
+     "m": "fina_pelamar"
+    }
+   ]
+  },
+  {
+   "id": "fina_loker",
+   "jenis": "alat",
+   "agen": [
+    "fina"
+   ],
+   "x": 580,
+   "y": 1050,
+   "label": "draft_loker",
+   "sub": "teks + poster templat",
+   "isi": "Teks loker dan isi poster dari templat tetap. Tayang setelah Bos ACC.",
+   "bukti": [
+    {
+     "g": "draft_loker",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "fina_posting",
+   "jenis": "keluaran",
+   "agen": [
+    "fina"
+   ],
+   "x": 850,
+   "y": 1050,
+   "label": "Posting FB / IG",
+   "sub": "terhalang akun Meta",
+   "isi": "Graph API butuh Portofolio Bisnis Meta. Akun Facebook Bos sedang dibatasi (catatan migration 0148). Sementara: materi siap salin, admin posting manual. Grup FB selalu manual.",
+   "risiko": "Akun Meta Bos dibatasi: tidak bisa membuat Portofolio Bisnis.",
+   "bukti": [
+    {
+     "g": "instagram",
+     "p": "src/agen-fina-alat.js"
+    }
+   ]
+  },
+  {
+   "id": "b_cari",
+   "jenis": "belajar",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 80,
+   "label": "Cari kartu",
+   "sub": "1–3 teratas, tanpa model",
+   "isi": "Kalimat diberi skor dengan mesin kamus terhadap kartu AKTIF. Hanya 1–3 kartu yang disisipkan, jadi biaya per chat tetap datar.",
+   "bukti": [
+    {
+     "g": "peringkatKamus",
+     "p": "src/agen-kartu.js"
+    }
+   ]
+  },
+  {
+   "id": "b_kartu",
+   "jenis": "belajar",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 200,
+   "label": "Kartu kasus per tenant",
+   "sub": "gejala → cek → solusi",
+   "isi": "Per tenant per persona. Kartu tenant A tidak pernah terlihat tenant B. Langkah cek hanya berisi alat yang ada.",
+   "bukti": [
+    {
+     "m": "agen_kartu_kasus"
+    },
+    {
+     "f": "src/agen-kartu.js"
+    }
+   ]
+  },
+  {
+   "id": "b_tulis",
+   "jenis": "belajar",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 320,
+   "label": "Agen usul kartu",
+   "sub": "DRAFT → ACC admin",
+   "isi": "Setelah kasus selesai agen mengusulkan kartu DRAFT. Baru dipakai setelah di-ACC. Dua kali dikoreksi pengguna, kartu turun ke DRAFT.",
+   "bukti": [
+    {
+     "g": "usulkan_kartu",
+     "p": "src/agen-kartu.js"
+    }
+   ]
+  },
+  {
+   "id": "b_umum",
+   "jenis": "belajar",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 440,
+   "label": "Kartu umum",
+   "sub": "dari Bos / meja akuntan",
+   "isi": "Berlaku untuk semua tenant. Hanya Bos yang membuat atau menaikkan kartu tenant menjadi umum (disamarkan).",
+   "bukti": [
+    {
+     "g": "UMUM|tenant_id IS NULL",
+     "p": "src/agen-kartu.js"
+    }
+   ]
+  },
+  {
+   "id": "b_belum",
+   "jenis": "belajar",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 600,
+   "label": "Antrean belum paham",
+   "sub": "disimpan diam-diam",
+   "isi": "Sudah ada untuk Una (migration 0155): ngambek, topik/menu tidak ditemukan, model gagal, angka tanpa bukti, koreksi pengguna. Perlu kolom agen dan alasan alat_tidak_ada / dugaan_bug.",
+   "bukti": [
+    {
+     "f": "src/caca-belum-paham.js"
+    },
+    {
+     "m": "una_belum_paham"
+    }
+   ],
+   "file": "src/caca-belum-paham.js"
+  },
+  {
+   "id": "b_tinjau",
+   "jenis": "acc",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 740,
+   "label": "Bos tinjau",
+   "sub": "OK → brief → upgrade",
+   "isi": "Layar lintas tenant di Owner Console, dikelompokkan per kemiripan. OK membuat brief tugas untuk agen programmer. Sekarang baru bisa lewat skrip.",
+   "bukti": [
+    {
+     "f": ".claude/skills/agent-task-brief/SKILL.md"
+    },
+    {
+     "f": "public/belum-paham-tinjau.js"
+    }
+   ]
+  },
+  {
+   "id": "b_skenario",
+   "jenis": "belajar",
+   "agen": [
+    "rika",
+    "fina",
+    "una"
+   ],
+   "x": 1395,
+   "y": 880,
+   "label": "Skenario uji",
+   "sub": "jadi tes setiap rilis",
+   "isi": "Pertanyaan yang di-OK menjadi skenario una-latih: harus gagal dulu, lalu lulus setelah upgrade, dan terus diuji.",
+   "bukti": [
+    {
+     "f": "scripts/uji-una.mjs"
+    },
+    {
+     "f": "scripts/ambil-una-belum-paham.mjs"
+    }
+   ],
+   "file": "scripts/ambil-una-belum-paham.mjs"
+  },
+  {
+   "id": "b_peta",
+   "jenis": "belajar",
+   "agen": [
+    "mesin"
+   ],
+   "x": 1395,
+   "y": 1020,
+   "label": "Peta Agen",
+   "sub": "halaman ini, ikut update",
+   "isi": "Rancangan final ada di scripts/peta-agen-manifest.json. npm run peta:build memeriksa bukti setiap kotak ke kode; tes gagal kalau peta tertinggal dari kode, jadi peta selalu ikut berubah saat program berubah.",
+   "bukti": [
+    {
+     "f": "scripts/build-peta-agen.mjs"
+    },
+    {
+     "f": "public/peta-agen.js"
+    },
+    {
+     "g": "peta-agen",
+     "p": "public/owner.html"
+    }
+   ],
+   "file": "scripts/peta-agen-manifest.json"
+  },
+  {
+   "id": "m_loop",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 40,
+   "y": 1210,
+   "label": "Putaran agen",
+   "sub": "pilih alat → jalankan → selesai",
+   "isi": "Model hanya memilih alat; kode menjalankan dan mengecek. Rencana multi-langkah.",
+   "bukti": [
+    {
+     "g": "ALAT_SELESAI",
+     "p": "src/caca-agen.js"
+    }
+   ],
+   "file": "src/caca-agen.js"
+  },
+  {
+   "id": "m_persona",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 40,
+   "y": 1330,
+   "label": "Registry persona",
+   "sub": "nama, gaya, alat, izin",
+   "isi": "Satu objek per persona. Mesin membaca dari sini; tidak ada percabangan per agen yang tersebar.",
+   "bukti": [
+    {
+     "f": "src/agen-persona.js"
+    }
+   ]
+  },
+  {
+   "id": "m_model",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 310,
+   "y": 1210,
+   "label": "Penyedia model",
+   "sub": "Gemini · OpenAI",
+   "isi": "gemini-3.1-flash-lite (dikunci Bos 9 Okt), cadangan gpt-6-luna.",
+   "bukti": [
+    {
+     "f": "src/caca-ai-client.js"
+    }
+   ],
+   "file": "src/caca-ai-client.js"
+  },
+  {
+   "id": "m_rute",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 310,
+   "y": 1330,
+   "label": "Rute model per agen",
+   "sub": "opsional: Claude Haiku/Sonnet",
+   "isi": "Bawaan tidak berubah. Bos bisa mengarahkan Rika ke model lain lewat setelan. Haiku 5.5 lebih murah per token daripada Gemini flash-lite.",
+   "bukti": [
+    {
+     "f": "src/caca-ai-anthropic.js"
+    },
+    {
+     "g": "rute",
+     "p": "src/caca-ai-client.js"
+    }
+   ]
+  },
+  {
+   "id": "m_baca",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 580,
+   "y": 1210,
+   "label": "Baca aman",
+   "sub": "rahasia & kontak disamarkan",
+   "isi": "Semua hasil baca lewat pembersih sebelum sampai ke model.",
+   "bukti": [
+    {
+     "f": "src/caca-baca-aman.js"
+    }
+   ],
+   "file": "src/caca-baca-aman.js"
+  },
+  {
+   "id": "m_kamus",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 580,
+   "y": 1330,
+   "label": "Kamus bersama",
+   "sub": "mesin murni + sumber + hash",
+   "isi": "Dipakai ketiga persona. Entri diberi tag agen; dalamKonteks() sudah mendukung penyaring.",
+   "bukti": [
+    {
+     "f": "src/kerangka/kamus.js"
+    },
+    {
+     "f": "src/caca-kamus-sumber.js"
+    }
+   ],
+   "file": "src/kerangka/kamus.js"
+  },
+  {
+   "id": "m_draft",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 850,
+   "y": 1210,
+   "label": "Draft + Ya",
+   "sub": "diperiksa ulang server",
+   "isi": "Satu-satunya jalan tulis untuk semua agen.",
+   "bukti": [
+    {
+     "f": "src/caca-aksi.js"
+    }
+   ],
+   "file": "src/caca-aksi.js"
+  },
+  {
+   "id": "m_kamus_agen",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 850,
+   "y": 1330,
+   "label": "Entri kamus per agen",
+   "sub": "tag rika / fina",
+   "isi": "Istilah akuntan dan HR, daftar topik aman/sensitif WA Fina, sebagai data kamus.",
+   "bukti": [
+    {
+     "g": "agen:",
+     "p": "src/caca-kamus-sumber.js"
+    }
+   ]
+  },
+  {
+   "id": "m_riwayat",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 1120,
+   "y": 1210,
+   "label": "Riwayat & tertunda",
+   "sub": "tidak kehilangan konteks",
+   "isi": "Tugas tertunda, draft terbuka, koreksi, ngambek.",
+   "bukti": [
+    {
+     "f": "src/caca-riwayat.js"
+    },
+    {
+     "f": "src/caca-tertunda.js"
+    }
+   ],
+   "file": "src/caca-tertunda.js"
+  },
+  {
+   "id": "m_wa",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 1120,
+   "y": 1330,
+   "label": "Pintu WA",
+   "sub": "Meta · Twilio · simulator",
+   "isi": "Sudah jalan untuk Percetakan. Diangkat menjadi modul umum agar Fina memakai ulang.",
+   "bukti": [
+    {
+     "f": "src/percetakan-wa.js"
+    },
+    {
+     "f": "src/pintu-wa.js"
+    }
+   ],
+   "file": "src/percetakan-wa.js"
+  },
+  {
+   "id": "m_atur",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 1395,
+   "y": 1270,
+   "label": "Pengaturan per tenant",
+   "sub": "nama + saklar persona",
+   "isi": "Nama asisten per tenant sudah ada (una_nama_asisten). Ditambah nama dan saklar Rika, Fina, dan kartu belajar (bawaan aktif).",
+   "bukti": [
+    {
+     "f": "src/caca-pengaturan.js"
+    },
+    {
+     "g": "agen_rika_aktif",
+     "p": "src/caca-pengaturan.js"
+    }
+   ],
+   "file": "src/caca-pengaturan.js"
+  }
+ ],
+ "garis": [
+  [
+   "p_chat",
+   "p_pilih",
+   "alir"
+  ],
+  [
+   "p_chat",
+   "una",
+   "alir"
+  ],
+  [
+   "una",
+   "una_alat",
+   "alir"
+  ],
+  [
+   "una",
+   "una_live",
+   "alir"
+  ],
+  [
+   "una_alat",
+   "una_out",
+   "alir"
+  ],
+  [
+   "una_live",
+   "una_out",
+   "alir"
+  ],
+  [
+   "p_pilih",
+   "rika",
+   "alir",
+   "Rika"
+  ],
+  [
+   "meja",
+   "rika",
+   "baca",
+   "kartu dari lab"
+  ],
+  [
+   "rika",
+   "rika_v1",
+   "alir"
+  ],
+  [
+   "rika",
+   "rika_telusur",
+   "alir"
+  ],
+  [
+   "rika",
+   "rika_dobel",
+   "alir"
+  ],
+  [
+   "rika_telusur",
+   "rika_banding",
+   "alir"
+  ],
+  [
+   "rika_telusur",
+   "rika_gaji",
+   "alir"
+  ],
+  [
+   "rika_banding",
+   "rika_temuan",
+   "alir"
+  ],
+  [
+   "rika_gaji",
+   "rika_temuan",
+   "alir"
+  ],
+  [
+   "rika_dobel",
+   "rika_temuan",
+   "alir"
+  ],
+  [
+   "rika_v1",
+   "rika_koreksi",
+   "alir"
+  ],
+  [
+   "rika_temuan",
+   "b_tulis",
+   "belajar",
+   "usul kartu"
+  ],
+  [
+   "rika_bug",
+   "b_belum",
+   "belajar"
+  ],
+  [
+   "p_pilih",
+   "fina",
+   "alir",
+   "Fina"
+  ],
+  [
+   "p_wa",
+   "fina_inbox",
+   "alir"
+  ],
+  [
+   "fina_inbox",
+   "fina",
+   "alir"
+  ],
+  [
+   "p_cron",
+   "fina",
+   "alir"
+  ],
+  [
+   "p_loker",
+   "fina",
+   "alir",
+   "lamaran"
+  ],
+  [
+   "fina",
+   "fina_kosong",
+   "alir"
+  ],
+  [
+   "fina",
+   "fina_masalah",
+   "alir"
+  ],
+  [
+   "fina",
+   "fina_umum",
+   "alir"
+  ],
+  [
+   "fina",
+   "fina_loker",
+   "alir"
+  ],
+  [
+   "fina_kosong",
+   "fina_tawar",
+   "alir"
+  ],
+  [
+   "fina_tawar",
+   "fina_balas",
+   "alir"
+  ],
+  [
+   "fina_masalah",
+   "fina_sp",
+   "alir"
+  ],
+  [
+   "fina_sp",
+   "fina_acc",
+   "alir"
+  ],
+  [
+   "fina_umum",
+   "data_cs",
+   "baca"
+  ],
+  [
+   "fina_kosong",
+   "data_cs",
+   "baca"
+  ],
+  [
+   "fina_loker",
+   "fina_posting",
+   "alir"
+  ],
+  [
+   "fina_posting",
+   "fina_pelamar",
+   "alir"
+  ],
+  [
+   "fina_balas",
+   "b_belum",
+   "belajar",
+   "tidak bisa"
+  ],
+  [
+   "b_cari",
+   "b_kartu",
+   "baca"
+  ],
+  [
+   "b_tulis",
+   "b_kartu",
+   "belajar"
+  ],
+  [
+   "b_umum",
+   "b_kartu",
+   "belajar"
+  ],
+  [
+   "b_belum",
+   "b_tinjau",
+   "belajar"
+  ],
+  [
+   "b_tinjau",
+   "b_skenario",
+   "belajar"
+  ]
+ ]
+}

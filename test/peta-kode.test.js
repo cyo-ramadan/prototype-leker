@@ -143,5 +143,5 @@ test('Owner Console punya tombol ke Peta Kode 3D, dan file barunya masuk script 
   for (const file of ['src/peta-kode.js', 'generated/peta-kode-data.js', 'public/peta-kode.js', 'scripts/build-peta-kode.mjs']) {
     assert.ok(checkManifest.includes(file), `${file} belum ada di script check`);
   }
-  assert.match(read('package.json'), /"peta:build": "node scripts\/build-peta-kode\.mjs"/);
+  assert.match(read('package.json'), /"peta:build": "node scripts\/build-peta-kode\.mjs(?: && [^"]+)?"/);
 });

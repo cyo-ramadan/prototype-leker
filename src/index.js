@@ -89,6 +89,7 @@ import { handleVoucherApi } from './voucher.js';
 import { handleRodaPuterApi } from './roda-puter.js';
 import { handleOwnerApi, handleStoreAdminApi, handleEntityAdminApi } from './owner-auth.js';
 import { handlePetaKodeApi } from './peta-kode.js';
+import { handlePetaAgenApi } from './peta-agen.js';
 import { handleSupplierApi } from './suppliers.js';
 import { handleUnifiedLoginApi } from './unified-login.js';
 import { handleCostMasterApi } from './cost-master.js';
@@ -304,6 +305,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (rodaPuterResponse) return rodaPuterResponse;
   const petaKodeResponse = await handlePetaKodeApi(request, env, pathname);
   if (petaKodeResponse) return petaKodeResponse;
+  const petaAgenResponse = await handlePetaAgenApi(request, env, pathname);
+  if (petaAgenResponse) return petaAgenResponse;
   const ownerResponse = await handleOwnerApi(request, env, pathname);
   if (ownerResponse) return ownerResponse;
   const storeAdminResponse = await handleStoreAdminApi(request, env, pathname);

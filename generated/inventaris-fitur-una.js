@@ -11747,6 +11747,138 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/percetakan.js"
   },
   {
+    "id": "tombol:public/peta-agen.html:data-f:Belajar",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Belajar",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:data-f:Fina",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Fina",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:data-f:Mesin bersama",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Mesin bersama",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:data-f:Rika",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Rika",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:data-f:Semua",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Semua",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:data-f:Una",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Una",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:data-f:Yang belum",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "Yang belum",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:fit",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": "fit",
+    "aksi": null,
+    "label": "Pas layar",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:zin",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": "zin",
+    "aksi": null,
+    "label": "+",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.html:zout",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.html",
+    "tombolId": "zout",
+    "aksi": null,
+    "label": "−",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.html"
+  },
+  {
+    "id": "tombol:public/peta-agen.js:cp",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.js",
+    "tombolId": "cp",
+    "aksi": null,
+    "label": "Salin lokasi",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.js"
+  },
+  {
+    "id": "tombol:public/peta-agen.js:data-f:{nilai} {nilai}/{nilai} sudah · {nilai}%",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.js",
+    "tombolId": null,
+    "aksi": "data-f",
+    "label": "{nilai} {nilai}/{nilai} sudah · {nilai}%",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.js"
+  },
+  {
     "id": "tombol:public/peta-kode.html:recent",
     "jenis": "tombol",
     "sumber": "public/peta-kode.html",

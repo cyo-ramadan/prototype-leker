@@ -99,7 +99,7 @@ test('halaman tidak memuat apa pun dari internet, data tidak di folder publik, t
   assert.match(js, /\/api\/owner\/peta-agen/);
   assert.match(js, /lekerOwnerToken/);
   assert.match(html, /<meta name="robots" content="noindex,nofollow"/);
-  assert.match(html, /\/peta-agen\.js\?v=20261020-peta-agen-v1/);
+  assert.match(html, /\/peta-agen\.js\?v=20261021-peta-agen-v2/);
   assert.ok(!readdirSync(new URL('public/', ROOT)).some(name => /peta-agen-data|peta-agen-manifest/.test(name)));
   for (const page of ['public/owner.html', 'public/admin.html']) assert.match(read(page), /<a class="primary-btn" href="\/peta-agen" id="ownerPetaAgenLink">/);
   const check = read('scripts/check-syntax.mjs');

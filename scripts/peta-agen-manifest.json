@@ -93,7 +93,8 @@
      "g": "Rika",
      "p": "public/caca-chat.js"
     }
-   ]
+   ],
+   "paket": "H0"
   },
   {
    "id": "una",
@@ -370,7 +371,8 @@
     {
      "f": "src/fina-wa.js"
     }
-   ]
+   ],
+   "paket": "H5"
   },
   {
    "id": "fina_inbox",
@@ -387,7 +389,8 @@
     {
      "f": "public/fina-inbox.js"
     }
-   ]
+   ],
+   "paket": "H5"
   },
   {
    "id": "p_cron",
@@ -422,7 +425,8 @@
     {
      "f": "public/loker.html"
     }
-   ]
+   ],
+   "paket": "H4"
   },
   {
    "id": "fina",
@@ -440,7 +444,8 @@
      "g": "Fina[^l]",
      "p": "src/agen-persona.js"
     }
-   ]
+   ],
+   "paket": "H0"
   },
   {
    "id": "fina_kosong",
@@ -457,8 +462,12 @@
     {
      "g": "cari_gerai_kosong",
      "p": "src/agen-fina-alat.js"
+    },
+    {
+     "f": "src/fina-hitung.js"
     }
-   ]
+   ],
+   "paket": "H2"
   },
   {
    "id": "fina_tawar",
@@ -477,10 +486,15 @@
      "p": "src/agen-fina-alat.js"
     },
     {
+     "g": "siapkan_tawaran_backup",
+     "p": "src/agen-fina-tulis.js"
+    },
+    {
      "g": "catat_pengganti",
-     "p": "src/agen-fina-alat.js"
+     "p": "src/agen-fina-tulis.js"
     }
-   ]
+   ],
+   "paket": "H2+H3"
   },
   {
    "id": "fina_balas",
@@ -498,7 +512,8 @@
      "g": "alihkan",
      "p": "src/fina-wa.js"
     }
-   ]
+   ],
+   "paket": "H5"
   },
   {
    "id": "fina_masalah",
@@ -515,8 +530,12 @@
     {
      "g": "rekap_masalah_cs",
      "p": "src/agen-fina-alat.js"
+    },
+    {
+     "f": "src/fina-api.js"
     }
-   ]
+   ],
+   "paket": "H2"
   },
   {
    "id": "fina_sp",
@@ -532,9 +551,13 @@
    "bukti": [
     {
      "g": "draft_sp",
-     "p": "src/agen-fina-alat.js"
+     "p": "src/agen-fina-tulis.js"
+    },
+    {
+     "m": "fina_surat"
     }
-   ]
+   ],
+   "paket": "H3"
   },
   {
    "id": "fina_acc",
@@ -550,7 +573,10 @@
    "bukti": [
     {
      "g": "draft_sp",
-     "p": "src/agen-fina-alat.js"
+     "p": "src/agen-fina-tulis.js"
+    },
+    {
+     "f": "public/entity-fina-surat.js"
     },
     {
      "f": "public/fina-inbox.js"
@@ -571,9 +597,10 @@
    "bukti": [
     {
      "g": "pasang_pengumuman",
-     "p": "src/agen-fina-alat.js"
+     "p": "src/agen-fina-tulis.js"
     }
-   ]
+   ],
+   "paket": "H3"
   },
   {
    "id": "data_cs",
@@ -618,7 +645,8 @@
     {
      "m": "fina_pelamar"
     }
-   ]
+   ],
+   "paket": "H4"
   },
   {
    "id": "fina_loker",
@@ -634,9 +662,10 @@
    "bukti": [
     {
      "g": "draft_loker",
-     "p": "src/agen-fina-alat.js"
+     "p": "src/agen-fina-tulis.js"
     }
-   ]
+   ],
+   "paket": "H4"
   },
   {
    "id": "fina_posting",
@@ -653,9 +682,10 @@
    "bukti": [
     {
      "g": "instagram",
-     "p": "src/agen-fina-alat.js"
+     "p": "src/agen-fina-tulis.js"
     }
-   ]
+   ],
+   "paket": "H4/H5"
   },
   {
    "id": "b_cari",
@@ -866,7 +896,8 @@
     {
      "f": "src/agen-persona.js"
     }
-   ]
+   ],
+   "paket": "H0"
   },
   {
    "id": "m_model",
@@ -1045,6 +1076,51 @@
     }
    ],
    "file": "src/caca-pengaturan.js"
+  },
+  {
+   "id": "fina_atur",
+   "jenis": "data",
+   "agen": [
+    "fina"
+   ],
+   "x": 1120,
+   "y": 1050,
+   "label": "Pengaturan HR",
+   "sub": "per tenant · paket H1",
+   "paket": "H1",
+   "isi": "Menit deteksi kosong, jumlah tawaran serentak, batas tunggu, backup lintas gerai, tingkatan & masa berlaku SP, kop surat. Nilai KPM hanya bawaan; tenant lain mengatur sendiri. Tarif & denda tetap di Dana Apresiasi.",
+   "bukti": [
+    {
+     "m": "fina_pengaturan"
+    },
+    {
+     "f": "src/fina-pengaturan.js"
+    },
+    {
+     "f": "public/entity-fina-pengaturan.js"
+    }
+   ]
+  },
+  {
+   "id": "m_paket",
+   "jenis": "mesin",
+   "agen": [
+    "mesin"
+   ],
+   "x": 1395,
+   "y": 1370,
+   "label": "Paket \"agen saja\"",
+   "sub": "dijaga server · paket H6",
+   "paket": "H6",
+   "isi": "Untuk usaha yang memakai POS lain: program dan database sama, menu ramping sesuai paket, dan rute di luar paket ditolak server. Portal staf tetap wajib.",
+   "bukti": [
+    {
+     "f": "src/paket-produk.js"
+    },
+    {
+     "m": "paket_produk"
+    }
+   ]
   }
  ],
  "garis": [

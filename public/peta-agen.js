@@ -116,7 +116,7 @@ function pilih(id, diam) {
   if (diam) return;
   try { history.replaceState(null, "", "#" + id); } catch (e) {}
   const agen = k.agen.map(a => AGEN[a] ? `<span class="pill" style="color:var(${AGEN[a][1]})">${AGEN[a][0]}</span>` : "").join("");
-  let h = `<div class="pills"><span class="pill" style="color:var(${J[1]})">${J[0]}</span><span class="pill" style="color:var(${S[1]})">${S[0]}</span>${agen}</div>
+  let h = `<div class="pills"><span class="pill" style="color:var(${J[1]})">${J[0]}</span><span class="pill" style="color:var(${S[1]})">${S[0]}</span>${agen}${k.paket ? `<span class="pill" style="color:var(--muted)">Paket ${esc(k.paket)}</span>` : ""}</div>
     <h2>${esc(k.label)}</h2><p class="note" style="font-family:var(--f-mono)">${esc(k.sub)}</p><p>${esc(k.isi)}</p>`;
   if (k.risiko) h += `<div class="risk">${esc(k.risiko)}</div>`;
   if (k.bukti?.length) h += `<div class="lbl">Bukti di program</div><ul class="bk">${k.bukti.map(b => `<li class="${b.ok ? "y" : "x"}"><i>${b.ok ? "✓" : "·"}</i><span>${esc(b.teks)}${b.cocok ? ` → ${esc(b.cocok.replace("migrations/", ""))}` : ""}</span></li>`).join("")}</ul>`;

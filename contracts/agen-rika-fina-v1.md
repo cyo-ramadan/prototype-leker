@@ -279,10 +279,21 @@ Setiap paket: kamus Una diperbarui (skill `segarkan-kamus-una`), skenario uji di
 - Nama berkas di §10.1 berubah → perbarui `bukti` di manifest pada commit yang sama. Rancangan berubah → ubah manifest (kotak/garis), bukan halaman.
 
 ## 12. Keputusan terbuka (tanya Bos sebelum paket terkait)
-- **K1** Saklar per tenant `agen_rika_aktif` / `agen_fina_aktif` / `agen_kartu_belajar_aktif` bawaan **ON**? (usulan: ya)
+- ~~K1~~ Saklar per tenant bawaan **ON**: sudah diputuskan oleh aturan Bos "mekanisme unik = opsi tenant, bawaan aktif".
 - **K2** Siapa yang ACC kartu DRAFT di tenant: Entity Admin saja, atau admin gerai juga?
 - **K3** Pencatatan "belum paham" perlu disebut di syarat pemakaian tenant?
 - **K4** Uji Haiku 5.5 untuk Rika (lebih murah per token daripada Gemini flash-lite)? Ini membuka kunci keputusan 2026-10-09.
 - **K5** WA HR: nomor baru lewat Twilio atau Meta Cloud (akun Meta Bos dibatasi)?
 - **K6** Loker FB/IG: posting manual dulu, atau cari akun bisnis Meta lain yang sah?
 - **K7** Rika boleh dipakai Entity Admin tenant, atau Owner saja di awal?
+
+## 13. Siap untuk tenant lain dan paket "agen saja" (Bos Cyo, 2026-10-21)
+- Fina dan Rika dibangun **sekali** sebagai fitur OwnerTenang. Tenant lain tidak dikoding ulang; mereka **menyalakan dan mengatur**.
+- **Aturan usaha = pengaturan per tenant**, bukan konstanta di kode (tarif, menit deteksi, tingkatan SP, kop surat, topik WA). Nilai KPM hanya bawaan di satu tempat.
+  Rinciannya untuk HR: `contracts/fina-hr-paket-v1.md` §0 butir 5 dan paket H1.
+- Yang dipakai bersama semua tenant: mesin, alat, perbaikan dari antrean, **kartu umum**. Yang per tenant: saklar, nama agen, aturan, nomor WA, kartu tenant, data.
+- **Agen membaca tabel OwnerTenang, tidak peduli asal datanya** (kasir sendiri, impor CSV/spreadsheet, atau penghubung API POS lain). Menambah sumber data tidak mengubah agen.
+- **Paket "agen saja"** (contoh: HR + Fina untuk usaha yang memakai POS lain): program, server, dan database tetap sama; yang berbeda tampilan ramping (menu sesuai paket)
+  **dan penjagaan server** (rute di luar paket ditolak, bukan hanya disembunyikan). Portal staf (presensi CS) tetap wajib karena Fina bekerja dari data itu.
+  Rika untuk POS lain: mulai dari impor berkala (CSV/spreadsheet); penghubung API per merek POS baru bila banyak pelanggan memakainya. Paket H6.
+- Rincian paket kerja HR untuk beberapa agen sekaligus: `contracts/fina-hr-paket-v1.md`.

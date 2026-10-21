@@ -51,6 +51,7 @@ import { handleDiagnostikLaporanApi } from './diagnostik-laporan.js';
 import { handleQrisApi } from './qris-otomatis.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
+import { handleFinaApi } from './fina-api.js';
 import { handleDanaApresiasiApi } from './dana-apresiasi-api.js';
 import { handleFinaPengaturanApi } from './fina-pengaturan.js';
 import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
@@ -368,6 +369,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (attendanceGpsPermitResponse) return attendanceGpsPermitResponse;
   const permitReportResponse = await handlePermitReportApi(request, env, pathname);
   if (permitReportResponse) return permitReportResponse;
+  const finaResponse = await handleFinaApi(request, env, pathname);
+  if (finaResponse) return finaResponse;
   const attendanceReportResponse = await handleAttendanceReportApi(request, env, pathname);
   if (attendanceReportResponse) return attendanceReportResponse;
   const entityRecipeResponse = await handleEntityRecipeApi(request, env, pathname);

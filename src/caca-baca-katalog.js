@@ -38,6 +38,19 @@ const TGL = 'YYYY-MM-DD';
 
 /** @type {ReadonlyArray<ApiBaca>} */
 export const KATALOG = Object.freeze([
+  {
+    id: 'fina_kosong', path: '/api/admin/fina/kosong', lingkup: 'gerai',
+    param: { date: TGL }, ringkas: 'Fina: shift berjalan yang kosong menurut jadwal, presensi dan pengganti tercatat. Tidak menilai uang.'
+  },
+  {
+    id: 'fina_freelance', path: '/api/admin/fina/freelance', lingkup: 'gerai', tanpaFanOut: true,
+    param: { date: TGL, from: 'jam mulai HH:MM, wajib', to: 'jam akhir HH:MM, wajib' },
+    ringkas: 'Fina: freelance tidak berbenturan jadwal/presensi/aktivasi, gerai sama dahulu; lintas gerai mengikuti izin dan pengaturan HR.'
+  },
+  {
+    id: 'fina_masalah', path: '/api/admin/fina/masalah', lingkup: 'gerai',
+    param: { from: TGL, to: TGL }, ringkas: 'Fina: rekap telat, pulang awal, kosong dan denda tersimpan, lupa pulang dan shift bermasalah, maksimal 31 hari. Tidak memotong gaji.'
+  },
   // --- penjualan, pembelian, produksi: riwayat transaksi --------------------
   {
     id: 'transaksi', path: '/api/admin/transactions', lingkup: 'gerai', berat: true, batasLimit: 20,
@@ -326,7 +339,9 @@ export function bangunAlamat(api, pasangan = []) {
 
   const dipakai = {};
   for (const [kunci, nilai] of diminta) {
-    const tanggal = /^(from|to|asOf)$/.test(kunci);
+    const jam = api.id === 'fina_freelance' && /^(from|to)$/.test(kunci);
+    const tanggal = !jam && /^(from|to|asOf|date)$/.test(kunci);
+    if (jam && !/^([01]\d|2[0-3]):[0-5]\d$/.test(nilai)) return { ok: false, error: 'Jam Fina harus HH:MM.' };
     if (tanggal && !TANGGAL.test(nilai)) return { ok: false, error: `Parameter ${kunci} harus berbentuk ${TGL}.` };
     if ((kunci === 'limit' || kunci === 'id') && !ANGKA.test(nilai)) return { ok: false, error: `Parameter ${kunci} harus angka.` };
     if (!tanggal && kunci !== 'limit' && kunci !== 'id' && !KATA.test(nilai)) return { ok: false, error: `Nilai parameter ${kunci} tidak valid.` };

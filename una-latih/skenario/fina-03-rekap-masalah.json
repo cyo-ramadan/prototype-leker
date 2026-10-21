@@ -1,0 +1,12 @@
+{
+  "nama": "Fina merekap masalah CS",
+  "agen": "fina",
+  "pesan": [
+    "rekap masalah CS tujuh hari terakhir dong, siapa telat dan lupa presensi pulang?"
+  ],
+  "harapan": {
+    "alat": "rekap_masalah_cs",
+    "tanpaDraft": true
+  },
+  "catatan": "Pilih persona Fina. Runner main 4168ca6 belum meneruskan agen; uji live setelah integrasi H0/H1 dan rilis yang disetujui Bos."
+}

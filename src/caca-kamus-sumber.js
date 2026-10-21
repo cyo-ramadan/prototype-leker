@@ -1,5 +1,9 @@
 // Sumber makna ditinjau dari kode. ID fitur eksplisit, tidak mengikuti route baru otomatis.
 export const SUMBER_KAMUS = Object.freeze({
+  "fina_baca": {
+    "sumber": ["src/fina-hitung.js", "src/fina-api.js", "src/agen-fina-alat.js"],
+    "fitur": ["rute:src/fina-api.js:/api/admin/fina/kosong", "rute:src/fina-api.js:/api/admin/fina/freelance", "rute:src/fina-api.js:/api/admin/fina/masalah"]
+  },
   "una_lembar": {
     "sumber": ["src/una-surfaces.js", "public/una-lembar.js", "public/una-surfaces-client.js", "public/una-kanvas.js", "src/una-kanvas-patch.js", "src/una-kanvas-baca.js", "public/una-kanvas-baca.js"],
     "fitur": [

@@ -1,0 +1,12 @@
+{
+  "nama": "Fina mencari freelance tersedia",
+  "agen": "fina",
+  "pesan": [
+    "siapa freelance yang bisa backup jam 14–22 di gerai ini?"
+  ],
+  "harapan": {
+    "alat": "daftar_freelance_tersedia",
+    "tanpaDraft": true
+  },
+  "catatan": "Pilih persona Fina. Runner main 4168ca6 belum meneruskan agen; uji live setelah integrasi H0/H1 dan rilis yang disetujui Bos."
+}

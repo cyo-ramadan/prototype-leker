@@ -1,0 +1,12 @@
+{
+  "nama": "Fina memeriksa gerai kosong",
+  "agen": "fina",
+  "pesan": [
+    "gerai mana yang kosong sekarang?"
+  ],
+  "harapan": {
+    "alat": "cari_gerai_kosong",
+    "tanpaDraft": true
+  },
+  "catatan": "Pilih persona Fina. Runner main 4168ca6 belum meneruskan agen; uji live setelah integrasi H0/H1 dan rilis yang disetujui Bos."
+}

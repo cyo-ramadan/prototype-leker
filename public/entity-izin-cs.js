@@ -74,14 +74,43 @@
       list: '/api/management/transaction-void-permits?status=pending_approval',
       decide: id => `/api/management/transaction-void-permits/${encodeURIComponent(id)}`,
       rows: payload => payload.permits || [],
-      judul: permit => `Hapus transaksi · ${SUBJECT_LABEL[permit.subjectType] || permit.subjectType}`,
+      judul: permit => `${permit.correctionKind === 'AMOUNT' ? 'Ganti nominal' : 'Hapus transaksi'} · ${SUBJECT_LABEL[permit.subjectType] || permit.subjectType}`,
       orang: permit => permit.cashierName || permit.cashierId,
       diajukan: permit => permit.requestedAt,
-      isi: permit => `<b>${esc(permit.subject?.description || permit.subjectId)}</b> · ${esc(money(permit.subject?.amount))}${permit.subject?.paymentMethod ? ` · ${esc(permit.subject.paymentMethod)}` : ''}`,
+      isi: permit => isiTransaksi(permit),
       alasan: permit => permit.reason,
       body: (decision, note) => ({ decision, note })
+    },
+    // ACC yang tertahan (Kaliurang, 2026-10-21: "sudah di-ACC tapi di laci masih ada"). Tidak ada ACC/Tolak
+    // lagi: yang tertahan di eksekusi bisa dicoba lagi sesudah penyebabnya dibereskan (mis. stok
+    // disesuaikan); yang tertahan di hitung ulang HPP cukup dibaca alasannya.
+    {
+      kind: 'tertahan',
+      list: '/api/management/transaction-void-permits?status=approved',
+      decide: id => `/api/management/transaction-void-permits/${encodeURIComponent(id)}`,
+      rows: payload => (payload.permits || []).filter(permit => permit.executionStatus === 'HOLD' || permit.executionStatus === 'FAILED' || permit.hppReplayStatus === 'TERTAHAN'),
+      judul: permit => `ACC tertahan · ${permit.correctionKind === 'AMOUNT' ? 'ganti nominal' : 'hapus'} ${(SUBJECT_LABEL[permit.subjectType] || permit.subjectType).toLowerCase()}`,
+      orang: permit => permit.cashierName || permit.cashierId,
+      diajukan: permit => permit.decidedAt || permit.requestedAt,
+      isi: permit => `${isiTransaksi(permit)}<br><b>Kenapa tertahan:</b> ${esc(permit.executionStatus === 'EXECUTED' ? `uang laci, stok, dan jurnal sudah beres; hitung ulang HPP perlu dicek manual: ${permit.hppReplayDetail}` : permit.executionDetail || permit.executionCode)}`,
+      alasan: permit => permit.reason,
+      tombol: (permit, storeCode) => permit.executionStatus === 'EXECUTED'
+        ? ''
+        : `<button class="mini-btn" type="button" data-izin-retry="${esc(permit.id)}" data-kind="tertahan" data-store="${esc(storeCode)}">Coba lagi</button>`,
+      body: () => ({ decision: 'RETRY_EXECUTION' })
     }
   ];
+
+  function isiTransaksi(permit) {
+    const asal = `<b>${esc(permit.subject?.description || permit.subjectId)}</b> · ${esc(money(permit.subject?.amount))}${permit.subject?.paymentMethod ? ` · ${esc(permit.subject.paymentMethod)}` : ''}`;
+    if (permit.correctionKind !== 'AMOUNT') return asal;
+    const baru = (permit.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0);
+    const rincian = (permit.subject?.items || []).map(item => {
+      const line = (permit.requestedLines || []).find(row => Number(row.productId) === Number(item.productId));
+      return `${esc(item.productName)} ${esc(item.quantity)} ${esc(item.unitSymbol)}: ${esc(money(item.lineTotal))} → <b>${esc(money(line?.lineTotal))}</b>`;
+    }).join(' · ');
+    return `${asal} → jadi <b>${esc(money(baru))}</b> (barang &amp; qty tetap)${rincian ? `<br>${rincian}` : ''}`;
+  }
   const byKind = new Map(JENIS.map(jenis => [jenis.kind, jenis]));
 
   function stores() {
@@ -123,20 +152,21 @@
           <div class="master-meta">Diajukan ${esc(waktu(jenis.diajukan(permit)))}</div>
         </div>
         <div class="master-actions">
-          ${jenis.bisaEdit ? `<button class="mini-btn" type="button" data-izin-edit="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}" data-in="${esc(jam(permit.requestedCheckInAt))}" data-out="${esc(jam(permit.requestedCheckOutAt))}">Edit lalu ACC</button>` : ''}
+          ${jenis.tombol ? jenis.tombol(permit, storeCode) : `${jenis.bisaEdit ? `<button class="mini-btn" type="button" data-izin-edit="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}" data-in="${esc(jam(permit.requestedCheckInAt))}" data-out="${esc(jam(permit.requestedCheckOutAt))}">Edit lalu ACC</button>` : ''}
           <button class="mini-btn" type="button" data-izin-acc="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}" data-info="${esc(`${jenis.judul(permit)} dari ${jenis.orang(permit) || '-'} (${storeCode})`)}">ACC</button>
-          <button class="mini-btn danger" type="button" data-izin-reject="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}">Tolak</button>
+          <button class="mini-btn danger" type="button" data-izin-reject="${esc(permit.id)}" data-kind="${esc(jenis.kind)}" data-store="${esc(storeCode)}">Tolak</button>`}
         </div>
       </article>`).join('') : '<div class="empty">Tidak ada izin CS yang menunggu ACC di gerai mana pun.</div>');
     document.querySelectorAll('#entityIzinCsList [data-izin-acc]').forEach(button => { button.onclick = () => decide(button, 'ACC'); });
     document.querySelectorAll('#entityIzinCsList [data-izin-reject]').forEach(button => { button.onclick = () => decide(button, 'REJECT'); });
     document.querySelectorAll('#entityIzinCsList [data-izin-edit]').forEach(button => { button.onclick = () => decide(button, 'EDIT'); });
+    document.querySelectorAll('#entityIzinCsList [data-izin-retry]').forEach(button => { button.onclick = () => decide(button, 'RETRY'); });
   }
 
   async function decide(button, decisionInput) {
     let decision = decisionInput;
     const jenis = byKind.get(button.dataset.kind);
-    const permitId = decision === 'ACC' ? button.dataset.izinAcc : decision === 'EDIT' ? button.dataset.izinEdit : button.dataset.izinReject;
+    const permitId = decision === 'ACC' ? button.dataset.izinAcc : decision === 'EDIT' ? button.dataset.izinEdit : decision === 'RETRY' ? button.dataset.izinRetry : button.dataset.izinReject;
     let note = '';
     let extra = {};
     if (decision === 'EDIT') {
@@ -147,6 +177,8 @@
       note = (window.prompt('Catatan untuk CS (opsional):', 'Jam disesuaikan kebijakan') ?? '').trim();
       extra = { checkIn, checkOut };
       decision = 'ACC';
+    } else if (decision === 'RETRY') {
+      if (!window.confirm('Coba jalankan lagi izin yang tertahan ini?')) return;
     } else if (decision === 'ACC') {
       if (!window.confirm(`ACC ${button.dataset.info}?`)) return;
     } else {
@@ -161,7 +193,9 @@
       });
       entityAdminToast(decision === 'REJECT'
         ? 'Izin ditolak.'
-        : result.executed === false && result.message ? `Izin di-ACC, eksekusi tertahan: ${result.message}` : 'Izin di-ACC.');
+        : result.executed === false && result.message ? `${decision === 'RETRY' ? 'Masih tertahan' : 'Izin di-ACC, tapi TERTAHAN'}: ${result.message} (lihat bagian ACC tertahan)`
+          : result.hppMenunggu ? 'Izin di-ACC. Uang laci, stok, dan jurnal sudah beres; HPP bahannya dihitung ulang otomatis malam ini (23.00–07.00).'
+          : decision === 'RETRY' ? 'Berhasil dijalankan.' : 'Izin di-ACC.');
       await load();
     } catch (error) { entityAdminToast(error.message); button.disabled = false; await load(); }
   }

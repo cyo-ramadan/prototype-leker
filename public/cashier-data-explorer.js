@@ -235,7 +235,13 @@
     if (!VOID_SUBJECT_TYPES.has(row.kind)) return '';
     if (row.status === 'voided') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · transaksi ini sudah dihapus</span>';
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
-    if (permit?.approvalStatus === 'pending_approval') return '<span class="cashier-tx-readonly-note"><b>Read only (request delete)</b> · menunggu Admin</span>';
+    if (permit?.approvalStatus === 'pending_approval') {
+      return permit.correctionKind === 'AMOUNT'
+        ? `<span class="cashier-tx-readonly-note"><b>Read only (ganti nominal)</b> · jadi ${rupiah((permit.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0))} · menunggu Admin</span>`
+        : '<span class="cashier-tx-readonly-note"><b>Read only (request delete)</b> · menunggu Admin</span>';
+    }
+    // ACC tertahan harus terlihat jelas, bukan "sedang diproses" selamanya (Kaliurang, 21 Okt 2026).
+    if (permit?.approvalStatus === 'approved' && permit.executionStatus === 'HOLD') return `<span class="cashier-tx-readonly-note"><b>ACC tertahan</b> · ${escapeHtml(permit.executionDetail || 'perlu dicek Admin')}</span>`;
     if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · sudah di-ACC Admin, sedang diproses</span>';
     return '';
   }
@@ -347,23 +353,59 @@
 
   async function requestVoidPermit(kind, id) {
     if (el('cashierDialog')?.open) el('cashierDialog').close();
+    // Bos Cyo, 2026-10-21: pembelian -> tanya dulu "hapus atau cuma ganti nominal?". Ganti nominal =
+    // barang & qty tetap, CS mengisi total benar di nota; satu izin, satu ACC.
+    let subject = null;
+    let amountCorrection = false;
+    if (kind === 'PURCHASE') {
+      try {
+        const payload = await api(`/api/cashier/transaction-void/subject?type=PURCHASE&id=${encodeURIComponent(id)}`);
+        subject = payload.subject;
+        amountCorrection = Boolean(payload.amountCorrectionEnabled) && (subject?.items || []).length > 0;
+      } catch {}
+    }
     const skinH = window.MaxiSkin?.skin?.() === 'h';
+    const prosesNote = `<p class="muted">${skinH ? 'Jika Auto Permit gerai aktif, transaksi langsung diproses.' : 'Admin harus ACC/Reject dulu.'} History transaksi tetap ada untuk audit; proses memakai pembalik/koreksi, bukan hapus paksa.</p>`;
+    const pilihan = amountCorrection ? `
+      <div class="field"><label>Mau hapus, atau cuma ganti nominal?</label>
+        <div class="void-choice" style="display:grid;gap:8px">
+          <label class="cashier-lock-note" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start"><input type="radio" name="voidKind" value="AMOUNT"><span><b>✏️ Ganti nominal saja</b><br><span class="muted">Barang &amp; qty sudah benar, cuma total harganya salah ketik. Isi total yang benar sesuai nota.</span></span></label>
+          <label class="cashier-lock-note" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start"><input type="radio" name="voidKind" value="VOID"><span><b>🗑 Hapus pembelian ini</b><br><span class="muted">Pembeliannya memang tidak ada / barangnya salah. Kalau perlu, input ulang sesudah di-ACC.</span></span></label>
+        </div>
+      </div>
+      <div id="voidAmountFields" class="hidden">
+        ${(subject.items || []).map(item => `<div class="field"><label>${escapeHtml(item.productName)} · ${item.quantity} ${escapeHtml(item.unitSymbol)} · tercatat <b>${rupiah(item.lineTotal)}</b><br>Total benar di nota (Rp)</label><input class="text-input" type="number" min="1" step="1" inputmode="numeric" data-void-amount-product="${item.productId}" placeholder="mis. 12000"></div>`).join('')}
+      </div>` : '';
     openDialog({
       eyebrow: 'Laci · Permit Admin',
-      title: `Minta Izin Admin Hapus ${KIND_LABEL[kind] || kind}`,
-      body: `<div class="field"><label>Alasan hapus / koreksi</label><textarea id="voidPermitReason" rows="4" maxlength="500" required placeholder="Jelaskan kenapa transaksi ini perlu dihapus"></textarea></div><p class="muted">${skinH ? 'Jika Auto Permit gerai aktif, transaksi langsung diproses.' : 'Admin harus ACC/Reject dulu.'} History transaksi tetap ada untuk audit; proses memakai pembalik/koreksi, bukan hapus paksa.</p>`,
-      submitText: 'AJUKAN HAPUS',
+      title: amountCorrection ? 'Hapus atau Ganti Nominal Pembelian' : `Minta Izin Admin Hapus ${KIND_LABEL[kind] || kind}`,
+      body: `${pilihan}<div class="field"><label>Alasan</label><textarea id="voidPermitReason" rows="3" maxlength="500" required placeholder="${amountCorrection ? 'mis. salah ketik, di nota Rp12.000' : 'Jelaskan kenapa transaksi ini perlu dihapus'}"></textarea></div>${prosesNote}`,
+      submitText: amountCorrection ? 'AJUKAN' : 'AJUKAN HAPUS',
       onSubmit: async () => {
         const reason = el('voidPermitReason').value.trim();
-        if (!reason) throw new Error('Alasan hapus wajib diisi.');
-        const result = await api('/api/cashier/transaction-void/permits', { method: 'POST', body: JSON.stringify({ subjectType: kind, subjectId: id, reason }) });
-        if (result.autoPermit && result.executed) toast('Transaksi langsung dibalik · Auto Permit aktif');
+        const correctionKind = amountCorrection ? document.querySelector('input[name="voidKind"]:checked')?.value : 'VOID';
+        if (!correctionKind) throw new Error('Pilih dulu: ganti nominal saja, atau hapus pembelian.');
+        if (!reason) throw new Error('Alasan wajib diisi.');
+        const body = { subjectType: kind, subjectId: id, reason, correctionKind };
+        if (correctionKind === 'AMOUNT') {
+          body.lines = [...document.querySelectorAll('[data-void-amount-product]')].map(input => ({ productId: Number(input.dataset.voidAmountProduct), lineTotal: Number(input.value) }));
+          if (body.lines.some(line => !Number.isSafeInteger(line.lineTotal) || line.lineTotal <= 0)) throw new Error('Isi total benar sesuai nota untuk setiap barang.');
+        }
+        const result = await api('/api/cashier/transaction-void/permits', { method: 'POST', body: JSON.stringify(body) });
+        const label = correctionKind === 'AMOUNT' ? 'Ganti nominal' : 'Hapus';
+        if (result.autoPermit && result.executed) toast(`${label} langsung diproses · Auto Permit aktif`);
         else if (result.autoPermit) toast(result.message || 'Permit sudah ACC, tetapi eksekusi pembalik perlu diperiksa Admin.');
-        else toast('Permintaan hapus masuk ke Admin · pending approval');
+        else toast(`Permintaan ${label.toLowerCase()} masuk ke Admin · menunggu ACC`);
         await loadTransactions({ reset: true });
         return true;
       }
     });
+    document.querySelectorAll('input[name="voidKind"]').forEach(radio => radio.addEventListener('change', () => {
+      const amount = radio.value === 'AMOUNT' && radio.checked;
+      el('voidAmountFields')?.classList.toggle('hidden', !amount);
+      const submit = el('cashierDialogSubmit');
+      if (submit) submit.textContent = radio.value === 'AMOUNT' ? 'AJUKAN GANTI NOMINAL' : 'AJUKAN HAPUS';
+    }));
   }
 
   async function cancelVoidPermit(permitId) {

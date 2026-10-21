@@ -75,18 +75,20 @@ If the goods were physically made and discarded, that consumption is recorded se
 
 ### PURCHASE
 
-Purchase correction is active only when Inventory/Costing can prove the historical purchase is reversible without rewriting later history.
+Revised 2026-10-21 (Bos Cyo, Air Mineral Kaliurang: an ACC'd void was held because the cashier re-entered the correct purchase first, and the drawer stayed wrong). The drawer, stock, and journal are corrected at ACC; only the Average Cost waits for Putar Ulang HPP.
 
 Required guards:
 
 - itemized `purchase_items` snapshots exist;
-- current stock still covers the purchased quantity;
-- current Average Cost still matches the purchase `average_cost_after` snapshot;
-- no later stock movement exists for the affected product after that purchase.
+- current stock still covers the purchased quantity -- otherwise HOLD `PURCHASE_STOCK_NOT_REVERSIBLE` with a plain message (adjust stock, then Retry).
 
-When safe, ACC atomically writes `PURCHASE_VOID` stock-out movements, reduces stock by the original purchase quantity, restores `average_cost_before`, restores prior Last Purchase Price evidence from the latest earlier non-corrected purchase when available, marks the Purchase soft-deleted, and reverses the original Accounting journal when one exists.
+Exact path (no later stock movement for the product and current Average Cost equals the purchase `average_cost_after`): ACC atomically writes `PURCHASE_VOID` stock-out movements, reduces stock, restores `average_cost_before` (snapshot `CORRECTION`), restores Last Purchase Price from the latest other non-voided purchase, marks the Purchase soft-deleted, and reverses the original Accounting journal when one exists.
 
-Later stock/cost history causes explicit HOLD such as `PURCHASE_DOWNSTREAM_STOCK_EXISTS`; downstream historical HPP is never recomputed or rewritten.
+Deferred-cost path (any later movement or a changed Average Cost): the same writes happen at ACC except the Average Cost, and the permit gets `hpp_replay_status = 'MENUNGGU'` (migration 0180). `src/hpp-putar-ulang.js` then replays the product's movements from the voided purchase with the cashier purchase formula, twice: as recorded (must reproduce every later `average_cost_after` and the current Average Cost, otherwise `TERTAHAN` with no mutation) and without the voided purchase. The result becomes the Average Cost (guarded by compare-and-set, snapshot `CORRECTION`). It runs only in the quiet window 23.00–07.00 WIB: automatically from the cron, or by Admin / Una (`bereskan_hpp_pembelian_batal`). The HPP difference on consumption between the purchase and the replay is computed and recorded in `hpp_replay_detail`; historical sale/production HPP is not rewritten (Hitung Ulang HPP remains the tool when it is significant).
+
+### PURCHASE amount correction (`correction_kind = 'AMOUNT'`)
+
+Tenant setting `koreksi_nominal_pembelian` (default ON). The cashier keeps the items and quantities and submits the correct nota total per line (`requested_lines_json`), validated against the purchase price ranges. Deposit- and payable-funded purchases are excluded (use void + re-entry). On ACC, in one batch: the original purchase is voided as above, then a replacement purchase with the same drawer, cashier, supplier, payment method, quantities and the original `created_at` is inserted (stock movements 1 ms after the reversal), its id stored in `replacement_subject_id`, and it is journaled through the normal POS bridge. When the deferred-cost path applies, Putar Ulang HPP places the replacement at the original purchase's position.
 
 ## Accounting reversal
 

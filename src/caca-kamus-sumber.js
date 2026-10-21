@@ -86,9 +86,17 @@ export const SUMBER_KAMUS = Object.freeze({
     "sumber": [
       "src/cashier-purchase.js",
       "src/manufacture-costing.js",
-      "src/hpp-recalculation.js"
+      "src/hpp-recalculation.js",
+      "src/hpp-putar-ulang.js",
+      "src/caca-aksi-hpp-batal.js"
     ],
-    "fitur": []
+    "fitur": [
+      "pola:src/transaction-void-permits.js:/^\\/api\\/management\\/transaction-void-permits\\/([^/]+)\\/hpp-putar-ulang$/",
+      "rute:src/transaction-void-permits.js:/api/management/transaction-void-permits/hpp-putar-ulang",
+      "tulis:src/transaction-void-permits.js:request.method === 'POST' && match)",
+      "rute:src/caca-aksi-hpp-batal.js:/api/management/transaction-void-permits",
+      "rute:src/caca-chat.js:/api/management/transaction-void-permits/hpp-putar-ulang$"
+    ]
   },
   "resep": {
     "sumber": [
@@ -213,9 +221,12 @@ export const SUMBER_KAMUS = Object.freeze({
       "src/transaction-void-permits.js",
       "src/transaction-correction-executor.js",
       "public/cashier-data-explorer.js",
-      "src/tenant-policy.js"
+      "src/tenant-policy.js",
+      "public/entity-izin-cs.js"
     ],
-    "fitur": []
+    "fitur": [
+      "tombol:public/entity-izin-cs.js:data-izin-retry,data-kind,data-store:Coba lagi"
+    ]
   },
   "batal_penjualan": {
     "sumber": [
@@ -547,14 +558,19 @@ export const SUMBER_KAMUS = Object.freeze({
   "pembelian": {
     "sumber": [
       "src/cashier-purchase.js",
-      "public/cashier-procurement-ui.js"
+      "public/cashier-payment-methods.js",
+      "public/pimasatu-ui.js",
+      "src/transaction-void-permits.js"
     ],
-    "fitur": []
+    "fitur": [
+      "rute:src/transaction-void-permits.js:/api/cashier/transaction-void/subject"
+    ]
   },
   "nota_beda": {
     "sumber": [
       "src/cashier-purchase.js",
-      "public/cashier-procurement-ui.js"
+      "public/cashier-payment-methods.js",
+      "public/pimasatu-ui.js"
     ],
     "fitur": []
   },

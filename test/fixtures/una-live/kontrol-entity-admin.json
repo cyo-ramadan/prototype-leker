@@ -900,6 +900,14 @@
    "automationForbidden": true
   },
   {
+   "id": "tombol:public/entity-izin-cs.js:data-izin-retry,data-kind,data-store:Coba lagi",
+   "label": "Coba lagi",
+   "sumber": "public/entity-izin-cs.js",
+   "class": "unsupported",
+   "reason": "Menjalankan ulang izin yang sudah di-ACC (mengubah uang laci, stok, dan jurnal): hanya manusia, tidak pernah lewat Una",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-setoran-cs.js:data-approve,data-info,data-store:ACC",
    "label": "ACC",
    "sumber": "public/entity-setoran-cs.js",

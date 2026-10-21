@@ -68,6 +68,7 @@ import { handleProductKindApi } from './product-kinds.js';
 import { handleAccountingWorkspaceApi } from './accounting-workspace.js';
 import { handleAccountingReconciliationGuardApi } from './accounting-reconciliation-guard.js';
 import { handleAccountingPosBridgeApi } from './accounting-pos-bridge.js';
+import { prosesAntreanPutarUlang } from './hpp-putar-ulang.js';
 import { handleAccountingBridgeIssuesApi } from './accounting-bridge-issues.js';
 import { attachAccountingBridgeToCommittedResponse } from './accounting-pos-bridge-response.js';
 import { attachAdminAccountingToCommittedResponse } from './accounting-admin-bridge.js';
@@ -637,6 +638,8 @@ export default {
       finally { await flushNotificationDeliveries(env, new Date(controller.scheduledTime)); }
     })();
     ctx.waitUntil(task);
+    // Putar Ulang HPP pembelian yang dibatalkan/diganti nominal: hanya bekerja di jam sepi (23.00–07.00 WIB).
+    ctx.waitUntil(prosesAntreanPutarUlang(env, new Date(controller.scheduledTime)).catch(error => console.warn('antrean putar ulang HPP', error?.message)));
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);

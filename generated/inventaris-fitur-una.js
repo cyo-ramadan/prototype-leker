@@ -1090,6 +1090,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/transaction-void-permits.js:/^\\/api\\/management\\/transaction-void-permits\\/([^/]+)\\/hpp-putar-ulang$/",
+    "jenis": "rute-pola",
+    "sumber": "src/transaction-void-permits.js",
+    "method": null,
+    "rute": "/^\\/api\\/management\\/transaction-void-permits\\/([^/]+)\\/hpp-putar-ulang$/",
+    "label": "/^\\/api\\/management\\/transaction-void-permits\\/([^/]+)\\/hpp-putar-ulang$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/transaction-void-permits.js:/^\\/api\\/management\\/transaction-void-permits\\/([^/]+)$/",
     "jenis": "rute-pola",
     "sumber": "src/transaction-void-permits.js",
@@ -1927,6 +1936,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/caca-aksi-hpp-batal.js:/api/management/transaction-void-permits",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-aksi-hpp-batal.js",
+    "method": null,
+    "rute": "/api/management/transaction-void-permits",
+    "label": "/api/management/transaction-void-permits",
+    "skin": null
+  },
+  {
     "id": "rute:src/caca-aksi-hpp.js:/api/admin/hpp-recalculation",
     "jenis": "rute-kandidat",
     "sumber": "src/caca-aksi-hpp.js",
@@ -2401,6 +2419,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/entity-admin/stores",
     "label": "/api/entity-admin/stores",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/management/transaction-void-permits/hpp-putar-ulang$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/management/transaction-void-permits/hpp-putar-ulang$",
+    "label": "/api/management/transaction-void-permits/hpp-putar-ulang$",
     "skin": null
   },
   {
@@ -4591,12 +4618,30 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/transaction-void-permits.js:/api/cashier/transaction-void/subject",
+    "jenis": "rute-kandidat",
+    "sumber": "src/transaction-void-permits.js",
+    "method": null,
+    "rute": "/api/cashier/transaction-void/subject",
+    "label": "/api/cashier/transaction-void/subject",
+    "skin": null
+  },
+  {
     "id": "rute:src/transaction-void-permits.js:/api/management/transaction-void-permits",
     "jenis": "rute-kandidat",
     "sumber": "src/transaction-void-permits.js",
     "method": null,
     "rute": "/api/management/transaction-void-permits",
     "label": "/api/management/transaction-void-permits",
+    "skin": null
+  },
+  {
+    "id": "rute:src/transaction-void-permits.js:/api/management/transaction-void-permits/hpp-putar-ulang",
+    "jenis": "rute-kandidat",
+    "sumber": "src/transaction-void-permits.js",
+    "method": null,
+    "rute": "/api/management/transaction-void-permits/hpp-putar-ulang",
+    "label": "/api/management/transaction-void-permits/hpp-putar-ulang",
     "skin": null
   },
   {
@@ -10295,6 +10340,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": "data-izin-reject,data-kind,data-store",
     "label": "Tolak",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-izin-cs.js"
+  },
+  {
+    "id": "tombol:public/entity-izin-cs.js:data-izin-retry,data-kind,data-store:Coba lagi",
+    "jenis": "tombol",
+    "sumber": "public/entity-izin-cs.js",
+    "tombolId": null,
+    "aksi": "data-izin-retry,data-kind,data-store",
+    "label": "Coba lagi",
     "rute": null,
     "skin": null,
     "halaman": "public/entity-izin-cs.js"
@@ -16127,6 +16183,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "PATCH",
     "rute": null,
     "label": "request.method === 'PATCH' && match)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/transaction-void-permits.js:request.method === 'POST' && match)",
+    "jenis": "rute-tulis",
+    "sumber": "src/transaction-void-permits.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST' && match)",
     "skin": null
   },
   {

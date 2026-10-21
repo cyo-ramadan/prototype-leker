@@ -151,7 +151,9 @@ test('approved CASH expense correction soft-deletes source, restores drawer expe
   }
 });
 
-test('purchase correction HOLDs without mutation when a later stock movement depends on the purchased item', async () => {
+// Bos Cyo, 2026-10-21 (Air Mineral Kaliurang): mutasi sesudah pembelian tidak lagi menahan ACC. Uang laci
+// dan stok dibalik saat itu juga; HPP diputar ulang di jam sepi (test/hpp-putar-ulang.test.js).
+test('purchase correction with a later stock movement reverses drawer and stock now and defers HPP to Putar Ulang', async () => {
   const sqlite = freshDatabase();
   const db = d1(sqlite);
   try {
@@ -188,13 +190,14 @@ test('purchase correction HOLDs without mutation when a later stock movement dep
     const result = await executeTransactionCorrection(db, fixture.store, {
       id: permitId, subjectType: 'PURCHASE', subjectId: purchaseId, reason: 'Salah beli'
     }, { role: 'ADMIN', id: 'admin_test' }, '2026-08-13T10:20:00.000Z');
-    assert.equal(result.ok, false);
-    assert.equal(result.status, 'HOLD');
-    assert.equal(result.code, 'PURCHASE_DOWNSTREAM_STOCK_EXISTS');
+    assert.equal(result.ok, true);
+    assert.equal(result.hppMenunggu, true);
     const purchase = sqlite.prepare('SELECT voided_at FROM purchases WHERE id = ?').get(purchaseId);
     const balance = sqlite.prepare('SELECT quantity FROM inventory_stock_balances WHERE store_id = ? AND product_id = ?').get(fixture.store.id, product.id);
-    assert.equal(purchase.voided_at, null);
-    assert.equal(balance.quantity, 5);
+    const cost = sqlite.prepare('SELECT average_cost FROM products WHERE id = ? AND store_id = ?').get(product.id, fixture.store.id);
+    assert.ok(purchase.voided_at);
+    assert.equal(balance.quantity, 0);
+    assert.equal(cost.average_cost, 2000000, 'HPP tidak disentuh sampai Putar Ulang HPP di jam sepi');
   } finally {
     sqlite.close();
   }

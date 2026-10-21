@@ -155,6 +155,9 @@ export const PINTU_AKSI = Object.freeze([
   '/api/admin/manufacturing/recipes',
   // Hitung Ulang HPP (alat hitung_ulang_hpp): pratinjau + terapkan, sama dengan tab-nya.
   '/api/admin/hpp-recalculation',
+  // Putar Ulang HPP pembelian batal (alat bereskan_hpp_pembelian_batal): daftar + terapkan per izin.
+  '/api/management/transaction-void-permits/hpp-putar-ulang$',
+  '^/api/management/transaction-void-permits/[A-Za-z0-9_.-]+/hpp-putar-ulang$',
   '/api/admin/accounting/accounts',
   '/api/admin/accounting/journals',
   // Alat akuntan (contracts/una-akuntan-tools-v1.md): tombol Sinkron dan Aturan Jurnal.

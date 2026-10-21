@@ -22,7 +22,7 @@ function positiveInteger(value, max = 1_000_000_000) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 && number <= max ? number : null;
 }
-function scaledUnitCost(lineTotal, quantity) {
+export function scaledUnitCost(lineTotal, quantity) {
   const numerator = lineTotal * COST_SCALE;
   if (!Number.isSafeInteger(numerator)) return null;
   return Math.floor((numerator + Math.floor(quantity / 2)) / quantity);

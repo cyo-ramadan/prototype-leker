@@ -39,6 +39,9 @@ export const QRIS_TAUTAN_SISTEM_KEY = 'qris_tautan_sistem';
 // tenant memakai Claude Sonnet untuk pesan yang ditandai Analisis di chat. Bawaan MATI karena berbayar
 // per token (pengecualian aturan "bawaan aktif"); tanpa izin semua chat tetap Gemini.
 export const AI_MODEL_ANALISIS_KEY = 'ai_model_analisis';
+// Bos Cyo, 2026-10-21: "cs mau hapus, muncul pesan bener mau hapus atau cuma ganti nominal doang". ON: tombol
+// Hapus pembelian menawarkan "Ganti nominal saja" (izin koreksi nominal, satu ACC). OFF: hanya hapus.
+export const KOREKSI_NOMINAL_PEMBELIAN_KEY = 'koreksi_nominal_pembelian';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -136,6 +139,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     label: 'Model analisis: Claude Sonnet',
     description: 'ON: di chat Una / Rika / Fina muncul tombol 🔬 Analisis. Pesan yang dikirim dengan tombol itu dikerjakan Claude Sonnet 5.5 (lebih teliti untuk kasus yang butuh analisis, biaya per pesan jauh lebih mahal dari Gemini). Pesan biasa tetap memakai model murah. Perlu kunci ANTHROPIC_API_KEY di server. OFF: semua chat memakai model murah.',
     defaultValue: false
+  },
+  {
+    key: KOREKSI_NOMINAL_PEMBELIAN_KEY,
+    label: 'Ganti nominal pembelian',
+    description: 'ON: saat CS menekan Hapus di pembelian bahan, CS bisa memilih "Ganti nominal saja" -- barang dan qty tetap, CS mengisi total benar di nota, satu izin ACC. Saat di-ACC, pembelian lama dibalik (uang laci, stok, jurnal) dan diganti pembelian dengan nominal benar; HPP bahannya dihitung ulang otomatis di jam sepi. OFF: hanya hapus lalu input ulang.',
+    defaultValue: true
   },
   {
     key: PEMBAYARAN_CAMPURAN_KEY,

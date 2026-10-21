@@ -28,6 +28,7 @@ import { AKSI_KLASIFIKASI } from './caca-aksi-klasifikasi.js';
 import { AKSI_BARANG } from './caca-aksi-barang.js';
 import { AKSI_HPP } from './caca-aksi-hpp.js';
 import { AKSI_HPP_BANYAK } from './caca-aksi-hpp-banyak.js';
+import { AKSI_HPP_BATAL } from './caca-aksi-hpp-batal.js';
 import { AKSI_RENTANG } from './caca-aksi-rentang.js';
 import { ALAT_JELASKAN } from './caca-jelaskan.js';
 import { AKSI_KARYAWAN } from './caca-aksi-karyawan.js';
@@ -385,7 +386,7 @@ const jurnal = Object.freeze({
   }
 });
 
-export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ...AKSI_KARYAWAN, ...AKSI_MASTER, ALAT_JELASKAN]);
+export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_HPP_BATAL, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ...AKSI_KARYAWAN, ...AKSI_MASTER, ALAT_JELASKAN]);
 
 // Titik daftar alat Fina (contracts/fina-hr-paket-v1.md H0 butir 5). Sengaja TERPISAH dari
 // AKSI_TULIS: daftar pilih-alat Una tetap persis seperti dulu, alat Fina hanya terlihat oleh

@@ -4,14 +4,22 @@ import { requireDrawerOwner } from './cashier-drawer.js';
 import { requireManagement } from './owner-auth.js';
 import { resolveStore } from './stores.js';
 import { executeTransactionCorrection } from './transaction-correction-executor.js';
-import { getTenantPolicyChoice, UI_SKIN_KEY } from './tenant-policy.js';
+import { loadPurchasePriceRanges, purchaseRangeViolation } from './purchase-price-ranges.js';
+import { scaledUnitCost } from './cashier-purchase.js';
+import { getTenantPolicyChoice, getTenantPolicySetting, KOREKSI_NOMINAL_PEMBELIAN_KEY, UI_SKIN_KEY } from './tenant-policy.js';
+import {
+  dalamJamSepi, daftarIzinMenunggu, izinDariBaris, pratinjauPutarUlangIzin, terapkanPutarUlangIzin,
+  PESAN_DI_LUAR_JAM_SEPI, STATUS_MENUNGGU
+} from './hpp-putar-ulang.js';
 
 export const TRANSACTION_VOID_PERMIT_CONTRACT = 'MAXI_TRANSACTION_VOID_PERMIT_V1';
 const SUBJECT_TYPES = new Set(['SALE', 'PURCHASE', 'EXPENSE']);
+const CORRECTION_KINDS = new Set(['VOID', 'AMOUNT']);
 const APPROVAL_STATUSES = new Set(['pending_approval', 'approved', 'rejected']);
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
 function parseSnapshot(value) { try { return JSON.parse(value || '{}'); } catch { return {}; } }
+function parseLines(value) { try { const lines = JSON.parse(value || '[]'); return Array.isArray(lines) ? lines : []; } catch { return []; } }
 function permitDto(row) {
   return {
     id: row.id,
@@ -37,7 +45,12 @@ function permitDto(row) {
     requestedAt: row.requested_at,
     updatedAt: row.updated_at,
     decidedAt: row.decided_at || null,
-    executedAt: row.executed_at || null
+    executedAt: row.executed_at || null,
+    correctionKind: row.correction_kind || 'VOID',
+    requestedLines: parseLines(row.requested_lines_json),
+    replacementSubjectId: row.replacement_subject_id || null,
+    hppReplayStatus: row.hpp_replay_status || '',
+    hppReplayDetail: row.hpp_replay_detail || ''
   };
 }
 
@@ -86,12 +99,21 @@ async function transactionSubject(db, storeId, drawerId, cashierId, subjectType,
   }
   if (subjectType === 'PURCHASE') {
     const row = await db.prepare(`
-      SELECT id, description, total_amount, payment_method, note, supplier_id, created_at
+      SELECT id, description, total_amount, payment_method, note, supplier_id, created_at, deposit_id
       FROM purchases
       WHERE id = ? AND store_id = ? AND drawer_session_id = ? AND cashier_id = ? AND voided_at IS NULL
       LIMIT 1
     `).bind(subjectId, storeId, drawerId, cashierId).first();
-    return row ? { subjectType: 'PURCHASE', subjectId: row.id, amount: Number(row.total_amount || 0), description: row.description || 'Pembelian Bahan', paymentMethod: row.payment_method || 'CASH', note: row.note || '', supplierId: row.supplier_id || null, createdAt: row.created_at } : null;
+    if (!row) return null;
+    const items = await db.prepare(`
+      SELECT product_id, product_name, quantity, unit_symbol, line_total
+      FROM purchase_items WHERE purchase_id = ? AND store_id = ? ORDER BY product_id
+    `).bind(row.id, storeId).all();
+    return {
+      subjectType: 'PURCHASE', subjectId: row.id, amount: Number(row.total_amount || 0), description: row.description || 'Pembelian Bahan', paymentMethod: row.payment_method || 'CASH', note: row.note || '', supplierId: row.supplier_id || null, createdAt: row.created_at,
+      depositId: row.deposit_id || null,
+      items: (items.results || []).map(item => ({ productId: Number(item.product_id), productName: item.product_name, quantity: Number(item.quantity), unitSymbol: item.unit_symbol, lineTotal: Number(item.line_total) }))
+    };
   }
   if (subjectType === 'EXPENSE') {
     const row = await db.prepare(`
@@ -140,6 +162,38 @@ async function existingOpenPermit(db, storeId, subjectType, subjectId) {
   `).bind(storeId, subjectType, subjectId).first();
 }
 
+async function amountCorrectionEnabled(db, storeId) {
+  const store = await resolveStore(db, storeId);
+  return getTenantPolicySetting(db, store?.tenantId || null, KOREKSI_NOMINAL_PEMBELIAN_KEY);
+}
+
+// Ganti nominal pembelian (Bos Cyo, 2026-10-21): barang & qty tetap, CS mengisi total benar di nota
+// per baris. Deposit/Hutang belum didukung (pembaliknya menyentuh catatan lain) -> pakai hapus.
+async function checkAmountCorrection(db, storeId, subject, rawLines) {
+  if (subject.subjectType !== 'PURCHASE') return { ok: false, error: 'Ganti nominal hanya untuk pembelian bahan.' };
+  if (!await amountCorrectionEnabled(db, storeId)) return { ok: false, error: 'Ganti nominal pembelian tidak aktif untuk tenant ini; ajukan hapus.', code: 'AMOUNT_CORRECTION_DISABLED' };
+  if (subject.depositId) return { ok: false, error: 'Pembelian dari Deposit belum bisa diganti nominal; ajukan hapus lalu input ulang.', code: 'AMOUNT_CORRECTION_UNSUPPORTED' };
+  const method = await db.prepare('SELECT creates_payable FROM payment_methods WHERE store_id = ? AND code = ? LIMIT 1').bind(storeId, subject.paymentMethod).first();
+  if (method?.creates_payable) return { ok: false, error: 'Pembelian Hutang belum bisa diganti nominal; ajukan hapus lalu input ulang.', code: 'AMOUNT_CORRECTION_UNSUPPORTED' };
+  const byProduct = new Map((Array.isArray(rawLines) ? rawLines : []).map(line => [Number(line?.productId), Number(line?.lineTotal)]));
+  const items = subject.items || [];
+  if (!items.length || byProduct.size !== items.length) return { ok: false, error: 'Isi nominal benar untuk setiap barang di pembelian ini.' };
+  const ranges = await loadPurchasePriceRanges(db, storeId);
+  const lines = [];
+  let changed = false;
+  for (const item of items) {
+    const lineTotal = byProduct.get(item.productId);
+    if (!Number.isSafeInteger(lineTotal) || lineTotal <= 0) return { ok: false, error: `Nominal benar ${item.productName} wajib angka rupiah lebih dari 0.` };
+    // Rentang harga beli wajar ikut berlaku, sama seperti input pembelian baru.
+    const violation = purchaseRangeViolation({ ...item, unitCostScaled: scaledUnitCost(lineTotal, item.quantity), lineTotal }, ranges.get(item.productId));
+    if (violation) return { ok: false, error: violation, code: 'PURCHASE_PRICE_OUT_OF_RANGE' };
+    if (lineTotal !== item.lineTotal) changed = true;
+    lines.push({ productId: item.productId, lineTotal });
+  }
+  if (!changed) return { ok: false, error: 'Nominalnya sama dengan yang tercatat; tidak ada yang perlu diganti.' };
+  return { ok: true, lines };
+}
+
 // H menyatukan pekerjaan Owner dan Admin Entity. Pada skin ini saja, saklar
 // Auto Permit gerai juga mencakup permit hapus transaksi. Eksekusinya tetap
 // memakai executor correction canonical di bawah (termasuk HOLD dan retry),
@@ -184,26 +238,46 @@ async function handleCashier(request, env, pathname) {
   if (request.method === 'GET' && pathname === '/api/cashier/transaction-void/permits') {
     return json({ permits: await listPermits(env.DB, { storeId: auth.cashier.store.id, cashierId: auth.cashier.id }) });
   }
+  // Isi transaksi untuk dialog hapus / ganti nominal (barang, qty, nominal per baris) dan apakah
+  // tenant mengaktifkan ganti nominal pembelian.
+  if (request.method === 'GET' && pathname === '/api/cashier/transaction-void/subject') {
+    const url = new URL(request.url);
+    const subjectType = text(url.searchParams.get('type'), 20).toUpperCase();
+    const subject = SUBJECT_TYPES.has(subjectType)
+      ? await transactionSubject(env.DB, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, text(url.searchParams.get('id'), 180))
+      : null;
+    if (!subject) return json({ error: 'Transaksi aktif tidak ditemukan pada laci milik kasir ini.' }, 404);
+    return json({ subject, amountCorrectionEnabled: subjectType === 'PURCHASE' && await amountCorrectionEnabled(env.DB, auth.cashier.store.id) });
+  }
   if (request.method === 'POST' && pathname === '/api/cashier/transaction-void/permits') {
     const body = await readJson(request);
     if (!body.ok) return json({ error: 'Payload permit hapus tidak valid.' }, 400);
     const subjectType = text(body.value?.subjectType, 20).toUpperCase();
     const subjectId = text(body.value?.subjectId, 180);
     const reason = text(body.value?.reason, 500);
-    if (!SUBJECT_TYPES.has(subjectType) || !subjectId || !reason) return json({ error: 'Jenis transaksi, ID transaksi, dan alasan wajib valid.' }, 400);
+    const correctionKind = text(body.value?.correctionKind || 'VOID', 10).toUpperCase();
+    if (!SUBJECT_TYPES.has(subjectType) || !subjectId || !reason || !CORRECTION_KINDS.has(correctionKind)) return json({ error: 'Jenis transaksi, ID transaksi, dan alasan wajib valid.' }, 400);
     const subject = await transactionSubject(env.DB, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, subjectId);
     if (!subject) return json({ error: 'Transaksi aktif tidak ditemukan pada laci milik kasir ini.' }, 404);
     const existing = await existingOpenPermit(env.DB, auth.cashier.store.id, subjectType, subjectId);
     if (existing) return json({ error: existing.approval_status === 'pending_approval' ? 'Permit hapus transaksi ini masih menunggu Admin.' : 'Permit sudah di-ACC tetapi eksekusi correction belum selesai.', code: 'VOID_PERMIT_ALREADY_OPEN' }, 409);
+    let requestedLines = [];
+    if (correctionKind === 'AMOUNT') {
+      const checked = await checkAmountCorrection(env.DB, auth.cashier.store.id, subject, body.value?.lines);
+      if (!checked.ok) return json({ error: checked.error, code: checked.code || 'AMOUNT_CORRECTION_INVALID' }, 400);
+      requestedLines = checked.lines;
+    }
     const id = `permit_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     await env.DB.prepare(`
       INSERT INTO approval_permits (
         id, store_id, drawer_session_id, cashier_id, permit_type,
         subject_type, subject_id, subject_snapshot_json, reason,
-        approval_status, execution_status, requested_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'TRANSACTION_VOID', ?, ?, ?, ?, 'pending_approval', 'NOT_ATTEMPTED', ?, ?)
-    `).bind(id, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, subjectId, JSON.stringify(subject), reason, now, now).run();
+        approval_status, execution_status, requested_at, updated_at,
+        correction_kind, requested_lines_json
+      ) VALUES (?, ?, ?, ?, 'TRANSACTION_VOID', ?, ?, ?, ?, 'pending_approval', 'NOT_ATTEMPTED', ?, ?, ?, ?)
+    `).bind(id, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, subjectId, JSON.stringify(subject), reason, now, now,
+      correctionKind, requestedLines.length ? JSON.stringify(requestedLines) : '').run();
     const automatic = await autoVoidDecision(env.DB, auth);
     if (!automatic) return json({ ok: true, permit: await getPermit(env.DB, id), autoPermit: false }, 201);
 
@@ -279,20 +353,57 @@ async function runCorrectionAndFinalize(env, scope, approved, approverRole, appr
   // berhasil gagal di langkah finalisasi (0 permit pernah EXECUTED). Status
   // Accounting dicatat di execution_detail; jurnal pembaliknya sendiri tetap
   // bisa ditelusuri lewat idempotency key LEKER_POS_VOID:<permitId>.
+  const extras = [
+    executed.replacementId ? `Pembelian pengganti ${executed.replacementId} (Rp${Number(executed.replacementTotal || 0).toLocaleString('id-ID')}) dibuat dengan qty yang sama.` : '',
+    executed.hppMenunggu ? `HPP ${(executed.itemNames || []).join(', ')} dihitung ulang otomatis di jam sepi (23.00–07.00 WIB); uang laci, stok, dan jurnal sudah beres sekarang.` : ''
+  ].filter(Boolean).join(' ');
   await env.DB.prepare(`
     UPDATE approval_permits
     SET execution_status = 'EXECUTED', execution_code = ?, execution_detail = ?,
-        executed_at = ?, updated_at = ?
+        executed_at = ?, updated_at = ?, replacement_subject_id = ?, hpp_replay_status = ?
     WHERE id = ?
-  `).bind(executionCode, executionDetail, now, now, approved.id).run();
+  `).bind(executionCode, `${executionDetail}${extras ? ` · ${extras}` : ''}`, now, now,
+    executed.replacementId || null, executed.hppMenunggu ? STATUS_MENUNGGU : '', approved.id).run();
 
-  return { ok: true, permit: await getPermit(env.DB, approved.id), executed: true, accounting };
+  return { ok: true, permit: await getPermit(env.DB, approved.id), executed: true, accounting, hppMenunggu: Boolean(executed.hppMenunggu) };
+}
+
+// Putar Ulang HPP untuk izin pembelian yang HPP-nya menunggu (src/hpp-putar-ulang.js). Pratinjau boleh
+// kapan saja; menerapkan hanya di jam sepi -- dipakai layar Admin dan alat Una.
+async function handlePutarUlang(request, env, pathname, scope) {
+  if (request.method === 'GET' && pathname === '/api/management/transaction-void-permits/hpp-putar-ulang') {
+    const rows = await daftarIzinMenunggu(env.DB, { storeId: scope.storeId, limit: 20 });
+    const items = [];
+    for (const row of rows) {
+      const permit = await getPermit(env.DB, row.id);
+      const pratinjau = await pratinjauPutarUlangIzin(env.DB, izinDariBaris(row));
+      items.push({ permit, pratinjau });
+    }
+    return json({ jamSepi: dalamJamSepi(), pesanJam: PESAN_DI_LUAR_JAM_SEPI, items });
+  }
+  const match = pathname.match(/^\/api\/management\/transaction-void-permits\/([^/]+)\/hpp-putar-ulang$/);
+  if (request.method === 'POST' && match) {
+    const row = await env.DB.prepare(`
+      SELECT id, store_id, subject_id, replacement_subject_id, hpp_replay_status FROM approval_permits WHERE id = ? LIMIT 1
+    `).bind(decodeURIComponent(match[1])).first();
+    if (!row) return json({ error: 'Permit tidak ditemukan.' }, 404);
+    if (scope.storeId && row.store_id !== scope.storeId) return json({ error: 'Permit di luar scope gerai akun ini.' }, 403);
+    const hasil = await terapkanPutarUlangIzin(env.DB, izinDariBaris(row));
+    if (hasil.diLuarJam) return json({ error: hasil.alasan, code: 'DI_LUAR_JAM_SEPI' }, 423);
+    if (!hasil.ok) return json({ error: hasil.alasan, code: hasil.tertahan ? 'PUTAR_ULANG_TERTAHAN' : 'PUTAR_ULANG_GAGAL' }, 409);
+    return json({ ok: true, bahan: hasil.bahan, detail: hasil.detail, permit: await getPermit(env.DB, row.id) });
+  }
+  return null;
 }
 
 async function handleManagement(request, env, pathname) {
   if (!pathname.startsWith('/api/management/transaction-void-permits')) return null;
   const scope = await managementScope(request, env);
   if (!scope.ok) return scope.response;
+  if (pathname.includes('/hpp-putar-ulang')) {
+    const putarUlang = await handlePutarUlang(request, env, pathname, scope);
+    if (putarUlang) return putarUlang;
+  }
 
   if (request.method === 'GET' && pathname === '/api/management/transaction-void-permits') {
     const rawStatus = text(new URL(request.url).searchParams.get('status'), 40) || 'pending_approval';

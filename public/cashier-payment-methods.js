@@ -248,6 +248,10 @@
           if (!submittedItems.length) throw new Error('Masukkan minimal satu barang pembelian.');
           if (submittedItems.some(item => !Number.isInteger(item.quantity) || item.quantity <= 0)) throw new Error('Qty barang terpilih wajib bilangan bulat lebih dari 0.');
           if (submittedItems.some(item => !Number.isSafeInteger(item.lineTotal) || item.lineTotal <= 0)) throw new Error('Harga beli dan total baris wajib lebih dari 0.');
+          // Bos Cyo, 2026-10-21: cek sekali lagi terhadap nota sebelum tersimpan (Rp12.996 vs nota Rp12.000).
+          const ringkas = lines.map((line, index) => `• ${line.label}: ${submittedItems[index].quantity.toLocaleString('id-ID')} = ${rupiah(submittedItems[index].lineTotal)}`).join('\n');
+          const grandTotal = submittedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+          if (!window.confirm(`Simpan pembelian ini?\n\n${ringkas}\n\nTOTAL ${rupiah(grandTotal)}\n\nSudah sama dengan nota?`)) return false;
           const result = await canonicalFactPost('/api/cashier/purchases', {
             supplierId: byId('dialogSupplier').value,
             paymentMethod: byId('dialogPurchasePayment').value,
@@ -270,7 +274,11 @@
         getMeta: item => [item.productKindName, item.unitSymbol, item.priceRange ? `wajar ${item.priceRange.min}–${item.priceRange.max}/${item.unitSymbol || 'satuan'}` : ''].filter(Boolean).join(' · '),
         getDefaultAmount: item => item.purchasePrice,
         itemLabel: 'Barang / bahan',
-        priceLabel: 'Harga beli / unit',
+        priceLabel: 'Harga beli / satuan',
+        // Bos Cyo, 2026-10-21: "cara bayarnya adalah sesuai nominal di nota baru kita ngasih qty yang
+        // didapat" -- total nota jadi kolom bawaan & pertama; harga per satuan lewat tombol ⇄.
+        defaultAmountField: 'total',
+        totalLabel: '🧾 Total di nota (Rp)',
         detailTitle: 'Detail Pembelian',
         priceEditable: true,
         amountMode: 'toggle',

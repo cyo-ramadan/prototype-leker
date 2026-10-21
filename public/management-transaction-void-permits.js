@@ -40,8 +40,8 @@
         ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="secondary-btn" type="button" data-void-permit-retry="${esc(item.id)}">🔁 Retry Eksekusi</button></div><p class="muted" style="margin-top:6px">Sudah di-ACC tetapi eksekusinya belum tuntas -- aman diulang, tidak akan diterapkan dobel.</p>`
         : '';
     return `<article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-      <div class="list-head"><div><strong>PERMIT HAPUS · ${esc(labels[item.subjectType] || item.subjectType)}</strong><div class="muted">${esc(item.cashierName || item.cashierId)} · ${dt(item.requestedAt)}</div></div><span class="master-count">${esc(statusText(item))}</span></div>
-      <p><b>${esc(subject.description || item.subjectId)}</b> · ${money(subject.amount)}</p>
+      <div class="list-head"><div><strong>${item.correctionKind === 'AMOUNT' ? 'PERMIT GANTI NOMINAL' : 'PERMIT HAPUS'} · ${esc(labels[item.subjectType] || item.subjectType)}</strong><div class="muted">${esc(item.cashierName || item.cashierId)} · ${dt(item.requestedAt)}</div></div><span class="master-count">${esc(statusText(item))}</span></div>
+      <p><b>${esc(subject.description || item.subjectId)}</b> · ${money(subject.amount)}${item.correctionKind === 'AMOUNT' ? ` → <b>${money((item.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0))}</b> (barang &amp; qty tetap)` : ''}</p>
       <div class="muted">Ref ${esc(item.subjectId)} · ${esc(subject.paymentMethod || '')}</div>
       <div class="admin-tip" style="margin-top:9px"><b>Alasan kasir:</b> ${esc(item.reason)}</div>
       <div class="muted" style="margin-top:8px">Soft-delete + correction auditable; history sumber tetap ada.</div>
@@ -49,6 +49,7 @@
       ${item.executionDetail ? `<div class="muted"><b>Execution:</b> ${esc(item.executionDetail)}</div>` : ''}
       ${item.originalJournalId ? `<div class="muted"><b>Jurnal sumber:</b> ${esc(item.originalJournalId)}</div>` : ''}
       ${item.reversalJournalId ? `<div class="muted"><b>Jurnal pembalik:</b> ${esc(item.reversalJournalId)}</div>` : ''}
+      ${item.hppReplayStatus ? `<div class="muted"><b>Hitung ulang HPP:</b> ${esc({ MENUNGGU: 'menunggu jam sepi (23.00–07.00 WIB)', SELESAI: 'selesai', TERTAHAN: 'tertahan, perlu dicek manual' }[item.hppReplayStatus] || item.hppReplayStatus)}${item.hppReplayDetail ? ` · ${esc(item.hppReplayDetail)}` : ''}</div>` : ''}
       ${item.decisionNote ? `<div class="muted"><b>Catatan Admin:</b> ${esc(item.decisionNote)}</div>` : ''}
       ${actions}
     </article>`;

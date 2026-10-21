@@ -1,10 +1,13 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#039;', '"':'&quot;' }[char]));
-  function create({ host, items, getId = item => item.id, getLabel = item => item.name, getMeta = () => '', getDefaultAmount = () => 0, openLabel = 'Tambah Item', itemLabel = 'Item', priceLabel = 'Nominal / unit', detailTitle = 'Detail', priceEditable = true, renderDetails = true, initialExpanded = true, amountMode = 'perUnit', onAdd = null, onError = () => {}, onLinesChange = () => {} }) {
+  function create({ host, items, getId = item => item.id, getLabel = item => item.name, getMeta = () => '', getDefaultAmount = () => 0, openLabel = 'Tambah Item', itemLabel = 'Item', priceLabel = 'Nominal / unit', detailTitle = 'Detail', priceEditable = true, renderDetails = true, initialExpanded = true, amountMode = 'perUnit', defaultAmountField = 'perUnit', totalLabel = 'Total belanja barang ini', onAdd = null, onError = () => {}, onLinesChange = () => {} }) {
     host = typeof host === 'string' ? document.querySelector(host) : host;
     if (!host) throw new Error('PIMASATU host tidak ditemukan.');
     const isToggleMode = amountMode === 'toggle';
-    const state = { selectedId: null, lines: [], expanded: false, activeField: 'perUnit' };
+    // Bos Cyo, 2026-10-21 (Air Mineral Kaliurang: harga/unit bawaan dari master x qty = Rp12.996, nota
+    // Rp12.000): pemanggil boleh menjadikan "total" kolom bawaan (Beli Bahan). Bawaan komponen tetap perUnit.
+    const startField = isToggleMode && defaultAmountField === 'total' ? 'total' : 'perUnit';
+    const state = { selectedId: null, lines: [], expanded: false, activeField: startField };
     const list = () => typeof items === 'function' ? items() : items;
     host.className = `${host.className} pimasatu`.trim();
     // type="number" only understands a period as decimal separator; Indonesian
@@ -25,13 +28,13 @@
     // begitu barisnya sudah ditambahkan.
     const totalFieldHtml = isToggleMode ? `
       <div class="field pimasatu-total-wrap">
-        <label>Total belanja barang ini</label>
+        <label>${esc(totalLabel)}</label>
         <div class="pimasatu-total-row">
           <input class="text-input pimasatu-total" type="text" inputmode="numeric" placeholder="Isi total dibayar" disabled />
-          <button type="button" class="pimasatu-amount-toggle" title="Isi berdasar total belanja, bukan harga per satuan" style="background:var(--green,#168a45);color:#fff;border:0;border-radius:8px;width:34px;height:34px;font-weight:900;cursor:pointer;flex-shrink:0">⇄</button>
+          <button type="button" class="pimasatu-amount-toggle" title="Ganti cara isi: total di nota / harga per satuan" style="background:var(--green,#168a45);color:#fff;border:0;border-radius:8px;min-width:34px;height:34px;padding:0 8px;font-weight:800;cursor:pointer;flex-shrink:0">⇄</button>
         </div>
       </div>` : '';
-    host.innerHTML = `<button type="button" class="pimasatu-toggle">＋ ${esc(openLabel)}</button><section class="pimasatu-composer hidden"><div class="field pimasatu-search-wrap"><label>${esc(itemLabel)}</label><input class="text-input pimasatu-search" autocomplete="off" placeholder="Cari dan pilih"/><div class="pimasatu-results hidden"></div></div><div class="pimasatu-input-row${isToggleMode ? ' has-total' : ''}"><div class="field"><label>Qty</label><input class="text-input pimasatu-qty" type="text" inputmode="numeric" value="1"/></div><div class="field"><label>${esc(priceLabel)}</label><input class="text-input pimasatu-price" ${priceInputAttrs} placeholder="${esc(pricePlaceholder)}"/></div>${totalFieldHtml}</div><div class="muted pimasatu-hint">Pilih item untuk mengisi nominal.</div><button type="button" class="primary-btn pimasatu-add">＋ Masukkan</button></section><div class="pimasatu-detail-head"><strong>${esc(detailTitle)}</strong><span>Terbaru di atas</span></div><div class="pimasatu-lines"></div>`;
+    host.innerHTML = `<button type="button" class="pimasatu-toggle">＋ ${esc(openLabel)}</button><section class="pimasatu-composer hidden"><div class="field pimasatu-search-wrap"><label>${esc(itemLabel)}</label><input class="text-input pimasatu-search" autocomplete="off" placeholder="Cari dan pilih"/><div class="pimasatu-results hidden"></div></div><div class="pimasatu-input-row${isToggleMode ? ' has-total' : ''}">${startField === 'total' ? totalFieldHtml : ''}<div class="field"><label>${startField === 'total' ? 'Qty yang didapat' : 'Qty'}</label><input class="text-input pimasatu-qty" type="text" inputmode="numeric" value="1"/></div><div class="field"><label>${esc(priceLabel)}</label><input class="text-input pimasatu-price" ${priceInputAttrs} placeholder="${esc(pricePlaceholder)}"/></div>${startField === 'total' ? '' : totalFieldHtml}</div><div class="muted pimasatu-hint">Pilih item untuk mengisi nominal.</div><button type="button" class="primary-btn pimasatu-add">＋ Masukkan</button></section><div class="pimasatu-detail-head"><strong>${esc(detailTitle)}</strong><span>Terbaru di atas</span></div><div class="pimasatu-lines"></div>`;
     const composer = host.querySelector('.pimasatu-composer'), search = host.querySelector('.pimasatu-search'), results = host.querySelector('.pimasatu-results'), qty = host.querySelector('.pimasatu-qty'), price = host.querySelector('.pimasatu-price'), total = host.querySelector('.pimasatu-total'), amountToggle = host.querySelector('.pimasatu-amount-toggle'), hint = host.querySelector('.pimasatu-hint'), linesHost = host.querySelector('.pimasatu-lines'), toggle = host.querySelector('.pimasatu-toggle');
     price.readOnly = !priceEditable;
     if (!renderDetails) host.querySelector('.pimasatu-detail-head').classList.add('hidden');
@@ -51,11 +54,31 @@
       const perUnitActive = state.activeField === 'perUnit';
       lockStyle(price, !perUnitActive);
       lockStyle(total, perUnitActive);
+      if (amountToggle && startField === 'total') amountToggle.textContent = perUnitActive ? '⇄ Pakai total nota' : '⇄ Harga/satuan';
+      renderAmountHint();
+    }
+    // Petunjuk di bawah kolom: total aktif -> harga per satuan hasil bagi; harga/satuan aktif (bukan bawaan)
+    // -> peringatan pembulatan supaya CS tahu totalnya bisa meleset dari nota.
+    function renderAmountHint() {
+      if (!isToggleMode || startField !== 'total' || !state.selectedId) return;
+      const item = list().find(candidate => String(getId(candidate)) === String(state.selectedId));
+      const meta = item ? getMeta(item) : '';
+      const quantity = angka(qty.value);
+      if (state.activeField === 'total') {
+        const entered = angka(total.value);
+        const perUnit = Number.isSafeInteger(entered) && entered > 0 && Number.isSafeInteger(quantity) && quantity > 0 ? entered / quantity : null;
+        if (perUnit !== null) price.value = tampilAngka(Number(perUnit.toFixed(6)), true);
+        hint.textContent = perUnit !== null ? `= ${unitMoney(perUnit)} per satuan · ${meta}` : `Isi total sesuai nota, lalu qty yang didapat · ${meta}`;
+      } else {
+        const unitAmount = angka(price.value);
+        const derived = Number.isFinite(unitAmount) && Number.isSafeInteger(quantity) && quantity > 0 ? Math.round(unitAmount * quantity) : null;
+        hint.textContent = `⚠ Harga per satuan × qty lalu dibulatkan${derived !== null ? ` = ${money(derived)}` : ''}; bisa meleset dari nota. Kalau ada nota, pakai total nota. · ${meta}`;
+      }
     }
     function setExpanded(value) { state.expanded = value; composer.classList.toggle('hidden', !value); toggle.classList.toggle('hidden', value); toggle.textContent = `＋ ${openLabel}`; }
     function reset() {
       state.selectedId = null; search.value = ''; qty.value = '1'; price.value = ''; if (total) total.value = '';
-      state.activeField = 'perUnit'; applyActiveField();
+      state.activeField = startField; applyActiveField();
       hint.textContent = 'Pilih item untuk mengisi nominal.'; results.classList.add('hidden');
     }
     function renderResults() { const key = search.value.trim().toLowerCase(); const found = list().filter(item => !key || `${getLabel(item)} ${getMeta(item)}`.toLowerCase().includes(key)).slice(0,8); results.innerHTML = found.length ? found.map(item => `<button type="button" data-result="${esc(getId(item))}"><strong>${esc(getLabel(item))}</strong><span>${esc(getMeta(item))}</span></button>`).join('') : '<div class="pimasatu-empty">Tidak ditemukan.</div>'; results.classList.remove('hidden'); }
@@ -81,14 +104,15 @@
       if (state.selectedId) host.querySelector('.pimasatu-add').click();
     });
     if (amountToggle) amountToggle.onclick = () => { state.activeField = state.activeField === 'perUnit' ? 'total' : 'perUnit'; applyActiveField(); };
+    if (isToggleMode && startField === 'total') [qty, price, total].forEach(input => input?.addEventListener('input', renderAmountHint));
     results.onclick = event => {
       const button=event.target.closest('[data-result]'); if(!button)return;
       const item=list().find(candidate=>String(getId(candidate))===String(button.dataset.result));
       state.selectedId=getId(item); search.value=getLabel(item);
       price.value=Number(getDefaultAmount(item)) ? tampilAngka(Number(getDefaultAmount(item)), isToggleMode) : '';
       if (total) total.value = '';
-      state.activeField = 'perUnit'; applyActiveField();
       hint.textContent=getMeta(item);
+      state.activeField = startField; applyActiveField();
       results.classList.add('hidden');
     };
     host.querySelector('.pimasatu-add').onclick = () => {

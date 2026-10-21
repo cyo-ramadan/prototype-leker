@@ -34,7 +34,8 @@ test('cashier request snapshots the transaction and Admin ACC routes to determin
   assert.match(executorSource, /SALE_AUTO_PRODUCTION_EXCESS_OUTPUT/);
   assert.match(executorSource, /PRODUCTION_VOID/);
   assert.match(executorSource, /SALE_COST_SNAPSHOT_REQUIRED/);
-  assert.match(executorSource, /PURCHASE_DOWNSTREAM_STOCK_EXISTS/);
+  assert.match(executorSource, /PURCHASE_STOCK_NOT_REVERSIBLE/);
+  assert.match(executorSource, /hppMenunggu/);
   assert.match(executorSource, /SALE_VOID/);
   assert.match(executorSource, /PURCHASE_VOID/);
 });
@@ -57,7 +58,9 @@ test('manual Accounting reconciliation excludes source facts already marked corr
 test('cashier and management UI expose request and ACC-Reject lifecycle', () => {
   assert.match(cashierUi, /AJUKAN HAPUS/);
   assert.match(cashierUi, /voidPermitReason/);
-  assert.match(cashierUi, /pending approval/i);
+  assert.match(cashierUi, /menunggu ACC/i);
+  assert.match(cashierUi, /Ganti nominal saja/);
+  assert.match(cashierUi, /ACC tertahan/);
   assert.match(cashierUi, /data-cashier-tx-void-id/);
   assert.match(cashierUi, /data-cashier-tx-cancel-permit/);
   assert.match(cashierUi, /Batal Hapus/);

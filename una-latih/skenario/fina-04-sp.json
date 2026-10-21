@@ -1,0 +1,13 @@
+{
+  "nama": "Fina menyusun draft SP dari rekap masalah (tidak langsung berlaku)",
+  "agen": "fina",
+  "pesan": [
+    "buatin SP buat kasir1 bulan ini, dia sering telat"
+  ],
+  "harapan": {
+    "agen": "fina",
+    "alat": "draft_sp",
+    "jawabanTidakMemuat": "sudah dikirim"
+  },
+  "catatan": "Gerai uji mungkin tanpa catatan masalah: Fina wajib jujur bilang belum ada dasar, bukan mengarang surat."
+}

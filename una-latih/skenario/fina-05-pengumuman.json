@@ -1,0 +1,14 @@
+{
+  "nama": "Fina menyiapkan draft pengumuman CS (belum tayang sebelum Ya)",
+  "agen": "fina",
+  "pesan": [
+    "umumkan ke semua CS: mulai besok setiap QRIS wajib diklaim sebelum tutup laci"
+  ],
+  "harapan": {
+    "agen": "fina",
+    "alat": "pasang_pengumuman",
+    "draft": {
+      "entityWide": true
+    }
+  }
+}

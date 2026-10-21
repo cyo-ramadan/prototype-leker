@@ -1567,6 +1567,30 @@
    "automationForbidden": false
   },
   {
+   "id": "tombol:public/entity-fina-surat.js:data-surat-batal:Batalkan",
+   "label": "Batalkan",
+   "sumber": "public/entity-fina-surat.js",
+   "class": "unsupported",
+   "reason": "Keputusan surat teguran/SP oleh manusia (Setujui/Batalkan): tidak boleh diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-surat.js:data-surat-salin:Salin isi",
+   "label": "Salin isi",
+   "sumber": "public/entity-fina-surat.js",
+   "class": "unsupported",
+   "reason": "Keputusan surat teguran/SP oleh manusia (Setujui/Batalkan): tidak boleh diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-surat.js:data-surat-setujui:Setujui",
+   "label": "Setujui",
+   "sumber": "public/entity-fina-surat.js",
+   "class": "unsupported",
+   "reason": "Keputusan surat teguran/SP oleh manusia (Setujui/Batalkan): tidak boleh diotomatisasi",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan bawaan Fina",
    "label": "Simpan bawaan Fina",
    "sumber": "public/entity-fina-pengaturan.js",

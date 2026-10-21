@@ -265,7 +265,7 @@ const MINTA_DATA = /\b(berapa|hari\s+ini|kemarin|minggu\s+ini|bulan\s+ini|sekara
 export function panduanPasti(pesan, lingkup = 'gerai', konteks = {}) {
   const teks = String(pesan ?? '');
   if (!TANYA_CARA.test(teks) || MINTA_DATA.test(teks) || /\d[\d.,]*\s*(rb|ribu|k|jt|juta)\b/i.test(teks)) return null;
-  const hasil = jelaskan(teks, { halaman: lingkup === 'entity' ? 'entity' : 'gerai', skin: konteks.skin, peran: konteks.peran });
+  const hasil = jelaskan(teks, { halaman: lingkup === 'entity' ? 'entity' : 'gerai', skin: konteks.skin, peran: konteks.peran, agen: konteks.persona?.id });
   return hasil.dikenal ? hasil : null;
 }
 
@@ -537,7 +537,7 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     // Hanya untuk kalimat yang BERTANYA soal pemakaian; perintah ("catat penjualan …")
     // tetap mendapat penolakan jujurnya.
     const bertanya = TANYA_CARA.test(pertanyaan) || /\?\s*$/.test(pertanyaan) || /\b(jelas(in|kan)|terangin|kenapa|maksudnya)\b/i.test(pertanyaan);
-    const panduan = bertanya && !opsi.panduanDitolak ? jelaskan(pertanyaan, { halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai', skin: konteks.skin, peran: konteks.peran }) : null;
+    const panduan = bertanya && !opsi.panduanDitolak ? jelaskan(pertanyaan, { halaman: konteks.lingkup === 'entity' ? 'entity' : 'gerai', skin: konteks.skin, peran: konteks.peran, agen: konteks.persona?.id }) : null;
     if (panduan?.dikenal) {
       // Gemini memeriksa cocok/tidaknya dan memoles bahasanya (src/caca-poles.js).
       const poles = await polesPanduan({ pertanyaan, panduan, konteks, env, panggilModel });
@@ -596,7 +596,7 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     // karena model kadang mengembalikan daftar kosong untuk tempelan panjang.
     const ctxSiapkan = {
       ...jalurAksi, hariIni: konteks.hariIni, namaLingkup: konteks.namaLingkup, lingkup: konteks.lingkup ?? 'gerai',
-      storeCode: konteks.storeCode, pesan: pesanBaku
+      storeCode: konteks.storeCode, pesan: pesanBaku, agen: konteks.persona?.id
     };
     let disiapkan = await aksi.siapkan(pilihan.value, ctxSiapkan);
     // Sebelum bertanya, baca ulang pesan Bos sebelumnya (Bos 2026-10-09: "coba baca

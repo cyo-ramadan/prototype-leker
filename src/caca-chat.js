@@ -174,7 +174,13 @@ export const PINTU_AKSI = Object.freeze([
   '^/api/admin/cashiers/[A-Za-z0-9_.-]+$',
   '^/api/admin/cashiers/[A-Za-z0-9_.-]+/payroll$',
   // Alat master (src/caca-aksi-master.js): kategori baru. Supplier sudah lewat PINTU_BACA.
-  '/api/admin/categories$'
+  '/api/admin/categories$',
+  // Alat tulis Fina (src/agen-fina-tulis.js, H3): sesi presensi sehari, catat pengganti lewat rute
+  // Dana Apresiasi yang sama dengan Entity Admin, dan MEMBUAT draft surat. Setujui/Batalkan surat
+  // sengaja TIDAK ada di sini: hanya tombol manusia.
+  '/api/admin/fina/sesi$',
+  '/api/entity-admin/dana-apresiasi/pengganti$',
+  '/api/entity-admin/fina/surat$'
 ]);
 
 function pintuDiizinkan(pathname, pintu) {

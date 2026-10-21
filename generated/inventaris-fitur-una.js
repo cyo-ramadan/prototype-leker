@@ -676,6 +676,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/fina-api.js:/^\\/api\\/entity-admin\\/fina\\/surat\\/([^/]+)\\/(setujui|batalkan)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/^\\/api\\/entity-admin\\/fina\\/surat\\/([^/]+)\\/(setujui|batalkan)$/",
+    "label": "/^\\/api\\/entity-admin\\/fina\\/surat\\/([^/]+)\\/(setujui|batalkan)$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/hutang-piutang.js:/^\\/api\\/admin\\/hutang-piutang\\/payments\\/([^/]+)\\/void$/",
     "jenis": "rute-pola",
     "sumber": "src/hutang-piutang.js",
@@ -1549,6 +1558,60 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/agen-fina-tulis.js:/api/admin/announcements",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/admin/announcements",
+    "label": "/api/admin/announcements",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/admin/fina/freelance",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/admin/fina/freelance",
+    "label": "/api/admin/fina/freelance",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/admin/fina/masalah",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/admin/fina/masalah",
+    "label": "/api/admin/fina/masalah",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/admin/fina/sesi",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/admin/fina/sesi",
+    "label": "/api/admin/fina/sesi",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/dana-apresiasi/pengganti",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi/pengganti",
+    "label": "/api/entity-admin/dana-apresiasi/pengganti",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/surat",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/surat",
+    "label": "/api/entity-admin/fina/surat",
+    "skin": null
+  },
+  {
     "id": "rute:src/approval-queue.js:/api/cashier/approval-requests",
     "jenis": "rute-kandidat",
     "sumber": "src/approval-queue.js",
@@ -2008,6 +2071,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/caca-chat.js:/api/admin/fina/sesi$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/admin/fina/sesi$",
+    "label": "/api/admin/fina/sesi$",
+    "skin": null
+  },
+  {
     "id": "rute:src/caca-chat.js:/api/admin/hpp-recalculation",
     "jenis": "rute-kandidat",
     "sumber": "src/caca-chat.js",
@@ -2257,6 +2329,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/entity-admin/accounts",
     "label": "/api/entity-admin/accounts",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/pengganti$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi/pengganti$",
+    "label": "/api/entity-admin/dana-apresiasi/pengganti$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/surat$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/surat$",
+    "label": "/api/entity-admin/fina/surat$",
     "skin": null
   },
   {
@@ -2905,6 +2995,60 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/entity/shared-accounts",
     "label": "/api/entity/shared-accounts",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-api.js:/api/admin/fina/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/api/admin/fina/",
+    "label": "/api/admin/fina/",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-api.js:/api/admin/fina/freelance",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/api/admin/fina/freelance",
+    "label": "/api/admin/fina/freelance",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-api.js:/api/admin/fina/kosong",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/api/admin/fina/kosong",
+    "label": "/api/admin/fina/kosong",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-api.js:/api/admin/fina/masalah",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/api/admin/fina/masalah",
+    "label": "/api/admin/fina/masalah",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-api.js:/api/admin/fina/sesi",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/api/admin/fina/sesi",
+    "label": "/api/admin/fina/sesi",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-api.js:/api/entity-admin/fina/surat",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-api.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/surat",
+    "label": "/api/entity-admin/fina/surat",
     "skin": null
   },
   {
@@ -9952,6 +10096,39 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-fina-pengaturan.js"
   },
   {
+    "id": "tombol:public/entity-fina-surat.js:data-surat-batal:Batalkan",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-surat.js",
+    "tombolId": null,
+    "aksi": "data-surat-batal",
+    "label": "Batalkan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-surat.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-surat.js:data-surat-salin:Salin isi",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-surat.js",
+    "tombolId": null,
+    "aksi": "data-surat-salin",
+    "label": "Salin isi",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-surat.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-surat.js:data-surat-setujui:Setujui",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-surat.js",
+    "tombolId": null,
+    "aksi": "data-surat-setujui",
+    "label": "Setujui",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-surat.js"
+  },
+  {
     "id": "tombol:public/entity-izin-cs.js:data-in,data-izin-edit,data-kind,data-out,data-store:Edit lalu ACC",
     "jenis": "tombol",
     "sumber": "public/entity-izin-cs.js",
@@ -14766,6 +14943,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method === 'POST' && transfersListMatch)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-api.js:request.method === 'POST')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-api.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST')",
     "skin": null
   },
   {

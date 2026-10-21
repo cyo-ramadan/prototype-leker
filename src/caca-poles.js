@@ -107,7 +107,7 @@ export async function polesPanduan({ pertanyaan, panduan, konteks = {}, env, pan
   if (!panggilModel) return asli;
 
   const halaman = konteks.lingkup === 'entity' ? 'entity' : 'gerai';
-  const konteksMenu = { halaman, skin: konteks.skin, peran: konteks.peran };
+  const konteksMenu = { halaman, skin: konteks.skin, peran: konteks.peran, agen: konteks.persona?.id };
   const kandidat = [{ nomor: 1, id: panduan.topik, judul: panduan.judul, isi: panduan.jawaban }];
   for (const { entri } of peringkatTopik(pertanyaan, MAKS_KANDIDAT + 1, konteksMenu)) {
     if (kandidat.length >= MAKS_KANDIDAT) break;

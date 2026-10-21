@@ -1,5 +1,32 @@
 // Sumber makna ditinjau dari kode. ID fitur eksplisit, tidak mengikuti route baru otomatis.
 export const SUMBER_KAMUS = Object.freeze({
+  "fina_tulis": {
+    "sumber": ["src/agen-fina-tulis.js","src/fina-api.js","src/dana-apresiasi.js","src/staff-announcement.js"],
+    "fitur": [
+      "rute:src/agen-fina-tulis.js:/api/admin/announcements",
+      "rute:src/agen-fina-tulis.js:/api/admin/fina/freelance",
+      "rute:src/agen-fina-tulis.js:/api/admin/fina/masalah",
+      "rute:src/agen-fina-tulis.js:/api/admin/fina/sesi",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/dana-apresiasi/pengganti",
+      "rute:src/caca-chat.js:/api/admin/fina/sesi$",
+      "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/pengganti$",
+      "rute:src/fina-api.js:/api/admin/fina/",
+      "rute:src/fina-api.js:/api/admin/fina/sesi"
+    ]
+  },
+  "fina_surat": {
+    "sumber": ["src/fina-api.js","public/entity-fina-surat.js","src/agen-fina-tulis.js"],
+    "fitur": [
+      "pola:src/fina-api.js:/^\\/api\\/entity-admin\\/fina\\/surat\\/([^/]+)\\/(setujui|batalkan)$/",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/surat",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/surat$",
+      "rute:src/fina-api.js:/api/entity-admin/fina/surat",
+      "tombol:public/entity-fina-surat.js:data-surat-batal:Batalkan",
+      "tombol:public/entity-fina-surat.js:data-surat-salin:Salin isi",
+      "tombol:public/entity-fina-surat.js:data-surat-setujui:Setujui",
+      "tulis:src/fina-api.js:request.method === 'POST')"
+    ]
+  },
   "fina_baca": {
     "sumber": ["src/fina-hitung.js", "src/fina-api.js", "src/agen-fina-alat.js"],
     "fitur": ["rute:src/fina-api.js:/api/admin/fina/kosong", "rute:src/fina-api.js:/api/admin/fina/freelance", "rute:src/fina-api.js:/api/admin/fina/masalah"]

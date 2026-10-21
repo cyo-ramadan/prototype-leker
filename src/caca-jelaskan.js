@@ -30,6 +30,24 @@ const jelas = (topik, label) => ({ jenis: 'jelaskan', topik, label });
 
 export const KAMUS = Object.freeze([
   {
+    id: 'fina_tulis', judul: 'Fina: tawaran backup, catat pengganti, pengumuman, draft SP', agen: ['fina'],
+    kunci: ['tawaran backup', 'tawarin backup', 'siapin tawaran', 'catat pengganti', 'menggantikan', 'gantiin', 'pasang pengumuman', 'umumkan', 'pengumuman cs', 'buat sp', 'surat peringatan', 'teguran', 'fina bisa apa'],
+    isi: [
+      'Pilih Fina di tab chat. Fina bisa: (1) menyiapkan teks tawaran backup untuk freelance yang tersedia di jam tertentu (jumlahnya sesuai pengaturan Fina, teks disalin dan dikirim manual, tidak ada yang terkirim otomatis);',
+      '(2) mencatat "X menggantikan Y" untuk CS yang presensi di gerai itu, lewat koreksi pengganti Dana Apresiasi yang sama, sehingga shift dinilai ulang;',
+      '(3) memasang pengumuman di papan CS (Portal Staf) untuk gerai itu atau semua gerai;',
+      '(4) menyusun draft SP/teguran dari rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang) dengan kop dan tingkat dari pengaturan Fina.',
+      'Semua kecuali tawaran backup lewat kartu draft dan tombol "Ya". Draft SP hanya tersimpan sebagai DRAFT; berlaku setelah Admin menekan Setujui di Entity Admin → Pengaturan → Surat Fina.'
+    ].join('\n'),
+    tawaran: [jelas('fina_surat', 'Surat Fina (SP)'), jelas('fina_pengaturan', 'Pengaturan Fina (HR)')], tanpaAksi: 'alat tulis Fina dipakai dari chat dengan memilih Fina'
+  },
+  {
+    id: 'fina_surat', judul: 'Surat Fina (teguran / SP)', agen: ['fina'],
+    kunci: ['surat fina', 'surat sp', 'setujui sp', 'batalkan sp', 'draft sp', 'daftar sp', 'masa berlaku sp', 'surat teguran'],
+    isi: 'Di Entity Admin → Pengaturan → "Surat Fina (teguran / SP)". Daftar bisa disaring Draft / Disetujui / Dibatalkan. Buka satu surat untuk melihat fakta (telat, pulang awal, kosong, denda, lupa pulang, jumlah shift) dan isinya. Tombol: "Salin isi", "Setujui" (hanya untuk draft; mulai berlaku hari itu sampai masa berlaku di pengaturan Fina), dan "Batalkan" (wajib alasan). Hanya Entity Admin atau Owner yang bisa menyetujui; Fina tidak bisa. Surat belum dikirim ke CS; kirim manual sampai fitur WA Fina ada.',
+    tawaran: [], tanpaAksi: 'menyetujui atau membatalkan surat hanya lewat tombol di Entity Admin'
+  },
+  {
     id: 'fina_baca', judul: 'Fina: gerai kosong, freelance dan rekap masalah CS', agen: ['fina'], tawaran: [],
     kunci: ['gerai kosong', 'shift kosong', 'freelance tersedia', 'backup siapa', 'rekap masalah cs', 'fina presensi'],
     isi: 'Fina membandingkan shift yang sedang berjalan dengan presensi dan pengganti yang tercatat, termasuk shift lewat tengah malam. Batas menit dan izin lintas gerai mengikuti kartu Fina (HR) di Entity Admin → Pengaturan; selama belum diubah, dipakai bawaan aplikasi (kosong setelah 10 menit, boleh backup lintas gerai). Aktivasi backup saja bukan bukti hadir. Daftar freelance membuang yang berbenturan jadwal, presensi atau aktivasi gerai lain, mengurutkan gerai sama lebih dahulu, dan tetap perlu konfirmasi kesediaan orangnya serta aktivasi admin. Admin Gerai hanya melihat kandidat gerainya. Rekap masalah CS menampilkan telat, pulang awal, kosong, denda tercatat dan lupa presensi pulang; satu shift bisa mempunyai beberapa jenis masalah tetapi dihitung satu kejadian. Kosong/denda memakai evaluasi tersimpan; jam sesi tanpa evaluasi memakai jadwal saat ini. Membaca tidak menilai ulang, memotong gaji, mengirim pesan atau memberi SP. Keputusan tetap di admin.',
@@ -800,7 +818,9 @@ function kamusKonteks(opsi = {}) {
 }
 export function peringkatTopik(teks, n = 3, opsi = {}) {
   return peringkatKamus(teks, kamusKonteks(opsi), {
-    normalisasi: normalkan, kata: kataInti, konteks: { skin: normalisasiSkin(opsi.skin) }, minimum: 2
+    // Entri ber-tag agen (mis. agen: ['fina']) hanya untuk persona itu; tanpa tag = semua persona.
+    // Pemanggil tanpa persona = Una, jadi jawaban Una tidak tergeser entri khusus Fina/Rika.
+    normalisasi: normalkan, kata: kataInti, konteks: { skin: normalisasiSkin(opsi.skin), agen: opsi.agen || 'una' }, minimum: 2
   }).slice(0, n);
 }
 export function cariTopikSkor(teks, opsi = {}) {
@@ -809,8 +829,8 @@ export function cariTopikSkor(teks, opsi = {}) {
 export function cariTopik(teks, opsi = {}) { return cariTopikSkor(teks, opsi)?.entri ?? null; }
 
 /** Jawaban siap tampil: kalimat + tawaran. Topik tak dikenal → daftar topik. */
-export function jelaskan(teks, { halaman = 'gerai', skin = 'classic', peran } = {}) {
-  const opsi = { halaman, skin, peran };
+export function jelaskan(teks, { halaman = 'gerai', skin = 'classic', peran, agen } = {}) {
+  const opsi = { halaman, skin, peran, agen };
   const topik = cariTopikSkor(teks, opsi);
   // Peta menu aplikasi (dibangkitkan dari daftar menu sungguhan, src/caca-peta.js)
   // menang kalau kecocokannya lebih kuat dari panduan kamus — mis. "bikin pengumuman
@@ -872,7 +892,7 @@ export const ALAT_JELASKAN = Object.freeze({
   async siapkan(t, ctx = {}) {
     // Topik salinan model kadang terlalu pendek/terlalu panjang; kalimat Bos utuh jadi cadangan.
     const halaman = ctx.lingkup === 'entity' ? 'entity' : 'gerai';
-    const opsi = { halaman, skin: ctx.skin ?? ctx.uiSkin ?? 'classic', peran: ctx.peran };
+    const opsi = { halaman, skin: ctx.skin ?? ctx.uiSkin ?? 'classic', peran: ctx.peran, agen: ctx.agen };
     let hasil = jelaskan(t?.jelaskan_topik, opsi);
     if (!hasil.dikenal && ctx.pesan) {
       const dariPesan = jelaskan(ctx.pesan, opsi);

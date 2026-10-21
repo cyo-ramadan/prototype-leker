@@ -51,7 +51,7 @@ import { handleDiagnostikLaporanApi } from './diagnostik-laporan.js';
 import { handleQrisApi } from './qris-otomatis.js';
 import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
-import { handleFinaApi } from './fina-api.js';
+import { handleFinaApi, handleFinaSuratApi } from './fina-api.js';
 import { handleDanaApresiasiApi } from './dana-apresiasi-api.js';
 import { handleFinaPengaturanApi } from './fina-pengaturan.js';
 import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
@@ -333,6 +333,9 @@ async function handleApiRouted(request, env, url, ctx) {
   if (danaApresiasiResponse) return danaApresiasiResponse;
   const finaPengaturanResponse = await handleFinaPengaturanApi(request, env, pathname);
   if (finaPengaturanResponse) return finaPengaturanResponse;
+  // Surat teguran/SP Fina (H3) -- juga di depan handleEntityAdminApi.
+  const finaSuratResponse = await handleFinaSuratApi(request, env, pathname);
+  if (finaSuratResponse) return finaSuratResponse;
   const entityDepositQueueResponse = await handleEntityDepositQueueApi(request, env, pathname);
   if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);

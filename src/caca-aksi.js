@@ -33,6 +33,7 @@ import { ALAT_JELASKAN } from './caca-jelaskan.js';
 import { AKSI_KARYAWAN } from './caca-aksi-karyawan.js';
 import { AKSI_MASTER } from './caca-aksi-master.js';
 import { AKSI_FINA_BACA } from './agen-fina-alat.js';
+import { AKSI_FINA_TULIS } from './agen-fina-tulis.js';
 
 export { normalkan, cocokkanSatu };
 
@@ -390,8 +391,8 @@ export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, 
 // AKSI_TULIS: daftar pilih-alat Una tetap persis seperti dulu, alat Fina hanya terlihat oleh
 // persona Fina (src/agen-persona.js). Paket yang masuk main menambahkan di sini:
 //   H2 (masuk): AKSI_FINA_BACA dari ./agen-fina-alat.js
-//   H3: import { AKSI_FINA_TULIS } from './agen-fina-tulis.js'; -> ...AKSI_FINA_TULIS
-export const AKSI_FINA = Object.freeze([...AKSI_FINA_BACA]);
+//   H3 (masuk): AKSI_FINA_TULIS dari ./agen-fina-tulis.js
+export const AKSI_FINA = Object.freeze([...AKSI_FINA_BACA, ...AKSI_FINA_TULIS]);
 
 // Semua alat yang bisa dijalankan / diposting, lintas persona. Izin persona dicek pemanggil.
 const SEMUA_AKSI = Object.freeze([...AKSI_TULIS, ...AKSI_FINA]);

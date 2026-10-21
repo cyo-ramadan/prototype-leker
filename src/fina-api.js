@@ -1,4 +1,5 @@
-import { json } from './http.js';
+import { json, readJson } from './http.js';
+import { ownerEntityContext } from './owner-entity-context.js';
 import { requireManagement, storeAdminFromRequest } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
@@ -9,7 +10,9 @@ const PREFIX = '/api/admin/fina/';
 const ROUTES = Object.freeze({
   '/api/admin/fina/kosong': 'kosong',
   '/api/admin/fina/freelance': 'freelance',
-  '/api/admin/fina/masalah': 'masalah'
+  '/api/admin/fina/masalah': 'masalah',
+  // H3: sesi presensi satu hari di satu gerai, untuk alat catat_pengganti.
+  '/api/admin/fina/sesi': 'sesi'
 });
 const MAX_ROWS = 5000; // batas pembacaan, bukan aturan HR tenant
 const MAX_DAYS = 31;
@@ -86,7 +89,7 @@ async function activations(db, people, from, to) {
 export async function handleFinaApi(request, env, pathname, { now = new Date() } = {}) {
   if (!pathname.startsWith(PREFIX)) return null;
   const jenis = ROUTES[pathname];
-  if (!['kosong', 'freelance', 'masalah'].includes(jenis)) return json({ error: 'Rute Fina tidak ditemukan.' }, 404);
+  if (!['kosong', 'freelance', 'masalah', 'sesi'].includes(jenis)) return json({ error: 'Rute Fina tidak ditemukan.' }, 404);
   const url = new URL(request.url);
   // Tanpa parameter, Admin mengikuti gerai sesi, bukan gerai terakhir di browser.
   if (!url.searchParams.has('store')) {
@@ -127,7 +130,8 @@ export async function handleFinaApi(request, env, pathname, { now = new Date() }
       const dari = url.searchParams.get('from'), sampai = url.searchParams.get('to');
       const range = rentangShiftFina(date, dari, sampai);
       if (!range) throw gagal('Jam dari dan sampai wajib HH:MM dan berbeda.');
-      const { backupLintasGerai: configured } = await pengaturanFina(db, store.entityId, store.id);
+      const aturan = await pengaturanFina(db, store.entityId, store.id);
+      const configured = aturan.backupLintasGerai;
       // Admin/PIN hanya melihat kandidat gerainya, Owner/EA boleh lintas gerai dalam entity.
       const lintas = configured === true && Boolean(auth.owner || auth.entityAdmin || auth.agent);
       const people = await accounts(db, store, lintas);
@@ -135,8 +139,25 @@ export async function handleFinaApi(request, env, pathname, { now = new Date() }
       const presensi = await sessions(db, store, new Date(range.start).toISOString(), new Date(range.end).toISOString(), people);
       const aktivasi = await activations(db, people, date, geserTanggalFina(date, 1));
       return json({ store: safeStore, date, from: dari, to: sampai, lintasGerai: lintas,
+        tawaranSerentak: aturan.tawaranSerentak, batasTungguMenit: aturan.batasTungguMenit,
         candidates: pilihFreelance({ kandidat: people, jadwal, presensi, aktivasi, tanggal: date, dari, sampai, lintasGerai: lintas, storeId: store.id }) });
     }
+    if (jenis === 'sesi') {
+      // Sesi yang MULAI pada hari WIB itu (atau sehari sebelumnya untuk shift malam) + CS asli yang
+      // berjadwal hari itu: bahan "X menggantikan Y". Tanpa kontak; tidak menulis apa pun.
+      const start = new Date(geserTanggalFina(date, -1) + 'T12:00:00+07:00').toISOString();
+      const end = new Date(geserTanggalFina(date, 1) + 'T00:00:00+07:00').toISOString();
+      const presensi = await sessions(db, store, start, end);
+      const people = await accounts(db, store, false);
+      const jadwal = await schedules(db, people);
+      const hari = new Date(date + 'T00:00:00Z').getUTCDay();
+      return json({ store: safeStore, date,
+        sesi: presensi.filter(x => x.store_id === store.id).map(x => ({ attendanceId: x.id, accountId: x.account_id, name: x.employee_name || '',
+          masuk: x.created_at, pulang: x.check_out_at || null, status: x.status, replacesAccountId: x.replaces_account_id ?? null })),
+        terjadwal: jadwal.filter(x => Number(x.day_of_week) === hari && Number(x.is_day_off) !== 1 && x.shift_start && x.shift_end && x.status === 'ASLI')
+          .map(x => ({ accountId: x.account_id, name: x.employee_name || '', shiftStart: x.shift_start, shiftEnd: x.shift_end })) });
+    }
+    const aturanSp = await pengaturanFina(db, store.entityId, store.id);
     const evaluasi = await rows(db, `
       SELECT v.id, v.account_id, v.store_id, v.business_date, v.shift_start, v.shift_end,
         v.kosong_minutes, v.denda_kind, c.employee_name
@@ -168,10 +189,98 @@ export async function handleFinaApi(request, env, pathname, { now = new Date() }
       }
     }
     return json({ store: safeStore, from, to,
+      aturan: { spTingkat: aturanSp.spTingkat, spBerlakuHari: aturanSp.spBerlakuHari, kopSurat: aturanSp.kopSurat },
       catatan: 'Kosong dan denda hanya dari evaluasi tersimpan. Tanpa evaluasi, indikasi jam memakai jadwal saat ini. Pembacaan ini tidak menilai ulang atau memotong gaji.',
       employees: rekapMasalah({ evaluasi: snapshots, presensi, dari: from, sampai: to }) });
   } catch (error) {
     if (error.status) return json({ error: error.message }, error.status);
     throw error;
   }
+}
+
+// --- Surat teguran / SP (H3, migration 0175) -----------------------------------------------
+// Fina (lewat draft + "Ya") hanya bisa MEMBUAT surat berstatus DRAFT. Setujui / Batalkan hanya
+// tombol manusia di Entity Admin: rutenya sengaja tidak masuk PINTU_AKSI agen (src/caca-chat.js).
+const SURAT_BASE = '/api/entity-admin/fina/surat';
+const MAKS_ISI_SURAT = 8000;
+const MAKS_FAKTA_SURAT = 20000;
+
+const suratKe = row => ({
+  id: row.id, storeId: row.store_id, storeCode: row.store_code || '', accountId: row.account_id, name: row.employee_name || '',
+  tingkat: row.tingkat, periodeDari: row.periode_dari, periodeSampai: row.periode_sampai,
+  fakta: (() => { try { return JSON.parse(row.fakta); } catch { return null; } })(), isi: row.isi, status: row.status,
+  berlakuSampai: row.berlaku_sampai || null, dibuatOleh: row.dibuat_oleh_role, disetujuiOleh: row.disetujui_oleh_role || null,
+  disetujuiAt: row.disetujui_at || null, dibatalkanAlasan: row.dibatalkan_alasan || '', createdAt: row.created_at
+});
+
+export async function handleFinaSuratApi(request, env, pathname, { now = new Date() } = {}) {
+  if (pathname !== SURAT_BASE && !pathname.startsWith(SURAT_BASE + '/')) return null;
+  const context = await ownerEntityContext(request, env, { allowEntityAdminOutsideSkin: true });
+  if (context.response) return context.response;
+  const db = env.DB;
+  const actor = context.entityAdmin ? { role: 'ENTITY_ADMIN', id: context.entityAdmin.id } : { role: 'OWNER', id: context.owner?.id || '' };
+  const stores = new Map(context.stores.map(st => [st.id, st]));
+  const byCode = new Map(context.stores.map(st => [String(st.code).toUpperCase(), st]));
+  const pilih = `SELECT h.*, s.code AS store_code, c.employee_name FROM hr_surat h LEFT JOIN stores s ON s.id = h.store_id
+    LEFT JOIN cashiers c ON c.id = h.account_id WHERE h.entity_id = ?`;
+
+  if (pathname === SURAT_BASE && request.method === 'GET') {
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status');
+    const account = url.searchParams.get('account');
+    const list = (await db.prepare(`${pilih} ${status ? 'AND h.status = ?' : ''} ${account ? 'AND h.account_id = ?' : ''} ORDER BY h.created_at DESC LIMIT 200`)
+      .bind(context.entityId, ...(status ? [status] : []), ...(account ? [account] : [])).all()).results ?? [];
+    return json({ surat: list.map(suratKe), hariIni: getJakartaBusinessDate(now) });
+  }
+
+  if (pathname === SURAT_BASE && request.method === 'POST') {
+    const body = await readJson(request);
+    if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
+    const v = body.value || {};
+    const store = stores.get(String(v.storeId || '')) || byCode.get(String(v.storeCode || '').toUpperCase());
+    if (!store) return json({ error: 'Gerai di luar entity ini.' }, 403);
+    const akun = await db.prepare('SELECT id, store_id FROM cashiers WHERE id = ?').bind(String(v.accountId || '')).first();
+    if (!akun || akun.store_id !== store.id) return json({ error: 'Akun CS bukan milik gerai ini.' }, 403);
+    const aturan = await pengaturanFina(db, context.entityId, store.id);
+    const tingkat = String(v.tingkat || '').trim().toUpperCase();
+    if (!aturan.spTingkat.includes(tingkat)) return json({ error: `Tingkat harus salah satu dari: ${aturan.spTingkat.join(', ')}.` }, 400);
+    if (!tanggalValid(v.periodeDari) || !tanggalValid(v.periodeSampai) || v.periodeDari > v.periodeSampai) return json({ error: 'Periode surat wajib tanggal YYYY-MM-DD berurutan.' }, 400);
+    const isi = String(v.isi || '').replace(/\r\n?/g, '\n').trim();
+    if (!isi || isi.length > MAKS_ISI_SURAT) return json({ error: `Isi surat wajib, maks ${MAKS_ISI_SURAT} huruf.` }, 400);
+    let fakta;
+    try { fakta = JSON.stringify(v.fakta ?? null); } catch { fakta = ''; }
+    if (!fakta || fakta === 'null' || fakta.length > MAKS_FAKTA_SURAT) return json({ error: 'Fakta rekap wajib dilampirkan.' }, 400);
+    // Satu draft terbuka per CS + tingkat + periode: tombol "Ya" dua kali tidak membuat surat kembar.
+    const kembar = await db.prepare(`SELECT id FROM hr_surat WHERE entity_id = ? AND account_id = ? AND tingkat = ? AND periode_dari = ? AND periode_sampai = ? AND status = 'DRAFT'`)
+      .bind(context.entityId, akun.id, tingkat, v.periodeDari, v.periodeSampai).first();
+    if (kembar) return json({ ok: true, id: kembar.id, duplicate: true });
+    const link = await db.prepare(`SELECT employee_id FROM employee_account_links WHERE account_type = 'CASHIER' AND account_id = ? AND effective_to IS NULL LIMIT 1`).bind(akun.id).first();
+    const id = `surat_${crypto.randomUUID()}`;
+    await db.prepare(`INSERT INTO hr_surat (id, entity_id, store_id, account_id, employee_id, tingkat, periode_dari, periode_sampai, fakta, isi,
+      status, dibuat_oleh_role, dibuat_oleh_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)`)
+      .bind(id, context.entityId, store.id, akun.id, link?.employee_id ?? null, tingkat, v.periodeDari, v.periodeSampai, fakta, isi, actor.role, String(actor.id).slice(0, 120)).run();
+    return json({ ok: true, id }, 201);
+  }
+
+  const aksi = pathname.match(/^\/api\/entity-admin\/fina\/surat\/([^/]+)\/(setujui|batalkan)$/);
+  if (aksi && request.method === 'POST') {
+    const id = decodeURIComponent(aksi[1]);
+    const row = await db.prepare(`${pilih} AND h.id = ?`).bind(context.entityId, id).first();
+    if (!row) return json({ error: 'Surat tidak ditemukan.' }, 404);
+    if (aksi[2] === 'setujui') {
+      if (row.status !== 'DRAFT') return json({ error: 'Hanya draft yang bisa disetujui.' }, 409);
+        const aturan = await pengaturanFina(db, context.entityId, row.store_id);
+      const berlaku = geserTanggalFina(getJakartaBusinessDate(now), aturan.spBerlakuHari);
+      await db.prepare(`UPDATE hr_surat SET status = 'DISETUJUI', berlaku_sampai = ?, disetujui_oleh_role = ?, disetujui_oleh_id = ?, disetujui_at = ?
+        WHERE id = ? AND status = 'DRAFT'`).bind(berlaku, actor.role, String(actor.id).slice(0, 120), now.toISOString(), id).run();
+      return json({ ok: true, berlakuSampai: berlaku });
+    }
+    if (row.status === 'DIBATALKAN') return json({ error: 'Surat sudah dibatalkan.' }, 409);
+    const body = await readJson(request);
+    const alasan = String(body.ok ? body.value?.alasan ?? '' : '').trim().slice(0, 300);
+    if (alasan.length < 3) return json({ error: 'Alasan pembatalan wajib diisi.' }, 400);
+    await db.prepare(`UPDATE hr_surat SET status = 'DIBATALKAN', dibatalkan_alasan = ? WHERE id = ? AND status <> 'DIBATALKAN'`).bind(alasan, id).run();
+    return json({ ok: true });
+  }
+  return json({ error: 'Rute surat Fina tidak ditemukan.' }, 404);
 }

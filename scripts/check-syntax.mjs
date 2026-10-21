@@ -99,6 +99,8 @@ const files = [
   "public/entity-dana-apresiasi.js",
   "src/fina-pengaturan.js",
   "public/entity-fina-pengaturan.js",
+  "src/agen-fina-tulis.js",
+  "public/entity-fina-surat.js",
   "public/pengganti-presensi.js",
   "src/debugger-control-plane.js",
   "src/orders.js",

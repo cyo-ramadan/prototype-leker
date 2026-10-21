@@ -385,8 +385,18 @@ const jurnal = Object.freeze({
 
 export const AKSI_TULIS = Object.freeze([barang, resep, jurnal, ...AKSI_BARANG, ...AKSI_HPP, ...AKSI_HPP_BANYAK, ...AKSI_RENTANG, ...AKSI_BAYAR, ...AKSI_AKUN, ...AKSI_AKUNTAN, ...AKSI_KLASIFIKASI, ...AKSI_KARYAWAN, ...AKSI_MASTER, ALAT_JELASKAN]);
 
+// Titik daftar alat Fina (contracts/fina-hr-paket-v1.md H0 butir 5). Sengaja TERPISAH dari
+// AKSI_TULIS: daftar pilih-alat Una tetap persis seperti dulu, alat Fina hanya terlihat oleh
+// persona Fina (src/agen-persona.js). Paket yang masuk main menambahkan di sini:
+//   H2: import { AKSI_FINA_BACA } from './agen-fina-alat.js';   -> ...AKSI_FINA_BACA
+//   H3: import { AKSI_FINA_TULIS } from './agen-fina-tulis.js'; -> ...AKSI_FINA_TULIS
+export const AKSI_FINA = Object.freeze([]);
+
+// Semua alat yang bisa dijalankan / diposting, lintas persona. Izin persona dicek pemanggil.
+const SEMUA_AKSI = Object.freeze([...AKSI_TULIS, ...AKSI_FINA]);
+
 export function cariAksi(nama) {
-  return AKSI_TULIS.find((aksi) => aksi.nama === nama) ?? null;
+  return SEMUA_AKSI.find((aksi) => aksi.nama === nama) ?? null;
 }
 
 export const SKEMA_AKSI = Object.freeze(Object.assign({}, ...AKSI_TULIS.map((aksi) => aksi.skema)));

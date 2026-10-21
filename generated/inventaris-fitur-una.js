@@ -7611,6 +7611,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/caca-chat.js"
   },
   {
+    "id": "tombol:public/caca-chat.js:data-caca-agen:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/caca-chat.js",
+    "tombolId": null,
+    "aksi": "data-caca-agen",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/caca-chat.js"
+  },
+  {
     "id": "tombol:public/caca-chat.js:data-caca-mode:📋 Lembar rekap",
     "jenis": "tombol",
     "sumber": "public/caca-chat.js",
@@ -7697,6 +7708,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/caca-chat.js"
+  },
+  {
+    "id": "tombol:public/caca-pengaturan.js:cacaAgenSimpan",
+    "jenis": "tombol",
+    "sumber": "public/caca-pengaturan.js",
+    "tombolId": "cacaAgenSimpan",
+    "aksi": null,
+    "label": "Simpan Rika &amp; Fina untuk tenant",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/caca-pengaturan.js"
   },
   {
     "id": "tombol:public/caca-pengaturan.js:cacaNamaSimpan",

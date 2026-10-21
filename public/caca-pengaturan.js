@@ -4,7 +4,9 @@
   let profil = null, generasi = 0, pemilik = null, contoh = [], sibuk = false;
   let live = false, mulai = false, tundaUcapan = false, antrean = [], mengirim = false;
   const el = id => document.getElementById(id);
-  window.cacaNamaAsisten = () => profil?.namaAsisten || 'Una';
+  // Nama yang tampil di panel = persona yang sedang dipilih di chat (Una · Rika · Fina).
+  const agenAktif = () => (typeof cacaState !== 'undefined' && cacaState.agen) || 'una';
+  window.cacaNamaAsisten = () => (agenAktif() !== 'una' && typeof cacaNamaAgen === 'function' ? cacaNamaAgen() : profil?.namaAsisten || 'Una');
   window.cacaPengaturanProfil = () => profil;
   const status = (teks, obrolan = false) => {
     if (el('cacaPengaturanStatus')) el('cacaPengaturanStatus').textContent = teks;
@@ -88,7 +90,17 @@
     const subjudul = el('cacaStatus'); if (subjudul) subjudul.textContent = subjudul.textContent.replace(/\b(?:Una|Maimunah)\b/g, () => nama);
     const fab = el('cacaFab')?.querySelector('.caca-fab-teks'); if (fab) fab.textContent = nama;
     document.querySelectorAll('.caca-avatar, .caca-fab-ikon').forEach(node => { if (!node.closest('[data-caca-scope]')) node.textContent = nama.slice(0,1).toUpperCase(); });
-    if (el('cacaNamaAsisten')) el('cacaNamaAsisten').value = nama;
+    if (el('cacaNamaAsisten')) el('cacaNamaAsisten').value = profil?.namaAsisten || 'Una';
+    for (const id of ['rika', 'fina']) {
+      const atur = profil?.persona?.[id]; if (!atur) continue;
+      const k = id[0].toUpperCase() + id.slice(1);
+      if (el(`cacaNama${k}`)) el(`cacaNama${k}`).value = atur.nama;
+      if (el(`cacaAktif${k}`)) el(`cacaAktif${k}`).checked = atur.aktif !== false;
+    }
+  }
+  // Pemilih persona di chat (public/caca-chat.js) mengikuti daftar dari server.
+  function kabarkanAgen() {
+    if (profil && typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-agen-daftar', { detail: { agen: profil.agen || [] } }));
   }
   function tombol() {
     const siap = Boolean(profil && pemilik);
@@ -141,7 +153,7 @@
     try {
       const hasil = await cacaApi(`/api/caca/pengaturan?${q}`);
       if (versi !== generasi || q !== query()) return;
-      profil = hasil; profilRuang = ruang; namaTampil();
+      profil = hasil; profilRuang = ruang; namaTampil(); kabarkanAgen();
       pasangPemilik();
       status('Pengaturan nama siap. Mesin suara dimuat ketika pengaturan suara atau mikrofon dipilih.');
     } catch (error) { if (versi === generasi) status(error.message); }
@@ -158,6 +170,12 @@
     wadah.innerHTML = `<h2>Asisten</h2><p class="muted">Nama berlaku untuk tenant. Pilihan suara dan profil pemilik khusus akun serta browser perangkat ini.</p><div class="caca-pengaturan-isi">
       <label>Nama asisten <input id="cacaNamaAsisten" class="text-input" maxlength="32" value="Una" autocomplete="off"></label>
       <button id="cacaNamaSimpan" class="secondary-btn" type="button">Simpan nama untuk tenant</button>
+      <p>Asisten lain di chat (bawaan aktif). Yang dimatikan tidak muncul di pilihan chat dan ditolak server.</p>
+      <label>Nama asisten akuntan <input id="cacaNamaRika" class="text-input" maxlength="32" value="Rika" autocomplete="off"></label>
+      <label><input id="cacaAktifRika" type="checkbox" checked> Rika (akuntan) aktif</label>
+      <label>Nama asisten HR <input id="cacaNamaFina" class="text-input" maxlength="32" value="Fina" autocomplete="off"></label>
+      <label><input id="cacaAktifFina" type="checkbox" checked> Fina (HR) aktif</label>
+      <button id="cacaAgenSimpan" class="secondary-btn" type="button">Simpan Rika &amp; Fina untuk tenant</button>
       <p>Obrolan live memakai transkrip lokal. Unduhan awal sekitar 41 MB; kecepatannya mengikuti perangkat.</p>
       <label><input id="cacaLiveHeadset" type="checkbox"> Saya memakai headset agar ucapan asisten tidak masuk kembali ke mikrofon</label>
       <p>Mulai atau akhiri obrolan live dari tombol telepon di chat. Tanpa headset, live memerlukan peredam gema penuh yang didukung browser. Pengenalan pemilik opsional; tanpa opsi itu, suara sekitar dapat menjadi perintah.</p>
@@ -183,6 +201,17 @@
       const hasil = await cacaApi(`/api/caca/pengaturan?${query()}`, { method: 'PATCH', body: JSON.stringify({ namaAsisten: el('cacaNamaAsisten').value }) });
       if (versi !== generasi) return; profil = { ...profil, ...hasil }; namaTampil(); status('Nama asisten tenant sudah disimpan.');
     }));
+    el('cacaAgenSimpan')?.addEventListener('click', () => kerja(async versi => {
+      if (!profil) throw new Error('Buka kembali pengaturan setelah memilih gerai.');
+      let terakhir = null;
+      for (const id of ['rika', 'fina']) {
+        const k = id[0].toUpperCase() + id.slice(1);
+        terakhir = await cacaApi(`/api/caca/pengaturan?${query()}`, { method: 'PATCH', body: JSON.stringify({ persona: id, namaAsisten: el(`cacaNama${k}`).value, aktif: Boolean(el(`cacaAktif${k}`).checked) }) });
+        if (versi !== generasi) return;
+        profil = { ...profil, persona: { ...profil.persona, [id]: { nama: terakhir.nama, aktif: terakhir.aktif } }, agen: terakhir.agen };
+      }
+      namaTampil(); kabarkanAgen(); status('Asisten Rika & Fina tenant sudah disimpan.');
+    }));
     el('cacaSuaraModel').addEventListener('click', () => kerja(async versi => { await pemilik.muatModel(); if (versi === generasi) status('Mesin siap. Rekam tiga contoh suara pemilik.'); }));
     el('cacaSuaraDaftar').addEventListener('click', () => kerja(async versi => {
       if (!pemilik) throw new Error('Mesin suara belum siap.');
@@ -202,6 +231,7 @@
   }
   window.addEventListener('caca-profile-needed', () => { void muat(); });
   window.addEventListener('caca-scope-change', () => { hentikan(); profil = null; pemilik = null; window.cacaSuaraPemilik = null; muat(); });
+  window.addEventListener('caca-agen-ganti', () => { if (profil) namaTampil(); });
   window.addEventListener('caca-chat-idle', () => { void kirimAntrean(); });
   window.addEventListener('caca-audio-stop', hentikan);
   window.addEventListener('pagehide', hentikan);

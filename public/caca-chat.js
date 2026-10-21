@@ -43,7 +43,11 @@ const cacaState = {
   turnId: null,
   konteksLembar: null,
   siap: false,
-  siapDipakai: false
+  siapDipakai: false,
+  // Persona yang diajak bicara (src/agen-persona.js). Una = bawaan, perilaku lama.
+  agen: 'una',
+  // [{id, nama, peran}] dari /api/caca/pengaturan: hanya yang diizinkan dan aktif.
+  daftarAgen: []
 };
 
 const cacaEl = id => document.getElementById(id);
@@ -100,6 +104,7 @@ const CACA_KERANGKA = `
       <button id="cacaTutup" class="caca-ikon-btn" type="button" aria-label="Tutup Una">✕</button>
       <ul id="cacaDaftarGerai" class="caca-daftar-gerai hidden" role="listbox" aria-label="Pilih gerai yang dibahas"></ul>
     </div>
+    <div id="cacaPilihAgen" class="caca-pilih-agen hidden" role="tablist" aria-label="Pilih asisten"></div>
     <div id="cacaPercakapan" class="caca-percakapan" aria-live="polite"></div>
     <div id="cacaLampiran" class="caca-lampiran hidden">
       <img id="cacaLampiranGambar" alt="Foto yang akan dikirim" />
@@ -198,6 +203,95 @@ function cacaRingkasDraft(draft) {
   return `Una menyusun draft dan menunggu persetujuan. ${draft.judul || ''} ${baris} ${tabel}`.replace(/\s+/g, ' ').trim();
 }
 
+// --- pemilih asisten: Una · Rika · Fina (src/agen-persona.js) ----------------
+//
+// Tiap persona punya percakapan sendiri (riwayat, tugas tertunda, draft tidak
+// tercampur): kunci simpanan dan conversationId ikut persona. Una memakai kunci
+// lama, jadi percakapan Una yang sudah ada tidak berubah. Pilihan terakhir diingat
+// per halaman. Persona yang dimatikan/tidak diizinkan tidak dikirim server, jadi
+// tidak tampil.
+const CACA_AGEN_BAWAAN = 'una';
+const CACA_NAMA_AGEN = Object.freeze({ una: 'Una', rika: 'Rika', fina: 'Fina' });
+const CACA_INGAT_AGEN = 'lekerUnaAgen:';
+// Draft → persona yang menyusunnya, supaya "Ya" tetap atas nama persona itu walau tab sudah diganti.
+const cacaAgenDraft = new WeakMap();
+
+function cacaKunciSimpanan(agen = cacaState.agen) {
+  return agen === CACA_AGEN_BAWAAN ? CACA_SIMPANAN : `${CACA_SIMPANAN}:${agen}`;
+}
+
+function cacaNamaAgen(id = cacaState.agen) {
+  return cacaState.daftarAgen.find(a => a.id === id)?.nama || CACA_NAMA_AGEN[id] || 'Una';
+}
+
+function cacaAgenDiingat() {
+  try { return localStorage.getItem(CACA_INGAT_AGEN + (location.pathname || '/')) || ''; } catch { return ''; }
+}
+
+function cacaIngatAgen(id) {
+  try { localStorage.setItem(CACA_INGAT_AGEN + (location.pathname || '/'), id); } catch { /* boleh gagal */ }
+}
+
+// Persona selain Una ikut dikirim; Una tidak mengirim apa pun (permintaan sama seperti dulu).
+function cacaDenganAgen(isi, agen = cacaState.agen) {
+  return agen && agen !== CACA_AGEN_BAWAAN ? { ...isi, agen } : isi;
+}
+
+function cacaRenderPilihAgen() {
+  const wadah = cacaEl('cacaPilihAgen');
+  if (!wadah) return;
+  const daftar = cacaState.daftarAgen;
+  wadah.classList.toggle('hidden', daftar.length < 2);
+  wadah.innerHTML = daftar.map(a => `<button type="button" role="tab" data-caca-agen="${cacaEscape(a.id)}" aria-selected="${a.id === cacaState.agen}" title="${cacaEscape(`${a.nama} · ${a.peran}`)}">${cacaEscape(a.nama)}</button>`).join('');
+}
+
+function cacaSapaAgen() {
+  const nama = cacaNamaAgen();
+  const isi = {
+    rika: `Halo Bos, ${nama} di sini. ${nama} bantu menelusuri angka yang janggal (HPP, jurnal, aturan jurnal, sinkron akuntansi) sampai ketemu langkah input yang keliru, lalu menyiapkan koreksinya sebagai draft.`,
+    fina: `Halo Bos, ${nama} di sini. ${nama} bantu urusan CS: jadwal kasir dan akun karyawan. Cek gerai kosong, backup, dan rekap masalah CS menyusul. Keputusan soal orang dan uang tetap di Bos.`
+  }[cacaState.agen] || `Halo Bos, ${nama} di sini.`;
+  cacaTambahPenanda('Hari ini');
+  cacaTambahGelembung('caca', isi);
+}
+
+function cacaGantiAgen(id, { ingat = true } = {}) {
+  if (id === cacaState.agen || !cacaState.daftarAgen.some(a => a.id === id)) return;
+  if (cacaState.sedangKirim) return;
+  cacaSimpanPercakapan();
+  cacaState.agen = id;
+  if (ingat) cacaIngatAgen(id);
+  cacaState.riwayat = [];
+  cacaState.tertunda = null;
+  cacaState.kerjaTertunda = null;
+  const wadah = cacaEl('cacaPercakapan');
+  if (wadah) wadah.innerHTML = '';
+  cacaPulihkanPercakapan();
+  cacaRenderPilihAgen();
+  const status = cacaEl('cacaStatus');
+  if (status && !status.classList.contains('bermasalah')) status.textContent = `${cacaNamaAgen()} · siap membantu`;
+  if (typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-agen-ganti', { detail: { agen: id } }));
+  if (wadah && !wadah.childElementCount && cacaState.siapDipakai) {
+    if (id === CACA_AGEN_BAWAAN) void cacaSapa(); else cacaSapaAgen();
+  }
+}
+
+// Daftar persona datang dari pengaturan (public/caca-pengaturan.js).
+function cacaTerimaDaftarAgen(daftar) {
+  cacaState.daftarAgen = (Array.isArray(daftar) ? daftar : [])
+    .filter(a => a && CACA_NAMA_AGEN[a.id])
+    .map(a => ({ id: a.id, nama: String(a.nama || CACA_NAMA_AGEN[a.id]).slice(0, 32), peran: String(a.peran || '').slice(0, 40) }));
+  const ada = id => cacaState.daftarAgen.some(a => a.id === id);
+  // Persona yang sedang dipakai lalu dimatikan tenant: kembali ke Una.
+  if (cacaState.agen !== CACA_AGEN_BAWAAN && !ada(cacaState.agen)) {
+    if (!ada(CACA_AGEN_BAWAAN)) cacaState.daftarAgen.unshift({ id: CACA_AGEN_BAWAAN, nama: 'Una', peran: 'asisten toko' });
+    cacaGantiAgen(CACA_AGEN_BAWAAN, { ingat: false });
+  }
+  const diingat = cacaAgenDiingat();
+  if (diingat && diingat !== cacaState.agen && ada(diingat)) cacaGantiAgen(diingat, { ingat: false });
+  cacaRenderPilihAgen();
+}
+
 function cacaSimpanPercakapan() {
   const wadah = cacaEl('cacaPercakapan');
   if (!wadah) return;
@@ -216,12 +310,13 @@ function cacaSimpanPercakapan() {
   });
   while (salinan.childElementCount > CACA_MAKS_SIMPAN) salinan.firstElementChild.remove();
   try {
-    sessionStorage.setItem(CACA_SIMPANAN, JSON.stringify({ sidik: cacaSidikLogin(), html: salinan.innerHTML, riwayat: cacaState.riwayat }));
+    sessionStorage.setItem(cacaKunciSimpanan(), JSON.stringify({ sidik: cacaSidikLogin(), html: salinan.innerHTML, riwayat: cacaState.riwayat }));
   } catch { /* penuh atau diblokir: percakapan tetap jalan, cuma tidak bertahan */ }
 }
 
 function cacaHapusSimpanan() {
-  try { sessionStorage.removeItem(CACA_SIMPANAN); } catch { /* boleh gagal */ }
+  // Keluar login: percakapan semua persona dibuang.
+  try { for (const id of Object.keys(CACA_NAMA_AGEN)) sessionStorage.removeItem(cacaKunciSimpanan(id)); } catch { /* boleh gagal */ }
 }
 
 // Draft yang belum dijawab tidak ikut hidup lagi. Tombol "Ya"-nya kehilangan
@@ -231,7 +326,7 @@ function cacaPulihkanPercakapan() {
   const wadah = cacaEl('cacaPercakapan');
   if (!wadah) return;
   let simpanan = null;
-  try { simpanan = JSON.parse(sessionStorage.getItem(CACA_SIMPANAN) || 'null'); } catch { simpanan = null; }
+  try { simpanan = JSON.parse(sessionStorage.getItem(cacaKunciSimpanan()) || 'null'); } catch { simpanan = null; }
   if (!simpanan?.html) return;
   if (simpanan.sidik !== cacaSidikLogin()) {
     cacaHapusSimpanan();
@@ -447,6 +542,7 @@ const CACA_TAWARAN_ENTITY = [
 async function cacaSapa() {
   const wadah = cacaEl('cacaPercakapan');
   if (!wadah || wadah.childElementCount) return;
+  if (cacaState.agen !== CACA_AGEN_BAWAAN) { cacaSapaAgen(); return; }
   cacaTambahPenanda('Hari ini');
   if (cacaState.scope === CACA_ENTITY) {
     cacaTambahGelembung('caca', `Halo Bos, Una di sini hhe. Ini tingkat ${cacaState.entityName || 'entity'}: Una bisa bacain data semua gerai sekaligus dan bikin jurnal entity. Ngisi barang dan nyatet biaya per gerai — pilih gerainya lewat tombol ▾ di atas.`);
@@ -745,7 +841,7 @@ function cacaKonfigurasiWorkspace() {
     onAccountChange: cacaLupakan,
     onCancel: () => { cacaCatatRiwayat('sistem', 'Bos membatalkan draft itu.'); cacaTambahGelembung('caca', 'Oke, draft dibatalkan.'); cacaSimpanPercakapan(); },
     executeEphemeral: async (draft, scope, bagian) => {
-      const result = await cacaApi(`/api/caca/catat?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify({ draft, ...(bagian == null ? {} : { bagian }) }) });
+      const result = await cacaApi(`/api/caca/catat?${cacaQueryLingkup(scope)}`, { method: 'POST', body: JSON.stringify(cacaDenganAgen({ draft, ...(bagian == null ? {} : { bagian }) }, cacaAgenDraft.get(draft) || cacaState.agen)) });
       return { result, rahasia: result.rahasia };
     },
     onCompleted: async (task, response, kartu) => {
@@ -773,6 +869,7 @@ function cacaKonfigurasiWorkspace() {
 function cacaTampilkanDraft(payload, scope, { sesudah = null } = {}) {
   cacaKonfigurasiWorkspace();
   if (!window.UnaWorkspace) { cacaTambahGelembung('caca', 'Workspace belum termuat. Muat ulang halaman untuk memeriksa dan menyetujui draft dengan aman.'); return; }
+  if (payload?.draft && typeof payload.draft === 'object') cacaAgenDraft.set(payload.draft, cacaState.agen);
   window.UnaWorkspace.capture(payload, scope, { sesudah });
 }
 
@@ -1373,11 +1470,11 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertund
   // Bos melengkapi isiannya, bukan dibaca dari nol (src/caca-tertunda.js).
   let conversationId;
   try {
-    const key = CACA_SIMPANAN + ':id:' + cacaSidikLogin();
+    const key = cacaKunciSimpanan() + ':id:' + cacaSidikLogin();
     conversationId = sessionStorage.getItem(key);
     if (!conversationId) { conversationId = crypto.randomUUID(); sessionStorage.setItem(key, conversationId); }
   } catch { /* namespace cadangan tetap di server */ }
-  const isi = { pertanyaan, riwayat, satuLangkah: true, conversationId };
+  const isi = cacaDenganAgen({ pertanyaan, riwayat, satuLangkah: true, conversationId });
   // Konteks lembar Workspace yang sedang tampil (U4 Una Live), dibaca saat dikirim.
   const lembar = cacaState.turnId ? window.UnaDispatcher?.context({ conversationId, turnId: cacaState.turnId }) : null;
   if (lembar) isi.surfaceContext = lembar;
@@ -1831,6 +1928,9 @@ function cacaLupakan() {
   cacaState.kerjaTertunda = null;
   cacaState.tertunda = null;
   cacaState.siapDipakai = false;
+  cacaState.agen = CACA_AGEN_BAWAAN;
+  cacaState.daftarAgen = [];
+  cacaRenderPilihAgen();
 }
 
 function cacaDiWorkspace() {
@@ -1975,6 +2075,11 @@ function initCacaPanel() {
   cacaEl('cacaTutup')?.addEventListener('click', cacaTutupPanel);
   cacaEl('cacaWorkspaceToggle')?.addEventListener('click', () => { cacaKonfigurasiWorkspace(); if (window.UnaWorkspace?.isOpen) window.UnaWorkspace.close(); else window.UnaWorkspace?.open(); });
   cacaEl('cacaPilihGerai')?.addEventListener('click', () => cacaToggleDaftarGerai());
+  cacaEl('cacaPilihAgen')?.addEventListener('click', event => {
+    const tab = event.target.closest('[data-caca-agen]');
+    if (tab) cacaGantiAgen(tab.dataset.cacaAgen);
+  });
+  window.addEventListener('caca-agen-daftar', event => cacaTerimaDaftarAgen(event.detail?.agen));
 
   cacaEl('cacaDaftarGerai')?.addEventListener('click', event => {
     const pilihan = event.target.closest('[data-caca-scope]');

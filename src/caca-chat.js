@@ -13,7 +13,8 @@ import { aiConfigured, callStructured, modelAktif } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
-import { cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
+import { AKSI_TULIS, cariAksi, periksaUlangDraft, bolehDiLingkup } from './caca-aksi.js';
+import { AGEN_BAWAAN, agenDari, bolehAlat, personaUntuk } from './agen-persona.js';
 import { gayaJawaban, gayaSelesai, bumbui } from './caca-gaya.js';
 import { periksaKesiapan, sapaanKesiapan } from './caca-kesiapan.js';
 import { jelaskan, denganTawaranKerja } from './caca-jelaskan.js';
@@ -232,7 +233,7 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
 async function lengkapiLingkup(env, lingkup, principal, entityId) {
   const pengaturan = await bacaKonteksAsisten(env.DB, entityId);
   if (lingkup.store?.tenantId && pengaturan.tenantId !== lingkup.store.tenantId) return { ok: false, response: json({ error: 'Lingkup tenant berubah. Muat ulang percakapan.', code: 'CACA_SCOPE_CHANGED' },409) };
-  return { ...lingkup, tenantId: pengaturan.tenantId, principal, asistenAktif: pengaturan.aktif, konteks: { ...lingkup.konteks, skin: pengaturan.profil.skin, namaAsisten: pengaturan.namaAsisten } };
+  return { ...lingkup, tenantId: pengaturan.tenantId, principal, asistenAktif: pengaturan.aktif, pengaturanPersona: pengaturan.persona, konteks: { ...lingkup.konteks, skin: pengaturan.profil.skin, namaAsisten: pengaturan.namaAsisten } };
 }
 async function lingkupPenyuruh(request, env) {
   const url = new URL(request.url);
@@ -267,6 +268,16 @@ async function lingkupPenyuruh(request, env) {
   return lengkapiLingkup(env, { ok: true, storeCode: store.code, store, konteks: { ...konteks, lingkup: 'gerai', namaLingkup: store.storeName } }, { role: auth.authType, id: auth.owner?.id || auth.entityAdmin?.id }, store.entityId);
 }
 
+// Persona yang dipilih penyuruh. Una (bawaan) tidak membaca apa pun tambahan, jadi
+// jalurnya persis seperti sebelum ada persona; Rika/Fina dibaca dari pengaturan tenant.
+async function personaPenyuruh(env, lingkup, masuk) {
+  const id = agenDari(masuk);
+  if (id === AGEN_BAWAAN) return { ok: true, persona: null, konteks: {} };
+  const hasil = personaUntuk(id ?? String(masuk), { role: lingkup.principal?.role, pengaturan: lingkup.pengaturanPersona });
+  if (!hasil.ok) return { ok: false, response: json({ error: hasil.error, code: hasil.code }, hasil.status) };
+  return { ok: true, persona: hasil.persona, konteks: { persona: hasil.persona, namaAsisten: hasil.nama } };
+}
+
 // Diagnostic writes are best-effort background work in Workers. Direct callers
 // await the same caught promise; no detached I/O or request state in globals.
 async function catatDiagnosis(request, env, details, waitUntil) {
@@ -286,6 +297,11 @@ async function tanya(request, env, jalurUtama, waitUntil) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
 
+  // Persona (src/agen-persona.js): tanpa `agen` = Una persis seperti dulu. Tidak dikenal 404,
+  // tidak diizinkan/dimatikan 403 — tidak pernah diam-diam dialihkan ke Una.
+  const agen = await personaPenyuruh(env, lingkup, body.value?.agen);
+  if (!agen.ok) return agen.response;
+
   // Cukup panjang untuk daftar menu atau daftar koreksi yang ditempel sekaligus.
   // Kelebihan DITOLAK dengan jelas, bukan dipotong diam-diam: daftar yang buntung
   // di tengah membuat Una mengerjakan sebagian tanpa ada yang sadar.
@@ -297,7 +313,7 @@ async function tanya(request, env, jalurUtama, waitUntil) {
 
   // Riwayat dari browser = data tak tepercaya: dibersihkan, dan hanya dipakai
   // memahami rujukan. Tidak ada tindakan yang lahir darinya tanpa draft + "Ya".
-  const konteks = { ...lingkup.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat),
+  const konteks = { ...lingkup.konteks, ...agen.konteks, riwayat: bersihkanRiwayat(body.value?.riwayat),
     // Konteks lembar Workspace (contracts/una-live-workspace-v1.md 4.1): petunjuk saja, bukan otorisasi.
     surfaceContext: bersihkanKonteksLembar(body.value?.surfaceContext) };
   let hasil;
@@ -328,6 +344,7 @@ async function tanya(request, env, jalurUtama, waitUntil) {
     // Perintah kemampuan untuk registry browser; maks 3, dijalankan hanya bila lingkupnya masih sama.
     uiActions: Array.isArray(hasil.uiActions) ? hasil.uiActions.slice(0, 3) : null,
     namaAsisten: konteks.namaAsisten,
+    ...(agen.persona ? { agen: agen.persona.id } : {}),
     periode: hasil.periode ?? null,
     tabel: hasil.tabel ?? null,
     jejak: hasil.jejak ?? null,
@@ -356,6 +373,13 @@ async function catatAksi(request, env, isi, jalurUtama) {
 
   const draft = isi.draft;
   const aksi = cariAksi(draft.aksi);
+  // Draft hanya diposting atas nama persona pemiliknya: Una untuk alat lama, Rika/Fina
+  // untuk alatnya sendiri, dan saklar tenant diperiksa lagi di sini.
+  const agen = await personaPenyuruh(env, lingkup, isi.agen);
+  if (!agen.ok) return agen.response;
+  if (agen.persona ? !bolehAlat(agen.persona, aksi.nama) : !AKSI_TULIS.includes(aksi)) {
+    return json({ error: 'Draft ini bukan milik asisten yang sedang dipilih. Minta disusun ulang ya.', code: 'AGEN_DRAFT_LAIN' }, 403);
+  }
   if (!bolehDiLingkup(aksi, lingkup.konteks.lingkup)) {
     return json({ error: 'Draft ini dibuat untuk lingkup lain. Minta Una menyusun ulang ya.' }, 409);
   }

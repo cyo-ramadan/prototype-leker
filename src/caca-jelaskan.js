@@ -69,8 +69,14 @@ export const KAMUS = Object.freeze([
   {
     id: 'nama_una', judul: 'Mengganti nama asisten',
     kunci: ['nama una', 'ganti nama asisten', 'nama asisten', 'panggilan asisten'],
-    isi: 'Nama panggilan asisten dapat diatur pada halaman Pengaturan, bagian Asisten, oleh akun yang berhak. Nama berlaku untuk tenant yang sama. Mengganti nama tidak mengubah hak akses atau cara persetujuan pekerjaan.',
-    tawaran: [], tanpaAksi: 'pengaturan nama memakai formulir pengaturan'
+    isi: 'Nama panggilan asisten dapat diatur pada halaman Pengaturan, bagian Asisten, oleh akun yang berhak: "Simpan nama untuk tenant" untuk Una, dan "Simpan Rika & Fina untuk tenant" untuk nama asisten akuntan dan HR. Nama berlaku untuk tenant yang sama. Mengganti nama tidak mengubah hak akses atau cara persetujuan pekerjaan.',
+    tawaran: [jelas('pilih_asisten', 'Memilih Una, Rika, atau Fina')], tanpaAksi: 'pengaturan nama memakai formulir pengaturan'
+  },
+  {
+    id: 'pilih_asisten', judul: 'Memilih Una, Rika, atau Fina',
+    kunci: ['rika', 'fina', 'pilih asisten', 'ganti asisten', 'asisten akuntan', 'asisten hr', 'agen akuntan', 'agen hr', 'una rika fina', 'matikan fina', 'matikan rika'],
+    isi: 'Di bawah judul panel chat ada tab kecil untuk memilih lawan bicara. Una = asisten toko dengan semua kemampuan lama. Rika = asisten akuntan: HPP, jurnal, aturan jurnal, sinkron akuntansi, rentang harga beli, cara bayar, pindah saldo, dan membaca data untuk menelusuri angka yang janggal. Fina = asisten HR: jadwal kasir dan tambah karyawan beserta akunnya; cek gerai kosong, backup, dan rekap masalah CS menyusul. Tiap asisten punya percakapan sendiri, jadi riwayat dan draft tidak tercampur, dan pilihan terakhir diingat per halaman. Rika dan Fina bawaannya aktif; nama dan saklarnya diatur di Pengaturan → Asisten lewat "Simpan Rika & Fina untuk tenant". Asisten yang dimatikan tidak muncul di tab dan ditolak server. Semua yang menyimpan data tetap lewat draft dan tombol "Ya".',
+    tawaran: [], tanpaAksi: 'memilih asisten memakai tab di kepala panel chat'
   },
   {
     id: 'kemampuan',

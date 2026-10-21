@@ -17,6 +17,7 @@
 //   { "nama": "...", "pesan": ["pesan 1", "pesan 2"],
 //     "harapan": { "alat": "buat_barang", "draft": { "name": "cup jumbo", "purchasePrice": 100 },
 //                  "jawabanMemuat": "teks", "jawabanTidakMemuat": "teks", "tanpaDraft": true } }
+//   Opsional "agen": "fina" | "rika" = bicara dengan persona itu (src/agen-persona.js); harapan.agen memeriksa balasannya.
 // Harapan dinilai pada balasan pesan TERAKHIR.
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -36,10 +37,10 @@ async function masuk() {
   return j.token;
 }
 
-async function obrolan(token, pesanDaftar) {
+async function obrolan(token, pesanDaftar, agen = null) {
   const H = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
   const kirim = async (isi) => {
-    const r = await fetch(`${BASE}/api/caca/tanya?store=${STORE}`, { method: 'POST', headers: H, body: JSON.stringify({ ...isi, satuLangkah: true }) });
+    const r = await fetch(`${BASE}/api/caca/tanya?store=${STORE}`, { method: 'POST', headers: H, body: JSON.stringify({ ...isi, ...(agen ? { agen } : {}), satuLangkah: true }) });
     return { status: r.status, ...(await r.json().catch(() => ({}))) };
   };
   const riwayat = [];
@@ -65,6 +66,7 @@ function nilai(harapan, akhir) {
   if (akhir.error) salah.push(`error: ${akhir.error}`);
   if (harapan.tanpaBelumLengkap && akhir.belumLengkap) salah.push('Una masih meminta kelengkapan atau belum memahami.');
   if (harapan.tanpaPeringatan && akhir.peringatan) salah.push('Jawaban masih memiliki peringatan pemeriksa data.');
+  if (harapan.agen && (akhir.agen ?? 'una') !== harapan.agen) salah.push(`agen ${akhir.agen ?? 'una'} ≠ ${harapan.agen}`);
   if (harapan.alat && akhir.alat !== harapan.alat) salah.push(`alat ${akhir.alat} ≠ ${harapan.alat}`);
   for (const [k, v] of Object.entries(harapan.draft ?? {})) {
     const nyata = akhir.draft?.muatan?.[k];
@@ -86,7 +88,7 @@ for (const f of berkas) {
   const s = JSON.parse(readFileSync(f, 'utf8'));
   for (let u = 0; u < ULANG; u += 1) {
     total += 1;
-    const { akhir, jejak } = await obrolan(token, s.pesan);
+    const { akhir, jejak } = await obrolan(token, s.pesan, s.agen ?? null);
     const salah = nilai(s.harapan ?? {}, akhir);
     if (!salah.length) lulus += 1;
     console.log(`${salah.length ? '✗' : '✓'} ${s.nama}${ULANG > 1 ? ` (#${u + 1})` : ''}`);

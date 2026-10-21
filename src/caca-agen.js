@@ -22,6 +22,7 @@ import { daftarApiUntukModel } from './caca-baca-katalog.js';
 import { hitungPeriode } from './caca-alat.js';
 import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
+import { bolehAlat, pembukaPersona } from './agen-persona.js';
 import { uraiDaftarHpp } from './caca-aksi-hpp-banyak.js';
 import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
 import { uraiDaftarRentang } from './caca-aksi-rentang.js';
@@ -53,7 +54,8 @@ export const MAKS_PERINTAH_LANGKAH = 4000;
 // gerai; di tingkat entity baru jurnal. Alat lingkup lain tetap disebut di
 // enum supaya model bisa memilihnya, lalu kode yang menjelaskan harus pindah
 // lingkup — lebih jelas daripada model menjawab "tidak bisa" tanpa alasan.
-function skemaPilihAlat() {
+function skemaPilihAlat(persona = null) {
+  if (persona) return skemaPilihAlatPersona(persona);
   return {
     type: 'object',
     required: ['alat'],
@@ -87,6 +89,125 @@ function skemaPilihAlat() {
       alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
     }
   };
+}
+
+// --- persona selain Una (src/agen-persona.js) --------------------------------
+//
+// Una tidak lewat sini: konteks Una tidak membawa `persona`, jadi prompt, skema,
+// dan alatnya persis seperti sebelum registry ada. Rika/Fina hanya MELIHAT alat
+// miliknya (hemat token, model tidak bingung) dan alat lain ditolak kode.
+export function personaAktif(konteks) {
+  const persona = konteks?.persona;
+  return persona && Array.isArray(persona.alat) ? persona : null;
+}
+
+const ALAT_MESIN = Object.freeze([ALAT_BACA_API, ALAT_CATAT_PENGELUARAN, ALAT_RENCANA]);
+
+/** Nama alat persona, urut seperti daftar Una, tanpa dobel. */
+export function alatPersonaUrut(persona) {
+  return [
+    ...ALAT_BACA.map((alat) => alat.nama),
+    ...ALAT_MESIN,
+    ...AKSI_TULIS.map((aksi) => aksi.nama),
+    ...persona.alat
+  ].filter((nama, i, semua) => semua.indexOf(nama) === i && bolehAlat(persona, nama) && (ALAT_MESIN.includes(nama) || ALAT_BACA.some((a) => a.nama === nama) || cariAksi(nama)));
+}
+
+function skemaPilihAlatPersona(persona) {
+  const nama = alatPersonaUrut(persona);
+  const skemaAksi = Object.assign({}, ...nama.map((n) => cariAksi(n)?.skema ?? {}));
+  return {
+    type: 'object',
+    required: ['alat'],
+    properties: {
+      alat: {
+        type: 'string',
+        enum: [...nama, ALAT_SELESAI, 'tidak_ada'],
+        description: 'Nama alat yang paling cocok, "selesai" kalau catatan kerja sudah cukup untuk menjawab, atau "tidak_ada" kalau tidak ada yang bisa dipakai.'
+      },
+      judul_langkah: { type: 'string', description: 'Judul pendek langkah ini, mis. "Cek jadwal Beji".' },
+      lanjut: { type: 'boolean', description: 'true kalau sesudah alat ini masih perlu MELIHAT hasilnya untuk langkah berikutnya.' },
+      jawaban_akhir: { type: 'string', description: 'Hanya untuk alat "selesai": jawaban untuk Bos, semua angka dari catatan kerja.' },
+      ...(nama.includes('laba_periode') ? {
+        periode: { type: 'string', enum: [...PERIODE] },
+        dari: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' },
+        sampai: { type: 'string', description: 'YYYY-MM-DD, hanya kalau periode = rentang.' }
+      } : {}),
+      ...(nama.includes(ALAT_CATAT_PENGELUARAN) ? TANGKAP_PENGELUARAN_SCHEMA.properties : {}),
+      ...skemaAksi,
+      ...(nama.includes(ALAT_BACA_API) ? SKEMA_BACA_API : {}),
+      ...(nama.includes(ALAT_RENCANA) ? {
+        rencana_langkah: {
+          type: 'array',
+          description: `rencana: ${MAKS_LANGKAH_RENCANA} langkah paling banyak, urut.`,
+          items: {
+            type: 'object',
+            required: ['judul', 'perintah'],
+            properties: {
+              judul: { type: 'string', description: 'Judul langkah, pendek.' },
+              perintah: { type: 'string', description: 'Perintah lengkap untuk langkah itu.' }
+            }
+          }
+        }
+      } : {}),
+      alasan_kosong: { type: 'string', description: 'Kalau alat = tidak_ada, jelaskan singkat kenapa.' }
+    }
+  };
+}
+
+function daftarAlatPersonaUntukModel(persona, lingkup) {
+  const diGerai = lingkup !== 'entity';
+  const baris = [];
+  for (const alat of ALAT_BACA) if (diGerai && bolehAlat(persona, alat.nama)) baris.push(`- ${alat.nama}: ${alat.kegunaan}`);
+  if (bolehAlat(persona, ALAT_BACA_API)) baris.push(`- ${ALAT_BACA_API}: MEMBACA data di layar admin untuk pertanyaan yang tidak dijawab alat lain. Pilih "api" dari daftar API di bawah.`);
+  if (bolehAlat(persona, ALAT_RENCANA)) baris.push(`- ${ALAT_RENCANA}: HANYA kalau perintahnya berisi 2 pekerjaan BERBEDA atau lebih; tulis 2-${MAKS_LANGKAH_RENCANA} langkah.`);
+  for (const nama of alatPersonaUrut(persona)) {
+    const aksi = cariAksi(nama);
+    if (aksi && (aksi.lingkup === 'semua' || aksi.lingkup === (diGerai ? 'gerai' : 'entity'))) baris.push(`- ${aksi.nama}: ${aksi.petunjuk}`);
+  }
+  return baris.join('\n');
+}
+
+function promptPilihAlatPersona(konteks, persona) {
+  const nama = konteks.namaAsisten || persona.namaBawaan;
+  return [
+    `${pembukaPersona(persona, nama)} Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok`,
+    'untuk perintah atau pertanyaan, lalu menyalin isinya jadi data.',
+    '',
+    kalimatKonteks(konteks),
+    '',
+    'Alat yang tersedia (HANYA ini; alat lain bukan wewenangmu):',
+    daftarAlatPersonaUntukModel(persona, konteks.lingkup) || '(belum ada alat untuk lingkup ini; jawab "tidak_ada" untuk permintaan data atau tindakan)',
+    '',
+    'Aturan:',
+    ATURAN_RIWAYAT,
+    ATURAN_PUTARAN,
+    '- Kalau tidak ada alat yang cocok, jawab "tidak_ada" dan sebutkan alasannya. Jangan memaksakan alat yang mirip.',
+    '  Urusan di luar peranmu = "tidak_ada", dan sarankan bertanya ke Una.',
+    '- Jangan menghitung tanggal sendiri dan jangan mengarang angka. Angka hanya dari hasil alat.',
+    '- Semua yang menyimpan/mengubah data berhenti di draft yang harus disetujui Bos.',
+    '- Isi hanya kolom milik alat yang dipilih. Nama orang, gerai, barang, dan akun disalin PERSIS seperti diucapkan.',
+    ...(bolehAlat(persona, ALAT_BACA_API) ? ['', 'Daftar API untuk alat baca_api:', daftarApiUntukModel()] : [])
+  ].filter((baris) => baris !== '').join('\n');
+}
+
+function promptSusunJawabanPersona(konteks, persona) {
+  const nama = konteks.namaAsisten || persona.namaBawaan;
+  return [
+    `${pembukaPersona(persona, nama)} Susun jawaban singkat dari data yang diberikan.`,
+    '',
+    kalimatKonteks(konteks),
+    '',
+    'Aturan keras:',
+    '- SEMUA angka harus berasal dari data yang diberikan. Dilarang menyebut angka yang tidak ada di situ,',
+    '  termasuk angka yang kamu ingat dari percakapan sebelumnya.',
+    '- Kalau data tidak memuat yang ditanyakan, bilang belum ada datanya. Jangan mengira-ira.',
+    '- Tulis rupiah dengan pemisah ribuan, mis. 808.000.',
+    '- 1-3 kalimat. Tidak perlu basa-basi pembuka.',
+    '- Kamu asisten otomatis. Kalau ditanya, jujur saja; jangan mengaku manusia.',
+    '',
+    persona.gaya
+  ].join('\n');
 }
 
 // Bos Cyo 2026-10-02: hanya pencatatan yang menyangkut uang masuk/keluar yang
@@ -233,6 +354,8 @@ const ATURAN_PUTARAN = [
 ].join('\n');
 
 function promptPilihAlat(konteks, pesan = '') {
+  const persona = personaAktif(konteks);
+  if (persona) return promptPilihAlatPersona(konteks, persona);
   const diGerai = konteks.lingkup !== 'entity';
   return [
     'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Tugasmu di langkah ini cuma satu: memilih alat yang paling cocok',
@@ -322,6 +445,8 @@ function promptPilihAlat(konteks, pesan = '') {
 }
 
 function promptSusunJawaban(konteks) {
+  const persona = personaAktif(konteks);
+  if (persona) return promptSusunJawabanPersona(konteks, persona);
   return [
     'Kamu Maimunah, asisten toko yang biasa dipanggil Una. Sebut dirimu "Una", bukan "saya" atau "aku". Susun jawaban singkat dari data yang diberikan.',
     '',
@@ -400,6 +525,11 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
     panggilModel = callStructured,
     jalurAksi = null
   } = opsi;
+  const persona = personaAktif(konteks);
+  // Persona hanya boleh menjalankan alatnya sendiri, apa pun pilihan model (enum bukan pagar).
+  if (persona && pilihan.value?.alat && !bolehAlat(persona, pilihan.value.alat)) {
+    pilihan = { ...pilihan, value: { ...pilihan.value, alat: 'tidak_ada', alasan_kosong: pilihan.value.alasan_kosong || 'itu bukan bagian tugas Una. Coba tanyakan ke asisten lain.' } };
+  }
   const namaAlat = pilihan.value?.alat;
   if (!namaAlat || namaAlat === 'tidak_ada') {
     // Sebelum bilang "belum bisa", cari dulu panduannya (kamus / peta menu): uji karyawan
@@ -854,12 +984,14 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
   const kerja = bersihkanKerja(opsi.kerja);
   const lanjutan = kerja.length > 0;
   // Tugas yang tadi belum lengkap (src/caca-tertunda.js).
-  let tertunda = bersihkanTertunda(opsi.tertunda, kolomTertunda);
+  const persona = personaAktif(konteks);
+  // Tugas tertunda dari browser hanya untuk alat persona ini (riwayat tidak tercampur).
+  let tertunda = bersihkanTertunda(opsi.tertunda, persona ? (alat) => (bolehAlat(persona, alat) ? kolomTertunda(alat) : null) : kolomTertunda);
   // Tawaran dari panduan hanya diikuti kalau Bos memang minta dikerjakan ("kamu bisa
   // buatin itu?", "iya boleh"); pertanyaan cara yang lain dan obrolan lain melepasnya.
   const ikutTawaran = Boolean(tertunda?.tawaran) && !lanjutan && mintaDikerjakan(pertanyaan) && !TANYA_CARA.test(pesanBaku);
   if (tertunda?.tawaran && !ikutTawaran) tertunda = null;
-  if (!tertunda && !lanjutan) {
+  if (!tertunda && !lanjutan && (!persona || bolehAlat(persona, 'jelaskan'))) {
     const panduan = panduanPasti(pesanBaku, konteks.lingkup, konteks);
     if (panduan) {
       // Kode menebak panduannya; Gemini memastikan cocok dan membuatnya tidak seperti templat.
@@ -898,7 +1030,8 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
       };
     }
     const pakaiTertunda = tertunda && putaran === 0;
-    const pasti = !lanjutan && !pakaiTertunda && putaran === 0 ? alatPasti(pesanBaku) : null;
+    const pastiMentah = !lanjutan && !pakaiTertunda && putaran === 0 ? alatPasti(pesanBaku) : null;
+    const pasti = pastiMentah && bolehAlat(persona, pastiMentah) ? pastiMentah : null;
     // "kamu bisa buatin itu?" tidak membawa isian apa pun: alatnya sudah pasti, model tidak perlu ditanya.
     const murni = pakaiTertunda && ikutTawaran && permintaanMurni(pertanyaan);
     let pilihan = murni
@@ -908,7 +1041,7 @@ async function jawabPertanyaanInti(pertanyaan, konteks, opsi = {}) {
       : await panggilModel(env, {
         system: promptPilihAlat(konteks, pesanBaku),
         content: [{ type: 'text', text: isiPilihAlat(pesanBaku, konteks, kerja, pakaiTertunda ? tertunda : null) }],
-        schema: skemaPilihAlat()
+        schema: skemaPilihAlat(persona)
       });
     if (!pilihan.ok) return { ok: false, status: pilihan.status, error: pilihan.error };
     if (pakaiTertunda) pilihan = lanjutkanTertunda(tertunda, pilihan, pertanyaan);

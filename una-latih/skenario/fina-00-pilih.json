@@ -1,0 +1,13 @@
+{
+  "nama": "Pilih Fina: menjawab sebagai Fina dan menolak urusan non-HR tanpa draft (H0)",
+  "agen": "fina",
+  "pesan": [
+    "halo fina",
+    "bikinin barang baru es teh harga 5rb"
+  ],
+  "harapan": {
+    "agen": "fina",
+    "tanpaDraft": true,
+    "jawabanTidakMemuat": "Una di sini"
+  }
+}

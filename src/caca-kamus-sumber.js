@@ -633,6 +633,17 @@ export const SUMBER_KAMUS = Object.freeze({
       "tulis:src/caca-pengaturan.js:request.method !== 'PATCH') return json("
     ]
   },
+  "pilih_asisten": {
+    "sumber": [
+      "src/agen-persona.js",
+      "public/caca-chat.js",
+      "public/caca-pengaturan.js"
+    ],
+    "fitur": [
+      "tombol:public/caca-chat.js:data-caca-agen:{nilai}",
+      "tombol:public/caca-pengaturan.js:cacaAgenSimpan"
+    ]
+  },
   "jurnal_split": {
     "sumber": [
       "src/accounting-workspace.js",

@@ -1118,3 +1118,37 @@
 .caca-pengaturan-isi a { color: var(--brand); }
 .caca-live-toggle[aria-pressed="true"] { background: var(--green-soft); color: var(--green); }
 .caca-ketik textarea { min-width: 0; }
+
+/* Pemilih asisten Una · Rika · Fina (src/agen-persona.js): tab kecil di bawah kepala panel. */
+.caca-pilih-agen {
+  display: flex;
+  gap: 6px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.caca-pilih-agen.hidden {
+  display: none;
+}
+
+.caca-pilih-agen button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.caca-pilih-agen button[aria-selected="true"] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}

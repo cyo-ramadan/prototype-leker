@@ -168,6 +168,22 @@
    "automationForbidden": true
   },
   {
+   "id": "tombol:public/caca-chat.js:data-caca-agen:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/caca-pengaturan.js:cacaAgenSimpan",
+   "label": "Simpan Rika &amp; Fina untuk tenant",
+   "sumber": "public/caca-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Sesi, kredensial, atau pengaturan Una: tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/caca-pengaturan.js:cacaSuaraDaftar",
    "label": "Rekam contoh 1 dari 3",
    "sumber": "public/caca-pengaturan.js",

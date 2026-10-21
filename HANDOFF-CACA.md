@@ -1322,3 +1322,4 @@ modulnya ada, isinya pindah ke `ADR-044` (status jadi ACCEPTED),
 <!-- DOC-IMPACT: 2026-10-19 pengumuman CS, klaim QRIS, kontak darurat, dan fakta kontribusi laporan. -->
 
 - 2026-10-19 (Codex): angka merah Portal Staf menjumlah pengumuman dan inbox belum dibaca milik akun CS, mengikuti event notifikasi tanpa polling tambahan.
+- 2026-10-21 (Eskor, paket H0 Fina): entri baru `pilih_asisten` (tab Una · Rika · Fina, saklar & nama di Pengaturan → Asisten); `nama_una` menyebut tombol Simpan Rika & Fina. Ditinjau tanpa ubah kalimat (hash saja, perilaku Una sama): `suara_una`, `kemampuan`, `mulai`, `barang_tambah`, `harga_barang`, `kategori_barang`, `barang_nonaktif`, `supplier_tambah` (sumbernya berubah karena titik daftar AKSI_FINA dan pemilih persona).

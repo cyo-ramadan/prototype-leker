@@ -1,6 +1,57 @@
 {
  "judul": "Peta Agen Leker",
  "handoff": "contracts/agen-rika-fina-v1.md",
+ "paket": [
+  {
+   "id": "H0",
+   "nama": "Persona & pemilih",
+   "gelombang": 1,
+   "butuh": "—",
+   "isi": "Registry persona, pilihan Una · Rika · Fina di chat, saklar & nama per tenant, titik daftar alat Fina."
+  },
+  {
+   "id": "H1",
+   "nama": "Pengaturan HR",
+   "gelombang": 1,
+   "butuh": "—",
+   "isi": "Aturan HR per tenant & per gerai (deteksi kosong, tawaran serentak, batas tunggu, lintas gerai, SP, kop surat). Bisa diubah Bos di Entity Admin → Pengaturan → Fina (HR)."
+  },
+  {
+   "id": "H2",
+   "nama": "Alat baca Fina",
+   "gelombang": 1,
+   "butuh": "H1 (boleh bawaan dulu)",
+   "isi": "Gerai kosong, freelance tersedia, rekap masalah CS. Semua hitungan oleh kode."
+  },
+  {
+   "id": "H3",
+   "nama": "Alat tulis Fina",
+   "gelombang": 2,
+   "butuh": "H2",
+   "isi": "Catat pengganti, pasang pengumuman, tawaran backup (teks), draft SP. Semua lewat draft + Ya."
+  },
+  {
+   "id": "H4",
+   "nama": "Rekrutmen & loker",
+   "gelombang": 2,
+   "butuh": "H1",
+   "isi": "Lowongan, pelamar, halaman loker publik, draft loker."
+  },
+  {
+   "id": "H5",
+   "nama": "WA Fina",
+   "gelombang": 3,
+   "butuh": "H0, H2, H3 + keputusan nomor WA (K5)",
+   "isi": "Pintu WA umum, WA Fina, kotak masuk HR, mode bayangan."
+  },
+  {
+   "id": "H6",
+   "nama": "Paket \"agen saja\"",
+   "gelombang": 3,
+   "butuh": "keputusan Bos (nama & isi paket)",
+   "isi": "Paket per tenant dijaga server + tampilan ramping."
+  }
+ ],
  "ukuran": {
   "w": 1660,
   "h": 1460

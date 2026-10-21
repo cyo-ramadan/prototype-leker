@@ -128,6 +128,21 @@ svg.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-even
 .bk li { display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 8px; font: 400 12.5px var(--f-mono); align-items: start; overflow-wrap: anywhere }
 .bk i { font-style: normal; width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font: 700 12px var(--f-body); color: var(--surface) }
 .bk .y i { background: var(--ok) } .bk .x i { background: var(--no) }
+
+/* Wilayah paket kerja (H0, H1, ...): lencana di tiap kotak + baris tombol yang menyorot wilayahnya. */
+.paket { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.paket .lbl { margin-right: 4px }
+.pk-chip { font: 600 12.5px var(--f-body); padding: 6px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline }
+.pk-chip b { font: 700 12px var(--f-mono) }
+.pk-chip small { font: 500 11px var(--f-mono); color: var(--muted) }
+.pk-chip.lengkap b { color: var(--ok) }
+.pk-chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg) }
+.pk-chip[aria-pressed="true"] small, .pk-chip[aria-pressed="true"] b { color: var(--bg) }
+.n .pk { position: absolute; left: 10px; top: -9px; font: 700 10px var(--f-mono); letter-spacing: .03em; background: var(--fg); color: var(--bg); padding: 1px 6px; border-radius: 6px }
+.wil { position: absolute; border: 2px dashed var(--accent); border-radius: 20px; background: color-mix(in srgb, var(--accent) 5%, transparent); pointer-events: none }
+.wil b { position: absolute; left: 14px; top: -11px; font: 700 12px var(--f-body); background: var(--accent); color: var(--surface); padding: 2px 9px; border-radius: 8px; white-space: nowrap }
+.pkl { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px }
+.pkl button { all: unset; cursor: pointer; font: 500 12.5px var(--f-body); color: var(--fg); text-decoration: underline; text-underline-offset: 2px }
 .risk { background: var(--risk-bg); color: var(--risk); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-weight: 600 }
 .btns { display: flex; flex-wrap: wrap; gap: 8px }
 .btn { font: 600 13px var(--f-body); padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; text-decoration: none }
@@ -178,6 +193,8 @@ code { font: 400 12.5px var(--f-mono); background: var(--surface-2); border: 1px
     </div>
   </div>
 
+  <div class="paket" id="paketBar" role="group" aria-label="Wilayah paket kerja"></div>
+
   <div class="stage">
     <div class="vp" id="vp">
       <div class="world" id="world"><svg class="edges" id="edges"></svg></div>
@@ -201,10 +218,10 @@ code { font: 400 12.5px var(--f-mono); background: var(--surface-2); border: 1px
     </div>
     <div class="card">
       <h3>Dokumen</h3>
-      <p>Rancangan lengkap, paket kerja A0–A8, dan keputusan terbuka ada di <code id="hpath">contracts/agen-rika-fina-v1.md</code>.</p>
+      <p>Rancangan lengkap dan keputusan terbuka ada di <code id="hpath">contracts/agen-rika-fina-v1.md</code>. Wilayah paket HR H0–H6 (tombol "Wilayah paket" di atas peta) dirinci di <code>contracts/fina-hr-paket-v1.md</code>.</p>
     </div>
   </div>
 </div>
-  <script src="/peta-agen.js?v=20261021-peta-agen-v2"></script>
+  <script src="/peta-agen.js?v=20261021-peta-paket-v1"></script>
 </body>
 </html>

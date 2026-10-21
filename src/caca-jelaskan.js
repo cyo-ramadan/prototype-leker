@@ -726,6 +726,17 @@ export const KAMUS = Object.freeze([
     aksi: { alat: 'penyesuaian_gaji', tawar: 'Mau Una tambahkan gaji hari yang tidak terhitung? Sebut mis. "tambah gaji Rika 80rb tgl 5 karena tidak bisa presensi".', tombol: 'Una tambahkan gaji', awal: { pg_jenis: 'tambah' } }
   },
   {
+    id: 'fina_pengaturan',
+    judul: 'Pengaturan Fina (HR)',
+    kunci: ['pengaturan fina', 'aturan hr', 'pengaturan hr', 'deteksi gerai kosong', 'gerai dianggap kosong', 'tawaran backup', 'freelance ditawari', 'batas tunggu backup', 'backup lintas gerai', 'masa berlaku sp', 'tingkatan sp', 'tingkat sp', 'kop surat'],
+    isi: [
+      'Diatur di Entity Admin → Pengaturan → kartu "Fina (HR)": bawaan entity, dan tiap gerai bisa diatur khusus. Isian kosong = ikut bawaan entity, lalu bawaan aplikasi.',
+      'Isinya: gerai dianggap kosong setelah berapa menit tanpa presensi (bawaan 10), berapa freelance ditawari sekaligus (3), lapor admin bila tak ada yang bisa dalam berapa menit (30), boleh backup dari gerai lain atau tidak (ya), masa berlaku SP dalam hari (90), tingkatan SP dari yang paling ringan (TEGURAN, SP1, SP2, SP3), dan kop surat.',
+      'Simpan lewat "Simpan bawaan Fina" atau "Simpan Fina gerai …". Tarif apresiasi dan denda tidak diatur di sini; tetap di kartu Dana Apresiasi. Fina hanya menyiapkan data dan draft, keputusan soal orang dan uang tetap di Admin.'
+    ].join('\n'),
+    tawaran: [jelas('dana_apresiasi', 'Dana apresiasi & denda')], tanpaAksi: 'pengaturan HR diubah lewat kartu Fina (HR) di Entity Admin'
+  },
+  {
     id: 'dana_apresiasi',
     judul: 'Dana apresiasi backup & denda tidak masuk',
     kunci: ['dana apresiasi', 'apresiasi', 'apresiasi backup', 'denda', 'denda tidak masuk', 'denda absen', 'cs tidak masuk', 'cs berhalangan', 'gantikan', 'menggantikan', 'potongan apresiasi', 'shift kosong', 'gerai kosong', 'freelance', 'cs asli', 'alasan syari', 'jam operasional'],

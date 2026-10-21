@@ -94,6 +94,8 @@ const files = [
   "src/attendance-revision-permit.js",
   "src/dana-apresiasi-api.js",
   "public/entity-dana-apresiasi.js",
+  "src/fina-pengaturan.js",
+  "public/entity-fina-pengaturan.js",
   "public/pengganti-presensi.js",
   "src/debugger-control-plane.js",
   "src/orders.js",

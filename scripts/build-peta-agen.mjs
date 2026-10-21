@@ -46,7 +46,18 @@ export function bangunPetaAgen(manifest, { ada, baca, migrasi }) {
     const r = (ringkas[a] ??= { total: 0, selesai: 0, sebagian: 0, belum: 0 });
     r.total += 1; r[k.status] += 1;
   }
-  return { judul: manifest.judul, handoff: manifest.handoff, ukuran: manifest.ukuran, jalur: manifest.jalur, kotak, garis: manifest.garis, ringkas };
+  // Wilayah paket kerja (H0, H1, ...): kotak "H2+H3" / "H4/H5" ikut dua paket.
+  const paket = (manifest.paket || []).map(pk => {
+    const anggota = kotak.filter(k => paketKotak(k).includes(pk.id));
+    const hitung = s => anggota.filter(k => k.status === s).length;
+    return { ...pk, kotak: anggota.map(k => k.id), total: anggota.length, selesai: hitung('selesai'), sebagian: hitung('sebagian'), belum: hitung('belum') };
+  });
+  return { judul: manifest.judul, handoff: manifest.handoff, ukuran: manifest.ukuran, jalur: manifest.jalur, kotak, garis: manifest.garis, ringkas, paket };
+}
+
+/** Paket yang memiliki kotak ini, mis. "H2+H3" -> ["H2","H3"]. */
+export function paketKotak(k) {
+  return String(k.paket || '').split(/[+/,\s]+/).filter(Boolean);
 }
 
 export function kodeDariRepo(root) {

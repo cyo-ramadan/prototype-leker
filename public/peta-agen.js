@@ -14,6 +14,8 @@ const EDGE = { alir: "--accent", baca: "--k-data", belajar: "--k-belajar" };
 const $ = s => document.querySelector(s);
 const vp = $("#vp"), world = $("#world"), svg = $("#edges"), panel = $("#panel");
 let D, els = {}, view = { x: 0, y: 0, s: 1 }, filter = "semua", sel = null;
+// Paket kerja yang memiliki kotak, mis. "H2+H3" -> ["H2","H3"] (sama dengan scripts/build-peta-agen.mjs).
+const paketKotak = k => String(k.paket || "").split(/[+/,\s]+/).filter(Boolean);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function pesan(html) { vp.insertAdjacentHTML("beforeend", `<div class="err"><div>${html}</div></div>`); $("#meta").textContent = "Data tidak tersedia."; }
@@ -53,11 +55,13 @@ function init(data) {
     const J = JENIS[k.jenis], S = STATUS[k.status], b = document.createElement("button");
     b.className = `n ${k.status}`; b.style.left = k.x + "px"; b.style.top = k.y + "px"; b.style.setProperty("--kc", `var(${J[1]})`);
     b.setAttribute("aria-label", `${k.label}, ${S[0]}`);
-    b.innerHTML = `<span class="pt i"></span><span class="ic">${J[2]}</span><span><div class="t">${esc(k.label)}</div><div class="s">${esc(k.sub)}</div></span><span class="pt o"></span><span class="st" style="background:var(${S[1]})">${S[2]}</span>${k.risiko ? '<span class="rk">risiko</span>' : ""}`;
+    const pk = paketKotak(k);
+    b.innerHTML = (pk.length ? `<span class="pk" title="Paket kerja ${esc(pk.join(" + "))}">${esc(pk.join("+"))}</span>` : "") + `<span class="pt i"></span><span class="ic">${J[2]}</span><span><div class="t">${esc(k.label)}</div><div class="s">${esc(k.sub)}</div></span><span class="pt o"></span><span class="st" style="background:var(${S[1]})">${S[2]}</span>${k.risiko ? '<span class="rk">risiko</span>' : ""}`;
     b.addEventListener("click", ev => { if (moved) { ev.preventDefault(); return; } pilih(k.id); });
     world.appendChild(b); els[k.id] = { el: b, k };
   });
   garis();
+  paketBar();
   document.querySelectorAll("[data-f]").forEach(c => c.addEventListener("click", () => setFilter(c.dataset.f === filter && c.dataset.f !== "semua" ? "semua" : c.dataset.f)));
   const awal = location.hash.slice(1);
   if (els[awal]) pilih(awal);
@@ -91,8 +95,41 @@ function garis() {
   if (sel) pilih(sel, true);
 }
 
+// Baris wilayah paket: tombol per paket + progres; klik = sorot wilayahnya & tampilkan keterangan.
+function paketBar() {
+  const bar = $("#paketBar"); if (!bar) return;
+  const daftar = D.paket || [];
+  bar.innerHTML = daftar.length ? `<span class="lbl">Wilayah paket</span>` + daftar.map(p =>
+    `<button class="pk-chip ${p.total && p.selesai === p.total ? "lengkap" : ""}" data-pk="${esc(p.id)}" aria-pressed="false" title="${esc(p.nama)}"><b>${esc(p.id)}</b>${esc(p.nama)}<small>${p.selesai}/${p.total}</small></button>`).join("") : "";
+  bar.querySelectorAll("[data-pk]").forEach(c => c.addEventListener("click", () => {
+    const f = "paket:" + c.dataset.pk;
+    setFilter(filter === f ? "semua" : f);
+    if (filter === f) infoPaket(c.dataset.pk);
+  }));
+}
+function wilayah() {
+  world.querySelectorAll(".wil").forEach(w => w.remove());
+  if (!filter.startsWith("paket:")) return;
+  const id = filter.slice(6), anggota = Object.values(els).filter(o => paketKotak(o.k).includes(id)).map(o => o.el);
+  if (!anggota.length) return;
+  const pad = 18, x1 = Math.min(...anggota.map(e => e.offsetLeft)) - pad, y1 = Math.min(...anggota.map(e => e.offsetTop)) - pad - 6;
+  const x2 = Math.max(...anggota.map(e => e.offsetLeft + e.offsetWidth)) + pad, y2 = Math.max(...anggota.map(e => e.offsetTop + e.offsetHeight)) + pad;
+  const p = (D.paket || []).find(x => x.id === id), w = document.createElement("div");
+  w.className = "wil"; Object.assign(w.style, { left: x1 + "px", top: y1 + "px", width: (x2 - x1) + "px", height: (y2 - y1) + "px" });
+  w.innerHTML = `<b>Wilayah ${esc(id)}${p ? " · " + esc(p.nama) : ""}</b>`;
+  world.insertBefore(w, svg);
+}
+function infoPaket(id) {
+  const p = (D.paket || []).find(x => x.id === id); if (!p) return;
+  panel.innerHTML = `<div class="pills"><span class="pill" style="color:var(--accent)">Paket ${esc(p.id)}</span><span class="pill" style="color:var(--muted)">Gelombang ${esc(p.gelombang)}</span><span class="pill" style="color:var(${p.total && p.selesai === p.total ? "--ok" : "--part"})">${p.selesai}/${p.total} sudah</span></div>
+    <h2>${esc(p.nama)}</h2><p>${esc(p.isi)}</p><div class="lbl">Menunggu</div><p class="note">${esc(p.butuh)}</p>
+    <div class="lbl">Kotak di wilayah ini</div><ul class="pkl">${p.kotak.map(k => `<li><button data-ke="${esc(k)}">${esc(els[k]?.k.label || k)}</button> · ${esc(STATUS[els[k]?.k.status]?.[0] || "")}</li>`).join("")}</ul>`;
+  panel.querySelectorAll("[data-ke]").forEach(b => b.onclick = () => pilih(b.dataset.ke));
+}
+
 function cocok(k) {
   if (filter === "semua") return true;
+  if (filter.startsWith("paket:")) return paketKotak(k).includes(filter.slice(6));
   if (filter === "belum") return k.status !== "selesai";
   if (filter === "mesin") return k.jenis === "mesin";
   if (filter === "belajar") return k.jenis === "belajar" || k.id === "b_tinjau";
@@ -101,11 +138,13 @@ function cocok(k) {
 function setFilter(f) {
   filter = f;
   document.querySelectorAll("[data-f]").forEach(c => c.setAttribute("aria-pressed", c.dataset.f === f));
+  document.querySelectorAll("[data-pk]").forEach(c => c.setAttribute("aria-pressed", f === "paket:" + c.dataset.pk));
   applyFilter();
+  wilayah();
 }
 function applyFilter() {
   Object.values(els).forEach(({ el, k }) => el.classList.toggle("dim", !cocok(k)));
-  document.querySelectorAll(".lane").forEach(l => l.classList.toggle("dim", !["semua", "belum"].includes(filter) && l.dataset.agen !== filter && !(filter === "belajar" && l.dataset.agen === "belajar")));
+  document.querySelectorAll(".lane").forEach(l => l.classList.toggle("dim", !["semua", "belum"].includes(filter) && !filter.startsWith("paket:") && l.dataset.agen !== filter && !(filter === "belajar" && l.dataset.agen === "belajar")));
   svg.querySelectorAll(".e").forEach(p => p.classList.toggle("dim", !(cocok(els[p.dataset.a].k) && cocok(els[p.dataset.b].k))));
 }
 

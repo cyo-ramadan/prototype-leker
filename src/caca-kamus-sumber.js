@@ -198,6 +198,18 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "fina_pengaturan": {
+    "sumber": [
+      "src/fina-pengaturan.js",
+      "public/entity-fina-pengaturan.js"
+    ],
+    "fitur": [
+      "rute:src/fina-pengaturan.js:/api/entity-admin/fina/settings",
+      "tulis:src/fina-pengaturan.js:request.method !== 'PUT') return json(",
+      "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan bawaan Fina",
+      "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan Fina gerai {nilai}"
+    ]
+  },
   "dana_apresiasi": {
     "sumber": [
       "src/dana-apresiasi.js",

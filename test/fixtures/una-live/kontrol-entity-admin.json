@@ -1567,6 +1567,22 @@
    "automationForbidden": false
   },
   {
+   "id": "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan bawaan Fina",
+   "label": "Simpan bawaan Fina",
+   "sumber": "public/entity-fina-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Pengaturan aturan HR tenant: diubah manual oleh Admin, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan Fina gerai {nilai}",
+   "label": "Simpan Fina gerai {nilai}",
+   "sumber": "public/entity-fina-pengaturan.js",
+   "class": "unsupported",
+   "reason": "Pengaturan aturan HR tenant: diubah manual oleh Admin, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-dana-apresiasi.js:label:Rekap &amp; penyesuaian",
    "label": "Rekap &amp; penyesuaian",
    "sumber": "public/entity-dana-apresiasi.js",

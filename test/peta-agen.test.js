@@ -99,10 +99,31 @@ test('halaman tidak memuat apa pun dari internet, data tidak di folder publik, t
   assert.match(js, /\/api\/owner\/peta-agen/);
   assert.match(js, /lekerOwnerToken/);
   assert.match(html, /<meta name="robots" content="noindex,nofollow"/);
-  assert.match(html, /\/peta-agen\.js\?v=20261021-peta-agen-v2/);
+  assert.match(html, /\/peta-agen\.js\?v=20261021-peta-paket-v1/);
   assert.ok(!readdirSync(new URL('public/', ROOT)).some(name => /peta-agen-data|peta-agen-manifest/.test(name)));
   for (const page of ['public/owner.html', 'public/admin.html']) assert.match(read(page), /<a class="primary-btn" href="\/peta-agen" id="ownerPetaAgenLink">/);
   const check = read('scripts/check-syntax.mjs');
   for (const file of ['src/peta-agen.js', 'generated/peta-agen-data.js', 'public/peta-agen.js', 'scripts/build-peta-agen.mjs']) assert.ok(check.includes(file), file);
   assert.match(read('package.json'), /"peta:build": "node scripts\/build-peta-kode\.mjs && node scripts\/build-peta-agen\.mjs"/);
+});
+
+test('wilayah paket H0-H6: tiap paket terdaftar, kotak ber-paket menunjuk paket yang ada, progres dihitung dari kotak', async () => {
+  const { bangunPetaAgen, bacaManifest, kodeDariRepo, paketKotak } = await import('../scripts/build-peta-agen.mjs');
+  const manifest = bacaManifest(ROOT);
+  assert.deepEqual(manifest.paket.map(p => p.id), ['H0', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+  const ada = new Set(manifest.paket.map(p => p.id));
+  for (const k of manifest.kotak) for (const id of paketKotak(k)) assert.ok(ada.has(id), `${k.id}: paket ${id} tidak terdaftar`);
+  assert.deepEqual(paketKotak({ paket: 'H2+H3' }), ['H2', 'H3']);
+  assert.deepEqual(paketKotak({ paket: 'H4/H5' }), ['H4', 'H5']);
+  const data = bangunPetaAgen(manifest, kodeDariRepo(ROOT));
+  for (const p of data.paket) {
+    assert.equal(p.total, p.kotak.length);
+    assert.equal(p.selesai + p.sebagian + p.belum, p.total);
+    assert.ok(p.nama && p.isi && p.butuh, p.id);
+  }
+  assert.ok(data.paket.find(p => p.id === 'H1').kotak.includes('fina_atur'));
+  const js = read('public/peta-agen.js');
+  assert.match(js, /paketBar\(\)/);
+  assert.match(js, /split\(\/\[\+\/,\\s\]\+\//, 'pemecah paket sama dengan penyusun');
+  assert.match(read('public/peta-agen.html'), /id="paketBar"/);
 });

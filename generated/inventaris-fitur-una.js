@@ -2908,6 +2908,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/fina-pengaturan.js:/api/entity-admin/fina/settings",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-pengaturan.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/settings",
+    "label": "/api/entity-admin/fina/settings",
+    "skin": null
+  },
+  {
     "id": "rute:src/hpp-recalculation.js:/api/admin/hpp-recalculation",
     "jenis": "rute-kandidat",
     "sumber": "src/hpp-recalculation.js",
@@ -9921,6 +9930,28 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-dana-apresiasi.js"
   },
   {
+    "id": "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan bawaan Fina",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-pengaturan.js",
+    "tombolId": null,
+    "aksi": "data-fina-simpan",
+    "label": "Simpan bawaan Fina",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-pengaturan.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan Fina gerai {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-pengaturan.js",
+    "tombolId": null,
+    "aksi": "data-fina-simpan",
+    "label": "Simpan Fina gerai {nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-pengaturan.js"
+  },
+  {
     "id": "tombol:public/entity-izin-cs.js:data-in,data-izin-edit,data-kind,data-out,data-store:Edit lalu ACC",
     "jenis": "tombol",
     "sumber": "public/entity-izin-cs.js",
@@ -11896,6 +11927,28 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": "data-f",
     "label": "{nilai} {nilai}/{nilai} sudah · {nilai}%",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.js"
+  },
+  {
+    "id": "tombol:public/peta-agen.js:data-ke:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.js",
+    "tombolId": null,
+    "aksi": "data-ke",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/peta-agen.js"
+  },
+  {
+    "id": "tombol:public/peta-agen.js:data-pk:{nilai} {nilai} {nilai}/{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/peta-agen.js",
+    "tombolId": null,
+    "aksi": "data-pk",
+    "label": "{nilai} {nilai} {nilai}/{nilai}",
     "rute": null,
     "skin": null,
     "halaman": "public/peta-agen.js"
@@ -14713,6 +14766,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method === 'POST' && transfersListMatch)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-pengaturan.js:request.method !== 'PUT') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-pengaturan.js",
+    "method": "PUT",
+    "rute": null,
+    "label": "request.method !== 'PUT') return json(",
     "skin": null
   },
   {

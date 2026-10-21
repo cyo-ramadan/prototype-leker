@@ -10,6 +10,8 @@ export const TANPA_PANDUAN = Object.freeze({
   "tombol:public/peta-agen.html:fit": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "tombol:public/peta-agen.html:zin": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "tombol:public/peta-agen.html:zout": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.js:data-pk:{nilai} {nilai} {nilai}/{nilai}": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
+  "tombol:public/peta-agen.js:data-ke:{nilai}": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "tombol:public/peta-agen.js:cp": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "tombol:public/peta-agen.js:data-f:{nilai} {nilai}/{nilai} sudah · {nilai}%": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "rute:src/accounting-workspace.js:/api/admin/accounting/party-names/check": "Rute bantu baca untuk form atas nama (cek nama sama/mirip/baru); bukan menu atau perintah pengguna, dijelaskan di panduan Jurnal Split dan Bea.",

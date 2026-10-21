@@ -185,3 +185,19 @@ test('panel: percakapan & conversationId dipisah per persona, Una memakai kunci 
   assert.match(sumber, /const key = cacaKunciSimpanan\(\) \+ ':id:'/);
   assert.match(sumber, /id="cacaPilihAgen"[^>]*role="tablist"/);
 });
+
+test('H2 terdaftar: Fina memakai alat baca HR (gerai kosong, freelance, rekap masalah), Una tidak melihatnya', async () => {
+  const h2 = ['cari_gerai_kosong', 'daftar_freelance_tersedia', 'rekap_masalah_cs'];
+  for (const nama of h2) {
+    assert.ok(cariAksi(nama), nama);
+    assert.equal(bolehAlat(PERSONA.fina, nama), true, nama);
+    assert.equal(bolehAlat(PERSONA.rika, nama), false, nama);
+    assert.ok(!AKSI_TULIS.some((a) => a.nama === nama), `${nama} tidak masuk daftar Una`);
+  }
+  const fina = modelPalsu({ ok: true, value: { alat: 'selesai', jawaban_akhir: 'Siap.' } });
+  await jawabPertanyaan('gerai mana yang kosong?', { ...konteks, persona: PERSONA.fina, namaAsisten: 'Fina' }, { env: {}, panggilModel: fina.panggilModel });
+  for (const nama of h2) assert.ok(fina.panggilan[0].schema.properties.alat.enum.includes(nama), nama);
+  const una = modelPalsu({ ok: true, value: { alat: 'selesai', jawaban_akhir: 'Siap.' } });
+  await jawabPertanyaan('gerai mana yang kosong?', konteks, { env: {}, panggilModel: una.panggilModel });
+  for (const nama of h2) assert.ok(!una.panggilan[0].schema.properties.alat.enum.includes(nama), nama);
+});

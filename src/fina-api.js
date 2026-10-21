@@ -2,6 +2,7 @@ import { json } from './http.js';
 import { requireManagement, storeAdminFromRequest } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
+import { pengaturanFina } from './fina-pengaturan.js';
 import { cariShiftKosong, pilihFreelance, rekapMasalah, rentangShiftFina, geserTanggalFina } from './fina-hitung.js';
 
 const PREFIX = '/api/admin/fina/';
@@ -23,24 +24,7 @@ async function rows(db, sql, params = []) {
   return result;
 }
 
-// H1 belum ada di main basis paket ini. Jangan menyalin FINA_BAWAAN ke sini.
-// Membaca override yang sudah disimpan; sebelum H1 tersedia/inisialisasi, gagal tertutup.
-// Setelah H1 digabung, pengaturanFina(db, entityId, storeId) menjadi pengganti adaptor ini.
-async function pengaturanTersimpan(db, entityId, storeId, key) {
-  let list;
-  try {
-    list = await rows(db, 'SELECT store_id, deteksi_kosong_menit, backup_lintas_gerai FROM hr_settings WHERE entity_id = ? AND store_id IN (?, ?)', [entityId, '', storeId]);
-  } catch (error) {
-    if (!/no such table.*hr_settings/i.test(String(error.message))) throw error;
-    throw gagal('Pengaturan Fina (HR) belum tersedia. Fina belum dapat memakai aturan HR.', 503);
-  }
-  const value = list.find(r => r.store_id === storeId)?.[key] ?? list.find(r => r.store_id === '')?.[key];
-  if (!Number.isInteger(value) || value < 0 || (key === 'backup_lintas_gerai' && value > 1)) {
-    throw gagal('Pengaturan Fina (HR) belum lengkap. Aturan HR perlu disimpan sebelum pemeriksaan ini.', 503);
-  }
-  return value;
-}
-
+// Aturan HR dari pengaturan Fina (H1): gerai -> entity -> FINA_BAWAAN. Tidak ada angka HR di sini.
 async function accounts(db, store, lintas, includeInactive = false) {
   return rows(db, `
     SELECT c.id AS account_id, c.employee_name, c.store_id, s.code AS store_code, c.is_active, c.is_entity_backup,
@@ -127,7 +111,7 @@ export async function handleFinaApi(request, env, pathname, { now = new Date() }
     const safeStore = { id: store.id, code: store.code, storeName: store.storeName };
     const db = env.DB;
     if (jenis === 'kosong') {
-      const deteksi = await pengaturanTersimpan(db, store.entityId, store.id, 'deteksi_kosong_menit');
+      const { deteksiKosongMenit: deteksi } = await pengaturanFina(db, store.entityId, store.id);
       const people = await accounts(db, store, false);
       const jadwal = await schedules(db, people);
       const dates = [geserTanggalFina(date, -1), date];
@@ -143,9 +127,9 @@ export async function handleFinaApi(request, env, pathname, { now = new Date() }
       const dari = url.searchParams.get('from'), sampai = url.searchParams.get('to');
       const range = rentangShiftFina(date, dari, sampai);
       if (!range) throw gagal('Jam dari dan sampai wajib HH:MM dan berbeda.');
-      const configured = await pengaturanTersimpan(db, store.entityId, store.id, 'backup_lintas_gerai');
+      const { backupLintasGerai: configured } = await pengaturanFina(db, store.entityId, store.id);
       // Admin/PIN hanya melihat kandidat gerainya, Owner/EA boleh lintas gerai dalam entity.
-      const lintas = configured === 1 && Boolean(auth.owner || auth.entityAdmin || auth.agent);
+      const lintas = configured === true && Boolean(auth.owner || auth.entityAdmin || auth.agent);
       const people = await accounts(db, store, lintas);
       const jadwal = await schedules(db, people);
       const presensi = await sessions(db, store, new Date(range.start).toISOString(), new Date(range.end).toISOString(), people);

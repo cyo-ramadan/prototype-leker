@@ -7,6 +7,7 @@ import { hashCredential } from '../src/owner-auth.js';
 import { handleFinaApi } from '../src/fina-api.js';
 import { AKSI_FINA_BACA, cariGeraiKosong, daftarFreelanceTersedia, rekapMasalahCs } from '../src/agen-fina-alat.js';
 import { bangunJalurAksi } from '../src/caca-chat.js';
+import { FINA_BAWAAN } from '../src/fina-pengaturan.js';
 import { bangunAlamat, cariApi } from '../src/caca-baca-katalog.js';
 let sqlite, env, store, other, alien;
 const NOW = new Date('2026-10-21T10:00:00+07:00');
@@ -30,8 +31,7 @@ before(async () => {
   other = sqlite.prepare('SELECT * FROM stores WHERE entity_id=? AND id<>? AND is_active=1 LIMIT 1').get(store.entity_id, store.id);
   alien = sqlite.prepare('SELECT * FROM stores WHERE entity_id<>? AND is_active=1 LIMIT 1').get(store.entity_id);
   assert.ok(store && other && alien);
-  // H1 owns the production migration. This is only the schema fixture for H2's reader.
-  sqlite.exec("CREATE TABLE IF NOT EXISTS hr_settings (entity_id TEXT, store_id TEXT, deteksi_kosong_menit INTEGER, backup_lintas_gerai INTEGER, PRIMARY KEY(entity_id, store_id))");
+  // Tabel hr_settings dari migration H1 (0174_fina_pengaturan).
   sqlite.prepare("INSERT INTO hr_settings(entity_id,store_id,deteksi_kosong_menit,backup_lintas_gerai) VALUES(?,'',10,1)").run(store.entity_id);
   for (const [id, sid, backup] of [['fina-asli',store.id,0],['fina-free',store.id,1],['fina-away',other.id,1]]) {
     sqlite.prepare("INSERT INTO cashiers(id,username,password_hash,employee_name,store_id,is_active,is_entity_backup) VALUES(?,?,'x',?,?,1,?)").run(id,id,id,sid,backup);
@@ -68,15 +68,19 @@ test('index merutekan H2, keluaran tanpa kontak, dan membaca tidak memotong gaji
   assert.equal(JSON.stringify(data).includes('phone'), false);
   assert.equal(sqlite.prepare('SELECT total_changes() AS n').get().n, before);
 });
-test('pengaturan gerai menimpa entity dan H1 yang belum lengkap gagal tertutup tanpa konstanta H2', async () => {
-  sqlite.prepare("INSERT INTO hr_settings VALUES(?,?,120,NULL)").run(store.entity_id,store.id);
+test('pengaturan gerai menimpa entity; isian kosong ikut bawaan H1 (FINA_BAWAAN), tanpa konstanta di H2', async () => {
+  sqlite.prepare("INSERT INTO hr_settings(entity_id,store_id,deteksi_kosong_menit,backup_lintas_gerai) VALUES(?,?,120,NULL)").run(store.entity_id,store.id);
   try {
     const data = await (await call('kosong?store=' + store.code)).json();
     assert.equal(data.deteksiMenit, 120);
     assert.equal(data.shifts.some(s => s.accountId === 'fina-asli'), false);
   } finally { sqlite.prepare('DELETE FROM hr_settings WHERE store_id=?').run(store.id); }
   sqlite.prepare('UPDATE hr_settings SET deteksi_kosong_menit=NULL WHERE entity_id=?').run(store.entity_id);
-  try { assert.equal((await call('kosong?store=' + store.code)).status, 503); }
+  try {
+    const r = await call('kosong?store=' + store.code);
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).deteksiMenit, FINA_BAWAAN.deteksiKosongMenit);
+  }
   finally { sqlite.prepare('UPDATE hr_settings SET deteksi_kosong_menit=10 WHERE entity_id=?').run(store.entity_id); }
 });
 test('freelance lintas entity dibatasi server, Admin hanya kandidat gerainya, aktivasi gerai lain tidak tersedia', async () => {

@@ -26,8 +26,18 @@ const DEFAULT_EFFORT = 'high';
 export const BATAS_SKEMA = Object.freeze({ opsional: 24, gabungan: 16 });
 const KATA_DILARANG = new Set(['minLength', 'maxLength', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'maxItems', 'pattern', 'minProperties', 'maxProperties']);
 
+// Kunci boleh datang dua cara: binding Secrets Store Cloudflare (objek dengan .get(), dipilih Bos
+// 2026-10-21: "pake cara binding") atau secret Worker biasa (teks). Isinya tidak pernah dicatat.
 export function terpasang(env) {
-  return Boolean(env?.ANTHROPIC_API_KEY);
+  const kunci = env?.ANTHROPIC_API_KEY;
+  return typeof kunci === 'string' ? kunci.length > 0 : typeof kunci?.get === 'function';
+}
+
+export async function bacaKunci(env) {
+  const kunci = env?.ANTHROPIC_API_KEY;
+  if (typeof kunci === 'string') return kunci || null;
+  if (typeof kunci?.get !== 'function') return null;
+  try { return (await kunci.get()) || null; } catch { return null; }
 }
 
 /**
@@ -138,7 +148,9 @@ export async function callStructured(env, {
   const { mode, skema, body } = buatPermintaanClaude({ system, content, schema, model, maxTokens, effort });
   let response;
   try {
-    const client = buatKlien({ apiKey: env.ANTHROPIC_API_KEY, timeout: timeoutMs, maxRetries: 1 });
+    const apiKey = await bacaKunci(env);
+    if (!apiKey) return { ok: false, status: 503, error: 'Kunci Claude di Secrets Store belum terisi atau belum boleh dipakai Worker ini.' };
+    const client = buatKlien({ apiKey, timeout: timeoutMs, maxRetries: 1 });
     response = await client.beta.messages.create(body);
   } catch (error) {
     return { ok: false, ...pesanGagal(error) };

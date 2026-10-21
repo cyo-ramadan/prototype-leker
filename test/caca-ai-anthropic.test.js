@@ -124,3 +124,18 @@ test('panel: tombol Analisis sekali pakai dan permintaan membawa analisis hanya 
   assert.match(sumber, /if \(cacaState\.analisisGiliran\) isi\.analisis = true;/);
   assert.match(sumber, /cacaState\.analisisGiliran = cacaState\.analisis && cacaState\.analisisTersedia;\s*\r?\n\s*cacaAturAnalisis\(false\);/);
 });
+
+test('kunci lewat binding Secrets Store (objek .get()) maupun secret biasa', async () => {
+  const { terpasang, bacaKunci } = await import('../src/caca-ai-anthropic.js');
+  const binding = { get: async () => 'kunci-dari-store' };
+  assert.equal(terpasang({ ANTHROPIC_API_KEY: binding }), true);
+  assert.equal(await bacaKunci({ ANTHROPIC_API_KEY: binding }), 'kunci-dari-store');
+  assert.equal(await bacaKunci({ ANTHROPIC_API_KEY: 'teks' }), 'teks');
+  assert.equal(await bacaKunci({ ANTHROPIC_API_KEY: { get: async () => { throw new Error('belum diisi'); } } }), null);
+  const catat = [];
+  const hasil = await callStructured({ ANTHROPIC_API_KEY: binding }, { schema: SKEMA_KECIL, content: [], buatKlien: (opsi) => { catat.push(opsi.apiKey); return klienPalsu(teks('{"jawaban":"ok"}'))(); } });
+  assert.equal(hasil.ok, true);
+  assert.deepEqual(catat, ['kunci-dari-store']);
+  const kosong = await callStructured({ ANTHROPIC_API_KEY: { get: async () => null } }, { schema: SKEMA_KECIL, content: [] });
+  assert.equal(kosong.status, 503);
+});

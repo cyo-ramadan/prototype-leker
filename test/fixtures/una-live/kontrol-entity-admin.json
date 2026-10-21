@@ -40,6 +40,14 @@
    "automationForbidden": false
   },
   {
+   "id": "tombol:public/caca-chat.js:cacaAnalisis",
+   "label": "🔬",
+   "sumber": "public/caca-chat.js",
+   "class": "unsupported",
+   "reason": "Kontrol panel Una sendiri (pilih model untuk pesan berikutnya), bukan target kemampuan",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/caca-chat.js:cacaMikrofon",
    "label": "",
    "sumber": "public/caca-chat.js",

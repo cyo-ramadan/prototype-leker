@@ -101,6 +101,8 @@
   // Pemilih persona di chat (public/caca-chat.js) mengikuti daftar dari server.
   function kabarkanAgen() {
     if (profil && typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-agen-daftar', { detail: { agen: profil.agen || [] } }));
+    // Mode Analisis (Claude Sonnet): tombol 🔬 di chat hanya bila Owner mengizinkan & kunci terpasang.
+    if (profil && typeof CustomEvent === 'function') window.dispatchEvent?.(new CustomEvent('caca-analisis', { detail: profil.analisis || { tersedia: false } }));
   }
   function tombol() {
     const siap = Boolean(profil && pemilik);

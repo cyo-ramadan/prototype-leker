@@ -9,7 +9,7 @@
 import { json, readJson } from './http.js';
 import { requireManagement, ownerFromRequest, entityAdminFromRequest } from './owner-auth.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
-import { aiConfigured, callStructured, modelAktif } from './caca-ai-client.js';
+import { aiConfigured, callStructured, modelAktif, analisisTerpasang, MODEL_ANALISIS } from './caca-ai-client.js';
 import { REKAP_SCHEMA, REKAP_SYSTEM_PROMPT, periksaRekap } from './caca-rekap-reader.js';
 import { jawabPertanyaan } from './caca-agen.js';
 import { siapkanDraftPengeluaran, postingPengeluaran } from './caca-tulis.js';
@@ -242,7 +242,7 @@ export function bangunJalurAksi(request, env, { storeCode = '', jalurUtama, pint
 async function lengkapiLingkup(env, lingkup, principal, entityId) {
   const pengaturan = await bacaKonteksAsisten(env.DB, entityId);
   if (lingkup.store?.tenantId && pengaturan.tenantId !== lingkup.store.tenantId) return { ok: false, response: json({ error: 'Lingkup tenant berubah. Muat ulang percakapan.', code: 'CACA_SCOPE_CHANGED' },409) };
-  return { ...lingkup, tenantId: pengaturan.tenantId, principal, asistenAktif: pengaturan.aktif, pengaturanPersona: pengaturan.persona, konteks: { ...lingkup.konteks, skin: pengaturan.profil.skin, namaAsisten: pengaturan.namaAsisten } };
+  return { ...lingkup, tenantId: pengaturan.tenantId, principal, asistenAktif: pengaturan.aktif, pengaturanPersona: pengaturan.persona, analisisIzin: pengaturan.analisisIzin, konteks: { ...lingkup.konteks, skin: pengaturan.profil.skin, namaAsisten: pengaturan.namaAsisten } };
 }
 async function lingkupPenyuruh(request, env) {
   const url = new URL(request.url);
@@ -311,6 +311,17 @@ async function tanya(request, env, jalurUtama, waitUntil) {
   const agen = await personaPenyuruh(env, lingkup, body.value?.agen);
   if (!agen.ok) return agen.response;
 
+  // Mode Analisis (Bos Cyo 2026-10-21): pesan ini dikerjakan Claude Sonnet, hanya untuk tenant yang
+  // diizinkan Owner. Tidak diizinkan = 403, bukan diam-diam ke model murah (pengguna tahu bedanya).
+  const analisis = body.value?.analisis === true;
+  if (analisis && !lingkup.analisisIzin) {
+    return json({ error: 'Mode Analisis (Claude Sonnet) belum diizinkan untuk usaha ini. Minta Owner menyalakannya di Owner Console.', code: 'AI_ANALISIS_TIDAK_DIIZINKAN' }, 403);
+  }
+  if (analisis && !analisisTerpasang(env)) {
+    return json({ error: 'Mode Analisis belum tersambung: kunci Claude belum dipasang di server.', code: 'AI_ANALISIS_BELUM_TERPASANG' }, 503);
+  }
+  const panggilModel = analisis ? (envModel, permintaan) => callStructured(envModel, { ...permintaan, penyedia: 'anthropic' }) : undefined;
+
   // Cukup panjang untuk daftar menu atau daftar koreksi yang ditempel sekaligus.
   // Kelebihan DITOLAK dengan jelas, bukan dipotong diam-diam: daftar yang buntung
   // di tengah membuat Una mengerjakan sebagian tanpa ada yang sadar.
@@ -335,7 +346,8 @@ async function tanya(request, env, jalurUtama, waitUntil) {
     kerja: body.value?.kerja,
     maksPutaran: body.value?.satuLangkah === true ? 1 : undefined,
     // Tugas yang tadi belum lengkap (data tak tepercaya, dibersihkan di caca-tertunda.js).
-    tertunda: body.value?.tertunda
+    tertunda: body.value?.tertunda,
+    ...(panggilModel ? { panggilModel } : {})
   }); } catch (error) {
     await catatDiagnosis(request, env, { pertanyaan, riwayat: konteks.riwayat, kegagalan: 'model_gagal', conversationId: body.value?.conversationId, versi: env.CF_VERSION_METADATA?.id || '20261014-una-v2' }, waitUntil);
     throw error;
@@ -354,6 +366,7 @@ async function tanya(request, env, jalurUtama, waitUntil) {
     uiActions: Array.isArray(hasil.uiActions) ? hasil.uiActions.slice(0, 3) : null,
     namaAsisten: konteks.namaAsisten,
     ...(agen.persona ? { agen: agen.persona.id } : {}),
+    ...(analisis ? { analisis: true, mesin: MODEL_ANALISIS } : {}),
     periode: hasil.periode ?? null,
     tabel: hasil.tabel ?? null,
     jejak: hasil.jejak ?? null,

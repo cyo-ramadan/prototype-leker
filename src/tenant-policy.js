@@ -35,6 +35,10 @@ export const PEMBAYARAN_CAMPURAN_KEY = 'pembayaran_campuran';
 // Bos Cyo, 2026-10-19: "aturan untuk cs mentautkan qris itu dihapus aja, biar sistem aja besuknya yang
 // mentautkan". ON: CS hanya mengklaim; penautan ke penjualan dilakukan sistem saat mutasi H+1 diunggah.
 export const QRIS_TAUTAN_SISTEM_KEY = 'qris_tautan_sistem';
+// Bos Cyo, 2026-10-21: "pingin bisa ganti model di sonet dengan ijin akses suatu tenant". Izin per
+// tenant memakai Claude Sonnet untuk pesan yang ditandai Analisis di chat. Bawaan MATI karena berbayar
+// per token (pengecualian aturan "bawaan aktif"); tanpa izin semua chat tetap Gemini.
+export const AI_MODEL_ANALISIS_KEY = 'ai_model_analisis';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -126,6 +130,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     label: 'QRIS: penautan oleh sistem',
     description: 'ON: CS cukup mengklaim uang QRIS di kolam; tidak ada jendela "Pilih uang QRIS-nya" sesudah penjualan dan tidak ada tombol QRIS merah/hijau. Saat mutasi H+1 diunggah, sistem yang menautkan uang ke penjualan QRIS dan mencatat salah klaim / tidak klaim / nominal QRIS tidak sesuai tiap CS di Raport. OFF: CS juga menautkan sendiri setiap penjualan QRIS ke uang masuknya.',
     defaultValue: true
+  },
+  {
+    key: AI_MODEL_ANALISIS_KEY,
+    label: 'Model analisis: Claude Sonnet',
+    description: 'ON: di chat Una / Rika / Fina muncul tombol 🔬 Analisis. Pesan yang dikirim dengan tombol itu dikerjakan Claude Sonnet 5.5 (lebih teliti untuk kasus yang butuh analisis, biaya per pesan jauh lebih mahal dari Gemini). Pesan biasa tetap memakai model murah. Perlu kunci ANTHROPIC_API_KEY di server. OFF: semua chat memakai model murah.',
+    defaultValue: false
   },
   {
     key: PEMBAYARAN_CAMPURAN_KEY,

@@ -7715,6 +7715,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/branch-admin.html"
   },
   {
+    "id": "tombol:public/caca-chat.js:cacaAnalisis",
+    "jenis": "tombol",
+    "sumber": "public/caca-chat.js",
+    "tombolId": "cacaAnalisis",
+    "aksi": null,
+    "label": "🔬",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/caca-chat.js"
+  },
+  {
     "id": "tombol:public/caca-chat.js:cacaFab",
     "jenis": "tombol",
     "sumber": "public/caca-chat.js",

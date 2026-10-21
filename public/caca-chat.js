@@ -47,7 +47,12 @@ const cacaState = {
   // Persona yang diajak bicara (src/agen-persona.js). Una = bawaan, perilaku lama.
   agen: 'una',
   // [{id, nama, peran}] dari /api/caca/pengaturan: hanya yang diizinkan dan aktif.
-  daftarAgen: []
+  daftarAgen: [],
+  // Mode Analisis (Claude Sonnet): tersedia bila Owner mengizinkan tenant & kunci terpasang.
+  // Sekali pakai: menyala untuk satu pesan (termasuk putaran lanjutannya), lalu mati sendiri.
+  analisisTersedia: false,
+  analisis: false,
+  analisisGiliran: false
 };
 
 const cacaEl = id => document.getElementById(id);
@@ -124,6 +129,7 @@ const CACA_KERANGKA = `
       <textarea id="cacaPertanyaan" rows="1" placeholder="Ketik pesan" autocomplete="off"></textarea>
       <button id="cacaMikrofon" class="caca-ikon-btn caca-mikrofon" type="button" aria-label="Mulai bicara" aria-pressed="false" aria-describedby="cacaSuaraStatus" title="Beri tugas lewat suara"><svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3Zm-5-3H5a7 7 0 0 0 6 6.93V22h2v-3.07A7 7 0 0 0 19 12h-2a5 5 0 0 1-10 0Z"/></svg></button>
       <button id="cacaLiveToggle" class="caca-ikon-btn caca-live-toggle" type="button" aria-label="Mulai obrolan live" aria-pressed="false" aria-describedby="cacaSuaraStatus" title="Mulai obrolan live">☎</button>
+      <button id="cacaAnalisis" class="caca-ikon-btn caca-analisis hidden" type="button" aria-pressed="false" aria-label="Analisis dengan Claude Sonnet untuk pesan berikutnya" title="Analisis (Claude Sonnet) untuk pesan berikutnya">🔬</button>
       <button id="cacaTanyaKirim" class="caca-kirim" type="submit" aria-label="Kirim" disabled>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg>
       </button>
@@ -1475,6 +1481,7 @@ async function cacaTanyaServer(pertanyaan, scope, riwayat, kerja = null, tertund
     if (!conversationId) { conversationId = crypto.randomUUID(); sessionStorage.setItem(key, conversationId); }
   } catch { /* namespace cadangan tetap di server */ }
   const isi = cacaDenganAgen({ pertanyaan, riwayat, satuLangkah: true, conversationId });
+  if (cacaState.analisisGiliran) isi.analisis = true;
   // Konteks lembar Workspace yang sedang tampil (U4 Una Live), dibaca saat dikirim.
   const lembar = cacaState.turnId ? window.UnaDispatcher?.context({ conversationId, turnId: cacaState.turnId }) : null;
   if (lembar) isi.surfaceContext = lembar;
@@ -1705,7 +1712,9 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
   cacaState.kerjaTertunda = null;
   // Tugas tertunda tetap dibawa walau gerai diganti: "pilih gerai dulu, lalu lanjut".
   const tugas = cacaState.tertunda;
-  const mengetik = cacaTambahKerjaLive();
+  cacaState.analisisGiliran = cacaState.analisis && cacaState.analisisTersedia;
+  cacaAturAnalisis(false);
+  const mengetik = cacaTambahKerjaLive(cacaState.analisisGiliran ? 'Menganalisis dengan Claude Sonnet…' : undefined);
   const mulai = Date.now();
   try {
     const payload = await cacaTanyaSampaiTuntas(pertanyaan, scope, riwayat, tertunda, mengetik, tugas);
@@ -1724,7 +1733,26 @@ async function cacaKirimTeks(pertanyaan, suaraKonteks = null) {
   } catch (error) {
     mengetik.remove();
     cacaTambahGelembung('caca', error.message);
+  } finally {
+    cacaState.analisisGiliran = false;
   }
+}
+
+// Tombol 🔬: hanya tampil bila tersedia; menekan = pesan berikutnya dikerjakan Claude Sonnet.
+function cacaAturAnalisis(nyala) {
+  cacaState.analisis = Boolean(nyala) && cacaState.analisisTersedia;
+  const tombol = cacaEl('cacaAnalisis');
+  if (!tombol) return;
+  tombol.classList.toggle('hidden', !cacaState.analisisTersedia);
+  tombol.setAttribute('aria-pressed', String(cacaState.analisis));
+  tombol.classList.toggle('aktif', cacaState.analisis);
+  const ketik = cacaEl('cacaPertanyaan');
+  if (ketik) ketik.placeholder = cacaState.analisis ? 'Pesan untuk dianalisis Claude Sonnet' : 'Ketik pesan';
+}
+
+function cacaTerimaAnalisis(info) {
+  cacaState.analisisTersedia = Boolean(info?.tersedia);
+  cacaAturAnalisis(cacaState.analisis);
 }
 
 // U4 Una Live: jalankan uiActions lewat registry dan laporkan hasil dari tanda terimanya.
@@ -1930,6 +1958,8 @@ function cacaLupakan() {
   cacaState.siapDipakai = false;
   cacaState.agen = CACA_AGEN_BAWAAN;
   cacaState.daftarAgen = [];
+  cacaState.analisisTersedia = false;
+  cacaAturAnalisis(false);
   cacaRenderPilihAgen();
 }
 
@@ -2080,6 +2110,8 @@ function initCacaPanel() {
     if (tab) cacaGantiAgen(tab.dataset.cacaAgen);
   });
   window.addEventListener('caca-agen-daftar', event => cacaTerimaDaftarAgen(event.detail?.agen));
+  window.addEventListener('caca-analisis', event => cacaTerimaAnalisis(event.detail));
+  cacaEl('cacaAnalisis')?.addEventListener('click', () => cacaAturAnalisis(!cacaState.analisis));
 
   cacaEl('cacaDaftarGerai')?.addEventListener('click', event => {
     const pilihan = event.target.closest('[data-caca-scope]');

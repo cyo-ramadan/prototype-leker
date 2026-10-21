@@ -15,8 +15,12 @@
 
 import * as gemini from './caca-ai-gemini.js';
 import * as openai from './caca-ai-openai.js';
+import * as anthropic from './caca-ai-anthropic.js';
 
-const PENYEDIA = Object.freeze({ gemini, openai });
+// Claude (anthropic) sengaja TIDAK ada di urutan bawaan: memasang ANTHROPIC_API_KEY tidak mengubah
+// mesin harian. Claude hanya dipakai bila diminta per permintaan (`penyedia: 'anthropic'`), yaitu
+// mode Analisis untuk tenant yang diberi izin (src/caca-model-analisis.js).
+const PENYEDIA = Object.freeze({ gemini, openai, anthropic });
 const URUTAN_BAWAAN = Object.freeze(['gemini', 'openai']);
 
 /**
@@ -42,7 +46,20 @@ export function modelAktif(env) {
 
 export const CACA_VISION_MODEL = gemini.MODEL;
 
+export const MODEL_ANALISIS = anthropic.MODEL;
+
+/** Kunci Claude terpasang (syarat tombol Analisis tampil). */
+export function analisisTerpasang(env) {
+  return anthropic.terpasang(env);
+}
+
 export async function callStructured(env, permintaan = {}) {
+  if (permintaan.penyedia) {
+    const dipilih = PENYEDIA[permintaan.penyedia];
+    if (!dipilih) return { ok: false, status: 503, error: `Mesin AI "${permintaan.penyedia}" belum dikenal.` };
+    const { penyedia: _abaikan, ...isi } = permintaan;
+    return dipilih.callStructured(env, isi);
+  }
   const penyedia = pilihPenyedia(env);
   if (!penyedia) {
     const diminta = String(env?.CACA_MESIN ?? '').trim();

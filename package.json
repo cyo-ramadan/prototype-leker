@@ -12,6 +12,7 @@
     "deploy": "npm run db:migrations:apply && npm run db:schema:verify && npx --yes wrangler deploy"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
     "@block65/webcrypto-web-push": "2.0.0"
   }
 }

@@ -32,6 +32,7 @@ const files = [
   "src/caca-ai-client.js",
   "src/caca-ai-error.js",
   "src/caca-ai-gemini.js",
+  "src/caca-ai-anthropic.js",
   "src/caca-ai-openai.js",
   "src/caca-rekap-reader.js",
   "src/caca-chat.js",

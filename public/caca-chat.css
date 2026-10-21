@@ -1152,3 +1152,14 @@
   color: #fff;
   font-weight: 700;
 }
+
+/* Tombol Analisis (Claude Sonnet): menyala untuk satu pesan. */
+.caca-analisis.hidden {
+  display: none;
+}
+
+.caca-analisis.aktif {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 50%;
+}

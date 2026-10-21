@@ -115,6 +115,12 @@ export const KAMUS = Object.freeze([
     tawaran: [], tanpaAksi: 'memilih asisten memakai tab di kepala panel chat'
   },
   {
+    id: 'mode_analisis', judul: 'Mode Analisis (Claude Sonnet)',
+    kunci: ['mode analisis', 'tombol analisis', 'sonnet', 'claude', 'model pintar', 'ganti model', 'tombol mikroskop', 'analisis mendalam'],
+    isi: 'Chat biasa memakai model murah. Untuk kasus yang butuh analisis, tekan tombol 🔬 di sebelah tombol Kirim lalu kirim pesannya: pesan itu (beserta langkah-langkah lanjutannya) dikerjakan Claude Sonnet 5.5, lebih teliti tetapi biaya per pesan jauh lebih mahal. Tombolnya mati sendiri sesudah satu pesan. Tombol 🔬 hanya muncul kalau Owner menyalakan "Model analisis: Claude Sonnet" untuk tenant ini di Owner Console dan kunci Claude sudah terpasang di server. Aturannya tetap sama: angka hanya dari data, dan yang menyimpan data tetap lewat draft dan tombol "Ya".',
+    tawaran: [], tanpaAksi: 'mode analisis dipilih dengan tombol 🔬 di panel chat'
+  },
+  {
     id: 'kemampuan',
     judul: 'Una bisa bantu apa aja',
     kunci: ['una bisa apa', 'bisa apa aja', 'bisa bantu apa', 'kemampuan', 'fitur una', 'apa yang bisa', 'help', 'bantuan'],

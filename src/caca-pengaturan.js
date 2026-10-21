@@ -1,5 +1,6 @@
 import { json } from './http.js';
-import { UI_SKIN_KEY, normalizePolicyValue } from './tenant-policy.js';
+import { UI_SKIN_KEY, AI_MODEL_ANALISIS_KEY, normalizePolicyValue } from './tenant-policy.js';
+import { analisisTerpasang, MODEL_ANALISIS } from './caca-ai-client.js';
 import { uiProfileFromChoice } from './ui-profile.js';
 import { AGEN_BAWAAN, DAFTAR_AGEN, KUNCI_PERSONA, PERSONA, agenDari, bacaPengaturanPersona, daftarPersona, pengaturanPersonaDari } from './agen-persona.js';
 const KEY = 'una_nama_asisten';
@@ -17,9 +18,10 @@ const SUB_PERSONA = KUNCI_LAIN.map((_, i) => `,
 export async function bacaKonteksAsisten(db, entityId) {
   const row = entityId ? await db.prepare(`SELECT et.tenant_id,e.id AS entity_id,t.status AS tenant_status,e.status AS entity_status,
     (SELECT CASE WHEN length(p.setting_value)=1 THEN p.setting_value ELSE '0' END FROM tenant_policy_settings p WHERE p.tenant_id=et.tenant_id AND p.setting_key=? LIMIT 1) AS ui_skin,
-    (SELECT CASE WHEN length(p.setting_value)<=32 THEN p.setting_value ELSE '' END FROM tenant_policy_settings p WHERE p.tenant_id=et.tenant_id AND p.setting_key=? LIMIT 1) AS nama_asisten${SUB_PERSONA}
+    (SELECT CASE WHEN length(p.setting_value)<=32 THEN p.setting_value ELSE '' END FROM tenant_policy_settings p WHERE p.tenant_id=et.tenant_id AND p.setting_key=? LIMIT 1) AS nama_asisten${SUB_PERSONA},
+    (SELECT p.setting_value FROM tenant_policy_settings p WHERE p.tenant_id=et.tenant_id AND p.setting_key=? LIMIT 1) AS ai_analisis
     FROM entity_tenancy et JOIN entities e ON e.id=et.entity_id JOIN tenants t ON t.id=et.tenant_id
-    WHERE et.entity_id=? AND et.effective_to IS NULL LIMIT 1`).bind(UI_SKIN_KEY,KEY,...KUNCI_LAIN,entityId).first() : null;
+    WHERE et.entity_id=? AND et.effective_to IS NULL LIMIT 1`).bind(UI_SKIN_KEY,KEY,...KUNCI_LAIN,AI_MODEL_ANALISIS_KEY,entityId).first() : null;
   const nilai = { [KEY]: row?.nama_asisten };
   KUNCI_LAIN.forEach((k, i) => { if (row?.[`persona_${i}`] != null) nilai[k] = row[`persona_${i}`]; });
   return {
@@ -27,6 +29,8 @@ export async function bacaKonteksAsisten(db, entityId) {
     aktif: row?.tenant_status === 'ACTIVE' && row?.entity_status === 'ACTIVE',
     namaAsisten: namaAsistenValid(row?.nama_asisten) || 'Una',
     persona: pengaturanPersonaDari(nilai, namaAsistenValid),
+    // Izin Owner untuk mode Analisis (Claude Sonnet). Tanpa baris = mati.
+    analisisIzin: row?.ai_analisis === '1',
     profil: uiProfileFromChoice(normalizePolicyValue(UI_SKIN_KEY,row?.ui_skin ?? '0'))
   };
 }
@@ -55,6 +59,8 @@ export async function handlePengaturanAsisten(request, env, bangunLingkup) {
     const pengaturan = lingkup.pengaturanPersona;
     return json({ namaAsisten: lingkup.konteks.namaAsisten, ruangSuara: `${lingkup.tenantId}:${lingkup.principal.role}:${lingkup.principal.id}`, skin: lingkup.konteks.skin,
       agen: daftarPersona({ role: lingkup.principal.role, pengaturan }),
+      // Tombol Analisis tampil hanya bila Owner mengizinkan tenant ini DAN kunci Claude terpasang.
+      analisis: { diizinkan: Boolean(lingkup.analisisIzin), tersedia: Boolean(lingkup.analisisIzin) && analisisTerpasang(env), model: MODEL_ANALISIS },
       persona: Object.fromEntries(DAFTAR_AGEN.filter(id => id !== AGEN_BAWAAN).map(id => [id, pengaturan[id]])) });
   }
   if (request.method !== 'PATCH') return json({ error: 'Method not allowed' },405);

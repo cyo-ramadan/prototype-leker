@@ -1567,6 +1567,46 @@
    "automationForbidden": false
   },
   {
+   "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-salin:Salin tautan",
+   "label": "Salin tautan",
+   "sumber": "public/entity-fina-rekrut.js",
+   "class": "unsupported",
+   "reason": "Rekrutmen: tayang/tutup lowongan dan keputusan pelamar oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Jadikan draft",
+   "label": "Jadikan draft",
+   "sumber": "public/entity-fina-rekrut.js",
+   "class": "unsupported",
+   "reason": "Rekrutmen: tayang/tutup lowongan dan keputusan pelamar oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Tayangkan",
+   "label": "Tayangkan",
+   "sumber": "public/entity-fina-rekrut.js",
+   "class": "unsupported",
+   "reason": "Rekrutmen: tayang/tutup lowongan dan keputusan pelamar oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Tutup lowongan",
+   "label": "Tutup lowongan",
+   "sumber": "public/entity-fina-rekrut.js",
+   "class": "unsupported",
+   "reason": "Rekrutmen: tayang/tutup lowongan dan keputusan pelamar oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-rekrut.js:label:Simpan sebagai draft",
+   "label": "Simpan sebagai draft",
+   "sumber": "public/entity-fina-rekrut.js",
+   "class": "unsupported",
+   "reason": "Rekrutmen: tayang/tutup lowongan dan keputusan pelamar oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-fina-surat.js:data-surat-batal:Batalkan",
    "label": "Batalkan",
    "sumber": "public/entity-fina-surat.js",

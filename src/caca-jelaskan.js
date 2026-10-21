@@ -30,13 +30,25 @@ const jelas = (topik, label) => ({ jenis: 'jelaskan', topik, label });
 
 export const KAMUS = Object.freeze([
   {
+    id: 'fina_rekrut', judul: 'Rekrutmen: lowongan dan pelamar',
+    kunci: ['lowongan', 'loker', 'lowongan kerja', 'pelamar', 'lamaran', 'rekrutmen', 'cari karyawan baru', 'tayangkan lowongan', 'tautan loker', 'form lamaran'],
+    isi: [
+      'Di Entity Admin → Pengaturan → "Rekrutmen Fina". Isi Posisi, Gerai, Jam kerja, Gaji (teks), Syarat, Deskripsi, lalu "Simpan sebagai draft". Fina juga bisa menyusun draft lowongan dari chat.',
+      'Draft belum terlihat umum. Tekan "Tayangkan" supaya halaman /loker?l=… bisa dibuka; "Salin tautan" untuk dibagikan ke WA, Facebook, atau Instagram (posting manual). "Tutup lowongan" menghentikan lamaran baru; "Jadikan draft" untuk menyunting ulang.',
+      'Pelamar mengisi nama, nomor WhatsApp, domisili, umur, dan pengalaman, lalu menekan "Kirim lamaran". Satu nomor hanya bisa melamar sekali sehari per lowongan.',
+      'Buka lowongan untuk melihat pelamar: tombol WA untuk menghubungi, catatan admin, dan status Baru / Screening / Interview / Diterima / Ditolak. Keputusan Diterima / Ditolak hanya oleh Admin; Fina tidak membaca nomor pelamar.'
+    ].join('\n'),
+    tawaran: [], tanpaAksi: 'lowongan ditayangkan dan pelamar diputuskan lewat tombol di Rekrutmen Fina'
+  },
+  {
     id: 'fina_tulis', judul: 'Fina: tawaran backup, catat pengganti, pengumuman, draft SP', agen: ['fina'],
     kunci: ['tawaran backup', 'tawarin backup', 'siapin tawaran', 'catat pengganti', 'menggantikan', 'gantiin', 'pasang pengumuman', 'umumkan', 'pengumuman cs', 'buat sp', 'surat peringatan', 'teguran', 'fina bisa apa'],
     isi: [
       'Pilih Fina di tab chat. Fina bisa: (1) menyiapkan teks tawaran backup untuk freelance yang tersedia di jam tertentu (jumlahnya sesuai pengaturan Fina, teks disalin dan dikirim manual, tidak ada yang terkirim otomatis);',
       '(2) mencatat "X menggantikan Y" untuk CS yang presensi di gerai itu, lewat koreksi pengganti Dana Apresiasi yang sama, sehingga shift dinilai ulang;',
       '(3) memasang pengumuman di papan CS (Portal Staf) untuk gerai itu atau semua gerai;',
-      '(4) menyusun draft SP/teguran dari rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang) dengan kop dan tingkat dari pengaturan Fina.',
+      '(4) menyusun draft SP/teguran dari rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang) dengan kop dan tingkat dari pengaturan Fina;',
+      '(5) menyusun draft lowongan kerja (teks loker + caption Instagram/Facebook untuk diposting manual), tersimpan DRAFT sampai Admin menekan Tayangkan di Rekrutmen Fina.',
       'Semua kecuali tawaran backup lewat kartu draft dan tombol "Ya". Draft SP hanya tersimpan sebagai DRAFT; berlaku setelah Admin menekan Setujui di Entity Admin → Pengaturan → Surat Fina.'
     ].join('\n'),
     tawaran: [jelas('fina_surat', 'Surat Fina (SP)'), jelas('fina_pengaturan', 'Pengaturan Fina (HR)')], tanpaAksi: 'alat tulis Fina dipakai dari chat dengan memilih Fina'

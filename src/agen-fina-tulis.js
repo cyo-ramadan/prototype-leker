@@ -259,4 +259,70 @@ export const draftSp = Object.freeze({
   }
 });
 
-export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp]);
+// --- draft loker (H4) --------------------------------------------------------------------------
+
+/** Teks loker + caption Instagram/Facebook dari isian (fungsi murni, templat tetap, tanpa model). */
+export function susunTeksLoker({ usaha, gerai, posisi, jamKerja, gajiTeks, syarat, deskripsi }) {
+  const daftar = (judul, isi) => (isi
+    ? [`${judul}:`, ...String(isi).split(/\n|;/).map((x) => x.trim().replace(/^[-•]\s*/, '')).filter(Boolean).map((x) => `- ${x}`)]
+    : []);
+  const loker = [
+    `LOWONGAN KERJA: ${posisi.toUpperCase()}`,
+    [usaha, gerai].filter(Boolean).join(' · '),
+    '',
+    ...(deskripsi ? [deskripsi, ''] : []),
+    ...daftar('Syarat', syarat),
+    ...(jamKerja ? [`Jam kerja: ${jamKerja}`] : []),
+    ...(gajiTeks ? [`Gaji: ${gajiTeks}`] : []),
+    '',
+    'Lamar lewat tautan lowongan (form singkat, gratis).'
+  ].join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const caption = [
+    `Dicari ${posisi} untuk ${gerai || usaha || 'tim kami'}!`,
+    ...(jamKerja ? [`Jam kerja ${jamKerja}.`] : []),
+    ...(gajiTeks ? [`Gaji ${gajiTeks}.`] : []),
+    'Info & daftar: tautan di bio / komentar.',
+    `#lowongankerja #loker #loker${posisi.toLowerCase().replace(/[^a-z0-9]+/g, '')}`
+  ].join('\n');
+  return { loker, caption };
+}
+
+export const draftLoker = Object.freeze({
+  nama: 'draft_loker', lingkup: 'gerai',
+  petunjuk: 'MENYUSUN lowongan kerja (teks loker + caption Instagram/Facebook untuk posting manual) untuk gerai panel, mis. "buatin loker CS shift pagi, jam 07-15, gaji 1,5jt, syarat jujur; bisa HP". Disimpan DRAFT; tayang setelah Admin menekan Tayangkan.',
+  skema: {
+    lk_posisi: { type: 'string', description: 'draft_loker: posisi PERSIS seperti diucapkan, mis. "CS shift pagi".' },
+    lk_jam: { type: 'string', description: 'draft_loker: jam kerja seperti diucapkan, kalau disebut.' },
+    lk_gaji: { type: 'string', description: 'draft_loker: gaji seperti diucapkan (teks), kalau disebut. Jangan mengarang.' },
+    lk_syarat: { type: 'string', description: 'draft_loker: syarat seperti diucapkan, dipisah titik koma, kalau disebut.' },
+    lk_deskripsi: { type: 'string', description: 'draft_loker: deskripsi tugas seperti diucapkan, kalau disebut.' }
+  },
+  async siapkan(t, ctx) {
+    const posisi = teks(t?.lk_posisi, 80);
+    if (!posisi) return { ok: false, kurang: 'lk_posisi', tanya: 'Lowongan untuk posisi apa?' };
+    const isian = { posisi, jamKerja: teks(t?.lk_jam, 200), gajiTeks: teks(t?.lk_gaji, 120), syarat: teks(t?.lk_syarat, 2000), deskripsi: teks(t?.lk_deskripsi, 2000) };
+    const { loker, caption } = susunTeksLoker({ usaha: '', gerai: ctx.namaLingkup, ...isian });
+    return {
+      ok: true,
+      draft: {
+        aksi: 'draft_loker',
+        judul: `Draft lowongan ${posisi} — dicek dulu ya:`,
+        baris: [['Posisi', posisi], ['Gerai', ctx.namaLingkup], ['Jam kerja', isian.jamKerja || '-'], ['Gaji', isian.gajiTeks || '- (tidak ditulis)']],
+        tabel: { kolom: ['Teks loker', 'Caption Instagram / Facebook (posting manual)'], isi: [[loker, caption]] },
+        dampak: [
+          'Disimpan sebagai lowongan DRAFT di Entity Admin → Pengaturan → Rekrutmen Fina. Belum tayang ke umum.',
+          'Admin menekan Tayangkan supaya halaman lamaran /loker bisa dibuka pelamar.',
+          'Instagram/Facebook belum tersambung otomatis (akun Meta dibatasi): salin caption dan posting manual.'
+        ],
+        muatan: { storeCode: ctx.storeCode, posisi, jamKerja: isian.jamKerja, gajiTeks: isian.gajiTeks, syarat: isian.syarat, deskripsi: isian.deskripsi }
+      }
+    };
+  },
+  async posting(draft, ctx) {
+    const hasil = await ctx.kirim('POST', '/api/entity-admin/fina/lowongan', draft.muatan);
+    if (!hasil.ok) return hasil;
+    return { ok: true, jawaban: `Draft lowongan ${draft.muatan.posisi} tersimpan (belum tayang). Tayangkan dari Entity Admin → Pengaturan → Rekrutmen Fina; tautannya /loker?l=${hasil.data?.slug || ''}.` };
+  }
+});
+
+export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker]);

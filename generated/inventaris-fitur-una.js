@@ -685,6 +685,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/fina-rekrut.js:/^\\/api\\/entity-admin\\/fina\\/lowongan\\/([^/]+)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/fina-rekrut.js",
+    "method": null,
+    "rute": "/^\\/api\\/entity-admin\\/fina\\/lowongan\\/([^/]+)$/",
+    "label": "/^\\/api\\/entity-admin\\/fina\\/lowongan\\/([^/]+)$/",
+    "skin": null
+  },
+  {
+    "id": "pola:src/fina-rekrut.js:/^\\/api\\/entity-admin\\/fina\\/pelamar\\/([^/]+)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/fina-rekrut.js",
+    "method": null,
+    "rute": "/^\\/api\\/entity-admin\\/fina\\/pelamar\\/([^/]+)$/",
+    "label": "/^\\/api\\/entity-admin\\/fina\\/pelamar\\/([^/]+)$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/hutang-piutang.js:/^\\/api\\/admin\\/hutang-piutang\\/payments\\/([^/]+)\\/void$/",
     "jenis": "rute-pola",
     "sumber": "src/hutang-piutang.js",
@@ -1603,6 +1621,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/lowongan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/lowongan",
+    "label": "/api/entity-admin/fina/lowongan",
+    "skin": null
+  },
+  {
     "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/surat",
     "jenis": "rute-kandidat",
     "sumber": "src/agen-fina-tulis.js",
@@ -2341,6 +2368,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/lowongan$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/lowongan$",
+    "label": "/api/entity-admin/fina/lowongan$",
+    "skin": null
+  },
+  {
     "id": "rute:src/caca-chat.js:/api/entity-admin/fina/surat$",
     "jenis": "rute-kandidat",
     "sumber": "src/caca-chat.js",
@@ -3058,6 +3094,42 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/entity-admin/fina/settings",
     "label": "/api/entity-admin/fina/settings",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-rekrut.js:/api/entity-admin/fina/lowongan",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-rekrut.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/lowongan",
+    "label": "/api/entity-admin/fina/lowongan",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-rekrut.js:/api/entity-admin/fina/pelamar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-rekrut.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/pelamar",
+    "label": "/api/entity-admin/fina/pelamar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-rekrut.js:/api/publik/lamaran",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-rekrut.js",
+    "method": null,
+    "rute": "/api/publik/lamaran",
+    "label": "/api/publik/lamaran",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-rekrut.js:/api/publik/loker/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-rekrut.js",
+    "method": null,
+    "rute": "/api/publik/loker/",
+    "label": "/api/publik/loker/",
     "skin": null
   },
   {
@@ -10096,6 +10168,61 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-fina-pengaturan.js"
   },
   {
+    "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-salin:Salin tautan",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-rekrut.js",
+    "tombolId": null,
+    "aksi": "data-lowongan-salin",
+    "label": "Salin tautan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-rekrut.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Jadikan draft",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-rekrut.js",
+    "tombolId": null,
+    "aksi": "data-lowongan-status",
+    "label": "Jadikan draft",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-rekrut.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Tayangkan",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-rekrut.js",
+    "tombolId": null,
+    "aksi": "data-lowongan-status",
+    "label": "Tayangkan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-rekrut.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Tutup lowongan",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-rekrut.js",
+    "tombolId": null,
+    "aksi": "data-lowongan-status",
+    "label": "Tutup lowongan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-rekrut.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-rekrut.js:label:Simpan sebagai draft",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-rekrut.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan sebagai draft",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-rekrut.js"
+  },
+  {
     "id": "tombol:public/entity-fina-surat.js:data-surat-batal:Batalkan",
     "jenis": "tombol",
     "sumber": "public/entity-fina-surat.js",
@@ -11073,6 +11200,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/login.html"
+  },
+  {
+    "id": "tombol:public/loker.html:kirimLamar",
+    "jenis": "tombol",
+    "sumber": "public/loker.html",
+    "tombolId": "kirimLamar",
+    "aksi": null,
+    "label": "Kirim lamaran",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/loker.html"
   },
   {
     "id": "tombol:public/management-approval-queue.js:autoPermitToggle",
@@ -14961,6 +15099,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "PUT",
     "rute": null,
     "label": "request.method !== 'PUT') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-rekrut.js:request.method !== 'POST') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-rekrut.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST') return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-rekrut.js:request.method === 'PATCH')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-rekrut.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method === 'PATCH')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-rekrut.js:request.method === 'POST')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-rekrut.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST')",
     "skin": null
   },
   {

@@ -27,6 +27,28 @@ export const SUMBER_KAMUS = Object.freeze({
       "tulis:src/fina-api.js:request.method === 'POST')"
     ]
   },
+  "fina_rekrut": {
+    "sumber": ["src/fina-rekrut.js", "public/entity-fina-rekrut.js", "public/loker.html", "public/loker.js"],
+    "fitur": [
+      "pola:src/fina-rekrut.js:/^\\/api\\/entity-admin\\/fina\\/lowongan\\/([^/]+)$/",
+      "pola:src/fina-rekrut.js:/^\\/api\\/entity-admin\\/fina\\/pelamar\\/([^/]+)$/",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/lowongan",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/lowongan$",
+      "rute:src/fina-rekrut.js:/api/entity-admin/fina/lowongan",
+      "rute:src/fina-rekrut.js:/api/entity-admin/fina/pelamar",
+      "rute:src/fina-rekrut.js:/api/publik/lamaran",
+      "rute:src/fina-rekrut.js:/api/publik/loker/",
+      "tombol:public/entity-fina-rekrut.js:data-lowongan-salin:Salin tautan",
+      "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Jadikan draft",
+      "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Tayangkan",
+      "tombol:public/entity-fina-rekrut.js:data-lowongan-status:Tutup lowongan",
+      "tombol:public/entity-fina-rekrut.js:label:Simpan sebagai draft",
+      "tombol:public/loker.html:kirimLamar",
+      "tulis:src/fina-rekrut.js:request.method !== 'POST') return json(",
+      "tulis:src/fina-rekrut.js:request.method === 'PATCH')",
+      "tulis:src/fina-rekrut.js:request.method === 'POST')"
+    ]
+  },
   "fina_baca": {
     "sumber": ["src/fina-hitung.js", "src/fina-api.js", "src/agen-fina-alat.js"],
     "fitur": ["rute:src/fina-api.js:/api/admin/fina/kosong", "rute:src/fina-api.js:/api/admin/fina/freelance", "rute:src/fina-api.js:/api/admin/fina/masalah"]

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lowongan Kerja</title>
+  <style>
+    :root{--fg:#1a1a1a;--muted:#5b5b5b;--line:#ddd;--accent:#0b6b4f;--bg:#f7f7f5;--card:#fff;--err:#b00020}
+    @media (prefers-color-scheme: dark){:root{--fg:#eee;--muted:#aaa;--line:#333;--accent:#4cc39a;--bg:#111;--card:#1b1b1b;--err:#ff6b81}}
+    *{box-sizing:border-box}
+    body{margin:0;padding:16px;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+    main{max-width:640px;margin:0 auto}
+    .kartu{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+    h1{font-size:24px;margin:0 0 4px;line-height:1.2}
+    .usaha{color:var(--muted);margin:0 0 12px}
+    .isi{white-space:pre-line;margin:0 0 10px}
+    .label{font-weight:700;margin:12px 0 4px}
+    form label{display:block;margin:0 0 12px;font-weight:600}
+    form input,form textarea{display:block;width:100%;margin-top:4px;padding:10px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--card);color:var(--fg)}
+    form small{display:block;color:var(--muted);font-weight:400}
+    .hp{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+    button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:600 16px system-ui,sans-serif;cursor:pointer}
+    button:disabled{opacity:.6}
+    .pesan{padding:10px 12px;border-radius:10px;margin-bottom:12px;background:#e8f6ef;color:#0b4d38}
+    .pesan.gagal{background:#fdecee;color:var(--err)}
+    .pesan:empty{display:none}
+    .catatan{font-size:13px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <main>
+    <div id="loker" class="kartu"><p>Memuat lowongan…</p><noscript>Halaman ini butuh JavaScript untuk memuat lowongan.</noscript></div>
+    <div id="lamar" class="kartu" hidden>
+      <h2 style="margin-top:0">Kirim lamaran</h2>
+      <div id="pesan" class="pesan" role="status" aria-live="polite"></div>
+      <form id="formLamar" novalidate>
+        <label>Nama lengkap<input name="nama" maxlength="80" autocomplete="name" required /></label>
+        <label>Nomor WhatsApp<small>Kami menghubungi lewat nomor ini.</small><input name="noWa" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="0812xxxxxxx" required /></label>
+        <label>Domisili (kecamatan / kota)<input name="domisili" maxlength="120" /></label>
+        <label>Umur<input name="umur" type="number" min="14" max="80" inputmode="numeric" /></label>
+        <label>Pengalaman kerja (singkat)<textarea name="pengalaman" rows="3" maxlength="1000"></textarea></label>
+        <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off" /></label></div>
+        <button id="kirimLamar" type="submit">Kirim lamaran</button>
+      </form>
+      <p class="catatan">Data hanya dipakai untuk proses rekrutmen usaha ini.</p>
+    </div>
+  </main>
+  <script src="/loker.js?v=20261021-fina-h4-v1"></script>
+</body>
+</html>

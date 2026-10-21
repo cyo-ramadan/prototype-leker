@@ -180,7 +180,10 @@ export const PINTU_AKSI = Object.freeze([
   // sengaja TIDAK ada di sini: hanya tombol manusia.
   '/api/admin/fina/sesi$',
   '/api/entity-admin/dana-apresiasi/pengganti$',
-  '/api/entity-admin/fina/surat$'
+  '/api/entity-admin/fina/surat$',
+  // draft_loker (H4): hanya MEMBUAT lowongan DRAFT (POST). Tayang/tutup (PATCH /:id) dan data
+  // pelamar (nomor WA) sengaja tidak ada di sini.
+  '/api/entity-admin/fina/lowongan$'
 ]);
 
 function pintuDiizinkan(pathname, pintu) {

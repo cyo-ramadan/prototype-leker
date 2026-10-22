@@ -368,7 +368,7 @@ async function handleCashier(request, env, pathname) {
   return json({ error: 'Route permit transaksi kasir tidak ditemukan.' }, 404);
 }
 
-async function managementScope(request, env) {
+export async function managementScope(request, env) {
   const auth = await requireManagement(request, env.DB, env);
   if (!auth.ok) return auth;
   if (auth.authType === 'LEGACY_PIN') return { ok: false, response: json({ error: 'Permit transaksi membutuhkan akun Admin Gerai atau Owner.', code: 'ACCOUNT_APPROVAL_REQUIRED' }, 403) };

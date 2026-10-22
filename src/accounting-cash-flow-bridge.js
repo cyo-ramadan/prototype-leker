@@ -11,7 +11,7 @@ async function loadFact(db, storeId, requestId) {
     FROM approval_requests r
     JOIN cash_ledger_entries c ON c.approval_request_id = r.id AND c.store_id = r.store_id
     WHERE r.id = ? AND r.store_id = ? AND r.request_type = 'CASH_FLOW'
-      AND r.approval_status = 'approved' AND r.posting_status = 'posted'
+      AND r.approval_status = 'approved' AND r.posting_status = 'posted' AND r.voided_at IS NULL
     LIMIT 1
   `).bind(requestId, storeId).first();
 }

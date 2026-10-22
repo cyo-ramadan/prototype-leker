@@ -228,6 +228,30 @@ export const SUMBER_KAMUS = Object.freeze({
       "tombol:public/entity-izin-cs.js:data-izin-retry,data-kind,data-store:Coba lagi"
     ]
   },
+  "hapus_arus_kas": {
+    "sumber": [
+      "src/cash-flow-void.js",
+      "src/drawer-report.js",
+      "public/cashier-data-explorer.js",
+      "public/admin-transactions-ui.js",
+      "public/entity-izin-cs.js"
+    ],
+    "fitur": [
+      "pola:src/cash-flow-void.js:/^\\/api\\/admin\\/cash-flows\\/([^/]+)\\/void$/",
+      "pola:src/cash-flow-void.js:/^\\/api\\/cashier\\/cash-flow-void\\/permits\\/([^/]+)$/",
+      "pola:src/cash-flow-void.js:/^\\/api\\/management\\/cash-flow-void-permits\\/([^/]+)$/",
+      "rute:src/cash-flow-void.js:/api/cashier/cash-flow-void",
+      "rute:src/cash-flow-void.js:/api/cashier/cash-flow-void/permits",
+      "rute:src/cash-flow-void.js:/api/management/cash-flow-void-permits",
+      "tombol:public/admin-transactions-ui.js:data-cash-flow-void:🗑 Hapus",
+      "tombol:public/cashier-data-explorer.js:data-cashier-cf-cancel:Batal Hapus",
+      "tombol:public/cashier-data-explorer.js:data-cashier-cf-void:Hapus",
+      "tulis:src/cash-flow-void.js:request.method === 'DELETE' && cancel)",
+      "tulis:src/cash-flow-void.js:request.method === 'PATCH' && match)",
+      "tulis:src/cash-flow-void.js:request.method === 'POST' && pathname === '/api/cashier/cash-flow-void/permits')",
+      "tulis:src/cash-flow-void.js:request.method === 'POST')"
+    ]
+  },
   "batal_penjualan": {
     "sumber": [
       "src/transaction-void-permits.js",

@@ -11,6 +11,7 @@
     txCursor: null,
     txHasMore: false,
     voidPermits: new Map(),
+    cashFlowPermits: new Map(),
     stocks: [],
     selectedProductId: null,
     movements: [],
@@ -208,7 +209,28 @@
     return rows;
   }
 
+  // Hapus Arus Kas (Bos Cyo, 2026-10-22): diajukan CS, ACC/Tolak Admin, soft delete + jurnal pembalik.
+  function cashFlowVoidButtonHtml(row) {
+    if (row.kind !== 'CASH_FLOW' || row.status !== 'approved/posted') return '';
+    const permit = state.cashFlowPermits.get(String(row.id));
+    if (permit?.approvalStatus === 'pending_approval') {
+      return `<button class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-cf-cancel="${escapeHtml(permit.id)}">Batal Hapus</button>`;
+    }
+    if (permit?.approvalStatus === 'approved' && permit.executionStatus !== 'EXECUTED') return '';
+    return `<button class="cashier-tx-btn cashier-tx-btn-grey" type="button" data-cashier-cf-void="${escapeHtml(String(row.id))}">Hapus</button>`;
+  }
+
+  function cashFlowVoidNoteHtml(row) {
+    if (row.kind !== 'CASH_FLOW') return '';
+    if (row.status === 'voided') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · Arus Kas ini sudah dihapus</span>';
+    const permit = state.cashFlowPermits.get(String(row.id));
+    if (permit?.approvalStatus === 'pending_approval') return '<span class="cashier-tx-readonly-note"><b>Read only (request delete)</b> · menunggu Admin</span>';
+    if (permit?.approvalStatus === 'approved' && permit.executionStatus === 'FAILED') return `<span class="cashier-tx-readonly-note"><b>ACC tertahan</b> · ${escapeHtml(permit.executionDetail || 'perlu dicek Admin')}</span>`;
+    return '';
+  }
+
   function voidButtonHtml(row) {
+    if (row.kind === 'CASH_FLOW') return cashFlowVoidButtonHtml(row);
     if (!VOID_SUBJECT_TYPES.has(row.kind) || row.status === 'voided') return '';
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
     if (permit?.approvalStatus === 'pending_approval') {
@@ -232,6 +254,7 @@
   // (invariant #4: Accounting yang memiliki posting jurnal), bukan di
   // daftar transaksi operasional ini.
   function voidNoteHtml(row) {
+    if (row.kind === 'CASH_FLOW') return cashFlowVoidNoteHtml(row);
     if (!VOID_SUBJECT_TYPES.has(row.kind)) return '';
     if (row.status === 'voided') return '<span class="cashier-tx-readonly-note"><b>Read only</b> · transaksi ini sudah dihapus</span>';
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
@@ -311,13 +334,18 @@
       if (state.q) url.searchParams.set('q', state.q);
       if (state.bayar) url.searchParams.set('bayar', state.bayar);
       if (!reset && state.txCursor) url.searchParams.set('before', state.txCursor);
-      const [payload, permitsPayload] = await Promise.all([
+      const [payload, permitsPayload, cashFlowPayload] = await Promise.all([
         api(`${url.pathname}${url.search}`),
-        api('/api/cashier/transaction-void/permits').catch(() => ({ permits: [] }))
+        api('/api/cashier/transaction-void/permits').catch(() => ({ permits: [] })),
+        api('/api/cashier/cash-flow-void/permits').catch(() => ({ permits: [] }))
       ]);
       state.transactions = reset ? (payload.transactions || []) : [...state.transactions, ...(payload.transactions || [])];
       state.txCursor = payload.nextCursor || null;
       state.txHasMore = Boolean(payload.nextCursor);
+      state.cashFlowPermits = new Map();
+      for (const permit of cashFlowPayload.permits || []) {
+        if (!state.cashFlowPermits.has(permit.requestId)) state.cashFlowPermits.set(permit.requestId, permit);
+      }
       state.voidPermits = new Map();
       for (const permit of permitsPayload.permits || []) {
         const key = `${permit.subjectType}:${permit.subjectId}`;
@@ -345,6 +373,14 @@
       openTransactionDetail(button.dataset.cashierTxDetailKind, button.dataset.cashierTxDetailId)));
     host.querySelectorAll('[data-cashier-tx-void-id]').forEach(button => button.addEventListener('click', () =>
       requestVoidPermit(button.dataset.cashierTxVoidKind, button.dataset.cashierTxVoidId)));
+    host.querySelectorAll('[data-cashier-cf-void]').forEach(button => button.addEventListener('click', () => requestCashFlowVoid(button.dataset.cashierCfVoid)));
+    host.querySelectorAll('[data-cashier-cf-cancel]').forEach(button => button.addEventListener('click', async () => {
+      try {
+        await api(`/api/cashier/cash-flow-void/permits/${encodeURIComponent(button.dataset.cashierCfCancel)}`, { method: 'DELETE' });
+        toast('Permintaan hapus Arus Kas dibatalkan.');
+        await loadTransactions({ reset: true });
+      } catch (error) { toast(error.message); }
+    }));
     host.querySelectorAll('[data-cashier-tx-cancel-permit]').forEach(button => button.addEventListener('click', () =>
       cancelVoidPermit(button.dataset.cashierTxCancelPermit)));
     host.querySelectorAll('[data-cashier-tx-qris]').forEach(button => button.addEventListener('click', () =>
@@ -435,6 +471,24 @@
       const submit = el('cashierDialogSubmit');
       if (submit) submit.textContent = radio.value === 'AMOUNT' ? 'AJUKAN GANTI' : 'AJUKAN HAPUS';
     }));
+  }
+
+  function requestCashFlowVoid(requestId) {
+    if (el('cashierDialog')?.open) el('cashierDialog').close();
+    openDialog({
+      eyebrow: 'Laci · Permit Admin',
+      title: 'Minta Izin Admin Hapus Arus Kas',
+      body: '<div class="field"><label>Alasan</label><textarea id="cashFlowVoidReason" rows="3" maxlength="500" required placeholder="mis. salah catat, harusnya bukan Arus Kas"></textarea></div><p class="muted">Admin harus ACC dulu. Sesudah di-ACC, Arus Kas ini tidak dihitung lagi di uang laci dan jurnalnya dibalik; riwayatnya tetap ada.</p>',
+      submitText: 'AJUKAN HAPUS',
+      onSubmit: async () => {
+        const reason = el('cashFlowVoidReason').value.trim();
+        if (!reason) throw new Error('Alasan wajib diisi.');
+        await api('/api/cashier/cash-flow-void/permits', { method: 'POST', body: JSON.stringify({ requestId, reason }) });
+        toast('Permintaan hapus Arus Kas masuk ke Admin · menunggu ACC');
+        await loadTransactions({ reset: true });
+        return true;
+      }
+    });
   }
 
   async function cancelVoidPermit(permitId) {

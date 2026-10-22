@@ -81,6 +81,19 @@
       alasan: permit => permit.reason,
       body: (decision, note) => ({ decision, note })
     },
+    // Hapus Arus Kas yang diajukan CS (2026-10-22): ACC = Arus Kas tidak dihitung lagi di laci + jurnal dibalik.
+    {
+      kind: 'aruskas',
+      list: '/api/management/cash-flow-void-permits?status=pending_approval',
+      decide: id => `/api/management/cash-flow-void-permits/${encodeURIComponent(id)}`,
+      rows: payload => payload.permits || [],
+      judul: () => 'Hapus Arus Kas',
+      orang: permit => permit.cashierName || permit.cashierId,
+      diajukan: permit => permit.requestedAt,
+      isi: permit => `<b>${esc(permit.subject?.description || 'Arus Kas')}</b> · ${permit.subject?.direction === 'OUT' ? 'keluar' : 'masuk'} ${esc(money(permit.subject?.amount))}${permit.subject?.counterpart ? ` · lawan ${esc(permit.subject.counterpart)}` : ''}`,
+      alasan: permit => permit.reason,
+      body: (decision, note) => ({ decision, note })
+    },
     // ACC yang tertahan (Kaliurang, 2026-10-21: "sudah di-ACC tapi di laci masih ada"). Tidak ada ACC/Tolak
     // lagi: yang tertahan di eksekusi bisa dicoba lagi sesudah penyebabnya dibereskan (mis. stok
     // disesuaikan); yang tertahan di hitung ulang HPP cukup dibaca alasannya.

@@ -220,7 +220,7 @@ export async function listStoreTransactions(db, storeId, { filter = 'ALL', from 
       FROM other_income i LEFT JOIN cashiers c ON c.id = i.cashier_id WHERE i.store_id = ?
       UNION ALL
       SELECT a.id, a.request_type, a.created_at, NULL, a.request_type,
-             a.approval_status || '/' || a.posting_status, '', a.drawer_session_id, a.cashier_id,
+             CASE WHEN a.voided_at IS NOT NULL THEN 'voided' ELSE a.approval_status || '/' || a.posting_status END, '', a.drawer_session_id, a.cashier_id,
              c.employee_name, 'APPROVAL_REQUEST', a.id, a.payload_json
       FROM approval_requests a LEFT JOIN cashiers c ON c.id = a.cashier_id WHERE a.store_id = ?
       UNION ALL

@@ -166,10 +166,27 @@
           <div class="master-meta">Ref ${esc(transaction.sourceReference?.type || '')}:${esc(transaction.sourceReference?.id || '')}${transaction.paymentMethod ? ` · ${esc(transaction.paymentLabel || transaction.paymentMethod)}` : ''}</div>
           <div class="master-meta">Accounting · ${esc(accountingLabel(transaction))}</div>
         </div>
-        <div class="master-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">🔍 Detail</button></div>
+        <div class="master-actions"><button class="admin-tx-btn admin-tx-btn-primary" type="button" data-transaction-detail-kind="${esc(transaction.kind)}" data-transaction-detail-id="${esc(transaction.id)}">🔍 Detail</button>${transaction.kind === 'CASH_FLOW' && transaction.status === 'approved/posted' ? `<button class="admin-tx-btn" type="button" data-cash-flow-void="${esc(transaction.id)}">🗑 Hapus</button>` : ''}</div>
       </article>`).join('') : '<div class="empty">Belum ada transaksi pada filter ini.</div>';
     target.querySelectorAll('[data-transaction-detail-id]').forEach(button => button.addEventListener('click', () => openDetail(button.dataset.transactionDetailKind, button.dataset.transactionDetailId)));
+    target.querySelectorAll('[data-cash-flow-void]').forEach(button => button.addEventListener('click', () => voidCashFlow(button)));
     document.getElementById('adminTransactionsMore')?.classList.toggle('hidden', !state.hasMore);
+  }
+
+  // Hapus Arus Kas langsung oleh Admin (Bos Cyo, 2026-10-22): soft delete + jurnal pembalik, riwayat tetap ada.
+  async function voidCashFlow(button) {
+    const reason = (window.prompt('Hapus Arus Kas ini? Uang laci dikoreksi dan jurnalnya dibalik.\n\nAlasan (wajib):', '') ?? '').trim();
+    if (!reason) return;
+    if (reason.length < 3) return toast('Alasan hapus minimal 3 huruf.');
+    button.disabled = true;
+    try {
+      const result = await api(`/api/admin/cash-flows/${encodeURIComponent(button.dataset.cashFlowVoid)}/void`, { method: 'POST', body: JSON.stringify({ reason }) });
+      toast(result.duplicate ? 'Arus Kas ini sudah dihapus sebelumnya.' : `Arus Kas dihapus. ${result.message || ''}`);
+      await loadTransactions({ reset: true });
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+    }
   }
 
   async function openDetail(kind, id) {

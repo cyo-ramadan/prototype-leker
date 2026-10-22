@@ -78,6 +78,12 @@ export const KAMUS = Object.freeze([
     tanpaAksi: 'Lembar bukan transaksi bisnis; gunakan kontrol Workspace atau minta Una membaca lembar yang terbuka.'
   },
   {
+    id: 'hapus_arus_kas', judul: 'Hapus Arus Kas yang salah catat',
+    kunci: ['hapus arus kas', 'batal arus kas', 'arus kas salah', 'salah arus kas', 'hapus kas masuk', 'hapus kas keluar'],
+    isi: 'Arus Kas yang sudah ACC bisa dihapus tanpa menghilangkan riwayatnya. CS: di Kasir buka Data, cari baris Arus Kas, tekan Hapus, isi alasan; pengajuannya masuk Izin CS untuk ACC atau Tolak Admin, dan sebelum diputuskan CS bisa Batal Hapus. Admin Gerai: di Transaksi tekan 🗑 Hapus pada baris Arus Kas dan isi alasan, langsung diproses. Sesudah dihapus, Arus Kas itu tidak dihitung lagi di uang laci, statusnya "Dihapus (read only)", dan jurnalnya dibalik di tanggal aslinya. Una tidak menekan ACC atau Hapus untuk Bos.',
+    tawaran: [buka('approvals')], tanpaAksi: 'penghapusan lewat izin CS atau Admin di layar Transaksi'
+  },
+  {
     id: 'batal_penjualan', judul: 'Hapus / batalkan penjualan',
     kunci: ['batal penjualan', 'batalkan penjualan', 'hapus penjualan', 'hapus transaksi', 'pembatalan transaksi', 'void transaksi'],
     isi: 'Di Kasir, buka Data, cari penjualan lalu tekan Hapus dan isi alasan. Pengajuan masuk Persetujuan untuk ACC atau Tolak Admin. Sebelum diputuskan, kasir bisa Batal Hapus. Riwayat tetap ada; saat berhasil, stok/kas dikoreksi dan jurnal yang sudah posted dibalik, bukan dihapus. Untuk pembelian bahan, sesudah tekan Hapus kasir memilih "Ganti dengan pembelian yang benar" (barang sama; isi qty yang didapat, total di nota, dan cara bayar yang benar) atau "Hapus pembelian ini". Kalau stok bahannya sudah terpakai, Hapus saja tidak bisa dan kasir wajib mengisi pembelian yang benar. ACC belum selalu berarti selesai: bila tertahan (HOLD/FAILED), alasannya tampil di Data kasir sebagai "ACC tertahan" dan di Izin CS bagian ACC tertahan; Admin dapat menekan Coba lagi sesudah penyebabnya dibereskan. Una tidak menekan ACC untuk Bos.',

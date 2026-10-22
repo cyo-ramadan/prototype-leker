@@ -89,7 +89,7 @@ export async function buildDrawerReport(db, storeId, drawerId) {
     db.prepare(`
       SELECT id, approval_request_id, direction, amount, description, note, posted_at
       FROM cash_ledger_entries
-      WHERE store_id = ? AND drawer_session_id = ?
+      WHERE store_id = ? AND drawer_session_id = ? AND voided_at IS NULL
       ORDER BY posted_at
     `).bind(storeId, drawerId).all(),
     // mode='MANUAL' only: AUTO_DADAKAN runs are a sale fulfilling itself

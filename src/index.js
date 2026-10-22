@@ -37,6 +37,7 @@ import { handleApprovalQueueApi } from './approval-queue.js';
 import { handleEntitySharedAccountApi, postSharedAccountLedgerForPaymentMethod } from './entity-shared-accounts.js';
 import { CAMPURAN, handleSalePaymentsApi } from './sale-payments.js';
 import { handleTransactionVoidPermitApi } from './transaction-void-permits.js';
+import { handleCashFlowVoidApi } from './cash-flow-void.js';
 import { handleStaffPortalApi } from './staff-portal.js';
 import { handleStaffManualBookApi } from './staff-manual-book.js';
 import { handleStaffAnnouncementApi } from './staff-announcement.js';
@@ -353,6 +354,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (approvalResponse) return approvalResponse;
   const sharedAccountResponse = await handleEntitySharedAccountApi(request, env, pathname);
   if (sharedAccountResponse) return sharedAccountResponse;
+  const cashFlowVoidResponse = await handleCashFlowVoidApi(request, env, pathname);
+  if (cashFlowVoidResponse) return cashFlowVoidResponse;
   const permitResponse = await handleTransactionVoidPermitApi(request, env, pathname);
   if (permitResponse) return permitResponse;
   const customerResponse = await handleCustomerApi(request, env, pathname);

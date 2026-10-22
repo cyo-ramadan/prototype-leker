@@ -379,6 +379,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/cash-flow-void.js:/^\\/api\\/admin\\/cash-flows\\/([^/]+)\\/void$/",
+    "jenis": "rute-pola",
+    "sumber": "src/cash-flow-void.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/cash-flows\\/([^/]+)\\/void$/",
+    "label": "/^\\/api\\/admin\\/cash-flows\\/([^/]+)\\/void$/",
+    "skin": null
+  },
+  {
+    "id": "pola:src/cash-flow-void.js:/^\\/api\\/cashier\\/cash-flow-void\\/permits\\/([^/]+)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/cash-flow-void.js",
+    "method": null,
+    "rute": "/^\\/api\\/cashier\\/cash-flow-void\\/permits\\/([^/]+)$/",
+    "label": "/^\\/api\\/cashier\\/cash-flow-void\\/permits\\/([^/]+)$/",
+    "skin": null
+  },
+  {
+    "id": "pola:src/cash-flow-void.js:/^\\/api\\/management\\/cash-flow-void-permits\\/([^/]+)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/cash-flow-void.js",
+    "method": null,
+    "rute": "/^\\/api\\/management\\/cash-flow-void-permits\\/([^/]+)$/",
+    "label": "/^\\/api\\/management\\/cash-flow-void-permits\\/([^/]+)$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/cashier-auth.js:/^\\/api\\/admin\\/cashiers\\/([^/]+)\\/activate-today$/",
     "jenis": "rute-pola",
     "sumber": "src/cashier-auth.js",
@@ -2464,6 +2491,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/caca/workspace",
     "label": "/api/caca/workspace",
+    "skin": null
+  },
+  {
+    "id": "rute:src/cash-flow-void.js:/api/cashier/cash-flow-void",
+    "jenis": "rute-kandidat",
+    "sumber": "src/cash-flow-void.js",
+    "method": null,
+    "rute": "/api/cashier/cash-flow-void",
+    "label": "/api/cashier/cash-flow-void",
+    "skin": null
+  },
+  {
+    "id": "rute:src/cash-flow-void.js:/api/cashier/cash-flow-void/permits",
+    "jenis": "rute-kandidat",
+    "sumber": "src/cash-flow-void.js",
+    "method": null,
+    "rute": "/api/cashier/cash-flow-void/permits",
+    "label": "/api/cashier/cash-flow-void/permits",
+    "skin": null
+  },
+  {
+    "id": "rute:src/cash-flow-void.js:/api/management/cash-flow-void-permits",
+    "jenis": "rute-kandidat",
+    "sumber": "src/cash-flow-void.js",
+    "method": null,
+    "rute": "/api/management/cash-flow-void-permits",
+    "label": "/api/management/cash-flow-void-permits",
     "skin": null
   },
   {
@@ -7188,6 +7242,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-transactions-ui.js"
   },
   {
+    "id": "tombol:public/admin-transactions-ui.js:data-cash-flow-void:🗑 Hapus",
+    "jenis": "tombol",
+    "sumber": "public/admin-transactions-ui.js",
+    "tombolId": null,
+    "aksi": "data-cash-flow-void",
+    "label": "🗑 Hapus",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-transactions-ui.js"
+  },
+  {
     "id": "tombol:public/admin-transactions-ui.js:data-so-correct,data-so-name,data-so-unit:Koreksi nilai",
     "jenis": "tombol",
     "sumber": "public/admin-transactions-ui.js",
@@ -8195,6 +8260,28 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": "cashierDataTxMore",
     "aksi": null,
     "label": "Muat lagi",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier-data-explorer.js"
+  },
+  {
+    "id": "tombol:public/cashier-data-explorer.js:data-cashier-cf-cancel:Batal Hapus",
+    "jenis": "tombol",
+    "sumber": "public/cashier-data-explorer.js",
+    "tombolId": null,
+    "aksi": "data-cashier-cf-cancel",
+    "label": "Batal Hapus",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier-data-explorer.js"
+  },
+  {
+    "id": "tombol:public/cashier-data-explorer.js:data-cashier-cf-void:Hapus",
+    "jenis": "tombol",
+    "sumber": "public/cashier-data-explorer.js",
+    "tombolId": null,
+    "aksi": "data-cashier-cf-void",
+    "label": "Hapus",
     "rute": null,
     "skin": null,
     "halaman": "public/cashier-data-explorer.js"
@@ -14671,6 +14758,42 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method==='POST')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/cash-flow-void.js:request.method === 'DELETE' && cancel)",
+    "jenis": "rute-tulis",
+    "sumber": "src/cash-flow-void.js",
+    "method": "DELETE",
+    "rute": null,
+    "label": "request.method === 'DELETE' && cancel)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/cash-flow-void.js:request.method === 'PATCH' && match)",
+    "jenis": "rute-tulis",
+    "sumber": "src/cash-flow-void.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method === 'PATCH' && match)",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/cash-flow-void.js:request.method === 'POST' && pathname === '/api/cashier/cash-flow-void/permits')",
+    "jenis": "rute-tulis",
+    "sumber": "src/cash-flow-void.js",
+    "method": "POST",
+    "rute": "/api/cashier/cash-flow-void/permits",
+    "label": "/api/cashier/cash-flow-void/permits",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/cash-flow-void.js:request.method === 'POST')",
+    "jenis": "rute-tulis",
+    "sumber": "src/cash-flow-void.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST')",
     "skin": null
   },
   {

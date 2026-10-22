@@ -237,7 +237,7 @@
     const permit = state.voidPermits.get(`${row.kind}:${row.id}`);
     if (permit?.approvalStatus === 'pending_approval') {
       return permit.correctionKind === 'AMOUNT'
-        ? `<span class="cashier-tx-readonly-note"><b>Read only (ganti nominal)</b> · jadi ${rupiah((permit.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0))} · menunggu Admin</span>`
+        ? `<span class="cashier-tx-readonly-note"><b>Read only (ganti pembelian)</b> · jadi ${rupiah((permit.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0))}${permit.requestedPaymentMethod ? ` · ${escapeHtml(permit.requestedPaymentMethod)}` : ''} · menunggu Admin</span>`
         : '<span class="cashier-tx-readonly-note"><b>Read only (request delete)</b> · menunggu Admin</span>';
     }
     // ACC tertahan harus terlihat jelas, bukan "sedang diproses" selamanya (Kaliurang, 21 Okt 2026).
@@ -353,46 +353,75 @@
 
   async function requestVoidPermit(kind, id) {
     if (el('cashierDialog')?.open) el('cashierDialog').close();
-    // Bos Cyo, 2026-10-21: pembelian -> tanya dulu "hapus atau cuma ganti nominal?". Ganti nominal =
-    // barang & qty tetap, CS mengisi total benar di nota; satu izin, satu ACC.
+    // Bos Cyo, 2026-10-21/22: pembelian -> "hapus, atau ganti dengan pembelian yang benar?". Ganti = barang
+    // tetap, CS mengisi qty yang didapat, total di nota, dan cara bayar yang benar; satu izin, satu ACC.
+    // Kalau stok bahannya sudah terpakai, hapus saja tidak bisa (stok jadi minus): CS WAJIB mengisi yang benar.
     let subject = null;
     let amountCorrection = false;
+    let stockShort = false;
+    let paymentMethods = [];
     if (kind === 'PURCHASE') {
       try {
         const payload = await api(`/api/cashier/transaction-void/subject?type=PURCHASE&id=${encodeURIComponent(id)}`);
         subject = payload.subject;
         amountCorrection = Boolean(payload.amountCorrectionEnabled) && (subject?.items || []).length > 0;
+        stockShort = Boolean(payload.stockShort);
+        paymentMethods = payload.paymentMethods || [];
       } catch {}
     }
     const skinH = window.MaxiSkin?.skin?.() === 'h';
     const prosesNote = `<p class="muted">${skinH ? 'Jika Auto Permit gerai aktif, transaksi langsung diproses.' : 'Admin harus ACC/Reject dulu.'} History transaksi tetap ada untuk audit; proses memakai pembalik/koreksi, bukan hapus paksa.</p>`;
+    const shortItems = (subject?.items || []).filter(item => item.currentStock < item.quantity);
+    const shortNote = stockShort
+      ? `<div class="cashier-lock-note" style="border-color:#e0a800;background:#fff8e1;color:#5c4400">⚠ Stok bahan sudah terpakai: ${shortItems.map(item => `${escapeHtml(item.productName)} tinggal ${item.currentStock} (dibeli ${item.quantity})`).join(', ')}. Pembelian ini <b>tidak bisa dihapus begitu saja</b> — isi pembelian yang benar di bawah.</div>`
+      : '';
+    const paymentOptions = paymentMethods.map(method => `<option value="${escapeHtml(method.code)}" ${method.code === subject?.paymentMethod ? 'selected' : ''}>${escapeHtml(method.name)}</option>`).join('');
     const pilihan = amountCorrection ? `
-      <div class="field"><label>Mau hapus, atau cuma ganti nominal?</label>
+      ${shortNote}
+      <div class="field"><label>Mau hapus, atau ganti dengan pembelian yang benar?</label>
         <div class="void-choice" style="display:grid;gap:8px">
-          <label class="cashier-lock-note" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start"><input type="radio" name="voidKind" value="AMOUNT"><span><b>✏️ Ganti nominal saja</b><br><span class="muted">Barang &amp; qty sudah benar, cuma total harganya salah ketik. Isi total yang benar sesuai nota.</span></span></label>
-          <label class="cashier-lock-note" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start"><input type="radio" name="voidKind" value="VOID"><span><b>🗑 Hapus pembelian ini</b><br><span class="muted">Pembeliannya memang tidak ada / barangnya salah. Kalau perlu, input ulang sesudah di-ACC.</span></span></label>
+          <label class="cashier-lock-note" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start"><input type="radio" name="voidKind" value="AMOUNT" ${stockShort ? 'checked' : ''}><span><b>✏️ Ganti dengan pembelian yang benar</b><br><span class="muted">Barangnya sama, tapi qty, total di nota, atau cara bayarnya salah. Isi yang benar sesuai nota.</span></span></label>
+          <label class="cashier-lock-note" style="cursor:${stockShort ? 'not-allowed' : 'pointer'};display:flex;gap:10px;align-items:flex-start;${stockShort ? 'opacity:.5' : ''}"><input type="radio" name="voidKind" value="VOID" ${stockShort ? 'disabled' : ''}><span><b>🗑 Hapus pembelian ini</b><br><span class="muted">${stockShort ? 'Tidak bisa: bahannya sudah terpakai.' : 'Pembeliannya memang tidak ada / barangnya salah. Kalau perlu, input ulang sesudah di-ACC.'}</span></span></label>
         </div>
       </div>
-      <div id="voidAmountFields" class="hidden">
-        ${(subject.items || []).map(item => `<div class="field"><label>${escapeHtml(item.productName)} · ${item.quantity} ${escapeHtml(item.unitSymbol)} · tercatat <b>${rupiah(item.lineTotal)}</b><br>Total benar di nota (Rp)</label><input class="text-input" type="number" min="1" step="1" inputmode="numeric" data-void-amount-product="${item.productId}" placeholder="mis. 12000"></div>`).join('')}
+      <div id="voidAmountFields" class="${stockShort ? '' : 'hidden'}">
+        ${(subject.items || []).map(item => `<div class="field"><label><b>${escapeHtml(item.productName)}</b> · tercatat ${item.quantity} ${escapeHtml(item.unitSymbol)} = ${rupiah(item.lineTotal)} · stok sekarang ${item.currentStock}</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input class="text-input" type="number" min="1" step="1" inputmode="numeric" data-void-amount-product="${item.productId}" placeholder="🧾 Total di nota (Rp)">
+            <input class="text-input" type="number" min="1" step="1" inputmode="numeric" data-void-qty-product="${item.productId}" value="${item.quantity}" placeholder="Qty yang didapat">
+          </div></div>`).join('')}
+        <div class="field"><label>Cara bayar yang benar</label><select id="voidPaymentMethod" class="text-input">${paymentOptions}</select></div>
       </div>` : '';
     openDialog({
       eyebrow: 'Laci · Permit Admin',
-      title: amountCorrection ? 'Hapus atau Ganti Nominal Pembelian' : `Minta Izin Admin Hapus ${KIND_LABEL[kind] || kind}`,
-      body: `${pilihan}<div class="field"><label>Alasan</label><textarea id="voidPermitReason" rows="3" maxlength="500" required placeholder="${amountCorrection ? 'mis. salah ketik, di nota Rp12.000' : 'Jelaskan kenapa transaksi ini perlu dihapus'}"></textarea></div>${prosesNote}`,
-      submitText: amountCorrection ? 'AJUKAN' : 'AJUKAN HAPUS',
+      title: amountCorrection ? 'Hapus atau Ganti Pembelian' : `Minta Izin Admin Hapus ${KIND_LABEL[kind] || kind}`,
+      body: `${pilihan}<div class="field"><label>Alasan</label><textarea id="voidPermitReason" rows="3" maxlength="500" required placeholder="${amountCorrection ? 'mis. salah cara bayar, harusnya Rekening Bersama' : 'Jelaskan kenapa transaksi ini perlu dihapus'}"></textarea></div>${prosesNote}`,
+      submitText: amountCorrection ? (stockShort ? 'AJUKAN GANTI' : 'AJUKAN') : 'AJUKAN HAPUS',
       onSubmit: async () => {
         const reason = el('voidPermitReason').value.trim();
         const correctionKind = amountCorrection ? document.querySelector('input[name="voidKind"]:checked')?.value : 'VOID';
-        if (!correctionKind) throw new Error('Pilih dulu: ganti nominal saja, atau hapus pembelian.');
+        if (!correctionKind) throw new Error('Pilih dulu: ganti dengan pembelian yang benar, atau hapus pembelian.');
         if (!reason) throw new Error('Alasan wajib diisi.');
         const body = { subjectType: kind, subjectId: id, reason, correctionKind };
         if (correctionKind === 'AMOUNT') {
-          body.lines = [...document.querySelectorAll('[data-void-amount-product]')].map(input => ({ productId: Number(input.dataset.voidAmountProduct), lineTotal: Number(input.value) }));
-          if (body.lines.some(line => !Number.isSafeInteger(line.lineTotal) || line.lineTotal <= 0)) throw new Error('Isi total benar sesuai nota untuk setiap barang.');
+          body.lines = [...document.querySelectorAll('[data-void-amount-product]')].map(input => ({
+            productId: Number(input.dataset.voidAmountProduct),
+            lineTotal: Number(input.value),
+            quantity: Number(document.querySelector(`[data-void-qty-product="${input.dataset.voidAmountProduct}"]`)?.value)
+          }));
+          body.paymentMethod = el('voidPaymentMethod')?.value || '';
+          if (body.lines.some(line => !Number.isSafeInteger(line.lineTotal) || line.lineTotal <= 0)) throw new Error('Isi total di nota untuk setiap barang.');
+          if (body.lines.some(line => !Number.isSafeInteger(line.quantity) || line.quantity <= 0)) throw new Error('Isi qty yang didapat untuk setiap barang.');
+          const grand = body.lines.reduce((sum, line) => sum + line.lineTotal, 0);
+          const ringkas = body.lines.map(line => {
+            const item = (subject.items || []).find(row => row.productId === line.productId);
+            return `• ${item?.productName || line.productId}: ${line.quantity} = ${rupiah(line.lineTotal)}`;
+          }).join('\n');
+          const bayar = el('voidPaymentMethod')?.selectedOptions?.[0]?.textContent || body.paymentMethod;
+          if (!window.confirm(`Ganti pembelian ini dengan:\n\n${ringkas}\n\nTOTAL ${rupiah(grand)} · ${bayar}\n\nSudah sama dengan nota?`)) return false;
         }
         const result = await api('/api/cashier/transaction-void/permits', { method: 'POST', body: JSON.stringify(body) });
-        const label = correctionKind === 'AMOUNT' ? 'Ganti nominal' : 'Hapus';
+        const label = correctionKind === 'AMOUNT' ? 'Ganti pembelian' : 'Hapus';
         if (result.autoPermit && result.executed) toast(`${label} langsung diproses · Auto Permit aktif`);
         else if (result.autoPermit) toast(result.message || 'Permit sudah ACC, tetapi eksekusi pembalik perlu diperiksa Admin.');
         else toast(`Permintaan ${label.toLowerCase()} masuk ke Admin · menunggu ACC`);
@@ -404,7 +433,7 @@
       const amount = radio.value === 'AMOUNT' && radio.checked;
       el('voidAmountFields')?.classList.toggle('hidden', !amount);
       const submit = el('cashierDialogSubmit');
-      if (submit) submit.textContent = radio.value === 'AMOUNT' ? 'AJUKAN GANTI NOMINAL' : 'AJUKAN HAPUS';
+      if (submit) submit.textContent = radio.value === 'AMOUNT' ? 'AJUKAN GANTI' : 'AJUKAN HAPUS';
     }));
   }
 

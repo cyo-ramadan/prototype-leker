@@ -74,7 +74,7 @@
       list: '/api/management/transaction-void-permits?status=pending_approval',
       decide: id => `/api/management/transaction-void-permits/${encodeURIComponent(id)}`,
       rows: payload => payload.permits || [],
-      judul: permit => `${permit.correctionKind === 'AMOUNT' ? 'Ganti nominal' : 'Hapus transaksi'} · ${SUBJECT_LABEL[permit.subjectType] || permit.subjectType}`,
+      judul: permit => `${permit.correctionKind === 'AMOUNT' ? 'Ganti pembelian' : 'Hapus transaksi'} · ${SUBJECT_LABEL[permit.subjectType] || permit.subjectType}`,
       orang: permit => permit.cashierName || permit.cashierId,
       diajukan: permit => permit.requestedAt,
       isi: permit => isiTransaksi(permit),
@@ -89,7 +89,7 @@
       list: '/api/management/transaction-void-permits?status=approved',
       decide: id => `/api/management/transaction-void-permits/${encodeURIComponent(id)}`,
       rows: payload => (payload.permits || []).filter(permit => permit.executionStatus === 'HOLD' || permit.executionStatus === 'FAILED' || permit.hppReplayStatus === 'TERTAHAN'),
-      judul: permit => `ACC tertahan · ${permit.correctionKind === 'AMOUNT' ? 'ganti nominal' : 'hapus'} ${(SUBJECT_LABEL[permit.subjectType] || permit.subjectType).toLowerCase()}`,
+      judul: permit => `ACC tertahan · ${permit.correctionKind === 'AMOUNT' ? 'ganti pembelian' : 'hapus'} ${(SUBJECT_LABEL[permit.subjectType] || permit.subjectType).toLowerCase()}`,
       orang: permit => permit.cashierName || permit.cashierId,
       diajukan: permit => permit.decidedAt || permit.requestedAt,
       isi: permit => `${isiTransaksi(permit)}<br><b>Kenapa tertahan:</b> ${esc(permit.executionStatus === 'EXECUTED' ? `uang laci, stok, dan jurnal sudah beres; hitung ulang HPP perlu dicek manual: ${permit.hppReplayDetail}` : permit.executionDetail || permit.executionCode)}`,
@@ -107,9 +107,12 @@
     const baru = (permit.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0);
     const rincian = (permit.subject?.items || []).map(item => {
       const line = (permit.requestedLines || []).find(row => Number(row.productId) === Number(item.productId));
-      return `${esc(item.productName)} ${esc(item.quantity)} ${esc(item.unitSymbol)}: ${esc(money(item.lineTotal))} → <b>${esc(money(line?.lineTotal))}</b>`;
+      const qty = line?.quantity == null ? item.quantity : line.quantity;
+      return `${esc(item.productName)}: ${esc(item.quantity)} ${esc(item.unitSymbol)} ${esc(money(item.lineTotal))} → <b>${esc(qty)} ${esc(item.unitSymbol)} ${esc(money(line?.lineTotal))}</b>`;
     }).join(' · ');
-    return `${asal} → jadi <b>${esc(money(baru))}</b> (barang &amp; qty tetap)${rincian ? `<br>${rincian}` : ''}`;
+    const bayar = permit.requestedPaymentMethod && permit.requestedPaymentMethod !== permit.subject?.paymentMethod
+      ? ` · cara bayar ${esc(permit.subject?.paymentMethod || '')} → <b>${esc(permit.requestedPaymentMethod)}</b>` : '';
+    return `${asal} → diganti <b>${esc(money(baru))}</b>${bayar}${rincian ? `<br>${rincian}` : ''}`;
   }
   const byKind = new Map(JENIS.map(jenis => [jenis.kind, jenis]));
 

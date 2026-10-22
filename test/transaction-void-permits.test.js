@@ -59,7 +59,8 @@ test('cashier and management UI expose request and ACC-Reject lifecycle', () => 
   assert.match(cashierUi, /AJUKAN HAPUS/);
   assert.match(cashierUi, /voidPermitReason/);
   assert.match(cashierUi, /menunggu ACC/i);
-  assert.match(cashierUi, /Ganti nominal saja/);
+  assert.match(cashierUi, /Ganti dengan pembelian yang benar/);
+  assert.match(cashierUi, /tidak bisa dihapus begitu saja/);
   assert.match(cashierUi, /ACC tertahan/);
   assert.match(cashierUi, /data-cashier-tx-void-id/);
   assert.match(cashierUi, /data-cashier-tx-cancel-permit/);

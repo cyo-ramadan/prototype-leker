@@ -40,8 +40,8 @@
         ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="secondary-btn" type="button" data-void-permit-retry="${esc(item.id)}">🔁 Retry Eksekusi</button></div><p class="muted" style="margin-top:6px">Sudah di-ACC tetapi eksekusinya belum tuntas -- aman diulang, tidak akan diterapkan dobel.</p>`
         : '';
     return `<article class="admin-card" style="box-shadow:none;margin-bottom:10px">
-      <div class="list-head"><div><strong>${item.correctionKind === 'AMOUNT' ? 'PERMIT GANTI NOMINAL' : 'PERMIT HAPUS'} · ${esc(labels[item.subjectType] || item.subjectType)}</strong><div class="muted">${esc(item.cashierName || item.cashierId)} · ${dt(item.requestedAt)}</div></div><span class="master-count">${esc(statusText(item))}</span></div>
-      <p><b>${esc(subject.description || item.subjectId)}</b> · ${money(subject.amount)}${item.correctionKind === 'AMOUNT' ? ` → <b>${money((item.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0))}</b> (barang &amp; qty tetap)` : ''}</p>
+      <div class="list-head"><div><strong>${item.correctionKind === 'AMOUNT' ? 'PERMIT GANTI PEMBELIAN' : 'PERMIT HAPUS'} · ${esc(labels[item.subjectType] || item.subjectType)}</strong><div class="muted">${esc(item.cashierName || item.cashierId)} · ${dt(item.requestedAt)}</div></div><span class="master-count">${esc(statusText(item))}</span></div>
+      <p><b>${esc(subject.description || item.subjectId)}</b> · ${money(subject.amount)}${item.correctionKind === 'AMOUNT' ? ` → <b>${money((item.requestedLines || []).reduce((sum, line) => sum + Number(line.lineTotal || 0), 0))}</b>${item.requestedPaymentMethod ? ` · ${esc(item.requestedPaymentMethod)}` : ''} (pembelian pengganti)` : ''}</p>
       <div class="muted">Ref ${esc(item.subjectId)} · ${esc(subject.paymentMethod || '')}</div>
       <div class="admin-tip" style="margin-top:9px"><b>Alasan kasir:</b> ${esc(item.reason)}</div>
       <div class="muted" style="margin-top:8px">Soft-delete + correction auditable; history sumber tetap ada.</div>

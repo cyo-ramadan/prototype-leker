@@ -19,7 +19,14 @@ const APPROVAL_STATUSES = new Set(['pending_approval', 'approved', 'rejected']);
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 
 function parseSnapshot(value) { try { return JSON.parse(value || '{}'); } catch { return {}; } }
-function parseLines(value) { try { const lines = JSON.parse(value || '[]'); return Array.isArray(lines) ? lines : []; } catch { return []; } }
+// requested_lines_json: array lama [{productId, lineTotal}] atau {lines:[{productId, quantity, lineTotal}], paymentMethod}.
+function parseRequested(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    if (Array.isArray(parsed)) return { lines: parsed, paymentMethod: null };
+    return { lines: Array.isArray(parsed?.lines) ? parsed.lines : [], paymentMethod: parsed?.paymentMethod || null };
+  } catch { return { lines: [], paymentMethod: null }; }
+}
 function permitDto(row) {
   return {
     id: row.id,
@@ -47,7 +54,8 @@ function permitDto(row) {
     decidedAt: row.decided_at || null,
     executedAt: row.executed_at || null,
     correctionKind: row.correction_kind || 'VOID',
-    requestedLines: parseLines(row.requested_lines_json),
+    requestedLines: parseRequested(row.requested_lines_json).lines,
+    requestedPaymentMethod: parseRequested(row.requested_lines_json).paymentMethod,
     replacementSubjectId: row.replacement_subject_id || null,
     hppReplayStatus: row.hpp_replay_status || '',
     hppReplayDetail: row.hpp_replay_detail || ''
@@ -106,13 +114,15 @@ async function transactionSubject(db, storeId, drawerId, cashierId, subjectType,
     `).bind(subjectId, storeId, drawerId, cashierId).first();
     if (!row) return null;
     const items = await db.prepare(`
-      SELECT product_id, product_name, quantity, unit_symbol, line_total
-      FROM purchase_items WHERE purchase_id = ? AND store_id = ? ORDER BY product_id
+      SELECT pi.product_id, pi.product_name, pi.quantity, pi.unit_symbol, pi.line_total, COALESCE(b.quantity, 0) AS current_stock
+      FROM purchase_items pi
+      LEFT JOIN inventory_stock_balances b ON b.store_id = pi.store_id AND b.product_id = pi.product_id
+      WHERE pi.purchase_id = ? AND pi.store_id = ? ORDER BY pi.product_id
     `).bind(row.id, storeId).all();
     return {
       subjectType: 'PURCHASE', subjectId: row.id, amount: Number(row.total_amount || 0), description: row.description || 'Pembelian Bahan', paymentMethod: row.payment_method || 'CASH', note: row.note || '', supplierId: row.supplier_id || null, createdAt: row.created_at,
       depositId: row.deposit_id || null,
-      items: (items.results || []).map(item => ({ productId: Number(item.product_id), productName: item.product_name, quantity: Number(item.quantity), unitSymbol: item.unit_symbol, lineTotal: Number(item.line_total) }))
+      items: (items.results || []).map(item => ({ productId: Number(item.product_id), productName: item.product_name, quantity: Number(item.quantity), unitSymbol: item.unit_symbol, lineTotal: Number(item.line_total), currentStock: Number(item.current_stock) }))
     };
   }
   if (subjectType === 'EXPENSE') {
@@ -169,29 +179,54 @@ async function amountCorrectionEnabled(db, storeId) {
 
 // Ganti nominal pembelian (Bos Cyo, 2026-10-21): barang & qty tetap, CS mengisi total benar di nota
 // per baris. Deposit/Hutang belum didukung (pembaliknya menyentuh catatan lain) -> pakai hapus.
-async function checkAmountCorrection(db, storeId, subject, rawLines) {
-  if (subject.subjectType !== 'PURCHASE') return { ok: false, error: 'Ganti nominal hanya untuk pembelian bahan.' };
-  if (!await amountCorrectionEnabled(db, storeId)) return { ok: false, error: 'Ganti nominal pembelian tidak aktif untuk tenant ini; ajukan hapus.', code: 'AMOUNT_CORRECTION_DISABLED' };
-  if (subject.depositId) return { ok: false, error: 'Pembelian dari Deposit belum bisa diganti nominal; ajukan hapus lalu input ulang.', code: 'AMOUNT_CORRECTION_UNSUPPORTED' };
+// Cara bayar yang boleh dipakai pembelian pengganti: aktif, bukan Hutang (pembalik hutang belum didukung).
+async function replacementPaymentMethods(db, storeId) {
+  const rows = await db.prepare(`
+    SELECT code, name FROM payment_methods WHERE store_id = ? AND is_active = 1 AND COALESCE(creates_payable, 0) = 0 ORDER BY name
+  `).bind(storeId).all();
+  return (rows.results || []).map(row => ({ code: row.code, name: row.name }));
+}
+
+// Pembelian pengganti (Bos Cyo, 2026-10-21/22): barang tetap, CS mengisi qty yang didapat, total di nota,
+// dan cara bayar yang benar. Wajib bila stok bahannya sudah terpakai (hapus saja akan membuat stok minus):
+// "sistem baca stok uda berkurang maka dia harus sambil input yang benernya". Deposit/Hutang belum didukung.
+async function checkAmountCorrection(db, storeId, subject, rawLines, rawPaymentMethod) {
+  if (subject.subjectType !== 'PURCHASE') return { ok: false, error: 'Ganti hanya untuk pembelian bahan.' };
+  if (!await amountCorrectionEnabled(db, storeId)) return { ok: false, error: 'Ganti pembelian tidak aktif untuk tenant ini; ajukan hapus.', code: 'AMOUNT_CORRECTION_DISABLED' };
+  if (subject.depositId) return { ok: false, error: 'Pembelian dari Deposit belum bisa diganti; hubungi Admin.', code: 'AMOUNT_CORRECTION_UNSUPPORTED' };
   const method = await db.prepare('SELECT creates_payable FROM payment_methods WHERE store_id = ? AND code = ? LIMIT 1').bind(storeId, subject.paymentMethod).first();
-  if (method?.creates_payable) return { ok: false, error: 'Pembelian Hutang belum bisa diganti nominal; ajukan hapus lalu input ulang.', code: 'AMOUNT_CORRECTION_UNSUPPORTED' };
-  const byProduct = new Map((Array.isArray(rawLines) ? rawLines : []).map(line => [Number(line?.productId), Number(line?.lineTotal)]));
+  if (method?.creates_payable) return { ok: false, error: 'Pembelian Hutang belum bisa diganti; hubungi Admin.', code: 'AMOUNT_CORRECTION_UNSUPPORTED' };
+  const paymentMethod = text(rawPaymentMethod || subject.paymentMethod, 40).toUpperCase();
+  if (!(await replacementPaymentMethods(db, storeId)).some(row => row.code === paymentMethod)) {
+    return { ok: false, error: 'Cara bayar pengganti tidak aktif / tidak boleh dipakai (Hutang belum didukung).', code: 'PAYMENT_METHOD_NOT_AVAILABLE' };
+  }
+  const byProduct = new Map((Array.isArray(rawLines) ? rawLines : []).map(line => [Number(line?.productId), line]));
   const items = subject.items || [];
-  if (!items.length || byProduct.size !== items.length) return { ok: false, error: 'Isi nominal benar untuk setiap barang di pembelian ini.' };
+  if (!items.length || byProduct.size !== items.length) return { ok: false, error: 'Isi qty dan total benar untuk setiap barang di pembelian ini.' };
   const ranges = await loadPurchasePriceRanges(db, storeId);
   const lines = [];
-  let changed = false;
+  let changed = paymentMethod !== subject.paymentMethod;
   for (const item of items) {
-    const lineTotal = byProduct.get(item.productId);
-    if (!Number.isSafeInteger(lineTotal) || lineTotal <= 0) return { ok: false, error: `Nominal benar ${item.productName} wajib angka rupiah lebih dari 0.` };
+    const raw = byProduct.get(item.productId);
+    const lineTotal = Number(raw?.lineTotal);
+    const quantity = raw?.quantity == null || raw?.quantity === '' ? item.quantity : Number(raw.quantity);
+    if (!Number.isSafeInteger(lineTotal) || lineTotal <= 0) return { ok: false, error: `Total benar ${item.productName} wajib angka rupiah lebih dari 0.` };
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) return { ok: false, error: `Qty benar ${item.productName} wajib bilangan bulat lebih dari 0.` };
     // Rentang harga beli wajar ikut berlaku, sama seperti input pembelian baru.
-    const violation = purchaseRangeViolation({ ...item, unitCostScaled: scaledUnitCost(lineTotal, item.quantity), lineTotal }, ranges.get(item.productId));
+    const violation = purchaseRangeViolation({ ...item, quantity, unitCostScaled: scaledUnitCost(lineTotal, quantity), lineTotal }, ranges.get(item.productId));
     if (violation) return { ok: false, error: violation, code: 'PURCHASE_PRICE_OUT_OF_RANGE' };
-    if (lineTotal !== item.lineTotal) changed = true;
-    lines.push({ productId: item.productId, lineTotal });
+    if (lineTotal !== item.lineTotal || quantity !== item.quantity) changed = true;
+    lines.push({ productId: item.productId, quantity, lineTotal });
   }
-  if (!changed) return { ok: false, error: 'Nominalnya sama dengan yang tercatat; tidak ada yang perlu diganti.' };
-  return { ok: true, lines };
+  if (!changed) return { ok: false, error: 'Isinya sama dengan yang tercatat; tidak ada yang perlu diganti.' };
+  // Stok harus cukup untuk membalik pembelian lama SESUDAH pembelian pengganti masuk.
+  for (const item of items) {
+    const line = lines.find(row => row.productId === item.productId);
+    if (Number(item.currentStock || 0) + line.quantity < item.quantity) {
+      return { ok: false, error: `Stok ${item.productName} tinggal ${item.currentStock}; sesudah pembelian pengganti ${line.quantity} pun masih kurang untuk membalik ${item.quantity}. Hubungi Admin.`, code: 'STOCK_SHORT' };
+    }
+  }
+  return { ok: true, lines, paymentMethod };
 }
 
 // H menyatukan pekerjaan Owner dan Admin Entity. Pada skin ini saja, saklar
@@ -247,7 +282,13 @@ async function handleCashier(request, env, pathname) {
       ? await transactionSubject(env.DB, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, text(url.searchParams.get('id'), 180))
       : null;
     if (!subject) return json({ error: 'Transaksi aktif tidak ditemukan pada laci milik kasir ini.' }, 404);
-    return json({ subject, amountCorrectionEnabled: subjectType === 'PURCHASE' && await amountCorrectionEnabled(env.DB, auth.cashier.store.id) });
+    const stockShort = subjectType === 'PURCHASE' && (subject.items || []).some(item => item.currentStock < item.quantity);
+    return json({
+      subject,
+      amountCorrectionEnabled: subjectType === 'PURCHASE' && await amountCorrectionEnabled(env.DB, auth.cashier.store.id),
+      stockShort,
+      paymentMethods: subjectType === 'PURCHASE' ? await replacementPaymentMethods(env.DB, auth.cashier.store.id) : []
+    });
   }
   if (request.method === 'POST' && pathname === '/api/cashier/transaction-void/permits') {
     const body = await readJson(request);
@@ -261,11 +302,20 @@ async function handleCashier(request, env, pathname) {
     if (!subject) return json({ error: 'Transaksi aktif tidak ditemukan pada laci milik kasir ini.' }, 404);
     const existing = await existingOpenPermit(env.DB, auth.cashier.store.id, subjectType, subjectId);
     if (existing) return json({ error: existing.approval_status === 'pending_approval' ? 'Permit hapus transaksi ini masih menunggu Admin.' : 'Permit sudah di-ACC tetapi eksekusi correction belum selesai.', code: 'VOID_PERMIT_ALREADY_OPEN' }, 409);
-    let requestedLines = [];
+    let requested = null;
     if (correctionKind === 'AMOUNT') {
-      const checked = await checkAmountCorrection(env.DB, auth.cashier.store.id, subject, body.value?.lines);
+      const checked = await checkAmountCorrection(env.DB, auth.cashier.store.id, subject, body.value?.lines, body.value?.paymentMethod);
       if (!checked.ok) return json({ error: checked.error, code: checked.code || 'AMOUNT_CORRECTION_INVALID' }, 400);
-      requestedLines = checked.lines;
+      requested = { lines: checked.lines, paymentMethod: checked.paymentMethod };
+    } else if (subjectType === 'PURCHASE') {
+      const short = (subject.items || []).filter(item => item.currentStock < item.quantity);
+      if (short.length) {
+        const daftar = short.map(item => `${item.productName} tinggal ${item.currentStock} (dibeli ${item.quantity})`).join(', ');
+        return json({
+          error: `Stok ${daftar}: bahannya sudah terpakai, jadi pembelian ini tidak bisa dihapus begitu saja. Pilih "Ganti dengan pembelian yang benar" lalu isi qty, total nota, dan cara bayar yang benar.`,
+          code: 'STOCK_SHORT_NEED_REPLACEMENT'
+        }, 400);
+      }
     }
     const id = `permit_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -277,7 +327,7 @@ async function handleCashier(request, env, pathname) {
         correction_kind, requested_lines_json
       ) VALUES (?, ?, ?, ?, 'TRANSACTION_VOID', ?, ?, ?, ?, 'pending_approval', 'NOT_ATTEMPTED', ?, ?, ?, ?)
     `).bind(id, auth.cashier.store.id, drawer.drawer.id, auth.cashier.id, subjectType, subjectId, JSON.stringify(subject), reason, now, now,
-      correctionKind, requestedLines.length ? JSON.stringify(requestedLines) : '').run();
+      correctionKind, requested ? JSON.stringify(requested) : '').run();
     const automatic = await autoVoidDecision(env.DB, auth);
     if (!automatic) return json({ ok: true, permit: await getPermit(env.DB, id), autoPermit: false }, 201);
 
@@ -354,7 +404,7 @@ async function runCorrectionAndFinalize(env, scope, approved, approverRole, appr
   // Accounting dicatat di execution_detail; jurnal pembaliknya sendiri tetap
   // bisa ditelusuri lewat idempotency key LEKER_POS_VOID:<permitId>.
   const extras = [
-    executed.replacementId ? `Pembelian pengganti ${executed.replacementId} (Rp${Number(executed.replacementTotal || 0).toLocaleString('id-ID')}) dibuat dengan qty yang sama.` : '',
+    executed.replacementId ? `Pembelian pengganti ${executed.replacementId} (Rp${Number(executed.replacementTotal || 0).toLocaleString('id-ID')}) dibuat sesuai qty, total, dan cara bayar yang diajukan.` : '',
     executed.hppMenunggu ? `HPP ${(executed.itemNames || []).join(', ')} dihitung ulang otomatis di jam sepi (23.00–07.00 WIB); uang laci, stok, dan jurnal sudah beres sekarang.` : ''
   ].filter(Boolean).join(' ');
   await env.DB.prepare(`

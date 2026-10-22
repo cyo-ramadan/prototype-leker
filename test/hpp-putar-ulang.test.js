@@ -276,3 +276,35 @@ test('Una: di jam sepi menyusun draft dan memposting per izin', async () => {
   assert.equal(posting.ok, true);
   assert.deepEqual(terkirim, ['POST /api/management/transaction-void-permits/p1/hpp-putar-ulang']);
 });
+
+test('Tlekung: stok bahan sudah terpakai -> pengganti (cara bayar beda) masuk dulu, pembelian salah dibalik tanpa stok minus', async () => {
+  const f = setup();
+  try {
+    const salah = await beli(f, 19000, 38000, '2026-10-21T10:46:42.175Z');
+    pakai(f, 40000, '2026-10-21T11:00:00.000Z');
+    assert.equal(kondisi(f).quantity, 22000, 'stok lebih kecil dari qty pembelian salah');
+    const permit = { ...izin(f, salah, { kind: 'AMOUNT', lines: [{ productId: f.product.id, quantity: 38000, lineTotal: 12000 }] }), requestedPaymentMethod: 'QRIS' };
+    const hasil = await executeTransactionCorrection(f.db, f.store, permit, { role: 'ADMIN', id: 'a' }, '2026-10-21T12:00:00.000Z');
+    assert.equal(hasil.ok, true, hasil.detail);
+    assert.equal(hasil.hppMenunggu, true);
+    assert.equal(kondisi(f).quantity, 22000, 'pengganti masuk lalu yang salah dibalik: stok tetap');
+    const pengganti = f.sqlite.prepare('SELECT total_amount, payment_method FROM purchases WHERE id = ?').get(hasil.replacementId);
+    assert.deepEqual({ ...pengganti }, { total_amount: 12000, payment_method: 'QRIS' });
+    assert.ok(f.sqlite.prepare('SELECT voided_at FROM purchases WHERE id = ?').get(salah).voided_at);
+    tandaiMenunggu(f, permit.id, hasil.replacementId);
+    const malam = await terapkanPutarUlangIzin(f.db, izinUntukPutar(f, permit, hasil.replacementId), MALAM);
+    assert.equal(malam.ok, true, malam.alasan);
+    assert.equal(kondisi(f).average_cost, rataRataSesudahBeli(24000, 363500, { quantity: 38000, lineTotal: 12000, unitCost: scaledUnitCost(12000, 38000) }));
+  } finally { f.sqlite.close(); }
+});
+
+test('ganti pembelian dengan qty berbeda: stok mengikuti qty yang benar', async () => {
+  const f = setup();
+  try {
+    const salah = await beli(f, 19000, 38000, '2026-10-21T10:46:42.175Z');
+    const permit = izin(f, salah, { kind: 'AMOUNT', lines: [{ productId: f.product.id, quantity: 30000, lineTotal: 15000 }] });
+    const hasil = await executeTransactionCorrection(f.db, f.store, permit, { role: 'ADMIN', id: 'a' }, '2026-10-21T10:50:00.000Z');
+    assert.equal(hasil.ok, true, hasil.detail);
+    assert.equal(kondisi(f).quantity, 54000);
+  } finally { f.sqlite.close(); }
+});

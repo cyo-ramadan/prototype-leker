@@ -324,46 +324,59 @@ async function latestOtherPurchaseCost(db, storeId, productId, purchaseId) {
 
 function requestedLines(permit) {
   if (Array.isArray(permit.requestedLines)) return permit.requestedLines;
-  try { return JSON.parse(permit.requestedLinesJson || '[]'); } catch { return []; }
+  try {
+    const parsed = JSON.parse(permit.requestedLinesJson || '[]');
+    return Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.lines) ? parsed.lines : []);
+  } catch { return []; }
+}
+
+// Qty pengganti per barang (bawaan: qty pembelian asal).
+function requestedQuantity(permit, item) {
+  const line = requestedLines(permit).find(row => Number(row?.productId) === Number(item.product_id));
+  return line?.quantity == null ? Number(item.quantity) : Number(line.quantity);
 }
 
 // Koreksi nominal (Bos Cyo, 2026-10-21: "cs mau hapus, muncul pesan bener mau hapus atau cuma ganti
 // nominal doang"): pembelian pengganti dengan barang & qty yang sama, nominal yang diajukan CS. Waktu
 // transaksinya ikut pembelian asal supaya laci dan tanggal jurnalnya sama; mutasi stoknya tetap
 // berwaktu sekarang supaya Putar Ulang HPP bisa memverifikasi riwayat (src/hpp-putar-ulang.js).
-async function replacementPlan(db, purchase, permit, items, now) {
+async function replacementPlan(db, purchase, permit, items, now, { first = false } = {}) {
   if (purchase.deposit_id) return { ok: false, result: hold('PURCHASE_AMOUNT_CORRECTION_UNSUPPORTED', 'Pembelian yang dibayar dari Deposit belum bisa diganti nominal; ajukan hapus lalu input ulang.') };
   const method = await db.prepare('SELECT creates_payable FROM payment_methods WHERE store_id = ? AND code = ? LIMIT 1')
     .bind(purchase.store_id, purchase.payment_method).first();
   if (method?.creates_payable) return { ok: false, result: hold('PURCHASE_AMOUNT_CORRECTION_UNSUPPORTED', 'Pembelian yang dicatat sebagai Hutang belum bisa diganti nominal; ajukan hapus lalu input ulang.') };
   const byProduct = new Map(requestedLines(permit).map(line => [Number(line?.productId), Number(line?.lineTotal)]));
+  const paymentMethod = permit.requestedPaymentMethod || purchase.payment_method;
   const lines = [];
   for (const item of items) {
     const lineTotal = byProduct.get(Number(item.product_id));
-    if (!Number.isSafeInteger(lineTotal) || lineTotal <= 0) {
-      return { ok: false, result: fail('PURCHASE_AMOUNT_CORRECTION_INVALID', `Nominal benar untuk ${item.product_name} tidak ada / tidak valid.`) };
+    const quantity = requestedQuantity(permit, item);
+    if (!Number.isSafeInteger(lineTotal) || lineTotal <= 0 || !Number.isSafeInteger(quantity) || quantity <= 0) {
+      return { ok: false, result: fail('PURCHASE_AMOUNT_CORRECTION_INVALID', `Qty/nominal benar untuk ${item.product_name} tidak ada / tidak valid.`) };
     }
-    const unitCostScaled = scaledUnitCost(lineTotal, Number(item.quantity));
+    const unitCostScaled = scaledUnitCost(lineTotal, quantity);
     if (unitCostScaled === null) return { ok: false, result: fail('PURCHASE_AMOUNT_CORRECTION_INVALID', 'Nominal terlalu besar untuk skala HPP.') };
     lines.push({
       productId: Number(item.product_id), productName: item.product_name, unitId: item.unit_id, unitSymbol: item.unit_symbol,
-      quantity: Number(item.quantity), lineTotal, unitCostScaled
+      quantity, lineTotal, unitCostScaled
     });
   }
   if (byProduct.size !== items.length) return { ok: false, result: fail('PURCHASE_AMOUNT_CORRECTION_INVALID', 'Baris nominal benar tidak sama dengan barang di pembelian asal.') };
-  // Satu milidetik sesudah pembalik, supaya urutan mutasinya pasti (pembalik dulu, baru pengganti).
-  const replacementNow = new Date(Date.parse(now) + 1).toISOString();
+  // Urutan mutasi harus pasti untuk Putar Ulang HPP: biasanya pembalik dulu lalu pengganti (+1 ms); kalau stok
+  // bahan sudah terpakai, pengganti masuk dulu (-1 ms) supaya pembalik tidak membuat stok minus.
+  const replacementNow = new Date(Date.parse(now) + (first ? -1 : 1)).toISOString();
   const id = `purchase_${crypto.randomUUID()}`;
   const totalAmount = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const accounting = await buildTransactionAccountingSnapshot(db, {
-    storeId: purchase.store_id, sourceType: 'PURCHASE', sourceId: id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod: purchase.payment_method, now
+    storeId: purchase.store_id, sourceType: 'PURCHASE', sourceId: id, businessEvent: 'PURCHASE_MATERIAL', paymentMethod, now
   });
-  const note = `Koreksi nominal ${purchase.id} (izin ${permit.id}): ${purchase.total_amount} → ${totalAmount}${purchase.note ? ` · ${purchase.note}` : ''}`.slice(0, 500);
+  const changedPayment = paymentMethod !== purchase.payment_method ? `, cara bayar ${purchase.payment_method} → ${paymentMethod}` : '';
+  const note = `Pengganti ${purchase.id} (izin ${permit.id}): ${purchase.total_amount} → ${totalAmount}${changedPayment}${purchase.note ? ` · ${purchase.note}` : ''}`.slice(0, 500);
   const statements = [
     db.prepare(`
       INSERT INTO purchases (id, store_id, drawer_session_id, cashier_id, supplier_id, description, total_amount, note, created_at, payment_method)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, purchase.store_id, purchase.drawer_session_id, purchase.cashier_id, purchase.supplier_id, purchase.description, totalAmount, note, purchase.created_at, purchase.payment_method),
+    `).bind(id, purchase.store_id, purchase.drawer_session_id, purchase.cashier_id, purchase.supplier_id, purchase.description, totalAmount, note, purchase.created_at, paymentMethod),
     accounting.statement
   ];
   for (const item of lines) statements.push(...purchaseItemStatements(db, {
@@ -399,8 +412,10 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
   `).bind(permit.subjectId, storeId).all()).results ?? [];
   if (!items.length) return hold('PURCHASE_ITEMS_REQUIRED', 'Pembelian tidak mempunyai snapshot itemized untuk pembalik stok/HPP.');
 
+  const isReplacement = permit.correctionKind === 'AMOUNT';
   const plans = [];
   let exact = true;
+  let replacementFirst = false;
   for (const item of items) {
     const laterMovement = await db.prepare(`
       SELECT source_type
@@ -418,7 +433,10 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
       WHERE p.id = ? AND p.store_id = ?
       LIMIT 1
     `).bind(item.product_id, storeId).first();
-    if (!current || Number(current.quantity || 0) < Number(item.quantity || 0)) {
+    const stockNow = Number(current?.quantity || 0);
+    const incoming = isReplacement ? requestedQuantity(permit, item) : 0;
+    if (isReplacement && stockNow < Number(item.quantity || 0)) replacementFirst = true;
+    if (!current || stockNow + incoming < Number(item.quantity || 0)) {
       return hold(
         'PURCHASE_STOCK_NOT_REVERSIBLE',
         `Stok ${item.product_name} tinggal ${Number(current?.quantity || 0)} ${item.unit_symbol}, lebih kecil dari ${item.quantity} ${item.unit_symbol} yang mau dibatalkan. Hitung stok fisik dan sesuaikan stoknya dulu, lalu tekan Coba lagi.`
@@ -428,10 +446,11 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
     plans.push({ item, latest: await latestOtherPurchaseCost(db, storeId, item.product_id, permit.subjectId) });
   }
 
-  const replacement = permit.correctionKind === 'AMOUNT' ? await replacementPlan(db, purchase, permit, items, now) : null;
+  if (replacementFirst) exact = false;
+  const replacement = isReplacement ? await replacementPlan(db, purchase, permit, items, now, { first: replacementFirst }) : null;
   if (replacement && !replacement.ok) return replacement.result;
 
-  const statements = [];
+  const statements = replacementFirst ? [...replacement.statements] : [];
   for (const { item, latest } of plans) {
     statements.push(db.prepare(`
       UPDATE inventory_stock_balances
@@ -464,8 +483,9 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
         `).bind(`hpp_snap_${crypto.randomUUID()}`, permit.id, now, item.product_id, storeId)
       );
     } else {
-      // HPP (harga rata-rata) menunggu Putar Ulang HPP di jam sepi; harga beli terakhir dibetulkan sekarang.
-      statements.push(db.prepare(`
+      // HPP (harga rata-rata) menunggu Putar Ulang HPP di jam sepi; harga beli terakhir dibetulkan sekarang
+      // (kalau ada pengganti, pengganti sendiri yang menjadi harga beli terakhir).
+      if (!replacement) statements.push(db.prepare(`
         UPDATE products SET last_purchase_price = ?, last_purchase_at = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND store_id = ?
       `).bind(Number(latest?.unit_cost || 0), latest?.created_at || null, item.product_id, storeId));
@@ -495,7 +515,7 @@ async function executePurchaseCorrection(db, storeId, permit, actor, now) {
     WHERE id = ? AND store_id = ? AND voided_at IS NULL
   `).bind(now, actor.role, actor.id, text(permit.reason), permit.id, permit.subjectId, storeId));
   const voidIndex = statements.length - 1;
-  if (replacement) statements.push(...replacement.statements);
+  if (replacement && !replacementFirst) statements.push(...replacement.statements);
 
   try {
     const results = await db.batch(statements);

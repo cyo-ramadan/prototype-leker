@@ -326,6 +326,25 @@ Active behavior:
 - Staff/Admin Raport exposes raw integrity facts from correction requests, decisions, drawer discrepancy and related operational data;
 - no automatic fraud label or opaque KPI score is generated.
 
+### Open: mekanisme koreksi pembelian yang proper (Bos Cyo, 2026-10-22)
+
+Kasus: Kaliurang 21 Okt (Air Mineral Rp19.000, input ulang lebih dulu -> HOLD) dan Tlekung 22 Okt
+(pembelian 8 bahan Rp305.500 tercatat Cash, seharusnya Rekening Bersama; CS lalu mencoba memperbaiki
+dengan Arus Kas masuk Rp305.500 ke Pendapatan Lainnya, sehingga salahnya dobel).
+
+Sudah live (d8fe21d): hapus pembelian membalik laci, stok, dan jurnal saat ACC; HPP diputar ulang di jam
+sepi (src/hpp-putar-ulang.js); "Ganti nominal saja"; ACC tertahan terlihat + Coba lagi. Yang masih
+tertahan: stok sekarang < qty pembelian yang dibatalkan (bahan sudah terpakai), misalnya pembelian
+yang benar belum diinput ulang.
+
+Aturan sementara dari Bos: kalau pembelian salah nominal / salah cara bayar / salah lain, CS
+memasukkan pembelian yang BENAR dulu, baru pembelian yang salah dihapus (stok cukup, tidak tertahan);
+program menyesuaikan HPP dengan detail yang benar.
+
+PR (dibahas lain kali): satu mekanisme koreksi pembelian yang proper untuk semua jenis salah (nominal,
+qty, barang, cara bayar, supplier) tanpa CS harus memahami urutan input ulang -> hapus, termasuk ganti
+cara bayar tanpa menyentuh stok.
+
 ### Open: KPI score/grade policy
 
 Raport facts are available, but score/grade remain `NEEDS_KPI_POLICY`. Bos Cyo still needs to define evaluation period, weights, target/direction, thresholds, and whether individual signals affect integrity score, operational score, or both.

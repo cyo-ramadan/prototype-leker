@@ -80,7 +80,7 @@ export const KAMUS = Object.freeze([
   {
     id: 'batal_penjualan', judul: 'Hapus / batalkan penjualan',
     kunci: ['batal penjualan', 'batalkan penjualan', 'hapus penjualan', 'hapus transaksi', 'pembatalan transaksi', 'void transaksi'],
-    isi: 'Di Kasir, buka Data, cari penjualan lalu tekan Hapus dan isi alasan. Pengajuan masuk Persetujuan untuk ACC atau Tolak Admin. Sebelum diputuskan, kasir bisa Batal Hapus. Riwayat tetap ada; saat berhasil, stok/kas dikoreksi dan jurnal yang sudah posted dibalik, bukan dihapus. Untuk pembelian bahan, sesudah tekan Hapus kasir memilih "Ganti nominal saja" (barang & qty tetap, isi total benar di nota) atau "Hapus pembelian ini". ACC belum selalu berarti selesai: bila tertahan (HOLD/FAILED), alasannya tampil di Data kasir sebagai "ACC tertahan" dan di Izin CS bagian ACC tertahan; Admin dapat menekan Coba lagi sesudah penyebabnya dibereskan. Una tidak menekan ACC untuk Bos.',
+    isi: 'Di Kasir, buka Data, cari penjualan lalu tekan Hapus dan isi alasan. Pengajuan masuk Persetujuan untuk ACC atau Tolak Admin. Sebelum diputuskan, kasir bisa Batal Hapus. Riwayat tetap ada; saat berhasil, stok/kas dikoreksi dan jurnal yang sudah posted dibalik, bukan dihapus. Untuk pembelian bahan, sesudah tekan Hapus kasir memilih "Ganti dengan pembelian yang benar" (barang sama; isi qty yang didapat, total di nota, dan cara bayar yang benar) atau "Hapus pembelian ini". Kalau stok bahannya sudah terpakai, Hapus saja tidak bisa dan kasir wajib mengisi pembelian yang benar. ACC belum selalu berarti selesai: bila tertahan (HOLD/FAILED), alasannya tampil di Data kasir sebagai "ACC tertahan" dan di Izin CS bagian ACC tertahan; Admin dapat menekan Coba lagi sesudah penyebabnya dibereskan. Una tidak menekan ACC untuk Bos.',
     varian: { h: { isi: 'Di Kasir, buka Data, cari transaksi lalu Hapus dan isi alasan. Pada skin H, bila Auto Permit gerai aktif, transaksi langsung diproses; jika tidak, menunggu ACC Admin di Persetujuan. Riwayat tetap ada. Periksa status eksekusi: HOLD/FAILED perlu ditinjau, bukan dianggap berhasil. Jurnal posted diperbaiki dengan pembalik.' } },
     tawaran: [buka('approvals')], tanpaAksi: 'pembatalan lewat permit dan pemeriksaan Admin'
   },
@@ -496,7 +496,7 @@ export const KAMUS = Object.freeze([
       '• Pilih Supplier (atau "Tanpa supplier") dan Cara bayar: Cash/Kas, Bank/Transfer, atau Hutang.',
       '• Pilih Barang, isi "🧾 Total di nota (Rp)" untuk barang itu, lalu "Qty yang didapat" → "＋ Masukkan". Ulangi untuk barang lain. Harga per satuan hanya lewat tombol ⇄ (dikali qty lalu dibulatkan, jadi bisa meleset dari nota).',
       '• SIMPAN PEMBELIAN, cocokkan ringkasan yang muncul dengan nota, lalu OK. Stok langsung bertambah dan modal rata-rata (HPP) diperbarui.',
-      '• Salah nominal? Di Data → Hapus → "Ganti nominal saja": barang & qty tetap, isi total benar, satu kali ACC. Uang laci, stok, dan jurnal langsung dibetulkan; HPP bahannya dihitung ulang otomatis malam itu.',
+      '• Salah nominal, qty, atau cara bayar? Di Data → Hapus → "Ganti dengan pembelian yang benar": isi qty yang didapat, total di nota, dan cara bayar yang benar, satu kali ACC. Uang laci, stok, dan jurnal langsung dibetulkan; HPP bahannya dihitung ulang otomatis malam itu. Kalau bahannya sudah terpakai, pilihan Hapus saja tidak tersedia.',
       'Barangnya harus sudah ada di Daftar Barang. Kalau sudah bayar uang muka ke supplier, pilih "Bayar dari Deposit".',
       'Una sengaja tidak mencatat pembelian — uangnya keluar dari laci/rekening, jadi tetap lewat kasir.'
     ].join('\n'),

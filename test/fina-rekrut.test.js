@@ -71,7 +71,11 @@ test('draft_loker: hanya Fina, membuat lowongan DRAFT; agen tidak bisa menayangk
   assert.equal((await ctx.baca('/api/entity-admin/fina/pelamar')).ok, false, 'agen tidak bisa membaca pelamar');
   // Nomor HP tidak pernah sampai ke model: tidak ada katalog/pintu baca ke data pelamar.
   assert.ok(!KATALOG.some(k => /pelamar|lamaran/.test(k.path)));
-  assert.ok(!PINTU_AKSI.some(p => /pelamar|lamaran/.test(p)));
+  // Pintu agen yang menyebut pelamar hanya rute khusus alat WA Fina tanpa nomor lengkap (diuji di
+  // test/fina-wa.test.js); data pelamar lengkap dan lamaran publik tidak pernah jadi pintu agen.
+  const pintuPelamar = PINTU_AKSI.filter(p => /pelamar|lamaran/.test(p));
+  assert.deepEqual(pintuPelamar, ['/api/entity-admin/fina/wa/calon-pelamar$', '/api/entity-admin/fina/wa/jadikan-pelamar$', '/api/entity-admin/fina/wa/pelamar-ringkas$']);
+  assert.ok(!PINTU_AKSI.some(p => /fina\/pelamar|publik\/lamaran|fina\/wa\/masuk/.test(p)));
 });
 
 test('loker publik: hanya TAYANG, tanpa data internal; entity lain tidak melihat lowongan', async () => {

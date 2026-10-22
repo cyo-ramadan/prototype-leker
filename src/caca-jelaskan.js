@@ -42,6 +42,17 @@ export const KAMUS = Object.freeze([
     tawaran: [], tanpaAksi: 'lowongan ditayangkan dan pelamar diputuskan lewat tombol di Rekrutmen Fina'
   },
   {
+    id: 'fina_wa', judul: 'Kotak masuk WA Fina, undangan interview/training, kabar ke CS',
+    kunci: ['kotak masuk wa', 'pesan wa fina', 'antrean kirim', 'wa pelamar', 'undang interview', 'undang training', 'kabari cs', 'janjian training', 'catat pelamar dari wa', 'pesan wa belum terkirim'],
+    isi: [
+      'Pesan WA yang masuk ke nomor HR (lewat gateway di laptop) tampil di Entity Admin → Pengaturan → "Kotak masuk WA Fina", ditandai Pelamar / Karyawan / Belum dikenal. Tombol "Tandai dibaca" dan "Muat ulang".',
+      'Di chat, pilih Fina lalu minta misalnya: "catat pelamar dari WA" (pengirim belum dikenal masuk ke Karyawan → Pelamar), "undang Sari interview di Beji besok jam 10" (WA undangan ke pelamar), atau "kabari Avinda besok jam 14 ada training Sari" (WA ke CS gerai). Semua lewat draft dan tombol "Ya".',
+      'Sesudah "Ya", pesan masuk "Antrean kirim" dengan status Menunggu gateway, lalu Terkirim atau Gagal. Pesan berstatus Draft perlu tombol "Setujui"; "Batal" membatalkan. Pesan hanya terkirim kalau laptop gateway menyala, dan ada batas kirim per jam serta per nomor supaya nomor tidak diblokir.',
+      'Nomor HP tidak pernah dibaca model; isi pesan orang yang belum dikenal juga tidak.'
+    ].join('\n'),
+    tawaran: [], tanpaAksi: 'pesan WA dikirim lewat draft Fina atau tombol Setujui di Kotak masuk WA'
+  },
+  {
     id: 'fina_kanal', judul: 'Sambungan Fina: WA, email, Instagram, Facebook',
     kunci: ['sambungan fina', 'hubungkan wa', 'sambungkan wa', 'gateway wa', 'token gateway', 'hubungkan email', 'hubungkan instagram', 'hubungkan facebook', 'konek wa ke fina'],
     isi: [
@@ -60,7 +71,8 @@ export const KAMUS = Object.freeze([
       '(2) mencatat "X menggantikan Y" untuk CS yang presensi di gerai itu, lewat koreksi pengganti Dana Apresiasi yang sama, sehingga shift dinilai ulang;',
       '(3) memasang pengumuman di papan CS (Portal Staf) untuk gerai itu atau semua gerai;',
       '(4) menyusun draft SP/teguran dari rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang) dengan kop dan tingkat dari pengaturan Fina;',
-      '(5) menyusun draft lowongan kerja (teks loker + caption Instagram/Facebook untuk diposting manual), tersimpan DRAFT sampai Admin menekan Tayangkan di Rekrutmen Fina.',
+      '(5) menyusun draft lowongan kerja (teks loker + caption Instagram/Facebook untuk diposting manual), tersimpan DRAFT sampai Admin menekan Tayangkan di Rekrutmen Fina;',
+      '(6) urusan WA lewat gateway: catat pelamar dari WA, undang pelamar interview/training di gerai tertentu, dan kabari CS gerai untuk mendampingi training (lihat Kotak masuk WA Fina).',
       'Semua kecuali tawaran backup lewat kartu draft dan tombol "Ya". Draft SP hanya tersimpan sebagai DRAFT; berlaku setelah Admin menekan Setujui di Entity Admin → Pengaturan → Surat Fina.'
     ].join('\n'),
     tawaran: [jelas('fina_surat', 'Surat Fina (SP)'), jelas('fina_pengaturan', 'Pengaturan Fina (HR)')], tanpaAksi: 'alat tulis Fina dipakai dari chat dengan memilih Fina'
@@ -129,7 +141,7 @@ export const KAMUS = Object.freeze([
   {
     id: 'pilih_asisten', judul: 'Memilih Una, Rika, atau Fina',
     kunci: ['rika', 'fina', 'pilih asisten', 'ganti asisten', 'asisten akuntan', 'asisten hr', 'agen akuntan', 'agen hr', 'una rika fina', 'matikan fina', 'matikan rika'],
-    isi: 'Di bawah judul panel chat ada tab kecil untuk memilih lawan bicara. Una = asisten toko dengan semua kemampuan lama. Rika = asisten akuntan: HPP, jurnal, aturan jurnal, sinkron akuntansi, rentang harga beli, cara bayar, pindah saldo, dan membaca data untuk menelusuri angka yang janggal. Fina = asisten HR: jadwal kasir, tambah karyawan, cek gerai kosong, freelance yang bisa backup, rekap masalah CS, teks tawaran backup, catat pengganti, pengumuman CS, draft SP, dan draft lowongan. Tiap asisten punya percakapan sendiri, jadi riwayat dan draft tidak tercampur, dan pilihan terakhir diingat per halaman. Rika dan Fina bawaannya aktif; nama dan saklarnya diatur di Pengaturan → Asisten lewat "Simpan Rika & Fina untuk tenant". Asisten yang dimatikan tidak muncul di tab dan ditolak server. Semua yang menyimpan data tetap lewat draft dan tombol "Ya".',
+    isi: 'Di bawah judul panel chat ada tab kecil untuk memilih lawan bicara. Una = asisten toko dengan semua kemampuan lama. Rika = asisten akuntan: HPP, jurnal, aturan jurnal, sinkron akuntansi, rentang harga beli, cara bayar, pindah saldo, dan membaca data untuk menelusuri angka yang janggal. Fina = asisten HR: jadwal kasir, tambah karyawan, cek gerai kosong, freelance yang bisa backup, rekap masalah CS, teks tawaran backup, catat pengganti, pengumuman CS, draft SP, draft lowongan, catat pelamar dari WA, undang pelamar lewat WA, dan kabari CS untuk training. Tiap asisten punya percakapan sendiri, jadi riwayat dan draft tidak tercampur, dan pilihan terakhir diingat per halaman. Rika dan Fina bawaannya aktif; nama dan saklarnya diatur di Pengaturan → Asisten lewat "Simpan Rika & Fina untuk tenant". Asisten yang dimatikan tidak muncul di tab dan ditolak server. Semua yang menyimpan data tetap lewat draft dan tombol "Ya".',
     tawaran: [], tanpaAksi: 'memilih asisten memakai tab di kepala panel chat'
   },
   {

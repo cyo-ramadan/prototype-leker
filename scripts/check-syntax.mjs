@@ -104,6 +104,8 @@ const files = [
   "public/entity-fina-surat.js",
   "src/fina-rekrut.js",
   "src/fina-kanal.js",
+  "src/fina-wa.js",
+  "public/fina-inbox.js",
   "public/entity-fina-kanal.js",
   "public/entity-pelamar.js",
   "public/entity-fina-rekrut.js",

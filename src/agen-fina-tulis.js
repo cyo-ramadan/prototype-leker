@@ -325,4 +325,173 @@ export const draftLoker = Object.freeze({
   }
 });
 
-export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker]);
+// --- WA Fina (gateway lokal, migration 0183) ------------------------------------------------------
+// Alat-alat ini tidak pernah memegang nomor lengkap: rute khususnya mengembalikan nomor tersamar, dan
+// server mencari nomor asli saat menyimpan / mengirim. Isi pesan dari orang asing tidak dibawa ke model.
+// Pesan keluar baru dikirim gateway setelah "Ya" (dan tetap kena batas kirim server).
+
+const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
+const hariTanggal = (iso) => `${HARI[new Date(`${iso}T00:00:00Z`).getUTCDay()]}, ${tanggalPanjang(iso)}`;
+
+function tanggalJanji(tertulis, hariIni) {
+  const t = teks(tertulis, 10);
+  if (!TANGGAL.test(t)) return { ok: false, tanya: 'Tanggal berapa? (tulis YYYY-MM-DD atau sebut "besok")' };
+  if (t < hariIni) return { ok: false, tanya: 'Tanggalnya sudah lewat. Tanggal berapa jadinya?' };
+  return { ok: true, nilai: t };
+}
+
+async function geraiDari(t, ctx, kunci) {
+  const diminta = teks(t?.[kunci], 60);
+  if (!diminta) {
+    if (ctx.lingkup === 'entity' || !ctx.storeCode) return { ok: false, kurang: kunci, tanya: 'Di gerai mana?' };
+    return { ok: true, nilai: { code: ctx.storeCode, storeName: ctx.namaLingkup } };
+  }
+  for (const path of ['/api/entity-admin/stores', '/api/owner/stores']) {
+    const ref = await baca(ctx, path);
+    const stores = ref.ok ? (ref.data?.stores ?? []).filter((s) => s.isActive !== false) : null;
+    if (!stores) continue;
+    const cocok = cocokkanSatu(diminta, stores, { label: 'gerai', namaDari: (s) => s.storeName || s.name || s.code, kunciLain: (s) => [s.code] });
+    return cocok.ok ? { ok: true, nilai: { code: cocok.nilai.code, storeName: cocok.nilai.storeName || cocok.nilai.name || cocok.nilai.code } } : { ...cocok, kurang: kunci };
+  }
+  return { ok: false, kurang: kunci, tanya: 'Daftar gerai belum terbaca. Pilih gerainya di kepala panel ya.' };
+}
+
+export const catatPelamarDariWa = Object.freeze({
+  nama: 'catat_pelamar_dari_wa', lingkup: 'semua',
+  petunjuk: 'MENCATAT pengirim WA yang belum dikenal (yang melamar lewat WA HR) ke data pelamar, mis. "masukin yang chat WA lamar kerja ke data pelamar", "catat pelamar dari WA untuk CS Beji".',
+  skema: {
+    cw_nama: { type: 'string', description: 'catat_pelamar_dari_wa: nama pengirim tertentu, hanya bila disebut.' },
+    cw_posisi: { type: 'string', description: 'catat_pelamar_dari_wa: posisi yang dilamar, bila disebut.' },
+    cw_gerai: { type: 'string', description: 'catat_pelamar_dari_wa: gerai tujuan, bila disebut.' }
+  },
+  async siapkan(t, ctx) {
+    const ref = await baca(ctx, '/api/entity-admin/fina/wa/calon-pelamar');
+    if (!ref.ok) return ref;
+    let calon = Array.isArray(ref.data?.calon) ? ref.data.calon : [];
+    const nama = teks(t?.cw_nama, 80);
+    if (nama) calon = calon.filter((c) => String(c.namaWa).toLowerCase().includes(nama.toLowerCase()));
+    if (!calon.length) return { ok: false, tanya: nama ? `Tidak ada pengirim WA baru bernama "${nama}" (30 hari terakhir).` : 'Tidak ada pengirim WA baru yang belum dicatat (30 hari terakhir). Pesan baru masuk kalau gateway WA di laptop tersambung.' };
+    let gerai = null;
+    if (teks(t?.cw_gerai, 60)) { const g = await geraiDari(t, ctx, 'cw_gerai'); if (!g.ok) return g; gerai = g.nilai; }
+    const posisi = teks(t?.cw_posisi, 80);
+    return {
+      ok: true,
+      draft: {
+        aksi: 'catat_pelamar_dari_wa',
+        judul: `Catat ${calon.length} pengirim WA ke data pelamar — dicek dulu ya:`,
+        baris: [['Posisi', posisi || '-'], ['Gerai tujuan', gerai?.storeName || '-']],
+        tabel: { kolom: ['Nama di WA', 'Nomor', 'Pesan', 'Terakhir'], isi: calon.map((c) => [c.namaWa, c.nomorSamar, String(c.jumlahPesan), String(c.terakhir || '').slice(0, 16)]) },
+        dampak: [
+          'Masuk ke Karyawan → Pelamar dengan sumber WA dan status Baru; isi pesannya disalin ke catatan.',
+          'Nomor yang sudah ada di data pelamar dilewati. Baca isi pesannya dulu di Kotak masuk WA kalau ragu itu lamaran.',
+          'Nama bisa dibetulkan nanti di data pelamar.'
+        ],
+        muatan: { daftar: calon.map((c) => ({ kunci: c.kunci, nama: c.namaWa })), posisi, storeCode: gerai?.code || '' }
+      }
+    };
+  },
+  async posting(draft, ctx) {
+    const hasil = await ctx.kirim('POST', '/api/entity-admin/fina/wa/jadikan-pelamar', draft.muatan);
+    if (!hasil.ok) return hasil;
+    const lewat = hasil.data?.dilewati?.length ? ` ${hasil.data.dilewati.length} dilewati karena sudah ada.` : '';
+    return { ok: true, jawaban: `${hasil.data?.dibuat ?? 0} pelamar baru dicatat dari WA.${lewat}` };
+  }
+});
+
+export const undangPelamar = Object.freeze({
+  nama: 'undang_pelamar', lingkup: 'semua',
+  petunjuk: 'MENGIRIM WA undangan interview atau training ke pelamar untuk gerai, tanggal, dan jam tertentu, mis. "undang Rani interview di Beji besok jam 10", "ajak Sari training di Pendem tanggal 25 jam 14".',
+  skema: {
+    up_pelamar: { type: 'string', description: 'undang_pelamar: nama pelamar PERSIS seperti diucapkan.' },
+    up_jenis: { type: 'string', enum: ['interview', 'training'], description: 'undang_pelamar: interview atau training.' },
+    up_gerai: { type: 'string', description: 'undang_pelamar: gerai tempat interview/training, bila disebut.' },
+    up_tanggal: { type: 'string', description: 'undang_pelamar: YYYY-MM-DD.' },
+    up_jam: { type: 'string', description: 'undang_pelamar: jam HH:MM.' },
+    up_catatan: { type: 'string', description: 'undang_pelamar: pesan tambahan dari Bos (mis. bawa KTP), bila disebut.' }
+  },
+  async siapkan(t, ctx) {
+    if (!teks(t?.up_pelamar, 80)) return { ok: false, kurang: 'up_pelamar', tanya: 'Pelamar siapa yang diundang?' };
+    const jenis = t?.up_jenis === 'training' ? 'training' : t?.up_jenis === 'interview' ? 'interview' : '';
+    if (!jenis) return { ok: false, kurang: 'up_jenis', tanya: 'Untuk interview atau training?' };
+    const tanggal = tanggalJanji(t?.up_tanggal, ctx.hariIni);
+    if (!tanggal.ok) return { ...tanggal, kurang: 'up_tanggal' };
+    if (!JAM.test(teks(t?.up_jam, 5))) return { ok: false, kurang: 'up_jam', tanya: 'Jam berapa? (mis. 10:00)' };
+    const ref = await baca(ctx, '/api/entity-admin/fina/wa/pelamar-ringkas');
+    if (!ref.ok) return ref;
+    const cocok = cocokkanSatu(t.up_pelamar, ref.data?.pelamar ?? [], { label: 'pelamar', namaDari: (p) => p.nama });
+    if (!cocok.ok) return { ...cocok, kurang: 'up_pelamar' };
+    const gerai = await geraiDari(t, ctx, 'up_gerai');
+    if (!gerai.ok) return gerai;
+    const p = cocok.nilai;
+    const catatan = teks(t?.up_catatan, 200);
+    const pesan = `Halo ${p.nama}, terima kasih sudah melamar${p.posisi ? ` sebagai ${p.posisi}` : ''}. Kami mengundang ${p.nama} untuk ${jenis} di gerai ${gerai.nilai.storeName} pada ${hariTanggal(tanggal.nilai)} pukul ${t.up_jam} WIB.${catatan ? ` ${catatan}` : ''} Mohon balas YA untuk konfirmasi. Terima kasih.`;
+    return {
+      ok: true,
+      draft: {
+        aksi: 'undang_pelamar',
+        judul: `Kirim WA undangan ${jenis} ke ${p.nama} — dicek dulu ya:`,
+        baris: [['Pelamar', `${p.nama} (${p.nomorSamar})`], ['Keperluan', jenis], ['Gerai', gerai.nilai.storeName], ['Waktu', `${hariTanggal(tanggal.nilai)} ${t.up_jam} WIB`]],
+        tabel: { kolom: ['Pesan WA'], isi: [[pesan]] },
+        dampak: [
+          'Sesudah "Ya", pesan masuk antrean dan dikirim gateway WA di laptop (laptop harus menyala).',
+          'Status pelamar tidak diubah otomatis; ubah di Karyawan → Pelamar sesudah ada konfirmasi.',
+          'Kabari CS gerai untuk mendampingi bila perlu (minta Fina "kabari CS").'
+        ],
+        muatan: { pelamarId: p.id, teks: pesan, keperluan: `UNDANGAN_${jenis.toUpperCase()}`, setujui: true }
+      }
+    };
+  },
+  async posting(draft, ctx) {
+    const hasil = await ctx.kirim('POST', '/api/entity-admin/fina/wa/keluar', draft.muatan);
+    if (!hasil.ok) return hasil;
+    return { ok: true, jawaban: `Undangan masuk antrean WA untuk ${hasil.data?.tujuan?.nama ?? 'pelamar'}.${hasil.data?.catatan ? ` ${hasil.data.catatan}` : ''}` };
+  }
+});
+
+export const kabariCsTraining = Object.freeze({
+  nama: 'kabari_cs_training', lingkup: 'semua',
+  petunjuk: 'MENGIRIM WA ke CS gerai untuk janjian mendampingi training calon karyawan, mis. "kabari Avinda di Beji besok jam 14 ada training Rani".',
+  skema: {
+    kc_cs: { type: 'string', description: 'kabari_cs_training: nama CS yang dikabari PERSIS seperti diucapkan.' },
+    kc_pelamar: { type: 'string', description: 'kabari_cs_training: nama calon karyawan yang training.' },
+    kc_gerai: { type: 'string', description: 'kabari_cs_training: gerai, bila disebut.' },
+    kc_tanggal: { type: 'string', description: 'kabari_cs_training: YYYY-MM-DD.' },
+    kc_jam: { type: 'string', description: 'kabari_cs_training: jam HH:MM.' },
+    kc_catatan: { type: 'string', description: 'kabari_cs_training: pesan tambahan, bila disebut.' }
+  },
+  async siapkan(t, ctx) {
+    if (!teks(t?.kc_cs, 80)) return { ok: false, kurang: 'kc_cs', tanya: 'CS siapa yang dikabari?' };
+    if (!teks(t?.kc_pelamar, 80)) return { ok: false, kurang: 'kc_pelamar', tanya: 'Siapa yang training?' };
+    const tanggal = tanggalJanji(t?.kc_tanggal, ctx.hariIni);
+    if (!tanggal.ok) return { ...tanggal, kurang: 'kc_tanggal' };
+    if (!JAM.test(teks(t?.kc_jam, 5))) return { ok: false, kurang: 'kc_jam', tanya: 'Jam berapa trainingnya? (mis. 14:00)' };
+    const gerai = await geraiDari(t, ctx, 'kc_gerai');
+    if (!gerai.ok) return gerai;
+    const ref = await baca(ctx, '/api/entity-admin/fina/wa/kontak-cs', { store: gerai.nilai.code });
+    if (!ref.ok) return ref;
+    const cocok = cocokkanSatu(t.kc_cs, ref.data?.cs ?? [], { label: `CS ${gerai.nilai.storeName}`, namaDari: (c) => c.nama });
+    if (!cocok.ok) return { ...cocok, kurang: 'kc_cs' };
+    if (!cocok.nilai.adaNomor) return { ok: false, tanya: `Nomor HP ${cocok.nilai.nama} belum diisi di data karyawan. Lengkapi dulu di menu Karyawan.` };
+    const catatan = teks(t?.kc_catatan, 200);
+    const pesan = `Halo ${cocok.nilai.nama}, ${hariTanggal(tanggal.nilai)} pukul ${t.kc_jam} WIB ada training calon karyawan ${teks(t.kc_pelamar, 80)} di gerai ${gerai.nilai.storeName}. Mohon didampingi ya.${catatan ? ` ${catatan}` : ''} Terima kasih.`;
+    return {
+      ok: true,
+      draft: {
+        aksi: 'kabari_cs_training',
+        judul: `Kirim WA ke ${cocok.nilai.nama} soal training — dicek dulu ya:`,
+        baris: [['CS', cocok.nilai.nama], ['Gerai', gerai.nilai.storeName], ['Waktu', `${hariTanggal(tanggal.nilai)} ${t.kc_jam} WIB`], ['Calon karyawan', teks(t.kc_pelamar, 80)]],
+        tabel: { kolom: ['Pesan WA'], isi: [[pesan]] },
+        dampak: ['Sesudah "Ya", pesan masuk antrean dan dikirim gateway WA di laptop (laptop harus menyala).', 'Jadwal shift CS tidak diubah; atur di jadwal kasir bila perlu.'],
+        muatan: { employeeId: cocok.nilai.employeeId, teks: pesan, keperluan: 'TRAINING_CS', setujui: true }
+      }
+    };
+  },
+  async posting(draft, ctx) {
+    const hasil = await ctx.kirim('POST', '/api/entity-admin/fina/wa/keluar', draft.muatan);
+    if (!hasil.ok) return hasil;
+    return { ok: true, jawaban: `Pesan untuk ${hasil.data?.tujuan?.nama ?? 'CS'} masuk antrean WA.${hasil.data?.catatan ? ` ${hasil.data.catatan}` : ''}` };
+  }
+});
+
+export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker, catatPelamarDariWa, undangPelamar, kabariCsTraining]);

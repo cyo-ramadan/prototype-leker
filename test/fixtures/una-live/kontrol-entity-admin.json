@@ -1957,6 +1957,38 @@
    "class": "unsupported",
    "reason": "Data pelamar dan sambungan WA/email/IG/FB diatur manusia, tidak diotomatisasi",
    "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/fina-inbox.js:data-inbox-baca:Tandai dibaca",
+   "label": "Tandai dibaca",
+   "sumber": "public/fina-inbox.js",
+   "class": "unsupported",
+   "reason": "Kotak masuk & antrean WA: persetujuan kirim oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/fina-inbox.js:data-keluar-batal:Batal",
+   "label": "Batal",
+   "sumber": "public/fina-inbox.js",
+   "class": "unsupported",
+   "reason": "Kotak masuk & antrean WA: persetujuan kirim oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/fina-inbox.js:data-keluar-setujui:Setujui",
+   "label": "Setujui",
+   "sumber": "public/fina-inbox.js",
+   "class": "unsupported",
+   "reason": "Kotak masuk & antrean WA: persetujuan kirim oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/fina-inbox.js:label:Muat ulang",
+   "label": "Muat ulang",
+   "sumber": "public/fina-inbox.js",
+   "class": "unsupported",
+   "reason": "Kotak masuk & antrean WA: persetujuan kirim oleh manusia, tidak diotomatisasi",
+   "automationForbidden": true
   }
  ]
 }

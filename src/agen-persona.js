@@ -67,7 +67,7 @@ export const PERSONA = Object.freeze({
     id: 'fina', namaBawaan: 'Fina', kunciNama: 'fina_nama_asisten', kunciAktif: 'agen_fina_aktif',
     peran: 'HR', gaya: GAYA_FINA, alat: ALAT_FINA,
     tugas: 'mengurus CS harian: jadwal, kekosongan gerai dan backup, masalah CS, pengumuman, dan draft surat',
-    kemampuan: 'cek gerai kosong, cari freelance untuk backup, rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang), teks tawaran backup, catat pengganti, pasang pengumuman CS, draft SP, draft lowongan, atur jadwal kasir, dan tambah karyawan',
+    kemampuan: 'cek gerai kosong, cari freelance untuk backup, rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang), teks tawaran backup, catat pengganti, pasang pengumuman CS, draft SP, draft lowongan, catat pelamar dari WA, undang pelamar interview/training lewat WA, kabari CS gerai untuk training, atur jadwal kasir, dan tambah karyawan',
     izin: Object.freeze(['OWNER', 'ENTITY_ADMIN', 'ADMIN'])
   })
 });

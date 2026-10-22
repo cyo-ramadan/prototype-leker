@@ -186,7 +186,14 @@ export const PINTU_AKSI = Object.freeze([
   '/api/entity-admin/fina/surat$',
   // draft_loker (H4): hanya MEMBUAT lowongan DRAFT (POST). Tayang/tutup (PATCH /:id) dan data
   // pelamar (nomor WA) sengaja tidak ada di sini.
-  '/api/entity-admin/fina/lowongan$'
+  '/api/entity-admin/fina/lowongan$',
+  // WA Fina (src/agen-fina-tulis.js): rute KHUSUS alat yang tidak memuat nomor lengkap (nomor dicari
+  // server saat menyimpan/mengirim). Kotak masuk & data pelamar lengkap sengaja tidak ada di sini.
+  '/api/entity-admin/fina/wa/calon-pelamar$',
+  '/api/entity-admin/fina/wa/jadikan-pelamar$',
+  '/api/entity-admin/fina/wa/pelamar-ringkas$',
+  '/api/entity-admin/fina/wa/kontak-cs$',
+  '/api/entity-admin/fina/wa/keluar$'
 ]);
 
 function pintuDiizinkan(pathname, pintu) {

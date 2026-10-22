@@ -37,6 +37,42 @@ export const SUMBER_KAMUS = Object.freeze({
       "tulis:src/akun-gerai.js:request.method === 'POST' && pathname === `$"
     ]
   },
+  "fina_wa": {
+    "sumber": ["src/fina-wa.js", "public/fina-inbox.js", "src/agen-fina-tulis.js"],
+    "fitur": [
+      "pola:src/fina-wa.js:/^\\/api\\/entity-admin\\/fina\\/wa\\/keluar\\/([^/]+)\\/(setujui|batal)$/",
+      "pola:src/fina-wa.js:/^\\/api\\/entity-admin\\/fina\\/wa\\/masuk\\/([^/]+)$/",
+      "pola:src/fina-wa.js:/^\\/api\\/fina\\/wa\\/gateway\\/keluar\\/([^/]+)\\/hasil$/",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/calon-pelamar",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/jadikan-pelamar",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/keluar",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/kontak-cs",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/pelamar-ringkas",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/stores",
+      "rute:src/agen-fina-tulis.js:/api/owner/stores",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/wa/calon-pelamar$",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/wa/jadikan-pelamar$",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/wa/keluar$",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/wa/kontak-cs$",
+      "rute:src/caca-chat.js:/api/entity-admin/fina/wa/pelamar-ringkas$",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/calon-pelamar",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/jadikan-pelamar",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/keluar",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/kontak-cs",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/masuk",
+      "rute:src/fina-wa.js:/api/entity-admin/fina/wa/pelamar-ringkas",
+      "rute:src/fina-wa.js:/api/fina/wa/gateway/",
+      "rute:src/fina-wa.js:/api/fina/wa/gateway/keluar",
+      "rute:src/fina-wa.js:/api/fina/wa/gateway/masuk",
+      "tombol:public/fina-inbox.js:data-inbox-baca:Tandai dibaca",
+      "tombol:public/fina-inbox.js:data-keluar-batal:Batal",
+      "tombol:public/fina-inbox.js:data-keluar-setujui:Setujui",
+      "tombol:public/fina-inbox.js:label:Muat ulang",
+      "tulis:src/fina-wa.js:request.method === 'PATCH')",
+      "tulis:src/fina-wa.js:request.method === 'POST')"
+    ]
+  },
   "fina_kanal": {
     "sumber": ["src/fina-kanal.js", "public/entity-fina-kanal.js"],
     "fitur": [

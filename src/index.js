@@ -55,6 +55,7 @@ import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
 import { handleFinaApi, handleFinaSuratApi } from './fina-api.js';
 import { handleFinaRekrutApi } from './fina-rekrut.js';
 import { handleFinaKanalApi } from './fina-kanal.js';
+import { handleFinaWaApi } from './fina-wa.js';
 import { handleDanaApresiasiApi } from './dana-apresiasi-api.js';
 import { handleAkunGeraiApi } from './akun-gerai.js';
 import { handleFinaPengaturanApi } from './fina-pengaturan.js';
@@ -349,6 +350,9 @@ async function handleApiRouted(request, env, url, ctx) {
   // Sambungan Fina (WA/email/IG/FB) per entity, migration 0182.
   const finaKanalResponse = await handleFinaKanalApi(request, env, pathname);
   if (finaKanalResponse) return finaKanalResponse;
+  // WA Fina lewat gateway lokal (migration 0183): rute gateway (token) + kotak masuk/antrean Admin.
+  const finaWaResponse = await handleFinaWaApi(request, env, pathname);
+  if (finaWaResponse) return finaWaResponse;
   const entityDepositQueueResponse = await handleEntityDepositQueueApi(request, env, pathname);
   if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);

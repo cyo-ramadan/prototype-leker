@@ -48,6 +48,24 @@ npm start
 
 Untuk mencoba memakai sesi tersimpan otomatis ketika program mulai, set `$env:WA_AUTOCONNECT='1'` sebelum `npm start`. Program tetap harus dijalankan lagi setelah Windows menyala; belum memasang layanan/autostart Windows.
 
+## Jembatan ke Fina (OwnerTenang)
+
+Ditambahkan Eskor 22 Oktober 2026. Opsional; tanpa konfigurasi ini gateway tetap hanya menerima.
+
+1. Di OwnerTenang: Entity Admin → Pengaturan → **Sambungan Fina** → WhatsApp: centang *Hubungkan ke Fina*, Simpan, lalu **Buat token gateway** dan salin tokennya (awalan `otwa_`, hanya tampil sekali).
+2. Simpan token ke `data/<tenant>/fina.token` (Notepad, satu baris, tanpa spasi). Jangan kirim token ke chat.
+3. Jalankan dengan alamat server:
+
+```powershell
+$env:WA_SERVER = 'https://prototype-leker-v2.daily-napkin.workers.dev'
+npm start
+```
+
+Jembatan (jembatan.mjs) setiap 15 detik: meneruskan pesan personal yang tersimpan ke server (`POST /api/fina/wa/gateway/masuk`), lalu bila WA tersambung mengambil pesan keluar yang **sudah disetujui Admin** (`GET /api/fina/wa/gateway/keluar`), mengirimnya, dan melaporkan hasil. Panel lokal tetap tanpa tombol kirim; tidak ada broadcast/grup. Batas kirim per jam dan per nomor ditegakkan server.
+Fitur kirim menaikkan risiko blokir dibanding hanya menerima. Gunakan nomor khusus HR dan jaga volume tetap kecil.
+
+Tes gateway ada di `uji/` (tidak ikut `node --test` root karena dependensi gateway tidak dipasang di CI): `npm test` di folder ini.
+
 ## Batas yang perlu diketahui
 
 - Koneksi ini **tidak resmi dan tidak memiliki jaminan bebas ban atau persentase risiko yang terbukti**. Mode menerima saja menghindari fitur blast, tetapi tidak menghapus risiko dari penggunaan klien tidak resmi. Tidak ada rotasi nomor/proxy atau trik menyamarkan perilaku.

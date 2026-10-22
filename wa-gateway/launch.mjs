@@ -9,7 +9,7 @@ export function restrictedArgs(entry = join(here, 'server.mjs')) {
   return ['--permission', `--allow-fs-read=${here}`, `--allow-fs-write=${join(here, 'data')}`, entry];
 }
 export function cleanEnvironment(source = process.env) {
-  const allowed = new Set(['systemroot','windir','path','temp','tmp','comspec','pathext','wa_tenant','wa_port','wa_autoconnect']);
+  const allowed = new Set(['systemroot','windir','path','temp','tmp','comspec','pathext','wa_tenant','wa_port','wa_autoconnect','wa_server']);
   return Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key.toLowerCase())));
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

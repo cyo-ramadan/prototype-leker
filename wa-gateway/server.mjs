@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Archive } from './store.mjs';
 import { Connection } from './connection.mjs';
+import { Jembatan, bacaKonfigurasi } from './jembatan.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const safeEqual = (a, b) => typeof a === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -104,16 +105,20 @@ async function main() {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('Kunci akses lokal rusak');
   const connection = new Connection(archive);
   const server = createApp(archive, connection, token);
+  // Jembatan ke Fina (opsional): aktif bila WA_SERVER + data/<tenant>/fina.token diisi.
+  const konfigurasi = bacaKonfigurasi(archive);
+  const jembatan = konfigurasi.aktif ? new Jembatan({ archive, connection, server: konfigurasi.server, token: konfigurasi.token, log: pesan => console.log(pesan) }) : null;
   const port = Number(process.env.WA_PORT || 8788);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Port harus 1024-65535');
   server.on('error', () => { console.error('Port tidak tersedia. Hentikan gateway lain atau ganti WA_PORT.'); unlock(); process.exitCode = 1; });
   server.listen(port, '127.0.0.1', () => {
-    console.log(`Gateway lokal: http://127.0.0.1:${port}\nTenant: ${archive.tenant}\nKunci masuk ada di ${tokenPath}\nMode: menerima pesan saja. Tidak ada jaminan bebas ban.`);
+    console.log(`Gateway lokal: http://127.0.0.1:${port}\nTenant: ${archive.tenant}\nKunci masuk ada di ${tokenPath}\n${jembatan ? `Jembatan Fina: aktif ke ${konfigurasi.server} (meneruskan pesan masuk; mengirim hanya pesan yang disetujui Admin).` : `Mode: menerima pesan saja (${konfigurasi.alasan}).`} Tidak ada jaminan bebas ban.`);
+    jembatan?.mulai();
     if (process.env.WA_AUTOCONNECT === '1' && archive.authGet('creds')) void connection.start();
   });
   let closing = false;
   const shutdown = async () => {
-    if (closing) return; closing = true; connection.stop(); server.closeClients(); server.close();
+    if (closing) return; closing = true; jembatan?.berhenti(); connection.stop(); server.closeClients(); server.close();
     while (connection.downloading) await new Promise(resolve => setTimeout(resolve, 100));
     archive.close(); unlock();
   };

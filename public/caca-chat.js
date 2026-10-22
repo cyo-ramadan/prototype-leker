@@ -1065,6 +1065,13 @@ function cacaRenderTabel(tabel) {
 }
 
 function cacaJejakAlat(payload) {
+  // Jawaban mode Analisis diberi tanda supaya kelihatan dikerjakan Claude, bukan model murah.
+  const mesin = payload.analisis ? '🔬 Claude Sonnet' : '';
+  const dasar = cacaJejakDasar(payload);
+  return [mesin, dasar].filter(Boolean).join(' · ');
+}
+
+function cacaJejakDasar(payload) {
   if (payload.jejak) return payload.jejak;
   if (!payload.alat) return '';
   const periode = payload.periode ? ` · ${payload.periode.dari}${payload.periode.sampai !== payload.periode.dari ? ` s/d ${payload.periode.sampai}` : ''}` : '';

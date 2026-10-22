@@ -22,7 +22,7 @@ import { daftarApiUntukModel } from './caca-baca-katalog.js';
 import { hitungPeriode } from './caca-alat.js';
 import { pesanDenganRiwayat, ATURAN_RIWAYAT } from './caca-riwayat.js';
 import { AKSI_TULIS, SKEMA_AKSI, cariAksi, daftarAksiUntukModel, bolehDiLingkup } from './caca-aksi.js';
-import { bolehAlat, pembukaPersona } from './agen-persona.js';
+import { bolehAlat, pembukaPersona, teksKemampuan } from './agen-persona.js';
 import { uraiDaftarHpp } from './caca-aksi-hpp-banyak.js';
 import { uraiDaftarTipe } from './caca-aksi-klasifikasi.js';
 import { uraiDaftarRentang } from './caca-aksi-rentang.js';
@@ -634,6 +634,10 @@ async function jalankanPilihan(pertanyaan, pesanBaku, pilihan, konteks, opsi = {
         return { ok: true, alat: namaAlat, jawaban: p.jawaban, tabel: null, tawaran: p.tawaran ?? null, kerjakan: p.kerjakan ?? null, dipoles: poles.dipoles, polesCatatan: poles.catatan ?? null };
       }
       return { ok: true, alat: null, jawaban: 'Una belum yakin panduan yang Una punya cocok dengan pertanyaan itu. Coba sebut lebih spesifik ya, Bos — mis. barang atau layar apa yang dimaksud.', belumLengkap: true };
+    }
+    // Persona selain Una: panduan yang tidak ketemu dijawab dengan kemampuan persona itu, bukan daftar topik Una.
+    if (persona && namaAlat === 'jelaskan' && !disiapkan.panduan?.dikenal) {
+      return { ok: true, alat: namaAlat, jawaban: teksKemampuan(persona, konteks.namaAsisten || persona.namaBawaan) };
     }
     if (aksi.baca) return { ok: true, alat: namaAlat, jawaban: disiapkan.jawaban, tabel: disiapkan.tabel ?? null, tawaran: disiapkan.tawaran ?? null, kerjakan: disiapkan.kerjakan ?? null };
     // Tangkapan ikut dibawa draft supaya waktu tombol "Ya" ditekan, draft bisa

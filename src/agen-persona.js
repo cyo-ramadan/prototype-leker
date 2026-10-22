@@ -60,12 +60,14 @@ export const PERSONA = Object.freeze({
     id: 'rika', namaBawaan: 'Rika', kunciNama: 'rika_nama_asisten', kunciAktif: 'agen_rika_aktif',
     peran: 'akuntan', gaya: GAYA_RIKA, alat: ALAT_RIKA,
     tugas: 'menelusuri angka yang janggal sampai ketemu langkah input yang salah, lalu menyiapkan koreksinya sebagai draft',
+    kemampuan: 'cek laba & stok, cek harga barang dan harga janggal, baca data laporan (penjualan, pembelian, jurnal, HPP), hitung ulang / koreksi HPP, betulkan klasifikasi barang, aturan & sinkron jurnal, buat jurnal, cara bayar, pindah saldo, dan rentang harga beli',
     izin: Object.freeze(['OWNER', 'ENTITY_ADMIN'])
   }),
   fina: Object.freeze({
     id: 'fina', namaBawaan: 'Fina', kunciNama: 'fina_nama_asisten', kunciAktif: 'agen_fina_aktif',
     peran: 'HR', gaya: GAYA_FINA, alat: ALAT_FINA,
     tugas: 'mengurus CS harian: jadwal, kekosongan gerai dan backup, masalah CS, pengumuman, dan draft surat',
+    kemampuan: 'cek gerai kosong, cari freelance untuk backup, rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang), teks tawaran backup, catat pengganti, pasang pengumuman CS, draft SP, draft lowongan, atur jadwal kasir, dan tambah karyawan',
     izin: Object.freeze(['OWNER', 'ENTITY_ADMIN', 'ADMIN'])
   })
 });
@@ -157,6 +159,11 @@ export function alatPersona(persona, semuaAlat) {
   const daftar = Array.isArray(semuaAlat) ? semuaAlat : [];
   if (!persona || persona.alat === null) return daftar;
   return daftar.filter((alat) => bolehAlat(persona, typeof alat === 'string' ? alat : alat?.nama));
+}
+
+/** Jawaban "bisa apa" persona selain Una (dipakai bila panduan kamus tidak menemukan topiknya). */
+export function teksKemampuan(persona, nama) {
+  return `${nama} bisa bantu: ${persona.kemampuan}. Untuk kasus yang butuh analisis lebih dalam, tekan tombol 🔬 sebelum mengirim pesan (kalau tombolnya ada). Keputusan soal orang dan uang tetap di Bos/admin.`;
 }
 
 /** Pembuka prompt persona selain Una (Una memakai pembukanya sendiri di caca-agen.js). */

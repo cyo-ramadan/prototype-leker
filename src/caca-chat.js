@@ -356,7 +356,8 @@ async function tanya(request, env, jalurUtama, waitUntil) {
   hasil = sesuaikanNamaBalasan(hasil, konteks.namaAsisten);
   if (!hasil.ok) return json({ error: hasil.error }, hasil.status);
 
-  const gaya = sesuaikanNamaBalasan(gayaJawaban(hasil), konteks.namaAsisten);
+  // Bumbu gaya ("peh", "hhe") milik Una; Rika/Fina memakai gaya personanya sendiri lewat prompt.
+  const gaya = agen.persona ? { jawaban: hasil.jawaban ?? null, sapaan: null } : sesuaikanNamaBalasan(gayaJawaban(hasil), konteks.namaAsisten);
   return json({
     jawaban: gaya.jawaban,
     sapaan: gaya.sapaan,

@@ -201,3 +201,18 @@ test('H2 terdaftar: Fina memakai alat baca HR (gerai kosong, freelance, rekap ma
   await jawabPertanyaan('gerai mana yang kosong?', konteks, { env: {}, panggilModel: una.panggilModel });
   for (const nama of h2) assert.ok(!una.panggilan[0].schema.properties.alat.enum.includes(nama), nama);
 });
+
+test('Fina ditanya "bisa apa" yang tidak ada di kamus: menjawab kemampuan Fina, bukan daftar topik Una', async () => {
+  const { panggilModel } = modelPalsu({ ok: true, value: { alat: 'jelaskan', jelaskan_topik: 'kamu bisa analisis?' } });
+  const hasil = await jawabPertanyaan('kamu bisa analisis?', { ...konteks, persona: PERSONA.fina, namaAsisten: 'Fina' }, { env: {}, panggilModel, jalurAksi: { baca: async () => ({ ok: false }), kirim: async () => ({ ok: false }) } });
+  assert.match(hasil.jawaban, /^Fina bisa bantu: cek gerai kosong/);
+  assert.match(hasil.jawaban, /🔬/);
+  assert.doesNotMatch(hasil.jawaban, /Una|hhe/);
+});
+
+test('label jawaban mode Analisis di panel', () => {
+  const sumber = readFileSync(new URL('../public/caca-chat.js', import.meta.url), 'utf8');
+  assert.match(sumber, /payload\.analisis \? '🔬 Claude Sonnet' : ''/);
+  const server = readFileSync(new URL('../src/caca-chat.js', import.meta.url), 'utf8');
+  assert.match(server, /const gaya = agen\.persona \? \{ jawaban: hasil\.jawaban \?\? null, sapaan: null \}/, 'Rika/Fina tanpa bumbu gaya Una');
+});

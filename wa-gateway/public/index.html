@@ -1,0 +1,13 @@
+﻿<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WA Lokal · OwnerTenang</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<body><main>
+<header><div class="brand">OWNERTENANG / LAB LOKAL</div><h1>Pesan masuk, tercatat.</h1><p>Arsip WhatsApp untuk percetakan. Berjalan di laptop ini.</p></header>
+<div class="notice">Koneksi tidak resmi. Risiko pemblokiran tetap ada. Mode ini hanya mencatat pesan masuk; tidak mengirim balasan atau pesan massal.</div>
+<form id="login" class="card"><h2>Masuk ke gateway</h2><p>Buka berkas <code>data/&lt;tenant&gt;/admin.token</code> pada folder gateway, lalu salin kunci aksesnya di sini.</p><label for="token">Kunci akses lokal</label><input id="token" type="password" required autocomplete="off"><button>Masuk</button></form>
+<p id="error" role="alert"></p>
+<section id="workspace" hidden>
+<div class="grid"><section class="card"><div class="eyebrow">KONEKSI</div><h2 id="tenant"></h2><p><span id="status" class="badge">Memuat</span></p><p id="connection-error"></p><div class="actions"><button id="connect">Sambungkan WhatsApp</button><button id="stop" class="secondary">Hentikan koneksi</button><button id="reset" class="secondary">Scan ulang sesi</button></div><img id="qr" alt="QR untuk menautkan WhatsApp" hidden><p id="qr-help" hidden>Buka WhatsApp di HP → Perangkat tertaut → Tautkan perangkat. QR berganti otomatis.</p></section>
+<section class="card"><div class="eyebrow">CATATAN LOKAL</div><h2>Arsip milik tenant ini</h2><p>Teks dan lampiran disimpan di laptop. Pesan duplikat tidak dicatat dua kali.</p><p>Grup, status, pesan sekali lihat, dan pesan sementara tidak diarsipkan. Riwayat lama tidak diimpor. Pesan saat laptop mati belum tentu lengkap setelah tersambung kembali.</p><p>Belum terhubung ke antrean cetak atau Fina.</p><a href="/api/export" download>Unduh 100 pesan terbaru (JSON) ↗</a></section></div>
+<section class="card"><div class="list-heading"><div><div class="eyebrow">KOTAK MASUK</div><h2>Pesan pelanggan</h2></div><button id="refresh" class="secondary">Muat terbaru</button></div><div id="messages"></div><button id="older" class="secondary" hidden>100 pesan lebih lama</button></section>
+</section><footer>Data dan sesi tersimpan di folder data tenant. Lindungi akses laptop dan cadangannya.</footer>
+</main></body></html>

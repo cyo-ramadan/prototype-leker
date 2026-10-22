@@ -118,8 +118,14 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
     FROM payroll_ledger_entries p
     JOIN stores s ON s.id = p.store_id
     WHERE s.entity_id = ? AND p.hutang_gaji_delta_scaled <> 0
-      AND (p.employee_id = ? OR (p.account_type = 'CASHIER' AND p.account_id IN (${inList(accountIds)})))
-  `).bind(entityId, employeeId, ...accountIds).all();
+      -- Baris tanpa employee_id hanya ikut kalau akunnya tertaut ke orang ini PADA tanggal itu (Bos Cyo, 2026-10-22:
+      -- akun uji "zahra tes" tertaut ke Ade 48 detik di September membuat fee backup Oktober masuk riwayat Ade).
+      AND (p.employee_id = ? OR (p.employee_id IS NULL AND p.account_type = 'CASHIER' AND p.account_id IN (${inList(accountIds)}) AND EXISTS (
+        SELECT 1 FROM employee_account_links l
+        WHERE l.employee_id = ? AND l.account_type = 'CASHIER' AND l.account_id = p.account_id
+          AND l.effective_from < date(p.business_date, '+1 day') AND (l.effective_to IS NULL OR l.effective_to > p.business_date)
+      )))
+  `).bind(entityId, employeeId, ...accountIds, employeeId).all();
   const label = { ACCRUAL: 'Gaji dari presensi', ADJUSTMENT: 'Bea Gaji / penyesuaian', PAYMENT: 'Pembayaran gaji' };
   const ledger = rows.results ?? [];
   // Termasuk baris yang dibatalkan: sesi presensi yang ACCRUAL-nya dibatalkan tidak dihitung ulang.
@@ -164,8 +170,12 @@ async function gajiEntries(db, employeeId, entityId, accounts) {
     SELECT x.id, x.kind, x.account_id, x.store_id, x.business_date, x.created_at, x.amount_scaled, x.description, s.code AS store_code
     FROM apresiasi_entries x JOIN stores s ON s.id = x.store_id
     WHERE x.entity_id = ? AND x.voided_at IS NULL AND x.amount_scaled <> 0
-      AND (x.employee_id = ? OR x.account_id IN (${inList(accountIds)}))
-  `).bind(entityId, employeeId, ...accountIds).all();
+      AND (x.employee_id = ? OR (x.employee_id IS NULL AND x.account_id IN (${inList(accountIds)}) AND EXISTS (
+        SELECT 1 FROM employee_account_links l
+        WHERE l.employee_id = ? AND l.account_type = 'CASHIER' AND l.account_id = x.account_id
+          AND l.effective_from < date(x.business_date, '+1 day') AND (l.effective_to IS NULL OR l.effective_to > x.business_date)
+      )))
+  `).bind(entityId, employeeId, ...accountIds, employeeId).all();
   for (const row of apresiasi.results ?? []) {
     entries.push({
       at: row.created_at || `${row.business_date}T00:00:00.000Z`,

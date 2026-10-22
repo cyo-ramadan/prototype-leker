@@ -220,7 +220,7 @@ export async function saveSettings(db, { entityId, storeId = '', input = {}, act
     berat: cleanHours(input.dendaBeratJam),
     buka: cleanClock(input.jamBuka),
     tutup: cleanClock(input.jamTutup),
-    mulai: input.mulaiTanggal ? (/^d{4}-d{2}-d{2}$/.test(String(input.mulaiTanggal)) ? String(input.mulaiTanggal) : undefined) : null
+    mulai: input.mulaiTanggal ? (/^\d{4}-\d{2}-\d{2}$/.test(String(input.mulaiTanggal)) ? String(input.mulaiTanggal) : undefined) : null
   };
   if (Object.values(values).includes(undefined)) return { ok: false, error: 'Nominal wajib rupiah bulat 0-10.000.000, batas denda dalam jam (mis. 3 atau 3,5), jam format HH:MM, tanggal YYYY-MM-DD.' };
   const dendaEnabled = input.dendaEnabled === null || input.dendaEnabled === undefined || input.dendaEnabled === ''
@@ -291,11 +291,35 @@ export async function setCsStatus(db, { accountId, status, actor = {} }) {
   return { ok: true };
 }
 
+// CS berhenti/resign per tanggal (Bos Cyo, 2026-10-22, kasus Indah Beji): shift pada/sesudah tanggal itu
+// tidak dinilai lagi, dan yang terlanjur dinilai dibatalkan (nilai ulang dengan tanggal berhenti, jurnal
+// dibalik). tanggal null = batal berhenti (shift sesudahnya dinilai lagi bila jadwalnya ada).
+export async function setBerhenti(db, { accountId, tanggal, actor = {}, now = new Date() }) {
+  const value = tanggal ? text(tanggal, 10) : null;
+  if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return { ok: false, error: 'Tanggal berhenti wajib YYYY-MM-DD.' };
+  const account = await db.prepare('SELECT is_entity_backup FROM cashiers WHERE id = ?').bind(accountId).first();
+  if (!account) return { ok: false, error: 'Akun kasir tidak ditemukan.' };
+  await db.prepare(`
+    INSERT INTO cashier_cs_status (account_id, status, berhenti_tanggal, updated_at, updated_by_role, updated_by_id)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+    ON CONFLICT (account_id) DO UPDATE SET berhenti_tanggal = excluded.berhenti_tanggal, updated_at = CURRENT_TIMESTAMP,
+      updated_by_role = excluded.updated_by_role, updated_by_id = excluded.updated_by_id
+  `).bind(accountId, defaultCsStatus(account.is_entity_backup), value, text(actor.role, 40), text(actor.id, 120)).run();
+  if (!value) return { ok: true, reevaluated: 0 };
+  const rows = (await db.prepare('SELECT id FROM apresiasi_evaluations WHERE account_id = ? AND business_date >= ?').bind(accountId, value).all()).results ?? [];
+  let changed = 0;
+  for (const row of rows) {
+    const result = await reevaluate(db, row.id, { actor, reason: `CS berhenti per ${value}`, now, jadwalSekarang: true });
+    if (result.changed) changed += 1;
+  }
+  return { ok: true, reevaluated: changed };
+}
+
 // ------------------------------------------------------------ data ---
 
 async function storeAccounts(db, storeId) {
   const rows = await db.prepare(`
-    SELECT c.id, c.username, c.employee_name, c.is_entity_backup, c.is_active, c.created_at, s.status,
+    SELECT c.id, c.username, c.employee_name, c.is_entity_backup, c.is_active, c.created_at, s.status, s.berhenti_tanggal,
            j.hourly_wage_scaled, j.payment_type
     FROM cashiers c
     LEFT JOIN cashier_cs_status s ON s.account_id = c.id
@@ -312,7 +336,8 @@ async function storeAccounts(db, storeId) {
     isEntityBackup: Number(row.is_entity_backup) === 1,
     createdAt: row.created_at || null,
     hourlyWageRupiah: row.hourly_wage_scaled == null ? null : Number(row.hourly_wage_scaled) / SCALE,
-    hasJobDetail: row.hourly_wage_scaled != null
+    hasJobDetail: row.hourly_wage_scaled != null,
+    berhentiTanggal: row.berhenti_tanggal || null
   }));
 }
 
@@ -344,6 +369,15 @@ async function accountName(db, accountId) {
   return text(row?.employee_name || row?.username || accountId, 120);
 }
 
+// Bos Cyo, 2026-10-22 (laporan admin: Ade/Dermo, Adenia/Mandala): presensi yang lupa ditutup dulu dianggap
+// berjaga "sampai sekarang", jadi akun uji yang OPEN sejak September (zahra tes, bilget) "menggantikan"
+// setiap jam bolong berminggu-minggu. Sesi OPEN kini hanya dihitung sampai akhir hari masuknya (WIB).
+function openSessionLimit(createdAt) {
+  const date = getJakartaBusinessDate(new Date(createdAt));
+  const nextMidnight = jakartaWallClockToUtc(addDays(date, 1), '00:00');
+  return nextMidnight ? nextMidnight.getTime() : new Date(createdAt).getTime();
+}
+
 async function sessionsInWindow(db, storeId, fromIso, toIso, nowMs) {
   const rows = await db.prepare(`
     SELECT a.id, a.user_id, a.created_at, a.check_out_at, a.status, p.replaces_account_id, p.attendance_id AS has_choice
@@ -356,7 +390,7 @@ async function sessionsInWindow(db, storeId, fromIso, toIso, nowMs) {
     attendanceId: row.id,
     accountId: row.user_id,
     start: new Date(row.created_at).getTime(),
-    end: row.check_out_at ? new Date(row.check_out_at).getTime() : nowMs,
+    end: row.check_out_at ? new Date(row.check_out_at).getTime() : Math.min(nowMs, openSessionLimit(row.created_at)),
     replaces: row.has_choice ? (row.replaces_account_id || '') : undefined
   })).filter(row => Number.isFinite(row.start) && Number.isFinite(row.end) && row.end > row.start);
 }
@@ -485,6 +519,7 @@ export async function evaluateDueApresiasi(db, storeId, { now = new Date() } = {
     const accountStart = account.createdAt ? getJakartaBusinessDate(parseDbTime(account.createdAt)) : from;
     for (let date = from; date <= today; date = addDays(date, 1)) {
       if (date < accountStart || done.has(`${account.id}|${date}`)) continue;
+      if (account.berhentiTanggal && date >= account.berhentiTanggal) continue;
       const shift = shiftOf(schedules.get(account.id), date);
       if (!shift || nowMs <= shift.end + GRACE_MS) continue;
       const result = await computeFor(db, { storeId, accountId: account.id, shift, nowMs });
@@ -513,12 +548,28 @@ export async function evaluateDueApresiasi(db, storeId, { now = new Date() } = {
 
 // Penilaian ulang satu shift (koreksi "menggantikan siapa"): baris revisi lama dibatalkan (jurnalnya
 // dibalik di tanggal shift), baris baru dihitung dari data sekarang. Penyesuaian admin tetap.
-export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Koreksi pengganti', now = new Date() } = {}) {
+// jadwalSekarang (Bos Cyo, 2026-10-22: "penyelesaiannya harus menyertakan tombol"): shift diambil dari jadwal
+// mingguan SEKARANG dan tanggal berhenti CS, bukan dari jadwal saat pertama dinilai -- untuk jadwal yang
+// ternyata salah atau CS yang sudah resign. Tidak ada shift = semua potongan/denda/fee shift itu dibatalkan.
+// dryRun = pratinjau: tidak menulis apa pun, mengembalikan baris lama dan baris baru.
+export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Koreksi pengganti', now = new Date(), jadwalSekarang = false, dryRun = false } = {}) {
   const evaluation = await db.prepare('SELECT * FROM apresiasi_evaluations WHERE id = ?').bind(evaluationId).first();
   if (!evaluation) return { ok: false, error: 'Penilaian shift tidak ditemukan.' };
-  const schedule = new Map([[dayOfWeekOf(evaluation.business_date), { shift_start: evaluation.shift_start, shift_end: evaluation.shift_end, is_day_off: 0 }]]);
-  const shift = shiftOf(schedule, evaluation.business_date);
-  const result = await computeFor(db, { storeId: evaluation.store_id, accountId: evaluation.account_id, shift, nowMs: now.getTime() });
+  let shift;
+  let berhenti = null;
+  if (jadwalSekarang) {
+    const status = await db.prepare('SELECT berhenti_tanggal FROM cashier_cs_status WHERE account_id = ?').bind(evaluation.account_id).first();
+    berhenti = status?.berhenti_tanggal || null;
+    shift = berhenti && evaluation.business_date >= berhenti
+      ? null
+      : shiftOf((await schedulesFor(db, [evaluation.account_id])).get(evaluation.account_id), evaluation.business_date);
+  } else {
+    const schedule = new Map([[dayOfWeekOf(evaluation.business_date), { shift_start: evaluation.shift_start, shift_end: evaluation.shift_end, is_day_off: 0 }]]);
+    shift = shiftOf(schedule, evaluation.business_date);
+  }
+  const result = shift
+    ? await computeFor(db, { storeId: evaluation.store_id, accountId: evaluation.account_id, shift, nowMs: now.getTime() })
+    : { shiftMinutes: 0, ownMinutes: 0, backups: [], backupMinutes: 0, kosongMinutes: 0 };
   const settings = await storeSettings(db, evaluation.entity_id, evaluation.store_id);
   result.dendaKind = dendaTier(result.kosongMinutes, settings);
   const old = (await db.prepare(`
@@ -531,6 +582,14 @@ export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Korek
   const firstRate = await db.prepare('SELECT rate_rupiah FROM apresiasi_entries WHERE evaluation_id = ? AND kind <> \'PENYESUAIAN\' AND rate_rupiah > 0 ORDER BY created_at LIMIT 1').bind(evaluationId).first();
   const entries = await buildEntries(db, { evaluation: next, result, settings: { ...settings, ratePerHourRupiah: firstRate?.rate_rupiah ?? settings.ratePerHourRupiah }, names });
   const same = old.length === entries.length && entries.every(entry => old.some(row => row.kind === entry.kind && row.counter_account_id === (entry.counter || '') && Number(row.amount_scaled) === entry.amountScaled));
+  if (dryRun) {
+    return {
+      ok: true, dryRun: true, changed: !same,
+      shift: shift ? `${shift.startText}-${shift.endText}` : (berhenti && evaluation.business_date >= berhenti ? `berhenti ${berhenti}` : 'libur'),
+      lama: old.map(row => ({ kind: row.kind, amountRupiah: Number(row.amount_scaled) / SCALE })),
+      baru: entries.map(entry => ({ kind: entry.kind, amountRupiah: entry.amountScaled / SCALE, description: entry.description }))
+    };
+  }
   if (same) return { ok: true, changed: false };
   const ids = old.map(row => row.id);
   for (const id of ids) {
@@ -540,8 +599,10 @@ export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Korek
   }
   await reverseEntries(db, ids, reason);
   await db.prepare(`
-    UPDATE apresiasi_evaluations SET revision = ?, own_minutes = ?, backup_minutes = ?, kosong_minutes = ?, denda_kind = ?, evaluated_at = ? WHERE id = ?
-  `).bind(next.revision, result.ownMinutes, result.backupMinutes, result.kosongMinutes, result.dendaKind, now.toISOString(), evaluationId).run();
+    UPDATE apresiasi_evaluations SET revision = ?, own_minutes = ?, backup_minutes = ?, kosong_minutes = ?, denda_kind = ?, evaluated_at = ?,
+      shift_start = ?, shift_end = ?, shift_minutes = ? WHERE id = ?
+  `).bind(next.revision, result.ownMinutes, result.backupMinutes, result.kosongMinutes, result.dendaKind, now.toISOString(),
+    shift ? shift.startText : evaluation.shift_start, shift ? shift.endText : evaluation.shift_end, result.shiftMinutes, evaluationId).run();
   await dispatchEntries(db, await insertEntries(db, next, entries));
   return { ok: true, changed: true };
 }
@@ -725,6 +786,7 @@ export async function settingsOverview(db, { entityId, stores }) {
       effective,
       accounts: accounts.map(account => ({
         id: account.id, username: account.username, name: account.name, status: account.status, statusIsDefault: account.statusIsDefault,
+        berhentiTanggal: account.berhentiTanggal,
         hourlyWageRupiah: account.hourlyWageRupiah,
         schedule: [...(schedules.get(account.id)?.values() ?? [])].sort((a, b) => a.day_of_week - b.day_of_week)
           .map(row => `${DAY_NAMES[row.day_of_week]} ${row.is_day_off ? 'libur' : (row.shift_start && row.shift_end ? `${row.shift_start}-${row.shift_end}` : '-')}`).join(' · ')

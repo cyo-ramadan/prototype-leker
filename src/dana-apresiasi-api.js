@@ -1,7 +1,7 @@
 import { json, readJson } from './http.js';
 import { ownerEntityContext } from './owner-entity-context.js';
 import { getJakartaBusinessDate } from './time.js';
-import { createPenyesuaian, rekap, saveSettings, setCsStatus, setPengganti, settingsOverview, voidPenyesuaian } from './dana-apresiasi.js';
+import { createPenyesuaian, reevaluate, rekap, saveSettings, setBerhenti, setCsStatus, setPengganti, settingsOverview, voidPenyesuaian } from './dana-apresiasi.js';
 
 // Entity Admin -> Pengaturan -> Dana Apresiasi & Denda (ADR-058). Satu pintu untuk saklar (bawaan
 // entity + override per gerai), angka, jam operasional, status akun CS asli/freelance, rekap
@@ -55,6 +55,24 @@ export async function handleDanaApresiasiApi(request, env, pathname) {
     if (!session || !storeIds.has(session.store_id)) return json({ error: 'Sesi presensi di luar entity ini.' }, 403);
     const result = await setPengganti(db, { attendanceId, replacesAccountId: input.replacesAccountId ?? 'AUTO', actor });
     return result.ok ? json({ ok: true, reevaluated: result.reevaluated }) : json({ error: result.error }, 400);
+  }
+  // CS berhenti/resign per tanggal (2026-10-22): shift sesudahnya tidak dinilai, yang terlanjur dibatalkan.
+  if (route === '/berhenti') {
+    const accountId = text(input.accountId, 120);
+    const account = await db.prepare('SELECT store_id FROM cashiers WHERE id = ?').bind(accountId).first();
+    if (!account || !storeIds.has(account.store_id)) return json({ error: 'Akun kasir di luar entity ini.' }, 403);
+    const result = await setBerhenti(db, { accountId, tanggal: input.tanggal || null, actor });
+    return result.ok ? json({ ok: true, reevaluated: result.reevaluated }) : json({ error: result.error }, 400);
+  }
+  // Nilai ulang satu shift dengan jadwal & presensi terbaru (dryRun = pratinjau, tidak menulis).
+  if (route === '/nilai-ulang') {
+    const evaluationId = text(input.evaluationId, 120);
+    const evaluation = await db.prepare('SELECT store_id FROM apresiasi_evaluations WHERE id = ?').bind(evaluationId).first();
+    if (!evaluation || !storeIds.has(evaluation.store_id)) return json({ error: 'Penilaian shift di luar entity ini.' }, 403);
+    const result = await reevaluate(db, evaluationId, {
+      actor, reason: text(input.reason, 200) || 'Nilai ulang dengan jadwal & presensi terbaru', jadwalSekarang: true, dryRun: input.dryRun === true
+    });
+    return result.ok ? json(result) : json({ error: result.error }, 400);
   }
   if (route === '/penyesuaian') {
     const result = await createPenyesuaian(db, {

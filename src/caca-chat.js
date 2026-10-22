@@ -183,6 +183,11 @@ export const PINTU_AKSI = Object.freeze([
   // sengaja TIDAK ada di sini: hanya tombol manusia.
   '/api/admin/fina/sesi$',
   '/api/entity-admin/dana-apresiasi/pengganti$',
+  // Nilai ulang & CS berhenti (alat Fina nilai_ulang_apresiasi / cs_berhenti, 2026-10-22): pratinjau + terapkan.
+  '/api/entity-admin/dana-apresiasi/nilai-ulang$',
+  '/api/entity-admin/dana-apresiasi/berhenti$',
+  '/api/entity-admin/dana-apresiasi/rekap$',
+  '/api/entity-admin/dana-apresiasi/settings$',
   '/api/entity-admin/fina/surat$',
   // draft_loker (H4): hanya MEMBUAT lowongan DRAFT (POST). Tayang/tutup (PATCH /:id) dan data
   // pelamar (nomor WA) sengaja tidak ada di sini.

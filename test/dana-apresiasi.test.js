@@ -4,7 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.js';
 import { hashCredential } from '../src/owner-auth.js';
-import { nilaiShift, dendaTier, APRESIASI_DEFAULTS, evaluateDueApresiasi, setPengganti, saveSettings, createPenyesuaian, durasiLabel } from '../src/dana-apresiasi.js';
+import { nilaiShift, dendaTier, APRESIASI_DEFAULTS, evaluateDueApresiasi, setPengganti, saveSettings, createPenyesuaian, durasiLabel, reevaluate, setBerhenti } from '../src/dana-apresiasi.js';
+import { buildEmployeeLedger } from '../src/employee-ledger-view.js';
 
 // Dana Apresiasi Backup & Denda Ketidakhadiran CS (Bos Cyo, 2026-10-15, ADR-058).
 
@@ -190,4 +191,59 @@ test('penyesuaian Entity Admin (alasan syar\'i) bawaan membalik penuh dan tampil
   assert.equal((await (await worker.fetch(new Request('https://example.test/api/entity-admin/dana-apresiasi/settings', {
     headers: { Authorization: 'Bearer ea-apr' }
   }), env)).json()).entity.since, '2026-10-18');
+});
+
+// --- Laporan admin 22 Okt 2026 (Indah, Ade, Adenia): tombol penyelesaian + bug presensi basi ---------
+
+test('presensi lupa ditutup sejak hari lain tidak lagi "menggantikan" CS asli (Ade Dermo / bilget Pendem)', async () => {
+  const { sqlite, db } = await setup();
+  sqlite.prepare(`INSERT INTO staff_attendance (id, user_id, store_id, attendance_type, photo_blob, photo_type, created_at, status) VALUES ('att_basi', 'avinda', ?, 'in', x'00', 'image/jpeg', '2026-10-10T05:00:00.000Z', 'OPEN')`).run(STORE);
+  await evaluateDueApresiasi(db, STORE, { now: NOW });
+  const rows = entries(sqlite);
+  assert.equal(rows.some(row => row.kind === 'FEE_BACKUP'), false, 'akun dengan presensi basi tidak dapat fee backup');
+  assert.equal(rows.find(row => row.kind === 'POTONG_KOSONG')?.rupiah, -21600);
+});
+
+test('nilai ulang dengan jadwal sekarang: jadwal salah dibetulkan -> potongan dibatalkan, ada pratinjau', async () => {
+  const { sqlite, db } = await setup();
+  session(sqlite, 'att_rika', 'rika', '13:00', '18:00');
+  await evaluateDueApresiasi(db, STORE, { now: NOW });
+  assert.ok(entries(sqlite).length > 0, 'telat 4 jam menurut jadwal 09:00 tercatat');
+  sqlite.prepare(`UPDATE account_shift_schedule SET shift_start = '13:00' WHERE account_id = 'rika'`).run();
+  const id = sqlite.prepare(`SELECT id FROM apresiasi_evaluations WHERE account_id = 'rika'`).get().id;
+  const pratinjau = await reevaluate(db, id, { jadwalSekarang: true, dryRun: true, now: NOW });
+  assert.equal(pratinjau.changed, true);
+  assert.equal(pratinjau.shift, '13:00-18:00');
+  assert.deepEqual(pratinjau.baru, []);
+  assert.ok(entries(sqlite).length > 0, 'pratinjau tidak menulis apa pun');
+  const hasil = await reevaluate(db, id, { jadwalSekarang: true, actor: { role: 'ENTITY_ADMIN', id: 'ea_apr' }, reason: 'Jadwal dibetulkan', now: NOW });
+  assert.equal(hasil.changed, true);
+  assert.deepEqual(entries(sqlite), []);
+  assert.equal(saldo2105(sqlite), 0);
+});
+
+test('CS berhenti per tanggal (Indah): potongan & denda sejak tanggal itu dibatalkan, shift sesudahnya tidak dinilai', async () => {
+  const { sqlite, db } = await setup();
+  await evaluateDueApresiasi(db, STORE, { now: NOW });
+  assert.ok(entries(sqlite).some(row => row.kind === 'DENDA'), 'tidak masuk sama sekali = potongan + denda');
+  const result = await setBerhenti(db, { accountId: 'rika', tanggal: DATE, actor: { role: 'ENTITY_ADMIN', id: 'ea_apr' }, now: NOW });
+  assert.equal(result.ok, true);
+  assert.equal(result.reevaluated, 1);
+  assert.deepEqual(entries(sqlite), []);
+  assert.equal(sqlite.prepare(`SELECT berhenti_tanggal FROM cashier_cs_status WHERE account_id = 'rika'`).get().berhenti_tanggal, DATE);
+  const besok = new Date(`2026-10-21T20:00:00+07:00`);
+  await evaluateDueApresiasi(db, STORE, { now: besok });
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) AS n FROM apresiasi_evaluations WHERE account_id = 'rika' AND business_date = '2026-10-21'`).get().n, 0);
+});
+
+test('riwayat gaji: baris akun yang tertaut sebentar di masa lalu tidak ikut (zahra tes -> Ade)', async () => {
+  const { sqlite, db, entityId } = await setup();
+  sqlite.prepare(`INSERT INTO employees (id, entity_id, full_name) VALUES ('emp_ade', ?, 'Ade')`).run(entityId);
+  sqlite.prepare(`INSERT INTO employee_account_links (id, employee_id, entity_id, account_type, account_id, store_id, effective_from, effective_to) VALUES ('lnk1', 'emp_ade', ?, 'CASHIER', 'avinda', ?, '2026-09-18T04:35:42.926Z', '2026-09-18T04:36:30.020Z')`).run(entityId, STORE);
+  session(sqlite, 'att_avinda', 'avinda', '09:00', '14:00');
+  await evaluateDueApresiasi(db, STORE, { now: NOW });
+  assert.ok(entries(sqlite).some(row => row.kind === 'FEE_BACKUP' && row.account_id === 'avinda'));
+  const ledger = await buildEmployeeLedger(db, { employeeId: 'emp_ade', entityId, kind: 'gaji' });
+  assert.ok(ledger.accounts.some(account => account.accountId === 'avinda'), 'akun pernah tertaut tetap dibaca, jadi tes ini benar-benar menguji batas masa tautan');
+  assert.equal((ledger.entries || []).some(row => String(row.kind).startsWith('APRESIASI')), false);
 });

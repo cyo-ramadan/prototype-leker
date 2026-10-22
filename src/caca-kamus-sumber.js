@@ -408,10 +408,16 @@ export const SUMBER_KAMUS = Object.freeze({
       "src/dana-apresiasi.js",
       "src/dana-apresiasi-api.js",
       "public/entity-dana-apresiasi.js",
-      "public/pengganti-presensi.js"
+      "public/pengganti-presensi.js",
+      "src/agen-fina-tulis.js"
     ],
     "fitur": [
       "rute:src/dana-apresiasi-api.js:/api/entity-admin/dana-apresiasi",
+      "rute:src/agen-fina-tulis.js:/api/entity-admin/dana-apresiasi",
+      "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/berhenti$",
+      "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/nilai-ulang$",
+      "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/rekap$",
+      "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/settings$",
       "rute:src/staff-portal.js:/api/staff/pengganti",
       "tombol:public/entity-dana-apresiasi.js:label:Rekap &amp; penyesuaian",
       "tombol:public/entity-dana-apresiasi.js:label:Simpan bawaan",

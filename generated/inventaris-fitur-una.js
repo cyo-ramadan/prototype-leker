@@ -1684,6 +1684,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/dana-apresiasi",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi",
+    "label": "/api/entity-admin/dana-apresiasi",
+    "skin": null
+  },
+  {
     "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/dana-apresiasi/pengganti",
     "jenis": "rute-kandidat",
     "sumber": "src/agen-fina-tulis.js",
@@ -2512,12 +2521,48 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/berhenti$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi/berhenti$",
+    "label": "/api/entity-admin/dana-apresiasi/berhenti$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/nilai-ulang$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi/nilai-ulang$",
+    "label": "/api/entity-admin/dana-apresiasi/nilai-ulang$",
+    "skin": null
+  },
+  {
     "id": "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/pengganti$",
     "jenis": "rute-kandidat",
     "sumber": "src/caca-chat.js",
     "method": null,
     "rute": "/api/entity-admin/dana-apresiasi/pengganti$",
     "label": "/api/entity-admin/dana-apresiasi/pengganti$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/rekap$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi/rekap$",
+    "label": "/api/entity-admin/dana-apresiasi/rekap$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/dana-apresiasi/settings$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/dana-apresiasi/settings$",
+    "label": "/api/entity-admin/dana-apresiasi/settings$",
     "skin": null
   },
   {

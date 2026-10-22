@@ -494,4 +494,126 @@ export const kabariCsTraining = Object.freeze({
   }
 });
 
-export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker, catatPelamarDariWa, undangPelamar, kabariCsTraining]);
+
+// --- nilai ulang dana apresiasi & CS berhenti (2026-10-22) -------------------------------------
+// Laporan admin Bos Cyo: denda/potongan CS yang sudah resign (Indah), fee backup dari presensi basi
+// (Ade/Dermo, Adenia/Mandala), potongan karena jadwal kerja salah (Ade/Pendem). "hr fina ... harusnya
+// bisa nyelesaiin ini": Fina memakai tombol yang sama dengan Entity Admin -> Dana Apresiasi (Nilai ulang,
+// Berhenti per tanggal), dengan pratinjau angka di draft. Jurnal dibalik oleh rute itu sendiri.
+
+const APR = '/api/entity-admin/dana-apresiasi';
+const rpBertanda = (n) => `${Number(n) < 0 ? '−' : '+'}Rp${Math.abs(Number(n) || 0).toLocaleString('id-ID')}`;
+const totalRp = (list) => list.reduce((sum, row) => sum + (Number(row.amountRupiah) || 0), 0);
+
+async function penilaianCs(ctx, nama, dari, sampai) {
+  const ref = await baca(ctx, `${APR}/rekap`, { from: dari, to: sampai });
+  if (!ref.ok) return ref;
+  const semua = (Array.isArray(ref.data?.evaluations) ? ref.data.evaluations : [])
+    .filter((item) => !ctx.storeCode || item.storeCode === ctx.storeCode);
+  const orang = [...new Map(semua.map((item) => [item.accountId, { accountId: item.accountId, name: item.accountName }])).values()];
+  if (!orang.length) return { ok: false, tanya: `Belum ada shift yang dinilai Dana Apresiasi di ${ctx.namaLingkup} antara ${dari} dan ${sampai}.` };
+  const cocok = cocokkanSatu(nama, orang, { label: 'CS', namaDari: (o) => o.name, kunciLain: (o) => [o.accountId] });
+  if (!cocok.ok) return cocok;
+  return { ok: true, cs: cocok.nilai, penilaian: semua.filter((item) => item.accountId === cocok.nilai.accountId) };
+}
+
+export const nilaiUlangApresiasi = Object.freeze({
+  nama: 'nilai_ulang_apresiasi', lingkup: 'gerai',
+  petunjuk: 'MENILAI ULANG potongan apresiasi / denda / fee backup seorang CS pada tanggal tertentu dengan jadwal kerja dan presensi TERBARU, mis. sesudah jadwal kerjanya dibetulkan atau presensinya dikoreksi: "potongan Ade tanggal 19 salah, jadwalnya sudah dibetulkan", "nilai ulang apresiasi Adenia 18 Oktober".',
+  skema: {
+    nu_nama: { type: 'string', description: 'nilai_ulang_apresiasi: nama CS persis seperti diucapkan.' },
+    nu_dari: { type: 'string', description: 'nilai_ulang_apresiasi: YYYY-MM-DD tanggal (awal) yang disebut.' },
+    nu_sampai: { type: 'string', description: 'nilai_ulang_apresiasi: YYYY-MM-DD tanggal akhir bila disebut rentang; kosong = sama dengan tanggal awal.' }
+  },
+  async siapkan(t, ctx) {
+    if (!teks(t?.nu_nama, 80)) return { ok: false, kurang: 'nu_nama', tanya: 'Apresiasi CS siapa yang mau dinilai ulang?' };
+    if (!teks(t?.nu_dari, 10)) return { ok: false, kurang: 'nu_dari', tanya: 'Tanggal berapa?' };
+    const dari = tanggalDari(t.nu_dari, ctx.hariIni);
+    if (!dari.ok) return { ...dari, kurang: 'nu_dari' };
+    const sampai = teks(t?.nu_sampai, 10) ? tanggalDari(t.nu_sampai, ctx.hariIni) : dari;
+    if (!sampai.ok) return { ...sampai, kurang: 'nu_sampai' };
+    const data = await penilaianCs(ctx, t.nu_nama, dari.nilai, sampai.nilai);
+    if (!data.ok) return data;
+    const berubah = [];
+    for (const item of data.penilaian) {
+      const pratinjau = await ctx.kirim('POST', `${APR}/nilai-ulang`, { evaluationId: item.id, dryRun: true });
+      if (!pratinjau.ok) return pratinjau;
+      if (pratinjau.data?.changed) berubah.push({ item, p: pratinjau.data });
+    }
+    if (!berubah.length) return { ok: false, tanya: `Dengan jadwal dan presensi terbaru, apresiasi ${data.cs.name} ${dari.nilai}${sampai.nilai !== dari.nilai ? `–${sampai.nilai}` : ''} tetap sama. Kalau jadwal kerjanya yang salah, betulkan dulu jadwalnya di Akun Kasir, lalu minta Fina lagi.` };
+    return {
+      ok: true,
+      draft: {
+        aksi: 'nilai_ulang_apresiasi',
+        judul: `Fina mau menilai ulang Dana Apresiasi ${data.cs.name} — dicek dulu ya:`,
+        baris: berubah.map(({ item, p }) => [`${item.businessDate} · shift ${p.shift}`, `${rpBertanda(totalRp(p.lama))} → ${rpBertanda(totalRp(p.baru))}`]),
+        dampak: [
+          'Dinilai dengan jadwal kerja dan presensi yang tercatat SEKARANG. Baris lama dibatalkan dan jurnalnya dibalik; baris baru dicatat di Riwayat Gaji dan Akuntansi.',
+          'Sama dengan tombol "Nilai ulang" di Entity Admin → Dana Apresiasi → Rekap.'
+        ],
+        muatan: { evaluationIds: berubah.map(({ item }) => item.id), nama: data.cs.name }
+      }
+    };
+  },
+  async posting(draft, ctx) {
+    let jumlah = 0;
+    for (const evaluationId of draft.muatan.evaluationIds) {
+      const hasil = await ctx.kirim('POST', `${APR}/nilai-ulang`, { evaluationId, reason: 'Dinilai ulang lewat Fina' });
+      if (!hasil.ok) return jumlah ? { ok: false, error: `${jumlah} shift sudah dinilai ulang, sisanya gagal: ${hasil.error}` } : hasil;
+      jumlah += 1;
+    }
+    return { ok: true, jawaban: `Sudah: ${jumlah} shift ${draft.muatan.nama} dinilai ulang, jurnalnya ikut dibetulkan.` };
+  }
+});
+
+export const csBerhenti = Object.freeze({
+  nama: 'cs_berhenti', lingkup: 'gerai',
+  petunjuk: 'MENCATAT CS yang berhenti/resign per tanggal untuk Dana Apresiasi: shift sesudahnya tidak dinilai, potongan/denda yang terlanjur tercatat dibatalkan. Mis. "Indah sudah resign per 18 Oktober, hapus dendanya".',
+  skema: {
+    cb_nama: { type: 'string', description: 'cs_berhenti: nama CS persis seperti diucapkan.' },
+    cb_tanggal: { type: 'string', description: 'cs_berhenti: YYYY-MM-DD tanggal mulai berhenti (hari pertama tidak bekerja lagi).' }
+  },
+  async siapkan(t, ctx) {
+    if (!teks(t?.cb_nama, 80)) return { ok: false, kurang: 'cb_nama', tanya: 'Siapa yang berhenti?' };
+    if (!teks(t?.cb_tanggal, 10)) return { ok: false, kurang: 'cb_tanggal', tanya: 'Berhenti mulai tanggal berapa?' };
+    const tanggal = tanggalDari(t.cb_tanggal, ctx.hariIni);
+    if (!tanggal.ok) return { ...tanggal, kurang: 'cb_tanggal' };
+    const ref = await baca(ctx, `${APR}/settings`);
+    if (!ref.ok) return ref;
+    const gerai = (ref.data?.stores || []).find((store) => !ctx.storeCode || store.storeCode === ctx.storeCode);
+    const akun = (gerai?.accounts || []).map((a) => ({ accountId: a.id, name: a.name || a.username, berhenti: a.berhentiTanggal || null }));
+    const cocok = cocokkanSatu(t.cb_nama, akun, { label: 'akun CS', namaDari: (a) => a.name, kunciLain: (a) => [a.accountId] });
+    if (!cocok.ok) return cocok;
+    const cs = cocok.nilai;
+    if (cs.berhenti === tanggal.nilai) return { ok: false, tanya: `${cs.name} sudah tercatat berhenti per ${tanggal.nilai}.` };
+    const data = await penilaianCs(ctx, cs.accountId, tanggal.nilai, ctx.hariIni);
+    const batal = [];
+    if (data.ok) {
+      for (const item of data.penilaian) {
+        const p = await ctx.kirim('POST', `${APR}/nilai-ulang`, { evaluationId: item.id, dryRun: true });
+        if (p.ok && p.data?.changed) batal.push([item.businessDate, `${rpBertanda(totalRp(p.data.lama))} → ${rpBertanda(totalRp(p.data.baru))}`]);
+      }
+    }
+    return {
+      ok: true,
+      draft: {
+        aksi: 'cs_berhenti',
+        judul: `Fina mau mencatat ${cs.name} berhenti per ${tanggal.nilai} — dicek dulu ya:`,
+        baris: [['CS', cs.name], ['Berhenti mulai', tanggal.nilai], ...batal.map(([tgl, ubah]) => [`Dibatalkan ${tgl}`, ubah])],
+        dampak: [
+          'Shift mulai tanggal itu tidak dinilai Dana Apresiasi lagi; potongan/denda yang terlanjur tercatat dibatalkan dan jurnalnya dibalik.',
+          'Akun login kasirnya tidak dinonaktifkan oleh Fina: nonaktifkan di Akun Kasir bila perlu.'
+        ],
+        muatan: { accountId: cs.accountId, tanggal: tanggal.nilai, nama: cs.name }
+      }
+    };
+  },
+  async posting(draft, ctx) {
+    const m = draft.muatan;
+    const hasil = await ctx.kirim('POST', `${APR}/berhenti`, { accountId: m.accountId, tanggal: m.tanggal });
+    if (!hasil.ok) return hasil;
+    return { ok: true, jawaban: `Tercatat: ${m.nama} berhenti per ${m.tanggal}.${hasil.data?.reevaluated ? ` ${hasil.data.reevaluated} shift dibatalkan/dinilai ulang.` : ''}` };
+  }
+});
+
+export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker, catatPelamarDariWa, undangPelamar, kabariCsTraining, nilaiUlangApresiasi, csBerhenti]);

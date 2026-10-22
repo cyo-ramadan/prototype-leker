@@ -72,7 +72,9 @@ export const KAMUS = Object.freeze([
       '(3) memasang pengumuman di papan CS (Portal Staf) untuk gerai itu atau semua gerai;',
       '(4) menyusun draft SP/teguran dari rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang) dengan kop dan tingkat dari pengaturan Fina;',
       '(5) menyusun draft lowongan kerja (teks loker + caption Instagram/Facebook untuk diposting manual), tersimpan DRAFT sampai Admin menekan Tayangkan di Rekrutmen Fina;',
-      '(6) urusan WA lewat gateway: catat pelamar dari WA, undang pelamar interview/training di gerai tertentu, dan kabari CS gerai untuk mendampingi training (lihat Kotak masuk WA Fina).',
+      '(6) urusan WA lewat gateway: catat pelamar dari WA, undang pelamar interview/training di gerai tertentu, dan kabari CS gerai untuk mendampingi training (lihat Kotak masuk WA Fina);',
+      '(6) menilai ulang potongan/denda/fee Dana Apresiasi seorang CS di tanggal tertentu dengan jadwal & presensi terbaru (mis. sesudah jadwal kerjanya dibetulkan), dengan pratinjau angka;',
+      '(7) mencatat CS berhenti/resign per tanggal: shift sesudahnya tidak dinilai dan potongan/denda yang terlanjur tercatat dibatalkan (jurnal dibalik).',
       'Semua kecuali tawaran backup lewat kartu draft dan tombol "Ya". Draft SP hanya tersimpan sebagai DRAFT; berlaku setelah Admin menekan Setujui di Entity Admin → Pengaturan → Surat Fina.'
     ].join('\n'),
     tawaran: [jelas('fina_surat', 'Surat Fina (SP)'), jelas('fina_pengaturan', 'Pengaturan Fina (HR)')], tanpaAksi: 'alat tulis Fina dipakai dari chat dengan memilih Fina'
@@ -855,10 +857,13 @@ export const KAMUS = Object.freeze([
       'Hanya akun berstatus CS asli yang dinilai (status diatur di pengaturan yang sama; akun backup entity bawaannya Freelance). Dihitung otomatis 1 jam setelah jam pulang shift, mulai tanggal "Mulai dihitung" di pengaturan. Telat 1 menit pun dihitung (tanpa toleransi), jadi pastikan jadwal shift dan hari libur tiap CS benar.',
       'Backup memilih "menggantikan siapa" saat presensi masuk (bawaan otomatis dari jadwal); Entity Admin bisa mengoreksi di "Rekap & penyesuaian".',
       'Alasan syar\'i: Entity Admin buka "Rekap & penyesuaian" → tombol Penyesuaian di baris potongan/denda; bawaannya membatalkan penuh, nominal & keterangan bisa diubah.',
+      'Jadwal kerja ternyata salah, presensi baru dibetulkan, atau backup tercatat keliru? Betulkan jadwal/presensinya dulu, lalu di "Rekap & penyesuaian" bagian Penilaian shift tekan 🔄 Nilai ulang: shift dinilai dengan jadwal & presensi terbaru, ada pratinjau angka, baris lama dibatalkan dan jurnalnya dibalik. Fina bisa melakukannya lewat chat (mis. "nilai ulang apresiasi Ade tanggal 19").',
+      'CS berhenti/resign: di daftar akun pengaturan ini isi tanggal lalu "Berhenti per tanggal". Shift mulai tanggal itu tidak dinilai lagi dan potongan/denda yang terlanjur tercatat dibatalkan. Fina juga bisa (mis. "Indah resign per 18 Oktober"). Akun login kasirnya dinonaktifkan terpisah di Akun Kasir.',
+      'Presensi yang lupa ditutup hanya dihitung sampai akhir hari masuknya, jadi tidak lagi dianggap menjaga shift hari-hari berikutnya.',
       'Isi jam operasional gerai supaya muncul peringatan kalau jadwal CS asli tidak menutup jam buka gerai.'
     ].join('\n'),
     tawaran: [],
-    tanpaAksi: 'pengaturan dan penyesuaiannya ada di Entity Admin, belum lewat Una'
+    tanpaAksi: 'pengaturan dan penyesuaiannya ada di Entity Admin; nilai ulang & CS berhenti juga lewat Fina'
   },
   {
     id: 'backup_salah_gerai',

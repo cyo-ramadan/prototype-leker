@@ -64,6 +64,22 @@
         try { await api('/settings', { method: 'POST', body: JSON.stringify(body) }); toast('Pengaturan dana apresiasi disimpan.'); await load(); } catch (error) { toast(error.message); }
       };
     });
+    // CS berhenti/resign (2026-10-22): shift sesudah tanggal itu tidak dinilai, yang terlanjur dibatalkan + jurnal dibalik.
+    host.querySelectorAll('[data-apr-berhenti]').forEach(button => {
+      button.onclick = async () => {
+        const accountId = button.dataset.aprBerhenti;
+        const tanggal = host.querySelector(`[data-apr-berhenti-tanggal="${accountId}"]`)?.value || '';
+        const pesan = tanggal
+          ? `${button.dataset.name} berhenti per ${tanggal}?\n\nShift mulai tanggal itu tidak dinilai lagi. Potongan, denda, dan fee yang terlanjur tercatat sejak tanggal itu dibatalkan dan jurnalnya dibalik.`
+          : `Hapus tanggal berhenti ${button.dataset.name}? Shift sesudahnya akan dinilai lagi bila jadwalnya ada.`;
+        if (!window.confirm(pesan)) return;
+        try {
+          const result = await api('/berhenti', { method: 'POST', body: JSON.stringify({ accountId, tanggal: tanggal || null }) });
+          toast(tanggal ? `Tanggal berhenti disimpan · ${result.reevaluated || 0} shift dibatalkan/dinilai ulang.` : 'Tanggal berhenti dihapus.');
+          await load();
+        } catch (error) { toast(error.message); }
+      };
+    });
     host.querySelectorAll('[data-apr-status]').forEach(select => {
       select.onchange = async () => {
         try { await api('/status', { method: 'POST', body: JSON.stringify({ accountId: select.dataset.aprStatus, status: select.value }) }); toast('Status akun disimpan.'); await load(); } catch (error) { toast(error.message); }
@@ -80,7 +96,10 @@
         <select class="text-input" data-apr-status="${esc(account.id)}" style="max-width:160px">
           <option value="ASLI" ${account.status === 'ASLI' ? 'selected' : ''}>CS asli</option>
           <option value="FREELANCE" ${account.status === 'FREELANCE' ? 'selected' : ''}>Freelance</option>
-        </select></div>`).join('') || '<div class="empty">Belum ada akun kasir aktif.</div>';
+        </select>
+        <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${account.berhentiTanggal ? `<span class="status-chip off">berhenti ${esc(account.berhentiTanggal)}</span>` : ''}
+          <input class="text-input" type="date" data-apr-berhenti-tanggal="${esc(account.id)}" value="${esc(account.berhentiTanggal || '')}" style="max-width:160px" title="Tanggal berhenti/resign" />
+          <span class="mini-btn" role="button" tabindex="0" data-apr-berhenti="${esc(account.id)}" data-name="${esc(account.username)}">${account.berhentiTanggal ? 'Ubah berhenti' : 'Berhenti per tanggal'}</span></span></div>`).join('') || '<div class="empty">Belum ada akun kasir aktif.</div>';
     return `
       <details class="admin-card" style="margin-bottom:10px">
         <summary><strong>${esc(store.storeCode)}</strong> · ${e.enabled ? '<span class="status-chip ok">ON</span>' : '<span class="status-chip off">OFF</span>'}
@@ -165,6 +184,11 @@
       <div style="overflow:auto;min-width:0"><table class="data-table" style="width:100%;margin:10px 0"><thead><tr><th>Tanggal</th><th>Gerai</th><th>Masuk</th><th>Keluar</th><th>Selisih</th><th>Kosong</th><th>Denda</th><th>Penyesuaian</th></tr></thead>
         <tbody>${dayRows || '<tr><td colspan="8" class="muted">Belum ada data.</td></tr>'}</tbody></table></div>
       ${evalRows ? `<h3>Siapa menggantikan siapa</h3><div class="master-list">${evalRows}</div>` : ''}
+      <h3>Penilaian shift</h3>
+      <div class="muted" style="margin-bottom:6px">Jadwal kerja salah, presensi baru dibetulkan, atau CS sudah berhenti? Tekan Nilai ulang: shift dinilai dengan jadwal &amp; presensi terbaru (ada pratinjau dulu).</div>
+      <div class="master-list">${rekap.evaluations.map(item => `
+        <div class="master-row"><div class="master-main"><strong>${esc(item.accountName)}</strong> · ${esc(item.businessDate)} · ${esc(item.storeCode)} · shift ${esc(item.shift)} · ${esc(item.refCode)}</div>
+          <span class="mini-btn" role="button" tabindex="0" data-apr-nilai-ulang="${esc(item.id)}" data-label="${esc(`${item.accountName} ${item.businessDate}`)}">🔄 Nilai ulang</span></div>`).join('') || '<div class="empty">Belum ada shift yang dinilai di rentang ini.</div>'}</div>
       <h3>Rincian potongan, denda &amp; penyesuaian</h3><div class="master-list">${entryRows}</div>`;
     node.querySelector('[data-apr-close]').onclick = () => node.close();
     node.querySelector('[data-apr-range]').onsubmit = event => {
@@ -191,6 +215,22 @@
         const reason = (window.prompt('Alasan membatalkan penyesuaian ini (wajib):', '') ?? '').trim();
         if (reason.length < 3) return toast('Alasan pembatalan wajib diisi.');
         try { await api(`/penyesuaian/${encodeURIComponent(button.dataset.aprVoid)}/void`, { method: 'POST', body: JSON.stringify({ reason }) }); toast('Penyesuaian dibatalkan.'); again(); } catch (error) { toast(error.message); }
+      };
+    });
+    node.querySelectorAll('[data-apr-nilai-ulang]').forEach(button => {
+      button.onclick = async () => {
+        const evaluationId = button.dataset.aprNilaiUlang;
+        try {
+          const preview = await api('/nilai-ulang', { method: 'POST', body: JSON.stringify({ evaluationId, dryRun: true }) });
+          if (!preview.changed) return toast('Hasilnya sama dengan yang tercatat; tidak ada yang berubah.');
+          const baris = list => list.length ? list.map(row => `  ${KIND_LABEL[row.kind] || row.kind} ${signed(row.amountRupiah)}`).join('\n') : '  (tidak ada)';
+          if (!window.confirm(`Nilai ulang ${button.dataset.label} (shift sekarang: ${preview.shift})?\n\nSekarang:\n${baris(preview.lama)}\n\nMenjadi:\n${baris(preview.baru)}\n\nBaris lama dibatalkan dan jurnalnya dibalik.`)) return;
+          const reason = (window.prompt('Alasan (tampil di riwayat):', 'Jadwal/presensi dibetulkan') ?? '').trim();
+          if (!reason) return;
+          await api('/nilai-ulang', { method: 'POST', body: JSON.stringify({ evaluationId, reason }) });
+          toast('Shift dinilai ulang.');
+          again();
+        } catch (error) { toast(error.message); }
       };
     });
     node.querySelectorAll('[data-apr-pengganti]').forEach(select => {

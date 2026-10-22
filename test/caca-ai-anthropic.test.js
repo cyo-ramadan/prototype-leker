@@ -159,3 +159,12 @@ test('400 dari Claude: coba ulang sekali tanpa fallback/cache, dan alasan Anthro
   assert.match(g.error, /messages\.0\.content: kosong/);
   assert.doesNotMatch(g.error, /sk-ant-rahasia/);
 });
+
+test('ANTHROPIC_WORKSPACE_ID (opsional) dikirim sebagai header anthropic-workspace-id', async () => {
+  const opsiKlien = [];
+  const buat = (opsi) => { opsiKlien.push(opsi); return klienPalsu(teks('{"jawaban":"ok"}'))(); };
+  await callStructured({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_WORKSPACE_ID: 'wrkspc_123' }, { schema: SKEMA_KECIL, content: [], buatKlien: buat });
+  await callStructured({ ANTHROPIC_API_KEY: 'k' }, { schema: SKEMA_KECIL, content: [], buatKlien: buat });
+  assert.deepEqual(opsiKlien[0].defaultHeaders, { 'anthropic-workspace-id': 'wrkspc_123' });
+  assert.equal(opsiKlien[1].defaultHeaders, undefined);
+});

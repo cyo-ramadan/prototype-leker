@@ -157,7 +157,10 @@ export async function callStructured(env, {
   try {
     const apiKey = await bacaKunci(env);
     if (!apiKey) return { ok: false, status: 503, error: 'Kunci Claude di Secrets Store belum terisi atau belum boleh dipakai Worker ini.' };
-    const client = buatKlien({ apiKey, timeout: timeoutMs, maxRetries: 1 });
+    // Kunci yang tidak terikat workspace wajib menyebut workspace-nya (galat Anthropic 2026-10-22).
+    // ANTHROPIC_WORKSPACE_ID opsional (bukan rahasia); kunci yang dibuat di dalam workspace tidak perlu.
+    const workspace = String(env?.ANTHROPIC_WORKSPACE_ID ?? '').trim();
+    const client = buatKlien({ apiKey, timeout: timeoutMs, maxRetries: 1, ...(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {}) });
     try {
       response = await client.beta.messages.create(body);
     } catch (error) {

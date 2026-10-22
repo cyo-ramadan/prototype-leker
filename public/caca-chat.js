@@ -255,7 +255,7 @@ function cacaSapaAgen() {
   const nama = cacaNamaAgen();
   const isi = {
     rika: `Halo Bos, ${nama} di sini. ${nama} bantu menelusuri angka yang janggal (HPP, jurnal, aturan jurnal, sinkron akuntansi) sampai ketemu langkah input yang keliru, lalu menyiapkan koreksinya sebagai draft.`,
-    fina: `Halo Bos, ${nama} di sini. ${nama} bantu urusan CS: jadwal kasir dan akun karyawan. Cek gerai kosong, backup, dan rekap masalah CS menyusul. Keputusan soal orang dan uang tetap di Bos.`
+    fina: `Halo Bos, ${nama} di sini. ${nama} bantu urusan CS: cek gerai kosong, cari freelance untuk backup, rekap masalah CS, catat pengganti, pasang pengumuman, draft SP, dan draft lowongan. Keputusan soal orang dan uang tetap di Bos.`
   }[cacaState.agen] || `Halo Bos, ${nama} di sini.`;
   cacaTambahPenanda('Hari ini');
   cacaTambahGelembung('caca', isi);

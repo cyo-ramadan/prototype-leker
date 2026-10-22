@@ -36,9 +36,21 @@ export const KAMUS = Object.freeze([
       'Di Entity Admin → Pengaturan → "Rekrutmen Fina". Isi Posisi, Gerai, Jam kerja, Gaji (teks), Syarat, Deskripsi, lalu "Simpan sebagai draft". Fina juga bisa menyusun draft lowongan dari chat.',
       'Draft belum terlihat umum. Tekan "Tayangkan" supaya halaman /loker?l=… bisa dibuka; "Salin tautan" untuk dibagikan ke WA, Facebook, atau Instagram (posting manual). "Tutup lowongan" menghentikan lamaran baru; "Jadikan draft" untuk menyunting ulang.',
       'Pelamar mengisi nama, nomor WhatsApp, domisili, umur, dan pengalaman, lalu menekan "Kirim lamaran". Satu nomor hanya bisa melamar sekali sehari per lowongan.',
-      'Buka lowongan untuk melihat pelamar: tombol WA untuk menghubungi, catatan admin, dan status Baru / Screening / Interview / Diterima / Ditolak. Keputusan Diterima / Ditolak hanya oleh Admin; Fina tidak membaca nomor pelamar.'
+      'Buka lowongan untuk melihat pelamar: tombol WA untuk menghubungi, catatan admin, dan status Baru / Screening / Interview / Diterima / Ditolak. Keputusan Diterima / Ditolak hanya oleh Admin; Fina tidak membaca nomor pelamar.',
+      'Semua pelamar (dari lowongan maupun yang datang lewat WA, Instagram, atau langsung) ada di menu Karyawan → tombol "Pelamar" (bawaannya terbuka "Karyawan"). Di situ isi Nama, Nomor WhatsApp, Posisi yang dilamar, Gerai tujuan, Domisili, Umur, Sumber, Pengalaman, lalu "Simpan pelamar"; satu nomor WA hanya dicatat sekali. Daftar bisa disaring per status dan gerai.'
     ].join('\n'),
     tawaran: [], tanpaAksi: 'lowongan ditayangkan dan pelamar diputuskan lewat tombol di Rekrutmen Fina'
+  },
+  {
+    id: 'fina_kanal', judul: 'Sambungan Fina: WA, email, Instagram, Facebook',
+    kunci: ['sambungan fina', 'hubungkan wa', 'sambungkan wa', 'gateway wa', 'token gateway', 'hubungkan email', 'hubungkan instagram', 'hubungkan facebook', 'konek wa ke fina'],
+    isi: [
+      'Di Entity Admin → Pengaturan → "Sambungan Fina": WhatsApp, Email, Instagram, Facebook usaha ini. Centang "Hubungkan ke Fina", isi akun/nomor, lalu "Simpan …".',
+      'WhatsApp memakai gateway di laptop/PC (perangkat tertaut, jalur tidak resmi): tekan "Buat token gateway", lalu "Salin token" dan tempel di gateway WA. Token hanya tampil sekali; "Ganti token gateway" membuat token lama tidak berlaku. Laptop harus menyala, dan risiko nomor diblokir WhatsApp tetap ada.',
+      'Email disimpan dulu (penerusan email masuk disiapkan tahap berikutnya). Instagram dan Facebook dicatat akunnya; otomatisasi belum bisa karena akun Meta dibatasi, jadi Fina menyiapkan teks untuk diposting manual.',
+      'Fina hanya menyiapkan: setiap pesan keluar menunggu persetujuan Admin.'
+    ].join('\n'),
+    tawaran: [], tanpaAksi: 'sambungan diatur Admin di kartu Sambungan Fina'
   },
   {
     id: 'fina_tulis', judul: 'Fina: tawaran backup, catat pengganti, pengumuman, draft SP', agen: ['fina'],

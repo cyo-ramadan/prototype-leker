@@ -37,9 +37,24 @@ export const SUMBER_KAMUS = Object.freeze({
       "tulis:src/akun-gerai.js:request.method === 'POST' && pathname === `$"
     ]
   },
-  "fina_rekrut": {
-    "sumber": ["src/fina-rekrut.js", "public/entity-fina-rekrut.js", "public/loker.html", "public/loker.js"],
+  "fina_kanal": {
+    "sumber": ["src/fina-kanal.js", "public/entity-fina-kanal.js"],
     "fitur": [
+      "rute:src/fina-kanal.js:/api/entity-admin/fina/kanal",
+      "tombol:public/entity-fina-kanal.js:data-kanal-simpan:Simpan {nilai}",
+      "tombol:public/entity-fina-kanal.js:label:{nilai}",
+      "tombol:public/entity-fina-kanal.js:label:Salin token",
+      "tulis:src/fina-kanal.js:request.method === 'POST')",
+      "tulis:src/fina-kanal.js:request.method === 'PUT')"
+    ]
+  },
+  "fina_rekrut": {
+    "sumber": ["src/fina-rekrut.js", "public/entity-fina-rekrut.js", "public/loker.html", "public/loker.js", "public/entity-pelamar.js"],
+    "fitur": [
+      "tombol:public/entity-admin.html:data-karyawan-mode:Karyawan",
+      "tombol:public/entity-admin.html:data-karyawan-mode:Pelamar",
+      "tombol:public/entity-pelamar.js:label:Simpan pelamar",
+      "tulis:src/fina-rekrut.js:request.method === 'POST') return pelamarManual(request, db, context, actor);",
       "pola:src/fina-rekrut.js:/^\\/api\\/entity-admin\\/fina\\/lowongan\\/([^/]+)$/",
       "pola:src/fina-rekrut.js:/^\\/api\\/entity-admin\\/fina\\/pelamar\\/([^/]+)$/",
       "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/lowongan",

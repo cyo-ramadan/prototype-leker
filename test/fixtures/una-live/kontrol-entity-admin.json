@@ -1909,6 +1909,54 @@
    "class": "business_draft",
    "reason": "Menulis data: hanya lewat draft Workspace + Ya manusia, tombolnya tidak diklik Una",
    "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-karyawan-mode:Karyawan",
+   "label": "Karyawan",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Navigasi tampilan Karyawan/Pelamar, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:data-karyawan-mode:Pelamar",
+   "label": "Pelamar",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Navigasi tampilan Karyawan/Pelamar, bukan target kemampuan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-fina-kanal.js:data-kanal-simpan:Simpan {nilai}",
+   "label": "Simpan {nilai}",
+   "sumber": "public/entity-fina-kanal.js",
+   "class": "unsupported",
+   "reason": "Data pelamar dan sambungan WA/email/IG/FB diatur manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-kanal.js:label:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/entity-fina-kanal.js",
+   "class": "unsupported",
+   "reason": "Data pelamar dan sambungan WA/email/IG/FB diatur manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-fina-kanal.js:label:Salin token",
+   "label": "Salin token",
+   "sumber": "public/entity-fina-kanal.js",
+   "class": "unsupported",
+   "reason": "Data pelamar dan sambungan WA/email/IG/FB diatur manusia, tidak diotomatisasi",
+   "automationForbidden": true
+  },
+  {
+   "id": "tombol:public/entity-pelamar.js:label:Simpan pelamar",
+   "label": "Simpan pelamar",
+   "sumber": "public/entity-pelamar.js",
+   "class": "unsupported",
+   "reason": "Data pelamar dan sambungan WA/email/IG/FB diatur manusia, tidak diotomatisasi",
+   "automationForbidden": true
   }
  ]
 }

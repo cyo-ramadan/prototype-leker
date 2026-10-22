@@ -54,6 +54,7 @@ import { handleEmployeeLedgerViewApi } from './employee-ledger-view.js';
 import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
 import { handleFinaApi, handleFinaSuratApi } from './fina-api.js';
 import { handleFinaRekrutApi } from './fina-rekrut.js';
+import { handleFinaKanalApi } from './fina-kanal.js';
 import { handleDanaApresiasiApi } from './dana-apresiasi-api.js';
 import { handleAkunGeraiApi } from './akun-gerai.js';
 import { handleFinaPengaturanApi } from './fina-pengaturan.js';
@@ -345,6 +346,9 @@ async function handleApiRouted(request, env, url, ctx) {
   // Rekrutmen Fina (H4): lowongan/pelamar Entity Admin + halaman loker publik.
   const finaRekrutResponse = await handleFinaRekrutApi(request, env, pathname);
   if (finaRekrutResponse) return finaRekrutResponse;
+  // Sambungan Fina (WA/email/IG/FB) per entity, migration 0182.
+  const finaKanalResponse = await handleFinaKanalApi(request, env, pathname);
+  if (finaKanalResponse) return finaKanalResponse;
   const entityDepositQueueResponse = await handleEntityDepositQueueApi(request, env, pathname);
   if (entityDepositQueueResponse) return entityDepositQueueResponse;
   const entityAdminResponse = await handleEntityAdminApi(request, env, pathname);

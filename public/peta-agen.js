@@ -11,6 +11,41 @@ const STATUS = { selesai: ["Sudah ada", "--ok", "✓"], sebagian: ["Sebagian", "
 const AGEN = { una: ["Una", "--l-una"], rika: ["Rika", "--l-rika"], fina: ["Fina", "--l-fina"], mesin: ["Mesin bersama", "--l-mesin"], belajar: ["Belajar", "--l-belajar"] };
 const EDGE = { alir: "--accent", baca: "--k-data", belajar: "--k-belajar" };
 
+// Ikon gambar per kotak (Bos Cyo 2026-10-22: "kalo wa pake logo wa, ... database simbol database,
+// kartu case"). SVG tertanam, tidak memuat apa pun dari internet. Ikon merek berwarna sendiri;
+// ikon lain garis putih di atas warna jenis kotak. "wa+ig" = beberapa ikon berjajar.
+const SVG = (isi, vb = "0 0 24 24") => `<svg viewBox="${vb}" width="22" height="22" aria-hidden="true">${isi}</svg>`;
+const GARIS = d => SVG(`<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`);
+const IKON_MEREK = {
+  wa: SVG('<circle cx="12" cy="12" r="11" fill="#25D366"/><path d="M6.8 17.4l.9-2.9a5.6 5.6 0 1 1 2.1 2.1z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 9.2c.2 1.9 1.7 3.6 3.8 4.4l.9-.9.9.6-.4 1.2c-2.8-.2-5.2-2.6-5.4-5.4l1.2-.4.6.9z" fill="#fff"/>'),
+  fb: SVG('<rect width="24" height="24" rx="5" fill="#1877F2"/><path d="M13.6 20v-6.1h2.1l.3-2.4h-2.4V10c0-.7.2-1.2 1.2-1.2H16V6.7c-.3 0-1-.1-1.9-.1-1.9 0-3.1 1.1-3.1 3.2v1.7H9v2.4h2V20z" fill="#fff"/>'),
+  ig: SVG('<defs><linearGradient id="igw" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#F58529"/><stop offset=".5" stop-color="#DD2A7B"/><stop offset="1" stop-color="#8134AF"/></linearGradient></defs><rect width="24" height="24" rx="6" fill="url(#igw)"/><rect x="5.5" y="5.5" width="13" height="13" rx="4" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="3.1" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="16.1" cy="7.9" r="1" fill="#fff"/>'),
+  email: SVG('<rect x="1.5" y="4.5" width="21" height="15" rx="2.5" fill="#EA4335"/><path d="M3 6.5l9 6.5 9-6.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/>'),
+  db: SVG('<ellipse cx="12" cy="5.5" rx="8" ry="3" fill="#2563EB"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13c0 1.7-3.6 3-8 3s-8-1.3-8-3z" fill="#3B82F6"/><path d="M4 10.5c0 1.7 3.6 3 8 3s8-1.3 8-3M4 15c0 1.7 3.6 3 8 3s8-1.3 8-3" fill="none" stroke="#DBEAFE" stroke-width="1.2"/>'),
+  kartu: SVG('<rect x="2.5" y="5" width="19" height="14" rx="2" fill="#F59E0B"/><path d="M5.5 9h13M5.5 12h9M5.5 15h11" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>')
+};
+const IKON_GARIS = {
+  chat: GARIS("M4 5h16v11H9l-5 4z"), jam: GARIS("M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 7v5l3 2"),
+  web: GARIS("M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"),
+  laptop: GARIS("M5 6h14v9H5zM3 18h18"), ai: GARIS("M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"),
+  gear: GARIS("M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"),
+  cari: GARIS("M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13zM15.5 15.5L21 21"), orang: GARIS("M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zM2.5 20c.5-3.5 3.2-5.5 6.5-5.5s6 2 6.5 5.5M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.8c2 .7 3.3 2.5 3.5 5.2"),
+  toko: GARIS("M3 9l2-5h14l2 5M3 9h18M5 9v11h14V9M9 20v-6h6v6"), grafik: GARIS("M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"),
+  surat: GARIS("M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7"), centang: GARIS("M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM8 12.5l2.7 2.7L16.5 9.5"),
+  toa: GARIS("M4 10v4h3l7 4V6l-7 4zM17 9a4 4 0 0 1 0 6"), antrean: GARIS("M4 13h4l2 3h4l2-3h4M4 13l2-8h12l2 8v6H4z"),
+  tes: GARIS("M9 4h6v3H9zM6 6h12v15H6zM9 12l1.5 1.5L14 10M9 17h6"), peta: GARIS("M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"),
+  putar: GARIS("M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"), rute: GARIS("M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6M6 21v-4M3 6l3-3 3 3"),
+  buku: GARIS("M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 19V5M8 7h7"), paket: GARIS("M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10"),
+  alat: GARIS("M14.5 6.5a4 4 0 0 0-5.3 5L4 16.7 7.3 20l5.2-5.2a4 4 0 0 0 5-5.3l-2.5 2.5-2.3-.7-.7-2.3z"), layar: GARIS("M3 4h18v12H3zM8 20h8M12 16v4"),
+  kutu: GARIS("M9 7a3 3 0 0 1 6 0M7 9h10v5a5 5 0 0 1-10 0zM12 9v10M3 12h4M17 12h4M4 7l3 2M20 7l-3 2M4 18l3-2M20 18l-3-2")
+};
+function ikonKotak(k, cadangan) {
+  const nama = String(k.ikon || "").split("+").filter(n => IKON_MEREK[n] || IKON_GARIS[n]);
+  if (!nama.length) return `<span class="ic">${cadangan}</span>`;
+  const merek = nama.every(n => IKON_MEREK[n]);
+  return `<span class="ic${merek ? " merek" : ""}${nama.length > 1 ? " banyak" : ""}">${nama.map(n => IKON_MEREK[n] || IKON_GARIS[n]).join("")}</span>`;
+}
+
 const $ = s => document.querySelector(s);
 const vp = $("#vp"), world = $("#world"), svg = $("#edges"), panel = $("#panel");
 let D, els = {}, view = { x: 0, y: 0, s: 1 }, filter = "semua", sel = null;
@@ -56,7 +91,7 @@ function init(data) {
     b.className = `n ${k.status}`; b.style.left = k.x + "px"; b.style.top = k.y + "px"; b.style.setProperty("--kc", `var(${J[1]})`);
     b.setAttribute("aria-label", `${k.label}, ${S[0]}`);
     const pk = paketKotak(k);
-    b.innerHTML = (pk.length ? `<span class="pk" title="Paket kerja ${esc(pk.join(" + "))}">${esc(pk.join("+"))}</span>` : "") + `<span class="pt i"></span><span class="ic">${J[2]}</span><span><div class="t">${esc(k.label)}</div><div class="s">${esc(k.sub)}</div></span><span class="pt o"></span><span class="st" style="background:var(${S[1]})">${S[2]}</span>${k.risiko ? '<span class="rk">risiko</span>' : ""}`;
+    b.innerHTML = (pk.length ? `<span class="pk" title="Paket kerja ${esc(pk.join(" + "))}">${esc(pk.join("+"))}</span>` : "") + `<span class="pt i"></span>${ikonKotak(k, J[2])}<span><div class="t">${esc(k.label)}</div><div class="s">${esc(k.sub)}</div></span><span class="pt o"></span><span class="st" style="background:var(${S[1]})">${S[2]}</span>${k.risiko ? '<span class="rk">risiko</span>' : ""}`;
     b.addEventListener("click", ev => { if (moved) { ev.preventDefault(); return; } pilih(k.id); });
     world.appendChild(b); els[k.id] = { el: b, k };
   });

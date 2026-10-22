@@ -93,6 +93,7 @@
         <div id="entityFinaPengaturan" class="admin-card" style="margin-top:16px"><div class="muted">Memuat pengaturan Fina (HR)…</div></div>
         <div id="entityFinaSurat" class="admin-card" style="margin-top:16px"><div class="muted">Memuat surat Fina…</div></div>
         <div id="entityFinaRekrut" class="admin-card" style="margin-top:16px"><div class="muted">Memuat rekrutmen Fina…</div></div>
+        <div id="entityFinaKanal" class="admin-card" style="margin-top:16px"><div class="muted">Memuat sambungan Fina…</div></div>
       </section>
       <section id="entityTab-stores" class="admin-section active">
         <div class="admin-card">
@@ -308,6 +309,12 @@
       </section>
 
       <section id="entityTab-employees" class="admin-section">
+        <div class="management-actions" role="group" aria-label="Pelamar atau karyawan" style="margin-bottom:12px">
+          <button class="secondary-btn" type="button" data-karyawan-mode="pelamar" aria-pressed="false">Pelamar</button>
+          <button class="primary-btn" type="button" data-karyawan-mode="karyawan" aria-pressed="true">Karyawan</button>
+        </div>
+        <div id="entityPelamarPanel" hidden><div class="muted">Memuat pelamar…</div></div>
+        <div id="entityKaryawanPanel">
         <div class="admin-grid two" style="align-items:start">
           <form id="entityEmployeeForm" class="admin-card">
             <h2>Tambah karyawan level Entity</h2>
@@ -347,6 +354,7 @@
             <button id="entityAkunGeraiRefresh" class="secondary-btn" type="button">↻ Muat ulang akun</button>
           </div>
           <div id="entityAkunGeraiBody"></div>
+        </div>
         </div>
       </section>
 
@@ -419,6 +427,8 @@
 <script src="/entity-fina-pengaturan.js?v=20261021-fina-h1-v1"></script>
 <script src="/entity-fina-surat.js?v=20261021-fina-h3-v1"></script>
 <script src="/entity-fina-rekrut.js?v=20261021-fina-h4-v1"></script>
+<script src="/entity-pelamar.js?v=20261022-pelamar-v1"></script>
+<script src="/entity-fina-kanal.js?v=20261022-kanal-v1"></script>
 <script src="/warung-pemilik.js?v=20261011-owner-admin-v1"></script>
 <script src="/racik-pemilik.js?v=20261006-langsung-jual-v1"></script>
 <script src="/entity-stock-matrix.js?v=20261003-lihat-hpp-v1"></script>

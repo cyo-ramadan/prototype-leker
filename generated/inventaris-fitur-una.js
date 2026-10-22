@@ -3178,6 +3178,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/fina-kanal.js:/api/entity-admin/fina/kanal",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-kanal.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/kanal",
+    "label": "/api/entity-admin/fina/kanal",
+    "skin": null
+  },
+  {
     "id": "rute:src/fina-pengaturan.js:/api/entity-admin/fina/settings",
     "jenis": "rute-kandidat",
     "sumber": "src/fina-pengaturan.js",
@@ -9583,6 +9592,28 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-admin.html"
   },
   {
+    "id": "tombol:public/entity-admin.html:data-karyawan-mode:Karyawan",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.html",
+    "tombolId": null,
+    "aksi": "data-karyawan-mode",
+    "label": "Karyawan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.html"
+  },
+  {
+    "id": "tombol:public/entity-admin.html:data-karyawan-mode:Pelamar",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.html",
+    "tombolId": null,
+    "aksi": "data-karyawan-mode",
+    "label": "Pelamar",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.html"
+  },
+  {
     "id": "tombol:public/entity-admin.html:data-management-pane:Alarm &amp; Notifikasi",
     "jenis": "tombol",
     "sumber": "public/entity-admin.html",
@@ -10331,6 +10362,39 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-dana-apresiasi.js"
   },
   {
+    "id": "tombol:public/entity-fina-kanal.js:data-kanal-simpan:Simpan {nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-kanal.js",
+    "tombolId": null,
+    "aksi": "data-kanal-simpan",
+    "label": "Simpan {nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-kanal.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-kanal.js:label:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-kanal.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-kanal.js"
+  },
+  {
+    "id": "tombol:public/entity-fina-kanal.js:label:Salin token",
+    "jenis": "tombol",
+    "sumber": "public/entity-fina-kanal.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Salin token",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-fina-kanal.js"
+  },
+  {
     "id": "tombol:public/entity-fina-pengaturan.js:data-fina-simpan:Simpan bawaan Fina",
     "jenis": "tombol",
     "sumber": "public/entity-fina-pengaturan.js",
@@ -10483,6 +10547,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/entity-izin-cs.js"
+  },
+  {
+    "id": "tombol:public/entity-pelamar.js:label:Simpan pelamar",
+    "jenis": "tombol",
+    "sumber": "public/entity-pelamar.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan pelamar",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-pelamar.js"
   },
   {
     "id": "tombol:public/entity-setoran-cs.js:data-approve,data-info,data-store:ACC",
@@ -15334,6 +15409,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "tulis:src/fina-kanal.js:request.method === 'POST')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-kanal.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-kanal.js:request.method === 'PUT')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-kanal.js",
+    "method": "PUT",
+    "rute": null,
+    "label": "request.method === 'PUT')",
+    "skin": null
+  },
+  {
     "id": "tulis:src/fina-pengaturan.js:request.method !== 'PUT') return json(",
     "jenis": "rute-tulis",
     "sumber": "src/fina-pengaturan.js",
@@ -15367,6 +15460,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method === 'POST')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-rekrut.js:request.method === 'POST') return pelamarManual(request, db, context, actor);",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-rekrut.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST') return pelamarManual(request, db, context, actor);",
     "skin": null
   },
   {

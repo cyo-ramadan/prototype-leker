@@ -99,7 +99,7 @@ test('halaman tidak memuat apa pun dari internet, data tidak di folder publik, t
   assert.match(js, /\/api\/owner\/peta-agen/);
   assert.match(js, /lekerOwnerToken/);
   assert.match(html, /<meta name="robots" content="noindex,nofollow"/);
-  assert.match(html, /\/peta-agen\.js\?v=20261021-peta-paket-v1/);
+  assert.match(html, /\/peta-agen\.js\?v=20261022-peta-ikon-v1/);
   assert.ok(!readdirSync(new URL('public/', ROOT)).some(name => /peta-agen-data|peta-agen-manifest/.test(name)));
   for (const page of ['public/owner.html', 'public/admin.html']) assert.match(read(page), /<a class="primary-btn" href="\/peta-agen" id="ownerPetaAgenLink">/);
   const check = read('scripts/check-syntax.mjs');
@@ -126,4 +126,14 @@ test('wilayah paket H0-H6: tiap paket terdaftar, kotak ber-paket menunjuk paket 
   assert.match(js, /paketBar\(\)/);
   assert.match(js, /split\(\/\[\+\/,\\s\]\+\//, 'pemecah paket sama dengan penyusun');
   assert.match(read('public/peta-agen.html'), /id="paketBar"/);
+});
+
+test('ikon gambar di peta: setiap ikon di manifest dikenal skrip, logo WA/FB/IG/email/database/kartu tersedia', () => {
+  const js = read('public/peta-agen.js');
+  const manifest = JSON.parse(read('scripts/peta-agen-manifest.json'));
+  for (const nama of ['wa', 'fb', 'ig', 'email', 'db', 'kartu']) assert.ok(js.includes(` ${nama}: SVG(`), nama);
+  for (const k of manifest.kotak) for (const nama of String(k.ikon || '').split('+').filter(Boolean)) {
+    assert.ok(js.includes(` ${nama}: SVG(`) || js.includes(` ${nama}: GARIS(`), `${k.id}: ikon ${nama} tidak dikenal`);
+  }
+  assert.ok(manifest.kotak.filter(k => k.ikon).length >= manifest.kotak.length - 2, 'hampir semua kotak berikon');
 });

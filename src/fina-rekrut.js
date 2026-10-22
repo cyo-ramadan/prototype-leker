@@ -20,6 +20,8 @@ const PUBLIK_LAMARAN = '/api/publik/lamaran';
 export const STATUS_LOWONGAN = Object.freeze(['DRAFT', 'TAYANG', 'TUTUP']);
 export const STATUS_PELAMAR = Object.freeze(['BARU', 'SCREENING', 'INTERVIEW', 'DITERIMA', 'DITOLAK']);
 export const SUMBER_PELAMAR = Object.freeze(['WEB', 'FB', 'IG', 'WA', 'LAIN']);
+// Sumber yang boleh dipilih Admin saat input manual (0181).
+export const SUMBER_PELAMAR_MANUAL = Object.freeze(['MANUAL', 'WA', 'IG', 'FB', 'EMAIL', 'WEB', 'LAIN']);
 // Batas teknis anti-spam (bukan aturan HR tenant).
 export const BATAS_LAMARAN = Object.freeze({ perNomorPerHari: 1, perIpPerJam: 10, maksBytes: 8 * 1024 });
 const PANJANG = Object.freeze({ posisi: 80, deskripsi: 2000, syarat: 2000, jamKerja: 200, gajiTeks: 120, nama: 80, domisili: 120, pengalaman: 1000, catatan: 500 });
@@ -125,20 +127,63 @@ async function lowonganApi(request, env, pathname, context, actor) {
   return json({ error: 'Rute lowongan tidak ditemukan.' }, 404);
 }
 
+// Pelamar diinput manual oleh Admin (Karyawan -> Pelamar), atau nanti oleh Fina dari WA/email lewat
+// draft + "Ya". Nomor WA yang sama di entity yang sama ditolak (409) supaya tidak dobel.
+async function pelamarManual(request, db, context, actor) {
+  const body = await readJson(request);
+  if (!body.ok || !body.value || typeof body.value !== 'object') return json({ error: 'Payload tidak valid.' }, 400);
+  const v = body.value;
+  for (const [k, max] of [['nama', PANJANG.nama], ['domisili', PANJANG.domisili], ['pengalaman', PANJANG.pengalaman], ['catatan', PANJANG.catatan], ['posisi', PANJANG.posisi]]) {
+    if (teksTerlalu(v[k], max)) return json({ error: `Isian ${k} maks ${max} huruf.` }, 400);
+  }
+  const nama = teksBersih(v.nama, PANJANG.nama);
+  if (nama.length < 2) return json({ error: 'Nama pelamar wajib diisi.' }, 400);
+  const noWa = normalkanNoWa(v.noWa);
+  if (!noWa) return json({ error: 'Nomor WhatsApp belum benar (contoh 0812xxxxxxx).' }, 400);
+  let umur = null;
+  if (v.umur !== undefined && v.umur !== null && String(v.umur).trim() !== '') {
+    umur = Number(v.umur);
+    if (!Number.isInteger(umur) || umur < 14 || umur > 80) return json({ error: 'Umur harus 14–80 tahun.' }, 400);
+  }
+  const storeId = String(v.storeId ?? '').trim();
+  if (storeId && !context.stores.some(st => st.id === storeId)) return json({ error: 'Gerai di luar entity ini.' }, 403);
+  let lowongan = null;
+  if (v.lowonganId) {
+    lowongan = await db.prepare('SELECT id, posisi, store_id FROM hr_lowongan WHERE id = ? AND entity_id = ?').bind(String(v.lowonganId), context.entityId).first();
+    if (!lowongan) return json({ error: 'Lowongan tidak ditemukan.' }, 404);
+  }
+  const sumber = SUMBER_PELAMAR_MANUAL.includes(String(v.sumber ?? '').toUpperCase()) ? String(v.sumber).toUpperCase() : 'MANUAL';
+  const ada = await db.prepare(`SELECT id, nama FROM hr_pelamar WHERE entity_id = ? AND no_wa = ? AND status <> 'DITOLAK' LIMIT 1`).bind(context.entityId, noWa).first();
+  if (ada) return json({ error: `Nomor ini sudah ada di data pelamar (${ada.nama}).`, code: 'PELAMAR_SUDAH_ADA', id: ada.id }, 409);
+  const id = `pelamar_${crypto.randomUUID()}`;
+  await db.prepare(`INSERT INTO hr_pelamar (id, lowongan_id, entity_id, nama, no_wa, domisili, umur, pengalaman, sumber, status, catatan,
+    posisi, store_id, dibuat_oleh_role, dibuat_oleh_id, diubah_oleh_role, diubah_oleh_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'BARU', ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, lowongan?.id ?? null, context.entityId, nama, noWa, teksBersih(v.domisili, PANJANG.domisili), umur, teksBersih(v.pengalaman, PANJANG.pengalaman),
+      sumber, teksBersih(v.catatan, PANJANG.catatan), teksBersih(v.posisi, PANJANG.posisi) || lowongan?.posisi || '', storeId || lowongan?.store_id || '',
+      actor.role, actor.id, actor.role, actor.id).run();
+  return json({ ok: true, id }, 201);
+}
+
 async function pelamarApi(request, env, pathname, context, actor) {
   const db = env.DB;
   if (pathname === BASE_PELAMAR && request.method === 'GET') {
     const url = new URL(request.url);
     const lowongan = url.searchParams.get('lowongan');
     const status = url.searchParams.get('status');
-    const rows = (await db.prepare(`SELECT p.*, l.posisi FROM hr_pelamar p JOIN hr_lowongan l ON l.id = p.lowongan_id
-      WHERE p.entity_id = ? ${lowongan ? 'AND p.lowongan_id = ?' : ''} ${status ? 'AND p.status = ?' : ''} ORDER BY p.created_at DESC LIMIT 300`)
-      .bind(context.entityId, ...(lowongan ? [lowongan] : []), ...(status ? [status] : [])).all()).results ?? [];
+    const gerai = url.searchParams.get('store');
+    // LEFT JOIN: pelamar yang diinput manual (0181) tidak selalu punya lowongan.
+    const rows = (await db.prepare(`SELECT p.*, COALESCE(NULLIF(p.posisi, ''), l.posisi, '') AS posisi_tampil, s.code AS store_code
+      FROM hr_pelamar p LEFT JOIN hr_lowongan l ON l.id = p.lowongan_id LEFT JOIN stores s ON s.id = p.store_id
+      WHERE p.entity_id = ? ${lowongan ? 'AND p.lowongan_id = ?' : ''} ${status ? 'AND p.status = ?' : ''} ${gerai ? 'AND p.store_id = ?' : ''}
+      ORDER BY p.created_at DESC LIMIT 300`)
+      .bind(context.entityId, ...(lowongan ? [lowongan] : []), ...(status ? [status] : []), ...(gerai ? [gerai] : [])).all()).results ?? [];
     return json({ pelamar: rows.map(r => ({
-      id: r.id, lowonganId: r.lowongan_id, posisi: r.posisi, nama: r.nama, noWa: r.no_wa, domisili: r.domisili, umur: r.umur,
+      id: r.id, lowonganId: r.lowongan_id, posisi: r.posisi_tampil, storeId: r.store_id || '', storeCode: r.store_code || '',
+      nama: r.nama, noWa: r.no_wa, domisili: r.domisili, umur: r.umur,
       pengalaman: r.pengalaman, sumber: r.sumber, status: r.status, catatan: r.catatan, createdAt: r.created_at, updatedAt: r.updated_at
     })) });
   }
+  if (pathname === BASE_PELAMAR && request.method === 'POST') return pelamarManual(request, db, context, actor);
   const m = pathname.match(/^\/api\/entity-admin\/fina\/pelamar\/([^/]+)$/);
   if (m && request.method === 'PATCH') {
     const id = decodeURIComponent(m[1]);
@@ -184,7 +229,7 @@ async function lamaranPublik(request, env, now) {
   // Honeypot: kolom tersembunyi yang hanya diisi robot. Dibalas "terkirim" supaya robot tidak belajar.
   if (String(v.website ?? '').trim()) return json({ ok: true });
   const db = env.DB;
-  const row = await db.prepare(`SELECT id, entity_id FROM hr_lowongan WHERE slug = ? AND status = 'TAYANG'`).bind(String(v.slug ?? '').slice(0, 80)).first();
+  const row = await db.prepare(`SELECT id, entity_id, posisi, store_id FROM hr_lowongan WHERE slug = ? AND status = 'TAYANG'`).bind(String(v.slug ?? '').slice(0, 80)).first();
   if (!row) return json({ error: 'Lowongan tidak ditemukan atau sudah ditutup.' }, 404);
   for (const [k, max] of [['nama', PANJANG.nama], ['domisili', PANJANG.domisili], ['pengalaman', PANJANG.pengalaman]]) {
     if (teksTerlalu(v[k], max)) return json({ error: `Isian ${k} maks ${max} huruf.` }, 400);
@@ -207,8 +252,8 @@ async function lamaranPublik(request, env, now) {
   const perNomor = await db.prepare('SELECT COUNT(*) AS n FROM hr_pelamar WHERE lowongan_id = ? AND no_wa = ? AND created_at > ?').bind(row.id, noWa, hariLalu).first();
   if (Number(perNomor?.n || 0) >= BATAS_LAMARAN.perNomorPerHari) return json({ error: 'Nomor ini sudah mengirim lamaran untuk lowongan ini hari ini.' }, 429);
   const id = `pelamar_${crypto.randomUUID()}`;
-  await db.prepare(`INSERT INTO hr_pelamar (id, lowongan_id, entity_id, nama, no_wa, domisili, umur, pengalaman, jawaban, sumber, status, ip_hash, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 'BARU', ?, ?, ?)`).bind(id, row.id, row.entity_id, nama, noWa, teksBersih(v.domisili, PANJANG.domisili), umur,
+  await db.prepare(`INSERT INTO hr_pelamar (id, lowongan_id, entity_id, posisi, store_id, nama, no_wa, domisili, umur, pengalaman, jawaban, sumber, status, ip_hash, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 'BARU', ?, ?, ?)`).bind(id, row.id, row.entity_id, row.posisi || '', row.store_id || '', nama, noWa, teksBersih(v.domisili, PANJANG.domisili), umur,
     teksBersih(v.pengalaman, PANJANG.pengalaman), sumber, ipHash, now.toISOString().replace('T', ' ').slice(0, 19), now.toISOString().replace('T', ' ').slice(0, 19)).run();
   return json({ ok: true }, 201);
 }

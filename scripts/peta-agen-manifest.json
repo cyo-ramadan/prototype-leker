@@ -121,7 +121,8 @@
     {
      "f": "public/caca-chat.js"
     }
-   ]
+   ],
+   "ikon": "chat"
   },
   {
    "id": "p_pilih",
@@ -145,7 +146,8 @@
      "p": "public/caca-chat.js"
     }
    ],
-   "paket": "H0"
+   "paket": "H0",
+   "ikon": "orang"
   },
   {
    "id": "una",
@@ -163,7 +165,8 @@
      "f": "src/caca-agen.js"
     }
    ],
-   "file": "src/caca-agen.js"
+   "file": "src/caca-agen.js",
+   "ikon": "ai"
   },
   {
    "id": "una_alat",
@@ -184,7 +187,8 @@
      "f": "src/caca-aksi.js"
     }
    ],
-   "file": "src/caca-baca-katalog.js"
+   "file": "src/caca-baca-katalog.js",
+   "ikon": "alat"
   },
   {
    "id": "una_live",
@@ -205,7 +209,8 @@
      "f": "public/una-lembar.js"
     }
    ],
-   "file": "src/una-kemampuan.js"
+   "file": "src/una-kemampuan.js",
+   "ikon": "layar"
   },
   {
    "id": "una_out",
@@ -223,7 +228,8 @@
      "g": "draft",
      "p": "src/caca-aksi.js"
     }
-   ]
+   ],
+   "ikon": "surat"
   },
   {
    "id": "meja",
@@ -241,7 +247,8 @@
      "luar": "Meja akuntan di laptop Bos: C:/Users/Asus/akuntan-leker (dicatat manual)",
      "ok": true
     }
-   ]
+   ],
+   "ikon": "laptop"
   },
   {
    "id": "rika",
@@ -259,7 +266,8 @@
      "g": "Rika",
      "p": "src/agen-persona.js"
     }
-   ]
+   ],
+   "ikon": "ai"
   },
   {
    "id": "rika_v1",
@@ -280,7 +288,8 @@
      "f": "src/caca-aksi-akuntan.js"
     }
    ],
-   "file": "contracts/una-akuntan-tools-v1.md"
+   "file": "contracts/una-akuntan-tools-v1.md",
+   "ikon": "alat"
   },
   {
    "id": "rika_telusur",
@@ -298,7 +307,8 @@
      "g": "telusur_asal_angka",
      "p": "src/agen-rika-alat.js"
     }
-   ]
+   ],
+   "ikon": "cari"
   },
   {
    "id": "rika_dobel",
@@ -316,7 +326,8 @@
      "g": "cari_entri_dobel",
      "p": "src/agen-rika-alat.js"
     }
-   ]
+   ],
+   "ikon": "cari"
   },
   {
    "id": "rika_banding",
@@ -334,7 +345,8 @@
      "g": "bandingkan_periode",
      "p": "src/agen-rika-alat.js"
     }
-   ]
+   ],
+   "ikon": "grafik"
   },
   {
    "id": "rika_gaji",
@@ -352,7 +364,8 @@
      "g": "cek_gaji_presensi",
      "p": "src/agen-rika-alat.js"
     }
-   ]
+   ],
+   "ikon": "cari"
   },
   {
    "id": "rika_temuan",
@@ -370,7 +383,8 @@
      "g": "temuan",
      "p": "src/agen-rika-alat.js"
     }
-   ]
+   ],
+   "ikon": "surat"
   },
   {
    "id": "rika_koreksi",
@@ -387,7 +401,8 @@
     {
      "f": "src/caca-aksi-akuntan.js"
     }
-   ]
+   ],
+   "ikon": "centang"
   },
   {
    "id": "rika_bug",
@@ -405,7 +420,8 @@
      "g": "dugaan_bug",
      "p": "src/caca-belum-paham.js"
     }
-   ]
+   ],
+   "ikon": "kutu"
   },
   {
    "id": "p_wa",
@@ -423,7 +439,8 @@
      "f": "src/fina-wa.js"
     }
    ],
-   "paket": "H5"
+   "paket": "H5",
+   "ikon": "wa"
   },
   {
    "id": "fina_inbox",
@@ -441,7 +458,8 @@
      "f": "public/fina-inbox.js"
     }
    ],
-   "paket": "H5"
+   "paket": "H5",
+   "ikon": "wa"
   },
   {
    "id": "p_cron",
@@ -459,7 +477,8 @@
      "g": "crons",
      "p": "wrangler.jsonc"
     }
-   ]
+   ],
+   "ikon": "jam"
   },
   {
    "id": "p_loker",
@@ -477,7 +496,8 @@
      "f": "public/loker.html"
     }
    ],
-   "paket": "H4"
+   "paket": "H4",
+   "ikon": "web"
   },
   {
    "id": "fina",
@@ -496,7 +516,8 @@
      "p": "src/agen-persona.js"
     }
    ],
-   "paket": "H0"
+   "paket": "H0",
+   "ikon": "ai"
   },
   {
    "id": "fina_kosong",
@@ -518,7 +539,8 @@
      "f": "src/fina-hitung.js"
     }
    ],
-   "paket": "H2"
+   "paket": "H2",
+   "ikon": "toko"
   },
   {
    "id": "fina_tawar",
@@ -545,7 +567,8 @@
      "p": "src/agen-fina-tulis.js"
     }
    ],
-   "paket": "H2+H3"
+   "paket": "H2+H3",
+   "ikon": "wa"
   },
   {
    "id": "fina_balas",
@@ -564,7 +587,8 @@
      "p": "src/fina-wa.js"
     }
    ],
-   "paket": "H5"
+   "paket": "H5",
+   "ikon": "wa"
   },
   {
    "id": "fina_masalah",
@@ -586,7 +610,8 @@
      "f": "src/fina-api.js"
     }
    ],
-   "paket": "H2"
+   "paket": "H2",
+   "ikon": "grafik"
   },
   {
    "id": "fina_sp",
@@ -608,7 +633,8 @@
      "m": "fina_surat"
     }
    ],
-   "paket": "H3"
+   "paket": "H3",
+   "ikon": "surat"
   },
   {
    "id": "fina_acc",
@@ -632,7 +658,8 @@
     {
      "f": "public/fina-inbox.js"
     }
-   ]
+   ],
+   "ikon": "centang"
   },
   {
    "id": "fina_umum",
@@ -651,7 +678,8 @@
      "p": "src/agen-fina-tulis.js"
     }
    ],
-   "paket": "H3"
+   "paket": "H3",
+   "ikon": "toa"
   },
   {
    "id": "data_cs",
@@ -679,7 +707,8 @@
      "f": "src/staff-announcement.js"
     }
    ],
-   "file": "src/dana-apresiasi.js"
+   "file": "src/dana-apresiasi.js",
+   "ikon": "db"
   },
   {
    "id": "fina_pelamar",
@@ -695,9 +724,16 @@
    "bukti": [
     {
      "m": "fina_pelamar"
+    },
+    {
+     "m": "fina_pelamar_manual"
+    },
+    {
+     "f": "public/entity-pelamar.js"
     }
    ],
-   "paket": "H4"
+   "paket": "H4",
+   "ikon": "db"
   },
   {
    "id": "fina_loker",
@@ -716,7 +752,8 @@
      "p": "src/agen-fina-tulis.js"
     }
    ],
-   "paket": "H4"
+   "paket": "H4",
+   "ikon": "surat"
   },
   {
    "id": "fina_posting",
@@ -736,7 +773,8 @@
      "p": "src/agen-fina-tulis.js"
     }
    ],
-   "paket": "H4/H5"
+   "paket": "H4/H5",
+   "ikon": "fb+ig"
   },
   {
    "id": "b_cari",
@@ -756,7 +794,8 @@
      "g": "peringkatKamus",
      "p": "src/agen-kartu.js"
     }
-   ]
+   ],
+   "ikon": "cari"
   },
   {
    "id": "b_kartu",
@@ -778,7 +817,8 @@
     {
      "f": "src/agen-kartu.js"
     }
-   ]
+   ],
+   "ikon": "kartu"
   },
   {
    "id": "b_tulis",
@@ -798,7 +838,8 @@
      "g": "usulkan_kartu",
      "p": "src/agen-kartu.js"
     }
-   ]
+   ],
+   "ikon": "kartu"
   },
   {
    "id": "b_umum",
@@ -818,7 +859,8 @@
      "g": "UMUM|tenant_id IS NULL",
      "p": "src/agen-kartu.js"
     }
-   ]
+   ],
+   "ikon": "kartu"
   },
   {
    "id": "b_belum",
@@ -841,7 +883,8 @@
      "m": "una_belum_paham"
     }
    ],
-   "file": "src/caca-belum-paham.js"
+   "file": "src/caca-belum-paham.js",
+   "ikon": "antrean"
   },
   {
    "id": "b_tinjau",
@@ -863,7 +906,8 @@
     {
      "f": "public/belum-paham-tinjau.js"
     }
-   ]
+   ],
+   "ikon": "centang"
   },
   {
    "id": "b_skenario",
@@ -886,7 +930,8 @@
      "f": "scripts/ambil-una-belum-paham.mjs"
     }
    ],
-   "file": "scripts/ambil-una-belum-paham.mjs"
+   "file": "scripts/ambil-una-belum-paham.mjs",
+   "ikon": "tes"
   },
   {
    "id": "b_peta",
@@ -911,7 +956,8 @@
      "p": "public/owner.html"
     }
    ],
-   "file": "scripts/peta-agen-manifest.json"
+   "file": "scripts/peta-agen-manifest.json",
+   "ikon": "peta"
   },
   {
    "id": "m_loop",
@@ -930,7 +976,8 @@
      "p": "src/caca-agen.js"
     }
    ],
-   "file": "src/caca-agen.js"
+   "file": "src/caca-agen.js",
+   "ikon": "putar"
   },
   {
    "id": "m_persona",
@@ -948,7 +995,8 @@
      "f": "src/agen-persona.js"
     }
    ],
-   "paket": "H0"
+   "paket": "H0",
+   "ikon": "orang"
   },
   {
    "id": "m_model",
@@ -966,7 +1014,8 @@
      "f": "src/caca-ai-client.js"
     }
    ],
-   "file": "src/caca-ai-client.js"
+   "file": "src/caca-ai-client.js",
+   "ikon": "ai"
   },
   {
    "id": "m_rute",
@@ -987,7 +1036,8 @@
      "g": "rute",
      "p": "src/caca-ai-client.js"
     }
-   ]
+   ],
+   "ikon": "rute"
   },
   {
    "id": "m_baca",
@@ -1005,7 +1055,8 @@
      "f": "src/caca-baca-aman.js"
     }
    ],
-   "file": "src/caca-baca-aman.js"
+   "file": "src/caca-baca-aman.js",
+   "ikon": "db"
   },
   {
    "id": "m_kamus",
@@ -1026,7 +1077,8 @@
      "f": "src/caca-kamus-sumber.js"
     }
    ],
-   "file": "src/kerangka/kamus.js"
+   "file": "src/kerangka/kamus.js",
+   "ikon": "buku"
   },
   {
    "id": "m_draft",
@@ -1044,7 +1096,8 @@
      "f": "src/caca-aksi.js"
     }
    ],
-   "file": "src/caca-aksi.js"
+   "file": "src/caca-aksi.js",
+   "ikon": "centang"
   },
   {
    "id": "m_kamus_agen",
@@ -1062,7 +1115,8 @@
      "g": "agen:",
      "p": "src/caca-kamus-sumber.js"
     }
-   ]
+   ],
+   "ikon": "buku"
   },
   {
    "id": "m_riwayat",
@@ -1083,7 +1137,8 @@
      "f": "src/caca-tertunda.js"
     }
    ],
-   "file": "src/caca-tertunda.js"
+   "file": "src/caca-tertunda.js",
+   "ikon": "chat"
   },
   {
    "id": "m_wa",
@@ -1104,7 +1159,8 @@
      "f": "src/pintu-wa.js"
     }
    ],
-   "file": "src/percetakan-wa.js"
+   "file": "src/percetakan-wa.js",
+   "ikon": "wa"
   },
   {
    "id": "m_atur",
@@ -1126,7 +1182,8 @@
      "p": "src/caca-pengaturan.js"
     }
    ],
-   "file": "src/caca-pengaturan.js"
+   "file": "src/caca-pengaturan.js",
+   "ikon": "gear"
   },
   {
    "id": "fina_atur",
@@ -1150,7 +1207,8 @@
     {
      "f": "public/entity-fina-pengaturan.js"
     }
-   ]
+   ],
+   "ikon": "gear"
   },
   {
    "id": "m_paket",
@@ -1170,6 +1228,56 @@
     },
     {
      "m": "paket_produk"
+    }
+   ],
+   "ikon": "paket"
+  },
+  {
+   "id": "fina_kanal",
+   "jenis": "pintu",
+   "agen": [
+    "fina"
+   ],
+   "x": 310,
+   "y": 1050,
+   "label": "Sambungan Fina",
+   "sub": "WA · email · IG · FB per tenant",
+   "ikon": "wa+email+ig+fb",
+   "paket": "H5",
+   "isi": "Entity Admin -> Pengaturan -> Sambungan Fina: tenant menghubungkan WA, email, Instagram, Facebook miliknya. WA lewat gateway laptop dengan token per entity (disimpan hash). IG/FB dicatat dulu; otomatisasi terhalang akun Meta.",
+   "bukti": [
+    {
+     "f": "src/fina-kanal.js"
+    },
+    {
+     "m": "fina_wa_kanal"
+    },
+    {
+     "f": "public/entity-fina-kanal.js"
+    }
+   ]
+  },
+  {
+   "id": "wa_gateway",
+   "jenis": "lokal",
+   "agen": [
+    "fina"
+   ],
+   "x": 310,
+   "y": 740,
+   "label": "Gateway WA (laptop)",
+   "sub": "perangkat tertaut · tidak resmi",
+   "ikon": "laptop+wa",
+   "paket": "H5",
+   "risiko": "Jalur tidak resmi: nomor bisa diblokir WhatsApp; laptop harus menyala.",
+   "isi": "Prototipe Codex (wa-gateway/, Baileys). Meneruskan pesan masuk ke server dengan token Sambungan Fina dan mengambil antrean pesan keluar yang sudah disetujui Admin.",
+   "bukti": [
+    {
+     "f": "wa-gateway/server.mjs"
+    },
+    {
+     "g": "otwa_",
+     "p": "wa-gateway/jembatan.mjs"
     }
    ]
   }
@@ -1390,6 +1498,18 @@
    "b_tinjau",
    "b_skenario",
    "belajar"
+  ],
+  [
+   "wa_gateway",
+   "p_wa",
+   "alir",
+   "pesan masuk"
+  ],
+  [
+   "fina_kanal",
+   "p_wa",
+   "alir",
+   "token"
   ]
  ]
 }

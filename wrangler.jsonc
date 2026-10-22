@@ -39,5 +39,15 @@
       "binding": "R2_BUCKET",
       "bucket_name": "bukti-setoran"
     }
+  ],
+  // Kunci Claude untuk Mode Analisis (src/caca-ai-anthropic.js), dari Cloudflare Secrets Store.
+  // Isi kuncinya diatur Bos Cyo di dashboard (secret "anthropic-api-key"); di sini hanya binding.
+  // Di Worker binding ini objek dengan .get(), bukan teks. Wajib di file ini (lihat catatan R2 di atas).
+  "secrets_store_secrets": [
+    {
+      "binding": "ANTHROPIC_API_KEY",
+      "store_id": "7cde32b058f84369956ffe3c898bd09d",
+      "secret_name": "anthropic-api-key"
+    }
   ]
 }

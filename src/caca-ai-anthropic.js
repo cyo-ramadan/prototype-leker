@@ -125,11 +125,18 @@ export function buatPermintaanClaude({ system, content, schema, model = MODEL, m
   };
 }
 
+// Alasan dari Anthropic (mis. "fallbacks: ...") ditampilkan ringkas supaya penyebab 400 ketahuan
+// tanpa membuka log. Isinya pesan validasi API, bukan data tenant atau kunci.
+function alasanApi(error) {
+  const pesan = error?.error?.error?.message || error?.message || 'tanpa keterangan';
+  return String(pesan).replace(/sk-ant-[\w-]+/g, '[kunci]').slice(0, 240);
+}
+
 function pesanGagal(error) {
   if (error instanceof Anthropic.AuthenticationError) return { status: 502, error: 'Kunci Claude (ANTHROPIC_API_KEY) ditolak. Periksa kuncinya.' };
   if (error instanceof Anthropic.PermissionDeniedError) return { status: 502, error: 'Kunci Claude tidak punya akses ke model ini.' };
   if (error instanceof Anthropic.RateLimitError) return { status: 429, error: 'Claude sedang sibuk/kena batas pemakaian. Coba lagi sebentar lagi.' };
-  if (error instanceof Anthropic.BadRequestError) return { status: 502, error: 'Permintaan ke Claude ditolak (format). Tim program perlu memeriksa.' };
+  if (error instanceof Anthropic.BadRequestError) return { status: 502, error: `Permintaan ke Claude ditolak (format): ${alasanApi(error)}` };
   if (error instanceof Anthropic.APIConnectionTimeoutError) return { status: 504, error: 'Analisis kelamaan, coba lagi atau persempit pertanyaannya.' };
   if (error instanceof Anthropic.APIConnectionError) return { status: 502, error: 'Tidak bisa menghubungi Claude.' };
   if (error instanceof Anthropic.APIError) return { status: 502, error: `Claude gagal menjawab (${error.status ?? '?'}).` };
@@ -151,8 +158,18 @@ export async function callStructured(env, {
     const apiKey = await bacaKunci(env);
     if (!apiKey) return { ok: false, status: 503, error: 'Kunci Claude di Secrets Store belum terisi atau belum boleh dipakai Worker ini.' };
     const client = buatKlien({ apiKey, timeout: timeoutMs, maxRetries: 1 });
-    response = await client.beta.messages.create(body);
+    try {
+      response = await client.beta.messages.create(body);
+    } catch (error) {
+      if (!(error instanceof Anthropic.BadRequestError)) throw error;
+      // Fitur tambahan (fallback beta, cache otomatis) belum tentu aktif di akun/model ini: catat
+      // alasannya, lalu coba sekali lagi dengan permintaan paling polos.
+      console.warn('claude 400, coba ulang tanpa fitur tambahan', { alasan: alasanApi(error) });
+      const { betas: _b, fallbacks: _f, cache_control: _c, ...polos } = body;
+      response = await client.beta.messages.create(polos);
+    }
   } catch (error) {
+    console.warn('claude gagal', { status: error?.status ?? null, alasan: alasanApi(error) });
     return { ok: false, ...pesanGagal(error) };
   }
   if (response?.stop_reason === 'refusal') {

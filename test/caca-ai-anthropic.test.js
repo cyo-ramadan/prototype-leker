@@ -139,3 +139,23 @@ test('kunci lewat binding Secrets Store (objek .get()) maupun secret biasa', asy
   const kosong = await callStructured({ ANTHROPIC_API_KEY: { get: async () => null } }, { schema: SKEMA_KECIL, content: [] });
   assert.equal(kosong.status, 503);
 });
+
+test('400 dari Claude: coba ulang sekali tanpa fallback/cache, dan alasan Anthropic ditampilkan bila tetap gagal', async () => {
+  const Anthropic = (await import('@anthropic-ai/sdk')).default;
+  const salah = (pesan) => new Anthropic.BadRequestError(400, { type: 'error', error: { type: 'invalid_request_error', message: pesan } }, undefined, new Headers());
+  const env = { ANTHROPIC_API_KEY: 'kunci-uji' };
+  const dikirim = [];
+  const sekaliGagal = () => ({ beta: { messages: { create: async (body) => { dikirim.push(body); if (dikirim.length === 1) throw salah('fallbacks: not supported'); return teks('{"jawaban":"ok"}'); } } } });
+  const r = await callStructured(env, { schema: SKEMA_KECIL, content: [], buatKlien: sekaliGagal });
+  assert.equal(r.ok, true);
+  assert.equal(dikirim.length, 2);
+  assert.equal(dikirim[1].fallbacks, undefined);
+  assert.equal(dikirim[1].betas, undefined);
+  assert.equal(dikirim[1].cache_control, undefined);
+  assert.equal(dikirim[1].model, MODEL, 'isi lain tetap');
+  const selaluGagal = () => ({ beta: { messages: { create: async () => { throw salah('messages.0.content: kosong sk-ant-rahasia123'); } } } });
+  const g = await callStructured(env, { schema: SKEMA_KECIL, content: [], buatKlien: selaluGagal });
+  assert.equal(g.ok, false);
+  assert.match(g.error, /messages\.0\.content: kosong/);
+  assert.doesNotMatch(g.error, /sk-ant-rahasia/);
+});

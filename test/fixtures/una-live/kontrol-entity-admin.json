@@ -531,6 +531,30 @@
    "automationForbidden": true
   },
   {
+   "id": "tombol:public/entity-admin.html:entityAkunKelolaBtn",
+   "label": "🔑 Kelola akun",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-admin.html:entityAkunGeraiRefresh",
+   "label": "↻ Muat ulang akun",
+   "sumber": "public/entity-admin.html",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
+   "id": "tombol:public/entity-akun-gerai.js:data-akg-aktif,data-akg-ke:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/entity-akun-gerai.js",
+   "class": "business_draft",
+   "reason": "Menulis data (aktif/nonaktif akun kasir): hanya manusia, tombolnya tidak diklik Una",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-admin.js:data-employee-detail:Detail",
    "label": "Detail",
    "sumber": "public/entity-admin.js",

@@ -1,0 +1,36 @@
+/* Kelola akun + peta akun per gerai (Admin Entity -> Karyawan). Warna akun = token komponen sendiri, latar terang. */
+.akg-toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+.akg-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; min-height: 40px; }
+.akg-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.akg-sub { margin: 14px 0 6px; font-size: 15px; }
+.akg-peta-wrap { overflow-x: auto; max-width: 100%; min-width: 0; }
+.akg-peta { border-collapse: collapse; font-size: 11px; }
+.akg-peta th { font-weight: 700; padding: 2px 4px; text-align: center; white-space: nowrap; color: var(--muted, #6b665e); }
+.akg-peta th.akg-jam { text-align: right; padding-right: 6px; }
+.akg-peta th.akg-hari { border-left: 2px solid #c9c4ba; }
+.akg-cell { width: 12px; min-width: 12px; height: 13px; padding: 0; border: 1px solid #ebe7df; background: #fff; }
+.akg-cell.akg-awal { border-left: 2px solid #c9c4ba; }
+.akg-gerai { width: 26px; min-width: 26px; }
+.akg-sela { width: 14px; min-width: 14px; border: 0; background: transparent; }
+.akg-satu { background: #7c9a3c !important; }
+.akg-dobel { background: #44591f !important; }
+.akg-bolong { background: #f6d3cf !important; }
+.akg-w0 { background: #a9d8e6 !important; }
+.akg-w1 { background: #bfdc9b !important; }
+.akg-w2 { background: #fcd2b3 !important; }
+.akg-w3 { background: #d6c4ec !important; }
+.akg-w4 { background: #f7e59a !important; }
+.akg-w5 { background: #f3b9cf !important; }
+.akg-w6 { background: #a8e0cf !important; }
+.akg-w7 { background: #d9cbb4 !important; }
+.akg-legends { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; }
+.akg-legend { display: inline-flex; align-items: center; gap: 6px; }
+.akg-legend i, .akg-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid #d8d3ca; background: #fff; flex: none; }
+.akg-swatch { margin-right: 6px; vertical-align: -2px; }
+.akg-warn { flex-basis: 100%; font-size: 13px; color: #94600b; }
+.akg-warn.bad { color: #b3362e; }
+#entityAkunGerai, .akg-store { min-width: 0; max-width: 100%; box-sizing: border-box; }
+#entityAkunGerai .list-head { flex-wrap: wrap; gap: 8px; }
+#entityAkunGerai .list-head > div { min-width: 0; }
+.akg-chips { justify-content: flex-start; }
+.akg-store .master-row { min-width: 0; }

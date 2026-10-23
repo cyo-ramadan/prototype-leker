@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/entity-stock-matrix.css?v=20261003-lihat-hpp-v1" />
   <link rel="stylesheet" href="/entity-store-report.css?v=20261002-laporan-gerai-v1" />
   <link rel="stylesheet" href="/entity-drawer-status.css?v=20261003-status-laci-v2" />
+  <link rel="stylesheet" href="/entity-akun-gerai.css" />
   <script src="/staff-entry-guard.js?v=20261012-owner-office-v1"></script>
   <script src="/staff-tab-lock.js?v=20261012-owner-office-v1"></script>
   <script src="/staff-back-guard.js?v=20261012-owner-office-v1"></script>
@@ -321,7 +322,7 @@
             <button class="primary-btn" type="submit">Tambah karyawan</button>
           </form>
           <div class="admin-card list-card">
-            <div class="list-head"><h2>Karyawan di entity ini</h2><div style="display:flex;gap:8px;align-items:center"><button id="entityEmployeeAddBtn" class="mini-btn" type="button" title="Tambah karyawan">＋ Tambah karyawan</button><span id="entityEmployeeCount" class="master-count">0</span></div></div>
+            <div class="list-head"><h2>Karyawan di entity ini</h2><div style="display:flex;gap:8px;align-items:center"><button id="entityAkunKelolaBtn" class="mini-btn" type="button" title="Akun kasir per gerai + peta akun">🔑 Kelola akun</button><button id="entityEmployeeAddBtn" class="mini-btn" type="button" title="Tambah karyawan">＋ Tambah karyawan</button><span id="entityEmployeeCount" class="master-count">0</span></div></div>
             <div class="management-actions" style="margin-bottom:10px;align-items:center">
               <label class="admin-field" style="margin:0">Urutkan<select id="entityEmployeeSort" class="text-input">
                 <option value="nama-az">Nama A–Z</option>
@@ -337,6 +338,15 @@
             </div>
             <div id="entityEmployeeList" class="master-list"></div>
           </div>
+        </div>
+        <div id="entityAkunGerai" class="admin-card hidden" style="margin-top:14px">
+          <div class="list-head"><div><h2>Kelola akun kasir per gerai</h2><div class="muted">Peta akun: jam 1-24 (jam 1 = 00:00-01:00) per hari, satu kolom kecil per akun aktif berjadwal. Gerai aktif hijau = ada akun yang menutup jam itu, hijau tua = 2+ akun, merah muda = kosong di jam operasional. Akun aktif dan presensi yang masih terbuka ikut dibaca Dana Apresiasi.</div></div></div>
+          <div class="akg-toolbar">
+            <label class="admin-field" style="margin:0">Gerai<select id="entityAkunGeraiStore" class="text-input"><option value="">Semua gerai</option></select></label>
+            <label class="akg-check"><input id="entityAkunGeraiInactive" type="checkbox" /> Tampilkan akun nonaktif</label>
+            <button id="entityAkunGeraiRefresh" class="secondary-btn" type="button">↻ Muat ulang akun</button>
+          </div>
+          <div id="entityAkunGeraiBody"></div>
         </div>
       </section>
 
@@ -405,6 +415,7 @@
 <script src="/entity-sinkron-akuntansi.js?v=20261013-sinkron-v1"></script>
 <script src="/nav-groups.js?v=20261015-una-pengaturan-v3"></script>
 <script src="/entity-dana-apresiasi.js?v=20261017-denda-bertingkat-v1"></script>
+<script src="/entity-akun-gerai.js"></script>
 <script src="/entity-fina-pengaturan.js?v=20261021-fina-h1-v1"></script>
 <script src="/entity-fina-surat.js?v=20261021-fina-h3-v1"></script>
 <script src="/entity-fina-rekrut.js?v=20261021-fina-h4-v1"></script>

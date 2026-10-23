@@ -1675,6 +1675,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/akun-gerai.js:/api/entity-admin/akun-gerai",
+    "jenis": "rute-kandidat",
+    "sumber": "src/akun-gerai.js",
+    "method": null,
+    "rute": "/api/entity-admin/akun-gerai",
+    "label": "/api/entity-admin/akun-gerai",
+    "skin": null
+  },
+  {
     "id": "rute:src/approval-queue.js:/api/cashier/approval-requests",
     "jenis": "rute-kandidat",
     "sumber": "src/approval-queue.js",
@@ -9684,6 +9693,28 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-admin.html"
   },
   {
+    "id": "tombol:public/entity-admin.html:entityAkunGeraiRefresh",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.html",
+    "tombolId": "entityAkunGeraiRefresh",
+    "aksi": null,
+    "label": "↻ Muat ulang akun",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.html"
+  },
+  {
+    "id": "tombol:public/entity-admin.html:entityAkunKelolaBtn",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.html",
+    "tombolId": "entityAkunKelolaBtn",
+    "aksi": null,
+    "label": "🔑 Kelola akun",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.html"
+  },
+  {
     "id": "tombol:public/entity-admin.html:entityDrawerCardsRefresh",
     "jenis": "tombol",
     "sumber": "public/entity-admin.html",
@@ -10243,6 +10274,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/entity-admin.js"
+  },
+  {
+    "id": "tombol:public/entity-akun-gerai.js:data-akg-aktif,data-akg-ke:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-akun-gerai.js",
+    "tombolId": null,
+    "aksi": "data-akg-aktif,data-akg-ke",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-akun-gerai.js"
   },
   {
     "id": "tombol:public/entity-dana-apresiasi.js:label:Rekap &amp; penyesuaian",
@@ -14542,6 +14584,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "PUT",
     "rute": "/api/admin/store",
     "label": "/api/admin/store",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/akun-gerai.js:request.method === 'POST' && pathname === `$",
+    "jenis": "rute-tulis",
+    "sumber": "src/akun-gerai.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST' && pathname === `$",
     "skin": null
   },
   {

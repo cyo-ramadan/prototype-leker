@@ -55,6 +55,7 @@ import { handleSinkronAkuntansiApi } from './sinkron-akuntansi.js';
 import { handleFinaApi, handleFinaSuratApi } from './fina-api.js';
 import { handleFinaRekrutApi } from './fina-rekrut.js';
 import { handleDanaApresiasiApi } from './dana-apresiasi-api.js';
+import { handleAkunGeraiApi } from './akun-gerai.js';
 import { handleFinaPengaturanApi } from './fina-pengaturan.js';
 import { handleEmployeeDepositApi, handleEntityDepositQueueApi } from './employee-deposit-settlement.js';
 import { handleEntityAccountingApi } from './entity-accounting.js';
@@ -334,6 +335,8 @@ async function handleApiRouted(request, env, url, ctx) {
   // Dana Apresiasi Backup & Denda (ADR-058, migration 0162).
   const danaApresiasiResponse = await handleDanaApresiasiApi(request, env, pathname);
   if (danaApresiasiResponse) return danaApresiasiResponse;
+  const akunGeraiResponse = await handleAkunGeraiApi(request, env, pathname);
+  if (akunGeraiResponse) return akunGeraiResponse;
   const finaPengaturanResponse = await handleFinaPengaturanApi(request, env, pathname);
   if (finaPengaturanResponse) return finaPengaturanResponse;
   // Surat teguran/SP Fina (H3) -- juga di depan handleEntityAdminApi.

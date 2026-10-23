@@ -1,6 +1,8 @@
 import { json, readJson } from './http.js';
 import { requireCashier } from './cashier-auth.js';
-import { getTenantPolicySetting, TUGAS_BUKA_LACI_KEY, usesTugasBukaLaciSkin } from './tenant-policy.js';
+import { getTenantPolicySetting, resolveTenantId, TUGAS_BUKA_LACI_KEY, usesTugasBukaLaciSkin } from './tenant-policy.js';
+import { requireManagement } from './owner-auth.js';
+import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { getJakartaBusinessDate } from './time.js';
 import { listStockAdjustmentOptions } from './operational-posting.js';
 import { listNotificationActors, emitNotification } from './management-notifications.js';
@@ -27,6 +29,12 @@ import { submitStockAdjustmentBatch } from './approval-queue.js';
 //      awal Apron. Aset yang tidak ada tetap boleh lanjut, tercatat, admin
 //      dikabari.
 // Saklar tenant 'tugas_buka_laci' (bawaan aktif); mati = laci langsung dipakai.
+//
+// Bos Cyo, 2026-10-24: "engga dipaten di sourcecode kan? ... harusnya di
+// pengaturan sih." Isi tugasnya diatur Admin Gerai per gerai (migration 0185,
+// Pengaturan -> Tugas Harian & Buka Laci): langkah mana yang wajib, dan daftar
+// barang opname (otomatis semua bahan, atau dipilih sendiri). Tanpa baris
+// pengaturan = bawaan (tiga langkah, semua bahan).
 
 const STOCK_TYPE_CODES = ['RAW_MATERIAL', 'SEMI_FINISHED'];
 const BATCH_LIMIT = 50;
@@ -35,17 +43,47 @@ const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const rupiah = value => `Rp${Math.abs(Number(value) || 0).toLocaleString('id-ID')}`;
 const parseList = value => { try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; } };
 
-export async function tugasBukaLaciWajib(db, cashier) {
-  if (cashier.officeActor || cashier.readOnly) return false;
-  if (!usesTugasBukaLaciSkin(cashier.store.skinChoice)) return false;
-  return getTenantPolicySetting(db, cashier.store.tenantId ?? null, TUGAS_BUKA_LACI_KEY);
+const STOCK_MODES = new Set(['MATERIALS', 'CUSTOM']);
+
+export async function getOpeningCheckSettings(db, storeId) {
+  const row = await db.prepare('SELECT * FROM store_opening_check_settings WHERE store_id = ?').bind(storeId).first();
+  return {
+    stockEnabled: row ? Boolean(row.stock_enabled) : true,
+    cashEnabled: row ? Boolean(row.cash_enabled) : true,
+    assetEnabled: row ? Boolean(row.asset_enabled) : true,
+    stockMode: STOCK_MODES.has(row?.stock_mode) ? row.stock_mode : 'MATERIALS',
+    stockProductIds: parseList(row?.stock_product_ids_json).map(Number).filter(Number.isInteger),
+    updatedAt: row?.updated_at || null
+  };
 }
 
-export function tugasBukaLaciInsert(db, { drawerId, cashier, now }) {
+const skippedParts = settings => [
+  ...(settings.stockEnabled ? [] : ['stock']),
+  ...(settings.cashEnabled ? [] : ['cash']),
+  ...(settings.assetEnabled ? [] : ['assets'])
+];
+
+// null = laci ini tidak wajib Tugas Buka Laci; selain itu pengaturan gerainya.
+export async function tugasBukaLaciWajib(db, cashier) {
+  if (cashier.officeActor || cashier.readOnly) return null;
+  if (!usesTugasBukaLaciSkin(cashier.store.skinChoice)) return null;
+  if (!await getTenantPolicySetting(db, cashier.store.tenantId ?? null, TUGAS_BUKA_LACI_KEY)) return null;
+  const settings = await getOpeningCheckSettings(db, cashier.store.id);
+  return skippedParts(settings).length === 3 ? null : settings;
+}
+
+// Langkah yang dimatikan Admin langsung dianggap selesai (dan dicatat sebagai
+// tidak diwajibkan), jadi finishIfComplete tidak perlu tahu pengaturannya.
+export function tugasBukaLaciInsert(db, { drawerId, cashier, now, settings }) {
+  const skipped = skippedParts(settings);
+  const doneAt = part => (skipped.includes(part) ? now : null);
   return db.prepare(`
-    INSERT INTO drawer_opening_checks (drawer_session_id, store_id, cashier_id, business_date, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(drawerId, cashier.store.id, cashier.id, getJakartaBusinessDate(new Date(now)), now, now);
+    INSERT INTO drawer_opening_checks (
+      drawer_session_id, store_id, cashier_id, business_date, skipped_parts,
+      stock_done_at, cash_done_at, asset_done_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(drawerId, cashier.store.id, cashier.id, getJakartaBusinessDate(new Date(now)), skipped.join(','),
+    doneAt('stock'), doneAt('cash'), doneAt('assets'), now, now);
 }
 
 function mapCheck(row) {
@@ -54,6 +92,7 @@ function mapCheck(row) {
     drawerId: row.drawer_session_id,
     businessDate: row.business_date,
     completedAt: row.completed_at || null,
+    skipped: String(row.skipped_parts || '').split(',').filter(Boolean),
     stock: {
       doneAt: row.stock_done_at || null,
       itemCount: Number(row.stock_item_count || 0),
@@ -79,11 +118,21 @@ export async function getDrawerOpeningCheck(db, drawerId) {
   return mapCheck(row);
 }
 
-// Daftar opname: Bahan + Bahan Setengah Jadi (Barang Jadi menu dadakan tidak
-// punya stok fisik sendiri). Gerai tanpa bahan sama sekali (mis. toko retail
-// yang hanya Barang Jadi) memakai seluruh daftar Penyesuaian Stok.
+// Daftar opname bawaan (MATERIALS): Bahan + Bahan Setengah Jadi (Barang Jadi
+// menu dadakan tidak punya stok fisik sendiri). Gerai tanpa bahan sama sekali
+// (mis. toko retail yang hanya Barang Jadi) memakai seluruh daftar Penyesuaian
+// Stok. CUSTOM: hanya barang yang dicentang Admin di Pengaturan.
 export async function listOpnameItems(db, storeId) {
   const options = await listStockAdjustmentOptions(db, storeId);
+  const settings = await getOpeningCheckSettings(db, storeId);
+  if (settings.stockMode === 'CUSTOM') {
+    const ids = new Set(settings.stockProductIds);
+    return options.filter(item => ids.has(item.productId));
+  }
+  return listMaterialItems(db, storeId, options);
+}
+
+async function listMaterialItems(db, storeId, options) {
   const rows = await db.prepare(`
     SELECT p.id FROM products p
     JOIN item_types t ON t.id = p.item_type_id
@@ -271,6 +320,7 @@ async function submitAssets(env, cashier, drawer, check, body) {
 const PARTS = { stock: submitStock, cash: submitCash, assets: submitAssets };
 
 export async function handleTugasBukaLaciApi(request, env, pathname) {
+  if (pathname === '/api/admin/opening-check-settings') return handleAdminSettings(request, env);
   if (!pathname.startsWith('/api/cashier/drawer/opening-check')) return null;
   const db = env.DB;
   const auth = await requireCashier(request, db);
@@ -292,6 +342,52 @@ export async function handleTugasBukaLaciApi(request, env, pathname) {
   const body = await readJson(request);
   if (!body.ok) return json({ error: 'Payload Tugas Buka Laci tidak valid.' }, 400);
   return PARTS[match[1]](env, cashier, ownership.drawer, check, body.value);
+}
+
+// Pengaturan -> Tugas Harian & Buka Laci (Admin Gerai, Entity Admin, Owner).
+// Daftar aset & tugas harian tetap lewat /api/admin/daily-task-templates.
+async function handleAdminSettings(request, env) {
+  const db = env.DB;
+  const auth = await requireManagement(request, db, env);
+  if (!auth.ok) return auth.response;
+  const store = await resolveStore(db, new URL(request.url).searchParams.get('store') || DEFAULT_STORE_CODE, { includeInactive: true });
+  if (!store) return json({ error: 'Gerai tidak ditemukan.' }, 404);
+
+  if (request.method === 'GET') {
+    const options = await listStockAdjustmentOptions(db, store.id);
+    const storeRow = await db.prepare('SELECT entity_id FROM stores WHERE id = ?').bind(store.id).first();
+    const materials = await listMaterialItems(db, store.id, options);
+    return json({
+      store: { id: store.id, code: store.code },
+      tenantEnabled: await getTenantPolicySetting(db, await resolveTenantId(db, storeRow?.entity_id), TUGAS_BUKA_LACI_KEY),
+      settings: await getOpeningCheckSettings(db, store.id),
+      products: options.map(item => ({ productId: item.productId, productName: item.productName, unitSymbol: item.unitSymbol })),
+      materialProductIds: materials.map(item => item.productId)
+    });
+  }
+
+  if (request.method !== 'PUT') return json({ error: 'Method tidak didukung.' }, 405);
+  const body = await readJson(request);
+  if (!body.ok || !body.value || typeof body.value !== 'object') return json({ error: 'Payload pengaturan tidak valid.' }, 400);
+  const value = body.value;
+  const stockMode = STOCK_MODES.has(value.stockMode) ? value.stockMode : 'MATERIALS';
+  const known = new Set((await listStockAdjustmentOptions(db, store.id)).map(item => item.productId));
+  const ids = [...new Set((Array.isArray(value.stockProductIds) ? value.stockProductIds : []).map(Number))].filter(id => known.has(id));
+  const stockEnabled = value.stockEnabled !== false;
+  if (stockEnabled && stockMode === 'CUSTOM' && !ids.length) {
+    return json({ error: 'Pilih minimal satu barang untuk stok opname, atau pakai "semua bahan".' }, 400);
+  }
+  const actorId = auth.admin?.id || auth.entityAdmin?.id || auth.owner?.id || '';
+  await db.prepare(`
+    INSERT INTO store_opening_check_settings (store_id, stock_enabled, cash_enabled, asset_enabled, stock_mode, stock_product_ids_json, updated_at, updated_by_role, updated_by_id)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+    ON CONFLICT (store_id) DO UPDATE SET
+      stock_enabled = excluded.stock_enabled, cash_enabled = excluded.cash_enabled, asset_enabled = excluded.asset_enabled,
+      stock_mode = excluded.stock_mode, stock_product_ids_json = excluded.stock_product_ids_json,
+      updated_at = CURRENT_TIMESTAMP, updated_by_role = excluded.updated_by_role, updated_by_id = excluded.updated_by_id
+  `).bind(store.id, stockEnabled ? 1 : 0, value.cashEnabled !== false ? 1 : 0, value.assetEnabled !== false ? 1 : 0,
+    stockMode, JSON.stringify(ids), auth.authType || '', actorId).run();
+  return json({ ok: true, settings: await getOpeningCheckSettings(db, store.id) });
 }
 
 // Portal Staf (Daily Task): ringkasan Tugas Buka Laci milik kasir ini hari ini.

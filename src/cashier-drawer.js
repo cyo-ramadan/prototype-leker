@@ -208,7 +208,7 @@ export async function handleCashierDrawerApi(request, env, pathname) {
         opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount, opening_check_status
       ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0, ?)
     `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500), openingCheck ? 'PENDING' : '')];
-    if (openingCheck) statements.push(tugasBukaLaciInsert(db, { drawerId: id, cashier, now }));
+    if (openingCheck) statements.push(tugasBukaLaciInsert(db, { drawerId: id, cashier, now, settings: openingCheck }));
     if (statements.length === 1) await statements[0].run();
     else await db.batch(statements);
 

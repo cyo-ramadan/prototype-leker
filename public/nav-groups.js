@@ -24,10 +24,10 @@
       ignore: ['adminMasterMenu', 'contacts', 'adminMasterMenuToggle'],
       groups: [
         { id: 'home', icon: '🏪', label: 'Toko', items: ['store'] },
-        { id: 'settings', icon: '⚙', label: 'Pengaturan', items: ['assistant-settings'] },
+        { id: 'settings', icon: '⚙', label: 'Pengaturan', items: ['assistant-settings', 'daily-task'] },
         { id: 'sales', icon: '🧾', label: 'Transaksi', items: ['transactions', 'drawers', 'approvals'] },
         { id: 'goods', icon: '📦', label: 'Barang', items: ['products', 'categories', 'suppliers', 'stock', 'costmasters', 'manufacturing', 'hpp-recalc', 'warehouseSettingsTab'] },
-        { id: 'team', icon: '👥', label: 'Tim', items: ['employees', 'cashiers', 'manual-book', 'announcement', 'daily-task'] },
+        { id: 'team', icon: '👥', label: 'Tim', items: ['employees', 'cashiers', 'manual-book', 'announcement'] },
         { id: 'reports', icon: '📈', label: 'Laporan', items: ['labarugi', 'attendance-report', 'permit-report', 'cashier-raport', 'reports'] },
         { id: 'money', icon: '💰', label: 'Keuangan', items: ['setoran-cs', 'accountingWorkspaceTab', 'accountingSettingsTab', 'sharedaccounts', 'hutangpiutang', 'beaops'] },
         { id: 'customers', icon: '💬', label: 'Pelanggan', items: ['customers', 'customer-feedback', 'vouchers'] }
@@ -64,9 +64,9 @@
         // Lainnya = daftar berkelompok seperti menu Pengaturan, bukan 17 tombol
         // bertumpuk. Tab baru dari sesi lain otomatis masuk "Fitur lain".
         { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
-          { title: 'Pengaturan', items: ['assistant-settings'] },
+          { title: 'Pengaturan', items: ['assistant-settings', 'daily-task'] },
           { title: 'Toko & pelanggan', items: ['store', 'customers', 'customer-feedback', 'vouchers'] },
-          { title: 'Tim', items: ['manual-book', 'announcement', 'daily-task', 'cashier-raport', 'permit-report'] },
+          { title: 'Tim', items: ['manual-book', 'announcement', 'cashier-raport', 'permit-report'] },
           { title: 'Uang & pembukuan', items: ['hutangpiutang', 'costmasters', 'sharedaccounts', 'accountingWorkspaceTab', 'accountingSettingsTab'] },
           { title: 'Lanjutan — jarang dipakai', items: ['manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] }
         ] }
@@ -100,7 +100,7 @@
     d: {
       store: 'Nama, logo, titik lokasi absen', customers: 'Data pembeli langganan', 'customer-feedback': 'Masukan dari pembeli',
       vouchers: 'Potongan harga', 'manual-book': 'Panduan kerja untuk kasir', announcement: 'Pesan untuk semua karyawan',
-      'daily-task': 'Daftar tugas kasir tiap hari', 'cashier-raport': 'Nilai kerja tiap kasir', 'permit-report': 'Riwayat izin & koreksi',
+      'daily-task': 'Tugas harian, aset & Tugas Buka Laci', 'cashier-raport': 'Nilai kerja tiap kasir', 'permit-report': 'Riwayat izin & koreksi',
       hutangpiutang: 'Utang ke supplier & pembayarannya', costmasters: 'Jenis biaya: listrik, sewa, dll.', sharedaccounts: 'Rekening bank & e-wallet toko',
       accountingWorkspaceTab: 'Buku besar (untuk akuntan)', accountingSettingsTab: 'Pengaturan akun pembukuan',
       manufacturing: 'Barang racikan dari bahan', warehouseSettingsTab: 'Pengaturan gudang', 'hpp-recalc': 'Hitung ulang modal barang'
@@ -117,9 +117,9 @@
       { id: 'goods', icon: '▤', label: 'Barang', items: ['products', 'stock'] },
       { id: 'sales', icon: '↗', label: 'Transaksi', items: ['transactions', 'drawers', 'beaops', 'hutangpiutang'] },
       { id: 'others', icon: '⋯', label: 'Lainnya', menu: [
-        { title: 'Tim gerai', items: ['employees', 'cashiers', 'attendance-report', 'manual-book', 'announcement', 'daily-task', 'cashier-raport', 'permit-report'] },
+        { title: 'Tim gerai', items: ['employees', 'cashiers', 'attendance-report', 'manual-book', 'announcement', 'cashier-raport', 'permit-report'] },
         { title: 'Laporan & uang', items: ['labarugi', 'reports', 'sharedaccounts', 'accountingWorkspaceTab', 'accounting-reference', 'accountingSettingsTab'] },
-        { title: 'Pengaturan', items: ['assistant-settings', 'store', 'categories', 'suppliers', 'costmasters', 'manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] },
+        { title: 'Pengaturan', items: ['assistant-settings', 'daily-task', 'store', 'categories', 'suppliers', 'costmasters', 'manufacturing', 'warehouseSettingsTab', 'hpp-recalc'] },
         { title: 'Pelanggan', items: ['customers', 'customer-feedback', 'vouchers'] }
       ] }
     ],
@@ -144,7 +144,7 @@
     'assistant-settings': 'Pengaturan', store: 'Profil Toko', transactions: 'Riwayat Transaksi', drawers: 'Laci Kasir', approvals: 'Persetujuan',
     products: 'Daftar Barang', categories: 'Kategori', suppliers: 'Supplier', stock: 'Stok', costmasters: 'Jenis Biaya',
     manufacturing: 'Resep & Satuan', 'hpp-recalc': 'Hitung Ulang HPP', warehouseSettingsTab: 'Gudang',
-    employees: 'Karyawan', cashiers: 'Akun Kasir', 'manual-book': 'Buku Panduan', announcement: 'Pengumuman', 'daily-task': 'Tugas Harian',
+    employees: 'Karyawan', cashiers: 'Akun Kasir', 'manual-book': 'Buku Panduan', announcement: 'Pengumuman', 'daily-task': 'Tugas Harian & Buka Laci',
     reports: 'Laporan', labarugi: 'Untung Rugi', 'attendance-report': 'Presensi', 'permit-report': 'Izin & Koreksi', 'cashier-raport': 'Raport Kasir',
     accountingWorkspaceTab: 'Pembukuan', accountingSettingsTab: 'Pengaturan Pembukuan', sharedaccounts: 'Rekening Bersama',
     hutangpiutang: 'Hutang & Pembayaran', beaops: 'Biaya Operasional', 'setoran-cs': 'Setoran CS',

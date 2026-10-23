@@ -20,6 +20,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "a",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "a",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -134,14 +142,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "a",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -396,6 +396,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "b",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "b",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -510,14 +518,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "b",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -772,6 +772,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "c",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "c",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -886,14 +894,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "c",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -1148,6 +1148,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "classic",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "classic",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -1262,14 +1270,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "classic",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -1620,6 +1620,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "d",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Lainnya → Pengaturan",
+    "hint": "Tugas harian, aset & Tugas Buka Laci"
+  },
+  {
+    "skin": "d",
+    "halaman": "gerai",
     "tab": "store",
     "label": "Profil Toko",
     "grup": "Lainnya → Toko & pelanggan",
@@ -1664,14 +1672,6 @@ export const PETA_UNA = Object.freeze([
     "label": "Pengumuman",
     "grup": "Lainnya → Tim",
     "hint": "Pesan untuk semua karyawan"
-  },
-  {
-    "skin": "d",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
-    "grup": "Lainnya → Tim",
-    "hint": "Daftar tugas kasir tiap hari"
   },
   {
     "skin": "d",
@@ -1828,6 +1828,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "e",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "e",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -1942,14 +1950,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "e",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -2204,6 +2204,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "f",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "f",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -2326,14 +2334,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "f",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -2596,6 +2596,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "g",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "g",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -2710,14 +2718,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "g",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },
@@ -3060,14 +3060,6 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "h",
     "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
-    "grup": "Lainnya → Tim gerai",
-    "hint": "Daftar tugas kasir tiap hari"
-  },
-  {
-    "skin": "h",
-    "halaman": "gerai",
     "tab": "cashier-raport",
     "label": "Raport Kasir",
     "grup": "Lainnya → Tim gerai",
@@ -3136,6 +3128,14 @@ export const PETA_UNA = Object.freeze([
     "label": "Pengaturan",
     "grup": "Lainnya → Pengaturan",
     "hint": ""
+  },
+  {
+    "skin": "h",
+    "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Lainnya → Pengaturan",
+    "hint": "Tugas harian, aset & Tugas Buka Laci"
   },
   {
     "skin": "h",
@@ -3348,6 +3348,14 @@ export const PETA_UNA = Object.freeze([
   {
     "skin": "i",
     "halaman": "gerai",
+    "tab": "daily-task",
+    "label": "Tugas Harian & Buka Laci",
+    "grup": "Pengaturan",
+    "hint": ""
+  },
+  {
+    "skin": "i",
+    "halaman": "gerai",
     "tab": "transactions",
     "label": "Riwayat Transaksi",
     "grup": "Transaksi",
@@ -3462,14 +3470,6 @@ export const PETA_UNA = Object.freeze([
     "halaman": "gerai",
     "tab": "announcement",
     "label": "Pengumuman",
-    "grup": "Tim",
-    "hint": ""
-  },
-  {
-    "skin": "i",
-    "halaman": "gerai",
-    "tab": "daily-task",
-    "label": "Tugas Harian",
     "grup": "Tim",
     "hint": ""
   },

@@ -256,6 +256,26 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "pengaturan_tugas_harian": {
+    "sumber": [
+      "public/admin-daily-task.js",
+      "src/tugas-buka-laci.js",
+      "src/staff-daily-task.js",
+      "public/nav-groups.js"
+    ],
+    "fitur": [
+      "rute:src/tugas-buka-laci.js:/api/admin/opening-check-settings",
+      "tulis:src/tugas-buka-laci.js:request.method !== 'PUT') return json(",
+      "tombol:public/admin-daily-task.js:data-tab:⚙ Tugas Harian &amp; Buka Laci",
+      "tombol:public/admin-daily-task.js:label:Simpan",
+      "tombol:public/admin-daily-task.js:label:Simpan pengaturan buka laci",
+      "tombol:public/admin-daily-task.js:openingPickMaterials",
+      "tombol:public/admin-daily-task.js:openingPickNone",
+      "tombol:public/admin-daily-task.js:dailyTaskCancelEdit",
+      "tombol:public/admin-daily-task.js:data-edit:Edit",
+      "tombol:public/admin-daily-task.js:data-toggle:{nilai}"
+    ]
+  },
   "tugas_buka_laci": {
     "sumber": [
       "src/tugas-buka-laci.js",

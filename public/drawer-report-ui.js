@@ -212,15 +212,16 @@
     const check = report.openingCheck;
     if (!check) return '';
     const cash = check.cash || {};
+    const skipped = new Set(check.skipped || []);
     const assets = check.assets?.items || [];
     const stockLines = check.stock?.lines || [];
-    const cashText = cash.doneAt
+    const cashText = skipped.has('cash') ? 'Tidak diwajibkan' : cash.doneAt
       ? `Hitung fisik ${rupiah(cash.countedAmount)} · sistem ${rupiah(cash.systemAmount)}${cash.difference ? ` · <b>${cash.difference > 0 ? 'lebih' : 'kurang'} ${rupiah(Math.abs(cash.difference))}</b>` : ' · cocok'}`
       : 'Belum dihitung';
-    const stockText = check.stock?.doneAt
+    const stockText = skipped.has('stock') ? 'Tidak diwajibkan' : check.stock?.doneAt
       ? `${number(check.stock.itemCount)} bahan dihitung · ${number(check.stock.diffCount)} berselisih (lihat Penyesuaian Stok)`
       : 'Belum dikerjakan';
-    const assetText = check.assets?.doneAt
+    const assetText = skipped.has('assets') ? 'Tidak diwajibkan' : check.assets?.doneAt
       ? assets.map(item => `${item.present ? '✓' : '✗'} ${esc(item.name)}${item.note ? ` (${esc(item.note)})` : ''}`).join(' · ') || '-'
       : 'Belum dicek';
     return section('TUGAS BUKA LACI', `<div class="drawer-line-list">

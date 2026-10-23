@@ -195,6 +195,70 @@ test('aset Apron terisi untuk gerai lama, tidak ikut checklist Daily Task, dan T
   }
 });
 
+// Bos Cyo, 2026-10-24: "task dayli nya bisa diliat di centangin di portalstaf, tapi bikinnya
+// dipengaturan" -- isi Tugas Buka Laci diatur Admin Gerai per gerai, bukan dipaten di kode.
+async function storeAdmin(sqlite) {
+  sqlite.prepare(`INSERT INTO store_admins (id, store_id, username, password_hash, display_name, is_active) VALUES ('admin_tbl', ?, 'admin_tbl', 'x', 'Admin TBL', 1)`).run(STORE);
+  const token = 'admin-tbl-token';
+  sqlite.prepare(`INSERT INTO store_admin_sessions (token_hash, admin_id, created_at, expires_at) VALUES (?, 'admin_tbl', '2026-10-24T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`).run(await hashCredential(token));
+  return { token, store: sqlite.prepare('SELECT code FROM stores WHERE id = ?').get(STORE).code };
+}
+const settingsCall = (env, admin, method = 'GET', body) => handleTugasBukaLaciApi(
+  new Request(`https://example.test/api/admin/opening-check-settings?store=${admin.store}`, {
+    method,
+    headers: { Authorization: `Bearer ${admin.token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  }), env, '/api/admin/opening-check-settings'
+);
+
+test('Pengaturan gerai: Admin memilih barang opname sendiri dan mematikan langkah; semua mati = laci bebas', async () => {
+  const sqlite = freshDatabase();
+  try {
+    const env = { DB: d1(sqlite) };
+    const ids = seedProducts(sqlite);
+    const admin = await storeAdmin(sqlite);
+
+    const awal = await (await settingsCall(env, admin)).json();
+    assert.equal(awal.tenantEnabled, true);
+    assert.deepEqual([awal.settings.stockEnabled, awal.settings.cashEnabled, awal.settings.assetEnabled, awal.settings.stockMode], [true, true, true, 'MATERIALS']);
+    assert.deepEqual(awal.materialProductIds.sort(), [ids.bahan, ids.setengah].sort());
+
+    const kosong = await settingsCall(env, admin, 'PUT', { stockMode: 'CUSTOM', stockProductIds: [] });
+    assert.equal(kosong.status, 400, 'pilih sendiri wajib minimal satu barang');
+
+    const simpan = await settingsCall(env, admin, 'PUT', { stockEnabled: true, cashEnabled: false, assetEnabled: true, stockMode: 'CUSTOM', stockProductIds: [ids.jadi, 999999] });
+    assert.equal(simpan.status, 200);
+    assert.deepEqual((await simpan.json()).settings.stockProductIds, [ids.jadi], 'barang di luar gerai dibuang');
+
+    const cashier = await seedCashier(sqlite, 'kasir_tbl_atur');
+    const drawer = await openDrawer(env, cashier);
+    assert.equal(drawer.openingCheckStatus, 'PENDING');
+    const state = await (await tugas(env, cashier)).json();
+    assert.deepEqual(state.stockItems.map(item => item.productId), [ids.jadi], 'hanya barang pilihan Admin');
+    assert.deepEqual(state.check.skipped, ['cash']);
+    assert.ok(state.check.cash.doneAt, 'langkah dimatikan langsung dianggap selesai');
+    assert.equal((await tugas(env, cashier, 'stock', { items: [{ productId: ids.jadi, quantity: 5 }] })).status, 200);
+    assert.equal((await tugas(env, cashier, 'assets', { items: [{ id: state.assets[0].id, present: true }] })).status, 200);
+    assert.equal(sqlite.prepare('SELECT opening_check_status FROM cash_drawer_sessions WHERE id = ?').get(drawer.id).opening_check_status, 'DONE');
+
+    await handleCashierDrawerApi(request('/api/cashier/drawer/close', { token: cashier.token, method: 'POST', body: { closingAmount: 100000, leftInDrawerAmount: 100000 } }), env, '/api/cashier/drawer/close');
+    await settingsCall(env, admin, 'PUT', { stockEnabled: false, cashEnabled: false, assetEnabled: false });
+    const bebas = await openDrawer(env, cashier);
+    assert.equal(bebas.openingCheckStatus, '', 'semua langkah mati = tidak ada Tugas Buka Laci');
+  } finally {
+    sqlite.close();
+  }
+});
+
+test('Pengaturan: tab Tugas Harian & Buka Laci masuk grup Pengaturan, bukan Tim', () => {
+  const nav = readFileSync(new URL('../public/nav-groups.js', import.meta.url), 'utf8');
+  const adminJs = readFileSync(new URL('../public/admin-daily-task.js', import.meta.url), 'utf8');
+  assert.match(nav, /label: 'Pengaturan', items: \['assistant-settings', 'daily-task'\]/);
+  assert.doesNotMatch(nav, /'announcement', 'daily-task'/);
+  assert.match(adminJs, /\/api\/admin\/opening-check-settings/);
+  assert.match(adminJs, /Tugas Harian &amp; Buka Laci/);
+});
+
 test('UI: kasir memuat wizard, Portal Staf menautkan ke kasir, admin bisa memilih jenis Aset', () => {
   const cashierHtml = readFileSync(new URL('../public/cashier.html', import.meta.url), 'utf8');
   const wizard = readFileSync(new URL('../public/cashier-tugas-buka-laci.js', import.meta.url), 'utf8');

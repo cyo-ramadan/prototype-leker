@@ -36,7 +36,10 @@
   </style>`;
 
   function steps(check) {
-    const items = [['Stok opname', check.stock.doneAt], ['Uang laci', check.cash.doneAt], ['Aset', check.assets.doneAt]];
+    // Langkah yang dimatikan Admin Gerai (Pengaturan -> Tugas Harian & Buka Laci) tidak ditampilkan.
+    const skipped = new Set(check.skipped || []);
+    const items = [['stock', 'Stok opname', check.stock.doneAt], ['cash', 'Uang laci', check.cash.doneAt], ['assets', 'Aset', check.assets.doneAt]]
+      .filter(([part]) => !skipped.has(part)).map(([, label, done]) => [label, done]);
     const nowIndex = items.findIndex(([, done]) => !done);
     return `<div class="tbl-steps">${items.map(([label, done], index) => `<span class="${done ? 'done' : index === nowIndex ? 'now' : ''}">${done ? '✓ ' : `${index + 1}. `}${escapeHtml(label)}</span>`).join('')}</div>`;
   }

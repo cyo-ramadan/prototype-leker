@@ -356,11 +356,13 @@
     // Tugas Buka Laci (2026-10-23, src/tugas-buka-laci.js): stok opname + uang laci + aset,
     // wajib tiap buka laci dan dikerjakan di layar kasir -- di sini tampil sebagai tugas pertama.
     const opening = dailyTasks?.openingCheck;
-    const openingParts = opening ? [['Stok opname', opening.stock?.doneAt], ['Uang laci', opening.cash?.doneAt], ['Aset', opening.assets?.doneAt]] : [];
+    const openingSkipped = new Set(opening?.skipped || []);
+    const openingParts = opening ? [['stock', 'Stok opname', opening.stock?.doneAt], ['cash', 'Uang laci', opening.cash?.doneAt], ['assets', 'Aset', opening.assets?.doneAt]]
+      .filter(([part]) => !openingSkipped.has(part)).map(([, label, done]) => [label, done]) : [];
     const openingCard = `
       <div class="staff-card" style="margin-bottom:10px">
         <strong>📋 Tugas Buka Laci</strong>
-        <div class="muted">Wajib setiap buka laci: stok opname semua bahan, hitung uang laci, cek aset (apron).</div>
+        <div class="muted">Wajib setiap buka laci, diatur Admin di Pengaturan gerai. Dikerjakan di layar kasir.</div>
         ${opening ? `<div class="muted" style="margin-top:6px">${openingParts.map(([label, done]) => `${done ? '✓' : '○'} ${escapeHtml(label)}`).join(' · ')}</div>` : '<div class="muted" style="margin-top:6px">Belum ada laci yang kamu buka hari ini.</div>'}
         ${opening?.completedAt ? `<div class="muted" style="font-weight:800;color:#2f9e44;margin-top:6px">✓ Selesai · ${escapeHtml(dateTime(opening.completedAt))}${opening.cash?.difference ? ` · uang laci ${opening.cash.difference > 0 ? 'lebih' : 'kurang'} ${money(Math.abs(opening.cash.difference))}` : ''}</div>` : ''}
         ${opening && !opening.completedAt && opening.drawerOpen ? '<a class="primary-btn" href="/cashier#tugas-buka-laci" style="display:inline-block;margin-top:8px;text-decoration:none">Kerjakan di Kasir</a>' : ''}

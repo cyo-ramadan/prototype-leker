@@ -4951,6 +4951,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/tugas-buka-laci.js:/api/admin/opening-check-settings",
+    "jenis": "rute-kandidat",
+    "sumber": "src/tugas-buka-laci.js",
+    "method": null,
+    "rute": "/api/admin/opening-check-settings",
+    "label": "/api/admin/opening-check-settings",
+    "skin": null
+  },
+  {
     "id": "rute:src/tugas-buka-laci.js:/api/cashier/drawer/opening-check",
     "jenis": "rute-kandidat",
     "sumber": "src/tugas-buka-laci.js",
@@ -6018,12 +6027,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-daily-task.js"
   },
   {
-    "id": "tombol:public/admin-daily-task.js:data-tab:🗒️ Daily Task",
+    "id": "tombol:public/admin-daily-task.js:data-tab:⚙ Tugas Harian &amp; Buka Laci",
     "jenis": "tombol",
     "sumber": "public/admin-daily-task.js",
     "tombolId": null,
     "aksi": "data-tab",
-    "label": "🗒️ Daily Task",
+    "label": "⚙ Tugas Harian &amp; Buka Laci",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-daily-task.js"
@@ -6040,12 +6049,45 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-daily-task.js"
   },
   {
-    "id": "tombol:public/admin-daily-task.js:label:Simpan tugas",
+    "id": "tombol:public/admin-daily-task.js:label:Simpan",
     "jenis": "tombol",
     "sumber": "public/admin-daily-task.js",
     "tombolId": null,
     "aksi": null,
-    "label": "Simpan tugas",
+    "label": "Simpan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-daily-task.js"
+  },
+  {
+    "id": "tombol:public/admin-daily-task.js:label:Simpan pengaturan buka laci",
+    "jenis": "tombol",
+    "sumber": "public/admin-daily-task.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Simpan pengaturan buka laci",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-daily-task.js"
+  },
+  {
+    "id": "tombol:public/admin-daily-task.js:openingPickMaterials",
+    "jenis": "tombol",
+    "sumber": "public/admin-daily-task.js",
+    "tombolId": "openingPickMaterials",
+    "aksi": null,
+    "label": "Centang semua bahan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/admin-daily-task.js"
+  },
+  {
+    "id": "tombol:public/admin-daily-task.js:openingPickNone",
+    "jenis": "tombol",
+    "sumber": "public/admin-daily-task.js",
+    "tombolId": "openingPickNone",
+    "aksi": null,
+    "label": "Kosongkan",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-daily-task.js"
@@ -16857,6 +16899,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method !== 'POST' || !match) return json(",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/tugas-buka-laci.js:request.method !== 'PUT') return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/tugas-buka-laci.js",
+    "method": "PUT",
+    "rute": null,
+    "label": "request.method !== 'PUT') return json(",
     "skin": null
   },
   {

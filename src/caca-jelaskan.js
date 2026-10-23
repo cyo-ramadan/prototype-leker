@@ -73,8 +73,8 @@ export const KAMUS = Object.freeze([
       '(4) menyusun draft SP/teguran dari rekap masalah CS (telat, pulang awal, kosong, denda, lupa presensi pulang) dengan kop dan tingkat dari pengaturan Fina;',
       '(5) menyusun draft lowongan kerja (teks loker + caption Instagram/Facebook untuk diposting manual), tersimpan DRAFT sampai Admin menekan Tayangkan di Rekrutmen Fina;',
       '(6) urusan WA lewat gateway: catat pelamar dari WA, undang pelamar interview/training di gerai tertentu, dan kabari CS gerai untuk mendampingi training (lihat Kotak masuk WA Fina);',
-      '(6) menilai ulang potongan/denda/fee Dana Apresiasi seorang CS di tanggal tertentu dengan jadwal & presensi terbaru (mis. sesudah jadwal kerjanya dibetulkan), dengan pratinjau angka;',
-      '(7) mencatat karyawan resign per tanggal: karyawan jadi Nonaktif, akun kasirnya dinonaktifkan & logout, shift sesudahnya tidak dinilai Dana Apresiasi dan potongan/denda yang terlanjur tercatat dibatalkan (jurnal dibalik).',
+      '(7) menilai ulang potongan/denda/fee Dana Apresiasi seorang CS di tanggal tertentu dengan jadwal & presensi terbaru (mis. sesudah jadwal kerjanya dibetulkan), dengan pratinjau angka;',
+      '(8) mencatat karyawan resign per tanggal: karyawan jadi Nonaktif, akun kasirnya dinonaktifkan & logout, shift sesudahnya tidak dinilai Dana Apresiasi dan potongan/denda yang terlanjur tercatat dibatalkan (jurnal dibalik).',
       'Semua kecuali tawaran backup lewat kartu draft dan tombol "Ya". Draft SP hanya tersimpan sebagai DRAFT; berlaku setelah Admin menekan Setujui di Entity Admin → Pengaturan → Surat Fina.'
     ].join('\n'),
     tawaran: [jelas('fina_surat', 'Surat Fina (SP)'), jelas('fina_pengaturan', 'Pengaturan Fina (HR)')], tanpaAksi: 'alat tulis Fina dipakai dari chat dengan memilih Fina'

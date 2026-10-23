@@ -347,6 +347,11 @@
           <div class="admin-card list-card">
             <div class="list-head"><h2>Karyawan di entity ini</h2><div style="display:flex;gap:8px;align-items:center"><button id="entityAkunKelolaBtn" class="mini-btn" type="button" title="Akun kasir per gerai + peta akun">🔑 Kelola akun</button><button id="entityEmployeeAddBtn" class="mini-btn" type="button" title="Tambah karyawan">＋ Tambah karyawan</button><span id="entityEmployeeCount" class="master-count">0</span></div></div>
             <div class="management-actions" style="margin-bottom:10px;align-items:center">
+              <label class="admin-field" style="margin:0">Status<select id="entityEmployeeStatus" class="text-input">
+                <option value="ACTIVE">Aktif</option>
+                <option value="INACTIVE">Nonaktif / resign</option>
+                <option value="ALL">Semua</option>
+              </select></label>
               <label class="admin-field" style="margin:0">Urutkan<select id="entityEmployeeSort" class="text-input">
                 <option value="nama-az">Nama A–Z</option>
                 <option value="nama-za">Nama Z–A</option>
@@ -431,7 +436,7 @@
 <script src="/info-gerai.js"></script>
 <script src="/bca-mutasi-baca.js"></script>
 <script src="/qris-otomatis.js?v=20261020-rekap-uang-v1"></script>
-<script src="/entity-admin.js?v=20261016-qris-otomatis-v1"></script>
+<script src="/entity-admin.js?v=20261023-resign-v1"></script>
 <script src="/una-adapter-laporan.js?v=20261015-una-live-v1"></script>
 <script src="/foto-lihat.js"></script>
 <script src="/entity-setoran-cs.js?v=20261011-management-notifications-v1"></script>

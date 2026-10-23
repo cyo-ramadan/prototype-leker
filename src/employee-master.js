@@ -1,4 +1,5 @@
 import { json, readJson } from './http.js';
+import { setBerhenti } from './dana-apresiasi.js';
 import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
 import { listLedgerForEmployee } from './payroll-ledger.js';
@@ -45,6 +46,8 @@ function mapEmployee(row, storeId) {
     idNumber: row.id_number || '',
     note: row.note || '',
     status: row.status,
+    berhentiTanggal: row.berhenti_tanggal || null,
+    berhentiAlasan: row.berhenti_alasan || '',
     homeStoreId: row.home_store_id || null,
     homeStoreCode: row.home_store_code || '',
     homeStoreName: row.home_store_name || '',
@@ -221,7 +224,7 @@ async function loadLinkableAccounts(db, storeId) {
 async function loadEmployees(db, entityId, storeId, { includeHistory = false } = {}) {
   const rows = await db.prepare(`
     SELECT e.id, e.entity_id, e.home_store_id, e.full_name, e.phone, e.address, e.id_number, e.note,
-           e.status, e.created_at, e.birth_year, e.photo_updated_at,
+           e.status, e.berhenti_tanggal, e.berhenti_alasan, e.created_at, e.birth_year, e.photo_updated_at,
            (e.photo_data IS NOT NULL AND e.photo_data != '') AS has_photo,
            s.code AS home_store_code, s.store_name AS home_store_name
     FROM employees e
@@ -254,6 +257,39 @@ function actorFrom(auth) {
   if (auth.entityAdmin) return { role: 'ENTITY_ADMIN', id: auth.entityAdmin.id, entityWide: true };
   if (auth.admin) return { role: 'ADMIN', id: auth.admin.id, entityWide: false };
   return { role: 'LEGACY_PIN', id: '', entityWide: true };
+}
+
+export async function resignEmployee(db, { employee, tanggal, alasan = '', actor = {}, now = new Date() }) {
+  const links = (await db.prepare(`
+    SELECT l.id, l.account_type, l.account_id, c.username
+    FROM employee_account_links l LEFT JOIN cashiers c ON c.id = l.account_id AND l.account_type = 'CASHIER'
+    WHERE l.employee_id = ? AND l.effective_to IS NULL
+  `).bind(employee.id).all()).results ?? [];
+  const cashierIds = links.filter(link => link.account_type === 'CASHIER').map(link => link.account_id);
+  for (const id of cashierIds) {
+    const open = await db.prepare(`SELECT 1 FROM cash_drawer_sessions WHERE cashier_id = ? AND status = 'OPEN' LIMIT 1`).bind(id).first();
+    if (open) return { ok: false, code: 'DRAWER_STILL_OPEN', error: 'Akun kasir karyawan ini masih memegang laci yang terbuka. Tutup lacinya dulu, lalu catat resign.' };
+  }
+  const nowIso = now.toISOString();
+  let reevaluated = 0;
+  for (const id of cashierIds) {
+    const result = await setBerhenti(db, { accountId: id, tanggal, actor: { role: actor.role, id: actor.id }, now });
+    if (result.ok) reevaluated += Number(result.reevaluated || 0);
+  }
+  const statements = [];
+  for (const id of cashierIds) {
+    statements.push(
+      db.prepare('UPDATE cashiers SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(id),
+      db.prepare('DELETE FROM cashier_sessions WHERE cashier_id = ?').bind(id)
+    );
+  }
+  statements.push(
+    db.prepare('UPDATE employee_account_links SET effective_to = ? WHERE employee_id = ? AND effective_to IS NULL').bind(nowIso, employee.id),
+    db.prepare(`UPDATE employees SET status = 'INACTIVE', berhenti_tanggal = ?, berhenti_alasan = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .bind(tanggal, alasan, employee.id)
+  );
+  await db.batch(statements);
+  return { ok: true, accountsDeactivated: links.filter(link => link.account_type === 'CASHIER').map(link => link.username || link.account_id), reevaluated };
 }
 
 function canManageEmployee(actor, store, employee) {
@@ -444,6 +480,25 @@ export async function handleEmployeeMasterApi(request, env, pathname) {
       .bind(decodeURIComponent(photoMatch[1]), store.entityId).first();
     if (!row?.photo_data) return json({ error: 'Foto karyawan tidak ditemukan.' }, 404);
     return json({ photoDataUrl: row.photo_data, photoUpdatedAt: row.photo_updated_at });
+  }
+
+  // Resign per tanggal (Bos Cyo, 2026-10-22): satu tombol (atau alat Fina karyawan_resign) yang mengurus
+  // semuanya -- tanpa harus melepas tautan satu per satu dulu: akun kasir yang tertaut dinonaktifkan &
+  // di-logout, tautannya ditutup, Dana Apresiasi berhenti dinilai sejak tanggal itu (yang terlanjur
+  // tercatat dibatalkan + jurnal dibalik), lalu karyawan NONAKTIF dengan tanggal & alasannya.
+  const resignMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)\/resign$/);
+  if (request.method === 'POST' && resignMatch) {
+    const employee = await db.prepare('SELECT * FROM employees WHERE id = ? AND entity_id = ?').bind(decodeURIComponent(resignMatch[1]), store.entityId).first();
+    if (!employee) return json({ error: 'Karyawan tidak ditemukan di entity gerai ini.' }, 404);
+    if (!canManageEmployee(actor, store, employee)) {
+      return json({ error: 'Karyawan ini direkrut gerai lain. Resign hanya bisa dicatat gerai perekrut atau Entity Admin.', code: 'EMPLOYEE_NOT_OWNED_BY_STORE' }, 403);
+    }
+    const body = await readJson(request);
+    const tanggal = text(body.ok ? body.value?.tanggal : '', 10);
+    const alasan = text(body.ok ? body.value?.alasan : '', 300);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return json({ error: 'Tanggal berhenti wajib diisi (YYYY-MM-DD).' }, 400);
+    const result = await resignEmployee(db, { employee, tanggal, alasan, actor });
+    return result.ok ? json(result) : json({ error: result.error, code: result.code }, 409);
   }
 
   const employeeMatch = pathname.match(/^\/api\/admin\/employees\/([^/]+)$/);

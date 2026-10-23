@@ -33,20 +33,36 @@ test('jalur Fina untuk nilai ulang & berhenti terdaftar', () => {
     assert.ok(PINTU_AKSI.includes(`/api/entity-admin/dana-apresiasi/${jalur}$`), jalur);
   }
   assert.ok(cariAksi('nilai_ulang_apresiasi'));
-  assert.ok(cariAksi('cs_berhenti'));
+  assert.ok(cariAksi('karyawan_resign'));
+  assert.ok(PINTU_AKSI.includes('^/api/admin/employees/[A-Za-z0-9_.-]+/resign$'));
 });
 
-test('cs_berhenti: draft menampilkan potongan yang dibatalkan, posting ke rute berhenti', async () => {
+test('karyawan_resign: draft menampilkan akun yang dinonaktifkan & potongan yang dibatalkan, posting ke rute resign', async () => {
   const terkirim = [];
-  const aksi = cariAksi('cs_berhenti');
-  const hasil = await aksi.siapkan({ cb_nama: 'indah', cb_tanggal: '2026-10-18' }, ctxPalsu(terkirim));
+  const ctx = ctxPalsu(terkirim);
+  const bacaAsli = ctx.baca;
+  ctx.baca = async (path) => {
+    if (path.startsWith('/api/admin/employees')) return { ok: true, data: { employees: [
+      { id: 'emp_indah', fullName: 'Indah Ayu Febrianti', status: 'ACTIVE', links: [{ accountId: 'indah', username: 'indahbejik2s2', effectiveTo: null }] },
+      { id: 'emp_lama', fullName: 'Indah Lama', status: 'INACTIVE', links: [] }
+    ] } };
+    if (path.startsWith('/api/entity-admin/dana-apresiasi/rekap')) return { ok: true, data: { evaluations: EVAL, entries: [
+      { accountId: 'indah', businessDate: '2026-10-18', kind: 'DENDA', amountRupiah: -10000, description: 'Denda gerai kosong', voided: false },
+      { accountId: 'indah', businessDate: '2026-10-17', kind: 'DENDA', amountRupiah: -10000, description: 'sebelum resign', voided: false },
+      { accountId: 'elma', businessDate: '2026-10-19', kind: 'DENDA', amountRupiah: -10000, description: 'orang lain', voided: false }
+    ] } };
+    return bacaAsli(path);
+  };
+  const aksi = cariAksi('karyawan_resign');
+  const hasil = await aksi.siapkan({ kr_nama: 'indah', kr_tanggal: '2026-10-18' }, ctx);
   assert.equal(hasil.ok, true, hasil.tanya);
-  assert.deepEqual(hasil.draft.muatan, { accountId: 'indah', tanggal: '2026-10-18', nama: 'Indah Ayu Febrianti' });
-  assert.equal(hasil.draft.baris.filter(([label]) => label.startsWith('Dibatalkan')).length, 2);
-  assert.equal(terkirim.every(t => t.body?.dryRun === true), true, 'draft hanya pratinjau');
-  const posting = await aksi.posting(hasil.draft, ctxPalsu(terkirim));
+  assert.deepEqual(hasil.draft.muatan, { employeeId: 'emp_indah', tanggal: '2026-10-18', alasan: 'Resign', nama: 'Indah Ayu Febrianti' });
+  assert.ok(hasil.draft.baris.some(([label, isi]) => label === 'Akun kasir dinonaktifkan' && isi === 'indahbejik2s2'));
+  assert.equal(hasil.draft.baris.filter(([label]) => label.startsWith('Dibatalkan')).length, 1, 'hanya baris sejak tanggal resign milik akunnya');
+  assert.equal(terkirim.length, 0, 'draft tidak menulis apa pun');
+  const posting = await aksi.posting(hasil.draft, ctx);
   assert.equal(posting.ok, true);
-  assert.deepEqual(terkirim.at(-1), { method: 'POST', path: '/api/entity-admin/dana-apresiasi/berhenti', body: { accountId: 'indah', tanggal: '2026-10-18' } });
+  assert.deepEqual(terkirim.at(-1), { method: 'POST', path: '/api/admin/employees/emp_indah/resign', body: { tanggal: '2026-10-18', alasan: 'Resign' } });
 });
 
 test('nilai_ulang_apresiasi: hanya shift CS itu di gerai panel, pratinjau dulu', async () => {

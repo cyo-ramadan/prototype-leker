@@ -110,7 +110,7 @@
       <div class="master-row contact-row ${employee.status === 'ACTIVE' ? '' : 'inactive'}">
         <div class="master-main">
           <strong>${escapeHtml(employee.fullName)}</strong>
-          <div class="master-meta">${originLabel(employee)} · ${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}${employee.birthYear ? ` · lahir ${employee.birthYear}` : ''}</div>
+          <div class="master-meta">${originLabel(employee)} · ${employee.status === 'ACTIVE' ? 'Aktif' : `Nonaktif${employee.berhentiTanggal ? ` (berhenti ${escapeHtml(employee.berhentiTanggal)})` : ''}`}${employee.birthYear ? ` · lahir ${employee.birthYear}` : ''}</div>
           ${employee.phone ? `<div class="master-meta">${escapeHtml(employee.phone)}</div>` : ''}
           ${employee.links.length ? employee.links.map(linkRow).join('') : '<div class="master-meta muted">Belum tertaut username mana pun.</div>'}
           ${employee.status === 'ACTIVE' ? linkPicker(employee) : ''}
@@ -118,7 +118,7 @@
         <div class="master-actions">
           <button class="mini-btn" type="button" data-payroll-ledger="${escapeHtml(employee.id)}">💰 Riwayat Gaji</button>
           ${employee.canManage === false ? '' : `<button class="mini-btn" type="button" data-edit-employee="${escapeHtml(employee.id)}">Edit</button>`}
-          ${employee.canManage === false || employee.status !== 'ACTIVE' ? '' : `<button class="mini-btn danger" type="button" data-deactivate-employee="${escapeHtml(employee.id)}">Nonaktifkan</button>`}
+          ${employee.canManage === false || employee.status !== 'ACTIVE' ? '' : `<button class="mini-btn danger" type="button" data-deactivate-employee="${escapeHtml(employee.id)}">Resign / Nonaktifkan</button>`}
         </div>
       </div>`).join('') : '<div class="empty">Belum ada karyawan terdaftar di badan usaha ini.</div>';
 
@@ -312,12 +312,17 @@
     } catch (error) { toast(error.message); }
   }
 
+  // Resign per tanggal (2026-10-22): akun kasir yang tertaut ikut dinonaktifkan & logout, tautan ditutup, dan
+  // Dana Apresiasi berhenti dinilai sejak tanggal itu -- tidak perlu melepas tautan satu per satu.
   async function deactivateEmployee(id) {
-    if (!confirm('Nonaktifkan karyawan ini? Semua tautan username harus sudah dilepas.')) return;
+    const tanggal = (prompt('Berhenti/resign mulai tanggal (YYYY-MM-DD)?', new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10)) ?? '').trim();
+    if (!tanggal) return;
+    const alasan = (prompt('Alasan (opsional):', 'Resign') ?? '').trim();
+    if (!confirm(`Catat resign per ${tanggal}? Akun kasirnya dinonaktifkan & logout, potongan/denda Dana Apresiasi sejak tanggal itu dibatalkan, karyawan jadi Nonaktif.`)) return;
     try {
-      await request(`/api/admin/employees/${encodeURIComponent(id)}${storeQuery()}`, { method: 'DELETE' });
+      const result = await request(`/api/admin/employees/${encodeURIComponent(id)}/resign${storeQuery()}`, { method: 'POST', body: JSON.stringify({ tanggal, alasan }) });
       await load();
-      toast('Karyawan dinonaktifkan');
+      toast(`Resign tercatat · ${result.reevaluated || 0} shift apresiasi dibatalkan/dinilai ulang`);
     } catch (error) { toast(error.message); }
   }
 

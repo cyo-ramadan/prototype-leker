@@ -932,6 +932,14 @@
    "automationForbidden": true
   },
   {
+   "id": "tombol:public/entity-admin.js:data-employee-resign,data-name:Resign",
+   "label": "Resign",
+   "sumber": "public/entity-admin.js",
+   "class": "unsupported",
+   "reason": "Mencatat karyawan resign (nonaktifkan akun, batalkan potongan): hanya manusia lewat tombol atau draft Fina dengan \"Ya\", tidak pernah diklik otomatis",
+   "automationForbidden": true
+  },
+  {
    "id": "tombol:public/entity-setoran-cs.js:data-approve,data-info,data-store:ACC",
    "label": "ACC",
    "sumber": "public/entity-setoran-cs.js",

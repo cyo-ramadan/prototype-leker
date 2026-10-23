@@ -626,8 +626,30 @@ function entityEmployeeTotalHtml(kind) {
   return `<div class="muted" style="font-size:.85em">${label}</div><strong>${sum < 0 ? '−' : ''}Rp${entityReportRupiah(Math.abs(sum))}</strong>${pendingHtml}${waitingHtml}`;
 }
 
+// Resign per tanggal (2026-10-22): akun kasir dinonaktifkan & logout, tautan ditutup, Dana Apresiasi
+// berhenti dinilai sejak tanggal itu (yang terlanjur tercatat dibatalkan), karyawan jadi Nonaktif.
+async function resignEntityEmployee(button) {
+  const tanggal = (window.prompt(`${button.dataset.name} berhenti/resign mulai tanggal (YYYY-MM-DD)?`, new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10)) ?? '').trim();
+  if (!tanggal) return;
+  const alasan = (window.prompt('Alasan (opsional):', 'Resign') ?? '').trim();
+  if (!window.confirm(`Catat ${button.dataset.name} resign per ${tanggal}?\n\n• Akun kasirnya dinonaktifkan dan langsung logout\n• Dana Apresiasi tidak dinilai lagi mulai tanggal itu; potongan/denda yang terlanjur tercatat dibatalkan dan jurnalnya dibalik\n• Karyawan pindah ke daftar Nonaktif (riwayat gaji & setoran tetap ada)`)) return;
+  button.disabled = true;
+  try {
+    const result = await entityAdminApi(`/api/admin/employees/${encodeURIComponent(button.dataset.employeeResign)}/resign?store=${encodeURIComponent(anyEntityStoreCode())}`, {
+      method: 'POST', body: JSON.stringify({ tanggal, alasan })
+    });
+    entityAdminToast(`Resign tercatat · akun dinonaktifkan: ${(result.accountsDeactivated || []).join(', ') || '-'} · ${result.reevaluated || 0} shift apresiasi dibatalkan/dinilai ulang`);
+    await loadEntityEmployees();
+  } catch (error) {
+    entityAdminToast(error.message);
+    button.disabled = false;
+  }
+}
+
 function sortedEntityEmployees() {
-  const employees = [...(entityAdminState.employees || [])];
+  // Filter status (Bos Cyo, 2026-10-22: "kasih kolom aktive atau engga"): bawaan hanya yang aktif.
+  const status = entityAdminEl('entityEmployeeStatus')?.value || 'ACTIVE';
+  const employees = (entityAdminState.employees || []).filter(employee => status === 'ALL' || employee.status === status);
   const mode = entityAdminEl('entityEmployeeSort')?.value || 'nama-az';
   const name = employee => String(employee.fullName || '');
   const byName = (a, b) => name(a).localeCompare(name(b), 'id', { sensitivity: 'base' });
@@ -675,9 +697,9 @@ function renderEntityEmployees() {
       <div class="master-thumb">${entityEmployeeAvatarHtml(employee, 52)}</div>
       <div class="master-main">
         <strong>${entityAdminEscape(employee.fullName)}</strong>
-        <span class="status-chip ${employee.status === 'ACTIVE' ? 'ok' : 'off'}">${employee.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}</span>
+        <span class="status-chip ${employee.status === 'ACTIVE' ? 'ok' : 'off'}">${employee.status === 'ACTIVE' ? 'Aktif' : `Nonaktif${employee.berhentiTanggal ? ` · berhenti ${entityAdminEscape(employee.berhentiTanggal)}` : ''}`}</span>
         <div class="master-meta">${employee.entityLevel ? 'Level Entity (tanpa gerai perekrut)' : `${entityAdminEscape(employee.homeStoreCode)} · ${entityAdminEscape(employee.homeStoreName)}`}</div>
-        <div><button class="mini-btn" type="button" data-employee-detail="${entityAdminEscape(employee.id)}" style="margin-top:2px;padding:2px 12px">Detail</button></div>
+        <div><button class="mini-btn" type="button" data-employee-detail="${entityAdminEscape(employee.id)}" style="margin-top:2px;padding:2px 12px">Detail</button>${employee.status === 'ACTIVE' ? ` <button class="mini-btn danger" type="button" data-employee-resign="${entityAdminEscape(employee.id)}" data-name="${entityAdminEscape(employee.fullName)}" style="margin-top:2px;padding:2px 12px">Resign</button>` : ''}</div>
       </div>
       <div class="master-actions" style="align-items:flex-end">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center">
@@ -695,6 +717,9 @@ function renderEntityEmployees() {
   });
   document.querySelectorAll('[data-employee-detail]').forEach(button => {
     button.onclick = () => openEmployeeDetail(button.dataset.employeeDetail);
+  });
+  document.querySelectorAll('[data-employee-resign]').forEach(button => {
+    button.onclick = () => resignEntityEmployee(button);
   });
   loadEntityEmployeePhotos();
 }
@@ -1496,6 +1521,7 @@ async function initEntityAdmin() {
 initEntityAdmin();
 
 entityAdminEl('entityEmployeeSort')?.addEventListener('change', renderEntityEmployees);
+entityAdminEl('entityEmployeeStatus')?.addEventListener('change', renderEntityEmployees);
 entityAdminEl('entityEmployeeAddBtn')?.addEventListener('click', openEntityEmployeeAdd);
 entityAdminEl('entityEmployeeBalanceRefresh')?.addEventListener('click', () => {
   loadEntityEmployeeBalances({ force: true });

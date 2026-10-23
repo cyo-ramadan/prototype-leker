@@ -247,3 +247,36 @@ test('riwayat gaji: baris akun yang tertaut sebentar di masa lalu tidak ikut (za
   assert.ok(ledger.accounts.some(account => account.accountId === 'avinda'), 'akun pernah tertaut tetap dibaca, jadi tes ini benar-benar menguji batas masa tautan');
   assert.equal((ledger.entries || []).some(row => String(row.kind).startsWith('APRESIASI')), false);
 });
+
+test('resign karyawan: akun kasir nonaktif & logout, tautan ditutup, potongan sejak tanggal itu dibatalkan', async () => {
+  const { sqlite, db, entityId } = await setup();
+  const { resignEmployee } = await import('../src/employee-master.js');
+  sqlite.prepare(`INSERT INTO employees (id, entity_id, full_name) VALUES ('emp_rika', ?, 'Rika')`).run(entityId);
+  sqlite.prepare(`INSERT INTO employee_account_links (id, employee_id, entity_id, account_type, account_id, store_id, effective_from) VALUES ('lnk_rika', 'emp_rika', ?, 'CASHIER', 'rika', ?, '2026-10-01T00:00:00.000Z')`).run(entityId, STORE);
+  sqlite.prepare(`INSERT INTO cashier_sessions (token_hash, cashier_id, created_at, expires_at) VALUES ('tok_rika', 'rika', '2026-10-01T00:00:00.000Z', '2099-01-01T00:00:00.000Z')`).run();
+  await evaluateDueApresiasi(db, STORE, { now: NOW });
+  assert.ok(entries(sqlite).some(row => row.account_id === 'rika'));
+  const employee = sqlite.prepare(`SELECT * FROM employees WHERE id = 'emp_rika'`).get();
+  const result = await resignEmployee(db, { employee, tanggal: DATE, alasan: 'Resign', actor: { role: 'ENTITY_ADMIN', id: 'ea_apr' }, now: NOW });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.accountsDeactivated, ['rika']);
+  assert.equal(result.reevaluated, 1);
+  assert.deepEqual(entries(sqlite), []);
+  assert.deepEqual({ ...sqlite.prepare(`SELECT status, berhenti_tanggal, berhenti_alasan FROM employees WHERE id = 'emp_rika'`).get() }, { status: 'INACTIVE', berhenti_tanggal: DATE, berhenti_alasan: 'Resign' });
+  assert.equal(sqlite.prepare(`SELECT is_active FROM cashiers WHERE id = 'rika'`).get().is_active, 0);
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) AS n FROM cashier_sessions WHERE cashier_id = 'rika'`).get().n, 0);
+  assert.ok(sqlite.prepare(`SELECT effective_to FROM employee_account_links WHERE id = 'lnk_rika'`).get().effective_to);
+});
+
+test('resign ditolak bila akunnya masih memegang laci terbuka', async () => {
+  const { sqlite, db, entityId } = await setup();
+  const { resignEmployee } = await import('../src/employee-master.js');
+  sqlite.prepare(`INSERT INTO employees (id, entity_id, full_name) VALUES ('emp_rika', ?, 'Rika')`).run(entityId);
+  sqlite.prepare(`INSERT INTO employee_account_links (id, employee_id, entity_id, account_type, account_id, store_id, effective_from) VALUES ('lnk_rika', 'emp_rika', ?, 'CASHIER', 'rika', ?, '2026-10-01T00:00:00.000Z')`).run(entityId, STORE);
+  sqlite.prepare(`INSERT INTO cash_drawer_sessions (id, store_id, cashier_id, opening_amount, status, opened_at) VALUES ('drw_rika', ?, 'rika', 0, 'OPEN', '2026-10-20T02:00:00.000Z')`).run(STORE);
+  const employee = sqlite.prepare(`SELECT * FROM employees WHERE id = 'emp_rika'`).get();
+  const result = await resignEmployee(db, { employee, tanggal: DATE, actor: { role: 'ENTITY_ADMIN', id: 'ea_apr' }, now: NOW });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'DRAWER_STILL_OPEN');
+  assert.equal(sqlite.prepare(`SELECT status FROM employees WHERE id = 'emp_rika'`).get().status, 'ACTIVE');
+});

@@ -186,6 +186,8 @@ export const PINTU_AKSI = Object.freeze([
   // Nilai ulang & CS berhenti (alat Fina nilai_ulang_apresiasi / cs_berhenti, 2026-10-22): pratinjau + terapkan.
   '/api/entity-admin/dana-apresiasi/nilai-ulang$',
   '/api/entity-admin/dana-apresiasi/berhenti$',
+  // Resign karyawan (alat Fina karyawan_resign): rute yang sama dengan tombol Resign di Karyawan.
+  '^/api/admin/employees/[A-Za-z0-9_.-]+/resign$',
   '/api/entity-admin/dana-apresiasi/rekap$',
   '/api/entity-admin/dana-apresiasi/settings$',
   '/api/entity-admin/fina/surat$',

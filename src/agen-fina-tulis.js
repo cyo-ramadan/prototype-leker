@@ -566,54 +566,62 @@ export const nilaiUlangApresiasi = Object.freeze({
   }
 });
 
-export const csBerhenti = Object.freeze({
-  nama: 'cs_berhenti', lingkup: 'gerai',
-  petunjuk: 'MENCATAT CS yang berhenti/resign per tanggal untuk Dana Apresiasi: shift sesudahnya tidak dinilai, potongan/denda yang terlanjur tercatat dibatalkan. Mis. "Indah sudah resign per 18 Oktober, hapus dendanya".',
+export const karyawanResign = Object.freeze({
+  nama: 'karyawan_resign', lingkup: 'gerai',
+  petunjuk: 'MENCATAT KARYAWAN/CS RESIGN (berhenti) per tanggal: karyawan jadi Nonaktif, akun kasirnya dinonaktifkan & logout, dan potongan/denda Dana Apresiasi sejak tanggal itu dibatalkan. Mis. "Indah sudah resign per 18 Oktober, hapus dendanya", "nonaktifkan Indah, dia keluar tanggal 18".',
   skema: {
-    cb_nama: { type: 'string', description: 'cs_berhenti: nama CS persis seperti diucapkan.' },
-    cb_tanggal: { type: 'string', description: 'cs_berhenti: YYYY-MM-DD tanggal mulai berhenti (hari pertama tidak bekerja lagi).' }
+    kr_nama: { type: 'string', description: 'karyawan_resign: nama karyawan persis seperti diucapkan.' },
+    kr_tanggal: { type: 'string', description: 'karyawan_resign: YYYY-MM-DD tanggal mulai berhenti (hari pertama tidak bekerja lagi).' },
+    kr_alasan: { type: 'string', description: 'karyawan_resign: alasan bila disebut (mis. resign, diberhentikan).' }
   },
   async siapkan(t, ctx) {
-    if (!teks(t?.cb_nama, 80)) return { ok: false, kurang: 'cb_nama', tanya: 'Siapa yang berhenti?' };
-    if (!teks(t?.cb_tanggal, 10)) return { ok: false, kurang: 'cb_tanggal', tanya: 'Berhenti mulai tanggal berapa?' };
-    const tanggal = tanggalDari(t.cb_tanggal, ctx.hariIni);
-    if (!tanggal.ok) return { ...tanggal, kurang: 'cb_tanggal' };
-    const ref = await baca(ctx, `${APR}/settings`);
+    if (!teks(t?.kr_nama, 80)) return { ok: false, kurang: 'kr_nama', tanya: 'Siapa yang resign?' };
+    if (!teks(t?.kr_tanggal, 10)) return { ok: false, kurang: 'kr_tanggal', tanya: 'Berhenti mulai tanggal berapa?' };
+    const tanggal = tanggalDari(t.kr_tanggal, ctx.hariIni);
+    if (!tanggal.ok) return { ...tanggal, kurang: 'kr_tanggal' };
+    const ref = await baca(ctx, '/api/admin/employees');
     if (!ref.ok) return ref;
-    const gerai = (ref.data?.stores || []).find((store) => !ctx.storeCode || store.storeCode === ctx.storeCode);
-    const akun = (gerai?.accounts || []).map((a) => ({ accountId: a.id, name: a.name || a.username, berhenti: a.berhentiTanggal || null }));
-    const cocok = cocokkanSatu(t.cb_nama, akun, { label: 'akun CS', namaDari: (a) => a.name, kunciLain: (a) => [a.accountId] });
+    const aktif = (ref.data?.employees || []).filter((e) => e.status === 'ACTIVE');
+    const cocok = cocokkanSatu(t.kr_nama, aktif, { label: 'karyawan aktif', namaDari: (e) => e.fullName, kunciLain: (e) => [e.id] });
     if (!cocok.ok) return cocok;
-    const cs = cocok.nilai;
-    if (cs.berhenti === tanggal.nilai) return { ok: false, tanya: `${cs.name} sudah tercatat berhenti per ${tanggal.nilai}.` };
-    const data = await penilaianCs(ctx, cs.accountId, tanggal.nilai, ctx.hariIni);
-    const batal = [];
-    if (data.ok) {
-      for (const item of data.penilaian) {
-        const p = await ctx.kirim('POST', `${APR}/nilai-ulang`, { evaluationId: item.id, dryRun: true });
-        if (p.ok && p.data?.changed) batal.push([item.businessDate, `${rpBertanda(totalRp(p.data.lama))} → ${rpBertanda(totalRp(p.data.baru))}`]);
-      }
+    const orang = cocok.nilai;
+    const akun = (orang.links || []).filter((l) => !l.effectiveTo);
+    const akunIds = new Set(akun.map((l) => l.accountId));
+    // Yang akan dibatalkan: baris Dana Apresiasi akun-akunnya sejak tanggal berhenti (dibaca dari rekap).
+    let batal = [];
+    const rekap = await baca(ctx, `${APR}/rekap`, { from: tanggal.nilai, to: ctx.hariIni });
+    if (rekap.ok) {
+      batal = (rekap.data?.entries || []).filter((e) => akunIds.has(e.accountId) && !e.voided && e.kind !== 'PENYESUAIAN' && e.businessDate >= tanggal.nilai);
     }
+    const alasan = teks(t?.kr_alasan, 120) || 'Resign';
     return {
       ok: true,
       draft: {
-        aksi: 'cs_berhenti',
-        judul: `Fina mau mencatat ${cs.name} berhenti per ${tanggal.nilai} — dicek dulu ya:`,
-        baris: [['CS', cs.name], ['Berhenti mulai', tanggal.nilai], ...batal.map(([tgl, ubah]) => [`Dibatalkan ${tgl}`, ubah])],
-        dampak: [
-          'Shift mulai tanggal itu tidak dinilai Dana Apresiasi lagi; potongan/denda yang terlanjur tercatat dibatalkan dan jurnalnya dibalik.',
-          'Akun login kasirnya tidak dinonaktifkan oleh Fina: nonaktifkan di Akun Kasir bila perlu.'
+        aksi: 'karyawan_resign',
+        judul: `Fina mau mencatat ${orang.fullName} resign per ${tanggal.nilai} — dicek dulu ya:`,
+        baris: [
+          ['Karyawan', orang.fullName],
+          ['Berhenti mulai', tanggal.nilai],
+          ['Alasan', alasan],
+          ['Akun kasir dinonaktifkan', akun.map((l) => l.username || l.accountId).join(', ') || '(tidak ada akun tertaut)'],
+          ...batal.map((e) => [`Dibatalkan ${e.businessDate}`, `${e.description || e.kind} ${rpBertanda(e.amountRupiah)}`])
         ],
-        muatan: { accountId: cs.accountId, tanggal: tanggal.nilai, nama: cs.name }
+        dampak: [
+          'Karyawan pindah ke daftar Nonaktif; riwayat gaji dan setorannya tetap ada.',
+          'Akun kasirnya dinonaktifkan dan langsung logout; Dana Apresiasi tidak dinilai lagi mulai tanggal itu, dan potongan/denda yang terlanjur tercatat dibatalkan (jurnal dibalik).',
+          'Sama dengan tombol Resign di Entity Admin → Karyawan. Ditolak bila akunnya masih memegang laci terbuka.'
+        ],
+        muatan: { employeeId: orang.id, tanggal: tanggal.nilai, alasan, nama: orang.fullName }
       }
     };
   },
   async posting(draft, ctx) {
     const m = draft.muatan;
-    const hasil = await ctx.kirim('POST', `${APR}/berhenti`, { accountId: m.accountId, tanggal: m.tanggal });
+    const hasil = await ctx.kirim('POST', `/api/admin/employees/${encodeURIComponent(m.employeeId)}/resign`, { tanggal: m.tanggal, alasan: m.alasan });
     if (!hasil.ok) return hasil;
-    return { ok: true, jawaban: `Tercatat: ${m.nama} berhenti per ${m.tanggal}.${hasil.data?.reevaluated ? ` ${hasil.data.reevaluated} shift dibatalkan/dinilai ulang.` : ''}` };
+    const akun = (hasil.data?.accountsDeactivated || []).join(', ');
+    return { ok: true, jawaban: `Tercatat: ${m.nama} resign per ${m.tanggal}.${akun ? ` Akun ${akun} dinonaktifkan.` : ''}${hasil.data?.reevaluated ? ` ${hasil.data.reevaluated} shift Dana Apresiasi dibatalkan/dinilai ulang.` : ''}` };
   }
 });
 
-export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker, catatPelamarDariWa, undangPelamar, kabariCsTraining, nilaiUlangApresiasi, csBerhenti]);
+export const AKSI_FINA_TULIS = Object.freeze([siapkanTawaranBackup, catatPengganti, pasangPengumuman, draftSp, draftLoker, catatPelamarDariWa, undangPelamar, kabariCsTraining, nilaiUlangApresiasi, karyawanResign]);

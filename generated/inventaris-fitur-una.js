@@ -613,6 +613,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)\\/resign$/",
+    "jenis": "rute-pola",
+    "sumber": "src/employee-master.js",
+    "method": null,
+    "rute": "/^\\/api\\/admin\\/employees\\/([^/]+)\\/resign$/",
+    "label": "/^\\/api\\/admin\\/employees\\/([^/]+)\\/resign$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)$/",
     "jenis": "rute-pola",
     "sumber": "src/employee-master.js",
@@ -1654,6 +1663,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/admin/announcements",
     "label": "/api/admin/announcements",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/admin/employees",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/admin/employees",
+    "label": "/api/admin/employees",
     "skin": null
   },
   {
@@ -6226,12 +6244,12 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/admin-employee-deposits.js"
   },
   {
-    "id": "tombol:public/admin-employees.js:data-deactivate-employee:Nonaktifkan",
+    "id": "tombol:public/admin-employees.js:data-deactivate-employee:Resign / Nonaktifkan",
     "jenis": "tombol",
     "sumber": "public/admin-employees.js",
     "tombolId": null,
     "aksi": "data-deactivate-employee",
-    "label": "Nonaktifkan",
+    "label": "Resign / Nonaktifkan",
     "rute": null,
     "skin": null,
     "halaman": "public/admin-employees.js"
@@ -10445,6 +10463,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "tombolId": null,
     "aksi": "data-employee-detail",
     "label": "Detail",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-admin.js"
+  },
+  {
+    "id": "tombol:public/entity-admin.js:data-employee-resign,data-name:Resign",
+    "jenis": "tombol",
+    "sumber": "public/entity-admin.js",
+    "tombolId": null,
+    "aksi": "data-employee-resign,data-name",
+    "label": "Resign",
     "rute": null,
     "skin": null,
     "halaman": "public/entity-admin.js"
@@ -15758,6 +15787,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/admin/employees",
     "label": "/api/admin/employees",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/employee-master.js:request.method === 'POST' && resignMatch)",
+    "jenis": "rute-tulis",
+    "sumber": "src/employee-master.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST' && resignMatch)",
     "skin": null
   },
   {

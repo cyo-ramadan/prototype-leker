@@ -333,6 +333,21 @@ export const SUMBER_KAMUS = Object.freeze({
       "tombol:public/entity-izin-cs.js:data-izin-retry,data-kind,data-store:Coba lagi"
     ]
   },
+  "karyawan_resign": {
+    "sumber": [
+      "src/employee-master.js",
+      "public/entity-admin.js",
+      "public/admin-employees.js",
+      "src/agen-fina-tulis.js"
+    ],
+    "fitur": [
+      "pola:src/employee-master.js:/^\\/api\\/admin\\/employees\\/([^/]+)\\/resign$/",
+      "rute:src/agen-fina-tulis.js:/api/admin/employees",
+      "tombol:public/admin-employees.js:data-deactivate-employee:Resign / Nonaktifkan",
+      "tombol:public/entity-admin.js:data-employee-resign,data-name:Resign",
+      "tulis:src/employee-master.js:request.method === 'POST' && resignMatch)"
+    ]
+  },
   "hapus_arus_kas": {
     "sumber": [
       "src/cash-flow-void.js",

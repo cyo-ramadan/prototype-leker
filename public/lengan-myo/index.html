@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Lengan Myo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Tata letak: lembar kerja bengkel prostetik — satu kolom baca 1100px, model 3D sebagai "meja kerja" di atas, lalu bab berurutan sesuai urutan membangun */
+:root{
+  --paper:#eef1f0; --sheet:#ffffff; --ink:#18252a; --mute:#56676c; --line:#d2dadb; --soft:#e3e9e9;
+  --emg:#b8285e; --emg-soft:#f6dde6; --emgb:#2f6fd0; --mech:#b8681a; --mech-soft:#f5e6d3; --ok:#2e7d4f; --warn:#a65b00;
+  --viewer-bg:#e4e9e9;
+  --f-display:'Saira Condensed','Arial Narrow',sans-serif; --f-body:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif; --f-mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+  --s-pwr:#c0392b; --s-6v:#c46a12; --s-5v:#6d4fd0; --s-gnd:#34444a; --s-sig:#1b7d7d; --s-emg:#b8285e; --s-ink:#18252a; --s-mute:#56676c; --s-box:#ffffff; --s-box2:#eaf2f2; --s-box3:#fbecf2;
+  --p-skin:#f1e2d3; --p-ink:#18252a; --p-mute:#56676c; --p-emg:#b8285e; --p-emgb:#2f6fd0; --p-ref:#2c3a3f; --p-paper:#ffffff; --p-emg-soft:#f3c3d4; --p-emgb-soft:#c8d8f2;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111618; --sheet:#182023; --ink:#e2e9e9; --mute:#98a8ab; --line:#2b3639; --soft:#212b2e;
+  --emg:#f0709e; --emg-soft:#3a1f29; --emgb:#7aa6ee; --mech:#f0a24e; --mech-soft:#3a2c1c; --ok:#6cc893; --warn:#f0b35a;
+  --viewer-bg:#1b2427;
+  --s-pwr:#ff7a6b; --s-6v:#f0a24e; --s-5v:#a996ff; --s-gnd:#a9b8bc; --s-sig:#5cc8c8; --s-emg:#f0709e; --s-ink:#e2e9e9; --s-mute:#98a8ab; --s-box:#182023; --s-box2:#1d2a2c; --s-box3:#2b1c23;
+  --p-skin:#4a3a2e; --p-ink:#e2e9e9; --p-mute:#98a8ab; --p-emg:#f0709e; --p-emgb:#7aa6ee; --p-ref:#d7e0e0; --p-paper:#182023; --p-emg-soft:#5a2a3b; --p-emgb-soft:#2a3d5c;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#111618; --sheet:#182023; --ink:#e2e9e9; --mute:#98a8ab; --line:#2b3639; --soft:#212b2e;
+  --emg:#f0709e; --emg-soft:#3a1f29; --emgb:#7aa6ee; --mech:#f0a24e; --mech-soft:#3a2c1c; --ok:#6cc893; --warn:#f0b35a;
+  --viewer-bg:#1b2427;
+  --s-pwr:#ff7a6b; --s-6v:#f0a24e; --s-5v:#a996ff; --s-gnd:#a9b8bc; --s-sig:#5cc8c8; --s-emg:#f0709e; --s-ink:#e2e9e9; --s-mute:#98a8ab; --s-box:#182023; --s-box2:#1d2a2c; --s-box3:#2b1c23;
+  --p-skin:#4a3a2e; --p-ink:#e2e9e9; --p-mute:#98a8ab; --p-emg:#f0709e; --p-emgb:#7aa6ee; --p-ref:#d7e0e0; --p-paper:#182023; --p-emg-soft:#5a2a3b; --p-emgb-soft:#2a3d5c;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{color-scheme:light}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1100px;margin:0 auto;padding-block:28px 64px;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;line-height:1.1;text-wrap:balance;margin:0;letter-spacing:.01em}
+h1{font-size:clamp(2.6rem,6vw,3.6rem)}
+h2{font-size:1.9rem}
+h3{font-size:1.25rem}
+p{margin:0;max-width:68ch}
+a{color:var(--emgb)}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+.eyebrow{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+header{display:flex;flex-direction:column;gap:14px}
+.lead{font-size:1.12rem;max-width:62ch}
+.spec{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));border-top:2px solid var(--ink);border-bottom:1px solid var(--line);margin-top:6px}
+.spec div{padding:12px 14px 12px 0;display:flex;flex-direction:column;gap:2px;min-width:0}
+.spec dt{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--mute)}
+.spec dd{margin:0;font-family:var(--f-display);font-size:1.45rem;font-weight:700;font-variant-numeric:tabular-nums}
+.spec dd small{display:block;font-family:var(--f-body);font-size:.8rem;font-weight:400;color:var(--mute)}
+section{display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}
+.sec-head .eyebrow{order:-1;width:100%}
+.note{background:var(--mech-soft);border-left:4px solid var(--mech);padding:12px 16px;border-radius:0 6px 6px 0;max-width:none}
+.note strong{color:var(--ink)}
+.note.emg{background:var(--emg-soft);border-left-color:var(--emg)}
+
+/* viewer */
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:0;background:var(--sheet);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#stage{position:relative;height:min(62vh,560px);min-height:340px;background:var(--viewer-bg);touch-action:none}
+#stage canvas{display:block;width:100%;height:100%}
+#stage .hint{position:absolute;left:12px;bottom:10px;font-size:.78rem;color:var(--mute);pointer-events:none}
+#info{position:absolute;left:12px;top:12px;max-width:min(320px,calc(100% - 24px));background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:.88rem;line-height:1.45}
+#info b{font-family:var(--f-display);font-size:1.1rem;display:block}
+.panel{padding:16px;display:flex;flex-direction:column;gap:16px;border-left:1px solid var(--line);min-width:0}
+.panel label{display:flex;gap:8px;align-items:center;font-size:.9rem;cursor:pointer}
+.panel .grp{display:flex;flex-direction:column;gap:8px}
+.panel .grp>span{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--mute)}
+input[type=range]{width:100%;accent-color:var(--emg)}
+input[type=checkbox]{accent-color:var(--emg);width:16px;height:16px}
+.btns{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;font-size:.85rem;padding:6px 10px;border-radius:5px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--mute)}
+button:focus-visible,input:focus-visible,label:focus-within{outline:2px solid var(--emgb);outline-offset:2px}
+button[aria-pressed=true]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+.legend{display:grid;grid-template-columns:1fr;gap:5px;font-size:.82rem}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:7px;vertical-align:-1px;border:1px solid rgba(0,0,0,.15)}
+.gauge{font-family:var(--f-mono);font-size:.8rem;color:var(--mute);font-variant-numeric:tabular-nums}
+
+/* diagram & tabel */
+.fig{background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto}
+.fig svg{display:block;width:100%;min-width:760px;height:auto}
+.fig figcaption{font-size:.82rem;color:var(--mute);margin-top:8px}
+figure{margin:0}
+.tbl{overflow-x:auto;background:var(--sheet);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:620px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:600;background:var(--soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--f-mono);font-size:.85rem;white-space:nowrap}
+tr.grp td{font-family:var(--f-display);font-weight:700;font-size:1.02rem;background:var(--paper);border-bottom:1px solid var(--line)}
+tfoot td{font-weight:700;border-bottom:none;border-top:2px solid var(--ink)}
+.chip{display:inline-block;font-family:var(--f-mono);font-size:.74rem;padding:1px 7px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.chip.a{color:var(--emg)} .chip.b{color:var(--emgb)} .chip.r{color:var(--mute)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+ol.steps{margin:0;padding-left:1.4em;display:flex;flex-direction:column;gap:8px;max-width:76ch}
+ol.steps li::marker{font-family:var(--f-mono);color:var(--mute);font-size:.85em}
+ul.plain{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;max-width:76ch}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:.92rem}
+.kv dt{font-family:var(--f-mono);font-size:.8rem;color:var(--mute);padding-top:2px}
+.kv dd{margin:0}
+footer{font-size:.82rem;color:var(--mute);border-top:1px solid var(--line);padding-top:14px}
+@media (max-width:820px){.bench{grid-template-columns:1fr}.panel{border-left:none;border-top:1px solid var(--line)}.two{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+
+.skema .w{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.w-pwr{stroke:var(--s-pwr,#c0392b)} .w-6v{stroke:var(--s-6v,#d9822b)} .w-5v{stroke:var(--s-5v,#7a5ad8)}
+.w-gnd{stroke:var(--s-gnd,#34444a)} .w-sig{stroke:var(--s-sig,#1f8a8a)} .w-emg{stroke:var(--s-emg,#c2185b)}
+.dot{fill:var(--s-ink,#1e2a2e)} .blk{fill:var(--s-box,#ffffff);stroke:var(--s-ink,#1e2a2e);stroke-width:1.6}
+.blk-mcu{fill:var(--s-box2,#eef4f4)} .blk-emg{fill:var(--s-box3,#fbeef3)}
+.part{fill:var(--s-box,#ffffff);stroke:var(--s-ink,#1e2a2e);stroke-width:1.6} .part-o{fill:var(--s-box,#fff);stroke:var(--s-ink,#1e2a2e);stroke-width:1.6}
+.plate,.sw,.gsym{stroke:var(--s-ink,#1e2a2e);stroke-width:2.4} .elec{fill:var(--s-box,#fff);stroke:var(--s-emg,#c2185b);stroke-width:2} .elec-in{fill:var(--s-emg,#c2185b)}
+.skema text{font-family:'JetBrains Mono',ui-monospace,Consolas,monospace;fill:var(--s-ink,#1e2a2e)}
+.t-title{font-size:13px;font-weight:700} .t-sub{font-size:10.5px;fill:var(--s-mute,#5b6b70)} .t-pin{font-size:10.5px}
+.t-val{font-size:10.5px;fill:var(--s-mute,#5b6b70)} .t-note{font-size:10px;fill:var(--s-mute,#5b6b70);font-style:italic}
+.t-net-pwr{font-size:11px;font-weight:700;fill:var(--s-pwr,#c0392b)} .t-net-6v{font-size:11px;font-weight:700;fill:var(--s-6v,#d9822b)}
+.t-net-5v{font-size:11px;font-weight:700;fill:var(--s-5v,#7a5ad8)}
+
+.limb{fill:var(--p-skin,#f1e3d6);stroke:var(--p-ink,#1e2a2e);stroke-width:1.6}
+.otot{opacity:.55} .otot-f{fill:var(--p-emg-soft,#f3c6d6)} .otot-e{fill:var(--p-emgb-soft,#c9d9f2)}
+.tulang{stroke:var(--p-mute,#5b6b70);stroke-width:2;stroke-dasharray:6 5;fill:none}
+.ref-line{stroke:var(--p-mute,#5b6b70);stroke-width:1;stroke-dasharray:3 4}
+.spoke{stroke:var(--p-mute,#5b6b70);stroke-width:1}
+.ruler{stroke:var(--p-ink,#1e2a2e);stroke-width:1.2}
+.el-a{fill:var(--p-emg,#c2185b);stroke:var(--p-paper,#fff);stroke-width:2.5}
+.el-b{fill:var(--p-emgb,#2f6fd0);stroke:var(--p-paper,#fff);stroke-width:2.5}
+.el-r{fill:var(--p-ref,#2c3a3f);stroke:var(--p-paper,#fff);stroke-width:2.5}
+.peta text{font-family:'Public Sans',system-ui,sans-serif;fill:var(--p-ink,#1e2a2e)}
+.pl-h{font-size:14px;font-weight:700} .pl-b{font-size:12px;font-weight:700}
+.pl-mute{font-size:11px;fill:var(--p-mute,#5b6b70)} .pl-mono{font-family:'JetBrains Mono',monospace;font-size:10px;fill:var(--p-mute,#5b6b70)}
+
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Rancangan v1 · 23 Oktober 2026 · prostetik bawah siku (transradial), sisi kanan</span>
+  <h1>Lengan Myo</h1>
+  <p class="lead">Tangan prostetik yang membuka dan menutup mengikuti sinyal otot di puntung lengan. Semua bagian mekaniknya dicetak 3D dari PETG, dan elektroniknya memakai modul murah yang banyak dijual di marketplace.</p>
+  <dl class="spec">
+    <div><dt>Biaya komponen</dt><dd>± Rp 812 rb<small>tanpa printer 3D; harga perkiraan</small></dd></div>
+    <div><dt>Berat total</dt><dd>± 640 g<small>plastik 423 g + elektronik ± 210 g</small></dd></div>
+    <div><dt>Sensor otot</dt><dd>2 kanal EMG<small>5 elektroda kering di soket</small></dd></div>
+    <div><dt>Gerak</dt><dd>Genggam 5 jari<small>1 servo, buka→tutup ± 0,6 detik</small></dd></div>
+    <div><dt>Daya</dt><dd>2× 18650<small>7,4 V, isi ulang lewat USB-C</small></dd></div>
+  </dl>
+  <p class="note"><strong>Ukuran pasien belum diukur.</strong> Model ini memakai ukuran dewasa rata-rata: lengan kanan, puntung 120 mm dari tonjolan tulang siku sisi dalam (epikondilus medial), dan lengan bawah sisi sehat 260 mm. Isi ukuran asli di <code>cad/ukuran_pasien.json</code>, lalu jalankan <code>python buat_lengan.py</code>. Semua STL, gambar penempatan sensor, dan cek tabrakan akan dibuat ulang sesuai ukuran itu.</p>
+</header>
+
+<section id="model">
+  <div class="sec-head"><span class="eyebrow">Mekanik</span><h2>Model 3D</h2></div>
+  <div class="bench">
+    <div id="stage">
+      <div id="info"><b>Lengan Myo</b>Klik salah satu bagian untuk melihat nama dan fungsinya. Seret untuk memutar, scroll atau cubit untuk zoom.</div>
+      <div class="hint">satuan mm · koordinat 0 = epikondilus medial</div>
+    </div>
+    <div class="panel">
+      <div class="grp"><span>Genggaman</span>
+        <input id="genggam" type="range" min="0" max="100" value="0" aria-label="Seberapa tertutup tangan">
+        <div class="gauge" id="gauge">sendi 0° · senar ditarik 0,0 mm</div>
+        <div class="btns"><button id="demo" aria-pressed="false">Putar gerak</button></div>
+      </div>
+      <div class="grp"><span>Tampilkan</span>
+        <label><input id="t-dorsal" type="checkbox" checked> Tutup rangka (dorsal)</label>
+        <label><input id="t-soket" type="checkbox" checked> Soket &amp; rumah sensor</label>
+        <label><input id="t-xray" type="checkbox"> Rangka tembus pandang</label>
+      </div>
+      <div class="grp"><span>Sudut pandang</span>
+        <div class="btns"><button data-view="samping">Samping</button><button data-view="atas">Atas</button><button data-view="telapak">Telapak</button><button data-view="isi">Isi rangka</button></div>
+      </div>
+      <div class="grp"><span>Warna</span>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+  </div>
+  <p>Servo MG996R tidur di dalam rangka, dengan spul berjari-jari 10 mm di porosnya. Putaran 150° menarik senar utama 26 mm. Untuk menekuk penuh dua sendi, jari hanya butuh ± 14 mm (2 sendi × lengan momen 4,5 mm × 90°), jadi sisanya cadangan untuk penyetelan. Senar utama menarik <em>blok penegang</em>; lima senar jari dijepit set screw M3 di blok itu supaya panjang tiap jari bisa disetel. Senar lewat celah pergelangan, masuk terowongan di telapak, dan disimpul di ujung jari. Karet elastis di punggung tiap jari membuka kembali jari saat servo mengendur. Pin sendi dibuat dari batang ulir M3.</p>
+</section>
+
+<section id="sensor">
+  <div class="sec-head"><span class="eyebrow">Sensor</span><h2>Sensor dan penempatan di tubuh</h2></div>
+  <div class="two">
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <h3>Jenis sensor</h3>
+      <p><strong>Modul sensor otot EMG klon MyoWare 1.0 (AT-04-001)</strong>, 2 buah. Modul ini bersuplai tunggal 3,3–5 V, punya penguat instrumentasi, penyaring, dan penyearah di papannya, lalu mengeluarkan sinyal <em>envelope</em> 0–5 V yang langsung terbaca di pin analog Arduino. Ukurannya 52 × 20 mm, pas di rumah sensor yang menempel di soket.</p>
+      <p>Modul jantung AD8232 memang lebih murah, tapi jangan dipakai. Filternya dibuat untuk EKG (0,5–40 Hz) dan membuang sebagian besar energi sinyal otot, yang berada di 20–450 Hz.</p>
+      <h3>Elektroda</h3>
+      <p><strong>Tahap uji:</strong> elektroda gel Ag/AgCl sekali pakai, untuk mencari titik otot terbaik. <strong>Pemakaian harian:</strong> baut M4 stainless kepala bulat dengan ring plat 12 mm, tertanam di dinding soket. Elektroda ini kering (tanpa gel) dan tetap menempel ke kulit karena soketnya pas. Kabelnya disambung dengan skun ring di sisi luar soket, di dalam rumah sensor.</p>
+    </div>
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>Titik</th><th>Otot di bawahnya</th><th>Letak</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip a">A1 · A2</span><br><small>kanal A → TUTUP</small></td><td>Fleksor jari dan pergelangan (fleksor digitorum superfisialis, fleksor karpi)</td><td>Sisi dalam lengan, 41 &amp; 63 mm dari epikondilus medial, sedikit ke arah kelingking (−110°)</td></tr>
+        <tr><td><span class="chip b">B1 · B2</span><br><small>kanal B → BUKA</small></td><td>Ekstensor (ekstensor digitorum, ekstensor karpi radialis)</td><td>Punggung lengan, 41 &amp; 63 mm, sedikit ke arah jempol (70°)</td></tr>
+        <tr><td><span class="chip r">REF</span><br><small>acuan</small></td><td>Tidak ada otot: tepi tulang ulna</td><td>Garis tulang keras di sisi kelingking-belakang, 75 mm (150°)</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <figure class="fig"><svg class="peta" viewBox="0 0 980 640" role="img" aria-label="Penempatan elektroda di puntung"><path class="limb" d="M15.0,44.8 L26.0,43.2 L37.0,41.6 L48.0,42.5 L59.0,43.5 L70.0,44.4 L81.0,45.6 L92.0,46.7 L103.0,47.9 L114.0,49.1 L125.0,50.3 L136.0,51.5 L147.0,52.6 L158.0,53.8 L169.0,55.0 L180.0,56.2 L191.0,57.4 L202.0,58.6 L213.0,59.9 L224.0,61.2 L235.0,62.5 L246.0,63.8 L257.0,65.1 L268.0,66.4 L279.0,68.3 L290.0,70.1 L301.0,72.0 L301.0,72.0 L306.7,73.1 L312.3,76.7 L317.5,82.4 L322.2,90.2 L326.3,99.8 L329.6,111.0 L332.0,123.3 L333.5,136.4 L334.0,150.0 L333.5,163.6 L332.0,176.7 L329.6,189.0 L326.3,200.2 L322.2,209.8 L317.5,217.6 L312.3,223.3 L306.7,226.9 L301.0,228.0 L301.0,228.0 L290.0,229.9 L279.0,231.7 L268.0,233.6 L257.0,234.9 L246.0,236.2 L235.0,237.5 L224.0,238.8 L213.0,240.1 L202.0,241.4 L191.0,242.6 L180.0,243.8 L169.0,245.0 L158.0,246.2 L147.0,247.4 L136.0,248.5 L125.0,249.7 L114.0,250.9 L103.0,252.1 L92.0,253.3 L81.0,254.4 L70.0,255.6 L59.0,256.5 L48.0,257.5 L37.0,258.4 L26.0,256.8 L15.0,255.2"/>
+<ellipse class="otot otot-f" cx="184.4" cy="163.2" rx="88.0" ry="44.0"/>
+<text class="pl-mute" x="184.4" y="216.0" text-anchor="middle">kelompok otot fleksor jari &amp; pergelangan</text>
+<line class="ref-line" x1="70" y1="18.0" x2="70" y2="282.0"/>
+<text class="pl-mute" x="342.0" y="154.0" text-anchor="start">ujung puntung</text>
+<text class="pl-mute" x="342.8" y="84.0" text-anchor="start">↑ sisi jempol (radial)</text>
+<text class="pl-mute" x="342.8" y="220.4" text-anchor="start">↓ sisi kelingking (ulnar)</text>
+<text class="pl-h" x="18.0" y="13.6" text-anchor="start">Sisi dalam (volar), telapak menghadap ke atas</text>
+<circle class="el-a" cx="160.2" cy="182.8" r="9.6"/>
+<text class="pl-b" x="160.2" y="169.8" text-anchor="middle">A1</text>
+<circle class="el-a" cx="208.6" cy="181.0" r="9.6"/>
+<text class="pl-b" x="208.6" y="168.0" text-anchor="middle">A2</text>
+<line class="ruler" x1="70" y1="286.4" x2="334.0" y2="286.4"/>
+<line class="ruler" x1="70.0" y1="286.4" x2="70.0" y2="279.4"/>
+<text class="pl-mono" x="70.0" y="299.4" text-anchor="middle">0</text>
+<line class="ruler" x1="92.0" y1="286.4" x2="92.0" y2="282.4"/>
+<line class="ruler" x1="114.0" y1="286.4" x2="114.0" y2="282.4"/>
+<text class="pl-mono" x="114.0" y="299.4" text-anchor="middle">20</text>
+<line class="ruler" x1="136.0" y1="286.4" x2="136.0" y2="282.4"/>
+<line class="ruler" x1="158.0" y1="286.4" x2="158.0" y2="282.4"/>
+<text class="pl-mono" x="158.0" y="299.4" text-anchor="middle">40</text>
+<line class="ruler" x1="180.0" y1="286.4" x2="180.0" y2="279.4"/>
+<line class="ruler" x1="202.0" y1="286.4" x2="202.0" y2="282.4"/>
+<text class="pl-mono" x="202.0" y="299.4" text-anchor="middle">60</text>
+<line class="ruler" x1="224.0" y1="286.4" x2="224.0" y2="282.4"/>
+<line class="ruler" x1="246.0" y1="286.4" x2="246.0" y2="282.4"/>
+<text class="pl-mono" x="246.0" y="299.4" text-anchor="middle">80</text>
+<line class="ruler" x1="268.0" y1="286.4" x2="268.0" y2="282.4"/>
+<line class="ruler" x1="290.0" y1="286.4" x2="290.0" y2="279.4"/>
+<text class="pl-mono" x="290.0" y="299.4" text-anchor="middle">100</text>
+<line class="ruler" x1="312.0" y1="286.4" x2="312.0" y2="282.4"/>
+<line class="ruler" x1="334.0" y1="286.4" x2="334.0" y2="282.4"/>
+<text class="pl-mono" x="334.0" y="299.4" text-anchor="middle">120</text>
+<text class="pl-mono" x="344.0" y="290.4" text-anchor="start">mm</text>
+<path class="limb" d="M15.0,364.8 L26.0,363.2 L37.0,361.6 L48.0,362.5 L59.0,363.5 L70.0,364.4 L81.0,365.6 L92.0,366.7 L103.0,367.9 L114.0,369.1 L125.0,370.3 L136.0,371.5 L147.0,372.6 L158.0,373.8 L169.0,375.0 L180.0,376.2 L191.0,377.4 L202.0,378.6 L213.0,379.9 L224.0,381.2 L235.0,382.5 L246.0,383.8 L257.0,385.1 L268.0,386.4 L279.0,388.3 L290.0,390.1 L301.0,392.0 L301.0,392.0 L306.7,393.1 L312.3,396.7 L317.5,402.4 L322.2,410.2 L326.3,419.8 L329.6,431.0 L332.0,443.3 L333.5,456.4 L334.0,470.0 L333.5,483.6 L332.0,496.7 L329.6,509.0 L326.3,520.2 L322.2,529.8 L317.5,537.6 L312.3,543.3 L306.7,546.9 L301.0,548.0 L301.0,548.0 L290.0,549.9 L279.0,551.7 L268.0,553.6 L257.0,554.9 L246.0,556.2 L235.0,557.5 L224.0,558.8 L213.0,560.1 L202.0,561.4 L191.0,562.6 L180.0,563.8 L169.0,565.0 L158.0,566.2 L147.0,567.4 L136.0,568.5 L125.0,569.7 L114.0,570.9 L103.0,572.1 L92.0,573.3 L81.0,574.4 L70.0,575.6 L59.0,576.5 L48.0,577.5 L37.0,578.4 L26.0,576.8 L15.0,575.2"/>
+<ellipse class="otot otot-e" cx="184.4" cy="456.8" rx="88.0" ry="44.0"/>
+<text class="pl-mute" x="184.4" y="406.2" text-anchor="middle">kelompok otot ekstensor</text>
+<path class="tulang" d="M48.0,562.4 L307.6,532.4"/>
+<text class="pl-mute" x="74.4" y="584.4" text-anchor="start">tepi tulang ulna (teraba keras)</text>
+<line class="ref-line" x1="70" y1="338.0" x2="70" y2="602.0"/>
+<text class="pl-mute" x="342.0" y="474.0" text-anchor="start">ujung puntung</text>
+<text class="pl-mute" x="342.8" y="404.0" text-anchor="start">↑ sisi jempol (radial)</text>
+<text class="pl-mute" x="342.8" y="540.4" text-anchor="start">↓ sisi kelingking (ulnar)</text>
+<text class="pl-h" x="18.0" y="333.6" text-anchor="start">Sisi punggung (dorsal)</text>
+<circle class="el-b" cx="160.2" cy="437.2" r="9.6"/>
+<text class="pl-b" x="160.2" y="424.2" text-anchor="middle">B1</text>
+<circle class="el-b" cx="208.6" cy="439.0" r="9.6"/>
+<text class="pl-b" x="208.6" y="426.0" text-anchor="middle">B2</text>
+<circle class="el-r" cx="235.0" cy="545.8" r="9.6"/>
+<text class="pl-b" x="235.0" y="532.8" text-anchor="middle">REF</text>
+<line class="ruler" x1="70" y1="606.4" x2="334.0" y2="606.4"/>
+<line class="ruler" x1="70.0" y1="606.4" x2="70.0" y2="599.4"/>
+<text class="pl-mono" x="70.0" y="619.4" text-anchor="middle">0</text>
+<line class="ruler" x1="92.0" y1="606.4" x2="92.0" y2="602.4"/>
+<line class="ruler" x1="114.0" y1="606.4" x2="114.0" y2="602.4"/>
+<text class="pl-mono" x="114.0" y="619.4" text-anchor="middle">20</text>
+<line class="ruler" x1="136.0" y1="606.4" x2="136.0" y2="602.4"/>
+<line class="ruler" x1="158.0" y1="606.4" x2="158.0" y2="602.4"/>
+<text class="pl-mono" x="158.0" y="619.4" text-anchor="middle">40</text>
+<line class="ruler" x1="180.0" y1="606.4" x2="180.0" y2="599.4"/>
+<line class="ruler" x1="202.0" y1="606.4" x2="202.0" y2="602.4"/>
+<text class="pl-mono" x="202.0" y="619.4" text-anchor="middle">60</text>
+<line class="ruler" x1="224.0" y1="606.4" x2="224.0" y2="602.4"/>
+<line class="ruler" x1="246.0" y1="606.4" x2="246.0" y2="602.4"/>
+<text class="pl-mono" x="246.0" y="619.4" text-anchor="middle">80</text>
+<line class="ruler" x1="268.0" y1="606.4" x2="268.0" y2="602.4"/>
+<line class="ruler" x1="290.0" y1="606.4" x2="290.0" y2="599.4"/>
+<text class="pl-mono" x="290.0" y="619.4" text-anchor="middle">100</text>
+<line class="ruler" x1="312.0" y1="606.4" x2="312.0" y2="602.4"/>
+<line class="ruler" x1="334.0" y1="606.4" x2="334.0" y2="602.4"/>
+<text class="pl-mono" x="334.0" y="619.4" text-anchor="middle">120</text>
+<text class="pl-mono" x="344.0" y="610.4" text-anchor="start">mm dari epikondilus medial</text>
+<ellipse class="limb" cx="770" cy="300" rx="110.3" ry="84.8"/>
+<line class="ref-line" x1="641.7" y1="300" x2="898.3" y2="300"/>
+<line class="ref-line" x1="770" y1="197.2" x2="770" y2="402.8"/>
+<text class="pl-mute" x="770.0" y="191.2" text-anchor="middle">punggung (dorsal) 90°</text>
+<text class="pl-mute" x="770.0" y="418.8" text-anchor="middle">sisi dalam (volar) −90°</text>
+<text class="pl-mute" x="902.3" y="304.0" text-anchor="start">radial 0°</text>
+<text class="pl-mute" x="637.7" y="304.0" text-anchor="end">ulnar 180°</text>
+<line class="spoke" x1="770" y1="300" x2="732.3" y2="379.7"/>
+<circle class="el-a" cx="732.3" cy="379.7" r="8"/>
+<text class="pl-b" x="718.3" y="395.7" text-anchor="end">A −110°</text>
+<line class="spoke" x1="770" y1="300" x2="807.7" y2="220.3"/>
+<circle class="el-b" cx="807.7" cy="220.3" r="8"/>
+<text class="pl-b" x="821.7" y="212.3" text-anchor="start">B 70°</text>
+<line class="spoke" x1="770" y1="300" x2="674.5" y2="257.6"/>
+<circle class="el-r" cx="674.5" cy="257.6" r="8"/>
+<text class="pl-b" x="660.5" y="249.6" text-anchor="end">REF 150°</text>
+<text class="pl-mute" x="770.0" y="442.8" text-anchor="middle">potongan melintang di z = 52 mm, dilihat dari siku</text>
+<text class="pl-mute" x="770.0" y="456.8" text-anchor="middle">(lengan kanan; lengan kiri = cerminan)</text></svg><figcaption>Skala 1:1 dari ukuran rata-rata di <code>ukuran_pasien.json</code>. Pasangan elektroda dipasang searah serat otot (memanjang lengan) dengan jarak pusat 22 mm. Gambar ini dibuat ulang otomatis oleh <code>cad/buat_peta_sensor.py</code>.</figcaption></figure>
+  <h3>Cara mencari titik yang tepat (sebelum soket dicetak)</h3>
+  <ol class="steps">
+    <li>Bersihkan kulit puntung dengan alkohol dan biarkan kering. Cukur bila berbulu.</li>
+    <li>Minta pasien <em>membayangkan</em> mengepal. Walaupun tangannya sudah tidak ada, otot di puntung tetap mengencang. Raba sisi dalam lengan 3–7 cm dari lipatan siku, lalu tandai bagian yang paling keras dengan spidol.</li>
+    <li>Ulangi dengan membayangkan membuka telapak dan menegakkan jari, lalu raba sisi punggung lengan.</li>
+    <li>Tempel 2 elektroda gel per kanal searah lengan, berjarak 2–2,5 cm. Tempel elektroda REF di tepi tulang ulna.</li>
+    <li>Sambungkan ke modul, nyalakan Nano (USB saja cukup), lalu buka <em>Serial Plotter</em> Arduino di 115200. Saat rileks, garis A dan B harus datar dekat 0. Saat mengepal, A naik jelas dan B naik kurang dari sepertiganya. Kalau B ikut naik tinggi, geser elektroda 1 cm lalu coba lagi.</li>
+    <li>Ukur posisi akhir, yaitu jarak dari epikondilus medial dan sudut di sekeliling lengan (lihat potongan melintang). Isi angkanya di <code>ukuran_pasien.json</code>.</li>
+    <li>Ukur keliling puntung tiap 3 cm (di atas kaus puntung) dan panjang puntung, lalu isi juga di file yang sama. Setelah itu baru cetak soket.</li>
+  </ol>
+  <p class="note emg"><strong>Latihan sebelum dipakai.</strong> Butuh beberapa hari latihan sampai pasien bisa mengencangkan fleksor tanpa ikut mengencangkan ekstensor. Pakai Serial Plotter sebagai umpan balik visual: target latihannya adalah satu garis naik sementara garis lainnya tetap rendah.</p>
+</section>
+
+<section id="listrik">
+  <div class="sec-head"><span class="eyebrow">Elektronik</span><h2>Rangkaian listrik</h2></div>
+  <figure class="fig"><svg class="skema" viewBox="0 0 1270 680" role="img" aria-label="Skema rangkaian Lengan Myo"><rect class="blk" x="40" y="50" width="150" height="100" rx="4"/>
+<text class="t-title" x="115.0" y="70" text-anchor="middle">2× 18650 seri</text>
+<text class="t-sub" x="115.0" y="86" text-anchor="middle">7,4 V · 2500–3000 mAh</text>
+<text class="t-pin" x="183" y="99" text-anchor="end">B+</text>
+<text class="t-pin" x="183" y="119" text-anchor="end">BM</text>
+<text class="t-pin" x="183" y="139" text-anchor="end">B−</text>
+<rect class="blk" x="260" y="50" width="120" height="110" rx="4"/>
+<text class="t-title" x="320.0" y="70" text-anchor="middle">BMS 2S</text>
+<text class="t-sub" x="320.0" y="86" text-anchor="middle">proteksi</text>
+<text class="t-pin" x="267" y="74" text-anchor="start">B+</text>
+<text class="t-pin" x="267" y="104" text-anchor="start">BM</text>
+<text class="t-pin" x="267" y="134" text-anchor="start">B−</text>
+<text class="t-pin" x="373" y="84" text-anchor="end">P+</text>
+<text class="t-pin" x="373" y="139" text-anchor="end">P−</text>
+<polyline class="w w-pwr" points="190,95 222,95 222,70 260,70"/>
+<polyline class="w w-pwr" points="190,115 236,115 236,100 260,100"/>
+<polyline class="w w-gnd" points="190,135 222,135 222,130 260,130"/>
+<rect class="blk" x="260" y="200" width="120" height="90" rx="4"/>
+<text class="t-title" x="320.0" y="220" text-anchor="middle">Charger USB-C</text>
+<text class="t-sub" x="320.0" y="236" text-anchor="middle">2S · 8,4 V (IP2326)</text>
+<text class="t-pin" x="373" y="249" text-anchor="end">OUT+</text>
+<text class="t-pin" x="373" y="274" text-anchor="end">OUT−</text>
+<text class="t-note" x="320" y="308" text-anchor="middle">colokan USB-C 5 V di dinding radial</text>
+<polyline class="w w-gnd" points="380,135 400,135 400,640"/>
+<circle class="dot" cx="400" cy="135" r="3.6"/>
+<polyline class="w w-gnd" points="380,270 400,270"/>
+<circle class="dot" cx="400" cy="270" r="3.6"/>
+<polyline class="w w-pwr" points="380,245 420,245 420,80"/>
+<polyline class="w w-pwr" points="380,80 440,80"/>
+<circle class="dot" cx="420" cy="80" r="3.6"/>
+<line class="w w-pwr" x1="440" y1="80" x2="446" y2="80"/>
+<circle class="part-o" cx="448" cy="80" r="3"/><circle class="part-o" cx="482" cy="80" r="3"/>
+<line class="sw" x1="450" y1="79" x2="480" y2="64"/>
+<text class="t-val" x="465" y="56" text-anchor="middle">SAKLAR KCD11</text>
+<polyline class="w w-pwr" points="484,80 1000,80"/>
+<text class="t-net-pwr" x="870" y="72" text-anchor="start">VBAT 6,4–8,4 V</text>
+<rect class="blk" x="540" y="140" width="130" height="95" rx="4"/>
+<text class="t-title" x="605.0" y="160" text-anchor="middle">LM2596</text>
+<text class="t-sub" x="605.0" y="176" text-anchor="middle">step-down → 6,0 V</text>
+<text class="t-pin" x="547" y="196" text-anchor="start">IN+</text>
+<text class="t-pin" x="547" y="222" text-anchor="start">IN−</text>
+<text class="t-pin" x="663" y="196" text-anchor="end">OUT+</text>
+<text class="t-pin" x="663" y="222" text-anchor="end">OUT−</text>
+<polyline class="w w-pwr" points="520,80 520,192 540,192"/>
+<circle class="dot" cx="520" cy="80" r="3.6"/>
+<polyline class="w w-gnd" points="540,218 510,218 510,640"/>
+<polyline class="w w-gnd" points="670,218 685,218 685,262"/>
+<line class="gsym" x1="671" y1="262" x2="699" y2="262"/>
+<line class="gsym" x1="676" y1="266" x2="694" y2="266"/>
+<line class="gsym" x1="681" y1="270" x2="689" y2="270"/>
+<polyline class="w w-6v" points="670,192 705,192 705,380 690,380"/>
+<text class="t-net-6v" x="676" y="184" text-anchor="start">6,0 V</text>
+<circle class="dot" cx="705" cy="240" r="3.6"/>
+<polyline class="w w-6v" points="705,240 730,240"/>
+<polyline class="w w-6v" points="730,240 730,261.0"/>
+<polyline class="w w-gnd" points="730,269.0 730,290"/>
+<line class="plate" x1="719" y1="261.0" x2="741" y2="261.0"/>
+<line class="plate" x1="719" y1="269.0" x2="741" y2="269.0"/>
+<text class="t-val" x="714" y="259.0" text-anchor="middle">+</text>
+<text class="t-val" x="745" y="269.0" text-anchor="start"></text>
+<text class="t-val" x="740" y="268" text-anchor="start">1000</text>
+<text class="t-val" x="740" y="280" text-anchor="start">µF</text>
+<polyline class="w w-gnd" points="730,290 730,300"/>
+<line class="gsym" x1="716" y1="300" x2="744" y2="300"/>
+<line class="gsym" x1="721" y1="304" x2="739" y2="304"/>
+<line class="gsym" x1="726" y1="308" x2="734" y2="308"/>
+<rect class="blk" x="560" y="320" width="130" height="120" rx="4"/>
+<text class="t-title" x="625.0" y="340" text-anchor="middle">Servo MG996R</text>
+<text class="t-sub" x="625.0" y="356" text-anchor="middle">tarik 5 senar</text>
+<text class="t-pin" x="683" y="384" text-anchor="end">V+ (merah)</text>
+<text class="t-pin" x="683" y="414" text-anchor="end">SIG (oranye)</text>
+<text class="t-pin" x="625" y="432" text-anchor="middle">GND (coklat)</text>
+<polyline class="w w-gnd" points="625,440 625,460"/>
+<circle class="dot" cx="625" cy="460" r="3.6"/>
+<polyline class="w w-gnd" points="625,460 625,501.5"/>
+<polyline class="w w-gnd" points="625,533.5 625,575"/>
+<rect class="part" x="619" y="501.5" width="12" height="32"/>
+<text class="t-val" x="636" y="521.5" text-anchor="start"></text>
+<text class="t-val" x="612" y="514" text-anchor="end">R shunt</text>
+<text class="t-val" x="612" y="527" text-anchor="end">0,1 Ω 1 W</text>
+<polyline class="w w-gnd" points="625,575 625,640"/>
+<polyline class="w w-sig" points="625,460 654.0,460"/>
+<polyline class="w w-sig" points="686.0,460 715,460"/>
+<rect class="part" x="654.0" y="454" width="32" height="12"/>
+<text class="t-val" x="670.0" y="449" text-anchor="middle">1 kΩ</text>
+<circle class="dot" cx="715" cy="460" r="3.6"/>
+<polyline class="w w-sig" points="715,460 715,491.0"/>
+<polyline class="w w-gnd" points="715,499.0 715,530"/>
+<line class="plate" x1="704" y1="491.0" x2="726" y2="491.0"/>
+<line class="plate" x1="704" y1="499.0" x2="726" y2="499.0"/>
+<text class="t-val" x="699" y="489.0" text-anchor="middle">+</text>
+<text class="t-val" x="730" y="499.0" text-anchor="start">10 µF</text>
+<polyline class="w w-gnd" points="715,530 715,640"/>
+<polyline class="w w-sig" points="715,460 794,460 794,310 800,310"/>
+<polyline class="w w-sig" points="690,410 729.0,410"/>
+<polyline class="w w-sig" points="761.0,410 800,410"/>
+<rect class="part" x="729.0" y="404" width="32" height="12"/>
+<text class="t-val" x="745.0" y="399" text-anchor="middle">330 Ω</text>
+<circle class="dot" cx="778" cy="80" r="3.6"/>
+<polyline class="w w-pwr" points="778,80 778,159"/>
+<polyline class="w w-sig" points="778,191 778,270"/>
+<rect class="part" x="772" y="159" width="12" height="32"/>
+<text class="t-val" x="768" y="173" text-anchor="end">100</text>
+<text class="t-val" x="768" y="185" text-anchor="end">kΩ</text>
+<circle class="dot" cx="778" cy="270" r="3.6"/>
+<polyline class="w w-sig" points="778,270 800,270"/>
+<polyline class="w w-sig" points="778,270 778,306"/>
+<polyline class="w w-gnd" points="778,338 778,372"/>
+<rect class="part" x="772" y="306" width="12" height="32"/>
+<text class="t-val" x="768" y="320" text-anchor="end">47</text>
+<text class="t-val" x="768" y="332" text-anchor="end">kΩ</text>
+<line class="gsym" x1="764" y1="372" x2="792" y2="372"/>
+<line class="gsym" x1="769" y1="376" x2="787" y2="376"/>
+<line class="gsym" x1="774" y1="380" x2="782" y2="380"/>
+<rect class="blk blk-mcu" x="800" y="200" width="160" height="320" rx="4"/>
+<text class="t-title" x="880.0" y="220" text-anchor="middle">Arduino Nano</text>
+<text class="t-sub" x="880.0" y="236" text-anchor="middle">ATmega328P · 5 V</text>
+<text class="t-pin" x="807" y="234" text-anchor="start">VIN</text>
+<text class="t-pin" x="807" y="274" text-anchor="start">A2 · Vbat</text>
+<text class="t-pin" x="807" y="314" text-anchor="start">A3 · arus</text>
+<text class="t-pin" x="807" y="414" text-anchor="start">D9 · servo</text>
+<text class="t-pin" x="953" y="234" text-anchor="end">5V</text>
+<text class="t-pin" x="953" y="284" text-anchor="end">A0 · kanal A</text>
+<text class="t-pin" x="953" y="324" text-anchor="end">A1 · kanal B</text>
+<text class="t-pin" x="953" y="364" text-anchor="end">GND</text>
+<text class="t-pin" x="953" y="434" text-anchor="end">D2 · tombol</text>
+<text class="t-pin" x="953" y="474" text-anchor="end">D8 · buzzer</text>
+<polyline class="w w-pwr" points="789,80 789,230 800,230"/>
+<circle class="dot" cx="789" cy="80" r="3.6"/>
+<polyline class="w w-gnd" points="960,360 980,360 980,640"/>
+<text class="t-note" x="880" y="496" text-anchor="middle">USB unggah firmware</text>
+<text class="t-note" x="880" y="510" text-anchor="middle">di dinding ulnar</text>
+<rect class="blk blk-emg" x="1040" y="140" width="130" height="110" rx="4"/>
+<text class="t-title" x="1105.0" y="160" text-anchor="middle">EMG kanal A</text>
+<text class="t-sub" x="1105.0" y="176" text-anchor="middle">fleksor → TUTUP</text>
+<rect class="blk blk-emg" x="1040" y="290" width="130" height="110" rx="4"/>
+<text class="t-title" x="1105.0" y="310" text-anchor="middle">EMG kanal B</text>
+<text class="t-sub" x="1105.0" y="326" text-anchor="middle">ekstensor → BUKA</text>
+<text class="t-pin" x="1047" y="194" text-anchor="start">+Vs</text>
+<text class="t-pin" x="1047" y="219" text-anchor="start">SIG</text>
+<text class="t-pin" x="1047" y="244" text-anchor="start">GND</text>
+<text class="t-pin" x="1163" y="194" text-anchor="end">MID</text>
+<text class="t-pin" x="1163" y="219" text-anchor="end">END</text>
+<text class="t-pin" x="1163" y="244" text-anchor="end">REF</text>
+<text class="t-pin" x="1047" y="344" text-anchor="start">+Vs</text>
+<text class="t-pin" x="1047" y="369" text-anchor="start">SIG</text>
+<text class="t-pin" x="1047" y="394" text-anchor="start">GND</text>
+<text class="t-pin" x="1163" y="344" text-anchor="end">MID</text>
+<text class="t-pin" x="1163" y="369" text-anchor="end">END</text>
+<text class="t-pin" x="1163" y="394" text-anchor="end">REF</text>
+<polyline class="w w-5v" points="960,230 1000,230 1000,190 1040,190"/>
+<polyline class="w w-5v" points="1000,230 1000,340 1040,340"/>
+<circle class="dot" cx="1000" cy="230" r="3.6"/>
+<text class="t-net-5v" x="1004" y="182" text-anchor="start">5 V</text>
+<polyline class="w w-emg" points="960,280 1015,280 1015,215 1040,215"/>
+<polyline class="w w-emg" points="960,320 1015,320 1015,365 1040,365"/>
+<polyline class="w w-gnd" points="1040,240 1028,240 1028,268"/>
+<line class="gsym" x1="1014" y1="268" x2="1042" y2="268"/>
+<line class="gsym" x1="1019" y1="272" x2="1037" y2="272"/>
+<line class="gsym" x1="1024" y1="276" x2="1032" y2="276"/>
+<polyline class="w w-gnd" points="1040,390 1028,390 1028,398"/>
+<line class="gsym" x1="1014" y1="398" x2="1042" y2="398"/>
+<line class="gsym" x1="1019" y1="402" x2="1037" y2="402"/>
+<line class="gsym" x1="1024" y1="406" x2="1032" y2="406"/>
+<polyline class="w w-emg" points="1170,190 1200,190"/>
+<circle class="elec" cx="1208" cy="190" r="8"/>
+<circle class="elec-in" cx="1208" cy="190" r="3"/>
+<text class="t-pin" x="1222" y="194" text-anchor="start">A1</text>
+<polyline class="w w-emg" points="1170,215 1200,215"/>
+<circle class="elec" cx="1208" cy="215" r="8"/>
+<circle class="elec-in" cx="1208" cy="215" r="3"/>
+<text class="t-pin" x="1222" y="219" text-anchor="start">A2</text>
+<polyline class="w w-emg" points="1170,340 1200,340"/>
+<circle class="elec" cx="1208" cy="340" r="8"/>
+<circle class="elec-in" cx="1208" cy="340" r="3"/>
+<text class="t-pin" x="1222" y="344" text-anchor="start">B1</text>
+<polyline class="w w-emg" points="1170,365 1200,365"/>
+<circle class="elec" cx="1208" cy="365" r="8"/>
+<circle class="elec-in" cx="1208" cy="365" r="3"/>
+<text class="t-pin" x="1222" y="369" text-anchor="start">B2</text>
+<polyline class="w w-emg" points="1170,240 1185,240 1185,390 1170,390"/>
+<circle class="dot" cx="1185" cy="265" r="3.6"/>
+<polyline class="w w-emg" points="1185,265 1200,265"/>
+<circle class="elec" cx="1208" cy="265" r="8"/>
+<circle class="elec-in" cx="1208" cy="265" r="3"/>
+<text class="t-pin" x="1222" y="269" text-anchor="start">REF</text>
+<text class="t-note" x="1262" y="110" text-anchor="end">elektroda kering di soket</text>
+<text class="t-note" x="1262" y="124" text-anchor="end">(baut M4 stainless)</text>
+<polyline class="w w-sig" points="960,430 1080,430"/>
+<circle class="part-o" cx="1082" cy="430" r="3"/><circle class="part-o" cx="1112" cy="430" r="3"/>
+<line class="sw" x1="1080" y1="420" x2="1114" y2="420"/><line class="sw" x1="1097" y1="420" x2="1097" y2="412"/>
+<text class="t-val" x="1097" y="452" text-anchor="middle">tombol kalibrasi</text>
+<polyline class="w w-gnd" points="1114,430 1150,430 1150,640"/>
+<polyline class="w w-sig" points="960,470 1060,470 1060,495"/>
+<rect class="part" x="1046" y="495" width="28" height="22" rx="11"/>
+<text class="t-val" x="1082" y="511" text-anchor="start">buzzer aktif 5 V</text>
+<polyline class="w w-gnd" points="1060,517 1060,640"/>
+<polyline class="w w-gnd" points="400,640 1150,640"/>
+<line class="gsym" x1="386" y1="646" x2="414" y2="646"/>
+<line class="gsym" x1="391" y1="650" x2="409" y2="650"/>
+<line class="gsym" x1="396" y1="654" x2="404" y2="654"/>
+<text class="t-note" x="410" y="664" text-anchor="start">titik bintang GND = P− BMS (kabel GND servo &amp; logika pisah sampai sini)</text></svg><figcaption>Skema lengkap. Merah = baterai (VBAT), oranye = 6 V servo, ungu = 5 V logika, hijau toska = sinyal, merah muda = jalur sensor otot, abu tua = ground. File cetak: <code>elektronik/skema.svg</code>.</figcaption></figure>
+  <div class="two">
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <h3>Hal yang menentukan sinyal bersih</h3>
+      <ul class="plain">
+        <li><strong>Dua jalur daya terpisah.</strong> Servo mendapat 6 V dari LM2596, sedangkan sensor mendapat 5 V dari regulator Nano. Servo bisa menarik arus sampai ± 2,5 A. Kalau jalurnya digabung dengan sensor, lonjakan arusnya masuk ke sinyal otot dan tangan bisa bergerak sendiri.</li>
+        <li><strong>Ground bintang di P− BMS.</strong> Kabel ground servo dan kabel ground logika jalan masing-masing dan baru bertemu di satu titik itu.</li>
+        <li><strong>Kabel elektroda sependek mungkin</strong>, pakai kabel shield (kabel mic) yang dipilin. Modul sensor ditaruh tepat di atas elektrodanya, di rumah sensor.</li>
+        <li><strong>Elco 1000 µF</strong> di terminal servo menahan turunnya tegangan saat servo mulai bergerak.</li>
+        <li><strong>Shunt 0,1 Ω</strong> di kabel GND servo dipakai firmware untuk mengukur arus. Saat jari menyentuh benda, arus naik, dan tangan berhenti menambah tutupan. Dengan begitu benda tidak teremas dan servo tidak terus menahan arus macet.</li>
+        <li>Setel LM2596 ke <strong>6,0 V dengan multimeter sebelum servo disambung</strong>. Keluaran pabriknya bisa 12 V atau lebih.</li>
+      </ul>
+    </div>
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>Pin Nano</th><th>Ke</th><th>Catatan</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">A0</td><td>SIG modul EMG A</td><td>fleksor → tutup</td></tr>
+        <tr><td class="mono">A1</td><td>SIG modul EMG B</td><td>ekstensor → buka</td></tr>
+        <tr><td class="mono">A2</td><td>pembagi 100k / 47k dari VBAT</td><td>8,4 V → 2,69 V</td></tr>
+        <tr><td class="mono">A3</td><td>shunt 0,1 Ω lewat 1 kΩ + 10 µF</td><td>arus servo, 1 A ≈ 20 hitungan ADC</td></tr>
+        <tr><td class="mono">D9</td><td>sinyal servo lewat 330 Ω</td><td>PWM 900–1950 µs</td></tr>
+        <tr><td class="mono">D2</td><td>tombol ke GND</td><td>pull-up internal</td></tr>
+        <tr><td class="mono">D8</td><td>buzzer aktif 5 V</td><td>umpan balik bunyi</td></tr>
+        <tr><td class="mono">VIN</td><td>VBAT setelah saklar</td><td>regulator Nano → 5 V</td></tr>
+        <tr><td class="mono">5V</td><td>+Vs kedua modul EMG</td><td>sensor ± 9 mA per modul</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="pakai">
+  <div class="sec-head"><span class="eyebrow">Firmware</span><h2>Cara memakai</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Yang dilakukan pasien</th><th>Hasil</th><th>Tanda</th></tr></thead>
+    <tbody>
+      <tr><td>Kencangkan otot fleksor (bayangkan mengepal)</td><td>Tangan menutup. Makin kuat kontraksi, makin cepat geraknya.</td><td>berhenti sendiri saat menyentuh benda (1 bunyi pendek)</td></tr>
+      <tr><td>Kencangkan otot ekstensor (bayangkan membuka telapak)</td><td>Tangan membuka</td><td>—</td></tr>
+      <tr><td>Rileks</td><td>Tangan diam di posisi terakhir</td><td>—</td></tr>
+      <tr><td>Kencangkan keduanya bersamaan ± 0,3 detik</td><td>Kunci genggaman, misalnya untuk menenteng tas tanpa terus menegang. Ulangi untuk melepas kunci.</td><td>2 bunyi = terkunci, 1 bunyi = lepas</td></tr>
+      <tr><td>Tekan tombol 2 detik</td><td>Kalibrasi: 1 bunyi = rileks, 2 bunyi = kepalkan, 3 bunyi = buka telapak (masing-masing 3 detik)</td><td>1 bunyi panjang = berhasil, 5 bunyi cepat = sinyal terlalu lemah</td></tr>
+      <tr><td>—</td><td>Baterai di bawah 6,6 V</td><td>1 bunyi panjang tiap 30 detik</td></tr>
+      <tr><td>—</td><td>Baterai di bawah 6,2 V: tangan membuka lalu servo dimatikan</td><td>3 bunyi panjang, isi ulang lewat USB-C</td></tr>
+    </tbody>
+  </table></div>
+  <p>Kalau hanya satu otot yang sinyalnya bagus, ubah <code>MODE_SATU_KANAL = true</code> di firmware. Pada mode ini, kontraksi singkat (kurang dari 0,4 detik) membalik arah, dan kontraksi yang ditahan menggerakkan tangan. Firmware sudah dicoba dikompilasi untuk Arduino Nano: 10,3 KB flash (33%) dan 331 byte RAM.</p>
+</section>
+
+<section id="komponen">
+  <div class="sec-head"><span class="eyebrow">Belanja</span><h2>Daftar komponen</h2></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Komponen</th><th>Spesifikasi</th><th class="num">Jml</th><th class="num">Subtotal</th></tr></thead>
+    <tbody><tr class="grp"><td colspan="3">Sensor</td><td class="num">298.000</td></tr>
+<tr><td>Modul sensor otot EMG</td><td>klon MyoWare 1.0 / AT-04-001, suplai tunggal 3,3-5 V, keluaran SIG (envelope)</td><td class="num">2</td><td class="num">250.000</td></tr>
+<tr><td>Baut M4x8 stainless kepala bulat + mur + ring plat 12 mm + skun ring</td><td>elektroda kering di dinding soket (A1 A2 B1 B2 REF)</td><td class="num">5</td><td class="num">10.000</td></tr>
+<tr><td>Elektroda gel sekali pakai Ag/AgCl (1 pak 50)</td><td>hanya untuk mencari titik otot &amp; uji awal</td><td class="num">1</td><td class="num">30.000</td></tr>
+<tr><td>Kabel mic/shield 2 inti 1 m</td><td>kabel elektroda ke modul (pendek &amp; dipilin)</td><td class="num">1</td><td class="num">8.000</td></tr>
+<tr class="grp"><td colspan="3">Kontrol</td><td class="num">40.000</td></tr>
+<tr><td>Arduino Nano V3 (CH340)</td><td>ATmega328P 5 V</td><td class="num">1</td><td class="num">40.000</td></tr>
+<tr class="grp"><td colspan="3">Aktuator</td><td class="num">50.000</td></tr>
+<tr><td>Servo MG996R</td><td>gigi logam, 10-11 kg.cm @6 V</td><td class="num">1</td><td class="num">50.000</td></tr>
+<tr class="grp"><td colspan="3">Daya</td><td class="num">121.500</td></tr>
+<tr><td>Baterai 18650 Li-ion</td><td>2500-3000 mAh, beli yang ada merek &amp; tes kapasitas</td><td class="num">2</td><td class="num">70.000</td></tr>
+<tr><td>Holder baterai 2x18650 seri</td><td>-</td><td class="num">1</td><td class="num">6.000</td></tr>
+<tr><td>BMS 2S 8.4 V</td><td>HX-2S-JH20 atau sejenis (proteksi over/under-charge + short)</td><td class="num">1</td><td class="num">8.000</td></tr>
+<tr><td>Modul charger USB-C 2S 8.4 V</td><td>boost charger IP2326 (input 5 V USB)</td><td class="num">1</td><td class="num">18.000</td></tr>
+<tr><td>Modul step-down LM2596</td><td>setel 6.0 V untuk servo (3 A puncak)</td><td class="num">1</td><td class="num">15.000</td></tr>
+<tr><td>Saklar rocker KCD11 mini</td><td>3 A, lubang 15x10 mm</td><td class="num">1</td><td class="num">2.500</td></tr>
+<tr><td>Kapasitor elco 1000 uF 16 V</td><td>penyangga lonjakan arus servo</td><td class="num">1</td><td class="num">2.000</td></tr>
+<tr class="grp"><td colspan="3">Pasif</td><td class="num">6.500</td></tr>
+<tr><td>Resistor 0.1 ohm 1 W</td><td>shunt arus servo (deteksi genggam)</td><td class="num">1</td><td class="num">1.500</td></tr>
+<tr><td>Paket resistor &amp; kapasitor kecil</td><td>100k, 47k, 1k, 330R, 10 uF, 100 nF</td><td class="num">1</td><td class="num">5.000</td></tr>
+<tr class="grp"><td colspan="3">UI</td><td class="num">3.500</td></tr>
+<tr><td>Push button 6x6 + topi</td><td>tombol kalibrasi</td><td class="num">1</td><td class="num">1.000</td></tr>
+<tr><td>Buzzer aktif 5 V 12 mm</td><td>umpan balik bunyi</td><td class="num">1</td><td class="num">2.500</td></tr>
+<tr class="grp"><td colspan="3">Kabel</td><td class="num">19.000</td></tr>
+<tr><td>Kabel serabut AWG22 + AWG18 + heatshrink + timah</td><td>-</td><td class="num">1</td><td class="num">15.000</td></tr>
+<tr><td>PCB lubang 5x7 cm</td><td>papan distribusi daya &amp; pembagi tegangan</td><td class="num">1</td><td class="num">4.000</td></tr>
+<tr class="grp"><td colspan="3">Mekanik</td><td class="num">246.000</td></tr>
+<tr><td>Filament PETG 1 kg</td><td>terpakai +-450 g (dengan support), sisa untuk cetak ulang soket</td><td class="num">1</td><td class="num">180.000</td></tr>
+<tr><td>Senar PE braid 0.5 mm (30-40 lb) 100 m</td><td>tendon jari + senar utama</td><td class="num">1</td><td class="num">25.000</td></tr>
+<tr><td>Tali elastis bulat 1.5 mm 5 m</td><td>pegas pembuka jari (dorsal)</td><td class="num">1</td><td class="num">5.000</td></tr>
+<tr><td>Batang ulir M3 1 m + mur M3</td><td>pin sendi (dipotong) - atau paku stainless 3 mm</td><td class="num">1</td><td class="num">8.000</td></tr>
+<tr><td>Paket sekrup M3 (8/12/16/30 mm) + set screw M3x4</td><td>penyatu rangka, pergelangan, blok penegang</td><td class="num">1</td><td class="num">20.000</td></tr>
+<tr><td>Strap velcro 25 mm 1 m</td><td>tali suspensi di atas siku</td><td class="num">1</td><td class="num">8.000</td></tr>
+<tr class="grp"><td colspan="3">Kenyamanan</td><td class="num">27.000</td></tr>
+<tr><td>Kaus puntung (stockinette/kaus kaki katun tabung) 2 buah</td><td>dipakai di antara kulit &amp; soket (lubangi di titik elektroda)</td><td class="num">1</td><td class="num">15.000</td></tr>
+<tr><td>Busa EVA 2 mm 1 lembar + lem</td><td>pelapis bibir soket &amp; ujung puntung</td><td class="num">1</td><td class="num">12.000</td></tr>
+<tr><td>Ban dalam sepeda bekas / karet</td><td>bantalan anti-licin ujung jari</td><td class="num">1</td><td class="num">0</td></tr></tbody>
+    <tfoot><tr><td colspan="3">Total perkiraan</td><td class="num">Rp 811.500</td></tr></tfoot>
+  </table></div>
+  <p>Harga adalah perkiraan marketplace Indonesia per Oktober 2026, jadi cek ulang sebelum membeli. Kalau tidak punya printer, jasa cetak 3D biasanya memasang tarif Rp 1.000–2.500 per gram, sehingga ± 450 g menambah sekitar Rp 450 rb–1,1 jt. Dalam hal ini filamen di daftar tidak perlu dibeli.</p>
+</section>
+
+<section id="cetak">
+  <div class="sec-head"><span class="eyebrow">Produksi</span><h2>Cetak 3D</h2></div>
+  <div class="two">
+    <dl class="kv">
+      <dt>Bahan</dt><dd>PETG. Lebih tahan panas dan benturan daripada PLA, yang melunak di 55 °C (misalnya di mobil yang terparkir di bawah matahari).</dd>
+      <dt>Nozzle / layer</dt><dd>0,4 mm / 0,2 mm</dd>
+      <dt>Rangka &amp; soket</dt><dd>4 dinding (perimeter), infill 25% gyroid</dd>
+      <dt>Jari &amp; blok</dt><dd>6 dinding, infill 60%. Jari dicetak berbaring miring agar lubang pin tegak.</dd>
+      <dt>Support</dt><dd>Perlu untuk soket (bawah rumah sensor) dan telapak (dudukan jempol). Bagian lain tanpa support.</dd>
+      <dt>Ukuran bed</dt><dd>Semua part muat di 220 × 220 × 250 mm (kelas Ender-3). Part terbesar adalah soket, 103 × 103 × 167 mm.</dd>
+      <dt>Lubang</dt><dd>Pin 3,3 mm (M3), pilot sekrup 2,5 mm. Kalau terlalu sempit, bor ulang.</dd>
+    </dl>
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>File STL</th><th class="num">Ukuran (mm)</th><th class="num">Jml</th></tr></thead>
+      <tbody><tr><td class="mono">01_soket.stl</td><td class="num">103 × 103 × 166</td><td class="num">1</td></tr>
+<tr><td class="mono">02_tutup_sensor_x2.stl</td><td class="num">29 × 66 × 4</td><td class="num">2</td></tr>
+<tr><td class="mono">03_rangka_volar.stl</td><td class="num">96 × 170 × 34</td><td class="num">1</td></tr>
+<tr><td class="mono">04_rangka_dorsal.stl</td><td class="num">96 × 170 × 34</td><td class="num">1</td></tr>
+<tr><td class="mono">05_telapak.stl</td><td class="num">99 × 54 × 99</td><td class="num">1</td></tr>
+<tr><td class="mono">06_spul.stl</td><td class="num">25 × 25 × 9</td><td class="num">1</td></tr>
+<tr><td class="mono">07_blok_penegang.stl</td><td class="num">24 × 14 × 14</td><td class="num">1</td></tr>
+<tr><td class="mono">08_jari_telunjuk_ruas1.stl</td><td class="num">57 × 15 × 16</td><td class="num">1</td></tr>
+<tr><td class="mono">09_jari_telunjuk_ruas2.stl</td><td class="num">53 × 14 × 16</td><td class="num">1</td></tr>
+<tr><td class="mono">08_jari_tengah_ruas1.stl</td><td class="num">61 × 15 × 16</td><td class="num">1</td></tr>
+<tr><td class="mono">09_jari_tengah_ruas2.stl</td><td class="num">57 × 14 × 16</td><td class="num">1</td></tr>
+<tr><td class="mono">08_jari_manis_ruas1.stl</td><td class="num">59 × 15 × 15</td><td class="num">1</td></tr>
+<tr><td class="mono">09_jari_manis_ruas2.stl</td><td class="num">53 × 14 × 15</td><td class="num">1</td></tr>
+<tr><td class="mono">08_jari_kelingking_ruas1.stl</td><td class="num">49 × 15 × 14</td><td class="num">1</td></tr>
+<tr><td class="mono">09_jari_kelingking_ruas2.stl</td><td class="num">45 × 14 × 14</td><td class="num">1</td></tr>
+<tr><td class="mono">08_jari_jempol_ruas1.stl</td><td class="num">51 × 15 × 18</td><td class="num">1</td></tr>
+<tr><td class="mono">09_jari_jempol_ruas2.stl</td><td class="num">43 × 14 × 18</td><td class="num">1</td></tr></tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="rakit">
+  <div class="sec-head"><span class="eyebrow">Perakitan</span><h2>Urutan merakit</h2></div>
+  <ol class="steps">
+    <li><strong>Uji elektronik di meja dulu.</strong> Rangkai sesuai skema di atas papan lubang, setel LM2596 ke 6,0 V, unggah firmware, lalu uji dengan elektroda gel di lengan pasien sampai buka-tutup lancar.</li>
+    <li><strong>Cetak soket uji</strong> dengan infill rendah. Coba dipakai 15 menit di atas kaus puntung. Kulit boleh sedikit memerah, tapi kemerahan harus hilang dalam 20 menit. Ubah ukuran di JSON lalu cetak ulang sampai pas.</li>
+    <li>Pasang elektroda soket: baut M4 dari dalam, ring plat di bawah kepala baut, lalu mur dan skun ring kabel dari luar di dalam rumah sensor. Lapisi bibir soket dengan busa EVA.</li>
+    <li>Solder kabel elektroda ke pad MID/END/REF modul EMG. Taruh modul di rumah sensor, tutup, lalu kencangkan 2 sekrup.</li>
+    <li>Pasang servo di dudukan rangka volar (4 sekrup), lalu baut spul ke horn bulat servo. Pasang LM2596 dan blok penegang di relnya.</li>
+    <li>Rakit jari: masukkan ruas, sisipkan batang ulir M3, lalu kunci dengan mur. Ulir senar PE dari ujung jari (simpul di kantong punggung) melewati terowongan sampai keluar di pergelangan. Pasang karet elastis di alur punggung dan ikat ke sekrup di punggung telapak.</li>
+    <li>Baut telapak ke pelat pergelangan rangka (4 sekrup M3 dari dalam). Masukkan kelima senar ke blok penegang. Dengan servo di posisi terbuka (900 µs), tarik tiap senar sampai baru kencang, lalu jepit dengan set screw.</li>
+    <li>Ikat senar utama dari spul ke blok penegang. Pasang baterai, BMS, charger, Nano, saklar, tombol, dan buzzer di rangka dorsal. Ikuti titik ground bintang.</li>
+    <li>Jepit soket di antara dua belahan rangka. Sekrup penyatu masuk dari sisi dorsal, ditambah 4 sekrup dari sekat ke ujung soket.</li>
+    <li>Kalibrasi (tombol 2 detik), lalu atur <code>SERVO_TUTUP_US</code> supaya jari menutup penuh tanpa servo mendengung di ujung gerak.</li>
+  </ol>
+</section>
+
+<section id="batas">
+  <div class="sec-head"><span class="eyebrow">Penting</span><h2>Batasan dan keselamatan</h2></div>
+  <ul class="plain">
+    <li>Ini rancangan rakitan sendiri, bukan alat medis bersertifikat. Libatkan dokter rehabilitasi medik atau ortotis-prostetis (OP) untuk menilai puntung, terutama soal kecocokan soket dan risiko lecet.</li>
+    <li>Soket yang dibuat dari ukuran keliling hanyalah titik awal. Hasil paling pas didapat dari cetakan gips atau pemindaian 3D puntung. Periksa kulit setiap kali lepas pakai. Kalau ada lecet atau kemerahan yang tidak hilang dalam 20 menit, hentikan pemakaian.</li>
+    <li>Gaya genggam ± 10–20 N per jari: cukup untuk gelas, botol, dan tas ringan, tapi tidak untuk mengangkat beban berat. Jangan dipakai untuk memegang benda panas, tajam, atau berbahaya.</li>
+    <li>Baterai Li-ion selalu lewat BMS. Jangan mengisi daya tanpa diawasi, dan jangan menekuk atau menusuk sel. Lepas lengan saat tidur dan saat mandi; rancangan ini tidak tahan air.</li>
+    <li>Tata letak komponen standar butuh ruang ± 124 mm antara ujung puntung dan pergelangan. Untuk puntung yang lebih panjang, script akan memberi peringatan, dan baterai harus dipindah ke luar rangka.</li>
+    <li>Genggam belum adaptif: kelima jari ditarik bersama, jadi jari yang lebih dulu menyentuh benda menghentikan yang lain. Kalau perlu, pasang potongan karet pendek di senar tiap jari sebagai pegas seri.</li>
+  </ul>
+</section>
+
+<section id="file">
+  <div class="sec-head"><span class="eyebrow">File</span><h2>Isi folder proyek</h2></div>
+  <dl class="kv">
+    <dt>cad/ukuran_pasien.json</dt><dd>Semua ukuran pasien dan posisi elektroda. Ini satu-satunya file yang perlu diubah.</dd>
+    <dt>cad/buat_lengan.py</dt><dd>Generator model (Python + manifold3d). Hasilnya STL, model rakitan, cek tabrakan, dan perkiraan berat.</dd>
+    <dt>cad/buat_peta_sensor.py</dt><dd>Gambar penempatan elektroda sesuai ukuran pasien</dd>
+    <dt>cad/render.py</dt><dd>Render PNG untuk pengecekan visual</dd>
+    <dt>stl/</dt><dd>17 file siap slicing, sudah dalam orientasi cetak</dd>
+    <dt>elektronik/</dt><dd>skema.svg, BOM.csv, buat_skema.py</dd>
+    <dt>firmware/lengan_myo/</dt><dd>lengan_myo.ino untuk Arduino Nano (Arduino IDE, papan "Arduino Nano", prosesor ATmega328P)</dd>
+    <dt>viewer/lengan.glb</dt><dd>Model rakitan lengkap, bisa dibuka di Windows 3D Viewer atau Blender</dd>
+  </dl>
+</section>
+
+<footer>Lengan Myo v1 · dirancang oleh Eskor untuk Bos Cyo · semua ukuran dalam mm kecuali disebut lain</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="model.js?v=20261023-1"></script>
+<script>
+(function(){
+  const stage = document.getElementById('stage');
+  const info = document.getElementById('info');
+  if (!window.THREE || !window.LENGAN_GLB) { info.innerHTML = '<b>Model belum termuat</b>Muat ulang halaman. Model juga tersedia di file viewer/lengan.glb.'; return; }
+  const META = window.LENGAN_META;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  const PARTS = [
+    ['soket', 'Soket', '#e6d7c3', 'Dipakai langsung di puntung (di atas kaus). Sayap kiri-kanan mengunci di atas tonjolan siku, ditambah strap velcro. Di dindingnya tertanam 5 elektroda baut M4.'],
+    ['tutup_', 'Tutup rumah sensor', '#e6d7c3', 'Menutup modul EMG di atas elektroda. Dikencangkan 2 sekrup.'],
+    ['rangka_volar', 'Rangka bawah (volar)', '#3e4a52', 'Belahan sisi telapak. Tempat servo, LM2596, dan rel blok penegang. Menjepit ujung soket.'],
+    ['rangka_dorsal', 'Rangka atas (dorsal)', '#5d6a72', 'Belahan sisi punggung. Tempat baterai, Nano, charger, saklar, tombol, dan buzzer.'],
+    ['telapak', 'Telapak', '#ebe6dc', 'Berisi terowongan senar ke tiap jari, pin buku jari, dan dudukan jempol yang menghadap ke telapak (oposisi).'],
+    ['jari_', 'Jari', '#ebe6dc', 'Dua ruas per jari. Senar fleksor di sisi telapak, karet pembuka di punggung. Pin sendi batang ulir M3.'],
+    ['servo', 'Servo MG996R', '#202427', 'Satu-satunya penggerak. Memutar spul 150° untuk menarik senar 26 mm.'],
+    ['spul', 'Spul', '#e08a2e', 'Gulungan senar berjari-jari 10 mm, dibaut ke horn bulat servo.'],
+    ['blok_penegang', 'Blok penegang', '#e08a2e', '5 senar jari dijepit set screw M3 di sini, supaya panjang tiap jari bisa disetel.'],
+    ['modul_emg', 'Modul sensor EMG', '#c2185b', 'Klon MyoWare. Memperkuat dan menghaluskan sinyal otot menjadi 0–5 V.'],
+    ['elektroda', 'Elektroda', '#b9c0c4', 'Baut M4 stainless kepala bulat + ring plat 12 mm, menyentuh kulit langsung.'],
+    ['baterai', 'Baterai 2× 18650', '#2f5fbf', '7,4 V, 2500–3000 mAh, dengan BMS 2S.'],
+    ['LM2596', 'Step-down LM2596', '#1f86b0', 'Menurunkan tegangan baterai ke 6,0 V untuk servo.'],
+    ['Arduino', 'Arduino Nano', '#13808f', 'Membaca sensor 500×/detik dan mengatur posisi servo. Port USB-nya menghadap lubang di sisi kelingking.'],
+    ['charger', 'Charger USB-C 2S', '#7a3fa0', 'Mengisi baterai dari charger HP 5 V. Colokannya ada di sisi jempol dekat pergelangan.'],
+    ['saklar', 'Saklar daya', '#c0392b', 'Saklar rocker KCD11 di punggung rangka.'],
+    ['tombol', 'Tombol kalibrasi', '#e3b82c', 'Tekan 2 detik untuk kalibrasi ulang.'],
+    ['buzzer', 'Buzzer', '#333333', 'Memberi umpan balik bunyi: kunci, kalibrasi, baterai lemah.'],
+  ];
+  const partOf = name => PARTS.find(p => name.startsWith(p[0]) || name.includes(p[0]));
+
+  const leg = document.getElementById('legend');
+  const seen = new Set();
+  PARTS.forEach(p => { if (seen.has(p[1])) return; seen.add(p[1]);
+    const d = document.createElement('div'); d.innerHTML = `<i style="background:${p[2]}"></i>${p[1]}`; leg.appendChild(d); });
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  stage.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const setBg = () => { scene.background = new THREE.Color(css('--viewer-bg') || '#e4e9e9'); };
+  setBg();
+  const camera = new THREE.PerspectiveCamera(32, 1, 5, 5000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.12;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445055, 0.85));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-300, 500, 200); scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(300, -200, 400); scene.add(fill);
+
+  const root = new THREE.Group(); scene.add(root);
+  const meshes = []; const fingers = {};
+  let block = null, spool = null, blockZ0 = 0;
+  const mats = {};
+
+  const bin = Uint8Array.from(atob(window.LENGAN_GLB), c => c.charCodeAt(0)).buffer;
+  new THREE.GLTFLoader().parse(bin, '', gltf => {
+    const list = [];
+    gltf.scene.traverse(o => { if (o.isMesh) list.push(o); });
+    list.forEach(o => {
+      const name = o.name || (o.parent && o.parent.name) || '';
+      o.updateWorldMatrix(true, false);
+      const g = o.geometry.clone(); g.applyMatrix4(o.matrixWorld); g.computeVertexNormals();
+      const p = partOf(name) || ['?', name, '#999999', ''];
+      const metal = /elektroda/.test(name);
+      const mat = new THREE.MeshStandardMaterial({color: new THREE.Color(p[2]).convertSRGBToLinear(), roughness: metal ? 0.35 : 0.62, metalness: metal ? 0.7 : 0.04, side: THREE.DoubleSide});
+      const m = new THREE.Mesh(g, mat); m.name = name; m.userData.part = p;
+      mats[name] = mat; meshes.push(m); root.add(m);
+      if (name === 'blok_penegang') { block = m; blockZ0 = m.position.z; }
+      if (name === 'spul') spool = m;
+    });
+    // poros jari
+    const V = a => new THREE.Vector3(a[0], a[1], a[2]);
+    Object.entries(META.pivot).forEach(([nm, pv]) => {
+      const m1 = meshes.find(m => m.name === `jari_${nm}_p1`), m2 = meshes.find(m => m.name === `jari_${nm}_p2`);
+      if (!m1 || !m2) return;
+      const p1 = V(pv.p1), p2 = V(pv.p2), axis = V(pv.axis).normalize();
+      const g1 = new THREE.Group(); g1.position.copy(p1); root.add(g1);
+      m1.position.set(-p1.x, -p1.y, -p1.z); g1.add(m1);
+      const g2 = new THREE.Group(); g2.position.copy(p2.clone().sub(p1)); g1.add(g2);
+      m2.position.set(-p2.x, -p2.y, -p2.z); g2.add(m2);
+      fingers[nm] = {g1, g2, axis};
+    });
+    if (spool) {
+      const c = V(META.spul_poros); const g = new THREE.Group(); g.position.copy(c); root.add(g);
+      spool.position.set(-c.x, -c.y, -c.z); g.add(spool); spool.userData.pivot = g;
+    }
+    setView('samping', true); applyToggles(); setFlex(0);
+  }, err => { info.innerHTML = '<b>Model gagal dimuat</b>' + String(err && err.message || err); });
+
+  function setFlex(t) {
+    const ang = t * 85 * Math.PI / 180;
+    Object.values(fingers).forEach(f => { f.g1.quaternion.setFromAxisAngle(f.axis, ang); f.g2.quaternion.setFromAxisAngle(f.axis, ang); });
+    const pull = 9 * ang;   // 2 sendi x lengan momen 4,5 mm
+    if (block) block.position.z = blockZ0 - pull;
+    if (spool) spool.userData.pivot.quaternion.setFromAxisAngle(new THREE.Vector3(1,0,0), -pull / META.spul_r);
+    document.getElementById('gauge').textContent = `sendi ${Math.round(t*85)}° · senar ditarik ${pull.toFixed(1).replace('.', ',')} mm`;
+  }
+  const slider = document.getElementById('genggam');
+  slider.addEventListener('input', () => { stopDemo(); setFlex(slider.value / 100); });
+
+  let demo = null;
+  const demoBtn = document.getElementById('demo');
+  function stopDemo(){ if (demo) { cancelAnimationFrame(demo); demo = null; demoBtn.setAttribute('aria-pressed','false'); demoBtn.textContent = 'Putar gerak'; } }
+  demoBtn.addEventListener('click', () => {
+    if (demo) return stopDemo();
+    demoBtn.setAttribute('aria-pressed','true'); demoBtn.textContent = 'Hentikan';
+    const t0 = performance.now();
+    const step = now => { const t = (1 - Math.cos((now - t0) / 1400)) / 2; slider.value = Math.round(t * 100); setFlex(t); demo = requestAnimationFrame(step); };
+    demo = requestAnimationFrame(step);
+  });
+
+  function applyToggles(){
+    const dorsal = document.getElementById('t-dorsal').checked, soket = document.getElementById('t-soket').checked, xray = document.getElementById('t-xray').checked;
+    meshes.forEach(m => {
+      const n = m.name;
+      if (n === 'rangka_dorsal') m.visible = dorsal;
+      if (n === 'soket' || n.startsWith('tutup_')) m.visible = soket;
+      if (/^(rangka_|soket|tutup_)/.test(n)) { m.material.transparent = xray; m.material.opacity = xray ? 0.22 : 1; m.material.depthWrite = !xray; m.material.needsUpdate = true; }
+    });
+  }
+  ['t-dorsal','t-soket','t-xray'].forEach(id => document.getElementById(id).addEventListener('change', applyToggles));
+
+  const VIEWS = {
+    samping: {pos:[-520, 170, 120], tgt:[0, 0, 190]},
+    atas:    {pos:[0, 640, 190], tgt:[0, 0, 190], up:[1,0,0]},
+    telapak: {pos:[90, -260, 420], tgt:[5, -10, 330]},
+    isi:     {pos:[-150, 260, 150], tgt:[0, 0, 190], hide:true},
+  };
+  function setView(k, first){
+    const v = VIEWS[k];
+    camera.up.set(...(v.up || [0,1,0]));
+    camera.position.set(...v.pos); controls.target.set(...v.tgt); controls.update();
+    if (v.hide && !first) { document.getElementById('t-dorsal').checked = false; document.getElementById('t-soket').checked = false; applyToggles(); }
+  }
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+
+  // klik -> nama bagian
+  const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let down = null;
+  renderer.domElement.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(mouse, camera);
+    const hit = ray.intersectObjects(meshes.filter(m => m.visible && !(m.material.transparent)), false)[0];
+    if (!hit) return;
+    const p = hit.object.userData.part; let title = p[1];
+    const n = hit.object.name;
+    if (n.startsWith('jari_')) { const [, j, r2] = n.split('_'); title = `Jari ${j}, ruas ${r2 === 'p1' ? 'pangkal' : 'ujung'}`; }
+    info.innerHTML = `<b>${title}</b>${p[3]}`;
+  });
+
+  function resize(){ const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(stage); resize();
+  (function loop(){ controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+
+  const mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener && mq.addEventListener('change', setBg);
+  new MutationObserver(setBg).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+})();
+</script>
+
+</body>
+</html>

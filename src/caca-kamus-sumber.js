@@ -27,6 +27,16 @@ export const SUMBER_KAMUS = Object.freeze({
       "tulis:src/fina-api.js:request.method === 'POST')"
     ]
   },
+  "kelola_akun": {
+    "sumber": ["src/akun-gerai.js", "public/entity-akun-gerai.js"],
+    "fitur": [
+      "rute:src/akun-gerai.js:/api/entity-admin/akun-gerai",
+      "tombol:public/entity-admin.html:entityAkunGeraiRefresh",
+      "tombol:public/entity-admin.html:entityAkunKelolaBtn",
+      "tombol:public/entity-akun-gerai.js:data-akg-aktif,data-akg-ke:{nilai}",
+      "tulis:src/akun-gerai.js:request.method === 'POST' && pathname === `$"
+    ]
+  },
   "fina_rekrut": {
     "sumber": ["src/fina-rekrut.js", "public/entity-fina-rekrut.js", "public/loker.html", "public/loker.js"],
     "fitur": [

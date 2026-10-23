@@ -71,5 +71,6 @@ test('nilai_ulang_apresiasi: hanya shift CS itu di gerai panel, pratinjau dulu',
   const hasil = await aksi.siapkan({ nu_nama: 'Indah', nu_dari: '2026-10-18', nu_sampai: '2026-10-19' }, ctxPalsu(terkirim));
   assert.equal(hasil.ok, true, hasil.tanya);
   assert.deepEqual(hasil.draft.muatan.evaluationIds, ['ev18', 'ev19']);
-  assert.match(hasil.draft.baris[0][1], /−Rp19\.600 → \+Rp0/);
+  assert.equal(hasil.draft.baris[0][1], 'DENDA −Rp10.000; POTONG_KOSONG −Rp9.600');
+  assert.equal(hasil.draft.baris[1][1], 'tidak ada');
 });

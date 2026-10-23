@@ -504,6 +504,7 @@ export const kabariCsTraining = Object.freeze({
 const APR = '/api/entity-admin/dana-apresiasi';
 const rpBertanda = (n) => `${Number(n) < 0 ? '−' : '+'}Rp${Math.abs(Number(n) || 0).toLocaleString('id-ID')}`;
 const totalRp = (list) => list.reduce((sum, row) => sum + (Number(row.amountRupiah) || 0), 0);
+const rincian = (list) => (list.length ? list.map((row) => `${String(row.description || row.kind).split(' · ref ')[0]} ${rpBertanda(row.amountRupiah)}`).join('; ') : 'tidak ada');
 
 async function penilaianCs(ctx, nama, dari, sampai) {
   const ref = await baca(ctx, `${APR}/rekap`, { from: dari, to: sampai });
@@ -546,7 +547,10 @@ export const nilaiUlangApresiasi = Object.freeze({
       draft: {
         aksi: 'nilai_ulang_apresiasi',
         judul: `Fina mau menilai ulang Dana Apresiasi ${data.cs.name} — dicek dulu ya:`,
-        baris: berubah.map(({ item, p }) => [`${item.businessDate} · shift ${p.shift}`, `${rpBertanda(totalRp(p.lama))} → ${rpBertanda(totalRp(p.baru))}`]),
+        baris: berubah.flatMap(({ item, p }) => [
+          [`${item.businessDate} · shift ${p.shift} · sekarang`, rincian(p.lama)],
+          [`${item.businessDate} · menjadi`, rincian(p.baru)]
+        ]),
         dampak: [
           'Dinilai dengan jadwal kerja dan presensi yang tercatat SEKARANG. Baris lama dibatalkan dan jurnalnya dibalik; baris baru dicatat di Riwayat Gaji dan Akuntansi.',
           'Sama dengan tombol "Nilai ulang" di Entity Admin → Dana Apresiasi → Rekap.'

@@ -573,7 +573,7 @@ export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Korek
   const settings = await storeSettings(db, evaluation.entity_id, evaluation.store_id);
   result.dendaKind = dendaTier(result.kosongMinutes, settings);
   const old = (await db.prepare(`
-    SELECT id, kind, counter_account_id, amount_scaled FROM apresiasi_entries
+    SELECT id, kind, account_id, counter_account_id, amount_scaled, description FROM apresiasi_entries
     WHERE evaluation_id = ? AND revision = ? AND kind <> 'PENYESUAIAN' AND voided_at IS NULL
   `).bind(evaluationId, evaluation.revision).all()).results ?? [];
   const next = { ...evaluation, revision: Number(evaluation.revision) + 1 };
@@ -586,7 +586,7 @@ export async function reevaluate(db, evaluationId, { actor = {}, reason = 'Korek
     return {
       ok: true, dryRun: true, changed: !same,
       shift: shift ? `${shift.startText}-${shift.endText}` : (berhenti && evaluation.business_date >= berhenti ? `berhenti ${berhenti}` : 'libur'),
-      lama: old.map(row => ({ kind: row.kind, amountRupiah: Number(row.amount_scaled) / SCALE })),
+      lama: old.map(row => ({ kind: row.kind, amountRupiah: Number(row.amount_scaled) / SCALE, description: row.description })),
       baru: entries.map(entry => ({ kind: entry.kind, amountRupiah: entry.amountScaled / SCALE, description: entry.description }))
     };
   }

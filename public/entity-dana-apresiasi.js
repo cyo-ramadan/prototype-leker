@@ -223,7 +223,7 @@
         try {
           const preview = await api('/nilai-ulang', { method: 'POST', body: JSON.stringify({ evaluationId, dryRun: true }) });
           if (!preview.changed) return toast('Hasilnya sama dengan yang tercatat; tidak ada yang berubah.');
-          const baris = list => list.length ? list.map(row => `  ${KIND_LABEL[row.kind] || row.kind} ${signed(row.amountRupiah)}`).join('\n') : '  (tidak ada)';
+          const baris = list => list.length ? list.map(row => `  ${String(row.description || KIND_LABEL[row.kind] || row.kind).split(' · ref ')[0]} ${signed(row.amountRupiah)}`).join('\n') : '  (tidak ada)';
           if (!window.confirm(`Nilai ulang ${button.dataset.label} (shift sekarang: ${preview.shift})?\n\nSekarang:\n${baris(preview.lama)}\n\nMenjadi:\n${baris(preview.baru)}\n\nBaris lama dibatalkan dan jurnalnya dibalik.`)) return;
           const reason = (window.prompt('Alasan (tampil di riwayat):', 'Jadwal/presensi dibetulkan') ?? '').trim();
           if (!reason) return;

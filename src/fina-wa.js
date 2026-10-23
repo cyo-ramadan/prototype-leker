@@ -1,4 +1,4 @@
-// WA Fina lewat gateway lokal di laptop (Bos Cyo, 2026-10-22; migration 0183, Sambungan Fina 0182).
+// WA Fina lewat gateway lokal di laptop (Bos Cyo, 2026-10-22; migration 0184, Sambungan Fina 0183).
 //
 // Gateway (wa-gateway/jembatan.mjs) memakai token Sambungan Fina (Bearer otwa_...):
 //   POST /api/fina/wa/gateway/masuk            -> meneruskan pesan personal masuk (dedup per id pesan)

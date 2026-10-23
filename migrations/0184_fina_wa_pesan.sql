@@ -1,4 +1,4 @@
--- WA Fina lewat gateway lokal (Bos Cyo, 2026-10-22; Sambungan Fina 0182). Terpisah dari
+-- WA Fina lewat gateway lokal (Bos Cyo, 2026-10-22; Sambungan Fina 0183). Terpisah dari
 -- wa_inbound_messages milik Percetakan (ADR-055) supaya modul itu tidak berubah.
 --
 -- hr_wa_masuk : pesan personal yang diteruskan gateway (sekali per id pesan per entity). Pengirim

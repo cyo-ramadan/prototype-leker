@@ -11,7 +11,7 @@ import { getJakartaBusinessDate } from '../src/time.js';
 import { catatPelamarDariWa, undangPelamar, kabariCsTraining } from '../src/agen-fina-tulis.js';
 import { samarkanNomor, BATAS_WA } from '../src/fina-wa.js';
 
-// WA Fina lewat gateway lokal (migration 0183): pesan masuk, antrean keluar, alat Fina tanpa nomor.
+// WA Fina lewat gateway lokal (migration 0184): pesan masuk, antrean keluar, alat Fina tanpa nomor.
 
 let sqlite, env, store, tokenGateway;
 const HARI_INI = getJakartaBusinessDate();

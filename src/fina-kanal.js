@@ -1,4 +1,4 @@
-// Sambungan Fina per entity (Bos Cyo, 2026-10-22, migration 0182): WA, email, Instagram, Facebook
+// Sambungan Fina per entity (Bos Cyo, 2026-10-22, migration 0183): WA, email, Instagram, Facebook
 // milik tenant dihubungkan ke Fina dari Entity Admin -> Pengaturan -> Sambungan Fina.
 //
 //   GET  /api/entity-admin/fina/kanal               -> status keempat sambungan

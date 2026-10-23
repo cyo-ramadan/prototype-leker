@@ -1,4 +1,4 @@
-// Entity Admin -> Pengaturan -> Sambungan Fina (Bos Cyo, 2026-10-22, migration 0182).
+// Entity Admin -> Pengaturan -> Sambungan Fina (Bos Cyo, 2026-10-22, migration 0183).
 // WA, Email, Instagram, Facebook milik usaha ini yang dihubungkan ke Fina. WA memakai gateway lokal di
 // laptop/PC (perangkat tertaut, jalur tidak resmi): buat token di sini lalu tempel di gateway.
 // Token hanya tampil sekali. Dimuat saat tab Pengaturan dibuka, tanpa polling (invariant #6).

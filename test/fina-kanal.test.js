@@ -6,7 +6,7 @@ import worker from '../src/index.js';
 import { hashCredential } from '../src/owner-auth.js';
 import { statusKanal, kanalDariToken } from '../src/fina-kanal.js';
 
-// Karyawan -> Pelamar (input manual, 0181) dan Sambungan Fina WA/Email/IG/FB (0182). Bos Cyo 2026-10-22.
+// Karyawan -> Pelamar (input manual, 0182) dan Sambungan Fina WA/Email/IG/FB (0183). Bos Cyo 2026-10-22.
 
 const MIGRASI = new URL('../migrations/', import.meta.url);
 const semuaMigrasi = () => readdirSync(MIGRASI).filter(n => /^\d{4}_.+\.sql$/.test(n)).sort();
@@ -36,13 +36,13 @@ before(async () => {
 });
 after(() => sqlite?.close());
 
-test('migration 0181 menyalin pelamar lama utuh dan mengisi posisi & gerai dari lowongannya', () => {
+test('migration 0182 menyalin pelamar lama utuh dan mengisi posisi & gerai dari lowongannya', () => {
   const db = new DatabaseSync(':memory:');
   try {
-    for (const f of semuaMigrasi().filter(n => n < '0181')) db.exec(readFileSync(new URL(f, MIGRASI), 'utf8'));
+    for (const f of semuaMigrasi().filter(n => n < '0182')) db.exec(readFileSync(new URL(f, MIGRASI), 'utf8'));
     db.exec("INSERT INTO hr_lowongan(id,entity_id,store_id,slug,posisi,status) VALUES('low1','ENT-KPM','store_beji','cs-beji','CS pagi','TAYANG')");
     db.exec("INSERT INTO hr_pelamar(id,lowongan_id,entity_id,nama,no_wa,status,sumber) VALUES('p1','low1','ENT-KPM','Sari','6281234567890','INTERVIEW','WEB')");
-    db.exec(readFileSync(new URL(semuaMigrasi().find(n => n.startsWith('0181')), MIGRASI), 'utf8'));
+    db.exec(readFileSync(new URL(semuaMigrasi().find(n => n.startsWith('0182')), MIGRASI), 'utf8'));
     const row = db.prepare("SELECT * FROM hr_pelamar WHERE id='p1'").get();
     assert.equal(row.nama, 'Sari');
     assert.equal(row.status, 'INTERVIEW');

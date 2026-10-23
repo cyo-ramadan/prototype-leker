@@ -325,7 +325,7 @@ export const draftLoker = Object.freeze({
   }
 });
 
-// --- WA Fina (gateway lokal, migration 0183) ------------------------------------------------------
+// --- WA Fina (gateway lokal, migration 0184) ------------------------------------------------------
 // Alat-alat ini tidak pernah memegang nomor lengkap: rute khususnya mengembalikan nomor tersamar, dan
 // server mencari nomor asli saat menyimpan / mengirim. Isi pesan dari orang asing tidak dibawa ke model.
 // Pesan keluar baru dikirim gateway setelah "Ya" (dan tetap kena batas kirim server).

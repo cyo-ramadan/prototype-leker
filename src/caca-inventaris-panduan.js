@@ -1,5 +1,10 @@
 // Pengecualian tertulis, bukan pola/prefix. Fitur baru wajib diajarkan.
 export const TANPA_PANDUAN = Object.freeze({
+  "tombol:public/lengan-myo/index.html:data-view:Atas": "Halaman rancangan sementara Lengan Myo (/lengan-myo/), bukan fitur toko atau layar admin; tidak diajarkan lewat panduan chat.",
+  "tombol:public/lengan-myo/index.html:data-view:Isi rangka": "Halaman rancangan sementara Lengan Myo (/lengan-myo/), bukan fitur toko atau layar admin; tidak diajarkan lewat panduan chat.",
+  "tombol:public/lengan-myo/index.html:data-view:Samping": "Halaman rancangan sementara Lengan Myo (/lengan-myo/), bukan fitur toko atau layar admin; tidak diajarkan lewat panduan chat.",
+  "tombol:public/lengan-myo/index.html:data-view:Telapak": "Halaman rancangan sementara Lengan Myo (/lengan-myo/), bukan fitur toko atau layar admin; tidak diajarkan lewat panduan chat.",
+  "tombol:public/lengan-myo/index.html:demo": "Halaman rancangan sementara Lengan Myo (/lengan-myo/), bukan fitur toko atau layar admin; tidak diajarkan lewat panduan chat.",
   "tombol:public/peta-agen.html:data-f:Belajar": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "tombol:public/peta-agen.html:data-f:Fina": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",
   "tombol:public/peta-agen.html:data-f:Mesin bersama": "Kontrol tampilan halaman Peta Agen khusus Owner (sorot, zoom, salin lokasi berkas); peta rancangan untuk developer, bukan pekerjaan toko lewat panduan chat.",

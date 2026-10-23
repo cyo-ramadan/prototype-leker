@@ -730,6 +730,33 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/fina-wa.js:/^\\/api\\/entity-admin\\/fina\\/wa\\/keluar\\/([^/]+)\\/(setujui|batal)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/^\\/api\\/entity-admin\\/fina\\/wa\\/keluar\\/([^/]+)\\/(setujui|batal)$/",
+    "label": "/^\\/api\\/entity-admin\\/fina\\/wa\\/keluar\\/([^/]+)\\/(setujui|batal)$/",
+    "skin": null
+  },
+  {
+    "id": "pola:src/fina-wa.js:/^\\/api\\/entity-admin\\/fina\\/wa\\/masuk\\/([^/]+)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/^\\/api\\/entity-admin\\/fina\\/wa\\/masuk\\/([^/]+)$/",
+    "label": "/^\\/api\\/entity-admin\\/fina\\/wa\\/masuk\\/([^/]+)$/",
+    "skin": null
+  },
+  {
+    "id": "pola:src/fina-wa.js:/^\\/api\\/fina\\/wa\\/gateway\\/keluar\\/([^/]+)\\/hasil$/",
+    "jenis": "rute-pola",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/^\\/api\\/fina\\/wa\\/gateway\\/keluar\\/([^/]+)\\/hasil$/",
+    "label": "/^\\/api\\/fina\\/wa\\/gateway\\/keluar\\/([^/]+)\\/hasil$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/hutang-piutang.js:/^\\/api\\/admin\\/hutang-piutang\\/payments\\/([^/]+)\\/void$/",
     "jenis": "rute-pola",
     "sumber": "src/hutang-piutang.js",
@@ -1675,6 +1702,69 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/calon-pelamar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/calon-pelamar",
+    "label": "/api/entity-admin/fina/wa/calon-pelamar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/jadikan-pelamar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/jadikan-pelamar",
+    "label": "/api/entity-admin/fina/wa/jadikan-pelamar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/keluar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/keluar",
+    "label": "/api/entity-admin/fina/wa/keluar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/kontak-cs",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/kontak-cs",
+    "label": "/api/entity-admin/fina/wa/kontak-cs",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/fina/wa/pelamar-ringkas",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/pelamar-ringkas",
+    "label": "/api/entity-admin/fina/wa/pelamar-ringkas",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/entity-admin/stores",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/entity-admin/stores",
+    "label": "/api/entity-admin/stores",
+    "skin": null
+  },
+  {
+    "id": "rute:src/agen-fina-tulis.js:/api/owner/stores",
+    "jenis": "rute-kandidat",
+    "sumber": "src/agen-fina-tulis.js",
+    "method": null,
+    "rute": "/api/owner/stores",
+    "label": "/api/owner/stores",
+    "skin": null
+  },
+  {
     "id": "rute:src/akun-gerai.js:/api/entity-admin/akun-gerai",
     "jenis": "rute-kandidat",
     "sumber": "src/akun-gerai.js",
@@ -2437,6 +2527,51 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/entity-admin/fina/surat$",
     "label": "/api/entity-admin/fina/surat$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/wa/calon-pelamar$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/calon-pelamar$",
+    "label": "/api/entity-admin/fina/wa/calon-pelamar$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/wa/jadikan-pelamar$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/jadikan-pelamar$",
+    "label": "/api/entity-admin/fina/wa/jadikan-pelamar$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/wa/keluar$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/keluar$",
+    "label": "/api/entity-admin/fina/wa/keluar$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/wa/kontak-cs$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/kontak-cs$",
+    "label": "/api/entity-admin/fina/wa/kontak-cs$",
+    "skin": null
+  },
+  {
+    "id": "rute:src/caca-chat.js:/api/entity-admin/fina/wa/pelamar-ringkas$",
+    "jenis": "rute-kandidat",
+    "sumber": "src/caca-chat.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/pelamar-ringkas$",
+    "label": "/api/entity-admin/fina/wa/pelamar-ringkas$",
     "skin": null
   },
   {
@@ -3229,6 +3364,96 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/publik/loker/",
     "label": "/api/publik/loker/",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/",
+    "label": "/api/entity-admin/fina/wa/",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/calon-pelamar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/calon-pelamar",
+    "label": "/api/entity-admin/fina/wa/calon-pelamar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/jadikan-pelamar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/jadikan-pelamar",
+    "label": "/api/entity-admin/fina/wa/jadikan-pelamar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/keluar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/keluar",
+    "label": "/api/entity-admin/fina/wa/keluar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/kontak-cs",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/kontak-cs",
+    "label": "/api/entity-admin/fina/wa/kontak-cs",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/masuk",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/masuk",
+    "label": "/api/entity-admin/fina/wa/masuk",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/entity-admin/fina/wa/pelamar-ringkas",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/entity-admin/fina/wa/pelamar-ringkas",
+    "label": "/api/entity-admin/fina/wa/pelamar-ringkas",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/fina/wa/gateway/",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/fina/wa/gateway/",
+    "label": "/api/fina/wa/gateway/",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/fina/wa/gateway/keluar",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/fina/wa/gateway/keluar",
+    "label": "/api/fina/wa/gateway/keluar",
+    "skin": null
+  },
+  {
+    "id": "rute:src/fina-wa.js:/api/fina/wa/gateway/masuk",
+    "jenis": "rute-kandidat",
+    "sumber": "src/fina-wa.js",
+    "method": null,
+    "rute": "/api/fina/wa/gateway/masuk",
+    "label": "/api/fina/wa/gateway/masuk",
     "skin": null
   },
   {
@@ -10626,6 +10851,50 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-store-report.js"
   },
   {
+    "id": "tombol:public/fina-inbox.js:data-inbox-baca:Tandai dibaca",
+    "jenis": "tombol",
+    "sumber": "public/fina-inbox.js",
+    "tombolId": null,
+    "aksi": "data-inbox-baca",
+    "label": "Tandai dibaca",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/fina-inbox.js"
+  },
+  {
+    "id": "tombol:public/fina-inbox.js:data-keluar-batal:Batal",
+    "jenis": "tombol",
+    "sumber": "public/fina-inbox.js",
+    "tombolId": null,
+    "aksi": "data-keluar-batal",
+    "label": "Batal",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/fina-inbox.js"
+  },
+  {
+    "id": "tombol:public/fina-inbox.js:data-keluar-setujui:Setujui",
+    "jenis": "tombol",
+    "sumber": "public/fina-inbox.js",
+    "tombolId": null,
+    "aksi": "data-keluar-setujui",
+    "label": "Setujui",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/fina-inbox.js"
+  },
+  {
+    "id": "tombol:public/fina-inbox.js:label:Muat ulang",
+    "jenis": "tombol",
+    "sumber": "public/fina-inbox.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Muat ulang",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/fina-inbox.js"
+  },
+  {
     "id": "tombol:public/foto-lihat.js:label:Tutup",
     "jenis": "tombol",
     "sumber": "public/foto-lihat.js",
@@ -11438,6 +11707,61 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/info-gerai.js"
+  },
+  {
+    "id": "tombol:public/lengan-myo/index.html:data-view:Atas",
+    "jenis": "tombol",
+    "sumber": "public/lengan-myo/index.html",
+    "tombolId": null,
+    "aksi": "data-view",
+    "label": "Atas",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/lengan-myo/index.html"
+  },
+  {
+    "id": "tombol:public/lengan-myo/index.html:data-view:Isi rangka",
+    "jenis": "tombol",
+    "sumber": "public/lengan-myo/index.html",
+    "tombolId": null,
+    "aksi": "data-view",
+    "label": "Isi rangka",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/lengan-myo/index.html"
+  },
+  {
+    "id": "tombol:public/lengan-myo/index.html:data-view:Samping",
+    "jenis": "tombol",
+    "sumber": "public/lengan-myo/index.html",
+    "tombolId": null,
+    "aksi": "data-view",
+    "label": "Samping",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/lengan-myo/index.html"
+  },
+  {
+    "id": "tombol:public/lengan-myo/index.html:data-view:Telapak",
+    "jenis": "tombol",
+    "sumber": "public/lengan-myo/index.html",
+    "tombolId": null,
+    "aksi": "data-view",
+    "label": "Telapak",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/lengan-myo/index.html"
+  },
+  {
+    "id": "tombol:public/lengan-myo/index.html:demo",
+    "jenis": "tombol",
+    "sumber": "public/lengan-myo/index.html",
+    "tombolId": "demo",
+    "aksi": null,
+    "label": "Putar gerak",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/lengan-myo/index.html"
   },
   {
     "id": "tombol:public/login.html:staffSubmit",
@@ -15469,6 +15793,24 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": null,
     "label": "request.method === 'POST') return pelamarManual(request, db, context, actor);",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-wa.js:request.method === 'PATCH')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-wa.js",
+    "method": "PATCH",
+    "rute": null,
+    "label": "request.method === 'PATCH')",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/fina-wa.js:request.method === 'POST')",
+    "jenis": "rute-tulis",
+    "sumber": "src/fina-wa.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method === 'POST')",
     "skin": null
   },
   {

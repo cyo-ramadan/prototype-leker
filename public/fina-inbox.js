@@ -1,4 +1,4 @@
-// Entity Admin -> Pengaturan -> Kotak masuk WA Fina (Bos Cyo, 2026-10-22; migration 0183).
+// Entity Admin -> Pengaturan -> Kotak masuk WA Fina (Bos Cyo, 2026-10-22; migration 0184).
 // Pesan WA yang diteruskan gateway laptop, dikenali sebagai pelamar / karyawan / asing, dan antrean
 // pesan keluar. Pesan keluar yang dibuat Fina lewat "Ya" sudah disetujui; yang masih Draft perlu
 // tombol Setujui di sini. Dimuat saat tab Pengaturan dibuka atau tombol Muat ulang, tanpa polling.

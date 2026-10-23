@@ -20,7 +20,7 @@ const PUBLIK_LAMARAN = '/api/publik/lamaran';
 export const STATUS_LOWONGAN = Object.freeze(['DRAFT', 'TAYANG', 'TUTUP']);
 export const STATUS_PELAMAR = Object.freeze(['BARU', 'SCREENING', 'INTERVIEW', 'DITERIMA', 'DITOLAK']);
 export const SUMBER_PELAMAR = Object.freeze(['WEB', 'FB', 'IG', 'WA', 'LAIN']);
-// Sumber yang boleh dipilih Admin saat input manual (0181).
+// Sumber yang boleh dipilih Admin saat input manual (0182).
 export const SUMBER_PELAMAR_MANUAL = Object.freeze(['MANUAL', 'WA', 'IG', 'FB', 'EMAIL', 'WEB', 'LAIN']);
 // Batas teknis anti-spam (bukan aturan HR tenant).
 export const BATAS_LAMARAN = Object.freeze({ perNomorPerHari: 1, perIpPerJam: 10, maksBytes: 8 * 1024 });
@@ -171,7 +171,7 @@ async function pelamarApi(request, env, pathname, context, actor) {
     const lowongan = url.searchParams.get('lowongan');
     const status = url.searchParams.get('status');
     const gerai = url.searchParams.get('store');
-    // LEFT JOIN: pelamar yang diinput manual (0181) tidak selalu punya lowongan.
+    // LEFT JOIN: pelamar yang diinput manual (0182) tidak selalu punya lowongan.
     const rows = (await db.prepare(`SELECT p.*, COALESCE(NULLIF(p.posisi, ''), l.posisi, '') AS posisi_tampil, s.code AS store_code
       FROM hr_pelamar p LEFT JOIN hr_lowongan l ON l.id = p.lowongan_id LEFT JOIN stores s ON s.id = p.store_id
       WHERE p.entity_id = ? ${lowongan ? 'AND p.lowongan_id = ?' : ''} ${status ? 'AND p.status = ?' : ''} ${gerai ? 'AND p.store_id = ?' : ''}

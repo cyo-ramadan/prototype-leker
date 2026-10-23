@@ -1,4 +1,5 @@
 import { listDrawerPermitHistory } from './drawer-permit-history.js';
+import { getDrawerOpeningCheck } from './tugas-buka-laci.js';
 
 const number = value => Number(value || 0);
 
@@ -278,8 +279,12 @@ export async function buildDrawerReport(db, storeId, drawerId) {
   const expectedCash = drawer.openingAmount + realCashRevenue + cashInTotal + operationalCashInTotal
     - cashPurchaseTotal - cashExpenseTotal - operationalCashOutTotal;
 
+  // Tugas Buka Laci (2026-10-23): hasil stok opname, hitung uang, dan cek
+  // aset saat laci ini dibuka -- null untuk laci yang tidak wajib.
+  const openingCheck = await getDrawerOpeningCheck(db, drawerId);
   return {
     drawer,
+    openingCheck,
     sections: {
       cashSales,
       promotions,

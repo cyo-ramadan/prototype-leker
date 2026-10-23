@@ -42,6 +42,7 @@ import { handleStaffPortalApi } from './staff-portal.js';
 import { handleStaffManualBookApi } from './staff-manual-book.js';
 import { handleStaffAnnouncementApi } from './staff-announcement.js';
 import { handleStaffDailyTaskApi } from './staff-daily-task.js';
+import { handleTugasBukaLaciApi } from './tugas-buka-laci.js';
 import { handleAdminCashierRaportApi } from './staff-raport.js';
 import { handleCacaApi } from './caca-chat.js';
 import { handlePercetakanApi } from './percetakan-api.js';
@@ -479,6 +480,8 @@ async function handleApiRouted(request, env, url, ctx) {
   if (announcementResponse) return announcementResponse;
   const dailyTaskResponse = await handleStaffDailyTaskApi(request, env, pathname);
   if (dailyTaskResponse) return dailyTaskResponse;
+  const tugasBukaLaciResponse = await handleTugasBukaLaciApi(request, env, pathname);
+  if (tugasBukaLaciResponse) return tugasBukaLaciResponse;
   // Una menulis lewat pintu masuk ini juga (bukan handler modul langsung),
   // supaya pembungkus seperti jembatan Akuntansi ikut berlaku.
   const cacaResponse = await handleCacaApi(request, env, pathname, {

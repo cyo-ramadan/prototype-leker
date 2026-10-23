@@ -353,8 +353,20 @@
     const target = el('staffDailyTaskList'); if (!target) return;
     const tasks = dailyTasks?.tasks || [];
     if (dailyTasks?.businessDate) el('dailyTaskDate').textContent = `Tanggal: ${escapeHtml(dailyTasks.businessDate)}`;
-    if (!tasks.length) { target.innerHTML = '<div class="staff-empty">Admin belum mengatur tugas harian untuk gerai ini.</div>'; return; }
-    target.innerHTML = tasks.map(task => `
+    // Tugas Buka Laci (2026-10-23, src/tugas-buka-laci.js): stok opname + uang laci + aset,
+    // wajib tiap buka laci dan dikerjakan di layar kasir -- di sini tampil sebagai tugas pertama.
+    const opening = dailyTasks?.openingCheck;
+    const openingParts = opening ? [['Stok opname', opening.stock?.doneAt], ['Uang laci', opening.cash?.doneAt], ['Aset', opening.assets?.doneAt]] : [];
+    const openingCard = `
+      <div class="staff-card" style="margin-bottom:10px">
+        <strong>📋 Tugas Buka Laci</strong>
+        <div class="muted">Wajib setiap buka laci: stok opname semua bahan, hitung uang laci, cek aset (apron).</div>
+        ${opening ? `<div class="muted" style="margin-top:6px">${openingParts.map(([label, done]) => `${done ? '✓' : '○'} ${escapeHtml(label)}`).join(' · ')}</div>` : '<div class="muted" style="margin-top:6px">Belum ada laci yang kamu buka hari ini.</div>'}
+        ${opening?.completedAt ? `<div class="muted" style="font-weight:800;color:#2f9e44;margin-top:6px">✓ Selesai · ${escapeHtml(dateTime(opening.completedAt))}${opening.cash?.difference ? ` · uang laci ${opening.cash.difference > 0 ? 'lebih' : 'kurang'} ${money(Math.abs(opening.cash.difference))}` : ''}</div>` : ''}
+        ${opening && !opening.completedAt && opening.drawerOpen ? '<a class="primary-btn" href="/cashier#tugas-buka-laci" style="display:inline-block;margin-top:8px;text-decoration:none">Kerjakan di Kasir</a>' : ''}
+      </div>`;
+    if (!tasks.length) { target.innerHTML = `${openingCard}<div class="staff-empty">Admin belum mengatur tugas harian lain untuk gerai ini.</div>`; return; }
+    target.innerHTML = openingCard + tasks.map(task => `
       <div class="staff-card" style="margin-bottom:10px">
         <strong>${escapeHtml(task.title)}</strong>
         ${task.description ? `<div class="muted">${escapeHtml(task.description)}</div>` : ''}

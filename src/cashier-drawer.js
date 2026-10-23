@@ -5,6 +5,7 @@ import { buildDrawerReport, listStoreDrawers } from './drawer-report.js';
 import { isMultipartRequest, readLivePhoto } from './live-photo.js';
 import { createEmployeeDepositReceivable } from './employee-deposit-settlement.js';
 import { optionalMoney, resolveDrawerDeposit } from './drawer-deposit.js';
+import { tugasBukaLaciWajib, tugasBukaLaciInsert } from './tugas-buka-laci.js';
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const money = value => {
@@ -27,6 +28,7 @@ function mapDrawer(row) {
     shiftLabel: row.shift_label || '',
     openingNote: row.opening_note || '',
     closingNote: row.closing_note || '',
+    openingCheckStatus: row.opening_check_status || '',
     status: row.status,
     openedAt: row.opened_at,
     closedAt: row.closed_at
@@ -45,7 +47,7 @@ export async function getOpenDrawer(db, storeId) {
   const row = await db.prepare(`
     SELECT d.id, d.store_id, d.cashier_id, d.opening_amount, d.closing_amount,
            d.deposit_amount, d.incentive_amount, d.shift_label, d.opening_note, d.closing_note,
-           d.status, d.opened_at, d.closed_at, c.employee_name, c.username
+           d.opening_check_status, d.status, d.opened_at, d.closed_at, c.employee_name, c.username
     FROM cash_drawer_sessions d
     JOIN cashiers c ON c.id = d.cashier_id
     WHERE d.store_id = ? AND d.status = 'OPEN'
@@ -60,7 +62,12 @@ export async function getOpenDrawer(db, storeId) {
 // sendiri yang membuka laci. Jangan ganti ini jadi "siapa pun kasir aktif
 // boleh menulis" lagi tanpa persetujuan eksplisit -- itu sudah pernah dicoba
 // dan dikoreksi balik hari yang sama.
-export async function requireDrawerOwner(db, cashier) {
+//
+// Tugas Buka Laci (Bos Cyo, 2026-10-23): laci yang masih PENDING ditolak
+// untuk semua transaksi. Hanya pemanggil yang memang bagian dari tugas itu
+// (opsi stok opname, Penyesuaian Stok, daftar pengajuan, tutup laci) yang
+// mengoper allowPendingOpeningCheck.
+export async function requireDrawerOwner(db, cashier, { allowPendingOpeningCheck = false } = {}) {
   const drawer = await getOpenDrawer(db, cashier.store.id);
   if (!drawer) {
     return { ok: false, response: json({ error: 'Laci kas belum dibuka.', code: 'DRAWER_NOT_OPEN' }, 409) };
@@ -73,6 +80,16 @@ export async function requireDrawerOwner(db, cashier) {
         code: 'DRAWER_OWNED_BY_OTHER',
         drawer
       }, 403)
+    };
+  }
+  if (drawer.openingCheckStatus === 'PENDING' && !allowPendingOpeningCheck) {
+    return {
+      ok: false,
+      response: json({
+        error: 'Selesaikan Tugas Buka Laci dulu (stok opname, hitung uang laci, cek aset).',
+        code: 'OPENING_CHECK_REQUIRED',
+        drawer
+      }, 423)
     };
   }
   return { ok: true, drawer };
@@ -184,18 +201,22 @@ export async function handleCashierDrawerApi(request, env, pathname) {
     if (openingAmount === null) return json({ error: 'Saldo awal laci tidak valid.' }, 400);
     const id = `drawer_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    await db.prepare(`
+    const openingCheck = await tugasBukaLaciWajib(db, cashier);
+    const statements = [db.prepare(`
       INSERT INTO cash_drawer_sessions (
         id, store_id, cashier_id, opening_amount, closing_amount, status,
-        opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount
-      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0)
-    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500)).run();
+        opened_at, closed_at, shift_label, opening_note, closing_note, incentive_amount, opening_check_status
+      ) VALUES (?, ?, ?, ?, NULL, 'OPEN', ?, NULL, ?, ?, '', 0, ?)
+    `).bind(id, cashier.store.id, cashier.id, openingAmount, now, text(body.value?.shiftLabel, 60), text(body.value?.openingNote, 500), openingCheck ? 'PENDING' : '')];
+    if (openingCheck) statements.push(tugasBukaLaciInsert(db, { drawerId: id, cashier, now }));
+    if (statements.length === 1) await statements[0].run();
+    else await db.batch(statements);
 
     return json({ ok: true, drawer: await getOpenDrawer(db, cashier.store.id), canWrite: true }, 201);
   }
 
   if (request.method === 'POST' && pathname === '/api/cashier/drawer/close') {
-    const ownership = await requireDrawerOwner(db, cashier);
+    const ownership = await requireDrawerOwner(db, cashier, { allowPendingOpeningCheck: true });
     if (!ownership.ok) return ownership.response;
 
     let closingAmount;

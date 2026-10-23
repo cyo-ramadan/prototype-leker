@@ -3,6 +3,7 @@ import { DEFAULT_STORE_CODE, resolveStore } from './stores.js';
 import { requireManagement } from './owner-auth.js';
 import { requireCashier } from './cashier-auth.js';
 import { getJakartaBusinessDate } from './time.js';
+import { openingCheckForDailyTask } from './tugas-buka-laci.js';
 
 // Bos Cyo, 2026-09-19: "portal staf kasih tombol daily task ya, nanti
 // isi2nya aku mau kasih seperti pakai appron, bersih2, tes rasa2 ...
@@ -23,7 +24,8 @@ function mapTemplate(row) {
     title: row.title,
     description: row.description || '',
     isActive: Boolean(row.is_active),
-    sortOrder: row.sort_order
+    sortOrder: row.sort_order,
+    kind: row.kind === 'ASSET' ? 'ASSET' : 'TASK'
   };
 }
 
@@ -47,11 +49,14 @@ export async function handleStaffDailyTaskApi(request, env, pathname) {
       FROM daily_task_templates t
       LEFT JOIN daily_task_completions c
         ON c.template_id = t.id AND c.cashier_id = ? AND c.business_date = ?
-      WHERE t.store_id = ? AND t.is_active = 1
+      WHERE t.store_id = ? AND t.is_active = 1 AND t.kind = 'TASK'
       ORDER BY t.sort_order, t.title COLLATE NOCASE
     `).bind(auth.cashier.id, businessDate, auth.cashier.store.id).all();
     return json({
       businessDate,
+      // Tugas Buka Laci (2026-10-23) -- dikerjakan di layar kasir, di sini
+      // tampil sebagai tugas harian pertama beserta statusnya.
+      openingCheck: await openingCheckForDailyTask(db, auth.cashier, businessDate),
       tasks: (rows.results ?? []).map(row => ({
         id: row.id,
         title: row.title,
@@ -70,7 +75,7 @@ export async function handleStaffDailyTaskApi(request, env, pathname) {
     if (!body.ok) return json({ error: 'Payload tidak valid.' }, 400);
     const templateId = text(body.value?.templateId, 80);
     if (!templateId) return json({ error: 'templateId wajib diisi.' }, 400);
-    const template = await db.prepare('SELECT id FROM daily_task_templates WHERE id = ? AND store_id = ? AND is_active = 1')
+    const template = await db.prepare("SELECT id FROM daily_task_templates WHERE id = ? AND store_id = ? AND is_active = 1 AND kind = 'TASK'")
       .bind(templateId, auth.cashier.store.id).first();
     if (!template) return json({ error: 'Tugas tidak ditemukan di gerai ini.' }, 404);
     const businessDate = getJakartaBusinessDate();
@@ -97,9 +102,9 @@ export async function handleStaffDailyTaskApi(request, env, pathname) {
 
   if (request.method === 'GET' && pathname === '/api/admin/daily-task-templates') {
     const rows = await db.prepare(`
-      SELECT id, title, description, is_active, sort_order
+      SELECT id, title, description, is_active, sort_order, kind
       FROM daily_task_templates WHERE store_id = ?
-      ORDER BY sort_order, title COLLATE NOCASE
+      ORDER BY kind DESC, sort_order, title COLLATE NOCASE
     `).bind(store.id).all();
     return json({ templates: (rows.results ?? []).map(mapTemplate), store });
   }
@@ -111,11 +116,13 @@ export async function handleStaffDailyTaskApi(request, env, pathname) {
     if (!title) return json({ error: 'Judul tugas wajib diisi.' }, 400);
     const description = text(body.value?.description, 500);
     const sortOrder = Number.isFinite(Number(body.value?.sortOrder)) ? Math.trunc(Number(body.value.sortOrder)) : 0;
+    // kind ASSET = aset yang dicek di Tugas Buka Laci (src/tugas-buka-laci.js).
+    const kind = String(body.value?.kind || '').toUpperCase() === 'ASSET' ? 'ASSET' : 'TASK';
     const id = `dailytask_${crypto.randomUUID()}`;
     await db.prepare(`
-      INSERT INTO daily_task_templates (id, store_id, title, description, is_active, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).bind(id, store.id, title, description, sortOrder).run();
+      INSERT INTO daily_task_templates (id, store_id, title, description, is_active, sort_order, kind, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).bind(id, store.id, title, description, sortOrder, kind).run();
     return json({ ok: true, id }, 201);
   }
 
@@ -139,6 +146,7 @@ export async function handleStaffDailyTaskApi(request, env, pathname) {
     if (owns('description')) { fields.push('description = ?'); values.push(text(body.value.description, 500)); }
     if (owns('sortOrder')) { fields.push('sort_order = ?'); values.push(Math.trunc(Number(body.value.sortOrder)) || 0); }
     if (owns('isActive')) { fields.push('is_active = ?'); values.push(body.value.isActive ? 1 : 0); }
+    if (owns('kind')) { fields.push('kind = ?'); values.push(String(body.value.kind || '').toUpperCase() === 'ASSET' ? 'ASSET' : 'TASK'); }
     if (!fields.length) return json({ error: 'Tidak ada field untuk diubah.' }, 400);
     fields.push('updated_at = CURRENT_TIMESTAMP');
     await db.prepare(`UPDATE daily_task_templates SET ${fields.join(', ')} WHERE id = ? AND store_id = ?`).bind(...values, id, store.id).run();

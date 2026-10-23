@@ -122,6 +122,9 @@ test('only the drawer opener can write transactions; a second logged-in and pres
       env, '/api/cashier/drawer/open'
     );
     assert.equal(openRes.status, 201);
+    // Tugas Buka Laci (2026-10-23) diuji sendiri di test/tugas-buka-laci.test.js -- di sini
+    // dianggap sudah selesai supaya yang diuji tetap kepemilikan laci.
+    db.prepare("UPDATE cash_drawer_sessions SET opening_check_status = 'DONE' WHERE cashier_id = ?").run(owner.id);
 
     // the other cashier logged in and presensi-ed fine, but is still read-only for entry
     const otherDrawer = await (await handleCashierDrawerApi(request('/api/cashier/drawer', { token: other.token }), env, '/api/cashier/drawer')).json();

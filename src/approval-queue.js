@@ -71,6 +71,74 @@ async function listRequests(db, { storeId = null, drawerId = null, cashierId = n
   return (result.results || []).map(mapRequest);
 }
 
+// Dipakai form Penyesuaian Stok kasir dan stok opname Tugas Buka Laci
+// (src/tugas-buka-laci.js) -- satu jalur validasi + posting langsung.
+export async function submitStockAdjustmentBatch(env, cashier, drawerId, items) {
+  const sessionId = `stockopname_${crypto.randomUUID()}`;
+  const seenProductIds = new Set();
+  const normalizedPayloads = [];
+  for (const item of items) {
+    const productId = Number(item?.productId);
+    if (seenProductIds.has(productId)) {
+      return { ok: false, status: 400, error: `Barang #${productId} muncul lebih dari sekali dalam satu pengajuan.` };
+    }
+    seenProductIds.add(productId);
+    const normalized = await normalizeApprovalPayload(env.DB, cashier.store.id, 'GOODS_FLOW', {
+      purpose: 'STOCK_ADJUSTMENT',
+      productId: item?.productId,
+      targetQuantity: item?.targetQuantity,
+      reason: item?.reason,
+      note: item?.note,
+      sessionId
+    });
+    if (!normalized.ok) return { ok: false, status: 400, error: normalized.error };
+    if (JSON.stringify(normalized.payload).length > 8000) return { ok: false, status: 400, error: 'Detail pengajuan maksimal 8 KB per barang.' };
+    normalizedPayloads.push(normalized.payload);
+  }
+
+  const now = new Date().toISOString();
+  const rows = normalizedPayloads.map(payload => ({ id: `approval_${crypto.randomUUID()}`, payload }));
+  await env.DB.batch(rows.map(row => env.DB.prepare(`
+    INSERT INTO approval_requests (
+      id, store_id, drawer_session_id, cashier_id, request_type,
+      approval_status, posting_status, payload_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
+  `).bind(row.id, cashier.store.id, drawerId, cashier.id, JSON.stringify(row.payload), now, now)));
+
+  // Bos Cyo, 2026-09-25: "kalo untuk penyesuaian stok itu engga usah minta
+  // acc an, langsung aja ya. kecuali arus barang harus acc an." Amends
+  // ADR-041 point 2 ("not per-request-type") for STOCK_ADJUSTMENT
+  // specifically -- it now ALWAYS posts immediately, regardless of the
+  // store's Auto Permit toggle (unlike plain Arus Barang, which still
+  // respects that toggle via the generic POST /api/cashier/approval-requests
+  // below). approverRole is 'SYSTEM' (established convention, e.g.
+  // payroll-ledger.js accruals), not 'AUTO_PERMIT' -- there is no human
+  // account that decided to turn this on, so it must not be misattributed
+  // to whoever last toggled Auto Permit (which may even be OFF).
+  //
+  // The management group-decide endpoint below (PATCH .../session/:id)
+  // stays in place as the recovery path: if posting fails for a reason
+  // other than a stale snapshot (which rejects outright here), the rows
+  // remain pending_approval/unposted and an Admin can still ACC/Reject them
+  // manually -- same "ACC lalu eksekusi dua statement terpisah" retry-safe
+  // shape as Permit Hapus Transaksi (KNOWN_PITFALLS.md).
+  const currents = await Promise.all(rows.map(row => getRequest(env.DB, row.id)));
+  const outcome = await applyGroupAccDecision(env, currents, {
+    approverRole: 'SYSTEM',
+    approverId: '',
+    now,
+    note: 'Penyesuaian Stok langsung posting (tidak butuh ACC)'
+  });
+  return {
+    ok: true,
+    sessionId,
+    requests: outcome.requests || currents,
+    posted: outcome.ok
+      ? { attempted: true, posted: true }
+      : { attempted: true, posted: false, code: outcome.code, reason: outcome.error }
+  };
+}
+
 async function handleCashierApprovalQueue(request, env, pathname) {
   const isApprovalRoute = pathname.startsWith('/api/cashier/approval-requests');
   const isStockAdjustmentOptions = pathname === '/api/cashier/stock-adjustment/options';
@@ -80,7 +148,7 @@ async function handleCashierApprovalQueue(request, env, pathname) {
   if (!auth.ok) return auth.response;
 
   if (request.method === 'GET' && isStockAdjustmentOptions) {
-    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier, { allowPendingOpeningCheck: true });
     if (!drawerAuth.ok) return drawerAuth.response;
     return json({ products: await listStockAdjustmentOptions(env.DB, auth.cashier.store.id) });
   }
@@ -105,68 +173,13 @@ async function handleCashierApprovalQueue(request, env, pathname) {
     if (!items.length) return json({ error: 'Batch Penyesuaian Stok membutuhkan minimal satu barang.' }, 400);
     if (items.length > 50) return json({ error: 'Batch Penyesuaian Stok maksimal 50 barang sekaligus.' }, 400);
 
-    const sessionId = `stockopname_${crypto.randomUUID()}`;
-    const seenProductIds = new Set();
-    const normalizedPayloads = [];
-    for (const item of items) {
-      const productId = Number(item?.productId);
-      if (seenProductIds.has(productId)) {
-        return json({ error: `Barang #${productId} muncul lebih dari sekali dalam satu pengajuan.` }, 400);
-      }
-      seenProductIds.add(productId);
-      const normalized = await normalizeApprovalPayload(env.DB, auth.cashier.store.id, 'GOODS_FLOW', {
-        purpose: 'STOCK_ADJUSTMENT',
-        productId: item?.productId,
-        targetQuantity: item?.targetQuantity,
-        reason: item?.reason,
-        note: item?.note,
-        sessionId
-      });
-      if (!normalized.ok) return json({ error: normalized.error }, 400);
-      if (JSON.stringify(normalized.payload).length > 8000) return json({ error: 'Detail pengajuan maksimal 8 KB per barang.' }, 400);
-      normalizedPayloads.push(normalized.payload);
-    }
-
-    const now = new Date().toISOString();
-    const rows = normalizedPayloads.map(payload => ({ id: `approval_${crypto.randomUUID()}`, payload }));
-    await env.DB.batch(rows.map(row => env.DB.prepare(`
-      INSERT INTO approval_requests (
-        id, store_id, drawer_session_id, cashier_id, request_type,
-        approval_status, posting_status, payload_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'GOODS_FLOW', 'pending_approval', 'unposted', ?, ?, ?)
-    `).bind(row.id, auth.cashier.store.id, drawerAuth.drawer.id, auth.cashier.id, JSON.stringify(row.payload), now, now)));
-
-    // Bos Cyo, 2026-09-25: "kalo untuk penyesuaian stok itu engga usah minta
-    // acc an, langsung aja ya. kecuali arus barang harus acc an." Amends
-    // ADR-041 point 2 ("not per-request-type") for STOCK_ADJUSTMENT
-    // specifically -- it now ALWAYS posts immediately, regardless of the
-    // store's Auto Permit toggle (unlike plain Arus Barang, which still
-    // respects that toggle via the generic POST /api/cashier/approval-requests
-    // below). approverRole is 'SYSTEM' (established convention, e.g.
-    // payroll-ledger.js accruals), not 'AUTO_PERMIT' -- there is no human
-    // account that decided to turn this on, so it must not be misattributed
-    // to whoever last toggled Auto Permit (which may even be OFF).
-    //
-    // The management group-decide endpoint below (PATCH .../session/:id)
-    // stays in place as the recovery path: if posting fails for a reason
-    // other than a stale snapshot (which rejects outright here), the rows
-    // remain pending_approval/unposted and an Admin can still ACC/Reject them
-    // manually -- same "ACC lalu eksekusi dua statement terpisah" retry-safe
-    // shape as Permit Hapus Transaksi (KNOWN_PITFALLS.md).
-    const currents = await Promise.all(rows.map(row => getRequest(env.DB, row.id)));
-    const outcome = await applyGroupAccDecision(env, currents, {
-      approverRole: 'SYSTEM',
-      approverId: '',
-      now,
-      note: 'Penyesuaian Stok langsung posting (tidak butuh ACC)'
-    });
+    const result = await submitStockAdjustmentBatch(env, auth.cashier, drawerAuth.drawer.id, items);
+    if (!result.ok) return json({ error: result.error }, result.status || 400);
     return json({
       ok: true,
-      sessionId,
-      requests: outcome.requests || currents,
-      posted: outcome.ok
-        ? { attempted: true, posted: true }
-        : { attempted: true, posted: false, code: outcome.code, reason: outcome.error }
+      sessionId: result.sessionId,
+      requests: result.requests,
+      posted: result.posted
     }, 201);
   }
 
@@ -214,7 +227,7 @@ async function handleCashierApprovalQueue(request, env, pathname) {
   }
 
   if (request.method === 'GET' && pathname === '/api/cashier/approval-requests') {
-    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier);
+    const drawerAuth = await requireDrawerOwner(env.DB, auth.cashier, { allowPendingOpeningCheck: true });
     if (!drawerAuth.ok) return drawerAuth.response;
     return json({ requests: await listRequests(env.DB, { storeId: auth.cashier.store.id, drawerId: drawerAuth.drawer.id, cashierId: auth.cashier.id }) });
   }

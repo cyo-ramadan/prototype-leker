@@ -209,6 +209,9 @@ async function attachAttendanceScheduleGate(db, cashier, entityId) {
   cashier.store.priceOverrideAllowed = isRacikChoice(skinChoice);
   // Skin E/F: buka laci tanpa menunggu presensi (isAttendanceOptionalChoice).
   cashier.store.attendanceOptional = isAttendanceOptionalChoice(skinChoice);
+  // Dibaca endpoint buka laci (Tugas Buka Laci) tanpa query tenant tambahan.
+  cashier.store.tenantId = tenantId;
+  cashier.store.skinChoice = skinChoice;
   return cashier;
 }
 

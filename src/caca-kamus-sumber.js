@@ -256,6 +256,20 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "tugas_buka_laci": {
+    "sumber": [
+      "src/tugas-buka-laci.js",
+      "public/cashier-tugas-buka-laci.js",
+      "src/cashier-drawer.js",
+      "src/tenant-policy.js"
+    ],
+    "fitur": [
+      "pola:src/tugas-buka-laci.js:/^\\/api\\/cashier\\/drawer\\/opening-check\\/(stock|cash|assets)$/",
+      "rute:src/tugas-buka-laci.js:/api/cashier/drawer/opening-check",
+      "tombol:public/cashier-tugas-buka-laci.js:label:Kerjakan",
+      "tulis:src/tugas-buka-laci.js:request.method !== 'POST' || !match) return json("
+    ]
+  },
   "tutup_laci": {
     "sumber": [
       "src/cashier-drawer.js",

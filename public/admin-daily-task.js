@@ -16,8 +16,9 @@
           <form id="dailyTaskForm" class="admin-card sticky-form">
             <input id="dailyTaskId" type="hidden" />
             <div class="form-title-row"><h2 id="dailyTaskFormTitle">Tambah tugas harian</h2><button id="dailyTaskCancelEdit" class="text-btn hidden" type="button">Batal edit</button></div>
-            <div class="admin-tip" style="margin-bottom:12px">Daftar tugas ini yang muncul di tombol "Daily Task" Portal Staf gerai ini, contoh: pakai apron, bersih-bersih, tes rasa.</div>
-            <label class="admin-field">Judul tugas<input id="dailyTaskTitle" maxlength="100" required /></label>
+            <div class="admin-tip" style="margin-bottom:12px">Daftar tugas ini yang muncul di tombol "Daily Task" Portal Staf gerai ini, contoh: bersih-bersih, tes rasa. Jenis "Aset cek buka laci" (contoh: apron) dicek CS di Tugas Buka Laci setiap buka laci, bersama stok opname dan hitung uang laci.</div>
+            <label class="admin-field">Jenis<select id="dailyTaskKind"><option value="TASK">Tugas harian</option><option value="ASSET">Aset cek buka laci</option></select></label>
+            <label class="admin-field">Judul tugas / nama aset<input id="dailyTaskTitle" maxlength="100" required /></label>
             <label class="admin-field">Deskripsi <span class="field-note">opsional</span><textarea id="dailyTaskDescription" rows="2" maxlength="500"></textarea></label>
             <label class="admin-field">Urutan tampil <span class="field-note">angka kecil tampil duluan</span><input id="dailyTaskSortOrder" type="number" step="1" value="0" /></label>
             <label class="admin-check"><input id="dailyTaskActive" type="checkbox" checked /> Aktif</label>
@@ -60,7 +61,7 @@
         <div class="master-main">
           <strong>${escapeHtml(item.title)}</strong>
           ${item.description ? `<div class="master-meta">${escapeHtml(item.description)}</div>` : ''}
-          <div class="master-meta">Urutan ${item.sortOrder} · ${item.isActive ? 'Aktif' : 'Nonaktif'}</div>
+          <div class="master-meta">${item.kind === 'ASSET' ? 'Aset cek buka laci · ' : ''}Urutan ${item.sortOrder} · ${item.isActive ? 'Aktif' : 'Nonaktif'}</div>
         </div>
         <div class="master-actions">
           <button class="mini-btn" type="button" data-edit="${escapeHtml(item.id)}">Edit</button>
@@ -84,6 +85,7 @@
     el('dailyTaskId').value = '';
     el('dailyTaskSortOrder').value = 0;
     el('dailyTaskActive').checked = true;
+    el('dailyTaskKind').value = 'TASK';
     el('dailyTaskFormTitle').textContent = 'Tambah tugas harian';
     el('dailyTaskCancelEdit').classList.add('hidden');
   }
@@ -96,6 +98,7 @@
     el('dailyTaskDescription').value = item.description || '';
     el('dailyTaskSortOrder').value = item.sortOrder;
     el('dailyTaskActive').checked = item.isActive;
+    el('dailyTaskKind').value = item.kind === 'ASSET' ? 'ASSET' : 'TASK';
     el('dailyTaskFormTitle').textContent = 'Edit tugas harian';
     el('dailyTaskCancelEdit').classList.remove('hidden');
     switchTab();
@@ -109,7 +112,8 @@
       title: el('dailyTaskTitle').value,
       description: el('dailyTaskDescription').value,
       sortOrder: Number(el('dailyTaskSortOrder').value) || 0,
-      isActive: el('dailyTaskActive').checked
+      isActive: el('dailyTaskActive').checked,
+      kind: el('dailyTaskKind').value
     };
     try {
       await request(id ? `/api/admin/daily-task-templates/${encodeURIComponent(id)}` : '/api/admin/daily-task-templates', {

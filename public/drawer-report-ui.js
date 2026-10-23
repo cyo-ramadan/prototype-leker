@@ -207,6 +207,30 @@
     setTimeout(() => { button.textContent = original; }, 1600);
   });
 
+  // Tugas Buka Laci (2026-10-23, src/tugas-buka-laci.js): hasil cek saat laci dibuka.
+  function openingCheckSection(report) {
+    const check = report.openingCheck;
+    if (!check) return '';
+    const cash = check.cash || {};
+    const assets = check.assets?.items || [];
+    const stockLines = check.stock?.lines || [];
+    const cashText = cash.doneAt
+      ? `Hitung fisik ${rupiah(cash.countedAmount)} · sistem ${rupiah(cash.systemAmount)}${cash.difference ? ` · <b>${cash.difference > 0 ? 'lebih' : 'kurang'} ${rupiah(Math.abs(cash.difference))}</b>` : ' · cocok'}`
+      : 'Belum dihitung';
+    const stockText = check.stock?.doneAt
+      ? `${number(check.stock.itemCount)} bahan dihitung · ${number(check.stock.diffCount)} berselisih (lihat Penyesuaian Stok)`
+      : 'Belum dikerjakan';
+    const assetText = check.assets?.doneAt
+      ? assets.map(item => `${item.present ? '✓' : '✗'} ${esc(item.name)}${item.note ? ` (${esc(item.note)})` : ''}`).join(' · ') || '-'
+      : 'Belum dicek';
+    return section('TUGAS BUKA LACI', `<div class="drawer-line-list">
+        <div class="drawer-line-row"><span>Status</span><span class="drawer-line-amount">${check.completedAt ? `Selesai ${esc(dateTime(check.completedAt))}` : 'Belum selesai'}</span></div>
+        <div class="drawer-line-row"><span>Stok opname</span><span class="drawer-line-amount">${esc(stockText)}</span></div>
+        <div class="drawer-line-row"><span>Uang laci saat buka</span><span class="drawer-line-amount">${cashText}</span></div>
+        <div class="drawer-line-row"><span>Aset</span><span class="drawer-line-amount">${assetText}</span></div>
+      </div>${stockLines.length ? table(['BAHAN', 'TERCATAT', 'NYATA', 'SELISIH'], stockLines.map(line => `<tr><td>${esc(line.productName)}</td><td>${number(line.recorded)}</td><td>${number(line.actual)}</td><td>${number(line.difference)}</td></tr>`).join('')) : ''}`);
+  }
+
   function render(report) {
     if (!report?.drawer) return '<div class="empty">Detail laci tidak tersedia.</div>';
     lastReportForCopy = report;
@@ -261,6 +285,7 @@
       </div>
       ${drawer.openingNote ? `<div class="drawer-report-note"><b>Keterangan Buka:</b> ${esc(drawer.openingNote)}</div>` : ''}
       ${drawer.closingNote ? `<div class="drawer-report-note"><b>Keterangan Pulang:</b> ${esc(drawer.closingNote)}</div>` : ''}
+      ${openingCheckSection(report)}
 
       ${section('1. PENJUALAN BAYAR TUNAI', salesTable(sections.cashSales || [], totals.cashSales, totals.cashSalesItems))}
       ${section('2. PROMOSI', `${promoList}<div class="drawer-report-total">Total <b>${rupiah(totals.promotions)}</b></div>`)}

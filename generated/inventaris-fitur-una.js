@@ -1162,6 +1162,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "skin": null
   },
   {
+    "id": "pola:src/tugas-buka-laci.js:/^\\/api\\/cashier\\/drawer\\/opening-check\\/(stock|cash|assets)$/",
+    "jenis": "rute-pola",
+    "sumber": "src/tugas-buka-laci.js",
+    "method": null,
+    "rute": "/^\\/api\\/cashier\\/drawer\\/opening-check\\/(stock|cash|assets)$/",
+    "label": "/^\\/api\\/cashier\\/drawer\\/opening-check\\/(stock|cash|assets)$/",
+    "skin": null
+  },
+  {
     "id": "pola:src/voucher.js:/^\\/api\\/admin\\/vouchers\\/([^/]+)$/",
     "jenis": "rute-pola",
     "sumber": "src/voucher.js",
@@ -4939,6 +4948,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": null,
     "rute": "/api/management/transaction-void-permits/hpp-putar-ulang",
     "label": "/api/management/transaction-void-permits/hpp-putar-ulang",
+    "skin": null
+  },
+  {
+    "id": "rute:src/tugas-buka-laci.js:/api/cashier/drawer/opening-check",
+    "jenis": "rute-kandidat",
+    "sumber": "src/tugas-buka-laci.js",
+    "method": null,
+    "rute": "/api/cashier/drawer/opening-check",
+    "label": "/api/cashier/drawer/opening-check",
     "skin": null
   },
   {
@@ -8968,6 +8986,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "rute": null,
     "skin": null,
     "halaman": "public/cashier-stock-adjustment-pilatu.js"
+  },
+  {
+    "id": "tombol:public/cashier-tugas-buka-laci.js:label:Kerjakan",
+    "jenis": "tombol",
+    "sumber": "public/cashier-tugas-buka-laci.js",
+    "tombolId": null,
+    "aksi": null,
+    "label": "Kerjakan",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/cashier-tugas-buka-laci.js"
   },
   {
     "id": "tombol:public/cashier.html:assetBtn",
@@ -16819,6 +16848,15 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "method": "POST",
     "rute": "/api/cashier/transaction-void/permits",
     "label": "/api/cashier/transaction-void/permits",
+    "skin": null
+  },
+  {
+    "id": "tulis:src/tugas-buka-laci.js:request.method !== 'POST' || !match) return json(",
+    "jenis": "rute-tulis",
+    "sumber": "src/tugas-buka-laci.js",
+    "method": "POST",
+    "rute": null,
+    "label": "request.method !== 'POST' || !match) return json(",
     "skin": null
   },
   {

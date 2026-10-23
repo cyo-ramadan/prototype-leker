@@ -305,6 +305,7 @@ Aturan untuk **semua sesi** (pengembangan, Caca/Una, UI/UX, agen implementer):
 | 2026-10-18 | Codex / Kasir | Kolam QRIS di menu Data dibuka dari tombol di sebelah Stok; Cara bayar tetap menjadi filter transaksi. Panduan Una mengikuti lokasi tombol baru | UJI | Mempermudah akses kolam QRIS; tidak mengubah aturan klaim atau pembukuan |
 | 2026-10-18 | Codex / Kasir | Kolam QRIS memiliki filter Semua, Belum diklaim, dan Sudah diklaim; saat dibuka langsung menampilkan Belum diklaim dengan pengambilan data sesuai pilihan | UJI | CS lebih mudah mencari pembayaran baru; pemuatan kolam tidak mengambil daftar QRIS harian |
 | 2026-10-19 | Codex / Portal CS | Pengumuman tebal tentang klaim QRIS dan kontak darurat; jumlah laporan masuk Raport/KPI CS; angka merah Portal Staf menghitung pengumuman dan inbox belum dibaca | UJI | Kontribusi informasi gerai terukur; tidak menambahkan bobot atau grade otomatis |
+| 2026-10-23 | Eskor / Kasir + Portal Staf | Tugas Buka Laci: setiap CS buka laci wajib stok opname semua bahan (daftar sudah terisi, tinggal isi qty; selisih langsung jadi penyesuaian stok), hitung uang laci, dan cek aset seperti apron -- laci belum bisa dipakai jualan sebelum selesai; selisih uang dan aset yang tidak ada langsung dikabarkan ke admin dan tercatat di laporan laci; bisa dimatikan per usaha | UJI | Calon kelebihan "kontrol gerai harian tanpa sidak" -- §4 perlu ditinjau setelah dipakai CS |
 
 ---
 

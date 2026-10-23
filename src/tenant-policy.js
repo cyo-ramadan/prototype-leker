@@ -42,6 +42,10 @@ export const AI_MODEL_ANALISIS_KEY = 'ai_model_analisis';
 // Bos Cyo, 2026-10-21: "cs mau hapus, muncul pesan bener mau hapus atau cuma ganti nominal doang". ON: tombol
 // Hapus pembelian menawarkan "Ganti nominal saja" (izin koreksi nominal, satu ACC). OFF: hanya hapus.
 export const KOREKSI_NOMINAL_PEMBELIAN_KEY = 'koreksi_nominal_pembelian';
+// Bos Cyo, 2026-10-23: "setiap cs mau buka laci maka dia wajib stok opname ... ditambah lagi cek uang
+// laci saat itu juga sama aset". ON: sesudah laci dibuka, CS wajib Tugas Buka Laci (stok opname semua
+// bahan, hitung uang laci, cek aset) sebelum laci bisa dipakai transaksi. OFF: laci langsung dipakai.
+export const TUGAS_BUKA_LACI_KEY = 'tugas_buka_laci';
 export const UI_SKIN_OPTIONS = Object.freeze([
   { value: '0', label: '0 · Sekarang' },
   { value: 'A', label: 'A · Tenang' },
@@ -102,6 +106,11 @@ export function isPercetakanChoice(choice) {
 export function isOwnerOperatedChoice(choice) {
   return choice === OWNER_OPERATED_SKIN_CHOICE;
 }
+// Tugas Buka Laci hanya untuk skin yang memakai layar kasir biasa (/cashier). D/E (Mode Warung),
+// F (Racik) dan G (Percetakan) punya layar sendiri tanpa langkah ini, jadi lacinya tidak ditahan.
+export function usesTugasBukaLaciSkin(choice) {
+  return !['D', OWNER_OPERATED_SKIN_CHOICE, RACIK_SKIN_CHOICE, PERCETAKAN_SKIN_CHOICE].includes(choice);
+}
 
 export const TENANT_POLICY_DEFINITIONS = Object.freeze([
   {
@@ -144,6 +153,12 @@ export const TENANT_POLICY_DEFINITIONS = Object.freeze([
     key: KOREKSI_NOMINAL_PEMBELIAN_KEY,
     label: 'Ganti nominal pembelian',
     description: 'ON: saat CS menekan Hapus di pembelian bahan, CS bisa memilih "Ganti nominal saja" -- barang dan qty tetap, CS mengisi total benar di nota, satu izin ACC. Saat di-ACC, pembelian lama dibalik (uang laci, stok, jurnal) dan diganti pembelian dengan nominal benar; HPP bahannya dihitung ulang otomatis di jam sepi. OFF: hanya hapus lalu input ulang.',
+    defaultValue: true
+  },
+  {
+    key: TUGAS_BUKA_LACI_KEY,
+    label: 'Tugas Buka Laci (stok opname, uang laci, aset)',
+    description: 'ON: sesudah CS membuka laci, muncul Tugas Buka Laci yang wajib diselesaikan sebelum laci bisa dipakai jualan/belanja: stok opname semua bahan (daftar sudah terisi, CS tinggal mengisi qty nyata; selisih langsung jadi Penyesuaian Stok), hitung uang laci (selisih dengan saldo awal dicatat dan admin dikabari, tanpa jurnal otomatis), dan cek aset gerai (diatur Admin Gerai di tab Daily Task, isi awal Apron). Berlaku untuk skin dengan layar kasir biasa. OFF: laci langsung bisa dipakai seperti sebelumnya.',
     defaultValue: true
   },
   {

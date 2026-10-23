@@ -121,6 +121,12 @@ export const KAMUS = Object.freeze([
     tawaran: [buka('drawers'), jelas('setoran_cs', 'Cara setoran CS')], tanpaAksi: 'kas fisik diperiksa kasir pada layar Tutup Laci'
   },
   {
+    id: 'tugas_buka_laci', judul: 'Tugas Buka Laci (stok opname, uang laci, aset)',
+    kunci: ['tugas buka laci', 'stok opname', 'stock opname', 'opname buka laci', 'hitung uang laci', 'cek aset', 'apron', 'aset laci', 'transaksi ditahan'],
+    isi: 'Bila saklar Tugas Buka Laci aktif di kebijakan tenant, sesudah CS membuka laci langsung muncul tiga langkah wajib: 1) Stok opname -- semua Bahan dan Bahan Setengah Jadi sudah terdaftar, CS tinggal mengisi qty nyata hasil hitung; sebelum disimpan, bahan yang berselisih ditampilkan untuk dicek ulang, lalu selisihnya langsung jadi Penyesuaian Stok. 2) Hitung uang laci -- CS mengisi uang fisik di laci; saldo awal tetap dari sistem, selisihnya dicatat di laporan laci dan admin dikabari, tanpa jurnal otomatis. 3) Cek aset -- tiap aset dipilih Ada/Tidak ada (daftar diatur Admin Gerai di tab Daily Task jenis "Aset cek buka laci", isi awal Apron); aset yang tidak ada tetap boleh lanjut, admin dikabari. Sebelum ketiganya selesai, jualan/belanja/biaya di laci itu ditolak; tutup laci tetap bisa. Statusnya juga tampil di Daily Task Portal Staf. Una tidak mengisi hitungan untuk CS.',
+    tawaran: [jelas('laci', 'Apa itu laci kasir?')], tanpaAksi: 'hitungan fisik stok, uang, dan aset diisi CS sendiri di layar kasir'
+  },
+  {
     id: 'retur_barang', judul: 'Retur barang',
     kunci: ['retur', 'retur barang', 'barang dikembalikan', 'pengembalian barang', 'refund'],
     isi: 'Belum ada alur khusus Retur yang sekaligus mengembalikan uang dan stok. Jangan mencatat uang kembali dengan menebak. Salah transaksi penuh: periksa pembatalan lewat Hapus dan ACC Admin. Barang rusak atau selisih fisik: periksa Arus Barang atau Penyesuaian Stok. Pengembalian sebagian dan pembayaran kembali perlu diperiksa Admin/akuntan sesuai kejadian.',
@@ -367,6 +373,7 @@ export const KAMUS = Object.freeze([
     kunci: ['laci', 'drawer', 'buka laci', 'tutup laci', 'selisih', 'uang laci', 'kas laci'],
     isi: [
       'Laci = uang tunai di gerai. Kasir membuka laci di awal shift dan menutupnya di akhir; saldo awal melanjutkan kas akhir sebelumnya dikurangi setoran (laci pertama diisi manual).',
+      'Bila saklar Tugas Buka Laci aktif, sesudah laci dibuka CS wajib stok opname, hitung uang laci, dan cek aset dulu; sebelum selesai laci belum bisa dipakai jualan/belanja.',
       'Yang menggerakkan laci hanya pembayaran tunai — termasuk bagian tunai dari pembayaran campuran (tampil sebagai baris "Bagian tunai pembayaran campuran" di Penjualan Bayar Tunai). Selisih saat tutup langsung kelihatan di laporan laci.',
       'Una sengaja tidak menyentuh uang laci — itu urusan kasir.'
     ].join('\n'),

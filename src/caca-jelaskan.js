@@ -121,9 +121,15 @@ export const KAMUS = Object.freeze([
     tawaran: [buka('drawers'), jelas('setoran_cs', 'Cara setoran CS')], tanpaAksi: 'kas fisik diperiksa kasir pada layar Tutup Laci'
   },
   {
+    id: 'menu_pengaturan', judul: 'Menu Pengaturan Entity Admin',
+    kunci: ['menu pengaturan', 'pengaturan entity', 'cari pengaturan', 'letak pengaturan', 'pengaturan di mana', 'sub menu pengaturan'],
+    isi: 'Pengaturan Entity Admin dibagi sub-tombol di atasnya supaya tidak perlu menggulir panjang: Notifikasi & Beranda (alarm admin, isi Beranda Saya), Asisten Chat (nama dan saklar Una/Rika/Fina, suara), Karyawan & HR (Dana Apresiasi & Denda, aturan HR Fina, surat, rekrutmen), Sambungan & WA (sambungan Fina, kotak masuk WA), dan Pengaturan Gerai (tombol ke pengaturan tiap gerai, mis. Tugas Harian & Buka Laci dan Profil Toko). Sub-tombol terakhir yang dibuka diingat di perangkat ini.',
+    tawaran: [jelas('pengaturan_tugas_harian', 'Mengatur tugas harian & buka laci')], tanpaAksi: 'pilih sub-tombol di layar Pengaturan'
+  },
+  {
     id: 'pengaturan_tugas_harian', judul: 'Mengatur tugas harian, aset, dan Tugas Buka Laci',
     kunci: ['daily task', 'tugas harian', 'atur tugas harian', 'buat tugas harian', 'tambah tugas harian', 'tambah aset', 'atur aset', 'pengaturan buka laci', 'atur stok opname', 'barang stok opname'],
-    isi: 'Dibuat di Workspace Gerai -> Pengaturan -> Tugas Harian & Buka Laci (bukan dipaten di program). Bagian Tugas Buka Laci: centang langkah yang wajib saat CS buka laci (stok opname, hitung uang laci, cek aset; semua dimatikan = laci langsung dipakai), lalu pilih barang yang dihitung -- "Semua Bahan & Bahan Setengah Jadi" (barang baru ikut otomatis) atau "Pilih barang sendiri" dengan centang per barang -- dan tekan Simpan pengaturan buka laci; berlaku untuk laci yang dibuka berikutnya. Formulir Tambah tugas / aset: jenis "Tugas harian" muncul di Daily Task Portal Staf dan dicentang CS; jenis "Aset cek buka laci" (mis. apron) dicek CS Ada/Tidak ada saat buka laci. Tiap baris bisa diedit atau dinonaktifkan. Saklar induknya ada di kebijakan tenant milik Owner.',
+    isi: 'Dibuat di Workspace Gerai -> Pengaturan -> Tugas Harian & Buka Laci (bukan dipaten di program); dari Entity Admin buka Pengaturan -> Pengaturan Gerai lalu tombol Tugas Harian & Buka Laci gerainya. Bagian Tugas Buka Laci: centang langkah yang wajib saat CS buka laci (stok opname, hitung uang laci, cek aset; semua dimatikan = laci langsung dipakai), lalu pilih barang yang dihitung -- "Semua Bahan & Bahan Setengah Jadi" (barang baru ikut otomatis) atau "Pilih barang sendiri" dengan centang per barang -- dan tekan Simpan pengaturan buka laci; berlaku untuk laci yang dibuka berikutnya. Formulir Tambah tugas / aset: jenis "Tugas harian" muncul di Daily Task Portal Staf dan dicentang CS; jenis "Aset cek buka laci" (mis. apron) dicek CS Ada/Tidak ada saat buka laci. Tiap baris bisa diedit atau dinonaktifkan. Saklar induknya ada di kebijakan tenant milik Owner.',
     tawaran: [jelas('tugas_buka_laci', 'Apa itu Tugas Buka Laci?')], tanpaAksi: 'pengaturan tugas diisi Admin lewat formulir Pengaturan'
   },
   {

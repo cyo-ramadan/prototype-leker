@@ -10878,6 +10878,17 @@ export const INVENTARIS_FITUR_UNA = Object.freeze([
     "halaman": "public/entity-setoran-cs.js"
   },
   {
+    "id": "tombol:public/entity-settings-groups.js:data-settings-group-btn:{nilai}",
+    "jenis": "tombol",
+    "sumber": "public/entity-settings-groups.js",
+    "tombolId": null,
+    "aksi": "data-settings-group-btn",
+    "label": "{nilai}",
+    "rute": null,
+    "skin": null,
+    "halaman": "public/entity-settings-groups.js"
+  },
+  {
     "id": "tombol:public/entity-sinkron-akuntansi.js:label:Sinkronkan yang dicentang ({nilai})",
     "jenis": "tombol",
     "sumber": "public/entity-sinkron-akuntansi.js",

@@ -256,9 +256,19 @@ export const SUMBER_KAMUS = Object.freeze({
     ],
     "fitur": []
   },
+  "menu_pengaturan": {
+    "sumber": [
+      "public/entity-settings-groups.js",
+      "public/entity-admin.html"
+    ],
+    "fitur": [
+      "tombol:public/entity-settings-groups.js:data-settings-group-btn:{nilai}"
+    ]
+  },
   "pengaturan_tugas_harian": {
     "sumber": [
       "public/admin-daily-task.js",
+      "public/entity-settings-groups.js",
       "src/tugas-buka-laci.js",
       "src/staff-daily-task.js",
       "public/nav-groups.js"

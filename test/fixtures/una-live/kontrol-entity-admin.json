@@ -988,6 +988,14 @@
    "automationForbidden": false
   },
   {
+   "id": "tombol:public/entity-settings-groups.js:data-settings-group-btn:{nilai}",
+   "label": "{nilai}",
+   "sumber": "public/entity-settings-groups.js",
+   "class": "unsupported",
+   "reason": "Belum ada kemampuan; tahap awal hanya navigasi + Laporan",
+   "automationForbidden": false
+  },
+  {
    "id": "tombol:public/nav-groups.js:data-nav-group:‹ {nilai}",
    "label": "‹ {nilai}",
    "sumber": "public/nav-groups.js",

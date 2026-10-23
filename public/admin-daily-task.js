@@ -248,7 +248,17 @@
   el('openingPickMaterials')?.addEventListener('click', () => { chosenIds = new Set(opening?.materialProductIds || []); renderStockPicker(); });
   el('openingPickNone')?.addEventListener('click', () => { chosenIds = new Set(); renderStockPicker(); });
 
+  // Entity Admin -> Pengaturan -> Pengaturan Gerai menautkan ke /s/<gerai>/admin#tab=daily-task (atau
+  // #tab=store); di semua skin tab yang diminta langsung dibuka sekali setelah login.
+  let hashHandled = false;
+  function openRequestedTab() {
+    if (hashHandled) return;
+    hashHandled = true;
+    const requested = new URLSearchParams(location.hash.replace(/^#/, '')).get('tab');
+    if (requested) setTimeout(() => document.querySelector(`.admin-tab[data-tab="${CSS.escape(requested)}"]`)?.click(), 0);
+  }
+
   const gate = el('authGate');
-  if (gate) new MutationObserver(() => { if (gate.classList.contains('hidden')) load(); }).observe(gate, { attributes: true, attributeFilter: ['class'] });
-  if (gate?.classList.contains('hidden')) load();
+  if (gate) new MutationObserver(() => { if (gate.classList.contains('hidden')) { load(); openRequestedTab(); } }).observe(gate, { attributes: true, attributeFilter: ['class'] });
+  if (gate?.classList.contains('hidden')) { load(); openRequestedTab(); }
 })();

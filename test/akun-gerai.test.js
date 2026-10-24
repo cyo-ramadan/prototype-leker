@@ -76,6 +76,11 @@ test('peringatanAkun: presensi basi tetap dilaporkan walau akun nonaktif', () =>
   const kode = account => peringatanAkun({ schedule: [], status: 'ASLI', ...account }, { nowMs }).map(item => item.kode);
   assert.deepEqual(kode({ isActive: false, openSince: '2026-09-13T02:00:00.000Z' }), ['PRESENSI_BASI']);
   assert.deepEqual(kode({ isActive: true, employee: { name: 'X', status: 'ACTIVE' }, lastAttendanceAt: '2026-10-22T00:00:00Z', openSince: '2026-10-22T20:00:00Z' }), ['TANPA_JADWAL']);
+  const aktif = { isActive: true, employee: { name: 'X', status: 'ACTIVE' }, lastAttendanceAt: '2026-10-22T00:00:00Z' };
+  assert.deepEqual(kode({ ...aktif, status: 'FREELANCE' }), []);
+  assert.deepEqual(kode({ ...aktif, status: 'FREELANCE', schedule: [{ dayOfWeek: 1, isDayOff: false, shiftStart: '09:00', shiftEnd: '12:00' }] }), ['FREELANCE_BERJADWAL']);
+  assert.deepEqual(kode({ ...aktif, status: 'FREELANCE', schedule: [{ dayOfWeek: 2, isDayOff: true, shiftStart: '', shiftEnd: '' }] }), ['FREELANCE_BERJADWAL']);
+  assert.deepEqual(kode({ ...aktif, status: 'FREELANCE', schedule: [{ dayOfWeek: 3, isDayOff: false, shiftStart: '', shiftEnd: '' }] }), []);
 });
 
 test('GET akun-gerai: akun per gerai, jadwal, karyawan resign, presensi basi', async () => {

@@ -68,6 +68,13 @@ export function peringatanAkun(account, { nowMs }) {
   if (account.status === 'ASLI' && !days.length) {
     list.push({ kode: 'TANPA_JADWAL', teks: 'CS asli tanpa jadwal shift: tidak pernah dinilai Dana Apresiasi.' });
   }
+  // Bos Cyo, 2026-10-24: freelance tidak usah dijadwal. Hari "belum diatur" = presensi dibayar penuh; hari
+  // berjadwal/libur ikut gerbang jadwal (masuk sesudah jam pulang atau di hari libur = Rp0 sampai revisi
+  // di-ACC), dan Fina menganggapnya sibuk di jam jadwal sehingga tidak ditawari backup.
+  const hariFreelance = account.schedule.filter(row => row.isDayOff || (row.shiftStart && row.shiftEnd));
+  if (account.status === 'FREELANCE' && hariFreelance.length) {
+    list.push({ kode: 'FREELANCE_BERJADWAL', teks: `Freelance tapi punya jadwal (${hariFreelance.length} hari diatur): presensi di luar jadwal itu bisa bergaji Rp0 dan Fina menganggapnya sibuk. Kosongkan jadwalnya di Akun Kasir (biarkan "belum diatur", bukan libur).` });
+  }
   if (days.some(row => (timeOfDayToMinutes(row.shiftEnd) ?? 0) <= (timeOfDayToMinutes(row.shiftStart) ?? 0))) {
     list.push({ kode: 'LEWAT_MALAM', teks: 'Ada jadwal sampai/lewat tengah malam (pulang 00:00 atau lebih pagi dari masuk): shift itu tidak dinilai Dana Apresiasi.' });
   }

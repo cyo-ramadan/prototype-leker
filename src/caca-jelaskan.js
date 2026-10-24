@@ -845,7 +845,7 @@ export const KAMUS = Object.freeze([
     isi: [
       'Di Entity Admin → Karyawan → tombol "🔑 Kelola akun". Muncul akun kasir tiap gerai (seperti daftar karyawan): status Aktif/Nonaktif, CS asli/Freelance, karyawan tertaut, jadwal, dan presensi terakhir.',
       'Peta akun tiap gerai: baris jam 1-24 (jam 1 = 00:00-01:00), kolom Senin..Minggu dengan satu kolom kecil per akun aktif yang berjadwal. Kolom "Gerai aktif": hijau = ada akun, hijau tua = 2+ akun, merah muda = kosong di jam operasional (jam operasional diisi di Dana Apresiasi).',
-      'Peringatan per akun: presensi masih terbuka lebih dari 16 jam (bisa terbaca "sedang jaga" di Dana Apresiasi, juga untuk akun nonaktif), karyawan tertaut sudah nonaktif/resign, belum tertaut karyawan, CS asli tanpa jadwal, jadwal lewat tengah malam, tidak presensi 30 hari.',
+      'Peringatan per akun: presensi masih terbuka lebih dari 16 jam (bisa terbaca "sedang jaga" di Dana Apresiasi, juga untuk akun nonaktif), karyawan tertaut sudah nonaktif/resign, belum tertaut karyawan, CS asli tanpa jadwal, freelance yang punya jadwal (freelance sebaiknya tanpa jadwal: hari "belum diatur" = presensi dibayar penuh, bukan libur), jadwal lewat tengah malam, tidak presensi 30 hari.',
       'Tombol "Nonaktifkan"/"Aktifkan" mengubah akun (sesi login diputus), sama dengan Admin Gerai → Akun Kasir. Presensi yang masih terbuka tidak ikut ditutup; jadwal tetap diubah di Akun Kasir.'
     ].join('\n'),
     tawaran: [jelas('dana_apresiasi', 'Dana apresiasi & denda')], tanpaAksi: 'akun diaktifkan/nonaktifkan lewat tombol di Kelola akun'
